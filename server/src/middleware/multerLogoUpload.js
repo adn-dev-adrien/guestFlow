@@ -1,18 +1,17 @@
 /**
  * Multer middleware for the company-logo upload endpoint.
  *
- * - Disk storage in `server/uploads/`.
+ * - Disk storage in the instance's uploads directory (`server/uploads/` unless GUESTFLOW_UPLOADS_DIR).
  * - Filename normalized to `company-logo.<ext>` (defaults to `.png`).
  * - 2 MB size limit.
  * - Image MIME types only.
  */
 
-const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { isAllowedUpload, allowedExtension } = require('../utils/uploadSafety');
 
-const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+const uploadsDir = require('../utils/instancePaths').uploadsDir();
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({

@@ -109,6 +109,8 @@ function buildContext({ reservation, client, property, options = [], resources =
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
   const stayContent = buildStayContent({
     reservation, client, property, options, facts: stayFacts || {}, settings, lang, sequence: sequence || {},
+    // specs/guest-email-texts-made-simple.md rule 5 — the gate key already says how to get in.
+    gateAccess: Boolean(pluginContext && pluginContext.flags && pluginContext.flags.hasGateAccess),
   });
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never appear in client emails —
   // drop them up-front so every option-derived list/flag/complement line below ignores them.
@@ -381,7 +383,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       // Property
       propertyName:        safeStr(p.name),
       propertyWithArticle: formatPropertyWithArticle(p.name, p.nameArticle, L),
-      propertyAddress:     '', // see §4.4: column doesn't exist yet, ship as empty string.
+      // The arrival address, else the company's (specs/guest-email-texts-made-simple.md rule 3).
+      propertyAddress:     stayContent.vars.propertyAddress,
       // Financial
       finalPrice:      formatCurrency(Number(r.finalPrice || 0)),
       depositAmount:   formatCurrency(Number(r.depositAmount || 0)),
@@ -433,6 +436,9 @@ function buildContext({ reservation, client, property, options = [], resources =
     flags: {
       ...stayContent.flags,
       hasReservationNumber: safeStr(r.reservationNumber).trim().length > 0,
+      // specs/guest-email-texts-made-simple.md rule 8 — a sentence built on the phone is left out
+      // while the phone is empty, never printed with a hole.
+      hasCompanyPhone: safeStr(settings.companyPhone).trim().length > 0,
       hasCgvUrl: Boolean(buildCgvUrl(settings, termsVersion)),
       // An acompte actually collected — the cancellation notice only mentions a retained sum when
       // there is one (rule 27: an unpaid acompte keeps nothing).

@@ -54,7 +54,13 @@ export default function SecondFactorForm({ step, onCancel }) {
         <Typography variant="body2" color="text.secondary">{step.message}</Typography>
         {error && <Alert severity="error">{error}</Alert>}
         {info && <Alert severity="info">{info}</Alert>}
-        <OneTimeCodeField value={code} onChange={setCode} allowBackup autoFocus helperText="Un code de secours est aussi accepté." />
+        <OneTimeCodeField
+          value={code}
+          onChange={setCode}
+          allowBackup
+          primaryLinkLabel={step.method === 'email' ? 'Utiliser le code reçu par email' : 'Utiliser le code de l’application'}
+          autoFocus
+        />
         <FormControlLabel
           control={<Checkbox checked={trust} onChange={(e) => setTrust(e.target.checked)} />}
           label="Faire confiance à cet appareil 30 jours"

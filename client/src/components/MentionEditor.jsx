@@ -64,8 +64,8 @@ export default function MentionEditor({ value, onChange, options, error }) {
         fr={value.offerFr}
         en={value.offerEn}
         onChange={(lang, text) => set({ [lang === 'fr' ? 'offerFr' : 'offerEn']: text })}
-        tokens={['price']}
-        flags={['hasPrice']}
+        tokens={[{ name: 'price', label: 'Prix' }]}
+        flags={[{ name: 'hasPrice', label: 'Si prix' }]}
         errorFr={err('offerFr')}
         errorEn={err('offerEn')}
       />

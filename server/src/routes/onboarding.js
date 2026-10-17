@@ -14,6 +14,7 @@ router.get('/', controller.get);
 router.put('/company', controller.saveCompany);
 router.put('/property', controller.saveProperty);
 router.put('/plugins', controller.savePlugins);
+router.put('/emails', controller.saveEmails);
 router.post('/done', controller.done);
 
 module.exports = router;

@@ -106,9 +106,9 @@ export default function SupportAccessPage() {
                     <TableBody>
                       {log.entries.map((e, i) => (
                         <TableRow key={`${e.at}-${i}`}>
-                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{e.atLabel}</TableCell>
-                          <TableCell sx={{ overflowWrap: 'anywhere' }}>{e.label}</TableCell>
-                          <TableCell>{e.summary || '—'}</TableCell>
+                          <TableCell sx={{ whiteSpace: { xs: 'normal', sm: 'nowrap' }, width: { xs: 96, sm: 'auto' } }}>{e.atLabel}</TableCell>
+                          <TableCell sx={{ overflowWrap: 'break-word', hyphens: 'auto' }}>{e.label}</TableCell>
+                          <TableCell>{e.outcomeLabel || '—'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

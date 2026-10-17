@@ -10,12 +10,15 @@ const path = require('path');
 const { GF_SERVER } = require('./gf');
 
 function createFirstAdminRunner({ serverDir = GF_SERVER } = {}) {
-  return function runFirstAdmin({ dbPath, email, name }) {
+  // `release` — the server directory of the instance's own version (specs/hosting-h1-fleet-runtime.md
+  // H-D4): the script must be the one of the code that runs the database.
+  return function runFirstAdmin({ dbPath, email, name, serverDir: release }) {
+    const dir = release || serverDir;
     return new Promise((resolve, reject) => {
       execFile(
         process.execPath,
-        [path.join(serverDir, 'scripts', 'create-first-admin.js'), '--email', email, '--name', name || ''],
-        { cwd: serverDir, env: { PATH: process.env.PATH, DB_PATH: dbPath }, timeout: 60000 },
+        [path.join(dir, 'scripts', 'create-first-admin.js'), '--email', email, '--name', name || ''],
+        { cwd: dir, env: { PATH: process.env.PATH, DB_PATH: dbPath }, timeout: 60000 },
         (err, stdout, stderr) => {
           if (err) return reject(new Error((stderr || err.message).trim().split('\n').pop()));
           try {

@@ -160,3 +160,61 @@ test('the support account never receives a reset link', async () => {
   const r = h.passwordReset.request({ email: 'support@guestflow.invalid', ip: '1.1.1.1' });
   assert.equal(await r.delivery, false);
 });
+
+test('rule 5 — the answer is ready before the address is even looked up', async () => {
+  const h = setup();
+  h.addUser('marie@domaine-ombre.fr');
+  const deferred = [];
+  const lookups = [];
+  const users = { ...h.users, findByEmail: (e) => { lookups.push(e); return h.users.findByEmail(e); } };
+  const { createPasswordResetController } = require('../controllers/passwordResetController');
+  const c = createPasswordResetController({ users, model: h.passwordResetModel, mailer: h.mailer, now: h.now, log: () => {}, defer: (fn) => deferred.push(fn) });
+  const r = c.request({ email: 'marie@domaine-ombre.fr', ip: '1.1.1.1' });
+  assert.equal(r.message, 'Si un compte existe, un lien vient d’être envoyé.');
+  assert.deepEqual(lookups, [], 'nothing looked up yet');
+  assert.equal(h.db.prepare('SELECT COUNT(*) AS n FROM password_reset_tokens').get().n, 0, 'nothing written yet');
+  deferred.forEach((fn) => fn());
+  assert.equal(await r.delivery, true);
+  assert.deepEqual(lookups, ['marie@domaine-ombre.fr']);
+});
+
+test('rule 3 — a caller over the IP limit does not use up the addresses it names', async () => {
+  const h = setup();
+  h.addUser('marie@domaine-ombre.fr');
+  for (let i = 0; i < 20; i += 1) h.passwordReset.request({ email: `x${i}@example.com`, ip: '6.6.6.6' });
+  for (let i = 0; i < 5; i += 1) assert.equal(await h.passwordReset.request({ email: 'marie@domaine-ombre.fr', ip: '6.6.6.6' }).delivery, false);
+  for (let i = 0; i < 3; i += 1) assert.equal(await h.passwordReset.request({ email: 'marie@domaine-ombre.fr', ip: `9.9.9.${i}` }).delivery, true);
+});
+
+test('rule 3 — the counters stay bounded: expired keys are swept and the oldest key gives way past the cap', () => {
+  const { createWindowCounter } = require('../utils/rateLimiter');
+  let t = 0;
+  const counter = createWindowCounter({ windowMs: 1000, max: 2, now: () => t, maxKeys: 3, sweepMs: 0 });
+  ['a', 'b', 'c'].forEach((k) => counter.hit(k));
+  assert.equal(counter.size(), 3);
+  counter.hit('d');
+  assert.equal(counter.size(), 3, 'the cap holds');
+  t = 2000;
+  counter.sweep();
+  assert.equal(counter.size(), 0, 'expired keys are swept');
+  for (let i = 0; i < 50; i += 1) counter.hit('flood');
+  assert.equal(counter.hit('flood'), false, 'still over the limit');
+  t = 3001;
+  assert.equal(counter.hit('flood'), true, 'and free again once the window has passed');
+  const timed = createWindowCounter({ windowMs: 1000, max: 1 });
+  timed.stop();
+});
+
+test('rule 3 — past the cap, the key hit least recently gives way, never one in active use', () => {
+  const { createWindowCounter } = require('../utils/rateLimiter');
+  let t = 0;
+  const counter = createWindowCounter({ windowMs: 10000, max: 1, now: () => t, maxKeys: 2, sweepMs: 0 });
+  counter.hit('attacker');
+  t = 1;
+  counter.hit('quiet');
+  t = 2;
+  assert.equal(counter.hit('attacker'), false, 'the attacker is over its limit');
+  t = 3;
+  counter.hit('newcomer');
+  assert.equal(counter.hit('attacker'), false, 'the attacker\'s counter survived the eviction');
+});

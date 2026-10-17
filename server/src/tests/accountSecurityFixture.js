@@ -121,6 +121,34 @@ function keyPair() {
   return { publicKey: publicKey.export({ format: 'der', type: 'spki' }).toString('base64'), privateKey };
 }
 
+// The console's request written next to the licence, read by an instance whose slug is
+// `domaine-ombre`, and an administrator to answer it (rules 12-17).
+function withSupportRequest({ reason = 'Vérifier la synchronisation Booking', requestId = 'req-1', slug = 'domaine-ombre', keys = keyPair() } = {}) {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const supportTokens = require('../utils/supportAccess');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-support-'));
+  const write = (r) => fs.writeFileSync(path.join(dir, supportTokens.REQUEST_FILE), supportTokens.signRequest({ slug, requestedAt: '2026-10-08T09:00:00.000Z', ...r }, keys.privateKey));
+  write({ reason, requestId });
+  const readRequest = () => supportTokens.readRequest({ dataDir: dir, publicKey: keys.publicKey, slug: 'domaine-ombre' });
+  const h = setup({ publicKey: keys.publicKey, readRequest });
+  const marie = h.addUser('marie@domaine-ombre.fr', { firstName: 'Marie' });
+  return { ...h, keys, dir, write, marie };
+}
+
+// A sign-in link the console would mint for `accessId`.
+function supportLink(h, accessId, { jti = crypto.randomUUID(), slug = 'domaine-ombre', at = h.now() } = {}) {
+  return require('../utils/supportAccess').signLink({ slug, accessId, jti, now: at }, h.keys.privateKey);
+}
+
+// Marie accepts the pending request → its id.
+function openSupportAccess(h, hours) {
+  const { pending } = h.supportAccess.banner(h.marie);
+  h.supportAccess.decide(h.marie, pending.id, { decision: 'accept', hours });
+  return pending.id;
+}
+
 const totp = require('../utils/totp');
 
 const codeAt = (secret, date) => totp.totp(totp.base32Decode(secret), date);
@@ -133,4 +161,7 @@ async function enableTotp(h, user, password = 'correct horse battery') {
   return { secret, backupCodes };
 }
 
-module.exports = { makeDb, makeClock, makeMailer, fakeCipher, setup, fakeRes, fakeSession, keyPair, codeAt, enableTotp };
+module.exports = {
+  makeDb, makeClock, makeMailer, fakeCipher, setup, fakeRes, fakeSession, keyPair, codeAt, enableTotp,
+  withSupportRequest, supportLink, openSupportAccess,
+};

@@ -7,10 +7,15 @@
  * - A signed, 2-minute, single-use link opens a session as « Support GuestFlow », only while the
  *   access is open (rule 14). The session ends at the first request after the access closed.
  * - Paramètres › Accès du support lists the accesses and their logs, read-only (rule 15).
- * - Without `GUESTFLOW_LICENCE_PUBLIC_KEY` none of this exists (rule 17).
+ * - Without `GUESTFLOW_LICENCE_PUBLIC_KEY` none of this exists (rule 17). With it, the instance's
+ *   slug is required: a request or a link issued for another instance, or read by an instance that
+ *   cannot tell its own slug, is refused (rule 22).
+ * - A support session can never decide or revoke an access, whatever path it came by (rule 15).
+ * - The log is worded for the customer here, never as a method and a path (rule 20).
  */
 
 const supportAccess = require('../utils/supportAccess');
+const { describe } = require('../utils/supportLogLabels');
 const { httpError } = require('../utils/httpError');
 const { ADMIN, userHasRole } = require('../constants/roles');
 
@@ -29,6 +34,7 @@ function createSupportAccessController({
   now = () => new Date(),
 }) {
   const nowIso = () => now().toISOString();
+  const slugOf = typeof slug === 'function' ? slug : () => slug;
   const enabled = () => Boolean(publicKey);
 
   function assertEnabled() {
@@ -61,8 +67,14 @@ function createSupportAccessController({
     };
   }
 
+  // Defence in depth behind middleware/supportAudit.js: the support never consents for the customer.
+  function assertCustomer(user) {
+    if (!user || user.isSupport) throw httpError(403, 'SUPPORT_FORBIDDEN', 'Action réservée au compte du client.');
+  }
+
   function decide(user, id, { decision, hours } = {}) {
     assertEnabled();
+    assertCustomer(user);
     const row = model.get(id);
     if (!row) throw httpError(404, 'NOT_FOUND', 'Demande introuvable.');
     if (decision === 'refuse') {
@@ -79,6 +91,7 @@ function createSupportAccessController({
 
   function revoke(user, id) {
     assertEnabled();
+    assertCustomer(user);
     const row = model.get(id);
     if (!row || stateOf(row).state !== 'open') throw httpError(409, 'NOT_OPEN', 'Aucun accès ouvert à révoquer.');
     model.revoke(id, user.id, nowIso());
@@ -112,8 +125,7 @@ function createSupportAccessController({
       entries: model.logs(id).map((l) => ({
         at: l.at,
         atLabel: parisDateTime(l.at),
-        label: l.method === 'PAGE' ? `Page ouverte : ${l.path}` : l.method === 'LOGIN' ? 'Connexion du support' : `${l.method} ${l.path}`,
-        summary: l.summary,
+        ...describe(l),
       })),
     };
   }
@@ -123,14 +135,14 @@ function createSupportAccessController({
     assertEnabled();
     let payload;
     try {
-      payload = supportAccess.verifyLink(String(token || ''), { publicKey, slug, now: now() });
+      payload = supportAccess.verifyLink(String(token || ''), { publicKey, slug: slugOf(), now: now() });
     } catch {
       throw httpError(401, 'INVALID_LINK', 'Lien support invalide ou expiré.');
     }
     const access = model.get(payload.accessId);
     if (!access || stateOf(access).state !== 'open') throw httpError(401, 'INVALID_LINK', 'Lien support invalide ou expiré.');
     if (!model.useLink(payload.jti, access.id, nowIso())) throw httpError(401, 'INVALID_LINK', 'Lien support invalide ou expiré.');
-    const user = users.findByEmail(supportAccess.SUPPORT_USER_EMAIL);
+    const user = users.findSupportAccount();
     if (!user) throw httpError(401, 'INVALID_LINK', 'Lien support invalide ou expiré.');
     model.addLog(access.id, { at: nowIso(), method: 'LOGIN', path: '/', summary: '' });
     return { user, accessId: access.id, expiresAt: access.expiresAt };

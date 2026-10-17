@@ -290,8 +290,6 @@ const api = {
   getPlatformSettings: () => request('/platforms/settings'),
   savePlatformSettings: (platforms) => request('/platforms/settings', { method: 'PUT', body: { platforms } }),
   // J-7 hooks per property, edited from the J-7 template (rule 17c).
-  getPropertyEmailHooks: () => request('/properties/email-hooks'),
-  savePropertyEmailHooks: (hooks) => request('/properties/email-hooks', { method: 'PUT', body: { hooks } }),
   getReservation: (id) => request(`/reservations/${id}`),
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
@@ -634,25 +632,44 @@ const api = {
 
   // Email automation (specs/email-automation.md)
   getEmailTemplates:        () => request('/email-templates'),
-  getEmailPluginVariables:  () => request('/email-templates/plugin-variables'),
-  // specs/plugins-phase-p-productisation.md §4.3 — the wording of the guest emails as data.
-  getStayTexts: (propertyId) => request(`/stay-texts${propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : ''}`),
-  saveStayText: (key, body) => request(`/stay-texts/${encodeURIComponent(key)}`, { method: 'PUT', body }),
-  resetStayText: (key, { propertyId, lang } = {}) => {
-    const q = new URLSearchParams();
-    if (propertyId) q.set('propertyId', String(propertyId));
-    if (lang) q.set('lang', lang);
-    const qs = q.toString();
-    return request(`/stay-texts/${encodeURIComponent(key)}${qs ? `?${qs}` : ''}`, { method: 'DELETE' });
-  },
   getEmailMentions: () => request('/email-mentions'),
   createEmailMention: (body) => request('/email-mentions', { method: 'POST', body }),
   updateEmailMention: (id, body) => request(`/email-mentions/${id}`, { method: 'PUT', body }),
   deleteEmailMention: (id) => request(`/email-mentions/${id}`, { method: 'DELETE' }),
   reorderEmailMentions: (ids) => request('/email-mentions/order', { method: 'PUT', body: { ids } }),
   saveConfirmationOrder: (items) => request('/email-mentions/confirmation-order', { method: 'PUT', body: { items } }),
-  previewEmailMentions: (body) => request('/email-mentions/preview', { method: 'POST', body }),
+  // specs/guest-email-texts-made-simple.md — « Textes des emails », one page, one file.
+  getEmailTexts: (propertyId) => request(`/email-texts${propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : ''}`),
+  saveEmailTexts: (changes) => request('/email-texts', { method: 'PUT', body: { changes } }),
+  confirmEmailText: (key) => request('/email-texts/confirm', { method: 'POST', body: { key } }),
+  translateEmailTexts: () => request('/email-texts/translate', { method: 'POST' }),
+  importEmailTexts: (csv, { confirm = false } = {}) => request(
+    `/email-texts/import${confirm ? '?confirm=true' : ''}`,
+    { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv },
+  ),
+  downloadEmailTexts: async () => {
+    const res = await fetch(`${API}/email-texts/export`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Téléchargement impossible.');
+    const blob = await res.blob();
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? match[1] : 'textes-emails.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return a.download;
+  },
+  getEmailReadiness: () => request('/email-readiness'),
+  previewEmailDraft: (body) => request('/emails/preview', { method: 'POST', body }),
+  sendTestEmail: (body) => request('/emails/test', { method: 'POST', body }),
+  getEmailTemplateVariables: (id) => request(`/email-templates/${id || 'new'}/variables`),
+  getPropertyArrivalFacts: (id) => request(`/properties/${id}/arrival-facts`),
+  savePropertyArrivalFacts: (id, body) => request(`/properties/${id}/arrival-facts`, { method: 'PUT', body }),
   // specs/plugins-phase-p-productisation.md §3.D — the start assistant.
+  saveOnboardingEmails: (body) => request('/onboarding/emails', { method: 'PUT', body }),
   getOnboarding: () => request('/onboarding'),
   saveOnboardingCompany: (body) => request('/onboarding/company', { method: 'PUT', body }),
   saveOnboardingProperty: (body) => request('/onboarding/property', { method: 'PUT', body }),

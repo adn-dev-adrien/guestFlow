@@ -29,7 +29,7 @@ import useDirtyFormGuard from './useDirtyFormGuard';
 // Fields the server computes or writes through another endpoint: never sent back.
 const READ_ONLY = {
   company: ['logoPath'],
-  smtp: ['passwordSet', 'derived', 'passwordDraft'],
+  smtp: ['passwordSet', 'derived', 'passwordDraft', 'platform'],
   notifications: ['derivedRecipient'],
   emails: ['sequenceStartDate'],
 };

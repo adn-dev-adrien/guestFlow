@@ -15,7 +15,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getEmailTemplates: vi.fn(),
-    getEmailPluginVariables: vi.fn().mockResolvedValue({ variables: [], conditions: [] }),
+    getEmailTemplateVariables: vi.fn(),
     createEmailTemplate: vi.fn(),
     updateEmailTemplate: vi.fn(),
     deleteEmailTemplate: vi.fn(),
@@ -71,7 +71,7 @@ beforeEach(() => {
   Object.values(api).forEach((m) => m?.mockReset?.());
   navigate.mockReset();
   api.getEmailTemplates.mockResolvedValue([REGISTRY_ROW, CUSTOM_ROW]);
-  api.getEmailPluginVariables.mockResolvedValue({ variables: [], conditions: [] });
+  api.getEmailTemplateVariables.mockResolvedValue({ variables: [{ name: 'clientFirstName', label: 'Prénom du voyageur' }, { name: 'propertyName', label: 'Logement' }], conditions: [{ name: 'hasBedLinenOption', label: 'Si linge de lit' }] });
   api.getPendingEmails.mockResolvedValue([]); // queue empty by default
   api.previewEmail.mockResolvedValue({ to: 'jane@s.com', subject: 'Sujet', body: 'Corps', missingVariables: [] });
 });
@@ -108,17 +108,17 @@ test('opening the create dialog yields an empty form + disabled submit', async (
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });
 
+// specs/guest-email-texts-made-simple.md rule 10 — the chips are the server's, labelled.
 test('the variable + condition chips for the picker are rendered in the dialog', async () => {
   const user = userEvent.setup();
   renderPage();
   await screen.findByText('Rappel arrivée — J-7');
   await user.click(screen.getByRole('button', { name: 'Nouveau modèle' }));
   await screen.findByRole('heading', { name: 'Nouveau modèle' });
-  expect(screen.getByText('Prénom client')).toBeInTheDocument();
+  expect(api.getEmailTemplateVariables).toHaveBeenCalledWith(null);
+  expect(await screen.findByText('Prénom du voyageur')).toBeInTheDocument();
   expect(screen.getByText('Logement')).toBeInTheDocument();
-  expect(screen.getByText('Liste options')).toBeInTheDocument();
   expect(screen.getByText('Si linge de lit')).toBeInTheDocument();
-  expect(screen.getByText('Si caution non encaissée')).toBeInTheDocument();
   expect(screen.getByText('Fin si')).toBeInTheDocument();
 });
 

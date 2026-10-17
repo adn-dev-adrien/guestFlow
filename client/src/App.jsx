@@ -674,7 +674,7 @@ function AppShell() {
 
       {/* A support session's red bar (specs/hosting-h2-account-security.md rule 16). */}
       <SupportSessionBar />
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, pb: user && user.supportSession ? `${SUPPORT_BAR_HEIGHT + 24}px` : undefined, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, pb: user && user.supportSession ? `calc(${SUPPORT_BAR_HEIGHT + 24}px + env(safe-area-inset-bottom, 0px))` : undefined, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
             address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />

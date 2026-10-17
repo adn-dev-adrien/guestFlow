@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.D rules 20–23 — the start assistant: four steps, the
+// specs/plugins-phase-p-productisation.md §3.D rules 20–23 — the start assistant: five steps, the
 // server's refusal kept on its step, a failed plugin named, « Plus tard », the mobile layout.
 import React from 'react';
 import { vi } from 'vitest';
@@ -36,14 +36,14 @@ const next = () => fireEvent.click(screen.getByRole('button', { name: 'Suivant' 
 test('a refusal keeps the step open with its messages; a valid step moves on', async () => {
   api.saveOnboardingCompany.mockRejectedValueOnce(Object.assign(new Error('x'), { errors: { name: 'Nom obligatoire', email: 'Adresse obligatoire' } }));
   renderPage();
-  await screen.findByText('Étape 1 sur 4');
+  await screen.findByText('Étape 1 sur 5');
   next();
   expect(await screen.findByText('Nom obligatoire')).toBeInTheDocument();
-  expect(screen.getByText('Étape 1 sur 4')).toBeInTheDocument();
+  expect(screen.getByText('Étape 1 sur 5')).toBeInTheDocument();
   api.saveOnboardingCompany.mockResolvedValueOnce({});
   fireEvent.change(screen.getByLabelText(/Nom de l’entreprise/), { target: { value: 'Les Tilleuls' } });
   next();
-  expect(await screen.findByText('Étape 2 sur 4')).toBeInTheDocument();
+  expect(await screen.findByText('Étape 2 sur 5')).toBeInTheDocument();
 });
 
 test('step 2: the capacity follows the beds until typed; step 3: the recommended plugins are ticked, a failure is named', async () => {
@@ -51,15 +51,15 @@ test('step 2: the capacity follows the beds until typed; step 3: the recommended
   api.saveOnboardingProperty.mockResolvedValue({ id: 1 });
   api.saveOnboardingPlugins.mockResolvedValue({ results: [{ id: 'website-booking', ok: false, error: 'PLUGIN_MIGRATION_FAILED' }, { id: 'sas', ok: true }] });
   renderPage();
-  await screen.findByText('Étape 1 sur 4');
+  await screen.findByText('Étape 1 sur 5');
   next();
-  await screen.findByText('Étape 2 sur 4');
+  await screen.findByText('Étape 2 sur 5');
   fireEvent.change(screen.getByLabelText('Lits doubles'), { target: { value: '2' } });
   expect(screen.getByLabelText('Capacité')).toHaveValue(4);
   fireEvent.change(screen.getByLabelText('Lits simples'), { target: { value: '1' } });
   expect(screen.getByLabelText('Capacité')).toHaveValue(5);
   next();
-  await screen.findByText('Étape 3 sur 4');
+  await screen.findByText('Étape 3 sur 5');
   expect(api.saveOnboardingProperty.mock.calls[0][0]).toMatchObject({ doubleBeds: '2', singleBeds: '1', maxGuests: '5' });
   expect(screen.getByRole('checkbox', { name: /Réservation depuis le site/ })).toBeChecked();
   expect(screen.getByRole('checkbox', { name: /Assurance annulation Neat/ })).toBeDisabled();
@@ -67,12 +67,12 @@ test('step 2: the capacity follows the beds until typed; step 3: the recommended
   next();
   expect(await screen.findByText('Non activé : Réservation depuis le site')).toBeInTheDocument();
   expect(api.saveOnboardingPlugins).toHaveBeenCalledWith(['website-booking', 'sas']);
-  expect(screen.getByText('Étape 3 sur 4')).toBeInTheDocument();
+  expect(screen.getByText('Étape 3 sur 5')).toBeInTheDocument();
 });
 
 test('« Plus tard » closes the assistant', async () => {
   renderPage();
-  await screen.findByText('Étape 1 sur 4');
+  await screen.findByText('Étape 1 sur 5');
   fireEvent.click(screen.getByRole('button', { name: 'Plus tard' }));
   await waitFor(() => expect(api.completeOnboarding).toHaveBeenCalled());
   expect(refresh).toHaveBeenCalled();
@@ -81,7 +81,7 @@ test('« Plus tard » closes the assistant', async () => {
 test('mobile: the primary action is full width', async () => {
   window.innerWidth = 375;
   renderPage();
-  await screen.findByText('Étape 1 sur 4');
+  await screen.findByText('Étape 1 sur 5');
   const button = screen.getByRole('button', { name: 'Suivant' });
   expect(button.className).toMatch(/MuiButton/);
   expect(getComputedStyle(button).minHeight).toBe('44px');

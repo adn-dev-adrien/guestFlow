@@ -104,6 +104,17 @@ const CATALOGUE = Object.freeze([
   { key: 'gift.fallback', email: MAILS.SEASON, label: 'Bons cadeaux — sans prix', tokens: [], flags: [],
     fr: 'une ou plusieurs nuits chez nous',
     en: 'one or more nights with us' },
+  // specs/guest-email-texts-made-simple.md rule 3 — the J-2's arrival paragraphs, composed from the
+  // property's arrival facts; each is omitted while its facts are empty.
+  { key: 'addressParagraph', email: MAILS.J2, label: 'Arrivée — adresse', tokens: ['address', 'mapUrl'], flags: [],
+    fr: '- Adresse : {{address}}{{#if mapUrl}}\n  Itinéraire : {{mapUrl}}{{/if}}',
+    en: '- Address: {{address}}{{#if mapUrl}}\n  Directions: {{mapUrl}}{{/if}}' },
+  { key: 'accessParagraph', email: MAILS.J2, label: 'Arrivée — accès', tokens: ['access', 'code'], flags: [],
+    fr: '{{#if access}}- {{access}}\n{{/if}}{{#if code}}- Code de la boîte à clés : {{code}}{{/if}}',
+    en: '{{#if access}}- {{access}}\n{{/if}}{{#if code}}- Key box code: {{code}}{{/if}}' },
+  { key: 'wifiParagraph', email: MAILS.J2, label: 'Arrivée — Wi-Fi', tokens: ['wifiName', 'wifiPassword'], flags: [],
+    fr: '- Wi-Fi : {{wifiName}}{{#if wifiPassword}}, mot de passe : {{wifiPassword}}{{/if}}',
+    en: '- Wi-Fi: {{wifiName}}{{#if wifiPassword}}, password: {{wifiPassword}}{{/if}}' },
 ]);
 /* eslint-enable max-len */
 

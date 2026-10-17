@@ -3,8 +3,9 @@
  * (specs/control-plane-plans-and-access.md §4, Q6). Only pure Node modules are shared: the licence
  * format (so the console signs exactly what the instance verifies), the password hash and the
  * plugin catalogue, the TOTP and backup-code helpers (specs/hosting-h2-account-security.md rule 11),
- * the support-access tokens (rule 14) — and, since C2b, the whole Qonto module with its settings handlers (rule 32),
- * whose modules load the instance's own settings only when none are passed.
+ * the support-access tokens (rule 14) — and, since C2b, the whole Qonto module with its settings
+ * handlers (rule 32), whose modules load the instance's own settings only when none are passed — and,
+ * since H1, the release download and verification of the self-update.
  */
 
 const path = require('path');
@@ -29,4 +30,10 @@ module.exports = {
   qontoService: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoService')),
   qontoWebhookSignature: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoWebhookSignature')),
   qontoSettingsController: require(path.join(GF_ONLINE_PAYMENT, 'qontoSettingsController')),
+  // specs/hosting-h1-fleet-runtime.md rule 8 — a release is fetched and checked by the same code the
+  // self-update uses: allowed hosts, SHA256SUMS, archive members, release layout, npm ci.
+  releaseClient: require(path.join(GF_SERVER, 'src', 'utils', 'releaseClient')),
+  updateStaging: require(path.join(GF_SERVER, 'src', 'utils', 'updateStaging')),
+  semver: require(path.join(GF_SERVER, 'src', 'utils', 'semver')),
+  proxySecret: require(path.join(GF_SERVER, 'src', 'utils', 'proxySecret')),
 };

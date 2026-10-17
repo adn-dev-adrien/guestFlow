@@ -13,7 +13,8 @@ const crypto = require('crypto');
  * (`.env.*`) and must never be committed.
  */
 
-const ENV_PATH = path.join(__dirname, '..', '..', '.env.local');
+// GUESTFLOW_LOCAL_ENV moves it out of a release shared by several instances (specs/hosting-h1-fleet-runtime.md H-D4).
+const ENV_PATH = require('./instancePaths').localEnvPath();
 
 function parseEnv(content) {
   const out = {};

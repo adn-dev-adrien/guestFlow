@@ -21,6 +21,7 @@ import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
 import NewReservationsAlert from '../components/NewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
+import EmailReadinessAlert from '../components/EmailReadinessAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
 import TwoFactorNudgeCard from '../components/TwoFactorNudgeCard';
 import Slot from '../plugins/sdk/Slot';
@@ -398,6 +399,9 @@ export default function Dashboard() {
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
           <EmailPendingAlert />
+          {/* Emails that would leave incomplete before an arrival (specs/guest-email-texts-made-simple.md
+              rule 7). Renders nothing when nothing concerns a stay within 14 days. */}
+          <EmailReadinessAlert />
         </>
       )}
 

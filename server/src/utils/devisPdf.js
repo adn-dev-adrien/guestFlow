@@ -13,6 +13,7 @@ const {
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
+const { uploadsDir } = require("./instancePaths");
 
 // specs/devis-pdf-total-parity.md §3.2 rules 6–10 — single source of truth for the tax + grand-total
 // numbers the PDF renders. Two principles, in order:
@@ -163,7 +164,7 @@ function generateDevisPdf(full, settings, quote) {
   // ── Logo (zone blanche au-dessus de la bande) ────────────────────────────
   const LOGO_H = 60;
   const LOGO_W = 100;
-  const HAS_LOGO = settings.companyLogoPath && fs.existsSync(path.join(__dirname, '..', '..', 'uploads', path.basename(settings.companyLogoPath)));
+  const HAS_LOGO = settings.companyLogoPath && fs.existsSync(path.join(uploadsDir(), path.basename(settings.companyLogoPath)));
   const BAND_TOP = 40;
   const BAND_HEIGHT = 52;
 
@@ -191,7 +192,7 @@ function generateDevisPdf(full, settings, quote) {
   const EMETTEUR_WIDTH = HAS_LOGO ? PAGE_W * 0.55 - LOGO_W - 12 : PAGE_W * 0.55;
 
   if (HAS_LOGO) {
-    const logoAbsPath = path.join(__dirname, '..', '..', 'uploads', path.basename(settings.companyLogoPath));
+    const logoAbsPath = path.join(uploadsDir(), path.basename(settings.companyLogoPath));
     doc.image(logoAbsPath, LEFT, INFO_TOP, { height: LOGO_H, width: LOGO_W, fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
   }
 

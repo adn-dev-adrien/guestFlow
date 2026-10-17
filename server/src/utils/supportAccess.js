@@ -45,13 +45,15 @@ function signLink({ slug, accessId, jti, now }, privateKey) {
   return sign({ typ: 'support-login', slug, accessId, jti, exp: new Date(now.getTime() + LINK_TTL_MS).toISOString() }, privateKey);
 }
 
-// → payload, or throws with a short reason. `slug` is checked only when the instance knows its own.
+// → payload, or throws with a short reason. The instance's own slug is required (specs/hosting-h2-
+// account-security.md rule 22): an instance that cannot tell it accepts nothing.
 function verifyToken(token, { publicKey, typ, slug = null }) {
   const key = toKeyObject(publicKey);
   if (!key) throw new Error('no verification key');
+  if (!slug) throw new Error('instance slug unknown');
   const payload = verifyJws(token, key);
   if (payload.typ !== typ) throw new Error('wrong token type');
-  if (slug && payload.slug !== slug) throw new Error('issued for another instance');
+  if (payload.slug !== slug) throw new Error('issued for another instance');
   return payload;
 }
 

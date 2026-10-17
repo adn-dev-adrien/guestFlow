@@ -21,8 +21,7 @@ test('rule 21 — slug format, length, reserved names, and uniqueness including 
   const c = await ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
   await ctx.controllers.customers.deprovision(c.id, { confirmSlug: 'aulnes' }, 'op');
   assert.match(ctx.controllers.customers.preview(NEW_CUSTOMER).errors.slug, /déjà utilisée/, 'an archived slug stays taken');
-  await ctx.controllers.customers.stepAction(c.id, 'deprov-stop', 'done', 'op');
-  ctx.controllers.customers.eraseNow(c.id, { confirmSlug: 'aulnes' }, 'op');
+  await ctx.controllers.customers.eraseNow(c.id, { confirmSlug: 'aulnes' }, 'op');
   assert.equal(ctx.controllers.customers.preview(NEW_CUSTOMER).errors.slug, undefined, 'free again once erased');
 });
 
@@ -40,13 +39,14 @@ test('rule 7 — the preview computes the end date and price server-side; errors
   assert.ok(bad.errors.contactEmail && bad.errors.endsAt);
 });
 
-test('rule 7 — onboarding: licence and first admin run, the hosting steps wait for the operator', async () => {
-  const { ctx, root, mailer, firstAdminCalls } = makeContext();
-  makeInstance(root, 'aulnes');
+test('rule 7 — onboarding: every step runs by itself since the hosting, the licence and the first admin included', async () => {
+  const { ctx, mailer, firstAdminCalls } = makeContext();
   const v = await ctx.controllers.customers.create(NEW_CUSTOMER, 'adrien@adn-dev.fr');
   assert.deepEqual(v.steps.map((s) => [s.step, s.status, s.action]), [
-    ['licence', 'ok', null], ['instance', 'todo', 'done'], ['process', 'todo', 'done'], ['route', 'todo', 'done'], ['admin', 'ok', null],
+    ['dir', 'ok', null], ['secrets', 'ok', null], ['port', 'ok', null], ['licence', 'ok', null], ['database', 'ok', null],
+    ['admin', 'ok', null], ['process', 'ok', null], ['route', 'ok', null], ['health', 'ok', null], ['backup', 'ok', null],
   ]);
+  assert.ok(v.steps.every((s) => s.kind === 'auto'), 'no step is ticked by hand any more');
   assert.equal(firstAdminCalls[0].email, 'claire@aulnes.fr');
   assert.match(firstAdminCalls[0].dbPath, /aulnes\/data\/guestflow\.db$/);
   const invite = mailer.sent.find((m) => m.to === 'claire@aulnes.fr');
@@ -56,20 +56,16 @@ test('rule 7 — onboarding: licence and first admin run, the hosting steps wait
   assert.equal(v.state, 'active');
 });
 
-test('rule 7 — a failed step is retried alone once the instance exists', async () => {
-  const { ctx, root, mailer } = makeContext();
+test('rule 7 — a failed step is resumed from itself, and only a failed step can be', async () => {
+  const { ctx, mailer } = makeContext({ firstAdmin: () => { throw new Error('script absent'); } });
   const { customers } = ctx.controllers;
   const v = await customers.create(NEW_CUSTOMER, 'op');
   assert.equal(v.steps.find((s) => s.step === 'admin').status, 'failed');
-  assert.equal(mailer.sent.length, 0, 'no invitation without an instance');
-  makeInstance(root, 'aulnes');
-  let after = await customers.stepAction(v.id, 'instance', 'done', 'op');
-  assert.equal(after.steps.find((s) => s.step === 'instance').status, 'ok');
-  after = await customers.stepAction(v.id, 'admin', 'retry', 'op');
-  after = await customers.stepAction(v.id, 'licence', 'retry', 'op');
-  assert.deepEqual(after.steps.filter((s) => s.kind === 'auto').map((s) => s.status), ['ok', 'ok']);
-  assert.equal(mailer.sent.length, 1);
-  await assert.rejects(customers.stepAction(v.id, 'instance', 'retry', 'op'), /Action inconnue/);
+  assert.equal(v.steps.find((s) => s.step === 'admin').action, 'resume');
+  assert.equal(v.steps.find((s) => s.step === 'process').status, 'todo', 'the sequence stopped at the failure');
+  assert.equal(mailer.sent.length, 0, 'no invitation without an account');
+  await assert.rejects(customers.stepAction(v.id, 'licence', 'resume', 'op'), (e) => e.body.error === 'NOT_FAILED');
+  await assert.rejects(customers.stepAction(v.id, 'admin', 'done', 'op'), /Action inconnue/);
 });
 
 test('rule 7 — an account that already exists is not invited twice', async () => {
@@ -86,6 +82,7 @@ test('rule 8 — the fleet: one row per customer and the three counters', async 
   makeInstance(root, 'aulnes', { installed: ['sas', 'linen'] });
   await customers.create(NEW_CUSTOMER, 'op');
   await customers.create({ ...NEW_CUSTOMER, slug: 'moulin', billing: 'monthly', length: 1, startsAt: '2026-08-25' }, 'op');
+  require('fs').rmSync(require('path').join(root, 'moulin', 'data', 'guestflow.db'));
   await customers.create({ ...NEW_CUSTOMER, slug: 'pinede', billing: 'monthly', length: 1, startsAt: '2026-07-01' }, 'op');
   await customers.create({ ...NEW_CUSTOMER, slug: 'granja', trial: true, startsAt: '2026-09-15' }, 'op');
   now.set('2026-09-30T10:00:00Z');

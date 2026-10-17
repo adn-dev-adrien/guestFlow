@@ -18,6 +18,12 @@ const { eraseInstance } = require('../utils/eraser');
 const { httpError } = require('../utils/httpError');
 const { euros } = require('../utils/money');
 const { plugins: gfPlugins } = require('../utils/gf');
+const { CREATE_STEPS: PROVISION_STEPS } = require('../utils/provisioner');
+const { hostView, hostColumns } = require('../utils/hostView');
+
+const HOST_STOP = { step: 'deprov-stop', label: 'Processus et route arrêtés, page « Cet espace a été fermé »' };
+const HOST_RESTART = { step: 'restart', label: 'Processus et route relancés depuis le dossier' };
+const HOST_RENAME = { step: 'rename', label: 'Dossier renommé, processus et route relancés, redirection 301 posée' };
 
 const TRIAL_DAYS = 30;
 const ERASE_AFTER_DAYS = 90;
@@ -27,28 +33,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Rule 7 (C2b): where a customer can be invoiced from. Qonto wants an ISO country code.
 const COUNTRIES = { FR: 'France', BE: 'Belgique', CH: 'Suisse', LU: 'Luxembourg', MC: 'Monaco', ES: 'Espagne', IT: 'Italie', DE: 'Allemagne' };
 
-// Rule 7: the automatic steps run by the console, the manual ones ticked by the operator until
-// phase H provides the hosting scripts.
-const CREATE_STEPS = [
-  { step: 'licence', label: 'Licence signée', kind: 'auto' },
-  { step: 'instance', label: 'Dossier, clé de chiffrement et base', kind: 'manual', hint: 'À faire à la main jusqu’à la phase H (guide d’hébergement).' },
-  { step: 'process', label: 'Processus', kind: 'manual', hint: 'Unité de service à créer à la main jusqu’à la phase H.' },
-  { step: 'route', label: 'Route et certificat TLS', kind: 'manual', hint: 'Entrée du proxy à créer à la main jusqu’à la phase H.' },
-  { step: 'admin', label: 'Premier compte administrateur et invitation', kind: 'auto' },
-];
+// Rule 7 with specs/hosting-h1-fleet-runtime.md rules 1–7 (2026-10-08): every step is automatic,
+// run by the console through the host drivers; none is ticked by hand any more.
+const CREATE_STEPS = PROVISION_STEPS.map((s) => ({ ...s, kind: 'auto' }));
 const DEPROVISION_STEPS = [
   { step: 'deprov-export', label: 'Export complet (base, photos, CSV)', kind: 'auto' },
   { step: 'deprov-email', label: 'Lien de l’export envoyé au contact (30 jours)', kind: 'auto' },
-  { step: 'deprov-stop', label: 'Processus et route arrêtés, page « Cet espace a été fermé »', kind: 'manual', hint: 'À faire à la main jusqu’à la phase H.' },
+  { ...HOST_STOP, kind: 'auto' },
 ];
-const REACTIVATE_STEPS = [
-  { step: 'restart', label: 'Processus et route relancés depuis le dossier', kind: 'manual', hint: 'À faire à la main jusqu’à la phase H.' },
-];
-// Rule 22: moving the directory and redirecting the old address is the hosting's job, by hand until
-// phase H.
-const RENAME_STEPS = [
-  { step: 'rename', label: 'Dossier renommé, processus et route relancés, redirection 301 posée', kind: 'manual' },
-];
+const REACTIVATE_STEPS = [{ ...HOST_RESTART, kind: 'auto' }];
+// Rule 22 with H1 rule 5: the directory moves and the old address redirects, automatically.
+const RENAME_STEPS = [{ ...HOST_RENAME, kind: 'auto' }];
 const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS];
 // Rule 22: what must be redone when the address changes, each item ticked before it runs.
 const RENAME_CHECKLIST = [
@@ -67,7 +62,9 @@ const pluginName = (id) => (gfPlugins.findPlugin(id) || { name: id }).name;
 
 function createCustomersController(ctx) {
   const { models, now, mailer, instances, issuer, runFirstAdmin, domain, consoleUrl, exportsDir, qonto } = ctx;
-  const { customers, catalogue, invoices, audit, provisioning, emails, directory } = models;
+  const { customers, catalogue, invoices, audit, provisioning, emails, directory, hosting } = models;
+  // Built after this controller (it calls back into it for the licence and the first admin).
+  const host = () => ctx.provisioner;
 
   const today = () => parisDay(now());
   const stamp = () => now().toISOString();
@@ -76,11 +73,11 @@ function createCustomersController(ctx) {
   // Rule 21 with rule 22: an old slug stays taken while it still redirects.
   const slugTaken = (slug) => customers.slugTaken(slug) || directory.aliasTaken(slug, today());
 
-  // Rule 22: until the operator ticks « Dossier renommé… », the instance still runs from its old
-  // directory and answers at its old address.
+  // Rule 22: until « Dossier renommé… » is done (H1 rule 5 runs it at once), the instance still runs
+  // from its old directory and answers at its old address.
   function renamePending(c) {
     const row = provisioning.get(c.id, 'rename');
-    return Boolean(row && row.status === 'todo');
+    return Boolean(row && row.status !== 'ok');
   }
 
   function servedSlug(c) {
@@ -160,7 +157,8 @@ function createCustomersController(ctx) {
   }
 
   // Recomputes the state, journals a transition, re-issues the licence. → { state, licence }
-  function refresh(id, operator = 'système') {
+  // `writeLicence: false` while the creation has not made the data directory yet.
+  function refresh(id, operator = 'système', { writeLicence = true } = {}) {
     const c = customers.get(id);
     if (!c || c.erasedAt) return null;
     const day = today();
@@ -169,7 +167,7 @@ function createCustomersController(ctx) {
       customers.setState(id, state, day);
       journal(id, operator, 'state', `État : ${STATE_LABELS[c.state]} → ${STATE_LABELS[state]}`);
     }
-    return { state, licence: issueLicence(id) };
+    return { state, licence: writeLicence ? issueLicence(id) : null };
   }
 
   function licenceToken(id) {
@@ -206,18 +204,21 @@ function createCustomersController(ctx) {
     });
   }
 
-  async function runFirstAdminStep(id) {
+  // Rule 7: the first administrator, created by the instance's own script of its own version, and
+  // the invitation. → the step's detail; throws with the step's error.
+  async function adminStep(id) {
     const c = customers.get(id);
-    if (!instances.hasDatabase(c.slug)) {
-      provisioning.set(id, 'admin', 'failed', 'La base de l’instance est introuvable : créez d’abord le dossier, puis réessayez.', stamp());
-      return;
-    }
+    if (!instances.hasDatabase(c.slug)) throw new Error('La base de l’instance est introuvable : créez d’abord le dossier, puis réessayez.');
+    const version = (hosting.get(c.id) || {}).version;
+    const serverDir = version && ctx.releases && ctx.releases.has(version) ? `${ctx.releases.dirOf(version)}/server` : undefined;
+    let result;
     try {
-      const result = await runFirstAdmin({ dbPath: instances.dbPath(c.slug), email: c.contactEmail, name: c.contactName });
-      if (!result.created) {
-        provisioning.set(id, 'admin', 'ok', `Le compte ${c.contactEmail} existe déjà : aucune invitation renvoyée.`, stamp());
-        return;
-      }
+      result = await runFirstAdmin({ dbPath: instances.dbPath(c.slug), email: c.contactEmail, name: c.contactName, serverDir });
+    } catch (err) {
+      throw new Error(`Échec : ${err.message}`);
+    }
+    if (!result.created) return `Le compte ${c.contactEmail} existe déjà : aucune invitation renvoyée.`;
+    try {
       await mailer.send({
         to: c.contactEmail,
         subject: `Votre espace GuestFlow ${c.companyName} est prêt`,
@@ -233,10 +234,10 @@ function createCustomersController(ctx) {
           `${urlOf(c.slug)}/login?login_hint=${encodeURIComponent(c.contactEmail)}`,
         ].join('\n'),
       });
-      provisioning.set(id, 'admin', 'ok', `Invitation envoyée à ${c.contactEmail}.`, stamp());
     } catch (err) {
-      provisioning.set(id, 'admin', 'failed', `Échec : ${err.message}`, stamp());
+      throw new Error(`Échec : ${err.message}`);
     }
+    return `Invitation envoyée à ${c.contactEmail}.`;
   }
 
   // --- views ---------------------------------------------------------------------------------
@@ -250,8 +251,9 @@ function createCustomersController(ctx) {
         label: d.label,
         kind: d.kind,
         status: r.status,
-        detail: r.detail || d.hint || '',
-        action: d.kind === 'manual' ? (r.status === 'ok' ? 'undo' : 'done') : (r.status === 'failed' ? 'retry' : null),
+        detail: r.detail || (r.status === 'running' ? 'En cours…' : ''),
+        // H1 rule 2: a failed creation step resumes the sequence from itself.
+        action: r.status !== 'failed' ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
       };
     });
   }
@@ -294,6 +296,9 @@ function createCustomersController(ctx) {
       eraseAt: c.eraseAt,
       eraseAtLabel: c.eraseAt ? frDay(c.eraseAt) : null,
       steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS]),
+      // H1 rule 1: the page polls while a sequence runs.
+      provisioningRunning: Boolean(host() && host().running(c.id)) || provisioning.list(c.id).some((r) => r.status === 'running'),
+      hosting: hostView(c, hosting.get(c.id), { now: now(), lastCheck: hosting.lastCheck(c.id), dailyMailLimit: ctx.drivers ? ctx.drivers.mail.dailyLimit : null, mailToday: hosting.mailCount(c.id, day) }),
       formerAddresses: directory.aliasesOf(c.id, day).map((a) => `${a.slug}.${domain} → redirigée jusqu’au ${frDay(a.until)}`),
       deprovisionSteps: stepsView(c, DEPROVISION_STEPS),
       history: audit.forCustomer(c.id).map((h) => ({ at: h.at, day: frDay(h.day), operator: h.operator, text: h.text })),
@@ -366,7 +371,7 @@ function createCustomersController(ctx) {
         rename: !archived,
         cancelErase: archived && Boolean(c.eraseAt),
         eraseNow: archived && stopped(c),
-        eraseHint: archived && !stopped(c) ? '« Processus et route arrêtés » à cocher d’abord.' : null,
+        eraseHint: archived && !stopped(c) ? '« Processus et route arrêtés » en échec : à relancer d’abord.' : null,
         editBilling: !archived,
         remind: !archived && Boolean(openInvoice),
         remindHint: openInvoice ? null : 'Aucune facture ouverte à relancer.',
@@ -397,6 +402,7 @@ function createCustomersController(ctx) {
     const plans = catalogue.plans();
     const rows = customers.list().map((c) => {
       const facts = instances.readFacts(servedSlug(c));
+      const cols = hostColumns(hosting.get(c.id), now());
       return {
         id: c.id,
         slug: c.slug,
@@ -409,10 +415,9 @@ function createCustomersController(ctx) {
         endsAt: c.endsAt,
         endsAtLabel: frDay(c.endsAt),
         daysLeft: c.archivedAt ? null : daysLeft(c, day),
-        version: null,
         installedCount: facts ? facts.installed.length : null,
-        process: null,
-        lastBackup: null,
+        // H1 rule 15: measured by the probe; labels and sort keys come ready.
+        ...cols,
         counters: counterKeys(c, day),
       };
     });
@@ -510,7 +515,7 @@ function createCustomersController(ctx) {
     };
   }
 
-  async function create(body, operator) {
+  async function create(body, operator, { background = false } = {}) {
     const { errors, record } = plan(body);
     if (Object.keys(errors).length) throw httpError(400, 'INVALID', Object.values(errors)[0], { errors });
     const day = today();
@@ -523,30 +528,35 @@ function createCustomersController(ctx) {
     });
     const planName = catalogue.plan(record.subscription.planCode).name;
     journal(id, operator, 'created', `Client créé : forfait ${planName}, ${BILLING_LABELS[record.subscription.billing]}${record.subscription.trialEndsAt ? `, essai jusqu’au ${frDay(record.subscription.trialEndsAt)}` : ''}`);
-    for (const s of CREATE_STEPS) if (s.kind === 'manual') provisioning.set(id, s.step, 'todo', '', stamp());
-    refresh(id, operator);
-    await runFirstAdminStep(id);
+    host().plan(id);
+    refresh(id, operator, { writeLicence: false });
+    // H1 rule 1: the sequence runs by itself; the route answers at once and the page follows it live.
+    const run = host().create(id);
+    if (!background) await run;
     return view(id);
   }
 
-  async function stepAction(id, step, action, operator) {
+  // H1 rule 2: « Reprendre » on a failed creation step, « Réessayer » on a failed stop, restart or
+  // rename. Every step is idempotent, so a resumed sequence never duplicates anything.
+  async function stepAction(id, step, action, operator, { background = false } = {}) {
     const c = mustGet(id);
     const def = ALL_STEPS.find((s) => s.step === step);
     const row = provisioning.get(c.id, step);
     if (!def || !row) throw httpError(404, 'NOT_FOUND', 'Étape inconnue.');
-    if (def.kind === 'manual') {
-      if (action !== 'done' && action !== 'undo') throw httpError(400, 'INVALID', 'Action inconnue.');
-      provisioning.set(c.id, step, action === 'done' ? 'ok' : 'todo', '', stamp());
-      journal(c.id, operator, 'step', `Étape « ${def.label} » ${action === 'done' ? 'marquée faite' : 'rouverte'}`);
-      // The directory now exists under the new slug: the licence can land there.
-      if (step === 'rename' && action === 'done') refresh(c.id, operator);
-    } else {
-      if (action !== 'retry') throw httpError(400, 'INVALID', 'Action inconnue.');
-      if (step === 'licence') issueLicence(c.id);
-      else if (step === 'admin') await runFirstAdminStep(c.id);
-      else if (step === 'deprov-email') await sendExportLink(c.id);
-      else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
-    }
+    if (action !== 'resume' && action !== 'retry') throw httpError(400, 'INVALID', 'Action inconnue.');
+    if (row.status !== 'failed') throw httpError(409, 'NOT_FAILED', 'Cette étape n’est pas en échec.');
+    let run;
+    if (CREATE_STEPS.some((s) => s.step === step)) {
+      journal(c.id, operator, 'step', `Création reprise à l’étape « ${def.label} »`);
+      run = host().create(c.id);
+    } else if (step === 'deprov-stop') run = host().stop(c.id);
+    else if (step === 'restart') run = host().restart(c.id);
+    else if (step === 'rename') {
+      const previous = directory.aliasesOf(c.id, today())[0];
+      run = host().rename(c.id, previous ? previous.slug : c.slug).then((ok) => { if (ok) refresh(c.id, operator); return ok; });
+    } else if (step === 'deprov-email') run = sendExportLink(c.id);
+    else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
+    if (!background) await run;
     return view(c.id);
   }
 
@@ -597,12 +607,12 @@ function createCustomersController(ctx) {
     return {
       error,
       url: slug && !error ? urlOf(slug) : null,
-      until: `L’ancienne adresse ${c.slug}.${domain} reste réservée et redirige (301) jusqu’au ${frDay(until)}.`,
+      until: `L’ancienne adresse ${c.slug}.${domain} redirige (301) jusqu’au ${frDay(addDays(today(), host().REDIRECT_DAYS))} et reste réservée jusqu’au ${frDay(until)}.`,
       checklist: RENAME_CHECKLIST,
     };
   }
 
-  function rename(id, body, operator) {
+  async function rename(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     const slug = String(body.slug || '').trim();
@@ -612,11 +622,12 @@ function createCustomersController(ctx) {
     const missing = RENAME_CHECKLIST.filter((i) => !checked.has(i.key));
     if (missing.length) throw httpError(400, 'CHECKLIST', `À cocher d’abord : ${missing.map((i) => i.label).join(' ; ')}.`);
     const until = addMonths(today(), ALIAS_MONTHS);
+    const redirectUntil = addDays(today(), host().REDIRECT_DAYS);
     customers.setSlug(c.id, slug);
     directory.addAlias(c.slug, c.id, until);
-    provisioning.set(c.id, 'rename', 'todo',
-      `Déplacer ${c.slug}/ vers ${slug}/, relancer le processus et la route, rediriger ${c.slug}.${domain} vers ${slug}.${domain} jusqu’au ${frDay(until)}.`, stamp());
-    journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(until)}`);
+    journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(redirectUntil)} et reste réservée jusqu’au ${frDay(until)}`);
+    // H1 rule 5: the directory moves, the unit and the site follow, the old address redirects.
+    await host().rename(c.id, c.slug);
     refresh(c.id, operator);
     return view(c.id);
   }
@@ -731,8 +742,8 @@ function createCustomersController(ctx) {
     }
     // 2. The link to the contact.
     await sendExportLink(c.id);
-    // 3. Stopping the process and the route: manual until phase H.
-    provisioning.set(c.id, 'deprov-stop', 'todo', '', stamp());
+    // 3. The process and the route stop; the address serves « Cet espace a été fermé » (H1 rule 3).
+    await host().stop(c.id);
     // 4. Archived; 5. erased after 90 days.
     const eraseAt = addDays(today(), ERASE_AFTER_DAYS);
     customers.archive(c.id, stamp(), eraseAt);
@@ -741,15 +752,16 @@ function createCustomersController(ctx) {
     return view(c.id);
   }
 
-  function reactivate(id, operator) {
+  async function reactivate(id, operator) {
     const c = mustGet(id);
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Ce client n’est pas archivé.');
     customers.unarchive(c.id);
     dropExports(c.id);
     provisioning.clear(c.id, 'deprov-');
-    provisioning.set(c.id, 'restart', 'todo', '', stamp());
     journal(c.id, operator, 'reactivate', 'Réactivé depuis son dossier ; effacement annulé, export supprimé');
     refresh(c.id, operator);
+    // H1 rule 4: the unit and the site again.
+    await host().restart(c.id);
     return view(c.id);
   }
 
@@ -784,27 +796,41 @@ function createCustomersController(ctx) {
     return expired.length;
   }
 
-  function eraseNow(id, body, operator) {
+  async function eraseNow(id, body, operator) {
     const c = mustGet(id);
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Seul un client archivé peut être effacé.');
-    if (!stopped(c)) throw httpError(409, 'NOT_STOPPED', '« Processus et route arrêtés » à cocher d’abord.');
+    if (!stopped(c)) throw httpError(409, 'NOT_STOPPED', '« Processus et route arrêtés » en échec : à relancer d’abord.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
     return erase(c.id, operator);
   }
 
-  function erase(id, operator) {
+  async function erase(id, operator) {
     const c = customers.get(id);
+    // H1 rule 6: the unit, the site, the replica and the environment file go too.
+    await host().erase(c.id);
     eraseInstance({ instances, slug: c.slug });
     dropExports(c.id);
     customers.markErased(c.id, stamp());
     directory.removeCustomer(c.id);
-    journal(c.id, operator, 'erase', 'Données, dossier de l’instance et archive d’export effacés ; l’adresse est de nouveau libre');
+    journal(c.id, operator, 'erase', 'Données, dossier de l’instance, sauvegardes et archive d’export effacés ; l’adresse est de nouveau libre');
     return { erased: true, id: c.id };
   }
 
   // A customer whose process is not marked stopped waits, and the alerts say so.
-  function eraseDue(operator) {
-    return customers.dueForErasure(today()).filter((id) => stopped(customers.get(id))).map((id) => erase(id, operator));
+  // H1 rule 23: one customer's failed erasure is an alert, and the others are still erased.
+  async function eraseDue(operator, log = (msg) => console.log(msg)) {
+    const done = [];
+    for (const id of customers.dueForErasure(today()).filter((x) => stopped(customers.get(x)))) {
+      const c = customers.get(id);
+      try {
+        done.push(await erase(id, operator));
+        if (ctx.hostAlerts) ctx.hostAlerts.close(`erase:${id}`);
+      } catch (err) {
+        log(`[erase] ${c.slug}: ${err.message}`);
+        if (ctx.hostAlerts) ctx.hostAlerts.open({ key: `erase:${id}`, customerId: id, kind: 'erase', severity: 'error', text: `${c.companyName} : effacement impossible (${err.message}).` });
+      }
+    }
+    return done;
   }
 
   function erasureBlocked() {
@@ -814,6 +840,11 @@ function createCustomersController(ctx) {
   return {
     CREATE_STEPS,
     DEPROVISION_STEPS,
+    REACTIVATE_STEPS,
+    RENAME_STEPS,
+    issueLicence,
+    adminStep,
+    mustGet,
     refresh,
     reissueAll,
     view,

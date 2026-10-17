@@ -88,6 +88,38 @@ function applyGuestEmailSequenceSchema(db) {
     ['emailBookedText', "TEXT NOT NULL DEFAULT ''"],
     ['emailBookedTextEn', "TEXT NOT NULL DEFAULT ''"],
   ]);
+
+  // specs/guest-email-texts-made-simple.md §5 — the arrival facts of a property (rule 1, the code and
+  // the Wi-Fi password encrypted, rule 2) and the « traduit automatiquement » marks (rule 19), keyed
+  // by the text keys of models/emailTextsModel.js. An empty table means no paragraph: no backfill.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS property_arrival_facts (
+      propertyId            INTEGER PRIMARY KEY REFERENCES properties(id) ON DELETE CASCADE,
+      address               TEXT NOT NULL DEFAULT '',
+      mapUrl                TEXT NOT NULL DEFAULT '',
+      accessFr              TEXT NOT NULL DEFAULT '',
+      accessEn              TEXT NOT NULL DEFAULT '',
+      accessCodeEncrypted   TEXT NOT NULL DEFAULT '',
+      wifiName              TEXT NOT NULL DEFAULT '',
+      wifiPasswordEncrypted TEXT NOT NULL DEFAULT '',
+      updatedAt             TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS stay_text_flags (
+      key            TEXT    NOT NULL,
+      language       TEXT    NOT NULL,
+      autoTranslated INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (key, language)
+    );
+  `);
+
+  // Rule 6 — « article jamais confirmé ». A property that exists when the column appears was saved
+  // through its form, so its article counts as chosen; only a later property created without one
+  // (the start assistant's step 2) is left to confirm.
+  const propertyCols = db.prepare('PRAGMA table_info(properties)').all().map((c) => c.name);
+  if (propertyCols.length && !propertyCols.includes('nameArticleConfirmed')) {
+    db.exec('ALTER TABLE properties ADD COLUMN nameArticleConfirmed INTEGER NOT NULL DEFAULT 0');
+    db.exec('UPDATE properties SET nameArticleConfirmed = 1');
+  }
 }
 
 module.exports = { applyGuestEmailSequenceSchema };
