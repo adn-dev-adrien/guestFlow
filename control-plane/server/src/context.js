@@ -19,6 +19,7 @@ const { createQontoBilling, BILLING_SCOPES } = require('./utils/qontoBilling');
 const { qontoSettingsController } = require('./utils/gf');
 const { createInstances } = require('./utils/instances');
 const { createLicenceIssuer } = require('./utils/licenceIssuer');
+const { createRegistryStore } = require('./utils/registryStore');
 const { createCustomersController } = require('./controllers/customersController');
 const { createCatalogueController } = require('./controllers/catalogueController');
 const { createAlertsController } = require('./controllers/alertsController');
@@ -59,6 +60,8 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     exportsDir: path.join(dataDir, 'exports'),
     qonto: qonto || createQontoBilling({ settings: models.qontoSettings, env: {} }),
     directoryKey,
+    // specs/plugins-phase-4-registry.md P23 — the plugin registry, signed with the licence key.
+    registry: createRegistryStore({ db, dir: path.join(dataDir, 'registry'), privateKey, now }),
   };
   const customers = createCustomersController(ctx);
   const billing = createBillingController(ctx, customers);

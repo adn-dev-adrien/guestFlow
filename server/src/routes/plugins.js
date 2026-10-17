@@ -2,7 +2,13 @@ const router = require('express').Router();
 const ctrl = require('../controllers/pluginsController');
 
 router.get('/', ctrl.list);
+// specs/plugins-phase-4-registry.md rules 9, 13, 16, 20.
+router.get('/status', ctrl.status);
+router.post('/refresh', ctrl.refresh);
+router.post('/update-all', ctrl.updateAll);
 router.post('/:id/install', ctrl.install);
+router.post('/:id/update', ctrl.update);
+router.post('/:id/rollback', ctrl.rollback);
 router.post('/:id/activate', ctrl.activate);
 router.post('/:id/deactivate', ctrl.deactivate);
 router.delete('/:id', ctrl.uninstall);

@@ -14,7 +14,7 @@ const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 
-function createContext(id, { db, settingsModel } = {}) {
+function createContext(id, { db, settingsModel, dataDir = null } = {}) {
   const record = registry.ensure(id);
   const prefix = `[plugin:${id}]`;
 
@@ -137,6 +137,14 @@ function createContext(id, { db, settingsModel } = {}) {
     // { tables: [name], describe(db) → [{ label, count }], purge?(db) } (rule 12).
     data(declaration) { record.data = declaration; },
     isLive: () => registry.isLive(id),
+    // specs/plugins-phase-4-registry.md rule 15 — the plugin's own directory, kept across updates,
+    // removed only by « Effacer aussi ses données ». Created on first read.
+    get dataDir() {
+      if (!dataDir) return null;
+      const dir = dataDir();
+      require('fs').mkdirSync(dir, { recursive: true });
+      return dir;
+    },
     core: coreServices,
     db,
     log: {

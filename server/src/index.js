@@ -30,7 +30,16 @@ const db = require('./database');
 // specs/plugins-phase-1-sdk.md — plugin modules declare their routes, tables, jobs and handlers here;
 // a module that throws is marked failed and the boot goes on (rule 4).
 const pluginLoader = require('./plugins/loader');
-pluginLoader.registerAll({ db });
+// specs/plugins-phase-4-registry.md rules 14, 17, 19 — a release loads each installed plugin from its
+// package; a development tree registers the source folders.
+const pluginHost = require('./plugins/host');
+pluginHost.boot({
+  db,
+  loader: pluginLoader,
+  registry: require('./plugins/sdk/registry'),
+  model: require('./models/pluginsModel'),
+  catalogue: require('./constants/plugins').PLUGIN_CATALOG,
+});
 
 function logErrorMarker(message) {
   const timestamp = new Date().toISOString();
@@ -125,6 +134,12 @@ require('./utils/vapid').ensureVapid(require('./models/settingsModel').read());
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
+// specs/plugins-phase-4-registry.md rule 18 — the client bundle of each loaded plugin, immutable, and
+// the list the browser imports before rendering. Outside /api and its guards: the bundles hold no
+// data, and the list is read before the login so a signed-in session never needs a reload.
+app.get('/plugin-assets/entries.json', (req, res) => res.set('Cache-Control', 'no-store').json(pluginHost.clientEntries()));
+app.use('/plugin-assets/:id/:key', pluginHost.assetsMiddleware(express));
+
 // Public API (specs/public-api.md) — `/public/v1/*`, a SEPARATE tree from the internal `/api/*`
 // admin API: it never passes through the `/api` session guard below, so that guard can neither
 // expose nor block it. Every prefix belongs to a plugin module, each with its own key: the WordPress
@@ -144,6 +159,16 @@ app.use('/api', (req, res, next) => {
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
   return apiLimiter(req, res, next);
 });
+
+// A write under /api must come from GuestFlow's own pages (specs/plugins-phase-4-registry.md rule 31):
+// a cross-site form or script cannot ride an administrator's session. Plugin webhooks are exempt. Not
+// in a development process (NODE_ENV unset): the Vite proxy rewrites the host, and a phone opening
+// the dev client by its LAN address would otherwise be refused every write.
+const enforceSameOrigin = Boolean(process.env.NODE_ENV) && process.env.NODE_ENV !== 'development';
+app.use('/api', require('./middleware/sameOriginWrites').createSameOriginWrites({
+  allowedOrigins,
+  isExempt: (req) => !enforceSameOrigin || pluginLoader.isWebhook(req.method, req.path),
+}));
 
 // Stricter brute-force limit on the login route.
 app.use('/api/auth/login', loginLimiter);
@@ -228,12 +253,16 @@ app.use('/api/support-access', require('./routes/supportAccess'));
 // each behind requirePlugin.
 pluginLoader.mountApi(app);
 
+// When this process started — not when the request came: the Plugins page and the E2E harness wait
+// for it to change to know the restart happened (specs/plugins-phase-4-registry.md rule 13).
+const PROCESS_STARTED_AT = new Date().toISOString();
+
 app.get('/api/version', (req, res) => {
   res.json({
     env: process.env.NODE_ENV || 'development',
     commitSha: commitSha || null,
     commitShaShort,
-    startedAt: new Date().toISOString(),
+    startedAt: PROCESS_STARTED_AT,
   });
 });
 
@@ -251,11 +280,14 @@ const dynamicFavicon = buildFaviconHandler({
 app.get(['/favicon.ico', '/favicon.svg'], dynamicFavicon);
 
 // In production, serve the built React app for non-API routes.
-const clientBuildDir = path.join(__dirname, '..', '..', 'client', 'build');
+// GUESTFLOW_CLIENT_DIR points at another build (the production-build E2E suite serves client/dist).
+const clientBuildDir = process.env.GUESTFLOW_CLIENT_DIR
+  ? path.resolve(process.env.GUESTFLOW_CLIENT_DIR)
+  : path.join(__dirname, '..', '..', 'client', 'build');
 const clientIndexPath = path.join(clientBuildDir, 'index.html');
 if (fs.existsSync(clientIndexPath)) {
   app.use(express.static(clientBuildDir));
-  app.get(/^\/(?!api|uploads).*/, (req, res) => {
+  app.get(/^\/(?!api|uploads|plugin-assets).*/, (req, res) => {
     res.sendFile(clientIndexPath);
   });
 }
@@ -311,6 +343,8 @@ const server = serverHandle.listen(PORT, () => {
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
   pluginLoader.startJobs();
+  // Rule 9 — the registry index at boot, then every 6 hours; rule 16 — the expired rollback copies.
+  pluginHost.startBackground({ model: require('./models/pluginsModel'), ids: require('./constants/plugins').PLUGIN_IDS });
 });
 
 function shutdown(signal) {

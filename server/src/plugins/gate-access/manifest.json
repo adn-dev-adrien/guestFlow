@@ -1,0 +1,22 @@
+{
+  "id": "gate-access",
+  "name": "Accès au portail (Sowel)",
+  "version": "1.0.0",
+  "description": "Codes et clés du portail envoyés à Sowel.",
+  "icon": "key",
+  "surfaces": [
+    "Intégrations › Accès portail",
+    "Le champ « Code portail »",
+    "L’alerte des clés du portail",
+    "La carte portail de la fiche",
+    "L’étape portail du sas"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

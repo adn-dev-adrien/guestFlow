@@ -1,0 +1,21 @@
+{
+  "id": "website-booking",
+  "name": "Réservation depuis le site",
+  "version": "1.0.0",
+  "description": "Le moteur de réservation du site WordPress.",
+  "icon": "language",
+  "surfaces": [
+    "L’alerte « Demandes du site »",
+    "Le badge et le filtre « Site internet » des devis",
+    "La ligne d’acceptation des CGV de la fiche",
+    "L’API publique appelée par le site"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

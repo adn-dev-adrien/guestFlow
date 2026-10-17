@@ -1,0 +1,21 @@
+{
+  "id": "linen",
+  "name": "Linge et blanchisserie",
+  "version": "1.0.0",
+  "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
+  "icon": "laundry",
+  "surfaces": [
+    "Paramètres › Linge",
+    "L’alerte de manque de linge",
+    "Les cartes et le bouton blanchisserie du planning",
+    "Les étapes linge du sas"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

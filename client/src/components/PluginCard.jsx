@@ -8,12 +8,20 @@
  *             planChip, planHint } as GET /api/plugins returns it — `data` lists what an erasure
  *             would take, a line with `warning: true` being shown apart, before the choice; `outOfPlan` marks a plugin the subscription does not include, `planChip`
  *             names the plan that does and `planHint` says how to get it
+ *             — and since specs/plugins-phase-4-registry.md: `version`, `update` ({ version,
+ *             changelog, refusal } | null), `offer` ({ version, requirements, refusal } for an available
+ *             plugin), `incompatible` ({ message, compatibleVersion } | null), `rollback` ({ version,
+ *             label } | null)
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
- *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall', options?: { purge }) => void
+ *   bundleFailed boolean the browser could not load this plugin's bundle (rule 18)
+ *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall'|'update'|'rollback',
+ *             options?: { purge, withRequirements, version }) => void
+ *   onOpenUpdate () => void  the « Mise à jour x.y.z » chip: opens the update dialog (rule 20)
  */
 import React, { useState } from 'react';
 import { Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, Stack, Typography } from '@mui/material';
+import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import LanguageIcon from '@mui/icons-material/Language';
@@ -30,6 +38,7 @@ import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StatusBadge from './StatusBadge';
+import ConfirmDialog from './ConfirmDialog';
 
 const ICONS = {
   'hot-tub': HotTubIcon,
@@ -47,13 +56,20 @@ const ICONS = {
   mail: MarkEmailReadIcon,
 };
 
-export default function PluginCard({ plugin, busy = false, error = null, onAction }) {
+export default function PluginCard({ plugin, busy = false, error = null, bundleFailed = false, onAction, onOpenUpdate }) {
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
   const [erase, setErase] = useState(false);
+  const [confirmRequirements, setConfirmRequirements] = useState(false);
+  const [confirmRollback, setConfirmRollback] = useState(false);
   const Icon = ICONS[plugin.icon] || ExtensionIcon;
   const installed = plugin.state !== 'available';
-  const failed = plugin.state === 'failed';
+  const failed = plugin.state === 'failed' || (installed && bundleFailed);
+  const incompatible = plugin.state === 'incompatible';
+  const offer = plugin.offer || null;
+  const requirements = (offer && offer.requirements) || [];
+  const offerRefusal = !installed && offer && offer.refusal ? offer.refusal.message : null;
+  const update = plugin.update && !incompatible ? plugin.update : null;
   const outOfPlan = Boolean(plugin.outOfPlan);
   const eraseLines = (plugin.data || []).filter((line) => !line.warning).map((line) => line.label).join(' · ');
   // specs/plugins-phase-3b-neat.md rule 18 — what an erasure cannot undo elsewhere (Neat: subscriptions
@@ -62,7 +78,7 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
 
   // Rule 8: a refusal is said before the click, and the buttons it would refuse are disabled.
   const blocked = Boolean(plugin.blocker);
-  const primary = failed ? null : plugin.state === 'available'
+  const primary = failed || incompatible ? null : plugin.state === 'available'
     ? { action: 'install', label: 'Installer', variant: 'contained' }
     : plugin.state === 'active'
       ? { action: 'deactivate', label: 'Désactiver', variant: 'outlined' }
@@ -90,7 +106,10 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
             <Icon fontSize="small" />
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{plugin.name}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{plugin.name}</Typography>
+              {plugin.version && <Typography variant="caption" color="text.secondary">{plugin.version}</Typography>}
+            </Box>
             <Typography variant="body2" color="text.secondary">{plugin.description}</Typography>
             {installed && outOfPlan && (
               <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
@@ -101,8 +120,8 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
             {installed && !outOfPlan && (
               <Box sx={{ mt: 0.5 }}>
                 <StatusBadge
-                  status={failed ? 'error' : plugin.state === 'active' ? 'success' : 'neutral'}
-                  label={failed ? 'Erreur' : plugin.state === 'active' ? 'Actif' : 'Inactif'}
+                  status={failed || incompatible ? 'error' : plugin.state === 'active' ? 'success' : 'neutral'}
+                  label={incompatible ? 'Incompatible avec cette version' : failed ? 'Erreur' : plugin.state === 'active' ? 'Actif' : 'Inactif'}
                 />
               </Box>
             )}
@@ -110,7 +129,20 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
               <Chip size="small" label={plugin.planChip} sx={{ mt: 0.5, fontWeight: 700 }} />
             )}
             {failed && (
-              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>Échec du démarrage.</Typography>
+              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
+                {bundleFailed && plugin.state !== 'failed' ? 'Échec du chargement.' : 'Échec du démarrage.'}
+              </Typography>
+            )}
+            {incompatible && plugin.incompatible && plugin.incompatible.message !== 'Incompatible avec cette version.' && (
+              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>{plugin.incompatible.message}</Typography>
+            )}
+            {offerRefusal && !outOfPlan && (
+              <Typography variant="body2" color="warning.dark" sx={{ mt: 0.5 }}>{offerRefusal}</Typography>
+            )}
+            {!installed && !outOfPlan && requirements.length > 0 && !offerRefusal && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                Nécessite : {requirements.map((r) => r.name).join(', ')}
+              </Typography>
             )}
             {!installed && outOfPlan && plugin.planHint && (
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{plugin.planHint}</Typography>
@@ -123,17 +155,59 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
         {!installed && outOfPlan && (
           <Button variant="contained" disabled sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}>Installer</Button>
         )}
+        {incompatible && plugin.incompatible && plugin.incompatible.compatibleVersion && !outOfPlan && (
+          <Button
+            variant="contained"
+            disabled={busy}
+            onClick={() => act('update', { version: plugin.incompatible.compatibleVersion })}
+            sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
+          >
+            {`Installer la version ${plugin.incompatible.compatibleVersion}`}
+          </Button>
+        )}
         {!outOfPlan && primary && (
           <Button
             variant={primary.variant}
-            disabled={busy || (primary.action === 'deactivate' && blocked)}
-            onClick={() => act(primary.action)}
+            disabled={busy || (primary.action === 'deactivate' && blocked) || (primary.action === 'install' && Boolean(offerRefusal))}
+            onClick={() => (primary.action === 'install' && requirements.length ? setConfirmRequirements(true) : act(primary.action))}
             sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
           >
             {primary.label}
           </Button>
         )}
       </Stack>
+      {update && !outOfPlan && (
+        <Box sx={{ px: 1.5, pb: 1.5, mt: -0.5, pl: { sm: 8.5 } }}>
+          <Chip
+            color="primary"
+            icon={<SystemUpdateAltIcon />}
+            label={`Mise à jour ${update.version}`}
+            onClick={onOpenUpdate}
+            disabled={busy}
+            sx={{ minHeight: 36, fontWeight: 700 }}
+          />
+        </Box>
+      )}
+      {plugin.rollback && (
+        <ConfirmDialog
+          open={confirmRollback}
+          onClose={() => setConfirmRollback(false)}
+          onConfirm={() => { setConfirmRollback(false); act('rollback'); }}
+          title={`Revenir à ${plugin.name} ${plugin.rollback.version}`}
+          message="GuestFlow redémarre."
+          confirmLabel="Revenir"
+          confirmColor="primary"
+        />
+      )}
+      <ConfirmDialog
+        open={confirmRequirements}
+        onClose={() => setConfirmRequirements(false)}
+        onConfirm={() => { setConfirmRequirements(false); act('install', { withRequirements: true }); }}
+        title={`Installer ${plugin.name}`}
+        message={`Nécessite aussi : ${requirements.map((r) => `${r.name} ${r.version}`).join(', ')}, installé en premier.`}
+        confirmLabel="Tout installer"
+        confirmColor="primary"
+      />
       {error && (
         <Typography role="alert" variant="body2" color="error" sx={{ px: 2, pb: 1.5, fontWeight: 600 }}>
           {error}
@@ -145,6 +219,19 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
           <Box component="ul" sx={{ m: 0, mt: 0.5, mb: installed ? 1.5 : 0, pl: 2.5 }}>
             {plugin.surfaces.map((s) => <Typography component="li" variant="body2" key={s}>{s}</Typography>)}
           </Box>
+          {installed && plugin.rollback && (
+            <Box sx={{ mb: 1.5 }}>
+              <Button
+                variant="outlined"
+                disabled={busy}
+                onClick={() => setConfirmRollback(true)}
+                sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
+              >
+                Revenir à la version précédente
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{plugin.rollback.label}</Typography>
+            </Box>
+          )}
           {installed && (
             <>
               {/* A plugin module can take its data with it (rules 21-22); the others always keep it. */}

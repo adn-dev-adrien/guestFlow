@@ -56,7 +56,10 @@ module.exports = defineConfig({
     {
       // Backend — fresh ephemeral DB per run, fixed session secret + encryption key so the
       // storageState cookie remains valid for the whole suite.
-      command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test'
+      // GUESTFLOW_PLUGINS=sources: this suite runs the Vite dev client, which imports the plugin
+      // sources; the production-build suite (playwright.prod.config.js) runs the packages
+      // (specs/plugins-phase-4-registry.md rule 19).
+      command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test GUESTFLOW_PLUGINS=sources'
         + ' GUESTFLOW_SESSION_SECRET="' + E2E_SESSION_SECRET + '"'
         + ' GUESTFLOW_ENCRYPTION_KEY="' + E2E_ENCRYPTION_KEY + '"'
         + ` PORT=${SERVER_PORT}`

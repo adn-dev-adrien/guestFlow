@@ -1,0 +1,22 @@
+{
+  "id": "hourly-resources",
+  "name": "Ressources à l’heure",
+  "version": "1.0.0",
+  "description": "Louer un équipement par créneau : bain nordique, sauna.",
+  "icon": "hot-tub",
+  "surfaces": [
+    "Calendrier › Ressources",
+    "Le sélecteur de séances de la fiche",
+    "L’allumage et les séances du planning",
+    "L’étape « créneaux » du sas",
+    "Le type de prix « à l’heure »"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

@@ -36,6 +36,9 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v7
+        with:
+          # The plugin version check compares with the previous tag: it needs the history and tags.
+          fetch-depth: 0
 
       - name: 🔢 Resolve the version being released
         id: resolve
@@ -109,6 +112,12 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/build-changelog.mjs --check-digest "${{ steps.resolve.outputs.version }}"
+
+      - name: 🔌 A plugin that changed carries a new version
+        # specs/plugins-phase-4-registry.md P26, rule 23 — an instance compares plugin versions to offer
+        # an update; a changed plugin that kept its number would never be offered, or would install
+        # different code under the same version. The release skill bumps them (`--bump`).
+        run: node scripts/check-plugin-versions.mjs
 
   # ── Unit suites ──────────────────────────────────────────────────────────────────────────────
   tests:
@@ -187,12 +196,39 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The plugin content check reads the previous tag.
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
 
       - name: ⚛️ Build the React client
         run: cd client && npm ci && npm run build
+
+      - name: 🔌 Build the plugin packages
+        # specs/plugins-phase-4-registry.md rule 23 — one package per plugin, shipped inside the core
+        # archive (`plugins-dist/`) and attached to the release for the registry. The manifests are read
+        # with the server's own validator, hence its dependencies (semver).
+        run: |
+          (cd server && npm ci --omit=dev --ignore-scripts)
+          node scripts/build-plugin-packages.mjs --out plugins-dist
+
+      - name: 🔌 A published plugin version keeps its content
+        # specs/plugins-phase-4-registry.md rule 27 — the packages of the previous release, compared by
+        # content hash: a plugin whose built files changed (a dependency bump, say) under the same
+        # version would be cached as the old one by every browser. The fix is a bump in a PR.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p prev-dist
+          PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "v${VERSION}^" 2>/dev/null || git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+          if [ -n "$PREV" ] && [ "$PREV" != "v${VERSION}" ]; then
+            gh release download "$PREV" -p '*.tgz' -D prev-dist || echo "::notice::No plugin package in $PREV."
+          fi
+          node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist
 
       - name: 📦 Create the release archive
         env:
@@ -203,6 +239,7 @@ jobs:
           ./release.sh "guestflow-${VERSION}"
           mkdir -p dist-release
           mv "guestflow-${VERSION}.tar.gz" dist-release/
+          cp plugins-dist/*.tgz dist-release/
 
       - name: 🔌 Package the WordPress plugin
         # The plugin updates itself from WordPress admin against this asset
