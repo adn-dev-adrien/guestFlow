@@ -1,0 +1,19 @@
+{
+  "id": "accounting-export",
+  "name": "Export comptable",
+  "version": "1.0.0",
+  "description": "Écritures, plan comptable et export pour le cabinet comptable.",
+  "icon": "book",
+  "surfaces": [
+    "Suivi financier › Comptabilité et Plateformes comptables",
+    "Le rôle « Comptable »"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

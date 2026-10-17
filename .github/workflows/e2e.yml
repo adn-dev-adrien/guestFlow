@@ -70,3 +70,52 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # specs/plugins-phase-4-registry.md rule 19 — the production build served by the server, every plugin
+  # loaded from its package, beside a test registry: install, update with restart, refusal.
+  production-build:
+    name: production build (plugin packages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📚 Install root + client + server deps
+        run: |
+          npm ci
+          cd client && npm ci
+          cd ../server && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        run: |
+          cd server
+          env npm_config_build_from_source=true npm rebuild better-sqlite3
+
+      - name: 🏗️ Build the client and the plugin packages
+        run: |
+          (cd client && npm run build)
+          node scripts/build-plugin-packages.mjs
+
+      - name: 🎭 Install Playwright browsers (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: 🧪 Run the production-build suite
+        env:
+          CI: 'true'
+        run: npm run test:e2e:prod
+
+      - name: 📤 Upload Playwright HTML report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-prod
+          path: playwright-report-prod/
+          retention-days: 7

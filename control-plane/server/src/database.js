@@ -201,6 +201,16 @@ CREATE TABLE IF NOT EXISTS slug_aliases (
   customerId INTEGER NOT NULL REFERENCES customers(id),
   until TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS registry_packages (
+  id TEXT NOT NULL,
+  version TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  manifest TEXT NOT NULL,
+  published_at TEXT NOT NULL,
+  withdrawn_at TEXT,
+  PRIMARY KEY (id, version)
+);
 CREATE TABLE IF NOT EXISTS payment_failures (
   providerPaymentId TEXT PRIMARY KEY,
   invoiceId INTEGER NOT NULL REFERENCES invoices(id),

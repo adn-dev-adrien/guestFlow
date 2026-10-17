@@ -6,11 +6,65 @@
 // produce 18 passed / 1 skipped / 0 failed, identical to V02.01.00. Do NOT change the
 // dev server port, proxy target or output dir without re-running the E2E suite.
 
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const STATIC_PLUGIN_LIST = fileURLToPath(new URL('./src/plugins/index.js', import.meta.url));
+const RUNTIME_PLUGIN_LIST = fileURLToPath(new URL('./src/plugins/runtimeModules.js', import.meta.url));
+
+// specs/plugins-phase-4-registry.md rule 18, P27 — a production build ships no plugin code: every
+// import of the static module list (`src/plugins/index.js`, which imports the twelve source folders)
+// is redirected to the list `src/plugins/runtime.js` fills from each plugin's own bundle. The dev
+// server and the unit suites keep the static list (rule 19).
+function pluginRuntimeList() {
+  return {
+    name: 'guestflow-plugin-runtime-list',
+    apply: 'build',
+    enforce: 'pre',
+    async resolveId(source, importer, options) {
+      if (!importer || !source.startsWith('.')) return null;
+      const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+      return resolved && resolved.id === STATIC_PLUGIN_LIST ? RUNTIME_PLUGIN_LIST : null;
+    },
+  };
+}
+
+// Review M3 — a production build imports `App` only once the plugin bundles are loaded (rule 18), so
+// the browser would fetch the App chunks late. These links fetch them (without evaluating them) in
+// parallel with the bundles, and the list of bundles too.
+function preloadApp() {
+  return {
+    name: 'guestflow-preload-app',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        if (!ctx.bundle) return html;
+        const chunks = Object.values(ctx.bundle).filter((c) => c.type === 'chunk');
+        const app = chunks.find((c) => c.facadeModuleId && /\/src\/App\.jsx$/.test(c.facadeModuleId));
+        if (!app) return html;
+        const byName = Object.fromEntries(chunks.map((c) => [c.fileName, c]));
+        const files = new Set();
+        const visit = (name) => {
+          if (files.has(name) || !byName[name]) return;
+          files.add(name);
+          byName[name].imports.forEach(visit);
+        };
+        visit(app.fileName);
+        return [
+          { tag: 'link', attrs: { rel: 'preload', href: '/plugin-assets/entries.json', as: 'fetch', crossorigin: 'anonymous' }, injectTo: 'head' },
+          ...[...files].map((f) => ({ tag: 'link', attrs: { rel: 'modulepreload', href: `/${f}`, crossorigin: true }, injectTo: 'head' })),
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    pluginRuntimeList(),
+    preloadApp(),
     // GuestFlow's source uses `.js` files with JSX inside (CRA convention preserved).
     react({ include: /\.(jsx?|tsx?)$/ }),
   ],
@@ -41,6 +95,7 @@ export default defineConfig({
     proxy: {
       '/api': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
       '/uploads': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
+      '/plugin-assets': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
     },
   },
 

@@ -1,0 +1,20 @@
+{
+  "id": "sas",
+  "name": "Arrivée et départ guidés",
+  "version": "1.0.0",
+  "description": "Le sas pas à pas de l’accueil et du départ.",
+  "icon": "door",
+  "surfaces": [
+    "Le bouton sas des cartes du planning",
+    "L’onglet « Facturables au SAS »",
+    "Le rôle « Accueil » et son écran d’accueil"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

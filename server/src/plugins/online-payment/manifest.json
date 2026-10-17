@@ -1,0 +1,19 @@
+{
+  "id": "online-payment",
+  "name": "Paiement en ligne (Qonto)",
+  "version": "1.0.0",
+  "description": "Liens de paiement envoyés aux voyageurs.",
+  "icon": "payments",
+  "surfaces": [
+    "Paramètres › Paiements en ligne",
+    "Les boutons « Envoyer la demande de paiement / de solde »"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

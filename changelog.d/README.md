@@ -26,6 +26,19 @@ heading, just the `- …` lines. Example — `changelog.d/added--j7-email-baby-b
 
 That's it. Because each PR adds a **new file**, `git` never reports a conflict.
 
+### A line about one plugin
+
+A bullet that starts with `plugin:<id>` belongs to that plugin (specs/plugins-phase-4-registry.md
+rules 24, 28); in `CHANGELOG.md` it appears as « **Plugin `<id>`** — … ». The operator reads the
+plugin's own lines elsewhere: in the update dialog of the Plugins page, from the plugin's
+`manifest.json`. So the same pull request also bumps the plugin's `version` and writes those lines,
+**in French**, under `changelog["<new version>"]` — CI refuses a changed plugin without both
+(`node scripts/check-plugin-versions.mjs --base origin/<base>`; `--bump` does the version).
+
+```markdown
+- plugin:linen The towel stock is read on the right week.
+```
+
 ## Preview the pending changelog
 
 ```

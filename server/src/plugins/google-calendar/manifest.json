@@ -1,0 +1,18 @@
+{
+  "id": "google-calendar",
+  "name": "Google Agenda",
+  "version": "1.0.0",
+  "description": "Copie les séjours dans un agenda Google.",
+  "icon": "event",
+  "surfaces": [
+    "Intégrations › Google Agenda"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

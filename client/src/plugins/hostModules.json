@@ -1,0 +1,71 @@
+{
+  "@mui/material": [
+    "Alert",
+    "AlertTitle",
+    "Autocomplete",
+    "Box",
+    "Button",
+    "Card",
+    "CardActionArea",
+    "CardContent",
+    "Checkbox",
+    "Chip",
+    "CircularProgress",
+    "Collapse",
+    "Dialog",
+    "DialogActions",
+    "DialogContent",
+    "DialogTitle",
+    "Divider",
+    "FormControl",
+    "FormControlLabel",
+    "FormGroup",
+    "FormHelperText",
+    "Grid",
+    "IconButton",
+    "InputAdornment",
+    "InputLabel",
+    "LinearProgress",
+    "Link",
+    "List",
+    "ListItem",
+    "MenuItem",
+    "Radio",
+    "RadioGroup",
+    "Select",
+    "Skeleton",
+    "Stack",
+    "Switch",
+    "Table",
+    "TableBody",
+    "TableCell",
+    "TableContainer",
+    "TableHead",
+    "TableRow",
+    "TextField",
+    "Tooltip",
+    "Typography",
+    "useMediaQuery",
+    "useTheme"
+  ],
+  "@mui/material/SvgIcon": [
+    "createSvgIcon"
+  ],
+  "@mui/material/colors": [
+    "cyan"
+  ],
+  "@mui/material/styles": [
+    "alpha",
+    "useTheme"
+  ],
+  "guestflow/sdk": "*",
+  "guestflow/sdk/ui": "*",
+  "react": "*",
+  "react-router": [
+    "Link",
+    "useLocation",
+    "useNavigate",
+    "useSearchParams"
+  ],
+  "react/jsx-runtime": "*"
+}

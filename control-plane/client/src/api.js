@@ -77,6 +77,24 @@ const api = {
   toggleCell: (lowest, pluginId, planCode) => request('POST', '/api/catalogue/toggle', { lowest, pluginId, planCode }),
   catalogueImpact: (draft) => request('POST', '/api/catalogue/impact', draft),
   saveCatalogue: (body) => request('PUT', '/api/catalogue', body),
+
+  // specs/plugins-phase-4-registry.md rule 8 — the plugin registry.
+  registry: () => request('GET', '/api/registry'),
+  withdrawPackage: (id, version) => request('POST', `/api/registry/packages/${encodeURIComponent(id)}/${encodeURIComponent(version)}/withdraw`, {}),
+  async uploadPackage(file) {
+    const res = await fetch('/api/registry/packages', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+      body: file,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) window.dispatchEvent(new Event('console:signed-out'));
+      throw Object.assign(new Error(data.message || `Erreur ${res.status}`), { status: res.status, code: data.error });
+    }
+    return data;
+  },
 };
 
 export default api;

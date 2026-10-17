@@ -106,7 +106,21 @@ The E2E suite needs ports 3000/4000. Free them without asking (`npm run stop`), 
 `npm run dev` in the background afterwards** if it was running — and say so, since the suite wipes
 the dev database on the way through.
 
-> **CHECK**: up-to-date master, no tracked change, server + client + build + E2E green.
+Then the plugin packages, exactly as the release's `package` job will judge them — so that job can
+never stop the release after the tag (specs/plugins-phase-4-registry.md rule 27):
+
+```bash
+node scripts/build-plugin-packages.mjs
+PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
+rm -rf prev-dist && mkdir prev-dist && gh release download "$PREV" -p '*.tgz' -D prev-dist
+node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist --previous-tag "$PREV"
+rm -rf prev-dist
+```
+
+A `✗` means a plugin's sources changed without a version bump: stop, bump it in an ordinary PR.
+`↺` lines are fine (a dependency bump: the published package is kept).
+
+> **CHECK**: up-to-date master, no tracked change, server + client + build + E2E green, plugin packages checked.
 
 ---
 
@@ -116,9 +130,15 @@ The GitHub release body IS the CHANGELOG section, and the operator reads it in t
 before clicking « Installer ». No section, no release.
 
 ```bash
+node scripts/check-plugin-versions.mjs            # must pass: every changed plugin was bumped in its PR
 node scripts/build-changelog.mjs                  # preview the pending fragments
 node scripts/build-changelog.mjs --release X.Y.Z   # fold them into a dated section
 ```
+
+The release PR never edits a plugin manifest (specs/plugins-phase-4-registry.md rule 28): each pull
+request that changes a plugin bumps its version and writes its French changelog lines in that
+plugin's `manifest.json`, and CI refuses it otherwise. If the check above fails, stop the release and
+fix the plugin's version in an ordinary PR first.
 
 Then do the two pieces of writing this step exists for.
 
@@ -175,7 +195,7 @@ If it did, bump `Version:` in the header AND `GF_BOOKING_VERSION` AND `Stable ta
 ```bash
 git checkout -b release/vX.Y.Z
 git add package.json server/package.json client/package.json CHANGELOG.md changelog.d
-# plus the plugin files if it was bumped
+# plus the WordPress plugin files if it was bumped
 git commit -m "release: vX.Y.Z"
 git push -u origin release/vX.Y.Z
 gh pr create --base master --title "release: vX.Y.Z" --body "..."

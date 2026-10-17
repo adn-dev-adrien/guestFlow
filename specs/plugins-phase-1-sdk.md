@@ -83,6 +83,10 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
    (rule 2) and the host side of the contract: the SDK and, on the server, the loader. Tests are exempt:
    they reach into both on purpose. A test walks the imports, on each side, and fails on any other
    import.
+   > **2026-10-08 (specs/plugins-phase-4-registry.md):** the host side grows with the packages — on the
+   > server `plugins/manifest.js`, `host.js`, `packageStore.js` and `registryClient.js`; on the client
+   > `plugins/runtime.js` and `runtimeModules.js`. Both walks list them. A package build enforces the
+   > same isolation on each plugin (phase 4 rule 4).
 4. **A plugin that fails to register** (it throws in `register`) is logged with its id and reported
    `state: 'failed'` on the Plugins page, with the message « Échec du démarrage. ». The
    server boots anyway, and the plugin's routes answer 404 `PLUGIN_INACTIVE` — the URLs it declared

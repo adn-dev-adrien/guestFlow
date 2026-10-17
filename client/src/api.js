@@ -43,6 +43,8 @@ const api = {
   // Système et mises à jour (specs/self-update-and-releases.md §4.3). Admin-only server-side; the
   // client gates on the role before calling so a non-admin never sees a 403 in the console.
   getSystemVersion: () => request('/system/version'),
+  // The running process's start time: the Plugins page waits for it to change after a restart.
+  getRuntimeVersion: () => request('/version'),
   checkSystemVersion: () => request('/system/version/check', { method: 'POST' }),
   getUpdateStatus: () => request('/system/update/status'),
   startUpdate: (targetVersion) => request('/system/update/start', { method: 'POST', body: { targetVersion } }),
@@ -103,7 +105,14 @@ const api = {
 
   // Plugins (specs/plugins-phase-0-foundation.md §4.3) — admin only.
   getPlugins: () => request('/plugins'),
-  installPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST' }),
+  // `withRequirements` installs the plugins it requires first (specs/plugins-phase-4-registry.md rule 12).
+  installPlugin: (id, { withRequirements = false } = {}) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST', body: { withRequirements } }),
+  // specs/plugins-phase-4-registry.md rules 9, 13, 16, 20 — versions, updates, rollback.
+  getPluginsStatus: () => request('/plugins/status'),
+  refreshPlugins: () => request('/plugins/refresh', { method: 'POST' }),
+  updatePlugin: (id, { version } = {}) => request(`/plugins/${encodeURIComponent(id)}/update`, { method: 'POST', body: version ? { version } : {} }),
+  updateAllPlugins: () => request('/plugins/update-all', { method: 'POST' }),
+  rollbackPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/rollback`, { method: 'POST' }),
   activatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
   deactivatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST' }),
   // `purge` also erases a plugin module's data (specs/plugins-phase-1-sdk.md rules 12, 21).

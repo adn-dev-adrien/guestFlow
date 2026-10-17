@@ -67,6 +67,11 @@ jobs:
           git fetch --no-tags --depth=200 origin "${{ github.base_ref }}"
           node scripts/check-spec-coverage.mjs --changed --base "origin/${{ github.base_ref }}"
 
+      - name: 🔌 Un plugin modifié porte une nouvelle version et ses lignes de journal
+        # specs/plugins-phase-4-registry.md rule 28 — the plugin a PR changes is bumped in that PR, so the
+        # release PR only touches the three package.json files and the changelog fold.
+        run: node scripts/check-plugin-versions.mjs --base "origin/${{ github.base_ref }}"
+
   server:
     name: server (node --test)
     runs-on: ubuntu-latest

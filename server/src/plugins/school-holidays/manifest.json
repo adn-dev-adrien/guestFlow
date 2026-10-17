@@ -1,0 +1,19 @@
+{
+  "id": "school-holidays",
+  "name": "Vacances scolaires",
+  "version": "1.0.0",
+  "description": "Zones A, B, C récupérées sur education.gouv.fr.",
+  "icon": "school",
+  "surfaces": [
+    "L’onglet Vacances scolaires",
+    "Les bandes de zones du calendrier"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

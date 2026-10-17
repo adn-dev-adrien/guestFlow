@@ -107,9 +107,11 @@ function importViolations(files) {
         const own = target.startsWith(`plugins/${inPlugin[1]}/`) || target === `plugins/${inPlugin[1]}`;
         if (!own && !target.startsWith('plugins/sdk')) out.push(`${rel} → ${spec}`);
       } else if (!inPlugin) {
-        // The host side — the SDK, the loader and the module list — is the core's door to plugins.
+        // The host side — the SDK, the loader and the module list — is the core's door to plugins;
+        // specs/plugins-phase-4-registry.md rules 2, 9, 11 add the manifest reader, the package store,
+        // the registry client and the host that ties them to the boot.
         const pluginTarget = target.match(/^plugins\/([^/.]+)/);
-        const host = !pluginTarget || ['sdk', 'loader', 'index'].includes(pluginTarget[1]);
+        const host = !pluginTarget || ['sdk', 'loader', 'index', 'manifest', 'host', 'packageStore', 'registryClient'].includes(pluginTarget[1]);
         if (!host && rel !== 'plugins/index.js') out.push(`${rel} → ${spec}`);
       }
     }

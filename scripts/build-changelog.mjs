@@ -151,6 +151,31 @@ export function checkDigest(sectionBody) {
   return { ok: errors.length === 0, errors, bullets };
 }
 
+// specs/plugins-phase-4-registry.md rule 24 — a bullet `- plugin:<id> <text>` belongs to a plugin. The
+// release section names the plugin; the plugin's own lines, in French, are in its manifest, written
+// in the pull request that bumped it (rule 28) — the release pull request never edits a manifest.
+const PLUGIN_BULLET = /^-\s+plugin:([a-z][a-z0-9-]*)\s*[—–:-]?\s*([\s\S]*)$/;
+
+/**
+ * Name the plugin of each `plugin:<id>` bullet in a {key: bullets[]} map. Pure. → { byKey }
+ * `byKey` keeps every bullet for the core section, a plugin's prefixed as « **Plugin `<id>`** — »;
+ */
+export function extractPluginLines(byKey) {
+  const out = {};
+  for (const [key, bullets] of Object.entries(byKey)) {
+    out[key] = [];
+    for (const raw of bullets) {
+      for (const bullet of String(raw).split(/\n(?=-\s)/)) {
+        const m = bullet.trim().match(PLUGIN_BULLET);
+        if (!m) { out[key].push(bullet); continue; }
+        const text = m[2].replace(/\s*\n\s*/g, ' ').trim();
+        out[key].push(`- **Plugin \`${m[1]}\`** — ${text}`);
+      }
+    }
+  }
+  return { byKey: out };
+}
+
 function mergeByKey(a, b) {
   const out = {};
   for (const [key] of CATEGORIES) {
@@ -178,7 +203,7 @@ function releaseMode(version, dateArg) {
   const bodyEnd = nextHeader === -1 ? text.length : bodyStart + nextHeader;
   const unreleasedBody = text.slice(bodyStart, bodyEnd);
 
-  const merged = mergeByKey(parseUnreleased(unreleasedBody), fragmentsByKey(fragments));
+  const { byKey: merged } = extractPluginLines(mergeByKey(parseUnreleased(unreleasedBody), fragmentsByKey(fragments)));
   const assembled = assemble(merged);
   if (!assembled) throw new Error('Nothing to release (no fragments and empty [Unreleased]).');
 

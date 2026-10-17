@@ -180,3 +180,9 @@ test-results/
 # Playwright MCP server scratch dir (snapshots / console logs from in-session
 # Claude Code investigations — not a deliverable, regenerated every session).
 .playwright-mcp/
+# Plugin packages (specs/plugins-phase-4-registry.md): the build output, and in a dev tree — whose data
+# directory is server/ — the packages installed from a registry and the plugins' own data.
+plugins-dist/
+server/plugins/
+server/plugin-data/
+playwright-report-prod/

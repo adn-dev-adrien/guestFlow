@@ -57,12 +57,16 @@ function run() {
   seedUser({
     email: RECEPTION_EMAIL, password: RECEPTION_PASSWORD, firstName: 'E2E', lastName: 'Accueil', roles: ['reception'],
   });
-  const install = db.prepare("INSERT INTO plugins (id, enabled, source) VALUES (?, 1, 'builtin') ON CONFLICT(id) DO UPDATE SET enabled = 1");
-  PLUGIN_IDS.forEach((id) => install.run(id));
+  // E2E_SEED_PLUGINS (comma list) leaves the others available — the production-build suite installs
+  // some from its test registry (specs/plugins-phase-4-registry.md rule 19). Default: all twelve.
+  const wanted = process.env.E2E_SEED_PLUGINS ? process.env.E2E_SEED_PLUGINS.split(',').map((s) => s.trim()) : PLUGIN_IDS;
+  const ids = PLUGIN_IDS.filter((id) => wanted.includes(id));
+  const install = db.prepare("INSERT INTO plugins (id, enabled, source) VALUES (?, 1, 'bundled') ON CONFLICT(id) DO UPDATE SET enabled = 1");
+  ids.forEach((id) => install.run(id));
   // The tables of the plugin modules exist once a plugin is installed (specs/plugins-phase-1-sdk.md
   // rule 6); the server may have booted before this seed, so create them here, as an install does.
-  require('../src/plugins').forEach((mod) => applyPluginSchema(db, mod.id));
-  console.log(`[seed-e2e] ${PLUGIN_IDS.length} built-in plugins installed and active.`);
+  require('../src/plugins').filter((mod) => ids.includes(mod.id)).forEach((mod) => applyPluginSchema(db, mod.id));
+  console.log(`[seed-e2e] ${ids.length} built-in plugins installed and active.`);
   // The start assistant is done (specs/plugins-phase-p-productisation.md rule 20): the suite tests the
   // app, and e2e/specs/onboarding opens the assistant on its own.
   db.prepare("UPDATE app_settings SET onboardingCompletedAt = datetime('now') WHERE onboardingCompletedAt IS NULL").run();

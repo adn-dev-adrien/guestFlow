@@ -6,7 +6,7 @@
 # Produces `<release-name>.tar.gz` plus its SHA-256. The archive is what the in-app updater
 # downloads, verifies and installs (specs/self-update-and-releases.md §3.A rule 7), so its layout is
 # a contract: a single top-level directory named after the archive, containing `server/`,
-# `client/build/` and the root `package.json` — nothing else, no node_modules, no database.
+# `client/build/`, `plugins-dist/` and the root `package.json` — no node_modules, no database.
 #
 # Environment variables:
 #   REBUILD_CLIENT=true   Force a fresh `cd client && npm run build` even if `client/dist`
@@ -48,7 +48,8 @@ else
 fi
 
 # Copy server (excluding dev files and node_modules)
-rsync -av --exclude='node_modules' --exclude='*.log' --exclude='guestflow.db' --exclude='uploads' server "$RELEASE_DIR/"
+rsync -av --exclude='node_modules' --exclude='*.log' --exclude='guestflow.db' --exclude='uploads' \
+  --exclude='/server/plugins' --exclude='/server/plugin-data' server "$RELEASE_DIR/"
 
 # Copy uploads (if you want to include existing docs/photos)
 if [ -d server/uploads ]; then
@@ -79,6 +80,15 @@ rsync -av --mkpath client/dist/ "$RELEASE_DIR/client/build/"
 
 # Copy root files
 cp package.json "$RELEASE_DIR/"
+
+# The plugin packages (specs/plugins-phase-4-registry.md rule 23, P24): one `<id>-<version>.tgz` per
+# plugin, the same package unpacked under `<id>/` (what an installed `bundled` plugin runs from) and
+# their SHA256SUMS, itself covered by the release's own checksum. Built here when absent.
+if [ ! -f plugins-dist/SHA256SUMS ] || [ "$REBUILD_CLIENT" = "true" ]; then
+  echo "Building plugin packages..."
+  node scripts/build-plugin-packages.mjs --out plugins-dist
+fi
+cp -R plugins-dist "$RELEASE_DIR/plugins-dist"
 
 # Ship the root `scripts/` directory.
 #

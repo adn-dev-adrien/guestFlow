@@ -20,6 +20,7 @@ import CataloguePage from './pages/CataloguePage';
 import VersionsPage from './pages/VersionsPage';
 import ProfilePage from './pages/ProfilePage';
 import EmailTemplatesPage from './pages/EmailTemplatesPage';
+import RegistryPage from './pages/RegistryPage';
 import PaymentsSettingsPage from '@gf/plugins/online-payment/PaymentsSettingsPage';
 import api from './api';
 
@@ -28,6 +29,7 @@ const NAV = [
   { to: '/versions', label: 'Versions', match: (p) => p.startsWith('/versions') },
   { to: '/catalogue', label: 'Catalogue', match: (p) => p.startsWith('/catalogue') },
   { to: '/emails', label: 'Emails', match: (p) => p.startsWith('/emails') },
+  { to: '/registre', label: 'Registre', match: (p) => p.startsWith('/registre') },
   { to: '/parametres/paiements', label: 'Réglages', match: (p) => p.startsWith('/parametres') },
   { to: '/profil', label: 'Profil', match: (p) => p.startsWith('/profil') },
 ];
@@ -64,6 +66,7 @@ function Shell({ operator, setOperator, notice }) {
           <Route path="/versions" element={<VersionsPage />} />
           <Route path="/catalogue" element={<CataloguePage />} />
           <Route path="/emails" element={<EmailTemplatesPage />} />
+          <Route path="/registre" element={<RegistryPage />} />
           <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
           <Route path="/profil" element={<ProfilePage operator={operator} onChanged={setOperator} />} />
         </Routes>

@@ -32,19 +32,41 @@ function ensurePluginsTable(db) {
     CREATE TABLE IF NOT EXISTS plugins (
       id           TEXT PRIMARY KEY,
       enabled      INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
-      source       TEXT NOT NULL DEFAULT 'builtin',
+      source       TEXT NOT NULL DEFAULT 'bundled',
       version      TEXT,
       installed_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  ensurePackageColumns(db);
+}
+
+// specs/plugins-phase-4-registry.md §5 — what a package install records (rule 11) and what a
+// rollback needs (rule 16). Idempotent; a row from before phase 4 keeps every value it had, and its
+// `builtin` source becomes `bundled`: the copy shipped in the release archive, which is exactly
+// what it was running.
+const PACKAGE_COLUMNS = [
+  ['manifest', 'TEXT'],
+  ['pinned_sha256', 'TEXT'],
+  ['previous_version', 'TEXT'],
+  ['previous_source', 'TEXT'],
+  ['previous_sha256', 'TEXT'],
+  ['rollback_until', 'TEXT'],
+];
+
+function ensurePackageColumns(db) {
+  const cols = new Set(db.prepare('PRAGMA table_info(plugins)').all().map((c) => c.name));
+  PACKAGE_COLUMNS.forEach(([name, type]) => {
+    if (!cols.has(name)) db.exec(`ALTER TABLE plugins ADD COLUMN ${name} ${type}`);
+  });
+  db.prepare("UPDATE plugins SET source = 'bundled' WHERE source = 'builtin'").run();
 }
 
 function seedBuiltinPlugins(db) {
   if (db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(SEED_MIGRATION)) return false;
   const existing = db.prepare('SELECT 1 FROM properties LIMIT 1').get()
     || db.prepare('SELECT 1 FROM reservations LIMIT 1').get();
-  const insert = db.prepare("INSERT OR IGNORE INTO plugins (id, enabled, source) VALUES (?, 1, 'builtin')");
+  const insert = db.prepare("INSERT OR IGNORE INTO plugins (id, enabled, source) VALUES (?, 1, 'bundled')");
   db.transaction(() => {
     if (existing) PLUGIN_IDS.forEach((id) => insert.run(id));
     db.prepare('INSERT INTO migrations (name) VALUES (?)').run(SEED_MIGRATION);
@@ -129,6 +151,8 @@ function resyncAfterRollback(db) {
 
 module.exports = {
   ensurePluginsTable,
+  ensurePackageColumns,
+  PACKAGE_COLUMNS,
   seedBuiltinPlugins,
   ensurePluginSettingsTable,
   copyAppSettingsToPlugins,

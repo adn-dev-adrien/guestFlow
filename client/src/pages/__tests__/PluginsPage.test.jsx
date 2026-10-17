@@ -17,6 +17,7 @@ vi.mock('../../api', () => ({
     activatePlugin: vi.fn(),
     deactivatePlugin: vi.fn(),
     uninstallPlugin: vi.fn(),
+    getPluginsStatus: vi.fn(),
   },
 }));
 vi.mock('../../hooks/useAuth', () => ({ __esModule: true, useAuth: vi.fn() }));
@@ -46,6 +47,7 @@ const card = (name) => screen.getByText(name).closest('.MuiCard-root');
 
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn.mockReset());
+  api.getPluginsStatus.mockResolvedValue({ mode: 'sources', registry: { configured: false }, updates: 0, banner: null });
   refresh = vi.fn().mockResolvedValue(undefined);
   useAuth.mockReturnValue({ user: { roles: ['admin'], enabledPlugins: [] }, refresh });
 });

@@ -18,7 +18,8 @@
     "test:client": "npm --prefix client test",
     "test:e2e": "node e2e/wipe-db.js && playwright test",
     "test:e2e:headed": "node e2e/wipe-db.js && playwright test --headed",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:prod": "playwright test -c playwright.prod.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -14,6 +14,7 @@ const { fleetRoutes } = require('./routes/fleet');
 const { exportRoutes } = require('./routes/exports');
 const { paymentsRoutes, qontoWebhook } = require('./routes/payments');
 const { publicRoutes } = require('./routes/public');
+const { registryPublicRoutes, registryRoutes } = require('./routes/registry');
 const { requireOperator } = require('./middleware/requireOperator');
 const { proxySecret } = require('./utils/gf');
 
@@ -29,6 +30,8 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
   // console, and neither answers on the other's host.
   const login = publicRoutes(ctx, { secureCookies });
   app.use((req, res, next) => (appHost && req.hostname === appHost ? login(req, res, next) : next()));
+  // specs/plugins-phase-4-registry.md rule 7 — the registry is public, read by the instances.
+  app.use('/registry/v1', registryPublicRoutes(ctx));
   // The raw bytes are kept for the Qonto webhook's signature (rule 32).
   app.use(express.json({ limit: '200kb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
   app.use(session({
@@ -44,13 +47,14 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
 
   app.use('/api/auth', authRoutes(ctx));
   app.post('/api/payments/qonto/webhook', qontoWebhook(ctx));
+  app.use('/api/registry', requireOperator({ now: ctx.now }), registryRoutes(ctx));
   app.use('/api', requireOperator({ now: ctx.now }), consoleRoutes(ctx), fleetRoutes(ctx));
   app.use('/api/payments', paymentsRoutes(ctx));
   app.use('/exports', exportRoutes(ctx));
 
   if (clientDist && fs.existsSync(clientDist)) {
     app.use(express.static(clientDist));
-    app.get(/^\/(?!api|exports).*/, (req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+    app.get(/^\/(?!api|exports|registry\/v1).*/, (req, res) => res.sendFile(path.join(clientDist, 'index.html')));
   }
 
   // eslint-disable-next-line no-unused-vars
