@@ -18,6 +18,8 @@
  *   facts.mentions          [{ id, section, offerFr, offerEn, bookedFr, bookedEn, priceSource,
  *                              priceOptionId, optionIds }]  in proposal order
  *   facts.confirmationOrder ['mention:<id>' | 'babyBed' | 'towels']
+ *   facts.arrival           { address, mapUrl, accessFr, accessEn, accessCode, wifiName, wifiPassword } | null
+ *                           (specs/guest-email-texts-made-simple.md rules 1–5)
  */
 
 const { formatDateLong } = require('./dateFr');
@@ -174,7 +176,15 @@ function classifyOptions(lines, facts) {
 /**
  * @returns {{ vars: object, flags: object }} merged over emailContextBuilder's context.
  */
-function buildStayContent({ reservation, client, property, options = [], facts = {}, settings = {}, lang = 'fr', sequence = {} }) {
+/** A map link built from the address when none is typed (specs/guest-email-texts-made-simple.md rule 1). */
+function mapLinkOf(address, mapUrl) {
+  const typed = safe(mapUrl).trim();
+  if (typed) return typed;
+  const a = safe(address).trim();
+  return a ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}` : '';
+}
+
+function buildStayContent({ reservation, client, property, options = [], facts = {}, settings = {}, lang = 'fr', sequence = {}, gateAccess = false }) {
   const L = lang === 'en' ? 'en' : 'fr';
   const en = L === 'en';
   const r = reservation || {};
@@ -312,6 +322,22 @@ function buildStayContent({ reservation, client, property, options = [], facts =
     ? say(Number(r.complementDeferredToCheckout || 0) === 1 ? 'complement.atDeparture' : 'complement.atArrival', { amount: euro(r.complementAmount, L) })
     : '';
 
+  // --- J-2 arrival facts (specs/guest-email-texts-made-simple.md rules 3–5): one paragraph per fact,
+  // omitted while its facts are empty; a gate code given by the gate-access plugin is not repeated.
+  const arrival = facts.arrival || {};
+  const trimEnd = (text) => text.replace(/\s+$/, '');
+  // The property's own address, else the company's: nothing to type twice for a single-site owner
+  // (specs/guest-email-texts-made-simple.md rule 3, 2026-10-17).
+  const address = (safe(arrival.address).trim() || safe(settings.companyAddress).trim());
+  const addressParagraph = address ? trimEnd(say('addressParagraph', { address, mapUrl: mapLinkOf(address, arrival.mapUrl) })) : '';
+  // How to get in is new data: an empty English sends the French (rule 14).
+  const access = (en && safe(arrival.accessEn).trim() ? safe(arrival.accessEn) : safe(arrival.accessFr)).trim();
+  const code = gateAccess ? '' : safe(arrival.accessCode).trim();
+  const accessParagraph = access || code ? trimEnd(say('accessParagraph', { access, code })) : '';
+  const wifiName = safe(arrival.wifiName).trim();
+  const wifiPassword = safe(arrival.wifiPassword).trim();
+  const arrivalWifiParagraph = wifiName || wifiPassword ? trimEnd(say('wifiParagraph', { wifiName, wifiPassword })) : '';
+
   // --- J+1
   const googleReviewUrl = safe(settings.googleReviewUrl).trim();
   const platformName = (() => {
@@ -371,6 +397,10 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       localProductsParagraph,
       kidsParagraph,
       parkingLine,
+      addressParagraph,
+      propertyAddress: address,
+      accessParagraph,
+      arrivalWifiParagraph,
       complementLine,
       bookedOptionsParagraph,
       coffeeParagraph,
@@ -399,6 +429,9 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       hasLocalProducts: Boolean(localProductsParagraph),
       hasKidsParagraph: Boolean(kidsParagraph),
       hasParkingLine: Boolean(parkingLine),
+      hasAddressParagraph: Boolean(addressParagraph),
+      hasAccessParagraph: Boolean(accessParagraph),
+      hasArrivalWifiParagraph: Boolean(arrivalWifiParagraph),
       hasComplementLine: Boolean(complementLine),
       hasBookedOptionsParagraph: Boolean(bookedOptionsParagraph),
       hasCoffeeParagraph: Boolean(coffeeParagraph),
@@ -418,5 +451,6 @@ module.exports = {
   buildStayContent,
   classifyOptions,
   roleOf,
+  mapLinkOf,
   __test: { euro, weekdayDate, hourLabel, durationLabel, joinList, withArticle },
 };

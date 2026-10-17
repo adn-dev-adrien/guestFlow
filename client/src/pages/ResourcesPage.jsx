@@ -259,7 +259,7 @@ export default function ResourcesPage({ barTabs }) {
             fr={form.emailBookedText || ''}
             en={form.emailBookedTextEn || ''}
             onChange={(lang, value) => setForm((f) => ({ ...f, [lang === 'fr' ? 'emailBookedText' : 'emailBookedTextEn']: value }))}
-            tokens={['slots']}
+            tokens={[{ name: 'slots', label: 'Créneaux' }]}
           />
         </>
       )}

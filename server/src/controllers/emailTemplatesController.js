@@ -23,6 +23,19 @@ const { templateAutoSends } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { isoToday } = require('../utils/emailAutoSendRunner');
 const { PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
+const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
+
+// specs/guest-email-texts-made-simple.md rule 11 — a template refuses an unknown variable with the
+// same 422 as a stay text or a mention, instead of dropping it silently at render time.
+function templateTokenError(payload) {
+  const allowed = templateAllowed();
+  for (const field of ['subject', 'body', 'subjectEn', 'bodyEn']) {
+    if (payload[field] === undefined || payload[field] === null) continue;
+    const error = tokenError(field, String(payload[field]), allowed);
+    if (error) return error;
+  }
+  return null;
+}
 
 const DAY_OFFSET_MIN = -90;
 const DAY_OFFSET_MAX = 90;
@@ -82,13 +95,26 @@ function buildController(model, settingsModel, deps = {}) {
     if (deps.scheduler) deps.scheduler.syncWithTemplates();
   }
 
+  // `textsSection`: the section of « Textes des emails » that writes this template's sentences
+  // (specs/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
+  const withSection = (row) => ({ ...row, textsSection: sectionOfStableKey(row.stableKey) });
+
   function list(req, res) {
-    return res.json(model.list().filter(sendable));
+    return res.json(model.list().filter(sendable).map(withSection));
   }
 
   // GET /api/email-templates/plugin-variables — the live plugins' variables and conditions.
   function pluginVariables(req, res) {
     return res.json(editorTokens());
+  }
+
+  // GET /api/email-templates/:id/variables — the chips of one template, labelled (rule 10). `new`
+  // stands for a template not created yet: every variable of every email.
+  function variables(req, res) {
+    if (req.params.id === 'new') return res.json(chipsForTemplate(null));
+    const row = model.findById(req.params.id);
+    if (!row) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    return res.json(chipsForTemplate(row));
   }
 
   function getOne(req, res) {
@@ -100,6 +126,8 @@ function buildController(model, settingsModel, deps = {}) {
   function create(req, res) {
     const errors = validateForCreate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    const unknown = templateTokenError(req.body);
+    if (unknown) return res.status(422).json(unknown);
     const row = model.insert({
       name:      String(req.body.name).trim(),
       subject:   String(req.body.subject),
@@ -120,6 +148,8 @@ function buildController(model, settingsModel, deps = {}) {
     if (!existing) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const errors = validateForUpdate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    const unknown = templateTokenError(req.body);
+    if (unknown) return res.status(422).json(unknown);
     const row = model.update(req.params.id, {
       name:      req.body.name      === undefined ? undefined : String(req.body.name).trim(),
       subject:   req.body.subject   === undefined ? undefined : String(req.body.subject),
@@ -141,7 +171,7 @@ function buildController(model, settingsModel, deps = {}) {
     return res.json({ ok: true });
   }
 
-  return { list, pluginVariables, getOne, create, update, remove };
+  return { list, pluginVariables, variables, getOne, create, update, remove };
 }
 
 const defaultController = (() => {

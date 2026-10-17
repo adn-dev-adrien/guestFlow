@@ -180,7 +180,21 @@ function onboardingProperty(name) {
   `).get(name) || null);
 }
 
+/**
+ * Set one company setting (specs/guest-email-texts-made-simple.md rule 15 — the test send goes to the
+ * company address). Returns the previous value so a spec can put it back.
+ */
+function setCompanySetting(column, value) {
+  if (!['companyEmail', 'companyPhone'].includes(column)) throw new Error(`unsupported column ${column}`);
+  return withDb((db) => {
+    const previous = (db.prepare(`SELECT ${column} AS v FROM app_settings LIMIT 1`).get() || {}).v;
+    db.prepare(`UPDATE app_settings SET ${column} = ?`).run(value);
+    return previous;
+  });
+}
+
 module.exports = {
+  setCompanySetting,
   seedCateringOptions,
   onboardingProperty,
   seedPendingDateDrift,

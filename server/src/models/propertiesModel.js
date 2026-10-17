@@ -273,6 +273,10 @@ function createPropertiesModel(database) {
       if (!propertyCols.has(key) || !Object.prototype.hasOwnProperty.call(body, key)) continue;
       database.prepare(`UPDATE properties SET ${key} = ? WHERE id = ?`).run(coerce(body[key]), Number(id));
     }
+    // specs/guest-email-texts-made-simple.md rule 6 — an article sent by a form is a confirmed one.
+    if (propertyCols.has('nameArticleConfirmed') && Object.prototype.hasOwnProperty.call(body, 'nameArticle')) {
+      database.prepare('UPDATE properties SET nameArticleConfirmed = 1 WHERE id = ?').run(Number(id));
+    }
   }
 
   function findPricingRuleOverlap(propertyId, dateRanges, excludeRuleId = null) {

@@ -3,6 +3,7 @@ const ctrl = require('../controllers/propertiesController');
 const ical = require('../controllers/propertyIcalController');
 const optionDefaults = require('../controllers/propertyOptionDefaultsController');
 const welcomePack = require('../controllers/welcomePackController');
+const arrivalFacts = require('../controllers/propertyArrivalFactsController').buildController({ database: require('../database') });
 const { handlePhotoUpload, handleDocumentUpload, multerErrorHandler } = require('../utils/propertyUploads');
 
 // Properties
@@ -15,6 +16,10 @@ router.post('/:id/pricing/progressive-preview', ctrl.progressivePreview);
 router.post('/', handlePhotoUpload, ctrl.create);
 router.put('/:id', handlePhotoUpload, ctrl.update);
 router.delete('/:id', ctrl.remove);
+
+// Arrival facts of the guest emails (specs/guest-email-texts-made-simple.md rules 1–2).
+router.get('/:id/arrival-facts', arrivalFacts.get);
+router.put('/:id/arrival-facts', arrivalFacts.save);
 
 // Pricing rules
 router.post('/:id/pricing', ctrl.addPricing);

@@ -7,6 +7,8 @@
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
  *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error }] }
+ *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, wifiName, wifiPassword }] }
+ *                                     → 200 | 422 { errors } (specs/guest-email-texts-made-simple.md rule 21)
  *   POST /api/onboarding/done       records onboardingCompletedAt (« C'est prêt » and « Plus tard »)
  *
  * Every step reuses the core's own write path: the company settings, the property creation, the
@@ -17,6 +19,11 @@ const validation = require('../utils/settingsValidation');
 const { validatePropertyInput } = require('../utils/propertyValidation');
 const { quotaRefusal } = require('../utils/planQuota');
 const onboardingModel = require('../models/onboardingModel');
+const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
+const { __test: { formatPropertyWithArticle } } = require('../utils/emailContextBuilder');
+
+// The articles a property name may take (models/propertiesModel.js), offered as a choice.
+const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
 
 const RECOMMENDED = new Set(['website-booking', 'sas']);
 const MAX_CAPACITY = 50;
@@ -57,8 +64,74 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     }));
   }
 
+  // Step « Vos emails » (rule 21): what the J-2 needs, pre-filled from what is already known.
+  // Every property, its address pre-filled with the company's when it has none of its own (rule 21,
+  // 2026-10-17): the address typed at step 1 is not asked twice.
+  function emailsOf(row) {
+    const arrival = arrivalFactsModel.buildModel(database);
+    const properties = database.prepare('SELECT id, name, nameArticle, hasWifi FROM properties ORDER BY id').all().map((p) => {
+      const facts = arrival.forForm(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        nameArticle: p.nameArticle || 'au',
+        // The article as the guest will read it: « au Gîte », « à la Maison »…
+        articles: NAME_ARTICLES.map((value) => ({ value, label: formatPropertyWithArticle(p.name, value) })),
+        address: facts.address || row.companyAddress || '',
+        access: facts.accessFr,
+        hasWifi: Number(p.hasWifi == null ? 1 : p.hasWifi) !== 0,
+        wifiName: facts.wifiName,
+        hasWifiPassword: facts.hasWifiPassword,
+      };
+    });
+    return {
+      phone: row.companyPhone || '',
+      senderName: row.smtpFromName || row.companyName || '',
+      properties,
+      previewStableKey: 'arrival_reminder_1d',
+    };
+  }
+
   async function get(req, res) {
-    return res.json({ open: model().isOpen(), company: companyOf(settingsModel.read()), plugins: await pluginList() });
+    const row = settingsModel.read();
+    return res.json({ open: model().isOpen(), company: companyOf(row), emails: emailsOf(row), plugins: await pluginList() });
+  }
+
+  // Every field may be skipped: an absent one is left as it is. `properties`: one entry per property.
+  function saveEmails(req, res) {
+    const b = req.body || {};
+    const list = Array.isArray(b.properties) ? b.properties : [];
+    const errors = {};
+    const known = new Set(database.prepare('SELECT id FROM properties').all().map((p) => p.id));
+    list.forEach((p, i) => {
+      if (!p || !known.has(Number(p.id))) errors[`properties.${i}`] = 'Logement inconnu';
+      else if (p.nameArticle !== undefined && !NAME_ARTICLES.includes(p.nameArticle)) errors[`properties.${i}.nameArticle`] = 'Article inconnu';
+      for (const key of ['address', 'access', 'wifiName', 'wifiPassword']) {
+        if (p && p[key] !== undefined && String(p[key]).length > arrivalFactsModel.MAX_LENGTH) errors[`properties.${i}.${key}`] = 'Trop long';
+      }
+    });
+    if (Object.keys(errors).length) return res.status(422).json({ errors });
+    const settings = {};
+    if (b.phone !== undefined) settings.companyPhone = String(b.phone).trim();
+    if (b.senderName !== undefined) settings.smtpFromName = String(b.senderName).trim();
+    if (Object.keys(settings).length) settingsModel.upsert(settings);
+    const companyAddress = String(settingsModel.read().companyAddress || '').trim();
+    const arrival = arrivalFactsModel.buildModel(database);
+    database.transaction(() => {
+      for (const p of list) {
+        if (p.nameArticle !== undefined) {
+          database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(p.nameArticle, Number(p.id));
+        }
+        const patch = {};
+        // The company's address left as it was stays derived, so a later change of it follows.
+        if (p.address !== undefined) patch.address = String(p.address).trim() === companyAddress ? '' : p.address;
+        if (p.access !== undefined) patch.accessFr = p.access;
+        if (p.wifiName !== undefined) patch.wifiName = p.wifiName;
+        if (p.wifiPassword !== undefined && p.wifiPassword !== '') patch.wifiPassword = p.wifiPassword;
+        if (Object.keys(patch).length) arrival.save(Number(p.id), patch);
+      }
+    })();
+    return res.json({ emails: emailsOf(settingsModel.read()) });
   }
 
   function saveCompany(req, res) {
@@ -125,7 +198,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     return res.json({ open: false });
   }
 
-  return { get, saveCompany, saveProperty, savePlugins, done };
+  return { get, saveCompany, saveProperty, savePlugins, saveEmails, done };
 }
 
 module.exports = { buildController, RECOMMENDED };

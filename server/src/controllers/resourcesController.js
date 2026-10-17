@@ -6,7 +6,7 @@
  * tests. (The factory is NOT named `create` — that's a request handler here.)
  */
 
-const { tokenError } = require('./stayTextsController');
+const { tokenError } = require('../utils/templateTokens');
 const { RESOURCE_BOOKED } = require('../utils/stayTextCatalogue');
 
 function validateResourcePayload(body) {

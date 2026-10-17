@@ -7,11 +7,12 @@
  * paragraphs.
  *
  * API: loadStayFacts(database, reservation) → { defaults, available, optionMeta, bathFreeMinutes, properties,
- *      texts, mentions, confirmationOrder }
+ *      texts, mentions, confirmationOrder, arrival }
  */
 
 const stayTextsModel = require('./stayTextsModel');
 const emailMentionsModel = require('./emailMentionsModel');
+const propertyArrivalFactsModel = require('./propertyArrivalFactsModel');
 
 function tryAll(fn, fallback) {
   try { return fn(); } catch { return fallback; }
@@ -87,7 +88,12 @@ function loadStayFacts(database, reservation) {
   const mentions = mentionsModel ? tryAll(() => mentionsModel.list(), []) : [];
   const confirmationOrder = mentionsModel ? tryAll(() => mentionsModel.confirmationOrder(), []) : [];
 
-  return { defaults, available, optionMeta, bathFreeMinutes, properties, texts, mentions, confirmationOrder };
+  // specs/guest-email-texts-made-simple.md rules 1–3 — the facts of the J-2's arrival paragraphs.
+  const arrival = propertyId
+    ? tryAll(() => propertyArrivalFactsModel.buildModel(database).forEmail(propertyId), null)
+    : null;
+
+  return { defaults, available, optionMeta, bathFreeMinutes, properties, texts, mentions, confirmationOrder, arrival };
 }
 
 /**
