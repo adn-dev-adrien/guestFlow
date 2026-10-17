@@ -392,11 +392,19 @@ Implemented 2026-10-08 → 2026-10-17 on `feature/hosting-h1-fleet-runtime` (PR 
   console (one source of truth; `/etc/guestflow/backup.env` is gone); bootstrap restarts Litestream.
 - Instances and the console share the host's loopback: Caddy adds a secret header
   (`GUESTFLOW_PROXY_SECRET`, `CP_PROXY_SECRET`) and both drop `X-Forwarded-*` without it.
-- The real-host check, `deploy/hosting/test/` (privileged Docker, Debian 12 + systemd + MinIO), runs
-  `bootstrap-host.sh` and every scenario through the console; not in CI.
+- The real-host check, `deploy/hosting/test/` (privileged Docker, Debian 12 + systemd + SeaweedFS
+  S3), runs `bootstrap-host.sh` and every scenario through the console; not in CI. Run on
+  2026-10-17: 37/37 checks (two customers, fleet update and forced rollback, replica listed and
+  restored at a date, weekly check, deprovision/reactivate/rename/erase, isolation from inside an
+  instance). It found and fixed: copied files keeping their source's group (release unreadable by
+  the instances), `RestrictSUIDSGID=` refusing directories in the setgid instance directories,
+  simultaneous creations dropping each other from Litestream's configuration and racing on Caddy's
+  reload, and two bootstrap errors (pipefail on a fresh host, the firewall's OpenSSH profile).
+- On a real host a release that dies at start is retried by systemd (`Restart=on-failure`), so the
+  rollback comes after the full 60 s health window, not at once as with the local driver.
 
 **Tests.**
-- Control plane: `hosting-drivers` (14), `hosting-provisioner` (13), `hosting-releases` (3),
+- Control plane: `hosting-drivers` (15), `hosting-provisioner` (13), `hosting-releases` (3),
   `hosting-fleet-update` (6), `hosting-probe` (10), `hosting-restore` (7), `hosting-instance-files`
   (5) unit suites, and
   `hosting-lifecycle.integration.test.js` (real instances, local drivers, ~8 s) in the
