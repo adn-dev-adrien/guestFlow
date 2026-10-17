@@ -7,7 +7,7 @@
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
  *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error }] }
- *   PUT  /api/onboarding/emails     { phone, senderName, nameArticle, address, access, wifiName, wifiPassword }
+ *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, wifiName, wifiPassword }] }
  *                                     → 200 | 422 { errors } (specs/guest-email-texts-made-simple.md rule 21)
  *   POST /api/onboarding/done       records onboardingCompletedAt (« C'est prêt » and « Plus tard »)
  *
@@ -65,18 +65,29 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
   }
 
   // Step « Vos emails » (rule 21): what the J-2 needs, pre-filled from what is already known.
+  // Every property, its address pre-filled with the company's when it has none of its own (rule 21,
+  // 2026-10-17): the address typed at step 1 is not asked twice.
   function emailsOf(row) {
-    const property = database.prepare('SELECT id, name, nameArticle FROM properties ORDER BY id LIMIT 1').get() || null;
-    const facts = property ? arrivalFactsModel.buildModel(database).forForm(property.id) : null;
+    const arrival = arrivalFactsModel.buildModel(database);
+    const properties = database.prepare('SELECT id, name, nameArticle, hasWifi FROM properties ORDER BY id').all().map((p) => {
+      const facts = arrival.forForm(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        nameArticle: p.nameArticle || 'au',
+        // The article as the guest will read it: « au Gîte », « à la Maison »…
+        articles: NAME_ARTICLES.map((value) => ({ value, label: formatPropertyWithArticle(p.name, value) })),
+        address: facts.address || row.companyAddress || '',
+        access: facts.accessFr,
+        hasWifi: Number(p.hasWifi == null ? 1 : p.hasWifi) !== 0,
+        wifiName: facts.wifiName,
+        hasWifiPassword: facts.hasWifiPassword,
+      };
+    });
     return {
       phone: row.companyPhone || '',
       senderName: row.smtpFromName || row.companyName || '',
-      // The article as the guest will read it: « au Gîte », « à la Maison »…
-      articles: NAME_ARTICLES.map((value) => ({ value, label: property ? formatPropertyWithArticle(property.name, value) : value })),
-      property: property ? {
-        id: property.id, name: property.name, nameArticle: property.nameArticle || 'au',
-        address: facts.address, access: facts.accessFr, wifiName: facts.wifiName, hasWifiPassword: facts.hasWifiPassword,
-      } : null,
+      properties,
       previewStableKey: 'arrival_reminder_1d',
     };
   }
@@ -86,31 +97,40 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     return res.json({ open: model().isOpen(), company: companyOf(row), emails: emailsOf(row), plugins: await pluginList() });
   }
 
-  // Every field may be skipped: an absent one is left as it is.
+  // Every field may be skipped: an absent one is left as it is. `properties`: one entry per property.
   function saveEmails(req, res) {
     const b = req.body || {};
+    const list = Array.isArray(b.properties) ? b.properties : [];
     const errors = {};
-    if (b.nameArticle !== undefined && !NAME_ARTICLES.includes(b.nameArticle)) errors.nameArticle = 'Article inconnu';
-    for (const key of ['address', 'access', 'wifiName', 'wifiPassword']) {
-      if (b[key] !== undefined && String(b[key]).length > arrivalFactsModel.MAX_LENGTH) errors[key] = 'Trop long';
-    }
+    const known = new Set(database.prepare('SELECT id FROM properties').all().map((p) => p.id));
+    list.forEach((p, i) => {
+      if (!p || !known.has(Number(p.id))) errors[`properties.${i}`] = 'Logement inconnu';
+      else if (p.nameArticle !== undefined && !NAME_ARTICLES.includes(p.nameArticle)) errors[`properties.${i}.nameArticle`] = 'Article inconnu';
+      for (const key of ['address', 'access', 'wifiName', 'wifiPassword']) {
+        if (p && p[key] !== undefined && String(p[key]).length > arrivalFactsModel.MAX_LENGTH) errors[`properties.${i}.${key}`] = 'Trop long';
+      }
+    });
     if (Object.keys(errors).length) return res.status(422).json({ errors });
     const settings = {};
     if (b.phone !== undefined) settings.companyPhone = String(b.phone).trim();
     if (b.senderName !== undefined) settings.smtpFromName = String(b.senderName).trim();
     if (Object.keys(settings).length) settingsModel.upsert(settings);
-    const property = database.prepare('SELECT id FROM properties ORDER BY id LIMIT 1').get();
-    if (property) {
-      if (b.nameArticle !== undefined) {
-        database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(b.nameArticle, property.id);
+    const companyAddress = String(settingsModel.read().companyAddress || '').trim();
+    const arrival = arrivalFactsModel.buildModel(database);
+    database.transaction(() => {
+      for (const p of list) {
+        if (p.nameArticle !== undefined) {
+          database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(p.nameArticle, Number(p.id));
+        }
+        const patch = {};
+        // The company's address left as it was stays derived, so a later change of it follows.
+        if (p.address !== undefined) patch.address = String(p.address).trim() === companyAddress ? '' : p.address;
+        if (p.access !== undefined) patch.accessFr = p.access;
+        if (p.wifiName !== undefined) patch.wifiName = p.wifiName;
+        if (p.wifiPassword !== undefined && p.wifiPassword !== '') patch.wifiPassword = p.wifiPassword;
+        if (Object.keys(patch).length) arrival.save(Number(p.id), patch);
       }
-      const patch = {};
-      if (b.address !== undefined) patch.address = b.address;
-      if (b.access !== undefined) patch.accessFr = b.access;
-      if (b.wifiName !== undefined) patch.wifiName = b.wifiName;
-      if (b.wifiPassword !== undefined && b.wifiPassword !== '') patch.wifiPassword = b.wifiPassword;
-      if (Object.keys(patch).length) arrivalFactsModel.buildModel(database).save(property.id, patch);
-    }
+    })();
     return res.json({ emails: emailsOf(settingsModel.read()) });
   }
 

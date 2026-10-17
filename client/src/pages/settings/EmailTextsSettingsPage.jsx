@@ -13,9 +13,9 @@
  * property whose own texts are shown, `#<section>` opens one email.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import {
-  Accordion, AccordionDetails, AccordionSummary, Box, Button, FormControl, InputLabel, MenuItem, Select, Stack,
+  Accordion, AccordionDetails, AccordionSummary, Box, Button, ButtonBase, FormControl, InputLabel, Link, MenuItem, Select, Stack,
   Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -35,6 +35,8 @@ import StatusBadge from '../../components/StatusBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorAlert from '../../components/ErrorAlert';
 import { useToast } from '../../components/DialogProvider';
+import readTextFile from '../../utils/readTextFile';
+import { buildDictionary, toDisplay } from '../../utils/tokenDisplay';
 
 const TABS = [
   { value: 'texts', label: 'Par email' },
@@ -69,6 +71,7 @@ export default function EmailTextsSettingsPage() {
   const [fullTemplate, setFullTemplate] = useState(null);
   const [importPlan, setImportPlan] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [editingKey, setEditingKey] = useState(null);
   // Bumped on every load, so the preview re-renders what was just saved or imported.
   const [revision, setRevision] = useState(0);
 
@@ -173,7 +176,7 @@ export default function EmailTextsSettingsPage() {
     const file = event.target.files && event.target.files[0];
     event.target.value = '';
     if (!file) return;
-    const csv = await file.text();
+    const csv = await readTextFile(file);
     try {
       const plan = await api.importEmailTexts(csv);
       setImportPlan({ ...plan, csv });
@@ -197,7 +200,8 @@ export default function EmailTextsSettingsPage() {
     setBusy(true);
     try {
       const r = await api.translateEmailTexts();
-      showSuccess(r.translated ? `${plural(r.translated, 'texte')} traduit${r.translated > 1 ? 's' : ''}, à relire.` : 'Rien à traduire.');
+      const done = r.translated ? `${plural(r.translated, 'texte')} traduit${r.translated > 1 ? 's' : ''}, à relire.` : 'Rien à traduire.';
+      showSuccess(r.skipped ? `${done} ${r.skipped} à traduire à la main.` : done);
       await load();
     } catch (err) {
       showError(err.message || 'Traduction impossible.');
@@ -240,7 +244,22 @@ export default function EmailTextsSettingsPage() {
     />
   );
 
-  const fieldOf = (item) => (
+  // On a phone a sentence is one line until tapped: the J-2 alone holds dozens of them.
+  const compactOf = (item) => (
+    <ButtonBase
+      key={item.key}
+      onClick={() => setEditingKey(item.key)}
+      aria-label={`Modifier ${item.label}`}
+      sx={{ display: 'block', width: '100%', textAlign: 'left', borderBottom: 1, borderColor: 'divider', py: 1, minHeight: 44 }}
+    >
+      <Typography variant="subtitle2">{item.label}</Typography>
+      <Typography variant="body2" color={valueOf(item, 'fr') ? 'text.secondary' : 'text.disabled'} sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+        {toDisplay(valueOf(item, 'fr'), buildDictionary(item.chips.variables, item.chips.conditions)) || 'Vide'}
+      </Typography>
+    </ButtonBase>
+  );
+  const fieldOf = (item) => (!desktop && editingKey !== item.key && !errors[item.key] ? compactOf(item) : editorOf(item));
+  const editorOf = (item) => (
     <TokenTextField
       key={item.key}
       id={item.key}
@@ -295,6 +314,8 @@ export default function EmailTextsSettingsPage() {
         <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 0.85fr)' }, gap: 2, alignItems: 'start' }}>
           <Stack spacing={1.5} sx={{ minWidth: 0 }}>
             <ReadinessList items={readiness} />
+            {/* Rule 24 — option and resource names are translated in the catalogue, not here. */}
+            <Link component={RouterLink} to="/settings/systeme" variant="body2">Noms des options et des ressources : Traductions</Link>
             {data.properties.length > 1 && (
               <FormControl size="small" sx={{ maxWidth: 320 }}>
                 <InputLabel id="texts-property">Logement</InputLabel>
@@ -336,7 +357,18 @@ export default function EmailTextsSettingsPage() {
                         </Select>
                       </FormControl>
                     )}
-                    {s.items.map(fieldOf)}
+                    {s.items.filter((i) => i.used !== false).map(fieldOf)}
+                    {/* Rule 25 — sentences the stored template never places, out of the way. */}
+                    {s.items.some((i) => i.used === false) && (
+                      <Accordion disableGutters variant="outlined" sx={{ bgcolor: 'background.default' }}>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Typography variant="body2" color="text.secondary">
+                            {`Phrases non utilisées par le modèle (${s.items.filter((i) => i.used === false).length})`}
+                          </Typography>
+                        </AccordionSummary>
+                        <AccordionDetails><Stack spacing={2}>{s.items.filter((i) => i.used === false).map(fieldOf)}</Stack></AccordionDetails>
+                      </Accordion>
+                    )}
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                       <Button variant="outlined" onClick={openFullTemplate} disabled={!templateId} sx={{ minHeight: 44 }}>Modifier le modèle complet</Button>
                       {!desktop && (
@@ -400,20 +432,21 @@ export default function EmailTextsSettingsPage() {
             {(importPlan.changed.length > 0 || importPlan.refused.length > 0) && (
               <Box sx={{ overflowX: 'auto' }}>
                 <Table size="small">
-                  <TableHead><TableRow><TableCell>Ligne</TableCell><TableCell>Texte</TableCell><TableCell>Détail</TableCell></TableRow></TableHead>
+                  <TableHead><TableRow><TableCell>Ligne</TableCell><TableCell>Texte</TableCell><TableCell>Français</TableCell><TableCell>Anglais</TableCell></TableRow></TableHead>
                   <TableBody>
                     {importPlan.changed.map((c) => (
                       <TableRow key={`c-${c.line}`}>
                         <TableCell>{c.line}</TableCell>
                         <TableCell>{c.description}</TableCell>
-                        <TableCell>{c.fr !== undefined ? c.fr : c.en}</TableCell>
+                        <TableCell sx={{ fontWeight: c.fr !== undefined ? 600 : 400 }}>{c.frShown}</TableCell>
+                        <TableCell sx={{ fontWeight: c.en !== undefined ? 600 : 400 }}>{c.enShown}</TableCell>
                       </TableRow>
                     ))}
                     {importPlan.refused.map((r) => (
                       <TableRow key={`r-${r.line}`}>
                         <TableCell>{r.line}</TableCell>
                         <TableCell><StatusBadge status="error" label="Refusée" /></TableCell>
-                        <TableCell sx={{ color: 'error.main' }}>{r.message}</TableCell>
+                        <TableCell colSpan={2} sx={{ color: 'error.main' }}>{r.message}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

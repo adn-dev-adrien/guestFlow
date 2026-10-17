@@ -37,6 +37,7 @@ test('rule 13: the preview is the server rendering of the draft being typed', as
   expect(await within(await showPreview()).findByText(/Café offert\./)).toBeInTheDocument();
   expect(api.previewEmailDraft).toHaveBeenLastCalledWith(expect.objectContaining({ templateId: 2, language: 'fr', draft: { texts: {} } }));
   api.previewEmailDraft.mockResolvedValue({ ...PREVIEW, body: 'Bonjour Camille,\n\nThé et café.' });
+  fireEvent.click(screen.getByRole('button', { name: 'Modifier Dans le logement' }));
   fireEvent.change(screen.getByDisplayValue('Café offert.'), { target: { value: 'Thé et café.' } });
   expect(await screen.findByText(/Thé et café\./, { selector: '[data-testid="email-preview"] *' })).toBeInTheDocument();
   expect(api.previewEmailDraft).toHaveBeenLastCalledWith(expect.objectContaining({ draft: { texts: { 'text:house': { fr: 'Thé et café.' } } } }));

@@ -1,0 +1,13 @@
+// specs/guest-email-texts-made-simple.md rule 23 — a CSV saved by Excel as Windows-1252 keeps its
+// accents; a UTF-8 one is read as is.
+import readTextFile from '../readTextFile';
+
+const fileOf = (bytes) => ({ arrayBuffer: () => Promise.resolve(Uint8Array.from(bytes).buffer) });
+
+test('rule 23: UTF-8 is read as UTF-8', async () => {
+  expect(await readTextFile(fileOf([0x43, 0x61, 0x66, 0xc3, 0xa9]))).toBe('Café');
+});
+
+test('rule 23: Windows-1252 (Excel « CSV point-virgule ») keeps its accents', async () => {
+  expect(await readTextFile(fileOf([0x43, 0x61, 0x66, 0xe9, 0x3b, 0xe0]))).toBe('Café;à');
+});

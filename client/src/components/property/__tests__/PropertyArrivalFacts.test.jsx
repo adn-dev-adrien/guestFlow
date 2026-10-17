@@ -46,3 +46,10 @@ test('rule 12: the property links to its texts on « Textes des emails »', asyn
   renderBlock();
   expect(await screen.findByRole('link', { name: 'Textes des emails' })).toHaveAttribute('href', '/settings/emails/textes?propertyId=1#j2');
 });
+
+test('rule 25: a property without Wi-Fi is not asked for one', async () => {
+  render(<MemoryRouter><PropertyArrivalFacts propertyId={1} hasWifi={false} /></MemoryRouter>);
+  await screen.findByDisplayValue('12 chemin des Prés');
+  expect(screen.queryByLabelText('Réseau Wi-Fi')).toBeNull();
+  expect(screen.queryByText('Mot de passe Wi-Fi')).toBeNull();
+});

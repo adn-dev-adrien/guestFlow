@@ -40,6 +40,7 @@ function exportCsv(req, res) {
 
 function importCsv(req, res) {
   const text = typeof req.body === 'string' ? req.body : String((req.body && req.body.csv) || '');
+  if (translationCsv.badlyEncoded(text)) return res.status(400).json({ error: 'BAD_ENCODING', message: translationCsv.ENCODING_MESSAGE });
   let parsed;
   try {
     parsed = translationCsv.parse(text);

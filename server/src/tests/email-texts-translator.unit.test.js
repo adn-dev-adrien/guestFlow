@@ -26,7 +26,7 @@ function fakeApi({ mangle = false, status = 200 } = {}) {
   const requests = [];
   const fetchImpl = async (url, init) => {
     const body = JSON.parse(init.body);
-    requests.push({ url, headers: init.headers, body });
+    requests.push({ url, headers: init.headers, body, signal: init.signal });
     const texts = JSON.parse(body.messages[0].content);
     const translations = texts.map((t) => (mangle ? t.replace(/\[\[0\]\]/, '') : `EN: ${t}`));
     return {
@@ -47,6 +47,7 @@ test('rule 19: the variables never reach the service, and come back in place', w
   assert.equal(out, 'EN: Bonjour {{clientFirstName}}, {{#if hasPrice}}{{price}}{{/if}}.');
   assert.equal(api.requests[0].url, 'https://api.anthropic.com/v1/messages');
   assert.equal(api.requests[0].headers['x-api-key'], 'test-key');
+  assert.ok(api.requests[0].signal instanceof AbortSignal, 'every request gives up after 30 s');
   assert.equal(api.requests[0].body.model, 'claude-sonnet-5-5');
 }));
 
@@ -73,8 +74,24 @@ test('rule 19: every empty English is filled and marked « à relire » until ed
   assert.equal(after.find((i) => i.key === 'hook:1').autoTranslated, false);
 }));
 
-test('rule 19: a lost variable or a failed call changes nothing at all', withKey(async () => {
-  for (const api of [fakeApi({ mangle: true }), fakeApi({ status: 529 })]) {
+test('rule 19: a text whose variable did not come back is skipped and counted; « accès » is never sent', withKey(async () => {
+  const { db } = setup();
+  db.prepare("INSERT INTO stay_texts (key, propertyId, fr, en) VALUES ('house', 0, 'Café, {{x}}', '')").run();
+  db.prepare("UPDATE properties SET emailHook = 'Le jardin.' WHERE id = 1").run();
+  require('../models/propertyArrivalFactsModel').buildModel(db).save(1, { accessFr: 'Code 4521 sur la porte.' });
+  const api = fakeApi({ mangle: true });
+  const controller = buildController({ database: db, translator: { isAvailable: () => true, translate: (t) => textTranslator.translate(t, { fetchImpl: api.fetchImpl }) } });
+  const res = await call(controller.translate);
+  assert.equal(res.status, 200);
+  assert.ok(res.body.skipped >= 1);
+  assert.equal(db.prepare("SELECT en FROM stay_texts WHERE key = 'house'").get().en, '');
+  assert.equal(db.prepare('SELECT emailHookEn FROM properties WHERE id = 1').get().emailHookEn, 'Le jardin.');
+  assert.doesNotMatch(JSON.stringify(api.requests.map((r) => r.body)), /4521/);
+  assert.equal(api.requests[0].body.model, 'claude-sonnet-5-5');
+}));
+
+test('rule 19: a failed call changes nothing at all', withKey(async () => {
+  for (const api of [fakeApi({ status: 529 })]) {
     const { db } = setup();
     db.prepare("INSERT INTO stay_texts (key, propertyId, fr, en) VALUES ('house', 0, 'Café, {{x}}', '')").run();
     db.prepare("UPDATE properties SET emailHook = 'Le jardin.' WHERE id = 1").run();

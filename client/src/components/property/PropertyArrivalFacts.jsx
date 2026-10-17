@@ -5,7 +5,7 @@
  * Wi-Fi password are secrets: shown masked, sent only when typed. Saved on its own, like the property's
  * texts: it is not part of the property form. Specific to the property page.
  *
- * Props: propertyId (number)
+ * Props: propertyId (number), hasWifi (boolean — without Wi-Fi the Wi-Fi fields are not asked)
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Card, CardContent, Link, Stack, TextField, Typography } from '@mui/material';
@@ -17,7 +17,7 @@ import { useToast } from '../DialogProvider';
 
 const PLAIN = ['address', 'mapUrl', 'accessFr', 'accessEn', 'wifiName'];
 
-export default function PropertyArrivalFacts({ propertyId }) {
+export default function PropertyArrivalFacts({ propertyId, hasWifi = true }) {
   const { showSuccess, showError } = useToast();
   const [saved, setSaved] = useState(null);
   const [form, setForm] = useState({});
@@ -73,7 +73,7 @@ export default function PropertyArrivalFacts({ propertyId }) {
             value={secrets.accessCode}
             onChange={(v) => setSecrets((s) => ({ ...s, accessCode: v }))}
           />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, alignItems: 'start' }}>
+          {hasWifi && <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, alignItems: 'start' }}>
             <TextField label="Réseau Wi-Fi" value={form.wifiName} onChange={set('wifiName')} size="small" fullWidth />
             <MaskedTextField
               label="Mot de passe Wi-Fi"
@@ -81,7 +81,7 @@ export default function PropertyArrivalFacts({ propertyId }) {
               value={secrets.wifiPassword}
               onChange={(v) => setSecrets((s) => ({ ...s, wifiPassword: v }))}
             />
-          </Box>
+          </Box>}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' } }}>
             <Button variant="contained" onClick={save} disabled={!dirty || busy} sx={{ minHeight: 44 }}>Enregistrer l’arrivée</Button>
             <Link component={RouterLink} to={`/settings/emails/textes?propertyId=${propertyId}#j2`}>Textes des emails</Link>

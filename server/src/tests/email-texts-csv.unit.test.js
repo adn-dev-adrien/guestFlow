@@ -65,6 +65,7 @@ test('rule 17: the summary comes first, the confirmation writes; refused rows ca
   const summary = await call(controller.importCsv, { body: csv, query: {} });
   assert.equal(summary.body.applied, false);
   assert.deepEqual(summary.body.changed.map((c) => c.key), ['text:house']);
+  assert.deepEqual([summary.body.changed[0].frShown, summary.body.changed[0].enShown], ['Café et thé vous attendent.', '']);
   assert.deepEqual(summary.body.refused, [
     { line: badLine, key: 'text:beds.made', message: 'Variable inconnue : {{prenon}}' },
     { line: records.length, key: 'text:inconnue', message: 'Clé inconnue : text:inconnue' },
@@ -89,4 +90,32 @@ test('rule 18: the translation catalogue\'s parser — any column order, `,` fro
   const rows = emailTextsCsv.parse('﻿english,clé,français\r\n"Line one\r\nline two",text:house,"Ligne, un"\r\n');
   assert.deepEqual(rows, [{ line: 2, key: 'text:house', fr: 'Ligne, un', en: 'Line one\nline two' }]);
   assert.throws(() => emailTextsCsv.parse('clé;français\nx;y\n'), /colonne « english »/);
+});
+
+test('rule 22: a text starting with - = + @ is exported as text and read back unchanged', async () => {
+  const { db } = setup();
+  db.prepare("INSERT INTO stay_texts (key, propertyId, fr, en) VALUES ('parkingLine', 0, '- Garez-vous au parking.', '=Park here')").run();
+  const csv = await exported(db);
+  assert.match(csv, /\r\nJ-2;text:parkingLine;[^;]*;'- Garez-vous au parking\.;'=Park here;'- Garez-vous/);
+  const res = await call(buildController({ database: db, translator }).importCsv, { body: csv, query: {} });
+  assert.deepEqual(res.body.changed, []);
+  assert.deepEqual(emailTextsCsv.parse("clé;français;english\ntext:house;'-x;'@y\n")[0], { line: 2, key: 'text:house', fr: '-x', en: '@y' });
+});
+
+test('rule 22: a cell Excel turned into an error value is refused with its line, in both files', () => {
+  const rows = emailTextsCsv.parse('clé;français;english\ntext:house;#NOM?;\ntext:noWifi;Pas de wifi.;#NAME?\n');
+  const plan = emailTextsCsv.plan(rows, { find: () => ({ fr: '', en: '', description: 'x' }), validate: () => null });
+  assert.deepEqual(plan.refused.map((r) => r.message), [
+    'Excel a transformé ce texte en formule — ligne 2',
+    'Excel a transformé ce texte en formule — ligne 3',
+  ]);
+  assert.throws(() => translationCsv.parse('clé,français,english\noption.title:1,Pain,#VALUE!\n'), /Excel a transformé ce texte en formule/);
+});
+
+test('rule 23: a file that was not UTF-8 is refused before anything is read', async () => {
+  const { db } = setup();
+  const res = await call(buildController({ database: db, translator }).importCsv, { body: 'clé;français;english\ntext:house;Caf�;\n', query: { confirm: 'true' } });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.message, 'Fichier mal encodé : l’enregistrer en « CSV UTF-8 ».');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM stay_texts').get().n, 0);
 });

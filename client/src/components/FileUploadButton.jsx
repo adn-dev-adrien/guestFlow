@@ -15,6 +15,7 @@
  *   fullWidth?: boolean
  */
 import React, { useRef } from 'react';
+import readTextFile from '../utils/readTextFile';
 import { Button, CircularProgress } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 
@@ -35,7 +36,7 @@ export default function FileUploadButton({
     // input keeps its value.
     event.target.value = '';
     if (!file) return;
-    const text = await file.text();
+    const text = await readTextFile(file);
     await onFile(text, file);
   };
 

@@ -8,7 +8,7 @@
  * In a cell: empty means « keep the current text », a lone `-` means « empty it ».
  */
 
-const { cell, splitRows, detectSeparator, CsvError } = require('./translationCsv');
+const { cell, readCell, splitRows, detectSeparator, CsvError, FORMULA_MESSAGE } = require('./translationCsv');
 const { SECTIONS } = require('./templateTokens');
 
 const COLUMNS = Object.freeze({
@@ -44,8 +44,11 @@ function parse(text) {
   for (const required of ['key', 'fr', 'en']) {
     if (idx[required] === -1) throw new CsvError(`La colonne « ${COLUMNS[required]} » est absente.`, rows[0].line);
   }
+  let formula = false;
   const read = (cells, i) => {
-    const v = String(cells[i] == null ? '' : cells[i]).replace(/\r\n/g, '\n');
+    const cellRead = readCell(cells[i]);
+    if (cellRead.formula) { formula = true; return undefined; }
+    const v = cellRead.value.replace(/\r\n/g, '\n');
     if (v.trim() === '') return undefined;
     return v.trim() === EMPTY_MARK ? '' : v;
   };
@@ -55,7 +58,10 @@ function parse(text) {
     if (!cells.length || cells.every((c) => String(c).trim() === '')) continue;
     // The spreadsheet's row number, what the owner sees in Excel — not the text line, which a
     // multi-line cell would shift.
-    out.push({ line: r + 1, key: String(cells[idx.key] == null ? '' : cells[idx.key]).trim(), fr: read(cells, idx.fr), en: read(cells, idx.en) });
+    formula = false;
+    const row = { line: r + 1, key: String(cells[idx.key] == null ? '' : cells[idx.key]).trim(), fr: read(cells, idx.fr), en: read(cells, idx.en) };
+    if (formula) row.formula = true;
+    out.push(row);
   }
   return out;
 }
@@ -67,7 +73,7 @@ function parse(text) {
  *
  * @param rows   parse() output
  * @param model  { find(key), validate(item, { fr, en }) } — models/emailTextsModel.js
- * @returns {{ changed: [{ line, key, description, fr, en }], refused: [{ line, key, message }], unchanged: number }}
+ * @returns {{ changed: [{ line, key, description, fr, en, frShown, enShown }], refused: [{ line, key, message }], unchanged: number }}
  */
 function plan(rows, model) {
   const changed = [];
@@ -75,6 +81,7 @@ function plan(rows, model) {
   let unchanged = 0;
   const seen = new Set();
   for (const row of rows) {
+    if (row.formula) { refused.push({ line: row.line, key: row.key, message: `${FORMULA_MESSAGE} — ligne ${row.line}` }); continue; }
     const item = row.key ? model.find(row.key) : null;
     if (!item) { refused.push({ line: row.line, key: row.key, message: `Clé inconnue : ${row.key || '(vide)'}` }); continue; }
     if (seen.has(row.key)) { refused.push({ line: row.line, key: row.key, message: 'Clé en double' }); continue; }
@@ -84,7 +91,8 @@ function plan(rows, model) {
     if (fr === undefined && en === undefined) { unchanged += 1; continue; }
     const error = model.validate(item, { fr, en });
     if (error) { refused.push({ line: row.line, key: row.key, message: error.message }); continue; }
-    changed.push({ line: row.line, key: row.key, description: item.description, fr, en });
+    // Both languages as they will read once saved, the changed one and the kept one (rule 17).
+    changed.push({ line: row.line, key: row.key, description: item.description, fr, en, frShown: fr !== undefined ? fr : item.fr, enShown: en !== undefined ? en : item.en });
   }
   return { changed, refused, unchanged };
 }

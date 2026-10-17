@@ -10,6 +10,10 @@
  *   mention:<id>:offer|booked    a mention's proposal or confirmation     email_mentions
  *   hook:<propertyId>            the J-7 hook of a property               properties.emailHook(En)
  *   access:<propertyId>          how to get in, free text                 property_arrival_facts
+ *   resource:<id>                a resource's sentence once booked        resources.emailBookedText(En)
+ *
+ * Every item says whether a stored template of its email uses it (`used`, rule 25): a sentence no
+ * template places never leaves, so the page folds it away and the readiness list ignores it.
  *
  * Secrets (the key-box code, the Wi-Fi password) are not texts and never appear here.
  *
@@ -17,10 +21,11 @@
  *      apply(changes, { autoTranslated }), confirm(key) }
  */
 
-const { CATALOGUE, entryOf, MENTION_OFFER, MENTION_BOOKED } = require('../utils/stayTextCatalogue');
+const { CATALOGUE, entryOf, MENTION_OFFER, MENTION_BOOKED, RESOURCE_BOOKED } = require('../utils/stayTextCatalogue');
 const { DEFAULT_TEMPLATES, PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
 const {
   SECTIONS, SECTION_OF_MAIL, sectionOfStableKey, templateAllowed, chipsForSubject, chipsForText, tokenError,
+  namesUsedBy, variableOfStayText,
 } = require('../utils/templateTokens');
 const stayTextsModel = require('./stayTextsModel');
 const emailMentionsModel = require('./emailMentionsModel');
@@ -162,6 +167,7 @@ function buildModel(database) {
           key: `mention:${m.id}:offer`,
           kind: 'mention',
           section: 'j7',
+          variable: m.section === 'kids' ? 'kidsParagraph' : 'localProductsParagraph',
           label: `Proposition — ${names}`,
           description: `Proposition — ${names}`,
           fr: str(m.offerFr),
@@ -175,6 +181,7 @@ function buildModel(database) {
           key: `mention:${m.id}:booked`,
           kind: 'mention',
           section: 'j2',
+          variable: 'bookedOptionsParagraph',
           label: `Confirmation — ${names}`,
           description: `Confirmation — ${names}`,
           fr: str(m.bookedFr),
@@ -188,13 +195,49 @@ function buildModel(database) {
     });
   }
 
+  // Rule 24 — a resource speaks in the J-2 once booked: its sentence is a text like the others.
+  function resourceItems() {
+    let rows = [];
+    try { rows = database.prepare('SELECT id, name, emailBookedText, emailBookedTextEn FROM resources ORDER BY id').all(); } catch { rows = []; }
+    return rows.map((r) => ({
+      key: `resource:${r.id}`,
+      kind: 'resource',
+      section: 'j2',
+      variable: 'nordicBathReminder',
+      label: `Réservé — ${r.name}`,
+      description: `Réservé — ${r.name}`,
+      fr: str(r.emailBookedText),
+      en: str(r.emailBookedTextEn),
+      defaultFr: '',
+      defaultEn: '',
+      chips: chipsForText(RESOURCE_BOOKED),
+      allowed: RESOURCE_BOOKED,
+    }));
+  }
+
+  /** The variable of each item, and whether a stored template of its email places it (rule 25). */
+  function withUse(items) {
+    const bySection = new Map(SECTIONS.map((s) => [s.id, namesUsedBy(templates().filter((t) => s.stableKeys.includes(t.stableKey)))]));
+    return items.map((item) => {
+      const variable = item.variable !== undefined ? item.variable : variableOf(item);
+      return { ...item, variable, used: !variable || (bySection.get(item.section) || new Set()).has(variable) };
+    });
+  }
+
+  function variableOf(item) {
+    if (item.kind === 'text' || item.kind === 'override') return variableOfStayText(item.key.slice(5).split('@')[0]);
+    if (item.kind === 'hook') return 'propertyHook';
+    if (item.kind === 'access') return 'accessParagraph';
+    return null;
+  }
+
   function withFlags(items) {
     const flagged = new Set(flagRows().filter((r) => r.language === 'en').map((r) => r.key));
-    return items.map((item) => ({ ...item, autoTranslated: flagged.has(item.key) }));
+    return withUse(items).map((item) => ({ ...item, autoTranslated: flagged.has(item.key) }));
   }
 
   // Send order (rule 9), and within an email: the subject, the hook, then the sentences.
-  const KIND_ORDER = ['subject', 'hook', 'text', 'override', 'mention', 'access'];
+  const KIND_ORDER = ['subject', 'hook', 'text', 'override', 'mention', 'access', 'resource'];
   function sorted(items) {
     return items
       .map((item, index) => ({ item, index }))
@@ -209,14 +252,14 @@ function buildModel(database) {
     const props = properties();
     const chosen = props.find((p) => p.id === Number(propertyId)) || props[0];
     return withFlags(sorted([
-      ...subjectItems(), ...globalTextItems(), ...mentionItems(), ...(chosen ? propertyItems(chosen) : []),
+      ...subjectItems(), ...globalTextItems(), ...mentionItems(), ...resourceItems(), ...(chosen ? propertyItems(chosen) : []),
     ]));
   }
 
   /** Every text, every property: the file and the translator. */
   function all() {
     return withFlags(sorted([
-      ...subjectItems(), ...globalTextItems(), ...mentionItems(), ...properties().flatMap(propertyItems),
+      ...subjectItems(), ...globalTextItems(), ...mentionItems(), ...resourceItems(), ...properties().flatMap(propertyItems),
     ]));
   }
 
@@ -270,6 +313,11 @@ function buildModel(database) {
     if (kind === 'hook') {
       if (fr !== undefined) database.prepare('UPDATE properties SET emailHook = ? WHERE id = ?').run(fr, Number(rest));
       if (en !== undefined) database.prepare('UPDATE properties SET emailHookEn = ? WHERE id = ?').run(en, Number(rest));
+      return;
+    }
+    if (kind === 'resource') {
+      if (fr !== undefined) database.prepare('UPDATE resources SET emailBookedText = ? WHERE id = ?').run(fr, Number(rest));
+      if (en !== undefined) database.prepare('UPDATE resources SET emailBookedTextEn = ? WHERE id = ?').run(en, Number(rest));
       return;
     }
     if (kind === 'access') {

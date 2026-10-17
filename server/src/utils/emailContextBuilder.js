@@ -383,7 +383,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       // Property
       propertyName:        safeStr(p.name),
       propertyWithArticle: formatPropertyWithArticle(p.name, p.nameArticle, L),
-      propertyAddress:     '', // see §4.4: column doesn't exist yet, ship as empty string.
+      // The arrival address, else the company's (specs/guest-email-texts-made-simple.md rule 3).
+      propertyAddress:     stayContent.vars.propertyAddress,
       // Financial
       finalPrice:      formatCurrency(Number(r.finalPrice || 0)),
       depositAmount:   formatCurrency(Number(r.depositAmount || 0)),

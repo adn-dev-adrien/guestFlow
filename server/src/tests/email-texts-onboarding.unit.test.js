@@ -16,29 +16,35 @@ function onboarding(db, row = { companyName: 'Les Prés', companyPhone: '06 12 3
   return { controller: buildController({ database: db, settingsModel, propertiesModel: {}, plugins }), settings };
 }
 
-test('rule 21: the step is pre-filled from what is known', async () => {
+test('rule 21: the step is pre-filled from what is known, for every property', async () => {
   const { db } = setup();
-  db.prepare('UPDATE properties SET nameArticleConfirmed = 0').run();
-  const { controller } = onboarding(db);
+  db.prepare("INSERT INTO properties (id, name, nameArticle, hasWifi) VALUES (2, 'La Cabane', 'à la', 0)").run();
+  const { controller } = onboarding(db, { companyName: 'Les Prés', companyPhone: '06 12 34 56 78', companyAddress: '12 chemin des Prés' });
   const res = await call(controller.get);
-  assert.deepEqual(res.body.emails, {
-    phone: '06 12 34 56 78',
-    senderName: 'Les Prés',
-    articles: [
-      { value: 'au', label: 'au Le Gîte' }, { value: 'à la', label: 'à la Le Gîte' }, { value: "à l'", label: "à l'Le Gîte" },
-      { value: 'aux', label: 'aux Le Gîte' }, { value: 'à', label: 'à Le Gîte' },
-    ],
-    property: { id: 1, name: 'Le Gîte', nameArticle: 'au', address: '', access: '', wifiName: '', hasWifiPassword: false },
-    previewStableKey: 'arrival_reminder_1d',
-  });
+  const { emails } = res.body;
+  assert.equal(emails.phone, '06 12 34 56 78');
+  assert.equal(emails.senderName, 'Les Prés');
+  assert.equal(emails.previewStableKey, 'arrival_reminder_1d');
+  assert.deepEqual(emails.properties.map((p) => [p.id, p.name, p.nameArticle, p.address, p.hasWifi]), [
+    [1, 'Le Gîte', 'au', '12 chemin des Prés', true],
+    [2, 'La Cabane', 'à la', '12 chemin des Prés', false],
+  ]);
+  assert.deepEqual(emails.properties[0].articles.slice(0, 3), [
+    { value: 'au', label: 'au Le Gîte' }, { value: 'à la', label: 'à la Le Gîte' }, { value: "à l'", label: "à l'Le Gîte" },
+  ]);
 });
 
 test('rule 21: saved fields land where the emails read them; the article is then confirmed', async () => {
   const { db } = setup();
   db.prepare('UPDATE properties SET nameArticleConfirmed = 0').run();
-  const { controller, settings } = onboarding(db);
+  db.prepare("INSERT INTO properties (id, name) VALUES (2, 'La Cabane')").run();
+  const { controller, settings } = onboarding(db, { companyName: 'Les Prés', companyAddress: '1 place du Village' });
   const res = await call(controller.saveEmails, { body: {
-    phone: '06 00 00 00 01', senderName: 'Claire', nameArticle: 'à la', address: '12 chemin des Prés', access: 'Porte bleue.', wifiName: 'Gite', wifiPassword: 'pres',
+    phone: '06 00 00 00 01', senderName: 'Claire',
+    properties: [
+      { id: 1, nameArticle: 'à la', address: '12 chemin des Prés', access: 'Porte bleue.', wifiName: 'Gite', wifiPassword: 'pres' },
+      { id: 2, address: '1 place du Village', access: 'Clé sous le pot.' },
+    ],
   } });
   assert.equal(res.status, 200);
   assert.equal(settings.companyPhone, '06 00 00 00 01');
@@ -48,6 +54,9 @@ test('rule 21: saved fields land where the emails read them; the article is then
   assert.equal(facts.address, '12 chemin des Prés');
   assert.equal(facts.accessFr, 'Porte bleue.');
   assert.equal(facts.wifiPassword, 'pres');
+  // The company address left as offered stays derived: not copied onto the property.
+  assert.equal(arrivalFactsModel.buildModel(db).forEmail(2).address, '');
+  assert.equal(arrivalFactsModel.buildModel(db).forEmail(2).accessFr, 'Clé sous le pot.');
 });
 
 test('rule 21: every field may be skipped; an unknown article is refused', async () => {
@@ -57,9 +66,9 @@ test('rule 21: every field may be skipped; an unknown article is refused', async
   assert.equal(skipped.status, 200);
   assert.equal(settings.companyPhone, '06 12 34 56 78');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM property_arrival_facts').get().n, 0);
-  const refused = await call(controller.saveEmails, { body: { nameArticle: 'dans le' } });
+  const refused = await call(controller.saveEmails, { body: { properties: [{ id: 1, nameArticle: 'dans le' }] } });
   assert.equal(refused.status, 422);
-  assert.equal(refused.body.errors.nameArticle, 'Article inconnu');
+  assert.equal(refused.body.errors['properties.0.nameArticle'], 'Article inconnu');
 });
 
 test('rule 21: the step previews the J-2 of a sample stay, with what is being typed', async () => {

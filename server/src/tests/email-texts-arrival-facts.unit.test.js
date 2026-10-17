@@ -96,3 +96,15 @@ test('rule 5: a gate key given by the gate-access plugin is not repeated by the 
   });
   assert.doesNotMatch(ctx.vars.accessParagraph, /4521/);
 });
+
+test('rule 3: without an address of its own, the property takes the company\'s — in the paragraph and {{propertyAddress}}', () => {
+  const base = { reservation: { startDate: '2027-05-14' }, property: { name: 'Le Gîte' }, settings: { companyAddress: '1 place du Village, Pélussin' } };
+  const derived = buildStayContent({ ...base, facts: { arrival: null } });
+  assert.match(derived.vars.addressParagraph, /^- Adresse : 1 place du Village, Pélussin/);
+  assert.equal(derived.vars.propertyAddress, '1 place du Village, Pélussin');
+  const own = buildStayContent({ ...base, facts: { arrival: { address: '12 chemin des Prés' } } });
+  assert.equal(own.vars.propertyAddress, '12 chemin des Prés');
+  const ctx = buildContext({ reservation: base.reservation, property: base.property, settings: base.settings, stayFacts: {} });
+  assert.equal(ctx.vars.propertyAddress, '1 place du Village, Pélussin');
+  assert.equal(buildContext({ reservation: base.reservation, property: base.property, settings: {}, stayFacts: {} }).vars.propertyAddress, '');
+});

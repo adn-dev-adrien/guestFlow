@@ -99,8 +99,11 @@ export default function OnboardingPage() {
       const e = data.emails;
       setEmails(e);
       setEmailDraft({
-        phone: e.phone, senderName: e.senderName, nameArticle: e.property ? e.property.nameArticle : undefined,
-        address: e.property ? e.property.address : '', access: e.property ? e.property.access : '', wifiName: e.property ? e.property.wifiName : '', wifiPassword: '',
+        phone: e.phone,
+        senderName: e.senderName,
+        properties: Object.fromEntries(e.properties.map((p) => [p.id, {
+          nameArticle: p.nameArticle, address: p.address, access: p.access, wifiName: p.wifiName, wifiPassword: '',
+        }])),
       });
     }
     if (target === STEPS) setReadiness((await api.getEmailReadiness()).items || []);
@@ -124,7 +127,13 @@ export default function OnboardingPage() {
           return;
         }
       }
-      if (step === EMAILS_STEP) await api.saveOnboardingEmails(emailDraft);
+      if (step === EMAILS_STEP) {
+        await api.saveOnboardingEmails({
+          phone: emailDraft.phone,
+          senderName: emailDraft.senderName,
+          properties: Object.entries(emailDraft.properties || {}).map(([id, p]) => ({ id: Number(id), ...p })),
+        });
+      }
       if (step === STEPS) { await leave(); return; }
       setErrors({});
       await enter(step + 1);
@@ -206,7 +215,12 @@ export default function OnboardingPage() {
         <OnboardingEmailsStep
           emails={emails}
           value={emailDraft}
-          onChange={(patch) => { setEmailDraft((d) => ({ ...d, ...patch })); setErrors({}); }}
+          onChange={({ property, patch, ...rest }) => {
+            setEmailDraft((d) => (property
+              ? { ...d, properties: { ...d.properties, [property]: { ...d.properties[property], ...patch } } }
+              : { ...d, ...rest }));
+            setErrors({});
+          }}
           errors={errors}
         />
       )}

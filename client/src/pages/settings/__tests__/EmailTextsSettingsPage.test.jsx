@@ -52,6 +52,7 @@ test('rule 9: `#j7` opens that email', async () => {
 test('rule 10: a variable shows as its label, and is saved as its token', async () => {
   api.saveEmailTexts.mockResolvedValue({ applied: 1 });
   renderAt(EmailTextsSettingsPage, '/settings/emails/textes#j7');
+  fireEvent.click(await screen.findByRole('button', { name: 'Modifier Produits locaux — introduction' }));
   const field = await screen.findByDisplayValue('Nous proposons ⟦Liste⟧.');
   fireEvent.change(field, { target: { value: 'Nous pouvons prévoir ⟦Liste⟧.' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
@@ -61,6 +62,7 @@ test('rule 10: a variable shows as its label, and is saved as its token', async 
 test('rule 11: the server refusal lands under its field', async () => {
   api.saveEmailTexts.mockRejectedValue(Object.assign(new Error('Variable inconnue : {{prix}}'), { key: 'text:house', field: 'fr', message: 'Variable inconnue : {{prix}}' }));
   renderAt(EmailTextsSettingsPage);
+  fireEvent.click(await screen.findByRole('button', { name: 'Modifier Dans le logement' }));
   const field = await screen.findByDisplayValue('Café offert.');
   fireEvent.change(field, { target: { value: 'Café {{prix}}' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
@@ -78,4 +80,30 @@ test('mentions by section; the confirmation order moves on its own', async () =>
   await waitFor(() => expect(api.saveConfirmationOrder).toHaveBeenCalledWith(['towels', 'babyBed', 'mention:1', 'mention:2']));
   expect(await screen.findByText('1. Serviettes de toilette')).toBeInTheDocument();
   expect(api.reorderEmailMentions).not.toHaveBeenCalled();
+});
+
+test('rule 25: sentences the stored template never places are folded away', async () => {
+  const sections = TEXTS.sections.map((s) => (s.id !== 'j2' ? s : {
+    ...s, items: s.items.map((i) => (i.key === 'access:1' ? { ...i, used: false } : { ...i, used: true })),
+  }));
+  api.getEmailTexts.mockResolvedValue({ ...TEXTS, sections });
+  renderAt(EmailTextsSettingsPage);
+  const fold = await screen.findByText('Phrases non utilisées par le modèle (1)');
+  expect(screen.getByText('Accès — Le Gîte')).not.toBeVisible();
+  fireEvent.click(fold);
+  await waitFor(() => expect(screen.getByText('Accès — Le Gîte')).toBeVisible());
+});
+
+test('rule 24: option and resource names lead to the translation catalogue', async () => {
+  renderAt(EmailTextsSettingsPage);
+  expect(await screen.findByRole('link', { name: 'Noms des options et des ressources : Traductions' })).toHaveAttribute('href', '/settings/systeme');
+});
+
+test('rule 25: on a phone each sentence is one line until tapped', async () => {
+  renderAt(EmailTextsSettingsPage);
+  const row = await screen.findByRole('button', { name: 'Modifier Dans le logement' });
+  expect(row).toHaveTextContent('Café offert.');
+  expect(screen.queryByDisplayValue('Café offert.')).toBeNull();
+  fireEvent.click(row);
+  expect(await screen.findByDisplayValue('Café offert.')).toBeInTheDocument();
 });

@@ -326,7 +326,9 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   // omitted while its facts are empty; a gate code given by the gate-access plugin is not repeated.
   const arrival = facts.arrival || {};
   const trimEnd = (text) => text.replace(/\s+$/, '');
-  const address = safe(arrival.address).trim();
+  // The property's own address, else the company's: nothing to type twice for a single-site owner
+  // (specs/guest-email-texts-made-simple.md rule 3, 2026-10-17).
+  const address = (safe(arrival.address).trim() || safe(settings.companyAddress).trim());
   const addressParagraph = address ? trimEnd(say('addressParagraph', { address, mapUrl: mapLinkOf(address, arrival.mapUrl) })) : '';
   // How to get in is new data: an empty English sends the French (rule 14).
   const access = (en && safe(arrival.accessEn).trim() ? safe(arrival.accessEn) : safe(arrival.accessFr)).trim();
@@ -396,6 +398,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       kidsParagraph,
       parkingLine,
       addressParagraph,
+      propertyAddress: address,
       accessParagraph,
       arrivalWifiParagraph,
       complementLine,

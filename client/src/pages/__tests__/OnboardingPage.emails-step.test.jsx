@@ -3,7 +3,7 @@
 // with what is typed, every field skippable; « C'est prêt » lists what the emails still miss.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('../../api', () => ({
@@ -21,8 +21,12 @@ import OnboardingPage from '../OnboardingPage';
 
 const EMAILS = {
   phone: '06 12 34 56 78', senderName: 'Les Prés', previewStableKey: 'arrival_reminder_1d',
-  articles: [{ value: 'au', label: 'au Gîte des Prés' }, { value: 'à la', label: 'à la Gîte des Prés' }],
-  property: { id: 1, name: 'Gîte des Prés', nameArticle: 'au', address: '', access: '', wifiName: '', hasWifiPassword: false },
+  properties: [
+    { id: 1, name: 'Gîte des Prés', nameArticle: 'au', articles: [{ value: 'au', label: 'au Gîte des Prés' }, { value: 'à la', label: 'à la Gîte des Prés' }],
+      address: '', access: '', hasWifi: true, wifiName: '', hasWifiPassword: false },
+    { id: 2, name: 'La Cabane', nameArticle: 'à la', articles: [{ value: 'à la', label: 'à la Cabane' }],
+      address: '1 place du Village', access: '', hasWifi: false, wifiName: '', hasWifiPassword: false },
+  ],
 };
 
 beforeEach(() => {
@@ -53,19 +57,29 @@ test('rule 21: « Vos emails » is pre-filled and previews the J-2 of a sample s
   expect(screen.getByLabelText('Téléphone')).toHaveValue('06 12 34 56 78');
   expect(screen.getByLabelText('Nom d’expéditeur')).toHaveValue('Les Prés');
   expect(await screen.findByText('À vendredi, au Gîte des Prés')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('radio', { name: 'à la Gîte des Prés' }));
-  fireEvent.change(screen.getByLabelText('Adresse'), { target: { value: '12 chemin des Prés' } });
+  // Every property has its block; the company address is offered; no Wi-Fi asked where there is none.
+  const cabane = within(screen.getByRole('region', { name: 'La Cabane' }));
+  expect(cabane.getByLabelText('Adresse')).toHaveValue('1 place du Village');
+  expect(cabane.queryByLabelText('Wi-Fi')).toBeNull();
+  const gite = within(screen.getByRole('region', { name: 'Gîte des Prés' }));
+  fireEvent.click(gite.getByRole('radio', { name: 'à la Gîte des Prés' }));
+  fireEvent.change(gite.getByLabelText('Adresse'), { target: { value: '12 chemin des Prés' } });
   await waitFor(() => expect(api.previewEmailDraft).toHaveBeenLastCalledWith({
     stableKey: 'arrival_reminder_1d', reservationId: 'sample', propertyId: 1,
     draft: {
       settings: { companyPhone: '06 12 34 56 78', smtpFromName: 'Les Prés' },
-      arrival: { 1: { address: '12 chemin des Prés', accessFr: '', wifiName: '' } },
-      properties: { 1: { nameArticle: 'à la' } },
+      arrival: { 1: { address: '12 chemin des Prés', accessFr: '', wifiName: '' }, 2: { address: '1 place du Village', accessFr: '', wifiName: '' } },
+      properties: { 1: { nameArticle: 'à la' }, 2: { nameArticle: 'à la' } },
     },
   }));
   next();
   await screen.findByText('Étape 5 sur 5');
-  expect(api.saveOnboardingEmails).toHaveBeenCalledWith(expect.objectContaining({ nameArticle: 'à la', address: '12 chemin des Prés' }));
+  expect(api.saveOnboardingEmails).toHaveBeenCalledWith(expect.objectContaining({
+    properties: [
+      expect.objectContaining({ id: 1, nameArticle: 'à la', address: '12 chemin des Prés' }),
+      expect.objectContaining({ id: 2, address: '1 place du Village' }),
+    ],
+  }));
   expect(await screen.findByText('Emails à compléter (1)')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Téléphone de l’entreprise' })).toBeInTheDocument();
 });

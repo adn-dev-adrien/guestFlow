@@ -19,7 +19,12 @@ function readiness(db, settings = FULL) {
 }
 const ids = (r) => r.items.map((i) => i.id);
 function complete(db) {
-  arrivalFactsModel.buildModel(db).save(1, { address: '12 chemin des Prés', accessFr: 'Porte bleue.' });
+  arrivalFactsModel.buildModel(db).save(1, { address: '12 chemin des Prés', accessFr: 'Porte bleue.', wifiName: 'Gite' });
+}
+/** A Solio-shaped J-2: the address written by hand, the phone printed plainly, no arrival paragraph. */
+function handWrittenJ2(db) {
+  db.prepare(`UPDATE email_templates SET body = 'Bonjour {{clientFirstName}}, 215 côte de Japperenard. Appelez-nous au {{companyPhone}}.'
+    WHERE stableKey = 'arrival_reminder_1d'`).run();
 }
 
 test('rule 6: nothing to report on a complete instance', () => {
@@ -31,6 +36,9 @@ test('rule 6: nothing to report on a complete instance', () => {
 test('rule 6: company name, company phone and sender name are checked', () => {
   const { db } = setup();
   complete(db);
+  // The neutral templates guard the phone sentence: no phone, no hole, nothing to ask.
+  assert.deepEqual(ids(readiness(db, { companyName: '', companyPhone: '', smtpFromName: '' })), ['company.name', 'company.sender']);
+  handWrittenJ2(db);
   const r = readiness(db, { companyName: '', companyPhone: '', smtpFromName: '' });
   assert.deepEqual(ids(r), ['company.name', 'company.phone', 'company.sender']);
   assert.equal(r.items[1].target.path, '/settings/etablissement');
@@ -49,8 +57,10 @@ test('rule 6: an article never confirmed is listed, a confirmed one is not', () 
   assert.deepEqual(ids(readiness(db)), []);
 });
 
-test('rule 6: address and access are asked only of a property with a stay to come', () => {
+test('rule 6: address, access and Wi-Fi are asked only of a property with a stay to come', () => {
   const { db } = setup();
+  assert.deepEqual(ids(readiness(db)), ['property.address:1', 'property.access:1', 'property.wifi:1']);
+  db.prepare('UPDATE properties SET hasWifi = 0 WHERE id = 1').run();
   assert.deepEqual(ids(readiness(db)), ['property.address:1', 'property.access:1']);
   assert.deepEqual(readiness(db).items[0].target, { path: '/properties/1', search: 'tab=sejour' });
   db.prepare('UPDATE reservations SET startDate = ?, endDate = ?').run(isoDay(-20), isoDay(-15));
@@ -79,11 +89,40 @@ test('rule 6: a stored template naming an unknown variable is listed', () => {
 
 test('rule 7: the dashboard counts what concerns a stay within 14 days', () => {
   const { db } = setup();
-  assert.equal(readiness(db).soonCount, 2);
+  assert.equal(readiness(db).soonCount, 3);
   db.prepare('UPDATE reservations SET startDate = ?, endDate = ?').run(isoDay(30), isoDay(33));
   const later = readiness(db);
-  assert.equal(later.items.length, 2);
+  assert.equal(later.items.length, 3);
   assert.equal(later.soonCount, 0);
+});
+
+test('rule 6: a fact no stored template uses is never asked for — Solio needs nothing', () => {
+  const { db } = setup();
+  handWrittenJ2(db);
+  // The other neutral emails do not place the arrival paragraphs either once the J-2 is hand-written.
+  assert.deepEqual(readiness(db).items, []);
+  assert.equal(readiness(db).soonCount, 0);
+});
+
+test('rule 6: the company address stands in for the property address', () => {
+  const { db } = setup();
+  arrivalFactsModel.buildModel(db).save(1, { accessFr: 'Porte bleue.', wifiName: 'Gite' });
+  assert.deepEqual(ids(readiness(db)), ['property.address:1']);
+  assert.deepEqual(readiness(db, { ...FULL, companyAddress: '12 chemin des Prés, Pélussin' }).items, []);
+});
+
+test('rule 7: an English gap is urgent only when an English-speaking guest arrives within 14 days', () => {
+  const { db } = setup();
+  complete(db);
+  db.prepare("INSERT INTO stay_texts (key, propertyId, fr, en) VALUES ('house', 0, 'Café offert.', '')").run();
+  assert.deepEqual(ids(readiness(db)), ['english:text:house']);
+  assert.equal(readiness(db).soonCount, 0);
+  db.exec("ALTER TABLE reservations ADD COLUMN emailLanguage TEXT DEFAULT 'fr'");
+  db.prepare("UPDATE reservations SET emailLanguage = 'en'").run();
+  assert.equal(readiness(db).soonCount, 1);
+  // A sentence no template places is not reported: the J-2 no longer says « Dans le logement ».
+  db.prepare("UPDATE email_templates SET body = 'Bonjour.' WHERE stableKey = 'arrival_reminder_1d'").run();
+  assert.deepEqual(ids(readiness(db)).filter((id) => id.startsWith('english:')), []);
 });
 
 test('rule 8: an empty company phone leaves its sentence out of every neutral email, never a hole', () => {

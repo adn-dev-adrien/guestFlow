@@ -181,6 +181,42 @@ const STAY_FLAG_LABELS = Object.freeze({
 });
 /* eslint-enable max-len */
 
+/**
+ * The template variable through which a sentence reaches an email (specs/guest-email-texts-made-simple.md
+ * rule 25): a sentence whose variable no stored template of its email uses never leaves.
+ */
+const VARIABLE_OF_TEXT = Object.freeze([
+  ['beds.', 'bedsParagraph'], ['baby.', 'babyParagraph'], ['bag.', 'bagList'], ['travelLight', 'travelLightParagraph'],
+  ['noWifi', 'wifiParagraph'], ['offers.', 'localProductsParagraph'], ['parkingLine', 'parkingLine'], ['house', 'coffeeParagraph'],
+  ['cleaning.', 'cleaningParagraph'], ['complement.', 'complementLine'], ['booked.', 'bookedOptionsParagraph'],
+  ['review.', 'reviewParagraph'], ['instagram', 'instagramParagraph'], ['quietSinceDeparture', 'quietSinceDeparture'],
+  ['gift.', 'giftVoucherOffer'], ['addressParagraph', 'addressParagraph'], ['accessParagraph', 'accessParagraph'],
+  ['wifiParagraph', 'arrivalWifiParagraph'],
+]);
+
+function variableOfStayText(key) {
+  const found = VARIABLE_OF_TEXT.find(([prefix]) => (prefix.endsWith('.') ? key.startsWith(prefix) : key === prefix));
+  return found ? found[1] : null;
+}
+
+/** Every name the stored templates use, on both language sides. */
+function namesUsedBy(templates) {
+  const used = new Set();
+  for (const t of templates || []) {
+    for (const field of ['subject', 'body', 'subjectEn', 'bodyEn']) namesUsed(t[field]).forEach((n) => used.add(n));
+  }
+  return used;
+}
+
+/**
+ * The names a text uses outside a block guarded by `flag` — `{{companyPhone}}` inside
+ * `{{#if hasCompanyPhone}}…{{/if}}` needs no phone (rule 6, 2026-10-17).
+ */
+function namesUsedOutside(text, flag) {
+  const guarded = new RegExp(`\\{\\{#if\\s+${flag}\\s*\\}\\}[\\s\\S]*?\\{\\{/if\\}\\}`, 'g');
+  return namesUsed(String(text || '').replace(guarded, ''));
+}
+
 const inScope = (entry, section) => !entry.in || !section || entry.in.includes(section);
 
 /** The live and registered plugins' names (specs/plugins-phase-1-sdk.md rule 13). */
@@ -261,7 +297,11 @@ function chipsForText({ tokens = [], flags = [] } = {}) {
  */
 function tokenError(field, text, allowed) {
   const name = unknownToken(text, allowed);
-  return name != null ? { field, message: `Variable inconnue : {{${name}}}` } : null;
+  if (name == null) return null;
+  // A known variable used where it means nothing is named by its label (rule 11, 2026-10-17).
+  const known = VARIABLES.find((v) => v.name === name) || FLAGS.find((f) => f.name === name);
+  const label = known ? known.label : STAY_TOKEN_LABELS[name];
+  return { field, message: label ? `Variable non disponible ici : ${label}` : `Variable inconnue : {{${name}}}` };
 }
 
 module.exports = {
@@ -277,4 +317,7 @@ module.exports = {
   chipsForText,
   tokenError,
   namesUsed,
+  namesUsedBy,
+  namesUsedOutside,
+  variableOfStayText,
 };

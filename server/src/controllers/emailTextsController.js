@@ -14,6 +14,7 @@
 
 const emailTextsModel = require('../models/emailTextsModel');
 const emailTextsCsv = require('../utils/emailTextsCsv');
+const { badlyEncoded, ENCODING_MESSAGE } = require('../utils/translationCsv');
 const textTranslator = require('../utils/textTranslator');
 const { SECTIONS } = require('../utils/templateTokens');
 
@@ -69,6 +70,7 @@ function buildController({ database, translator = textTranslator }) {
   // owner confirms. Refused rows are listed with their line and never written.
   function importCsv(req, res) {
     const text = typeof req.body === 'string' ? req.body : String((req.body && req.body.csv) || '');
+    if (badlyEncoded(text)) return res.status(400).json({ error: 'BAD_ENCODING', message: ENCODING_MESSAGE });
     let rows;
     try {
       rows = emailTextsCsv.parse(text);
@@ -88,20 +90,22 @@ function buildController({ database, translator = textTranslator }) {
     return res.json({ ...plan, applied: true });
   }
 
-  // Rules 19–20 — every empty English from its French, all or nothing.
+  // Rules 19–20 — every empty English from its French. « Accès » is never sent: it may hold a code.
+  // A text whose variables did not come back is skipped and counted; a failed call writes nothing.
   async function translate(req, res) {
     if (!translator.isAvailable()) return res.status(404).json({ error: 'TRANSLATION_UNAVAILABLE' });
-    const todo = model().all().filter((item) => String(item.fr).trim() && !String(item.en).trim());
-    if (!todo.length) return res.json({ translated: 0 });
+    const todo = model().all().filter((item) => item.kind !== 'access' && String(item.fr).trim() && !String(item.en).trim());
+    if (!todo.length) return res.json({ translated: 0, skipped: 0 });
     let english;
     try {
       english = await translator.translate(todo.map((item) => item.fr));
     } catch (err) {
       return res.status(502).json({ error: 'TRANSLATION_FAILED', message: 'Traduction impossible, rien n’a été modifié.' });
     }
-    const result = model().apply(todo.map((item, i) => ({ key: item.key, en: english[i] })), { autoTranslated: true });
+    const changes = todo.map((item, i) => ({ key: item.key, en: english[i] })).filter((c) => c.en != null);
+    const result = changes.length ? model().apply(changes, { autoTranslated: true }) : { ok: true };
     if (!result.ok) return res.status(502).json({ error: 'TRANSLATION_FAILED', message: 'Traduction impossible, rien n’a été modifié.' });
-    return res.json({ translated: todo.length });
+    return res.json({ translated: changes.length, skipped: todo.length - changes.length });
   }
 
   return { list, save, confirm, exportCsv, importCsv, translate };

@@ -67,3 +67,35 @@ test('rule 9: one save writes every kind of text; one refusal and nothing is wri
   assert.equal(emptySubject.status, 422);
   assert.equal(emptySubject.body.message, 'Texte obligatoire');
 });
+
+test('rule 24: a resource\'s sentence once booked is a text of the J-2, saved, exported and checked for English', async () => {
+  const { db } = setup();
+  db.prepare("INSERT INTO resources (id, name, emailBookedText, emailBookedTextEn) VALUES (9, 'Bain nordique', 'Le bain sera chaud {{slots}}.', '')").run();
+  const controller = buildController({ database: db, translator });
+  const res = await call(controller.list, {});
+  const item = res.body.sections.find((s) => s.id === 'j2').items.find((i) => i.key === 'resource:9');
+  assert.equal(item.label, 'Réservé — Bain nordique');
+  assert.deepEqual(item.chips.variables, [{ name: 'slots', label: 'Créneaux' }]);
+  const saved = await call(controller.save, { body: { changes: { 'resource:9': { en: 'The bath will be warm {{slots}}.' } } } });
+  assert.equal(saved.status, 200);
+  assert.equal(db.prepare('SELECT emailBookedTextEn FROM resources WHERE id = 9').get().emailBookedTextEn, 'The bath will be warm {{slots}}.');
+  const refused = await call(controller.save, { body: { changes: { 'resource:9': { fr: '{{price}}' } } } });
+  assert.equal(refused.body.message, 'Variable non disponible ici : Prix');
+  const csv = await call(controller.exportCsv);
+  assert.match(csv.body, /\r\nJ-2;resource:9;Réservé — Bain nordique;Le bain sera chaud \{\{slots\}\}\.;/);
+});
+
+test('rule 25: a sentence the stored template of its email does not place is marked unused', async () => {
+  const { db } = setup();
+  const usedOf = async (key) => {
+    const res = await call(buildController({ database: db, translator }).list, {});
+    return res.body.sections.flatMap((s) => s.items).find((i) => i.key === key).used;
+  };
+  assert.equal(await usedOf('text:house'), true);
+  assert.equal(await usedOf('access:1'), true);
+  db.prepare("UPDATE email_templates SET body = 'Bonjour {{clientFirstName}}, 215 côte de Japperenard.' WHERE stableKey = 'arrival_reminder_1d'").run();
+  assert.equal(await usedOf('text:house'), false);
+  assert.equal(await usedOf('access:1'), false);
+  assert.equal(await usedOf('subject:arrival_reminder_1d'), true);
+  assert.equal(await usedOf('text:beds.made'), true, 'the J-7 still places the beds');
+});

@@ -80,6 +80,10 @@ email shown beside the text. The whole wording can also go out and come back as 
    true (the plugin is live and the stay has a key): the access paragraph then drops the key-box code and
    keeps the free text. An empty English « accès » sends the French (rule 14).
 
+   *2026-10-17:* a property without an address of its own takes the company's (Paramètres ›
+   Établissement): in `addressParagraph`, and in `{{propertyAddress}}`, which until now always rendered
+   empty. No stored template of Solio uses either, so its emails do not move.
+
 ### 3.B Missing facts are computed, not guessed
 
 6. `GET /api/email-readiness` lists what would render badly, per email and per property, with a link
@@ -102,6 +106,17 @@ email shown beside the text. The whole wording can also go out and come back as 
    company name is set. Each item carries a router target (`path`, `search`, `hash`). For the phone, the
    neutral templates (fresh databases only) wrap the sentence in the new flag `hasCompanyPhone`; the
    review and Instagram sentences were already conditional.
+
+   *2026-10-17 (rule 6, review of PR #693):* ask the least configuration possible. A fact is listed only
+   when a stored, enabled template uses it: the address when one uses `addressParagraph`,
+   `hasAddressParagraph` or `propertyAddress` (and the company has no address either); the access when
+   one uses `accessParagraph` / `hasAccessParagraph`; the Wi-Fi (new check) when one uses
+   `arrivalWifiParagraph` / `hasArrivalWifiParagraph` and the property has Wi-Fi; the phone only when a
+   template prints `{{companyPhone}}` outside a `{{#if hasCompanyPhone}}` block; the company name and the
+   sender name only when a template names them. Solio's J-2 writes its address by hand, so Solio gets no
+   item and no dashboard alert; a new instance's neutral J-2 keeps every check. A French without English
+   is listed only for a sentence a template places (rule 25), and counts for the dashboard only when a
+   stay within 14 days is written to in English.
 
 ### 3.C One page, in send order
 
@@ -130,6 +145,10 @@ email shown beside the text. The whole wording can also go out and come back as 
     *2026-10-08:* the validator also refuses a `{{…}}` whose name is not a plain identifier (a space, an
     accent): the renderer would have left it as literal braces. A template validates against the whole
     catalogue plus every registered plugin's names; the chips are scoped to its email.
+
+    *2026-10-17:* a known variable used where it means nothing is refused by its label (« Variable non
+    disponible ici : Prix »); only a name nobody knows is shown raw. A subject line offers only the
+    variables of every email and those it already uses.
 12. The former entry points stay as links to the right section of the page: the template list, the J-7
     property-hook dialog and the property's « Textes » block.
 
@@ -187,6 +206,9 @@ email shown beside the text. The whole wording can also go out and come back as 
     transaction and the refused ones are ignored (summary: « N textes modifiés, M refusés »). A key listed
     twice is refused on its second row; a subject cannot be emptied.
 
+    *2026-10-17 (rule 17):* the summary shows both languages of each changed row as they will read once
+    saved, the changed one in bold.
+
 ### 3.F English without retyping
 
 19. « Traduire les textes manquants » fills every empty EN field from its FR text through the
@@ -199,6 +221,10 @@ email shown beside the text. The whole wording can also go out and come back as 
     `fetch`, structured output, 40 texts per request. Every `{{…}}` becomes a numbered marker before
     sending; a marker missing, repeated or invented fails the whole run, and nothing is written until every
     text came back. The marks live in `stay_text_flags`, keyed by the text key; « Relu » clears one.
+
+    *2026-10-17:* each request gives up after 30 seconds. A text whose variables did not all come back
+    is skipped and counted (« N à traduire à la main »), never written; a failed call still writes
+    nothing. « Accès » is never sent to the service: it may hold a code.
 
 ### 3.G Onboarding
 
@@ -213,6 +239,10 @@ email shown beside the text. The whole wording can also go out and come back as 
     « à l' », « aux », « à »), each shown with the property's name by the server; « dans le » is not one of
     them. The assistant now has five steps, and « C'est prêt » shows the readiness list.
 
+    *2026-10-17:* every property gets its block, not only the first; a property without Wi-Fi is not
+    asked for one. The address is offered from the company address typed at step 1; left as offered it
+    is not copied onto the property, so it keeps following the company's.
+
 **Edge cases:**
 - Import with a different column order, or Excel's `,` separator → detected from the header row.
 - Import of a file exported before a key was renamed → that row is refused, with its line number.
@@ -220,6 +250,27 @@ email shown beside the text. The whole wording can also go out and come back as 
 - No upcoming stay → the preview uses « Exemple ».
 - The translation service fails → the fields stay empty and one message is shown. No partial
   half-marked state.
+
+### 3.H Review of 2026-10-17 (PR #693)
+
+22. **A text never turns into a formula.** A cell starting with `=`, `+`, `-` or `@` is exported behind an
+    apostrophe, which Excel and LibreOffice read as « text », and the import takes the apostrophe off. A
+    cell Excel already turned into an error value (`#NAME?`, `#NOM?`, `#VALUE!`, `#VALEUR!`, `#REF!`,
+    `#DIV/0!`, `#N/A`, `#NUM!`, `#NULL!`…) is refused: « Excel a transformé ce texte en formule — ligne
+    N ». The translation catalogue's file follows the same rule (`utils/translationCsv.js`).
+23. **Accents survive Excel's « CSV (point-virgule) ».** The browser reads a picked file as UTF-8 if it
+    is valid UTF-8, else as Windows-1252. The server refuses a file that still holds « � » (U+FFFD):
+    « Fichier mal encodé : l'enregistrer en « CSV UTF-8 ». », nothing read. Same for the translation
+    catalogue.
+24. **Every sentence an automatic email sends is in the key space.** A resource's sentence once booked
+    is the key `resource:<id>` (section J-2): on the page, in the file, in the English check and in the
+    translation. Option and resource names stay in the translation catalogue (Paramètres › Système),
+    which the page links to: one source per text.
+25. **The page shows what the stored template sends.** A sentence whose variable no stored template of
+    its email places goes under a folded « Phrases non utilisées par le modèle »; the readiness list
+    ignores it. A property without Wi-Fi is not asked for its network. On a phone each sentence is one
+    line (its name and the start of its French) until tapped: Solio's J-2 section went from about
+    7,000 px to 3,400 px at 390 px.
 
 ---
 
@@ -246,7 +297,8 @@ email shown beside the text. The whole wording can also go out and come back as 
 | `utils/` | `guestEmailSequenceSchema.js` | T | `property_arrival_facts`, `stay_text_flags`, `properties.nameArticleConfirmed` |
 | `utils/` | `emailTemplateRenderer.js` | T | `unknownToken` refuses malformed `{{…}}` too (rule 11) |
 | `utils/` | `emailDraftPreview.js` | C | The draft written in a rolled-back transaction, the candidate stays, « Exemple » (rules 13–15) |
-| `utils/` | `translationCsv.js` | T | Exposes `cell`, `splitRows`, `detectSeparator` (rule 18) |
+| `utils/` | `translationCsv.js` | T | Exposes `cell`, `splitRows`, `detectSeparator` (rule 18); formula-safe cells, encoding check (rules 22–23) |
+| `controllers/` | `translationsController.js` | T | Refuses a badly encoded file (rule 23) |
 | `models/` | `emailTextsModel.js` | C | The one key space of every editable sentence: list, validate, apply in one transaction, marks |
 | `models/` | `stayFactsModel.js`, `propertiesModel.js` | T | Arrival facts in the email context; an article sent by a form is confirmed |
 | `controllers/` | `propertyArrivalFactsController.js` | C | `GET/PUT /api/properties/:id/arrival-facts` |
@@ -271,6 +323,8 @@ email shown beside the text. The whole wording can also go out and come back as 
 | `components/property/` | `PropertyStayTab.jsx` | T | « Arrivée » block and the « Textes » link; `PropertyStayTexts.jsx` deleted |
 | `components/` | `PropertyHooksEditor.jsx` | D | Replaced by the link of rule 12 |
 | `utils/` | `tokenDisplay.js` | C | `{{token}}` ⇄ « ⟦label⟧ » with the server's labels (rule 10) |
+| `utils/` | `readTextFile.js` | C | A picked file as UTF-8, else Windows-1252 (rule 23) |
+| `components/` | `FileUploadButton.jsx` | T | Reads through `readTextFile` (rule 23) |
 | `components/` | `MentionEditor.jsx`, `pages/ResourcesPage.jsx` | T | Labelled chips |
 
 **Component reuse:**
@@ -357,16 +411,18 @@ instruction to run the plan through.
 
 Implemented 2026-10-08 on `feature/email-texts-made-simple`.
 
-**Server (40 tests, 8 files, one per subject):** `email-texts-arrival-facts` (5, rules 1–5),
-`email-texts-readiness` (8, rules 6–8), `email-texts-tokens` (5, rules 10–11), `email-texts-page` (2,
-rule 9), `email-texts-csv` (5, rules 16–18), `email-texts-preview` (7, rules 13–15),
-`email-texts-translator` (4, rules 19–20), `email-texts-onboarding` (4, rule 21). The golden test
+**Server (50 tests, 8 files, one per subject):** `email-texts-arrival-facts` (6, rules 1–5),
+`email-texts-readiness` (11, rules 6–8), `email-texts-tokens` (5, rules 10–11), `email-texts-page` (4,
+rules 9, 24–25), `email-texts-csv` (8, rules 16–18, 22–23), `email-texts-preview` (7, rules 13–15),
+`email-texts-translator` (5, rules 19–20), `email-texts-onboarding` (4, rule 21).
+`email-mentions` now expects the labelled refusal (rule 11 note). The golden test
 `productisation-golden` is unchanged and green. Server suite after merging `inte/plugins` (H2, #683):
-5,028 tests.
+5,038 tests after the review of 2026-10-17.
 
-**Client (Vitest):** `EmailTextsSettingsPage` (5), `EmailTextsSettingsPage.preview` (4),
+**Client (Vitest):** `EmailTextsSettingsPage` (8), `EmailTextsSettingsPage.preview` (4),
 `EmailTextsSettingsPage.file` (4), `TokenTextField` (3), `ReadinessList` (3), `EmailPreviewPane` (3),
-`PropertyArrivalFacts` (2), `EmailTemplatesPage.texts-link` (2), `OnboardingPage.emails-step` (2);
+`PropertyArrivalFacts` (3), `EmailTemplatesPage.texts-link` (2), `OnboardingPage.emails-step` (2),
+`readTextFile` (2);
 `PropertyStayTexts` (1) and `EmailTemplatesPage.property-hooks` deleted with their components.
 
 **E2E:** `e2e/specs/emails/email-texts.spec.js` (2): the arrival facts in the J-2 preview and a test send
@@ -379,4 +435,5 @@ the dev database: no console error, no horizontal scroll.
 
 **Solio, measured on a copy of the dev database (65 reservations, 12 templates):** every template ×
 every reservation × FR/EN rendered before and after through the real preview path: 1,560 renderings
-(780 of the six sequence emails), 0 differences.
+(780 of the six sequence emails), 0 differences — measured again after the review of 2026-10-17, with
+the readiness list empty and no dashboard alert on that copy (70 texts, 7 folded as unused).

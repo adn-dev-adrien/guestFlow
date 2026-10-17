@@ -42,10 +42,30 @@ function langOfHeader(header) {
 }
 
 /** RFC 4180 with the separator we are writing: quote only when we must, double the inner quotes. */
+// specs/guest-email-texts-made-simple.md rule 22 — a cell starting with = + - @ is read by Excel as a
+// formula: « - Garez-vous… » became #NOM?. The apostrophe tells the spreadsheet « text », and the
+// import takes it off again. A cell Excel already turned into an error value is refused, never stored.
+const FORMULA_START = /^[=+\-@]/;
+const EXCEL_ERRORS = new Set(['#NAME?', '#NOM?', '#VALUE!', '#VALEUR!', '#REF!', '#DIV/0!', '#N/A', '#NUM!', '#NOMBRE!', '#NULL!', '#NUL!']);
+
 function cell(value, sep) {
-  const s = value == null ? '' : String(value);
+  let s = value == null ? '' : String(value);
+  if (FORMULA_START.test(s)) s = `'${s}`;
   return /["\r\n]/.test(s) || s.includes(sep) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+
+/** A cell read back: `{ value }` without the protective apostrophe, or `{ formula: true }`. */
+function readCell(raw) {
+  const s = raw == null ? '' : String(raw);
+  if (EXCEL_ERRORS.has(s.trim().toUpperCase())) return { formula: true, value: '' };
+  return { formula: false, value: /^'[=+\-@]/.test(s) ? s.slice(1) : s };
+}
+
+const FORMULA_MESSAGE = 'Excel a transformé ce texte en formule';
+
+/** Rule 23 — a file that was not UTF-8 decodes with U+FFFD in place of its accents. */
+const ENCODING_MESSAGE = 'Fichier mal encodé : l’enregistrer en « CSV UTF-8 ».';
+const badlyEncoded = (text) => String(text || '').includes('\uFFFD');
 
 function compareRows(a, b) {
   const ka = KIND_ORDER.indexOf(a.kind);
@@ -185,7 +205,11 @@ function parse(text) {
     const entryKey = String(cells[idxKey] == null ? '' : cells[idxKey]).trim();
     if (!entryKey) throw new CsvError(`La colonne « ${COL_KEY} » est vide sur cette ligne.`, line);
     const values = {};
-    for (const { index, lang } of langCols) values[lang] = String(cells[index] == null ? '' : cells[index]).trim();
+    for (const { index, lang } of langCols) {
+      const read = readCell(cells[index]);
+      if (read.formula) throw new CsvError(`${FORMULA_MESSAGE}.`, line);
+      values[lang] = read.value.trim();
+    }
     // An emptied « à revérifier » cell is how the operator says « I have looked at it » (rule 5).
     const reviewCell = idxReview === -1 ? '' : String(cells[idxReview] == null ? '' : cells[idxReview]).trim();
     out.push({ entryKey, values, reviewAcknowledged: reviewCell === '', line });
@@ -198,8 +222,12 @@ module.exports = {
   parse,
   CsvError,
   cell,
+  readCell,
   splitRows,
   detectSeparator,
+  badlyEncoded,
+  FORMULA_MESSAGE,
+  ENCODING_MESSAGE,
   headerFor,
   KIND_LABELS,
   KIND_ORDER,

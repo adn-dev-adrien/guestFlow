@@ -6,14 +6,16 @@
  * without it `isAvailable()` is false and nothing is offered. The call is the Anthropic Messages API
  * through plain `fetch` — no SDK dependency for one request.
  *
- * Every `{{…}}` is swapped for a numbered marker before sending and swapped back after; a text whose
- * markers do not all come back exactly once fails the whole run. All or nothing: the caller writes
- * only when every text came back whole.
+ * Every `{{…}}` is swapped for a numbered marker before sending and swapped back after. A text whose
+ * markers do not all come back exactly once is skipped (null) and reported, never written with a
+ * broken variable; a failed call fails the whole run, which then writes nothing. Each request gives up
+ * after 30 seconds.
  */
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-5-5';
 const BATCH = 40;
+const TIMEOUT_MS = 30000;
 
 const SYSTEM = [
   'You translate short French texts of a holiday rental\'s guest emails into natural British English.',
@@ -59,6 +61,7 @@ function restore(translated, tokens) {
 async function translateBatch(texts, fetchImpl) {
   const res = await fetchImpl(API_URL, {
     method: 'POST',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: {
       'content-type': 'application/json',
       'x-api-key': apiKey(),
@@ -97,8 +100,9 @@ async function translateBatch(texts, fetchImpl) {
 /**
  * @param {string[]} frTexts
  * @param {{ fetchImpl?: typeof fetch }} [deps]
- * @returns {Promise<string[]>} the English texts, same order
- * @throws {TranslationError} on any failure — nothing partial is ever returned
+ * @returns {Promise<Array<string|null>>} the English texts, same order; null for a text skipped
+ *   because a variable did not come back
+ * @throws {TranslationError} when a call fails — nothing partial is ever returned then
  */
 async function translate(frTexts, { fetchImpl = globalThis.fetch } = {}) {
   if (!isAvailable()) throw new TranslationError('Service non configuré');
@@ -112,11 +116,7 @@ async function translate(frTexts, { fetchImpl = globalThis.fetch } = {}) {
     } catch (err) {
       throw err instanceof TranslationError ? err : new TranslationError(err && err.message);
     }
-    translated.forEach((t, j) => {
-      const restored = restore(t, slice[j].tokens);
-      if (restored == null) throw new TranslationError('Variable perdue');
-      result.push(restored);
-    });
+    translated.forEach((t, j) => result.push(restore(t, slice[j].tokens)));
   }
   return result;
 }

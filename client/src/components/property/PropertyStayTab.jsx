@@ -57,7 +57,7 @@ export default function PropertyStayTab({
         </CardContent>
       </Card>
 
-      {propertyId && <PropertyArrivalFacts propertyId={propertyId} />}
+      {propertyId && <PropertyArrivalFacts propertyId={propertyId} hasWifi={Boolean(form.hasWifi)} />}
 
       {propertyId && (
         <Card sx={{ mb: 3 }}>

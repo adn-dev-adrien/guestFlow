@@ -27,7 +27,7 @@ beforeEach(() => {
   api.previewEmailDraft.mockResolvedValue(PREVIEW);
 });
 
-const fileOf = (text) => ({ name: 'textes.csv', text: () => Promise.resolve(text) });
+const fileOf = (text) => ({ name: 'textes.csv', arrayBuffer: () => Promise.resolve(new TextEncoder().encode(text).buffer) });
 
 test('rule 16: « Exporter les textes » downloads the file', async () => {
   api.downloadEmailTexts.mockResolvedValue('textes-emails.csv');
@@ -39,7 +39,7 @@ test('rule 16: « Exporter les textes » downloads the file', async () => {
 
 test('rule 17: the summary first, a refused row with its line; the confirmation writes', async () => {
   api.importEmailTexts.mockResolvedValueOnce({
-    changed: [{ line: 3, key: 'text:house', description: 'Dans le logement', fr: 'Café et thé.' }],
+    changed: [{ line: 3, key: 'text:house', description: 'Dans le logement', fr: 'Café et thé.', frShown: 'Café et thé.', enShown: 'Coffee and tea.' }],
     refused: [{ line: 4, key: 'text:beds.made', message: 'Variable inconnue : {{prenon}}' }],
     unchanged: 40, applied: false,
   });
@@ -49,6 +49,9 @@ test('rule 17: the summary first, a refused row with its line; the confirmation 
   fireEvent.change(screen.getByTestId('email-texts-file'), { target: { files: [fileOf('csv')] } });
   expect(await screen.findByText('1 texte modifié, 1 refusé')).toBeInTheDocument();
   expect(screen.getByText('Variable inconnue : {{prenon}}')).toBeInTheDocument();
+  // Both languages of a changed row (rule 17, 2026-10-17).
+  expect(screen.getByText('Café et thé.')).toBeInTheDocument();
+  expect(screen.getByText('Coffee and tea.')).toBeInTheDocument();
   expect(screen.getByText('4')).toBeInTheDocument();
   expect(api.importEmailTexts).toHaveBeenCalledWith('csv');
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer 1' }));
@@ -71,6 +74,7 @@ test('rule 19: a translated text says « à relire » until confirmed', async ()
   const sections = TEXTS.sections.map((s) => ({ ...s, items: s.items.map((i) => (i.key === 'text:house' ? { ...i, en: 'Coffee on us.', autoTranslated: true } : i)) }));
   api.getEmailTexts.mockResolvedValue({ ...TEXTS, sections });
   renderAt(EmailTextsSettingsPage);
+  fireEvent.click(await screen.findByRole('button', { name: 'Modifier Dans le logement' }));
   expect(await screen.findByText('Traduit automatiquement, à relire')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Relu' })).toBeInTheDocument();
 });
