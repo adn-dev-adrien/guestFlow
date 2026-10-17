@@ -212,6 +212,25 @@ function declarationsFor(clause, spec, n) {
   return `${out.join(';')};`;
 }
 
+// `export { a as b } from 'host'` — a chunk re-exporting a host name to the other chunks (the icons of
+// @mui/icons-material ≥ 9.5 re-export `createSvgIcon` from '@mui/material/SvgIcon'). → { names, code }
+function reexportFor(clause, spec, n) {
+  const ns = `__gfm${n}`;
+  const inner = clause.trim();
+  if (!inner.startsWith('{')) throw new Error(`unsupported re-export of the host module "${spec}"`);
+  const parts = inner.replace(/^\{|\}$/g, '').split(',').map((x) => x.trim()).filter(Boolean).map((part) => {
+    const m = part.match(/^([\w$]+)(?:\s+as\s+([\w$]+))?$/);
+    if (!m) throw new Error(`unsupported re-export specifier: ${part}`);
+    return { from: m[1], as: m[2] || m[1] };
+  });
+  const names = parts.map((x) => x.from);
+  const needed = names.filter((name) => name !== 'default');
+  const decls = parts.map((x, i) => `const __gfx${n}_${i}=${x.from === 'default' ? `${ns}.default!==undefined?${ns}.default:${ns}` : `${ns}.${x.from}`}`);
+  const code = `const ${ns}=__gfHost(${JSON.stringify(spec)}${needed.length ? `,${JSON.stringify(needed)}` : ''});${decls.join(';')};`
+    + `export{${parts.map((x, i) => `__gfx${n}_${i} as ${x.as}`).join(',')}};`;
+  return { names, code };
+}
+
 /**
  * Rule 5 — every static import of a host module becomes a read of the host's own module. Any other
  * bare import left in the bundle is an error: the browser could not resolve it.
@@ -229,6 +248,17 @@ export function rewriteHostImports(code, imports, { hostModules = HOST_MODULES, 
     if (!usage && !hostModules.includes(spec)) throw new Error(`bare import "${spec}" left in the bundle`);
     if (imp.d !== -1) throw new Error(`dynamic import of the host module "${spec}"`);
     const stmt = code.slice(imp.ss, imp.se);
+    if (stmt.startsWith('export')) {
+      const fromAt = stmt.lastIndexOf('from');
+      const { names, code: replacement } = reexportFor(stmt.slice(6, fromAt), spec, n);
+      if (usage) {
+        if (!usage[spec]) usage[spec] = new Set();
+        names.forEach((name) => usage[spec].add(name));
+      }
+      n += 1;
+      out = out.slice(0, imp.ss) + replacement + out.slice(imp.se).replace(/^;/, '');
+      continue;
+    }
     if (!stmt.startsWith('import')) throw new Error(`re-export of the host module "${spec}"`);
     const fromAt = stmt.lastIndexOf('from');
     if (usage) {

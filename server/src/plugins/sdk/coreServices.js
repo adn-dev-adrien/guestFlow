@@ -13,6 +13,7 @@ const reservationsController = lazy('../../controllers/reservationsController');
 const updateBody = lazy('../../utils/reservationUpdateBody');
 const reservationHelpers = lazy('../../utils/reservationHelpers');
 const bedDistribution = lazy('../../utils/bedDistribution');
+const platformCommission = lazy('../../utils/platformCommission');
 const clients = lazy('../../models/clientsModel');
 const database = lazy('../../database');
 
@@ -46,14 +47,24 @@ function findOrCreateClient(payload) {
   return clients().findByEmail(payload.email) || clients().insert(payload);
 }
 
+// specs/booking-extranet-intake.md §4.1 — a patch on a client, through the same normalisation as the
+// client dialog: the stored fields underneath, the patch on top (an update writes every field).
+function updateClient(id, patch) {
+  const current = clients().findById(Number(id));
+  if (!current) return null;
+  return clients().update(Number(id), { ...current, ...patch });
+}
+
 module.exports = Object.freeze({
   reservations: Object.freeze({
     getByIdWithDetails: (id) => reservations().getByIdWithDetails(id),
     update: updateReservation,
     suggestBeds,
+    platformCommission: (figures) => platformCommission().computePlatformCommission(figures),
   }),
   clients: Object.freeze({
     findOrCreate: findOrCreateClient,
+    update: updateClient,
   }),
   settings: Object.freeze({
     companyAddress: () => String(settings().read().companyAddress || ''),

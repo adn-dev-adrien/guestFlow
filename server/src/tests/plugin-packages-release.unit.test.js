@@ -145,6 +145,18 @@ test('rule 5: every host import is rewritten to a read of the host modules; a st
   assert.throws(() => rewriteHostImports('import d from"dayjs";', [{ n: 'dayjs', ss: 0, se: 21, d: -1 }]), /bare import "dayjs"/);
 });
 
+test('rule 5: a chunk that re-exports a host name hands the host module on, never a copy', async () => {
+  const { rewriteHostImports } = await load('build-plugin-packages.mjs');
+  // What @mui/icons-material 9.5 makes of `createSvgIcon` once Vite splits it into a shared chunk.
+  const code = 'export { createSvgIcon as t } from "@mui/material/SvgIcon";';
+  const usage = {};
+  const out = rewriteHostImports(code, [{ n: '@mui/material/SvgIcon', ss: 0, se: code.length, d: -1 }], { usage });
+  assert.match(out, /__gfHost\("@mui\/material\/SvgIcon",\["createSvgIcon"\]\)/);
+  assert.match(out, /export\{__gfx\d_0 as t\}/);
+  assert.doesNotMatch(out, /from"@mui|from "@mui/);
+  assert.deepEqual([...usage['@mui/material/SvgIcon']], ['createSvgIcon']);
+});
+
 test('rule 23, P26: a plugin that changed since the previous tag must carry a new version', async () => {
   const { findViolations, pluginsOf, bumpPatch } = await load('check-plugin-versions.mjs');
   const changed = pluginsOf([

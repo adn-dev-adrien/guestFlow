@@ -8,7 +8,7 @@ import StatusBadge from '../StatusBadge';
 import MidStayNoteDialog from './MidStayNoteDialog';
 import MidStayNoteRow from './MidStayNoteRow';
 import RefundDialog from './RefundDialog';
-import { useAppDialogs } from '../DialogProvider';
+import { useAppDialogs, useToast } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
 import { formatCurrency, displayDate } from '../../utils/formatters';
 import { COMPLEMENT_LABELS } from '../../constants/complements';
@@ -320,6 +320,7 @@ export default function FinanceSection() {
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
+  const { showError } = useToast();
   // specs/single-payment-from-the-fiche.md §3.1 — the single arrival payment. The date is the
   // OPERATOR's (a guest who paid at the door yesterday is recorded yesterday); the server validates
   // it and its refusal is what the field shows, so both say the same thing.
@@ -670,16 +671,18 @@ export default function FinanceSection() {
                 const n = Number(form.platformTouristTaxAmount);
                 return Number.isFinite(n) ? Math.max(0, n) : 0;
               })();
-              const computeCommissionFromPayout = () => {
-                const grossNum = Number(form.platformGrossAmount);
-                const payoutNum = Number(form.platformPayoutAmount);
-                if (!Number.isFinite(grossNum) || !Number.isFinite(payoutNum)) return;
-                const acompteComm = Number(form.acompteCommissionAmount) || 0;
-                const soldeComm = Math.max(
-                  0,
-                  Math.round((grossNum - payoutNum - withheldTouristTax - acompteComm) * 100) / 100,
-                );
-                updateForm({ platformCommissionAmount: soldeComm });
+              const computeCommissionFromPayout = async () => {
+                try {
+                  const { commission } = await api.computePlatformCommission({
+                    gross: form.platformGrossAmount,
+                    payout: form.platformPayoutAmount,
+                    touristTax: form.platformTouristTaxAmount,
+                    acompteCommission: form.acompteCommissionAmount,
+                  });
+                  updateForm({ platformCommissionAmount: commission });
+                } catch (err) {
+                  showError(err.message || 'Calcul impossible');
+                }
               };
               // Which number to copy off the platform's statement depends on its tourist-tax mode, so the
               // field says it (specs/platform-brut-excludes-offered-tourist-tax.md §6). Getting this wrong

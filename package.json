@@ -1,6 +1,6 @@
 {
   "name": "guestflow",
-  "version": "3.9.0",
+  "version": "3.10.0",
   "description": "Gestion d'accueils touristiques - Réservation et suivi financier",
   "private": true,
   "scripts": {
@@ -22,8 +22,8 @@
     "test:e2e:prod": "playwright test -c playwright.prod.config.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "better-sqlite3": "^13.0.3",
-    "concurrently": "^10.0.5"
+    "concurrently": "^10.0.6"
   }
 }

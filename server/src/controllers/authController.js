@@ -15,15 +15,18 @@
  */
 
 const defaultUsersModel = require('../models/usersModel');
+const defaultSessionsModel = require('../models/sessionsModel');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
 const { ADMIN, userHasRole } = require('../constants/roles');
 const { sendError } = require('../utils/httpError');
 const deviceTrust = require('../utils/deviceTrust');
+const { isOpenSupportSession } = require('../middleware/requireAuth');
 
 // A password that was right waits this long for its second step.
 const PENDING_MS = 10 * 60 * 1000;
 
 function createAuthController(users, {
+  sessions = defaultSessionsModel,
   activePlugins = () => [],
   onboardingOpen = () => false,
   twoFactor = null,
@@ -77,7 +80,12 @@ function createAuthController(users, {
     if (!email || !password) return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
     const user = users.verifyCredentials(email, password);
     if (!user) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
-    if (!twoFactor || !twoFactor.isRequired(user, trustTokenOf(req, user.id))) return finishLogin(req, res, user);
+    // Regenerate the session id on login so a session id planted in the victim's browser BEFORE
+    // authentication (cookie injection from a sibling host, or over plain HTTP) cannot be reused
+    // once the victim logs in — session fixation. 2026-10-08 infrastructure audit, finding AUTH-2.
+    if (!twoFactor || !twoFactor.isRequired(user, trustTokenOf(req, user.id))) {
+      return freshSession(req, (err) => (err ? next(err) : finishLogin(req, res, user)));
+    }
     return secondStepOrLogin(req, res, user).catch((err) => sendError(res, err, next));
   }
 
@@ -195,8 +203,9 @@ function createAuthController(users, {
     // The re-read also refreshes `req.session.user` so downstream middleware reads
     // (req.user via requireAuth) see the new values without needing a logout / login cycle.
     const fresh = users.findById(req.session.user.id);
-    if (!fresh) {
-      // Underlying user was deleted while the session was live — kill the session too.
+    if (!fresh || (fresh.isActive === false && !isOpenSupportSession(req, fresh))) {
+      // Underlying user was deleted OR deactivated while the session was live — kill the session
+      // too, so a deactivated account cannot keep reading its own profile (2026-10-08 audit AUTH-1).
       if (typeof req.session.destroy === 'function') {
         return req.session.destroy(() => res.status(401).json({ error: 'UNAUTHENTICATED' }));
       }
@@ -233,8 +242,11 @@ function createAuthController(users, {
       return res.status(204).end();
     }
 
-    // Voluntary change from /settings/password: keep the session active (current UX).
+    // Voluntary change from /settings/password: keep THIS session active (current UX) but revoke
+    // every OTHER session of this user, so changing the password logs out any other device the
+    // account was open on (2026-10-08 infrastructure audit, finding AUTH-6).
     req.session.user = { ...sessionUser, mustChangePassword: false };
+    sessions.revokeOtherSessionsForUser(sessionUser.id, req.sessionID);
     return res.status(204).end();
   }
 

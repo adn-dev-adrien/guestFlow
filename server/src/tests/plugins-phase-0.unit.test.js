@@ -8,7 +8,7 @@ const path = require('path');
 const express = require('express');
 const Database = require('better-sqlite3');
 
-const { PLUGIN_CATALOG, PLUGIN_IDS, findPlugin } = require('../constants/plugins');
+const { PLUGIN_CATALOG, PLUGIN_IDS, SEEDED_ON_EXISTING_IDS, findPlugin } = require('../constants/plugins');
 const { ensurePluginsTable, seedBuiltinPlugins, SEED_MIGRATION } = require('../utils/pluginsSchema');
 const pluginsModel = require('../models/pluginsModel');
 const { createController } = require('../controllers/pluginsController');
@@ -58,10 +58,11 @@ function setup() {
 
 // ---------- catalogue (rules 1-3) ----------
 
-// Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md).
-test('catalogue: thirteen plugins with unique ids and every field', () => {
-  assert.equal(PLUGIN_CATALOG.length, 13);
-  assert.equal(new Set(PLUGIN_IDS).size, 13);
+// Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md)
+// and « Saisie Booking » (specs/booking-extranet-intake.md).
+test('catalogue: fourteen plugins with unique ids and every field', () => {
+  assert.equal(PLUGIN_CATALOG.length, 14);
+  assert.equal(new Set(PLUGIN_IDS).size, 14);
   for (const p of PLUGIN_CATALOG) {
     assert.ok(p.id && p.name && p.description && p.icon, p.id);
     assert.ok(Array.isArray(p.surfaces) && p.surfaces.length > 0, p.id);
@@ -73,19 +74,23 @@ test('catalogue: thirteen plugins with unique ids and every field', () => {
 
 // ---------- seed (rules 10-12) ----------
 
-test('seed: an existing database gets every catalogue plugin installed and active', () => {
+test('seed: an existing database gets the twelve former core features installed and active, not the plugins added since', () => {
   const db = freshDb();
   db.prepare('INSERT INTO properties (id) VALUES (1)').run();
   assert.equal(seedBuiltinPlugins(db), true);
   const model = pluginsModel.buildModel(db);
-  assert.deepEqual(model.listActiveIds().sort(), [...PLUGIN_IDS].sort());
+  assert.equal(SEEDED_ON_EXISTING_IDS.length, 12);
+  assert.deepEqual(model.listActiveIds().sort(), [...SEEDED_ON_EXISTING_IDS].sort());
+  // specs/gites-de-france-mail-intake.md, specs/booking-extranet-intake.md — not installed by default.
+  assert.equal(model.get('gites-de-france-intake'), null);
+  assert.equal(model.get('booking-intake'), null);
 });
 
 test('seed: a database with only a reservation counts as existing', () => {
   const db = freshDb();
   db.prepare('INSERT INTO reservations (id) VALUES (1)').run();
   seedBuiltinPlugins(db);
-  assert.equal(pluginsModel.buildModel(db).listActiveIds().length, PLUGIN_IDS.length);
+  assert.equal(pluginsModel.buildModel(db).listActiveIds().length, SEEDED_ON_EXISTING_IDS.length);
 });
 
 test('seed: a fresh database gets no plugin, and the ledger is recorded', () => {

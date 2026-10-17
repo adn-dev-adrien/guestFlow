@@ -15,7 +15,7 @@ const { execFileSync } = require('child_process');
 process.env.GUESTFLOW_ENCRYPTION_KEY = process.env.GUESTFLOW_ENCRYPTION_KEY || crypto.randomBytes(32).toString('base64');
 
 const { validateManifest, readSourceManifest, parseManifest } = require('../plugins/manifest');
-const { PLUGIN_CATALOG, PLUGIN_IDS } = require('../constants/plugins');
+const { PLUGIN_CATALOG, PLUGIN_IDS, SEEDED_ON_EXISTING_IDS } = require('../constants/plugins');
 const { SDK_VERSION } = require('../plugins/sdk/version');
 const { satisfies, floorLabel } = require('../utils/semverRange');
 const {
@@ -167,8 +167,10 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
   assert.throws(() => parseManifest('{'), /INVALID_MANIFEST/);
 });
 
+// 1.1.0 since the Booking intake added `ctx.core.reservations.platformCommission`,
+// `ctx.core.clients.update` and the `planningDateRange` core module (a minor bump).
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
-  assert.equal(SDK_VERSION, '1.0.0');
+  assert.equal(SDK_VERSION, '1.1.0');
   assert.equal(satisfies(SDK_VERSION, '^1.0.0'), true);
   assert.equal(satisfies(SDK_VERSION, '^2.0.0'), false);
 });
@@ -364,7 +366,7 @@ test('rules 4, 17: a package loads from its directory, `guestflow/sdk` and npm p
   assert.equal(out.modules.length, 1);
   const ctx = {};
   out.modules[0].register(ctx);
-  assert.equal(ctx.marker, 'function1.0.0function');
+  assert.equal(ctx.marker, `function${SDK_VERSION}function`);
 });
 
 test('rule 14: a package the running core no longer satisfies stays installed but is not loaded', () => {
@@ -649,12 +651,13 @@ test('§5, rule 25: an existing install\'s `builtin` rows become `bundled` and f
   assert.equal(model.syncBundled('linen', readSourceManifest('linen'), 'a'.repeat(64)), false, 'idempotent');
 });
 
-test('§5: a database seeded before phase 4 or after gets every catalogue plugin as `bundled`', () => {
+// The seed installs the twelve former core features only (specs/plugins-phase-0-foundation.md rule 10).
+test('§5: a database seeded before phase 4 or after gets every seeded plugin as `bundled`', () => {
   const db = freshDb();
   db.prepare('INSERT INTO properties (id) VALUES (1)').run();
   seedBuiltinPlugins(db);
   const rows = buildPluginsModel(db).list();
-  assert.equal(rows.length, PLUGIN_IDS.length);
+  assert.equal(rows.length, SEEDED_ON_EXISTING_IDS.length);
   assert.ok(rows.every((r) => r.source === 'bundled' && r.enabled));
 });
 

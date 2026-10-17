@@ -88,6 +88,10 @@ below are the recommended ones; each is reversible in a later spec.
    one React, one MUI theme. Icons are bundled into the plugin.
    > **2026-10-08 (implementation):** The externals are the list `client/src/plugins/hostModules.json` — `react`, `react/jsx-runtime`, `react-dom`, `react-router`, `@mui/material` and its `styles`, `colors` and `utils` sub-paths (an icon imports `createSvgIcon` from `@mui/material/utils`), `guestflow/sdk`, `guestflow/sdk/ui`. No import map: the build rewrites each import of an external into a read of `globalThis.__GUESTFLOW_HOST__.modules[<name>]`, which `client/src/plugins/runtime.js` fills with the app's own modules before importing any bundle. A bare import left in a bundle fails the build.
    > **2026-10-17 (review of PR #692):** Superseded in part by rule 26: the externals are no longer a fixed list. Everything of React, the router, MUI (`@mui/material/*`, `@mui/system`, `@mui/utils`, …) and emotion stays the host's, whoever imports it — an icon imports `@mui/material/SvgIcon`, which used to pull a copy of MUI and emotion into every bundle (~100 KB each) and drop the GuestFlow theme on the icons.
+   > **2026-10-18 (merge of `master` v3.10.0):** `@mui/icons-material` 9.5 makes `createSvgIcon` a
+   > re-export (`export { createSvgIcon as default } from '@mui/material/SvgIcon'`), which Vite keeps as a
+   > chunk re-exporting the host module. The build now rewrites such a re-export like an import — a read
+   > of the host module, re-exported under the chunk's name — instead of refusing the bundle.
 
 ### 3.C Registry
 
@@ -371,6 +375,14 @@ Implemented 2026-10-08, merged with `inte/plugins` on 2026-10-17 (H2 #673, Saisi
 #683). That merge brought a thirteenth plugin, `gites-de-france-intake`: it got its manifest
 (`1.0.0`) and builds into a package like the others, so « the twelve » in this spec reads « every
 plugin of the catalogue » from then on.
+
+2026-10-18 — `master` (v3.10.0) merged into `inte/plugins` brought a fourteenth plugin,
+`booking-intake` (`specs/booking-extranet-intake.md` §10), manifest `1.0.0`. The two SDK entries it uses
+(`ctx.core.clients.update`, `ctx.core.reservations.platformCommission`) and the core module
+`planningDateRange` (the 750-day cap of the planning reads, `specs/reception-role-checkin-only.md`
+rule 12ter) raise the SDK to **1.1.0** (rule 3, minor). Under rule 28 the plugins whose sources the
+merge changed are bumped in the merge PR: `gate-access` 1.1.0 (« Partager » on the « Portail » step),
+`linen` 1.0.1 and `hourly-resources` 1.0.1 (both `sdk ^1.1.0`).
 
 | Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|

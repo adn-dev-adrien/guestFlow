@@ -1,7 +1,7 @@
 {
   "id": "gate-access",
   "name": "Accès au portail (Sowel)",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Codes et clés du portail envoyés à Sowel.",
   "icon": "key",
   "surfaces": [
@@ -17,6 +17,9 @@
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.1.0": [
+      "Pas « Portail » du sas : un bouton « Partager » envoie le lien d’accès aux autres occupants (« Copier le lien » sur un ordinateur)."
     ]
   }
 }

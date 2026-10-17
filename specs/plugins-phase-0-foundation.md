@@ -94,6 +94,10 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 
 10. **Existing database** (at least one property or one reservation when the migration runs): the 12
     plugins are installed **and active**. Solio sees no difference after the update.
+    > **2026-10-18 (merge of `master` v3.10.0):** « the 12 » are the twelve former core features
+    > (`SEEDED_ON_EXISTING_IDS` in `constants/plugins.js`), not the whole catalogue: since #683 the seed
+    > also installed « Saisie Gîtes de France » active, against its spec (« not installed by default »),
+    > and would have done the same for « Saisie Booking ». A plugin added after phase 0 is never seeded.
 11. **New database**: no plugin is installed. The customer sees the core only and installs what they need.
 12. The seed is a named migration (`plugins_builtin_seed_v1`) recorded in the `migrations` ledger, so it
     runs once; a later wipe of the `plugins` table is not re-seeded.

@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -12,10 +12,14 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0",
-  "sdk": "^1.0.0",
+  "sdk": "^1.1.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Le planning de la blanchisserie refuse une période de plus de 750 jours au lieu de la calculer.",
+      "Un ajout manuel de linge dont la quantité est infinie ou illisible compte pour 0."
     ]
   }
 }

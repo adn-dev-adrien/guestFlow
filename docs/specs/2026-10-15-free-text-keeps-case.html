@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes sans minuscules</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6a665b; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --ok:#356f49; --ok-bg:#e6efe7; --err:#9c3d34; --err-bg:#f7e8e5;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --err:#e08b82; --err-bg:#341f1c;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --err:#e08b82; --err-bg:#341f1c;
+}
+*{box-sizing:border-box}
+::selection{background:var(--sapin);color:var(--card)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:920px;margin:0 auto;padding:28px 16px 64px}
+h1,h2{font-family:Georgia,"Times New Roman",serif;font-weight:600;color:var(--sapin);text-wrap:balance}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px}
+h2{font-size:20px;margin:40px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+p,li{max-width:72ch}
+.sub{color:var(--muted);margin:0 0 20px}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--hover);padding:1px 5px;border-radius:4px}
+textarea{width:100%;min-height:110px;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;resize:vertical}
+textarea:focus,button:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.out{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media (max-width:640px){.out{grid-template-columns:1fr}}
+.res{border-radius:12px;padding:12px 14px;white-space:pre-wrap;min-height:90px}
+.res span{display:block;font-size:12px;font-weight:600;margin-bottom:4px;white-space:normal}
+.res.before{background:var(--err-bg);color:var(--err)} .res.after{background:var(--ok-bg);color:var(--ok)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.seg{font:inherit;font-size:14px;color:var(--ink);border:1px solid var(--line);background:var(--card);border-radius:99px;padding:7px 14px;min-height:40px;cursor:pointer;transition:transform .1s ease-out}
+.seg:active{transform:scale(.97)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:13px}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Les notes gardent leurs majuscules</h1>
+<p class="sub">Spec <code>specs/free-text-keeps-case.md</code>, brouillon du 15/10/2026, à valider. Correctif à part, à faire avant le plugin Booking.</p>
+
+<h2>Le constat</h2>
+<p>À l'enregistrement, le serveur met tout le texte en minuscules puis relève la première lettre. C'est voulu pour un libellé tapé en majuscules (« FERMETURE HIVER »). Mais la même règle s'applique aux notes : « Booking », « SAS », « TVA » et le début de chaque nouvelle ligne perdent leur majuscule. Vu sur la fiche 22309 aujourd'hui.</p>
+
+<h2>À manipuler</h2>
+<label for="note" style="font-size:13px;color:var(--muted)">Tape une note comme sur une fiche</label>
+<textarea id="note">Arrivée annoncée entre 20:00 et 21:00 (acceptée sur Booking).
+Demande 2 lits d'appoint — voir le SAS et la TVA.</textarea>
+<div class="btnrow">
+  <button class="seg" type="button" data-ex="été : clé chez M. Dupont, code portail ABC">Une note qui commence en minuscule</button>
+  <button class="seg" type="button" data-ex="2 lits d'appoint pour Booking">Une note qui commence par un chiffre</button>
+</div>
+<div class="out" aria-live="polite">
+  <div class="res before"><span>Stocké aujourd'hui</span><div id="before"></div></div>
+  <div class="res after"><span>Stocké après le correctif (notes, descriptions)</span><div id="after"></div></div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<ul>
+  <li>Une fonction <code>capitalizeFirst</code> : elle relève la première lettre et laisse tout le reste tel que tapé.</li>
+  <li>Elle remplace la règle actuelle sur le texte libre : notes de réservation, de client, de devis et de calendrier, description des options, note des ressources, et la comparaison de l'historique des modifications.</li>
+  <li>Les libellés et les noms gardent la règle actuelle : prénoms, noms, rue, ville, titres d'options, fermetures, vacances, tarifs.</li>
+</ul>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Réparer les notes déjà enregistrées : les majuscules perdues ne se retrouvent pas.</li>
+  <li>Toucher aux bizarreries des noms de villes (« Saint-étienne »).</li>
+</ul>
+
+<h2>Risque</h2>
+<div class="scroll"><table>
+  <tr><th>Risque</th><th>Parade</th></tr>
+  <tr><td>L'historique signale « notes modifiées » sur une fiche ré-enregistrée sans changement</td><td>La comparaison utilise la même règle que l'enregistrement, et un test le vérifie.</td></tr>
+  <tr><td>Une note tapée tout en majuscules reste en majuscules</td><td>C'est le but : on stocke ce qui a été tapé.</td></tr>
+</table></div>
+
+<h2>Arbitrages</h2>
+<p>Aucun.</p>
+</main>
+<script>
+(function(){
+  function sentenceCase(v){ var t = String(v).trim(); if (!t) return ''; var l = t.toLocaleLowerCase('fr-FR'); var i = l.search(/\p{L}/u); return i < 0 ? l : l.slice(0,i) + l.charAt(i).toLocaleUpperCase('fr-FR') + l.slice(i+1); }
+  function capitalizeFirst(v){ var t = String(v).trim(); if (!t) return ''; var i = t.search(/\p{L}/u); return i < 0 ? t : t.slice(0,i) + t.charAt(i).toLocaleUpperCase('fr-FR') + t.slice(i+1); }
+  var note = document.getElementById('note');
+  function run(){ document.getElementById('before').textContent = sentenceCase(note.value) || '—'; document.getElementById('after').textContent = capitalizeFirst(note.value) || '—'; }
+  note.addEventListener('input', run);
+  document.querySelectorAll('[data-ex]').forEach(function(b){ b.addEventListener('click', function(){ note.value = b.getAttribute('data-ex'); run(); note.focus(); }); });
+  run();
+})();
+</script>
+</body>
+</html>

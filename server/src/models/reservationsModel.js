@@ -8,7 +8,7 @@
  */
 
 const db = require('../database');
-const { sentenceCase } = require('../utils/textFormatters');
+const { capitalizeFirst } = require('../utils/textFormatters');
 const { formatPlatformName, registerDirectChannelSql } = require('../utils/platformNameFormat');
 const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
@@ -1387,7 +1387,7 @@ function createReservationsModel(database) {
         platformNormalized, quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
-        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, sentenceCase(notes),
+        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, capitalizeFirst(notes),
         cautionAmount || 0,
         extraGuestSurchargeOffered ? 1 : 0,
         nightBlocks.blocksPreviousNight,
@@ -1700,7 +1700,7 @@ function createReservationsModel(database) {
         quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null,
         balancePaid ? 1 : 0, balancePaid ? (balancePaidDate || null) : null,
         Number(quote.complementAmount || 0), complementPaid ? 1 : 0, complementPaid ? (complementPaidDate || null) : null,
-        sentenceCase(notes),
+        capitalizeFirst(notes),
         cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
         cautionReturned ? 1 : 0, cautionReturnedDate || null, extraGuestSurchargeOffered ? 1 : 0, nextIcalSyncLocked,
         nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight, grossForPlatform,

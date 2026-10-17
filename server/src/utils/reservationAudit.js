@@ -11,7 +11,7 @@
  * See specs/reservation-history-granular-diff.md.
  */
 
-const { sentenceCase } = require('./textFormatters');
+const { capitalizeFirst } = require('./textFormatters');
 
 const HISTORY_FIELD_LABELS = {
   propertyId: 'Logement',
@@ -114,7 +114,7 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     depositDueDate: quote.depositDueDate || payload.depositDueDate || null,
     balanceAmount: Number(quote.balanceAmount || 0),
     balanceDueDate: quote.balanceDueDate || payload.balanceDueDate || null,
-    notes: sentenceCase(payload.notes) || null,
+    notes: capitalizeFirst(payload.notes) || null,
     cautionAmount: Number(payload.cautionAmount || 0),
     cautionReceived: payload.cautionReceived ? 1 : 0,
     cautionReceivedDate: payload.cautionReceivedDate || null,

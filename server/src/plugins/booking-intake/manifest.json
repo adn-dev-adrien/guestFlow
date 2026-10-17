@@ -1,0 +1,21 @@
+{
+  "id": "booking-intake",
+  "name": "Saisie Booking",
+  "version": "1.0.0",
+  "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
+  "icon": "bookmark",
+  "surfaces": [
+    "Paramètres › Intégrations › Saisie Booking",
+    "Le bandeau en haut de la fiche",
+    "Une alerte du tableau de bord"
+  ],
+  "requires": [],
+  "guestflow": ">=3.10.0",
+  "sdk": "^1.1.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet : un script du navigateur envoie la page de la réservation ouverte dans l’extranet Booking, et la fiche iCal se remplit.",
+      "Une alerte du tableau de bord liste les réservations Booking encore à compléter."
+    ]
+  }
+}

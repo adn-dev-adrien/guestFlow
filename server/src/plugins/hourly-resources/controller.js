@@ -8,6 +8,12 @@
  *   - the planning's ignition and session cards.
  */
 
+const sdk = require('../sdk');
+
+const { isReceptionOnly } = sdk.coreModule('roles');
+const { toReceptionPlanningEventList } = sdk.coreModule('receptionView');
+const { checkPlanningRange } = sdk.coreModule('planningDateRange');
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isIsoDate = (value) => typeof value === 'string' && ISO_DATE_RE.test(value);
 
@@ -15,7 +21,16 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   function planningEvents(req, res) {
     const { from, to } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
-    return res.json(model().listPlanningEvents(from, to));
+    // Bound the span before touching the DB (DATA-1): reception can reach this endpoint, and an
+    // unbounded range is a query-amplification DoS.
+    const rangeError = checkPlanningRange(from, to);
+    if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error });
+
+    const events = model().listPlanningEvents(from, to);
+    // Reception must never receive the finance (price/paid) or PII (phone/notes/raw names) that the
+    // full planning payload carries — project through the whitelist (AUTH-4). Admin keeps everything.
+    if (isReceptionOnly(req.user)) return res.json(toReceptionPlanningEventList(events));
+    return res.json(events);
   }
 
   function occupiedSlots(req, res) {
