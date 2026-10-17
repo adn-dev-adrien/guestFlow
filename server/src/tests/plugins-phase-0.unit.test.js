@@ -58,9 +58,10 @@ function setup() {
 
 // ---------- catalogue (rules 1-3) ----------
 
-test('catalogue: twelve plugins with unique ids and every field', () => {
-  assert.equal(PLUGIN_CATALOG.length, 12);
-  assert.equal(new Set(PLUGIN_IDS).size, 12);
+// Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md).
+test('catalogue: thirteen plugins with unique ids and every field', () => {
+  assert.equal(PLUGIN_CATALOG.length, 13);
+  assert.equal(new Set(PLUGIN_IDS).size, 13);
   for (const p of PLUGIN_CATALOG) {
     assert.ok(p.id && p.name && p.description && p.icon, p.id);
     assert.ok(Array.isArray(p.surfaces) && p.surfaces.length > 0, p.id);
@@ -72,7 +73,7 @@ test('catalogue: twelve plugins with unique ids and every field', () => {
 
 // ---------- seed (rules 10-12) ----------
 
-test('seed: an existing database gets the twelve plugins installed and active', () => {
+test('seed: an existing database gets every catalogue plugin installed and active', () => {
   const db = freshDb();
   db.prepare('INSERT INTO properties (id) VALUES (1)').run();
   assert.equal(seedBuiltinPlugins(db), true);
@@ -84,7 +85,7 @@ test('seed: a database with only a reservation counts as existing', () => {
   const db = freshDb();
   db.prepare('INSERT INTO reservations (id) VALUES (1)').run();
   seedBuiltinPlugins(db);
-  assert.equal(pluginsModel.buildModel(db).listActiveIds().length, 12);
+  assert.equal(pluginsModel.buildModel(db).listActiveIds().length, PLUGIN_IDS.length);
 });
 
 test('seed: a fresh database gets no plugin, and the ledger is recorded', () => {
@@ -137,7 +138,7 @@ test('list: every catalogue plugin with its state', () => {
   model.setEnabled('neat', false);
   const res = fakeRes();
   ctrl.list({}, res);
-  assert.equal(res.body.length, 12);
+  assert.equal(res.body.length, PLUGIN_IDS.length);
   const byId = Object.fromEntries(res.body.map((p) => [p.id, p]));
   assert.equal(byId.linen.state, 'active');
   assert.equal(byId.neat.state, 'inactive');

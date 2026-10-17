@@ -71,7 +71,9 @@ test('integration — create, answer, stop, restart, update and roll back, back 
     const invite = mailer.sent.find((m) => m.to === 'claire@aulnes.fr');
     assert.match(invite.text, /Mot de passe provisoire : \S+/);
     const users = new Database(inst.dbPath, { readonly: true });
-    assert.deepEqual(users.prepare('SELECT email FROM users').all().map((u) => u.email), ['claire@aulnes.fr'], 'the bootstrap account is gone');
+    const emails = users.prepare('SELECT email FROM users').all().map((u) => u.email);
+    assert.ok(emails.includes('claire@aulnes.fr'));
+    assert.ok(!emails.includes('admin@guestflow.local'), 'the bootstrap account is gone');
     users.close();
 
     // Rules 3, 4.

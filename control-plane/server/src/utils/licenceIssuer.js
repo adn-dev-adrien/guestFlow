@@ -53,26 +53,31 @@ function buildPayload({ customer, state, plans, lowest, catalogueVersion, payUrl
 }
 
 function createLicenceIssuer({ privateKey, instances }) {
-  return {
-    sign: (payload) => gfLicence.signLicence(payload, privateKey),
+  // → { written: true, path } | { written: false, reason } — the licence, or the support request of
+  // specs/hosting-h2-account-security.md rule 12, which travels the same way.
+  function writeFile(slug, fileName, token) {
+    const dir = instances.dataDir(slug);
+    if (!fs.existsSync(dir)) return { written: false, reason: `Dossier de l’instance introuvable (${dir}).` };
+    const file = path.join(dir, fileName);
+    const tmp = `${file}.${process.pid}.tmp`;
+    // A directory the console cannot write (rights, full disk) is a failed step, never an
+    // exception: the daily run must go on with the other customers.
+    try {
+      fs.writeFileSync(tmp, token, { mode: 0o640 });
+      fs.renameSync(tmp, file);
+    } catch (err) {
+      fs.rmSync(tmp, { force: true });
+      return { written: false, reason: `Écriture impossible dans ${dir} (${err.code || err.message}).` };
+    }
+    return { written: true, path: file };
+  }
 
-    // → { written: true, path } | { written: false, reason }
-    write(slug, token) {
-      const dir = instances.dataDir(slug);
-      if (!fs.existsSync(dir)) return { written: false, reason: `Dossier de l’instance introuvable (${dir}).` };
-      const file = path.join(dir, gfLicence.FILE_NAME);
-      const tmp = `${file}.${process.pid}.tmp`;
-      // A directory the console cannot write (rights, full disk) is a failed step, never an
-      // exception: the daily run must go on with the other customers.
-      try {
-        fs.writeFileSync(tmp, token, { mode: 0o640 });
-        fs.renameSync(tmp, file);
-      } catch (err) {
-        fs.rmSync(tmp, { force: true });
-        return { written: false, reason: `Écriture impossible dans ${dir} (${err.code || err.message}).` };
-      }
-      return { written: true, path: file };
-    },
+  return {
+    canSign: Boolean(privateKey),
+    privateKey,
+    sign: (payload) => gfLicence.signLicence(payload, privateKey),
+    write: (slug, token) => writeFile(slug, gfLicence.FILE_NAME, token),
+    writeFile,
   };
 }
 

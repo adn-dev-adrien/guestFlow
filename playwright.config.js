@@ -2,6 +2,7 @@
 const { defineConfig, devices } = require('@playwright/test');
 const path = require('path');
 const { CLIENT_PORT, CLIENT_URL, SERVER_PORT } = require('./e2e/clientUrl');
+const { OUTBOX, SUPPORT_PUBLIC_KEY } = require('./e2e/fixtures/accountSecurity');
 
 // E2E configuration for the smoke suite (specs/e2e-playwright-smoke-suite.md §3 + §4).
 // The suite covers ~24 user-visible flows and serves as the safety net for the upcoming
@@ -59,6 +60,10 @@ module.exports = defineConfig({
         + ' GUESTFLOW_SESSION_SECRET="' + E2E_SESSION_SECRET + '"'
         + ' GUESTFLOW_ENCRYPTION_KEY="' + E2E_ENCRYPTION_KEY + '"'
         + ` PORT=${SERVER_PORT}`
+        // specs/hosting-h2-account-security.md — the dev mail catcher, the address links point to,
+        // and the TEST-ONLY public key the support links are signed for.
+        + ` GUESTFLOW_MAIL_OUTBOX="${OUTBOX}" GUESTFLOW_PUBLIC_URL="${CLIENT_URL}"`
+        + ` GUESTFLOW_LICENCE_PUBLIC_KEY="${SUPPORT_PUBLIC_KEY}"`
         + ' node src/index.js',
       url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a

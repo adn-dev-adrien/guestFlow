@@ -42,8 +42,25 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // → the user, or `{ step: 'second-factor', … }` when the account has a second step
+  // (specs/hosting-h2-account-security.md rule 7): the login page then asks for the code.
   const login = useCallback(async (email, password) => {
     const me = await api.login(email, password);
+    if (me && me.step) return me;
+    setUser(me);
+    return me;
+  }, []);
+
+  const completeSecondFactor = useCallback(async (code, trustDevice) => {
+    const me = await api.verifySecondFactor(code, trustDevice);
+    setUser(me);
+    return me;
+  }, []);
+
+  // The forgotten password logs the user in itself (rule 4).
+  const resetPassword = useCallback(async (token, password) => {
+    const me = await api.resetPassword(token, password);
+    if (me && me.step) return me;
     setUser(me);
     return me;
   }, []);
@@ -66,7 +83,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, changePassword, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, changePassword, refresh, completeSecondFactor, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

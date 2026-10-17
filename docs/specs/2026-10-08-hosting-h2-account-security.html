@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comptes et accès support</title>
+<meta name="description" content="Maquette interactive de H2 : mot de passe oublié, connexion en deux temps, accès du support avec consentement.">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --supp:#B3261E;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --supp:#E5655B;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --supp:#E5655B;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:14px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen);display:block;margin:10px 0 4px}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:13px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:8px;padding:0 14px;min-height:44px;cursor:pointer}
+.btn.primary{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.btn.danger{color:var(--ko);border-color:var(--ko)}
+.btn.link{border:0;background:none;color:var(--info);text-decoration:underline;padding:0 4px;min-height:32px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+input[type=text],input[type=email],input[type=password],select,textarea{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:44px;width:100%}
+input.code{font:600 22px ui-monospace,Menlo,monospace;letter-spacing:.35em;text-align:center}
+.err{color:var(--ko);font-size:13px;min-height:18px;margin-top:4px}
+.okmsg{color:var(--ok);font-size:13px}
+.frame{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:14px 0}
+.url{font:12.5px ui-monospace,Menlo,monospace;padding:8px 12px;border-bottom:1px solid var(--line);background:rgba(127,127,127,.08);overflow-wrap:anywhere}
+.pab{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--card);flex-wrap:wrap}
+.pab .t{font:600 18px var(--serif);color:var(--sapin);flex:1;min-width:120px}
+.body{padding:14px}
+.login{max-width:400px;margin:18px auto;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.login h4{font:600 24px var(--serif);color:var(--sapin);margin:0 0 4px}
+.login .sub{color:var(--muted);font-size:14px;margin-bottom:14px}
+.login .btn.primary{width:100%;margin-top:12px}
+.alert{border-radius:8px;padding:10px 12px;font-size:14px;margin:8px 0}
+.alert.ok{background:color-mix(in srgb,var(--ok) 13%,var(--card));color:var(--ok)}
+.alert.ko{background:color-mix(in srgb,var(--ko) 13%,var(--card));color:var(--ko)}
+.alert.info{background:color-mix(in srgb,var(--info) 13%,var(--card));color:var(--info)}
+.alert.warn{background:color-mix(in srgb,var(--ocre) 15%,var(--card));color:var(--ink);border:1px solid color-mix(in srgb,var(--ocre) 50%,transparent)}
+.mail{font:13px/1.5 ui-monospace,Menlo,monospace;background:var(--field);border:1px dashed var(--fieldline);border-radius:8px;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:60px}
+.log{font:12.5px/1.5 ui-monospace,Menlo,monospace;color:var(--muted);max-height:180px;overflow:auto}
+.qr{width:132px;height:132px;margin:8px auto;display:grid;grid-template-columns:repeat(21,1fr);border:8px solid #fff;background:#fff}
+.qr i{display:block}
+.qr i.b{background:#111}
+.auth{border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:center;background:var(--field)}
+.auth b{font:600 26px ui-monospace,Menlo,monospace;letter-spacing:.2em;color:var(--info)}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--info);transition:width 1s linear}
+.dialog{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--card);box-shadow:0 8px 30px rgba(0,0,0,.18);margin-top:12px;display:none}
+.dialog.show{display:block}
+.codes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;font:15px ui-monospace,Menlo,monospace;margin:10px 0}
+.chk{display:flex;gap:10px;align-items:center;min-height:44px;cursor:pointer;font-size:14px}
+.chk input{width:20px;height:20px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.nudge{border:1px solid color-mix(in srgb,var(--info) 40%,var(--line));background:color-mix(in srgb,var(--info) 7%,var(--card));border-radius:10px;padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.nudge .t{flex:1;min-width:200px;font-weight:600}
+.banner{background:color-mix(in srgb,var(--ocre) 16%,var(--card));border:1px solid color-mix(in srgb,var(--ocre) 55%,transparent);border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner .t{flex:1;min-width:200px}
+.suppbar{background:var(--supp);color:#fff;font-weight:700;font-size:13.5px;padding:8px 14px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.suppbar .btn{min-height:32px;background:transparent;color:#fff;border-color:rgba(255,255,255,.7)}
+.st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.st-open{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.st-pending{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.st-closed{background:rgba(127,127,127,.18);color:var(--muted)}
+.st-ko{background:color-mix(in srgb,var(--ko) 16%,var(--card));color:var(--ko)}
+.phone{max-width:390px;margin:0 auto;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--paper)}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px);display:none;z-index:9}
+.toast.show{display:block}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.hidden{display:none !important}
+@media (max-width:600px){.codes{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Comptes : mot de passe oublié, second code, accès du support — H2</h1>
+<div class="meta">Résumé de la spec <code>specs/hosting-h2-account-security.md</code> (règles 1–17) · 08/10/2026 · données fictives, tout se manipule.</div>
+
+<div class="card">
+<h3>En bref</h3>
+<div class="cols2">
+<div>
+<b>Le constat</b>
+<ul class="tight">
+<li>Un propriétaire seul qui oublie son mot de passe est bloqué jusqu'à ce qu'on lance <code>reset-admin.js</code> sur son serveur.</li>
+<li>Les comptes d'une instance n'ont qu'un mot de passe. La console a déjà un second code (TOTP, email, codes de secours).</li>
+<li>Le support n'a aucun moyen tracé et consenti d'entrer dans l'espace d'un client.</li>
+</ul>
+<b>Ce qu'on propose</b>
+<ul class="tight">
+<li><b>Mot de passe oublié</b> : un lien par email, valable 1 h, à usage unique, même réponse que l'adresse existe ou non, 3 demandes par adresse et 20 par IP par heure.</li>
+<li><b>Second code</b> au choix (appli ou email), 10 codes de secours, « faire confiance à cet appareil 30 jours », verrou 15 min après 5 erreurs. Le code TOTP est <b>partagé avec la console</b> (un seul module).</li>
+<li><b>Accès du support</b> : la console demande, un administrateur autorise (1 h, 24 h ou 7 j) ou refuse, peut révoquer. Le support entre par un lien signé valable 2 min, sous un compte « Support GuestFlow », barre rouge, chaque écriture et chaque page journalisées.</li>
+</ul>
+</div>
+<div>
+<b>Ce qu'on ne fait pas</b>
+<ul class="tight">
+<li>Imposer le second code à tout le monde (une carte invite les administrateurs, « Plus tard » la cache 30 jours).</li>
+<li>Clés d'accès (WebAuthn, passkeys), SSO.</li>
+<li>Accès du support à une instance auto-hébergée : sans <code>GUESTFLOW_LICENCE_PUBLIC_KEY</code>, rien n'est proposé.</li>
+</ul>
+<b>Risques</b>
+<ul class="tight">
+<li><b>Lien de réinitialisation détourné</b> : il est construit sur l'adresse publique configurée, jamais sur l'en-tête <code>Host</code> de la requête.</li>
+<li><b>Téléphone perdu, seul administrateur</b> : codes de secours, sinon <code>reset-admin.js --disable-2fa</code> (inscrit au journal du compte).</li>
+<li><b>Lien support rejoué</b> : signé, 2 minutes, usage unique, refusé sans accès ouvert ; l'accès expiré coupe la session à la requête suivante.</li>
+<li>Les limites de demandes vivent en mémoire : un redémarrage les remet à zéro (acceptable : le lien reste à usage unique et valable 1 h).</li>
+</ul>
+</div>
+</div>
+</div>
+
+<h2>Arbitrages pris (options recommandées)</h2>
+<table>
+<thead><tr><th>Question</th><th>Choix</th><th>Pourquoi</th></tr></thead>
+<tbody>
+<tr><td>Comment la console prévient l'instance d'une demande ?</td><td>Un fichier signé <code>support-request.jws</code> déposé dans le dossier de données, comme la licence. La console lit l'état de l'accès dans la base de l'instance, en lecture seule, comme l'annuaire.</td><td>Aucun port ni point d'entrée nouveau sur l'instance ; le canal existe déjà (règles 9 et 26 de la console).</td></tr>
+<tr><td>Adresse du lien « Mot de passe oublié »</td><td>L'adresse publique de Réglages › Système. Sans elle, ou sans envoi d'email, le lien n'apparaît pas.</td><td>Construire le lien sur l'en-tête <code>Host</code> permettrait d'envoyer un lien piégé.</td></tr>
+<tr><td>Où ranger la confiance « 30 jours » ?</td><td>Un cookie signé, lié à l'empreinte du mot de passe et à la date d'activation du second code.</td><td>Changer de mot de passe ou couper le second code l'annule sans table à purger.</td></tr>
+<tr><td>Le compte « Support GuestFlow »</td><td>Reste inactif en base ; c'est l'accès ouvert qui autorise sa session.</td><td>Jamais compté dans le quota d'utilisateurs, jamais listé dans l'annuaire de la console ni dans Utilisateurs.</td></tr>
+<tr><td>« Historique de l'utilisateur » (règle 9)</td><td>Un journal de sécurité par compte (<code>user_security_events</code>), visible dans Mon compte.</td><td>Il n'existait pas d'historique des comptes ; l'utilisateur voit qui a coupé son second code.</td></tr>
+<tr><td>Instance en lecture seule</td><td>Autoriser, refuser et révoquer le support restent possibles.</td><td>Un client qui n'a pas payé a souvent besoin d'aide.</td></tr>
+<tr><td>Email en développement et en E2E</td><td><code>GUESTFLOW_MAIL_OUTBOX</code> écrit les emails de compte dans un dossier au lieu de les envoyer (refusé en production).</td><td>Il n'y avait pas de capteur de mails ; l'E2E lit le lien dans ce dossier.</td></tr>
+<tr><td>Ce que la session support ne peut pas faire</td><td>Décider de son propre accès, changer de mot de passe, régler un second code.</td><td>Le reste : les droits d'administrateur demandés par la règle 14.</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================= 1 -->
+<h2>1. Mot de passe oublié (règles 1–5)</h2>
+<p class="muted">Essayer <code>marie@domaine-ombre.fr</code> (le compte existe) puis une adresse inconnue : la réponse est la même. La 4<sup>e</sup> demande dans l'heure pour la même adresse ne part pas, la réponse ne change pas.</p>
+<div class="cols2">
+<div class="frame">
+<div class="url" id="fpUrl">https://domaine-ombre.guestflow.fr/login</div>
+<div class="body">
+<div class="login" id="fpLogin">
+<h4>GuestFlow</h4>
+<div class="sub">Connexion.</div>
+<span class="lab">Email</span><input type="email" value="marie@domaine-ombre.fr">
+<span class="lab">Mot de passe</span><input type="password" value="">
+<button class="btn primary" type="button">Se connecter</button>
+<div style="text-align:center;margin-top:8px"><button class="btn link" type="button" onclick="fpShow('ask')">Mot de passe oublié ?</button></div>
+</div>
+<div class="login hidden" id="fpAsk">
+<h4>Mot de passe oublié</h4>
+<div class="sub">Un lien de réinitialisation part à l'adresse du compte.</div>
+<div id="fpAnswer" class="alert ok hidden">Si un compte existe, un lien vient d'être envoyé.</div>
+<span class="lab">Email</span><input type="email" id="fpEmail" value="marie@domaine-ombre.fr">
+<button class="btn primary" type="button" onclick="fpSend()">Envoyer le lien</button>
+<div style="text-align:center;margin-top:8px"><button class="btn link" type="button" onclick="fpShow('login')">Retour à la connexion</button></div>
+</div>
+<div class="login hidden" id="fpReset">
+<h4>Nouveau mot de passe</h4>
+<div id="fpResetState"></div>
+<div id="fpResetForm">
+<span class="lab">Nouveau mot de passe</span><input type="password" id="fpNew" placeholder="Au moins 10 caractères">
+<span class="lab">Confirmer</span><input type="password" id="fpConfirm">
+<div class="err" id="fpErr"></div>
+<button class="btn primary" type="button" onclick="fpSave()">Enregistrer</button>
+</div>
+</div>
+</div>
+</div>
+<div>
+<div class="card">
+<h3>Boîte mail de marie@domaine-ombre.fr</h3>
+<div class="mail" id="fpMail">(vide)</div>
+<div class="row" style="margin-top:8px">
+<button class="btn" type="button" id="fpOpen" disabled onclick="fpOpenLink()">Ouvrir le lien</button>
+<button class="btn" type="button" onclick="fpExpire()">Avancer d'une heure</button>
+</div>
+</div>
+<div class="card" style="margin-top:12px">
+<h3>Ce que fait le serveur</h3>
+<div class="log" id="fpLog">—</div>
+</div>
+</div>
+</div>
+
+<!-- ============================================================= 2 -->
+<h2>2. Activer le second code (règles 6, 9, 11)</h2>
+<p class="muted">Dans Mon compte. L'appli d'authentification simulée à droite affiche le code du moment ; tout autre code est refusé.</p>
+<div class="cols2">
+<div class="frame">
+<div class="url">https://domaine-ombre.guestflow.fr/mon-compte</div>
+<div class="pab"><span class="t">Mon compte</span></div>
+<div class="body">
+<div class="card">
+<h3>Second code</h3>
+<div id="enOff">
+<div class="row" style="margin-bottom:6px"><span class="st st-closed">Désactivé</span></div>
+<div class="seg" role="group" aria-label="Méthode">
+<button type="button" aria-pressed="true" id="mApp" onclick="enMethod('app')">Appli d'authentification</button>
+<button type="button" aria-pressed="false" id="mMail" onclick="enMethod('mail')">Code par email</button>
+</div>
+<span class="lab">Mot de passe actuel</span><input type="password" id="enPwd" value="••••••••••••">
+<button class="btn primary" type="button" style="margin-top:10px" onclick="enStart()">Activer</button>
+</div>
+<div id="enScan" class="hidden">
+<div id="enScanApp">
+<div class="sub muted">Scanner ce code avec l'appli, puis saisir le code affiché.</div>
+<div class="qr" id="qr"></div>
+<div style="text-align:center"><code>JBSW Y3DP EHPK 3PXP GUES TFLO</code></div>
+</div>
+<div id="enScanMail" class="hidden"><div class="alert info">Code envoyé à m•••e@domaine-ombre.fr.</div></div>
+<span class="lab">Code à 6 chiffres</span>
+<input class="code" id="enCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
+<div class="err" id="enErr"></div>
+<div class="row"><button class="btn primary" type="button" onclick="enConfirm()">Confirmer</button><button class="btn" type="button" onclick="enReset()">Annuler</button></div>
+</div>
+<div id="enOn" class="hidden">
+<div class="row" style="margin-bottom:6px"><span class="st st-open">Activé</span> <span id="enOnLabel">Appli d'authentification</span></div>
+<div class="muted" style="font-size:14px">Codes de secours restants : <b id="enLeft">10</b></div>
+<div class="row" style="margin-top:8px"><button class="btn" type="button" onclick="enRegen()">Nouveaux codes de secours</button><button class="btn danger" type="button" onclick="enReset()">Désactiver</button></div>
+<span class="lab">Journal du compte</span>
+<ul class="tight" id="enHist" style="font-size:13.5px"></ul>
+</div>
+</div>
+<div class="dialog" id="bcDialog" role="dialog" aria-label="Codes de secours">
+<h3>Codes de secours</h3>
+<div class="alert warn">Affichés une seule fois. Chaque code remplace le second code une fois.</div>
+<div class="codes" id="bcList"></div>
+<div class="row">
+<button class="btn" type="button" onclick="bcCopy()">Copier</button>
+<button class="btn" type="button" onclick="bcDownload()">Télécharger</button>
+<button class="btn primary" type="button" onclick="document.getElementById('bcDialog').classList.remove('show')">Terminé</button>
+</div>
+</div>
+</div>
+</div>
+<div>
+<div class="auth">
+<div class="muted" style="font-size:13px">Appli d'authentification · GuestFlow (marie@domaine-ombre.fr)</div>
+<b id="authCode">——————</b>
+<div class="bar"><i id="authBar" style="width:100%"></i></div>
+</div>
+<div class="card" style="margin-top:12px">
+<h3>Côté administrateur (règle 9)</h3>
+<p style="font-size:14px">Paramètres › Utilisateurs, ligne de Marie : « Désactiver le second code ». Personne ne lit le secret, chiffré en base.</p>
+<button class="btn danger" type="button" onclick="adminDisable()">Désactiver le second code de Marie</button>
+<div class="okmsg" id="adminMsg"></div>
+</div>
+</div>
+</div>
+
+<!-- ============================================================= 3 -->
+<h2>3. Connexion en deux temps (règles 7, 8)</h2>
+<p class="muted">Le mot de passe, puis le code. « Faire confiance à cet appareil » saute l'étape au prochain passage. Cinq codes faux verrouillent 15 minutes.</p>
+<div class="cols2">
+<div class="frame">
+<div class="url">https://domaine-ombre.guestflow.fr/login</div>
+<div class="body">
+<div class="login" id="lgPwd">
+<h4>GuestFlow</h4>
+<div class="sub">Connexion.</div>
+<div id="lgTrusted" class="alert info hidden">Appareil de confiance : second code non demandé.</div>
+<span class="lab">Email</span><input type="email" value="marie@domaine-ombre.fr">
+<span class="lab">Mot de passe</span><input type="password" value="••••••••••••">
+<button class="btn primary" type="button" onclick="lgStep1()">Se connecter</button>
+</div>
+<div class="login hidden" id="lgCode">
+<h4>Second code</h4>
+<div class="sub">Code à 6 chiffres de l'appli d'authentification.</div>
+<div id="lgMsg"></div>
+<input class="code" id="lgInput" inputmode="numeric" autocomplete="one-time-code" maxlength="11" placeholder="••••••">
+<label class="chk"><input type="checkbox" id="lgTrust"> Faire confiance à cet appareil 30 jours</label>
+<button class="btn primary" type="button" id="lgBtn" onclick="lgVerify()">Valider</button>
+<div style="text-align:center;margin-top:8px"><button class="btn link" type="button" onclick="lgBack()">Retour</button></div>
+<div class="muted" style="font-size:12.5px;text-align:center">Un code de secours (xxxxx-xxxxx) est accepté dans le même champ.</div>
+</div>
+<div class="login hidden" id="lgIn">
+<h4>Tableau de bord</h4>
+<div class="alert ok">Connecté.</div>
+<button class="btn" type="button" onclick="lgLogout()">Se déconnecter</button>
+<button class="btn link" type="button" onclick="lgForget()">Changer de mot de passe (annule la confiance)</button>
+</div>
+</div>
+</div>
+<div class="card">
+<h3>Appli de Marie</h3>
+<div class="auth"><b id="authCode2">——————</b></div>
+<h3 style="margin-top:14px">État</h3>
+<ul class="tight" style="font-size:14px">
+<li>Codes faux de suite : <b id="lgFails">0</b> / 5</li>
+<li>Cookie de confiance : <b id="lgCookie">aucun</b></li>
+</ul>
+<button class="btn" type="button" onclick="lgUnlock()">Avancer de 15 minutes</button>
+</div>
+</div>
+
+<!-- ============================================================= 4 -->
+<h2>4. La carte du tableau de bord (règle 10)</h2>
+<p class="muted">Un administrateur sans second code voit une carte. « Plus tard » la cache 30 jours.</p>
+<div class="frame">
+<div class="url">https://domaine-ombre.guestflow.fr/</div>
+<div class="pab"><span class="t">Tableau de bord</span></div>
+<div class="body">
+<div class="nudge" id="nudge">
+<span class="t">Protéger le compte par un second code</span>
+<button class="btn primary" type="button" onclick="toast('Ouvre Mon compte › Second code')">Activer</button>
+<button class="btn" type="button" onclick="nudgeLater()">Plus tard</button>
+</div>
+<div class="muted hidden" id="nudgeGone" style="font-size:14px">Carte masquée jusqu'au <b id="nudgeDate"></b>. <button class="btn link" type="button" onclick="nudgeBack()">Avancer de 30 jours</button></div>
+</div>
+</div>
+
+<!-- ============================================================= 5 -->
+<h2>5. Accès du support avec consentement (règles 12–17)</h2>
+<p class="muted">À gauche la console, à droite l'instance du client. Demander, autoriser ou refuser, ouvrir l'espace, révoquer.</p>
+<div class="cols2">
+<div class="frame">
+<div class="url">https://console.guestflow.fr/customers/7</div>
+<div class="pab"><span class="t">Domaine de l'Ombre</span></div>
+<div class="body">
+<div class="card">
+<h3>Accès du support</h3>
+<div id="csState" style="margin-bottom:8px"></div>
+<div id="csAsk">
+<span class="lab">Motif</span>
+<input type="text" id="csReason" value="Vérifier la synchronisation Booking du gîte">
+<div class="err" id="csErr"></div>
+<button class="btn primary" type="button" onclick="csRequest()">Demander l'accès</button>
+</div>
+<div id="csOpen" class="hidden">
+<button class="btn primary" type="button" onclick="csEnter()">Ouvrir l'espace</button>
+<div class="muted" style="font-size:12.5px;margin-top:6px">Lien signé, valable 2 minutes, usage unique.</div>
+</div>
+</div>
+</div>
+</div>
+<div class="frame" id="instFrame">
+<div class="url" id="instUrl">https://domaine-ombre.guestflow.fr/</div>
+<div class="pab"><span class="t" id="instTitle">Tableau de bord</span><span class="muted" id="instWho" style="font-size:13px">Marie (administratrice)</span></div>
+<div class="body">
+<div class="banner hidden" id="bn">
+<span class="t">Le support demande l'accès : <b id="bnReason"></b></span>
+<select id="bnDur" style="width:auto;min-width:110px"><option value="1">1 h</option><option value="24" selected>24 h</option><option value="168">7 jours</option></select>
+<button class="btn primary" type="button" onclick="bnAccept()" id="bnAcc">Autoriser 24 h</button>
+<button class="btn" type="button" onclick="bnRefuse()">Refuser</button>
+</div>
+<div id="instHome" style="margin-top:10px">
+<button class="btn" type="button" onclick="instGo('log')">Paramètres › Accès du support</button>
+<button class="btn hidden" type="button" id="instRes" onclick="instWrite()">Modifier la réservation 22301</button>
+</div>
+<div id="instLog" class="hidden" style="margin-top:10px">
+<table>
+<thead><tr><th>Demande</th><th>Décision</th><th>État</th><th></th></tr></thead>
+<tbody id="accRows"></tbody>
+</table>
+<h3>Journal</h3>
+<table><thead><tr><th>Quand</th><th>Action</th></tr></thead><tbody id="logRows"><tr><td colspan="2" class="muted">Rien pour l'instant.</td></tr></tbody></table>
+<button class="btn" type="button" style="margin-top:8px" onclick="instGo('home')">Retour</button>
+</div>
+</div>
+<div class="suppbar hidden" id="suppBar"><span>Session support — jusqu'au <span id="suppUntil"></span></span><button class="btn" type="button" onclick="suppQuit()">Quitter</button></div>
+</div>
+</div>
+<div class="note">Une instance sans clé de licence (auto-hébergée, Solio aujourd'hui) n'affiche ni la bannière ni la page « Accès du support », et la console n'y propose pas la demande (règle 17).</div>
+
+<!-- ============================================================= 6 -->
+<h2>6. Au téléphone (390 px)</h2>
+<p class="muted">Le champ du code ouvre le pavé numérique et propose le code reçu par SMS ou email (<code>inputmode="numeric"</code>, <code>autocomplete="one-time-code"</code>). Les codes de secours s'affichent en plein écran.</p>
+<div class="seg" role="group" aria-label="Écran mobile" style="margin-bottom:10px">
+<button type="button" aria-pressed="true" id="mobA" onclick="mob('code')">Second code</button>
+<button type="button" aria-pressed="false" id="mobB" onclick="mob('codes')">Codes de secours</button>
+<button type="button" aria-pressed="false" id="mobC" onclick="mob('support')">Session support</button>
+</div>
+<div class="phone">
+<div class="url">domaine-ombre.guestflow.fr</div>
+<div id="mobCode" style="padding:24px 16px">
+<h4 style="font:600 24px var(--serif);color:var(--sapin);margin:0 0 6px">Second code</h4>
+<div class="muted" style="font-size:14px;margin-bottom:10px">Code à 6 chiffres de l'appli d'authentification.</div>
+<input class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="11" placeholder="••••••" id="mobInput">
+<div class="err" id="mobErr"></div>
+<label class="chk"><input type="checkbox"> Faire confiance à cet appareil 30 jours</label>
+<button class="btn primary" type="button" style="width:100%" onclick="mobCheck()">Valider</button>
+</div>
+<div id="mobCodes" class="hidden" style="padding:20px 16px;min-height:520px;background:var(--card)">
+<h4 style="font:600 22px var(--serif);color:var(--sapin);margin:0 0 6px">Codes de secours</h4>
+<div class="alert warn">Affichés une seule fois.</div>
+<div class="codes" style="grid-template-columns:minmax(0,1fr)">
+<span>k7m2p-x9q4r</span><span>a3h8t-v6n2w</span><span>c9j4e-r2m7s</span><span>…</span>
+</div>
+<button class="btn" type="button" style="width:100%;margin-bottom:8px">Copier</button>
+<button class="btn" type="button" style="width:100%;margin-bottom:8px">Télécharger</button>
+<button class="btn primary" type="button" style="width:100%">Terminé</button>
+</div>
+<div id="mobSupport" class="hidden" style="min-height:420px;display:flex;flex-direction:column">
+<div style="padding:16px;flex:1"><b style="font:600 20px var(--serif);color:var(--sapin)">Planning</b><p class="muted" style="font-size:14px;margin-top:8px">La barre rouge reste en bas de chaque page, y compris sur les captures.</p></div>
+<div class="suppbar"><span>Session support — jusqu'au 09/10 14:05</span></div>
+</div>
+</div>
+
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+function $(id){return document.getElementById(id)}
+function toast(t){const el=$('toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200)}
+function hhmm(d){return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+function dmy(d){return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}
+let clock=new Date('2026-10-08T14:05:00');
+
+/* 1. forgot password */
+const KNOWN='marie@domaine-ombre.fr';
+let fp={count:{},token:null,issuedAt:null,used:false,log:[]};
+function fpShow(v){$('fpLogin').classList.toggle('hidden',v!=='login');$('fpAsk').classList.toggle('hidden',v!=='ask');$('fpReset').classList.toggle('hidden',v!=='reset');
+  $('fpUrl').textContent='https://domaine-ombre.guestflow.fr/'+(v==='ask'?'mot-de-passe-oublie':v==='reset'?'nouveau-mot-de-passe?token=…':'login');$('fpAnswer').classList.add('hidden')}
+function fpLogLine(t){fp.log.unshift(hhmm(clock)+'  '+t);$('fpLog').innerHTML=fp.log.map(l=>'<div>'+l+'</div>').join('')}
+function fpSend(){const email=$('fpEmail').value.trim().toLowerCase();fp.count[email]=(fp.count[email]||0)+1;$('fpAnswer').classList.remove('hidden');
+  if(fp.count[email]>3){fpLogLine(email+' : limite de 3 demandes par heure atteinte, rien envoyé');return}
+  if(email!==KNOWN){fpLogLine(email+' : aucun compte, rien envoyé');return}
+  if(fp.token)fpLogLine('ancien lien annulé');
+  fp.token=Math.random().toString(36).slice(2,10);fp.issuedAt=new Date(clock);fp.used=false;
+  fpLogLine(email+' : lien envoyé, SHA-256 du jeton stocké, valable jusqu\'à '+hhmm(new Date(clock.getTime()+3600e3)));
+  $('fpMail').textContent='Objet : Réinitialisation du mot de passe\n\nLien valable 1 heure, utilisable une fois :\nhttps://domaine-ombre.guestflow.fr/nouveau-mot-de-passe?token='+fp.token+'…\n\nSans demande de votre part, ignorer ce message.';
+  $('fpOpen').disabled=false}
+function fpExpire(){clock=new Date(clock.getTime()+3600e3+1000);fp.count={};fpLogLine('une heure passe : compteurs remis à zéro');toast('Une heure plus tard')}
+function fpOpenLink(){fpShow('reset');const expired=clock-fp.issuedAt>3600e3;const bad=expired||fp.used;
+  $('fpResetForm').classList.toggle('hidden',bad);
+  $('fpResetState').innerHTML=bad?'<div class="alert ko">Lien expiré ou déjà utilisé.</div><button class="btn link" type="button" onclick="fpShow(\'ask\')">Demander un nouveau lien</button>':'';$('fpErr').textContent=''}
+function fpSave(){const a=$('fpNew').value,b=$('fpConfirm').value;
+  if(a.length<10){$('fpErr').textContent='Au moins 10 caractères.';return}
+  if(a!==b){$('fpErr').textContent='La confirmation ne correspond pas.';return}
+  fp.used=true;fpLogLine('mot de passe changé ; 2 sessions fermées ; confiance des appareils annulée');
+  $('fpResetForm').classList.add('hidden');$('fpResetState').innerHTML='<div class="alert ok">Mot de passe enregistré. Connecté.</div><div class="muted" style="font-size:13px">Avec un second code actif, il est demandé maintenant.</div>'}
+
+/* fake authenticator */
+function codeAt(t){const s=Math.floor(t/30000);let h=2166136261^s;for(let i=0;i<4;i++){h=Math.imul(h^(h>>>13),16777619)}return String(Math.abs(h)%1000000).padStart(6,'0')}
+function tick(){const now=Date.now();const c=codeAt(now);$('authCode').textContent=c.slice(0,3)+' '+c.slice(3);$('authCode2').textContent=c.slice(0,3)+' '+c.slice(3);$('authBar').style.width=(100-((now%30000)/300))+'%'}
+setInterval(tick,1000);tick();
+function goodCode(v){v=v.replace(/\s/g,'');return v===codeAt(Date.now())||v===codeAt(Date.now()-30000)}
+
+/* QR placeholder */
+(function(){let h='';let seed=7;for(let i=0;i<441;i++){const r=Math.floor(i/21),c=i%21;const finder=(r<7&&c<7)||(r<7&&c>13)||(r>13&&c<7);
+  let on;if(finder){const rr=r%14,cc=c%14;const x=rr>6?rr-14:rr,y=cc>6?cc-14:cc;const a=Math.max(Math.abs(x-3),Math.abs(y-3));on=a!==2}else{seed=(seed*1103515245+12345)&0x7fffffff;on=seed%3===0}
+  h+='<i class="'+(on?'b':'')+'"></i>'}$('qr').innerHTML=h})();
+
+/* 2. enrolment */
+let en={method:'app',codes:[],hist:[]};
+function enMethod(m){en.method=m;$('mApp').setAttribute('aria-pressed',m==='app');$('mMail').setAttribute('aria-pressed',m==='mail')}
+function enStart(){$('enOff').classList.add('hidden');$('enScan').classList.remove('hidden');$('enScanApp').classList.toggle('hidden',en.method!=='app');$('enScanMail').classList.toggle('hidden',en.method!=='mail');$('enErr').textContent='';$('enCode').value='';if(en.method==='mail')toast('Code email simulé : celui de l\'appli à droite')}
+function newCodes(){const a='abcdefghjkmnpqrstuvwxyz23456789';const p=()=>Array.from({length:5},()=>a[Math.floor(Math.random()*a.length)]).join('');return Array.from({length:10},()=>p()+'-'+p())}
+function showCodes(){en.codes=newCodes();$('bcList').innerHTML=en.codes.map(c=>'<span>'+c+'</span>').join('');$('bcDialog').classList.add('show');$('enLeft').textContent='10'}
+function hist(t){en.hist.unshift(dmy(clock)+' '+hhmm(clock)+' — '+t);$('enHist').innerHTML=en.hist.map(h=>'<li>'+h+'</li>').join('')}
+function enConfirm(){const v=$('enCode').value;if(!/^\d{6}$/.test(v.replace(/\s/g,''))){$('enErr').textContent='6 chiffres.';return}
+  if(!goodCode(v)){$('enErr').textContent='Code incorrect.';return}
+  $('enScan').classList.add('hidden');$('enOn').classList.remove('hidden');$('enOnLabel').textContent=en.method==='app'?'Appli d\'authentification':'Code par email';hist('second code activé ('+(en.method==='app'?'appli':'email')+')');showCodes()}
+function enRegen(){showCodes();hist('nouveaux codes de secours')}
+function enReset(){$('enOn').classList.add('hidden');$('enScan').classList.add('hidden');$('enOff').classList.remove('hidden')}
+function adminDisable(){if($('enOn').classList.contains('hidden')){$('adminMsg').textContent='Marie n\'a pas de second code actif.';return}
+  enReset();hist('second code désactivé par Paul (administrateur)');$('enOn').classList.add('hidden');$('adminMsg').textContent='Désactivé. Inscrit au journal du compte de Marie.';
+  $('enOff').insertAdjacentHTML('beforeend','')}
+function bcCopy(){const t=en.codes.join('\n');if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast('Codes copiés'),()=>toast('Copie refusée par le navigateur'));else toast('Copie indisponible')}
+function bcDownload(){const blob=new Blob(['Codes de secours GuestFlow — marie@domaine-ombre.fr\n\n'+en.codes.join('\n')+'\n'],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='guestflow-codes-de-secours.txt';document.body.appendChild(a);a.click();a.remove()}
+
+/* 3. login second step */
+let lg={fails:0,lockedUntil:null,trusted:false,backup:['k7m2p-x9q4r']};
+function lgRender(){$('lgFails').textContent=lg.fails;$('lgCookie').textContent=lg.trusted?'valide 30 jours':'aucun';$('lgTrusted').classList.toggle('hidden',!lg.trusted)}
+function lgStep1(){if(lg.trusted){$('lgPwd').classList.add('hidden');$('lgIn').classList.remove('hidden');return}
+  $('lgPwd').classList.add('hidden');$('lgCode').classList.remove('hidden');$('lgMsg').innerHTML='';$('lgInput').value='';lgLock()}
+function lgLock(){const locked=lg.lockedUntil&&clock<lg.lockedUntil;$('lgBtn').disabled=!!locked;if(locked)$('lgMsg').innerHTML='<div class="alert ko">Trop d\'essais : réessayer après '+hhmm(lg.lockedUntil)+'.</div>'}
+function lgVerify(){const v=$('lgInput').value.trim().toLowerCase();
+  const isBackup=/^[a-z0-9]{5}-[a-z0-9]{5}$/.test(v);let ok=false;
+  if(isBackup){const i=lg.backup.indexOf(v);if(i>=0){lg.backup.splice(i,1);ok=true}}else ok=goodCode(v);
+  if(!ok){lg.fails++;if(lg.fails>=5){lg.lockedUntil=new Date(clock.getTime()+15*60e3);lg.fails=0}
+    $('lgMsg').innerHTML='<div class="alert ko">Code incorrect.</div>';lgLock();lgRender();return}
+  lg.fails=0;if($('lgTrust').checked)lg.trusted=true;$('lgCode').classList.add('hidden');$('lgIn').classList.remove('hidden');lgRender();if(isBackup)toast('Code de secours utilisé')}
+function lgBack(){$('lgCode').classList.add('hidden');$('lgPwd').classList.remove('hidden')}
+function lgLogout(){$('lgIn').classList.add('hidden');$('lgPwd').classList.remove('hidden');lgRender()}
+function lgForget(){lg.trusted=false;toast('Mot de passe changé : confiance annulée');lgLogout()}
+function lgUnlock(){clock=new Date(clock.getTime()+15*60e3+1000);lgLock();if(!(lg.lockedUntil&&clock<lg.lockedUntil))$('lgMsg').innerHTML='';toast('15 minutes plus tard')}
+lgRender();
+
+/* 4. nudge */
+function nudgeLater(){$('nudge').classList.add('hidden');$('nudgeGone').classList.remove('hidden');$('nudgeDate').textContent=dmy(new Date(clock.getTime()+30*86400e3))}
+function nudgeBack(){$('nudge').classList.remove('hidden');$('nudgeGone').classList.add('hidden')}
+
+/* 5. support */
+let sp={pending:null,accesses:[],open:null,log:[],inSession:false};
+function spRender(){
+  const s=$('csState');
+  if(sp.open&&clock<sp.open.expiresAt)s.innerHTML='<span class="st st-open">Ouvert</span> jusqu\'au '+dmy(sp.open.expiresAt)+' '+hhmm(sp.open.expiresAt);
+  else if(sp.pending)s.innerHTML='<span class="st st-pending">En attente</span> « '+sp.pending+' »';
+  else s.innerHTML='<span class="st st-closed">Aucun accès</span>';
+  $('csOpen').classList.toggle('hidden',!(sp.open&&clock<sp.open.expiresAt));
+  $('bn').classList.toggle('hidden',!sp.pending||sp.inSession);$('bnReason').textContent=sp.pending||'';
+  $('accRows').innerHTML=sp.accesses.map((a,i)=>'<tr><td>'+a.reason+'<br><small class="muted">'+dmy(a.at)+' '+hhmm(a.at)+'</small></td><td>'+a.decision+'</td><td>'+a.stateHtml()+'</td><td>'+(a.revocable()?'<button class="btn danger" type="button" onclick="spRevoke('+i+')">Révoquer</button>':'')+'</td></tr>').join('')||'<tr><td colspan="4" class="muted">Aucune demande.</td></tr>';
+  $('logRows').innerHTML=sp.log.length?sp.log.map(l=>'<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>').join(''):'<tr><td colspan="2" class="muted">Rien pour l\'instant.</td></tr>';
+  $('suppBar').classList.toggle('hidden',!sp.inSession);$('instRes').classList.toggle('hidden',!sp.inSession);
+  $('instWho').textContent=sp.inSession?'Support GuestFlow':'Marie (administratrice)';
+  if(sp.open)$('suppUntil').textContent=dmy(sp.open.expiresAt)+' '+hhmm(sp.open.expiresAt);
+}
+function csRequest(){const r=$('csReason').value.trim();if(!r){$('csErr').textContent='Motif obligatoire.';return}$('csErr').textContent='';
+  if(sp.open&&clock<sp.open.expiresAt){$('csErr').textContent='Un accès est déjà ouvert.';return}
+  if(sp.pending)toast('Nouveau motif : il remplace la demande en attente');sp.pending=r;spRender()}
+$('bnDur').addEventListener('change',()=>{const v=$('bnDur').value;$('bnAcc').textContent='Autoriser '+(v==='1'?'1 h':v==='24'?'24 h':'7 jours')});
+function mkAccess(reason,decision,exp){const a={reason,at:new Date(clock),decision,expiresAt:exp,revoked:false};
+  a.stateHtml=()=>a.revoked?'<span class="st st-closed">Révoqué</span>':!a.expiresAt?'<span class="st st-ko">Refusé</span>':clock<a.expiresAt?'<span class="st st-open">Ouvert</span> jusqu\'au '+dmy(a.expiresAt)+' '+hhmm(a.expiresAt):'<span class="st st-closed">Expiré</span>';
+  a.revocable=()=>!a.revoked&&a.expiresAt&&clock<a.expiresAt;return a}
+function bnAccept(){const h=Number($('bnDur').value);const a=mkAccess(sp.pending,'Autorisé par Marie',new Date(clock.getTime()+h*3600e3));sp.accesses.unshift(a);sp.open=a;sp.pending=null;spRender();toast('Accès autorisé')}
+function bnRefuse(){sp.accesses.unshift(mkAccess(sp.pending,'Refusé par Marie',null));sp.pending=null;spRender()}
+function spRevoke(i){const a=sp.accesses[i];a.revoked=true;if(sp.open===a)sp.open=null;if(sp.inSession){sp.inSession=false;toast('Session support fermée')}spRender()}
+function csEnter(){if(!(sp.open&&clock<sp.open.expiresAt))return;sp.inSession=true;$('instUrl').textContent='https://domaine-ombre.guestflow.fr/  (lien signé consommé)';sp.log.unshift([hhmm(clock),'Connexion du support']);instGo('home');spRender()}
+function instGo(v){$('instHome').classList.toggle('hidden',v!=='home');$('instLog').classList.toggle('hidden',v!=='log');$('instTitle').textContent=v==='log'?'Accès du support':'Tableau de bord';
+  if(sp.inSession)sp.log.unshift([hhmm(clock),'Page ouverte : '+(v==='log'?'/parametres/acces-support':'/')]);spRender()}
+function instWrite(){if(!(sp.open&&clock<sp.open.expiresAt&&!sp.open.revoked)){sp.inSession=false;toast('401 : accès terminé, session fermée');spRender();return}
+  sp.log.unshift([hhmm(clock),'PUT /api/reservations/22301 → 200']);spRender();toast('Écriture journalisée')}
+function suppQuit(){sp.inSession=false;spRender()}
+spRender();
+
+/* 6. mobile */
+function mob(v){['code','codes','support'].forEach((k,i)=>{$(['mobCode','mobCodes','mobSupport'][i]).classList.toggle('hidden',k!==v);$(['mobA','mobB','mobC'][i]).setAttribute('aria-pressed',k===v)})}
+function mobCheck(){const v=$('mobInput').value;$('mobErr').textContent=goodCode(v)?'':'Code incorrect.';if(goodCode(v))toast('Connecté')}
+</script>
+</body>
+</html>

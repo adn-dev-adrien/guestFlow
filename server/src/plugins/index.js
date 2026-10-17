@@ -16,4 +16,5 @@ module.exports = [
   require('./online-payment'),
   require('./neat'),
   require('./hourly-resources'),
+  require('./gites-de-france-intake'),
 ];

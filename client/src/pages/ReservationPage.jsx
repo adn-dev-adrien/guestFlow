@@ -208,6 +208,8 @@ export default function ReservationPage() {
   // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay, by plugin id
   // (Neat: the subscription under the insurance line). Server-shaped; a plugin replaces its own.
   const [pluginBlocks, setPluginBlocks] = useState({});
+  // Bumped by a plugin banner that changed the reservation server-side: re-runs the page load.
+  const [reloadToken, setReloadToken] = useState(0);
   const setPluginBlock = useCallback((pluginId, block) => {
     setPluginBlocks((prev) => ({ ...prev, [pluginId]: block }));
   }, []);
@@ -1139,7 +1141,7 @@ export default function ReservationPage() {
     };
 
     initPage();
-  }, [reservationId, editingDevisId, searchParams, prefillDevis]);
+  }, [reservationId, editingDevisId, searchParams, prefillDevis, reloadToken]);
 
   // ==================== DATA LOADING FUNCTIONS ====================
   const loadResourcesAvailability = async (startDate, endDate, propertyId, excludeReservationId = null) => {
@@ -3196,6 +3198,16 @@ export default function ReservationPage() {
       >
         {/* Colonne gauche : Formulaire */}
         <Box>
+        {/* Banners of plugin modules, above everything the operator reads first
+            (specs/gites-de-france-mail-intake.md §4.1). A plugin that changed the reservation asks
+            for a reload through `onReservationChanged`. */}
+        {editingReservationId && (
+          <Slot
+            name="reservation.banners"
+            reservationId={editingReservationId}
+            onReservationChanged={() => setReloadToken((token) => token + 1)}
+          />
+        )}
         {isReservationLocked && (
           <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
             <Typography variant="body2" color="warning.main" sx={{ flex: 1 }}>

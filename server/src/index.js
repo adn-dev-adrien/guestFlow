@@ -148,6 +148,13 @@ app.use('/api', (req, res, next) => {
 // Stricter brute-force limit on the login route.
 app.use('/api/auth/login', loginLimiter);
 
+// A support session lives only while its access is open, cannot touch the account it borrows, and
+// leaves a trace of every write (specs/hosting-h2-account-security.md rules 14-16). Before every
+// /api router, the auth routes included.
+app.use('/api', require('./middleware/supportAudit').createSupportAudit({
+  controller: require('./utils/accountSecurityServices').supportAccess,
+}));
+
 // Auth routes are public (login/me) or session-checked in the controller (logout/change-password),
 // so they are mounted OUTSIDE the auth guard below.
 app.use('/api/auth', require('./routes/auth'));
@@ -215,6 +222,8 @@ app.use('/api/terms', require('./routes/terms'));
 app.use('/api/plugins', require('./routes/plugins'));
 // specs/control-plane-plans-and-access.md — the subscription banner. Admin-only through the role guard.
 app.use('/api/subscription', require('./routes/subscription'));
+// specs/hosting-h2-account-security.md rules 12-17 — Accès du support. Admin-only through the role guard.
+app.use('/api/support-access', require('./routes/supportAccess'));
 // The routes of plugin modules (specs/plugins-phase-1-sdk.md rule 5): same URLs as before the move,
 // each behind requirePlugin.
 pluginLoader.mountApi(app);
