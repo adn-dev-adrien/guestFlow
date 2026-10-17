@@ -44,7 +44,7 @@ SRC=$ROOT/console/src
 sudo -u guestflow node $SRC/control-plane/server/scripts/dev-release.js $ROOT/releases 9.0.0 --copy-modules
 sudo -u guestflow bash -c "set -a; . $ENVF; set +a; cd $SRC/control-plane/server && CP_OPERATOR_PASSWORD='lab-operator-pass!' node scripts/create-operator.js --email ops@gf.test --name Ops" || true
 systemctl restart guestflow-console
-for i in $(seq 1 60); do curl -s -o /dev/null https://console.gf.test/api/auth/me && break; sleep 1; done
+for i in $(seq 1 90); do curl -s -o /dev/null http://127.0.0.1:4100/api/auth/me && break; sleep 1; done
 
 echo "== scenarios"
 NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt node /hosting/test/scenarios.js
