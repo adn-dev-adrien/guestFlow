@@ -63,6 +63,23 @@ test('rule 2 — a failed step stops the sequence with its error; « Reprendre �
   }
 });
 
+test('rule 2 — resuming a failed health check starts the process again', async () => {
+  const h = makeContext();
+  try {
+    h.host.unhealthy.add('3.9.0');
+    const enable = h.host.drivers.process.enableNow;
+    h.host.drivers.process.enableNow = async (inst) => { await enable(inst); h.host.procs.get(inst.slug).running = false; };
+    let v = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
+    assert.equal(v.steps.find((s) => s.step === 'health').status, 'failed');
+    h.host.unhealthy.delete('3.9.0');
+    v = await h.ctx.controllers.customers.stepAction(v.id, 'health', 'resume', 'op');
+    assert.ok(v.steps.every((s) => s.status === 'ok'));
+    assert.equal(h.host.named('process.start').length, 1);
+  } finally {
+    h.cleanup();
+  }
+});
+
 test('rule 2 — two sequences for one customer never run at the same time', async () => {
   const h = makeContext();
   try {

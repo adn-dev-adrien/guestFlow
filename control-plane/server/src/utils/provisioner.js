@@ -159,6 +159,8 @@ function createProvisioner({
     },
     async health(c) {
       const inst = instanceOf(c);
+      // Resumed after a failed start: the unit is started again (systemd would, on its own).
+      if ((await drivers.process.state(inst)) !== 'running') await drivers.process.start(inst);
       const res = await healthy(inst);
       if (!res.ok) throw new Error(`${res.error.charAt(0).toUpperCase()}${res.error.slice(1)}.`);
       return `${res.version} répond.`;
