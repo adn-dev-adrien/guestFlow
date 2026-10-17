@@ -6,7 +6,7 @@
 | **Branch** | `feature/plugins-phase-4` (from `inte/plugins` at 4a5a66ae) |
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
-| **Related PR** | — (target `inte/plugins`) |
+| **Related PR** | #692 (target `inte/plugins`) |
 | **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — D1, §8, §11 risk 4, phasing §12 |
 | **Previous phase** | [`specs/plugins-phase-p-productisation.md`](plugins-phase-p-productisation.md) (PR #672) |
 | **Summary for review** | [`docs/specs/2026-10-08-plugins-phase-4-registry.html`](../docs/specs/2026-10-08-plugins-phase-4-registry.html) |
@@ -320,7 +320,7 @@ plugin of the catalogue » from then on.
 | Control plane server | 112 / 112 — of which `registry.unit.test.js` 5 |
 | Control plane client | 40 / 40 — of which `RegistryPage.upload.test.jsx` 3; console build OK |
 | Spec rules | 25 / 25 rules cited by a test |
-| E2E dev suite | see the PR |
+| E2E dev suite | 101 passed, 1 skipped |
 | E2E production build (`npm run test:e2e:prod`) | 4 / 4 — render without console error, install from the registry, update with restart and rollback, refused package |
 | Package build | 13 packages, 44–80 KB each, ~1.5 s |
 
