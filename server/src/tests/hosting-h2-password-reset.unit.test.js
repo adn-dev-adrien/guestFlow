@@ -204,3 +204,17 @@ test('rule 3 — the counters stay bounded: expired keys are swept and the oldes
   const timed = createWindowCounter({ windowMs: 1000, max: 1 });
   timed.stop();
 });
+
+test('rule 3 — past the cap, the key hit least recently gives way, never one in active use', () => {
+  const { createWindowCounter } = require('../utils/rateLimiter');
+  let t = 0;
+  const counter = createWindowCounter({ windowMs: 10000, max: 1, now: () => t, maxKeys: 2, sweepMs: 0 });
+  counter.hit('attacker');
+  t = 1;
+  counter.hit('quiet');
+  t = 2;
+  assert.equal(counter.hit('attacker'), false, 'the attacker is over its limit');
+  t = 3;
+  counter.hit('newcomer');
+  assert.equal(counter.hit('attacker'), false, 'the attacker\'s counter survived the eviction');
+});

@@ -9,8 +9,9 @@
  * Forbidden to a support session:
  * - deciding or revoking its own access, the account it borrows (password, second step, profile);
  * - rule 18: any write under `/api/users`, and the settings that hold credentials or secrets — the
- *   SMTP connection and the address links point to, a plugin setting declared `secret`, the Google
- *   connection, the Qonto credentials, the Neat credentials.
+ *   SMTP group, a plugin setting declared `secret`, the Google and Qonto OAuth connections (any
+ *   method), the Qonto and Neat credentials, the gate connector's secrets (a read: they come back in
+ *   clear), and uninstalling or turning off a plugin.
  */
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -24,8 +25,6 @@ const isRead = (method) => READ_METHODS.has(String(method || '').toUpperCase());
 const under = (path, prefix) => path === prefix || path.startsWith(`${prefix}/`);
 const hasAnyKey = (obj, keys) => Boolean(obj && typeof obj === 'object' && keys.some((k) => Object.prototype.hasOwnProperty.call(obj, k)));
 
-// The SMTP group's fields that carry the connection or where the account emails point.
-const SMTP_CREDENTIAL_KEYS = ['host', 'secure', 'username', 'password', 'publicUrl'];
 const NEAT_CREDENTIAL_KEYS = ['clientId', 'clientSecret', 'environment'];
 
 function defaultIsSecretSetting(pluginId, key) {
@@ -43,7 +42,8 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   if (under(path, '/support-access') && !read && path !== '/support-access/page') return 'account';
 
   if (under(path, '/users') && !read) return 'credentials';
-  if (path === '/settings' && !read && body && hasAnyKey(body.smtp, SMTP_CREDENTIAL_KEYS)) return 'credentials';
+  // The whole SMTP group: the connection, where the account emails point, and who they come from.
+  if (path === '/settings' && !read && body && body.smtp !== undefined) return 'credentials';
   const pluginSettings = /^\/plugins\/([^/]+)\/settings$/.exec(path);
   if (pluginSettings && !read && body && typeof body === 'object') {
     // Plugin ids are lower-case kebab: the lower-cased path names the same plugin.
@@ -51,7 +51,12 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
     try { id = decodeURIComponent(pluginSettings[1]); } catch { return 'credentials'; }
     if (Object.keys(body).some((key) => isSecretSetting(id, key))) return 'credentials';
   }
+  // Any method: an OAuth « GET » stores tokens, and a clear-text secret is a read.
   if (under(path, '/google-calendar/oauth')) return 'credentials';
+  if (['/payments/qonto/authorize', '/payments/qonto/callback', '/payments/qonto/refresh-connection'].includes(path)) return 'credentials';
+  if (under(path, '/settings/gate-connector/secrets')) return 'credentials';
+  // Uninstalling or turning off a plugin erases or strands its stored credentials.
+  if (/^\/plugins\/[^/]+(\/deactivate)?$/.test(path) && (method === 'DELETE' || /\/deactivate$/.test(path)) && !read) return 'credentials';
   if (path === '/google-calendar/calendar' && !read) return 'credentials';
   if ((path === '/payments/qonto/credentials' || path === '/payments/qonto/connect-provider') && !read) return 'credentials';
   if (path === '/neat/settings' && !read && hasAnyKey(body, NEAT_CREDENTIAL_KEYS)) return 'credentials';

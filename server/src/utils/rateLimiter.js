@@ -7,7 +7,8 @@
  * one-hour links make acceptable.
  *
  * Memory is bounded: a sweep drops the keys whose window has passed (every `sweepMs`, on a timer
- * that never keeps the process alive), and past `maxKeys` the oldest key is dropped to make room.
+ * that never keeps the process alive), and past `maxKeys` the key hit least recently is dropped to
+ * make room.
  */
 
 function createWindowCounter({
@@ -49,6 +50,9 @@ function createWindowCounter({
       kept.push(now());
       // Past the limit only the fact that it is past matters: a key never holds more than max + 1 hits.
       if (kept.length > max + 1) kept.splice(0, kept.length - (max + 1));
+      // Re-inserted on every hit, so the Map's first key is the one hit least recently: the one the
+      // cap evicts. A key in active use is never the one to go.
+      hits.delete(k);
       hits.set(k, kept);
       return kept.length <= max;
     },

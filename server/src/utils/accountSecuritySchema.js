@@ -97,8 +97,11 @@ function applyAccountSecuritySchema(db) {
   // Rule 21: the support account is told by this flag, never by its email. Existing databases mark
   // the row the first boot created, by the address it was created with.
   if (!userCols.includes('isSupportAccount')) {
-    db.exec('ALTER TABLE users ADD COLUMN isSupportAccount INTEGER NOT NULL DEFAULT 0');
-    db.prepare('UPDATE users SET isSupportAccount = 1 WHERE email = ?').run(SUPPORT_USER_EMAIL);
+    // One transaction: a crash between the two never leaves the column without its flagged row.
+    db.transaction(() => {
+      db.exec('ALTER TABLE users ADD COLUMN isSupportAccount INTEGER NOT NULL DEFAULT 0');
+      db.prepare('UPDATE users SET isSupportAccount = 1 WHERE email = ?').run(SUPPORT_USER_EMAIL);
+    })();
   }
 
   const support = db.prepare('SELECT id FROM users WHERE isSupportAccount = 1').get();

@@ -49,8 +49,8 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
    A request above the limit gets the same answer as rule 1, and nothing is sent.
    - Added 2026-10-17 (review): an address is counted only for a caller still under the IP limit,
      so a flood from one IP does not use up the hourly quota of the addresses it names. The counters
-     stay bounded in memory: expired entries are swept on a timer and past 10 000 keys the oldest
-     gives way.
+     stay bounded in memory: expired entries are swept on a timer and past 10 000 keys the one hit
+     least recently gives way.
 4. The link opens « Nouveau mot de passe », which applies the existing password rules. Saving it ends
    every session of that user and logs the user in.
 5. The email uses the instance's mail transport. This is the platform sender on a managed instance
@@ -134,11 +134,17 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     - any write under `/api/users` (creating an account, changing an email or roles, resetting a
       password, turning off someone's second step) — reading stays possible;
     - the settings that hold a credential or where the account emails point: the SMTP connection
-      (`smtp` group: host, security, user, password, public address), a plugin setting declared
+      (the `smtp` group), a plugin setting declared
       `secret`, the Google connection (`/api/google-calendar/oauth/*`, the calendar), the Qonto
       credentials and provider connection, the Neat credentials and environment.
 
     Nothing the support does can therefore outlive the access.
+    - Widened 2026-10-17 (second review): also refused, for any method, the Qonto OAuth connection
+      (`/api/payments/qonto/authorize`, `/callback`, `/refresh-connection`) and
+      `GET /api/settings/gate-connector/secrets`, the only endpoint that returns secrets in clear;
+      uninstalling or turning off a plugin (`DELETE /api/plugins/:id`, `POST …/deactivate`), which
+      erases or strands its credentials — installing, activating and updating stay allowed; and the
+      whole SMTP group, the sender name and address included.
 19. **The server logs what the support reads too** (added 2026-10-17, review). Every `GET` of a
     support session is written to `support_access_log`, once per path and per minute, besides the
     pages the client reports (rule 15). What the application polls by itself (`/api/auth/*`,
@@ -348,9 +354,9 @@ through.
 
 Implemented 2026-10-08 on `feature/hosting-h2-account-security` (target `inte/plugins`).
 
-- **Server:** 5 suites, one per subject — `hosting-h2-password-reset` (16 tests), `hosting-h2-two-factor`
+- **Server:** 5 suites, one per subject — `hosting-h2-password-reset` (17 tests), `hosting-h2-two-factor`
   (17), `hosting-h2-support-access` (13), and since the 2026-10-17 review `hosting-h2-support-guard`
-  (6, rules 15, 18-20) and `hosting-h2-support-account` (7, rules 21-22) — over the shared fixture
+  (7, rules 15, 18-20) and `hosting-h2-support-account` (7, rules 21-22) — over the shared fixture
   `accountSecurityFixture.js`.
   `control-plane-first-admin` now ignores the support account.
 - **Console:** `support-access.unit.test.js` (5); the operator 2FA suite (`operator-auth`) runs on the

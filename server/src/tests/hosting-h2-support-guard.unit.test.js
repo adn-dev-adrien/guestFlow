@@ -186,3 +186,24 @@ test('rule 20 — the log reads as French sentences, never a method, a path or a
   assert.equal(pageName('/'), 'Tableau de bord');
   assert.equal(pageName('/settings/utilisateurs'), 'Paramètres › Utilisateurs');
 });
+
+test('rule 18 — second review: Qonto OAuth, the gate secrets, plugin uninstall/turn-off and the whole SMTP group', async () => {
+  for (const method of ['GET', 'POST']) {
+    for (const path of ['/payments/qonto/authorize', '/Payments/Qonto/Callback/', '/payments/qonto/refresh-connection']) {
+      assert.equal(isForbidden(method, path, {}), true, `${method} ${path}`);
+    }
+  }
+  assert.equal(isForbidden('GET', '/settings/gate-connector/secrets', {}), true, 'secrets come back in clear');
+  assert.equal(isForbidden('GET', '/SETTINGS/Gate-Connector/Secrets/', {}), true);
+  assert.equal(isForbidden('GET', '/settings/gate-connector', {}), false, 'the masked card stays readable');
+  assert.equal(isForbidden('DELETE', '/plugins/neat', {}), true);
+  assert.equal(isForbidden('POST', '/Plugins/neat/Deactivate/', {}), true);
+  assert.equal(isForbidden('POST', '/plugins/neat/activate', {}), false);
+  assert.equal(isForbidden('POST', '/plugins/neat/install', {}), false);
+  assert.equal(isForbidden('GET', '/plugins/neat', {}), false);
+  assert.equal(isForbidden('GET', '/payments/qonto/status', {}), false);
+
+  const h = supportSession();
+  const res = await call(app(h), 'PUT', '/api/settings', { smtp: { fromName: 'Domaine', fromEmail: 'x@y.fr' } });
+  assert.equal(res.status, 403, 'the sender identity is part of the SMTP group');
+});
