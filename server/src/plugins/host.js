@@ -8,6 +8,7 @@
  *   registryClient  the signed index, read at boot, every 6 hours and on demand (rule 9)
  *   incompatible    the installed packages left unloaded at boot (rule 14)
  *   loaded          id → version actually running in this process
+ *   assetKeys       id → `<version>-<hash12>`, the cache key of its client files (rule 27)
  *
  * `boot()` runs before the plugin modules register; `startBackground()` after the server listens.
  */
@@ -23,6 +24,7 @@ const state = {
   registryClient: null,
   incompatible: {},
   loaded: {},
+  assetKeys: {},
   restart: null,
   updating: false,
 };
@@ -34,10 +36,11 @@ function init({ env = process.env, dataDir, store, registryClient, restart } = {
     dataDir: dataDir || require('../utils/deploymentPaths').resolvePaths(env).dataDir,
     distDir,
   });
-  state.registryClient = registryClient || fromEnv(env);
+  state.registryClient = registryClient || fromEnv(env, { stateFile: path.join(state.store.packagesDir, 'registry-state.json') });
   state.restart = restart || require('../utils/processRestart').createRestarter({ env });
   state.incompatible = {};
   state.loaded = {};
+  state.assetKeys = {};
   state.updating = false;
   return state;
 }
@@ -90,6 +93,16 @@ function housekeeping({ model, ids, now = new Date() }) {
   return model.list();
 }
 
+// Rule 27 — the URL of a package's client files carries the hash of the package, so a file served
+// immutable can never be one of another build with the same version number.
+const assetKey = (version, sha256) => `${version}-${String(sha256 || 'nohash').slice(0, 12)}`;
+
+function setLoaded(id, version, sha256) {
+  const s = ensure();
+  s.loaded[id] = version;
+  s.assetKeys[id] = assetKey(version, sha256);
+}
+
 /** Rule 18 — the client bundles the browser imports before rendering: every loaded package. */
 function clientEntries() {
   const s = ensure();
@@ -97,17 +110,17 @@ function clientEntries() {
   return Object.entries(s.loaded).map(([id, version]) => ({
     id,
     version,
-    url: `/plugin-assets/${encodeURIComponent(id)}/${encodeURIComponent(version)}/index.js`,
+    url: `/plugin-assets/${encodeURIComponent(id)}/${encodeURIComponent(s.assetKeys[id])}/index.js`,
   }));
 }
 
-/** Rule 18 — `/plugin-assets/<id>/<version>/…`, immutable: a version's files never change. */
+/** Rules 18, 27 — `/plugin-assets/<id>/<version>-<hash>/…`, immutable: that key's files never change. */
 function assetsMiddleware(express) {
   return (req, res, next) => {
     const s = ensure();
-    const { id, version } = req.params;
-    if (s.mode !== 'packages' || s.loaded[id] !== version) return res.status(404).type('text').send('Introuvable.');
-    const dir = s.store.clientDirFor(id, version);
+    const { id, key } = req.params;
+    if (s.mode !== 'packages' || !s.assetKeys[id] || s.assetKeys[id] !== key) return res.status(404).type('text').send('Introuvable.');
+    const dir = s.store.clientDirFor(id, s.loaded[id]);
     if (!dir) return res.status(404).type('text').send('Introuvable.');
     return express.static(dir, { immutable: true, maxAge: '365d', fallthrough: false, index: false })(req, res, next);
   };
@@ -134,7 +147,13 @@ function boot({ db, loader, registry, model, catalogue }) {
     store: s.store, rows, order: ids, env: { coreVersion: getAppVersion(), sdkVersion: SDK_VERSION }, nameOf,
   });
   s.incompatible = incompatible;
-  Object.values(manifests).forEach((m) => { s.loaded[m.id] = m.version; });
+  const shaOf = (id) => {
+    const row = rows.find((r) => r.id === id);
+    if (row && row.source === 'registry') return row.pinnedSha256;
+    const pkg = s.store.bundled()[id];
+    return pkg ? pkg.sha256 : null;
+  };
+  Object.values(manifests).forEach((m) => setLoaded(m.id, m.version, shaOf(m.id)));
   Object.entries(incompatible).forEach(([id, why]) => console.error(`[plugin:${id}] not loaded — ${why.message}`)); // eslint-disable-line no-console
   loader.registerAll({ db, modules, dataDir: (id) => s.store.dataDirPath(id) });
 }
@@ -162,6 +181,6 @@ module.exports = {
   boot,
   startBackground,
   setIncompatible(map) { ensure().incompatible = { ...map }; },
-  setLoaded(id, version) { ensure().loaded[id] = version; },
+  setLoaded,
   dataDirOf: (id) => path.join(ensure().store.dataDirPath(id)),
 };

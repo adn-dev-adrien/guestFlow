@@ -12,6 +12,7 @@ const registry = require('../plugins/sdk/registry');
 const { forgetPluginMigrations } = require('../plugins/sdk/pluginMigrations');
 const { PLUGIN_CATALOG, findPlugin, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
+const { compare } = require('../utils/semverRange');
 const {
   MESSAGES, rangeRefusal, bestCandidate, bestRefusal, requirementPlan, changelogBetween, dependentsOf,
 } = require('../utils/pluginOffers');
@@ -237,6 +238,7 @@ function createController(model = defaultModel, deps = {}) {
     if (!status.configured) return null;
     if (status.state === 'ok') return `Registre lu ${agoLabel(status.lastOkAt, now())}.`;
     if (status.state === 'invalid') return 'Registre ignoré : signature invalide.';
+    if (status.state === 'stale') return 'Registre ignoré : index plus ancien que le dernier lu.';
     if (status.state === 'unreachable') {
       return status.lastOkAt ? `Registre injoignable, dernière lecture ${agoLabel(status.lastOkAt, now())}.` : 'Registre injoignable.';
     }
@@ -298,7 +300,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!loader().registerLive(mod, { db: getDb() })) {
         return { status: 500, body: { error: 'PLUGIN_REGISTER_FAILED', plugin: id, message: 'Échec du démarrage.' } };
       }
-      host().setLoaded(id, candidate.version);
+      host().setLoaded(id, candidate.version, pkg.sha256);
       try {
         loader().migrate(getDb(), id);
       } catch (err) {
@@ -316,7 +318,10 @@ function createController(model = defaultModel, deps = {}) {
     const src = sources();
     if (version) {
       const target = bestCandidate(row.id, src, env(), { range: version });
-      return target && target.version === version && target.version !== row.version ? target : null;
+      if (!target || target.version !== version || target.version === row.version) return null;
+      // An older version only for a plugin this core cannot run (rule 14); otherwise only newer.
+      const older = compare(target.version, row.version) < 0;
+      return older && !host().state().incompatible[row.id] ? null : target;
     }
     return bestCandidate(row.id, src, env(), { above: row.version });
   }
@@ -364,18 +369,39 @@ function createController(model = defaultModel, deps = {}) {
       });
     }
     const steps = [...plan.map((p) => ({ id: p.id, candidate: bestCandidate(p.id, sources(), env(), { range: p.version }) })), { id: entry.id, candidate: offer }];
-    let restart = false;
-    for (const step of steps) {
-      let result;
-      try {
-        result = await installPackage(step.id, step.candidate); // eslint-disable-line no-await-in-loop
-      } catch (err) {
-        return refusePackageError(err, res);
-      }
-      if (result.status) return res.status(result.status).json(result.body);
-      restart = restart || result.restart;
+    const state = host().state();
+    // A version other than the one still loaded needs a restart (rule 13): refused up front without a
+    // supervisor, like an update.
+    const needsRestart = steps.some((st) => state.loaded[st.id] && state.loaded[st.id] !== st.candidate.version);
+    if (needsRestart && !state.restart.supervised) {
+      return res.status(412).json({ error: 'RESTART_UNAVAILABLE', message: MESSAGES.RESTART_UNAVAILABLE });
     }
-    if (restart && host().state().restart.supervised) return restartNow(res, { version: offer.version });
+    // Rule 29 — one install at a time, and all or nothing: a requirement installed for a plugin whose
+    // own install then fails is uninstalled again.
+    if (state.updating) return res.status(409).json({ error: 'UPDATE_IN_PROGRESS', message: MESSAGES.UPDATE_IN_PROGRESS });
+    state.updating = true;
+    const done = [];
+    let restart = false;
+    try {
+      for (const step of steps) {
+        let result;
+        try {
+          result = await installPackage(step.id, step.candidate); // eslint-disable-line no-await-in-loop
+        } catch (err) {
+          done.forEach((id) => model.uninstall(id));
+          return refusePackageError(err, res);
+        }
+        if (result.status) {
+          done.forEach((id) => model.uninstall(id));
+          return res.status(result.status).json(result.body);
+        }
+        done.push(step.id);
+        restart = restart || result.restart;
+      }
+    } finally {
+      if (!restart) state.updating = false;
+    }
+    if (restart) return restartNow(res, { version: offer.version });
     // The browser loads the new bundle at its next page load (rule 18): the page reloads.
     return res.json({ ...view(entry), reload: true });
   }

@@ -13,8 +13,9 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
 const { validateManifest, normalizeManifest } = require('./manifest');
-const { isAllowedRegistryUrl } = require('./packageStore');
+const { isAllowedRegistryUrl, readLimited } = require('./packageStore');
 
 const POLL_MS = 6 * 60 * 60 * 1000;
 const MAX_INDEX_BYTES = 2 * 1024 * 1024;
@@ -63,7 +64,11 @@ function parseIndex(text) {
   return out;
 }
 
-function createRegistryClient({ url, publicKey, fetchImpl = fetch, now = () => new Date(), log = console } = {}) {
+/**
+ * `stateFile` keeps the `generatedAt` of the last index accepted (rule 30): an older one, even
+ * correctly signed — a replayed index, still offering versions withdrawn since — is refused.
+ */
+function createRegistryClient({ url, publicKey, fetchImpl = fetch, now = () => new Date(), log = console, stateFile = null } = {}) {
   const base = url ? String(url).replace(/\/+$/, '') : null;
   const key = toKey(publicKey);
   const configured = Boolean(base && key && isAllowedRegistryUrl(base));
@@ -75,10 +80,23 @@ function createRegistryClient({ url, publicKey, fetchImpl = fetch, now = () => n
   async function fetchText(target) {
     const res = await fetchImpl(target, { redirect: 'error', signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    if (text.length > MAX_INDEX_BYTES) throw new Error('index too large');
-    return text;
+    return (await readLimited(res, MAX_INDEX_BYTES)).toString('utf8');
   }
+
+  const readLastGenerated = () => {
+    if (!stateFile) return null;
+    try { return JSON.parse(fs.readFileSync(stateFile, 'utf8')).generatedAt || null; } catch { return null; }
+  };
+  const writeLastGenerated = (generatedAt) => {
+    if (!stateFile) return;
+    try {
+      fs.mkdirSync(require('path').dirname(stateFile), { recursive: true });
+      fs.writeFileSync(stateFile, JSON.stringify({ generatedAt }));
+    } catch (err) {
+      log.warn(`[plugins] registry state not saved: ${err.message}`);
+    }
+  };
+  let lastGenerated = readLastGenerated();
 
   /** Fetch and verify the index; never throws. → status() */
   async function refresh() {
@@ -99,13 +117,28 @@ function createRegistryClient({ url, publicKey, fetchImpl = fetch, now = () => n
       log.error('[plugins] registry index signature does not verify — index ignored');
       return status();
     }
+    let parsed;
+    let generatedAt;
     try {
-      plugins = parseIndex(text);
+      parsed = parseIndex(text);
+      generatedAt = JSON.parse(text).generatedAt;
+      if (!Number.isFinite(Date.parse(generatedAt))) throw new Error('no generatedAt');
     } catch (err) {
       state = 'invalid';
       plugins = {};
       log.error(`[plugins] registry index unreadable: ${err.message}`);
       return status();
+    }
+    if (lastGenerated && Date.parse(generatedAt) < Date.parse(lastGenerated)) {
+      state = 'stale';
+      plugins = {};
+      log.error(`[plugins] registry index of ${generatedAt} is older than the one read before (${lastGenerated}) — index ignored`);
+      return status();
+    }
+    plugins = parsed;
+    if (generatedAt !== lastGenerated) {
+      lastGenerated = generatedAt;
+      writeLastGenerated(generatedAt);
     }
     state = 'ok';
     lastOkAt = now().toISOString();

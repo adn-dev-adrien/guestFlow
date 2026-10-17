@@ -13,7 +13,7 @@
  * again. An install in a release reloads the page, so the browser loads the new plugin's bundle.
  *
  * Props (tests only): onReload — what « reload » means (default: window.location.reload);
- * pollMs — the restart poll interval.
+ * pollMs — the restart poll interval; restartTimeoutMs — how long before the wait says it is long.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Backdrop, Box, Button, CircularProgress, Grid, TextField, Typography } from '@mui/material';
@@ -41,10 +41,11 @@ const ACTIONS = {
 const run = (action, id, options) => (options ? api[ACTIONS[action]](id, options) : api[ACTIONS[action]](id));
 
 const RESTART_POLL_MS = 1500;
+const RESTART_TIMEOUT_MS = 90_000;
 const reloadPage = () => window.location.reload();
 const startTime = () => api.getRuntimeVersion().then((v) => v.startedAt).catch(() => null);
 
-export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_POLL_MS }) {
+export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_POLL_MS, restartTimeoutMs = RESTART_TIMEOUT_MS }) {
   const { refresh } = useAuth();
   const [plugins, setPlugins] = useState(null);
   const [status, setStatus] = useState(null);
@@ -57,6 +58,7 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
   const [dialogError, setDialogError] = useState(null);
   const [bannerError, setBannerError] = useState(null);
   const [restarting, setRestarting] = useState(null);
+  const [restartLate, setRestartLate] = useState(false);
   const [searching, setSearching] = useState(false);
 
   const load = useCallback(async () => {
@@ -74,19 +76,22 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
   useEffect(() => { load(); }, [load]);
 
   // Rule 13 — after an update the process restarts: wait until it answers with a new start time.
+  // Rule 32 — past `restartTimeoutMs` the wait says so and offers to try again.
   useEffect(() => {
-    if (!restarting) return undefined;
+    if (!restarting || restartLate) return undefined;
     let stop = false;
+    const since = Date.now();
     const tick = async () => {
       if (stop) return;
       const now = await startTime();
       if (stop) return;
       if (now && now !== restarting.startedAt) { onReload(); return; }
+      if (Date.now() - since > restartTimeoutMs) { setRestartLate(true); return; }
       setTimeout(tick, pollMs);
     };
     const first = setTimeout(tick, pollMs);
     return () => { stop = true; clearTimeout(first); };
-  }, [restarting, onReload, pollMs]);
+  }, [restarting, restartLate, onReload, pollMs, restartTimeoutMs]);
 
   const handleAction = async (plugin, action, options) => {
     setBusyId(plugin.id);
@@ -250,8 +255,17 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
         onUpdate={() => handleAction(dialogPlugin, 'update')}
       />
       <Backdrop open={Boolean(restarting)} sx={(t) => ({ zIndex: t.zIndex.modal + 1, color: '#fff', flexDirection: 'column', gap: 2 })}>
-        <CircularProgress color="inherit" />
-        <Typography variant="h6" component="p">Redémarrage en cours</Typography>
+        {restartLate ? (
+          <>
+            <Typography variant="h6" component="p">Le redémarrage est plus long que prévu.</Typography>
+            <Button variant="contained" onClick={() => setRestartLate(false)} sx={{ minHeight: 44 }}>Réessayer</Button>
+          </>
+        ) : (
+          <>
+            <CircularProgress color="inherit" />
+            <Typography variant="h6" component="p">Redémarrage en cours</Typography>
+          </>
+        )}
       </Backdrop>
     </Box>
   );

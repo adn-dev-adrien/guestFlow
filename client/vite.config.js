@@ -30,9 +30,41 @@ function pluginRuntimeList() {
   };
 }
 
+// Review M3 — a production build imports `App` only once the plugin bundles are loaded (rule 18), so
+// the browser would fetch the App chunks late. These links fetch them (without evaluating them) in
+// parallel with the bundles, and the list of bundles too.
+function preloadApp() {
+  return {
+    name: 'guestflow-preload-app',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        if (!ctx.bundle) return html;
+        const chunks = Object.values(ctx.bundle).filter((c) => c.type === 'chunk');
+        const app = chunks.find((c) => c.facadeModuleId && /\/src\/App\.jsx$/.test(c.facadeModuleId));
+        if (!app) return html;
+        const byName = Object.fromEntries(chunks.map((c) => [c.fileName, c]));
+        const files = new Set();
+        const visit = (name) => {
+          if (files.has(name) || !byName[name]) return;
+          files.add(name);
+          byName[name].imports.forEach(visit);
+        };
+        visit(app.fileName);
+        return [
+          { tag: 'link', attrs: { rel: 'preload', href: '/plugin-assets/entries.json', as: 'fetch', crossorigin: 'anonymous' }, injectTo: 'head' },
+          ...[...files].map((f) => ({ tag: 'link', attrs: { rel: 'modulepreload', href: `/${f}`, crossorigin: true }, injectTo: 'head' })),
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     pluginRuntimeList(),
+    preloadApp(),
     // GuestFlow's source uses `.js` files with JSX inside (CRA convention preserved).
     react({ include: /\.(jsx?|tsx?)$/ }),
   ],

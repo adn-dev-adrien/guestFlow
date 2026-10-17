@@ -40,6 +40,7 @@ import theme from './theme';
 import DialogProvider from './components/DialogProvider';
 import EmailVerifyBanner from './components/EmailVerifyBanner';
 import SubscriptionBanner from './components/SubscriptionBanner';
+import PluginLoadBanner from './components/PluginLoadBanner';
 import SupportAccessBanner from './components/SupportAccessBanner';
 import SupportSessionBar, { SUPPORT_BAR_HEIGHT } from './components/SupportSessionBar';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -677,6 +678,8 @@ function AppShell() {
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
             address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />
+        {/* The plugin bundles could not be listed (specs/plugins-phase-4-registry.md rule 18). */}
+        <PluginLoadBanner />
         {/* Subscription due, in grace or read-only (specs/control-plane-plans-and-access.md §6). */}
         <SubscriptionBanner />
         {/* The support asks for access (specs/hosting-h2-account-security.md rule 12). */}

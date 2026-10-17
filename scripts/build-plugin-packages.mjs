@@ -35,7 +35,21 @@ const SDK_REQUEST = 'guestflow/sdk';
 const require = createRequire(import.meta.url);
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)]);
 
-export const HOST_MODULES = JSON.parse(fs.readFileSync(path.join(CLIENT_PLUGINS, 'hostModules.json'), 'utf8'));
+// What the host exposes, by module: `"*"` (the whole namespace) or the exact names (M1/M3 of the PR
+// review, 2026-10-17). Generated with `--write-host` from what the plugins actually import, together
+// with client/src/plugins/hostModules.js, which imports exactly those names — so the app does not
+// load the whole of MUI eagerly just in case a plugin needs it.
+const HOST_JSON = path.join(CLIENT_PLUGINS, 'hostModules.json');
+const HOST_JS = path.join(CLIENT_PLUGINS, 'hostModules.js');
+export const HOST_EXPORTS = JSON.parse(fs.readFileSync(HOST_JSON, 'utf8'));
+export const HOST_MODULES = Object.keys(HOST_EXPORTS);
+// Always whole: small, and React's namespace is what JSX compiles against.
+const WHOLE = new Set(['react', 'react/jsx-runtime']);
+// Packages the host owns: a plugin never carries a copy of them, whoever imports them (an icon imports
+// `@mui/material/SvgIcon`, which pulls @mui/system and emotion — one copy, one theme).
+const HOST_PACKAGE = /^(react|react-dom|react-router|@mui\/material|@mui\/system|@mui\/utils|@mui\/styled-engine|@mui\/private-theming|@emotion\/[^/]+)(\/.*)?$/;
+// The only npm code a plugin bundle may carry.
+const BUNDLED_NPM = /\/node_modules\/@mui\/icons-material\//;
 
 // ── Server ───────────────────────────────────────────────────────────────────
 
@@ -98,7 +112,7 @@ function buildServer(id, destDir) {
 
 // ── Client ───────────────────────────────────────────────────────────────────
 
-const isHostModule = (request) => HOST_MODULES.includes(request);
+const isHostModule = (request) => request === SDK_REQUEST || request.startsWith(`${SDK_REQUEST}/`) || HOST_PACKAGE.test(request);
 
 /**
  * Rules 4–5, client side: what an import from a plugin file may be. → { external } | { bundle } | { error }
@@ -119,6 +133,11 @@ export function classifyClientImport(source, importer, { pluginDir, sdkDir = CLI
   return { error: `${path.relative(ROOT, importer)} imports ${source}: a plugin imports React, the router, MUI, its icons and the SDK only` };
 }
 
+/** Rule 5 (review M1) — the npm modules inside a bundle: only the icons may be there. → [offending ids] */
+export function strayBundledModules(moduleIds) {
+  return moduleIds.filter((m) => m.includes('/node_modules/') && !BUNDLED_NPM.test(m));
+}
+
 function boundaryPlugin(id) {
   const pluginDir = path.join(CLIENT_PLUGINS, id);
   return {
@@ -131,15 +150,41 @@ function boundaryPlugin(id) {
       if (verdict.external) return { id: verdict.external, external: true };
       return null;
     },
+    generateBundle(_options, bundle) {
+      const ids = Object.values(bundle).flatMap((chunk) => chunk.moduleIds || []);
+      const stray = strayBundledModules(ids);
+      if (stray.length) this.error(`${id}: the bundle carries host code (one MUI, one theme): ${stray.slice(0, 5).map((m) => m.split('/node_modules/')[1]).join(', ')}`);
+    },
   };
 }
 
-const HOST_PRELUDE = 'const __gfHost=(s)=>{const h=globalThis.__GUESTFLOW_HOST__,m=h&&h.modules[s];'
-  + 'if(!m)throw new Error("GuestFlow: module hôte absent "+s);return m};';
+// A bundle built against a newer app may need a name this app does not expose: it then fails to load,
+// with a clear message, instead of rendering `undefined` (rule 26).
+const HOST_PRELUDE = 'const __gfHost=(s,n)=>{const h=globalThis.__GUESTFLOW_HOST__,m=h&&h.modules[s];'
+  + 'if(!m)throw new Error("GuestFlow: module hôte absent "+s);'
+  + 'for(const k of n||[])if(!(k in m))throw new Error("GuestFlow: "+s+" n’expose pas "+k);return m};';
+
+// The names an import clause takes from its module: 'default', '*' or the exported names.
+export function clauseNames(clause) {
+  let rest = clause.trim();
+  const names = [];
+  if (rest && !rest.startsWith('{') && !rest.startsWith('*')) {
+    names.push('default');
+    const comma = rest.indexOf(',');
+    rest = comma === -1 ? '' : rest.slice(comma + 1).trim();
+  }
+  if (rest.startsWith('*')) names.push('*');
+  if (rest.startsWith('{')) {
+    rest.replace(/^\{|\}$/g, '').split(',').map((x) => x.trim()).filter(Boolean)
+      .forEach((part) => names.push(part.split(/\s+as\s+/)[0].replace(/^["']|["']$/g, '')));
+  }
+  return names;
+}
 
 function declarationsFor(clause, spec, n) {
   const ns = `__gfm${n}`;
-  const out = [`const ${ns}=__gfHost(${JSON.stringify(spec)})`];
+  const needed = clauseNames(clause).filter((name) => name !== '*' && name !== 'default');
+  const out = [`const ${ns}=__gfHost(${JSON.stringify(spec)}${needed.length ? `,${JSON.stringify(needed)}` : ''})`];
   let rest = clause.trim();
   if (rest && !rest.startsWith('{') && !rest.startsWith('*')) {
     const comma = rest.indexOf(',');
@@ -170,7 +215,7 @@ function declarationsFor(clause, spec, n) {
  * bare import left in the bundle is an error: the browser could not resolve it.
  * `imports` is es-module-lexer's parse result for `code`.
  */
-export function rewriteHostImports(code, imports, { hostModules = HOST_MODULES } = {}) {
+export function rewriteHostImports(code, imports, { hostModules = HOST_MODULES, usage = null } = {}) {
   let out = code;
   let n = 0;
   const sorted = [...imports].sort((a, b) => b.ss - a.ss);
@@ -179,11 +224,15 @@ export function rewriteHostImports(code, imports, { hostModules = HOST_MODULES }
     if (imp.d === -2 || spec === undefined) continue;
     const relative = spec.startsWith('.') || spec.startsWith('/');
     if (relative) continue;
-    if (!hostModules.includes(spec)) throw new Error(`bare import "${spec}" left in the bundle`);
+    if (!usage && !hostModules.includes(spec)) throw new Error(`bare import "${spec}" left in the bundle`);
     if (imp.d !== -1) throw new Error(`dynamic import of the host module "${spec}"`);
     const stmt = code.slice(imp.ss, imp.se);
     if (!stmt.startsWith('import')) throw new Error(`re-export of the host module "${spec}"`);
     const fromAt = stmt.lastIndexOf('from');
+    if (usage) {
+      if (!usage[spec]) usage[spec] = new Set();
+      if (fromAt !== -1) clauseNames(stmt.slice(6, fromAt)).forEach((name) => usage[spec].add(name));
+    }
     const replacement = fromAt === -1 ? '' : declarationsFor(stmt.slice(6, fromAt), spec, n);
     n += 1;
     out = out.slice(0, imp.ss) + replacement + out.slice(imp.se).replace(/^;/, '');
@@ -191,7 +240,55 @@ export function rewriteHostImports(code, imports, { hostModules = HOST_MODULES }
   return n ? `${HOST_PRELUDE}${out}` : out;
 }
 
-async function buildClient(id, destDir) {
+/**
+ * Review M1/M3 — every name a bundle takes from the host must be one the host exposes. → [missing]
+ * `usage`: spec → Set(names); `exports`: spec → '*' | [names].
+ */
+export function missingHostExports(usage, exports = HOST_EXPORTS) {
+  const missing = [];
+  for (const [spec, names] of Object.entries(usage)) {
+    const exposed = exports[spec];
+    if (exposed === undefined) { missing.push(`${spec} (module)`); continue; }
+    if (exposed === '*') continue;
+    for (const name of names) {
+      if (name === '*') missing.push(`${spec} (whole namespace)`);
+      else if (!exposed.includes(name)) missing.push(`${spec}#${name}`);
+    }
+  }
+  return missing;
+}
+
+/** The host module file for `usage` (spec → Set(names)): the exact imports, nothing eager beyond them. */
+export function hostModulesSource(usage) {
+  const specs = [...new Set([...Object.keys(usage), SDK_REQUEST, `${SDK_REQUEST}/ui`, ...WHOLE])].sort();
+  const json = {};
+  const lines = ['// Generated by `node scripts/build-plugin-packages.mjs --write-host` — do not edit by hand.',
+    '// What the plugin bundles read from the app (specs/plugins-phase-4-registry.md rules 5, 26): exactly',
+    '// the names they import, so the app loads no part of MUI only for them.'];
+  const entries = [];
+  const local = (spec) => (spec === SDK_REQUEST ? './sdk' : spec === `${SDK_REQUEST}/ui` ? './sdk/ui' : spec);
+  specs.forEach((spec, i) => {
+    const names = [...(usage[spec] || [])].filter((nm) => nm !== '*').sort();
+    if (WHOLE.has(spec)) {
+      json[spec] = '*';
+      lines.push(`import * as M${i} from '${local(spec)}';`);
+      entries.push(`  '${spec}': M${i},`);
+      return;
+    }
+    json[spec] = names;
+    const named = names.filter((nm) => nm !== 'default');
+    const parts = [];
+    if (names.includes('default')) parts.push(`D${i}`);
+    if (named.length) parts.push(`{ ${named.map((nm) => `${nm} as M${i}_${nm}`).join(', ')} }`);
+    if (parts.length) lines.push(`import ${parts.join(', ')} from '${local(spec)}';`);
+    const fields = [...(names.includes('default') ? [`default: D${i}`] : []), ...named.map((nm) => `${nm}: M${i}_${nm}`)];
+    entries.push(`  '${spec}': Object.freeze({ ${fields.join(', ')} }),`);
+  });
+  lines.push('', 'export const HOST_MODULES = Object.freeze({', ...entries, '});', '');
+  return { js: lines.join('\n'), json };
+}
+
+async function buildClient(id, destDir, usage) {
   const clientRequire = createRequire(path.join(CLIENT, 'package.json'));
   const modulesDir = path.join(CLIENT, 'node_modules');
   const vite = await import(pathToFileURL(path.join(modulesDir, 'vite', 'dist', 'node', 'index.js')).href);
@@ -220,7 +317,7 @@ async function buildClient(id, destDir) {
     const code = fs.readFileSync(file, 'utf8');
     try {
       const [imports] = lexer.parse(code);
-      fs.writeFileSync(file, rewriteHostImports(code, imports));
+      fs.writeFileSync(file, rewriteHostImports(code, imports, { usage }));
     } catch (err) {
       errors.push(`${id}/client/${path.relative(destDir, file)}: ${err.message}`);
     }
@@ -233,15 +330,28 @@ async function buildClient(id, destDir) {
 
 const sha256File = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
-export async function buildPackage(id, outDir) {
+/** A hash of the package's files, independent of tar and timestamps (review M2). */
+export function contentHash(dir) {
+  const hash = crypto.createHash('sha256');
+  walk(dir).map((f) => path.relative(dir, f).split(path.sep).join('/')).sort().forEach((rel) => {
+    if (rel === 'manifest.json') return;
+    hash.update(rel).update('\0').update(fs.readFileSync(path.join(dir, rel))).update('\0');
+  });
+  return hash.digest('hex');
+}
+
+export async function buildPackage(id, outDir, usage = {}) {
   const { readSourceManifest } = require(path.join(SERVER_PLUGINS, 'manifest.js'));
   const manifest = readSourceManifest(id);
   const stage = path.join(outDir, id);
   fs.rmSync(stage, { recursive: true, force: true });
   fs.mkdirSync(stage, { recursive: true });
   fs.writeFileSync(path.join(stage, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-  const errors = [...buildServer(id, path.join(stage, 'server')), ...(await buildClient(id, path.join(stage, 'client')))];
+  const errors = [...buildServer(id, path.join(stage, 'server')), ...(await buildClient(id, path.join(stage, 'client'), usage))];
   if (errors.length) throw new Error(`plugin ${id}:\n  ${errors.join('\n  ')}`);
+  // The package's manifest records what was built, so a release can tell a changed bundle that kept
+  // its version (scripts/check-plugin-versions.mjs --built).
+  fs.writeFileSync(path.join(stage, 'manifest.json'), `${JSON.stringify({ ...manifest, contentHash: contentHash(stage) }, null, 2)}\n`);
   const file = `${id}-${manifest.version}.tgz`;
   // COPYFILE_DISABLE: macOS tar would otherwise add AppleDouble `._*` members the instance refuses.
   execFileSync('tar', ['-czf', path.join(outDir, file), '-C', stage, 'manifest.json', 'server', 'client'], {
@@ -259,9 +369,21 @@ async function main() {
   if (!at('--only')) fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
   const built = [];
+  const usage = {};
   for (const id of only) {
-    built.push(await buildPackage(id, outDir)); // eslint-disable-line no-await-in-loop
+    built.push(await buildPackage(id, outDir, usage)); // eslint-disable-line no-await-in-loop
     process.stdout.write(`✓ ${built[built.length - 1].file}\n`);
+  }
+  if (args.includes('--write-host')) {
+    const { js, json } = hostModulesSource(usage);
+    fs.writeFileSync(HOST_JS, js);
+    fs.writeFileSync(HOST_JSON, `${JSON.stringify(json, null, 2)}\n`);
+    process.stdout.write(`host modules written: ${path.relative(ROOT, HOST_JS)}\n`);
+  } else {
+    const missing = missingHostExports(usage);
+    if (missing.length) {
+      throw new Error(`the host does not expose: ${missing.join(', ')}\nRun: node scripts/build-plugin-packages.mjs --write-host (and rebuild the client)`);
+    }
   }
   const sums = fs.readdirSync(outDir).filter((f) => f.endsWith('.tgz')).sort()
     .map((f) => `${sha256File(path.join(outDir, f))}  ${f}`);

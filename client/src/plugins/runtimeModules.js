@@ -7,4 +7,8 @@ const PLUGIN_MODULES = [];
 // where the sources are imported directly.
 export const BUNDLE_FAILURES = new Map();
 
+// Set when the list of bundles could not be read (review minor 8): the app then renders without its
+// plugins and says so, instead of looking complete.
+export const LOAD_STATE = { entriesError: null };
+
 export default PLUGIN_MODULES;

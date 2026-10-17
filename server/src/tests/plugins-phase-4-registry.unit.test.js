@@ -92,12 +92,12 @@ function fakeFetch(files, { fail = false } = {}) {
   };
 }
 
-function indexOf(entries) {
+function indexOf(entries, generatedAt = '2026-10-08T10:00:00.000Z') {
   const plugins = {};
   entries.forEach(({ m, buf }) => {
     (plugins[m.id] ||= []).push({ version: m.version, sha256: sha(buf), size: buf.length, manifest: m, publishedAt: '2026-10-08T10:00:00Z' });
   });
-  return JSON.stringify({ format: 1, plugins });
+  return JSON.stringify({ format: 1, generatedAt, plugins });
 }
 
 function freshDb() {
@@ -654,4 +654,116 @@ test('§5: a database seeded before phase 4 or after gets every catalogue plugin
   const rows = buildPluginsModel(db).list();
   assert.equal(rows.length, PLUGIN_IDS.length);
   assert.ok(rows.every((r) => r.source === 'bundled' && r.enabled));
+});
+
+// ---------- added after the review of 2026-10-17 (rules 13, 14, 27, 29–31) ----------
+
+test('rule 14: an older version is offered only to a plugin the core cannot run', async () => {
+  const { ctrl, host } = setup({ bundled: [manifest('linen', '1.0.0')], installed: [{ id: 'linen', version: '2.0.0', source: 'registry' }] });
+  const refused = await call(ctrl.update, { params: { id: 'linen' }, body: { version: '1.0.0' } });
+  assert.equal(refused.statusCode, 409);
+  assert.equal(refused.body.error, 'NO_UPDATE');
+  host.state().incompatible.linen = { code: 'CORE_TOO_OLD', message: 'Incompatible avec cette version.' };
+  assert.equal((await call(ctrl.update, { params: { id: 'linen' }, body: { version: '1.0.0' } })).statusCode, 202);
+});
+
+test('rule 13: the restart goes through the server\'s own shutdown, not a bare exit', () => {
+  const calls = [];
+  const restarter = createRestarter({ env: { pm_id: '0' }, stop: () => calls.push('stop'), setTimeoutFn: (fn) => fn(), log: { error() {} } });
+  assert.equal(restarter.schedule(), true);
+  assert.deepEqual(calls, ['stop']);
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'utils', 'processRestart.js'), 'utf8'), /process\.exit/);
+  const index = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+  assert.match(index, /startedAt: PROCESS_STARTED_AT/, '/api/version says when the process started, not when it was asked');
+});
+
+test('rule 29: an install needing a restart is refused without a supervisor, and one install runs at a time', async () => {
+  const { ctrl, host, model } = setup({ bundled: [manifest('neat', '1.1.0')], supervised: false, loaded: { neat: '1.0.0' } });
+  const res = await call(ctrl.install, { params: { id: 'neat' } });
+  assert.equal(res.statusCode, 412);
+  assert.equal(model.get('neat'), null);
+  host.state().loaded = {};
+  host.state().updating = true;
+  assert.equal((await call(ctrl.install, { params: { id: 'neat' } })).body.error, 'UPDATE_IN_PROGRESS');
+});
+
+test('rule 29: a requirement installed for a plugin whose install fails is uninstalled again', async () => {
+  const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] });
+  const { ctrl, model, host } = setup({ bundled: [manifest('linen', '1.0.0'), sas] });
+  const db = freshDb();
+  const failing = createController(model, {
+    registry,
+    host: () => host,
+    db: () => db,
+    licence: () => allowAll,
+    coreVersion: () => '3.9.0',
+    loader: () => ({ ...fakeLoader(), registerLive: (mod) => mod.id !== 'sas' }),
+  });
+  const res = await call(failing.install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  assert.equal(res.statusCode, 500);
+  assert.equal(model.get('linen'), null);
+  assert.equal(model.get('sas'), null);
+  assert.equal(host.state().updating, false);
+  assert.ok(ctrl);
+});
+
+test('rule 27: the client files are listed under a URL carrying the package hash', () => {
+  const pluginHost = require('../plugins/host');
+  const dist = makeDist([manifest('linen', '1.0.0')]);
+  pluginHost.init({ env: { GUESTFLOW_PLUGINS: 'packages', GUESTFLOW_PLUGINS_DIST: dist }, dataDir: tmp() });
+  pluginHost.setLoaded('linen', '1.0.0', 'abcdef0123456789');
+  assert.deepEqual(pluginHost.clientEntries(), [{ id: 'linen', version: '1.0.0', url: '/plugin-assets/linen/1.0.0-abcdef012345/index.js' }]);
+  pluginHost.init({ env: { GUESTFLOW_PLUGINS: 'sources' }, dataDir: tmp() });
+});
+
+test('rule 30: a signed index older than the last one read is refused (replay)', async () => {
+  const { publicKey, privateKey } = keys();
+  const m = manifest('linen', '1.0.1');
+  const files = {};
+  const publish = (generatedAt) => {
+    const index = indexOf([{ m, buf: makePackage(m).buf }], generatedAt);
+    files['/index.json'] = index;
+    files['/index.json.sig'] = signIndex(index, privateKey);
+  };
+  const stateFile = path.join(tmp(), 'registry-state.json');
+  const make = () => createRegistryClient({ url: 'https://r.example/registry/v1', publicKey: spki(publicKey), fetchImpl: fakeFetch(files), stateFile, log: { warn() {}, error() {} } });
+  publish('2026-10-10T00:00:00.000Z');
+  assert.equal((await make().refresh()).state, 'ok');
+  publish('2026-10-01T00:00:00.000Z');
+  const later = make();
+  assert.equal((await later.refresh()).state, 'stale', 'remembered across a restart');
+  assert.deepEqual(later.versions('linen'), []);
+});
+
+test('rule 30: a download beyond the size limit is cut while it streams', async () => {
+  const { readLimited } = require('../plugins/packageStore');
+  const declared = { headers: { get: () => '999999' }, arrayBuffer: async () => { throw new Error('read'); } };
+  await assert.rejects(readLimited(declared, 1000), /too large/);
+  let pulled = 0;
+  const stream = new ReadableStream({ pull(c) { pulled += 1; c.enqueue(new Uint8Array(400)); if (pulled > 50) c.close(); } });
+  await assert.rejects(readLimited({ headers: { get: () => null }, body: stream }, 1000), /too large/);
+  assert.ok(pulled < 10, 'stopped reading once over the limit');
+});
+
+test('rule 31: a write under /api from another site is refused; webhooks and non-browser calls pass', async () => {
+  const { createSameOriginWrites } = require('../middleware/sameOriginWrites');
+  const app = express();
+  app.set('trust proxy', false);
+  app.use('/api', createSameOriginWrites({ allowedOrigins: ['http://localhost:3000'], isExempt: (req) => req.path === '/payments/qonto/webhook' }));
+  app.all(/^\/api\/.*/, (req, res) => res.json({ ok: true }));
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (url, headers = {}) => fetch(base + url, { method: 'POST', headers }).then((r) => r.status);
+  try {
+    assert.equal(await post('/api/plugins/linen/install', { origin: 'https://evil.example' }), 403);
+    assert.equal(await post('/api/plugins/linen/install', { referer: 'https://evil.example/page' }), 403);
+    assert.equal(await post('/api/plugins/linen/install', { origin: 'null' }), 403);
+    assert.equal(await post('/api/plugins/linen/install', { origin: base }), 200);
+    assert.equal(await post('/api/plugins/linen/install', { origin: 'http://localhost:3000' }), 200);
+    assert.equal(await post('/api/plugins/linen/install'), 200);
+    assert.equal(await post('/api/payments/qonto/webhook', { origin: 'https://qonto.example' }), 200);
+    assert.equal((await fetch(`${base}/api/plugins`, { headers: { origin: 'https://evil.example' } })).status, 200);
+  } finally {
+    server.close();
+  }
 });

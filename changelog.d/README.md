@@ -29,12 +29,14 @@ That's it. Because each PR adds a **new file**, `git` never reports a conflict.
 ### A line about one plugin
 
 A bullet that starts with `plugin:<id>` belongs to that plugin (specs/plugins-phase-4-registry.md
-rule 24). Write it **in French**: the release fold copies it into the plugin's manifest, under the
-version the release ships, and the Plugins page shows it in the update dialog. In `CHANGELOG.md` it
-appears as « **Plugin `<id>`** — … ».
+rules 24, 28); in `CHANGELOG.md` it appears as « **Plugin `<id>`** — … ». The operator reads the
+plugin's own lines elsewhere: in the update dialog of the Plugins page, from the plugin's
+`manifest.json`. So the same pull request also bumps the plugin's `version` and writes those lines,
+**in French**, under `changelog["<new version>"]` — CI refuses a changed plugin without both
+(`node scripts/check-plugin-versions.mjs --base origin/<base>`; `--bump` does the version).
 
 ```markdown
-- plugin:linen Le stock des serviettes se lit sur la bonne semaine.
+- plugin:linen The towel stock is read on the right week.
 ```
 
 ## Preview the pending changelog

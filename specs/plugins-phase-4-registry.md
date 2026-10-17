@@ -57,6 +57,9 @@ below are the recommended ones; each is reversible in a later spec.
 - **P26 — one plugin version per plugin, semver, bumped by the release.** A plugin whose files changed
   since the last tag gets a patch bump; the `verify` job refuses a release where a plugin changed and
   its version did not.
+  > **2026-10-17 (review of PR #692):** « bumped by the release » is replaced by rule 28: the pull
+  > request that changes a plugin bumps it, because the owner's authorisation to merge the release
+  > PR covers only the three `package.json` bumps and the changelog fold (CLAUDE.md §5.6).
 - **P27 — one loading path in production.** Every plugin, bundled or downloaded, is loaded from a
   package directory on the server and from its own ES module in the browser. The development server
   keeps loading sources directly, so hot reload still works.
@@ -84,6 +87,7 @@ below are the recommended ones; each is reversible in a later spec.
    `@mui/material` and `guestflow/sdk` as externals, resolved at run time to the host's own modules:
    one React, one MUI theme. Icons are bundled into the plugin.
    > **2026-10-08 (implementation):** The externals are the list `client/src/plugins/hostModules.json` — `react`, `react/jsx-runtime`, `react-dom`, `react-router`, `@mui/material` and its `styles`, `colors` and `utils` sub-paths (an icon imports `createSvgIcon` from `@mui/material/utils`), `guestflow/sdk`, `guestflow/sdk/ui`. No import map: the build rewrites each import of an external into a read of `globalThis.__GUESTFLOW_HOST__.modules[<name>]`, which `client/src/plugins/runtime.js` fills with the app's own modules before importing any bundle. A bare import left in a bundle fails the build.
+   > **2026-10-17 (review of PR #692):** Superseded in part by rule 26: the externals are no longer a fixed list. Everything of React, the router, MUI (`@mui/material/*`, `@mui/system`, `@mui/utils`, …) and emotion stays the host's, whoever imports it — an icon imports `@mui/material/SvgIcon`, which used to pull a copy of MUI and emotion into every bundle (~100 KB each) and drop the GuestFlow theme on the icons.
 
 ### 3.C Registry
 
@@ -129,10 +133,12 @@ below are the recommended ones; each is reversible in a later spec.
     application itself as the core update already does (`specs/self-update-and-releases.md`); the
     page says « Redémarrage en cours » and reloads when the server answers.
    > **2026-10-08 (implementation):** Two precisions. An install in a release answers `reload: true` and the page reloads, because the browser loads plugin bundles only before the app renders (rule 18); the server part needed no restart. Reinstalling, in the same process, a version other than the one still loaded from before an uninstall restarts the instance, like an update. The restart is a clean exit that the supervisor turns into a restart: PM2 in production (`pm_id` set), `GUESTFLOW_SUPERVISED=1` for the E2E harness. Without a supervisor an update is refused with 412 « Redémarrage automatique indisponible sur cette installation : rien n’a été modifié. » before anything moves. The page waits until `/api/version` answers with a new start time, then reloads.
+   > **2026-10-17 (review of PR #692):** `/api/version` gives the start time of the process (fixed at boot): it used to be the time of the request, so the page « detected » a restart on its first poll. The restart is a SIGINT through the server's own shutdown (requests in flight finish), not an immediate exit.
 14. At boot, a package whose ranges no longer match the running core (after a core update) stays
     installed but is not loaded; the Plugins page shows it as « Incompatible avec cette version » and
     offers the compatible version when one exists. Its data is untouched.
    > **2026-10-08 (implementation):** A package whose requirement is itself not loadable (missing, incompatible, or at a version outside the range) is left unloaded too, with « Nécessite <plugin>. ». A package whose files are missing (deleted by hand) is reported « Paquet introuvable : à réinstaller. ». The compatible version is offered on the card as « Installer la version x.y.z » — it goes through the update path (restart).
+   > **2026-10-17 (review of PR #692):** An update to an **older** version is accepted only for a plugin in this state; otherwise only a newer one.
 15. Each plugin has a persistent data directory `<GUESTFLOW_DATA>/plugin-data/<id>/` exposed as
     `ctx.dataDir`; updates never touch it; uninstalling with « Effacer aussi ses données » removes it.
 16. The last two versions of a plugin are kept on disk. « Revenir à la version précédente » is offered
@@ -151,6 +157,7 @@ below are the recommended ones; each is reversible in a later spec.
     active entry before rendering the routes; a plugin whose bundle fails to load is shown as failed on
     the Plugins page and the rest of the app renders.
    > **2026-10-08 (implementation):** The list of entries is `GET /plugin-assets/entries.json`, outside `/api` and readable before the login: the browser imports the bundles before the app's modules evaluate, so the menus, routes and slots computed from the module list see them, and a session never needs a reload. It lists every loaded package — active or inactive (activating stays instant); not installed costs nothing. The few maps the core derived at import time from the module list (`ROUTE_PLUGINS`, `MODULE_ROUTE_ROLES`, `ROUTE_ROLES`, `useSlot`'s ids) read it live. A bundle that fails to import is shown « Échec du chargement. » on its card; the failure is a fact of that browser, kept client-side (`BUNDLE_FAILURES`).
+   > **2026-10-17 (review of PR #692):** `/plugin-assets/entries.json` is readable without a session on purpose (it names the active plugins and their versions, nothing else). When it cannot be read, the app renders without its plugins and shows « Modules indisponibles. » with « Recharger ». The App chunks are fetched (`modulepreload`, without evaluation) in parallel with the bundles, and the list is fetched before the runtime arrives. Measured with `npx vite build`: the code loaded before the first render is 572 KB gzip (+ 8 KB of plugin entry bundles) against 573 KB on `inte/plugins` — under +5 %.
 19. Development (`npm run dev`) and the unit suites keep importing the plugin sources directly. One E2E
     suite runs against the production build served by the server, so the package path is exercised in
     CI.
@@ -176,10 +183,12 @@ below are the recommended ones; each is reversible in a later spec.
     release. The `verify` job runs `scripts/check-plugin-versions.mjs`: a plugin folder changed since
     the previous tag with the same manifest version fails the release.
    > **2026-10-08 (implementation):** `release.sh` builds the packages when `plugins-dist/` is missing and copies the directory into the archive; the release workflow builds them after the client and attaches every `<id>-<version>.tgz` to the GitHub release (they are listed in the release's `SHA256SUMS` like every asset). `scripts/check-plugin-versions.mjs --bump` is the release skill's step that patch-bumps every changed plugin; tests-only changes do not count.
+   > **2026-10-17 (review of PR #692):** The release PR no longer bumps plugins (rule 28); the `verify` job's check now passes or stops the release. The package job also compares each package's content hash with the package published under the same version in the previous release (rule 27).
 24. Plugin changelog lines live in `changelog.d/` like the core's, with a `plugin:<id>` prefix on the
     bullet; the release fold writes them into the core section and into the manifest's `changelog`
     entry for that version.
    > **2026-10-08 (implementation):** The `plugin:<id>` bullet is written in **French**, like the operator digest: it is read inside the application, in the update dialog. In the core section it becomes « **Plugin `<id>`** — <text> ». The fold runs after the bump (P26), so the lines land under the version this release ships.
+   > **2026-10-17 (review of PR #692):** Superseded by rule 28: the release fold no longer edits manifests. A `plugin:<id>` bullet still names its plugin in the core section; the French lines the update dialog shows are written in the manifest by the PR that bumps the plugin.
 
 **Edge cases:**
 - Registry unreachable → the page shows the archive's versions; no error toast, a discreet « Registre
@@ -200,6 +209,41 @@ below are the recommended ones; each is reversible in a later spec.
     installed from the registry (`registry` row) keeps its own version (edge case « older version in
     the archive »). Added because the spec said where a `bundled` package runs (rule 17) but not which
     version its row then records.
+
+### 3.I Added after the review of PR #692 (2026-10-17)
+
+26. **The host gives the plugins exactly what they import.** A plugin bundle carries no copy of React,
+    the router, MUI (any `@mui/material` sub-path, `@mui/system`, `@mui/utils`) or emotion — only its
+    icons — and the package build fails otherwise. The names the twelve-plus plugins take from the host
+    are listed in `client/src/plugins/hostModules.json` and imported one by one by `hostModules.js`,
+    both generated by `node scripts/build-plugin-packages.mjs --write-host`; the build fails when a
+    plugin takes a name the list lacks. A bundle checks the names as it loads: a version built for a
+    newer core that needs a name this core does not expose fails to load (shown « Échec du
+    chargement. ») instead of rendering `undefined` — and its `guestflow` floor must say so.
+27. **A plugin's client files are cached by content.** Their URL carries the package's hash
+    (`/plugin-assets/<id>/<version>-<hash12>/…`), so files served immutable are never those of another
+    build with the same version. Each package's manifest records a `contentHash` of its files; the
+    release refuses a package whose content differs from the one already published under the same
+    version (a dependency bump, say) — the plugin is then bumped in a PR.
+28. **A plugin is versioned in the pull request that changes it.** CI refuses a PR that changes a
+    plugin's files (tests excepted) without a new `version` in its manifest and French lines under
+    `changelog["<version>"]`. The release PR never edits a manifest; it only folds `changelog.d/`.
+29. **One plugin operation at a time, all or nothing.** An install takes the same lock as an update
+    (409 « Mise à jour déjà en cours. »); a requirement installed for a plugin whose own install then
+    fails is uninstalled again; an install that needs a restart (another version still loaded) is
+    refused without a supervisor, like an update (412).
+30. **A replayed index is refused.** The instance remembers the `generatedAt` of the last index it
+    accepted (`<data>/plugins/registry-state.json`) and ignores an older one, even correctly signed
+    (« Registre ignoré : index plus ancien que le dernier lu. »). An index or package larger than its
+    limit is refused as it streams (declared length first), not after being read whole.
+31. **Writes under `/api` come from GuestFlow's pages.** A non-GET request whose `Origin` (or
+    `Referer`) names another site is refused with 403 — so another site cannot install or update a
+    plugin with an administrator's session. Requests without either (scripts, server-to-server) and
+    the plugin webhooks pass; the public API (`/public/v1`, the WordPress site) is not under `/api`. A
+    development process (`NODE_ENV` unset) does not check: the Vite proxy rewrites the host.
+32. **The waits ask and give up.** « Revenir à la version précédente » asks for confirmation; the
+    « Redémarrage en cours » wait says « Le redémarrage est plus long que prévu. » after 90 s and
+    offers « Réessayer ».
 
 ---
 
@@ -226,6 +270,7 @@ below are the recommended ones; each is reversible in a later spec.
 | `plugins/` | `host.js` | C | _(added 2026-10-08)_ The mode (rule 19), the boot of the packages (rules 14, 17, 25), the housekeeping (rule 16), `/plugin-assets` and its entries (rule 18) |
 | `utils/` | `pluginOffers.js` | C | _(added 2026-10-08)_ Pure offer logic: best compatible version, refusals in French, requirement plan, changelog lines (rules 10, 12, 20, 22) |
 | `utils/` | `processRestart.js` | C | _(added 2026-10-08)_ The clean exit a supervisor turns into a restart (rule 13) |
+| `middleware/` | `sameOriginWrites.js` | C | _(added 2026-10-17)_ Rule 31 |
 | `plugins/sdk/` | `createContext.js`, `registry.js` | T | _(added 2026-10-08)_ `ctx.dataDir` (rule 15); a plugin with no record is not live in the package mode |
 | `models/` | `pluginsModel.js` | T | _(added 2026-10-08)_ `switchVersion`, `rollBack`, `expireRollback`, `syncBundled` |
 | `scripts/` | `seed-e2e.js` | T | _(added 2026-10-08)_ `E2E_SEED_PLUGINS` picks the installed plugins; rows are `bundled` |
@@ -241,6 +286,8 @@ below are the recommended ones; each is reversible in a later spec.
 | `components/` | `PluginUpdateDialog.jsx` | C | Changelog between versions + action; generic enough for the core update dialog later |
 | `components/` | `PluginCard.jsx` | T | _(added 2026-10-08)_ Version, « Mise à jour x.y.z » chip, « Incompatible avec cette version », « Installer la version x.y.z », the requirements confirmation, « Revenir à la version précédente », « Échec du chargement. » |
 | `plugins/` | `runtimeModules.js`, `hostModules.json` | C | _(added 2026-10-08)_ The module list of a production build, the failed bundles, the host module names |
+| `plugins/` | `hostModules.js` | C | _(added 2026-10-17)_ Generated: the exact host names the plugins import (rule 26) |
+| `components/` | `PluginLoadBanner.jsx` | C | _(added 2026-10-17)_ « Modules indisponibles. » (rule 18) |
 | `index.jsx`, `vite.config.js` | — | T | _(added 2026-10-08)_ The build redirects `plugins/index.js` to the runtime list; the bundles load before `App` is imported |
 | `constants/`, `plugins/sdk/`, `utils/` | `plugins.js`, `roles.js`, `useSlot.js`, `liveRecord.js` | T/C | _(added 2026-10-08)_ The maps derived from the module list read it live (rule 18) |
 | `api.js` | — | T | _(added 2026-10-08)_ status, refresh, update, update-all, rollback, `withRequirements` |
@@ -313,16 +360,22 @@ Implemented 2026-10-08, merged with `inte/plugins` on 2026-10-17 (H2 #673, Saisi
 (`1.0.0`) and builds into a package like the others, so « the twelve » in this spec reads « every
 plugin of the catalogue » from then on.
 
-| Suite | Result |
+| Suite | Result (after the review fixes, 2026-10-17) |
 |---|---|
-| Server (`node --test`) | 5 034 / 5 034 — of which `plugins-phase-4-registry.unit.test.js` 39, `plugin-packages-release.unit.test.js` 7 |
-| Client (Vitest) | 1 566 / 1 566 — of which `PluginsPage.registry.test.jsx` 12, `runtime.bundles.test.jsx` 3 |
+| Server (`node --test`) | 5 047 / 5 047 — of which `plugins-phase-4-registry.unit.test.js` 47, `plugin-packages-release.unit.test.js` 12 |
+| Client (Vitest) | 1 570 / 1 570 — of which `PluginsPage.registry.test.jsx` 13, `runtime.bundles.test.jsx` 4, `PluginLoadBanner.modules.test.jsx` 2 |
 | Control plane server | 112 / 112 — of which `registry.unit.test.js` 5 |
 | Control plane client | 40 / 40 — of which `RegistryPage.upload.test.jsx` 3; console build OK |
-| Spec rules | 25 / 25 rules cited by a test |
+| Spec rules | 32 / 32 rules cited by a test |
 | E2E dev suite | 101 passed, 1 skipped |
 | E2E production build (`npm run test:e2e:prod`) | 4 / 4 — render without console error, install from the registry, update with restart and rollback, refused package |
-| Package build | 13 packages, 44–80 KB each, ~1.5 s |
+| Package build | 13 packages; no MUI, emotion or React code inside a bundle (the build checks it); deterministic content hash |
+| Eager client code (gzip, `npx vite build`) | 572 KB + 8 KB of plugin entry bundles, against 573 KB on `inte/plugins` (+1.2 %) |
+
+The review (2026-10-17) also checked in the browser, production mode, on the copy of the
+development database: the hourly-resources card icon (`color: 'info.main'`) renders `#31556E`, the
+Maison palette — MUI's default would be `#0288d1`; a cross-site write gets 403; the rollback asks
+for confirmation.
 
 Verified by hand on a copy of the development database (Solio's data), first booted by the code of
 `inte/plugins` before phase 4 (twelve `builtin` rows), then by this branch in the package mode with

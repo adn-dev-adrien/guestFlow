@@ -138,7 +138,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // the list the browser imports before rendering. Outside /api and its guards: the bundles hold no
 // data, and the list is read before the login so a signed-in session never needs a reload.
 app.get('/plugin-assets/entries.json', (req, res) => res.set('Cache-Control', 'no-store').json(pluginHost.clientEntries()));
-app.use('/plugin-assets/:id/:version', pluginHost.assetsMiddleware(express));
+app.use('/plugin-assets/:id/:key', pluginHost.assetsMiddleware(express));
 
 // Public API (specs/public-api.md) — `/public/v1/*`, a SEPARATE tree from the internal `/api/*`
 // admin API: it never passes through the `/api` session guard below, so that guard can neither
@@ -159,6 +159,16 @@ app.use('/api', (req, res, next) => {
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
   return apiLimiter(req, res, next);
 });
+
+// A write under /api must come from GuestFlow's own pages (specs/plugins-phase-4-registry.md rule 31):
+// a cross-site form or script cannot ride an administrator's session. Plugin webhooks are exempt. Not
+// in a development process (NODE_ENV unset): the Vite proxy rewrites the host, and a phone opening
+// the dev client by its LAN address would otherwise be refused every write.
+const enforceSameOrigin = Boolean(process.env.NODE_ENV) && process.env.NODE_ENV !== 'development';
+app.use('/api', require('./middleware/sameOriginWrites').createSameOriginWrites({
+  allowedOrigins,
+  isExempt: (req) => !enforceSameOrigin || pluginLoader.isWebhook(req.method, req.path),
+}));
 
 // Stricter brute-force limit on the login route.
 app.use('/api/auth/login', loginLimiter);
@@ -243,12 +253,16 @@ app.use('/api/support-access', require('./routes/supportAccess'));
 // each behind requirePlugin.
 pluginLoader.mountApi(app);
 
+// When this process started — not when the request came: the Plugins page and the E2E harness wait
+// for it to change to know the restart happened (specs/plugins-phase-4-registry.md rule 13).
+const PROCESS_STARTED_AT = new Date().toISOString();
+
 app.get('/api/version', (req, res) => {
   res.json({
     env: process.env.NODE_ENV || 'development',
     commitSha: commitSha || null,
     commitShaShort,
-    startedAt: new Date().toISOString(),
+    startedAt: PROCESS_STARTED_AT,
   });
 });
 

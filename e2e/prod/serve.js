@@ -37,6 +37,7 @@ const packages = {}; // file name → buffer
 const index = { format: 1, plugins: {} };
 let indexBytes = Buffer.from(JSON.stringify(index));
 const sign = () => {
+  index.generatedAt = new Date().toISOString();
   indexBytes = Buffer.from(JSON.stringify(index));
   return crypto.sign(null, indexBytes, privateKey).toString('base64');
 };

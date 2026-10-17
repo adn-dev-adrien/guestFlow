@@ -25,7 +25,6 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRAG_DIR = path.join(ROOT, 'changelog.d');
 const CHANGELOG = path.join(ROOT, 'CHANGELOG.md');
-const PLUGINS_DIR = path.join(ROOT, 'server', 'src', 'plugins');
 
 // Keep a Changelog sections, in canonical order. `migration` is a GuestFlow addition.
 const CATEGORIES = [
@@ -152,18 +151,17 @@ export function checkDigest(sectionBody) {
   return { ok: errors.length === 0, errors, bullets };
 }
 
-// specs/plugins-phase-4-registry.md rule 24 — a bullet `- plugin:<id> <text>` belongs to a plugin: its
-// text is written in French, because the update dialog of the Plugins page shows it to the operator.
+// specs/plugins-phase-4-registry.md rule 24 — a bullet `- plugin:<id> <text>` belongs to a plugin. The
+// release section names the plugin; the plugin's own lines, in French, are in its manifest, written
+// in the pull request that bumped it (rule 28) — the release pull request never edits a manifest.
 const PLUGIN_BULLET = /^-\s+plugin:([a-z][a-z0-9-]*)\s*[—–:-]?\s*([\s\S]*)$/;
 
 /**
- * Split the plugin bullets out of a {key: bullets[]} map. Pure. → { byKey, pluginLines }
+ * Name the plugin of each `plugin:<id>` bullet in a {key: bullets[]} map. Pure. → { byKey }
  * `byKey` keeps every bullet for the core section, a plugin's prefixed as « **Plugin `<id>`** — »;
- * `pluginLines` maps each plugin id to its lines, one per bullet, wrapped lines joined.
  */
 export function extractPluginLines(byKey) {
   const out = {};
-  const pluginLines = {};
   for (const [key, bullets] of Object.entries(byKey)) {
     out[key] = [];
     for (const raw of bullets) {
@@ -171,28 +169,11 @@ export function extractPluginLines(byKey) {
         const m = bullet.trim().match(PLUGIN_BULLET);
         if (!m) { out[key].push(bullet); continue; }
         const text = m[2].replace(/\s*\n\s*/g, ' ').trim();
-        (pluginLines[m[1]] ||= []).push(text);
         out[key].push(`- **Plugin \`${m[1]}\`** — ${text}`);
       }
     }
   }
-  return { byKey: out, pluginLines };
-}
-
-/** Writes each plugin's lines under its manifest's current version (the version this release ships). */
-export function foldIntoManifests(pluginLines, { pluginsDir = PLUGINS_DIR } = {}) {
-  const written = [];
-  for (const [id, lines] of Object.entries(pluginLines)) {
-    const file = path.join(pluginsDir, id, 'manifest.json');
-    if (!fs.existsSync(file)) throw new Error(`changelog line for unknown plugin "${id}"`);
-    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const log = manifest.changelog || {};
-    log[manifest.version] = [...new Set([...(log[manifest.version] || []), ...lines])];
-    manifest.changelog = log;
-    fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
-    written.push(`${id}@${manifest.version}`);
-  }
-  return written;
+  return { byKey: out };
 }
 
 function mergeByKey(a, b) {
@@ -222,7 +203,7 @@ function releaseMode(version, dateArg) {
   const bodyEnd = nextHeader === -1 ? text.length : bodyStart + nextHeader;
   const unreleasedBody = text.slice(bodyStart, bodyEnd);
 
-  const { byKey: merged, pluginLines } = extractPluginLines(mergeByKey(parseUnreleased(unreleasedBody), fragmentsByKey(fragments)));
+  const { byKey: merged } = extractPluginLines(mergeByKey(parseUnreleased(unreleasedBody), fragmentsByKey(fragments)));
   const assembled = assemble(merged);
   if (!assembled) throw new Error('Nothing to release (no fragments and empty [Unreleased]).');
 
@@ -233,8 +214,6 @@ function releaseMode(version, dateArg) {
   const newText = `${text.slice(0, m.index)}## [Unreleased]\n\n${versionSection}\n${text.slice(bodyEnd).replace(/^\n+/, '')}`;
 
   fs.writeFileSync(CHANGELOG, newText);
-  const manifests = foldIntoManifests(pluginLines);
-  if (manifests.length) process.stdout.write(`Plugin changelog lines written into: ${manifests.join(', ')}.\n`);
   for (const fr of fragments) fs.rmSync(path.join(FRAG_DIR, fr.file));
   process.stdout.write(`Released ${version} (${date}): folded ${fragments.length} fragment(s).\n`);
   process.stdout.write(`Now WRITE the "### ${DIGEST_HEADING}" block — it is the whole of what the operator reads in the update dialog.\n`);

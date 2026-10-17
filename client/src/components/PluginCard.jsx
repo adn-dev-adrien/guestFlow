@@ -61,6 +61,7 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
   const [armed, setArmed] = useState(false);
   const [erase, setErase] = useState(false);
   const [confirmRequirements, setConfirmRequirements] = useState(false);
+  const [confirmRollback, setConfirmRollback] = useState(false);
   const Icon = ICONS[plugin.icon] || ExtensionIcon;
   const installed = plugin.state !== 'available';
   const failed = plugin.state === 'failed' || (installed && bundleFailed);
@@ -187,6 +188,17 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
           />
         </Box>
       )}
+      {plugin.rollback && (
+        <ConfirmDialog
+          open={confirmRollback}
+          onClose={() => setConfirmRollback(false)}
+          onConfirm={() => { setConfirmRollback(false); act('rollback'); }}
+          title={`Revenir à ${plugin.name} ${plugin.rollback.version}`}
+          message="GuestFlow redémarre."
+          confirmLabel="Revenir"
+          confirmColor="primary"
+        />
+      )}
       <ConfirmDialog
         open={confirmRequirements}
         onClose={() => setConfirmRequirements(false)}
@@ -212,7 +224,7 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
               <Button
                 variant="outlined"
                 disabled={busy}
-                onClick={() => act('rollback')}
+                onClick={() => setConfirmRollback(true)}
                 sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
               >
                 Revenir à la version précédente

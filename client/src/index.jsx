@@ -12,9 +12,14 @@ import { registerServiceWorker } from './push/registerPush';
 // specs/plugins-phase-4-registry.md rule 18 — a production build imports each plugin's own bundle
 // BEFORE the app modules evaluate, so the menus, routes and slots they compute see the plugins. The
 // development server imports the plugin sources directly (rule 19).
-const plugins = import.meta.env.PROD
-  ? import('./plugins/runtime').then((runtime) => runtime.loadPluginBundles())
-  : Promise.resolve();
+// Everything starts at once (review M3): the list of bundles, the runtime, and — through the
+// modulepreload links the build adds to index.html — the App chunks, fetched but not evaluated.
+let plugins = Promise.resolve();
+if (import.meta.env.PROD) {
+  const listed = fetch('/plugin-assets/entries.json', { credentials: 'same-origin' });
+  listed.catch(() => undefined);
+  plugins = import('./plugins/runtime').then((runtime) => runtime.loadPluginBundles({ fetchImpl: () => listed }));
+}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 plugins

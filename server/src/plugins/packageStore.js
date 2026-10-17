@@ -102,6 +102,34 @@ function isAllowedRegistryUrl(url) {
   return parsed.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname);
 }
 
+/**
+ * The body of `res`, refused as soon as it goes beyond `maxBytes` (review minor 5): the declared
+ * length first, then the bytes as they stream — never the whole body first and the limit after.
+ */
+async function readLimited(res, maxBytes) {
+  const declared = Number(res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-length') : 0);
+  if (declared && declared > maxBytes) throw new Error(`too large (${declared} bytes)`);
+  if (!res.body || typeof res.body.getReader !== 'function') {
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > maxBytes) throw new Error(`too large (${buf.length} bytes)`);
+    return buf;
+  }
+  const reader = res.body.getReader();
+  const parts = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read(); // eslint-disable-line no-await-in-loop
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error(`too large (over ${maxBytes} bytes)`);
+    }
+    parts.push(Buffer.from(value));
+  }
+  return Buffer.concat(parts);
+}
+
 async function download(url, { fetchImpl = fetch, maxBytes = MAX_PACKAGE_BYTES, timeoutMs = 60_000 } = {}) {
   if (!isAllowedRegistryUrl(url)) throw new PackageError('DOWNLOAD_FAILED', 'forbidden url');
   let res;
@@ -111,9 +139,11 @@ async function download(url, { fetchImpl = fetch, maxBytes = MAX_PACKAGE_BYTES, 
     throw new PackageError('DOWNLOAD_FAILED', err.message);
   }
   if (!res.ok) throw new PackageError('DOWNLOAD_FAILED', `HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > maxBytes) throw new PackageError('PACKAGE_REJECTED', 'too large');
-  return buf;
+  try {
+    return await readLimited(res, maxBytes);
+  } catch (err) {
+    throw new PackageError(/too large/.test(err.message) ? 'PACKAGE_REJECTED' : 'DOWNLOAD_FAILED', err.message);
+  }
 }
 
 /**
@@ -288,6 +318,7 @@ module.exports = {
   assertPackageLayout,
   extractPackage,
   isAllowedRegistryUrl,
+  readLimited,
   resolveDistDir,
   resolveMode,
   sha256,

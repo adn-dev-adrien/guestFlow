@@ -4,15 +4,25 @@
 import { vi } from 'vitest';
 import * as React from 'react';
 import * as Mui from '@mui/material';
-import HOST_MODULE_NAMES from '../hostModules.json';
+import HOST_EXPORTS from '../hostModules.json';
 import { HOST_MODULES, loadPluginBundles } from '../runtime';
+import { LOAD_STATE } from '../runtimeModules';
 import liveRecord from '../../utils/liveRecord';
 
-test('rule 5: the host exposes exactly the modules the package build leaves external — one React, one MUI', () => {
-  expect(Object.keys(HOST_MODULES).sort()).toEqual([...HOST_MODULE_NAMES].sort());
+test('rules 5, 26: the host exposes exactly what the plugins import — one React, one MUI, not all of it', () => {
+  expect(Object.keys(HOST_MODULES).sort()).toEqual(Object.keys(HOST_EXPORTS).sort());
   expect(HOST_MODULES.react.useState).toBe(React.useState);
   expect(HOST_MODULES['@mui/material'].Button).toBe(Mui.Button);
+  expect(Object.keys(HOST_MODULES['@mui/material']).sort()).toEqual([...HOST_EXPORTS['@mui/material']].sort());
+  expect(HOST_MODULES['@mui/material'].Rating).toBeUndefined();
   expect(typeof HOST_MODULES['guestflow/sdk'].api).toBe('object');
+});
+
+test('rule 18: a list of bundles that cannot be read is remembered, so the app says so', async () => {
+  LOAD_STATE.entriesError = null;
+  await loadPluginBundles({ fetchImpl: vi.fn().mockResolvedValue({ ok: false, status: 502 }), target: [], failures: new Map() });
+  expect(LOAD_STATE.entriesError).toBe('HTTP 502');
+  LOAD_STATE.entriesError = null;
 });
 
 test('rule 18: every listed entry is imported; a failed bundle is remembered and the rest load', async () => {

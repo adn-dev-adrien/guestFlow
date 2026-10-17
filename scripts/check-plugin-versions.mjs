@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
- * A plugin whose files changed carries a new version (specs/plugins-phase-4-registry.md P26, rule 23).
+ * A plugin whose files changed carries a new version (specs/plugins-phase-4-registry.md P26, rules 23, 28).
  *
  *   node scripts/check-plugin-versions.mjs            # the release's `verify` job: fails when a plugin
  *                                                      # changed since the previous tag and kept its version
- *   node scripts/check-plugin-versions.mjs --bump     # the release skill: patch-bumps every such plugin
- *   node scripts/check-plugin-versions.mjs --base v3.9.0
+ *   node scripts/check-plugin-versions.mjs --base origin/inte/plugins
+ *                                                      # every PR (rule 28): the plugin a PR changes is
+ *                                                      # bumped in that PR, with its changelog lines
+ *   node scripts/check-plugin-versions.mjs --bump     # a developer's helper, in the feature PR
+ *   node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist
+ *                                                      # the release's package job: a package whose built
+ *                                                      # content changed kept its version (rule 27)
  *
  * "Changed" means a file of `server/src/plugins/<id>/` or `client/src/plugins/<id>/` differs from the
  * previous tag, tests excepted (a test changes no package). The previous tag is the newest `v*` tag
@@ -34,6 +39,38 @@ export function findViolations({ changed, baseVersions, headVersions }) {
   return [...changed].sort()
     .filter((id) => baseVersions[id] && headVersions[id] && baseVersions[id] === headVersions[id])
     .map((id) => ({ id, version: headVersions[id] }));
+}
+
+/** Rule 28 — a plugin with a new version says what changed in it, in French. → [{ id, version }] */
+export function missingChangelog({ changed, baseVersions, headManifests }) {
+  return [...changed].sort()
+    .filter((id) => headManifests[id] && headManifests[id].version !== baseVersions[id])
+    .filter((id) => !((headManifests[id].changelog || {})[headManifests[id].version] || []).length)
+    .map((id) => ({ id, version: headManifests[id].version }));
+}
+
+/**
+ * Rule 27 — the built packages against the previous release's: same version, other content.
+ * `current` / `previous`: id → { version, contentHash }. → [{ id, version }]
+ */
+export function findContentViolations(current, previous) {
+  return Object.keys(current).sort()
+    .filter((id) => previous[id] && previous[id].version === current[id].version
+      && previous[id].contentHash && current[id].contentHash && previous[id].contentHash !== current[id].contentHash)
+    .map((id) => ({ id, version: current[id].version }));
+}
+
+// id → { version, contentHash } of the `.tgz` packages in `dir` (their manifest only).
+function packagesIn(dir) {
+  const out = {};
+  if (!dir || !fs.existsSync(dir)) return out;
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.tgz'))) {
+    try {
+      const manifest = JSON.parse(execFileSync('tar', ['-xOzf', path.join(dir, file), 'manifest.json'], { encoding: 'utf8' }));
+      out[manifest.id] = { version: manifest.version, contentHash: manifest.contentHash || null };
+    } catch { /* not a plugin package */ }
+  }
+  return out;
 }
 
 export function bumpPatch(version) {
@@ -75,6 +112,16 @@ const manifestPath = (id) => path.join(ROOT, SERVER_PLUGINS, id, 'manifest.json'
 function main() {
   const args = process.argv.slice(2);
   const at = (flag) => { const i = args.indexOf(flag); return i === -1 ? null : args[i + 1]; };
+  if (at('--built')) {
+    const violations = findContentViolations(packagesIn(path.resolve(ROOT, at('--built'))), packagesIn(at('--previous') && path.resolve(ROOT, at('--previous'))));
+    for (const v of violations) process.stderr.write(`✗ ${v.id} ${v.version}: the package differs from the one already published under that version.\n`);
+    if (violations.length) {
+      process.stderr.write('\nBump the version of these plugins in a pull request (with its changelog lines), then release.\n');
+      return 1;
+    }
+    process.stdout.write('✓ No published plugin version changed content.\n');
+    return 0;
+  }
   const base = at('--base') || previousTag();
   if (!base) {
     process.stdout.write('No previous release tag: every plugin is new.\n');
@@ -84,7 +131,8 @@ function main() {
   const changed = pluginsOf(files);
   const ids = [...changed].filter((id) => fs.existsSync(manifestPath(id)));
   const baseVersions = Object.fromEntries(ids.map((id) => [id, (manifestAt(base, id) || {}).version || null]));
-  const headVersions = Object.fromEntries(ids.map((id) => [id, JSON.parse(fs.readFileSync(manifestPath(id), 'utf8')).version]));
+  const headManifests = Object.fromEntries(ids.map((id) => [id, JSON.parse(fs.readFileSync(manifestPath(id), 'utf8'))]));
+  const headVersions = Object.fromEntries(ids.map((id) => [id, headManifests[id].version]));
   const violations = findViolations({ changed: new Set(ids), baseVersions, headVersions });
 
   if (args.includes('--bump')) {
@@ -97,9 +145,12 @@ function main() {
     if (!violations.length) process.stdout.write(`✓ No plugin to bump since ${base}.\n`);
     return 0;
   }
-  if (violations.length) {
+  const undocumented = missingChangelog({ changed: new Set(ids), baseVersions, headManifests });
+  if (violations.length || undocumented.length) {
     for (const v of violations) process.stderr.write(`✗ ${v.id} changed since ${base} but is still ${v.version}.\n`);
-    process.stderr.write('\nRun: node scripts/check-plugin-versions.mjs --bump\n');
+    for (const v of undocumented) process.stderr.write(`✗ ${v.id} ${v.version} has no changelog lines in its manifest.\n`);
+    process.stderr.write('\nIn this pull request: node scripts/check-plugin-versions.mjs --bump, then write the\n'
+      + 'French lines of the new version under `changelog` in each manifest.\n');
     return 1;
   }
   process.stdout.write(`✓ ${ids.length} plugin(s) changed since ${base}; none kept its version.\n`);

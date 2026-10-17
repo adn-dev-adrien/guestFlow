@@ -10,3 +10,10 @@
   update restarts the instance (PM2). Release tooling: `scripts/build-plugin-packages.mjs`,
   `scripts/check-plugin-versions.mjs` (the `verify` job), `plugin:<id>` changelog bullets folded into
   the manifests. A production-build E2E suite (`npm run test:e2e:prod`) runs in CI.
+- **Plugin packages, after review** (spec `plugins-phase-4-registry.md` rules 26–32): a plugin bundle
+  uses the app's own MUI (its icons keep the GuestFlow theme) and the app loads only the MUI parts
+  plugins use; plugin files are cached by content hash; a pull request that changes a plugin bumps its
+  version and writes its French changelog lines in the manifest (CI checks it), so the release PR never
+  edits a manifest; installs take the update lock and are all-or-nothing; a replayed registry index is
+  refused; writes under `/api` from another site are refused (403); the rollback asks first and the
+  restart wait gives up after 90 s with « Réessayer ».

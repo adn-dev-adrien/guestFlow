@@ -41,14 +41,88 @@ test('rule 4: a client import of the SDK is external; a core file outside the SD
   assert.ok(classifyClientImport('dayjs', importer, { pluginDir }).error);
 });
 
-test('rule 5: React, the router, MUI and the SDK are externals; icons are bundled', async () => {
+test('rules 5, 26: React, the router, MUI, emotion and the SDK stay the host\'s, whoever imports them; icons are bundled', async () => {
   const { classifyClientImport, HOST_MODULES } = await load('build-plugin-packages.mjs');
   const pluginDir = path.join(CLIENT_PLUGINS, 'linen');
   const importer = path.join(pluginDir, 'index.js');
-  ['react', 'react/jsx-runtime', 'react-dom', 'react-router', '@mui/material', 'guestflow/sdk'].forEach((m) => assert.ok(HOST_MODULES.includes(m), m));
+  const icon = path.join(ROOT, 'client', 'node_modules', '@mui', 'icons-material', 'utils', 'createSvgIcon.mjs');
+  ['react', 'react/jsx-runtime', '@mui/material', 'guestflow/sdk'].forEach((m) => assert.ok(HOST_MODULES.includes(m), m));
   assert.deepEqual(classifyClientImport('react', importer, { pluginDir }), { external: 'react' });
   assert.deepEqual(classifyClientImport('@mui/material/styles', importer, { pluginDir }), { external: '@mui/material/styles' });
   assert.deepEqual(classifyClientImport('@mui/icons-material/Add', importer, { pluginDir }), { bundle: true });
+  // An icon's own import of MUI is the host's too: one MUI, one theme (review M1).
+  assert.deepEqual(classifyClientImport('@mui/material/SvgIcon', icon, { pluginDir }), { external: '@mui/material/SvgIcon' });
+  assert.deepEqual(classifyClientImport('@emotion/react', icon, { pluginDir }), { external: '@emotion/react' });
+  assert.deepEqual(classifyClientImport('@mui/system', icon, { pluginDir }), { external: '@mui/system' });
+});
+
+test('rule 26: a bundle that carries MUI, emotion or React code fails the build', async () => {
+  const { strayBundledModules } = await load('build-plugin-packages.mjs');
+  assert.deepEqual(strayBundledModules([
+    '/r/client/src/plugins/linen/index.js',
+    '/r/client/node_modules/@mui/icons-material/Add.mjs',
+    '/r/client/node_modules/@mui/system/esm/styled.js',
+    '/r/client/node_modules/@emotion/react/dist/x.js',
+  ]), ['/r/client/node_modules/@mui/system/esm/styled.js', '/r/client/node_modules/@emotion/react/dist/x.js']);
+});
+
+test('rule 26: the host exposes exactly the names the plugins import, and the build checks it', async () => {
+  const { clauseNames, missingHostExports, hostModulesSource, HOST_EXPORTS } = await load('build-plugin-packages.mjs');
+  assert.deepEqual(clauseNames('R,{useState as s, Fragment}'), ['default', 'useState', 'Fragment']);
+  assert.deepEqual(clauseNames('* as M'), ['*']);
+  const usage = { '@mui/material': new Set(['Box', 'Button']), react: new Set(['*']) };
+  assert.deepEqual(missingHostExports(usage, { '@mui/material': ['Box'], react: '*' }), ['@mui/material#Button']);
+  assert.deepEqual(missingHostExports({ '@mui/material': new Set(['*']) }, { '@mui/material': ['Box'] }), ['@mui/material (whole namespace)']);
+  const { js, json } = hostModulesSource(usage);
+  assert.deepEqual(json['@mui/material'], ['Box', 'Button']);
+  assert.match(js, /import \{ Box as M\d_Box, Button as M\d_Button \} from '@mui\/material';/);
+  assert.doesNotMatch(js, /import \* as \w+ from '@mui\/material'/);
+  // What is committed matches what the twelve-plus plugins import (the build refuses otherwise).
+  assert.ok(Array.isArray(HOST_EXPORTS['@mui/material']) && HOST_EXPORTS['@mui/material'].includes('Box'));
+  assert.equal(HOST_EXPORTS.react, '*');
+});
+
+test('rule 26: a bundle checks, as it loads, that the host exposes every name it takes', async () => {
+  const { rewriteHostImports } = await load('build-plugin-packages.mjs');
+  const code = 'import{Box as b}from"@mui/material";';
+  const out = rewriteHostImports(code, [{ n: '@mui/material', ss: 0, se: code.length, d: -1 }], { hostModules: ['@mui/material'] });
+  assert.match(out, /__gfHost\("@mui\/material",\["Box"\]\)/);
+  // eslint-disable-next-line no-new-func
+  const run = (modules) => new Function('globalThis', `${out.replace('const{Box:b}', 'var{Box:b}')};return b;`)({ __GUESTFLOW_HOST__: { modules } });
+  assert.equal(run({ '@mui/material': { Box: 'B' } }), 'B');
+  assert.throws(() => run({ '@mui/material': {} }), /n’expose pas Box/);
+});
+
+test('rule 27: the package content hash ignores tar and timestamps; a changed content under the same version is refused', async () => {
+  const { contentHash } = await load('build-plugin-packages.mjs');
+  const { findContentViolations } = await load('check-plugin-versions.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-hash-'));
+  fs.mkdirSync(path.join(dir, 'client'));
+  fs.writeFileSync(path.join(dir, 'client', 'index.js'), 'a');
+  fs.writeFileSync(path.join(dir, 'manifest.json'), '{"version":"1.0.0"}');
+  const h1 = contentHash(dir);
+  fs.writeFileSync(path.join(dir, 'manifest.json'), '{"version":"1.0.0","x":1}');
+  assert.equal(contentHash(dir), h1, 'the manifest is not content');
+  fs.writeFileSync(path.join(dir, 'client', 'index.js'), 'b');
+  assert.notEqual(contentHash(dir), h1);
+  assert.deepEqual(findContentViolations(
+    { linen: { version: '1.0.0', contentHash: 'b' }, neat: { version: '1.1.0', contentHash: 'c' } },
+    { linen: { version: '1.0.0', contentHash: 'a' }, neat: { version: '1.0.0', contentHash: 'd' } },
+  ), [{ id: 'linen', version: '1.0.0' }]);
+});
+
+test('rule 28: a changed plugin is bumped in its own PR, with its French changelog lines', async () => {
+  const { missingChangelog } = await load('check-plugin-versions.mjs');
+  const headManifests = {
+    linen: { version: '1.0.1', changelog: { '1.0.1': ['Le stock se lit sur la bonne semaine.'] } },
+    neat: { version: '1.0.1', changelog: { '1.0.0': ['Première.'] } },
+  };
+  assert.deepEqual(missingChangelog({ changed: new Set(['linen', 'neat']), baseVersions: { linen: '1.0.0', neat: '1.0.0' }, headManifests }),
+    [{ id: 'neat', version: '1.0.1' }]);
+  const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'unit-tests.yml'), 'utf8');
+  assert.match(workflow, /node scripts\/check-plugin-versions\.mjs --base "origin\/\$\{\{ github\.base_ref \}\}"/);
+  const skill = fs.readFileSync(path.join(ROOT, '.claude', 'skills', 'guestflow-release', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(skill, /git add server\/src\/plugins/);
 });
 
 test('rule 5: every host import is rewritten to a read of the host modules; a stray bare import fails', async () => {
@@ -88,23 +162,16 @@ test('rule 23, P26: a plugin that changed since the previous tag must carry a ne
   assert.equal(bumpPatch('1.2.9'), '1.2.10');
 });
 
-test('rule 24: `plugin:<id>` bullets go to the core section and to the manifest of that version', async () => {
-  const { extractPluginLines, foldIntoManifests } = await load('build-changelog.mjs');
-  const { byKey, pluginLines } = extractPluginLines({
-    fixed: ['- plugin:linen Le stock des serviettes\n  se lit sur la bonne semaine.', '- A core fix.'],
-    added: ['- plugin:linen — Une alerte de rupture.'],
+test('rules 24, 28: `plugin:<id>` bullets name the plugin in the core section; the fold edits no manifest', async () => {
+  const { extractPluginLines } = await load('build-changelog.mjs');
+  const { byKey } = extractPluginLines({
+    fixed: ['- plugin:linen The towel stock\n  is read on the right week.', '- A core fix.'],
+    added: ['- plugin:linen — A shortage alert.'],
   });
-  assert.deepEqual(byKey.fixed, ['- **Plugin `linen`** — Le stock des serviettes se lit sur la bonne semaine.', '- A core fix.']);
-  assert.deepEqual(pluginLines, { linen: ['Le stock des serviettes se lit sur la bonne semaine.', 'Une alerte de rupture.'] });
-
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-fold-'));
-  fs.mkdirSync(path.join(dir, 'linen'));
-  fs.writeFileSync(path.join(dir, 'linen', 'manifest.json'), JSON.stringify({ id: 'linen', version: '1.0.1', changelog: { '1.0.0': ['Première.'] } }));
-  assert.deepEqual(foldIntoManifests(pluginLines, { pluginsDir: dir }), ['linen@1.0.1']);
-  const m = JSON.parse(fs.readFileSync(path.join(dir, 'linen', 'manifest.json'), 'utf8'));
-  assert.deepEqual(m.changelog['1.0.1'], pluginLines.linen);
-  assert.deepEqual(m.changelog['1.0.0'], ['Première.']);
-  assert.throws(() => foldIntoManifests({ ghost: ['x'] }, { pluginsDir: dir }), /unknown plugin "ghost"/);
+  assert.deepEqual(byKey.fixed, ['- **Plugin `linen`** — The towel stock is read on the right week.', '- A core fix.']);
+  assert.deepEqual(byKey.added, ['- **Plugin `linen`** — A shortage alert.']);
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'build-changelog.mjs'), 'utf8');
+  assert.doesNotMatch(source, /manifest\.json/);
 });
 
 test('rule 23: the release workflow builds the packages, checks the versions and ships plugins-dist', () => {

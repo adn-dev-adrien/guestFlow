@@ -50,12 +50,12 @@ const STATUS = {
 
 let onReload;
 
-function renderPage() {
+function renderPage({ restartTimeoutMs } = {}) {
   onReload = vi.fn();
   return render(
     <MemoryRouter>
       <ThemeProvider theme={theme}>
-        <DialogProvider><PluginsPage onReload={onReload} pollMs={5} /></DialogProvider>
+        <DialogProvider><PluginsPage onReload={onReload} pollMs={5} restartTimeoutMs={restartTimeoutMs} /></DialogProvider>
       </ThemeProvider>
     </MemoryRouter>
   );
@@ -168,6 +168,11 @@ test('rule 16: « Revenir à la version précédente » is in the detail while t
   await userEvent.click(await screen.findByText('Linge et blanchisserie'));
   expect(screen.getByText('Version 1.0.0, possible jusqu’au 15/10.')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Revenir à la version précédente' }));
+  // Rule 32 — it asks first.
+  expect(api.rollbackPlugin).not.toHaveBeenCalled();
+  const confirm = await screen.findByRole('dialog');
+  expect(confirm).toHaveTextContent('Revenir à Linge et blanchisserie 1.0.0');
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Revenir' }));
   expect(api.rollbackPlugin).toHaveBeenCalledWith('linen');
   expect(await screen.findByText('Redémarrage en cours')).toBeInTheDocument();
 });
@@ -206,4 +211,16 @@ test('rule 18: a plugin whose bundle did not load is shown failed; the page stil
   const linen = await waitFor(() => card('Linge et blanchisserie'));
   expect(within(linen).getByText('Échec du chargement.')).toBeInTheDocument();
   expect(within(card('Assurance annulation Neat')).getByText('Actif')).toBeInTheDocument();
+});
+
+test('rule 32: a restart that does not come back in time says so and offers to try again', async () => {
+  api.getPlugins.mockResolvedValue([plugin('linen', 'Linge et blanchisserie', 'active', { update: UPDATE })]);
+  api.updatePlugin.mockResolvedValue({ restarting: true });
+  renderPage({ restartTimeoutMs: 30 });
+  await userEvent.click(await screen.findByText('Mise à jour 1.2.0'));
+  await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Mettre à jour' }));
+  expect(await screen.findByText('Le redémarrage est plus long que prévu.')).toBeInTheDocument();
+  api.getRuntimeVersion.mockResolvedValue({ startedAt: 'boot-2' });
+  await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+  await waitFor(() => expect(onReload).toHaveBeenCalled());
 });
