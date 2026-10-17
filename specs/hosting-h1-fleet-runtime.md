@@ -409,7 +409,13 @@ Implemented 2026-10-08 → 2026-10-17 on `feature/hosting-h1-fleet-runtime` (PR 
   (5) unit suites, and
   `hosting-lifecycle.integration.test.js` (real instances, local drivers, ~8 s) in the
   `console-server` CI job. C-phase suites updated where a manual step became automatic.
-- Instance: `hosting-managed-instance.unit.test.js` (11).
+- Instance: `hosting-managed-instance.unit.test.js` (12).
+
+**After merging #693 (2026-10-17):** the email-texts page's « M'envoyer un test » goes through the
+account mailer, whose `available()` is `smtpConfigured()` — true on a managed instance without its own
+SMTP — and which sends through `createEmailService`: the test leaves by the platform, From the
+company's name at the platform address, Reply-To the company, counted in the day's quota. Previews
+need no SMTP. Covered by a rule 19 test.
 - Console client: `CustomerPage.hosting`, `FleetPage.hosting`, `VersionsPage.updates`. Instance client:
   `SettingsSystemUpdateSection.managed`, `SettingsSmtpSection.platform`.
 

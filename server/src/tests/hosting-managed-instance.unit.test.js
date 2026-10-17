@@ -247,3 +247,33 @@ test('rule 21 — forwarded headers count only with the proxy’s secret; withou
   assert.deepEqual(run('s3cret', xff), { host: 'aulnes.guestflow.fr' });
   assert.deepEqual(run(null, xff), xff, 'self-hosted: unchanged');
 });
+
+test('rule 19 — « M’envoyer un test » and the account emails go through the platform on a managed instance', async () => {
+  const { createAccountMailer } = require('../utils/accountMailer');
+  const settingsModel = require('../models/settingsModel');
+  const dir = tmp();
+  const env = {
+    NODE_ENV: 'production', GUESTFLOW_MANAGED: '1', GUESTFLOW_PLATFORM_SMTP_OUTBOX: path.join(dir, 'outbox'),
+    GUESTFLOW_PLATFORM_SMTP_FROM: 'noreply@guestflow.test', GUESTFLOW_PLATFORM_MAIL_DAILY_LIMIT: '300', DB_PATH: path.join(dir, 'guestflow.db'),
+  };
+  try {
+    await withEnv(env, async () => {
+      const smtpHost = String(settingsModel.read().smtpHost || '').trim();
+      if (!smtpHost) assert.equal(settingsModel.smtpConfigured(), true, 'no host of its own: the platform counts as configured');
+      const mailer = createAccountMailer({
+        settingsModel: { ...settingsModel, smtpConfigured: () => platformMail.available(), decryptedSmtpSettings: () => ({ host: '', fromEmail: 'claire@aulnes.fr', fromName: 'Gîte des Aulnes' }) },
+        env,
+      });
+      assert.equal(mailer.available(), true, 'the test-send button is offered');
+      await mailer.send({ to: 'claire@aulnes.fr', subject: '[Test] Votre arrivée', text: 'Bonjour' });
+      const [file] = fs.readdirSync(path.join(dir, 'outbox'));
+      const msg = JSON.parse(fs.readFileSync(path.join(dir, 'outbox', file), 'utf8'));
+      assert.equal(msg.from, '"Gîte des Aulnes" <noreply@guestflow.test>');
+      assert.equal(msg.replyTo, 'claire@aulnes.fr');
+      assert.equal(msg.subject, '[Test] Votre arrivée');
+      assert.equal(platformMail.readCount({ file: path.join(dir, 'platform-mail.json') }), 1, 'counted in the day’s quota');
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
