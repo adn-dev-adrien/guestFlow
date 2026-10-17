@@ -6,7 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { setup, call } = require('./emailTextsFixture');
-const { VARIABLES, FLAGS, chipsForTemplate, chipsForText, tokenError, templateAllowed } = require('../utils/templateTokens');
+const { VARIABLES, FLAGS, chipsForTemplate, chipsForSubject, chipsForText, tokenError, templateAllowed } = require('../utils/templateTokens');
 const { buildContext } = require('../utils/emailContextBuilder');
 const { loadReservationGraph } = require('../utils/reservationEmailGraph');
 const { CATALOGUE } = require('../utils/stayTextCatalogue');
@@ -36,6 +36,12 @@ test('rule 10: a template gets the chips of its email, plus any name it already 
   const used = new Set(`${j7.subject} ${j7.body}`.match(/\{\{\s*(?:#if\s+)?[A-Za-z0-9_]+\s*\}\}/g).map((m) => m.replace(/[{}\s]|#if/g, '')));
   const offered = new Set([...names, ...chips.conditions.map((c) => c.name)]);
   assert.deepEqual([...used].filter((n) => !offered.has(n)), []);
+
+  // A subject gets the variables of every email and what it already uses, no paragraph, no condition.
+  const subject = chipsForSubject({ subject: 'Bonjour {{clientFirstName}} {{arrivalWeekday}}' });
+  assert.ok(subject.variables.some((v) => v.name === 'arrivalWeekday'));
+  assert.ok(!subject.variables.some((v) => v.name === 'bedsParagraph'));
+  assert.deepEqual(subject.conditions, []);
 
   const odd = { ...j7, body: `${j7.body} {{giftVoucherOffer}}` };
   assert.ok(chipsForTemplate(odd).variables.some((v) => v.name === 'giftVoucherOffer'));

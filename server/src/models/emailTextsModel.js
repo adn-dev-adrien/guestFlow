@@ -20,7 +20,7 @@
 const { CATALOGUE, entryOf, MENTION_OFFER, MENTION_BOOKED } = require('../utils/stayTextCatalogue');
 const { DEFAULT_TEMPLATES, PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
 const {
-  SECTIONS, SECTION_OF_MAIL, sectionOfStableKey, templateAllowed, chipsForTemplate, chipsForText, tokenError,
+  SECTIONS, SECTION_OF_MAIL, sectionOfStableKey, templateAllowed, chipsForSubject, chipsForText, tokenError,
 } = require('../utils/templateTokens');
 const stayTextsModel = require('./stayTextsModel');
 const emailMentionsModel = require('./emailMentionsModel');
@@ -71,7 +71,7 @@ function buildModel(database) {
       en: str(t.subjectEn),
       defaultFr: defaultSubject(t.stableKey).fr,
       defaultEn: defaultSubject(t.stableKey).en,
-      chips: chipsForTemplate(t),
+      chips: chipsForSubject(t),
       allowed: templateAllowed(),
       required: true,
     }));

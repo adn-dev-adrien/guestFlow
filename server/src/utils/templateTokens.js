@@ -235,6 +235,18 @@ function chipsForTemplate(template) {
   };
 }
 
+/**
+ * Chips of a subject line: the variables of every email (guest, property, company), plus any the
+ * subject already uses — never the paragraphs or the conditions, which have no place in a subject.
+ */
+function chipsForSubject(template) {
+  const used = new Set([...namesUsed(template && template.subject), ...namesUsed(template && template.subjectEn)]);
+  return {
+    variables: VARIABLES.filter((v) => !v.in || used.has(v.name)).map(({ name, label }) => ({ name, label })),
+    conditions: FLAGS.filter((f) => used.has(f.name)).map(({ name, label }) => ({ name, label })),
+  };
+}
+
 /** Chips of a stay text or a mention: its own tokens and flags, labelled. */
 function chipsForText({ tokens = [], flags = [] } = {}) {
   return {
@@ -261,6 +273,7 @@ module.exports = {
   sectionOfStableKey,
   templateAllowed,
   chipsForTemplate,
+  chipsForSubject,
   chipsForText,
   tokenError,
   namesUsed,

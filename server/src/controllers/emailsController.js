@@ -28,7 +28,7 @@ const { buildDraftPreview } = require('../utils/emailDraftPreview');
 // Templates that re-offer an existing payment link (injected read-only at preview/send time).
 const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
 
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences }) {
+function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, testMailer = null }) {
   // specs/guest-email-sequence.md rules 12-13bis — the ledger key a sequence email is sent under
   // from this controller. Null for every other template (payment emails keep their own rules).
   // A season email sent by hand counts for the season that just passed or is coming.
@@ -452,9 +452,10 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   // Rule 15 — the previewed email, to the company's own address, « [Test] » in front of the subject.
-  // Nothing is written: no email_log row, no ledger key, no queue change.
+  // Nothing is written: no email_log row, no ledger key, no queue change. `testMailer` is the account
+  // mailer, so a development instance's mail catcher (GUESTFLOW_MAIL_OUTBOX) receives the test too.
   async function sendTest(req, res) {
-    if (!smtpConfigured()) {
+    if (!(testMailer ? testMailer.available() : smtpConfigured())) {
       return res.status(409).json({ error: 'EMAIL_NOT_CONFIGURED', message: 'SMTP non configuré : Paramètres › Emails' });
     }
     const result = draftPreview.render(req.body || {});
@@ -463,7 +464,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const to = String(settings.companyEmail || '').trim() || resolveEmailIdentity(settings).fromEmail;
     if (!to) return res.status(409).json({ error: 'NO_COMPANY_EMAIL', message: 'Email de l’entreprise manquant : Paramètres › Établissement' });
     try {
-      await buildEmailService().send({ to, subject: `[Test] ${result.payload.subject}`, text: result.payload.body });
+      const message = { to, subject: `[Test] ${result.payload.subject}`, text: result.payload.body };
+      if (testMailer) await testMailer.send(message);
+      else await buildEmailService().send(message);
       return res.json({ ok: true, to });
     } catch (err) {
       const notConfigured = err && err.code === 'EMAIL_NOT_CONFIGURED';

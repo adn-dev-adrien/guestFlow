@@ -124,6 +124,9 @@ email shown beside the text. The whole wording can also go out and come back as 
 11. Templates, stay texts and mentions share one validation. An unknown token is refused with the same
     422 and the same message everywhere.
 
+    *2026-10-17:* a subject line offers only the variables of every email (guest, property, company)
+    and those it already uses — no paragraph, no condition; the full list made the field unreadable.
+
     *2026-10-08:* the validator also refuses a `{{…}}` whose name is not a plain identifier (a space, an
     accent): the renderer would have left it as literal braces. A template validates against the whole
     catalogue plus every registered plugin's names; the chips are scoped to its email.
@@ -159,6 +162,10 @@ email shown beside the text. The whole wording can also go out and come back as 
     preview says (« Texte anglais manquant : phrase absente de l'email anglais ») and the readiness list
     reports. The company address is `companyEmail`, else the sender address; without either the test is
     refused, naming Paramètres › Établissement.
+
+    *2026-10-17:* the test goes through the account mailer of specs/hosting-h2-account-security.md, so a
+    development instance with `GUESTFLOW_MAIL_OUTBOX` writes it to the mail catcher instead of SMTP. The
+    preview renders again after every save or import.
 
 ### 3.E One file out, one file in
 
@@ -350,16 +357,25 @@ instruction to run the plan through.
 
 Implemented 2026-10-08 on `feature/email-texts-made-simple`.
 
-**Server (39 tests, 8 files, one per subject):** `email-texts-arrival-facts` (5, rules 1–5),
+**Server (40 tests, 8 files, one per subject):** `email-texts-arrival-facts` (5, rules 1–5),
 `email-texts-readiness` (8, rules 6–8), `email-texts-tokens` (5, rules 10–11), `email-texts-page` (2,
-rule 9), `email-texts-csv` (5, rules 16–18), `email-texts-preview` (6, rules 13–15),
+rule 9), `email-texts-csv` (5, rules 16–18), `email-texts-preview` (7, rules 13–15),
 `email-texts-translator` (4, rules 19–20), `email-texts-onboarding` (4, rule 21). The golden test
-`productisation-golden` is unchanged and green. Server suite: 4,949 tests.
+`productisation-golden` is unchanged and green. Server suite after merging `inte/plugins` (H2, #683):
+5,028 tests.
 
 **Client (Vitest):** `EmailTextsSettingsPage` (5), `EmailTextsSettingsPage.preview` (4),
 `EmailTextsSettingsPage.file` (4), `TokenTextField` (3), `ReadinessList` (3), `EmailPreviewPane` (3),
 `PropertyArrivalFacts` (2), `EmailTemplatesPage.texts-link` (2), `OnboardingPage.emails-step` (2);
 `PropertyStayTexts` (1) and `EmailTemplatesPage.property-hooks` deleted with their components.
+
+**E2E:** `e2e/specs/emails/email-texts.spec.js` (2): the arrival facts in the J-2 preview and a test send
+read back from the dev mail catcher; export, then re-import with one changed and one refused row.
+`onboarding.spec.js` follows the fifth step.
+
+**Manual check:** the page, typing with the live preview, FR/EN, export then import with a refused row,
+the property « Arrivée » block and the assistant's « Vos emails » at 390, 900 and 1280 px, on a copy of
+the dev database: no console error, no horizontal scroll.
 
 **Solio, measured on a copy of the dev database (65 reservations, 12 templates):** every template ×
 every reservation × FR/EN rendered before and after through the real preview path: 1,560 renderings

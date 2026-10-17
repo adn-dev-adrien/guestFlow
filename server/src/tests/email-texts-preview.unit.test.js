@@ -7,6 +7,8 @@ const assert = require('node:assert/strict');
 
 const { setup, call, isoDay } = require('./emailTextsFixture');
 const { seedReservation, seedClient } = require('./guestEmailSequenceFixtures');
+const { buildController: buildEmails } = require('../controllers/emailsController');
+const emailTemplatesModel = require('../models/emailTemplatesModel');
 
 test('rule 13: the draft is rendered on the next stay that receives the email, and nothing is saved', async () => {
   const { db, emails, reservationId, templateId } = setup();
@@ -102,5 +104,21 @@ test('rule 15: without SMTP the test is refused, naming Paramètres › Emails, 
   assert.equal(res.body.error, 'EMAIL_NOT_CONFIGURED');
   assert.match(res.body.message, /Paramètres › Emails/);
   assert.equal(mail.sent.length, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM email_log').get().n, 0);
+});
+
+test('rule 15: on a development instance the test lands in the mail catcher, SMTP or not', async () => {
+  const { db, templateId } = setup({ smtp: false });
+  const caught = [];
+  const emails = buildEmails({
+    database: db,
+    templatesModel: emailTemplatesModel.buildModel(db),
+    settingsModel: { read: () => ({ companyEmail: 'contact@lespres.fr' }), smtpConfigured: () => false },
+    testMailer: { available: () => true, send: async (m) => { caught.push(m); } },
+  });
+  const res = await call(emails.sendTest, { body: { templateId: templateId('arrival_reminder_1d') } });
+  assert.equal(res.status, 200);
+  assert.equal(caught.length, 1);
+  assert.match(caught[0].subject, /^\[Test\] /);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM email_log').get().n, 0);
 });

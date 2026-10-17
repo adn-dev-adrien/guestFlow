@@ -21,6 +21,7 @@ const controller = buildController({
   emailServiceFactory: createEmailService,
   ledger,
   preferences,
+  testMailer: require('../utils/accountMailer').createAccountMailer({ settingsModel }),
 });
 
 router.get('/preview', controller.preview);

@@ -69,6 +69,8 @@ export default function EmailTextsSettingsPage() {
   const [fullTemplate, setFullTemplate] = useState(null);
   const [importPlan, setImportPlan] = useState(null);
   const [busy, setBusy] = useState(false);
+  // Bumped on every load, so the preview re-renders what was just saved or imported.
+  const [revision, setRevision] = useState(0);
 
   const propertyParam = new URLSearchParams(location.search).get('propertyId');
 
@@ -77,6 +79,7 @@ export default function EmailTextsSettingsPage() {
       const [texts, ready] = await Promise.all([api.getEmailTexts(propertyParam), api.getEmailReadiness()]);
       setData(texts);
       setReadiness(ready.items || []);
+      setRevision((r) => r + 1);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -125,7 +128,7 @@ export default function EmailTextsSettingsPage() {
       }
     }, PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [previewBody, templateId, tab]);
+  }, [previewBody, templateId, tab, revision]);
 
   async function sendTest() {
     setTestMessage('');
