@@ -47,6 +47,10 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
    - at most 20 per IP address per hour.
 
    A request above the limit gets the same answer as rule 1, and nothing is sent.
+   - Added 2026-10-17 (review): an address is counted only for a caller still under the IP limit,
+     so a flood from one IP does not use up the hourly quota of the addresses it names. The counters
+     stay bounded in memory: expired entries are swept on a timer and past 10 000 keys the oldest
+     gives way.
 4. The link opens « Nouveau mot de passe », which applies the existing password rules. Saving it ends
    every session of that user and logs the user in.
 5. The email uses the instance's mail transport. This is the platform sender on a managed instance
@@ -55,6 +59,8 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
      (Réglages › Système, else `GUESTFLOW_PUBLIC_URL` set by the hosting), never to the request's
      `Host` header, which a caller chooses. Without that address the link is not offered either.
    - The answer leaves before the email, so a known and an unknown address cost the same time.
+     Since 2026-10-17 (review) it leaves before the address is even looked up: the counters, the
+     lookup, the token and the email all run after the response.
    - `GUESTFLOW_MAIL_OUTBOX=<dir>` writes the account emails as files instead of sending them: the dev
      mail catcher of the E2E suite. It is refused when `NODE_ENV=production`.
 
@@ -65,6 +71,8 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
    - **or a code sent by email.**
 
    Turning it on shows 10 single-use backup codes once, with « Télécharger » and « Copier ».
+   Since 2026-10-17 (review) that dialog closes on « Terminé » only, never on a click outside or
+   Escape: the codes are not shown again.
    - Details (2026-10-08, at implementation): turning it on, turning it off and renewing the backup
      codes ask for the password again; 5 wrong codes while enrolling cancel the enrolment; a TOTP code
      is accepted once (its time step is remembered), as on the console.
@@ -76,6 +84,9 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
      the second step was turned on, so a new password or a step turned off revokes every trust given
      before, with no table to purge. One cookie per account (`guestflow.trust.<id>`, `HttpOnly`,
      path `/api/auth`).
+   - The code screen (2026-10-17, review): « Utiliser un code de secours » switches the field to the
+     letter keyboard; « Utiliser le code de l'application » (or « Utiliser le code reçu par email »)
+     switches back to the numeric keypad. A backup code pasted in the numeric field is still taken.
 8. **Entering codes is limited:** 5 wrong codes lock the step for 15 minutes.
 9. **An administrator can turn off another user's second step**, for example after a lost phone. This
    is recorded in the user history. Nobody can read another user's TOTP secret, which is stored
@@ -107,15 +118,54 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 15. **The support user's actions are traced.** Every request it makes that changes data, and every
     page it opens, is written to `support_access_log`. Paramètres › Accès du support lists the
     accesses and their logs, read-only.
+    - Clarified 2026-10-17 (review): what the support session may not do (its own access, the account
+      it borrows, rule 18) is judged on the path Express actually routes — any letter case, a trailing
+      slash, doubled slashes — and refused again by the access controller itself, whatever the path.
+      A refused request is logged too. The reads are logged by the server as well (rule 19).
 16. **The support session shows a red bar « Session support — <expiry> »** so screenshots are never
     mistaken for the customer's own.
+    - 2026-10-17 (review): on a phone the bar keeps clear of the home indicator
+      (`env(safe-area-inset-bottom)`).
 17. **An instance without licence key cannot be opened.** On an instance that is not managed (no
     `GUESTFLOW_LICENCE_PUBLIC_KEY`), support access is not offered at all and its page is hidden.
+18. **A support session changes no account and no credential** (added 2026-10-17, review). Whatever
+    the administrator rights it borrows, it answers 403 « Identifiants et accès réservés au client. »
+    on:
+    - any write under `/api/users` (creating an account, changing an email or roles, resetting a
+      password, turning off someone's second step) — reading stays possible;
+    - the settings that hold a credential or where the account emails point: the SMTP connection
+      (`smtp` group: host, security, user, password, public address), a plugin setting declared
+      `secret`, the Google connection (`/api/google-calendar/oauth/*`, the calendar), the Qonto
+      credentials and provider connection, the Neat credentials and environment.
+
+    Nothing the support does can therefore outlive the access.
+19. **The server logs what the support reads too** (added 2026-10-17, review). Every `GET` of a
+    support session is written to `support_access_log`, once per path and per minute, besides the
+    pages the client reports (rule 15). What the application polls by itself (`/api/auth/*`,
+    `/api/support-access/*`, `/api/version`) is not.
+20. **The customer reads the log in plain French** (added 2026-10-17, review). The server words each
+    entry — « Réservation 12 modifiée », « Consultation : Réservations », « Page ouverte : Planning »,
+    « Connexion du support » — with its outcome « Effectué » or « Refusé ». No method, raw path or
+    HTTP code is shown; the table keeps them.
+21. **The support account is told by a flag, never by its email** (added 2026-10-17, review).
+    - `users.isSupportAccount` marks it; an existing database marks the account it already has.
+    - A support session is recognised by the marker its sign-in link leaves in the session, so a
+      changed account could not escape the guard either.
+    - No write of the users model touches it: identity, email, roles, password, active flag
+      (`SUPPORT_ACCOUNT_LOCKED`, 403 on « Mon compte »). Only the access lifecycle opens a session
+      with it.
+    - The admin recovery (`reset-admin.js`) never picks it: on an instance whose bootstrap admin was
+      removed by `create-first-admin.js`, it restores the customer's oldest administrator.
+22. **A managed instance accepts support only for its own slug** (added 2026-10-17, review). With
+    `GUESTFLOW_LICENCE_PUBLIC_KEY` set, the request file and the sign-in link must name the instance's
+    slug: `GUESTFLOW_SLUG` when the hosting sets it, else the slug of the verified licence (the
+    console's provisioning does not set `GUESTFLOW_SLUG`). An instance that can tell neither accepts
+    nothing.
 
 **Implementation choices (2026-10-08, the recommended options, see the summary page):**
 - **The channel.** The console signs the request with the licence key and writes it to
   `<dataDir>/support-request.jws`, next to the licence; the instance verifies it with
-  `GUESTFLOW_LICENCE_PUBLIC_KEY` (and `GUESTFLOW_SLUG` when set) when an administrator loads a page.
+  `GUESTFLOW_LICENCE_PUBLIC_KEY` and its slug (rule 22) when an administrator loads a page.
   The console reads the access state in the instance's database, read-only, like the directory. No
   port and no endpoint are added on the instance; `GET /api/support-access/state` was not needed.
 - **The support account** (`support@guestflow.invalid`, « Support GuestFlow », admin role) stays
@@ -123,9 +173,11 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
   signed link open its session. It is therefore never counted in the plan's quota, never listed in
   the console's directory nor in Paramètres › Utilisateurs, and cannot be edited (404).
 - **What the support session cannot do:** decide or revoke its own access, change the password,
-  touch the second step or the profile of the account it borrows (403).
-- **The trace:** every write is logged with its HTTP status, and every page opened is reported by
-  the client (`POST /api/support-access/page`). The red bar sits at the bottom of the screen, clear
+  touch the second step or the profile of the account it borrows (403), nor any account or
+  credential (rule 18).
+- **The trace:** every write is logged with its HTTP status, every read once a minute (rule 19), and
+  every page opened is reported by the client (`POST /api/support-access/page`); the customer reads
+  them worded (rule 20). The red bar sits at the bottom of the screen, clear
   of the app bar and the sticky action bars, with « Quitter ».
 - **Read-only instance:** deciding, revoking and an admin turning off another user's second step
   stay allowed while the subscription is unpaid.
@@ -152,14 +204,18 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 | `controllers/` | `twoFactorController.js` | C | Rules 6–10 |
 | `controllers/` | `supportAccessController.js` | C | Rules 12–17 |
 | `models/` | `passwordResetModel.js`, `twoFactorModel.js`, `supportAccessModel.js` | C | Tokens, secrets, accesses, log |
-| `middleware/` | `supportAudit.js` | C | Rule 15 |
-| `utils/` | `rateLimiter.js` | C | Rule 3: an in-memory sliding window (express-rate-limit answers 429; the forgotten password must answer the same). Rule 8 is counted in `user_two_factor` |
+| `middleware/` | `supportAudit.js` | C | Rules 15, 18, 19: the support session's guard (by its session marker) and trace |
+| `utils/` | `supportSessionPolicy.js` | C | Rules 15, 18: what a support session may not do, on the normalised path |
+| `utils/` | `supportLogLabels.js` | C | Rule 20: the log entries worded for the customer |
+| `utils/` | `rateLimiter.js` | C | Rule 3: an in-memory sliding window, swept and capped (express-rate-limit answers 429; the forgotten password must answer the same). Rule 8 is counted in `user_two_factor` |
 | shared | `server/src/utils/totp.js` | T (moved) | Rule 11: TOTP + backup codes, moved from `control-plane/server/src/utils/totp.js`; the console requires it through `utils/gf.js`, its existing shared location |
 | shared | `utils/supportAccess.js` | C | Rules 12, 14: the signed request and sign-in link, signed by the console and verified by the instance (same JWS as the licence) |
 | `utils/` | `accountMailer.js`, `deviceTrust.js`, `httpError.js`, `accountSecurityServices.js`, `accountSecuritySchema.js` | C | The mail transport + dev outbox (rule 5), the trusted-device cookie (rule 7), controller errors, the wiring, the tables (§5) |
-| `routes/` | `supportAccess.js`, `users.js` | C/T | Paramètres › Accès du support; `DELETE /api/users/:id/two-factor` (rule 9) |
+| `routes/` | `supportAccess.js`, `users.js` | C/T | Paramètres › Accès du support (`buildRouter` for tests; a support session is flagged by its marker); `DELETE /api/users/:id/two-factor` (rule 9) |
 | `middleware/` | `enforceSubscription.js` | T | Support decisions and the admin's « turn off » stay allowed when read-only |
-| `scripts/` | `reset-admin.js` | T | `--disable-2fa` |
+| `scripts/` | `reset-admin.js` | T | `--disable-2fa`; never restores the support account (rule 21, through `usersModel.resetAdminToDefault`) |
+| `models/` | `usersModel.js` | T | Rule 21: `isSupport` from `isSupportAccount`, `findSupportAccount()`, every write refuses the support row |
+| `utils/` | `licence.js` | T | Rule 22: `slug()`, the instance's slug as the verified licence names it |
 
 ### 4.2 Console (`control-plane/`)
 
@@ -184,7 +240,8 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
   - `SupportAccessBanner`;
   - `SupportSessionBar`;
   - `BackupCodesDialog`;
-  - `OneTimeCodeField` (generic, also usable by the console);
+  - `OneTimeCodeField` (generic, also usable by the console; « Utiliser un code de secours »
+    switch, rule 7);
   - `SecondFactorForm` (the second step, shared by the login and the reset page);
   - `AuthCard` (generic: the centred card of the pre-session screens);
   - `TwoFactorSection` (« Mon compte »), `TwoFactorNudgeCard` (dashboard, rule 10).
@@ -206,7 +263,7 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 | POST | `/api/auth/2fa/start`, `/confirm`, `/disable`, `/backup-codes`, `/snooze` | session | 6, 10 |
 | GET | `/api/auth/support?token=` | public | 14 — redirects to `/`, or to `/login?reason=support-link` |
 | DELETE | `/api/users/:id/two-factor` | admin | 9 |
-| GET | `/api/support-access`, `/banner`, `/:id/log` | admin | 12, 15 |
+| GET | `/api/support-access`, `/banner`, `/:id/log` | admin | 12, 15, 20 — log entries `{ at, atLabel, label, outcomeLabel }` |
 | POST | `/api/support-access/:id/decide` `{ decision, hours }`, `/:id/revoke`, `/page` | admin | 13, 15 |
 
 `/api/auth/me` gains `supportAccessEnabled` and `supportSession: { expiresAt } | null`.
@@ -234,6 +291,8 @@ Added at implementation (2026-10-08), all created by `utils/accountSecuritySchem
 - `support_access` also has `requestId` (unique: a decided request never comes back), `decision`
   (`accepted` / `refused`) and `revokedBy`.
 - `support_access_links(jti PK, accessId, usedAt)` — the sign-in links already used (rule 14).
+- Added 2026-10-17 (review): `users.isSupportAccount INTEGER NOT NULL DEFAULT 0` — the support
+  account's flag (rule 21), set on the existing support row by its creation address.
 
 ## 6. UI / UX
 
@@ -256,9 +315,15 @@ See the summary page. Mobile:
 - an admin turns off another user's second step;
 - the support link: signature, 2 minutes, single use, no open access means refused;
 - the audit log is written;
-- expiry ends the session.
+- expiry ends the session;
+- 2026-10-17 (review): the guard through a real Express router with odd casing and trailing slashes,
+  the controller refusing the support on its own, rule 18's refusals, the reads logged once a
+  minute, the worded log, the support account's flag and locks, `reset-admin.js` after
+  `create-first-admin.js`, the slug from the licence, the forgotten password answering before any
+  lookup, the bounded counters.
 
-**Client unit tests:** the second-step screen, the banner states and the support bar.
+**Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
+switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).
 
 **E2E:**
 - forgot password through the dev mail catcher;
@@ -283,12 +348,15 @@ through.
 
 Implemented 2026-10-08 on `feature/hosting-h2-account-security` (target `inte/plugins`).
 
-- **Server:** 3 suites, one per subject — `hosting-h2-password-reset` (13 tests), `hosting-h2-two-factor`
-  (17), `hosting-h2-support-access` (13) — over the shared fixture `accountSecurityFixture.js`.
+- **Server:** 5 suites, one per subject — `hosting-h2-password-reset` (16 tests), `hosting-h2-two-factor`
+  (17), `hosting-h2-support-access` (13), and since the 2026-10-17 review `hosting-h2-support-guard`
+  (6, rules 15, 18-20) and `hosting-h2-support-account` (7, rules 21-22) — over the shared fixture
+  `accountSecurityFixture.js`.
   `control-plane-first-admin` now ignores the support account.
 - **Console:** `support-access.unit.test.js` (5); the operator 2FA suite (`operator-auth`) runs on the
   moved TOTP module unchanged.
-- **Client:** `SecondFactorForm.second-step` (5), `SupportAccessBanner.states` (4),
+- **Client:** `SecondFactorForm.second-step` (5), `OneTimeCodeField.backup-code` (3),
+  `BackupCodesDialog.closing` (1), `SupportAccessBanner.states` (4),
   `SupportSessionBar.support-bar` (2), `roles.support-access` (2); the role suites give their admin
   `supportAccessEnabled`. Console client: `SupportAccessSection.support-access` (3).
 - **E2E:** `e2e/specs/account-security/hosting-h2.spec.js` (3), through the dev outbox and a TEST-ONLY
@@ -298,3 +366,12 @@ Implemented 2026-10-08 on `feature/hosting-h2-account-security` (target `inte/pl
   with a computed code, trusted device, backup code at login, lock after 5 codes, banner, support
   session with its red bar, reuse of a link refused, journal, revocation ending the support session,
   plain login of an account without a second step unchanged. No console error.
+
+**Review fixes (2026-10-17, `fix/h2-review-findings`, target `inte/plugins`):** the guard judged on the
+routed path and doubled in the access controller (rule 15); the support account told by a flag and
+locked in the model, never picked by the admin recovery (rule 21); no account or credential write by
+a support session (rule 18); the reads logged server-side (rule 19) and the log worded for the
+customer (rule 20); the slug required, taken from the licence when the hosting does not set it
+(rule 22); the forgotten password answering before any lookup, bounded counters (rules 3, 5); the
+backup-code switch (rule 7), the backup codes dialog closed by « Terminé » only (rule 6), the red bar
+clear of the home indicator (rule 16).

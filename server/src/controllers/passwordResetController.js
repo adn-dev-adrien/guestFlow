@@ -2,7 +2,7 @@
  * Forgotten password (specs/hosting-h2-account-security.md rules 1–5).
  *
  * - The answer to a request never says whether the address has an account (rule 1), and costs the
- *   same time either way: the email leaves after the answer.
+ *   same time either way: it is sent before the address is even looked up.
  * - A link is valid 1 hour and works once; only the SHA-256 of its token is stored; a new link voids
  *   the older ones (rule 2).
  * - 3 requests per address and 20 per IP per hour; above, the same answer and nothing sent (rule 3).
@@ -32,6 +32,7 @@ function createPasswordResetController({
   twoFactorModel,
   now = () => new Date(),
   log = (msg) => console.error(msg),
+  defer = setImmediate,
 }) {
   const nowIso = () => now().toISOString();
   const perEmail = createWindowCounter({ windowMs: HOUR_MS, max: PER_EMAIL, now: () => now().getTime() });
@@ -43,22 +44,41 @@ function createPasswordResetController({
     return { forgotPassword: available() };
   }
 
-  // → { message, delivery } — `delivery` is the pending send (tests await it; the route does not).
+  // → { message, delivery } — the answer is ready before anything is looked up: the lookup, the
+  // counters, the token and the email all run on a later turn of the event loop (`defer`), so a known
+  // and an unknown address answer in the same time. `delivery` settles with that work (tests await
+  // it; the route does not).
   function request({ email, ip }) {
     const answer = { message: SAME_ANSWER };
-    const address = normalizeEmail(email);
-    if (!available() || !address) return { ...answer, delivery: Promise.resolve(false) };
-    const ipOk = perIp.hit(ip || 'unknown');
-    const emailOk = perEmail.hit(address);
-    if (!ipOk || !emailOk) return { ...answer, delivery: Promise.resolve(false) };
+    const delivery = new Promise((resolve) => {
+      defer(() => {
+        let work;
+        try {
+          work = deliver(normalizeEmail(email), ip);
+        } catch (err) {
+          log(`[passwordReset] request failed: ${err && err.message}`);
+          work = false;
+        }
+        resolve(work);
+      });
+    });
+    return { ...answer, delivery };
+  }
+
+  function deliver(address, ip) {
+    if (!available() || !address) return false;
+    // An address is counted only for a caller still under the IP limit: a flood from one IP must
+    // not use up the hourly quota of the addresses it names.
+    if (!perIp.hit(ip || 'unknown')) return false;
+    if (!perEmail.hit(address)) return false;
 
     const user = users.findByEmail(address);
-    if (!user || !user.isActive || user.isSupport) return { ...answer, delivery: Promise.resolve(false) };
+    if (!user || !user.isActive || user.isSupport) return false;
 
     const token = crypto.randomBytes(32).toString('base64url');
     model.create(user.id, sha256(token), new Date(now().getTime() + LINK_MINUTES * 60000).toISOString(), nowIso());
     const link = `${mailer.publicUrl()}/nouveau-mot-de-passe?token=${token}`;
-    const delivery = Promise.resolve()
+    return Promise.resolve()
       .then(() => mailer.send({
         to: user.email,
         subject: 'Réinitialisation du mot de passe — GuestFlow',
@@ -69,7 +89,6 @@ function createPasswordResetController({
         log(`[passwordReset] email send failed: ${err && err.message}`);
         return false;
       });
-    return { ...answer, delivery };
   }
 
   function check(token) {

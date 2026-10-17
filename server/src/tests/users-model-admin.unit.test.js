@@ -24,6 +24,7 @@ function freshModel() {
       mustChangePassword INTEGER NOT NULL DEFAULT 0,
       lastLoginAt TEXT,
       emailChangedAt TEXT,
+      isSupportAccount INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now'))
     );
