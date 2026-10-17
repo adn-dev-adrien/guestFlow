@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box, Card, TableRow, TableCell,
   IconButton, Chip, Typography, Switch, Button, Stack, FormControl, InputLabel,
-  Select, MenuItem, TextField, Tooltip, FormHelperText,
+  Select, MenuItem, TextField, Tooltip, FormHelperText, Link,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -18,7 +18,7 @@ import EmailPendingList from '../components/EmailPendingList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import EmailComposeDialog from '../components/EmailComposeDialog';
 import ClientFormFields from '../components/ClientFormFields';
-import PropertyHooksEditor from '../components/PropertyHooksEditor';
+import { Link as RouterLink } from 'react-router';
 import api from '../api';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PageActionBar from '../components/PageActionBar';
@@ -31,60 +31,6 @@ const EMPTY_CLIENT = {
   lastName: '', firstName: '', streetNumber: '', street: '', postalCode: '',
   city: '', address: '', phone: '', email: '', notes: '',
 };
-
-// Variable + condition picker — labels shown in the dialog, payload = the literal {{token}} text
-// inserted at the cursor. Adding a new token means: append a row + the matching var/flag in
-// `utils/emailContextBuilder.js` (see specs/email-automation.md §4.4).
-const VARIABLE_BUTTONS = [
-  // Client
-  { label: 'Prénom client',    token: '{{clientFirstName}}' },
-  { label: 'Nom client',       token: '{{clientLastName}}' },
-  { label: 'Nom complet',      token: '{{clientFullName}}' },
-  { label: 'Email client',     token: '{{clientEmail}}' },
-  { label: 'Téléphone client', token: '{{clientPhone}}' },
-  // Séjour
-  { label: 'Logement',         token: '{{propertyName}}' },
-  { label: 'Logement + article', token: '{{propertyWithArticle}}' },
-  { label: 'Date arrivée',     token: '{{startDate}}' },
-  { label: 'Date départ',      token: '{{endDate}}' },
-  { label: 'Heure arrivée',    token: '{{checkInTime}}' },
-  { label: 'Heure départ',     token: '{{checkOutTime}}' },
-  { label: 'Nuits',            token: '{{nights}}' },
-  // Tarification
-  { label: 'Prix final',       token: '{{finalPrice}}' },
-  { label: 'Acompte',          token: '{{depositAmount}}' },
-  { label: 'Solde',            token: '{{balanceAmount}}' },
-  { label: 'Caution',          token: '{{cautionAmount}}' },
-  { label: 'Complément',       token: '{{complementAmount}}' },
-  { label: 'Texte complément', token: '{{complementNotice}}' },
-  // Options
-  { label: 'Liste options',    token: '{{optionsList}}' },
-  { label: 'Option(s) réservée(s)', token: '{{reservedOptionsList}}' },
-  { label: 'Liste ressources', token: '{{resourcesList}}' },
-  { label: 'Config lits',      token: '{{bedConfig}}' },
-  // Entreprise
-  { label: 'Société',          token: '{{companyName}}' },
-  { label: 'Nom expéditeur',   token: '{{senderName}}' },
-  { label: 'Téléphone société',token: '{{companyPhone}}' },
-  // specs/terms-acceptance-record.md rule 26 — the CGV of the stay, pinned to the accepted version.
-  { label: 'Lien CGV',         token: '{{cgvUrl}}' },
-];
-
-const CONDITION_BUTTONS = [
-  { label: 'Si linge de lit',       token: '{{#if hasBedLinenOption}}' },
-  { label: 'Si linge fourni par défaut', token: '{{#if bedLinenProvidedByDefault}}' },
-  { label: 'Si apporter son linge', token: '{{#if bedLinenBringYourOwn}}' },
-  { label: 'Si ménage',             token: '{{#if hasCleaningOption}}' },
-  { label: 'Si caution non encaissée', token: '{{#if cautionNotBanked}}' },
-  { label: 'Si caution non reçue',  token: '{{#if cautionNotReceived}}' },
-  { label: 'Si complément à percevoir', token: '{{#if complementToCollect}}' },
-  { label: 'Si options',            token: '{{#if hasOptions}}' },
-  { label: 'Si option(s) réservée(s)', token: '{{#if hasReservedOptions}}' },
-  { label: 'Si ressources',         token: '{{#if hasResources}}' },
-  { label: 'Si CGV publiées',        token: '{{#if hasCgvUrl}}' },
-  { label: 'Sinon',                 token: '{{else}}' },
-  { label: 'Fin si',                token: '{{/if}}' },
-];
 
 const emptyTemplate = {
   id: null,
@@ -101,7 +47,7 @@ const emptyTemplate = {
 
 // A template's own mode is the only switch for automatic sending (specs/settings-rationalization.md
 // rule 17b): « Automatique » leaves by itself at 08:00, « Manuel » waits in « Emails à envoyer ».
-const J7_STABLE_KEY = 'arrival_reminder_7d';
+
 
 function sendModeChip(row) {
   if (row.sendMode !== 'auto') {
@@ -118,15 +64,14 @@ function describeOffset(n) {
 }
 
 export default function EmailTemplatesPage() {
-  // The variables and conditions of the live plugins, as the server declares them
-  // (specs/plugins-phase-1-sdk.md rule 13) — e.g. the Sowel gate key's code and link.
-  const [pluginTokens, setPluginTokens] = useState({ variables: [], conditions: [] });
-  useEffect(() => { api.getEmailPluginVariables().then(setPluginTokens).catch(() => {}); }, []);
-  const variableButtons = [...VARIABLE_BUTTONS, ...pluginTokens.variables];
+  // The chips of the template being edited, labelled by the server (specs/guest-email-texts-made-simple.md
+  // rule 10), live plugins' included (specs/plugins-phase-1-sdk.md rule 13).
+  const [chips, setChips] = useState({ variables: [], conditions: [] });
+  const variableButtons = chips.variables.map((v) => ({ label: v.label, token: `{{${v.name}}}` }));
   const conditionButtons = [
-    ...CONDITION_BUTTONS.slice(0, -2),
-    ...pluginTokens.conditions,
-    ...CONDITION_BUTTONS.slice(-2),
+    ...chips.conditions.map((c) => ({ label: c.label, token: `{{#if ${c.name}}}` })),
+    { label: 'Sinon', token: '{{else}}' },
+    { label: 'Fin si', token: '{{/if}}' },
   ];
   const { confirm, alert } = useAppDialogs();
   const navigate = useNavigate();
@@ -137,9 +82,6 @@ export default function EmailTemplatesPage() {
   const [open, setOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(emptyTemplate);
-  // J-7 hooks per property, edited with the J-7 template (specs/settings-rationalization.md rule 17c).
-  const [hooks, setHooks] = useState(null);
-  const [savedHooks, setSavedHooks] = useState(null);
   const bodyRef = useRef(null);
   const subjectRef = useRef(null);
   const bodyEnRef = useRef(null);
@@ -269,17 +211,12 @@ export default function EmailTemplatesPage() {
         sendMode: row.sendMode || 'manual',
         enabled: row.enabled !== 0,
         stableKey: row.stableKey,
+        textsSection: row.textsSection,
       });
     } else {
       setForm(emptyTemplate);
     }
-    setHooks(null);
-    setSavedHooks(null);
-    if (row && row.stableKey === J7_STABLE_KEY) {
-      api.getPropertyEmailHooks()
-        .then((list) => { setHooks(list || []); setSavedHooks(list || []); })
-        .catch(() => { setHooks([]); setSavedHooks([]); });
-    }
+    api.getEmailTemplateVariables(row ? row.id : null).then(setChips).catch(() => setChips({ variables: [], conditions: [] }));
     setOpen(true);
   };
 
@@ -323,9 +260,6 @@ export default function EmailTemplatesPage() {
         await api.updateEmailTemplate(form.id, payload);
       } else {
         await api.createEmailTemplate(payload);
-      }
-      if (hooks && JSON.stringify(hooks) !== JSON.stringify(savedHooks)) {
-        await api.savePropertyEmailHooks(hooks.map(({ propertyId, emailHook, emailHookEn }) => ({ propertyId, emailHook, emailHookEn })));
       }
       handleClose();
       // A template change (subject/body/offset/mode/enabled) reshapes the manual queue and
@@ -621,7 +555,7 @@ export default function EmailTemplatesPage() {
               ))}
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Une variable inconnue sera remplacée par une chaîne vide. Les blocs conditionnels supportent un seul niveau (pas d'imbrication).
+              Un seul niveau de condition.
             </Typography>
           </Box>
 
@@ -635,11 +569,12 @@ export default function EmailTemplatesPage() {
             </Box>
           </FormControl>
 
-          {form.stableKey === J7_STABLE_KEY ? (
-            <PropertyHooksEditor
-              hooks={hooks}
-              onChange={(propertyId, key, value) => setHooks((list) => list.map((h) => (h.propertyId === propertyId ? { ...h, [key]: value } : h)))}
-            />
+          {/* specs/guest-email-texts-made-simple.md rule 12 — a shipped template is written on « Textes
+              des emails », in its section; the J-7 hook too. */}
+          {form.textsSection ? (
+            <Link component={RouterLink} to={`/settings/emails/textes#${form.textsSection}`}>
+              {form.stableKey === 'arrival_reminder_7d' ? 'Accroche par logement et phrases : Textes des emails' : 'Phrases de cet email : Textes des emails'}
+            </Link>
           ) : null}
 
           {form.stableKey ? (

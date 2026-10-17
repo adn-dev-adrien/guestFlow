@@ -10,14 +10,9 @@
  */
 
 const { CATALOGUE, entryOf } = require('../utils/stayTextCatalogue');
-const { unknownToken } = require('../utils/emailTemplateRenderer');
+// Rule 4, and specs/guest-email-texts-made-simple.md rule 11: one validation for every editor.
+const { tokenError } = require('../utils/templateTokens');
 const stayTextsModel = require('../models/stayTextsModel');
-
-/** Rule 4: the first unknown token or flag of a text, as the 422 the client shows inline. */
-function tokenError(field, text, allowed) {
-  const name = unknownToken(text, allowed);
-  return name ? { field, message: `Variable inconnue : {{${name}}}` } : null;
-}
 
 function buildController({ database }) {
   const model = () => stayTextsModel.buildModel(database);
@@ -83,4 +78,4 @@ function buildController({ database }) {
   return { list, save, reset };
 }
 
-module.exports = { buildController, tokenError };
+module.exports = { buildController };

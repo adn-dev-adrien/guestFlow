@@ -214,6 +214,8 @@ app.use('/api/emails',          require('./routes/emails'));
 app.use('/api/email-sequence',  require('./routes/emailSequence'));
 // specs/plugins-phase-p-productisation.md — the wording of the guest emails as data. Admin-only.
 app.use('/api/stay-texts',      require('./routes/stayTexts'));
+app.use('/api/email-texts',     require('./routes/emailTexts'));
+app.use('/api/email-readiness', require('./routes/emailReadiness'));
 app.use('/api/email-mentions',  require('./routes/emailMentions'));
 app.use('/api/onboarding',      require('./routes/onboarding'));
 // specs/self-update-and-releases.md — version probe + self-update control. Admin-only: the role

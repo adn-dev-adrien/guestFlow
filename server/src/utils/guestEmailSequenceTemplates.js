@@ -6,6 +6,9 @@
  * Neutral copy (specs/plugins-phase-p-productisation.md rule 13): no place, product or facility the
  * product cannot know of. The house speaks as {{companyName}}; the rest is the operator's to write.
  * A stored template is never overwritten by this file.
+ *
+ * specs/guest-email-texts-made-simple.md rules 3–4 and 8: the J-2 places the arrival paragraphs, and
+ * a sentence built on the company phone is left out while the phone is empty.
  */
 
 const lines = (...l) => l.join('\n');
@@ -39,7 +42,7 @@ const CONFIRMATION_BODY = lines(
   '{{#if hasBedsMade}}- Les lits faits à votre arrivée',
   '{{/if}}{{#if hasTowelsIncluded}}- Le linge de toilette fourni',
   '{{/if}}',
-  `${cgvParagraph(CGV_SENTENCE_FR)}Une question d'ici là ? Répondez simplement à ce mail, ou appelez-nous au {{companyPhone}}.`,
+  `${cgvParagraph(CGV_SENTENCE_FR)}Une question d'ici là ? Répondez simplement à ce mail{{#if hasCompanyPhone}}, ou appelez-nous au {{companyPhone}}{{/if}}.`,
   '',
   'À très bientôt,',
   '{{senderName}}',
@@ -61,7 +64,7 @@ const CONFIRMATION_BODY_EN = lines(
   '{{#if hasBedsMade}}- Beds made up for your arrival',
   '{{/if}}{{#if hasTowelsIncluded}}- Bath linen provided',
   '{{/if}}',
-  `${cgvParagraph(CGV_SENTENCE_EN)}Any question until then? Simply reply to this email, or call us on {{companyPhone}}.`,
+  `${cgvParagraph(CGV_SENTENCE_EN)}Any question until then? Simply reply to this email{{#if hasCompanyPhone}}, or call us on {{companyPhone}}{{/if}}.`,
   '',
   'See you very soon,',
   '{{senderName}}',
@@ -94,7 +97,7 @@ const J7_BODY = lines(
   '',
   '{{/if}}{{#if hasKidsParagraph}}{{kidsParagraph}}',
   '',
-  '{{/if}}Une question ? Répondez simplement à ce mail, ou appelez-nous au {{companyPhone}}.',
+  '{{/if}}Une question ? Répondez simplement à ce mail{{#if hasCompanyPhone}}, ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
   'À la semaine prochaine,',
   '{{senderName}}',
@@ -122,7 +125,7 @@ const J7_BODY_EN = lines(
   '',
   '{{/if}}{{#if hasKidsParagraph}}{{kidsParagraph}}',
   '',
-  '{{/if}}Any question? Simply reply to this email, or call us on {{companyPhone}}.',
+  '{{/if}}Any question? Simply reply to this email{{#if hasCompanyPhone}}, or call us on {{companyPhone}}{{/if}}.',
   '',
   'See you next week,',
   '{{senderName}}',
@@ -140,7 +143,10 @@ const J2_BODY = lines(
   '',
   'Votre arrivée',
   '- Le {{arrivalDateLabel}}, à partir de {{checkInLabel}}.',
-  '- Pouvez-vous nous dire vers quelle heure vous pensez arriver ? Un simple mot en réponse à ce mail suffit.',
+  '{{#if hasAddressParagraph}}{{addressParagraph}}',
+  '{{/if}}{{#if hasAccessParagraph}}{{accessParagraph}}',
+  '{{/if}}{{#if hasArrivalWifiParagraph}}{{arrivalWifiParagraph}}',
+  '{{/if}}- Pouvez-vous nous dire vers quelle heure vous pensez arriver ? Un simple mot en réponse à ce mail suffit.',
   '{{#if hasParkingLine}}{{parkingLine}}',
   '{{/if}}{{#if cautionNotReceived}}- Pensez à prendre la caution de {{cautionAmount}}, demandée à l\'arrivée.',
   '{{/if}}{{#if hasComplementLine}}- {{complementLine}}',
@@ -152,9 +158,9 @@ const J2_BODY = lines(
   '{{/if}}Le jour du départ, le {{departureDateLabel}}, le logement est à libérer avant {{checkOutLabel}}.',
   '{{#if hasCleaningParagraph}}{{cleaningParagraph}}',
   '{{/if}}',
-  'Un imprévu ou un retard sur la route ? Appelez-nous au {{companyPhone}}.',
+  '{{#if hasCompanyPhone}}Un imprévu ou un retard sur la route ? Appelez-nous au {{companyPhone}}.',
   '',
-  'Bonne route,',
+  '{{/if}}Bonne route,',
   '{{senderName}}',
 );
 
@@ -165,7 +171,10 @@ const J2_BODY_EN = lines(
   '',
   'Your arrival',
   '- On {{arrivalDateLabel}}, from {{checkInLabel}}.',
-  '- Could you tell us roughly when you expect to arrive? A simple reply to this email is enough.',
+  '{{#if hasAddressParagraph}}{{addressParagraph}}',
+  '{{/if}}{{#if hasAccessParagraph}}{{accessParagraph}}',
+  '{{/if}}{{#if hasArrivalWifiParagraph}}{{arrivalWifiParagraph}}',
+  '{{/if}}- Could you tell us roughly when you expect to arrive? A simple reply to this email is enough.',
   '{{#if hasParkingLine}}{{parkingLine}}',
   '{{/if}}{{#if cautionNotReceived}}- Please bring the security deposit of {{cautionAmount}}, asked for on arrival.',
   '{{/if}}{{#if hasComplementLine}}- {{complementLine}}',
@@ -177,9 +186,9 @@ const J2_BODY_EN = lines(
   '{{/if}}On the day you leave, {{departureDateLabel}}, the accommodation is to be vacated before {{checkOutLabel}}.',
   '{{#if hasCleaningParagraph}}{{cleaningParagraph}}',
   '{{/if}}',
-  'Something unexpected, running late on the road? Call us on {{companyPhone}}.',
+  '{{#if hasCompanyPhone}}Something unexpected, running late on the road? Call us on {{companyPhone}}.',
   '',
-  'Safe travels,',
+  '{{/if}}Safe travels,',
   '{{senderName}}',
 );
 

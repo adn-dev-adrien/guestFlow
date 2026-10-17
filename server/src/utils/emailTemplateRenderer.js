@@ -80,18 +80,23 @@ function renderTemplate(template, context) {
 }
 
 /**
- * The first name a text uses that it may not (specs/plugins-phase-p-productisation.md rule 4), or
- * null. `{{#if x}}` accepts a flag or a token; `{{x}}` a token only.
+ * The first name a text uses that it may not (specs/plugins-phase-p-productisation.md rule 4,
+ * specs/guest-email-texts-made-simple.md rule 11), or null. `{{#if x}}` accepts a flag or a token;
+ * `{{x}}` a token only. Any other `{{…}}` — a name with a space or an accent — is unknown too: the
+ * renderer would leave it in the email as literal braces.
  */
 function unknownToken(text, { tokens = [], flags = [] } = {}) {
   const asFlag = new Set([...flags, ...tokens]);
   const asToken = new Set(tokens);
-  const re = /\{\{\s*(#if\s+)?([^{}\s]*)\s*\}\}/g;
+  const re = /\{\{([^{}]*)\}\}/g;
   let m;
   while ((m = re.exec(String(text || ''))) !== null) {
-    const name = m[2];
-    if (!m[1] && (name === 'else' || name === '/if')) continue;
-    if (m[1] ? !asFlag.has(name) : !asToken.has(name)) return name;
+    const inner = m[1].trim();
+    if (inner === 'else' || inner === '/if') continue;
+    const cond = /^#if\s+(.*)$/.exec(inner);
+    const name = cond ? cond[1].trim() : inner;
+    const wellFormed = /^[A-Za-z0-9_]+$/.test(name);
+    if (!wellFormed || (cond ? !asFlag.has(name) : !asToken.has(name))) return name;
   }
   return null;
 }

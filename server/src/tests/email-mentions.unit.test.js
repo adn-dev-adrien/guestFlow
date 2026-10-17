@@ -122,7 +122,8 @@ test('API: options required, the chosen price among them, unknown tokens refused
   assert.equal(call(controller.create, { body: { section: 'local', optionIds: [1], priceSource: 'option', priceOptionId: 3, offerFr: 'x' } }).body.field, 'priceOptionId');
   assert.equal(call(controller.create, { body: { section: 'bar', optionIds: [1], offerFr: 'x' } }).status, 400);
   const bad = call(controller.create, { body: { section: 'local', optionIds: [1], offerFr: 'x', bookedFr: 'Prêt pour {{price}}' } });
-  assert.deepEqual(bad, { status: 422, body: { field: 'bookedFr', message: 'Variable inconnue : {{price}}' } });
+  // A known variable out of place is named by its label (specs/guest-email-texts-made-simple.md rule 11).
+  assert.deepEqual(bad, { status: 422, body: { field: 'bookedFr', message: 'Variable non disponible ici : Prix' } });
 });
 
 test('API: the proposal order lists every mention; the preview is the server\'s own rendering', () => {

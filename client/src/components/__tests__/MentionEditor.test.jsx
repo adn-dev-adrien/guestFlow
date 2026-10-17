@@ -25,6 +25,6 @@ test('the price of one option can be chosen only among the cited options', () =>
 
 test('the proposal offers {{price}}, the confirmation no token; a refusal lands on its field', () => {
   render(<Harness initial={BASE} error={{ field: 'bookedFr', message: 'Variable inconnue : {{price}}' }} />);
-  expect(screen.getAllByText('{{price}}')).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Prix' })).toHaveLength(1);
   expect(screen.getByText('Variable inconnue : {{price}}')).toBeInTheDocument();
 });

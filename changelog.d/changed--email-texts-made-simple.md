@@ -1,0 +1,2 @@
+- An unknown variable in an email template is now refused at save (422 « Variable inconnue : {{x}} »), like a stay text or a mention, instead of being dropped at send time.
+- The email readiness list asks only for what a stored template uses (Solio: nothing), takes the company address when a property has none, and the texts and translation CSV files survive Excel: no text turned into a formula, accents kept from a « CSV (point-virgule) » file.
