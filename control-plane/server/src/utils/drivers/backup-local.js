@@ -77,6 +77,8 @@ function createLocalBackupDriver({ dir, now = () => new Date(), intervalMs = 10 
       fs.copyFileSync(path.join(snapDir(inst), pick.name), output);
       return pick.at.toISOString();
     },
+    // The console's database: its nightly copy stays on this machine.
+    async syncConsole() {},
     // Rule 12: the uploads, every night.
     async syncUploads(inst) {
       const uploads = path.join(inst.dir, 'uploads');

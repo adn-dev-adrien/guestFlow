@@ -1,9 +1,15 @@
-# One GuestFlow instance per customer (specs/hosting-h1-fleet-runtime.md H-D1).
+# One GuestFlow instance per customer (specs/hosting-h1-fleet-runtime.md H-D1, rule 21).
 #
 # Installed once by bootstrap-host.sh into /etc/systemd/system/. The console enables and starts
 # `guestflow@<slug>.service`; everything the instance needs — its port, its version, its database,
-# its secrets, the platform sender — is in its environment file, written by the console (mode 600).
-# The release directory is shared by every instance on that version (H-D4).
+# its secrets, the platform sender — is in its environment file, written by the console (mode 600,
+# read by systemd as root before the instance starts). The release directory is shared by every
+# instance on that version (H-D4) and read-only here.
+#
+# Isolation (review 2026-10-17): the instance runs as `guestflow-app`, never as the console's user.
+# Its mount namespace shows /srv/guestflow/instances as an empty tmpfs with only its own directory
+# bound into it, the releases read-only, and neither the console's directory nor Caddy's admin
+# socket at all.
 
 [Unit]
 Description=GuestFlow — %i
@@ -12,8 +18,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=guestflow
-Group=guestflow
+User=guestflow-app
+Group=guestflow-app
+UMask=0007
 EnvironmentFile=/srv/guestflow/instances/%i/env
 WorkingDirectory=/srv/guestflow/instances/%i
 ExecStart=/usr/bin/node ${GUESTFLOW_RELEASE_DIR}/server/src/index.js
@@ -23,10 +30,33 @@ TimeoutStopSec=15
 # The memory limit per instance; the console's probe alerts above 90 % of it (rule 16).
 MemoryMax=512M
 MemoryHigh=460M
-NoNewPrivileges=true
-PrivateTmp=true
+
+# Only its own directory, writable; the other customers do not exist in its view.
+TemporaryFileSystem=/srv/guestflow/instances:ro
+BindPaths=/srv/guestflow/instances/%i
+ReadWritePaths=/srv/guestflow/instances/%i
+ReadOnlyPaths=/srv/guestflow/releases
+InaccessiblePaths=/srv/guestflow/console -/srv/guestflow/.config -/run/caddy -/etc/guestflow -/etc/caddy -/etc/litestream.yml
+
+ProtectSystem=strict
 ProtectHome=true
-ProtectSystem=full
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 [Install]
 WantedBy=multi-user.target

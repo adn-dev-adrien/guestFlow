@@ -31,8 +31,8 @@ test('rule 10 — the whole fleet, one instance at a time: snapshot, switch, res
   const h = await fleetOfThree();
   try {
     const order = [];
-    const restart = h.host.drivers.process.restart;
-    h.host.drivers.process.restart = async (inst) => { order.push(inst.slug); await restart(inst); };
+    const start = h.host.drivers.process.start;
+    h.host.drivers.process.start = async (inst) => { order.push(inst.slug); await start(inst); };
     const view = h.ctx.controllers.fleet.startUpdate({ targetVersion: '3.10.0' }, 'op');
     assert.equal(view.running.items.length, 3);
     await h.ctx.fleetUpdater.whenIdle();
@@ -60,11 +60,11 @@ test('rule 10 — a failed health check rolls that instance back, restores its s
     const db = new Database(path.join(h.root, 'aulnes', 'data', 'guestflow.db'));
     const before = reservations(h.root, 'aulnes');
     let seen = 0;
-    const restart = h.host.drivers.process.restart;
-    h.host.drivers.process.restart = async (inst) => {
-      await restart(inst);
+    const start = h.host.drivers.process.start;
+    h.host.drivers.process.start = async (inst) => {
+      await start(inst);
       seen += 1;
-      if (inst.slug === 'aulnes') {
+      if (inst.slug === 'aulnes' && seen === 2) {
         h.host.unhealthy.add('3.10.0');
         db.exec("INSERT INTO reservations (guest, total) VALUES ('écrit par la 3.10.0', 1)");
       }
@@ -83,7 +83,7 @@ test('rule 10 — a failed health check rolls that instance back, restores its s
     assert.equal(readEnv(path.join(h.root, 'aulnes')).GUESTFLOW_VERSION, '3.9.0', 'back on its previous version');
     assert.equal(readEnv(path.join(h.root, 'moulin')).GUESTFLOW_VERSION, '3.9.0', 'untouched');
     assert.equal(reservations(h.root, 'aulnes'), before, 'the snapshot’s database is back');
-    assert.equal(seen, 2);
+    assert.equal(seen, 3, 'ombre started, aulnes started on the new version, then on the old one');
     assert.equal(h.host.procs.get('aulnes').running, true);
   } finally {
     h.cleanup();

@@ -14,7 +14,7 @@ const Database = require('better-sqlite3');
 const { createSystemdProcessDriver, parseShow, stateOf } = require('../utils/drivers/process-systemd');
 const { createCaddyProxyDriver, siteFile } = require('../utils/drivers/proxy-caddy');
 const { createNoneProxyDriver } = require('../utils/drivers/proxy-none');
-const { createLitestreamBackupDriver, configYaml, parseGenerations } = require('../utils/drivers/backup-litestream');
+const { createLitestreamBackupDriver, parseGenerations } = require('../utils/drivers/backup-litestream');
 const { createLocalBackupDriver } = require('../utils/drivers/backup-local');
 const { createMailDriver } = require('../utils/drivers/mail-platform');
 const { createDrivers } = require('../utils/drivers');
@@ -47,7 +47,29 @@ test('rule 1 — the unit template runs the version named in the instance env fi
   assert.match(unit, /^ExecStart=\/usr\/bin\/node \$\{GUESTFLOW_RELEASE_DIR\}\/server\/src\/index\.js$/m);
   assert.match(unit, /^Restart=on-failure$/m);
   assert.match(unit, /^MemoryMax=\d+M$/m);
-  assert.match(unit, /^User=guestflow$/m);
+  assert.match(unit, /^User=guestflow-app$/m);
+});
+
+test('rule 21 — an instance runs under its own identity and sees only its directory; Litestream is unprivileged; Caddy’s admin API is a socket', () => {
+  const unit = fs.readFileSync(path.join(DEPLOY, 'guestflow@.service'), 'utf8');
+  for (const line of [
+    'User=guestflow-app', 'TemporaryFileSystem=/srv/guestflow/instances:ro', 'BindPaths=/srv/guestflow/instances/%i',
+    'ReadWritePaths=/srv/guestflow/instances/%i', 'ReadOnlyPaths=/srv/guestflow/releases', 'ProtectSystem=strict', 'ProtectHome=true',
+    'PrivateTmp=true', 'NoNewPrivileges=true', 'CapabilityBoundingSet=',
+  ]) assert.match(unit, new RegExp(`^${line.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}$`, 'm'), line);
+  assert.match(unit, /^InaccessiblePaths=\/srv\/guestflow\/console .*-\/run\/caddy/m);
+  assert.doesNotMatch(unit, /^User=guestflow$/m, 'never the console’s user');
+  const litestream = fs.readFileSync(path.join(DEPLOY, 'litestream.override.conf'), 'utf8');
+  assert.match(litestream, /^User=guestflow-app$/m);
+  assert.match(litestream, /^InaccessiblePaths=\/srv\/guestflow\/console/m);
+  assert.match(fs.readFileSync(path.join(DEPLOY, 'Caddyfile'), 'utf8'), /^\tadmin unix\/\/run\/caddy\/admin\.sock\|0660$/m);
+  assert.doesNotMatch(fs.readFileSync(path.join(DEPLOY, 'Caddyfile'), 'utf8'), /localhost:2019/);
+  const boot = fs.readFileSync(path.join(DEPLOY, 'bootstrap-host.sh'), 'utf8');
+  assert.match(boot, /chown root:root \/etc\/litestream\.yml && chmod 644 \/etc\/litestream\.yml/);
+  assert.match(boot, /chown guestflow:guestflow-app "\$ROOT\/instances" && chmod 2770/);
+  assert.match(boot, /chown guestflow:guestflow "\$ROOT\/releases" && chmod 755/);
+  assert.doesNotMatch(boot, /664 .*litestream\.yml|litestream\.yml.*664/, 'the configuration is never group-writable');
+  assert.doesNotMatch(fs.readFileSync(path.join(DEPLOY, 'guestflow-systemctl'), 'utf8'), /systemctl restart litestream/);
 });
 
 test('rule 1 — the systemd driver enables, stops and restarts guestflow@<slug> through the configured command', async () => {
@@ -70,7 +92,7 @@ test('rule 1 — the systemd driver enables, stops and restarts guestflow@<slug>
   assert.equal(stateOf(parseShow('LoadState=loaded\nActiveState=inactive\nUnitFileState=disabled')), 'stopped');
 });
 
-test('rule 1 — the root wrapper accepts only the instance units and the Litestream restart', () => {
+test('rule 1 — the root wrapper accepts only the instance units', () => {
   const { spawnSync } = require('child_process');
   const wrapper = path.join(DEPLOY, 'guestflow-systemctl');
   // Every allowed call ends in `exec /usr/bin/systemctl`; a refused one exits 64 before.
@@ -78,7 +100,8 @@ test('rule 1 — the root wrapper accepts only the instance units and the Litest
     const res = spawnSync('bash', [wrapper, ...args], { encoding: 'utf8' });
     assert.equal(res.status, 64, args.join(' '));
   }
-  assert.match(fs.readFileSync(path.join(DEPLOY, 'guestflow.sudoers'), 'utf8'), /^guestflow ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/guestflow-systemctl$/m);
+  assert.match(fs.readFileSync(path.join(DEPLOY, 'guestflow.sudoers'), 'utf8'), /^guestflow ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/guestflow-systemctl, \/usr\/local\/sbin\/guestflow-litestream-apply$/m);
+  assert.equal(spawnSync('bash', [wrapper, 'restart', 'litestream'], { encoding: 'utf8' }).status, 64, 'Litestream restarts only through its own wrapper');
 });
 
 test('rules 1, 3, 5 — Caddy: one site per address, the closed page, the 301, then a reload', async () => {
@@ -121,40 +144,58 @@ test('rule 15 — the certificate expiry is read from what Caddy serves', async 
   assert.equal(await d.certExpiry('moulin'), null);
 });
 
-test('rule 12 — Litestream: one entry per database, 24 h snapshots kept 30 days, keyed by customer; restart after each change', async () => {
-  const written = {};
+test('rule 12 — Litestream: the console hands the databases to the root wrapper; restores read the replica by URL with the keys from its environment', async () => {
   const { exec, calls } = recordingExec();
+  const envs = [];
+  const spy = async (file, args, opts = {}) => { envs.push(opts.env || null); return exec(file, args); };
   const replicas = [inst(), inst({ customerId: 14, key: 'c14', slug: 'moulin', dbPath: '/srv/guestflow/instances/moulin/data/guestflow.db' })];
   const d = createLitestreamBackupDriver({
-    exec, writeFile: (f, t) => { written[f] = t; }, listReplicas: () => replicas.slice(0, 1),
+    exec: spy, listReplicas: () => replicas.slice(0, 1),
     url: 's3://bucket/fleet/', endpoint: 'https://s3.fr-par.scw.cloud', region: 'fr-par', rcloneRemote: 'guestflow-backup:bucket/fleet',
-    restartCommand: 'sudo -n /usr/local/sbin/guestflow-systemctl restart litestream',
+    credentials: { LITESTREAM_ACCESS_KEY_ID: 'AK', LITESTREAM_SECRET_ACCESS_KEY: 'SK' },
   });
   await d.addReplica(replicas[1]);
-  assert.equal(written['/etc/litestream.yml'], configYaml({ replicas, url: 's3://bucket/fleet/', endpoint: 'https://s3.fr-par.scw.cloud', region: 'fr-par' }));
-  const yaml = written['/etc/litestream.yml'];
-  assert.match(yaml, /- path: \/srv\/guestflow\/instances\/aulnes\/data\/guestflow\.db\n {4}replicas:\n {6}- type: s3\n {8}url: s3:\/\/bucket\/fleet\/c12\/db\n {8}endpoint: https:\/\/s3\.fr-par\.scw\.cloud\n {8}region: fr-par\n {8}retention: 720h\n {8}snapshot-interval: 24h/);
-  assert.match(yaml, /url: s3:\/\/bucket\/fleet\/c14\/db/);
   await d.removeReplica(replicas[0]);
-  assert.doesNotMatch(written['/etc/litestream.yml'], /c12/);
   await d.syncUploads(replicas[0]);
   await d.purge(replicas[0]);
   await d.restore(replicas[0], { at: '2026-10-07T08:30:00.000Z', output: '/tmp/x.db' });
   assert.deepEqual(calls, [
-    'sudo -n /usr/local/sbin/guestflow-systemctl restart litestream',
-    'sudo -n /usr/local/sbin/guestflow-systemctl restart litestream',
+    'sudo -n /usr/local/sbin/guestflow-litestream-apply c12=/srv/guestflow/instances/aulnes/data/guestflow.db c14=/srv/guestflow/instances/moulin/data/guestflow.db',
+    'sudo -n /usr/local/sbin/guestflow-litestream-apply',
     'rclone sync /srv/guestflow/instances/aulnes/uploads guestflow-backup:bucket/fleet/c12/uploads',
     'rclone purge guestflow-backup:bucket/fleet/c12',
-    'litestream restore -config /etc/litestream.yml -o /tmp/x.db -timestamp 2026-10-07T08:30:00.000Z /srv/guestflow/instances/aulnes/data/guestflow.db',
+    'litestream restore -o /tmp/x.db -timestamp 2026-10-07T08:30:00.000Z s3://bucket/fleet/c12/db?endpoint=https%3A%2F%2Fs3.fr-par.scw.cloud&region=fr-par',
   ]);
-  assert.match(configYaml({ replicas: [], url: 's3://b' }), /dbs: \[\]/);
+  assert.equal(envs[4].LITESTREAM_ACCESS_KEY_ID, 'AK', 'the keys travel in the environment');
+  assert.equal(envs[4].LITESTREAM_SECRET_ACCESS_KEY, 'SK');
+  assert.ok(!calls.join(' ').includes('SK'), 'never on a command line');
+});
+
+test('rule 21 — the root wrapper writes Litestream’s configuration from checked entries only', () => {
+  const { spawnSync } = require('child_process');
+  const wrapper = path.join(DEPLOY, 'guestflow-litestream-apply');
+  const settings = path.join(tmp(), 'backup.env');
+  fs.writeFileSync(settings, 'CP_BACKUP_URL=s3://gf-backups/fleet\nCP_BACKUP_ENDPOINT=https://s3.fr-par.scw.cloud\nCP_BACKUP_REGION=fr-par\n');
+  const run = (...args) => spawnSync('bash', [wrapper, '--dry-run', ...args], { encoding: 'utf8', env: { PATH: process.env.PATH, GF_BACKUP_ENV: settings } });
+  const ok = run('c12=/srv/guestflow/instances/aulnes/data/guestflow.db', 'c14=/srv/guestflow/instances/moulin/data/guestflow.db');
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /- path: \/srv\/guestflow\/instances\/aulnes\/data\/guestflow\.db\n {4}replicas:\n {6}- type: s3\n {8}url: s3:\/\/gf-backups\/fleet\/c12\/db\n {8}endpoint: https:\/\/s3\.fr-par\.scw\.cloud\n {8}region: fr-par\n {8}retention: 720h\n {8}snapshot-interval: 24h/);
+  assert.doesNotMatch(ok.stdout, /exec/);
+  assert.match(run().stdout, /dbs: \[\]/);
+  for (const bad of ['c1=/etc/passwd', 'c1=/srv/guestflow/console/data/control-plane.db', 'c1=/srv/guestflow/instances/../x/data/guestflow.db',
+    'exec=/srv/guestflow/instances/aulnes/data/guestflow.db', 'c1=/srv/guestflow/instances/aulnes/data/guestflow.db\nexec: sh']) {
+    assert.equal(run(bad).status, 64, bad);
+  }
+  assert.equal(run('c1=/srv/guestflow/instances/aulnes/data/guestflow.db', 'c1=/srv/guestflow/instances/moulin/data/guestflow.db').status, 64, 'one entry per key');
+  fs.writeFileSync(settings, 'CP_BACKUP_URL=s3://gf-backups/fleet\nCP_BACKUP_REGION=fr-par; exec: /bin/sh\n');
+  assert.equal(run('c1=/srv/guestflow/instances/aulnes/data/guestflow.db').status, 65, 'a setting is checked too');
 });
 
 test('rule 15 — the last replicated moment and the window come from `litestream generations`', async () => {
   const out = 'name  generation        lag   start                 end\ns3    a1b2c3d4e5f6a7b8  1s    2026-09-08T00:00:00Z  2026-10-08T09:59:58Z\ns3    0f0e0d0c0b0a0908  0s    2026-09-01T00:00:00Z  2026-09-08T00:00:00Z\n';
   assert.deepEqual(parseGenerations(out).length, 2);
   const { exec } = recordingExec({ 'litestream generations': out });
-  const d = createLitestreamBackupDriver({ exec, writeFile: () => {}, listReplicas: () => [], url: 's3://b', rcloneRemote: 'r:b' });
+  const d = createLitestreamBackupDriver({ exec, listReplicas: () => [], url: 's3://b', rcloneRemote: 'r:b' });
   assert.equal(await d.lastReplicatedAt(inst()), '2026-10-08T09:59:58Z');
   assert.deepEqual(await d.window(inst()), { from: '2026-09-01T00:00:00Z', to: '2026-10-08T09:59:58Z' });
 });

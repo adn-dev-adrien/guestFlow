@@ -73,6 +73,14 @@ function makeFakeDrivers({ domain = 'guestflow.test', now = () => new Date() } =
   const unhealthy = new Set();
   const certs = {};
   const memory = {};
+  // Like a replica: a copy taken while replication runs, kept after it stops, until the purge.
+  const copies = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-fake-replicas-'));
+  const copyOf = (key) => path.join(copies, `${key}.db`);
+  const takeCopy = async (inst) => {
+    if (!fs.existsSync(inst.dbPath)) return;
+    const src = new Database(inst.dbPath, { readonly: true });
+    try { await src.backup(copyOf(inst.key)); } finally { src.close(); }
+  };
   const record = (name, arg) => {
     calls.push({ name, slug: arg && (arg.slug || arg) });
     if (failNext[name]) {
@@ -113,19 +121,19 @@ function makeFakeDrivers({ domain = 'guestflow.test', now = () => new Date() } =
     },
     backup: {
       name: 'fake',
-      async addReplica(inst) { record('backup.addReplica', inst); replicas.set(inst.key, { active: true, last: now().toISOString(), dbPath: inst.dbPath }); },
+      async addReplica(inst) { record('backup.addReplica', inst); replicas.set(inst.key, { active: true, last: now().toISOString(), dbPath: inst.dbPath }); await takeCopy(inst); },
       async removeReplica(inst) { record('backup.removeReplica', inst); const r = replicas.get(inst.key); if (r) r.active = false; },
-      async purge(inst) { record('backup.purge', inst); replicas.delete(inst.key); },
+      async purge(inst) { record('backup.purge', inst); replicas.delete(inst.key); fs.rmSync(copyOf(inst.key), { force: true }); },
       async snapshotNow(inst) { record('backup.snapshotNow', inst); return null; },
       // Litestream ships continuously: an active replica is always current.
-      async tick(inst) { const r = replicas.get(inst.key); if (r && r.active && !r.stalled) r.last = now().toISOString(); return null; },
+      async tick(inst) { const r = replicas.get(inst.key); if (r && r.active && !r.stalled) { r.last = now().toISOString(); await takeCopy(inst); } return null; },
       async lastReplicatedAt(inst) { return (replicas.get(inst.key) || {}).last || null; },
       async window(inst) { const r = replicas.get(inst.key); return r ? { from: '2026-09-01T00:00:00.000Z', to: r.last } : null; },
       async restore(inst, { output }) {
         record('backup.restore', inst);
         if (failNext.restoreCorrupt) { delete failNext.restoreCorrupt; fs.writeFileSync(output, 'not a database'); return null; }
-        const src = new Database(inst.dbPath, { readonly: true });
-        try { await src.backup(output); } finally { src.close(); }
+        if (!fs.existsSync(copyOf(inst.key))) throw new Error('Aucune sauvegarde.');
+        fs.copyFileSync(copyOf(inst.key), output);
         return null;
       },
       async syncUploads(inst) { record('backup.syncUploads', inst); },

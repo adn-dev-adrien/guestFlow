@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The only root command the console may run (specs/hosting-h1-fleet-runtime.md H-D1, H-D3).
 # Installed by bootstrap-host.sh as /usr/local/sbin/guestflow-systemctl (root:root, 755) and allowed
-# by /etc/sudoers.d/guestflow. It accepts exactly the systemctl calls the drivers make — on one
-# `guestflow@<slug>.service` at a time, or the Litestream restart — and refuses anything else.
+# by /etc/sudoers.d/guestflow. It accepts exactly the systemctl calls the process driver makes — on
+# one `guestflow@<slug>.service` at a time — and refuses anything else. (Litestream is restarted by
+# guestflow-litestream-apply, after it has written a checked configuration.)
 set -euo pipefail
 
 unit='^guestflow@[a-z0-9-]{3,30}\.service$'
@@ -13,8 +14,7 @@ case "${1:-} ${2:-}" in
 esac
 case "${1:-}" in
   start|stop|restart|reset-failed)
-    if [[ $# -eq 2 && "$2" =~ $unit ]]; then exec /usr/bin/systemctl "$1" "$2"; fi
-    if [[ $# -eq 2 && "$1" == "restart" && "$2" == "litestream" ]]; then exec /usr/bin/systemctl restart litestream; fi ;;
+    if [[ $# -eq 2 && "$2" =~ $unit ]]; then exec /usr/bin/systemctl "$1" "$2"; fi ;;
 esac
 echo "refusé : $*" >&2
 exit 64

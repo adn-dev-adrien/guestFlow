@@ -94,11 +94,16 @@ function createProvisioner({
   async function allocatePort(c) {
     const row = hosting.ensure(c.id);
     if (row.port) return row.port;
-    const used = hosting.usedPorts();
+    // Two customers created at once may pick the same free port: the UNIQUE column decides, and
+    // the loser takes the next one (review 2026-10-17).
     for (let p = portLo; p <= portHi; p += 1) {
-      if (used.has(p) || !(await isPortFree(p))) continue;
-      hosting.set(c.id, { port: p });
-      return p;
+      if (hosting.usedPorts().has(p) || !(await isPortFree(p))) continue;
+      try {
+        hosting.set(c.id, { port: p });
+        return p;
+      } catch (err) {
+        if (err.code !== 'SQLITE_CONSTRAINT_UNIQUE') throw new Error(`Port ${p} impossible à réserver : ${err.message}`);
+      }
     }
     throw new Error(`Plage de ports ${portLo}-${portHi} épuisée.`);
   }
@@ -215,6 +220,16 @@ function createProvisioner({
     }
   }
 
+  // Rule 22: a step still « running » when the console starts was cut short by the restart; it
+  // becomes a failed step, so « Reprendre » is offered instead of a customer blocked forever.
+  function recover() {
+    const stuck = provisioning.running();
+    for (const row of stuck) {
+      provisioning.set(row.customerId, row.step, 'failed', 'Console redémarrée pendant l’étape.', stamp());
+    }
+    return stuck.length;
+  }
+
   const running = (customerId) => runs.has(customerId);
   const whenIdle = (customerId) => (runs.get(customerId) || Promise.resolve()).catch(() => {});
 
@@ -325,6 +340,8 @@ function createProvisioner({
     REDIRECT_DAYS,
     instanceOf,
     syncEnv,
+    exclusive,
+    recover,
     plan,
     create,
     stop,

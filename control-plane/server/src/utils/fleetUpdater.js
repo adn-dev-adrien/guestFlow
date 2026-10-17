@@ -2,14 +2,17 @@
  * Updating the fleet (specs/hosting-h1-fleet-runtime.md rules 10–11): one customer, a selection or
  * every instance, one at a time —
  *
- *   1. snapshot the database (a consistent local copy, and a backup forced through the driver);
+ *   1. stop the instance, then snapshot its database (a consistent copy, and a backup forced
+ *      through the driver) — stopped first, so a rollback loses nothing written meanwhile;
  *   2. switch the version (or apply the plugin update);
- *   3. restart;
+ *   3. start;
  *   4. check health within 60 s, on the expected version.
  *
  * A failed check puts that instance back: the previous version, the database of the snapshot, a
  * restart. The fleet update stops there, the remaining instances untouched, and shows the error.
- * Only one fleet update runs at a time, and a restore waits for it (edge case of §3).
+ * Only one fleet update runs at a time; a restore waits for it, and an update waits for a restore
+ * (edge case of §3; review 2026-10-17). Each instance is updated inside its customer's sequence
+ * lock, so no creation step, restart or restore runs on it at the same time.
  */
 
 const fs = require('fs');
@@ -92,8 +95,10 @@ function createFleetUpdater({
     const before = provisioner.instanceOf(c);
     let snap;
     try {
+      await drivers.process.stop(before);
       snap = await snapshot(before, update.target_version);
     } catch (err) {
+      await drivers.process.start(before).catch(() => {});
       set('rolled_back', 'snapshot', `Instantané impossible : ${err.message}. Rien n’a changé.`);
       return { ok: false, error: `${c.companyName} : instantané impossible (${err.message}).` };
     }
@@ -102,7 +107,7 @@ function createFleetUpdater({
       set('running', 'switch', PHASES.switch, snap);
       const expect = await kind.apply(c, update);
       set('running', 'restart', PHASES.restart, snap);
-      await drivers.process.restart(provisioner.instanceOf(c));
+      await drivers.process.start(provisioner.instanceOf(c));
       set('running', 'health', PHASES.health, snap);
       const res = await healthy(provisioner.instanceOf(c), expect);
       if (!res.ok) failure = res.error;
@@ -138,7 +143,7 @@ function createFleetUpdater({
   async function run(updateId) {
     const update = hosting.getUpdate(updateId);
     for (const item of hosting.items(updateId)) {
-      const result = await updateOne(update, item).catch((err) => ({ ok: false, error: err.message }));
+      const result = await provisioner.exclusive(item.customer_id, () => updateOne(update, item)).catch((err) => ({ ok: false, error: err.message }));
       if (!result.ok) {
         hosting.skipRest(updateId, 'Mise à jour arrêtée.');
         hosting.endUpdate(updateId, 'failed', stamp(), result.error);
@@ -162,8 +167,20 @@ function createFleetUpdater({
    * Starts an update in the background. `customerIds` null = the whole fleet.
    * → { updateId, count }
    */
+  let restoring = 0;
+  // A restore holds the fleet back while it runs (and the restore refuses while an update runs).
+  async function whileRestoring(fn) {
+    restoring += 1;
+    try {
+      return await fn();
+    } finally {
+      restoring -= 1;
+    }
+  }
+
   function start({ kind = 'release', pluginId = null, targetVersion, customerIds = null, operator, installedPlugins = () => null }) {
     if (current || hosting.runningUpdate()) throw httpError(409, 'UPDATE_RUNNING', 'Une mise à jour de la flotte est déjà en cours.');
+    if (restoring) throw httpError(409, 'RESTORE_RUNNING', 'Restauration en cours : mise à jour impossible avant sa fin.');
     let targets;
     if (kind === 'plugin') {
       if (!pluginInstaller) throw httpError(412, 'NO_REGISTRY', 'Disponible avec le registre des plugins.');
@@ -197,7 +214,7 @@ function createFleetUpdater({
     }
   }
 
-  return { start, busy, whenIdle, recover, PHASES, pluginPushAvailable: () => Boolean(pluginInstaller) };
+  return { start, busy, whenIdle, recover, whileRestoring, PHASES, pluginPushAvailable: () => Boolean(pluginInstaller) };
 }
 
 module.exports = { createFleetUpdater, PHASES };

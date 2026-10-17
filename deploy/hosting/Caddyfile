@@ -7,7 +7,9 @@
 
 {
 	email __ACME_EMAIL__
-	admin localhost:2019
+	# The admin API on a socket only the console's group can open (rule 21), never on a TCP port an
+	# instance could reach.
+	admin unix//run/caddy/admin.sock|0660
 }
 
 # The console and the shared login page (control-plane rule 24) share one process.

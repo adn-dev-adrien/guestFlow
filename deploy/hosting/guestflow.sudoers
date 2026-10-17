@@ -1,4 +1,5 @@
 # GuestFlow host (specs/hosting-h1-fleet-runtime.md H-D1, H-D3): the console, running as
-# `guestflow`, may run one root command — the wrapper that accepts only the instance units and the
-# Litestream restart. Installed by bootstrap-host.sh into /etc/sudoers.d/guestflow (mode 440).
-guestflow ALL=(root) NOPASSWD: /usr/local/sbin/guestflow-systemctl
+# `guestflow`, may run two root commands — the wrapper that accepts only the instance units, and the
+# one that writes Litestream's configuration from checked entries and restarts it (rule 21).
+# Installed by bootstrap-host.sh into /etc/sudoers.d/guestflow (mode 440).
+guestflow ALL=(root) NOPASSWD: /usr/local/sbin/guestflow-systemctl, /usr/local/sbin/guestflow-litestream-apply

@@ -5,14 +5,14 @@
  *
  *   CP_PROCESS_DRIVER   local | systemd      CP_SYSTEMCTL (default `sudo -n systemctl`)
  *   CP_PROXY_DRIVER     none  | caddy        CP_CADDY_SITES_DIR, CP_CADDYFILE, CP_CLOSED_PAGE_DIR
- *   CP_BACKUP_DRIVER    local | litestream   CP_LITESTREAM_CONFIG, CP_BACKUP_URL, CP_BACKUP_ENDPOINT,
- *                                            CP_BACKUP_REGION, CP_RCLONE_REMOTE, CP_LITESTREAM_RESTART
+ *   CP_BACKUP_DRIVER    local | litestream   CP_BACKUP_URL, CP_BACKUP_ENDPOINT, CP_BACKUP_REGION,
+ *                                            CP_RCLONE_REMOTE, CP_LITESTREAM_APPLY,
+ *                                            LITESTREAM_ACCESS_KEY_ID, LITESTREAM_SECRET_ACCESS_KEY
  *   CP_MAIL_DRIVER      local | platform     CP_PLATFORM_SMTP_*, CP_PLATFORM_MAIL_FROM, CP_MAIL_DAILY_LIMIT
  *
  * Every driver works on the same instance shape: { customerId, key, slug, dir, dbPath, port, version }.
  */
 
-const fs = require('fs');
 const path = require('path');
 const { createExec } = require('./exec');
 const { createLocalProcessDriver } = require('./process-local');
@@ -52,12 +52,15 @@ function createDrivers({ env = process.env, root, releasesDir, dataDir, domain, 
       ? createLitestreamBackupDriver({
         exec,
         listReplicas,
-        writeFile: (file, text) => fs.writeFileSync(file, text),
-        configFile: env.CP_LITESTREAM_CONFIG || '/etc/litestream.yml',
         url: env.CP_BACKUP_URL,
         endpoint: env.CP_BACKUP_ENDPOINT || '',
         region: env.CP_BACKUP_REGION || '',
-        restartCommand: env.CP_LITESTREAM_RESTART || 'sudo -n systemctl restart litestream',
+        // B3 (review 2026-10-17): Litestream reads the object storage keys from its environment.
+        credentials: {
+          LITESTREAM_ACCESS_KEY_ID: env.LITESTREAM_ACCESS_KEY_ID || '',
+          LITESTREAM_SECRET_ACCESS_KEY: env.LITESTREAM_SECRET_ACCESS_KEY || '',
+        },
+        applyCommand: env.CP_LITESTREAM_APPLY || 'sudo -n /usr/local/sbin/guestflow-litestream-apply',
         rcloneRemote: env.CP_RCLONE_REMOTE,
       })
       : createLocalBackupDriver({

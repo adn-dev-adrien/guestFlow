@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Writes /etc/litestream.yml and restarts Litestream (specs/hosting-h1-fleet-runtime.md H-D3, rule 21).
+# Installed by bootstrap-host.sh as /usr/local/sbin/guestflow-litestream-apply (root:root, 755) and
+# allowed to the console by /etc/sudoers.d/guestflow.
+#
+#   guestflow-litestream-apply c12=/srv/guestflow/instances/aulnes/data/guestflow.db c14=…
+#   guestflow-litestream-apply --dry-run c12=…        # prints the file, writes nothing
+#
+# The console never writes the configuration itself: Litestream reads it, and a writable config
+# would let whoever writes it choose what Litestream runs. Every argument is checked — a key `c<id>`
+# and an instance database path, nothing else — and the file is generated here from them and from the
+# root-owned /etc/guestflow/backup.env (CP_BACKUP_URL, CP_BACKUP_ENDPOINT, CP_BACKUP_REGION).
+set -euo pipefail
+
+dry=0
+if [[ "${1:-}" == "--dry-run" ]]; then dry=1; shift; fi
+settings=/etc/guestflow/backup.env
+# Only a dry run may read another settings file (the tests); sudo never passes it anyway.
+if [[ $dry -eq 1 && -n "${GF_BACKUP_ENV:-}" ]]; then settings="$GF_BACKUP_ENV"; fi
+
+read_setting() { sed -n "s/^$1=//p" "$settings" | head -n1 | tr -d '"'; }
+url="$(read_setting CP_BACKUP_URL)"
+endpoint="$(read_setting CP_BACKUP_ENDPOINT)"
+region="$(read_setting CP_BACKUP_REGION)"
+[[ "$url" =~ ^s3://[a-z0-9][a-z0-9.-]{1,62}(/[A-Za-z0-9._-]+)*/?$ ]] || { echo "CP_BACKUP_URL invalide" >&2; exit 65; }
+[[ -z "$endpoint" || "$endpoint" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/?$ ]] || { echo "CP_BACKUP_ENDPOINT invalide" >&2; exit 65; }
+[[ -z "$region" || "$region" =~ ^[a-z0-9-]{2,32}$ ]] || { echo "CP_BACKUP_REGION invalide" >&2; exit 65; }
+url="${url%/}"
+
+entry='^(c[0-9]{1,9})=(/srv/guestflow/instances/[a-z0-9-]{3,30}/data/guestflow\.db)$'
+out="# Written by guestflow-litestream-apply (specs/hosting-h1-fleet-runtime.md) — edits are overwritten."$'\n'
+if [[ $# -eq 0 ]]; then
+  out+="dbs: []"$'\n'
+else
+  out+="dbs:"$'\n'
+  seen=' '
+  for arg in "$@"; do
+    [[ "$arg" =~ $entry ]] || { echo "refusé : $arg" >&2; exit 64; }
+    key="${BASH_REMATCH[1]}"; db="${BASH_REMATCH[2]}"
+    [[ "$seen" != *" $key "* ]] || { echo "refusé (doublon) : $key" >&2; exit 64; }
+    seen+="$key "
+    out+="  - path: $db"$'\n'"    replicas:"$'\n'"      - type: s3"$'\n'"        url: $url/$key/db"$'\n'
+    [[ -n "$endpoint" ]] && out+="        endpoint: $endpoint"$'\n'
+    [[ -n "$region" ]] && out+="        region: $region"$'\n'
+    out+="        retention: 720h"$'\n'"        snapshot-interval: 24h"$'\n'"        sync-interval: 1s"$'\n'
+  done
+fi
+
+if [[ $dry -eq 1 ]]; then printf '%s' "$out"; exit 0; fi
+tmp="$(mktemp /etc/litestream.yml.XXXXXX)"
+printf '%s' "$out" > "$tmp"
+chown root:root "$tmp"; chmod 644 "$tmp"
+mv -f "$tmp" /etc/litestream.yml
+exec /usr/bin/systemctl restart litestream

@@ -29,14 +29,18 @@ function createHostAlerts({ hosting, operators, mailer, now, consoleUrl, log = (
         '',
         `Ouvrir la console : ${consoleUrl}/`,
       ].join('\n');
-      try {
-        for (const op of recipients) {
+      // Sent as soon as one operator received it: a failing address never makes the others get
+      // the same email every minute (review 2026-10-17).
+      let delivered = 0;
+      for (const op of recipients) {
+        try {
           await mailer.send({ to: op.email, subject: `Console GuestFlow — ${due.length} alerte(s) d’hébergement`, text });
+          delivered += 1;
+        } catch (err) {
+          log(`[alerts] email to ${op.email} failed: ${err.message}`);
         }
-      } catch (err) {
-        log(`[alerts] email failed: ${err.message}`);
-        return 0;
       }
+      if (!delivered) return 0;
       for (const a of due) hosting.markAlertSent(a.key, stamp());
       return due.length;
     },

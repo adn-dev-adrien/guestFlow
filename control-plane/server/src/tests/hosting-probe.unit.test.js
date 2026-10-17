@@ -127,7 +127,7 @@ test('edge case — unreachable object storage: the instance keeps running and t
     h.host.drivers.backup.lastReplicatedAt = async () => { throw new Error('dial tcp: i/o timeout'); };
     h.now.set('2026-10-08T09:01:00Z');
     await h.ctx.probe.runOnce();
-    assert.ok(alertTexts(h).includes('Gîte des Aulnes : dernière sauvegarde répliquée jamais.'));
+    assert.ok(alertTexts(h).includes('Gîte des Aulnes : dernière sauvegarde répliquée le 08/10/2026 10:00 (dial tcp: i/o timeout).'), JSON.stringify(alertTexts(h)));
     assert.equal(h.host.procs.get('aulnes').running, true);
   } finally {
     h.cleanup();
@@ -162,6 +162,54 @@ test('rule 16 — a deprovisioned customer is stopped on purpose: no « down » 
     h.now.set('2026-10-08T10:00:00Z');
     await h.ctx.probe.runOnce();
     assert.deepEqual(alertTexts(h).filter((t) => /Gîte des Aulnes (ne répond|: dernière)/.test(t)), []);
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 16 — a certificate expiring within 14 days opens an alert; 15 days does not', async () => {
+  const h = await oneCustomer();
+  try {
+    h.host.certs.aulnes = '2026-10-23T09:00:00.000Z';
+    await h.ctx.probe.runOnce();
+    assert.ok(!alertTexts(h).some((t) => /certificat/.test(t)), '15 days: nothing');
+    assert.equal(h.ctx.controllers.customers.fleet().rows[0].certSeverity, null);
+    h.host.certs.aulnes = '2026-10-21T09:00:00.000Z';
+    await h.ctx.probe.runOnce();
+    assert.ok(alertTexts(h).includes('Gîte des Aulnes : certificat expirant le 21/10/2026.'));
+    assert.equal(h.ctx.controllers.customers.fleet().rows[0].certSeverity, 'warning');
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 17 — an alert counts as sent once one operator received it; a failing address does not resend every minute', async () => {
+  const h = await oneCustomer();
+  try {
+    await h.ctx.models.operators.create({ email: 'broken@adn-dev.fr', name: 'X', passwordHash: 'x' });
+    const send = h.mailer.send;
+    h.mailer.send = async (m) => { if (m.to === 'broken@adn-dev.fr') throw new Error('mailbox full'); return send(m); };
+    h.host.certs.aulnes = '2026-10-15T00:00:00.000Z';
+    await h.ctx.probe.runOnce();
+    h.now.set('2026-10-08T08:01:00Z');
+    await h.ctx.probe.runOnce();
+    assert.equal(alertMails(h).length, 1);
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 16 — the replica is asked every 5 minutes, not every minute', async () => {
+  const h = await oneCustomer();
+  try {
+    let asked = 0;
+    const last = h.host.drivers.backup.lastReplicatedAt;
+    h.host.drivers.backup.lastReplicatedAt = async (inst) => { asked += 1; return last(inst); };
+    for (const m of ['00', '01', '02', '03', '04', '05']) {
+      h.now.set(`2026-10-08T08:${m}:00Z`);
+      await h.ctx.probe.runOnce();
+    }
+    assert.equal(asked, 2);
   } finally {
     h.cleanup();
   }

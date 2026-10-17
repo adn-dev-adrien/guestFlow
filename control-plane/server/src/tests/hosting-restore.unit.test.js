@@ -87,3 +87,55 @@ test('rule 14 — a moment outside the retention, or a backup that does not read
     h.cleanup();
   }
 });
+
+test('rule 14 — a corrupt or missing current database does not stop the restore meant to repair it', async () => {
+  for (const damage of ['corrupt', 'missing']) {
+    const h = await oneCustomer('2026-10-08T10:00:00Z');
+    try {
+      const dbPath = path.join(h.root, 'aulnes', 'data', 'guestflow.db');
+      if (damage === 'corrupt') fs.writeFileSync(dbPath, 'not a database');
+      else fs.rmSync(dbPath);
+      const v = await h.ctx.controllers.fleet.restore(h.c.id, { at: '2026-10-08T09:00:00Z' }, 'op');
+      assert.equal(v.notice, 'Base restaurée (1 réservation(s)).', damage);
+      const db = new Database(dbPath, { readonly: true });
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservations').get().n, 1);
+      db.close();
+      const aside = fs.readdirSync(path.dirname(dbPath)).filter((f) => f.startsWith('guestflow.db.before-restore-'));
+      assert.equal(aside.length, damage === 'corrupt' ? 1 : 0, damage);
+    } finally {
+      h.cleanup();
+    }
+  }
+});
+
+test('rule 13 — a deprovisioned customer’s kept copies are still checked, without a false alert', async () => {
+  const h = await oneCustomer('2026-10-11T04:30:00Z');
+  try {
+    await h.ctx.controllers.customers.deprovision(h.c.id, { confirmSlug: 'aulnes' }, 'op');
+    const out = await h.ctx.weeklyRestore.runIfDue();
+    assert.deepEqual(out.map((r) => r.ok), [true]);
+    assert.ok(!h.ctx.controllers.alerts.list().alerts.some((a) => /restauration de contrôle/.test(a.text)));
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 14 — a restore holds fleet updates back, and runs in the customer’s sequence lock', async () => {
+  const h = await oneCustomer('2026-10-08T10:00:00Z');
+  try {
+    require('./helpers').makeRelease(h.releasesDir, '3.10.0');
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const restore = h.host.drivers.backup.restore;
+    h.host.drivers.backup.restore = async (...args) => { await gate; return restore(...args); };
+    const pending = h.ctx.controllers.fleet.restore(h.c.id, { at: '2026-10-08T09:00:00Z' }, 'op');
+    await new Promise((r) => setTimeout(r, 10));
+    assert.throws(() => h.ctx.controllers.fleet.startUpdate({ targetVersion: '3.10.0' }, 'op'), (e) => e.status === 409 && e.body.error === 'RESTORE_RUNNING');
+    assert.equal(h.ctx.provisioner.running(h.c.id), true);
+    release();
+    await pending;
+    assert.equal(h.ctx.provisioner.running(h.c.id), false);
+  } finally {
+    h.cleanup();
+  }
+});

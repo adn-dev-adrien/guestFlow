@@ -194,3 +194,53 @@ test('rule 7 — no step of creation, deprovisioning, reactivation or renaming i
     h.cleanup();
   }
 });
+
+test('rule 22 — a step left « running » by a console restart becomes a failed step with « Reprendre »', async () => {
+  const h = makeContext();
+  try {
+    const v = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
+    h.ctx.models.provisioning.set(v.id, 'backup', 'running', '', '2026-09-29T10:00:00Z');
+    assert.equal(h.ctx.provisioner.recover(), 1);
+    const step = h.ctx.controllers.customers.view(v.id).steps.find((s) => s.step === 'backup');
+    assert.deepEqual([step.status, step.detail, step.action], ['failed', 'Console redémarrée pendant l’étape.', 'resume']);
+    const after = await h.ctx.controllers.customers.stepAction(v.id, 'backup', 'resume', 'op');
+    assert.equal(after.steps.find((s) => s.step === 'backup').status, 'ok');
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 1 — customers created at the same moment never share a port', async () => {
+  const h = makeContext({ hostingEnv: { CP_PORT_RANGE: '4470-4479' } });
+  try {
+    const { customers } = h.ctx.controllers;
+    const views = await Promise.all(['aulnes', 'moulin', 'ombre'].map((slug) => customers.create({ ...NEW_CUSTOMER, slug, contactEmail: `x@${slug}.fr` }, 'op')));
+    const ports = views.map((v) => v.hosting.port);
+    assert.equal(new Set(ports).size, 3, JSON.stringify(ports));
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 23 — one failed erasure is an alert; the others are erased and the daily run goes on', async () => {
+  const h = makeContext();
+  try {
+    const { customers } = h.ctx.controllers;
+    const a = await customers.create(NEW_CUSTOMER, 'op');
+    const b = await customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'jo@moulin.fr' }, 'op');
+    await customers.deprovision(a.id, { confirmSlug: 'aulnes' }, 'op');
+    await customers.deprovision(b.id, { confirmSlug: 'moulin' }, 'op');
+    h.now.set('2026-12-29T10:00:00Z');
+    h.host.failNext['backup.purge'] = new Error('object storage unreachable');
+    const { createScheduler } = require('../tasks/scheduler');
+    const day = await createScheduler(h.ctx, () => {}).runDaily();
+    assert.equal(day.erased, 1);
+    assert.ok(h.ctx.controllers.alerts.list().alerts.some((x) => x.text === 'Gîte des Aulnes : effacement impossible (object storage unreachable).'));
+    assert.equal(fs.existsSync(path.join(h.root, 'moulin')), false);
+    h.now.set('2026-12-30T10:00:00Z');
+    assert.equal((await customers.eraseDue('système', () => {})).length, 1, 'retried the next day');
+    assert.ok(!h.ctx.controllers.alerts.list().alerts.some((x) => /effacement impossible/.test(x.text)));
+  } finally {
+    h.cleanup();
+  }
+});

@@ -195,6 +195,27 @@ test('rule 20 — above the daily quota the platform refuses with a clear error;
   }
 });
 
+test('rule 20 — sends running at once never pass the quota together; a failed send gives its slot back', async () => {
+  const dir = tmp();
+  const file = path.join(dir, 'platform-mail.json');
+  let fail = false;
+  const sent = [];
+  const factory = () => ({ sendMail: async (m) => { await new Promise((r) => setTimeout(r, 20)); if (fail) throw new Error('smtp down'); sent.push(m); return {}; } });
+  const svc = createEmailService({ host: '', fromEmail: 'claire@aulnes.fr' }, { env: PLATFORM_ENV, transportFactory: factory, counterFile: file });
+  try {
+    const results = await Promise.allSettled([1, 2, 3].map((i) => svc.send({ to: `${i}@x.fr`, subject: 's', text: 't' })));
+    assert.deepEqual(results.map((r) => r.status).sort(), ['fulfilled', 'fulfilled', 'rejected']);
+    assert.equal(sent.length, 2);
+    assert.equal(platformMail.readCount({ file }), 2);
+    fs.writeFileSync(file, JSON.stringify({ day: platformMail.today(), count: 1 }));
+    fail = true;
+    await assert.rejects(svc.send({ to: 'd@x.fr', subject: 's', text: 't' }), /smtp down/);
+    assert.equal(platformMail.readCount({ file }), 1, 'the failed send gave its slot back');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('rule 18 — without GUESTFLOW_MANAGED the platform variables are ignored (Solio)', () => {
   const env = { ...PLATFORM_ENV, GUESTFLOW_MANAGED: undefined };
   assert.equal(platformMail.available(env), false);

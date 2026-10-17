@@ -79,13 +79,20 @@ function createEmailService(settings, {
       });
     }
     // Rule 20: the shared sender's reputation is protected by a daily quota per instance.
+    // The slot is reserved before the send — read and written in the same tick — so sends running
+    // at once never pass the quota together; a send that fails gives its slot back.
     const file = counterFile || platformMail.counterFile(env);
     const sentToday = platformMail.readCount({ file, now: now() });
     if (sentToday >= platform.dailyLimit) throw platformMail.limitError(platform.dailyLimit);
+    platformMail.writeCount({ file, count: sentToday + 1, now: now() });
     const { from, replyTo } = platformMail.headers({ cfg: platform, fromName, replyTo: fromEmail });
-    const info = await tx.sendMail({ from, replyTo, to, subject, text });
-    platformMail.writeCount({ file, count: platformMail.readCount({ file, now: now() }) + 1, now: now() });
-    return info;
+    try {
+      return await tx.sendMail({ from, replyTo, to, subject, text });
+    } catch (err) {
+      const current = platformMail.readCount({ file, now: now() });
+      if (current > 0) platformMail.writeCount({ file, count: current - 1, now: now() });
+      throw err;
+    }
   }
 
   async function sendTest(to) {

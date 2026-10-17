@@ -46,7 +46,7 @@ const { createSupportController } = require('./controllers/supportController');
 // fetch used by the health checks; the tests pass fakes, index.js builds them from the environment.
 function createContext({
   db, now, mailer, secrets, privateKey, instancesRoot, dataDir, domain, consoleUrl, runFirstAdmin, qonto, directoryKey,
-  drivers, releasesDir, hostingEnv = {}, fetchImpl = fetch, releasesFetch, installRelease, pluginInstaller = null, isPortFree, diskRatio,
+  drivers, releasesDir, hostingEnv = {}, fetchImpl = fetch, releasesFetch, installRelease, pluginInstaller = null, isPortFree, diskRatio, consoleDbFile = null,
 }) {
   const publicUrl = consoleUrl || `https://console.${domain}`;
   const models = {
@@ -80,6 +80,9 @@ function createContext({
     qonto: qonto || createQontoBilling({ settings: models.qontoSettings, env: {} }),
     directoryKey,
     fetchImpl,
+    // The console's own database, copied every night (scheduler) — null on an in-memory database.
+    consoleDbFile,
+    consoleBackupDir: path.join(dataDir, 'backups'),
   };
 
   // --- Hosting H1 ---
@@ -91,14 +94,10 @@ function createContext({
     dataDir,
     domain,
     now,
-    // Litestream's configuration lists every instance whose backup step is done, and the console's
-    // own database.
-    listReplicas: () => [
-      { key: 'console', dbPath: path.join(dataDir, 'control-plane.db') },
-      ...models.customers.list()
-        .filter((c) => { const r = models.provisioning.get(c.id, 'backup'); return r && r.status === 'ok' && !c.archivedAt; })
-        .map((c) => ctx.provisioner.instanceOf(c)),
-    ],
+    // Litestream's configuration lists every instance whose backup step is done.
+    listReplicas: () => models.customers.list()
+      .filter((c) => { const r = models.provisioning.get(c.id, 'backup'); return r && r.status === 'ok' && !c.archivedAt; })
+      .map((c) => ctx.provisioner.instanceOf(c)),
   });
   const healthTimeoutMs = Number(hostingEnv.CP_HEALTH_TIMEOUT_MS) || 60000;
   const journal = (...args) => ctx.controllers.customers.journal(...args);

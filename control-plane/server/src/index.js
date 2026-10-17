@@ -65,6 +65,7 @@ const ctx = createContext({
   runFirstAdmin: createFirstAdminRunner(),
   releasesDir: env.CP_RELEASES_DIR ? path.resolve(env.CP_RELEASES_DIR) : undefined,
   hostingEnv: env,
+  consoleDbFile: path.join(dataDir, 'control-plane.db'),
 });
 
 const app = createApp(ctx, {

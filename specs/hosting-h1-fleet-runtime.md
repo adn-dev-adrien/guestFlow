@@ -166,6 +166,21 @@ These are the recommended options, taken under the owner's instruction to run th
 - A self-hosted instance (Solio today, not managed) → nothing changes: its update button, its PM2 and
   its SMTP stay as they are.
 
+### 3.G Isolation and resilience (added 2026-10-17 after the review of PR #691)
+
+21. **No customer reaches another, the console, or root.** Instances run as `guestflow-app`, never as
+    the console's user `guestflow`; each one sees only its own directory (the others are hidden by
+    its mount namespace), the releases read-only, and neither the console's directory nor Caddy's
+    admin socket. Litestream runs as `guestflow-app` too. Its configuration is root-owned and written
+    only by a root wrapper that accepts `c<id>=<instance database>` entries and nothing else; Caddy's
+    admin API is a unix socket only the console's group opens. The console's root commands are these
+    two wrappers.
+22. **A step cut short by a console restart becomes a failed step.** At start-up every step still
+    « running » is marked failed (« Console redémarrée pendant l'étape. »), so « Reprendre » is
+    offered instead of a customer blocked forever.
+23. **One customer's failed erasure never stops the daily run.** It raises an alert, the other
+    customers are erased, and it is tried again the next day.
+
 ---
 
 ## 4. Architecture
@@ -217,8 +232,10 @@ These are the recommended options, taken under the owner's instruction to run th
 - `guestflow@.service`;
 - `Caddyfile` with its `sites/` import and the closed-space page;
 - `litestream.yml` template;
-- `guestflow-systemctl` + `guestflow.sudoers`: the only root command the console may run, limited to
-  `guestflow@<slug>.service` and the Litestream restart;
+- `guestflow-systemctl`, `guestflow-litestream-apply` + `guestflow.sudoers`: the only root commands
+  the console may run — the instance units, and Litestream's configuration from checked entries;
+- `litestream.override.conf`, `caddy.override.conf`: Litestream as `guestflow-app`, Caddy's admin
+  socket directory;
 - `guestflow-console.service` and `console.env.example`;
 - `bootstrap-host.sh` (one-time host setup);
 - `README.md`: the host runbook, which lists the owner's actions of §8.
@@ -314,21 +331,47 @@ Implemented 2026-10-08 → 2026-10-17 on `feature/hosting-h1-fleet-runtime` (PR 
   The `local` driver writes each message as JSON into `<instance>/outbox`.
 - **Certificates (rule 15)** are read from what Caddy serves on 127.0.0.1:443 (SNI), not from its
   private data directory.
-- **Root access**: the console runs as `guestflow`; sudo only allows `/usr/local/sbin/guestflow-systemctl`,
-  which accepts exactly the driver calls.
+- **Root access**: the console runs as `guestflow`; sudo only allows `/usr/local/sbin/guestflow-systemctl`
+  (the instance units) and `/usr/local/sbin/guestflow-litestream-apply` (rule 21).
 - **Rule 11** is wired end to end (scope = instances whose `plugins` table has the plugin, same
   snapshot/health/rollback loop) behind a `pluginInstaller` adapter. Until the registry of phase 4
   provides it, the push answers 412 and « Versions » does not show it.
 - **Local drivers**: detached child processes with a pid file and an `.enabled` marker (restarted
   when the console starts, as systemd does at boot), `proxy-routes.json` instead of Caddy, timestamped
-  SQLite online-backup snapshots (every 10 min, 30 days) instead of Litestream.
+  SQLite online-backup snapshots (every 10 min, 30 days) instead of Litestream. The copies outlive
+  `removeReplica` until the purge, like a real replica.
+
+**Review of 2026-10-17 (PR #691)** — fixed on the branch:
+- Litestream no longer runs as root with a config the console could write (rule 21): it runs as
+  `guestflow-app`, `/etc/litestream.yml` is root 644 and written by `guestflow-litestream-apply`
+  from checked entries; the backup target lives in root-owned `/etc/guestflow/backup.env`.
+- Instances, Litestream and the console have separate identities and views (rule 21, units in
+  `deploy/hosting/`); Caddy's admin API moved to `/run/caddy/admin.sock` (0660, group `caddy`).
+- The console lists and restores replicas **by URL** with `LITESTREAM_ACCESS_KEY_ID` /
+  `LITESTREAM_SECRET_ACCESS_KEY` from its own environment (never in a file); a failed listing
+  puts its reason into the backup alert. A deprovisioned customer's kept copies are therefore
+  restorable and checked weekly without a false alert.
+- The console's own database is no longer a Litestream entry (Litestream cannot read the console's
+  directory): it is copied every night (7 kept) and sent with rclone.
+- « Restaurer à une date » moves the current files aside by renaming them (a corrupt or missing
+  database no longer blocks the restore), runs in the customer's sequence lock, and holds fleet
+  updates back (409 `RESTORE_RUNNING`).
+- A fleet update stops the instance before its snapshot, then starts it on the new version, so a
+  rollback loses nothing; each instance is updated inside its customer's sequence lock.
+- Port allocation retries on the UNIQUE conflict of two simultaneous creations.
+- An alert email counts as sent once one operator received it.
+- The probe asks each replica every 5 minutes, measures disk asynchronously and probes 8 customers
+  at a time.
+- The platform's daily quota is reserved before the send (a failed send gives its slot back), so
+  simultaneous sends never pass it.
+- Rules 21–23 appended (§3.G).
 
 **Tests.**
-- Control plane: `hosting-drivers` (11), `hosting-provisioner` (9), `hosting-releases` (3),
-  `hosting-fleet-update` (6), `hosting-probe` (7), `hosting-restore` (4) unit suites, and
-  `hosting-lifecycle.integration.test.js` (real instances, local drivers, ~10 s) in the
+- Control plane: `hosting-drivers` (13), `hosting-provisioner` (13), `hosting-releases` (3),
+  `hosting-fleet-update` (6), `hosting-probe` (10), `hosting-restore` (7) unit suites, and
+  `hosting-lifecycle.integration.test.js` (real instances, local drivers, ~8 s) in the
   `console-server` CI job. C-phase suites updated where a manual step became automatic.
-- Instance: `hosting-managed-instance.unit.test.js` (9).
+- Instance: `hosting-managed-instance.unit.test.js` (10).
 - Console client: `CustomerPage.hosting`, `FleetPage.hosting`, `VersionsPage.updates`. Instance client:
   `SettingsSystemUpdateSection.managed`, `SettingsSmtpSection.platform`.
 

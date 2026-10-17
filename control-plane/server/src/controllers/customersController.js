@@ -817,9 +817,19 @@ function createCustomersController(ctx) {
   }
 
   // A customer whose process is not marked stopped waits, and the alerts say so.
-  async function eraseDue(operator) {
+  // H1 rule 23: one customer's failed erasure is an alert, and the others are still erased.
+  async function eraseDue(operator, log = (msg) => console.log(msg)) {
     const done = [];
-    for (const id of customers.dueForErasure(today()).filter((x) => stopped(customers.get(x)))) done.push(await erase(id, operator));
+    for (const id of customers.dueForErasure(today()).filter((x) => stopped(customers.get(x)))) {
+      const c = customers.get(id);
+      try {
+        done.push(await erase(id, operator));
+        if (ctx.hostAlerts) ctx.hostAlerts.close(`erase:${id}`);
+      } catch (err) {
+        log(`[erase] ${c.slug}: ${err.message}`);
+        if (ctx.hostAlerts) ctx.hostAlerts.open({ key: `erase:${id}`, customerId: id, kind: 'erase', severity: 'error', text: `${c.companyName} : effacement impossible (${err.message}).` });
+      }
+    }
     return done;
   }
 

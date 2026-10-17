@@ -14,7 +14,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { backupTo, verify, removeDatabaseFiles } = require('./sqliteBackup');
+const { verify } = require('./sqliteBackup');
 const { waitHealthy } = require('./health');
 const { httpError } = require('./httpError');
 
@@ -22,7 +22,9 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
   const { hosting, customers, provisioning } = models;
   const stamp = () => now().toISOString();
 
-  // The customers whose backup exists: created up to their backup step, not erased.
+  // The customers whose backup exists: created up to their backup step, not erased. A deprovisioned
+  // customer's copies are kept until the erasure and still checked: the drivers restore them by
+  // replica (Litestream by URL), whether or not the instance is still replicated (review 2026-10-17).
   function replicated() {
     return customers.list().filter((c) => {
       const row = provisioning.get(c.id, 'backup');
@@ -64,7 +66,7 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
     return drivers.backup.window(provisioner.instanceOf(c)).catch(() => null);
   }
 
-  // Rule 14.
+  // Rule 14. Run inside the customer's sequence lock, and while it runs no fleet update starts.
   async function restoreAt(c, at, operator) {
     if (fleetUpdater.busy()) throw httpError(409, 'UPDATE_RUNNING', 'Mise à jour de la flotte en cours : restauration impossible avant sa fin.');
     const when = new Date(at);
@@ -72,9 +74,14 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
     const range = await window(c);
     if (!range) throw httpError(409, 'NO_BACKUP', 'Aucune sauvegarde pour ce client.');
     if (when < new Date(range.from) || when > now()) throw httpError(400, 'OUT_OF_RANGE', 'Date hors de la période conservée.');
+    return fleetUpdater.whileRestoring(() => provisioner.exclusive(c.id, () => swap(c, when, operator)));
+  }
+
+  async function swap(c, when, operator) {
     const inst = provisioner.instanceOf(c);
-    const aside = `${inst.dbPath}.before-restore-${stamp().replace(/[:.]/g, '-')}`;
+    const suffix = `.before-restore-${stamp().replace(/[:.]/g, '-')}`;
     const restored = `${inst.dbPath}.restoring`;
+    fs.rmSync(restored, { force: true });
     await drivers.backup.restore(inst, { at: when.toISOString(), output: restored });
     const check = verify(restored);
     if (!check.ok) {
@@ -83,9 +90,12 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
     }
     await drivers.process.stop(inst);
     try {
-      await backupTo(inst.dbPath, aside);
       await drivers.backup.removeReplica(inst);
-      removeDatabaseFiles(inst.dbPath);
+      // The current files are moved aside as they are — a corrupt or missing database must not
+      // stop the restore that is meant to repair it (review 2026-10-17).
+      for (const ext of ['', '-wal', '-shm']) {
+        if (fs.existsSync(`${inst.dbPath}${ext}`)) fs.renameSync(`${inst.dbPath}${ext}`, `${inst.dbPath}${suffix}${ext}`);
+      }
       fs.renameSync(restored, inst.dbPath);
     } finally {
       fs.rmSync(restored, { force: true });
@@ -94,7 +104,8 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
     }
     const res = await waitHealthy({ url: drivers.proxy.healthUrl(inst), expectVersion: inst.version, timeoutMs: healthTimeoutMs, fetchImpl });
     const label = when.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'short', timeStyle: 'short' });
-    journal(c.id, operator, 'restore', `Base restaurée au ${label} (${check.reservations} réservation(s)) ; l’ancienne gardée sous ${path.basename(aside)}`);
+    const aside = `${path.basename(inst.dbPath)}${suffix}`;
+    journal(c.id, operator, 'restore', `Base restaurée au ${label} (${check.reservations} réservation(s)) ; l’ancienne gardée sous ${aside}`);
     if (!res.ok) throw httpError(502, 'UNHEALTHY', `Base restaurée, mais l’instance ne répond pas : ${res.error}.`);
     return { aside, reservations: check.reservations };
   }

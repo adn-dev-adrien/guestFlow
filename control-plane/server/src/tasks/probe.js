@@ -24,15 +24,20 @@ const DISK_MAX_RATIO = 0.85;
 const CERT_WARN_MS = 14 * 24 * 60 * 60 * 1000;
 const MEMORY_MAX_RATIO = 0.9;
 const DISK_MEASURE_MS = 60 * 60 * 1000;
+// The replica is asked every 5 minutes, not every minute: a listing reads the object storage.
+const BACKUP_CHECK_MS = 5 * 60 * 1000;
+// Customers probed at once: ~50 instances fit in a round well under the minute.
+const CONCURRENCY = 8;
 
-function dirBytes(dir) {
+// Asynchronous, so measuring a large uploads folder never blocks the console.
+async function dirBytes(dir) {
   let total = 0;
   const stack = [dir];
   while (stack.length) {
     const d = stack.pop();
     let entries = [];
     try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
+      entries = await fs.promises.readdir(d, { withFileTypes: true });
     } catch {
       continue;
     }
@@ -40,11 +45,19 @@ function dirBytes(dir) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) stack.push(p);
       else if (e.isFile()) {
-        try { total += fs.statSync(p).size; } catch { /* vanished */ }
+        try { total += (await fs.promises.stat(p)).size; } catch { /* vanished */ }
       }
     }
   }
   return total;
+}
+
+async function inPool(items, size, fn) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(size, queue.length) }, async () => {
+    while (queue.length) await fn(queue.shift());
+  });
+  await Promise.all(workers);
 }
 
 function hostDiskRatio(root) {
@@ -60,6 +73,7 @@ const frDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'E
 
 function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fetch, root, today, diskRatio = hostDiskRatio, log = (msg) => console.log(msg) }) {
   const { customers, hosting, provisioning } = models;
+  const backupCheckedAt = new Map();
 
   // The customers the probe watches: their process was started at least once.
   function watched() {
@@ -104,14 +118,19 @@ function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fe
 
     // Rule 12 (local driver) and rule 16: the replica's age.
     const backupStep = provisioning.get(c.id, 'backup');
-    if (backupStep && backupStep.status === 'ok' && !archived) {
+    const checked = backupCheckedAt.get(c.id);
+    if (backupStep && backupStep.status === 'ok' && !archived && (!checked || t - checked >= BACKUP_CHECK_MS)) {
+      backupCheckedAt.set(c.id, t.getTime());
       await drivers.backup.tick(inst).catch((err) => log(`[probe] ${c.slug} backup: ${err.message}`));
-      const last = await drivers.backup.lastReplicatedAt(inst).catch(() => null);
-      fields.last_backup_at = last;
-      const reference = last || backupStep.at;
+      // The reason a listing failed (keys, network) goes into the alert (review 2026-10-17).
+      let why = null;
+      const last = await drivers.backup.lastReplicatedAt(inst).catch((err) => { why = err.message; return null; });
+      fields.last_backup_at = last || row.last_backup_at || null;
+      const reference = last || row.last_backup_at || backupStep.at;
+      const when = fields.last_backup_at ? `le ${new Date(fields.last_backup_at).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'short', timeStyle: 'short' })}` : 'jamais';
       toggle(`backup:${c.id}`, t - new Date(reference) > BACKUP_MAX_AGE_MS,
-        { customerId: c.id, kind: 'backup', text: `${c.companyName} : dernière sauvegarde répliquée ${last ? `le ${new Date(last).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'short', timeStyle: 'short' })}` : 'jamais'}.` });
-    } else {
+        { customerId: c.id, kind: 'backup', text: `${c.companyName} : dernière sauvegarde répliquée ${when}${why ? ` (${why})` : ''}.` });
+    } else if (!backupStep || backupStep.status !== 'ok' || archived) {
       alerts.close(`backup:${c.id}`);
     }
 
@@ -123,7 +142,7 @@ function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fe
 
     // Rule 15: disk use, measured hourly (a walk of the directory is not free).
     if (!row.disk_measured_at || t - new Date(row.disk_measured_at) >= DISK_MEASURE_MS) {
-      fields.disk_bytes = dirBytes(inst.dir);
+      fields.disk_bytes = await dirBytes(inst.dir);
       fields.disk_measured_at = t.toISOString();
     }
 
@@ -138,13 +157,13 @@ function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fe
   }
 
   async function runOnce() {
-    for (const c of watched()) {
+    await inPool(watched(), CONCURRENCY, async (c) => {
       try {
         await probeCustomer(c);
       } catch (err) {
         log(`[probe] ${c.slug}: ${err.message}`);
       }
-    }
+    });
     const ratio = diskRatio(root);
     toggle('disk', ratio !== null && ratio > DISK_MAX_RATIO,
       { kind: 'disk', severity: 'warning', text: `Disque de l’hôte rempli à ${Math.round((ratio || 0) * 100)} %.` });
@@ -154,4 +173,4 @@ function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fe
   return { runOnce, probeCustomer, dirBytes };
 }
 
-module.exports = { createProbe, DOWN_AFTER_MS, BACKUP_MAX_AGE_MS, DISK_MAX_RATIO, CERT_WARN_MS, MEMORY_MAX_RATIO };
+module.exports = { createProbe, BACKUP_CHECK_MS, CONCURRENCY, DOWN_AFTER_MS, BACKUP_MAX_AGE_MS, DISK_MAX_RATIO, CERT_WARN_MS, MEMORY_MAX_RATIO };

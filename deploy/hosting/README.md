@@ -5,26 +5,39 @@ Litestream, driven by the console. Why it is built this way: [`specs/hosting-h1-
 (decisions H-D1 to H-D6). Self-hosted installs (Solio) do **not** use any of this: they keep PM2 and
 the in-app update of [`specs/self-update-and-releases.md`](../../specs/self-update-and-releases.md).
 
+## Identities (rule 21)
+
+| User | Runs | Can |
+|---|---|---|
+| `root` | systemd, Caddy, the two wrappers | — |
+| `guestflow` | the console | create and read the instances' directories (member of `guestflow-app`), open Caddy's admin socket (member of `caddy`), run `guestflow-systemctl` and `guestflow-litestream-apply` through sudo |
+| `guestflow-app` | every instance, Litestream | each instance sees only its own directory, the releases read-only, never `/srv/guestflow/console`, `/run/caddy` or `/etc/guestflow` |
+
 ## Layout
 
 ```
 /srv/guestflow/
+  instances/                 guestflow:guestflow-app 2770 (setgid: everything inside stays in the group)
   instances/<slug>/          one directory per customer — the console creates it
     env                      its whole configuration (mode 600), written by the console
     data/guestflow.db        its database (+ licence.jws, local.env, platform-mail.json, backups/)
     uploads/                 its photos and documents
   releases/<version>/        each GuestFlow version, unpacked once, shared by every instance on it
-  console/
+                             (guestflow 755: read-only for the instances)
+  console/                   guestflow 700 — invisible to the instances
     src/                     the repository at the deployed tag (the console runs from it)
     env                      the console's environment (mode 600)
-    data/                    the console's database, keys and exports
+    data/                    the console's database, keys and exports; backups/ its nightly copies (7)
   closed/index.html          « Cet espace a été fermé »
-/etc/caddy/Caddyfile         main file; imports /etc/caddy/sites/*.caddy (one per address, written by the console)
-/etc/litestream.yml          one entry per database, rewritten by the console
-/etc/default/litestream      the object storage keys
+/etc/caddy/Caddyfile         main file; admin API on /run/caddy/admin.sock (0660, group caddy);
+                             imports /etc/caddy/sites/*.caddy (one per address, written by the console)
+/etc/litestream.yml          root 644, one entry per database, written only by guestflow-litestream-apply
+/etc/guestflow/backup.env    root 600: CP_BACKUP_URL, CP_BACKUP_ENDPOINT, CP_BACKUP_REGION (read by the wrapper)
+/etc/default/litestream      root 600: the object storage keys, for the Litestream service
 /etc/systemd/system/guestflow@.service       the instance template
 /etc/systemd/system/guestflow-console.service
-/usr/local/sbin/guestflow-systemctl          the only root command the console may run (via sudo)
+/usr/local/sbin/guestflow-systemctl          root wrapper: the instance units only (via sudo)
+/usr/local/sbin/guestflow-litestream-apply   root wrapper: Litestream's configuration from checked entries, then a restart
 ```
 
 | File here | Installed as |
@@ -32,10 +45,13 @@ the in-app update of [`specs/self-update-and-releases.md`](../../specs/self-upda
 | `guestflow@.service` | `/etc/systemd/system/guestflow@.service` |
 | `guestflow-console.service` | `/etc/systemd/system/guestflow-console.service` |
 | `guestflow-systemctl` | `/usr/local/sbin/guestflow-systemctl` (root, 755) |
+| `guestflow-litestream-apply` | `/usr/local/sbin/guestflow-litestream-apply` (root, 755) |
+| `litestream.override.conf` | `/etc/systemd/system/litestream.service.d/guestflow.conf` (Litestream as `guestflow-app`) |
+| `caddy.override.conf` | `/etc/systemd/system/caddy.service.d/guestflow.conf` (`/run/caddy` for the admin socket) |
 | `guestflow.sudoers` | `/etc/sudoers.d/guestflow` (440) |
 | `Caddyfile` | `/etc/caddy/Caddyfile` (`__DOMAIN__`, `__ACME_EMAIL__` replaced) |
 | `closed/index.html` | `/srv/guestflow/closed/index.html` |
-| `litestream.yml` | `/etc/litestream.yml` (root:guestflow, 664) |
+| `litestream.yml` | `/etc/litestream.yml` (root:root, 644) |
 | `console.env.example` | `/srv/guestflow/console/env` (guestflow, 600), written once |
 
 ## Owner actions — before the first customer
@@ -70,8 +86,14 @@ Then:
 1. **Fill in `/srv/guestflow/console/env`** — every « à remplir »: the licence private key
    (`CP_LICENCE_PRIVATE_KEY`, control-plane rule 30), the console's own SMTP, the object storage
    (`CP_BACKUP_*`, `CP_RCLONE_REMOTE`) and the platform sender (`CP_PLATFORM_SMTP_*`).
-2. **Fill in `/etc/default/litestream`** with the object storage keys, and configure rclone for the
-   same bucket: `sudo -u guestflow rclone config` (remote name `guestflow-backup`, type `s3`).
+2. **Fill in the object storage, three times — each reader gets only what it needs:**
+   - `/etc/default/litestream` — the keys, for the Litestream service;
+   - `/etc/guestflow/backup.env` — `CP_BACKUP_URL`, `CP_BACKUP_ENDPOINT`, `CP_BACKUP_REGION`, for the
+     root wrapper that writes Litestream's configuration;
+   - the console's env — the same three values plus `LITESTREAM_ACCESS_KEY_ID` /
+     `LITESTREAM_SECRET_ACCESS_KEY`: the console lists and restores the replicas itself;
+   - then configure rclone for the same bucket: `sudo -u guestflow rclone config` (remote name
+     `guestflow-backup`, type `s3`).
 3. **Start the console** and create the first operator:
    ```bash
    systemctl start guestflow-console
@@ -91,9 +113,10 @@ Then:
 | Put a customer's database back to a moment | the customer's page → « Restaurer à une date » |
 | See what is wrong | the alerts on the home page (also emailed once, then every 24 h) |
 
-Nothing here needs a shell. The console only ever calls: `guestflow-systemctl` (through sudo),
-`caddy reload`, `litestream generations|restore`, `rclone sync|purge`, and `node` for a new
-database.
+Nothing here needs a shell. The console only ever calls: `guestflow-systemctl` and
+`guestflow-litestream-apply` (through sudo), `caddy reload` (admin socket), `litestream
+generations|restore` (by replica URL, keys in its environment), `rclone sync|copy|purge`, and `node`
+for a new database.
 
 ## Updating the console itself
 
@@ -117,8 +140,9 @@ it was on.
   usually the object storage keys or the network.
 - **Disk above 85 %**: `du -sh /srv/guestflow/instances/* | sort -h`; old update snapshots live in
   each `data/backups/` (three kept).
-- **Losing the host**: rent a new one and bootstrap it; restore the console's database
-  (`litestream restore -o /srv/guestflow/console/data/control-plane.db <CP_BACKUP_URL>/console/db`)
+- **Losing the host**: rent a new one and bootstrap it; put back the console's database from its
+  newest nightly copy (`rclone copy guestflow-backup:<bucket path>/console/ /tmp/console/`, then
+  `/srv/guestflow/console/data/control-plane.db`)
   and put back its key files (`.key`, `.directory-key`, kept offline by the owner — they are
   not in the database); then restore each customer with `litestream restore -o
   /srv/guestflow/instances/<slug>/data/guestflow.db <CP_BACKUP_URL>/c<id>/db` before starting its

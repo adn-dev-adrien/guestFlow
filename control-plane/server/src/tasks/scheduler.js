@@ -21,7 +21,12 @@
  * process driver starts the enabled instances again, as systemd does at boot.
  */
 
+const fs = require('fs');
+const path = require('path');
 const { parisDay } = require('../utils/days');
+const { backupTo } = require('../utils/sqliteBackup');
+
+const CONSOLE_COPIES = 7;
 
 const RUN_HOUR = 4;
 const PAYMENT_CHECK_MS = 15 * 60 * 1000;
@@ -37,10 +42,11 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
   async function runDaily() {
     const day = parisDay(now());
     const refreshed = controllers.customers.reissueAll('système');
-    const erased = await controllers.customers.eraseDue('système');
+    // Rule 23: an erasure that fails is an alert, never the end of the daily run.
+    const erased = await controllers.customers.eraseDue('système', log).catch((err) => { log(`[scheduler] erasure failed: ${err.message}`); return []; });
     controllers.customers.purgeExpiredExports();
     models.meta.set('lastDailyRun', day);
-    await runHostDaily();
+    await runHostDaily().catch((err) => log(`[scheduler] host daily run failed: ${err.message}`));
     const invoiced = await controllers.billing.runDaily(log);
     const notified = await controllers.billing.sendDigest(controllers.alerts.digestLines(), day)
       .catch((err) => { log(`[scheduler] daily email failed: ${err.message}`); return 0; });
@@ -56,6 +62,18 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
     }
     await ctx.provisioner.dropExpiredRedirects().catch((err) => log(`[proxy] redirects: ${err.message}`));
     await ctx.weeklyRestore.runIfDue().catch((err) => log(`[restore-check] failed: ${err.message}`));
+    await copyConsoleDatabase().catch((err) => log(`[backup] console database: ${err.message}`));
+  }
+
+  // The console's own database, copied every night and sent to the backup storage; 7 copies kept.
+  async function copyConsoleDatabase() {
+    if (!ctx.consoleDbFile || !fs.existsSync(ctx.consoleDbFile)) return null;
+    const file = path.join(ctx.consoleBackupDir, `control-plane-${parisDay(now())}.db`);
+    await backupTo(ctx.consoleDbFile, file);
+    const copies = fs.readdirSync(ctx.consoleBackupDir).filter((f) => /^control-plane-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort();
+    for (const f of copies.slice(0, Math.max(0, copies.length - CONSOLE_COPIES))) fs.rmSync(path.join(ctx.consoleBackupDir, f), { force: true });
+    await ctx.drivers.backup.syncConsole(file);
+    return file;
   }
 
   let probing = false;
@@ -111,6 +129,7 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
 
   function start(intervalMs = 60000) {
     ctx.fleetUpdater.recover();
+    ctx.provisioner.recover();
     const live = models.customers.list().filter((c) => !c.archivedAt).map((c) => ctx.provisioner.instanceOf(c));
     ctx.drivers.process.resumeEnabled(live).catch((err) => log(`[process] resume failed: ${err.message}`));
     tick();
@@ -121,7 +140,7 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
     return () => timers.forEach(clearInterval);
   }
 
-  return { runDaily, runHostDaily, isDue, tick, checkPayments, readDirectory, probe, start };
+  return { runDaily, runHostDaily, copyConsoleDatabase, isDue, tick, checkPayments, readDirectory, probe, start };
 }
 
 module.exports = { createScheduler, RUN_HOUR, PAYMENT_CHECK_MS };

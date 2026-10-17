@@ -1,12 +1,13 @@
 # GuestFlow host — Litestream (specs/hosting-h1-fleet-runtime.md H-D3, rule 12).
 #
-# Installed once by bootstrap-host.sh into /etc/litestream.yml, owned by the guestflow group. The
-# console rewrites it whole each time an instance is added, stopped, renamed or erased: one entry per
-# database, replicated to <CP_BACKUP_URL>/c<customer id>/db, snapshots every 24 h kept 30 days.
-# The object storage credentials live in /etc/default/litestream (LITESTREAM_ACCESS_KEY_ID,
-# LITESTREAM_SECRET_ACCESS_KEY), never in this file.
+# Installed once by bootstrap-host.sh into /etc/litestream.yml, root:root 644. It is rewritten whole
+# by the root wrapper guestflow-litestream-apply (marker below), from the list of databases the
+# console passes, each time an instance is added, stopped, renamed or erased: one entry per database,
+# replicated to <CP_BACKUP_URL>/c<customer id>/db, snapshots every 24 h kept 30 days. Litestream runs
+# as guestflow-app (litestream.override.conf). The object storage credentials live in
+# /etc/default/litestream (root 600), never in this file. Marker: guestflow-litestream-apply.
 #
-# Example of one entry, as the console writes it:
+# Example of one entry, as the wrapper writes it:
 #
 #   - path: /srv/guestflow/instances/aulnes/data/guestflow.db
 #     replicas:
