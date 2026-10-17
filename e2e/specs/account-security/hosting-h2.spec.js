@@ -59,12 +59,15 @@ test('rules 6-7 — turn on the authenticator app, then log in with a computed c
   await context.clearCookies();
   await login(page, account);
   await expect(page.getByText('Code à 6 chiffres de l’appli d’authentification.')).toBeVisible();
+  await page.getByRole('button', { name: 'Utiliser un code de secours' }).click();
+  await expect(page.getByLabel('Code de secours')).toHaveAttribute('inputmode', 'text');
+  await page.getByRole('button', { name: 'Utiliser le code de l’application' }).click();
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret));
   await page.getByRole('button', { name: 'Valider' }).click();
   await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
 });
 
-test('rules 12-16 — the support asks, the admin accepts, a signed link opens a traced support session', async ({ page, browser }) => {
+test('rules 12-16 + 20 — the support asks, the admin accepts, a signed link opens a traced support session', async ({ page, browser }) => {
   const account = seedAccount('support');
   writeSupportRequest('Vérifier la synchronisation Booking');
   await login(page, account);
@@ -86,7 +89,8 @@ test('rules 12-16 — the support asks, the admin accepts, a signed link opens a
 
   await page.goto('/parametres/acces-support');
   await page.getByRole('button', { name: /Journal/ }).first().click();
-  await expect(page.getByText('Page ouverte : /planning')).toBeVisible();
+  await expect(page.getByText('Page ouverte : Planning')).toBeVisible();
+  await expect(page.getByText('/api/', { exact: false })).toHaveCount(0);
   await page.getByRole('button', { name: 'Révoquer' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Révoquer' }).click();
   await expect(page.getByText('Accès révoqué.')).toBeVisible();
