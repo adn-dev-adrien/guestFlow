@@ -174,7 +174,7 @@ test('rule 17 — two clicks on « Envoyer » at once send one email', async () 
     const [row] = s.billing.queue();
     const results = await Promise.allSettled([s.billing.sendQueued(row.id, 'a'), s.billing.sendQueued(row.id, 'b')]);
     assert.deepEqual(results.map((r) => r.status).sort(), ['fulfilled', 'rejected']);
-    assert.equal(s.mailer.sent.filter((m) => m.to === 'claire@aulnes.fr').length, 1);
+    assert.equal(s.mailer.sent.filter((m) => m.to === 'claire@aulnes.fr' && !/est prêt$/.test(m.subject)).length, 1);
   } finally {
     s.cleanup();
   }

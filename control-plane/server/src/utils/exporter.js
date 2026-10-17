@@ -10,6 +10,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { assertInside } = require('./instanceFiles');
+
 const CSV_TABLES = ['reservations', 'clients'];
 
 function csvCell(v) {
@@ -31,6 +33,7 @@ function exportInstance({ instances, slug, exportsDir, stamp }) {
   if (!instances.hasDatabase(slug)) throw new Error('Base de l’instance introuvable : rien à exporter.');
   const work = fs.mkdtempSync(path.join(os.tmpdir(), `gf-export-${slug}-`));
   try {
+    assertInside(instances.dirOf(slug), instances.dbPath(slug));
     const src = new Database(instances.dbPath(slug), { readonly: true, fileMustExist: true });
     try {
       src.prepare('VACUUM INTO ?').run(path.join(work, 'guestflow.db'));

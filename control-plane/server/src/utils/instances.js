@@ -9,10 +9,14 @@ const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
 
+const { assertInside, shareDatabase } = require('./instanceFiles');
+
 const DB_FILE = 'guestflow.db';
 
-function createInstances({ root }) {
+function createInstances({ root, envsDir }) {
   const base = path.resolve(root || '.');
+  // The environment files, outside every instance directory (specs/hosting-h1-fleet-runtime.md M2).
+  const envs = path.resolve(envsDir || path.join(path.dirname(base), 'envs'));
 
   function dirOf(slug) {
     if (!/^[a-z0-9-]{3,30}$/.test(String(slug))) throw new Error(`invalid slug: ${slug}`);
@@ -21,9 +25,22 @@ function createInstances({ root }) {
 
   const dataDir = (slug) => path.join(dirOf(slug), 'data');
   const dbPath = (slug) => path.join(dataDir(slug), DB_FILE);
+  // Never a link out of the instance's directory, and the files SQLite may create while reading
+  // (-shm of a stopped instance) stay writable by the instance (rule 21).
+  const openReadonly = (slug) => {
+    if (!assertInside(dirOf(slug), dbPath(slug))) throw new Error('missing');
+    return new Database(dbPath(slug), { readonly: true, fileMustExist: true });
+  };
+  const close = (db, slug) => {
+    if (!db) return;
+    db.close();
+    shareDatabase(dbPath(slug));
+  };
 
   return {
     root: base,
+    envsDir: envs,
+    envFileOf: (slug) => { dirOf(slug); return path.join(envs, slug); },
     dirOf,
     dataDir,
     dbPath,
@@ -35,13 +52,13 @@ function createInstances({ root }) {
     readFacts(slug) {
       let db;
       try {
-        db = new Database(dbPath(slug), { readonly: true, fileMustExist: true });
+        db = openReadonly(slug);
         const rows = db.prepare('SELECT id, enabled FROM plugins').all();
         return { installed: rows.map((r) => r.id), active: rows.filter((r) => r.enabled).map((r) => r.id) };
       } catch {
         return null;
       } finally {
-        if (db) db.close();
+        close(db, slug);
       }
     },
 
@@ -51,7 +68,7 @@ function createInstances({ root }) {
     readSupportAccess(slug, nowIso) {
       let db;
       try {
-        db = new Database(dbPath(slug), { readonly: true, fileMustExist: true });
+        db = openReadonly(slug);
         const pending = db.prepare('SELECT id, requestId, reason, requestedAt FROM support_access WHERE decision IS NULL ORDER BY id DESC LIMIT 1').get() || null;
         const open = db.prepare(`SELECT id, reason, expiresAt FROM support_access WHERE decision = 'accepted' AND revokedAt IS NULL AND expiresAt > ?
           ORDER BY expiresAt DESC LIMIT 1`).get(nowIso) || null;
@@ -60,7 +77,7 @@ function createInstances({ root }) {
       } catch {
         return null;
       } finally {
-        if (db) db.close();
+        close(db, slug);
       }
     },
 
@@ -69,12 +86,12 @@ function createInstances({ root }) {
     readActiveEmails(slug) {
       let db;
       try {
-        db = new Database(dbPath(slug), { readonly: true, fileMustExist: true });
+        db = openReadonly(slug);
         return db.prepare('SELECT email FROM users WHERE isActive = 1').all().map((r) => r.email);
       } catch {
         return null;
       } finally {
-        if (db) db.close();
+        close(db, slug);
       }
     },
   };

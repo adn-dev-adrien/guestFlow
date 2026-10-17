@@ -8,7 +8,8 @@
  *   read()                      → full row (defaults applied; SMTP password NEVER returned in clear)
  *   upsert(payload)             → writes only the keys present in payload (per-field 3-way)
  *   updateLogoPath(path)        → single-column update of companyLogoPath
- *   smtpConfigured()            → true when smtpHost AND the resolved sending address are filled
+ *   smtpConfigured()            → true when smtpHost AND the resolved sending address are filled, or
+ *                                  when a hosted instance has no host and the platform sends for it
  *   publicUrl()                 → the configured public URL (string, never null)
  *   decryptedSmtpSettings()     → { host, port, secure, user, password, fromEmail, fromName }
  *                                  with the password decrypted on the fly — used by the email
@@ -203,10 +204,13 @@ function createSettingsModel(databaseInstance) {
 
     // ----- SMTP / account-management helpers -----
 
+    // A hosted instance without its own SMTP sends through the platform
+    // (specs/hosting-h1-fleet-runtime.md rule 18): configured with nothing typed.
     smtpConfigured() {
       const row = readRaw();
       const host = String(row.smtpHost || '').trim();
-      return Boolean(host) && Boolean(resolveEmailIdentity(row).fromEmail);
+      if (!host) return require('../utils/platformMail').available();
+      return Boolean(resolveEmailIdentity(row).fromEmail);
     },
 
     publicUrl() {

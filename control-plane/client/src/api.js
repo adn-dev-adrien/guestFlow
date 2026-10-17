@@ -64,6 +64,15 @@ const api = {
   saveTemplate: (key, body) => request('PUT', `/api/templates/${key}`, body),
   previewTemplate: (key, body) => request('POST', `/api/templates/${key}/preview`, body),
 
+  // specs/hosting-h1-fleet-runtime.md — the page « Versions » and the restore of a customer.
+  versions: () => request('GET', '/api/fleet/versions'),
+  checkVersions: () => request('POST', '/api/fleet/versions/check', {}),
+  installRelease: (version) => request('POST', '/api/fleet/releases/install', { version }),
+  startUpdate: (targetVersion, customerIds) => request('POST', '/api/fleet/updates', customerIds ? { targetVersion, customerIds } : { targetVersion }),
+  pushPlugin: (pluginId, version) => request('POST', '/api/fleet/plugins/push', { pluginId, version }),
+  restoreWindow: (id) => request('GET', `/api/customers/${id}/restore-window`),
+  restore: (id, at) => request('POST', `/api/customers/${id}/restore`, { at }),
+
   catalogue: () => request('GET', '/api/catalogue'),
   toggleCell: (lowest, pluginId, planCode) => request('POST', '/api/catalogue/toggle', { lowest, pluginId, planCode }),
   catalogueImpact: (draft) => request('POST', '/api/catalogue/impact', draft),

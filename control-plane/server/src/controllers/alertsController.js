@@ -2,7 +2,8 @@
  * What the operator must look at today (specs/control-plane-plans-and-access.md rule 18): the
  * customers who entered a state that matters today, the customers already in read-only or
  * suspended, the failed steps, and from the billing (C2b) the missing Qonto connection, the invoices
- * not created, the failed payments and the emails awaiting approval. The home page shows it; the
+ * not created, the failed payments and the emails awaiting approval — and, since the hosting
+ * (specs/hosting-h1-fleet-runtime.md rule 16), the open host alerts. The home page shows it; the
  * daily email sends the same lines.
  */
 
@@ -32,7 +33,8 @@ function createAlertsController(ctx, customersController, billingController) {
       if (entered.has(c.id) || !['read_only', 'suspended'].includes(c.state)) continue;
       alerts.push({ customerId: c.id, severity: 'error', text: `${c.companyName} est en « ${STATE_LABELS[c.state]} » depuis le ${frDay(c.stateSince)}.` });
     }
-    const labels = new Map([...customersController.CREATE_STEPS, ...customersController.DEPROVISION_STEPS].map((s) => [s.step, s.label]));
+    const labels = new Map([...customersController.CREATE_STEPS, ...customersController.DEPROVISION_STEPS,
+      ...customersController.REACTIVATE_STEPS, ...customersController.RENAME_STEPS].map((s) => [s.step, s.label]));
     for (const s of provisioning.failed()) {
       const c = byId.get(s.customerId);
       if (!c) continue;
@@ -40,6 +42,9 @@ function createAlertsController(ctx, customersController, billingController) {
     }
     for (const c of customersController.erasureBlocked()) {
       alerts.push({ customerId: c.id, severity: 'warning', text: `${c.companyName} : effacement en attente de « Processus et route arrêtés ».` });
+    }
+    for (const a of ctx.hostAlerts ? ctx.hostAlerts.list() : []) {
+      alerts.push({ customerId: a.customer_id, severity: a.severity === 'warning' ? 'warning' : 'error', text: a.text, link: a.customer_id ? null : '/versions' });
     }
     alerts.push(...billingController.alerts());
     return { alerts, queue: billingController.queue() };

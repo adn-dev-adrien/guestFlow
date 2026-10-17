@@ -54,6 +54,9 @@ const app = express();
 // proxy is put in front (WordPress prod), set TRUST_PROXY_HOPS to the exact number of trusted hops.
 const TRUST_PROXY_HOPS = process.env.TRUST_PROXY_HOPS;
 app.set('trust proxy', TRUST_PROXY_HOPS != null && TRUST_PROXY_HOPS !== '' ? Number(TRUST_PROXY_HOPS) : false);
+// Behind the hosting's proxy, forwarded headers count only when Caddy's secret header comes with them
+// (specs/hosting-h1-fleet-runtime.md rule 21). Unset: nothing changes.
+app.use(require('./utils/proxySecret').proxySecretGuard(process.env.GUESTFLOW_PROXY_SECRET));
 
 // HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built
 // with INLINE_RUNTIME_CHUNK=false so script-src can stay 'self').
@@ -123,7 +126,7 @@ try {
 require('./utils/vapid').ensureVapid(require('./models/settingsModel').read());
 
 // Serve uploads (public static images)
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/uploads', express.static(require('./utils/instancePaths').uploadsDir()));
 
 // Public API (specs/public-api.md) — `/public/v1/*`, a SEPARATE tree from the internal `/api/*`
 // admin API: it never passes through the `/api` session guard below, so that guard can neither
@@ -232,6 +235,9 @@ pluginLoader.mountApi(app);
 
 app.get('/api/version', (req, res) => {
   res.json({
+    // The console's health check reads it to prove the expected release came up
+    // (specs/hosting-h1-fleet-runtime.md rule 10).
+    version: require('./utils/appVersion').getAppVersion(),
     env: process.env.NODE_ENV || 'development',
     commitSha: commitSha || null,
     commitShaShort,
@@ -289,14 +295,18 @@ const PORT = process.env.PORT || 4000;
 let serverHandle;
 let serverProtocol = 'http';
 try {
-  const built = buildServer({ httpsEnabled, app });
+  // Behind the hosting's proxy (specs/hosting-h1-fleet-runtime.md H-D2) TLS ends at Caddy: the
+  // headers and cookies stay HTTPS-grade, the listener is plain HTTP on 127.0.0.1.
+  const built = buildServer({ httpsEnabled: httpsEnabled && process.env.GUESTFLOW_TLS_UPSTREAM !== '1', app });
   serverHandle = built.server;
   serverProtocol = built.protocol;
 } catch (err) {
   logErrorMarker(`Boot failed: ${err.message}`);
   process.exit(1);
 }
-const server = serverHandle.listen(PORT, () => {
+// A hosted instance only answers its proxy (GUESTFLOW_LISTEN_HOST=127.0.0.1); unset, every interface.
+const listenArgs = process.env.GUESTFLOW_LISTEN_HOST ? [PORT, process.env.GUESTFLOW_LISTEN_HOST] : [PORT];
+const server = serverHandle.listen(...listenArgs, () => {
   // Single boot banner — env, address, DB path. The only line a healthy steady-state boot prints
   // unless a migration / seed actually changed something. Goes to stdout (regular logs); the
   // BOOT START / BOOT COMPLETE markers stay on stderr via logErrorMarker for ops grep.

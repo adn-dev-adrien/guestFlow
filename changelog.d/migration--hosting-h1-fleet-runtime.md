@@ -1,0 +1,1 @@
+- Control-plane database: new tables `instances`, `fleet_updates`, `fleet_update_items`, `backup_checks`, `mail_counters`, `host_redirects`, `host_alerts`; `provisioning_steps` rebuilt once to accept the `running` status (rows kept). The C-phase manual step rows (`instance`) are no longer shown. The instance database is unchanged.

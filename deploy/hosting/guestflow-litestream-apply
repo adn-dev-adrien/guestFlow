@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Writes /etc/litestream.yml and restarts Litestream (specs/hosting-h1-fleet-runtime.md H-D3, rule 21).
+# Installed by bootstrap-host.sh as /usr/local/sbin/guestflow-litestream-apply (root:root, 755) and
+# allowed to the console by /etc/sudoers.d/guestflow.
+#
+#   guestflow-litestream-apply --url s3://bucket/fleet --endpoint https://s3.fr-par.scw.cloud --region fr-par \
+#     c12=/srv/guestflow/instances/aulnes/data/guestflow.db c14=…
+#   guestflow-litestream-apply --dry-run …        # prints the file, writes nothing
+#
+# The console never writes the configuration itself: Litestream reads it, and a writable config would
+# let whoever writes it choose what Litestream runs. Everything is checked — the target (the
+# console's CP_BACKUP_* values, the single source of truth), and each entry: a key `c<id>` and an
+# instance database path, each used once — and the file is generated here from them. `-` stands for
+# an empty endpoint or region. The object storage keys are never passed: Litestream reads them from
+# /etc/default/litestream.
+set -euo pipefail
+
+dry=0
+if [[ "${1:-}" == "--dry-run" ]]; then dry=1; shift; fi
+[[ "${1:-}" == "--url" && $# -ge 6 && "$3" == "--endpoint" && "$5" == "--region" ]] || { echo "usage : --url U --endpoint E|- --region R|- entrées…" >&2; exit 64; }
+url="$2"; endpoint="$4"; region="$6"; shift 6
+[[ "$endpoint" == "-" ]] && endpoint=""
+[[ "$region" == "-" ]] && region=""
+[[ "$url" =~ ^s3://[a-z0-9][a-z0-9.-]{1,62}(/[A-Za-z0-9._-]+)*/?$ ]] || { echo "URL de sauvegarde invalide" >&2; exit 65; }
+[[ -z "$endpoint" || "$endpoint" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?/?$ ]] || { echo "endpoint invalide" >&2; exit 65; }
+[[ -z "$region" || "$region" =~ ^[a-z0-9-]{2,32}$ ]] || { echo "région invalide" >&2; exit 65; }
+url="${url%/}"
+
+entry='^(c[0-9]{1,9})=(/srv/guestflow/instances/[a-z0-9-]{3,30}/data/guestflow\.db)$'
+out="# Written by guestflow-litestream-apply (specs/hosting-h1-fleet-runtime.md) — edits are overwritten."$'\n'
+if [[ $# -eq 0 ]]; then
+  out+="dbs: []"$'\n'
+else
+  out+="dbs:"$'\n'
+  seen=' '
+  for arg in "$@"; do
+    [[ "$arg" =~ $entry ]] || { echo "refusé : $arg" >&2; exit 64; }
+    key="${BASH_REMATCH[1]}"; db="${BASH_REMATCH[2]}"
+    [[ "$seen" != *" $key "* && "$seen" != *" $db "* ]] || { echo "refusé (doublon) : $arg" >&2; exit 64; }
+    seen+="$key $db "
+    out+="  - path: $db"$'\n'"    replicas:"$'\n'"      - type: s3"$'\n'"        url: $url/$key/db"$'\n'
+    if [[ -n "$endpoint" ]]; then out+="        endpoint: $endpoint"$'\n'"        force-path-style: true"$'\n'; fi
+    if [[ -n "$region" ]]; then out+="        region: $region"$'\n'; fi
+    out+="        retention: 720h"$'\n'"        snapshot-interval: 24h"$'\n'"        sync-interval: 1s"$'\n'
+  done
+fi
+
+if [[ $dry -eq 1 ]]; then printf '%s' "$out"; exit 0; fi
+tmp="$(mktemp /etc/litestream.yml.XXXXXX)"
+printf '%s' "$out" > "$tmp"
+chown root:root "$tmp"; chmod 644 "$tmp"
+mv -f "$tmp" /etc/litestream.yml
+exec /usr/bin/systemctl restart litestream

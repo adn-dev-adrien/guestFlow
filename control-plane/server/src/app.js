@@ -10,14 +10,19 @@ const path = require('path');
 const fs = require('fs');
 const { authRoutes } = require('./routes/auth');
 const { consoleRoutes } = require('./routes/console');
+const { fleetRoutes } = require('./routes/fleet');
 const { exportRoutes } = require('./routes/exports');
 const { paymentsRoutes, qontoWebhook } = require('./routes/payments');
 const { publicRoutes } = require('./routes/public');
 const { requireOperator } = require('./middleware/requireOperator');
+const { proxySecret } = require('./utils/gf');
 
-function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, clientDist, appHost } = {}) {
+function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, clientDist, appHost, proxySecret: proxySecretValue = null } = {}) {
   const app = express();
   app.set('trust proxy', 1);
+  // The instances share the host's loopback: forwarded headers count only with Caddy's secret
+  // (specs/hosting-h1-fleet-runtime.md rule 21).
+  app.use(proxySecret.proxySecretGuard(proxySecretValue));
   app.use(helmet());
 
   // Rule 24: `app.<domain>` is the shared login page and nothing else. It shares this process with the
@@ -39,7 +44,7 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
 
   app.use('/api/auth', authRoutes(ctx));
   app.post('/api/payments/qonto/webhook', qontoWebhook(ctx));
-  app.use('/api', requireOperator({ now: ctx.now }), consoleRoutes(ctx));
+  app.use('/api', requireOperator({ now: ctx.now }), consoleRoutes(ctx), fleetRoutes(ctx));
   app.use('/api/payments', paymentsRoutes(ctx));
   app.use('/exports', exportRoutes(ctx));
 

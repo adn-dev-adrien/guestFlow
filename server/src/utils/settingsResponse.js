@@ -7,6 +7,7 @@
 
 const { resolveEmailIdentity } = require('./emailIdentity');
 const { readRevenueGoals } = require('./revenueGoals');
+const platformMail = require('./platformMail');
 
 function formatUpdatedAtLabel(updatedAt) {
   if (!updatedAt) return null;
@@ -24,7 +25,7 @@ function formatUpdatedAtLabel(updatedAt) {
   return `${dateFmt.format(date)} à ${timeFmt.format(date)}`;
 }
 
-function shapeResponse(row) {
+function shapeResponse(row, env = process.env) {
   const identity = resolveEmailIdentity(row);
   const safeStr = (v) => String(v == null ? '' : v);
 
@@ -79,6 +80,13 @@ function shapeResponse(row) {
         username: identity.fromEmail,
         fromName: resolveEmailIdentity({ companyName: row.companyName }).fromName,
       },
+      // specs/hosting-h1-fleet-runtime.md rule 19 — a hosted instance offers the platform's sender.
+      // `active` while no host of its own is saved; `replyTo` is where the guests' answers go.
+      platform: platformMail.available(env) ? {
+        available: true,
+        active: !safeStr(row.smtpHost).trim(),
+        replyTo: identity.fromEmail,
+      } : { available: false, active: false, replyTo: '' },
     },
     // Booking notifications block (specs/site-booking-notifications.md §4.3). `enabled` defaults ON
     // (only an explicit 0 turns it off). `recipientEmail` is the override; `derivedRecipient` is where

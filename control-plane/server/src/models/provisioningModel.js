@@ -9,6 +9,7 @@ function buildProvisioningModel(db) {
   const getStmt = db.prepare('SELECT * FROM provisioning_steps WHERE customerId = ? AND step = ?');
   const clearStmt = db.prepare('DELETE FROM provisioning_steps WHERE customerId = ? AND step LIKE ?');
   const failedStmt = db.prepare("SELECT * FROM provisioning_steps WHERE status = 'failed'");
+  const runningStmt = db.prepare("SELECT * FROM provisioning_steps WHERE status = 'running'");
   const insertExportStmt = db.prepare('INSERT INTO exports (token, customerId, path, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?)');
   const getExportStmt = db.prepare('SELECT * FROM exports WHERE token = ?');
   const latestExportStmt = db.prepare('SELECT * FROM exports WHERE customerId = ? ORDER BY createdAt DESC LIMIT 1');
@@ -21,6 +22,7 @@ function buildProvisioningModel(db) {
     get: (customerId, step) => getStmt.get(customerId, step) || null,
     clear: (customerId, prefix) => clearStmt.run(customerId, `${prefix}%`),
     failed: () => failedStmt.all(),
+    running: () => runningStmt.all(),
     addExport: ({ token, customerId, path, createdAt, expiresAt }) => insertExportStmt.run(token, customerId, path, createdAt, expiresAt),
     getExport: (token) => getExportStmt.get(token) || null,
     latestExport: (customerId) => latestExportStmt.get(customerId) || null,

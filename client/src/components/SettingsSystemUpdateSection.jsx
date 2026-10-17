@@ -7,6 +7,7 @@
  * is the place you come back to.
  *
  * Composed from the shared StatusCard / SummaryItem / StatusBadge trio — no Settings-specific card.
+ * On a hosted instance (specs/hosting-h1-fleet-runtime.md rule 9) it only shows the version.
  */
 import React, { useState } from 'react';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
@@ -45,6 +46,17 @@ export default function SettingsSystemUpdateSection() {
   if (!isAdmin) return null;
   if (loading && !info) return null;
   if (!info) return <ErrorAlert message={error || 'Impossible de lire la version installée.'} />;
+
+  // specs/hosting-h1-fleet-runtime.md rule 9 — a hosted instance shows its version and nothing to press.
+  if (info.managed) {
+    return (
+      <StatusCard
+        title="Système et mises à jour"
+        badge={{ status: 'success', label: info.managedLabel }}
+        items={[{ label: 'Version installée', value: info.current }]}
+      />
+    );
+  }
 
   const items = [
     { label: 'Version installée', value: info.current },

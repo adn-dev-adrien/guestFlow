@@ -8,7 +8,7 @@ const sharp = require('sharp');
 const { isAllowedUpload, safeUploadName, safeUploadPath } = require('./uploadSafety');
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+const uploadsDir = require('./instancePaths').uploadsDir();
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const DOCUMENT_LIMIT_BYTES = 10 * 1024 * 1024;

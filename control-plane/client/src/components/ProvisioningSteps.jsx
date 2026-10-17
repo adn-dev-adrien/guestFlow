@@ -1,7 +1,9 @@
 /**
- * ProvisioningSteps — the steps of a customer's creation or deprovisioning, each green, red, to do
- * or skipped, with its one action (specs/control-plane-plans-and-access.md rules 7, 20). Specific to
- * the console.
+ * ProvisioningSteps — the steps of a customer's creation or deprovisioning, each green, red, running,
+ * to do or skipped, with its one action (specs/control-plane-plans-and-access.md rules 7, 20): since
+ * the hosting (specs/hosting-h1-fleet-runtime.md rules 1–2) every step runs by itself, live, and a
+ * failed one offers « Reprendre » (creation) or « Réessayer » (stop, restart, rename). Specific to the
+ * console.
  *
  * Props:
  *   steps:    [{ step, label, kind, status, detail, action }] — from the server   (required)
@@ -14,12 +16,13 @@ import CheckIcon from '@mui/icons-material/Check';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import RemoveIcon from '@mui/icons-material/Remove';
 
-const ACTION_LABELS = { done: 'Marquer fait', undo: 'Rouvrir', retry: 'Réessayer' };
+const ACTION_LABELS = { resume: 'Reprendre', retry: 'Réessayer' };
 
 function Dot({ status }) {
   const common = { width: 26, height: 26, borderRadius: '50%', flex: '0 0 26px', display: 'flex', alignItems: 'center', justifyContent: 'center' };
   if (status === 'ok') return <Box sx={{ ...common, bgcolor: 'success.main', color: '#fff' }}><CheckIcon sx={{ fontSize: 18 }} /></Box>;
   if (status === 'failed') return <Box sx={{ ...common, bgcolor: 'error.main', color: '#fff' }}><PriorityHighIcon sx={{ fontSize: 18 }} /></Box>;
+  if (status === 'running') return <Box sx={{ ...common, bgcolor: 'info.main', color: '#fff' }} aria-label="En cours"><CircularProgress size={14} color="inherit" /></Box>;
   if (status === 'skipped') return <Box sx={{ ...common, bgcolor: 'grey.300', color: 'text.secondary' }}><RemoveIcon sx={{ fontSize: 18 }} /></Box>;
   return <Box sx={{ ...common, border: 2, borderColor: 'divider' }} />;
 }

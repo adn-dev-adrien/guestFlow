@@ -5,6 +5,10 @@
  * (rule 22), download the licence, deprovision, reactivate, erase — the invoices, the emails and the
  * history. Every rule is
  * the server's; a refused action shows its message as a toast and keeps the dialog open.
+ *
+ * Since the hosting (specs/hosting-h1-fleet-runtime.md rules 1, 2, 14, 15) the creation steps run by
+ * themselves — the page follows them while one runs — a failed one offers « Reprendre », and the
+ * « Hébergement » card shows the instance's measures with « Restaurer à une date ».
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -23,6 +27,7 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import RestoreIcon from '@mui/icons-material/Restore';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import ReplayIcon from '@mui/icons-material/Replay';
+import SettingsBackupRestoreIcon from '@mui/icons-material/SettingsBackupRestore';
 import PageActionBar from '@gf/components/PageActionBar';
 import FormDialog from '@gf/components/FormDialog';
 import LoadingState from '@gf/components/LoadingState';
@@ -39,7 +44,7 @@ import api from '../api';
 const DEPROVISION_ORDER = [
   'L’export complet est produit : copie de la base, photos, CSV des réservations et des clients.',
   'Son lien part par email au contact, valable 30 jours.',
-  'Le processus et la route sont arrêtés ; l’adresse affiche « Cet espace a été fermé » (à la main jusqu’à la phase H).',
+  'Le processus et la route sont arrêtés ; l’adresse affiche « Cet espace a été fermé ».',
   'L’état devient « Archivé ».',
   'Dans 90 jours, le dossier et ses sauvegardes sont effacés.',
 ];
@@ -78,6 +83,22 @@ export default function CustomerPage() {
     api.customer(id).then(setC).catch((err) => setError(err.message));
   }, [id]);
   useEffect(load, [load]);
+
+  // H1 rule 1: while a sequence runs, the steps are followed live.
+  const running = Boolean(c && c.provisioningRunning);
+  useEffect(() => {
+    if (!running) return undefined;
+    const t = setTimeout(() => api.customer(id).then(setC).catch(() => {}), 1000);
+    return () => clearTimeout(t);
+  }, [running, c, id]);
+
+  // H1 rule 14: the moments a restore can reach, asked when the dialog opens.
+  const [restoreWindow, setRestoreWindow] = useState(null);
+  useEffect(() => {
+    if (dialog !== 'restore') return;
+    setRestoreWindow(null);
+    api.restoreWindow(id).then(setRestoreWindow).catch((err) => setRestoreWindow({ available: false, text: err.message }));
+  }, [dialog, id]);
 
   // The server checks the new slug as it is typed and lists what must be redone (rule 22).
   useEffect(() => {
@@ -197,6 +218,20 @@ export default function CustomerPage() {
             <ProvisioningSteps steps={c.steps} onAction={stepAction} busy={busyStep} />
           </Section>
         </Box>
+        {c.hosting && (
+          <Section title="Hébergement" action={(
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Button size="small" sx={{ minHeight: 44 }} onClick={() => navigate(`/versions?client=${c.id}`)}>Mettre à jour</Button>
+              {c.hosting.canRestore && (
+                <Button size="small" sx={{ minHeight: 44 }} startIcon={<SettingsBackupRestoreIcon />} onClick={() => openDialog('restore', { at: '' })}>
+                  Restaurer à une date
+                </Button>
+              )}
+            </Box>
+          )}>
+            <KeyValues items={c.hosting.lines} />
+          </Section>
+        )}
         {c.deprovisionSteps.length > 0 && (
           <Section title="Déprovisionnement">
             <ProvisioningSteps steps={c.deprovisionSteps} onAction={stepAction} busy={busyStep} />
@@ -366,6 +401,17 @@ export default function CustomerPage() {
             {DEPROVISION_ORDER.map((line) => <Typography key={line} component="li" variant="body2" sx={{ mb: 0.5 }}>{line}</Typography>)}
           </Box>
           <TextField label={`Pour confirmer, tapez « ${c.slug} »`} value={draft.confirmSlug || ''} onChange={(e) => set('confirmSlug')(e.target.value)} autoComplete="off" />
+        </Stack>
+      </FormDialog>
+
+      <FormDialog submitBusy={busy} open={dialog === 'restore'} onClose={() => setDialog(null)} title="Restaurer à une date" submitLabel="Restaurer"
+        submitColor="error" submitDisabled={!draft.at || !restoreWindow || !restoreWindow.available}
+        onSubmit={() => act(() => api.restore(c.id, new Date(draft.at).toISOString()))}>
+        <Stack spacing={2}>
+          <Typography variant="body2">L’instance s’arrête le temps de la restauration ; la base actuelle est gardée à part.</Typography>
+          {restoreWindow && <Typography variant="body2" color={restoreWindow.available ? 'text.secondary' : 'error'}>{restoreWindow.text}</Typography>}
+          <TextField label="Date et heure" type="datetime-local" value={draft.at || ''} onChange={(e) => set('at')(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }} disabled={!restoreWindow || !restoreWindow.available} />
         </Stack>
       </FormDialog>
 
