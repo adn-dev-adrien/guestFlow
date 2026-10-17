@@ -1,7 +1,9 @@
 /**
- * An instance's environment file, `<CP_INSTANCES_ROOT>/<slug>/env` (mode 600) — the whole of its
- * configuration (specs/hosting-h1-fleet-runtime.md rules 1, 18; H-D4). systemd reads it as an
- * `EnvironmentFile`, the local process driver as the child's environment.
+ * An instance's environment file, `<envs>/<slug>` (mode 600) — the whole of its configuration
+ * (specs/hosting-h1-fleet-runtime.md rules 1, 18; H-D4). systemd reads it as an `EnvironmentFile`,
+ * the local process driver as the child's environment. It lives in the console's own `envs/`
+ * directory (0700), never in the instance's directory: PID 1 reads it as root, so the instance must
+ * not be able to replace it (review 2026-10-17, M2).
  *
  * Rewritten whole each time something changes (a port, a version, a rename): only the two secrets
  * are carried over from the existing file, everything else is derived from the console's records.
@@ -11,7 +13,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const ENV_FILE = 'env';
+const LEGACY_ENV_FILE = 'env';
 const SECRET_KEYS = ['GUESTFLOW_ENCRYPTION_KEY', 'GUESTFLOW_SESSION_SECRET'];
 
 function parseEnv(text) {
@@ -38,16 +40,16 @@ function serializeEnv(vars) {
   return `${lines.join('\n')}\n`;
 }
 
-function readEnv(dir) {
+function readEnv(file) {
   try {
-    return parseEnv(fs.readFileSync(path.join(dir, ENV_FILE), 'utf8'));
+    return parseEnv(fs.readFileSync(file, 'utf8'));
   } catch {
     return null;
   }
 }
 
-function writeEnv(dir, vars) {
-  const file = path.join(dir, ENV_FILE);
+function writeEnv(file, vars) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, serializeEnv(vars), { mode: 0o600 });
   fs.chmodSync(tmp, 0o600);
@@ -89,4 +91,4 @@ function buildEnv({ inst, releasesDir, secrets, licencePublicKey, extra = {} }) 
   };
 }
 
-module.exports = { ENV_FILE, SECRET_KEYS, parseEnv, serializeEnv, readEnv, writeEnv, newSecrets, secretsOf, buildEnv };
+module.exports = { LEGACY_ENV_FILE, SECRET_KEYS, parseEnv, serializeEnv, readEnv, writeEnv, newSecrets, secretsOf, buildEnv };

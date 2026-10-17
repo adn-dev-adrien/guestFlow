@@ -10,9 +10,12 @@
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const { readEnv } = require('../instanceEnv');
 
-function siteFile({ host, port }) {
-  return `# Written by the GuestFlow console — edits are overwritten.\n${host} {\n\tencode zstd gzip\n\treverse_proxy 127.0.0.1:${port}\n}\n`;
+// The secret header tells the instance this request came through Caddy (rule 21).
+function siteFile({ host, port, secret }) {
+  const up = secret ? ` {\n\t\theader_up X-Guestflow-Proxy ${secret}\n\t}` : '';
+  return `# Written by the GuestFlow console — edits are overwritten.\n${host} {\n\tencode zstd gzip\n\treverse_proxy 127.0.0.1:${port}${up}\n}\n`;
 }
 
 function closedFile({ host, closedDir }) {
@@ -58,12 +61,12 @@ function createCaddyProxyDriver({
     if (previous === content) return;
     fs.mkdirSync(sitesDir, { recursive: true });
     if (content === null) fs.rmSync(file, { force: true });
-    else fs.writeFileSync(file, content);
+    else fs.writeFileSync(file, content, { mode: 0o640 });
     try {
       await reload();
     } catch (err) {
       if (previous === null) fs.rmSync(file, { force: true });
-      else fs.writeFileSync(file, previous);
+      else fs.writeFileSync(file, previous, { mode: 0o640 });
       throw new Error(`${err.message} (configuration précédente conservée)`);
     }
   }
@@ -72,7 +75,9 @@ function createCaddyProxyDriver({
     name: 'caddy',
     hostOf,
     fileOf,
-    writeSite: (inst) => apply(inst.slug, siteFile({ host: hostOf(inst.slug), port: inst.port })),
+    writeSite: (inst) => apply(inst.slug, siteFile({
+      host: hostOf(inst.slug), port: inst.port, secret: inst.envFile ? (readEnv(inst.envFile) || {}).GUESTFLOW_PROXY_SECRET : null,
+    })),
     writeClosed: (slug) => apply(slug, closedFile({ host: hostOf(slug), closedDir })),
     writeRedirect: (from, to) => apply(from, redirectFile({ host: hostOf(from), to: hostOf(to) })),
     remove: (slug) => apply(slug, null),

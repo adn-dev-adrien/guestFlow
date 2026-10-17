@@ -3,7 +3,7 @@
  * four: `process`, `proxy`, `backup`, `mail`. Each has a `local` implementation, so the whole
  * lifecycle runs on a laptop and in CI; production selects the real ones by environment:
  *
- *   CP_PROCESS_DRIVER   local | systemd      CP_SYSTEMCTL (default `sudo -n systemctl`)
+ *   CP_PROCESS_DRIVER   local | systemd      CP_SYSTEMCTL (default `sudo -n systemctl`), CP_IDENTITY_COMMAND
  *   CP_PROXY_DRIVER     none  | caddy        CP_CADDY_SITES_DIR, CP_CADDYFILE, CP_CLOSED_PAGE_DIR
  *   CP_BACKUP_DRIVER    local | litestream   CP_BACKUP_URL, CP_BACKUP_ENDPOINT, CP_BACKUP_REGION,
  *                                            CP_RCLONE_REMOTE, CP_LITESTREAM_APPLY,
@@ -37,7 +37,12 @@ function createDrivers({ env = process.env, root, releasesDir, dataDir, domain, 
 
   return {
     process: processKind === 'systemd'
-      ? createSystemdProcessDriver({ exec, releasesDir, systemctl: env.CP_SYSTEMCTL || 'sudo -n systemctl' })
+      ? createSystemdProcessDriver({
+        exec,
+        releasesDir,
+        systemctl: env.CP_SYSTEMCTL || 'sudo -n systemctl',
+        identityCommand: env.CP_IDENTITY_COMMAND || 'sudo -n /usr/local/sbin/guestflow-instance-identity',
+      })
       : createLocalProcessDriver({ releasesDir }),
     proxy: proxyKind === 'caddy'
       ? createCaddyProxyDriver({
@@ -62,6 +67,7 @@ function createDrivers({ env = process.env, root, releasesDir, dataDir, domain, 
         },
         applyCommand: env.CP_LITESTREAM_APPLY || 'sudo -n /usr/local/sbin/guestflow-litestream-apply',
         rcloneRemote: env.CP_RCLONE_REMOTE,
+        tmpDir: path.join(dataDir, 'tmp'),
       })
       : createLocalBackupDriver({
         dir: env.CP_LOCAL_BACKUP_DIR || path.join(dataDir, 'backups'),

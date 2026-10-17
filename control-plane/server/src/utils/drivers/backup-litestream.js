@@ -1,15 +1,18 @@
 /**
  * The `litestream` backup driver (specs/hosting-h1-fleet-runtime.md H-D3, rules 12–14, 21): every
  * instance database streams its WAL to EU object storage through one Litestream service, running as
- * the instances' unprivileged user. Its configuration is root-owned and written by the root wrapper
- * `guestflow-litestream-apply` (deploy/hosting/) from the list of databases the console passes —
- * snapshots every 24 h, kept 30 days. Listings and restores read the replica by URL, with the object
- * storage keys from the console's environment. The uploads folder is synced each night with rclone
+ * its own unprivileged user. Its configuration is root-owned and written by the root wrapper
+ * `guestflow-litestream-apply` (deploy/hosting/) from the target and the list of databases the console
+ * passes — snapshots every 24 h, kept 30 days. Listings and restores use a one-database configuration
+ * written for the call, with the object storage keys from the console's environment. The uploads folder is synced each night with rclone
  * to the same bucket; rclone also purges a customer's copies at erasure.
  *
  * A replica is keyed by the customer, not the slug (`c<id>`): a rename never loses its history.
  */
 
+const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { splitCommand } = require('./exec');
 
@@ -23,25 +26,41 @@ function parseGenerations(stdout) {
   return rows.filter((r) => !Number.isNaN(Date.parse(r.start)) && !Number.isNaN(Date.parse(r.end)));
 }
 
-// The replica of one database, as Litestream reads it by URL (no configuration needed): a restore or
-// a listing works the same for an instance that is replicated now and for one whose replication was
-// stopped at deprovisioning — its copies are kept until the erasure.
-function replicaUrl({ url, key, endpoint, region }) {
-  const params = new URLSearchParams();
-  if (endpoint) params.set('endpoint', endpoint);
-  if (region) params.set('region', region);
-  const q = params.toString();
-  return `${url.replace(/\/+$/, '')}/${key}/db${q ? `?${q}` : ''}`;
+const replicaUrl = ({ url, key }) => `${url.replace(/\/+$/, '')}/${key}/db`;
+
+// The configuration of ONE database, for a listing or a restore by the console. Litestream 0.3
+// ignores an endpoint or a region given in a replica URL's query (review 2026-10-17): they must come
+// from a configuration file. This one is written to the console's own directory, read once and
+// removed; it carries no key (the keys travel in the environment). It works the same for an
+// instance replicated now and for one whose replication stopped at deprovisioning.
+function readerYaml({ dbPath, url, key, endpoint, region }) {
+  const lines = ['dbs:', `  - path: ${dbPath}`, '    replicas:', '      - type: s3', `        url: ${replicaUrl({ url, key })}`];
+  if (endpoint) lines.push(`        endpoint: ${endpoint}`, '        force-path-style: true');
+  if (region) lines.push(`        region: ${region}`);
+  return `${lines.join('\n')}\n`;
 }
 
 function createLitestreamBackupDriver({
   exec, listReplicas, url, endpoint = '', region = '', credentials = {},
   litestreamBin = 'litestream', applyCommand = 'sudo -n /usr/local/sbin/guestflow-litestream-apply', rcloneBin = 'rclone', rcloneRemote,
+  tmpDir = os.tmpdir(),
 }) {
   const apply = splitCommand(applyCommand);
   // The object storage keys go to Litestream through its environment, never into a file.
   const env = { PATH: process.env.PATH, ...credentials };
-  const replica = (inst) => replicaUrl({ url, key: inst.key, endpoint, region });
+  const replica = (inst) => replicaUrl({ url, key: inst.key });
+
+  // Runs `litestream <command> -config <one-database file> … <db path>`, then removes the file.
+  async function withConfig(inst, args, opts = {}) {
+    fs.mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
+    const file = path.join(tmpDir, `litestream-${inst.key}-${crypto.randomBytes(6).toString('hex')}.yml`);
+    fs.writeFileSync(file, readerYaml({ dbPath: inst.dbPath, url, key: inst.key, endpoint, region }), { mode: 0o600, flag: 'wx' });
+    try {
+      return await exec(litestreamBin, [args[0], '-config', file, ...args.slice(1), inst.dbPath], { env, ...opts });
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
+  }
 
   // H-D3 with rule 21: the console never writes Litestream's configuration (Litestream runs it). It
   // hands the list of databases to a root wrapper that validates every entry, writes the file and
@@ -49,11 +68,12 @@ function createLitestreamBackupDriver({
   async function sync(extra = null, without = null) {
     const replicas = listReplicas().filter((r) => r.key !== (without && without.key));
     if (extra && !replicas.some((r) => r.key === extra.key)) replicas.push(extra);
-    await exec(apply.file, [...apply.prefix, ...replicas.map((r) => `${r.key}=${r.dbPath}`)]);
+    await exec(apply.file, [...apply.prefix, '--url', url, '--endpoint', endpoint || '-', '--region', region || '-',
+      ...replicas.map((r) => `${r.key}=${r.dbPath}`)]);
   }
 
   async function generations(inst) {
-    const { stdout } = await exec(litestreamBin, ['generations', replica(inst)], { env });
+    const { stdout } = await withConfig(inst, ['generations']);
     return parseGenerations(stdout);
   }
 
@@ -83,8 +103,7 @@ function createLitestreamBackupDriver({
     async restore(inst, { at = null, output }) {
       const args = ['restore', '-o', output];
       if (at) args.push('-timestamp', new Date(at).toISOString());
-      args.push(replica(inst));
-      await exec(litestreamBin, args, { env, timeout: 30 * 60 * 1000 });
+      await withConfig(inst, args, { timeout: 30 * 60 * 1000 });
       return at ? new Date(at).toISOString() : null;
     },
     async syncUploads(inst) {
@@ -98,4 +117,4 @@ function createLitestreamBackupDriver({
   };
 }
 
-module.exports = { createLitestreamBackupDriver, parseGenerations, replicaUrl };
+module.exports = { createLitestreamBackupDriver, parseGenerations, replicaUrl, readerYaml };

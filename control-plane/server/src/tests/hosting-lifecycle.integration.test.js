@@ -67,7 +67,7 @@ test('integration — create, answer, stop, restart, update and roll back, back 
     assert.deepEqual(v.steps.filter((s) => s.status !== 'ok').map((s) => [s.step, s.detail]), []);
     inst = ctx.provisioner.instanceOf(customers.mustGet(v.id));
     assert.equal(await version(inst.port), '9.0.0');
-    assert.equal(readEnv(inst.dir).GUESTFLOW_MANAGED, '1');
+    assert.equal(readEnv(inst.envFile).GUESTFLOW_MANAGED, '1');
     const invite = mailer.sent.find((m) => m.to === 'claire@aulnes.fr');
     assert.match(invite.text, /Mot de passe provisoire : \S+/);
     const users = new Database(inst.dbPath, { readonly: true });
@@ -100,7 +100,7 @@ test('integration — create, answer, stop, restart, update and roll back, back 
     assert.equal(failed.items[0].state, 'rolled_back');
     assert.match(failed.items[0].detail, /retour en 9\.1\.0, base de l’instantané remise\.$/);
     assert.equal(await version(inst.port), '9.1.0');
-    assert.equal(readEnv(inst.dir).GUESTFLOW_VERSION, '9.1.0');
+    assert.equal(readEnv(inst.envFile).GUESTFLOW_VERSION, '9.1.0');
 
     // Rules 13, 14: a copy, a change, a restore to the moment of the copy.
     const write = (sql) => { const db = new Database(inst.dbPath); try { db.exec(sql); } finally { db.close(); } };

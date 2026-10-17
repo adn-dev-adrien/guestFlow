@@ -32,4 +32,5 @@ module.exports = {
   releaseClient: require(path.join(GF_SERVER, 'src', 'utils', 'releaseClient')),
   updateStaging: require(path.join(GF_SERVER, 'src', 'utils', 'updateStaging')),
   semver: require(path.join(GF_SERVER, 'src', 'utils', 'semver')),
+  proxySecret: require(path.join(GF_SERVER, 'src', 'utils', 'proxySecret')),
 };

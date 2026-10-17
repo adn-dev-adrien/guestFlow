@@ -11,6 +11,7 @@
  *   CP_SESSION_SECRET        required in production
  *   CP_SMTP_HOST/PORT/USER/PASS/FROM
  *   CP_PORT                  default 4100
+ *   CP_PROXY_SECRET          the header Caddy adds; without it X-Forwarded-* are ignored (H1 rule 21)
  *
  * Hosting (specs/hosting-h1-fleet-runtime.md; deploy/hosting/README.md lists the production values):
  *   CP_RELEASES_DIR          the shared releases, <dir>/<version> (default: <CP_INSTANCES_ROOT>/../releases)
@@ -74,6 +75,7 @@ const app = createApp(ctx, {
   secureCookies: production,
   clientDist: path.join(__dirname, '..', '..', 'client', 'dist'),
   appHost: env.CP_APP_HOST || `app.${env.CP_DOMAIN || 'guestflow.fr'}`,
+  proxySecret: env.CP_PROXY_SECRET || null,
 });
 
 createScheduler(ctx).start();

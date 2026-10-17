@@ -63,7 +63,12 @@ function createLicenceIssuer({ privateKey, instances }) {
     // A directory the console cannot write (rights, full disk) is a failed step, never an
     // exception: the daily run must go on with the other customers.
     try {
-      fs.writeFileSync(tmp, token, { mode: 0o640 });
+      // The directory is the instance's: its data/ must not lead out of it, and a link planted at
+      // the temporary name is removed, never followed (`wx`) — rule 21.
+      const real = fs.realpathSync(dir);
+      if (!real.startsWith(`${fs.realpathSync(instances.dirOf(slug))}${path.sep}`)) throw Object.assign(new Error('data/ hors du dossier'), { code: 'UNSAFE' });
+      fs.rmSync(tmp, { force: true });
+      fs.writeFileSync(tmp, token, { mode: 0o640, flag: 'wx' });
       fs.renameSync(tmp, file);
     } catch (err) {
       fs.rmSync(tmp, { force: true });

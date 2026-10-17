@@ -231,3 +231,19 @@ test('H-D4 — uploads and generated secrets leave the shared release only when 
   assert.equal(uploadsDir({ GUESTFLOW_UPLOADS_DIR: '/srv/i/aulnes/uploads' }), '/srv/i/aulnes/uploads');
   assert.equal(localEnvPath({ GUESTFLOW_LOCAL_ENV: '/srv/i/aulnes/data/local.env' }), '/srv/i/aulnes/data/local.env');
 });
+
+// ----- rule 21 -----
+
+test('rule 21 — forwarded headers count only with the proxy’s secret; without a secret nothing changes', () => {
+  const { proxySecretGuard } = require('../utils/proxySecret');
+  const run = (secret, headers) => {
+    const req = { headers: { ...headers } };
+    proxySecretGuard(secret)(req, {}, () => {});
+    return req.headers;
+  };
+  const xff = { 'x-forwarded-for': '203.0.113.9', 'x-forwarded-proto': 'https', host: 'aulnes.guestflow.fr' };
+  assert.deepEqual(run('s3cret', { ...xff, 'x-guestflow-proxy': 's3cret' }), xff, 'through Caddy: kept, the secret removed');
+  assert.deepEqual(run('s3cret', { ...xff, 'x-guestflow-proxy': 'guess' }), { host: 'aulnes.guestflow.fr' }, 'another process on 127.0.0.1: dropped');
+  assert.deepEqual(run('s3cret', xff), { host: 'aulnes.guestflow.fr' });
+  assert.deepEqual(run(null, xff), xff, 'self-hosted: unchanged');
+});

@@ -85,8 +85,8 @@ function createEmailService(settings, {
     const sentToday = platformMail.readCount({ file, now: now() });
     if (sentToday >= platform.dailyLimit) throw platformMail.limitError(platform.dailyLimit);
     platformMail.writeCount({ file, count: sentToday + 1, now: now() });
-    const { from, replyTo } = platformMail.headers({ cfg: platform, fromName, replyTo: fromEmail });
     try {
+      const { from, replyTo } = platformMail.headers({ cfg: platform, fromName, replyTo: fromEmail });
       return await tx.sendMail({ from, replyTo, to, subject, text });
     } catch (err) {
       const current = platformMail.readCount({ file, now: now() });

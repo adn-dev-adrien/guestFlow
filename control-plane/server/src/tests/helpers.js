@@ -89,7 +89,7 @@ function makeFakeDrivers({ domain = 'guestflow.test', now = () => new Date() } =
       throw err;
     }
   };
-  const startProc = (inst) => procs.set(inst.slug, { running: true, version: (readEnv(inst.dir) || {}).GUESTFLOW_VERSION, dir: inst.dir });
+  const startProc = (inst) => procs.set(inst.slug, { running: true, version: (readEnv(inst.envFile) || {}).GUESTFLOW_VERSION, dir: inst.dir });
   const stopProc = (inst) => { const p = procs.get(inst.slug); if (p) p.running = false; };
   const drivers = {
     process: {

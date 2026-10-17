@@ -54,6 +54,9 @@ const app = express();
 // proxy is put in front (WordPress prod), set TRUST_PROXY_HOPS to the exact number of trusted hops.
 const TRUST_PROXY_HOPS = process.env.TRUST_PROXY_HOPS;
 app.set('trust proxy', TRUST_PROXY_HOPS != null && TRUST_PROXY_HOPS !== '' ? Number(TRUST_PROXY_HOPS) : false);
+// Behind the hosting's proxy, forwarded headers count only when Caddy's secret header comes with them
+// (specs/hosting-h1-fleet-runtime.md rule 21). Unset: nothing changes.
+app.use(require('./utils/proxySecret').proxySecretGuard(process.env.GUESTFLOW_PROXY_SECRET));
 
 // HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built
 // with INLINE_RUNTIME_CHUNK=false so script-src can stay 'self').

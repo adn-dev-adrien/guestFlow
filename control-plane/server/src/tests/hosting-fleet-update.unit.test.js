@@ -42,7 +42,7 @@ test('rule 10 — the whole fleet, one instance at a time: snapshot, switch, res
     assert.deepEqual(done.items.map((i) => [i.state, i.detail]), [['done', '3.10.0 répond.'], ['done', '3.10.0 répond.'], ['done', '3.10.0 répond.']]);
     assert.deepEqual(order, ['ombre', 'aulnes', 'moulin'], 'one after the other, each once');
     for (const slug of ['aulnes', 'moulin', 'ombre']) {
-      assert.equal(readEnv(path.join(h.root, slug)).GUESTFLOW_VERSION, '3.10.0');
+      assert.equal(readEnv(h.ctx.instances.envFileOf(slug)).GUESTFLOW_VERSION, '3.10.0');
       assert.equal(fs.readdirSync(path.join(h.root, slug, 'data', 'backups')).filter((f) => f.startsWith('before-update-')).length, 1, 'one snapshot each');
     }
     assert.equal(h.ctx.models.hosting.get(h.a.id).previous_version, '3.9.0');
@@ -79,9 +79,9 @@ test('rule 10 — a failed health check rolls that instance back, restores its s
     assert.deepEqual(u.items.map((i) => i.state), ['done', 'rolled_back', 'skipped']);
     assert.match(u.items[1].detail, /retour en 3\.9\.0, base de l’instantané remise\.$/);
     assert.equal(u.items[2].detail, 'Mise à jour arrêtée.');
-    assert.equal(readEnv(path.join(h.root, 'ombre')).GUESTFLOW_VERSION, '3.10.0');
-    assert.equal(readEnv(path.join(h.root, 'aulnes')).GUESTFLOW_VERSION, '3.9.0', 'back on its previous version');
-    assert.equal(readEnv(path.join(h.root, 'moulin')).GUESTFLOW_VERSION, '3.9.0', 'untouched');
+    assert.equal(readEnv(h.ctx.instances.envFileOf('ombre')).GUESTFLOW_VERSION, '3.10.0');
+    assert.equal(readEnv(h.ctx.instances.envFileOf('aulnes')).GUESTFLOW_VERSION, '3.9.0', 'back on its previous version');
+    assert.equal(readEnv(h.ctx.instances.envFileOf('moulin')).GUESTFLOW_VERSION, '3.9.0', 'untouched');
     assert.equal(reservations(h.root, 'aulnes'), before, 'the snapshot’s database is back');
     assert.equal(seen, 3, 'ombre started, aulnes started on the new version, then on the old one');
     assert.equal(h.host.procs.get('aulnes').running, true);

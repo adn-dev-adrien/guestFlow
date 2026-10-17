@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { backupTo } = require('../sqliteBackup');
+const { assertInside } = require('../instanceFiles');
 
 const RETENTION_DAYS = 30;
 const stampOf = (date) => date.toISOString().replace(/[:.]/g, '-');
@@ -31,6 +32,7 @@ function createLocalBackupDriver({ dir, now = () => new Date(), intervalMs = 10 
 
   async function snapshotNow(inst) {
     const at = now();
+    assertInside(inst.dir, inst.dbPath);
     await backupTo(inst.dbPath, path.join(snapDir(inst), `${stampOf(at)}.db`));
     const cutoff = at.getTime() - RETENTION_DAYS * 86400000;
     for (const s of snapshots(inst)) if (s.at.getTime() < cutoff) fs.rmSync(path.join(snapDir(inst), s.name), { force: true });

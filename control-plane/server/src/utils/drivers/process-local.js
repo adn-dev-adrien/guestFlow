@@ -39,8 +39,8 @@ function createLocalProcessDriver({ releasesDir, nodeBin = process.execPath, sto
   const running = (inst) => alive(pidOf(inst));
 
   function childEnv(inst) {
-    const env = readEnv(inst.dir);
-    if (!env) throw new Error(`Fichier d’environnement introuvable dans ${inst.dir}.`);
+    const env = readEnv(inst.envFile);
+    if (!env) throw new Error(`Fichier d’environnement introuvable (${inst.envFile}).`);
     return { PATH: process.env.PATH, HOME: process.env.HOME || inst.dir, ...env };
   }
 

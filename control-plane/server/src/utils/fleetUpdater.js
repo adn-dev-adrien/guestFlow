@@ -18,6 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const { backupTo, removeDatabaseFiles } = require('./sqliteBackup');
+const { assertInside, shareDatabase } = require('./instanceFiles');
 const { waitHealthy } = require('./health');
 const { httpError } = require('./httpError');
 
@@ -46,6 +47,7 @@ function createFleetUpdater({
   async function snapshot(inst, label) {
     const dir = path.join(inst.dir, 'data', 'backups');
     const file = path.join(dir, `before-update-${stamp().replace(/[:.]/g, '-')}-${label}.db`);
+    assertInside(inst.dir, inst.dbPath);
     await backupTo(inst.dbPath, file);
     await drivers.backup.snapshotNow(inst).catch(() => null);
     pruneSnapshots(dir);
@@ -128,6 +130,7 @@ function createFleetUpdater({
       await drivers.process.stop(inst);
       removeDatabaseFiles(inst.dbPath);
       fs.copyFileSync(snap, inst.dbPath);
+      shareDatabase(inst.dbPath);
       const expect = await kind.revert(c, item, update);
       await drivers.process.start(provisioner.instanceOf(c));
       const res = await healthy(provisioner.instanceOf(c), expect);

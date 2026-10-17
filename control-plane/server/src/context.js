@@ -62,7 +62,7 @@ function createContext({
     directory: buildDirectoryModel(db),
     hosting: buildHostingModel(db),
   };
-  const instances = createInstances({ root: instancesRoot });
+  const instances = createInstances({ root: instancesRoot, envsDir: hostingEnv.CP_ENVS_DIR });
   const releasesRoot = releasesDir || path.join(path.dirname(path.resolve(instancesRoot)), 'releases');
   const today = () => parisDay(now());
   const ctx = {

@@ -37,6 +37,25 @@ function frenchError(err) {
   return e;
 }
 
+// A release is read by every instance (group guestflow-app, through the setgid releases/ directory)
+// and written by nobody but the console: group read (and execute where the owner has it), never group
+// write, nothing for others — whatever umask extracted it (review 2026-10-17). Links are left alone.
+function shareRelease(root) {
+  const stack = [root];
+  while (stack.length) {
+    const p = stack.pop();
+    const st = fs.lstatSync(p);
+    if (st.isSymbolicLink()) continue;
+    const owner = st.mode & 0o700;
+    if (st.isDirectory()) {
+      fs.chmodSync(p, owner | 0o050 | (st.mode & 0o2000));
+      for (const name of fs.readdirSync(p)) stack.push(path.join(p, name));
+    } else if (st.isFile()) {
+      fs.chmodSync(p, owner | 0o040 | (owner & 0o100 ? 0o010 : 0));
+    }
+  }
+}
+
 async function sha256File(file) {
   const hash = crypto.createHash('sha256');
   await pipeline(fs.createReadStream(file), hash);
@@ -98,6 +117,7 @@ function createReleases({ dir, fetchImpl = fetch, installImpl = updateStaging.in
       updateStaging.assertReleaseLayout(partial, version);
       onPhase('installing');
       await installImpl({ releaseDir: partial });
+      shareRelease(partial);
       fs.renameSync(partial, dirOf(version));
       return dirOf(version);
     } catch (err) {
@@ -112,4 +132,4 @@ function createReleases({ dir, fetchImpl = fetch, installImpl = updateStaging.in
   return { dir, list, has, newest, dirOf, published, install, installing: () => installing };
 }
 
-module.exports = { createReleases, sha256File, MESSAGES };
+module.exports = { createReleases, sha256File, shareRelease, MESSAGES };

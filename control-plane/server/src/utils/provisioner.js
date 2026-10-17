@@ -9,11 +9,13 @@
  * One customer runs one sequence at a time; a second request waits for the first.
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
-const { readEnv, writeEnv, buildEnv, newSecrets, secretsOf } = require('./instanceEnv');
+const { readEnv, writeEnv, buildEnv, newSecrets, secretsOf, LEGACY_ENV_FILE } = require('./instanceEnv');
 const { waitHealthy } = require('./health');
+const { shareDatabase } = require('./instanceFiles');
 
 // Rule 1, in order. The licence (control-plane rule 9) needs the data directory; the first
 // administrator is created before the process ever starts, so the seeded bootstrap account of a
@@ -73,6 +75,7 @@ function createProvisioner({
       key: `c${c.id}`,
       slug,
       dir: instances.dirOf(slug),
+      envFile: instances.envFileOf(slug),
       dbPath: instances.dbPath(slug),
       port: row.port || null,
       version: row.version || null,
@@ -81,14 +84,30 @@ function createProvisioner({
 
   // The env file, rewritten whole from the console's records; only the secrets are carried over.
   function syncEnv(c, inst = instanceOf(c)) {
-    const secrets = secretsOf(readEnv(inst.dir));
-    return writeEnv(inst.dir, buildEnv({
+    migrateLegacyEnv(inst);
+    const existing = readEnv(inst.envFile) || {};
+    const secrets = secretsOf(existing);
+    // The header Caddy adds and the instance checks before believing X-Forwarded-* (rule 21).
+    const proxySecret = existing.GUESTFLOW_PROXY_SECRET || crypto.randomBytes(24).toString('base64url');
+    return writeEnv(inst.envFile, buildEnv({
       inst,
       releasesDir: releases.dir,
       secrets,
       licencePublicKey,
-      extra: { ...drivers.proxy.instanceEnv(), ...drivers.mail.envFor(inst) },
+      extra: { ...drivers.proxy.instanceEnv(), ...drivers.mail.envFor(inst), GUESTFLOW_PROXY_SECRET: proxySecret },
     }));
+  }
+
+  // An instance created before 2026-10-17 kept its env file in its own directory, where the instance
+  // could rewrite what PID 1 reads as root: moved once to the console's envs/ directory (M2).
+  function migrateLegacyEnv(inst) {
+    const legacy = path.join(inst.dir, LEGACY_ENV_FILE);
+    if (!fs.existsSync(legacy)) return;
+    if (!fs.existsSync(inst.envFile)) {
+      const vars = readEnv(legacy);
+      if (vars) writeEnv(inst.envFile, vars);
+    }
+    fs.rmSync(legacy, { force: true });
   }
 
   async function allocatePort(c) {
@@ -124,9 +143,10 @@ function createProvisioner({
     },
     async secrets(c) {
       const inst = instanceOf(c);
-      const env = readEnv(inst.dir);
+      migrateLegacyEnv(inst);
+      const env = readEnv(inst.envFile);
       if (secretsOf(env)) return 'Déjà présents.';
-      writeEnv(inst.dir, { ...(env || {}), ...newSecrets() });
+      writeEnv(inst.envFile, { ...(env || {}), ...newSecrets() });
       syncEnv(c);
       return 'Générés.';
     },
@@ -147,10 +167,13 @@ function createProvisioner({
       if (!row.version) hosting.set(c.id, { version });
       syncEnv(c);
       await drivers.process.initDatabase(instanceOf(c));
+      shareDatabase(instanceOf(c).dbPath);
       return `Version ${version}`;
     },
     async admin(c) {
-      return hooks.admin(c.id);
+      const detail = await hooks.admin(c.id);
+      shareDatabase(instanceOf(c).dbPath);
+      return detail;
     },
     async process(c) {
       await drivers.process.enableNow(instanceOf(c));
@@ -284,10 +307,12 @@ function createProvisioner({
         const to = instanceOf(c);
         const until = addDaysIso(today(), REDIRECT_DAYS);
         if (fs.existsSync(from.dir)) {
-          await drivers.process.remove(from);
+          // The unit goes, its identity stays: the files keep their owner (rule 21).
+          await drivers.process.remove(from, { keepIdentity: true });
           if (fs.existsSync(to.dir)) throw new Error(`Le dossier ${to.dir} existe déjà.`);
           fs.renameSync(from.dir, to.dir);
         }
+        if (fs.existsSync(from.envFile) && !fs.existsSync(to.envFile)) fs.renameSync(from.envFile, to.envFile);
         if (!fs.existsSync(to.dir) || !to.port) {
           await drivers.proxy.writeRedirect(oldSlug, c.slug);
           hosting.addRedirect(oldSlug, c.id, until);
@@ -318,7 +343,8 @@ function createProvisioner({
       hosting.dropRedirect(r.slug);
     }
     await drivers.backup.purge(inst);
-    fs.rmSync(path.join(inst.dir, 'env'), { force: true });
+    fs.rmSync(inst.envFile, { force: true });
+    fs.rmSync(path.join(inst.dir, LEGACY_ENV_FILE), { force: true });
     hosting.remove(c.id);
   }
 

@@ -20,8 +20,11 @@ test('rule 1 — creating a customer runs the steps in order: directory, secrets
     assert.ok(v.steps.every((s) => s.status === 'ok'), JSON.stringify(v.steps));
     const dir = path.join(h.root, 'aulnes');
     for (const sub of ['data', 'uploads']) assert.ok(fs.statSync(path.join(dir, sub)).isDirectory());
-    assert.equal(fs.statSync(path.join(dir, 'env')).mode & 0o777, 0o600);
-    const env = readEnv(dir);
+    const envFile = h.ctx.instances.envFileOf('aulnes');
+    assert.equal(envFile, path.join(path.dirname(h.root), 'envs', 'aulnes'), 'outside the instance directory');
+    assert.equal(fs.existsSync(path.join(dir, 'env')), false);
+    assert.equal(fs.statSync(envFile).mode & 0o777, 0o600);
+    const env = readEnv(envFile);
     assert.equal(env.PORT, '4400');
     assert.equal(env.GUESTFLOW_VERSION, '3.9.0', 'the newest installed release');
     assert.equal(env.GUESTFLOW_RELEASE_DIR, path.join(h.releasesDir, '3.9.0'));
@@ -49,10 +52,10 @@ test('rule 2 — a failed step stops the sequence with its error; « Reprendre �
     assert.equal(route.detail, 'Caddy : unrecognized directive (configuration précédente conservée)');
     assert.equal(route.action, 'resume');
     assert.deepEqual(v.steps.filter((s) => s.status === 'todo').map((s) => s.step), ['health', 'backup']);
-    const secret = readEnv(path.join(h.root, 'aulnes')).GUESTFLOW_ENCRYPTION_KEY;
+    const secret = readEnv(h.ctx.instances.envFileOf('aulnes')).GUESTFLOW_ENCRYPTION_KEY;
     v = await h.ctx.controllers.customers.stepAction(v.id, 'route', 'resume', 'op');
     assert.ok(v.steps.every((s) => s.status === 'ok'));
-    assert.equal(readEnv(path.join(h.root, 'aulnes')).GUESTFLOW_ENCRYPTION_KEY, secret, 'the secrets are never regenerated');
+    assert.equal(readEnv(h.ctx.instances.envFileOf('aulnes')).GUESTFLOW_ENCRYPTION_KEY, secret, 'the secrets are never regenerated');
     assert.equal(h.host.named('process.initDatabase').length, 1, 'the database is initialised once');
     assert.equal(h.host.named('process.enableNow').length, 1);
     assert.equal(h.mailer.sent.filter((m) => /est prêt$/.test(m.subject)).length, 1, 'one invitation');
@@ -149,8 +152,8 @@ test('rule 5 — renaming moves the directory, runs the unit under the new slug,
     const v = await customers.rename(c.id, { slug: 'les-aulnes', checked: all }, 'op');
     assert.equal(v.steps.find((s) => s.step === 'rename').status, 'ok');
     assert.equal(fs.existsSync(path.join(h.root, 'aulnes')), false);
-    assert.equal(readEnv(path.join(h.root, 'les-aulnes')).GUESTFLOW_SLUG, 'les-aulnes');
-    assert.equal(readEnv(path.join(h.root, 'les-aulnes')).DB_PATH, path.join(h.root, 'les-aulnes', 'data', 'guestflow.db'));
+    assert.equal(readEnv(h.ctx.instances.envFileOf('les-aulnes')).GUESTFLOW_SLUG, 'les-aulnes');
+    assert.equal(readEnv(h.ctx.instances.envFileOf('les-aulnes')).DB_PATH, path.join(h.root, 'les-aulnes', 'data', 'guestflow.db'));
     assert.equal(h.host.procs.get('les-aulnes').running, true);
     assert.equal(h.host.procs.has('aulnes'), false, 'the old unit is gone');
     assert.deepEqual(h.host.routes['les-aulnes'], { kind: 'site', port: 4400 });

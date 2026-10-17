@@ -9,9 +9,10 @@
 #
 # What it does (see deploy/hosting/README.md for the whole runbook):
 #   1. Node 24, Caddy, Litestream and rclone;
-#   2. two users — `guestflow` (the console) and `guestflow-app` (the instances and Litestream) — and
-#      /srv/guestflow/{instances,releases,console,closed} with their owners (rule 21);
-#   3. the instance unit template, the console unit, the two root wrappers and their sudoers rule;
+#   2. the console's user `guestflow`, Litestream's user `guestflow-backup` and the instances' group
+#      `guestflow-app` (each instance gets its own user gf-c<id> later, from the console), and
+#      /srv/guestflow/{instances,releases,envs,console,closed} with their owners (rule 21);
+#   3. the instance unit template, the console unit, the three root wrappers and their sudoers rule;
 #   4. Caddy's main file (admin API on a unix socket), the closed page; Litestream as guestflow-app,
 #      its configuration root-owned and written only by guestflow-litestream-apply;
 #   5. the console's source at REF, its dependencies and its build;
@@ -60,25 +61,29 @@ fi
 say "✓ Litestream $(litestream version)"
 
 # ── 2. Users and directories (rule 21) ──────────────────────────────────────────────────────────
-# The console (`guestflow`) and the instances (`guestflow-app`) never share an identity. The console
-# is in the instances' group, so it creates and reads their directories; the instances cannot read
-# the console's directory, and each one sees only its own (guestflow@.service).
-id guestflow-app >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin guestflow-app
+# No two of the console, Litestream and an instance share a user. The console is in the instances'
+# group, so it creates and reads their directories; each instance (gf-c<id>, created by the console
+# through guestflow-instance-identity) sees only its own directory, the releases read-only, never the
+# console's directory nor the env files.
+getent group guestflow-app >/dev/null || groupadd --system guestflow-app
 id guestflow >/dev/null 2>&1 || useradd --system --home-dir "$ROOT/console" --shell /usr/sbin/nologin guestflow
+id guestflow-backup >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid guestflow-app guestflow-backup
 usermod -aG guestflow-app guestflow
-mkdir -p "$ROOT/instances" "$ROOT/releases" "$ROOT/console/data" "$ROOT/closed"
+mkdir -p "$ROOT/instances" "$ROOT/releases" "$ROOT/envs" "$ROOT/console/data" "$ROOT/closed"
 chown root:root "$ROOT" && chmod 755 "$ROOT"
 chown guestflow:guestflow-app "$ROOT/instances" && chmod 2770 "$ROOT/instances"
-chown guestflow:guestflow "$ROOT/releases" && chmod 755 "$ROOT/releases"
+chown guestflow:guestflow-app "$ROOT/releases" && chmod 2750 "$ROOT/releases"
+chown guestflow:guestflow "$ROOT/envs" && chmod 700 "$ROOT/envs"
 chown -R guestflow:guestflow "$ROOT/console" && chmod 700 "$ROOT/console"
 install -m 644 "$HERE/closed/index.html" "$ROOT/closed/index.html"
-say "✓ $ROOT (instances guestflow:guestflow-app 2770, releases et console à guestflow)"
+say "✓ $ROOT (instances guestflow:guestflow-app 2770, releases 2750, envs et console 0700 à guestflow)"
 
 # ── 3. Units, wrapper, sudoers ───────────────────────────────────────────────────────────────────
 install -m 644 "$HERE/guestflow@.service" /etc/systemd/system/guestflow@.service
 install -m 644 "$HERE/guestflow-console.service" /etc/systemd/system/guestflow-console.service
 install -o root -g root -m 755 "$HERE/guestflow-systemctl" /usr/local/sbin/guestflow-systemctl
 install -o root -g root -m 755 "$HERE/guestflow-litestream-apply" /usr/local/sbin/guestflow-litestream-apply
+install -o root -g root -m 755 "$HERE/guestflow-instance-identity" /usr/local/sbin/guestflow-instance-identity
 install -o root -g root -m 440 "$HERE/guestflow.sudoers" /etc/sudoers.d/guestflow
 visudo -cf /etc/sudoers.d/guestflow >/dev/null
 systemctl daemon-reload
@@ -90,18 +95,23 @@ chown guestflow:caddy /etc/caddy/sites && chmod 755 /etc/caddy/sites
 usermod -aG caddy guestflow
 install -m 644 "$HERE/caddy.override.conf" /etc/systemd/system/caddy.service.d/guestflow.conf
 systemctl daemon-reload
-sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__ACME_EMAIL__|$ACME_EMAIL|g" "$HERE/Caddyfile" > /etc/caddy/Caddyfile
+# The header Caddy adds for the console (rule 21): kept in the console's env once written there.
+ENVF="$ROOT/console/env"
+PROXY_SECRET="$(sed -n 's/^CP_PROXY_SECRET=//p' "$ENVF" 2>/dev/null | head -n1)"
+[ -n "$PROXY_SECRET" ] || PROXY_SECRET="$(head -c 32 /dev/urandom | base64 | tr -d '\n/+=')"
+# GUESTFLOW_TEST_LOCAL_CERTS=1: certificates from Caddy's own CA — the throwaway host of
+# deploy/hosting/test/ only, never production.
+LOCAL_CERTS=""
+[ "${GUESTFLOW_TEST_LOCAL_CERTS:-}" = "1" ] && LOCAL_CERTS="local_certs"
+sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__ACME_EMAIL__|$ACME_EMAIL|g" -e "s|__PROXY_SECRET__|$PROXY_SECRET|g" \
+    -e "s|# __LOCAL_CERTS__|$LOCAL_CERTS|" "$HERE/Caddyfile" > /etc/caddy/Caddyfile
+chown root:caddy /etc/caddy/Caddyfile && chmod 640 /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
 systemctl enable caddy >/dev/null
 systemctl restart caddy
 say "✓ Caddy configuré (console.$DOMAIN, app.$DOMAIN, sites/*.caddy ; API d'administration sur /run/caddy/admin.sock)"
 
 # Root-owned, never writable by the console: it is written by guestflow-litestream-apply only.
-mkdir -p /etc/guestflow && chmod 755 /etc/guestflow
-if [ ! -f /etc/guestflow/backup.env ]; then
-  printf 'CP_BACKUP_URL=\nCP_BACKUP_ENDPOINT=\nCP_BACKUP_REGION=\n' > /etc/guestflow/backup.env
-fi
-chown root:root /etc/guestflow/backup.env && chmod 600 /etc/guestflow/backup.env
 grep -q 'guestflow-litestream-apply' /etc/litestream.yml 2>/dev/null || install -o root -g root -m 644 "$HERE/litestream.yml" /etc/litestream.yml
 chown root:root /etc/litestream.yml && chmod 644 /etc/litestream.yml
 if [ ! -f /etc/default/litestream ]; then
@@ -112,7 +122,8 @@ mkdir -p /etc/systemd/system/litestream.service.d
 install -m 644 "$HERE/litestream.override.conf" /etc/systemd/system/litestream.service.d/guestflow.conf
 systemctl daemon-reload
 systemctl enable litestream >/dev/null
-say "✓ Litestream en guestflow-app (/etc/litestream.yml root 644, clés dans /etc/default/litestream, cible dans /etc/guestflow/backup.env)"
+systemctl restart litestream
+say "✓ Litestream en guestflow-backup (/etc/litestream.yml root 644, clés dans /etc/default/litestream)"
 
 # ── 5. The console's source ──────────────────────────────────────────────────────────────────────
 SRC="$ROOT/console/src"
@@ -127,10 +138,9 @@ sudo -u guestflow bash -c "cd '$SRC/control-plane/client' && npm ci --silent && 
 say "✓ console à $REF"
 
 # ── 6. The console's environment ─────────────────────────────────────────────────────────────────
-ENVF="$ROOT/console/env"
 if [ ! -f "$ENVF" ]; then
   secret="$(head -c 32 /dev/urandom | base64 | tr -d '\n/+=')"
-  sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__SESSION_SECRET__|$secret|g" "$HERE/console.env.example" > "$ENVF"
+  sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__SESSION_SECRET__|$secret|g" -e "s|__PROXY_SECRET__|$PROXY_SECRET|g" "$HERE/console.env.example" > "$ENVF"
   chown guestflow:guestflow "$ENVF" && chmod 600 "$ENVF"
   say "✓ $ENVF écrit — à compléter"
 else
@@ -148,6 +158,6 @@ say "✓ pare-feu : 22, 80, 443"
 echo
 echo "Reste à faire :"
 echo "  1. compléter $ENVF (clé de licence, SMTP de la console, stockage objet et ses clés, SMTP de la plateforme) ;"
-echo "  2. compléter /etc/default/litestream (clés) et /etc/guestflow/backup.env (CP_BACKUP_URL, _ENDPOINT, _REGION), puis : sudo -u guestflow rclone config ;"
+echo "  2. compléter /etc/default/litestream (les mêmes clés que la console), puis : sudo -u guestflow rclone config ;"
 echo "  3. systemctl start guestflow-console && sudo -u guestflow node $SRC/control-plane/server/scripts/create-operator.js ;"
 echo "  4. ouvrir https://console.$DOMAIN, page « Versions » : installer la dernière version."

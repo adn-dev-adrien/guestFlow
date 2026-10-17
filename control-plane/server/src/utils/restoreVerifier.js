@@ -15,6 +15,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { verify } = require('./sqliteBackup');
+const { shareDatabase } = require('./instanceFiles');
 const { waitHealthy } = require('./health');
 const { httpError } = require('./httpError');
 
@@ -66,42 +67,55 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
     return drivers.backup.window(provisioner.instanceOf(c)).catch(() => null);
   }
 
-  // Rule 14. Run inside the customer's sequence lock, and while it runs no fleet update starts.
-  async function restoreAt(c, at, operator) {
+  // Rule 14. Run inside the customer's sequence lock; from its first instant no fleet update starts.
+  function restoreAt(c, at, operator) {
     if (fleetUpdater.busy()) throw httpError(409, 'UPDATE_RUNNING', 'Mise à jour de la flotte en cours : restauration impossible avant sa fin.');
-    const when = new Date(at);
-    if (Number.isNaN(when.getTime())) throw httpError(400, 'INVALID', 'Date invalide.');
-    const range = await window(c);
-    if (!range) throw httpError(409, 'NO_BACKUP', 'Aucune sauvegarde pour ce client.');
-    if (when < new Date(range.from) || when > now()) throw httpError(400, 'OUT_OF_RANGE', 'Date hors de la période conservée.');
-    return fleetUpdater.whileRestoring(() => provisioner.exclusive(c.id, () => swap(c, when, operator)));
+    return fleetUpdater.whileRestoring(async () => {
+      const when = new Date(at);
+      if (Number.isNaN(when.getTime())) throw httpError(400, 'INVALID', 'Date invalide.');
+      const range = await window(c);
+      if (!range) throw httpError(409, 'NO_BACKUP', 'Aucune sauvegarde pour ce client.');
+      if (when < new Date(range.from) || when > now()) throw httpError(400, 'OUT_OF_RANGE', 'Date hors de la période conservée.');
+      return provisioner.exclusive(c.id, () => swap(c, when, operator));
+    });
   }
 
   async function swap(c, when, operator) {
     const inst = provisioner.instanceOf(c);
     const suffix = `.before-restore-${stamp().replace(/[:.]/g, '-')}`;
     const restored = `${inst.dbPath}.restoring`;
-    fs.rmSync(restored, { force: true });
+    const clean = () => { for (const ext of ['', '-wal', '-shm']) fs.rmSync(`${restored}${ext}`, { force: true }); };
+    clean();
     await drivers.backup.restore(inst, { at: when.toISOString(), output: restored });
     const check = verify(restored);
     if (!check.ok) {
-      fs.rmSync(restored, { force: true });
+      clean();
       throw httpError(422, 'BAD_BACKUP', `Sauvegarde illisible à cette date (${check.detail}).`);
     }
     await drivers.process.stop(inst);
+    let swapped = false;
     try {
       await drivers.backup.removeReplica(inst);
       // The current files are moved aside as they are — a corrupt or missing database must not
-      // stop the restore that is meant to repair it (review 2026-10-17).
-      for (const ext of ['', '-wal', '-shm']) {
-        if (fs.existsSync(`${inst.dbPath}${ext}`)) fs.renameSync(`${inst.dbPath}${ext}`, `${inst.dbPath}${suffix}${ext}`);
+      // stop the restore that is meant to repair it — with Litestream's own state of that database,
+      // which describes the old file (review 2026-10-17).
+      const meta = path.join(path.dirname(inst.dbPath), `.${path.basename(inst.dbPath)}-litestream`);
+      for (const p of [`${inst.dbPath}`, `${inst.dbPath}-wal`, `${inst.dbPath}-shm`, meta]) {
+        if (fs.existsSync(p)) fs.renameSync(p, p === meta ? `${meta}${suffix}` : `${inst.dbPath}${suffix}${p.slice(inst.dbPath.length)}`);
       }
       fs.renameSync(restored, inst.dbPath);
+      shareDatabase(inst.dbPath);
+      swapped = true;
     } finally {
-      fs.rmSync(restored, { force: true });
-      await drivers.process.start(inst);
-      await drivers.backup.addReplica(inst).catch(() => {});
+      clean();
+      // Never started on no database: if the swap broke halfway, the instance stays stopped and the
+      // operator sees why.
+      if (fs.existsSync(inst.dbPath)) {
+        await drivers.process.start(inst);
+        await drivers.backup.addReplica(inst).catch(() => {});
+      }
     }
+    if (!swapped) throw httpError(500, 'SWAP_FAILED', 'Restauration interrompue : instance arrêtée, base à vérifier.');
     const res = await waitHealthy({ url: drivers.proxy.healthUrl(inst), expectVersion: inst.version, timeoutMs: healthTimeoutMs, fetchImpl });
     const label = when.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'short', timeStyle: 'short' });
     const aside = `${path.basename(inst.dbPath)}${suffix}`;
