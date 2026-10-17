@@ -93,8 +93,8 @@ const sqlite = (db, sql) => sh(`sqlite3 ${db} "${sql}"`);
   }
   let va = await site('aulnes.gf.test');
   check('rule 1: aulnes answers through Caddy (TLS) on 9.0.0', va.json && va.json.version === '9.0.0', `${va.status} ${va.text && va.text.slice(0, 80)}`);
-  const pa = mainPid('aulnes');
-  const pb = mainPid('moulin');
+  let pa = mainPid('aulnes');
+  let pb = mainPid('moulin');
   check('rule 21: one user per instance', userOf(pa) === `gf-c${a.id}` && userOf(pb) === `gf-c${b.id}`, `${userOf(pa)} / ${userOf(pb)}`);
   check('rule 21: Litestream runs as guestflow-backup', sh('ps -o user= -C litestream | head -n1') === 'guestflow-backup');
   check('rule 21: Caddy admin API is a 0660 socket of group caddy', sh('stat -c "%a %G" /run/caddy/admin.sock') === '660 caddy');
@@ -149,20 +149,28 @@ const sqlite = (db, sql) => sh(`sqlite3 ${db} "${sql}"`);
   const rowA = fleet.rows.find((x) => x.slug === 'aulnes');
   check('rule 15: the fleet shows version, process and last backup', rowA.version === '9.1.0' && rowA.process === 'En marche' && rowA.lastBackup, JSON.stringify({ v: rowA.version, p: rowA.process, b: rowA.lastBackup }));
 
-  // 6. Isolation from inside aulnes.
+  // 6. Isolation from inside aulnes (the processes changed with the updates and the restore).
+  pa = mainPid('aulnes');
+  pb = mainPid('moulin');
   const ua = sh(`id -u gf-c${a.id}`);
   const ga = sh('getent group guestflow-app | cut -d: -f3');
   const pl = sh('pgrep -x litestream | head -n1');
-  const inA = (cmd) => shOk(`nsenter --target ${pa} --mount --setuid ${ua} --setgid ${ga} -- sh -c '${cmd}' 2>&1`);
+  // A refusal counts only when the command really ran inside A's namespace as A's user.
+  const inA = (cmd) => {
+    const r = shOk(`nsenter --target ${pa} --mount --setuid ${ua} --setgid ${ga} -- sh -c '${cmd}' 2>&1`);
+    if (/^nsenter:/m.test(r.stdout)) return { status: 'nsenter-failed', stdout: r.stdout };
+    return r;
+  };
+  const refused = (r) => typeof r.status === 'number' && r.status !== 0;
   check('rule 21: A reads its own database', inA('test -r /srv/guestflow/instances/aulnes/data/guestflow.db').status === 0);
   check('rule 21: A does not see B’s directory', inA('ls /srv/guestflow/instances').stdout.trim() === 'aulnes', inA('ls /srv/guestflow/instances').stdout.trim());
-  check('rule 21: A cannot read B’s database', inA('cat /srv/guestflow/instances/moulin/data/guestflow.db >/dev/null').status !== 0);
-  check('rule 21: A cannot see B’s /proc nor its environ', inA(`test -e /proc/${pb} || cat /proc/${pb}/environ`).status !== 0);
-  check('rule 21: A cannot read Litestream’s environ', inA(`cat /proc/${pl}/environ`).status !== 0);
-  check('rule 21: A cannot read the console directory', inA('ls /srv/guestflow/console').status !== 0);
-  check('M2: A cannot read any env file', inA('cat /srv/guestflow/envs/aulnes').status !== 0);
-  check('B2: A cannot write a release', inA('touch /srv/guestflow/releases/9.1.0/x').status !== 0);
-  check('rule 21: A cannot reach Caddy’s admin socket', inA('test -e /run/caddy/admin.sock').status !== 0);
+  check('rule 21: A cannot read B’s database', refused(inA('cat /srv/guestflow/instances/moulin/data/guestflow.db >/dev/null')));
+  check('rule 21: A cannot see B’s /proc nor its environ', refused(inA(`test -e /proc/${pb} || cat /proc/${pb}/environ`)));
+  check('rule 21: A cannot read Litestream’s environ', refused(inA(`cat /proc/${pl}/environ`)));
+  check('rule 21: A cannot read the console directory', refused(inA('ls /srv/guestflow/console')));
+  check('M2: A cannot read any env file', refused(inA('cat /srv/guestflow/envs/aulnes')));
+  check('B2: A cannot write a release', refused(inA('touch /srv/guestflow/releases/9.1.0/x')));
+  check('rule 21: A cannot reach Caddy’s admin socket', refused(inA('test -e /run/caddy/admin.sock')));
   const spoof = shOk(`curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 203.0.113.9' -H 'X-Guestflow-Proxy: guess' http://127.0.0.1:$(sed -n 's/^PORT="\\?\\([0-9]*\\)"\\?/\\1/p' /srv/guestflow/envs/moulin)/api/version`);
   check('rule 21: a direct loopback call still answers (its X-Forwarded-* are dropped, unit-tested)', spoof.stdout === '200');
 

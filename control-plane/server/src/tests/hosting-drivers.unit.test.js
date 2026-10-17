@@ -309,3 +309,30 @@ test('H-D6 — the local drivers by default, the real ones by environment, and n
   const none = createNoneProxyDriver({ root: base.root });
   assert.equal(none.healthUrl(inst()), 'http://127.0.0.1:4407/api/version');
 });
+
+test('rule 1 — two customers created together: Caddy reloads one after the other, Litestream keeps both', async () => {
+  const dir = tmp();
+  let inFlight = 0;
+  let overlap = false;
+  const exec = async () => {
+    inFlight += 1;
+    if (inFlight > 1) overlap = true;
+    await new Promise((r) => setTimeout(r, 15));
+    inFlight -= 1;
+    return { stdout: '' };
+  };
+  const caddy = createCaddyProxyDriver({ exec, domain: 'guestflow.fr', sitesDir: dir });
+  await Promise.all([caddy.writeSite(inst()), caddy.writeSite(inst({ slug: 'moulin', port: 4408 }))]);
+  assert.equal(overlap, false, 'never two reloads at once');
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['aulnes.caddy', 'moulin.caddy']);
+
+  const applied = [];
+  const listed = [];
+  const lexec = async (file, args) => { applied.push(args.filter((a) => /^c\d+=/.test(a))); await new Promise((r) => setTimeout(r, 10)); return { stdout: '' }; };
+  const ls = createLitestreamBackupDriver({ exec: lexec, listReplicas: () => [...listed], url: 's3://b/x', rcloneRemote: 'r:b' });
+  const a = inst();
+  const b = inst({ customerId: 14, key: 'c14', slug: 'moulin', dbPath: '/srv/guestflow/instances/moulin/data/guestflow.db' });
+  listed.push(a, b);
+  await Promise.all([ls.addReplica(a), ls.addReplica(b)]);
+  assert.equal(applied.at(-1).length, 2, 'the last configuration lists both');
+});

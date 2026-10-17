@@ -97,7 +97,8 @@ install -m 644 "$HERE/caddy.override.conf" /etc/systemd/system/caddy.service.d/g
 systemctl daemon-reload
 # The header Caddy adds for the console (rule 21): kept in the console's env once written there.
 ENVF="$ROOT/console/env"
-PROXY_SECRET="$(sed -n 's/^CP_PROXY_SECRET=//p' "$ENVF" 2>/dev/null | head -n1)"
+PROXY_SECRET=""
+[ -f "$ENVF" ] && PROXY_SECRET="$(sed -n 's/^CP_PROXY_SECRET=//p' "$ENVF" | head -n1)"
 [ -n "$PROXY_SECRET" ] || PROXY_SECRET="$(head -c 32 /dev/urandom | base64 | tr -d '\n/+=')"
 # GUESTFLOW_TEST_LOCAL_CERTS=1: certificates from Caddy's own CA — the throwaway host of
 # deploy/hosting/test/ only, never production.
@@ -149,7 +150,7 @@ fi
 systemctl enable guestflow-console >/dev/null
 
 # ── 7. Firewall ──────────────────────────────────────────────────────────────────────────────────
-ufw allow OpenSSH >/dev/null
+ufw allow 22/tcp >/dev/null
 ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
 ufw --force enable >/dev/null

@@ -49,6 +49,9 @@ function shareDatabase(dbPath) {
     }
     if (!st.isFile() || (uid !== null && st.uid !== uid)) continue;
     if ((st.mode & 0o777) !== 0o660) fs.chmodSync(file, 0o660);
+    // A copied file keeps its source's group; the instance's group is its directory's.
+    const gid = fs.statSync(path.dirname(file)).gid;
+    if (st.gid !== gid) fs.chownSync(file, st.uid, gid);
   }
 }
 

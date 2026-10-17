@@ -9,9 +9,18 @@ the in-app update of [`specs/self-update-and-releases.md`](../../specs/self-upda
 
 | User | Runs | Can |
 |---|---|---|
-| `root` | systemd, Caddy, the two wrappers | — |
-| `guestflow` | the console | create and read the instances' directories (member of `guestflow-app`), open Caddy's admin socket (member of `caddy`), run `guestflow-systemctl` and `guestflow-litestream-apply` through sudo |
-| `guestflow-app` | every instance, Litestream | each instance sees only its own directory, the releases read-only, never `/srv/guestflow/console`, `/run/caddy` or `/etc/guestflow` |
+| `root` | systemd, Caddy, the three wrappers | — |
+| `guestflow` | the console | create and read the instances' directories (member of `guestflow-app`), open Caddy's admin socket (member of `caddy`), run `guestflow-systemctl`, `guestflow-litestream-apply` and `guestflow-instance-identity` through sudo |
+| `gf-c<customer id>` | one instance each (group `guestflow-app`) | sees only its own directory, the releases read-only, only its own processes in `/proc`; never `/srv/guestflow/console`, `/srv/guestflow/envs`, `/run/caddy` |
+| `guestflow-backup` | Litestream (group `guestflow-app`) | reads and writes the databases, nothing else; root-owned configuration |
+
+The instance users are created, kept across a rename (they are keyed on the customer) and removed at
+the erasure by `guestflow-instance-identity`, which also writes the unit's `User=` drop-in
+(`/etc/systemd/system/guestflow@<slug>.service.d/identity.conf`). Without it the unit runs as
+`nobody` and fails. Caddy adds a secret header (`header_up X-Guestflow-Proxy …`) to everything it
+forwards; the console (`CP_PROXY_SECRET`) and each instance (`GUESTFLOW_PROXY_SECRET`, in its env
+file) ignore `X-Forwarded-*` without it, so a process calling them on 127.0.0.1 cannot claim another
+client address.
 
 ## Layout
 
@@ -19,11 +28,12 @@ the in-app update of [`specs/self-update-and-releases.md`](../../specs/self-upda
 /srv/guestflow/
   instances/                 guestflow:guestflow-app 2770 (setgid: everything inside stays in the group)
   instances/<slug>/          one directory per customer — the console creates it
-    env                      its whole configuration (mode 600), written by the console
-    data/guestflow.db        its database (+ licence.jws, local.env, platform-mail.json, backups/)
+    data/guestflow.db        its database, 0660 (+ licence.jws, local.env, platform-mail.json, backups/)
     uploads/                 its photos and documents
   releases/<version>/        each GuestFlow version, unpacked once, shared by every instance on it
-                             (guestflow 755: read-only for the instances)
+                             (guestflow:guestflow-app 2750, files g+r never g+w: read-only for the instances)
+  envs/<slug>                each instance's whole configuration (0600 in a 0700 dir of guestflow);
+                             systemd reads it as root; the instances never see it
   console/                   guestflow 700 — invisible to the instances
     src/                     the repository at the deployed tag (the console runs from it)
     env                      the console's environment (mode 600)
@@ -32,12 +42,12 @@ the in-app update of [`specs/self-update-and-releases.md`](../../specs/self-upda
 /etc/caddy/Caddyfile         main file; admin API on /run/caddy/admin.sock (0660, group caddy);
                              imports /etc/caddy/sites/*.caddy (one per address, written by the console)
 /etc/litestream.yml          root 644, one entry per database, written only by guestflow-litestream-apply
-/etc/guestflow/backup.env    root 600: CP_BACKUP_URL, CP_BACKUP_ENDPOINT, CP_BACKUP_REGION (read by the wrapper)
 /etc/default/litestream      root 600: the object storage keys, for the Litestream service
 /etc/systemd/system/guestflow@.service       the instance template
 /etc/systemd/system/guestflow-console.service
 /usr/local/sbin/guestflow-systemctl          root wrapper: the instance units only (via sudo)
 /usr/local/sbin/guestflow-litestream-apply   root wrapper: Litestream's configuration from checked entries, then a restart
+/usr/local/sbin/guestflow-instance-identity  root wrapper: an instance's user gf-c<id> and its unit's User= drop-in
 ```
 
 | File here | Installed as |
@@ -46,7 +56,8 @@ the in-app update of [`specs/self-update-and-releases.md`](../../specs/self-upda
 | `guestflow-console.service` | `/etc/systemd/system/guestflow-console.service` |
 | `guestflow-systemctl` | `/usr/local/sbin/guestflow-systemctl` (root, 755) |
 | `guestflow-litestream-apply` | `/usr/local/sbin/guestflow-litestream-apply` (root, 755) |
-| `litestream.override.conf` | `/etc/systemd/system/litestream.service.d/guestflow.conf` (Litestream as `guestflow-app`) |
+| `guestflow-instance-identity` | `/usr/local/sbin/guestflow-instance-identity` (root, 755) |
+| `litestream.override.conf` | `/etc/systemd/system/litestream.service.d/guestflow.conf` (Litestream as `guestflow-backup`) |
 | `caddy.override.conf` | `/etc/systemd/system/caddy.service.d/guestflow.conf` (`/run/caddy` for the admin socket) |
 | `guestflow.sudoers` | `/etc/sudoers.d/guestflow` (440) |
 | `Caddyfile` | `/etc/caddy/Caddyfile` (`__DOMAIN__`, `__ACME_EMAIL__` replaced) |
@@ -86,12 +97,12 @@ Then:
 1. **Fill in `/srv/guestflow/console/env`** — every « à remplir »: the licence private key
    (`CP_LICENCE_PRIVATE_KEY`, control-plane rule 30), the console's own SMTP, the object storage
    (`CP_BACKUP_*`, `CP_RCLONE_REMOTE`) and the platform sender (`CP_PLATFORM_SMTP_*`).
-2. **Fill in the object storage, three times — each reader gets only what it needs:**
-   - `/etc/default/litestream` — the keys, for the Litestream service;
-   - `/etc/guestflow/backup.env` — `CP_BACKUP_URL`, `CP_BACKUP_ENDPOINT`, `CP_BACKUP_REGION`, for the
-     root wrapper that writes Litestream's configuration;
-   - the console's env — the same three values plus `LITESTREAM_ACCESS_KEY_ID` /
-     `LITESTREAM_SECRET_ACCESS_KEY`: the console lists and restores the replicas itself;
+2. **Fill in the object storage — each reader gets only what it needs:**
+   - the console's env — `CP_BACKUP_URL`, `CP_BACKUP_ENDPOINT`, `CP_BACKUP_REGION` (the one source of
+     the target: the console passes it to the root wrapper that writes Litestream's configuration)
+     and `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` (the console lists and restores
+     the replicas itself, with a one-database configuration written for the call);
+   - `/etc/default/litestream` — the same keys, for the Litestream service;
    - then configure rclone for the same bucket: `sudo -u guestflow rclone config` (remote name
      `guestflow-backup`, type `s3`).
 3. **Start the console** and create the first operator:
@@ -147,3 +158,20 @@ it was on.
   not in the database); then restore each customer with `litestream restore -o
   /srv/guestflow/instances/<slug>/data/guestflow.db <CP_BACKUP_URL>/c<id>/db` before starting its
   unit, and copy its uploads back with `rclone copy`.
+
+## Real-host check (lab)
+
+`deploy/hosting/test/` rebuilds this host in a throwaway privileged Docker container — Debian 12
+with systemd as PID 1, SeaweedFS's S3 gateway for the object storage, a local SMTP sink, Caddy's own
+CA — runs `bootstrap-host.sh` as above, then every scenario through the console's API: two
+customers, a fleet update and a forced rollback, the replica in the object storage, a restore at a
+date, the weekly check, deprovision, reactivate, rename, erase, and the isolation from inside an
+instance (another instance's files and `/proc`, Litestream's environment, the console's directory,
+the env files, the releases, Caddy's socket). Run it before changing anything in this directory:
+
+```bash
+deploy/hosting/test/run.sh          # KEEP=1 keeps the containers for a look inside
+```
+
+It needs privileged containers, so it is not part of CI. It bundles the **committed** branch.
+

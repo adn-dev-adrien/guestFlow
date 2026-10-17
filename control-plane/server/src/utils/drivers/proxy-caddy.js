@@ -55,7 +55,16 @@ function createCaddyProxyDriver({
   }
 
   // Writes (or removes, content null) one site file and reloads; a refusal restores the old file.
-  async function apply(slug, content) {
+  // One change at a time: two reloads at once make Caddy drop one of them (EOF on its admin socket,
+  // found on the real-host check when two customers were created together).
+  let chain = Promise.resolve();
+  function apply(slug, content) {
+    const run = chain.catch(() => {}).then(() => applyNow(slug, content));
+    chain = run;
+    return run;
+  }
+
+  async function applyNow(slug, content) {
     const file = fileOf(slug);
     const previous = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
     if (previous === content) return;

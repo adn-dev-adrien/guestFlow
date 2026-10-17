@@ -65,11 +65,17 @@ function createLitestreamBackupDriver({
   // H-D3 with rule 21: the console never writes Litestream's configuration (Litestream runs it). It
   // hands the list of databases to a root wrapper that validates every entry, writes the file and
   // restarts the service.
-  async function sync(extra = null, without = null) {
-    const replicas = listReplicas().filter((r) => r.key !== (without && without.key));
-    if (extra && !replicas.some((r) => r.key === extra.key)) replicas.push(extra);
-    await exec(apply.file, [...apply.prefix, '--url', url, '--endpoint', endpoint || '-', '--region', region || '-',
-      ...replicas.map((r) => `${r.key}=${r.dbPath}`)]);
+  // One rewrite at a time, each computed when its turn comes.
+  let chain = Promise.resolve();
+  function sync(extra = null, without = null) {
+    const run = chain.catch(() => {}).then(async () => {
+      const replicas = listReplicas().filter((r) => r.key !== (without && without.key));
+      if (extra && !replicas.some((r) => r.key === extra.key)) replicas.push(extra);
+      await exec(apply.file, [...apply.prefix, '--url', url, '--endpoint', endpoint || '-', '--region', region || '-',
+        ...replicas.map((r) => `${r.key}=${r.dbPath}`)]);
+    });
+    chain = run;
+    return run;
   }
 
   async function generations(inst) {

@@ -95,8 +95,10 @@ function createContext({
     domain,
     now,
     // Litestream's configuration lists every instance whose backup step is done.
+    // A backup step still running counts: two creations at once must not drop each other from
+    // Litestream's configuration (found on the real-host check).
     listReplicas: () => models.customers.list()
-      .filter((c) => { const r = models.provisioning.get(c.id, 'backup'); return r && r.status === 'ok' && !c.archivedAt; })
+      .filter((c) => { const r = models.provisioning.get(c.id, 'backup'); return r && ['ok', 'running'].includes(r.status) && !c.archivedAt; })
       .map((c) => ctx.provisioner.instanceOf(c)),
   });
   const healthTimeoutMs = Number(hostingEnv.CP_HEALTH_TIMEOUT_MS) || 60000;

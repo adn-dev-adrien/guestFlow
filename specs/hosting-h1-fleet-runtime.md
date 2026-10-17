@@ -175,6 +175,13 @@ These are the recommended options, taken under the owner's instruction to run th
     only by a root wrapper that accepts `c<id>=<instance database>` entries and nothing else; Caddy's
     admin API is a unix socket only the console's group opens. The console's root commands are these
     two wrappers.
+    - *Second review, 2026-10-17:* each instance runs as **its own user** `gf-c<customer id>` (group
+      `guestflow-app`), created by a third root wrapper with the unit's `User=` drop-in (the template
+      runs as `nobody` and fails closed); Litestream as `guestflow-backup`; `/proc` shows each one only
+      its own processes. Env files live in `/srv/guestflow/envs/` (0700), out of the instance's reach.
+      Releases are group-readable and never group-writable; databases the console creates or
+      replaces are 0660. The console never follows a link an instance planted, and forwarded headers
+      are believed only with the secret header Caddy adds.
 22. **A step cut short by a console restart becomes a failed step.** At start-up every step still
     « running » is marked failed (« Console redémarrée pendant l'étape. »), so « Reprendre » is
     offered instead of a customer blocked forever.
@@ -366,12 +373,35 @@ Implemented 2026-10-08 → 2026-10-17 on `feature/hosting-h1-fleet-runtime` (PR 
   simultaneous sends never pass it.
 - Rules 21–23 appended (§3.G).
 
+**Second review of 2026-10-17 (commit after 2cf8fa46)** — fixed on the branch:
+- Litestream 0.3 ignores an endpoint or region given in a replica URL's query: the console's listings
+  and restores now use a one-database configuration file (endpoint, region, `force-path-style`)
+  written to its own `data/tmp/` and removed after the call; the keys stay in the environment.
+- Releases: `releases/` is `guestflow:guestflow-app` 2750 and every file is made group-readable,
+  never group-writable, after extraction and `npm ci` (`shareRelease`).
+- Databases created or replaced by the console (init, first admin, rollback, restore) are set 0660;
+  SQLite gives their `-wal`/`-shm` the database's mode.
+- One user per instance, keyed on the customer (a rename keeps it), Litestream as its own user,
+  `ProtectProc=invisible` + `ProcSubset=pid` (`PrivatePIDs=` needs systemd 257; Debian 12 has 252).
+- Every console read, copy or export of an instance's file refuses links and paths leading out of the
+  instance's directory; the licence's temporary file is created with `O_EXCL`.
+- Env files moved to `/srv/guestflow/envs/<slug>` (an older one is moved once by the provisioner).
+- A restore counts as running from its first instant; its swap never starts an instance without a
+  database and moves Litestream's state of the old file aside.
+- The Litestream wrapper refuses a database listed twice and takes the backup target from the
+  console (one source of truth; `/etc/guestflow/backup.env` is gone); bootstrap restarts Litestream.
+- Instances and the console share the host's loopback: Caddy adds a secret header
+  (`GUESTFLOW_PROXY_SECRET`, `CP_PROXY_SECRET`) and both drop `X-Forwarded-*` without it.
+- The real-host check, `deploy/hosting/test/` (privileged Docker, Debian 12 + systemd + MinIO), runs
+  `bootstrap-host.sh` and every scenario through the console; not in CI.
+
 **Tests.**
-- Control plane: `hosting-drivers` (13), `hosting-provisioner` (13), `hosting-releases` (3),
-  `hosting-fleet-update` (6), `hosting-probe` (10), `hosting-restore` (7) unit suites, and
+- Control plane: `hosting-drivers` (14), `hosting-provisioner` (13), `hosting-releases` (3),
+  `hosting-fleet-update` (6), `hosting-probe` (10), `hosting-restore` (7), `hosting-instance-files`
+  (5) unit suites, and
   `hosting-lifecycle.integration.test.js` (real instances, local drivers, ~8 s) in the
   `console-server` CI job. C-phase suites updated where a manual step became automatic.
-- Instance: `hosting-managed-instance.unit.test.js` (10).
+- Instance: `hosting-managed-instance.unit.test.js` (11).
 - Console client: `CustomerPage.hosting`, `FleetPage.hosting`, `VersionsPage.updates`. Instance client:
   `SettingsSystemUpdateSection.managed`, `SettingsSmtpSection.platform`.
 

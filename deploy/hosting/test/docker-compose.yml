@@ -1,12 +1,12 @@
 # The real-host check of the hosting (deploy/hosting/test/README.md): a Debian 12 host running
-# systemd, and MinIO standing in for the EU object storage. Privileged: never in CI.
+# systemd, and SeaweedFS's S3 gateway standing in for the EU object storage (MinIO's images are no
+# longer pullable anonymously). Privileged: never in CI.
 services:
-  minio:
-    image: minio/minio:latest
-    command: server /data
-    environment:
-      MINIO_ROOT_USER: gfaccess
-      MINIO_ROOT_PASSWORD: gfsecret-0123456789
+  s3:
+    image: chrislusf/seaweedfs:latest
+    command: server -dir=/data -s3 -s3.port=9000 -s3.config=/config/s3.json
+    volumes:
+      - ./s3.json:/config/s3.json:ro
   host:
     build: .
     privileged: true
@@ -16,4 +16,4 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
       - ./.work:/work
       - ..:/hosting:ro
-    depends_on: [minio]
+    depends_on: [s3]

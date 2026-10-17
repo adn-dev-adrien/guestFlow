@@ -40,12 +40,16 @@ function frenchError(err) {
 // A release is read by every instance (group guestflow-app, through the setgid releases/ directory)
 // and written by nobody but the console: group read (and execute where the owner has it), never group
 // write, nothing for others — whatever umask extracted it (review 2026-10-17). Links are left alone.
+// The group is the release directory's (setgid from releases/): a copy keeps its source's group
+// (libuv's copyfile), which would hide that file from the instances — found on the real-host check.
 function shareRelease(root) {
+  const gid = fs.statSync(root).gid;
   const stack = [root];
   while (stack.length) {
     const p = stack.pop();
     const st = fs.lstatSync(p);
     if (st.isSymbolicLink()) continue;
+    if (st.gid !== gid) fs.chownSync(p, st.uid, gid);
     const owner = st.mode & 0o700;
     if (st.isDirectory()) {
       fs.chmodSync(p, owner | 0o050 | (st.mode & 0o2000));

@@ -58,7 +58,8 @@ ProtectKernelLogs=true
 ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
-RestrictSUIDSGID=true
+# No RestrictSUIDSGID=: the instances directory is setgid (its group must reach every file), and
+# that option refuses to create anything inheriting it — found on the real-host check.
 RestrictRealtime=true
 RestrictNamespaces=true
 LockPersonality=true
