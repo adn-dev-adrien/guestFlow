@@ -23,6 +23,8 @@ router.put('/me', controller.updateSelf);
 router.post('/', controller.create);
 router.put('/:id', controller.update);
 router.post('/:id/reset-password', controller.resetPassword);
+// specs/hosting-h2-account-security.md rule 9 — turn another user's second step off.
+router.delete('/:id/two-factor', controller.disableTwoFactor);
 
 router.delete('/:id', (req, res) => {
   // `?hard=1` routes to the hard-delete handler (eligibility-checked); the default is soft.

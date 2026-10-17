@@ -15,10 +15,12 @@ export const SAS = 'sas';
 export const TARIFF_RECIPES = 'tariff-recipes';
 export const SCHOOL_HOLIDAYS = 'school-holidays';
 export const WEATHER_ALERTS = 'weather-alerts';
+export const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 
 export const PLUGIN_IDS = Object.freeze([
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
+  GITES_DE_FRANCE_INTAKE,
 ]);
 
 // The pages plugin modules contribute, with the roles that may open them (rule 15).
@@ -30,9 +32,9 @@ export const MODULE_ROUTE_ROLES = Object.freeze(
 );
 
 // Pages that only exist for a plugin. An array means « visible while any of them is active »
-// (Intégrations holds the sections of four plugins). Plugin modules add their own pages.
+// (Intégrations holds the sections of five plugins). Plugin modules add their own pages.
 export const ROUTE_PLUGINS = Object.freeze({
-  '/settings/integrations': [GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS],
+  '/settings/integrations': [GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE],
   ...Object.fromEntries(MODULE_ROUTES.map((route) => [route.path, route.pluginId])),
 });
 

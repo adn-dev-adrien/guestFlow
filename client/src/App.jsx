@@ -40,6 +40,11 @@ import theme from './theme';
 import DialogProvider from './components/DialogProvider';
 import EmailVerifyBanner from './components/EmailVerifyBanner';
 import SubscriptionBanner from './components/SubscriptionBanner';
+import SupportAccessBanner from './components/SupportAccessBanner';
+import SupportSessionBar, { SUPPORT_BAR_HEIGHT } from './components/SupportSessionBar';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import SupportAccessPage from './pages/settings/SupportAccessPage';
 import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
@@ -666,12 +671,16 @@ function AppShell() {
         <NavContent onItemClick={handleNavItemClick} />
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
+      {/* A support session's red bar (specs/hosting-h2-account-security.md rule 16). */}
+      <SupportSessionBar />
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, pb: user && user.supportSession ? `${SUPPORT_BAR_HEIGHT + 24}px` : undefined, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
             address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />
         {/* Subscription due, in grace or read-only (specs/control-plane-plans-and-access.md §6). */}
         <SubscriptionBanner />
+        {/* The support asks for access (specs/hosting-h2-account-security.md rule 12). */}
+        <SupportAccessBanner />
         {/* Self-update progress (specs/self-update-and-releases.md §6.3). Mounted at app level so it
             takes over wherever the update was triggered from, and survives a reload mid-update. */}
         <UpdateProgressOverlay />
@@ -717,6 +726,12 @@ function AppShell() {
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/conditions-generales" element={<TermsSettingsPage />} />
           <Route path="/parametres/plugins" element={<PluginsPage />} />
+          {/* specs/hosting-h2-account-security.md rules 13, 15, 17 — managed instances only. */}
+          <Route path="/parametres/acces-support" element={canSeeRoute(user, '/parametres/acces-support') ? <SupportAccessPage /> : <Navigate to="/" replace />} />
+          {/* The pre-auth pages, reached with a session (a reset that logged in): home. */}
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="/mot-de-passe-oublie" element={<Navigate to="/" replace />} />
+          <Route path="/nouveau-mot-de-passe" element={<Navigate to="/" replace />} />
           {/* « Mon compte » — every role (rule 6). Legacy paths redirect to it. */}
           <Route path="/mon-compte" element={<AccountPage />} />
           <Route path="/settings/password" element={<Navigate to="/mon-compte" replace />} />
@@ -779,7 +794,12 @@ function AuthGate() {
       </Box>
     );
   }
-  if (!user) return <LoginPage />;
+  if (!user) {
+    // The forgotten password, before any session (specs/hosting-h2-account-security.md rules 1-4).
+    if (location.pathname === '/mot-de-passe-oublie') return <ForgotPasswordPage />;
+    if (location.pathname === '/nouveau-mot-de-passe') return <ResetPasswordPage />;
+    return <LoginPage />;
+  }
   if (user.mustChangePassword) return <ForcedPasswordChange />;
   // The start assistant, full screen and outside the side menu (specs/plugins-phase-p-productisation.md
   // rule 20): an admin lands there while it is open, and may reopen it from Réglages › Système.

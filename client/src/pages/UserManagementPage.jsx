@@ -22,6 +22,7 @@ import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import PhonelinkEraseIcon from '@mui/icons-material/PhonelinkErase';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
@@ -74,6 +75,8 @@ export default function UserManagementPage() {
   const [formErrors, setFormErrors] = useState({});
   const [resetDialog, setResetDialog] = useState({ open: false, user: null, reactivate: false });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, user: null, hard: false });
+  // specs/hosting-h2-account-security.md rule 9 — turn another user's second step off (a lost phone).
+  const [twoFactorDialog, setTwoFactorDialog] = useState(null);
 
   const refresh = useCallback(async () => {
     if (!isAdmin) return;
@@ -207,6 +210,21 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleDisableTwoFactor = async () => {
+    const target = twoFactorDialog;
+    setTwoFactorDialog(null);
+    setBusy(true);
+    try {
+      await api.disableUserTwoFactor(target.id);
+      showSuccess(`Second code de ${fullName(target)} désactivé.`);
+      await refresh();
+    } catch (err) {
+      showError(err, 'Désactivation impossible.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const subtitle = useMemo(() => (
     me && me.email ? (
       <Typography variant="caption" color="text.disabled">{me.email}</Typography>
@@ -258,8 +276,8 @@ export default function UserManagementPage() {
             )}
 
             {!loading && users.length > 0 && (isMobile
-              ? renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy })
-              : renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy })
+              ? renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor: setTwoFactorDialog, busy })
+              : renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor: setTwoFactorDialog, busy })
             )}
           </Box>
         )}
@@ -339,11 +357,39 @@ export default function UserManagementPage() {
         confirmLabel="Supprimer"
         confirmColor="error"
       />
+
+      <ConfirmDialog
+        open={Boolean(twoFactorDialog)}
+        onClose={() => setTwoFactorDialog(null)}
+        onConfirm={handleDisableTwoFactor}
+        title="Désactiver le second code"
+        message={twoFactorDialog ? (
+          <>
+            Désactiver le second code de <strong>{fullName(twoFactorDialog)}</strong> ? Seul le mot de
+            passe sera demandé. Inscrit au journal de son compte.
+          </>
+        ) : ''}
+        confirmLabel="Désactiver"
+        confirmColor="warning"
+      />
     </Box>
   );
 }
 
-function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy }) {
+function TwoFactorOffButton({ user, isSelf, busy, onClick, small }) {
+  if (!user.twoFactorEnabled || isSelf) return null;
+  return (
+    <Tooltip title="Désactiver le second code">
+      <span>
+        <IconButton size="small" onClick={() => onClick(user)} disabled={busy} aria-label="Désactiver le second code">
+          <PhonelinkEraseIcon fontSize={small ? 'small' : undefined} />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
+
+function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor, busy }) {
   return (
     <TableCard>
       <TableHead>
@@ -385,6 +431,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                       <Tooltip title={isSelf ? 'Utilisez la page Mot de passe pour modifier le vôtre.' : 'Réinitialiser le mot de passe'}>
                         <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf}><VpnKeyIcon fontSize="small" /></IconButton></span>
                       </Tooltip>
+                      <TwoFactorOffButton user={u} isSelf={isSelf} busy={busy} onClick={openTwoFactor} small />
                       <Tooltip title={u.isActive ? 'Désactiver' : 'Réactiver'}>
                         <span>
                           <IconButton
@@ -424,7 +471,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
   );
 }
 
-function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy }) {
+function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor, busy }) {
   return (
     <Stack spacing={1.5}>
       {users.map((u) => {
@@ -458,6 +505,7 @@ function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleT
                   <Tooltip title={isSelf ? 'Utilisez la page Mot de passe pour modifier le vôtre.' : 'Réinitialiser le mot de passe'}>
                     <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf}><VpnKeyIcon /></IconButton></span>
                   </Tooltip>
+                  <TwoFactorOffButton user={u} isSelf={isSelf} busy={busy} onClick={openTwoFactor} />
                   <Tooltip title={u.isActive ? 'Désactiver' : 'Réactiver'}>
                     <span>
                       <IconButton size="small" onClick={() => handleToggleActive(u)} disabled={busy || isSelfAdmin}>

@@ -5,8 +5,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { passwordHash } = require('../utils/gf');
-const totp = require('../utils/totp');
+const { passwordHash, totp } = require('../utils/gf');
 const { makeContext } = require('./helpers');
 
 function setup() {
