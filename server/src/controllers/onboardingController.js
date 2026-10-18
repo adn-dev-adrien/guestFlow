@@ -339,6 +339,8 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     const results = [];
     const fail = (id, code, message) => results.push({ id, ok: false, error: code, reason: failureReason(code, message) });
     let restarting = false;
+    // Rule 42 — an install from a package ships pages the open bundle lacks: the client loads the app again.
+    let reload = false;
     // Rule 37 — one after the other: each install has released the plugin lock before the next starts.
     for (const id of ids) {
       const plugin = known.get(id);
@@ -351,12 +353,13 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
       if (answer.status < 300) {
         results.push({ id, ok: true });
         restarting = Boolean(answer.body && answer.body.restarting);
+        reload = reload || Boolean(answer.body && answer.body.reload);
       } else {
         const body = answer.body || {};
         fail(id, body.error || 'FAILED', body.message);
       }
     }
-    return res.json({ results, pluginsSummary: await pluginsSummary() });
+    return res.json({ results, pluginsSummary: await pluginsSummary(), reload });
   }
 
   async function pluginsSummary() {

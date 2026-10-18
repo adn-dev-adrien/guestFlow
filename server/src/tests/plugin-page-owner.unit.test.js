@@ -65,3 +65,25 @@ test('rule 40: every page a plugin contributes is in the server list, under that
   assert.ok(seen >= 7, `routes read: ${seen}`);
   for (const ids of Object.values(PLUGIN_PAGES)) ids.forEach((id) => assert.ok(PLUGIN_IDS.includes(id), id));
 });
+
+// Rule 42 (review of 2026-10-18) — « n'est pas activé » is said only of a plugin that is not active.
+test('rule 42: an active plugin answers like a core page; an installed, disabled one is named', () => {
+  const { db, ctrl } = controller();
+  const model = pluginsModel.buildModel(db);
+  model.install('accounting-export');
+  assert.deepEqual(ask(ctrl, '/comptabilite/zzz'), { plugins: [], message: null });
+  assert.deepEqual(ask(ctrl, '/comptabilite'), { plugins: [], message: null });
+  model.setEnabled('accounting-export', false);
+  const off = ask(ctrl, '/comptabilite');
+  assert.deepEqual(off.plugins.map((p) => [p.id, p.state]), [['accounting-export', 'inactive']]);
+  assert.equal(off.message, 'Cette page dépend du plugin « Export comptable », qui n’est pas activé.');
+  db.close();
+});
+
+test('rule 42: Intégrations is named while none of its seven plugins is active, and not after', () => {
+  const { db, ctrl } = controller();
+  assert.equal(ask(ctrl, '/settings/integrations').plugins.length, 7);
+  pluginsModel.buildModel(db).install('google-calendar');
+  assert.deepEqual(ask(ctrl, '/settings/integrations'), { plugins: [], message: null });
+  db.close();
+});

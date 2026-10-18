@@ -4,6 +4,9 @@
  * (specs/guest-email-texts-made-simple.md rule 21), C'est prêt. Every step is
  * validated and saved by the server when « Suivant » is pressed; an error keeps the step open.
  * « Plus tard » closes the assistant and keeps what was saved.
+ *
+ * Props (tests only): onFullLoad(to) — what loading the app again at `to` means once a plugin was
+ * installed from a package (rule 42; default: window.location.assign).
  */
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
@@ -29,7 +32,9 @@ const Brand = () => (
   <Typography sx={{ fontFamily: 'Georgia, serif', fontWeight: 600, color: 'primary.main' }}>GuestFlow</Typography>
 );
 
-export default function OnboardingPage() {
+const loadPage = (to) => window.location.assign(to);
+
+export default function OnboardingPage({ onFullLoad = loadPage }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { refresh } = useAuth();
@@ -52,6 +57,8 @@ export default function OnboardingPage() {
   const [existingProperties, setExistingProperties] = useState(0);
   const [loginEmail, setLoginEmail] = useState('');
   const [pluginsSummary, setPluginsSummary] = useState('');
+  // Rule 42 — a plugin installed from a package is not in the open bundle: leaving loads the app again.
+  const [needsLoad, setNeedsLoad] = useState(false);
 
   useEffect(() => {
     if (location.pathname !== '/demarrage') navigate('/demarrage', { replace: true });
@@ -99,6 +106,7 @@ export default function OnboardingPage() {
     setBusy(true);
     try {
       await api.completeOnboarding();
+      if (needsLoad) { onFullLoad(to); return; }
       await refresh();
       navigate(to, { replace: true });
     } catch (err) {
@@ -145,6 +153,7 @@ export default function OnboardingPage() {
         const ids = Object.keys(picked).filter((id) => picked[id]);
         const saved = await api.saveOnboardingPlugins(ids);
         setPluginsSummary(saved.pluginsSummary || '');
+        if (saved.reload) setNeedsLoad(true);
         // Rule 37 — each plugin left out is named with the server's reason.
         const failed = saved.results.filter((r) => !r.ok).map((r) => {
           const label = (plugins.find((p) => p.id === r.id) || {}).label || r.id;

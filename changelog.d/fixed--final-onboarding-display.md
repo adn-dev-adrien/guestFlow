@@ -11,3 +11,4 @@
 - plugin:linen Impersonal texts.
 - plugin:google-calendar Impersonal texts.
 - plugin:sas Impersonal texts.
+- **« Plugin inactif » only while the plugin is off** (specs/plugins-phase-p-productisation.md rule 42): an unknown address under an active plugin's page reads « Page introuvable »; the page of an installed, disabled plugin — and Intégrations with none of its plugins active — shows « Plugin inactif » to an administrator instead of sending home; leaving the start assistant after a package install loads the app again so the new pages are there. +3 server tests, +2 client tests.

@@ -513,7 +513,9 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const pluginRoute = (path, element) => (isRouteEnabled(user, path) ? element : null);
+  // A page of an inactive plugin is never mounted (rule 18); in its place the 404, which an
+  // administrator reads as « Plugin inactif » (specs/plugins-phase-p-productisation.md rule 42).
+  const pluginRoute = (path, element) => (isRouteEnabled(user, path) ? element : <NotFoundPage />);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   // Global reservation search lives in the top bar (specs/reservation-number-and-search.md §6).
@@ -538,8 +540,10 @@ function AppShell() {
   // - Reception  → / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
   // A page of an inactive plugin is not there (specs/plugins-phase-0-foundation.md rule 19): a URL
   // typed by hand lands on the home page, or on « Mon compte » for a role that has no home page.
+  // An administrator stays on the address and reads « Plugin inactif » with a way to Plugins
+  // (specs/plugins-phase-p-productisation.md rule 42).
   useEffect(() => {
-    if (!user || isRouteEnabled(user, location.pathname)) return;
+    if (!user || userHasRole(user, ADMIN) || isRouteEnabled(user, location.pathname)) return;
     const hasHome = userHasRole(user, ADMIN) || userHasRole(user, RECEPTION);
     navigate(hasHome ? '/' : '/mon-compte', { replace: true });
   }, [user, location.pathname, navigate]);
@@ -690,7 +694,8 @@ function AppShell() {
             an unknown URL used to leave the main area blank. */}
         <RouteErrorBoundary>
         {/* A page of an inactive plugin is not even mounted (specs/plugins-phase-0-foundation.md
-            rules 18-19): its API calls never leave, and the guard above sends the URL home. */}
+            rules 18-19): its API calls never leave, and the guard above sends the URL home — or,
+            for an administrator, the 404 says « Plugin inactif » (phase P rule 42). */}
         <Routes>
           <Route path="/" element={<Dashboard />} />
           {/* Pages of plugin modules (specs/plugins-phase-1-sdk.md rule 15), lazily loaded. */}

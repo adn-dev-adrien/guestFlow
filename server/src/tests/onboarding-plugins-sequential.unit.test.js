@@ -123,3 +123,13 @@ test('rule 38: an empty price is « Prix obligatoire », a negative one « Prix 
   assert.equal(negative.body.errors.pricePerNight, 'Prix positif ou nul');
   db.close();
 });
+
+// Rule 42 — an install that ships new pages asks for a page load; the step passes it on.
+test('rule 42: the step answers reload when an install asked for it, and not for an activation alone', async () => {
+  const installed = setup(lockedPlugins({ sas: 'available' }));
+  assert.equal((await call(installed.controller.savePlugins, { body: { ids: ['sas'] } })).body.reload, true);
+  installed.db.close();
+  const activated = setup(lockedPlugins({ sas: 'inactive' }));
+  assert.equal((await call(activated.controller.savePlugins, { body: { ids: ['sas'] } })).body.reload, false);
+  activated.db.close();
+});

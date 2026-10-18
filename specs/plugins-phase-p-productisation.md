@@ -356,6 +356,8 @@ Decisions taken on 2026-10-06:
     activé. » — and « Ouvrir Plugins ». The server knows which plugin owns which page
     (`GET /api/plugins/page?path=`), because a release does not ship the pages of a plugin that is
     not installed. Any other address, and every other role, keeps « Page introuvable ».
+    _2026-10-18: only while the plugin is off, and on the pages of an installed, disabled plugin
+    too — see rule 42._
 
 41. **Settings texts are impersonal and plain** (final display sweep of 2026-10-18, R-3). The
     settings, account and accounting texts lose their « vous / votre / nous » (« Informations sur
@@ -370,6 +372,23 @@ Decisions taken on 2026-10-06:
     _Owner action, not code (n-5):_ Solio's stored J-7 subject reads « Plus qu'une semaine avant
     {{propertyName}} », which renders « avant Gite ». The code default is right; the stored subject
     is edited by hand in Réglages › Emails, and no migration rewrites an owner's own text.
+
+42. **« Plugin inactif » is said only of a plugin that is off, on every page it owns** (review of the
+    final display sweep, 2026-10-18). Rule 40 had three gaps: the server wrote « n'est pas activé »
+    without looking at the plugin's state, so an unknown address under an active plugin's page
+    (`/comptabilite/zzz`) read « Plugin inactif »; the page of a plugin installed then disabled is in
+    the bundle, so the shell's plugin guard sent the administrator home before the 404 could answer;
+    and `/settings/integrations`, a core route behind that same guard, rendered nothing. Now:
+    - `GET /api/plugins/page` answers `{ plugins: [], message: null }` as soon as one of the page's
+      plugins is active — a page shows while any of its plugins is active — and otherwise names
+      every one of them, whether never installed, disabled or failed;
+    - for an administrator, a page whose plugin is off renders the 404 in place of the page (the page
+      itself is still never mounted, phase 0 rule 18) and the address stays: « Plugin inactif », or
+      « Plugins inactifs » for Intégrations with its seven plugins. Every other role keeps phase 0
+      rule 19 (home page, or « Mon compte »);
+    - step « Plugins » of the assistant passes on the `reload` an install from a package asks for
+      (`PUT /api/onboarding/plugins` → `reload: true`), and leaving the assistant then loads the app
+      again at the chosen page, so the new plugin's pages are in the bundle.
 
 ## 4. Architecture
 
@@ -399,7 +418,8 @@ Decisions taken on 2026-10-06:
 | `controllers/` | `emailMentionsController.js` | C | CRUD, both orders, preview |
 | `controllers/` | `onboardingController.js` | C | State, the 4 steps, « Plus tard »; the plugins one after the other with their reason and the active count (rules 37–38) |
 | `constants/` | `plugins.js` | T | `PLUGIN_PAGES` / `pluginsOfPage(path)`: which plugin owns which page (rule 40) |
-| `controllers/` | `pluginsController.js` (`pageOwner`), `routes/plugins.js` | T | `GET /api/plugins/page` (rule 40) |
+| `controllers/` | `pluginsController.js` (`pageOwner`), `routes/plugins.js` | T | `GET /api/plugins/page` (rule 40); names nobody once one of the page's plugins is active (rule 42) |
+| `controllers/` | `onboardingController.js` (`savePlugins`) | T | Installs one after the other (rule 37); passes on an install's `reload` (rule 42) |
 | `controllers/public/` | `emailPreferencesController.js` | T | Company name, neutral copy (rule 17) |
 | `routes/` | `stayTexts.js`, `emailMentions.js`, `onboarding.js` | C | Thin |
 | `database.js`, `schema.sql` | — | T | New tables and columns; empty pool defaults; the migration call; catering seed and extinguisher rows removed |
@@ -428,7 +448,8 @@ Decisions taken on 2026-10-06:
 | `pages/settings/` | `PlatformsSettingsPage.jsx` | T | « Compté comme vente directe » |
 | `plugins/accounting-export/` | settings section | T | « Plan comptable » (rules 27–28) |
 | `plugins/sas/` | settings + `ReservationSasDialog.jsx` | T | Rule 16 |
-| `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20) |
+| `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20); a page whose plugin is off renders `NotFoundPage` for an administrator instead of sending home (rule 42) |
+| `pages/` | `OnboardingPage.jsx` | T | Leaving after an install that asked for `reload` loads the app again (rule 42) |
 | `components/` | `NotFoundPage.jsx` | C | **Generic**: the app's 404, or « Plugin inactif » for a plugin's page (rule 40) |
 | `components/` | `AdvancedDetails.jsx` | C | **Generic**: a folded « Avancé » block for the technical names a setting needs (rule 41) |
 | `utils/` | `touchHitArea.js` + `theme.js` | C/T | The 44 px hit area of a small control; link-buttons and toggles in the theme (rule 39) |
@@ -451,8 +472,8 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 | POST | `/api/email-mentions/preview` | `{ propertyId, children, startDate }` → `{ fr, en }`: the J-7 offers paragraph and the J-2 confirmations, rendered by the server |
 | GET | `/api/onboarding` | `{ open, company, plugins: [{ id, label, description, allowed, plan, state, recommended }] }` |
 | PUT | `/api/onboarding/company`, `/api/onboarding/property` | Validated writes; 422 `{ errors }` per field; 402 when the plan's unit quota is reached |
-| PUT | `/api/onboarding/plugins` | `{ ids }` → `{ results: [{ id, ok, error, reason }], pluginsSummary }`, each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
-| GET | `/api/plugins/page?path=` | `{ plugins: [{ id, name, state }], message }`; `{ plugins: [], message: null }` for a core or unknown page (rule 40) |
+| PUT | `/api/onboarding/plugins` | `{ ids }` → `{ results: [{ id, ok, error, reason }], pluginsSummary, reload }` (`reload`: rule 42), each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
+| GET | `/api/plugins/page?path=` | `{ plugins: [{ id, name, state }], message }`; `{ plugins: [], message: null }` for a core or unknown page, or once one of the page's plugins is active (rules 40, 42) |
 | GET | `/api/auth/me` | gains `onboardingOpen` (admins only) |
 | GET / PUT | `/api/platforms/settings` | each row gains `countsAsDirect` |
 | GET / PUT | `/api/accounting/platform-accounts` | gains `plan: [{ key, value, default }]`; PUT takes `plan: { key: value }` |
@@ -503,6 +524,8 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
   toggles and the « second code » banner on one line (rule 39); « Plugin inactif » instead of « Page
   introuvable » (rule 40); impersonal settings texts, protocol names under « Avancé » (rule 41).
   On a phone (390 px) the price helper keeps its own row and « Plus tard » stays on one line.
+- **Review of the sweep, 2026-10-18:** « Plugin inactif » only while the plugin is off, also for an
+  installed, disabled plugin and for Intégrations; the administrator stays on the address (rule 42).
 - **Logement › Séjour:** « Textes propres à ce logement » holds the overridable keys, each empty by
   default with the global text shown as placeholder.
 - **Ressource:** « Phrase dans les mails une fois réservée » (FR/EN, `{{slots}}` chip).
@@ -552,6 +575,11 @@ Final display sweep of 2026-10-18 (rules 37–41): server `onboarding-plugins-se
 `OnboardingPage.plugins-reason` (3, rules 37–38), `NotFoundPage.plugin-inactive` (3, rule 40),
 `touchHitArea.theme` (2, rule 39), `SettingsSmtpSection.plain-words` (1, rule 41), and the
 suites whose texts changed (rule 41).
+
+Review of the sweep, 2026-10-18 (rule 42): server `plugin-page-owner` (+2) and
+`onboarding-plugins-sequential` (+1); client `OnboardingPage.plugins-reload` (2); E2E
+`plugins/online-payment.spec.js` (« Plugin inactif » at `/parametres/paiements` once switched off)
+and `auth/not-found.spec.js` (+1, `/comptabilite/zzz` with the plugin active).
 
 ### E2E
 

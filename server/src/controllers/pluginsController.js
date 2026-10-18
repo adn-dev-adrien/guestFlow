@@ -483,12 +483,14 @@ function createController(model = defaultModel, deps = {}) {
       return res.json(view(entry));
     },
 
-    // GET /api/plugins/page?path=/comptabilite — specs/plugins-phase-p-productisation.md rule 40: the
-    // address of a page whose plugin is off reads « module inactif », not « page introuvable ».
+    // GET /api/plugins/page?path=/comptabilite — specs/plugins-phase-p-productisation.md rules 40, 42:
+    // the address of a page whose plugin is off reads « Plugin inactif », not « Page introuvable ».
+    // A page shows while any of its plugins is active: then the address answers like a core page.
     pageOwner(req, res) {
-      const ids = pluginsOfPage(req.query && req.query.path);
-      if (!ids.length) return res.json({ plugins: [], message: null });
-      const plugins = ids.map((id) => view(findPlugin(id))).map((p) => ({ id: p.id, name: p.name, state: p.state }));
+      const plugins = pluginsOfPage(req.query && req.query.path)
+        .map((id) => view(findPlugin(id)))
+        .map((p) => ({ id: p.id, name: p.name, state: p.state }));
+      if (!plugins.length || plugins.some((p) => p.state === 'active')) return res.json({ plugins: [], message: null });
       // Non-breaking spaces: a closing « » » never starts a line on its own.
       const names = plugins.map((p) => `«\u00a0${p.name}\u00a0»`);
       const message = names.length === 1

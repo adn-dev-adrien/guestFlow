@@ -35,6 +35,9 @@ test('switched off, the Paiements page and its menu entry go; switched on, they 
   try {
     expect((await request.get('/api/payments/settings')).status()).toBe(404);
     await page.goto('/parametres/paiements');
+    // specs/plugins-phase-p-productisation.md rule 42 — an administrator stays on the address and reads why.
+    await expect(page.getByText('Plugin inactif')).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/parametres\/paiements$/);
     await expect(page.getByText('Connexion bancaire')).toHaveCount(0);
     await page.goto('/parametres/conditions-generales');
     await expect(page.getByRole('heading', { name: 'Conditions générales' }).first()).toBeVisible({ timeout: 15_000 });
