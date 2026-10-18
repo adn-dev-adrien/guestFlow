@@ -19,6 +19,7 @@ const { isCleaningOption } = require('./cleaningOption');
 const { resolveCancelOn } = require('./paymentSchedule');
 const { buildStayContent } = require('./stayContentContext');
 const { resolveEmailIdentity } = require('./emailIdentity');
+const { isPlaceholderClient } = require('./placeholderClient');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -135,7 +136,11 @@ function buildContext({ reservation, client, property, options = [], resources =
     return isEn ? (safeStr(rr.nameEn).trim() || fr) : fr;
   };
 
-  const fullName = `${safeStr(c.firstName).trim()} ${safeStr(c.lastName).trim()}`.trim();
+  // Rule 19 — an iCal placeholder is no name: the greeting falls back to « Bonjour, » / « Hello, ».
+  const placeholder = isPlaceholderClient(c);
+  const firstName = placeholder ? '' : safeStr(c.firstName);
+  const lastName = placeholder ? '' : safeStr(c.lastName);
+  const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
   const checkInTime  = formatTimeShort(r.checkInTime  || p.defaultCheckIn  || '');
   const checkOutTime = formatTimeShort(r.checkOutTime || p.defaultCheckOut || '');
 
@@ -369,8 +374,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       // first so no existing token can ever be shadowed by them.
       ...stayContent.vars,
       // Client
-      clientFirstName: safeStr(c.firstName),
-      clientLastName:  safeStr(c.lastName),
+      clientFirstName: firstName,
+      clientLastName:  lastName,
       clientFullName:  fullName,
       clientEmail:     safeStr(c.email),
       clientPhone:     safeStr(c.phone),

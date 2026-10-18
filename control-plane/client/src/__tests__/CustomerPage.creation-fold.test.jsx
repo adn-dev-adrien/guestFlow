@@ -1,4 +1,4 @@
-// specs/control-plane-plans-and-access.md rule 37 — the « Création » card folds to one line once every
+// specs/control-plane-plans-and-access.md rule 38 — the « Création » card folds to one line once every
 // step is done, and opens on demand; a creation still in progress or failed stays open.
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
@@ -21,7 +21,7 @@ const done = {
 
 beforeEach(() => { setWidth(390); vi.clearAllMocks(); });
 
-it('rule 37 — a finished creation reads one line, the steps open on demand', async () => {
+it('rule 38 — a finished creation reads one line, the steps open on demand', async () => {
   api.customer.mockResolvedValue(done);
   page();
   expect(await screen.findByText('Terminée : 2 étapes')).toBeInTheDocument();
@@ -31,7 +31,7 @@ it('rule 37 — a finished creation reads one line, the steps open on demand', a
   expect(screen.getByRole('button', { name: 'Masquer les étapes' })).toHaveAttribute('aria-expanded', 'true');
 });
 
-it('rule 37 — an unfinished creation shows its steps and no fold button', async () => {
+it('rule 38 — an unfinished creation shows its steps and no fold button', async () => {
   api.customer.mockResolvedValue({ ...customerFixture, stepsDone: false, stepsSummary: '' });
   page();
   expect(await screen.findByRole('button', { name: 'Reprendre' })).toBeInTheDocument();

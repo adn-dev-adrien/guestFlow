@@ -11,7 +11,7 @@
  * try/caught, and the reservation is stamped regardless (a missed push isn't retried forever).
  */
 
-const { isoToday } = require('./emailAutoSendRunner');
+const { localIsoDate } = require('./localDate');
 
 function hhmm(date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -26,7 +26,7 @@ function subtractMinutes(time, minutes) {
 }
 
 async function runBreakfastPush({ breakfastModel, reservationsModel, pushService, now = new Date(), firstRun = false, logger = console } = {}) {
-  const today = isoToday(now);
+  const today = localIsoDate(now);
   const nowHHMM = hhmm(now);
   const lead = breakfastModel.notifyLeadMinutes();
   let sent = 0;

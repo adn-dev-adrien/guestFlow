@@ -149,13 +149,18 @@ function buildPlatformPayoutRow(row, today) {
   // after the stay, so a window counted from `endDate` would barely leave it time to be seen.
   if (daysLate > MAX_DAYS_LATE_PLATFORM) return null;
 
+  // specs/finance-dashboard-redesign.md rule 41 — the platform owes its payout: the solde net of its
+  // commission, as the finance page counts it.
+  const payout = round2(Math.max(0, balanceAmount - Number(row.platformCommissionAmount || 0)));
+  // Rule 41 — nothing owed, nothing late.
+  if (!(payout > 0)) return null;
   return {
     ...base,
     state: 'platform_payout_overdue',
     severity: SEVERITY_BY_STATE.platform_payout_overdue,
     depositDue: 0,
-    balanceDue: balanceAmount,
-    totalDue: balanceAmount,
+    balanceDue: payout,
+    totalDue: payout,
   };
 }
 

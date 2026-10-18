@@ -16,16 +16,11 @@ const {
   MAIL_LABELS, REASONS, POST_STAY_STABLE_KEYS, SEQUENCE_STABLE_KEYS, planStayMails, planSeasonMail, seasonSendDates, capReached,
   __test: { addDays },
 } = require('./guestEmailSequence');
+const { todayIso } = require('./localDate');
 
 const CATCH_UP_DAYS = 2;
 const STALE_CLAIM_MINUTES = 60;
 
-function isoToday(now = new Date()) {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 // ---------------------------------------------------------------- planning
 
@@ -204,7 +199,7 @@ function autoMailKeys(templatesModel) {
   return SEQUENCE_STABLE_KEYS.filter((key) => stableKeyAutoSends(templatesModel, key));
 }
 
-async function runSequencePass(deps, { today = isoToday() } = {}) {
+async function runSequencePass(deps, { today = todayIso() } = {}) {
   const { database, ledger, settingsModel, templatesModel } = deps;
   const autoKeys = new Set(autoMailKeys(templatesModel));
   if (autoKeys.size === 0) return { blocked: true, sent: 0, failed: 0, results: [] };
@@ -234,7 +229,7 @@ async function runSequencePass(deps, { today = isoToday() } = {}) {
  * What the sequence would send between `from` and `to` (rule 31). No SMTP, no ledger write. Before
  * activation, the start date is assumed to be today so the operator sees what activating would do.
  */
-function simulate({ database, ledger, settingsModel, templatesModel }, { from, to, today = isoToday() }) {
+function simulate({ database, ledger, settingsModel, templatesModel }, { from, to, today = todayIso() }) {
   const settings = settingsModel.read();
   const startDate = settings.guestSequenceStartDate || today;
   const entries = planWindow({ database, ledger, from, to, startDate });
@@ -286,4 +281,4 @@ function simulate({ database, ledger, settingsModel, templatesModel }, { from, t
   };
 }
 
-module.exports = { planWindow, sendSequenceMail, runSequencePass, simulate, isoToday, CATCH_UP_DAYS };
+module.exports = { planWindow, sendSequenceMail, runSequencePass, simulate, CATCH_UP_DAYS };

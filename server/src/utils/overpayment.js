@@ -10,6 +10,8 @@
  * Pure: the caller reads the row, the captured sums and the refunds.
  */
 
+const { isDirectChannel } = require('./platformNameFormat');
+
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
 /**
@@ -41,6 +43,9 @@ function collectedOnSchedule(row = {}, captured = {}) {
  * @returns {number} ≥ 0 — the trop-perçu, 0 when the stay is not over-collected
  */
 function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount, balanceAmount, engineOverTtc = 0 }) {
+  // Rule 38 — the guest of a platform stay paid the platform, which refunds them itself: GuestFlow has no
+  // trop-perçu to give back there.
+  if (!isDirectChannel(row.platform)) return 0;
   const pick = (given, stored) => Number((given === undefined ? stored : given) || 0);
   const due = pick(depositAmount, row.depositAmount) + pick(balanceAmount, row.balanceAmount);
   // A paid bucket lowered by the save (captured above the new amount), or kept frozen by the engine

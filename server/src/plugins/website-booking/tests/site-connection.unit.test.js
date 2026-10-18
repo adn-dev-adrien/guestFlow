@@ -19,6 +19,9 @@ const { buildSiteConnectionController, siteApiAddress } = require('../siteConnec
 const { forbiddenReason } = require('../../../utils/supportSessionPolicy');
 const enforceRoleAccess = require('../../../middleware/enforceRoleAccess');
 const websiteBooking = require('..');
+const registry = require('../../sdk/registry');
+const { createContext } = require('../../sdk/createContext');
+const Database = require('better-sqlite3');
 
 function call(handler, req = {}) {
   const out = { headers: {}, status: 200, body: null };
@@ -111,8 +114,15 @@ test('rules 30-31: both routes are declared by the plugin, admin-only, closed to
     enforceRoleAccess({ user: { roles }, method: 'GET', path: '/settings/website-connection' }, res, () => { passed = true; });
     assert.equal(passed, false, roles.join());
   }
+
+  // The plugin's declaration is the only source: the core policy holds no copy of these paths.
+  registry.reset();
+  assert.equal(forbiddenReason('GET', '/settings/website-connection'), null, 'nothing declared, nothing refused');
+  websiteBooking.register(createContext('website-booking', { db: new Database(':memory:') }));
   assert.equal(forbiddenReason('GET', '/settings/website-connection'), 'credentials');
+  assert.equal(forbiddenReason('GET', '/Settings/Website-Connection/'), 'credentials');
   assert.equal(forbiddenReason('POST', '/settings/website-connection/regenerate'), 'credentials');
+  registry.reset();
 });
 
 test.after(() => fs.rmSync(DIR, { recursive: true, force: true }));

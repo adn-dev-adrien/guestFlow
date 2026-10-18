@@ -10,9 +10,11 @@ export default defineConfig({
     port: 3200,
     strictPort: true,
     fs: { allow: [gfRoot] },
+    // The browser's Host reaches the console unchanged (Vite's string form rewrites it), so the
+    // same-origin gate of writes holds in development too (specs/control-plane-plans-and-access.md rule 36).
     proxy: {
-      '/api': 'http://localhost:4100',
-      '/exports': 'http://localhost:4100',
+      '/api': { target: 'http://localhost:4100', changeOrigin: false },
+      '/exports': { target: 'http://localhost:4100', changeOrigin: false },
     },
   },
   build: { outDir: 'dist', sourcemap: false },

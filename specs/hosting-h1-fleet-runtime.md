@@ -265,6 +265,12 @@ These are the recommended options, taken under the owner's instruction to run th
     `x-guestflow-health` (which Caddy never adds) — or, without a secret (self-hosted, development),
     one from the machine itself. Anyone else gets no plugin field: the endpoint never tells what is
     installed.
+    > 2026-10-18 (final code review, low 5): the loopback exception is withdrawn, see rule 34.
+34. **Without a proxy secret, `/api/version` gives no plugin field at all** (added 2026-10-18, final
+    code review). On a self-hosted install behind a reverse proxy on the same machine, every visitor
+    reaches the process from loopback, so « from the machine itself » let anyone list the installed
+    plugins. Only the console asks `?plugin=`, always with the secret; the client and the restart
+    probe read `version` and `startedAt`, which stay public.
 
 ---
 
@@ -524,6 +530,9 @@ instance client `SystemSettingsPage.public-url` (2).
 
 **Second review of PR #701 (2026-10-18):** rules 30–33 appended. Tests: control plane
 `hosting-plugin-push` (6); instance `hosting-plugin-push` (5), `hosting-instance-seed` (6).
+
+**Final code review (2026-10-18):** rule 34 appended (no plugin field without a proxy secret).
+Tests: instance `hosting-plugin-push` (5, the version handler test now covers rule 34).
 
 **Left to the owner**: §8, and the host runbook `deploy/hosting/README.md`. Not exercised against a
 real host: systemd, Caddy, Litestream and rclone are covered by their generated files and command

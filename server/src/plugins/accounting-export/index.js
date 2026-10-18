@@ -12,7 +12,7 @@ const { create: createAccountingModel } = require('./accountingModel');
 const { create: createAccountingController } = require('./controller');
 const { create: createPlatformAccountsModel } = require('./platformAccountsModel');
 const { create: createPlatformAccountsController } = require('./platformAccountsController');
-const { PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings } = require('./settings');
+const { PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings, readTtcSplitFrom, storeTtcSplitFrom } = require('./settings');
 
 const id = PLUGIN_ID;
 
@@ -48,13 +48,19 @@ function configuredPlatformCount(db) {
 
 function register(ctx) {
   ctx.settings.declare(DECLARED);
-  ctx.migrations([{ name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings }]);
+  ctx.migrations([
+    { name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings },
+    // Rule 35 — the TTC-share split starts the month after this version is installed.
+    { name: 'ttc_split_from_v1', up: (db) => { if (hasTable(db, 'plugin_settings')) storeTtcSplitFrom(db); } },
+  ]);
 
   // Built on first use: the plugins register while the core is still booting.
   let controller = null;
   let platformAccounts = null;
   const getController = () => {
-    if (!controller) controller = createAccountingController(createAccountingModel(ctx.db), { plan: () => createAccountSettings(ctx.db).read() });
+    if (!controller) controller = createAccountingController(createAccountingModel(ctx.db), {
+      plan: () => ({ ...createAccountSettings(ctx.db).read(), ttcSplitFrom: readTtcSplitFrom(ctx.db) }),
+    });
     return controller;
   };
   const getPlatformAccounts = () => {

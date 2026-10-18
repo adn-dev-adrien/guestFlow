@@ -60,9 +60,10 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
      not nearest → the per-item total after Qonto's rounding is always ≤ TTC, so the residual is
      always **non-negative**, ≤ ~0.01 per item).
    - `predictedTotal = Σ round_half_up(HT_i × (1 + r_i/100), 2) + Σ (0%-line values)`.
-   - `residual = targetTotalCents − predictedTotal` (≥ 0). Fold it into a **0 %-VAT line**: add it to
-     the tourist-tax item when present, else append a « Ajustement » 0 %-VAT item (only when
-     residual > 0). Result: `amount == targetTotal` **to the cent**, all line values non-negative.
+   - `residual = targetTotalCents − predictedTotal` (≥ 0). Append it as a « Ajustement » 0 %-VAT
+     item (only when residual > 0). Result: `amount == targetTotal` **to the cent**, all line values
+     non-negative. *(Amended 2026-10-18 by rule 9: the residual no longer rides on the tourist-tax
+     item.)*
 4. **`vat_rate` is a STRING** (Qonto rejects numbers — existing guard comment in `qontoClient`);
    values are the global rate rendered as e.g. `"10"` / `"10.0"` (format confirmed in sandbox) and
    `"0"` for exempt items.
@@ -94,6 +95,16 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
    0 % « Taxe de séjour » line, unless the tax is collected on arrival (the Suivi taxe de séjour's own
    predicate). A stored tax above the solde cannot be split → the single 0 % line (rule 6). *Why:*
    links created from the « Échéances » card on a reservation declared 0 % VAT.
+
+**Final review fixes (2026-10-18)**
+
+9. **The « Taxe de séjour » item is the tax, to the cent** (2026-10-18, final review N3). The
+   rounding residual of rule 3 always goes on its own « Ajustement » 0 % item, even when a tax item
+   exists; the tax item carries the stored tax in integer cents (nights × persons × rate as the
+   property declares it). *Why:* a Gîte link showed « Taxe de séjour 21,61 € » for a stay taxed
+   21,60 € (6 × 3 × 1,20), and a devis link 7,21 € for 7,20 €: the guest checks that figure against
+   the stay. The residual cannot ride on the taxable stay item instead — Qonto derives that item's
+   TTC from its HT, so the floored-HT TTC is exactly the unreachable figure.
 
 ---
 
@@ -150,12 +161,13 @@ None. (`payment_links.amountCents` stays the single source of the charged total.
 
 ### Server unit tests
 - [x] `payment-link-items.unit.test.js` — items per type (rule 2), integer half-up rounding matching the live probe, floor-HT + residual folding, deposit-only Ajustement, vatRate 0, tax 0/on-arrival, **two exhaustive 1-cent sweeps** proving `Σ Qonto line totals == charged amount` for every total 1–2000 € (9 tests).
+- [x] `payment-link-tax-line-exact.unit.test.js` — rule 9: the Gîte solde 465,60 € with 21,60 € of tax, a devis solde with 7,20 €, and a 1–2000 € sweep keep the « Taxe de séjour » item exact while the total stays exact (3 tests).
 - [x] `qonto-client.unit.test.js` — multi-item VAT basket payload pinned (HT unit prices, string `vat_rate`) + money guard throws on amount mismatch / passes on match (+3 tests).
 - [x] Full suite green (1973 tests). Existing `payment-request-service` / `public-payment-controller` tests still pass (items are opt-in; no-items → legacy single line).
 
 ### Manual UI verification (sandbox — done 2026-07-03)
 - [x] Q1 semantics: `100.00 @ "10"` → link `amount 110.00` ⇒ **HT, Qonto adds VAT**; half-up per line confirmed.
-- [x] Live builder validation against Qonto sandbox: the real E2E basket (256.25 @10 + 9.80 @0) → `amount 266.05` **exact**, VAT shown 23,30 €; the residual case (256.24 stay) → `266.04` exact (tax line carries +1 cent); deposit-only → exact. All three: `Qonto amount == expected` to the cent.
+- [x] Live builder validation against Qonto sandbox: the real E2E basket (256.25 @10 + 9.80 @0) → `amount 266.05` **exact**, VAT shown 23,30 €; the residual case (256.24 stay) → `266.04` exact (tax line carried +1 cent then; an « Ajustement » line since rule 9); deposit-only → exact. All three: `Qonto amount == expected` to the cent.
 - [ ] Full card-payment E2E on the hosted page (deferred to the next prod sandbox E2E run; the amount/VAT are API-verified above — the hosted page bounced to the dev-portal sign-in, a sandbox-only artifact).
 
 ## 8. Out of scope

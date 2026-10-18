@@ -4,18 +4,16 @@
  * rule 10), and asks with `?plugin=<id>` whether a plugin it pushed loaded (rule 11).
  *
  * The plugin answer goes only to the console: a request that carries the instance's proxy secret in
- * `x-guestflow-health`, or — without a secret (self-hosted, development) — one that comes from the
- * machine itself. Anyone else gets no plugin field, so the endpoint never says what is installed.
+ * `x-guestflow-health` (rule 34). An instance without a secret (self-hosted, development) never gives
+ * it: behind a reverse proxy on the same machine every visitor looks like loopback, and neither the
+ * client nor the boot asks for it. So the endpoint never says what is installed.
  */
 
 const { HEALTH_HEADER, sameSecret } = require('../utils/proxySecret');
 
 const PLUGIN_ID = /^[a-z][a-z0-9-]{1,40}$/;
-const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
-
 function mayReadPluginHealth(req, secret) {
-  if (secret) return sameSecret(req.headers[HEALTH_HEADER], secret);
-  return LOOPBACK.has(String((req.socket && req.socket.remoteAddress) || ''));
+  return Boolean(secret) && sameSecret(req.headers[HEALTH_HEADER], secret);
 }
 
 function buildVersionHandler({ getVersion, pluginHealth, secret = null, env, commitSha, commitShaShort, startedAt }) {

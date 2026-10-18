@@ -91,4 +91,35 @@ function createAccountSettings(database) {
   };
 }
 
-module.exports = { PLUGIN_ID, DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode };
+// specs/accountant-accounting-export.md rule 35 — the first payment day the TTC-share split (rule 32)
+// applies to. Not an operator setting: written once by the migration, on the first start of the version
+// that brought the split. Without it (an erased store), the first month no release before could have
+// exported.
+const TTC_SPLIT_KEY = 'ttcSplitFrom';
+const TTC_SPLIT_FALLBACK = '2026-11-01';
+
+// The first day of the month after `date`, as YYYY-MM-DD in local time.
+function firstOfNextMonth(date = new Date()) {
+  const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function readTtcSplitFrom(database) {
+  try {
+    const row = database.prepare('SELECT value FROM plugin_settings WHERE plugin_id = ? AND key = ?').get(PLUGIN_ID, TTC_SPLIT_KEY);
+    return row && /^\d{4}-\d{2}-\d{2}$/.test(String(row.value)) ? String(row.value) : TTC_SPLIT_FALLBACK;
+  } catch {
+    return TTC_SPLIT_FALLBACK;
+  }
+}
+
+// The migration: stores the first day of next month, once.
+function storeTtcSplitFrom(database, now = new Date()) {
+  database.prepare('INSERT OR IGNORE INTO plugin_settings (plugin_id, key, value) VALUES (?, ?, ?)')
+    .run(PLUGIN_ID, TTC_SPLIT_KEY, firstOfNextMonth(now));
+}
+
+module.exports = {
+  PLUGIN_ID, DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode,
+  TTC_SPLIT_KEY, TTC_SPLIT_FALLBACK, firstOfNextMonth, readTtcSplitFrom, storeTtcSplitFrom,
+};

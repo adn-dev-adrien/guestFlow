@@ -1,5 +1,5 @@
 /**
- * ConsoleNav — the console's top menu (specs/control-plane-plans-and-access.md rule 36). On a phone
+ * ConsoleNav — the console's top menu (specs/control-plane-plans-and-access.md rule 37). On a phone
  * the first two entries stay in the bar and the others go under « Plus », which takes the name of
  * the open page when it is one of them. Specific to the console.
  *

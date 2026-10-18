@@ -3,7 +3,7 @@
 - **Touch targets and sentence case** (rule 39): 44 px hit areas for « Détail », « + compl. », « Fiche » and client-name links on touch screens; toggle buttons in sentence case; « Plus tard » no longer breaks in the second-code banner.
 - **A plugin's page while the plugin is off** (rule 40): « Plugin inactif » with a link to Plugins instead of « Page introuvable », for administrators (`GET /api/plugins/page`).
 - **Impersonal, plain settings texts** (rule 41): no « vous / votre » left in settings, account and accounting texts; the SMTP labels become « Serveur d'envoi »…, the security mode is folded under « Avancé ».
-- **Console on a phone** (specs/control-plane-plans-and-access.md rules 36–37): the top menu keeps two entries and a « Plus » menu; the « Création » card names no host path and folds once done; card actions wrap under their title; « Paiements en ligne » keeps its title.
+- **Console on a phone** (specs/control-plane-plans-and-access.md rules 37–38): the top menu keeps two entries and a « Plus » menu; the « Création » card names no host path and folds once done; card actions wrap under their title; « Paiements en ligne » keeps its title.
 - plugin:online-payment « Paiements en ligne » keeps its title on a phone; the Qonto help names no header.
 - plugin:weather-alerts The key field reads « Clé Météo-France (Vigilance) ».
 - plugin:website-booking The WordPress connection text says the fields carry the same names.

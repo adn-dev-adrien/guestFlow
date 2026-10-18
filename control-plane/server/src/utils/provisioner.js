@@ -143,7 +143,7 @@ function createProvisioner({
       for (const sub of ['data', 'uploads', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
       hosting.ensure(c.id);
       syncEnv(c);
-      // specs/control-plane-plans-and-access.md rule 37 — no host path on the customer page.
+      // specs/control-plane-plans-and-access.md rule 38 — no host path on the customer page.
       return 'Créés.';
     },
     async secrets(c) {
