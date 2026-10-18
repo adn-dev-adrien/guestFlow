@@ -53,11 +53,12 @@ test('rule 6 — 500 booked stays: one request, no per-reservation fetch', async
     { date: '2026-11-02', label: 'lundi 2 novembre', isToday: false, reservations: MANY, readyCount: 0, total: 500, allReady: false },
   ]));
   renderPage();
-  expect(await screen.findByText('N500', { exact: false })).toBeInTheDocument();
+  // 500 cards take seconds to render in jsdom on a loaded machine: generous waits, same assertion.
+  expect(await screen.findByText('N500', { exact: false }, { timeout: 20_000 })).toBeInTheDocument();
   expect(api.getUpcomingReservations).toHaveBeenCalledTimes(1);
   expect(api.getReservations).not.toHaveBeenCalled();
   expect(api.getReservation).not.toHaveBeenCalled();
-});
+}, 30_000);
 
 test('rule 6 — the day header shows the server label, its « today » mark and its count as sent', async () => {
   api.getUpcomingReservations.mockResolvedValue(payload([
@@ -80,4 +81,5 @@ test('rule 6 — ticking « prêt » asks the server again instead of recounting
   await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(1, { checkInReady: true }));
   expect(await screen.findByText('1/1')).toBeInTheDocument();
   expect(api.getUpcomingReservations).toHaveBeenCalledTimes(2);
+  expect(api.getUpcomingReservations).toHaveBeenLastCalledWith('2026-11-02');
 });

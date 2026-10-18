@@ -6,17 +6,25 @@
 
 const db = require('../database');
 
+function arrivalIds(database, dateClause, value) {
+  return database.prepare(`
+    SELECT r.id
+    FROM reservations r
+    JOIN clients c ON r.clientId = c.id
+    JOIN properties p ON r.propertyId = p.id
+    WHERE r.kind = 'reservation' AND r.startDate ${dateClause} ?
+    ORDER BY r.startDate, COALESCE(NULLIF(r.checkInTime, ''), '23:59'), r.id
+  `).all(value).map((row) => row.id);
+}
+
 function createUpcomingReservationsModel(database) {
   return {
     arrivalIdsFrom(today) {
-      return database.prepare(`
-        SELECT r.id
-        FROM reservations r
-        JOIN clients c ON r.clientId = c.id
-        JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND r.startDate >= ?
-        ORDER BY r.startDate, COALESCE(NULLIF(r.checkInTime, ''), '23:59'), r.id
-      `).all(today).map((row) => row.id);
+      return arrivalIds(database, '>=', today);
+    },
+    /** One day's arrivals, same order (rule 8: the refresh after a « prêt » toggle). */
+    arrivalIdsOn(day) {
+      return arrivalIds(database, '=', day);
     },
   };
 }

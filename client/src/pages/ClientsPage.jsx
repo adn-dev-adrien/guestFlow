@@ -26,6 +26,7 @@ import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
 import { formatCurrency, displayDate } from '../utils/formatters';
 import { useToast } from '../components/DialogProvider';
+import { localIsoDate } from '../utils/localDate';
 
 // A sortable column header (specs/clients-upcoming-past-directory.md §3.3), same interaction as the
 // « Tarifs facturables » page. Module-level on purpose: a component defined inside the page would be a
@@ -67,7 +68,7 @@ const emptyClient = {
 };
 
 function getTodayDateKey() {
-  return new Date().toISOString().split('T')[0];
+  return localIsoDate();
 }
 
 function formatStayDates(startDate, endDate) {

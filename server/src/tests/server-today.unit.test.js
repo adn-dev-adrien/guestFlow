@@ -23,8 +23,10 @@ test('rule 7 — at 01:54 in Paris the day is already the 18th, though UTC still
     assert.equal(new Date().toISOString().slice(0, 10), '2026-10-17');
     assert.equal(getTodayIsoDate(), '2026-10-18');
   } finally {
-    process.env.TZ = before;
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
   }
+  assert.equal(process.env.TZ, before);
 });
 
 test('rule 7 — every signed-in role may read it, the reception home included', () => {

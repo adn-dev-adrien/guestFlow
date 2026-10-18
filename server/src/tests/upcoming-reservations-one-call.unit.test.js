@@ -71,8 +71,10 @@ test('rule 6 — the label does not depend on the server time zone', () => {
     process.env.TZ = 'America/Los_Angeles';
     assert.equal(frenchDayLabel('2026-10-25'), 'dimanche 25 octobre');
   } finally {
-    process.env.TZ = before;
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
   }
+  assert.equal(process.env.TZ, before);
 });
 
 test('rule 6 — one response carries every detailed arrival, whatever their number', () => {

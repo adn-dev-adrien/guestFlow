@@ -132,6 +132,11 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
     column. `center` (or `tabs` from sm) takes a second row of the bar when the **bar** is narrower
     than 720 px — measured on the bar (container query), not the viewport, since the sidebar takes a
     different share at each breakpoint.
+    > **Amended 2026-10-18 (review of PR #700):** with a `center`, the actions take an equal share
+    > (so the centre is truly centred) only while the centre sits beside the title — on xs, where it
+    > is hidden, and on a bar under 720 px, where it has its own row, the actions keep their own
+    > width and the title the rest (« Planning ressources » read « Planning ressou… » at 390 px with
+    > 120 px free).
 20. **Every `PageActionBar` button is 44 × 44** — Save, Cancel, Retour, the overflow « … » and the
     icon actions — whatever its border (Save used to be 40 px, Cancel 42 px).
 21. **Touch targets.** On a finger-driven screen (`@media (pointer: coarse)`, phones and tablets
@@ -142,6 +147,12 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
     stay. The controls the theme cannot reach carry it themselves: `CollapsibleSection`'s « Voir
     les N options » toggle (44 px high) and `PlatformColorPicker`'s swatch (a 44 × 44 hit area
     around the visible square). A mouse keeps the dense sizes.
+    > **Amended 2026-10-18 (review of PR #700):** a page's own dense size never undoes it — a
+    > component that sets a `minHeight` under 44 px on a button or toggle restores 44 px under
+    > `@media (pointer: coarse)` in the same `sx`: the period and measure toggles of « Suivi
+    > financier » (`PeriodSelector`, `BookingPaceCard`, `FinanceDetailPanel`, 39 px before), the CGV
+    > « Détails » button, « Quitter » of the support session bar, the email-sequence « Actualiser »
+    > and the public-site origin save. A source scan keeps it so.
 22. **Every dialog is full screen under `sm`** — `EmailManualSendDialog` (fiche › « Envoyer un
     email ») and the hourly-resources `ResourceBookingDialog` were the two left floating.
 23. **The accounting journal reads on a phone.** Under `sm`, each journal line of « Détail des
@@ -258,6 +269,11 @@ No schema change, no migration.
 - [x] E2E `mobile/narrow-bar-and-touch-targets.spec.js`: at 390 px touch, the Système bar keeps its
   title whole with Save beside Cancel, both 44 × 44, and the dashboard and planning have no tap
   target under 44 px; at 900 px the dashboard's date navigation takes the bar's second row.
+- [x] Review of PR #700 — `PageActionBar.title-room.test.jsx` (3, rule 19 amendment) and
+  `touchTargets.local-sizes.test.jsx` (2, rule 21 amendment: the period toggles' coarse rule, a
+  source scan for dense sizes without one); the E2E spec adds `/finance` (toggle buttons now
+  measured) and « Planning ressources » whole at 390 px with its actions no wider than their
+  buttons.
 - [x] The 46-route sweep re-run at 390 / 900 / 1280 (before/after screenshots in the PR).
 
 ### E2E (Playwright) — 29 passed / 1 skipped

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, Checkbox,
@@ -106,7 +106,12 @@ export default function Dashboard() {
     }
   };
 
+  // Only the latest load paints: the browser's day then the server's day (specs/upcoming-reservations-
+  // cards.md rule 7), or quick day-to-day clicks, can answer out of order.
+  const loadSeq = useRef(0);
   const loadDashboardData = async () => {
+    const seq = ++loadSeq.current;
+    const isCurrent = () => seq === loadSeq.current;
     const from = todayStr;
     const to = addDays(todayStr, 30);
     // Fetch reservations starting from selectedDate if it's in the past
@@ -119,9 +124,6 @@ export default function Dashboard() {
         api.getReservations({ from: fetchFrom }),
       ]);
 
-      setProperties(props);
-      setReservations(resv);
-
       const arrivalsBase = allUpcoming
         .filter((r) => r.startDate === selectedDate)
         .sort((a, b) => (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59'));
@@ -129,15 +131,20 @@ export default function Dashboard() {
         .filter((r) => r.endDate === selectedDate)
         .sort((a, b) => (a.checkOutTime || '23:59').localeCompare(b.checkOutTime || '23:59'));
 
-      const arrivalsDetailed = await Promise.all(arrivalsBase.map((r) => api.getReservation(r.id)));
+      const [arrivalsDetailed, departuresDetailed] = await Promise.all([
+        Promise.all(arrivalsBase.map((r) => api.getReservation(r.id))),
+        Promise.all(departuresBase.map((r) => api.getReservation(r.id))),
+      ]);
+      if (!isCurrent()) return;
+      setProperties(props);
+      setReservations(resv);
       setArrivalsToday(arrivalsDetailed);
-      const departuresDetailed = await Promise.all(departuresBase.map((r) => api.getReservation(r.id)));
       setDeparturesToday(departuresDetailed);
       setLoadError(false);
     } catch (e) {
-      setLoadError(true);
+      if (isCurrent()) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 

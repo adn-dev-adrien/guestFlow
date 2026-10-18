@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RefundDialog from '../RefundDialog';
+import { localIsoDate } from '../../../utils/localDate';
 import { vi } from 'vitest';
 
 // specs/reservation-refunds.md §6 — la fenêtre « Nouveau remboursement » : sélection des lignes
@@ -14,7 +15,7 @@ const LINES = [
   { key: 'touristTax', label: 'Taxe de séjour', bucket: 'touristTax', quantity: 3, unitPrice: 4.4, unitLabel: 'nuit', billedTtc: 13.2, refundedTtc: 0, refundableTtc: 13.2, vatRate: 0 },
 ];
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localIsoDate();
 
 function renderDialog(props = {}) {
   const onSubmit = props.onSubmit || vi.fn();

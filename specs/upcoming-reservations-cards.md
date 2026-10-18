@@ -49,6 +49,8 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    used to send one request per stay — about 350 for 500 bookings — and a few visits exhausted the
    API rate limit (3 000 / 15 min): every page then answered 429 and the operator was in effect
    logged out. Admin-only, like the page (deny-by-default role guard).
+   > **Amended 2026-10-18 (review of PR #700):** after a « prêt » toggle the page asks for that one
+   > day only — see rule 8.
 7. **The server's today** (added 2026-10-18, review #8 n-1). The pages that open « on today » — the
    dashboard's day, the planning's first day, this page's « Aujourd'hui » — take the calendar day of
    the server, whose clock runs in the accommodations' time zone (specs/server-timezone.md), from
@@ -58,17 +60,34 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    on `YYYY-MM-DD` stays in UTC so a time change cannot skip or repeat a day. The reservation list's
    payment status (`GET /api/reservations`) uses the server day too. The hourly-resources planning,
    a plugin that must run on older hosts, uses the browser's calendar day.
+   > **Amended 2026-10-18 (review of PR #700):** the forms that default to « today » take the
+   > browser's calendar day too, never the UTC one — the refund date (and its `max`), the extra
+   > laundry trip (linen plugin 1.0.2), the past/upcoming split of a client's stays in the clients
+   > directory, the fiche's mid-stay note gate in the test mock.
+8. **The « prêt » box answers at once** (added 2026-10-18, review of PR #700). Ticking or unticking
+   « prêt » on « Réservations à venir » flips the box immediately, without the loader; the page
+   then asks `GET /api/reservations/upcoming?day=YYYY-MM-DD` for that day alone and replaces it with
+   the server's answer (same shape as rule 6, `days` holding that day or nothing; a past day answers
+   no day, a malformed one 400 « Date invalide. »). The count stays the server's. A refused save
+   puts the box back and shows the error. When two ticks on one day cross, only the latest recount
+   paints. Each click used to re-read the whole season — 2.4 MB and 0.7 s with 500 stays — before
+   the box moved.
+9. **Only the latest dashboard load paints** (added 2026-10-18, review of PR #700). The dashboard
+   loads the browser's day, then the server's (rule 7), and reloads on every day change; a load that
+   answers after a newer one started is dropped, so the day shown and its arrivals and departures
+   always match.
 
 ## 4. Architecture
 | Layer | File | Responsibility |
 |---|---|---|
-| pages | `pages/ReservationsUpcomingPage.jsx` | One `GET /reservations/upcoming` → render the server's days with `ReservationCard` + the `sas.dialog` slot. Render-only. |
-| pages | `pages/Dashboard.jsx`, `pages/PlanningPage.jsx` | Open on `useToday()` until the operator picks a day (rule 7). |
+| pages | `pages/ReservationsUpcomingPage.jsx` | One `GET /reservations/upcoming` → render the server's days with `ReservationCard` + the `sas.dialog` slot; a « prêt » tick flips at once and refreshes its day with `?day=` (rule 8). Render-only. |
+| pages | `pages/Dashboard.jsx`, `pages/PlanningPage.jsx` | Open on `useToday()` until the operator picks a day (rule 7); the dashboard drops a stale load (rule 9). |
+| pages / components | `pages/ClientsPage.jsx`, `components/reservation/RefundDialog.jsx`, `plugins/linen/LaundryExtraTripDialog.jsx` (T) | « Today » defaults on the browser's calendar day (rule 7 amendment). |
 | hooks | `hooks/useToday.js` (C) | The server's calendar day, the browser's calendar day until it answers. |
 | utils | `utils/localDate.js` (C) | `localIsoDate`, `addIsoDays` on `YYYY-MM-DD`. |
 | server routes | `routes/reservations.js` (T), `routes/today.js` (C) | `GET /reservations/upcoming` (before `/:id`), `GET /today`. |
-| server controllers | `controllers/upcomingReservationsController.js` (C), `controllers/todayController.js` (C) | Orchestrate rule 6; answer rule 7. |
-| server models | `models/upcomingReservationsModel.js` (C), `models/reservationsModel.js` (T) | The arrival ids from today; the list's payment status on the server day. |
+| server controllers | `controllers/upcomingReservationsController.js` (C), `controllers/todayController.js` (C) | Orchestrate rules 6 and 8 (`?day=`); answer rule 7. |
+| server models | `models/upcomingReservationsModel.js` (C), `models/reservationsModel.js` (T) | The arrival ids from today (`arrivalIdsFrom`) or of one day (`arrivalIdsOn`); the list's payment status on the server day. |
 | server utils | `utils/upcomingArrivals.js` (C) | Group by day, French label, ready counts. |
 | server middleware | `middleware/enforceRoleAccess.js` (T) | `/today` joins the self endpoints. |
 
@@ -92,5 +111,14 @@ Until 2026-10-18 there was no server change (the page reused `GET /reservations`
   reads the 17th, every role may read it); client `Dashboard.server-today.test.jsx` (3: the server's
   day is shown and queried, the browser's calendar day before it answers, day arithmetic across the
   October time change).
+- [x] Rule 8 — server `upcoming-reservations-day-refresh.unit.test.js` (4: one day in arrival order,
+  `?day=` details and counts that day only, a past or empty day answers no day, a malformed day is
+  refused); client `ReservationsUpcomingPage.ready-toggle.test.jsx` (3: ticked before the server
+  answers and only its day re-asked, a refused save puts the box back, a late recount never
+  overwrites a newer one).
+- [x] Rule 9 — client `Dashboard.stale-load.test.jsx` (1: the browser-day load answering last does
+  not replace the server day's arrivals).
+- [x] Rule 7 amendment — `RefundDialog.local-day.test.jsx`, `LaundryExtraTripDialog.local-day.test.jsx`
+  (01:54 in Paris on the 18th → the 18th).
 - [x] Browser (2026-10-18, Solio copy + 500 stress reservations): « Réservations à venir » loads with
   one API call and no 429 after repeated visits.

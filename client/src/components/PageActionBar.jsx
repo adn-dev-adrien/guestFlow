@@ -248,7 +248,10 @@ export default function PageActionBar({
             alignItems: 'center',
             justifyContent: 'flex-end',
             flexWrap: 'wrap',
-            flex: centerNode ? '1 1 0' : '0 1 auto',
+            // The centre's twin only while the centre sits beside the title: hidden on xs, or on its own
+            // row, it leaves the title the room (rule 19, amended 2026-10-18).
+            flex: { xs: '0 1 auto', sm: centerNode ? '1 1 0' : '0 1 auto' },
+            [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { flex: '0 1 auto' },
             minWidth: 'fit-content',
             maxWidth: '100%',
             ml: 'auto',
