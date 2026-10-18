@@ -12,8 +12,8 @@ vi.mock('../api', () => ({ default: { versions: vi.fn(), checkVersions: vi.fn(),
 
 const base = {
   releases: [
-    { version: '3.10.0', installedAt: '08/10/2026 09:12', count: 0, names: [] },
-    { version: '3.9.0', installedAt: '01/10/2026 08:00', count: 2, names: ['Aulnes', 'Moulin'] },
+    { version: '3.10.0', installedAt: '08/10/2026 09:12', count: 0, names: [], failed: false, statusLabel: '0 instance' },
+    { version: '3.9.0', installedAt: '01/10/2026 08:00', count: 2, names: ['Aulnes', 'Moulin'], failed: false, statusLabel: '2 instances' },
   ],
   published: { version: '3.11.0', installed: false, newer: true, checkedAt: '08/10/2026 10:00' },
   install: null,
@@ -46,7 +46,8 @@ it('rule 8 — the installed releases with their instances, and the published on
 it('rule 10 — the whole fleet, after a confirmation; the progress shows one instance at a time', async () => {
   api.startUpdate.mockResolvedValue({ ...base, running });
   renderAt(<VersionsPage />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Mettre à jour' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Toute la flotte' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mettre à jour' }));
   const dialog = await screen.findByRole('dialog');
   expect(within(dialog).getByText(/Toute la flotte, une instance après l’autre/)).toBeInTheDocument();
   fireEvent.click(within(dialog).getByRole('button', { name: 'Mettre à jour' }));

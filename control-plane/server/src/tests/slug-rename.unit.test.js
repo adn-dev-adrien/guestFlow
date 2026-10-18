@@ -23,7 +23,8 @@ test('rule 22 — the preview names the new address, the date, and what must be 
     assert.equal(p.error, null);
     assert.equal(p.url, 'https://aulnes-neuf.guestflow.test');
     assert.equal(p.until, 'L’ancienne adresse aulnes.guestflow.test redirige (301) jusqu’au 30/12/2026 et reste réservée jusqu’au 01/10/2027.');
-    assert.equal(p.checklist.length, 5);
+    // The public URL follows the rename by itself (specs/hosting-h1-fleet-runtime.md rule 25).
+    assert.deepEqual(p.checklist.map((i) => i.key), ['wordpress', 'ical', 'oauth', 'push']);
     assert.equal(s.customers.renamePreview(s.c.id, { slug: 'admin' }).error, 'Adresse réservée.');
     assert.equal(s.customers.renamePreview(s.c.id, { slug: 'moulin' }).error, 'Adresse déjà utilisée par un autre client, y compris archivé.');
     assert.equal(s.customers.renamePreview(s.c.id, { slug: 'aulnes' }).error, 'C’est déjà son adresse.');
@@ -39,7 +40,7 @@ test('rule 22 — refused until every item is ticked; then renamed, journaled, m
     const v = await s.customers.rename(s.c.id, { slug: 'aulnes-neuf', checked: s.all }, 'op');
     assert.equal(v.slug, 'aulnes-neuf');
     assert.equal(v.url, 'https://aulnes-neuf.guestflow.test');
-    assert.deepEqual(v.formerAddresses, ['aulnes.guestflow.test → redirigée jusqu’au 01/10/2027']);
+    assert.deepEqual(v.formerAddresses, ['aulnes.guestflow.test → redirigée jusqu’au 30/12/2026, réservée jusqu’au 01/10/2027']);
     assert.ok(v.history.some((x) => x.text === 'Adresse : aulnes → aulnes-neuf ; l’ancienne redirige jusqu’au 30/12/2026 et reste réservée jusqu’au 01/10/2027'));
     const step = v.steps.find((x) => x.step === 'rename');
     assert.equal(step.status, 'ok');

@@ -14,6 +14,9 @@
 const crypto = require('crypto');
 
 const HEADER = 'x-guestflow-proxy';
+// The console's own requests to the instance (its health check, H1 rule 11) carry the same secret
+// under this header, which Caddy never adds: it tells the console from a visitor behind the proxy.
+const HEALTH_HEADER = 'x-guestflow-health';
 const FORWARDED = ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'x-forwarded-port', 'forwarded'];
 
 function same(a, b) {
@@ -32,4 +35,4 @@ function proxySecretGuard(secret) {
   };
 }
 
-module.exports = { proxySecretGuard, HEADER };
+module.exports = { proxySecretGuard, HEADER, HEALTH_HEADER, sameSecret: same };

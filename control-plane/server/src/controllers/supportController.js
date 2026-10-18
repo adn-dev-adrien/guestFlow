@@ -14,6 +14,8 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { supportAccess } = require('../utils/gf');
 const { httpError } = require('../utils/httpError');
 
@@ -30,13 +32,31 @@ function createSupportController(ctx, customers) {
     return c;
   }
 
+  // The request the console wrote last, as the instance will read it — never through a link the
+  // instance could have planted (H1 rule 21).
+  function writtenRequest(slug) {
+    const publicKey = crypto.createPublicKey(issuer.privateKey);
+    return supportAccess.readRequest({
+      dataDir: instances.dataDir(slug),
+      publicKey,
+      slug,
+      readFile: (file) => {
+        if (fs.lstatSync(file).isSymbolicLink() || !fs.realpathSync(file).startsWith(`${fs.realpathSync(instances.dirOf(slug))}${path.sep}`)) throw new Error('link');
+        return fs.readFileSync(file, 'utf8');
+      },
+    });
+  }
+
   function stateOf(c) {
     if (!issuer.canSign) return { available: false, unavailableReason: 'Aucune clé de licence sur la console.' };
     if (c.archivedAt) return { available: false, unavailableReason: 'Client archivé.' };
     const slug = customers.servedSlug(c);
-    const read = instances.readSupportAccess(slug, now().toISOString());
+    const written = writtenRequest(slug);
+    const read = instances.readSupportAccess(slug, now().toISOString(), written && written.requestId);
     if (!read) return { available: false, unavailableReason: 'Instance illisible, ou antérieure aux accès du support.' };
-    const { pending, open, last } = read;
+    const { open, last } = read;
+    // Rule 24: a request written but not yet read by the instance is already pending.
+    const pending = !open && written && read.known === false ? { reason: written.reason } : read.pending;
     let state = 'none';
     let stateLabel = 'Aucun accès';
     if (open) {

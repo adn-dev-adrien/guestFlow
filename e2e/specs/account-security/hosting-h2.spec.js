@@ -89,7 +89,8 @@ test('rules 12-16 + 20 — the support asks, the admin accepts, a signed link op
 
   await page.goto('/parametres/acces-support');
   await page.getByRole('button', { name: /Journal/ }).first().click();
-  await expect(page.getByText('Page ouverte : Planning')).toBeVisible();
+  // Rule 23: the minute's reads, the page included, read as one « Consultation : … » line.
+  await expect(page.getByText(/^Consultation : .*Planning/).first()).toBeVisible();
   await expect(page.getByText('/api/', { exact: false })).toHaveCount(0);
   await page.getByRole('button', { name: 'Révoquer' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Révoquer' }).click();

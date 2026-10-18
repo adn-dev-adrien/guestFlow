@@ -25,6 +25,7 @@ function buildCustomersModel(db) {
   const setStateStmt = db.prepare('UPDATE customers SET state = ?, stateSince = ? WHERE id = ?');
   const setEndsAtStmt = db.prepare('UPDATE subscriptions SET endsAt = ? WHERE customerId = ?');
   const setForceStmt = db.prepare('UPDATE subscriptions SET forceActiveUntil = ? WHERE customerId = ?');
+  const setTrialStmt = db.prepare('UPDATE subscriptions SET trialEndsAt = ? WHERE customerId = ?');
   const setPlanStmt = db.prepare('UPDATE subscriptions SET planCode = ?, billing = ?, periodMonths = ?, catalogueVersion = ? WHERE customerId = ?');
   const archiveStmt = db.prepare('UPDATE customers SET archivedAt = ?, eraseAt = ? WHERE id = ?');
   const unarchiveStmt = db.prepare('UPDATE customers SET archivedAt = NULL, eraseAt = NULL WHERE id = ?');
@@ -59,6 +60,7 @@ function buildCustomersModel(db) {
     slugTaken: (slug) => Boolean(slugTakenStmt.get(slug)),
     setState: (id, state, since) => setStateStmt.run(state, since, id),
     setEndsAt: (id, endsAt) => setEndsAtStmt.run(endsAt, id),
+    setTrialEndsAt: (id, day) => setTrialStmt.run(day, id),
     setForceActiveUntil: (id, day) => setForceStmt.run(day, id),
     // Rule 5: a plan change withdraws what was only kept as grandfathered.
     changePlan({ id, planCode, billing, periodMonths, catalogueVersion, addons, since }) {

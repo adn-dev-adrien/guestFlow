@@ -8,7 +8,7 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
-const { stateOf, daysLeft, renewedEndsAt, STATE_LABELS } = require('../utils/lifecycle');
+const { stateOf, daysLeft, paidEndsAt, STATE_LABELS } = require('../utils/lifecycle');
 const { parisDay, addDays, addMonths, isDay, frDay, frStamp } = require('../utils/days');
 const { KINDS } = require('../utils/templates');
 const { slugError } = require('../utils/slug');
@@ -20,6 +20,7 @@ const { euros } = require('../utils/money');
 const { plugins: gfPlugins } = require('../utils/gf');
 const { CREATE_STEPS: PROVISION_STEPS } = require('../utils/provisioner');
 const { hostView, hostColumns } = require('../utils/hostView');
+const { shareDatabase } = require('../utils/instanceFiles');
 
 const HOST_STOP = { step: 'deprov-stop', label: 'Processus et route arrêtés, page « Cet espace a été fermé »' };
 const HOST_RESTART = { step: 'restart', label: 'Processus et route relancés depuis le dossier' };
@@ -44,13 +45,14 @@ const DEPROVISION_STEPS = [
 const REACTIVATE_STEPS = [{ ...HOST_RESTART, kind: 'auto' }];
 // Rule 22 with H1 rule 5: the directory moves and the old address redirects, automatically.
 const RENAME_STEPS = [{ ...HOST_RENAME, kind: 'auto' }];
-const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS];
+// H1 rule 29: « Redémarrer » on a process that failed.
+const PROCESS_RESTART_STEPS = [{ step: 'process-restart', label: 'Processus redémarré', kind: 'auto' }];
+const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS, ...PROCESS_RESTART_STEPS];
 // Rule 22: what must be redone when the address changes, each item ticked before it runs.
 const RENAME_CHECKLIST = [
   { key: 'wordpress', label: 'Réglage du plugin WordPress (adresse de l’API)' },
   { key: 'ical', label: 'Adresses des flux iCal collées sur chaque plateforme' },
   { key: 'oauth', label: 'Adresses de retour des applications Google et Qonto du client, puis « Connecter » à nouveau' },
-  { key: 'publicUrl', label: 'URL publique de l’espace (Réglages → Envoi d’emails)' },
   { key: 'push', label: 'Notifications push : chaque appareil les accepte à nouveau' },
 ];
 const ALIAS_MONTHS = 12;
@@ -204,40 +206,118 @@ function createCustomersController(ctx) {
     });
   }
 
-  // Rule 7: the first administrator, created by the instance's own script of its own version, and
-  // the invitation. → the step's detail; throws with the step's error.
-  async function adminStep(id) {
-    const c = customers.get(id);
+  // What the console knows of the establishment, for the instance's own settings (H1 rule 25).
+  function establishmentOf(c) {
+    const country = c.billingCountry && c.billingCountry !== 'FR' ? `, ${COUNTRIES[c.billingCountry] || c.billingCountry}` : '';
+    return {
+      name: c.companyName,
+      email: c.contactEmail,
+      address: c.billingStreet ? `${c.billingStreet}, ${c.billingPostcode} ${c.billingCity}${country}` : '',
+      tva: c.vatNumber || '',
+    };
+  }
+
+  function invitationText(c, password, { reset = false } = {}) {
+    return [
+      `Bonjour${c.contactName ? ` ${c.contactName}` : ''},`,
+      '',
+      reset
+        ? `L’accès à votre espace GuestFlow ${urlOf(c.slug)} a été réinitialisé.`
+        : `Votre espace GuestFlow est ouvert à l’adresse ${urlOf(c.slug)}.`,
+      '',
+      `Identifiant : ${c.contactEmail}`,
+      `Mot de passe provisoire : ${password}`,
+      '',
+      'Vous choisirez votre propre mot de passe à la première connexion.',
+      `${urlOf(c.slug)}/login?login_hint=${encodeURIComponent(c.contactEmail)}`,
+    ].join('\n');
+  }
+
+  // The instance's own script, of its own version, on its database. `reissue` (H1 rule 24): `unused`
+  // gives a new provisional password to an account nobody signed in to, `always` to any account.
+  // `seed` — at the creation step only, before the process ever ran: the establishment is filled from
+  // the console's records (H1 rule 25), on a database that holds no secret yet.
+  async function runAdminScript(c, reissue, { seed = false } = {}) {
     if (!instances.hasDatabase(c.slug)) throw new Error('La base de l’instance est introuvable : créez d’abord le dossier, puis réessayez.');
     const version = (hosting.get(c.id) || {}).version;
     const serverDir = version && ctx.releases && ctx.releases.has(version) ? `${ctx.releases.dirOf(version)}/server` : undefined;
-    let result;
     try {
-      result = await runFirstAdmin({ dbPath: instances.dbPath(c.slug), email: c.contactEmail, name: c.contactName, serverDir });
-    } catch (err) {
-      throw new Error(`Échec : ${err.message}`);
-    }
-    if (!result.created) return `Le compte ${c.contactEmail} existe déjà : aucune invitation renvoyée.`;
-    try {
-      await mailer.send({
-        to: c.contactEmail,
-        subject: `Votre espace GuestFlow ${c.companyName} est prêt`,
-        text: [
-          `Bonjour${c.contactName ? ` ${c.contactName}` : ''},`,
-          '',
-          `Votre espace GuestFlow est ouvert à l’adresse ${urlOf(c.slug)}.`,
-          '',
-          `Identifiant : ${c.contactEmail}`,
-          `Mot de passe provisoire : ${result.temporaryPassword}`,
-          '',
-          'Vous choisirez votre propre mot de passe à la première connexion.',
-          `${urlOf(c.slug)}/login?login_hint=${encodeURIComponent(c.contactEmail)}`,
-        ].join('\n'),
+      return await runFirstAdmin({
+        dbPath: instances.dbPath(c.slug), email: c.contactEmail, name: c.contactName, company: c.companyName,
+        establishment: seed ? establishmentOf(c) : null, reissue, serverDir,
       });
     } catch (err) {
       throw new Error(`Échec : ${err.message}`);
+    } finally {
+      shareDatabase(instances.dbPath(c.slug));
     }
-    return `Invitation envoyée à ${c.contactEmail}.`;
+  }
+
+  async function sendInvitation(c, password, { reset = false } = {}) {
+    await mailer.send({
+      to: c.contactEmail,
+      subject: reset ? `Accès réinitialisé à votre espace GuestFlow ${c.companyName}` : `Votre espace GuestFlow ${c.companyName} est prêt`,
+      text: invitationText(c, password, { reset }),
+    });
+  }
+
+  // Rule 7: the first administrator, created by the instance's own script of its own version, and
+  // the invitation. Resumed after a failed send (H1 rule 24), the account exists but was never used:
+  // it gets a new provisional password and the invitation leaves again. → the step's detail; throws
+  // with the step's error.
+  async function adminStep(id) {
+    const c = customers.get(id);
+    const result = await runAdminScript(c, 'unused', { seed: true });
+    if (!result.created && !result.temporaryPassword) {
+      return result.used
+        ? `Le compte ${c.contactEmail} a déjà servi : aucune invitation renvoyée.`
+        : `Le compte ${c.contactEmail} existe déjà : aucune invitation renvoyée.`;
+    }
+    try {
+      await sendInvitation(c, result.temporaryPassword);
+    } catch (err) {
+      throw new Error(`Échec : ${err.message}`);
+    }
+    return result.created ? `Invitation envoyée à ${c.contactEmail}.` : `Nouvelle invitation envoyée à ${c.contactEmail}.`;
+  }
+
+  // H1 rule 24: « Renvoyer l’invitation » (an account never used) and « Réinitialiser l’accès » (any
+  // account: a new provisional password, the second step turned off), from the customer's page.
+  function accessActionsAllowed(c) {
+    const admin = provisioning.get(c.id, 'admin');
+    return !c.archivedAt && Boolean(admin && admin.status === 'ok') && instances.hasDatabase(c.slug);
+  }
+
+  async function resendInvitation(id, operator) {
+    const c = mustGet(id);
+    if (!accessActionsAllowed(c)) throw httpError(409, 'NOT_READY', 'Aucun compte à inviter : la création n’est pas terminée.');
+    return host().exclusive(c.id, async () => {
+      const result = await runAdminScript(c, 'unused');
+      if (!result.temporaryPassword) throw httpError(409, 'ALREADY_USED', 'Le compte a déjà servi : « Réinitialiser l’accès ».');
+      try {
+        await sendInvitation(c, result.temporaryPassword);
+      } catch (err) {
+        throw httpError(502, 'MAIL_FAILED', `Invitation non envoyée : ${err.message}`);
+      }
+      journal(c.id, operator, 'access', `Invitation renvoyée à ${c.contactEmail} (nouveau mot de passe provisoire)`);
+      return { ...view(c.id), notice: `Invitation renvoyée à ${c.contactEmail}.` };
+    });
+  }
+
+  async function resetAccess(id, operator) {
+    const c = mustGet(id);
+    if (!accessActionsAllowed(c)) throw httpError(409, 'NOT_READY', 'Aucun compte à réinitialiser : la création n’est pas terminée.');
+    return host().exclusive(c.id, async () => {
+      const result = await runAdminScript(c, 'always');
+      if (!result.temporaryPassword) throw httpError(502, 'NOT_RESET', 'Accès non réinitialisé : la version de l’instance ne le permet pas.');
+      try {
+        await sendInvitation(c, result.temporaryPassword, { reset: true });
+      } catch (err) {
+        throw httpError(502, 'MAIL_FAILED', `Mot de passe provisoire changé, mais email non envoyé : ${err.message}`);
+      }
+      journal(c.id, operator, 'access', `Accès réinitialisé : nouveau mot de passe provisoire envoyé à ${c.contactEmail}${result.secondStepOff ? ', second facteur désactivé' : ''}`);
+      return { ...view(c.id), notice: `Nouveau mot de passe provisoire envoyé à ${c.contactEmail}.` };
+    });
   }
 
   // --- views ---------------------------------------------------------------------------------
@@ -256,6 +336,31 @@ function createCustomersController(ctx) {
         action: r.status !== 'failed' ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
       };
     });
+  }
+
+  // H1 rule 5 with rule 22: the 301 ends after 90 days, the name stays reserved 12 months.
+  function formerAddresses(c, day) {
+    const redirects = new Map(hosting.redirectsOf(c.id).map((r) => [r.slug, r.until]));
+    return directory.aliasesOf(c.id, day).map((a) => {
+      const until = redirects.get(a.slug);
+      return until && until >= day
+        ? `${a.slug}.${domain} → redirigée jusqu’au ${frDay(until)}, réservée jusqu’au ${frDay(a.until)}`
+        : `${a.slug}.${domain} → réservée jusqu’au ${frDay(a.until)}`;
+    });
+  }
+
+  // H1 rule 29: a process that failed, or runs without answering, is restarted from its page.
+  function processDown(c) {
+    const row = hosting.get(c.id);
+    return Boolean(row && row.port && !c.archivedAt && (row.unit_state === 'failed' || (row.unit_state === 'running' && row.down_since)));
+  }
+
+  async function restartProcess(id, operator) {
+    const c = mustGet(id);
+    if (!processDown(c)) throw httpError(409, 'NOT_DOWN', 'Le processus répond : rien à redémarrer.');
+    journal(c.id, operator, 'host', 'Redémarrage du processus demandé');
+    const ok = await host().restartProcess(c.id);
+    return { ...view(c.id), notice: ok ? 'Processus redémarré ; l’instance répond.' : 'Redémarrage en échec : voir l’étape.' };
   }
 
   function view(id) {
@@ -295,11 +400,11 @@ function createCustomersController(ctx) {
       archivedAt: c.archivedAt,
       eraseAt: c.eraseAt,
       eraseAtLabel: c.eraseAt ? frDay(c.eraseAt) : null,
-      steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS]),
+      steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS, ...PROCESS_RESTART_STEPS]),
       // H1 rule 1: the page polls while a sequence runs.
       provisioningRunning: Boolean(host() && host().running(c.id)) || provisioning.list(c.id).some((r) => r.status === 'running'),
       hosting: hostView(c, hosting.get(c.id), { now: now(), lastCheck: hosting.lastCheck(c.id), dailyMailLimit: ctx.drivers ? ctx.drivers.mail.dailyLimit : null, mailToday: hosting.mailCount(c.id, day) }),
-      formerAddresses: directory.aliasesOf(c.id, day).map((a) => `${a.slug}.${domain} → redirigée jusqu’au ${frDay(a.until)}`),
+      formerAddresses: formerAddresses(c, day),
       deprovisionSteps: stepsView(c, DEPROVISION_STEPS),
       history: audit.forCustomer(c.id).map((h) => ({ at: h.at, day: frDay(h.day), operator: h.operator, text: h.text })),
       billingIdentity: {
@@ -342,9 +447,11 @@ function createCustomersController(ctx) {
       })),
       plans: catalogue.plans().map((p) => ({ code: p.code, name: p.name, addonChoices: addonChoices(p.code) })),
       paymentPreview: archived ? [] : (unsettled ? [unsettled.months] : [1, 12]).map((months) => {
-        const endsAt = renewedEndsAt(c.endsAt, months, day);
-        const after = stateOf({ ...c, endsAt, forceActiveUntil: null }, day);
-        const from = c.endsAt > day ? 'la période s’ajoute à l’échéance actuelle' : 'l’échéance est passée : la période part d’aujourd’hui';
+        const endsAt = paidEndsAt(c, months, day);
+        const after = stateOf({ ...c, endsAt, forceActiveUntil: null, trialEndsAt: null }, day);
+        const inTrial = c.trialEndsAt && day < c.trialEndsAt;
+        let from = c.endsAt > day ? 'la période s’ajoute à l’échéance actuelle' : 'l’échéance est passée : la période part d’aujourd’hui';
+        if (inTrial) from = 'l’essai s’arrête : la période part d’aujourd’hui';
         const closes = unsettled
           ? `Solde la facture ${unsettled.number || 'en préparation'}${unsettled.payLinkId ? ' et désactive son lien de paiement' : ''} ; rapprochez le virement dans Qonto. `
           : '';
@@ -373,6 +480,9 @@ function createCustomersController(ctx) {
         eraseNow: archived && stopped(c),
         eraseHint: archived && !stopped(c) ? '« Processus et route arrêtés » en échec : à relancer d’abord.' : null,
         editBilling: !archived,
+        resendInvitation: accessActionsAllowed(c),
+        resetAccess: accessActionsAllowed(c),
+        restartProcess: processDown(c),
         remind: !archived && Boolean(openInvoice),
         remindHint: openInvoice ? null : 'Aucune facture ouverte à relancer.',
         checkPayment: Boolean(openInvoice) && qonto.ready(),
@@ -551,6 +661,7 @@ function createCustomersController(ctx) {
       run = host().create(c.id);
     } else if (step === 'deprov-stop') run = host().stop(c.id);
     else if (step === 'restart') run = host().restart(c.id);
+    else if (step === 'process-restart') run = host().restartProcess(c.id);
     else if (step === 'rename') {
       const previous = directory.aliasesOf(c.id, today())[0];
       run = host().rename(c.id, previous ? previous.slug : c.slug).then((ok) => { if (ok) refresh(c.id, operator); return ok; });
@@ -562,6 +673,16 @@ function createCustomersController(ctx) {
 
   // --- money and overrides (rules 15, 19) ------------------------------------------------------
 
+  // Rules 15 and 35: the paid period moves the end date; a payment during the trial ends the trial.
+  // Any « Remettre en actif » override goes with it. → the new end date
+  function applyPayment(c, months) {
+    const endsAt = paidEndsAt(c, months, today());
+    customers.setEndsAt(c.id, endsAt);
+    customers.setForceActiveUntil(c.id, null);
+    if (c.trialEndsAt) customers.setTrialEndsAt(c.id, null);
+    return endsAt;
+  }
+
   function recordPayment(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
@@ -570,15 +691,14 @@ function createCustomersController(ctx) {
     if (months !== 1 && months !== 12) throw httpError(400, 'INVALID', 'Durée payée : 1 ou 12 mois.');
     const reference = String(body.reference || '').trim();
     const day = today();
-    const periodStart = c.endsAt > day ? c.endsAt : day;
-    const endsAt = renewedEndsAt(c.endsAt, months, day);
+    const inTrial = Boolean(c.trialEndsAt && day < c.trialEndsAt);
+    const periodStart = !inTrial && c.endsAt > day ? c.endsAt : day;
     const amountCents = monthlyPriceCents(c) * months;
     invoices.insert({
-      customerId: c.id, periodStart, periodEnd: endsAt, amountCents, provider: 'manual', providerRef: reference || null,
+      customerId: c.id, periodStart, periodEnd: paidEndsAt(c, months, day), amountCents, provider: 'manual', providerRef: reference || null,
       status: 'paid', paidAt: stamp(), createdAt: stamp(),
     });
-    customers.setEndsAt(c.id, endsAt);
-    customers.setForceActiveUntil(c.id, null);
+    const endsAt = applyPayment(c, months);
     journal(c.id, operator, 'payment', `Paiement enregistré (${months} mois, ${euros(amountCents)} HT${reference ? `, « ${reference} »` : ''}) : échéance au ${frDay(endsAt)}`);
     refresh(c.id, operator);
     return view(c.id);
@@ -842,8 +962,13 @@ function createCustomersController(ctx) {
     DEPROVISION_STEPS,
     REACTIVATE_STEPS,
     RENAME_STEPS,
+    PROCESS_RESTART_STEPS,
     issueLicence,
     adminStep,
+    resendInvitation,
+    resetAccess,
+    restartProcess,
+    applyPayment,
     mustGet,
     refresh,
     reissueAll,
