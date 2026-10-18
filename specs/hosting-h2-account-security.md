@@ -179,6 +179,12 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     Audit of the other plugins on that date: the Météo-France key is a setting declared `secret`
     (rule 18), the Google, Qonto and Neat credentials are already refused, the website's
     `PUBLIC_API_KEY` is never returned by any route.
+24. **Reading a property's iCal export token is refused to a support session too** (added 2026-10-18,
+    second review of the code review). `GET /api/ical/token/:id` returns the feed's address in clear and
+    creates the token on its first read, so it falls under rule 23: refused with « Identifiants et
+    accès réservés au client. », whatever the case or a trailing slash. The public feed
+    (`GET /api/ical/export/:token`) is unchanged. The property's iCal card shows that refusal instead
+    of an empty address field.
 
 **Implementation choices (2026-10-08, the recommended options, see the summary page):**
 - **The channel.** The console signs the request with the licence key and writes it to

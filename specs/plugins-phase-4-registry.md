@@ -264,15 +264,20 @@ below are the recommended ones; each is reversible in a later spec.
     manifest's `guestflow` range has an upper bound (`">=3.9.0 <4.0.0"`); the package build refuses a
     manifest without one. An instance reads an open range published before this rule as stopping at
     the next major of its floor (`>=3.9.0` → `>=3.9.0 <4.0.0`), so GuestFlow 4 refuses every 3.x
-    package — install, update or loading at boot — with « Nécessite une version plus récente de
-    GuestFlow. » until a version built for it is published.
+    package — install, update or loading at boot — until a version built for it is published. The
+    refusal blames the package, not the core: « Incompatible avec cette version de GuestFlow. » on the
+    Plugins page (`CORE_INCOMPATIBLE`), « Incompatible avec cette version. » for a package refused at
+    boot. *(Corrected 2026-10-18, second review: the text first quoted rule 33's « Nécessite une version
+    plus récente de GuestFlow. », which is for a core too old.)*
 35. **What `coreModule()` hands a server plugin is part of the SDK contract** (added 2026-10-18, code
     review M3). `server/src/plugins/sdk/coreModules.json` lists every module of `CORE_MODULES` and the
     names it exports. A unit test fails when a listed module or name is no longer exported, when the
     list and `CORE_MODULES` differ, or when a plugin calls `coreModule()` with a name outside the list;
     `check-plugin-versions` refuses a PR or a release that removes a module or a name since its base
     unless the SDK major version moves (`server/src/plugins/sdk/version.js`). Adding stays free, like
-    the host modules of rule 33.
+    the host modules of rule 33. *(Clarified 2026-10-18, second review: the list holds names only. It
+    catches a module or an export removed or renamed; a changed signature behind the same name is not
+    detected, and stays a matter of review and of the SDK major version.)*
 
 ---
 

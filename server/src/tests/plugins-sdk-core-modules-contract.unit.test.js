@@ -57,3 +57,9 @@ test('rule 35 — check-plugin-versions refuses a contract that lost a name, unl
   assert.deepEqual(coreRemovals(before, {}, { sdkBefore: '1.2.0', sdkAfter: '2.0.0' }), [], 'a major bump is the way to remove');
   assert.deepEqual(coreRemovals(before, { ...before, qonto: ['qontoService'] }, { sdkBefore: '1.2.0', sdkAfter: '1.2.0' }), [], 'adding is free');
 });
+
+test('rule 35 — the contract records names only, nothing it would claim to check about signatures', () => {
+  for (const [name, exported] of Object.entries(CONTRACT)) {
+    assert.ok(Array.isArray(exported) && exported.every((k) => typeof k === 'string'), name);
+  }
+});

@@ -48,8 +48,13 @@ test('rule 23 — the gate connector declares its keys as a secret route', () =>
   assert.equal(forbiddenReason('GET', '/settings/gate-connector', {}), null, 'the connector status stays readable');
 });
 
-test('rule 23 — rotating a property iCal export token is refused; reading the feed list is not', () => {
+test('rule 23 — rotating a property iCal export token is refused', () => {
   assert.equal(forbiddenReason('POST', '/ical/regenerate-token/3', {}), 'credentials');
   assert.equal(forbiddenReason('POST', '/ICAL/Regenerate-Token/3/', {}), 'credentials');
-  assert.equal(forbiddenReason('GET', '/ical/token/3', {}), null);
+});
+
+test('rule 24 — reading a property iCal export token is refused too; the public feed is not', () => {
+  assert.equal(forbiddenReason('GET', '/ical/token/3', {}), 'credentials');
+  assert.equal(forbiddenReason('HEAD', '/ICAL/Token/3/', {}), 'credentials');
+  assert.equal(forbiddenReason('GET', '/ical/export/abc.ics', {}), null);
 });

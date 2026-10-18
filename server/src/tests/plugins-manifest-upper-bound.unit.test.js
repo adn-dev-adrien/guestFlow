@@ -29,7 +29,15 @@ test('rule 34 — an open range is capped at the next major of its floor', () =>
 test('rule 34 — GuestFlow 4 refuses a package of 3.x, bounded or published before the bound', () => {
   const env = { coreVersion: '4.0.0', sdkVersion: '1.2.0' };
   for (const guestflow of ['>=3.9.0 <4.0.0', '>=3.9.0']) {
-    assert.deepEqual(rangeRefusal({ guestflow, sdk: '^1.0.0' }, env).code, 'CORE_INCOMPATIBLE', guestflow);
+    const refusal = rangeRefusal({ guestflow, sdk: '^1.0.0' }, env);
+    assert.equal(refusal.code, 'CORE_INCOMPATIBLE', guestflow);
+    assert.equal(refusal.message, 'Incompatible avec cette version de GuestFlow.', 'the package is too old, not the core');
   }
   assert.equal(rangeRefusal({ guestflow: '>=3.9.0', sdk: '^1.0.0' }, { coreVersion: '3.12.0', sdkVersion: '1.2.0' }), null);
+});
+
+test('rule 34 — loading at boot names the same refusal, without blaming the core', () => {
+  const loader = fs.readFileSync(path.join(PLUGINS, 'loader.js'), 'utf8');
+  assert.match(loader, /message: 'Incompatible avec cette version\.'/);
+  assert.doesNotMatch(loader, /Nécessite une version plus récente/);
 });

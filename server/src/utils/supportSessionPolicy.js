@@ -13,8 +13,8 @@
  *   method), the Qonto and Neat credentials, the gate connector's secrets (a read: they come back in
  *   clear), and uninstalling or turning off a plugin;
  * - rule 23: every route a plugin declares with `ctx.secretRoutes` — it hands out, creates or rotates a
- *   secret (the Booking userscript and its key, the gate connector's keys) — and rotating a property's
- *   iCal export token.
+ *   secret (the Booking userscript and its key, the gate connector's keys) — and reading or rotating a
+ *   property's iCal export token.
  */
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -66,8 +66,10 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   if (['/payments/qonto/authorize', '/payments/qonto/callback', '/payments/qonto/refresh-connection'].includes(path)) return 'credentials';
   if (under(path, '/settings/gate-connector/secrets')) return 'credentials';
   if (isSecretRoute(method, path)) return 'credentials';
-  // Rotating a property's iCal export token breaks the feed every platform imports.
+  // Rotating a property's iCal export token breaks the feed every platform imports; reading it hands
+  // out the feed's address in clear, and creates the token on first read.
   if (/^\/ical\/regenerate-token\/[^/]+$/.test(path) && !read) return 'credentials';
+  if (/^\/ical\/token\/[^/]+$/.test(path)) return 'credentials';
   // Uninstalling or turning off a plugin erases or strands its stored credentials.
   if (/^\/plugins\/[^/]+(\/deactivate)?$/.test(path) && (method === 'DELETE' || /\/deactivate$/.test(path)) && !read) return 'credentials';
   if (path === '/google-calendar/calendar' && !read) return 'credentials';

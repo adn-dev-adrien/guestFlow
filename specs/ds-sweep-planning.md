@@ -210,6 +210,10 @@ business behavior, figure, or calendar geometry**.
     calendar (`utils/isoDay.js`), so a window keeps its length across a clock change. Between midnight
     and 2 a.m. the pages used to open on the previous day (the browser's UTC date). If the server cannot
     be asked, the browser's own local date is used.
+29. **« Today » follows midnight while the page stays open** (added 2026-10-18, second review of the
+    code review). `useServerToday` reads `GET /api/today` again each time the page comes back to the
+    foreground (window focus, tab visible again). A Dashboard or Planning left open overnight moves to
+    the new day on return, and « Aujourd'hui » leads to it; a date the operator picked stays picked.
 
 **Edge cases:**
 - No computed figure, occupancy math, drag-and-drop behavior, or calendar geometry changes.
