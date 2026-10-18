@@ -15,6 +15,7 @@ const db = require('../database');
 const { formatPlatformName, isDirectChannel, refreshDirectChannels } = require('../utils/platformNameFormat');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
+const { describeIcalSync } = require('../utils/icalSyncStatus');
 
 const DIRECT_NAME = 'direct';
 
@@ -473,13 +474,25 @@ function createPlatformsModel(database) {
           platformTakesDeposit: slug === DIRECT_NAME ? 0 : (depositBySlug.get(slug) || 0),
           // specs/platform-payout-due-date.md — days after departure the platform is expected to pay.
           payoutDueDays: payoutBySlug.has(slug) ? payoutBySlug.get(slug) : DEFAULT_PAYOUT_DUE_DAYS,
-          disabled: source ? Number(source.disabled) : 0,
+          // specs/ical-import-hardening.md rule 10 — a boolean: a number `0` rendered as text.
+          disabled: source ? Number(source.disabled) === 1 : false,
+          // Rule 2 — a stopped source (`isActive = 0`) is shown as such and offers no sync.
+          isActive: source ? Number(source.isActive) !== 0 : true,
           sourceId: source ? source.sourceId : null,
           lastSyncAt: source ? source.lastSyncAt : null,
           lastSyncStatus: source ? source.lastSyncStatus : null,
           lastSyncMessage: source ? source.lastSyncMessage : null,
           // Per-category counts for the visual "État" cell (null when never synced / pre-migration).
           syncCounts: source ? parseSyncCounts(source.lastSyncCounts) : null,
+          // Rule 9 — the line the row prints, ready to render.
+          syncStatus: describeIcalSync({
+            url: source ? source.url : '',
+            isActive: source ? source.isActive : 1,
+            lastSyncAt: source ? source.lastSyncAt : null,
+            lastSyncStatus: source ? source.lastSyncStatus : null,
+            lastSyncMessage: source ? source.lastSyncMessage : null,
+            syncCounts: source ? parseSyncCounts(source.lastSyncCounts) : null,
+          }),
         };
       });
     },

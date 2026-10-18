@@ -28,7 +28,8 @@ function register(ctx) {
   // from .env.local and copies it into the WordPress proxy settings. An uninstall never rotates it.
   const ensureApiKey = () => {
     sdk.secrets.getOrCreate('PUBLIC_API_KEY', 32);
-    ctx.log.info('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
+    // The file is server/.env.local unless GUESTFLOW_LOCAL_ENV moves it (hosting H1): name neither.
+    ctx.log.info('PUBLIC_API_KEY ready in this instance’s .env.local — copy it into the WordPress proxy.');
   };
   ctx.onInstall(ensureApiKey);
   ctx.onBoot(ensureApiKey);

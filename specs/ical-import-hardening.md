@@ -1,0 +1,212 @@
+# iCal import — hardening after the review of 2026-10-18
+
+| Field | Value |
+|---|---|
+| **Status** | Implemented |
+| **Branch** | `fix/review-ical-intake` → `inte/plugins` |
+| **Created** | 2026-10-18 |
+| **Author** | Adrien |
+| **Related PR** | (link once opened) |
+| **Depends on** | `specs/lodgify-decommission.md` (Booking echo filter, rules 5–10), `specs/ical-sync-mapping-resilience.md` (empty-feed guard), `specs/platforms-and-ical-rework.md` (the platforms tab), `specs/booking-extranet-intake.md` rules 25–26 |
+
+---
+
+## 1. Context
+
+The review of 2026-10-18 (iCal sync and platform intakes, on a copy of the Solio database with every
+feed served locally) found the import trustworthy on its main path — takeover, echo filter, locked
+drift, cancellation approval all held — and a set of defects around it, all already present in
+v3.10.0:
+
+- **B1** — every iCal stay without a guest name shared one placeholder client per feed (« Closed Not
+  available » behind every Booking stay, « Reserved Ical » behind every Airbnb stay). The Booking
+  intake wrote the guest onto that client, and every other stay took the guest's name and e-mail. The
+  intake itself is fixed by `specs/booking-extranet-intake.md` rules 25–26; the shared placeholder is
+  this spec's.
+- **M2** — « Synchroniser » on an inactive source (`isActive = 0`, the state of both Lodgify sources
+  since 16/10) imported it again and re-created a stay deleted after retirement; the row never showed
+  the source was stopped.
+- **M3** — an imported stay overlapping an existing reservation was flagged only on the Booking feed.
+- **M4** — the fetch had no timeout: a platform that accepted the connection and never answered held
+  the manual sync for 5 minutes, and the hourly pass with it.
+- **m1** — a truncated feed (no `END:VCALENDAR`) was trusted: the stays it lost raised cancellation
+  alerts.
+- **m2** — two stays sharing one UID: one never existed, the other was « mis à jour » at every pass.
+- **m3** — a UTC instant (`…T230000Z`) was dated in UTC, one day early for Paris.
+- **m4** — a stray « 0 » after the chips of every platform row (`disabled` sent as a number).
+- **m5** — imported guests named « Closed Not available » / « Reserved Ical ».
+- **m6** — the sync status was the engine's sentence (« 0 créé(s), 0 mis à jour, … 15 inchangé(s) »),
+  with a date and no time, over three lines on a phone.
+
+## 2. Goal
+
+An imported stay never shares a client it does not own, a stopped calendar stays stopped, an overlap
+is shouted whatever the platform, one silent platform costs one timeout, a damaged feed changes
+nothing, and the platforms tab says in one short line what the last sync did.
+
+---
+
+## 3. Functional rules
+
+1. **One placeholder client per nameless stay.** A stay whose summary names nobody (rule 8) gets a
+   client of its own, « Ical <platform> », created with the stay. A summary that names the guest still
+   reuses that guest's client, as before. At boot, every client that is plainly a shared placeholder —
+   a name made of platform words only, no e-mail, phone, address or note, used by iCal stays only — is
+   split: the first stay keeps it, each other stay gets a copy, and its history records « Client :
+   <old name> → <new name> ». Every such placeholder is renamed « Ical <platform> ». A shared client
+   carrying a guest's coordinates is **never** split: which stay it belongs to is the operator's call
+   (`server/scripts/diagnose-shared-clients.js`, `specs/booking-extranet-intake.md` rule 26). The pass
+   is idempotent.
+2. **A stopped source stays stopped.** An inactive source (`isActive = 0`) is skipped by the hourly
+   pass and « Synchroniser tout » (unchanged) and its own « Synchroniser » is refused:
+   `409 « Calendrier arrêté. »`, nothing fetched. The platforms tab shows the chip « Arrêté », the line
+   « Calendrier arrêté : plus rien n'est importé. » and no « Synchroniser » on that row.
+3. **An overlap is flagged on every feed.** A new stay from any feed whose nights are partly or fully
+   held by a reservation of another origin is created and flagged `bookingConflictAt` (badge on the
+   fiche and the calendar), and the conflict notification is sent instead of the « nouvelle
+   réservation » one. A pristine stay that a feed moves onto taken nights is flagged too, once, and
+   notified. Only the Booking feed still **skips** a full echo (`specs/lodgify-decommission.md` rules
+   6–8): other platforms do not mirror GuestFlow's export as stays. The notification and its e-mail
+   name the platform (« Conflit de dates — flux Airbnb »); the badge's tooltip reads « Ces dates
+   chevauchent une autre réservation : doublon à supprimer, remboursement ou relogement. »
+4. **A fetch is bounded.** Each feed is fetched with a 20-second timeout; past it the source line
+   reads « Plateforme injoignable (délai dépassé). », a refused connection « Plateforme injoignable. ».
+   The hourly pass and « Synchroniser tout » start every fetch at once, then apply the feeds one after
+   the other in source order, as before: a stuck platform costs one timeout, not one per source behind
+   it, and the takeover / cross-source matching sees the sources in the same order.
+5. **A truncated feed is refused.** A body without `END:VCALENDAR`, or with a `BEGIN:VEVENT` left
+   unclosed, is a failed fetch: « Flux iCal incomplet — synchronisation ignorée. », no mapping
+   touched, no cancellation alert raised. The next complete feed syncs normally.
+6. **A repeated UID keeps both stays.** When a feed gives the same UID to several events, each is keyed
+   on its `RECURRENCE-ID` when present, on its arrival date otherwise (`<uid>#<date>`). A UID that
+   appears once is left exactly as it was, so no existing mapping moves. The source's sync detail
+   counts them (« 2 au même identifiant »).
+7. **A UTC instant is a day in the server's zone.** `DTSTART:20261124T230000Z` is the 25/11 in
+   Europe/Paris (`GUESTFLOW_TZ`), not the 24/11. Date-only values and floating local times are
+   unchanged.
+8. **Platform words are not a name.** A summary made only of platform words — `airbnb`, `booking`,
+   `abritel`, `greengo`, `direct`, `réservation`, `réservé`, `reserved`, `blocked`, `bloqué`,
+   `indisponible`, `closed`, `not available`, `unavailable`, `ical` — is « no name »: the stay's client
+   is « Ical <platform> ». Whole words only (« Closer » stays a name).
+9. **The status line says when and what changed.** The platforms tab prints the server's `syncStatus`:
+   « Synchronisé à 02:05 » (« le 17/10 à 02:05 » on another day), followed by the non-zero changes only
+   — nouvelles, modifiées, reprises, annulations à valider, en conflit, sur une fermeture, au même
+   identifiant. An error reads « Échec à 02:05 : <message> ». The engine's full sentence is the line's
+   tooltip.
+10. **`disabled` is a boolean** in the `/platforms` payload, and the tab never prints it.
+
+**Edge cases:**
+- A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
+- A feed that times out resets the empty-feed streak like any failed fetch
+  (`specs/ical-sync-mapping-resilience.md` rule 4).
+- A repeated-UID stay mapped before rule 6 is re-claimed by its dates and summary (step ②) or, on
+  Booking, by its exact dates; the old mapping is dropped, no duplicate.
+- A client split by rule 1 whose stay is later deleted stays an orphan client; the existing orphan
+  cleanup in « Clients » lists it.
+
+---
+
+## 4. Architecture
+
+> **Fat backend, thin frontend.** The overlap, the timeout, the feed checks, the placeholder split and
+> the status line are all server-side; the tab renders `syncStatus` and two booleans.
+
+### 4.1 Server side (`server/src/`)
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `routes/` | — | — | (none — `/api/properties/:id/ical-sources/:sourceId/sync` and `/platforms` unchanged) |
+| `controllers/` | — | — | (none) |
+| `models/` | `models/propertyIcalModel.js` | T | `fetchFeed(source)` (rules 4–5); `syncSource(source, { prefetched })`; `syncMany(sources)` (rule 4); per-stay placeholder in `getOrCreateIcalClient` (rule 1); overlap stamp on create and on a date move for every feed (rule 3); `repeatedUidCount` (rule 6); `syncOne` refuses an inactive source (rule 2). |
+| `models/` | `models/platformsModel.js` | T | `listForProperty` rows carry `isActive`, `syncStatus`, boolean `disabled` (rules 2, 9, 10). |
+| `utils/` | `utils/icalParser.js` | T | `isCompleteIcs` (rule 5), repeated-UID keys (rule 6), UTC instant in the server zone (rule 7), placeholder words (rule 8). |
+| `utils/` | `utils/icalSyncStatus.js` | C | Pure `describeIcalSync(row, { now, timeZone })` → `{ tone, text, detail }` (rule 9). |
+| `utils/` | `utils/icalPlaceholderClientsMigration.js` | C | `splitSharedIcalPlaceholderClients(db)` (rule 1, data side). |
+| `utils/` | `utils/notificationService.js` | T | The `ical` conflict copy names the platform (rule 3). |
+| `scheduledTasks.js` | — | T | `performAutoSync` goes through `syncMany` (rule 4). |
+| `database.js` | — | T | Runs the placeholder split at boot (rule 1). |
+| `middleware/` | — | — | (none) |
+
+### 4.2 Client side (`client/src/`)
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `components/property/` | `PropertyPlatformsTab.jsx` | T | « Arrêté » chip and no « Synchroniser » on a stopped source (rule 2); renders `syncStatus` with its detail as tooltip (rule 9); `Boolean(row.disabled)` (rule 10). |
+| `components/` | `ReservationConflictBadge.jsx` | T | Tooltip no longer says « paiement en ligne » only (rule 3). |
+| `components/` | `IcalExportCard.jsx` | T | Copy only (§6). |
+| `pages/`, `hooks/`, `services/`, `utils/`, `constants/` | — | — | (none) |
+
+No new generic component: the status line stays a `Tooltip` around the existing icon + caption.
+
+### 4.3 API contract
+
+| Method | Endpoint | Change |
+|---|---|---|
+| POST | `/api/properties/:id/ical-sources/:sourceId/sync` | `409 { error: 'Calendrier arrêté.' }` on an inactive source. Timeouts and truncated feeds answer `400` with the messages of rules 4–5. |
+| GET | `/api/properties/:id/platforms` | Each row adds `isActive: boolean`, `syncStatus: { tone: 'manual'\|'stopped'\|'never'\|'error'\|'success', text, detail }`; `disabled` becomes a boolean. |
+
+---
+
+## 5. Data model
+
+No schema change. `ical_sources.lastSyncCounts` gains the key `repeatedUids`. Data migration (rule 1):
+shared placeholder clients are split at boot, idempotently; nothing is deleted, every move is in
+`reservation_history`.
+
+## 6. UI / UX
+
+- **Platforms tab row** (`Logement › Plateformes & iCal`): status line « Synchronisé à 02:05 ·
+  1 nouvelle » (one line at 390 px in the usual case), full sentence on hover / long-press. A stopped
+  source: chip « Arrêté », pause icon, « Calendrier arrêté : plus rien n'est importé. », buttons
+  « Modifier l'URL » and « Désactiver » only. Mobile: same content, the chips wrap as before.
+- **Export card** (review n3): title « Lien d'export iCal », line « À coller dans chaque plateforme
+  pour bloquer les dates prises ici. Seules les dates sont transmises. » — no emoji, no « vous ».
+- **Conflict badge**: same badge, the tooltip of rule 3.
+
+## 7. Test plan
+
+### Server unit tests — `server/src/tests/ical-import-hardening.unit.test.js` (16 cases)
+
+- Rule 1: two nameless Booking stays get two clients; a named guest is still reused; the boot split
+  (move, rename, history, idempotence); a client with an e-mail, a real name or a direct stay is never
+  split.
+- Rule 2: `syncOne` on an inactive source → 409, no fetch; `/platforms` says `isActive: false` and
+  `syncStatus.tone = 'stopped'`.
+- Rule 3: an Airbnb stay over a direct one is flagged and notified (back-to-back is not); a pristine
+  stay moved onto taken nights is flagged once.
+- Rule 4: a server that never answers fails within the timeout with the French message; `syncMany`
+  starts every fetch before applying any.
+- Rule 5: truncated feed refused, no cancellation, mappings intact.
+- Rule 6: two stays under one UID both exist and the second pass is unchanged; `RECURRENCE-ID` keys.
+- Rules 7–9: UTC instant in Paris; placeholder words; the status line.
+- Updated: `properties-ical.unit.test.js` (UTC instant now in Paris), `platforms-and-ical-rework.unit.test.js`
+  (`disabled: false`), `lodgify-decommission-native-feeds.unit.test.js` (the conflict mail names the
+  platform it is given).
+
+### Client tests
+
+- `components/property/__tests__/PropertyPlatformsTab.sync-status.test.jsx` (rules 2, 9, 10).
+- `components/__tests__/IcalExportCard.copy.test.jsx` (§6 copy).
+
+### Manual UI verification
+
+- Logement › Plateformes & iCal on a copy of the Solio database at 390 and 1280 px: a stopped source
+  shows « Arrêté » and no « Synchroniser »; the status lines are one short sentence; no « 0 ».
+
+## 8. Out of scope
+
+- Unifying « Désactiver » (`disabled`) and « arrêté » (`isActive`) into one control: still the open
+  arbitration of `specs/lodgify-decommission.md` rule 10.
+- `DTSTAMP` as a DATE-TIME and `VALUE=DATE` on the export (review n2): left for after the
+  `master` hotfix lands, so the export model merges cleanly between the two branches.
+- Re-attributing, in production data, the stays whose shared client already carries a guest's
+  e-mail: the diagnostic script lists them; the repair is by hand.
+
+## 9. Open questions
+
+- Q: Should « Désactiver » also stop the import, so that one flag exists for the operator?
+  - Open — `specs/lodgify-decommission.md` rule 10's arbitration.
+
+## 10. Implementation progress
+
+- 2026-10-18 — implemented on `fix/review-ical-intake` → `inte/plugins`.

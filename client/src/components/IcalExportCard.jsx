@@ -1,3 +1,9 @@
+/**
+ * IcalExportCard — the property's public iCal export link, with a copy button. The feed carries the
+ * dates only (specs/ical-export-guest-privacy.md), which the card says.
+ *
+ * Props: propertyId, propertyName
+ */
 import React, { useEffect, useState } from 'react';
 import { Box, Card, CardContent, Typography, TextField, CircularProgress, IconButton } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -37,8 +43,8 @@ export default function IcalExportCard({ propertyId, propertyName }) {
   return (
     <Card sx={{ mb: 3 }}>
       <CardContent>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          📅 Lien iCal pour synchronisation
+        <Typography variant="sectionHeader" component="h2" sx={{ mb: 2 }}>
+          Lien d’export iCal
         </Typography>
 
         {loading ? (
@@ -48,7 +54,7 @@ export default function IcalExportCard({ propertyId, propertyName }) {
         ) : (
           <>
             <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-              Utilisez ce lien pour synchroniser vos réservations sur d'autres plateformes (Airbnb, Booking.com, etc.)
+              À coller dans chaque plateforme pour bloquer les dates prises ici. Seules les dates sont transmises.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>

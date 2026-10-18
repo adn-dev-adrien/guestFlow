@@ -13,7 +13,7 @@ vi.mock('../../sdk', () => ({ api, displayDate: (iso) => iso.split('-').reverse(
 
 import SettingsSection from '../SettingsSection';
 
-const SETTINGS = { hotelIds: '{"1":"14407976"}', sourceKeys: '["booking","lodgify"]', keySet: true };
+const SETTINGS = { hotelIds: '{"1":"14407976"}', keySet: true };
 
 beforeEach(() => {
   api.getPluginSettings.mockResolvedValue(SETTINGS);
@@ -57,21 +57,15 @@ test('specs/booking-extranet-intake.md rule 12: the establishment id of each pro
   await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
   await ref.current.save();
   expect(api.savePluginSettings).toHaveBeenCalledWith('booking-intake', {
-    hotelIds: '{"1":"14407976","2":"1234"}', sourceKeys: '["booking","lodgify"]',
+    hotelIds: '{"1":"14407976","2":"1234"}',
   });
   await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
 });
 
-test('specs/booking-extranet-intake.md rule 21: the counted iCal sources are a comma list stored as JSON', async () => {
-  api.savePluginSettings.mockImplementation(async (_id, values) => ({ ...SETTINGS, ...values }));
-  const ref = createRef();
-  render(<SettingsSection ref={ref} />);
-  const field = await screen.findByLabelText('Sources iCal comptées comme Booking');
-  expect(field).toHaveValue('booking, lodgify');
-  await userEvent.clear(field);
-  await userEvent.type(field, 'Booking');
-  await ref.current.save();
-  expect(api.savePluginSettings).toHaveBeenCalledWith('booking-intake', expect.objectContaining({ sourceKeys: '["booking"]' }));
+test('specs/booking-extranet-intake.md rule 21 (amended 2026-10-18): no field asks which iCal sources count as Booking', async () => {
+  render(<SettingsSection />);
+  await screen.findByLabelText('La Granja');
+  expect(screen.queryByLabelText(/Sources iCal/)).not.toBeInTheDocument();
 });
 
 test('specs/booking-extranet-intake.md rule 20: the last pages received are listed with their outcome and the reason of a refusal', async () => {

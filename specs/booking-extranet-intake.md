@@ -162,6 +162,11 @@ already has it.
     iCal source counted as Booking (plugin setting `sourceKeys`, default `booking` and, while the
     Lodgify exit lasts, `lodgify`), on a property mapped to a Booking establishment (rule 12), with
     « Paiement plateforme » still empty and not dismissed. Computed by the server on read.
+    > **Amended 2026-10-18 (review m7):** the counted sources are read from the property's calendars,
+    > no longer from a setting — the `sourceKeys` setting and its field are gone. A stay counts when
+    > its source is Booking's own feed (`platformKey = 'booking'`, active or not), or the Lodgify relay
+    > **while it is active**: once retired (`isActive = 0`, `specs/lodgify-decommission.md` rule 10),
+    > its leftover stays no longer sit in « Réservations Booking à compléter ».
 22. Dashboard (`dashboard.alerts`): one line per fiche à compléter — « Réservation Booking à
     compléter · La Granja 06/11 → 08/11 » — with « Ouvrir dans Booking » and « Ouvrir la fiche ». The
     iCal carries no booking number, so « Ouvrir dans Booking » opens the extranet list filtered on
@@ -235,13 +240,16 @@ Targets **`master`**, on top of `specs/plugin-engine-backport.md`.
 | `tests/*.unit.test.js` | C | §7. |
 | `server/src/constants/plugins.js`, `server/src/plugins/index.js` | T | Catalogue and registration. |
 
+> 2026-10-18 — `index.js` no longer declares `sourceKeys`; `pendingFiches.js` joins `ical_sources` to
+> decide which feeds count (rule 21 amendment).
+
 ### 4.3 The plugin — client (`client/src/plugins/booking-intake/`)
 
 | File / slot | Responsibility |
 |---|---|
 | `IntakeBanner.jsx` → `reservation.banners` | Rules 17–18: applied / proposal with « Appliquer » / « Ignorer ». |
 | `PendingAlert.jsx` → `dashboard.alerts` / `dashboard.alerts.urgent` | Rules 22–24. |
-| `SettingsSection.jsx` → `settings.integrations` | Install link, « Régénérer le secret », property → Booking establishment id map, counted iCal sources, last 10 intakes with status. |
+| `SettingsSection.jsx` → `settings.integrations` | Install link, « Régénérer le secret », property → Booking establishment id map, last 10 intakes with status (the counted iCal sources field was removed 2026-10-18, rule 21). |
 | `client/src/plugins/index.js`, `constants/plugins.js` | Registration. |
 
 No page and no route: the operator never leaves the fiche. **Component reuse:** `StatusCard`,
@@ -290,9 +298,10 @@ CREATE TABLE IF NOT EXISTS booking_dismissals (
 );
 ```
 
-Plugin settings: `hotelIds` (JSON `{ propertyId: "14407976" }`), `sourceKeys` (JSON, default
-`["booking","lodgify"]`), `key` (**secret**, generated at first activation, encrypted at rest, never
-returned). **No core column, no core table.**
+Plugin settings: `hotelIds` (JSON `{ propertyId: "14407976" }`), `key` (**secret**, generated at first
+activation, encrypted at rest, never returned). **No core column, no core table.** `sourceKeys` (JSON,
+default `["booking","lodgify"]`) existed until 2026-10-18; a value stored under it is no longer read
+(rule 21 amendment).
 
 ## 6. UI / UX
 
@@ -395,3 +404,10 @@ None.
     (`engine.unit.test.js`). The E2E spec activates and deactivates the plugin from the Plugins page.
   - The public door `/public/booking-intake/page` is a public mount of the engine's dispatcher; the
     `/api` writes keep the same-origin check of phase 4 rule 31, which the public door is outside of.
+- 2026-10-18 — review fixes on `inte/plugins` (`fix/review-ical-intake`), manifest `1.1.0`:
+  - rule 21 amended: the counted sources are derived from the calendars (`sourceKeys` removed);
+  - the iCal import gives each nameless stay its own placeholder client and the boot pass splits the
+    placeholders shared before (`specs/ical-import-hardening.md` rule 1), so the shared client rule 25
+    guards against is no longer created; rules 25–26 stay as the guard and the repair path.
+  - Tests: `pending-fiches.unit.test.js` +1 (stopped Lodgify relay), `engine.unit.test.js` and the client
+    `SettingsSection.test.jsx` follow the removed setting.

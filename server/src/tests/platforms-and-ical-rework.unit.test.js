@@ -89,7 +89,7 @@ test('platformsModel.listForProperty: every platform listed; source config + col
   const airbnbBase = base.find((p) => p.platformKey === 'airbnb');
   assert.deepEqual(
     { url: airbnbBase.url, tax: airbnbBase.collectsTouristTax, disabled: airbnbBase.disabled, sourceId: airbnbBase.sourceId },
-    { url: '', tax: 1, disabled: 0, sourceId: null },
+    { url: '', tax: 1, disabled: false, sourceId: null },
     'unconfigured platform: empty URL, tax=platform-collects, not disabled, no source row',
   );
   assert.equal(base.find((p) => p.isDirect).platformLabel.toLowerCase(), 'direct');

@@ -267,6 +267,8 @@ without the core knowing it.
 24. **The API key** (`PUBLIC_API_KEY` in `.env.local`) is created when the plugin is installed, and at
     boot only if it is installed, as the Sowel connector keys (phase 1 rule 18). Uninstalling, with or
     without erasure, never rotates it.
+    > **Amended 2026-10-18 (review n1):** the boot line announcing the key names no path — the file is
+    > `server/.env.local` only while `GUESTFLOW_LOCAL_ENV` does not move it (hosting H1). Plugin `1.0.1`.
 25. **Admin side:**
     - `GET /api/dashboard/public-devis-pending` moves into the plugin (gap 2), and its alert « Demandes du
       site » becomes a `dashboard.alerts` contribution;

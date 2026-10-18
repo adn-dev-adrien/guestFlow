@@ -1,0 +1,8 @@
+- **iCal import hardened** (specs/ical-import-hardening.md, review 2026-10-18):
+  - every nameless iCal stay gets a placeholder client of its own (« Ical Booking », « Ical Airbnb ») instead of one shared « Closed Not available » / « Reserved Ical » per feed;
+  - « Synchroniser » on a stopped calendar (`isActive = 0`) is refused — it used to bring back the stays deleted after retiring Lodgify — and the platforms tab shows « Arrêté »;
+  - a stay overlapping another reservation is flagged and notified on every feed, not only Booking's, including when a feed moves a stay onto taken nights;
+  - feeds are fetched with a 20-second timeout and all at once: one silent platform no longer holds the sync for five minutes;
+  - a truncated feed is refused instead of raising false cancellation alerts; two stays sharing one UID both exist; a UTC time is dated in Europe/Paris;
+  - the sync line reads « Synchronisé à 02:05 · 1 nouvelle » with the full detail in its tooltip, and the stray « 0 » after the chips is gone.
+- **Booking intake**: the iCal sources counted as Booking are derived from the calendars (Booking's feed, the Lodgify relay only while active); the setting is gone. **Gîtes de France intake**: a fiche whose rent is still to choose appears in the dashboard alert. Export card and reservation-number hints reworded.

@@ -207,7 +207,15 @@ function setPublicUrl(url) {
  */
 function markIcalImported(reservationId, platformKey) {
   return withDb((db) => {
-    db.prepare("UPDATE reservations SET sourceType = 'ical', sourcePlatformKey = ? WHERE id = ?").run(platformKey, reservationId);
+    // Like a real import: the stay points at an active source of its property for that platform, which
+    // is what the Booking intake reads to tell Booking's stays (specs/booking-extranet-intake.md rule 21).
+    const { propertyId } = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(reservationId);
+    const existing = db.prepare('SELECT id FROM ical_sources WHERE propertyId = ? AND platformKey = ?').get(propertyId, platformKey);
+    const sourceId = existing ? existing.id : Number(db.prepare(
+      "INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, isActive) VALUES (?, ?, '', ?, ?, 1)",
+    ).run(propertyId, platformKey, platformKey, platformKey).lastInsertRowid);
+    db.prepare("UPDATE reservations SET sourceType = 'ical', sourcePlatformKey = ?, sourceIcalSourceId = ? WHERE id = ?")
+      .run(platformKey, sourceId, reservationId);
   });
 }
 

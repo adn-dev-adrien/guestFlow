@@ -143,6 +143,9 @@ choice in one click.
     back-solved accommodation price by their amount.)*
 14. Dashboard: one line per intake in `error` or unmatched for > 24 h, linking to the fiche or to the
     settings.
+    > **Amended 2026-10-18 (review n5):** a fiche waiting for the operator to choose between two
+    > possible rents (`needs_rent`) is listed too — « Dossier 11773 du 14/10/2026 — loyer à choisir sur
+    > la fiche · Ouvrir la fiche ». The banner alone could be missed. Plugin `1.1.0`.
 15. Applying never sends an e-mail to the guest (the per-template `sendMode` stays as configured;
     the intake does not call any sender).
 

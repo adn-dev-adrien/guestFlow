@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -13,6 +13,10 @@
   "guestflow": ">=3.10.0",
   "sdk": "^1.1.0",
   "changelog": {
+    "1.1.0": [
+      "Le voyageur reçoit sa propre fiche client : remplir une réservation ne renomme plus les autres séjours Booking qui partageaient le même client provisoire.",
+      "Les calendriers comptés comme Booking ne se règlent plus : le flux Booking toujours, le relais Lodgify seulement tant qu’il est actif."
+    ],
     "1.0.0": [
       "Première version publiée en paquet : un script du navigateur envoie la page de la réservation ouverte dans l’extranet Booking, et la fiche iCal se remplit.",
       "Une alerte du tableau de bord liste les réservations Booking encore à compléter."

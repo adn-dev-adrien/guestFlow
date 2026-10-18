@@ -21,10 +21,6 @@ const validateHotelIds = (v) => {
     && Object.entries(map).every(([k, h]) => /^\d+$/.test(k) && /^\d*$/.test(String(h)));
   return ok ? null : 'Un identifiant d’établissement Booking est fait de chiffres.';
 };
-const validateSourceKeys = (v) => {
-  const list = parseJson(v || '[]', null);
-  return Array.isArray(list) && list.every((k) => typeof k === 'string' && /^[a-z0-9-]+$/i.test(k)) ? null : 'Liste de sources illisible.';
-};
 
 const todayIso = () => {
   const d = new Date();
@@ -36,7 +32,6 @@ function register(ctx) {
 
   ctx.settings.declare([
     { key: 'hotelIds', default: '{}', validate: validateHotelIds },
-    { key: 'sourceKeys', default: '["booking","lodgify"]', validate: validateSourceKeys },
     { key: 'key', secret: true },
   ]);
 
@@ -73,7 +68,6 @@ function register(ctx) {
   const pending = () => listPending({
     db: ctx.db,
     hotelIds: hotelIds(),
-    sourceKeys: parseJson(ctx.settings.get('sourceKeys') || '[]', []),
     today: todayIso(),
   });
 

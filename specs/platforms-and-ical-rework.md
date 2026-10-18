@@ -145,6 +145,10 @@ any platform-colour edit. The list stays a feature-local table in `PropertyDetai
 | POST | `/api/properties/:id/ical-sources/:sourceId/sync` | Unchanged; only offered when URL set. |
 | GET | `/api/properties/platform-colors` | Now backed by `platforms.color` (+ built-in fallback). |
 
+> **Amended 2026-10-18 (`specs/ical-import-hardening.md` rules 2, 9, 10):** each `/platforms` row also
+> carries `isActive` (boolean) and `syncStatus` `{ tone, text, detail }`, the line the row prints;
+> `disabled` is a boolean. `POST …/sync` answers `409 « Calendrier arrêté. »` on an inactive source.
+
 ---
 
 ## 5. Data model

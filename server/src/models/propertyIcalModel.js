@@ -13,6 +13,7 @@ const {
   resolveIcalClientIdentity,
   parseIcsEvents,
   isWellFormedIcs,
+  isCompleteIcs,
   buildEventHash,
   shouldSkipIcalReservationUpdate,
   isLockedDateDrift,
@@ -40,6 +41,10 @@ const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 // `isUnavailableIcalEvent` filter treats "Closed Period" entries: skip the event,
 // leave the local DB alone, count it in the sync result for visibility.
 const establishmentClosuresModel = require('./establishmentClosuresModel');
+
+// specs/ical-import-hardening.md rule 4 — a platform that accepts the connection and never answers
+// used to hold the sync for Node's 5-minute default, and every source queued behind it.
+const FETCH_TIMEOUT_MS = 20000;
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
   collectsTouristTax, touristTaxRemittedByPlatform, disabled,
@@ -78,7 +83,7 @@ function touristTaxCollectionString(collects, remitted) {
   return Number(remitted) === 0 ? 'platform_reversed' : 'platform';
 }
 
-function createPropertyIcalModel(database) {
+function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS } = {}) {
   // Bind the drift + cancellation models to the SAME database instance so prod and unit
   // tests share one consistent SQLite handle (the default exports are bound to the
   // production DB; tests build a fresh property-ical model on `:memory:`, and they need
@@ -91,8 +96,15 @@ function createPropertyIcalModel(database) {
   // bound to the prod DB; `.create(database)` returns a fresh instance bound to ours.
   const closuresModel = establishmentClosuresModel.create(database);
 
+  // specs/ical-import-hardening.md rule 1 — a stay whose summary names nobody gets a placeholder client of
+  // its own. One shared placeholder per feed (« Closed Not available » behind every Booking stay) meant
+  // that writing a guest onto one fiche wrote it onto all of them.
   function getOrCreateIcalClient(guestName, platformLabel) {
     const { firstName, lastName } = resolveIcalClientIdentity(guestName, platformLabel);
+    if (guestName?.isFallback) {
+      return Number(database.prepare("INSERT INTO clients (lastName, firstName, notes) VALUES (?, ?, '')")
+        .run(lastName, firstName).lastInsertRowid);
+    }
     const existing = database.prepare(`
       SELECT id FROM clients
       WHERE lower(firstName) = lower(?) AND lower(lastName) = lower(?)
@@ -213,7 +225,38 @@ function createPropertyIcalModel(database) {
     },
 
     // The canonical anti-overbooking sync engine — moved verbatim. Do not change the algorithm.
-    syncSource(source) {
+    // specs/ical-import-hardening.md rules 4-5 — the feed's text, or an error the source line can show.
+    // Bounded in time, and refused unless the document is complete: a cut-off feed would read every
+    // event it lost as a cancellation.
+    async fetchFeed(source) {
+      let response;
+      try {
+        response = await fetch(source.url, { method: 'GET', signal: AbortSignal.timeout(fetchTimeoutMs) });
+      } catch (error) {
+        if (error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+          throw new Error('Plateforme injoignable (délai dépassé).');
+        }
+        throw new Error('Plateforme injoignable.');
+      }
+      if (!response.ok) {
+        throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
+      }
+      let icsText;
+      try {
+        icsText = await response.text();
+      } catch (error) {
+        throw new Error(error && error.name === 'TimeoutError' ? 'Plateforme injoignable (délai dépassé).' : 'Flux iCal interrompu.');
+      }
+      if (!isWellFormedIcs(icsText)) {
+        throw new Error('Réponse iCal invalide (contenu non ICS).');
+      }
+      if (!isCompleteIcs(icsText)) {
+        throw new Error('Flux iCal incomplet — synchronisation ignorée.');
+      }
+      return icsText;
+    },
+
+    syncSource(source, { prefetched = null } = {}) {
       return (async () => {
         const property = database.prepare('SELECT id, defaultCheckIn, defaultCheckOut, defaultCautionAmount FROM properties WHERE id = ?').get(source.propertyId);
         if (!property) {
@@ -223,14 +266,8 @@ function createPropertyIcalModel(database) {
         const setEmptyFeedStreak = database.prepare('UPDATE ical_sources SET emptyFeedStreak = ? WHERE id = ?');
         let icsText;
         try {
-          const response = await fetch(source.url, { method: 'GET' });
-          if (!response.ok) {
-            throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
-          }
-          icsText = await response.text();
-          if (!isWellFormedIcs(icsText)) {
-            throw new Error('Réponse iCal invalide (contenu non ICS).');
-          }
+          // A feed fetched ahead by syncMany (rule 4) arrives as a promise; otherwise fetch it now.
+          icsText = await (prefetched || model.fetchFeed(source));
         } catch (fetchError) {
           // A fetch/parse failure is not an "empty feed" observation — reset the streak so two
           // empties separated by an outage never confirm each other (§3 rule 4).
@@ -538,6 +575,28 @@ function createPropertyIcalModel(database) {
           ];
         }
 
+        // specs/ical-import-hardening.md rule 3 — an overbooking that already happened on a platform is
+        // flagged whatever the feed: the stays GuestFlow holds from any other origin, against which a
+        // new or moved stay is checked. Outside Booking an overlap never skips the event (there is no
+        // echo to recognise), it only stamps `bookingConflictAt`. Guarded: a minimal test schema without
+        // `kind` or the conflict column simply has no check.
+        let otherStays = null;
+        let markConflict = null;
+        let isFlagged = null;
+        try {
+          const cols = database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+          if (cols.includes('bookingConflictAt') && cols.includes('kind')) {
+            otherStays = database.prepare(`
+              SELECT id, startDate, endDate FROM reservations
+              WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
+            `).all(source.propertyId, source.id);
+            markConflict = database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ?');
+            isFlagged = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND ifnull(bookingConflictAt, '') != ''");
+          }
+        } catch { otherStays = null; }
+        const overlapsOtherStay = (stay, ownId = null) => Boolean(otherStays)
+          && classifyBookingEvent(stay, otherStays.filter((r) => Number(r.id) !== Number(ownId))) !== 'free';
+
         let createdCount = 0;
         let updatedCount = 0;
         let unchangedCount = 0;
@@ -547,6 +606,10 @@ function createPropertyIcalModel(database) {
         let takenOverCount = 0;
         let echoSkippedCount = 0;
         const conflictReservationIds = [];
+        // Rule 3 — stays already known that a date change moved onto taken nights (notified like a new one).
+        const movedIntoConflictIds = [];
+        // Rule 6 — events whose UID the feed repeats, shown on the source line.
+        const repeatedUidCount = events.filter((event) => event.repeatedUid).length;
         // IDs of GENUINELY-new reservations created in THIS sync run — drives the per-reservation
         // email notification post-commit (specs/site-booking-notifications.md §3 rule 7). Not a
         // "created today" query, so a re-sync of already-known rows never re-notifies.
@@ -712,6 +775,8 @@ function createPropertyIcalModel(database) {
                 continue;
               }
               bookingConflict = verdict === 'partial';
+            } else if (!mapping) {
+              bookingConflict = overlapsOtherStay(event);
             }
 
             if (!mapping) {
@@ -746,8 +811,8 @@ function createPropertyIcalModel(database) {
               assignReservationNumberIfMissing(database, reservationId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
-              if (bookingConflict) {
-                database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ?').run(new Date().toISOString(), reservationId);
+              if (bookingConflict && markConflict) {
+                markConflict.run(new Date().toISOString(), reservationId);
                 conflictReservationIds.push(reservationId);
               }
               createdCount += 1;
@@ -854,6 +919,13 @@ function createPropertyIcalModel(database) {
               adults: event.adults,
             });
             upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
+            // Rule 3 — a date change that lands on nights another stay holds is flagged once.
+            const datesMoved = String(mappedReservation.startDate) !== event.startDate || String(mappedReservation.endDate) !== event.endDate;
+            if (datesMoved && markConflict && !isFlagged.get(mapping.reservationId) && overlapsOtherStay(event, mapping.reservationId)) {
+              markConflict.run(new Date().toISOString(), mapping.reservationId);
+              conflictReservationIds.push(Number(mapping.reservationId));
+              movedIntoConflictIds.push(Number(mapping.reservationId));
+            }
             updatedCount += 1;
           }
 
@@ -919,6 +991,8 @@ function createPropertyIcalModel(database) {
           takenOverCount,
           echoSkippedCount,
           conflictReservationIds,
+          movedIntoConflictIds,
+          repeatedUidCount,
           rawIcal: icsText,
           parsedEvents: events,
         };
@@ -927,7 +1001,7 @@ function createPropertyIcalModel(database) {
 
     // Sync + persist the source status row (DRYs the formerly triplicated UPDATE block:
     // the /sync route, /sync-all route, and scheduledTasks.performAutoSync all use this).
-    async syncSourceAndRecord(source) {
+    async syncSourceAndRecord(source, { prefetched = null } = {}) {
       // specs/platforms-and-ical-rework.md §3 rule 7 / edge case — a platform with no URL iCal is
       // manual-entry only: never fetch, never touch its sync status. Central guard so every caller
       // (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) skips it identically.
@@ -939,7 +1013,7 @@ function createPropertyIcalModel(database) {
         };
       }
       try {
-        const result = await model.syncSource(source);
+        const result = await model.syncSource(source, { prefetched });
         // specs/platforms-and-ical-rework.md §6 — persist the per-category counts (JSON) for the
         // visual "État" cell, alongside the legacy free-text message (kept as a hover fallback).
         const syncCounts = JSON.stringify({
@@ -952,6 +1026,7 @@ function createPropertyIcalModel(database) {
           takenOver: result.takenOverCount || 0,
           echoSkipped: result.echoSkippedCount || 0,
           conflicts: (result.conflictReservationIds || []).length,
+          repeatedUids: result.repeatedUidCount || 0,
         });
         database.prepare(`
           UPDATE ical_sources
@@ -970,7 +1045,7 @@ function createPropertyIcalModel(database) {
           // `ical_sources.lastSyncMessage`.
           // specs/lodgify-decommission.md §3 rule 13 — takeovers, Booking echoes and conflicts only
           // appear when non-zero, like the closure count.
-          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${result.echoSkippedCount > 0 ? `, ${result.echoSkippedCount} écho(s) ignoré(s)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}, ${result.unchangedCount} inchangé(s)`,
+          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${result.echoSkippedCount > 0 ? `, ${result.echoSkippedCount} écho(s) ignoré(s)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}${result.repeatedUidCount > 0 ? `, ${result.repeatedUidCount} au même identifiant` : ''}, ${result.unchangedCount} inchangé(s)`,
           syncCounts,
           result.createdCount + result.updatedCount,
           source.id,
@@ -987,6 +1062,9 @@ function createPropertyIcalModel(database) {
           } else {
             Promise.resolve(notificationService.notifyNewIcalReservation(reservationId)).catch(() => {});
           }
+        }
+        for (const reservationId of result.movedIntoConflictIds || []) {
+          Promise.resolve(notificationService.notifyBookingConflict(reservationId, { origin: 'ical' })).catch(() => {});
         }
         // Bookings changed → announced here so every caller (syncOne, syncAllForProperty,
         // scheduledTasks.performAutoSync) gives the plugins the same low-latency signal (Google
@@ -1019,6 +1097,12 @@ function createPropertyIcalModel(database) {
       if (!String(source.url || '').trim()) {
         return { error: 'Aucune URL iCal configurée pour cette plateforme.', status: 400 };
       }
+      // specs/ical-import-hardening.md rule 2 — an inactive source is stopped: the hourly pass and
+      // « Synchroniser tout » already skip it, and the row's button must not bring back the stays the
+      // operator deleted after stopping it (2026-10-16, Lodgify).
+      if (Number(source.isActive) === 0) {
+        return { error: 'Calendrier arrêté.', status: 409 };
+      }
       try {
         return { data: await model.syncSourceAndRecord(source) };
       } catch (error) {
@@ -1041,23 +1125,34 @@ function createPropertyIcalModel(database) {
       return [...set];
     },
 
+    // specs/ical-import-hardening.md rule 4 — every feed is fetched at once, then applied one after the
+    // other in id order, as before: a slow platform costs one timeout, not one per source behind it,
+    // and the takeover / cross-source matching keeps seeing the sources in the same order.
+    async syncMany(sources) {
+      const feeds = new Map(sources.filter((s) => String(s.url || '').trim()).map((s) => {
+        const feed = model.fetchFeed(s);
+        feed.catch(() => {});
+        return [s.id, feed];
+      }));
+      const results = [];
+      for (const source of sources) {
+        try {
+          const result = await model.syncSourceAndRecord(source, { prefetched: feeds.get(source.id) || null });
+          results.push({ sourceId: source.id, sourceName: source.name, ok: true, ...result });
+        } catch (error) {
+          results.push({ sourceId: source.id, sourceName: source.name, ok: false, error: String(error.message || 'Erreur de synchronisation iCal') });
+        }
+      }
+      return results;
+    },
+
     async syncAllForProperty(propertyId) {
       // Skip empty-URL sources (manual-entry platforms) — no fetch, no error rows (§3 edge case).
       const sources = database.prepare(
         "SELECT * FROM ical_sources WHERE propertyId = ? AND isActive = 1 AND trim(COALESCE(url, '')) != '' ORDER BY id"
       ).all(propertyId);
       if (!sources.length) return { ok: true, results: [] };
-
-      const results = [];
-      for (const source of sources) {
-        try {
-          const result = await model.syncSourceAndRecord(source);
-          results.push({ sourceId: source.id, sourceName: source.name, ok: true, ...result });
-        } catch (error) {
-          results.push({ sourceId: source.id, sourceName: source.name, ok: false, error: String(error.message || 'Erreur de synchronisation iCal') });
-        }
-      }
-      return { ok: true, results };
+      return { ok: true, results: await model.syncMany(sources) };
     },
   };
 

@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -14,6 +14,9 @@
   "guestflow": ">=3.9.0",
   "sdk": "^1.0.0",
   "changelog": {
+    "1.0.1": [
+      "Le message de démarrage ne cite plus un emplacement du fichier de la clé qui peut être faux sur une installation hébergée."
+    ],
     "1.0.0": [
       "Première version publiée en paquet."
     ]

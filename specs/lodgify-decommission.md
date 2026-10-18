@@ -115,6 +115,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    overbooking. GuestFlow cannot tell, so it **creates** the Booking reservation and flags it
    `bookingConflictAt = now` — the existing conflict badge (fiche + calendar) and admin notification
    do the rest. An overlap is never silently dropped.
+   > **Amended 2026-10-18:** every feed now flags an overlap the same way, and a date change that moves
+   > a stay onto taken nights too (`specs/ical-import-hardening.md` rule 3). The Booking feed alone
+   > still skips a full echo.
 9. Booking reservations created from the native feed have no guest name (the feed has none): client
    « Booking », platform `Booking`, as the empty-summary fallback already does today.
 
@@ -135,6 +138,11 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     > `disabled`, or rewrite this rule. **Applied 2026-10-16** on both Lodgify sources with a
     > `PUT /api/properties/<id>/ical-sources/<sourceId>` carrying `isActive: false` — which is not a
     > procedure to leave in a runbook, hence the arbitration.
+    >
+    > **Amended 2026-10-18 (`specs/ical-import-hardening.md` rule 2):** an inactive source is now
+    > stopped on every path — the row's « Synchroniser » is refused (`409 « Calendrier arrêté. »`),
+    > and the platforms tab shows « Arrêté » without that button. The arbitration above (one control
+    > that writes `isActive`, or `disabled` honoured by the hourly job) stays open.
 11. The `Lodgify` platform row stays: 17 reservations and their accounting entries reference it, and
     `isDirectChannel()` keeps counting it as an own channel. No new reservation is filed under it.
     > **Sans test** — nothing is changed: the row and `isDirectChannel()` stay as they are.

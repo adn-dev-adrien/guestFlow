@@ -4,6 +4,7 @@
 
 const crypto = require('crypto');
 const { sentenceCase } = require('./textFormatters');
+const { resolveServerTimezone } = require('./serverTimezone');
 
 function normalizePlatformKey(value) {
   return String(value || '')
@@ -30,6 +31,9 @@ function parseIcalDate(rawValue, isDateOnly) {
     return toIsoDate(y, m, d);
   }
 
+  // specs/ical-import-hardening.md rule 7 — a UTC instant is a day in the accommodations' zone, not in
+  // UTC: 24/11 23:00Z is 25/11 at midnight in Paris. The zone is the server's (GUESTFLOW_TZ, Europe/Paris
+  // by default — utils/serverTimezone), named explicitly so the result never depends on the host clock.
   if (/^\d{8}T\d{6}Z$/.test(compact)) {
     const y = Number(compact.slice(0, 4));
     const m = Number(compact.slice(4, 6));
@@ -38,7 +42,8 @@ function parseIcalDate(rawValue, isDateOnly) {
     const mm = Number(compact.slice(11, 13));
     const ss = Number(compact.slice(13, 15));
     const date = new Date(Date.UTC(y, m - 1, d, hh, mm, ss));
-    return toIsoDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+    const timeZone = resolveServerTimezone(process.env.GUESTFLOW_TZ).timezone;
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
   }
 
   if (/^\d{8}T\d{6}$/.test(compact)) {
@@ -118,10 +123,15 @@ function parseAdultsFromText(summary, description) {
   return 1;
 }
 
+// specs/ical-import-hardening.md rule 8 — the words a platform puts in SUMMARY instead of a name
+// (« CLOSED - Not available » on every Booking stay, « Reserved » on Airbnb's) say nothing about the guest:
+// a summary made only of them is « no name », and the stay gets the « Ical <platform> » fallback.
+const NOT_A_NAME = /(?<![\p{L}\d])(airbnb|booking|abritel|greengo|direct|reservation|r[eé]servation|r[eé]serv[eé]e?s?|reserved|blocked|bloqu[eé]e?|indisponible|closed|not\s+available|unavailable|ical)(?![\p{L}\d])/giu;
+
 function parseGuestName(summary, description) {
   const candidate = String(summary || '').trim() || String(description || '').split('\n')[0].trim();
   const cleaned = candidate
-    .replace(/\b(airbnb|booking|abritel|greengo|direct|reservation|r[eé]servation|blocked|bloqu[eé]|indisponible)\b/gi, ' ')
+    .replace(NOT_A_NAME, ' ')
     .replace(/[()\[\]{}:_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -161,8 +171,18 @@ function isUnavailableIcalEvent(summary, description) {
 
 // A 200 response whose body is not an iCalendar document (HTML error page, empty body…) must be
 // treated as a fetch failure, not as "zero events" — specs/ical-sync-mapping-resilience.md §3 rule 2.
+// specs/ical-import-hardening.md rule 5 — a feed cut short in transit still starts like a calendar: it
+// must also end like one, with every event closed. Otherwise the events it lost would read as cancelled.
 function isWellFormedIcs(icsText) {
   return /BEGIN:VCALENDAR/i.test(String(icsText || ''));
+}
+
+function isCompleteIcs(icsText) {
+  const text = String(icsText || '');
+  if (!/^END:VCALENDAR[ \t]*$/im.test(text)) return false;
+  const opened = (text.match(/^BEGIN:VEVENT[ \t]*$/gim) || []).length;
+  const closed = (text.match(/^END:VEVENT[ \t]*$/gim) || []).length;
+  return opened === closed;
 }
 
 function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
@@ -195,7 +215,7 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
     current[propName] = { value, params };
   }
 
-  return events
+  const parsed = events
     .map((event) => {
       const dtStartRaw = event.DTSTART?.value || '';
       const dtEndRaw = event.DTEND?.value || '';
@@ -219,12 +239,28 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
         description,
         adults,
         status,
+        recurrenceId: String(event['RECURRENCE-ID']?.value || '').trim(),
       };
     })
     // `keepUnavailable` — Booking.com labels every taken date « CLOSED - Not available », real
     // reservations included, so its feed must not lose them here (specs/lodgify-decommission.md §3 rule 5).
     .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED'
       && (keepUnavailable || !isUnavailableIcalEvent(event.summary, event.description)));
+  return disambiguateRepeatedUids(parsed);
+}
+
+// specs/ical-import-hardening.md rule 6 — two stays under one UID would share one mapping: the second
+// overwrites the first at every pass, so one stay never exists and the other churns. A repeated UID is
+// keyed on its RECURRENCE-ID when the feed gives one, on its arrival date otherwise; a unique UID is
+// left exactly as it was, so no existing mapping moves.
+function disambiguateRepeatedUids(events) {
+  const counts = new Map();
+  events.forEach((e) => counts.set(e.uid, (counts.get(e.uid) || 0) + 1));
+  return events.map((e) => {
+    const { recurrenceId, ...event } = e;
+    if (counts.get(e.uid) < 2) return event;
+    return { ...event, uid: `${e.uid}#${recurrenceId || e.startDate}`, repeatedUid: true };
+  });
 }
 
 function buildEventHash(event) {
@@ -278,6 +314,7 @@ module.exports = {
   resolveIcalClientIdentity,
   isUnavailableIcalEvent,
   isWellFormedIcs,
+  isCompleteIcs,
   parseIcsEvents,
   buildEventHash,
   shouldSkipIcalReservationUpdate,
