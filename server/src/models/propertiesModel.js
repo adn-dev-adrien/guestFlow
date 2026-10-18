@@ -47,14 +47,14 @@ const EMAIL_FACT_FIELDS = [
   { key: 'emailHookEn', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'parkingDistanceMeters', coerce: (v) => Math.max(0, Math.round(Number(v) || 0)) },
   { key: 'hasWifi', coerce: toBit },
-  // specs/guest-email-texts-made-simple.md rules 27 and 33.
+  // specs/guest-email-texts-made-simple.md rules 28 and 34.
   { key: 'poolSeasonStart', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'poolSeasonEnd', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'cleaningIncluded', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
   { key: 'towelsProvided', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
   { key: 'bedLinenProvided', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
 ];
-// The form field that answers each pending fact (rule 27).
+// The form field that answers each pending fact (rule 28).
 const FACT_OF_FIELD = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
 
 const EMAIL_HOOK_MAX_LENGTH = 300;
@@ -289,7 +289,7 @@ function createPropertiesModel(database) {
     if (propertyCols.has('nameArticleConfirmed') && sent(body, 'nameArticle')) {
       database.prepare('UPDATE properties SET nameArticleConfirmed = 1 WHERE id = ?').run(Number(id));
     }
-    // Rule 27 — a fact the form sends is answered: its sentences come back in the emails.
+    // Rule 28 — a fact the form sends is answered: its sentences come back in the emails.
     const answered = Object.keys(FACT_OF_FIELD).filter((field) => sent(body, field)).map((f) => FACT_OF_FIELD[f]);
     if (propertyCols.has('pendingFacts') && answered.length) {
       const row = database.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(Number(id));
@@ -549,7 +549,7 @@ function createPropertiesModel(database) {
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
-        // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 27).
+        // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
         body.defaultCautionAmount ?? 0,
         body.touristTaxPerDayPerPerson ?? 0,
         body.touristTaxMode || 'per_day_per_person',
@@ -597,7 +597,7 @@ function createPropertiesModel(database) {
         WHERE id=?
       `).run(
         propertyName(body.name),
-        // specs/guest-email-texts-made-simple.md rule 29 (2026-10-18) — a form that does not send the
+        // specs/guest-email-texts-made-simple.md rule 30 (2026-10-18) — a form that does not send the
         // article keeps the stored one, and does not confirm it.
         normalizeNameArticle(sent(body, 'nameArticle') ? body.nameArticle : existing?.nameArticle),
         photo,
@@ -621,7 +621,7 @@ function createPropertiesModel(database) {
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
-        // Rule 27 (2026-10-18) — an absent or empty deposit keeps the stored amount: it never resets.
+        // Rule 28 (2026-10-18) — an absent or empty deposit keeps the stored amount: it never resets.
         sent(body, 'defaultCautionAmount') ? Number(String(body.defaultCautionAmount).replace(',', '.')) : Number(existing?.defaultCautionAmount ?? 0),
         body.touristTaxPerDayPerPerson ?? 0,
         body.touristTaxMode || 'per_day_per_person',

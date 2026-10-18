@@ -167,6 +167,35 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     slug: `GUESTFLOW_SLUG` when the hosting sets it, else the slug of the verified licence (the
     console's provisioning does not set `GUESTFLOW_SLUG`). An instance that can tell neither accepts
     nothing.
+23. **A route that hands out, creates or rotates a secret is refused to a support session** (added
+    2026-10-18, code review M2). A plugin declares such routes with `ctx.secretRoutes([{ method, re }])`
+    (method `'*'` for any; `re` on the lower-case path below `/api`, like `ctx.roleAccess`), and the
+    guard refuses them with rule 18's « Identifiants et accès réservés au client. », whatever the case
+    or a trailing slash. Declared today: the Booking userscript and its secret
+    (`GET /api/booking-intake/userscript.user.js`, `POST /api/booking-intake/secret`,
+    `POST …/secret/regenerate`, `specs/booking-extranet-intake.md` rule 26) and the gate connector's
+    keys (`GET /api/settings/gate-connector/secrets`). The core also refuses rotating a property's iCal
+    export token (`POST /api/ical/regenerate-token/:id`), which breaks the feed every platform imports.
+    Audit of the other plugins on that date: the Météo-France key is a setting declared `secret`
+    (rule 18), the Google, Qonto and Neat credentials are already refused, the website's
+    `PUBLIC_API_KEY` is never returned by any route.
+24. **Reading a property's iCal export token is refused to a support session too** (added 2026-10-18,
+    second review of the code review). `GET /api/ical/token/:id` returns the feed's address in clear and
+    creates the token on its first read, so it falls under rule 23: refused with « Identifiants et
+    accès réservés au client. », whatever the case or a trailing slash. The public feed
+    (`GET /api/ical/export/:token`) is unchanged. The property's iCal card shows that refusal instead
+    of an empty address field.
+25. **The journal folds the reads** (added 2026-10-18, console review m8). In Paramètres › Accès du
+    support, the successful reads of one minute in a row — the pages opened and the API calls behind
+    them — make one line « Consultation : Planning, Linge », each name once, in the order they were
+    opened. A read that names nothing joins the line silently (alone, the line reads « Consultation »).
+    Writes, refused requests and « Connexion du support » keep their own line. The table keeps every
+    raw row (rule 19); only the wording folds.
+26. **A request just sent reads « En attente »** (added 2026-10-18, console review m3). The console
+    reads the request it wrote (verified with its key, never through a link the instance planted) and,
+    while the instance has not imported it yet, shows it pending with its reason — the form is no
+    longer offered right after « Demande envoyée ». Once the instance imported it, its own row
+    decides again.
 
 **Implementation choices (2026-10-08, the recommended options, see the summary page):**
 - **The channel.** The console signs the request with the licence key and writes it to
@@ -199,16 +228,16 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 
 **Review of 2026-10-18**
 
-23. **The first login is the company email.** At step 1 of the start assistant, when the administrator
+27. **The first login is the company email.** At step 1 of the start assistant, when the administrator
     still logs in with the bootstrap `admin@guestflow.local`, the company email typed becomes the login
     (unless another account holds it), and the assistant says so once: « Connexion désormais avec … ».
     « Mot de passe oublié » then reaches a real mailbox. A login the owner chose is never changed.
-24. **The enrolment code is spent.** The authenticator code that confirms the enrolment records its
+28. **The enrolment code is spent.** The authenticator code that confirms the enrolment records its
     step, like a login code (rule 6): the same code cannot open a session in the same 30 s, even from
     another browser.
-25. **The method picker fits a phone.** « Appli d'authentification » / « Code par email » stack in one
+29. **The method picker fits a phone.** « Appli d'authentification » / « Code par email » stack in one
     full-width column below 600 px and sit on one row above, in sentence case.
-26. **One « Mot de passe actuel » per page.** « Mon compte » shows it on the password card; the
+30. **One « Mot de passe actuel » per page.** « Mon compte » shows it on the password card; the
     « Second code » card asks for the same password as « Mot de passe (confirmation) », so the two
     fields are never read as two different passwords.
 
@@ -342,6 +371,9 @@ See the summary page. Mobile:
   minute, the worded log, the support account's flag and locks, `reset-admin.js` after
   `create-first-admin.js`, the slug from the licence, the forgotten password answering before any
   lookup, the bounded counters.
+- 2026-10-18 (code review): `ctx.secretRoutes` and the iCal token rotation refused to a support
+  session (rule 23) — `hosting-h2-support-secret-routes.unit.test.js`, and booking-intake's
+  `secret-lifecycle.unit.test.js`.
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).

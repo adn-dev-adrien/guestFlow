@@ -10,6 +10,7 @@
  * after the stay by construction. Admin-only through the standard role guard.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const defaultSettingsModel = require('../models/settingsModel');
@@ -17,7 +18,7 @@ const { buildRefundableLines, validateRefundPayload } = require('../utils/refund
 const { comptaCollected } = require('../utils/reservationSettlement');
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return localTodayIso();
 }
 
 // Nights of the stay — the unit the tourist tax is refunded in (spec §3.5 rule 27). Same UTC-midnight

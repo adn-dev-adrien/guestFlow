@@ -1,8 +1,8 @@
-// specs/guest-email-texts-made-simple.md rules 27–29, 31 — the assistant reopens on the property it
-// created (rule 28) and never offers one to an instance that has some; « Vos emails » asks the deposit,
-// the cleaning and the towels with no answer chosen, sends only what was answered (rule 27), shows no
-// article as chosen until one is (rule 29), and has its own key-box code field (rule 31).
-// specs/hosting-h2-account-security.md rule 23 — step 1 says once that the login is now the company email.
+// specs/guest-email-texts-made-simple.md rules 28–30, 32 — the assistant reopens on the property it
+// created (rule 29) and never offers one to an instance that has some; « Vos emails » asks the deposit,
+// the cleaning and the towels with no answer chosen, sends only what was answered (rule 28), shows no
+// article as chosen until one is (rule 30), and has its own key-box code field (rule 32).
+// specs/hosting-h2-account-security.md rule 27 — step 1 says once that the login is now the company email.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -52,7 +52,7 @@ const start = async () => {
   await screen.findByText('Étape 1 sur 5');
 };
 
-test('specs/hosting-h2-account-security.md rule 23: the new login is said once, at step 2', async () => {
+test('specs/hosting-h2-account-security.md rule 27: the new login is said once, at step 2', async () => {
   api.saveOnboardingCompany.mockResolvedValue({ loginEmail: 'contact@cabanes.fr', loginChanged: true });
   await start();
   next();
@@ -60,7 +60,7 @@ test('specs/hosting-h2-account-security.md rule 23: the new login is said once, 
   expect(refresh).toHaveBeenCalled();
 });
 
-test('rule 28: the property it created comes back in step 2', async () => {
+test('rule 29: the property it created comes back in step 2', async () => {
   onboarding({ id: 1, existing: 1, draft: DRAFT });
   await start();
   next();
@@ -69,7 +69,7 @@ test('rule 28: the property it created comes back in step 2', async () => {
   expect(screen.getByLabelText('Arrivée à partir de')).toHaveValue('17:00');
 });
 
-test('rule 28: an instance that already has properties is not asked for one', async () => {
+test('rule 29: an instance that already has properties is not asked for one', async () => {
   onboarding({ id: null, existing: 2, draft: null });
   await start();
   next();
@@ -80,7 +80,7 @@ test('rule 28: an instance that already has properties is not asked for one', as
   expect(api.saveOnboardingProperty).not.toHaveBeenCalled();
 });
 
-test('rules 27, 29, 31: nothing chosen by default; only what is answered is sent', async () => {
+test('rules 28, 30, 32: nothing chosen by default; only what is answered is sent', async () => {
   await start();
   next(); await screen.findByText('Étape 2 sur 5');
   fireEvent.change(screen.getByLabelText(/Nom du logement/), { target: { value: 'Gite' } });
@@ -102,7 +102,7 @@ test('rules 27, 29, 31: nothing chosen by default; only what is answered is sent
   expect(sent).not.toHaveProperty('bedLinenProvided');
 });
 
-test('rule 27 (2026-10-18): the bed linen is asked like the towels, and sent once answered', async () => {
+test('rule 28 (2026-10-18): the bed linen is asked like the towels, and sent once answered', async () => {
   await start();
   next(); await screen.findByText('Étape 2 sur 5');
   fireEvent.change(screen.getByLabelText(/Nom du logement/), { target: { value: 'Gite' } });

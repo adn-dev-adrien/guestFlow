@@ -1,6 +1,6 @@
 /**
  * The article a property's name takes in the guest emails — « au Gîte », « à la Bergerie »
- * (specs/guest-email-texts-made-simple.md rule 29). Pure.
+ * (specs/guest-email-texts-made-simple.md rule 30). Pure.
  *
  * A name that already starts with an article contracts with it: « Le Fournil » with « au » reads
  * « au Fournil », « La Bergerie » with « à la » reads « à la Bergerie », « Les Pins » with « aux »

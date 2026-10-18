@@ -82,7 +82,7 @@ test('« Encaisser » posts the real amount and date, then reloads', async () =>
 
   const dialog = await screen.findByRole('dialog');
   // Pre-filled with the announced amount — the common case is « c'est bien ce montant ».
-  expect(within(dialog).getByLabelText(/Montant versé/i)).toHaveValue('84');
+  expect(within(dialog).getByLabelText(/Montant versé/i)).toHaveValue('84,00');
   await user.click(within(dialog).getByRole('button', { name: 'Encaisser' }));
 
   await waitFor(() => expect(api.receiveCancellationCompensation).toHaveBeenCalled());

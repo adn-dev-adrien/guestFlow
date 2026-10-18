@@ -69,7 +69,7 @@ export default function EmailSequenceSimulation({ tabs }) {
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField size="small" type="date" label="Du" value={from} onChange={(e) => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 170 } }} />
             <TextField size="small" type="date" label="Au" value={to} onChange={(e) => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 170 } }} />
-            <Button startIcon={<RefreshIcon />} onClick={load} variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' }, minHeight: 40 }}>
+            <Button startIcon={<RefreshIcon />} onClick={load} variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' }, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>
               Actualiser
             </Button>
           </Box>

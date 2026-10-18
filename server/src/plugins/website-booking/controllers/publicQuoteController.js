@@ -19,6 +19,7 @@ const { validateStayInput } = require('../publicInputValidation');
 const { toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits } = require('../publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { resolvePublicPaymentMode } = sdk.coreModule('publicPaymentMode');
+const paymentProviders = sdk.coreModule('paymentProviders');
 const { mergePropertyDefaultsIntoPayload } = sdk.coreModule('propertyDefaultOptions');
 const propertyOptionDefaultsModel = sdk.coreModule('propertyOptionDefaultsModel');
 const quotePostProcessors = sdk.coreModule('quotePostProcessors');
@@ -200,6 +201,7 @@ async function quote(req, res) {
 
   return ok(res, toPublicQuote(engineQuote, {
     available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
+    onlinePaymentReady: Boolean(paymentProviders.active()),
     cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, insurancePrice, { lang, translate }),
     optionLimits: buildOptionLimits(v.value, engineQuote, lang),
     lang,

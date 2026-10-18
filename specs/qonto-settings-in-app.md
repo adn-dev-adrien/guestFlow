@@ -233,14 +233,18 @@ the environment » — an installation that never opens the new form behaves exa
 
 | State | Title | Repair action |
 |---|---|---|
-| `not_configured` | Identifiants manquants | Renseigne le Client ID et le Client secret de ton application Qonto. |
-| `credentials_rejected` | Identifiants refusés par Qonto | Recopie le Client secret depuis le portail Qonto, puis relance le test. |
-| `reauth_required` | Autorisation à renouveler | Clique « Connexion » et accepte l'accès. _(le bouton s'appelait « Reconnecter Qonto » avant 2026-09-16)_ |
-| `provider_not_connected` | Provider de liens non activé | Renseigne le formulaire « Connexion du provider de liens » ci-dessous. |
-| `unreachable` | Qonto injoignable | Vérifie la connexion réseau du serveur, puis relance le test. |
-| `api_error` | Qonto a renvoyé une erreur | Relance le test dans quelques minutes ; si ça persiste, contacte le support Qonto avec ce détail. |
-| `unverified` | À vérifier | Clique « Test ». _(« Tester la connexion » avant 2026-09-16)_ |
+| `not_configured` | Identifiants manquants | À recopier ci-dessus depuis developers.qonto.com → Business API access, puis enregistrer. |
+| `credentials_rejected` | Identifiants refusés par Qonto | Recopier le Client ID et le Client secret depuis developers.qonto.com → Business API access, enregistrer, puis relancer le test. |
+| `reauth_required` | Autorisation à renouveler | « Connexion », puis accepter l'accès chez Qonto. _(le bouton s'appelait « Reconnecter Qonto » avant 2026-09-16)_ |
+| `provider_not_connected` | Provider de liens non activé | Formulaire « Connexion du provider de liens » plus bas. |
+| `unreachable` | Qonto injoignable | Vérifier la connexion réseau du serveur, puis relancer le test. |
+| `api_error` | Qonto a renvoyé une erreur | Relancer le test dans quelques minutes ; si l'erreur persiste, transmettre ce détail au support Qonto. |
+| `unverified` | À vérifier | « Test » pour le confirmer. _(« Tester la connexion » avant 2026-09-16)_ |
 | `ok` | Connexion opérationnelle | — |
+
+> 2026-10-18 (mega review #5): the copy is impersonal (no « tu »), on the card too: « Identifiants de
+> l'application Qonto, à recopier depuis developers.qonto.com → Business API access. Effet immédiat,
+> sans redémarrage. » and « Modifications à enregistrer d'abord. ».
 
 **Responsive:** the card is a single column on `xs` (fields full width, actions stacked with
 `flexDirection: { xs: 'column', sm: 'row' }`), two columns from `md`. The page keeps its existing

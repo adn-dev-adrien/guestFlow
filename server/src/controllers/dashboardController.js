@@ -27,7 +27,7 @@ function buildController({
   // specs/plugins-phase-3a-online-payment.md rule 5 — a request is a payment link: without a provider
   // the row offers no « Envoyer la demande / Relancer » and the endpoint refuses.
   hasPaymentProvider = () => Boolean(require('../utils/paymentProviders').active()),
-  // specs/plugins-phase-3a-online-payment.md rule 22 — without a provider the request leaves as an
+  // specs/plugins-phase-3a-online-payment.md rule 25 — without a provider the request leaves as an
   // email the operator reads first: the id of the template that reads well without a link, or null.
   requestTemplateId = (type, requestSent) => {
     const { draftTemplateFor } = require('../utils/paymentRequestDraft');
@@ -151,6 +151,28 @@ function buildController({
     },
 
     /**
+     * GET /api/dashboard/repaired-reservation-numbers
+     *
+     * The stays the boot repair numbered (specs/reservation-number-and-search.md rule 15), ready to
+     * render. Empty `alerts: []` once every one has been checked.
+     */
+    repairedReservationNumbers(req, res) {
+      return res.json({ alerts: injectedReservationsModel.listRepairedNumbers() });
+    },
+
+    /**
+     * POST /api/dashboard/repaired-reservation-numbers/:id/acknowledge
+     *
+     * « Vu » — the operator checked the stay; it leaves the card. 404 when it was not listed.
+     */
+    acknowledgeRepairedReservationNumber(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      if (!injectedReservationsModel.acknowledgeRepairedNumber(id)) return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.json({ ok: true });
+    },
+
+    /**
      * GET /api/dashboard/payment-deadlines
      *
      * Every direct reservation with a missed payment deadline (specs/payment-schedule-and-cancellation.md
@@ -174,7 +196,7 @@ function buildController({
       const canRequest = hasPaymentProvider();
       const rows = buildPaymentDeadlineRows(candidates, today).map((row) => {
         if (canRequest || !row.remindType) return row;
-        // Rule 22: no payment link to mint, so « Envoyer la demande » opens the request email as a draft.
+        // Rule 25: no payment link to mint, so « Envoyer la demande » opens the request email as a draft.
         const templateId = requestTemplateId(row.remindType, Boolean(row.requestSent));
         return templateId
           ? { ...row, remindByEmail: true, remindTemplateId: templateId, remindNote: 'Aucun paiement en ligne : demande par email.' }

@@ -128,7 +128,7 @@ export default function OnboardingPage() {
     setFailure('');
     try {
       if (step === 1) {
-        // specs/hosting-h2-account-security.md rule 23 — the company email becomes the login of the
+        // specs/hosting-h2-account-security.md rule 27 — the company email becomes the login of the
         // bootstrap account; the step says so once.
         const saved = await api.saveOnboardingCompany(company);
         if (saved && saved.loginChanged) {

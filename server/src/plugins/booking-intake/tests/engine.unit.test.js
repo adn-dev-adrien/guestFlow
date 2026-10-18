@@ -83,7 +83,7 @@ test('specs/booking-extranet-intake.md rule 1: registered, it declares both moun
   const db = freshDb();
   const { record } = boot(db);
   assert.deepEqual(record.mounts.map((m) => [m.path, Boolean(m.public)]).sort(), [['/api/booking-intake', false], ['/public/booking-intake', true]]);
-  assert.deepEqual(record.settings.map((s) => [s.key, Boolean(s.secret)]), [['hotelIds', false], ['sourceKeys', false], ['key', true]]);
+  assert.deepEqual(record.settings.map((s) => [s.key, Boolean(s.secret)]), [['hotelIds', false], ['key', true]]);
   assert.deepEqual(record.data.tables, ['booking_intakes', 'booking_dismissals']);
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'booking_intakes'").get());
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'booking_dismissals'").get());
@@ -99,22 +99,19 @@ test('specs/booking-extranet-intake.md rule 1: not live until activated, and the
   assert.ok(record.mounts.filter((m) => m.public).every((m) => m.path.startsWith('/public/')));
 });
 
-test('specs/booking-extranet-intake.md rule 12: the settings refuse a hotel map or source list that is not what the plugin reads', () => {
+test('specs/booking-extranet-intake.md rule 12: the settings refuse a hotel map that is not what the plugin reads', () => {
   const { record } = boot(freshDb());
   const check = (key, value) => record.settings.find((s) => s.key === key).validate(value);
   assert.equal(check('hotelIds', '{"1":"14407976"}'), null);
   assert.match(check('hotelIds', '{"1":"abc"}'), /chiffres/);
   assert.match(check('hotelIds', '[1]'), /chiffres/);
   assert.match(check('hotelIds', 'nope'), /chiffres/);
-  assert.equal(check('sourceKeys', '["booking","lodgify"]'), null);
-  assert.match(check('sourceKeys', '"booking"'), /illisible/);
-  assert.match(check('sourceKeys', '[1]'), /illisible/);
 });
 
 test('specs/booking-extranet-intake.md rule 2: the secret is stored encrypted and the HTTP view only says whether it is set', () => {
   const db = freshDb();
   const { settingsModel, record } = boot(db);
-  assert.deepEqual(settingsModel.httpView('booking-intake', record.settings), { hotelIds: '{}', sourceKeys: '["booking","lodgify"]', keySet: false });
+  assert.deepEqual(settingsModel.httpView('booking-intake', record.settings), { hotelIds: '{}', keySet: false });
   settingsModel.set('booking-intake', 'key', 'plain-secret', { secret: true });
   const view = settingsModel.httpView('booking-intake', record.settings);
   assert.equal(view.keySet, true);

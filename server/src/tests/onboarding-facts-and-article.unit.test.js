@@ -1,7 +1,7 @@
-// specs/guest-email-texts-made-simple.md rules 27–31 — the start assistant on a fresh instance:
-// rule 27 nothing is asserted to a guest that the owner did not say (deposit, cleaning, towels, bed linen),
-// rule 28 its property is edited, never created twice, rule 29 the article comes from the name,
-// rule 30 the sample stay keeps the property's times, rule 31 the key-box code has its own field.
+// specs/guest-email-texts-made-simple.md rules 28–32 — the start assistant on a fresh instance:
+// rule 28 nothing is asserted to a guest that the owner did not say (deposit, cleaning, towels, bed linen),
+// rule 29 its property is edited, never created twice, rule 30 the article comes from the name,
+// rule 31 the sample stay keeps the property's times, rule 32 the key-box code has its own field.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -56,7 +56,7 @@ function render(db, propertyId, stableKey) {
   return renderTemplate({ subject: template.subject, body: template.body }, context);
 }
 
-test('rule 27: a property made by the assistant has no deposit and four facts left unsaid', async () => {
+test('rule 28: a property made by the assistant has no deposit and four facts left unsaid', async () => {
   const { db, controller } = setup();
   const res = await call(controller.saveProperty, { body: PROPERTY });
   assert.equal(res.status, 200);
@@ -70,7 +70,7 @@ test('rule 27: a property made by the assistant has no deposit and four facts le
   assert.doesNotMatch(j7, /serviettes/i);
 });
 
-test('rule 27: what is still unsaid is listed, and answering it in « Vos emails » brings the sentences back', async () => {
+test('rule 28: what is still unsaid is listed, and answering it in « Vos emails » brings the sentences back', async () => {
   const { db, controller, settingsModel } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   const readiness = () => buildReadiness({ database: db, settingsModel }).compute().items.map((i) => i.id);
@@ -89,7 +89,7 @@ test('rule 27: what is still unsaid is listed, and answering it in « Vos emails
   assert.deepEqual([emails.caution, emails.cleaningIncluded, emails.towelsProvided, emails.bedLinenProvided, emails.pending], [300, false, false, false, []]);
 });
 
-test('rule 27: an untouched step answers nothing; a negative deposit is refused', async () => {
+test('rule 28: an untouched step answers nothing; a negative deposit is refused', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   await call(controller.saveEmails, { body: { properties: [{ id, address: '1 place du Lac' }] } });
@@ -99,7 +99,7 @@ test('rule 27: an untouched step answers nothing; a negative deposit is refused'
   assert.equal(refused.body.errors['properties.0.caution'], 'Un montant ≥ 0 €');
 });
 
-test('rule 27: a property that existed before keeps every sentence (nothing pending)', () => {
+test('rule 28: a property that existed before keeps every sentence (nothing pending)', () => {
   const db = freshDb();
   db.prepare("INSERT INTO properties (id, name, nameArticle, defaultCautionAmount) VALUES (1, 'La Granja', 'à', 400)").run();
   const p = db.prepare('SELECT * FROM properties WHERE id = 1').get();
@@ -107,7 +107,7 @@ test('rule 27: a property that existed before keeps every sentence (nothing pend
   assert.match(render(db, 1, 'arrival_reminder_1d').body, /caution de 400,00 €/);
 });
 
-test('rule 27: saving the property page answers only the facts it sends', async () => {
+test('rule 28: saving the property page answers only the facts it sends', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   const model = propertiesModelModule.buildModel(db);
@@ -118,7 +118,7 @@ test('rule 27: saving the property page answers only the facts it sends', async 
   assert.deepEqual({ ...p }, { pendingFacts: '', towelsProvided: 1, cleaningIncluded: null });
 });
 
-test('rule 28: « Précédent » then « Suivant », or the assistant reopened, edits its property', async () => {
+test('rule 29: « Précédent » then « Suivant », or the assistant reopened, edits its property', async () => {
   const { db, controller } = setup();
   const first = await call(controller.saveProperty, { body: PROPERTY });
   const again = await call(controller.saveProperty, { body: { ...PROPERTY, name: 'La Bergerie', pricePerNight: '120' } });
@@ -133,7 +133,7 @@ test('rule 28: « Précédent » then « Suivant », or the assistant reopened, 
   assert.equal(property.draft.checkIn, '16:30');
 });
 
-test('rule 28: an instance that already has properties gets none from the assistant', async () => {
+test('rule 29: an instance that already has properties gets none from the assistant', async () => {
   const { db, controller } = setup();
   db.prepare("INSERT INTO properties (name) VALUES ('Gite'), ('Aventura lodge')").run();
   const res = await call(controller.saveProperty, { body: PROPERTY });
@@ -143,7 +143,7 @@ test('rule 28: an instance that already has properties gets none from the assist
   assert.deepEqual((await call(controller.get, {})).body.property, { id: null, existing: 2, draft: null });
 });
 
-test('rule 29: the article follows the name; no « à l\'Gite », no « au Le Fournil »', () => {
+test('rule 30: the article follows the name; no « à l\'Gite », no « au Le Fournil »', () => {
   assert.deepEqual(propertyArticle.derive('Le Fournil'), { article: 'au', certain: true });
   assert.deepEqual(propertyArticle.derive('La Bergerie'), { article: 'à la', certain: true });
   assert.deepEqual(propertyArticle.derive('Les Pins'), { article: 'aux', certain: true });
@@ -161,7 +161,7 @@ test('rule 29: the article follows the name; no « à l\'Gite », no « au Le Fo
   assert.deepEqual(propertyArticle.choices('Le Fournil'), [{ value: 'au', label: 'au Fournil' }]);
 });
 
-test('rule 29: a name holding its article is confirmed at once; any other one is left to choose', async () => {
+test('rule 30: a name holding its article is confirmed at once; any other one is left to choose', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   assert.deepEqual({ ...db.prepare('SELECT nameArticle, nameArticleConfirmed FROM properties WHERE id = ?').get(id) }, { nameArticle: 'au', nameArticleConfirmed: 1 });
@@ -176,13 +176,13 @@ test('rule 29: a name holding its article is confirmed at once; any other one is
   assert.ok(readiness.includes(`property.article:${created.body.id}`));
 });
 
-test('rule 32: the neutral J-7 subject names the stay with its article', async () => {
+test('rule 33: the neutral J-7 subject names the stay with its article', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: { ...PROPERTY, name: 'La Bergerie' } });
   assert.equal(render(db, id, 'arrival_reminder_7d').subject, 'Plus qu\'une semaine avant votre séjour à la Bergerie');
 });
 
-test('rule 30: the sample stay of the preview arrives and leaves at the property\'s own times', async () => {
+test('rule 31: the sample stay of the preview arrives and leaves at the property\'s own times', async () => {
   const { db, controller } = setup();
   await call(controller.saveProperty, { body: PROPERTY });
   const { buildDraftPreview } = require('../utils/emailDraftPreview');
@@ -200,7 +200,7 @@ test('rule 30: the sample stay of the preview arrives and leaves at the property
   assert.deepEqual({ ...seen }, { checkInTime: '16:30', checkOutTime: '11:00' });
 });
 
-test('rule 31: the code typed in « Vos emails » is kept apart, encrypted, and never in the file', async () => {
+test('rule 32: the code typed in « Vos emails » is kept apart, encrypted, and never in the file', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   await call(controller.saveEmails, { body: { properties: [{ id, access: 'Boîte à clés à gauche de la porte.', accessCode: '4821' }] } });

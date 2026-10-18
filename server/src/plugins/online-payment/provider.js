@@ -5,7 +5,9 @@
  * built from what Qonto answers.
  */
 
-const { withQonto } = require('./qonto/qontoService');
+const sdk = require('../sdk');
+
+const { withQonto } = sdk.coreModule('qonto').qontoService;
 
 /**
  * @param {object} [deps]

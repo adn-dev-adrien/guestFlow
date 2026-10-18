@@ -15,7 +15,7 @@
  */
 
 const supportAccess = require('../utils/supportAccess');
-const { describe } = require('../utils/supportLogLabels');
+const { journal } = require('../utils/supportLogLabels');
 const { httpError } = require('../utils/httpError');
 const { ADMIN, userHasRole } = require('../constants/roles');
 
@@ -122,11 +122,7 @@ function createSupportAccessController({
     assertEnabled();
     if (!model.get(id)) throw httpError(404, 'NOT_FOUND', 'Accès introuvable.');
     return {
-      entries: model.logs(id).map((l) => ({
-        at: l.at,
-        atLabel: parisDateTime(l.at),
-        ...describe(l),
-      })),
+      entries: journal(model.logs(id)).map((l) => ({ ...l, atLabel: parisDateTime(l.at) })),
     };
   }
 

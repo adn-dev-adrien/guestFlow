@@ -27,7 +27,7 @@ const NEW_DEFAULTS = {
   singleBeds: 0, doubleBeds: 1,
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   depositEnabled: false,
-  // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 27).
+  // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
   defaultCautionAmount: 0,
   parkingDistanceMeters: 0, hasWifi: true,
   cleaningIncluded: 'options', towelsProvided: 'options', bedLinenProvided: 'options', poolSeasonStart: '', poolSeasonEnd: '',
@@ -61,11 +61,11 @@ export const FIELD_TAB = {
   cleaningIncluded: 'sejour', towelsProvided: 'sejour', bedLinenProvided: 'sejour', poolSeasonStart: 'sejour', poolSeasonEnd: 'sejour',
 };
 
-// specs/guest-email-texts-made-simple.md rule 27 — a fact the start assistant could not know shows
+// specs/guest-email-texts-made-simple.md rule 28 — a fact the start assistant could not know shows
 // empty, and is sent only once answered: an untouched empty field leaves the emails silent on it.
 const PENDING_FIELDS = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
 const choiceOf = (flag) => (flag == null ? 'options' : String(Number(flag)));
-// Rule 29 (2026-10-18) — the article is sent only once chosen: an untouched one is not confirmed.
+// Rule 30 (2026-10-18) — the article is sent only once chosen: an untouched one is not confirmed.
 export function propertyFormData(form, original = {}) {
   const fd = new FormData();
   Object.entries(form).forEach(([k, v]) => {
@@ -77,7 +77,7 @@ export function propertyFormData(form, original = {}) {
   return fd;
 }
 
-// The « Arrivée » fields saved with the page (rule 34): plain ones, and the two secrets, sent only
+// The « Arrivée » fields saved with the page (rule 35): plain ones, and the two secrets, sent only
 // when typed.
 const ARRIVAL_PLAIN = ['address', 'mapUrl', 'accessFr', 'accessEn', 'wifiName'];
 const arrivalDraftOf = (facts) => ({
@@ -301,7 +301,7 @@ export default function PropertyDetail() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Rule 29 (2026-10-18) — the articles as the emails write them, from the server (it contracts
+  // Rule 30 (2026-10-18) — the articles as the emails write them, from the server (it contracts
   // « au Le Fournil » into « au Fournil »), following the name as it is typed.
   const [articleLabels, setArticleLabels] = useState([]);
   const typedName = form.name || '';

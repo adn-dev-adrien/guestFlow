@@ -14,6 +14,6 @@ import TranslationCatalogueCard from '../TranslationCatalogueCard';
 test('rule 20: the explanation speaks to no one', async () => {
   api.getTranslationSummary.mockResolvedValue({ languages: ['fr', 'en'], total: 60, untranslated: { en: 12 }, needsReview: 3 });
   render(<TranslationCatalogueCard />);
-  expect(await screen.findByText(/Traductions dans un fichier : le télécharger/)).toBeInTheDocument();
+  expect(await screen.findByText(/Traductions : télécharger le fichier/)).toBeInTheDocument();
   expect(document.body.textContent).not.toMatch(/télécharge-le|remplis|ajoute simplement/);
 });

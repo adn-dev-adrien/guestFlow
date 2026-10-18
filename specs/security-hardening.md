@@ -88,6 +88,12 @@ uploads, and authoritative money validation at every write boundary.
 11. No secret (password, private key, session secret, encryption key) is ever logged. Verified; a short
     helper/convention documented to keep it that way.
 
+**Added 2026-10-18**
+12. **`connect-src` allows `https://geo.api.gouv.fr`, and only it beside `'self'`.** The postcode → city
+    autocomplete of the client forms (fiche and Clients page) calls `geo.api.gouv.fr/communes` from the
+    browser; with `connect-src 'self'` the production CSP blocked it, so the city list stayed empty
+    (review 2026-10-18, F7). The origin is exact (scheme + host, no wildcard).
+
 **Edge cases**
 - Legitimate burst (saving a reservation with many sub-requests) stays well under 300/15min.
 - iCal export polled frequently by an external service is not throttled out.

@@ -29,6 +29,8 @@ const SELF_ENDPOINTS = new Set([
   '/users/me',
   '/users/me/email-status',
   '/version',
+  // The server's date (specs/ds-sweep-planning.md rule 28): every home page starts from it.
+  '/today',
 ]);
 
 // specs/cancellation-compensation.md §6.3 — the accountant reads the compensations, on the core page

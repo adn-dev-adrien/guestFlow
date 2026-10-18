@@ -6,7 +6,7 @@
  *   PUT  /api/onboarding/company    { name, email, phone, address, siret } → 200 { company, loginEmail, loginChanged } | 422 { errors }
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
- *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 28)
+ *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 29)
  *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error }] }
  *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, accessCode,
  *                                     wifiName, wifiPassword, caution, cleaningIncluded, towelsProvided,
@@ -82,7 +82,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
       return {
         id: p.id,
         name: p.name,
-        // Rule 29 — an article nobody chose is not shown as chosen.
+        // Rule 30 — an article nobody chose is not shown as chosen.
         nameArticle: Number(p.nameArticleConfirmed || 0) === 1 ? (p.nameArticle || 'au') : null,
         // The articles worth offering for this name, as the guest will read them: « au Fournil »…
         articles: propertyArticle.choices(p.name),
@@ -92,7 +92,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
         hasWifi: Number(p.hasWifi == null ? 1 : p.hasWifi) !== 0,
         wifiName: facts.wifiName,
         hasWifiPassword: facts.hasWifiPassword,
-        // Rule 27 — what the emails say about the deposit, the cleaning and the towels; null while
+        // Rule 28 — what the emails say about the deposit, the cleaning and the towels; null while
         // nobody answered.
         caution: pending.has('caution') ? null : Number(p.defaultCautionAmount || 0),
         ...Object.fromEntries(FLAG_FACTS.map(([field, fact]) => [field, pending.has(fact) ? null : answeredFlag(p[field])])),
@@ -107,7 +107,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     };
   }
 
-  // Rule 28 — the property the assistant created, so step 2 edits it instead of adding a second one.
+  // Rule 29 — the property the assistant created, so step 2 edits it instead of adding a second one.
   function assistantProperty() {
     let id = null;
     try { id = (database.prepare('SELECT onboardingPropertyId AS id FROM app_settings ORDER BY id LIMIT 1').get() || {}).id; } catch { id = null; }
@@ -115,7 +115,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     return database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(id)) || null;
   }
 
-  // Rule 28 (2026-10-18) — the rule the assistant created with the property is its first one; the
+  // Rule 29 (2026-10-18) — the rule the assistant created with the property is its first one; the
   // seasons added since are the owner's, and the assistant never writes them.
   function assistantRule(propertyId) {
     return database.prepare('SELECT id, pricePerNight FROM pricing_rules WHERE propertyId = ? ORDER BY id LIMIT 1').get(propertyId) || null;
@@ -172,7 +172,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
         if (p.nameArticle !== undefined) {
           database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(p.nameArticle, id);
         }
-        // Rule 27 — an answered fact is stored and leaves the pending list.
+        // Rule 28 — an answered fact is stored and leaves the pending list.
         const answered = [];
         if (p.caution !== undefined && p.caution !== null) {
           database.prepare('UPDATE properties SET defaultCautionAmount = ? WHERE id = ?').run(Number(String(p.caution).replace(',', '.')), id);
@@ -192,7 +192,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
         // The company's address left as it was stays derived, so a later change of it follows.
         if (p.address !== undefined) patch.address = String(p.address).trim() === companyAddress ? '' : p.address;
         if (p.access !== undefined) patch.accessFr = p.access;
-        // Rule 31 — the code has its own field, kept encrypted, out of the texts and the file.
+        // Rule 32 — the code has its own field, kept encrypted, out of the texts and the file.
         if (p.accessCode !== undefined && p.accessCode !== '') patch.accessCode = p.accessCode;
         if (p.wifiName !== undefined) patch.wifiName = p.wifiName;
         if (p.wifiPassword !== undefined && p.wifiPassword !== '') patch.wifiPassword = p.wifiPassword;
@@ -203,7 +203,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
   }
 
   /**
-   * specs/hosting-h2-account-security.md rule 23 — the bootstrap login (`admin@guestflow.local`) is
+   * specs/hosting-h2-account-security.md rule 27 — the bootstrap login (`admin@guestflow.local`) is
    * nobody's mailbox: the company email typed at step 1 becomes the administrator's login, so « Mot de
    * passe oublié » reaches someone. Any other login is the owner's own choice and is kept. Returns the
    * login after the step.
@@ -259,7 +259,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
       if (b[key] && !/^\d{2}:\d{2}$/.test(String(b[key]))) errors[field] = 'Heure invalide';
     }
     if (Object.keys(errors).length) return res.status(422).json({ errors });
-    // Rule 28 — « Précédent » then « Suivant », or the assistant opened again: the property it created
+    // Rule 29 — « Précédent » then « Suivant », or the assistant opened again: the property it created
     // is edited, never created twice; an instance that already has properties gets none from it.
     const own = assistantProperty();
     if (own) {
@@ -280,7 +280,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     }
     const refusal = quotaRefusal('units', () => propertiesModel.count());
     if (refusal) return res.status(402).json(refusal);
-    // Rule 29 — a name that says its article is not asked for one; rule 27 — the deposit, the cleaning
+    // Rule 30 — a name that says its article is not asked for one; rule 28 — the deposit, the cleaning
     // and the towels are not asked here, so the emails say nothing of them until they are answered.
     const article = propertyArticle.derive(body.name);
     const created = await propertiesModel.create({ ...body, nameArticle: article.article, pricePerNight: price, defaultCautionAmount: 0 });

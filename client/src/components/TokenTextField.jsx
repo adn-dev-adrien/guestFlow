@@ -22,7 +22,7 @@
  *   autoFocus              focus the French field on mount (an editor opened from a compact row)
  *   minRows                rows of each field (1 by default; a template body asks more)
  *
- * A variable is one unit (specs/guest-email-texts-made-simple.md rule 26): the caret never stops
+ * A variable is one unit (specs/guest-email-texts-made-simple.md rule 27): the caret never stops
  * inside ⟦…⟧ (it selects the whole of it), and Backspace or Delete next to it removes it whole, so
  * no half-variable can be left for the guest to read.
  *

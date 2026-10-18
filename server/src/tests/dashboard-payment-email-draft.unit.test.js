@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 22 — without online payment, a row « à demander » keeps
+// specs/plugins-phase-3a-online-payment.md rule 25 — without online payment, a row « à demander » keeps
 // its « Envoyer la demande »: the request leaves as an email the operator reads first, on a template
 // that reads well without a link; a reminder sent that way counts as asked.
 
@@ -24,7 +24,7 @@ const TEMPLATES = [
   { id: 4, stableKey: 'deposit_reminder', enabled: 0, body: 'Relance' },
 ];
 
-test('rule 22: the template must read without a link; the request first, the reminder once asked', () => {
+test('rule 25: the template must read without a link; the request first, the reminder once asked', () => {
   assert.equal(draftTemplateFor(TEMPLATES, 'balance', false), 2, 'the request prints a bare link: the reminder');
   assert.equal(draftTemplateFor(TEMPLATES, 'deposit', false), 3);
   assert.equal(draftTemplateFor(TEMPLATES, 'deposit', true), null, 'a disabled reminder is not offered');
@@ -32,7 +32,7 @@ test('rule 22: the template must read without a link; the request first, the rem
   assert.equal(draftTemplateFor([], 'balance', false), null);
 });
 
-test('rule 22: without a provider the row offers the email draft, with a short reason', async () => {
+test('rule 25: without a provider the row offers the email draft, with a short reason', async () => {
   const build = (has, templateId) => buildController({
     reservationsModel: { listPaymentDeadlineCandidates: () => [ROW], getPlatform: () => 'direct' },
     hasPaymentProvider: () => has,
@@ -51,7 +51,7 @@ test('rule 22: without a provider the row offers the email draft, with a short r
   assert.equal(on.body.rows[0].remindByEmail, undefined, 'with a provider the link is minted as before');
 });
 
-test('rule 22: a reminder sent by hand marks the solde as asked', () => {
+test('rule 25: a reminder sent by hand marks the solde as asked', () => {
   const Database = require('better-sqlite3');
   const db = new Database(':memory:');
   db.exec(`

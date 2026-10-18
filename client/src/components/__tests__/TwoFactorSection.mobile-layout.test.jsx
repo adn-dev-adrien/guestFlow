@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 25 — the « Second code » method picker is one column on
+// specs/hosting-h2-account-security.md rule 29 — the « Second code » method picker is one column on
 // a phone and one row above, in sentence case: never a broken staircase of uppercase buttons.
 import React from 'react';
 import { vi } from 'vitest';
@@ -22,7 +22,7 @@ let orig;
 beforeEach(() => { orig = window.matchMedia; api.getTwoFactorStatus.mockResolvedValue(STATUS); });
 afterEach(() => { window.matchMedia = orig; });
 
-test('rule 25: on a phone the two methods stack, full width', async () => {
+test('rule 29: on a phone the two methods stack, full width', async () => {
   window.matchMedia = media(true);
   render(<TwoFactorSection account="marie@x.fr" />);
   const group = await screen.findByRole('group', { name: 'Méthode du second code' });
@@ -31,7 +31,7 @@ test('rule 25: on a phone the two methods stack, full width', async () => {
   expect(screen.getByRole('button', { name: 'Appli d’authentification' })).toHaveStyle({ textTransform: 'none' });
 });
 
-test('rule 25: above a phone they sit on one row', async () => {
+test('rule 29: above a phone they sit on one row', async () => {
   window.matchMedia = media(false);
   render(<TwoFactorSection account="marie@x.fr" />);
   const group = await screen.findByRole('group', { name: 'Méthode du second code' });

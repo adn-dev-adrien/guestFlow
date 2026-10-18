@@ -303,7 +303,7 @@ export default function OptionRow({ opt }) {
                 value={servedPersons}
                 onCommit={(v) => setOptionCardPersons(opt.id, v)}
                 disabled={isReservationLocked}
-                helperText="Par défaut toute la tablée — baissez-la si tout le monde ne mange pas."
+                helperText="Par défaut toute la tablée."
                 sx={{ width: { xs: '100%', sm: 240 } }}
               />
             ) : opt.showsPlanningCard || hasNoQuantity ? (

@@ -108,7 +108,7 @@ test('bed configuration and the included nordic-bath duration', () => {
   assert.equal(content({ facts: { ...GRANJA, bathFreeMinutes: 0 } }).flags.hasBathIncluded, false);
 });
 
-// specs/guest-email-texts-made-simple.md rule 33 — the season is the property's, not the instance's.
+// specs/guest-email-texts-made-simple.md rule 34 — the season is the property's, not the instance's.
 test('pool: mentioned only when the stay overlaps the season of the property', () => {
   assert.equal(content().flags.stayOverlapsPool, true);
   assert.equal(content({ reservation: { startDate: '2027-10-02', endDate: '2027-10-04' } }).flags.stayOverlapsPool, false);

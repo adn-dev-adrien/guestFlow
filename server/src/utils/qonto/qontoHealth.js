@@ -22,8 +22,8 @@ const STATES = {
   not_configured: {
     ok: false,
     title: 'Identifiants manquants',
-    explanation: "GuestFlow n'a pas le Client ID et le Client secret de ton application Qonto.",
-    action: 'Renseigne-les ci-dessus, depuis developers.qonto.com → Business API access, puis enregistre.',
+    explanation: "Client ID et Client secret de l'application Qonto absents.",
+    action: 'À recopier ci-dessus depuis developers.qonto.com → Business API access, puis enregistrer.',
   },
   credentials_rejected: {
     ok: false,
@@ -31,39 +31,39 @@ const STATES = {
     explanation:
       "Qonto ne reconnaît pas le couple Client ID / Client secret. C'est ce qui arrive quand Qonto régénère le secret de l'application.",
     action:
-      'Recopie le Client ID et le Client secret depuis developers.qonto.com → Business API access, enregistre, puis relance le test.',
+      'Recopier le Client ID et le Client secret depuis developers.qonto.com → Business API access, enregistrer, puis relancer le test.',
   },
   reauth_required: {
     ok: false,
     title: 'Autorisation à renouveler',
     explanation:
       "Les identifiants sont bons, mais l'autorisation donnée à GuestFlow n'est plus valable (expirée, révoquée, ou jamais accordée).",
-    action: 'Clique « Connexion » et accepte l\'accès dans la fenêtre Qonto.',
+    action: '« Connexion », puis accepter l\'accès chez Qonto.',
   },
   provider_not_connected: {
     ok: false,
     title: 'Provider de liens non activé',
     explanation:
       "La connexion bancaire fonctionne, mais le compte n'est pas encore relié au provider qui encaisse les paiements par carte.",
-    action: 'Renseigne le formulaire « Connexion du provider de liens » plus bas.',
+    action: 'Formulaire « Connexion du provider de liens » plus bas.',
   },
   unreachable: {
     ok: false,
     title: 'Qonto injoignable',
     explanation: "Le serveur n'a pas réussi à joindre Qonto (réseau, DNS ou certificat).",
-    action: 'Vérifie la connexion réseau du serveur, puis relance le test.',
+    action: 'Vérifier la connexion réseau du serveur, puis relancer le test.',
   },
   api_error: {
     ok: false,
     title: 'Qonto a renvoyé une erreur',
     explanation: 'Qonto a répondu, mais en erreur. Le détail est repris ci-dessous.',
-    action: 'Relance le test dans quelques minutes ; si ça persiste, contacte le support Qonto avec ce détail.',
+    action: 'Relancer le test dans quelques minutes ; si l\'erreur persiste, transmettre ce détail au support Qonto.',
   },
   unverified: {
     ok: false,
     title: 'À vérifier',
     explanation: "Les identifiants sont là et une autorisation est enregistrée, mais aucun appel réel n'a encore confirmé que ça marche.",
-    action: 'Clique « Test ».',
+    action: '« Test » pour le confirmer.',
   },
 };
 

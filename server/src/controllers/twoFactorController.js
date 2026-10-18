@@ -211,9 +211,15 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
     };
   }
 
+  const activeUser = (userId) => {
+    const user = users.findById(userId);
+    return user && user.isActive && !user.isSupport ? user : null;
+  };
+
   // → { user, notice } — `user` is the safe user to put in the session.
   function verifyLogin(userId, { code } = {}) {
-    const user = users.findById(userId);
+    // A user deactivated between the password and the code is refused (specs/security-auth-encryption.md rule 3).
+    const user = activeUser(userId);
     const row = user && model.get(userId);
     if (!user || !row || !row.enabledAt) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnexion nécessaire.');
     assertNotLocked(row);
@@ -243,7 +249,7 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
   }
 
   async function resendLogin(userId) {
-    const user = users.findById(userId);
+    const user = activeUser(userId);
     const row = user && model.get(userId);
     if (!user || !row || !row.enabledAt) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnexion nécessaire.');
     if (row.method !== 'email') throw httpError(400, 'NOT_EMAIL', 'Méthode : appli d’authentification.');

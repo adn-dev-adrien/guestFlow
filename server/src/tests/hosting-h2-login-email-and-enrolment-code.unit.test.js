@@ -1,6 +1,6 @@
-// specs/hosting-h2-account-security.md rules 23–24 — the bootstrap login becomes the company email of
-// the start assistant, so « Mot de passe oublié » reaches someone (rule 23); the code that confirmed
-// an authenticator app cannot also open a session in the same step (rule 24).
+// specs/hosting-h2-account-security.md rules 27–28 — the bootstrap login becomes the company email of
+// the start assistant, so « Mot de passe oublié » reaches someone (rule 27); the code that confirmed
+// an authenticator app cannot also open a session in the same step (rule 28).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -34,7 +34,7 @@ function onboarding(users) {
 
 const COMPANY = { name: 'Les Cabanes du Lac', email: 'Contact@Cabanes-du-Lac.fr', phone: '', address: '', siret: '' };
 
-test('rule 23: the bootstrap login becomes the company email typed at step 1', async () => {
+test('rule 27: the bootstrap login becomes the company email typed at step 1', async () => {
   const h = setup();
   const admin = h.addUser(DEFAULT_ADMIN_EMAIL);
   const res = await call(onboarding(h.users).saveCompany, { body: COMPANY, user: admin });
@@ -49,7 +49,7 @@ test('rule 23: the bootstrap login becomes the company email typed at step 1', a
   assert.equal(h.mailer.sent[0].to, 'contact@cabanes-du-lac.fr');
 });
 
-test('rule 23: a login the owner chose, or an address another account holds, is kept', async () => {
+test('rule 27: a login the owner chose, or an address another account holds, is kept', async () => {
   const h = setup();
   const own = h.addUser('claire@exemple.fr');
   const kept = await call(onboarding(h.users).saveCompany, { body: COMPANY, user: own });
@@ -63,7 +63,7 @@ test('rule 23: a login the owner chose, or an address another account holds, is 
   assert.deepEqual([clash.body.loginEmail, clash.body.loginChanged], [DEFAULT_ADMIN_EMAIL, false]);
 });
 
-test('rule 24: the code that confirmed the enrolment does not open a session in the same step', async () => {
+test('rule 28: the code that confirmed the enrolment does not open a session in the same step', async () => {
   const h = setup();
   const marie = h.addUser('marie@domaine-ombre.fr');
   const started = await h.twoFactor.start(marie, { method: 'totp', password: 'correct horse battery' });

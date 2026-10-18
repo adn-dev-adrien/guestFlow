@@ -3,7 +3,7 @@
  *
  * The settings the guest emails quote (specs/guest-email-sequence.md §6.2): the review and Instagram
  * links of the J+1 email. The pool season belongs to the property that has the pool (Logement ›
- * Séjour, specs/guest-email-texts-made-simple.md rule 33). Whether an email leaves by itself
+ * Séjour, specs/guest-email-texts-made-simple.md rule 34). Whether an email leaves by itself
  * is not decided here any more: each template has its own mode (specs/settings-rationalization.md
  * rule 17b).
  *

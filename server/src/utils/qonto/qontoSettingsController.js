@@ -20,14 +20,14 @@
  */
 
 const crypto = require('crypto');
-const { DEFAULT_SCOPES } = require('./qonto/qontoClient');
+const { DEFAULT_SCOPES } = require('./qontoClient');
 const {
   buildConfiguredQontoClient, withQonto, runQontoConnectionTest,
   qontoCredentialsPayload, qontoStatusPayload, applyQontoCredentials,
-} = require('./qonto/qontoService');
-const { resolveQontoConfig } = require('./qonto/qontoConfig');
-const { ensureWebhookSubscription } = require('./qonto/qontoWebhookRegistrar');
-const { validateProviderConnection } = require('./qonto/paymentProviderValidation');
+} = require('./qontoService');
+const { resolveQontoConfig } = require('./qontoConfig');
+const { ensureWebhookSubscription } = require('./qontoWebhookRegistrar');
+const { validateProviderConnection } = require('./paymentProviderValidation');
 
 const SETTINGS_PAGE_PATH = '/parametres/paiements';
 
@@ -49,7 +49,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   function qontoAuthorize(req, res) {
     const config = qontoConfig();
     if (!config.configured) {
-      return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto (client id/secret) manquants — renseigne-les dans Réglages → Paiements.' });
+      return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto manquants (Réglages › Paiements).' });
     }
     const client = buildConfiguredQontoClient({ settings, env, config });
     const redirectUri = config.redirectUri;
@@ -146,9 +146,9 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   // Map an internal error to a clean HTTP response (never leak the Qonto body to the client).
   function qontoError(res, err) {
     if (err && err.code === 'QONTO_NOT_CONNECTED') {
-      return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Connecte d'abord Qonto (OAuth) avant la connexion du provider." });
+      return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Qonto à connecter d'abord (OAuth), avant le provider." });
     }
-    return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto — réessaie ou consulte les logs." });
+    return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto : à réessayer, détail dans les journaux." });
   }
 
   // Resolve a valid access token (refreshing if needed) then run `fn(client, accessToken)`. Goes

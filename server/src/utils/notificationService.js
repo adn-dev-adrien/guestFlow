@@ -233,8 +233,9 @@ function buildNotificationService({
     }
   }
 
-  // `origin` — 'payment' (a paid online booking landed on taken dates) or 'ical' (a Booking.com feed
-  // event overlaps nights already held, specs/lodgify-decommission.md §3 rule 8).
+  // `origin` — 'payment' (a paid online booking landed on taken dates) or 'ical' (a feed event overlaps
+  // nights already held, specs/lodgify-decommission.md §3 rule 8, every feed since
+  // specs/ical-import-hardening.md rule 3).
   const CONFLICT_COPY = {
     payment: {
       title: 'Conflit de dates — paiement en ligne',
@@ -244,18 +245,26 @@ function buildNotificationService({
         'Action requise : remboursement ou relogement.',
       ],
     },
-    ical: {
-      title: 'Conflit de dates — flux Booking',
-      lines: [
-        'Le flux iCal de Booking.com annonce un séjour qui chevauche des nuits déjà prises dans GuestFlow.',
-        'La réservation Booking a été créée pour ne rien perdre : ce peut être deux séjours accolés ou un surbooking.',
-        'Action requise : vérifier dans l\'extranet Booking, puis supprimer le doublon ou reloger.',
-      ],
+    // specs/ical-import-hardening.md rule 3 — any feed, not only Booking's: the platform is named.
+    ical: (resa) => {
+      const platform = String(resa.platform || resa.sourceName || '').trim() || 'iCal';
+      return {
+        title: `Conflit de dates — flux ${platform}`,
+        lines: [
+          `Le flux iCal ${platform} annonce un séjour qui chevauche des nuits déjà prises dans GuestFlow.`,
+          'La réservation a été créée pour ne rien perdre : ce peut être deux séjours accolés ou un surbooking.',
+          `Action requise : vérifier sur ${platform}, puis supprimer le doublon ou reloger.`,
+        ],
+      };
     },
+  };
+  const conflictCopy = (resa, origin) => {
+    const copy = CONFLICT_COPY[origin] || CONFLICT_COPY.payment;
+    return typeof copy === 'function' ? copy(resa) : copy;
   };
 
   function buildConflictEmail(resa, publicUrl, origin = 'payment') {
-    const copy = CONFLICT_COPY[origin] || CONFLICT_COPY.payment;
+    const copy = conflictCopy(resa, origin);
     const guest = `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
     const subject = `⚠️ ${copy.title} (${resa.propertyName || ''})`;
     const lines = [
@@ -277,7 +286,7 @@ function buildNotificationService({
       const resa = loadReservation(reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
       await pushNewReservation({
-        title: `⚠️ ${(CONFLICT_COPY[origin] || CONFLICT_COPY.payment).title}`,
+        title: `⚠️ ${conflictCopy(resa, origin).title}`,
         body: [`${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim(), resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · '),
         url: `/reservations/${Number(resa.id)}`,
       });
@@ -294,14 +303,27 @@ function buildNotificationService({
   // specs/plugins-phase-3a-online-payment.md rule 8 — a link GuestFlow had abandoned (stay cancelled,
   // amount replaced) but could not deactivate was paid anyway. Nothing is recorded on the stay: the
   // admin refunds from the provider. Best-effort: never throws.
-  function buildPaidAfterCancelEmail(resa, link, publicUrl) {
+  // Rule 23 — `settledOn`: the link was retired because its amount was already settled another way on
+  // that earlier day; the payment may be a second one, or the same money recorded by hand: to check.
+  const PAID_AFTER_CANCEL_TITLE = '⚠️ Paiement reçu sur un lien annulé';
+  const PAID_AFTER_SETTLED_TITLE = '⚠️ Paiement à vérifier sur un lien retiré';
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null } = {}) {
     const amount = (Number(link.amountCents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
-    const subject = `⚠️ Paiement reçu sur un lien annulé — ${ref} · ${amount}`;
+    const subject = `${settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE} — ${ref} · ${amount}`;
+    const intro = settledOn
+      ? [
+        `Un lien de paiement a été payé alors que ce montant était déjà noté réglé le ${settledOn.split('-').reverse().join('/')}.`,
+        'Le paiement n’est pas enregistré une seconde fois sur le séjour.',
+        'À vérifier : s’il s’agit d’un double paiement, le rembourser depuis l’espace du prestataire de paiement.',
+      ]
+      : [
+        'Un client a payé un lien de paiement que GuestFlow avait annulé mais n’avait pas pu désactiver.',
+        'Le paiement n’est pas enregistré sur le séjour.',
+        'Action requise : rembourser ce paiement depuis votre espace du prestataire de paiement.',
+      ];
     const lines = [
-      'Un client a payé un lien de paiement que GuestFlow avait annulé mais n’avait pas pu désactiver.',
-      'Le paiement n’est pas enregistré sur le séjour.',
-      'Action requise : rembourser ce paiement depuis votre espace du prestataire de paiement.',
+      ...intro,
       '',
       `Réservation : ${ref}`,
       `Montant : ${amount}`,
@@ -313,15 +335,16 @@ function buildNotificationService({
     return { subject, text: lines.join('\n') };
   }
 
-  async function notifyPaidAfterCancel(link) {
+  async function notifyPaidAfterCancel(link, options = {}) {
     try {
       const resa = loadReservation(link.reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
-      const { subject, text } = buildPaidAfterCancelEmail(resa, link, '');
-      await pushNewReservation({ title: '⚠️ Paiement reçu sur un lien annulé', body: subject.replace(/^⚠️ Paiement reçu sur un lien annulé — /, ''), url: `/reservations/${Number(resa.id)}` });
+      const title = options.settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE;
+      const { subject } = buildPaidAfterCancelEmail(resa, link, '', options);
+      await pushNewReservation({ title, body: subject.slice(`${title} — `.length), url: `/reservations/${Number(resa.id)}` });
       const ctx = resolveContext();
       if (ctx.skip) return { sent: false, skipped: ctx.skip };
-      const email = buildPaidAfterCancelEmail(resa, link, ctx.publicUrl);
+      const email = buildPaidAfterCancelEmail(resa, link, ctx.publicUrl, options);
       return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
     } catch (err) {
       logger.warn('[notificationService.notifyPaidAfterCancel]', err && err.message ? err.message : err);

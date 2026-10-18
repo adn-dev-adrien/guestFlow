@@ -6,6 +6,7 @@
 // still booked.
 
 const { shiftYear, shiftMonth, change } = require('./yearOverYear');
+const { nightKeys } = require('./financeOccupancy');
 
 const DAY = 86400000;
 const METRICS = ['reservations', 'nights', 'revenue'];
@@ -55,6 +56,12 @@ function wholeValue(stay, metric) {
 const roundFor = (metric, v) => (metric === 'revenue' ? round2(v) : Math.round(v));
 
 function onBooksIn(stays, ym, at, metric) {
+  // specs/finance-dashboard-redesign.md rule 35 — nights are distinct per logement: an iCal duplicate
+  // of a booking already on the books adds no night.
+  if (metric === 'nights') {
+    const monthEnd = addDays(`${ym}-01`, Math.round(monthLengthMs(ym) / DAY) - 1);
+    return nightKeys(stays.filter((s) => isOnBooks(s, at)), `${ym}-01`, monthEnd).size;
+  }
   let v = 0;
   for (const s of stays) if (isOnBooks(s, at)) v += valueInMonth(s, ym, metric);
   return roundFor(metric, v);

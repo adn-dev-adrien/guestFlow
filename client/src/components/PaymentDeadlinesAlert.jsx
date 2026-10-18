@@ -12,7 +12,7 @@
  * platform booking whose amount was never entered carries no figure to print at all, only the row's
  * link to the fiche where the operator types it.
  *
- * Without online payment (specs/plugins-phase-3a-online-payment.md rule 22) the server marks the row
+ * Without online payment (specs/plugins-phase-3a-online-payment.md rule 25) the server marks the row
  * `remindByEmail` with the template to use: « Envoyer la demande » then opens that email in the send
  * dialog, for the operator to read before it leaves.
  *

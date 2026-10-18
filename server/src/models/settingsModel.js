@@ -10,7 +10,7 @@
  *   updateLogoPath(path)        → single-column update of companyLogoPath
  *   smtpConfigured()            → true when smtpHost AND the resolved sending address are filled, or
  *                                  when a hosted instance has no host and the platform sends for it
- *   publicUrl()                 → the configured public URL (string, never null)
+ *   publicUrl()                 → the configured public URL, else GUESTFLOW_PUBLIC_URL (string, never null)
  *   decryptedSmtpSettings()     → { host, port, secure, user, password, fromEmail, fromName }
  *                                  with the password decrypted on the fly — used by the email
  *                                  service. Never exposed via HTTP.
@@ -122,6 +122,10 @@ const HTTP_MASKED_COLUMNS = {
   smtpPasswordEncrypted: 'smtpPasswordSet',
 };
 
+function effectivePublicUrl(row, env = process.env) {
+  return String((row && row.publicUrl) || '').trim() || String(env.GUESTFLOW_PUBLIC_URL || '').trim();
+}
+
 function createSettingsModel(databaseInstance) {
   // Filter `COLUMNS` against the actual `app_settings` schema so the model survives test DBs
   // (and partially-migrated prod DBs) that haven't yet added a column from the canonical list.
@@ -211,8 +215,11 @@ function createSettingsModel(databaseInstance) {
       return Boolean(resolveEmailIdentity(row).fromEmail);
     },
 
+    // The typed URL, else the one the hosting writes into the instance's environment
+    // (specs/hosting-h1-fleet-runtime.md rule 25): a hosted instance has its address from day one,
+    // and a rename moves it without anyone typing it again.
     publicUrl() {
-      return String(readRaw().publicUrl || '').trim();
+      return effectivePublicUrl(readRaw());
     },
 
     // Booking-notification config (specs/site-booking-notifications.md). Sender and recipient are
@@ -228,7 +235,7 @@ function createSettingsModel(databaseInstance) {
         icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
         recipientEmail: identity.recipient,
         fromEmail: identity.fromEmail,
-        publicUrl: String(row.publicUrl || '').trim(),
+        publicUrl: effectivePublicUrl(row),
       };
     },
 

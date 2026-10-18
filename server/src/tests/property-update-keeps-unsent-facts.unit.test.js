@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 27 and 29 (2026-10-18) — saving the property page
+// specs/guest-email-texts-made-simple.md rules 28 and 30 (2026-10-18) — saving the property page
 // never resets what it does not send: an empty deposit keeps the stored amount (no 500 € back), and an
 // article the form leaves out is neither changed nor confirmed.
 
@@ -18,7 +18,7 @@ function setup() {
 
 const row = (db, id) => db.prepare('SELECT defaultCautionAmount, nameArticle, nameArticleConfirmed, pendingFacts, cleaningIncluded FROM properties WHERE id = ?').get(id);
 
-test('rule 27: a property page saved without the deposit keeps it — pending stays 0 and pending', async () => {
+test('rule 28: a property page saved without the deposit keeps it — pending stays 0 and pending', async () => {
   const { db, model } = setup();
   const { id } = await model.create({ name: 'Le Fournil', defaultCautionAmount: 0 });
   db.prepare("UPDATE properties SET pendingFacts = 'caution,cleaning,towels,linen' WHERE id = ?").run(id);
@@ -30,7 +30,7 @@ test('rule 27: a property page saved without the deposit keeps it — pending st
   assert.equal(p.cleaningIncluded, 1);
 });
 
-test('rule 27: an emptied deposit on a configured property keeps the stored amount', async () => {
+test('rule 28: an emptied deposit on a configured property keeps the stored amount', async () => {
   const { db, model } = setup();
   const { id } = await model.create({ name: 'Aventura lodge', defaultCautionAmount: 400 });
   await model.update(id, { name: 'Aventura lodge', defaultCautionAmount: '' });
@@ -43,12 +43,12 @@ test('rule 27: an emptied deposit on a configured property keeps the stored amou
   assert.equal(row(db, id).defaultCautionAmount, 350.5);
 });
 
-test('rule 27: an empty deposit is not refused by the validation (it means « unchanged »)', () => {
+test('rule 28: an empty deposit is not refused by the validation (it means « unchanged »)', () => {
   assert.equal(validatePropertyInput({ defaultCautionAmount: '' }, null).defaultCautionAmount, undefined);
   assert.ok(validatePropertyInput({ defaultCautionAmount: '-1' }, null).defaultCautionAmount);
 });
 
-test('rule 29: a save without the article keeps it and leaves it unconfirmed', async () => {
+test('rule 30: a save without the article keeps it and leaves it unconfirmed', async () => {
   const { db, model } = setup();
   const { id } = await model.create({ name: 'Cabane des Hérons' });
   db.prepare("UPDATE properties SET nameArticle = 'à la', nameArticleConfirmed = 0 WHERE id = ?").run(id);

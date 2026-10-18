@@ -39,7 +39,9 @@ function formatTargetDate(startDateIso, dayOffset) {
 export default function EmailManualSendDialog({
   open, reservationId, reservationStartDate, defaultTemplateId, onClose, onSent,
 }) {
-  const fullScreen = useMediaQuery(useTheme().breakpoints.down('sm'));
+  // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState(defaultTemplateId || '');
   const [subject, setSubject] = useState('');

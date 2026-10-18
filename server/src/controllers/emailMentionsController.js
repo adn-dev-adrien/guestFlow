@@ -14,6 +14,7 @@
  * as proposed to a stay with nothing booked, and the J-2 confirmations as if every mention were booked.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const emailMentionsModel = require('../models/emailMentionsModel');
 const { loadStayFacts } = require('../models/stayFactsModel');
 const { buildStayContent } = require('../utils/stayContentContext');
@@ -103,7 +104,7 @@ function buildController({ database }) {
     const propertyId = Number(body.propertyId);
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
     if (!property) return res.status(404).json({ error: 'PROPERTY_NOT_FOUND' });
-    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.startDate || '')) ? body.startDate : new Date().toISOString().slice(0, 10);
+    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.startDate || '')) ? body.startDate : localTodayIso();
     const endDate = new Date(Date.parse(`${startDate}T00:00:00Z`) + 3 * 86400000).toISOString().slice(0, 10);
     const reservation = { propertyId, startDate, endDate, adults: 2, children: Math.max(0, Number(body.children) || 0), babies: 1 };
     const facts = loadStayFacts(database, reservation);

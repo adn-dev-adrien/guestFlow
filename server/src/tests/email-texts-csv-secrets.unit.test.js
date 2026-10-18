@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 31 — « Accès » may hold a door code typed by hand: it
+// specs/guest-email-texts-made-simple.md rule 32 — « Accès » may hold a door code typed by hand: it
 // never leaves in the file, and a row naming it is refused on import. A text emptied by `-` reads
 // « (vidé) » in the summary, not as an empty cell.
 
@@ -13,14 +13,14 @@ const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
 const translator = { isAvailable: () => false };
 const HEADER = '﻿email;clé;description;français;english;texte par défaut (FR)\r\n';
 
-test('rule 31: the export holds no « Accès » row, and its code never', async () => {
+test('rule 32: the export holds no « Accès » row, and its code never', async () => {
   const { db } = setup();
   arrivalFactsModel.buildModel(db).save(1, { accessFr: 'Boîte à clés, code 4821.' });
   const res = await call(buildController({ database: db, translator }).exportCsv);
   assert.doesNotMatch(res.body, /access:|4821/);
 });
 
-test('rule 31: an imported « Accès » row is refused with its line; nothing is written', async () => {
+test('rule 32: an imported « Accès » row is refused with its line; nothing is written', async () => {
   const { db } = setup();
   arrivalFactsModel.buildModel(db).save(1, { accessFr: 'Porte bleue.' });
   const csv = `${HEADER}J-2;access:1;Accès;Code 9999;;\r\n`;
@@ -29,7 +29,7 @@ test('rule 31: an imported « Accès » row is refused with its line; nothing is
   assert.equal(arrivalFactsModel.buildModel(db).forEmail(1).accessFr, 'Porte bleue.');
 });
 
-test('rule 31: a text emptied with « - » reads « (vidé) » in the summary', async () => {
+test('rule 32: a text emptied with « - » reads « (vidé) » in the summary', async () => {
   const { db } = setup();
   const csv = `${HEADER}J-7;text:beds.made;Lits préparés;;-;\r\n`;
   const res = await call(buildController({ database: db, translator }).importCsv, { body: csv, query: {} });

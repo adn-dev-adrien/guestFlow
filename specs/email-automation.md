@@ -236,7 +236,7 @@ The operator can:
     edited through the same token field: each variable and condition by its French label (« ⟦Prénom du
     voyageur⟧ », « ⟦Si parking⟧ … ⟦fin si⟧ »), chips under the field, the raw `{{token}}` saved; never
     a raw `{{#if}}` on screen. A refusal lands under its field, in labels (specs/guest-email-texts-made-simple.md
-    rule 26).
+    rule 27).
 18. **A pending email has its own « Envoyer » button.** The row still opens the send dialog; the button
     says so next to « Marquer comme envoyé » and « Ignorer ».
 

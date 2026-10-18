@@ -15,8 +15,10 @@ test('rule 11 — best month, commissions avoided by direct, late payments', () 
   assert.deepEqual(out.map((i) => i.key), ['bestMonth', 'directSavings', 'late']);
   assert.equal(norm(out[0].title), "Juillet, meilleur mois de l'exercice");
   assert.equal(norm(out[0].text), "11 938 €, contre 12 257 € l'an dernier.");
-  assert.equal(norm(out[1].title), 'Le direct vous a évité 3 718 € de commissions');
-  assert.equal(norm(out[1].text), '24 789 € réservés en direct, au taux moyen de vos plateformes (15 %).');
+  // Rule 36 — good news in the success tone, impersonal wording.
+  assert.equal(out[1].tone, 'success');
+  assert.equal(norm(out[1].title), 'Commissions évitées par le direct : 3 718 €');
+  assert.equal(norm(out[1].text), '24 789 € réservés en direct, au taux moyen des plateformes (15 %).');
   assert.equal(out[2].tone, 'error');
   assert.equal(norm(out[2].title), '2 séjours en retard de paiement');
 });

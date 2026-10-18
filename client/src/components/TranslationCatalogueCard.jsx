@@ -94,8 +94,8 @@ export default function TranslationCatalogueCard() {
                 <Typography variant="body2" color="text.secondary">{counts()}</Typography>
               </Tooltip>
               <Typography variant="body2" color="text.secondary">
-                Traductions dans un fichier : le télécharger, remplir les colonnes de langue, le
-                renvoyer. Une colonne de plus ajoute une langue.
+                Traductions : télécharger le fichier, remplir les colonnes, le renvoyer. Une colonne
+                de plus = une langue de plus.
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
                 <Button
@@ -124,7 +124,7 @@ export default function TranslationCatalogueCard() {
       <ConfirmDialog
         open={Boolean(pendingRemoval)}
         title={`Ce fichier retire ${pendingRemoval ? pendingRemoval.removals : 0} traduction(s)`}
-        message={"Des cases de langue sont vides alors qu'une traduction existe aujourd'hui. Si ce n'est pas voulu, vérifie le fichier avant de continuer."}
+        message={"Des cases de langue sont vides alors qu'une traduction existe aujourd'hui. Si ce n'est pas voulu, vérifier le fichier avant de continuer."}
         confirmLabel="Appliquer quand même"
         cancelLabel="Annuler"
         confirmColor="warning"

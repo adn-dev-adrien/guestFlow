@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 34 — typed sentences are not lost: the menu, « Retour »
+// specs/guest-email-texts-made-simple.md rule 35 — typed sentences are not lost: the menu, « Retour »
 // and a link inside the page all ask first; a property's own text left empty reads « Texte commun
 // utilisé » with the shared text, never « Vide »; on a phone the title is « Textes ».
 import { vi } from 'vitest';
@@ -34,7 +34,7 @@ async function typeInHouse() {
   fireEvent.change(await screen.findByDisplayValue('Café offert.'), { target: { value: 'Café et thé offerts.' } });
 }
 
-test('rule 34: the menu asks before leaving with unsaved texts', async () => {
+test('rule 35: the menu asks before leaving with unsaved texts', async () => {
   renderAt(EmailTextsSettingsPage);
   await typeInHouse();
   expect(window.__guestflowBeforeNavigate('/planning')).toBe(true);
@@ -44,7 +44,7 @@ test('rule 34: the menu asks before leaving with unsaved texts', async () => {
   expect(navigate).toHaveBeenCalledWith('/planning');
 });
 
-test('rule 34: « Retour » and a link inside the page ask too; nothing typed, nothing asked', async () => {
+test('rule 35: « Retour » and a link inside the page ask too; nothing typed, nothing asked', async () => {
   renderAt(EmailTextsSettingsPage);
   fireEvent.click(await screen.findByRole('button', { name: 'Retour' }));
   expect(navigate).toHaveBeenCalledWith('/settings/emails');
@@ -62,7 +62,7 @@ test('rule 34: « Retour » and a link inside the page ask too; nothing typed, n
   expect(screen.getByDisplayValue('Café et thé offerts.')).toBeInTheDocument();
 });
 
-test('rule 34: an empty property text reads « Texte commun utilisé » with the shared text', async () => {
+test('rule 35: an empty property text reads « Texte commun utilisé » with the shared text', async () => {
   const own = { key: 'ptext:house:1', kind: 'text', label: 'Dans le logement — Le Gîte', fr: '', en: '', placeholderFr: 'Café offert.', placeholderEn: '', chips: { variables: [], conditions: [] } };
   const sections = TEXTS.sections.map((s) => (s.id === 'j2' ? { ...s, items: [...s.items, own] } : s));
   api.getEmailTexts.mockResolvedValue({ ...TEXTS, sections });
@@ -74,7 +74,7 @@ test('rule 34: an empty property text reads « Texte commun utilisé » with the
   expect((await screen.findAllByText('Vide : texte commun utilisé')).length).toBeGreaterThan(0);
 });
 
-test('rule 34: on a phone the bar reads « Textes », its buttons on one row', async () => {
+test('rule 35: on a phone the bar reads « Textes », its buttons on one row', async () => {
   renderAt(EmailTextsSettingsPage);
   expect(await screen.findByText('Textes')).toBeInTheDocument();
   expect(screen.queryByText('Textes des emails', { selector: '.MuiTypography-pageTitle' })).toBeNull();

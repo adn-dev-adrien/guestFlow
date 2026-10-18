@@ -5,7 +5,7 @@
  * per-month counter, NO separators) — an INDEPENDENT sequence (it scans `reservationNumber`, never
  * `devisNumber`). Pure helpers: they take the `db` handle (so the model, the boot backfill, and tests
  * all share one implementation) and never assume a clock — `now` is injectable. Generation does NOT
- * write; `backfillReservationNumbers` / `dehyphenateReservationNumbers` are the only writers here.
+ * write; the backfill, repair, assign and reformat helpers are the only writers here.
  */
 
 function pad2(n) { return String(n).padStart(2, '0'); }
@@ -23,17 +23,22 @@ function monthPrefix(date) {
 }
 
 // Next free `AAAAMM###` for a month prefix: max existing counter + 1, zero-padded to 3 digits. The
-// counter is the suffix after the 6-digit prefix. Zero-padding keeps the lexical DESC sort numeric.
+// counter is the all-digit suffix after the 6-digit prefix; operator numbers that do not fit that shape
+// are ignored. Every row that carries a number counts, whatever its kind: a cancelled stay KEEPS its
+// number (kind = 'cancelled') and the unique index covers it, so skipping it handed the same number out
+// again and every creation failed until the month changed (specs/reservation-number-and-search.md
+// rule 13). The max is numeric, not lexical, so a 1000th stay of the month still follows the 999th.
 function nextNumberForPrefix(db, prefix) {
-  const existing = db.prepare(
-    "SELECT reservationNumber FROM reservations WHERE kind = 'reservation' AND reservationNumber LIKE ? ORDER BY reservationNumber DESC LIMIT 1",
-  ).get(`${prefix}%`);
-  let increment = 1;
-  if (existing && existing.reservationNumber) {
-    const counter = String(existing.reservationNumber).slice(prefix.length);
-    increment = parseInt(counter || '0', 10) + 1;
+  const rows = db.prepare(
+    'SELECT reservationNumber FROM reservations WHERE reservationNumber LIKE ?',
+  ).all(`${prefix}%`);
+  let max = 0;
+  for (const { reservationNumber } of rows) {
+    const counter = String(reservationNumber).slice(prefix.length);
+    if (!/^\d+$/.test(counter)) continue;
+    max = Math.max(max, parseInt(counter, 10));
   }
-  return `${prefix}${String(increment).padStart(3, '0')}`;
+  return `${prefix}${String(max + 1).padStart(3, '0')}`;
 }
 
 // Live generation for "now" (or an injected date). Used at reservation creation + devis→reservation
@@ -65,7 +70,11 @@ function backfillReservationNumbers(db) {
   const rows = db.prepare(
     "SELECT id, createdAt FROM reservations WHERE kind = 'reservation' AND (reservationNumber IS NULL OR reservationNumber = '') ORDER BY datetime(createdAt), id",
   ).all();
-  const update = db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?');
+  const stamps = db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'numberRepairedAt');
+  // Rule 15 — stamped, so the dashboard lists the stay until the operator has checked it.
+  const update = stamps
+    ? db.prepare("UPDATE reservations SET reservationNumber = ?, numberRepairedAt = datetime('now') WHERE id = ?")
+    : db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?');
   let assigned = 0;
   for (const row of rows) {
     const number = nextNumberForPrefix(db, monthPrefix(row.createdAt || new Date()));
@@ -94,7 +103,38 @@ function dehyphenateReservationNumbers(db) {
   return info.changes;
 }
 
+// One-shot repair (specs/reservation-number-and-search.md rule 14): a stay left without a number by
+// the collision of rule 13 gets one now, and is reported so the operator can check it. Such a row may
+// be a ghost — an insert that went through while the request failed — so it is listed (and its
+// history says so), never deleted: only the operator can tell a ghost from a real stay. Idempotent (only numberless rows are touched).
+// Returns the repaired rows `{ id, reservationNumber, propertyId, startDate, endDate }`.
+function repairNumberlessReservations(db) {
+  const rows = db.prepare(
+    "SELECT id, createdAt, propertyId, startDate, endDate FROM reservations WHERE kind = 'reservation' AND (reservationNumber IS NULL OR reservationNumber = '') ORDER BY datetime(createdAt), id",
+  ).all();
+  const stamps = db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'numberRepairedAt');
+  // Rule 15 — stamped, so the dashboard lists the stay until the operator has checked it.
+  const update = stamps
+    ? db.prepare("UPDATE reservations SET reservationNumber = ?, numberRepairedAt = datetime('now') WHERE id = ?")
+    : db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?');
+  const hasHistory = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservation_history'").get());
+  const history = hasHistory
+    ? db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+    : null;
+  return rows.map((row) => {
+    const number = nextNumberForPrefix(db, monthPrefix(row.createdAt || new Date()));
+    update.run(number, row.id);
+    if (history) {
+      history.run(row.id, JSON.stringify([
+        { field: 'reservationNumber', label: 'N° de réservation', from: null, to: `${number} (attribué par réparation)` },
+      ]));
+    }
+    return { id: row.id, reservationNumber: number, propertyId: row.propertyId, startDate: row.startDate, endDate: row.endDate };
+  });
+}
+
 module.exports = {
+  repairNumberlessReservations,
   monthPrefix,
   nextNumberForPrefix,
   generateReservationNumber,

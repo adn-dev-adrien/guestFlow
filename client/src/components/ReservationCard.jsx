@@ -125,7 +125,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
   const sasLock = r.arrivalSasLock || null;
   const sasLabel = (() => {
     if (sasLock) return sasLockTooltip('arrival', sasLock);
-    return sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)';
+    return sasDone ? 'Revoir l’accueil' : 'Accueil';
   })();
   const statusLocked = r.checkInStatusEditable === false;
   const statusLabel = statusLocked

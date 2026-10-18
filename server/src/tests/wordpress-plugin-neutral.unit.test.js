@@ -17,6 +17,6 @@ test('rule 31: the plugin is authored by GuestFlow, in its header and its update
 test('rule 31: the settings placeholders are examples, never a real address', () => {
   const settings = read('includes/class-gf-settings.php');
   assert.match(settings, /placeholder="https:\/\/guestflow\.example\.com"/);
-  assert.match(settings, /placeholder="https:\/\/example\.com\/reserver"/);
+  // The booking page is a page picker since specs/wordpress-plugin.md rule 14: no URL to type.
   assert.doesNotMatch(settings, /192\.168\.|exemple\.com|domainesolio/);
 });

@@ -16,8 +16,8 @@
  */
 
 const sdk = require('../sdk');
-const { resolveQontoConfig } = require('./qonto/qontoConfig');
-const { SIGNATURE_HEADER, verifySignature, extractPaymentLinkId } = require('./qonto/qontoWebhookSignature');
+const { resolveQontoConfig } = sdk.coreModule('qonto').qontoConfig;
+const { SIGNATURE_HEADER, verifySignature, extractPaymentLinkId } = sdk.coreModule('qonto').qontoWebhookSignature;
 
 /**
  * @param {object} deps { provider, settings? (store), paymentLinksModel?, processPaidLink?, effectDeps? }

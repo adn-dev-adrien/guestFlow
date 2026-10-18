@@ -96,6 +96,8 @@ email shown beside the text. The whole wording can also go out and come back as 
 7. The page « Textes des emails » opens on this list when it is not empty. The onboarding wizard shows
    it on its last step. The dashboard shows one alert « Emails incomplets » while an item concerns a
    stay in the next 14 days.
+   > **2026-10-18 (code review m6):** the alert reads `GET /api/email-readiness`, an admin route: the
+   > dashboard loads it for an admin only, so an accountant's dashboard no longer gets a 403.
 8. A sentence that depends on an empty setting is omitted, never printed with a hole. This covers the
    company phone, the Google review link and Instagram.
 
@@ -283,10 +285,17 @@ email shown beside the text. The whole wording can also go out and come back as 
     line (its name and the start of its French, with « EN manquant » or « À relire » when due) until
     tapped, and the opened editor takes the focus: Solio's J-2 section went from about 7,000 px to
     3,400 px at 390 px. Only an enabled template counts as placing a sentence.
+26. **A « recette » never emails a guest** (added 2026-10-18, code review m3). With
+    `GUESTFLOW_MAIL_OUTBOX=<dir>` set and `NODE_ENV` not `production`, every email the instance would
+    send — guest emails, account emails, notifications, the SMTP test — is written as one JSON file in
+    `<dir>` (`to`, `subject`, `text`, `from`, `replyTo`, `at`) and no SMTP connection is opened. Nothing
+    else changes: an instance without SMTP still refuses to send, and a send is still logged as sent. In
+    production the variable is ignored. The safe way to try a copy of the production database is
+    therefore `GUESTFLOW_MAIL_OUTBOX=/tmp/outbox npm run dev:server` (README › Recette).
 
 ### 3.I Review of 2026-10-18 (emails, start assistant)
 
-26. **A broken variable or condition is refused at save.** The renderer passes a piece it cannot read
+27. **A broken variable or condition is refused at save.** The renderer passes a piece it cannot read
     through as literal text, so the guest would read it. The shared validation (rule 11) refuses, before
     any unknown name: a `{{` or `}}` without its other half, a label bracket `⟦` / `⟧` left from the
     page, a `{{#if …}}` without its `{{/if}}`, a `{{/if}}` or a `{{else}}` outside a condition, a
@@ -300,7 +309,7 @@ email shown beside the text. The whole wording can also go out and come back as 
     *2026-10-18 bis (review of PR #705):* a known variable in one pair of braces (« {clientFirstName} »,
     « { propertyName } ») is refused too, with « Variable incomplète : la remettre depuis les boutons. »:
     the renderer would send it as it is. Braces around any other text stay prose (« {à bientôt} »).
-27. **A fresh instance asserts nothing nobody said.** A property created by the start assistant has no
+28. **A fresh instance asserts nothing nobody said.** A property created by the start assistant has no
     deposit (0 €) and three facts left unsaid (`properties.pendingFacts`): the deposit, whether the
     end-of-stay cleaning is included, whether bath towels are provided. While a fact is unsaid, every
     sentence built on it is left out of the emails (no « caution de 500 € », no « ménage non compris »,
@@ -322,7 +331,7 @@ email shown beside the text. The whole wording can also go out and come back as 
     send: an empty deposit is not sent and keeps the stored amount (« Vide : rien n'est changé. 0 : pas
     de caution. ») — before, the server put 500 € back and an emptied 400 € became 500 €. The
     reservation page no longer falls back to 500 € either.
-28. **The start assistant never creates a property twice.** It remembers the property it created
+29. **The start assistant never creates a property twice.** It remembers the property it created
     (`app_settings.onboardingPropertyId`): « Précédent » then « Suivant », a reload or the assistant
     opened again from Réglages › Système edits that property and its price. An instance that already
     has properties it did not create gets none from it: step 2 reads « Logements : N » with « Modifier
@@ -331,7 +340,7 @@ email shown beside the text. The whole wording can also go out and come back as 
     (the property's first pricing rule), shown at step 2 and written only when it changed. A season the
     owner added since is never touched: reopening the assistant and clicking « Suivant » used to set
     every rule of the property to the step's price.
-29. **The article comes from the name.** « Le X » takes « au X », « La X » « à la X », « Les X » « aux X »,
+30. **The article comes from the name.** « Le X » takes « au X », « La X » « à la X », « Les X » « aux X »,
     « L'X » « à l'X »: such a name says its article, so it is confirmed at once and the chip offers
     that one only; the leading article contracts (« au Fournil », never « au Le Fournil »). Any other
     name is offered « au / à la / aux / à » (« à l' » too when it starts with a vowel or an h), with
@@ -343,28 +352,28 @@ email shown beside the text. The whole wording can also go out and come back as 
     clients. ») and is not sent by a save of another field, so it stays unconfirmed and listed; the
     choices and the preview are the labels the server writes (`GET /api/properties/article-labels`:
     « au Fournil », never « au Le Fournil »), no longer composed in the page.
-30. **The sample stay arrives and leaves at the property's own times.** The preview's « Exemple » stay
+31. **The sample stay arrives and leaves at the property's own times.** The preview's « Exemple » stay
     (rule 13) takes the property's check-in and check-out times, as a real stay would: the assistant's
     J-2 says « à partir de 16 h » for a property saved at 16:00.
-31. **A key-box code is never in the file.** « Vos emails » has its own « Code de la boîte à clés » field,
+32. **A key-box code is never in the file.** « Vos emails » has its own « Code de la boîte à clés » field,
     stored encrypted like the property page's (rule 1). The « Accès » texts are not exported in the CSV
     (rule 16), since an owner may still type a code there by hand; an imported row naming one is refused
     (« « Accès » se modifie sur la page, pas dans le fichier »). A text emptied by `-` reads « (vidé) » in
     the import summary.
-32. **The J-7 subject names the stay with its article.** The neutral J-7 subject reads « Plus qu'une
+33. **The J-7 subject names the stay with its article.** The neutral J-7 subject reads « Plus qu'une
     semaine avant votre séjour au Fournil » (« One week to go before your stay at Le Fournil »), not
     « avant Le Fournil ». A stored subject is not rewritten: Solio's keeps its own.
-33. **The pool season belongs to the property.** « Piscine » (on/off) and its two dates, picked as a day
+34. **The pool season belongs to the property.** « Piscine » (on/off) and its two dates, picked as a day
     and a month, sit on the property's Séjour tab; Réglages › Emails no longer holds them. Off, or no
     dates: no pool sentence. Both dates or none (« Les deux dates, ou aucune. »). The upgrade copies the
     season the instance had onto every property once, so no email moves.
-34. **Typed text is never lost.** « Textes des emails » and the property page ask before leaving with
+35. **Typed text is never lost.** « Textes des emails » and the property page ask before leaving with
     unsaved changes — through the menu, « Retour », a link inside the page, the browser's back or a
     reload. The property's « Arrivée » block is saved by the page's own Enregistrer / Annuler (no button
     of its own) and lights the Séjour tab. A property's own text left empty reads « Texte commun utilisé :
     … » with the shared text (mobile) and « Vide : texte commun utilisé » under the field (desktop),
     never « Vide ». On a phone the page's title is « Textes » and its buttons stay on one row.
-35. **The CGV sentence is never printed with a hole.** A stored template printing `{{cgvUrl}}` outside
+36. **The CGV sentence is never printed with a hole.** A stored template printing `{{cgvUrl}}` outside
     `{{#if hasCgvUrl}}` (a sentence rewritten by hand) gets that paragraph wrapped in the condition by a
     one-shot upgrade (`cgv_link_condition_v1`): unchanged while the link exists, left out while it does
     not. « À compléter » lists a template still printing the link while there is none (« Lien des
@@ -384,12 +393,12 @@ email shown beside the text. The whole wording can also go out and come back as 
 | `utils/` | `stayContentContext.js` | T | Compose the three paragraphs (rules 3–5) |
 | `utils/` | `emailContextBuilder.js` | T | Omit sentences built on empty settings (rule 8) |
 | `utils/` | `templateTokens.js` | C | One token catalogue per template with French labels; the shared validator (rules 10–11) |
-| `utils/` | `emailTemplateRenderer.js` | T | `structureError`: what the renderer cannot read, refused by the shared validator (rule 26, 2026-10-18) |
-| `utils/` | `propertyFacts.js` | C | The facts left unsaid by the assistant and their answers (rule 27, 2026-10-18) |
-| `utils/` | `propertyArticle.js` | C | The article derived from the name, its contraction, the chips worth offering (rule 29, 2026-10-18) |
-| `utils/` | `migrateCgvLinkCondition.js` | C | One-shot wrap of a hand-written CGV sentence in its condition (rule 35, 2026-10-18) |
-| `controllers/` | `onboardingController.js` | T | Step 2 edits its own property; « Vos emails » saves the deposit, cleaning, towels and code (rules 27–31, 2026-10-18) |
-| `controllers/` | `emailReadinessController.js` | T | Lists broken texts, unsaid facts and an empty CGV link (rules 26, 27, 35, 2026-10-18) |
+| `utils/` | `emailTemplateRenderer.js` | T | `structureError`: what the renderer cannot read, refused by the shared validator (rule 27, 2026-10-18) |
+| `utils/` | `propertyFacts.js` | C | The facts left unsaid by the assistant and their answers (rule 28, 2026-10-18) |
+| `utils/` | `propertyArticle.js` | C | The article derived from the name, its contraction, the chips worth offering (rule 30, 2026-10-18) |
+| `utils/` | `migrateCgvLinkCondition.js` | C | One-shot wrap of a hand-written CGV sentence in its condition (rule 36, 2026-10-18) |
+| `controllers/` | `onboardingController.js` | T | Step 2 edits its own property; « Vos emails » saves the deposit, cleaning, towels and code (rules 28–32, 2026-10-18) |
+| `controllers/` | `emailReadinessController.js` | T | Lists broken texts, unsaid facts and an empty CGV link (rules 27, 28, 36, 2026-10-18) |
 | `utils/` | `emailTextsCsv.js` | C | Export/import on top of `translationCsv.js` (rules 16–18) |
 | `utils/` | `textTranslator.js` | C | Token-safe translation through the platform key (rules 19–20) |
 | `controllers/` | `emailReadinessController.js` | C | Rule 6 |
@@ -430,14 +439,14 @@ email shown beside the text. The whole wording can also go out and come back as 
 | `utils/` | `readTextFile.js` | C | A picked file as UTF-8, else Windows-1252 (rule 23) |
 | `components/` | `FileUploadButton.jsx` | T | Reads through `readTextFile` (rule 23) |
 | `components/` | `MentionEditor.jsx`, `pages/ResourcesPage.jsx` | T | Labelled chips |
-| `components/` | `TokenTextField.jsx` | T | A variable is one unit for the caret, Backspace and Delete; refusals in `⟦ ⟧`; `emptyHint` (rules 26, 34, 2026-10-18) |
-| `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | Unsaved-changes guard on the menu, « Retour » and in-page links; « Texte commun utilisé »; « Textes » on a phone (rule 34) |
-| `pages/` | `PropertyDetail.jsx` | T | Holds the « Arrivée » draft and saves it with the page; sends a pending fact only once answered (rules 27, 34) |
-| `components/property/` | `PropertyArrivalFacts.jsx` | T | Controlled by the page, no save button of its own (rule 34) |
-| `components/property/` | `PropertyStayTab.jsx` | T | Cleaning, towels, « Piscine » and its two dates (rules 27, 33) |
-| `components/` | `MonthDayField.jsx` | C | Generic: a day and a month without a year, `MM-DD` (rule 33) |
-| `components/` | `OnboardingEmailsStep.jsx` | T | Deposit, cleaning and towels with no answer chosen; key-box code field (rules 27, 29, 31) |
-| `pages/` | `OnboardingPage.jsx` | T | Step 2 resumes its property or lists the existing ones (rule 28) |
+| `components/` | `TokenTextField.jsx` | T | A variable is one unit for the caret, Backspace and Delete; refusals in `⟦ ⟧`; `emptyHint` (rules 27, 35, 2026-10-18) |
+| `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | Unsaved-changes guard on the menu, « Retour » and in-page links; « Texte commun utilisé »; « Textes » on a phone (rule 35) |
+| `pages/` | `PropertyDetail.jsx` | T | Holds the « Arrivée » draft and saves it with the page; sends a pending fact only once answered (rules 28, 35) |
+| `components/property/` | `PropertyArrivalFacts.jsx` | T | Controlled by the page, no save button of its own (rule 35) |
+| `components/property/` | `PropertyStayTab.jsx` | T | Cleaning, towels, « Piscine » and its two dates (rules 28, 34) |
+| `components/` | `MonthDayField.jsx` | C | Generic: a day and a month without a year, `MM-DD` (rule 34) |
+| `components/` | `OnboardingEmailsStep.jsx` | T | Deposit, cleaning and towels with no answer chosen; key-box code field (rules 28, 30, 32) |
+| `pages/` | `OnboardingPage.jsx` | T | Step 2 resumes its property or lists the existing ones (rule 29) |
 | `components/` | `EmailMentionsPanel.jsx` | T | A proposal reads « ⟦Prix⟧ », as in its editor |
 
 **Component reuse:**
@@ -460,14 +469,14 @@ email shown beside the text. The whole wording can also go out and come back as 
 | POST | `/api/emails/test` | same body → `{ ok, to }`; 409 `EMAIL_NOT_CONFIGURED` |
 | GET | `/api/email-templates/:id/variables` | `{ variables: [{ name, label }], conditions }`; `new` for a template not created yet |
 | GET / PUT | `/api/properties/:id/arrival-facts` | the facts, secrets as `hasAccessCode` / `hasWifiPassword` |
-| PUT | `/api/onboarding/emails` | `{ phone, senderName, properties: [{ id, nameArticle?, address, access, accessCode?, wifiName, wifiPassword?, caution?, cleaningIncluded?, towelsProvided? }] }` — an absent field is left unanswered (rules 27, 29, 31, 2026-10-18) |
-| GET | `/api/onboarding` | adds `property: { id, existing, draft }` — the property the assistant created, to edit (rule 28, 2026-10-18) |
-| PUT | `/api/onboarding/property` | edits the assistant's own property; 409 `PROPERTIES_EXIST` on an instance it did not equip (rule 28, 2026-10-18) |
-| GET | `/api/properties/article-labels?name=` | `{ labels: [{ value, label }] }` — the five articles as the emails write them (rule 29, 2026-10-18 bis) |
+| PUT | `/api/onboarding/emails` | `{ phone, senderName, properties: [{ id, nameArticle?, address, access, accessCode?, wifiName, wifiPassword?, caution?, cleaningIncluded?, towelsProvided? }] }` — an absent field is left unanswered (rules 28, 30, 32, 2026-10-18) |
+| GET | `/api/onboarding` | adds `property: { id, existing, draft }` — the property the assistant created, to edit (rule 29, 2026-10-18) |
+| PUT | `/api/onboarding/property` | edits the assistant's own property; 409 `PROPERTIES_EXIST` on an instance it did not equip (rule 29, 2026-10-18) |
+| GET | `/api/properties/article-labels?name=` | `{ labels: [{ value, label }] }` — the five articles as the emails write them (rule 30, 2026-10-18 bis) |
 
 *2026-10-18 bis:* `PUT /api/onboarding/emails` and `PUT /api/properties/:id` also take
 `bedLinenProvided`; `PUT /api/properties/:id` keeps the stored `nameArticle` and `defaultCautionAmount`
-when they are absent or empty (rules 27, 29).
+when they are absent or empty (rules 28, 30).
 
 ## 5. Data model
 
@@ -487,14 +496,14 @@ Migration is idempotent and needs no backfill. An empty table means no paragraph
 `language` always `en` today. `properties.nameArticleConfirmed INTEGER NOT NULL DEFAULT 0` is added, and
 set to 1 for every property that exists when it is added (rule 8 note).
 
-*2026-10-18 (rules 27, 28, 33, 35):* `properties.pendingFacts TEXT NOT NULL DEFAULT ''` (comma-separated
+*2026-10-18 (rules 28, 29, 34, 36):* `properties.pendingFacts TEXT NOT NULL DEFAULT ''` (comma-separated
 `caution`, `cleaning`, `towels`; empty on every property that exists when it is added),
 `properties.cleaningIncluded INTEGER` and `properties.towelsProvided INTEGER` (1 / 0, NULL: the options
 decide), `properties.poolSeasonStart` / `poolSeasonEnd TEXT NOT NULL DEFAULT ''` (copied once from
 `app_settings`, whose two columns stay in the table, unread), `app_settings.onboardingPropertyId INTEGER`.
-One-shot content migration `cgv_link_condition_v1` (rule 35).
+One-shot content migration `cgv_link_condition_v1` (rule 36).
 
-*2026-10-18 bis (rule 27):* `properties.bedLinenProvided INTEGER` (1 / 0, NULL: the options decide);
+*2026-10-18 bis (rule 28):* `properties.bedLinenProvided INTEGER` (1 / 0, NULL: the options decide);
 `pendingFacts` may also hold `linen`, set on a property the start assistant creates. Existing rows keep
 NULL and nothing pending: no email moves.
 
@@ -503,12 +512,12 @@ NULL and nothing pending: no email moves.
 See the summary page.
 - **Desktop:** the sections sit on the left and the preview stays pinned on the right.
 - **Mobile:** one column, and the preview opens under the section being edited (« Voir l'email »).
-- *2026-10-18:* the bar reads « Textes » on a phone; leaving with unsaved texts asks first (rule 34);
-  a property's empty text reads « Texte commun utilisé : … » (rule 34). The property's Séjour tab adds
-  « Ménage de fin de séjour », « Linge de toilette » and « Piscine » (rules 27, 33); « Vos emails » adds
-  « Code de la boîte à clés », « Caution (€) », and the two yes/no chip pairs (rules 27, 31).
-- *2026-10-18 bis:* « Linge de lit » joins the Séjour tab and « Vos emails » (rule 27); the property
-  page's article menu lists « au Fournil »… from the server and shows empty while unconfirmed (rule 29).
+- *2026-10-18:* the bar reads « Textes » on a phone; leaving with unsaved texts asks first (rule 35);
+  a property's empty text reads « Texte commun utilisé : … » (rule 35). The property's Séjour tab adds
+  « Ménage de fin de séjour », « Linge de toilette » and « Piscine » (rules 28, 34); « Vos emails » adds
+  « Code de la boîte à clés », « Caution (€) », and the two yes/no chip pairs (rules 28, 32).
+- *2026-10-18 bis:* « Linge de lit » joins the Séjour tab and « Vos emails » (rule 28); the property
+  page's article menu lists « au Fournil »… from the server and shows empty while unconfirmed (rule 30).
 
 ## 7. Test plan
 
@@ -532,17 +541,17 @@ send against the dev mail catcher.
 
 **Manual check on mobile:** the page at 390px.
 
-*2026-10-18 review:* server `email-texts-structure` (5, rule 26), `onboarding-facts-and-article` (12,
-rules 27–32), `email-texts-csv-secrets` (3, rule 31), `property-pool-season` (4, rule 33),
-`email-texts-cgv-link` (3, rule 35); client `TokenTextField.atomic-token` (4, rule 26),
-`EmailTextsSettingsPage.unsaved-and-inherited` (4, rule 34), `PropertyDetail.arrival-and-facts` (4,
-rules 27, 33, 34), `OnboardingPage.facts-and-resume` (4, rules 27–29, 31), `PropertyArrivalFacts` (4,
+*2026-10-18 review:* server `email-texts-structure` (5, rule 27), `onboarding-facts-and-article` (12,
+rules 28–33), `email-texts-csv-secrets` (3, rule 32), `property-pool-season` (4, rule 34),
+`email-texts-cgv-link` (3, rule 36); client `TokenTextField.atomic-token` (4, rule 27),
+`EmailTextsSettingsPage.unsaved-and-inherited` (4, rule 35), `PropertyDetail.arrival-and-facts` (4,
+rules 28, 34, 35), `OnboardingPage.facts-and-resume` (4, rules 28–30, 32), `PropertyArrivalFacts` (4,
 rewritten for the controlled block).
 
-*2026-10-18 bis (review of PR #705):* server `onboarding-reopen-keeps-seasons` (3, rule 28),
-`property-update-keeps-unsent-facts` (4, rules 27, 29), `property-article-ambiguous-initial` (3,
-rule 29), `bed-linen-pending-fact` (4, rule 27), `template-single-brace` (3, rule 26); client
-`PropertyDetail.article-and-deposit` (4, rules 27, 29), `OnboardingPage.facts-and-resume` (+1, rule 27).
+*2026-10-18 bis (review of PR #705):* server `onboarding-reopen-keeps-seasons` (3, rule 29),
+`property-update-keeps-unsent-facts` (4, rules 28, 30), `property-article-ambiguous-initial` (3,
+rule 30), `bed-linen-pending-fact` (4, rule 28), `template-single-brace` (3, rule 27); client
+`PropertyDetail.article-and-deposit` (4, rules 28, 30), `OnboardingPage.facts-and-resume` (+1, rule 28).
 The `previewWithArticle` helper tests are gone with the helper.
 
 ## 8. Out of scope

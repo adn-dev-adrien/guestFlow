@@ -398,8 +398,9 @@ export default function CalendarPage() {
   // Property picker cluster — bar `center` on sm+, compact strip under the bar on xs
   // (specs/ds-sweep-planning.md rule 3; absorbs the former CalendarToolbar).
   const renderPropertyPicker = () => (
-    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-      <FormControl size="small" sx={{ minWidth: 200 }}>
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', minWidth: 0, maxWidth: '100%' }}>
+      {/* A long property name ellipsises inside a bounded select (specs/review-2026-10-18-reservations.md rule 7). */}
+      <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 200 }, width: { xs: '100%', sm: 'auto' }, maxWidth: { xs: '100%', sm: 360 } }}>
         <InputLabel>Logement</InputLabel>
         {/* Until the property list lands, a URL-driven selectedProp has no matching option —
             render '' meanwhile to avoid MUI's transient out-of-range warning on deep links. */}

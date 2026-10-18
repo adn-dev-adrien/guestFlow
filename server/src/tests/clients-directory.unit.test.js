@@ -1,13 +1,14 @@
 // specs/clients-upcoming-past-directory.md — the Clients page read: bucket per client, the stay that
 // qualifies it, the per-bucket counts of the search, and the ordering. All server-side (issue #19).
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const clientsModel = require('../models/clientsModel');
 
-const today = new Date().toISOString().slice(0, 10);
+const today = localTodayIso();
 const shift = (days) => {
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);

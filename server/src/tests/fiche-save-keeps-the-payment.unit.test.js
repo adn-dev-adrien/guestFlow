@@ -120,6 +120,9 @@ function staleBody(over = {}) {
     balancePaidDate: '',
     complementPaid: false,
     complementPaidDate: '',
+    // The stubbed quote prices the stay at 0 € while the stored row is paid: confirmed, so the
+    // trop-perçu guard (specs/reservation-refunds.md rule 34) lets the save reach the flags under test.
+    forceOverpayment: true,
     ...over,
   };
 }

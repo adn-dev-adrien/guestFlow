@@ -1,5 +1,5 @@
 /**
- * One-shot (specs/guest-email-texts-made-simple.md rule 35): a stored template that prints
+ * One-shot (specs/guest-email-texts-made-simple.md rule 36): a stored template that prints
  * `{{cgvUrl}}` outside `{{#if hasCgvUrl}}` — an operator who rewrote the CGV sentence by hand — gets
  * that paragraph wrapped in the condition. While the link exists the email reads exactly as before;
  * while it does not, the sentence is left out instead of ending on « ici : » and nothing.

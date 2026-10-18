@@ -19,6 +19,8 @@ function financeError(body) {
   });
 }
 
+const { saveWithDraftClient } = require('../utils/draftClient');
+
 function createController(model, {
   emitPluginEvent = require('../plugins/sdk/eventBus').emit,
   termsFicheBlock = (devis) => require('./termsController').buildFicheBlock(devis),
@@ -62,10 +64,23 @@ function createController(model, {
     return res.json(h);
   }
 
+  // A client typed on the devis is written with it (specs/clients.md rule 13).
   function create(req, res) {
     const error = financeError(req.body);
     if (error) return res.status(400).json({ error });
-    return respond(res, model.create(req.body));
+    if (!req.body || req.body.clientId || !req.body.newClient) return respond(res, model.create(req.body));
+    const result = saveWithDraftClient({
+      db: require('../database'),
+      clientsModel: require('../models/clientsModel'),
+      body: req.body,
+      run: (body) => {
+        const created = model.create(body);
+        return created.error
+          ? { status: created.status || 400, body: { error: created.error, ...(created.code ? { code: created.code } : {}) } }
+          : { status: created.status || 200, body: created.data };
+      },
+    });
+    return res.status(result.status).json(result.body);
   }
 
   function update(req, res) {

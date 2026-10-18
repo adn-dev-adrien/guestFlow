@@ -121,7 +121,7 @@ function applyGuestEmailSequenceSchema(db) {
     db.exec('UPDATE properties SET nameArticleConfirmed = 1');
   }
 
-  // specs/guest-email-texts-made-simple.md rule 27 — what the start assistant could not know about a
+  // specs/guest-email-texts-made-simple.md rule 28 — what the start assistant could not know about a
   // property (`caution`, `cleaning`, `towels`, comma-separated) is left out of the emails until the
   // owner answers. Every property that exists when the column appears keeps its emails as they are.
   // `cleaningIncluded` / `towelsProvided`: the owner's answer, NULL leaving it to the options.
@@ -134,7 +134,7 @@ function applyGuestEmailSequenceSchema(db) {
       ['bedLinenProvided', 'INTEGER'],
     ]);
   }
-  // Rule 33 — the pool season belongs to the property that has the pool. The season set once for
+  // Rule 34 — the pool season belongs to the property that has the pool. The season set once for
   // the whole instance is copied onto every property when the columns appear, so no email moves.
   if (propertyCols.length && !propertyCols.includes('poolSeasonStart')) {
     addColumns('properties', [
@@ -149,7 +149,7 @@ function applyGuestEmailSequenceSchema(db) {
       }
     }
   }
-  // Rule 28 — the property the start assistant created, so its step 2 edits it instead of adding one.
+  // Rule 29 — the property the start assistant created, so its step 2 edits it instead of adding one.
   addColumns('app_settings', [['onboardingPropertyId', 'INTEGER']]);
 }
 

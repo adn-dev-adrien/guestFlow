@@ -83,7 +83,7 @@ const EMAILS_FIELDS = [
   { input: 'googleReviewUrl', column: 'googleReviewUrl', validator: validation.validatePublicUrl },
   { input: 'instagramUrl', column: 'instagramUrl', validator: validation.validatePublicUrl },
 ];
-// The pool season moved to the property that has the pool (specs/guest-email-texts-made-simple.md rule 33).
+// The pool season moved to the property that has the pool (specs/guest-email-texts-made-simple.md rule 34).
 
 // Accounting group — the closing month driving every annual window of the Suivi financier
 // (specs/fiscal-year-and-nights-sold.md §4.1).

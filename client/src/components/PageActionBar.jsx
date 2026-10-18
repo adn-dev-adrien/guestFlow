@@ -13,6 +13,9 @@
  *   onBack?      () => void      (back handler; takes precedence over backTo for computed navigation)
  *   subtitle?    ReactNode      (rendered beside the title — e.g. a Chip or caption)
  *   center?      ReactNode      (rendered CENTERED in the bar; hidden on xs — too tight on mobile)
+ *   centerFrom?  'sm'|'md'|'lg' (breakpoint from which `center` shows; default 'sm'. A page whose
+ *                                bar is crowded at tablet width raises it — specs/review-2026-10-18-
+ *                                reservations.md rule 6)
  *   tabs?        ReactNode      (a <PageTabs> node — CENTERED in the bar on sm+, and folded onto a
  *                                SECOND ROW of the same sticky block on xs. Implies titleOnXs, so a
  *                                page with tabs always shows its title. Mutually exclusive with
@@ -44,6 +47,10 @@
  *    (with `center`, the two side sections take equal flex so the centre is truly centred).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
+ *  - Narrow bar (specs/ds-components.md rules 19-20): the title keeps a readable width and ends
+ *    in an ellipsis only past it; the subtitle wraps under the title; the actions never shrink
+ *    (they take a row of their own when they do not fit), and `center`/`tabs` move to a second row
+ *    when the bar is under 720 px wide. Every button is 44 × 44.
  */
 import React, { useState } from 'react';
 import {
@@ -57,13 +64,21 @@ import CloseIcon from '@mui/icons-material/Close';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate } from 'react-router';
 
+// Every bar button is a 44 × 44 touch target, whatever its border (specs/ds-components.md rule 20).
+const BUTTON_SIZE = { width: 44, height: 44 };
+
+// Under this bar width the centre node (or the tabs) takes a second row instead of crushing the title.
+const CENTER_ROW_BELOW = 720;
+
 const borderedSx = (color) => ({
+  ...BUTTON_SIZE,
   border: '1px solid',
   borderColor: color && color !== 'default' ? `${color}.main` : 'divider',
   borderRadius: 1,
 });
 
 const saveFilledSx = {
+  ...BUTTON_SIZE,
   bgcolor: 'primary.main',
   color: '#fff',
   borderRadius: 1,
@@ -104,6 +119,7 @@ export default function PageActionBar({
   // bar switches to a 3-equal-columns layout so the content is truly centred. Hidden on xs (the mobile
   // bar is too tight) — pass content that the page can afford to drop on small screens.
   center,
+  centerFrom = 'sm',
   // A <PageTabs> node: centred in the bar on sm+, second row of the same sticky block on xs.
   tabs,
   onSave,
@@ -131,7 +147,6 @@ export default function PageActionBar({
   const tabsOnSecondRow = Boolean(tabs) && isMobile;
   const centerNode = tabsOnSecondRow ? null : (tabs || center);
   const showTitleOnXs = titleOnXs || Boolean(tabs);
-  const hasNodes = [...actionsBefore, ...actionsAfter].some((a) => a.node);
 
   return (
     <Box
@@ -143,46 +158,76 @@ export default function PageActionBar({
         borderBottom: '1px solid',
         borderColor: 'divider',
         mb: 2,
+        // The layout below answers to the bar's own width, not the viewport's: the sidebar takes a
+        // different share of it on every page and breakpoint.
+        containerType: 'inline-size',
       }}
     >
       <Box
+        data-testid="page-action-bar-row"
         sx={{
           px: { xs: 1.5, sm: 2 },
           py: { xs: 1, sm: 1.25 },
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
-          gap: 1,
+          columnGap: 1,
+          rowGap: 1,
         }}
       >
-        {/* Left section: back + title + subtitle. When a `center` node is set, both side sections take an
-            equal flex basis (1 1 0) so the centre node is truly centred across the bar. */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, ...(centerNode ? { flex: '1 1 0' } : { flexGrow: 1 }) }}>
-          {(onBack || backTo) && (
-            <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
-              <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={borderedSx('default')}>
-                <ArrowBackIcon />
-              </IconButton>
-            </Tooltip>
+        {/* Left section: back + title + subtitle. It never gets narrower than a readable title; the
+            subtitle wraps under the title rather than squeezing it (specs/ds-components.md rule 19). */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            columnGap: 1.5,
+            rowGap: 0.25,
+            flex: '1 1 0',
+            // Only a visible title claims that width: a bar showing just « Retour » gives it to the actions.
+            minWidth: {
+              xs: title && showTitleOnXs ? 'min(100%, 9rem)' : 0,
+              sm: title ? 'min(100%, 14rem)' : 0,
+            },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, maxWidth: '100%' }}>
+            {(onBack || backTo) && (
+              <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
+                <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={{ ...borderedSx('default'), flexShrink: 0 }}>
+                  <ArrowBackIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {title && (
+              <Typography
+                variant="pageTitle"
+                title={title}
+                sx={{
+                  display: { xs: showTitleOnXs ? 'block' : 'none', sm: 'block' },
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  minWidth: 0,
+                }}
+              >
+                {title}
+              </Typography>
+            )}
+          </Box>
+          {subtitle && (
+            <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
+              {subtitle}
+            </Box>
           )}
-          {title && (
-            <Typography
-              variant="pageTitle"
-              sx={{
-                display: { xs: showTitleOnXs ? 'block' : 'none', sm: 'block' },
-                whiteSpace: 'nowrap',
-                ...(showTitleOnXs && { overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }),
-              }}
-            >
-              {title}
-            </Typography>
-          )}
-          {subtitle}
         </Box>
 
         {centerNode && (
           <Box
+            data-testid="page-action-bar-center"
             sx={{
-              display: { xs: 'none', sm: 'flex' },
+              display: { xs: 'none', [tabs ? 'sm' : centerFrom]: 'flex' },
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
@@ -190,20 +235,32 @@ export default function PageActionBar({
               flex: '0 1 auto',
               minWidth: 0,
               px: 1,
+              [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { order: 3, flexBasis: '100%', px: 0 },
             }}
           >
             {centerNode}
           </Box>
         )}
 
-        {/* On a phone, icon actions stay on one row: the title gives way (ellipsis) rather than Cancel
-            wrapping under Save. A custom node may be wide, so a bar holding one keeps wrapping. */}
-        <Box sx={{
-          display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', minWidth: 0,
-          flexWrap: hasNodes ? 'wrap' : { xs: 'nowrap', sm: 'wrap' },
-          ...(hasNodes ? {} : { flexShrink: { xs: 0, sm: 1 } }),
-          ...(centerNode ? { flex: '1 1 0' } : {}),
-        }}
+        {/* The actions keep their full width: when they do not fit beside the title they take a row of
+            their own, right-aligned — never a column of stacked buttons. */}
+        <Box
+          data-testid="page-action-bar-actions"
+          sx={{
+            display: 'flex',
+            gap: 1,
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            // The centre's twin only while the centre sits beside the title: hidden on xs, or on its own
+            // row, it leaves the title the room (rule 19, amended 2026-10-18).
+            flex: { xs: '0 1 auto', sm: centerNode ? '1 1 0' : '0 1 auto' },
+            [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { flex: '0 1 auto' },
+            minWidth: 'fit-content',
+            maxWidth: '100%',
+            ml: 'auto',
+            '& .MuiButton-root': { whiteSpace: 'nowrap' },
+          }}
         >
           {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
 

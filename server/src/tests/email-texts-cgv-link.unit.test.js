@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 35 — the CGV sentence is never printed ending on
+// specs/guest-email-texts-made-simple.md rule 36 — the CGV sentence is never printed ending on
 // « ici : » and nothing. A template that prints {{cgvUrl}} outside its condition is wrapped once by the
 // upgrade (unchanged while the link exists), and « À compléter » lists it while there is no link.
 
@@ -19,7 +19,7 @@ const HAND_WRITTEN = [
   '{{senderName}}',
 ].join('\n');
 
-test('rule 35: the paragraph is wrapped, and reads exactly as before while the link exists', () => {
+test('rule 36: the paragraph is wrapped, and reads exactly as before while the link exists', () => {
   const wrapped = wrapCgvParagraph(HAND_WRITTEN);
   assert.match(wrapped, /\{\{#if hasCgvUrl\}\}Vous retrouverez/);
   const vars = { cgvUrl: 'https://solio.test/cgv/?v=1', clientFirstName: 'Paul', senderName: 'Adrien' };
@@ -30,7 +30,7 @@ test('rule 35: the paragraph is wrapped, and reads exactly as before while the l
   assert.equal(without, 'Bonjour Paul,\n\nÀ bientôt,\nAdrien');
 });
 
-test('rule 35: a template already guarded, or without the link, is left alone; the upgrade runs once', () => {
+test('rule 36: a template already guarded, or without the link, is left alone; the upgrade runs once', () => {
   assert.equal(wrapCgvParagraph('{{#if hasCgvUrl}}CGV : {{cgvUrl}}\n\n{{/if}}Merci'), null);
   assert.equal(wrapCgvParagraph('Bonjour'), null);
   const { db } = setup();
@@ -39,7 +39,7 @@ test('rule 35: a template already guarded, or without the link, is left alone; t
   assert.equal(runCgvLinkConditionMigration(db), 0);
 });
 
-test('rule 35: « À compléter » names a template printing the link while there is none', () => {
+test('rule 36: « À compléter » names a template printing the link while there is none', () => {
   const { db } = setup();
   const settings = { companyName: 'Les Prés', companyPhone: '06 12 34 56 78', smtpFromName: 'Claire' };
   const ids = () => buildReadiness({ database: db, settingsModel: { read: () => settings } }).compute().items.map((i) => i.id);

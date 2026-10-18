@@ -177,6 +177,9 @@ Other facts the design rests on:
     - `qonto/`: `qontoClient`, `qontoConfig`, `qontoService`, `qontoAuth`, `qontoHealth`,
       `qontoWebhookSignature`, `qontoWebhookRegistrar`, `httpRetry`, `paymentProviderValidation`.
     - `qontoSettingsController` and `webhookController` (from `qontoWebhookController`).
+    > **Superseded in part** (2026-10-18) — by rule 22: `qonto/` and `qontoSettingsController` moved
+    > back to the core, in `server/src/utils/qonto/`; the plugin keeps `webhookController`,
+    > `paymentPollSchedule`, `provider` and `settingsStore`.
     - `paymentPollSchedule.js`: the poll cadence, now the plugin job's.
     - `provider.js`: the rule 4 adapter over `qontoClient` (`cancelLink` = `deactivatePaymentLink`).
     - `settingsStore.js`: rule 13.
@@ -260,6 +263,11 @@ Other facts the design rests on:
       after the upgrade finds them by `(provider, providerLinkId)`.
 21. **A new customer** starts with the plugin not installed (phase 0). Installing it and connecting Qonto
     is the only way to reach the fiche buttons and the dashboard reminder.
+22. **The Qonto library is core code** (added 2026-10-18, code review m2). The client, configuration,
+    health, OAuth, webhook signature and registrar and the settings handlers live in
+    `server/src/utils/qonto/`. The plugin reaches them through `sdk.coreModule('qonto')` and wires them
+    to the instance's settings and routes; the control plane `require`s the same folder for its own
+    billing. Neither imports a file of the other, so moving a plugin file never breaks the console.
 
 ### Review fixes (2026-10-04)
 
@@ -284,9 +292,39 @@ Other facts the design rests on:
   fixed address.
 - Tests: `payment-link-deactivation.unit.test.js` (+2), `stay-payment-recorder.unit.test.js` (+2, history line), `payment-provider-interface.unit.test.js`, `phase-3a-online-payment.unit.test.js` (+1), `PaymentDeadlinesAlert.payment-provider.test.jsx`.
 
+### Review fixes (2026-10-18, mega review #5)
+
+23. **A link whose bucket the stay settled another way is abandoned too** (transfer, cash, platform,
+    another link). Like a stale link (rule 7), it is cancelled locally with the deactivation owed
+    (`remoteCancelPendingAt`), then the poll asks the provider once whether it was paid — paid → the
+    admin is told and the payment id stays on the row for the refund (rule 8); not paid → it is
+    deactivated. It leaves the open links, so the cron stops polling it and the fiche no longer offers
+    it. This happens at the start of every poll (`paymentLinksModel.retireSettled`) and at once when a
+    payment is ticked by hand (`PATCH /api/reservations/:id/payment`). A link on a devis reads the
+    reservation the devis became. *Why:* links 6 and 7 stayed open and payable, polled every day, on
+    stays whose solde was paid in July and August.
+    > Qonto links carry no expiry (`specs/qonto-payment-link-reference.md`), so nothing else would
+    > ever close them.
+    > 2026-10-18 (review of PR #702): « paid → the admin is told » was wrong for the common case; a
+    > retired link found paid follows rule 24.
+
+### Review of PR #702 (2026-10-18)
+
+24. **A retired link found paid is, by default, the payment that settled the bucket.** A link retired
+    by rule 23 carries `cancelReason = 'settled'`. When the poll then finds it paid at the provider, it
+    is the very payment the operator saw arrive and ticked by hand before the webhook did: the link
+    becomes `paid` with the provider's payment id and date, its deactivation is no longer owed, and the
+    bucket goes through the recorder, which ignores an already-paid bucket (its date stays the
+    operator's). No refund alert. Only a bucket recorded paid on an **earlier day** than the link
+    payment (Paris day of `paidAt`) points to a second payment: the link stays `cancelled`, keeps the
+    payment id for a possible refund, and the admin receives « ⚠️ Paiement à vérifier sur un lien
+    retiré » — « À vérifier : s'il s'agit d'un double paiement, le rembourser… », never « Action
+    requise : rembourser ». A link cancelled for any other reason (stay cancelled, amount replaced)
+    keeps rule 8. *Why:* 22290 paid through pl_1, the webhook did not arrive, the operator ticked
+    « Solde payé » on seeing the money on Qonto, and the next poll asked to refund the only payment.
 **Review of 2026-10-18 (dashboard without a provider)**
 
-22. **Without online payment, a row « à demander » keeps « Envoyer la demande ».** Rule 5 removed the
+25. **Without online payment, a row « à demander » keeps « Envoyer la demande ».** Rule 5 removed the
     button with the payment link, which left a red alert with only « Reporter » (a regression from
     v3.10.0). Without a provider, the server marks the row `remindByEmail` with the template to use and
     the reason « Aucun paiement en ligne : demande par email. »; the button opens that email in the
@@ -308,13 +346,13 @@ Other facts the design rests on:
 | `utils/` | `paymentProviders.js` | C | Rules 4–5: the declared provider, `active()`, `summary()`, `NO_PROVIDER` |
 | `utils/` | `paymentLinkDeactivation.js` | C | Rule 7: deactivate abandoned links, mark the ones the provider refused |
 | `utils/` | `paymentLinksProviderMigration.js` | C | Rules 6, 20: neutral columns, `provider`, `remoteCancelPendingAt` |
-| `utils/` | `paymentPollRunner.js` | T | Provider-neutral; records through the recorder; retries owed deactivations (rule 8) |
+| `utils/` | `paymentPollRunner.js` | T | Provider-neutral; records through the recorder; retries owed deactivations (rule 8); 2026-10-18 `settleRetiredPaidLink`: a retired link found paid (rule 24) |
 | `utils/` | `paymentRequestService.js` | T | Link from `provider.createLink`; stale link deactivated (rule 7) |
 | `utils/` | `cancelReservation.js` | T | Returns the links it cancelled |
 | `utils/` | `paymentEffectDeps.js` | T | + `notifyPaidAfterCancel` |
-| `utils/` | `notificationService.js` | T | + « Paiement reçu sur un lien annulé » (push + email, rule 8) |
+| `utils/` | `notificationService.js` | T | + « Paiement reçu sur un lien annulé » (push + email, rule 8); 2026-10-18 « Paiement à vérifier sur un lien retiré » when `settledOn` is given (rule 24) |
 | — | `scheduledTasks.js` | T | Payment block removed |
-| `models/` | `paymentLinksModel.js` | T | Neutral columns, `findByProviderLinkId`, `cancel`, `listRemoteCancelPending`, `clearRemoteCancelPending` |
+| `models/` | `paymentLinksModel.js` | T | Neutral columns, `findByProviderLinkId`, `cancel`, `listRemoteCancelPending`, `clearRemoteCancelPending`; 2026-10-18 `retireSettled` stamps `cancelReason`, `settledBucketDateOf`, `markRetiredLinkPaid` (rule 24) |
 | `models/` | `settingsModel.js` | T | Qonto methods and columns removed; `publicSiteOrigin()`, `storePublicSiteOrigin()` |
 | `controllers/` | `paymentsController.js` | T | Provider from `paymentProviders`; 409 `NO_PAYMENT_PROVIDER` |
 | `controllers/` | `reservationsController.js` | T | `updatePayment` records 0→1 flips through the recorder; `getById` adds `onlinePayment` |
@@ -328,6 +366,7 @@ Other facts the design rests on:
 | `plugins/sdk/` | `createContext.js`, `registry.js`, `eventBus.js`, `index.js` | T | `ctx.paymentProvider`, `ctx.webhook`, event `reservation.paid`; `CORE_MODULES` gains the three payment modules the plugin calls |
 | `plugins/` | `loader.js`, `index.js` | T | Mounts webhooks, `isWebhook()`; registers the module |
 | `plugins/online-payment/` | `index.js`, `provider.js`, `settingsStore.js`, `webhookController.js`, `qontoSettingsController.js`, `paymentPollSchedule.js`, `qonto/*`, `tests/` | C (mostly moved) | Rules 10–16 |
+| `utils/qonto/` | `index.js`, the Qonto library, `qontoSettingsController.js` | C (moved back) | _(added 2026-10-18)_ Rule 22: shared by the plugin (`coreModule('qonto')`) and the control plane |
 | `plugins/website-booking/` | `routes/bookingRequests.js` | T | Gate on a declared provider |
 | — | `index.js` | T | Guards ask the loader; `/api/payments` mounted without `requirePlugin` |
 | — | `database.js`, `schema.sql` | T | Rule 20 migration; fresh databases get the neutral table |
@@ -375,6 +414,8 @@ the moved page. No behaviour change.
   - `qontoPaymentId` → `providerPaymentId`;
   - `+ provider TEXT NOT NULL DEFAULT 'qonto'`;
   - `+ remoteCancelPendingAt TEXT`;
+  - `+ cancelReason TEXT` (2026-10-18, rule 24: `'settled'` when rule 23 retired the link, else NULL;
+    added by `utils/paymentLinksProviderMigration.js` and `schema.sql`);
   - `+ idx_payment_links_provider (provider, providerLinkId)`.
 - **`plugin_settings`** (`online-payment`): the 19 Qonto keys, five of them secret.
 - **`app_settings`**: the 19 `qonto*` columns stay, unread, and are emptied on erase. `publicSiteOrigin`
@@ -411,6 +452,7 @@ the moved page. No behaviour change.
 | `payment-provider-interface.unit.test.js` | 6 | Rules 4–6, 20: missing member; one provider; `active()`; 409 on the endpoints; dashboard; the upgrade migration |
 | `payment-link-deactivation.unit.test.js` | 7 | Rules 7–9: deactivated; refused → marked; stale link; retry; paid after cancel; failing retry; admin email |
 | `plugins/online-payment/tests/phase-3a-online-payment.unit.test.js` | 7 | Rules 4, 10–16, 21: provider; routes and webhook at their URLs; settings copy and secrets; poll job; erase keeps payments; open-link blocker; a new customer has no provider |
+| `payment-link-retired-then-paid.unit.test.js` (2026-10-18) | 6 | Rule 24: ticked on seeing the money → `paid`, no alert, recorder once; the recorder keeps the operator's date; settled an earlier day → kept for refund, « à vérifier »; other cancellations keep rule 8; the email wording; the `cancelReason` upgrade |
 
 ### Moved and updated tests
 
@@ -423,6 +465,10 @@ the moved page. No behaviour change.
   and website-booking's `phase-2-website-booking` assert the new gates, jobs and events.
 - The control plane's suites run unchanged against the moved files (87).
 - Server total: 4,765.
+- _(2026-10-18, rule 22)_ The Qonto suites stay under `plugins/online-payment/tests/` and import
+  `server/src/utils/qonto/`; `control-plane/server/src/tests/console-plugin-boundary.unit.test.js` fails
+  when a console file names a plugin folder of the instance.
+- 2026-10-18 (rule 24): `payment-link-settled-elsewhere.unit.test.js` « paid meanwhile » now settles the bucket on an earlier day; `payment-links-model.unit.test.js` DDL gains `cancelReason`.
 
 ### Client (Vitest) — new tests (7)
 

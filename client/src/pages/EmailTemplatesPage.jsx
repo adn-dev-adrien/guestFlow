@@ -240,7 +240,7 @@ export default function EmailTemplatesPage() {
       // its rendered content → refresh both the library and the « Emails à envoyer » list.
       await Promise.all([reload(), reloadPending()]);
     } catch (e) {
-      // specs/guest-email-texts-made-simple.md rule 26 — a broken variable or condition is refused
+      // specs/guest-email-texts-made-simple.md rule 27 — a broken variable or condition is refused
       // by the server and named under its field, in the labels the field shows.
       if (e?.field && ['subject', 'body', 'subjectEn', 'bodyEn'].includes(e.field)) {
         setFieldError({ field: e.field, message: displayError(e.message, buildDictionary(chips.variables, chips.conditions)) });

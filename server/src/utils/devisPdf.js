@@ -4,6 +4,7 @@
  * from the former routes/devis.js GET /:id/pdf so the output is byte-identical.
  */
 
+const { todayIso: localTodayIso } = require('./localDate');
 const path = require("path");
 const fs = require("fs");
 const PDFDocument = require("pdfkit");
@@ -72,6 +73,11 @@ function lineAmounts(line) {
 const ROW_PAD_TOP = 7;
 const ROW_PAD_BOTTOM = 6;
 const ROW_BADGE_GAP = 4;
+
+// A « was » price is struck only above the billed one (specs/review-2026-10-18-reservations.md rule 2).
+function showsStruckOriginal(originalTtc, billedTtc) {
+  return Number(originalTtc || 0) > Number(billedTtc || 0) + 0.009;
+}
 
 function resolveRowGeometry({
   descHeight = 0, badgeHeight = 0, moneyLineHeight = 0, struckLineHeight = 0, showOriginal = false,
@@ -249,7 +255,7 @@ function generateDevisPdf(full, settings, quote) {
   // The fallback to "today" below is a legacy guard for the handful of pre-fix rows persisted
   // with an empty value (devis #12102, #12097 etc. in the prod-copy DB) — without it those
   // legacy PDFs show an empty "Date du devis" pill.
-  const todayIsoDate = new Date().toISOString().slice(0, 10);
+  const todayIsoDate = localTodayIso();
   const createdAtIsoDate = full.createdAt
     ? String(full.createdAt).slice(0, 10)
     : todayIsoDate;
@@ -272,7 +278,7 @@ function generateDevisPdf(full, settings, quote) {
   // Meta pills
   const metaItems = [
     { label: L.date,       value: fmtDate(createdAtIsoDate) },
-    { label: L.validUntil, value: fmtDate(validUntilIso) },
+    { label: L.validUntil, value: `${fmtDate(validUntilIso)}${isPrintedExpired(full, validUntilIso, todayIsoDate) ? L.expiredSuffix : ''}` },
     { label: L.property,   value: property ? property.name : `#${full.propertyId}` },
   ];
 
@@ -364,11 +370,10 @@ function generateDevisPdf(full, settings, quote) {
 
   function drawRow(desc, qty, totalTtc, vatRate, italic, meta = {}) {
     const originalTtc = Number(meta.originalTtc || 0);
-    // By default the original is struck only when it's higher (a reduction). `forceOriginal` strikes it
-    // in either direction (used for a manual accommodation price, which can be lower or higher).
-    const showOriginal = meta.forceOriginal
-      ? originalTtc > 0 && Math.abs(originalTtc - Number(totalTtc || 0)) > 0.009
-      : originalTtc > Number(totalTtc || 0) + 0.009;
+    // The original is struck only when it's higher: a strike-through reads as a reduction, so a lower
+    // « was » price above a higher billed one reads as a discount that is not there
+    // (specs/review-2026-10-18-reservations.md rule 2).
+    const showOriginal = showsStruckOriginal(originalTtc, totalTtc);
     const hasBadge = Boolean(meta.badgeText);
     const descText = String(desc == null ? '' : desc);
     const badgeText = hasBadge ? String(meta.badgeText) : '';
@@ -441,7 +446,6 @@ function generateDevisPdf(full, settings, quote) {
     const manualAccommodationTtc = roundMoney(Number(full.finalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
     drawRow(L.accommodation(nights), nights, manualAccommodationTtc, vatAccommodation, false, {
       originalTtc: engineAccommodationTtc,
-      forceOriginal: true,
     });
     accommodationTtcDrawn += manualAccommodationTtc;
   } else if (full.nights && full.nights.length > 0) {
@@ -795,9 +799,17 @@ function __resolveFooterText(settings, language, defaultEn, defaultFr) {
   return lang === 'en' ? defaultEn : defaultFr;
 }
 
+// specs/devis-pdf-and-tourist-tax-fixes.md rule 21 — a devis printed after its validity says so
+// (« Valable jusqu'au 07/10/2026 (expiré) »); a converted one is a reservation, past its quote on purpose.
+function isPrintedExpired(full, validUntilIso, todayIsoDate) {
+  return Boolean(full && full.kind === 'devis' && full.devisStatus !== 'converted' && validUntilIso && validUntilIso < todayIsoDate);
+}
+
 module.exports = {
   generateDevisPdf,
   __test: {
+    showsStruckOriginal,
+    isPrintedExpired,
     resolveLiveTaxTotals,
     lineAmounts,
     resolveRowGeometry,

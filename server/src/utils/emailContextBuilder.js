@@ -73,7 +73,7 @@ function formatBedConfig({ singleBeds, doubleBeds, babyBeds }, lang = 'fr') {
 function formatPropertyWithArticle(name, article, lang = 'fr') {
   // English has no gendered article to glue — the EN bodies phrase it as "at {{propertyWithArticle}}",
   // so the name alone reads cleanly. A French name starting with its own article contracts with it
-  // (specs/guest-email-texts-made-simple.md rule 29): « Le Fournil » → « au Fournil ».
+  // (specs/guest-email-texts-made-simple.md rule 30): « Le Fournil » → « au Fournil ».
   return propertyArticle.format(safeStr(name), article, lang);
 }
 
@@ -161,7 +161,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   // beds will be made on arrival, and the bed-linen option is dropped from the "Option(s) réservée(s)"
   // list (it isn't a chosen extra). `optionsList` itself is left intact for other templates (e.g. J-7).
   // The owner's answer on the property wins; unanswered after the start assistant, nothing is said
-  // (specs/guest-email-texts-made-simple.md rule 27, 2026-10-18).
+  // (specs/guest-email-texts-made-simple.md rule 28, 2026-10-18).
   const linenPending = pendingFactsOf(p).has('linen');
   const bedLinenProvided = !linenPending
     && (Number(p.bedLinenProvided) === 1 || (p.bedLinenProvided == null && linenByDefault));
@@ -328,7 +328,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
   // specs/caution-live-from-property.md §3 — caution is live from the property's current
   // defaultCautionAmount until received, then frozen to the collected amount on the reservation.
-  // A caution the owner never stated (specs/guest-email-texts-made-simple.md rule 27) is no caution.
+  // A caution the owner never stated (specs/guest-email-texts-made-simple.md rule 28) is no caution.
   const cautionAmountNum = cautionReceivedFlag
     ? Number(r.cautionAmount || 0)
     : (pendingFactsOf(p).has('caution') ? 0 : Number(p.defaultCautionAmount || 0));

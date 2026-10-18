@@ -35,7 +35,7 @@ function getOne(req, res) {
 
 // GET /api/properties/article-labels?name= — the five articles as the guest emails write them
 // (« au Fournil »: the server contracts), so the property page shows what is sent
-// (specs/guest-email-texts-made-simple.md rule 29, 2026-10-18).
+// (specs/guest-email-texts-made-simple.md rule 30, 2026-10-18).
 function articleLabels(req, res) {
   res.json({ labels: propertyArticle.labels(String((req.query && req.query.name) || '').slice(0, 200)) });
 }

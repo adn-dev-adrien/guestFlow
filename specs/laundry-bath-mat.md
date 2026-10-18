@@ -101,9 +101,18 @@ added on the Blanchisserie page.
 **Edge cases:**
 - Property quantity 0, or option not active → 0 bath mats for that reservation.
 - `towelStockBathMat = 0` → demand counts still show; no availability figure, no shortage raised.
-- Manual laundry additions get **no** bath-mat field this iteration (see §8).
+- Manual laundry additions get **no** bath-mat field this iteration (see §8). _(lifted on 2026-10-18 by rule 13)_
 - Devis (`kind != 'reservation'`) never contribute.
 - Pre-existing option titled "tapis de bain" → promoted to the typed marker (alias promotion).
+
+### Review fixes (2026-10-18, mega review #5)
+
+13. **The manual line of a laundry trip counts bath mats too** (lifts the §8 deferral and the edge case
+    above): a « Tapis » stepper under « Serviettes », signed like the other types
+    (specs/laundry-manual-removals.md), stored in `laundry_trip_manual_additions.bathMats` (plugin
+    migration `manual_additions_bath_mats_v1`, existing rows read 0), folded into À apporter / À
+    récupérer and washed by the stock simulation. *Why:* the card counts the mats, and none could be
+    added or withdrawn by hand.
 
 ---
 

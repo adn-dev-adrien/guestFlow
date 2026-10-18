@@ -248,6 +248,7 @@ CREATE TABLE IF NOT EXISTS payment_links (
     lastPolledAt TEXT,
     provider TEXT NOT NULL DEFAULT 'qonto',
     remoteCancelPendingAt TEXT,
+    cancelReason TEXT,
     CHECK (type IN ('deposit', 'balance', 'full', 'complement')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );

@@ -29,7 +29,7 @@ test('evaluates an expression on blur', async () => {
   await user.type(input, '100+20');
   await user.tab(); // blur
   expect(onCommit).toHaveBeenLastCalledWith(120);
-  expect(input).toHaveValue('120');
+  expect(input).toHaveValue('120,00');
 });
 
 test('evaluates on Enter', async () => {
@@ -69,7 +69,7 @@ test('invalid expression reverts to the last committed value', async () => {
   await user.clear(input);
   await user.type(input, '100+');
   await user.tab();
-  expect(input).toHaveValue('150'); // reverted
+  expect(input).toHaveValue('150,00'); // reverted
 });
 
 test('clearing the field commits an empty value', async () => {

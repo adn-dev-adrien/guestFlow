@@ -89,6 +89,7 @@ test('rule 1 — the systemd driver enables, stops and restarts guestflow@<slug>
   assert.deepEqual(calls, [
     'sudo -n /usr/local/sbin/guestflow-instance-identity ensure aulnes c12',
     'sudo -n /usr/local/sbin/guestflow-systemctl enable --now guestflow@aulnes.service',
+    'sudo -n /usr/local/sbin/guestflow-systemctl reset-failed guestflow@aulnes.service',
     'sudo -n /usr/local/sbin/guestflow-systemctl restart guestflow@aulnes.service',
     'sudo -n /usr/local/sbin/guestflow-systemctl disable --now guestflow@aulnes.service',
     'sudo -n /usr/local/sbin/guestflow-systemctl disable --now guestflow@aulnes.service',

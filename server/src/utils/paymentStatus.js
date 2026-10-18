@@ -2,6 +2,7 @@
 // Pure: takes a reservation row + the reference "today" (YYYY-MM-DD) and returns ready-to-render fields.
 // Replaces the two divergent client-side getRemainingDue implementations.
 
+const { todayIso: localTodayIso } = require('./localDate');
 function round2(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
@@ -16,7 +17,7 @@ function round2(value) {
  *   overdueAmount:number, oldestDueDate:(string|null), isOverdue:boolean
  * }}
  */
-function computePaymentStatus(reservation = {}, today = new Date().toISOString().split('T')[0]) {
+function computePaymentStatus(reservation = {}, today = localTodayIso()) {
   const finalPrice = Number(reservation.finalPrice || 0);
   const depositAmount = Number(reservation.depositAmount || 0);
   const balanceAmount = Number(reservation.balanceAmount || 0);

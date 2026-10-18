@@ -103,7 +103,7 @@ function unknownToken(text, { tokens = [], flags = [] } = {}) {
 
 /**
  * What makes a text unreadable to the renderer, or null (specs/guest-email-texts-made-simple.md
- * rule 26). The renderer passes a broken piece through as literal text, so the guest would read it:
+ * rule 27). The renderer passes a broken piece through as literal text, so the guest would read it:
  *
  *   'brace'    a `{{` or `}}` without its other half, or a label bracket `⟦` / `⟧` left from the page
  *   'unclosed' a `{{#if …}}` without its `{{/if}}`

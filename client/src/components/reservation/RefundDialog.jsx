@@ -10,6 +10,7 @@ import DateField from '../DateField';
 import QuantityField from '../QuantityField';
 import ErrorAlert from '../ErrorAlert';
 import { formatCurrency } from '../../utils/formatters';
+import { localIsoToday } from '../../utils/isoDay';
 
 /**
  * « Nouveau remboursement » — specs/reservation-refunds.md §6.
@@ -25,6 +26,11 @@ import { formatCurrency } from '../../utils/formatters';
  *  - `open`, `onClose()`
  *  - `refundableLines` — `[{ key, label, bucket, quantity, unitPrice, billedTtc, refundedTtc, refundableTtc }]`
  *  - `collectedTtc` — what has actually been collected so far, for the over-refund caption.
+ *  - `overpaymentTtc` — the server's trop-perçu (rule 34); when > 0 the dialog opens with a free line
+ *    « Trop-perçu » set to it, which the operator may change.
+ *  - `overpaymentLines` — the same amount split by poste by the server (rule 35,
+ *    `[{ bucket, label, amountTtc }]`): one « Trop-perçu » line per poste, so a tax paid too much is
+ *    refunded on the tax. Wins over `overpaymentTtc` when present.
  *  - `onSubmit(payload)` — throws an Error carrying the server message when the API refuses.
  */
 
@@ -41,10 +47,12 @@ const FREE_LINE_BUCKETS = [
   { value: 'touristTax', label: 'Taxe de séjour' },
 ];
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localIsoToday();
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-export default function RefundDialog({ open, onClose, refundableLines = [], collectedTtc = 0, onSubmit }) {
+export default function RefundDialog({
+  open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, onSubmit,
+}) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -59,13 +67,18 @@ export default function RefundDialog({ open, onClose, refundableLines = [], coll
   useEffect(() => {
     if (!open) return;
     setSelected({});
-    setFreeLines([]);
+    const split = Array.isArray(overpaymentLines) ? overpaymentLines.filter((l) => Number(l.amountTtc) > 0) : [];
+    if (split.length > 0) {
+      setFreeLines(split.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amount: String(l.amountTtc) })));
+    } else {
+      setFreeLines(overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: String(overpaymentTtc) }] : []);
+    }
     setRefundDate(todayIso());
     setMethod('transfer');
     setReason('');
     setError('');
     setBusy(false);
-  }, [open]);
+  }, [open, overpaymentTtc, overpaymentLines]);
 
   const toggleLine = (line, checked) => {
     setSelected((prev) => {

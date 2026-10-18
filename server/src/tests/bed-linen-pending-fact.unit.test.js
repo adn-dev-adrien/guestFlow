@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 27 (2026-10-18) — the bed linen is a fact like the
+// specs/guest-email-texts-made-simple.md rule 28 (2026-10-18) — the bed linen is a fact like the
 // towels: after the start assistant nothing is said of it (no « pensez à prendre draps » from the
 // option created at install) until the owner answers, on the property page or in « Vos emails ».
 
@@ -47,7 +47,7 @@ function j7(db, propertyId) {
   return renderTemplate({ subject: template.subject, body: template.body }, context).body;
 }
 
-test('rule 27: the J-7 of an assistant property says nothing of the bed linen, and it is listed to complete', async () => {
+test('rule 28: the J-7 of an assistant property says nothing of the bed linen, and it is listed to complete', async () => {
   const { db, controller, settingsModel } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   const body = j7(db, id);
@@ -58,7 +58,7 @@ test('rule 27: the J-7 of an assistant property says nothing of the bed linen, a
   assert.equal(linen.section, 'j7');
 });
 
-test('rule 27: answered « à apporter » in « Vos emails », the J-7 asks for sheets again', async () => {
+test('rule 28: answered « à apporter » in « Vos emails », the J-7 asks for sheets again', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   await call(controller.saveEmails, { body: { properties: [{ id, bedLinenProvided: false }] } });
@@ -66,7 +66,7 @@ test('rule 27: answered « à apporter » in « Vos emails », the J-7 asks for 
   assert.equal(db.prepare('SELECT bedLinenProvided FROM properties WHERE id = ?').get(id).bedLinenProvided, 0);
 });
 
-test('rule 27: answered « fourni » on the property page, the J-7 says the beds are made', async () => {
+test('rule 28: answered « fourni » on the property page, the J-7 says the beds are made', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   await propertiesModelModule.buildModel(db).update(id, { name: 'Le Fournil', bedLinenProvided: '1' });
@@ -75,7 +75,7 @@ test('rule 27: answered « fourni » on the property page, the J-7 says the beds
   assert.doesNotMatch(j7(db, id), /draps/);
 });
 
-test('rule 27: a property that existed before keeps its linen sentence (nothing pending)', () => {
+test('rule 28: a property that existed before keeps its linen sentence (nothing pending)', () => {
   const db = freshDb();
   applyProductisationSchema(db);
   db.prepare("INSERT INTO properties (id, name, nameArticle, doubleBeds) VALUES (1, 'La Granja', 'à', 1)").run();

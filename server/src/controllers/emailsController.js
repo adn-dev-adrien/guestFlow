@@ -12,6 +12,7 @@
  *   500 EMAIL_SEND_FAILED      ← nodemailer threw at send time
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
@@ -53,7 +54,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!SEASON_STABLE_KEYS.includes(stableKey)) {
       return { stableKey, dedupKey: stayDedupKey(stableKey, reservationId), reservationId, clientId, seasonKey: null };
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localTodayIso();
     const sendDate = nextSeasonDate(stableKey, addDays(today, -60));
     const seasonKey = seasonKeyOf(stableKey, sendDate);
     return { stableKey, dedupKey: seasonDedupKey(stableKey, clientId, seasonKey), reservationId, clientId, seasonKey, sendDate };
@@ -260,7 +261,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   function pending(req, res) {
-    const today = (req.query && req.query.today) || new Date().toISOString().slice(0, 10);
+    const today = (req.query && req.query.today) || localTodayIso();
     const lookbackDays = Number((req.query && req.query.lookbackDays) || 7);
     // Only the « manual » templates are proposed: an « auto » one leaves on its own
     // (specs/settings-rationalization.md rule 17b).

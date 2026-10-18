@@ -1,6 +1,6 @@
-// specs/guest-email-texts-made-simple.md rules 1–2, 12, 25, 34 — the « Arrivée » block of a property:
+// specs/guest-email-texts-made-simple.md rules 1–2, 12, 25, 35 — the « Arrivée » block of a property:
 // the facts, the code and the Wi-Fi password masked until « Modifier », the link to « Textes des
-// emails ». Controlled by the page (rule 34): no save button of its own.
+// emails ». Controlled by the page (rule 35): no save button of its own.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -27,7 +27,7 @@ test('rules 1–2: the facts are shown; a masked secret is typed only after « M
   expect(onChange).toHaveBeenCalledWith('accessCode', '');
 });
 
-test('rule 34: the block has no save button of its own; a refused field shows its message', () => {
+test('rule 35: the block has no save button of its own; a refused field shows its message', () => {
   renderBlock({ errors: { address: 'Adresse trop longue' } });
   expect(screen.queryByRole('button', { name: /Enregistrer/ })).toBeNull();
   expect(screen.getByText('Adresse trop longue')).toBeInTheDocument();

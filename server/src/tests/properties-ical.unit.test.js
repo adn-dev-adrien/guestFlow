@@ -22,7 +22,9 @@ test('normalizePlatformKey sanitizes labels', () => {
 
 test('parseIcalDate handles date-only and UTC date-time formats', () => {
   assert.equal(parseIcalDate('20260410', true), '2026-04-10');
-  assert.equal(parseIcalDate('20260410T230000Z', false), '2026-04-10');
+  // 2026-10-18 (specs/ical-import-hardening.md rule 7): 10/04 23:00Z is 11/04 at 01:00 in Paris.
+  assert.equal(parseIcalDate('20260410T230000Z', false), '2026-04-11');
+  assert.equal(parseIcalDate('20260410T200000Z', false), '2026-04-10');
 });
 
 test('parseAdultsFromText extracts adults count from iCal text', () => {

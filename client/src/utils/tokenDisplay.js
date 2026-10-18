@@ -63,7 +63,7 @@ export function chipSnippet(entry, kind, dict) {
 export const chipLabel = (entry, kind, dict) => (kind === 'cond' ? dict.toLabel.cond.get(asEntry(entry).name) : dict.toLabel.var.get(asEntry(entry).name));
 
 /**
- * A server message as the field shows its text (specs/guest-email-texts-made-simple.md rule 26):
+ * A server message as the field shows its text (specs/guest-email-texts-made-simple.md rule 27):
  * « Variable inconnue : {{Depuis le lo gement}} » reads « Variable inconnue : ⟦Depuis le lo gement⟧ »,
  * the brackets the operator sees, never the stored braces.
  */
@@ -81,7 +81,7 @@ export function tokenSpans(text) {
 }
 
 /**
- * A token is one unit (rule 26): the caret never lands inside it — a click or an arrow selects it
+ * A token is one unit (rule 27): the caret never lands inside it — a click or an arrow selects it
  * whole — and Backspace after it, or Delete before it, removes it whole.
  *
  *   selectionAround(text, pos)  the token holding `pos` strictly inside, as [start, end], or null

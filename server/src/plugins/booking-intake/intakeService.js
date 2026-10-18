@@ -6,6 +6,9 @@
  *
  * Every write goes through `core.updateReservation` / `core.updateClient` — the fiche's own save path.
  * Nothing here sends an e-mail, and the raw page never reaches this file's storage.
+ *
+ * The guest gets a client of their own (rule 27): the iCal import used to hand one placeholder client to
+ * every stay of a feed, so writing the guest onto the fiche's client renamed every other stay too.
  */
 
 const { parseBookingPage } = require('./pageParser');
@@ -24,7 +27,7 @@ const phoneKey = (p) => {
 };
 
 function createIntakeService(deps) {
-  const { intakes, hotelIds, findReservations, getReservation, core, today, now = () => new Date() } = deps;
+  const { intakes, hotelIds, findReservations, getReservation, clientShared, core, today, now = () => new Date() } = deps;
 
   const propertyIdFor = (hotelId) => {
     const found = Object.entries(hotelIds()).find(([, h]) => String(h).trim() === String(hotelId).trim());
@@ -101,15 +104,21 @@ function createIntakeService(deps) {
     return out;
   }
 
-  const isUntouched = (r) => isEmpty(r.platformGrossAmount) && isEmpty(r.email) && isEmpty(r.phone);
+  // Rule 27 — a client another reservation also uses says nothing about this fiche: its e-mail may be
+  // another guest's, written there by an earlier intake.
+  const isShared = (r) => Boolean(r.clientId) && clientShared(r.clientId, r.id);
+  const isUntouched = (r) => isEmpty(r.platformGrossAmount) && ((isEmpty(r.email) && isEmpty(r.phone)) || isShared(r));
 
+  // Rule 27 — the guest's own client, found by e-mail or created, never the one the fiche shares. Its
+  // fields are refreshed only while no other reservation uses it.
   function write(booking, reservation) {
     const { client, reservation: patch } = plan(booking, reservation);
-    const result = core.updateReservation(reservation.id, patch, { label: `Rempli depuis l’extranet Booking (réservation ${booking.resId})` });
+    const own = core.findOrCreateClient(client);
+    const result = core.updateReservation(reservation.id, { ...patch, clientId: own.id }, { label: `Rempli depuis l’extranet Booking (réservation ${booking.resId})` });
     if (result.status !== 200) {
       return { ok: false, message: (result.body && result.body.error) || `Erreur ${result.status}`, code: result.body && result.body.code };
     }
-    core.updateClient(reservation.clientId, client);
+    if (!clientShared(own.id, reservation.id)) core.updateClient(own.id, client);
     return { ok: true };
   }
 

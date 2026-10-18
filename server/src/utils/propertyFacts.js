@@ -1,6 +1,6 @@
 /**
  * The facts of a property the guest emails state, and those nobody gave yet
- * (specs/guest-email-texts-made-simple.md rule 27). Pure.
+ * (specs/guest-email-texts-made-simple.md rule 28). Pure.
  *
  * The start assistant creates a property without asking for its deposit, its cleaning, its bath
  * linen or its bed linen (`linen`, 2026-10-18). Those facts are « pending » (`properties.pendingFacts`, comma-separated) and every sentence

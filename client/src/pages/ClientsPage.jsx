@@ -25,7 +25,8 @@ import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
 import { formatCurrency, displayDate } from '../utils/formatters';
-import { useToast } from '../components/DialogProvider';
+import { useToast, useAppDialogs } from '../components/DialogProvider';
+import { localIsoToday } from '../utils/isoDay';
 
 // A sortable column header (specs/clients-upcoming-past-directory.md §3.3), same interaction as the
 // « Tarifs facturables » page. Module-level on purpose: a component defined inside the page would be a
@@ -67,7 +68,7 @@ const emptyClient = {
 };
 
 function getTodayDateKey() {
-  return new Date().toISOString().split('T')[0];
+  return localIsoToday();
 }
 
 function formatStayDates(startDate, endDate) {
@@ -78,6 +79,7 @@ function formatStayDates(startDate, endDate) {
 export default function ClientsPage() {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
+  const { confirm } = useAppDialogs();
   const [urlParams, setUrlParams] = useSearchParams();
   // specs/clients-upcoming-past-directory.md §3 — the two lists, the « Séjour » date, the counts and
   // the ordering all come from the server; the page holds only the tab, the search and the sort.
@@ -211,7 +213,21 @@ export default function ClientsPage() {
     if (editId) {
       await updateItem(editId, payload, search);
     } else {
-      await createItem(payload, search);
+      try {
+        await createItem(payload, search);
+      } catch (err) {
+        // specs/clients.md rule 12 — the email or phone already belongs to a client.
+        if (err?.code !== 'CLIENT_EXISTS') throw err;
+        const proceed = await confirm({
+          title: 'Client existant',
+          message: err.message,
+          confirmLabel: 'Créer quand même',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (!proceed) return;
+        await createItem({ ...payload, allowDuplicate: true }, search);
+      }
     }
     handleCloseDialog();
   };
@@ -549,7 +565,7 @@ export default function ClientsPage() {
               startIcon={<DeleteSweepIcon />}
               onClick={handleCleanupOrphanClients}
             >
-              Cleanup clients
+              Nettoyer les clients
             </Button>
           </Box>
         )}

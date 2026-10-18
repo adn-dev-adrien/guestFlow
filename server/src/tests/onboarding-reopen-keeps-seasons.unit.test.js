@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 28 (2026-10-18) — the start assistant reopened edits the
+// specs/guest-email-texts-made-simple.md rule 29 (2026-10-18) — the start assistant reopened edits the
 // price of the rule it created, never the seasons the owner added since.
 
 const test = require('node:test');
@@ -39,7 +39,7 @@ function addSeason(db, propertyId, price) {
 
 const prices = (db, id) => db.prepare('SELECT label, pricePerNight FROM pricing_rules WHERE propertyId = ? ORDER BY id').all(id).map((r) => [r.label, r.pricePerNight]);
 
-test('rule 28: « Suivant » on an untouched step 2 leaves a season added since as it is', async () => {
+test('rule 29: « Suivant » on an untouched step 2 leaves a season added since as it is', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   addSeason(db, id, 180);
@@ -50,7 +50,7 @@ test('rule 28: « Suivant » on an untouched step 2 leaves a season added since 
   assert.deepEqual(prices(db, id), [['Tarif annuel', 95], ['Haute saison', 180]]);
 });
 
-test('rule 28: a new price at step 2 changes the assistant rule only', async () => {
+test('rule 29: a new price at step 2 changes the assistant rule only', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   addSeason(db, id, 180);
@@ -59,7 +59,7 @@ test('rule 28: a new price at step 2 changes the assistant rule only', async () 
   assert.equal((await call(controller.get, {})).body.property.draft.pricePerNight, '110');
 });
 
-test('rule 28: a season cheaper than the assistant rule does not become the step price', async () => {
+test('rule 29: a season cheaper than the assistant rule does not become the step price', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   addSeason(db, id, 60);

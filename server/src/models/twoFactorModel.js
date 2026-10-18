@@ -72,7 +72,7 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     recordPendingFailure: (userId) => pendingFailStmt.run(Number(userId)),
     dropPending: (userId) => dropPendingStmt.run(Number(userId)),
     // `totpStep`: the step of the code that confirmed the enrolment, so that code cannot also open a
-    // session (specs/hosting-h2-account-security.md rule 24).
+    // session (specs/hosting-h2-account-security.md rule 28).
     activatePending: db.transaction((userId, nowIso, backupHashes, totpStep = null) => {
       activateStmt.run(nowIso, totpStep == null ? null : Number(totpStep), Number(userId));
       replaceCodes(Number(userId), backupHashes);

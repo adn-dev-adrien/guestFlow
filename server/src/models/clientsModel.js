@@ -9,13 +9,14 @@
  * against an in-memory schema.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
-const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
+const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
 
 const MS_PER_DAY = 86400000;
 
 function todayKey() {
-  return new Date().toISOString().split('T')[0];
+  return localTodayIso();
 }
 
 function computeNights(startDate, endDate) {
@@ -46,8 +47,8 @@ function buildClientFields(payload) {
   const address = sentenceCase(payload.address)
     || sentenceCase([streetNumber, street].filter(Boolean).join(' '));
   return {
-    lastName: sentenceCase(payload.lastName),
-    firstName: sentenceCase(payload.firstName),
+    lastName: personNameCase(payload.lastName),
+    firstName: personNameCase(payload.firstName),
     streetNumber,
     street,
     postalCode: String(payload.postalCode || '').trim(),
@@ -171,6 +172,18 @@ function createModel(database) {
     const normalized = String(email || '').trim().toLowerCase();
     if (!normalized) return undefined;
     return database.prepare('SELECT * FROM clients WHERE lower(trim(email)) = ? ORDER BY id LIMIT 1').get(normalized);
+  }
+
+  // specs/clients.md rule 12 — the client a new record would duplicate: same email
+  // (case-insensitive), else same phone (its last 9 digits, so « 06 12… » and « +33 6 12… » match).
+  function findDuplicate({ email, phone } = {}) {
+    const byEmail = findByEmail(email);
+    if (byEmail) return byEmail;
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (digits.length < 9) return undefined;
+    const tail = digits.slice(-9);
+    return database.prepare("SELECT * FROM clients WHERE phone IS NOT NULL AND phone <> '' ORDER BY id").all()
+      .find((c) => String(c.phone).replace(/\D/g, '').slice(-9) === tail);
   }
 
   function insert(payload) {
@@ -331,6 +344,7 @@ function createModel(database) {
     directory,
     findById,
     findByEmail,
+    findDuplicate,
     insert,
     update,
     remove,

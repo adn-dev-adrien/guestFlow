@@ -46,6 +46,7 @@ const DDL = `
     tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
     singleBeds INTEGER NOT NULL DEFAULT 0, doubleBeds INTEGER NOT NULL DEFAULT 0, babyBeds INTEGER NOT NULL DEFAULT 0,
     largeTowels INTEGER NOT NULL DEFAULT 0, mediumTowels INTEGER NOT NULL DEFAULT 0, smallTowels INTEGER NOT NULL DEFAULT 0,
+    bathMats INTEGER NOT NULL DEFAULT 0,
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE TABLE laundry_extra_trips (

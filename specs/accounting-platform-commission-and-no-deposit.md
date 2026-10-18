@@ -409,6 +409,12 @@ Make every monthly CSV match the écriture model the accountant validated:
   `depositAmount = 0` (already de facto since iCal sync doesn't set deposit
   fields). No code change in the iCal worker.
 
+**Review fixes (2026-10-18, mega review #5)**
+
+23. **A platform is shown by its display label, never its key** (2026-10-18, mega review #5): the Plan
+    comptable table reads « Direct », not « direct » (`formatPlatformLabel`, also in its switches'
+    accessible names).
+
 ---
 
 ## 4. Architecture

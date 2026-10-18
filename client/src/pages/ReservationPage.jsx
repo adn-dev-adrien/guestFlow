@@ -191,6 +191,9 @@ export default function ReservationPage() {
   // for the bold name; `clientSearchOpen` reveals the search to attach a DIFFERENT existing client;
   // `clientDialogMode` switches the shared FormDialog between create and edit.
   const [selectedClient, setSelectedClient] = useState(null);
+  // specs/clients.md rule 13 — a client typed for a stay not saved yet: sent as `newClient` with the
+  // first save, written with it, never before.
+  const [pendingClient, setPendingClient] = useState(null);
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [clientDialogMode, setClientDialogMode] = useState('create');
   // specs/email-automation.md §6.6 — opens EmailManualSendDialog from the action bar.
@@ -1197,13 +1200,13 @@ export default function ReservationPage() {
   // Keep `selectedClient` (the bold-name display) in sync with the attached clientId — from the
   // search list when present, otherwise fetched directly so it works on initial load / deep-links.
   useEffect(() => {
-    if (!form.clientId) { setSelectedClient(null); return undefined; }
+    if (!form.clientId) { setSelectedClient(pendingClient ? { ...pendingClient, id: null } : null); return undefined; }
     const inList = clients.find((c) => c.id === form.clientId);
     if (inList) { setSelectedClient(inList); return undefined; }
     let cancelled = false;
     api.getClient(form.clientId).then((c) => { if (!cancelled && c) setSelectedClient(c); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [form.clientId, clients]);
+  }, [form.clientId, clients, pendingClient]);
   // Load occupied dates from backend when property or dates change
   useEffect(() => {
     if (!selectedProp || !form.startDate || !form.endDate) {
@@ -1844,6 +1847,13 @@ export default function ReservationPage() {
   // Edit the attached client's record in the SAME dialog/fields as create. Prefill instantly from
   // the cached client, then refine with the full record from the API.
   const openEditClient = () => {
+    if (!form.clientId && pendingClient) {
+      setClientDialogMode('edit');
+      setNewClient({ ...EMPTY_CLIENT, ...pendingClient });
+      setNewClientCityOptions([]);
+      setCreateClientOpen(true);
+      return;
+    }
     if (!form.clientId) return;
     setClientDialogMode('edit');
     setNewClient({ ...EMPTY_CLIENT, ...(selectedClient || {}) });
@@ -1864,12 +1874,50 @@ export default function ReservationPage() {
       phone: String(newClient.phone || '').trim(),
     };
 
+    if (clientDialogMode === 'edit' && !form.clientId && pendingClient) {
+      setPendingClient(pendingClient.allowDuplicate ? { ...payload, allowDuplicate: true } : payload);
+      closeCreateClient();
+      return;
+    }
+
     if (clientDialogMode === 'edit' && form.clientId) {
       const updatedRow = await api.updateClient(form.clientId, payload);
       const updated = updatedRow && updatedRow.id ? updatedRow : { ...(selectedClient || {}), ...payload, id: form.clientId };
       setSelectedClient(updated);
       setClients(prev => prev.map(client => (client.id === updated.id ? updated : client)));
     } else {
+      // specs/clients.md rule 12 — an email or phone already known: use that client, or — a couple or a
+      // family sharing one phone — create a second one anyway (rule 14).
+      const duplicate = await api.findDuplicateClient({ email: payload.email, phone: payload.phone }).catch(() => null);
+      if (duplicate?.client) {
+        const choice = await confirm({
+          title: 'Client existant',
+          message: duplicate.message,
+          confirmLabel: 'Utiliser ce client',
+          secondaryLabel: 'Créer quand même',
+          cancelLabel: 'Modifier la saisie',
+          confirmColor: 'primary',
+        });
+        if (!choice) return;
+        if (choice === 'secondary') payload.allowDuplicate = true;
+      }
+      if (duplicate?.client && !payload.allowDuplicate) {
+        const existing = await api.getClient(duplicate.client.id).catch(() => duplicate.client);
+        setPendingClient(null);
+        setForm(prev => ({ ...prev, clientId: existing.id }));
+        setClients(prev => prev.some(client => client.id === existing.id) ? prev : [...prev, existing]);
+        setClientSearchOpen(false);
+        closeCreateClient();
+        return;
+      }
+      if (!reservationId && !editingDevisId) {
+        // specs/clients.md rule 13 — nothing is written until the stay is.
+        setPendingClient(payload);
+        setForm(prev => ({ ...prev, clientId: null }));
+        setClientSearchOpen(false);
+        closeCreateClient();
+        return;
+      }
       const c = await api.createClient(payload);
       setForm(prev => ({ ...prev, clientId: c.id }));
       setClients(prev => prev.some(client => client.id === c.id) ? prev : [...prev, c]);
@@ -2057,7 +2105,7 @@ export default function ReservationPage() {
     }
   };
 
-  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false) => {
+  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     
     if (!selectedProp) {
@@ -2070,7 +2118,7 @@ export default function ReservationPage() {
       return false;
     }
 
-    if (!form.clientId) {
+    if (!form.clientId && !pendingClient) {
       await alert({ title: 'Erreur', message: 'Veuillez sélectionner un client.' });
       return false;
     }
@@ -2122,7 +2170,7 @@ export default function ReservationPage() {
         confirmColor: 'warning',
       });
       if (proceed) {
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment);
       }
       return false;
     }
@@ -2194,7 +2242,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights);
+        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 23 — changeover breach: same confirm + force-override
@@ -2211,7 +2259,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum guard.
@@ -2224,13 +2272,14 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
       }
 
       if (isDevisMode) {
         const devisPayload = {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
+          ...(!form.clientId && pendingClient && !editingDevisId ? { newClient: pendingClient } : {}),
           startDate: form.startDate,
           endDate: form.endDate,
           adults: form.adults,
@@ -2359,6 +2408,7 @@ export default function ReservationPage() {
           forceCapacity,
           forceChangeover,
           forceMaxNights,
+          forceOverpayment,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
@@ -2376,6 +2426,7 @@ export default function ReservationPage() {
           ...unlockPayload,
           propertyId: Number(selectedProp),
           clientId: form.clientId,
+          ...(!form.clientId && pendingClient ? { newClient: pendingClient } : {}),
           // Optional override; blank → the server generates the AAAA-MM-### number.
           reservationNumber: form.reservationNumber || '',
           startDate: form.startDate,
@@ -2443,7 +2494,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights);
+          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
         }
         return false;
       }
@@ -2456,9 +2507,25 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights);
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment);
         }
         return false;
+      }
+      // specs/reservation-refunds.md rule 34 — the save would leave more collected than the stay now
+      // costs. Confirmed, it is saved, the fiche stays open and the refund dialog opens on the amount.
+      if (err?.code === 'OVERPAID' && !forceOverpayment) {
+        const proceed = await confirm({
+          title: 'Trop-perçu',
+          message: err.message || 'Le nouveau total est inférieur au montant encaissé.',
+          confirmLabel: 'Enregistrer et rembourser',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (!proceed) return false;
+        return await handleSaveReservation(
+          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines)),
+          forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true,
+        );
       }
       if (err?.code === 'MAX_NIGHTS' && !forceMaxNights) {
         const proceed = await confirm({
@@ -2469,7 +2536,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true);
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
         }
         return false;
       }
@@ -2627,6 +2694,13 @@ export default function ReservationPage() {
     });
     setRefundsVersion((v) => v + 1);
   }, []);
+
+  // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the paid
+  // state and open the refund dialog on the amount the server announced.
+  const openOverpaymentRefund = useCallback(async (overpaymentTtc, overpaymentLines) => {
+    await reloadReservationFinance();
+    if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc, overpaymentLines: Array.isArray(overpaymentLines) ? overpaymentLines : null });
+  }, [reloadReservationFinance]);
 
   const createRefund = useCallback(async (payload) => {
     const res = await api.createReservationRefund(editingReservationId, payload);
@@ -3128,6 +3202,9 @@ export default function ReservationPage() {
     refundableLines: refundRegister.refundableLines,
     refundTotals: refundRegister.refundTotals,
     refundCollectedTtc: refundRegister.collectedTtc,
+    // specs/reservation-refunds.md rule 34 — the trop-perçu, computed by the server with the live quote.
+    refundOverpaymentTtc: Number(pricingQuote?.overpaymentTtc || 0),
+    refundOverpaymentLines: Array.isArray(pricingQuote?.overpaymentLines) ? pricingQuote.overpaymentLines : [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
@@ -3155,6 +3232,9 @@ export default function ReservationPage() {
             </>
           )
           : null}
+        // specs/review-2026-10-18-reservations.md rule 6 — at tablet width the centred client name
+        // overlapped the title: it shows from lg only.
+        centerFrom="lg"
         center={(selectedClient || form.reservationNumber) ? (
           <>
             <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2, maxWidth: 340, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -3183,7 +3263,10 @@ export default function ReservationPage() {
           px: 2,
           py: 3,
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
+          // Two columns from lg only: at 900 px the form and the summary side by side overflowed the
+          // page (specs/review-2026-10-18-reservations.md rule 6). minmax(0, …) lets a long value
+          // ellipsise instead of widening the track.
+          gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1fr) 320px' },
           gap: 3,
           '& .MuiOutlinedInput-root': {
             bgcolor: 'background.paper',
@@ -3314,7 +3397,7 @@ export default function ReservationPage() {
                       getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
                       value={clients.find(c => c.id === form.clientId) || null}
                       onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
-                      onChange={(_, val) => { if (val) { updateForm({ clientId: val.id }); setSelectedClient(val); setClientSearchOpen(false); } }}
+                      onChange={(_, val) => { if (val) { setPendingClient(null); updateForm({ clientId: val.id }); setSelectedClient(val); setClientSearchOpen(false); } }}
                       isOptionEqualToValue={(option, value) => option.id === value.id}
                       renderInput={(params) => <TextField {...params} label="Rechercher un client" autoFocus={clientSearchOpen} />}
                       noOptionsText={

@@ -7,6 +7,7 @@
  * SQL is moved verbatim from the former routes/reservations.js to preserve behavior exactly.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { formatPlatformName, registerDirectChannelSql } = require('../utils/platformNameFormat');
@@ -656,7 +657,9 @@ function createReservationsModel(database) {
       if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
       if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
       sql += ' ORDER BY r.startDate';
-      const today = new Date().toISOString().split('T')[0];
+      // The server's calendar day, not UTC's: between midnight and 2 a.m. in Paris the UTC date is
+      // still yesterday (specs/upcoming-reservations-cards.md rule 7).
+      const today = localTodayIso();
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the
         // response (preserves the former route behavior, which stripped them).
@@ -1112,6 +1115,75 @@ function createReservationsModel(database) {
       return database.prepare('SELECT id FROM reservations WHERE id = ?').get(reservationId);
     },
 
+    // Σ of the contribs captured per schedule bucket when it was ticked — what that bucket actually
+    // collected (specs/reservation-refunds.md rule 34). `null` for a bucket that captured nothing.
+    // Guarded: a minimal schema without the contrib columns captures nothing.
+    capturedScheduleContribs(reservationId) {
+      const none = { deposit: null, balance: null };
+      let row;
+      try {
+        row = database.prepare(`
+          SELECT accommodationAcompteContribTtc AS aa, accommodationSoldeContribTtc AS asol,
+                 touristTaxAcompteContribTtc AS ta, touristTaxSoldeContribTtc AS tsol
+            FROM reservations WHERE id = ?`).get(reservationId);
+      } catch {
+        return none;
+      }
+      if (!row) return none;
+      const lines = [];
+      for (const table of ['reservation_options', 'reservation_custom_options', 'reservation_resources']) {
+        try {
+          lines.push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?`).all(reservationId));
+        } catch {
+          // A minimal schema without this table or its contrib columns.
+        }
+      }
+      const sum = (values) => (values.every((v) => v == null)
+        ? null
+        : Math.round(values.reduce((acc, v) => acc + Number(v || 0), 0) * 100) / 100);
+      return {
+        deposit: sum([row.aa, row.ta, ...lines.map((l) => l.a)]),
+        balance: sum([row.asol, row.tsol, ...lines.map((l) => l.s)]),
+      };
+    },
+
+    // The same captures split by poste (specs/reservation-refunds.md rule 35), so a trop-perçu can be
+    // refunded on the poste it came from. `null` for a bucket that captured nothing.
+    capturedScheduleContribsByPoste(reservationId) {
+      const none = { deposit: null, balance: null };
+      let row;
+      try {
+        row = database.prepare(`
+          SELECT accommodationAcompteContribTtc AS aa, accommodationSoldeContribTtc AS asol,
+                 touristTaxAcompteContribTtc AS ta, touristTaxSoldeContribTtc AS tsol
+            FROM reservations WHERE id = ?`).get(reservationId);
+      } catch {
+        return none;
+      }
+      if (!row) return none;
+      const lines = { options: [], resources: [] };
+      for (const [table, poste] of [['reservation_options', 'options'], ['reservation_custom_options', 'options'], ['reservation_resources', 'resources']]) {
+        try {
+          lines[poste].push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?`).all(reservationId));
+        } catch {
+          // A minimal schema without this table or its contrib columns.
+        }
+      }
+      const r2 = (v) => Math.round(v * 100) / 100;
+      const sumOf = (list, key) => r2(list.reduce((sum, l) => sum + Number(l[key] || 0), 0));
+      const bucket = (accommodation, tax, key) => {
+        const values = [accommodation, tax, ...lines.options.map((l) => l[key]), ...lines.resources.map((l) => l[key])];
+        if (values.every((v) => v == null)) return null;
+        return {
+          accommodation: r2(Number(accommodation || 0)),
+          touristTax: r2(Number(tax || 0)),
+          options: sumOf(lines.options, key),
+          resources: sumOf(lines.resources, key),
+        };
+      };
+      return { deposit: bucket(row.aa, row.ta, 'a'), balance: bucket(row.asol, row.tsol, 's') };
+    },
+
     // The just-assigned/overridden number, returned to the client after create/update so the fiche
     // field repopulates. Empty string when the column is absent (minimal schema) or unset.
     getReservationNumber(reservationId) {
@@ -1152,6 +1224,48 @@ function createReservationsModel(database) {
           createdAt: row.createdAt || '',
         };
       });
+    },
+
+    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 15): the stays the boot repair
+    // numbered — possibly ghosts of a failed creation, still blocking their dates — until the operator
+    // has looked at them. Empty on a schema without the stamp.
+    listRepairedNumbers() {
+      let rows;
+      try {
+        rows = database.prepare(`
+          SELECT r.id AS reservationId, r.reservationNumber, r.startDate, r.endDate, r.numberRepairedAt,
+                 c.firstName, c.lastName, p.name AS propertyName
+            FROM reservations r
+            LEFT JOIN clients c    ON c.id = r.clientId
+            LEFT JOIN properties p ON p.id = r.propertyId
+           WHERE r.kind = 'reservation' AND r.numberRepairedAt IS NOT NULL
+           ORDER BY r.startDate, r.id
+        `).all();
+      } catch {
+        return [];
+      }
+      return rows.map((row) => {
+        const clientName = `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
+        return {
+          reservationId: row.reservationId,
+          reservationNumber: row.reservationNumber || '',
+          clientName: clientName || 'Sans client',
+          propertyName: row.propertyName || '',
+          startDate: row.startDate || '',
+          endDate: row.endDate || '',
+          repairedAt: row.numberRepairedAt,
+        };
+      });
+    },
+
+    // The operator has checked it: off the card. False when there was nothing to acknowledge.
+    acknowledgeRepairedNumber(reservationId) {
+      try {
+        return database.prepare('UPDATE reservations SET numberRepairedAt = NULL WHERE id = ? AND numberRepairedAt IS NOT NULL')
+          .run(reservationId).changes > 0;
+      } catch {
+        return false;
+      }
     },
 
     // Dashboard alert (specs/site-booking-notifications.md §3 rule 5): site-origin devis still
@@ -1202,7 +1316,7 @@ function createReservationsModel(database) {
       const property = database.prepare('SELECT cleaningHours FROM properties WHERE id = ?').get(propertyId);
       const cleaning = property ? (property.cleaningHours ?? 3) : 3;
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = localTodayIso();
       if (startDate < today && !options.allowPastDates) {
         return { error: 'Impossible de réserver dans le passé.' };
       }
@@ -1805,7 +1919,7 @@ function createReservationsModel(database) {
                -- it to tell « à demander » from « en retard », and to refuse to propose a cancellation
                -- over a solde nobody ever claimed (rule 12bis).
                -- A reminder sent by hand asks too: it is the request of an instance without online
-               -- payment (specs/plugins-phase-3a-online-payment.md rule 22).
+               -- payment (specs/plugins-phase-3a-online-payment.md rule 25).
                EXISTS (SELECT 1 FROM email_log l JOIN email_templates t ON t.id = l.templateId
                         WHERE l.reservationId = r.id AND t.stableKey IN ('deposit_request', 'deposit_reminder')
                           AND l.status = 'sent') AS depositRequestSent,
@@ -2299,7 +2413,7 @@ function createReservationsModel(database) {
         const notes = parseNotes(row.midStaySettledNotes);
         const note = {
           id: nextNoteId(notes),
-          paidDate: new Date().toISOString().slice(0, 10),
+          paidDate: localTodayIso(),
           paidCash: cash ? 1 : 0,
           total: round2(noteLines.reduce((s, l) => s + Number(l.amount || 0), 0)),
           lines: noteLines,
@@ -2601,7 +2715,7 @@ function createReservationsModel(database) {
       // Bread is counted in baguettes with half steps (specs/sas-breakfast-bread-and-push.md rule 2).
       const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round((Number(v) || 0) * 2) / 2));
       const tx = database.transaction(() => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localTodayIso();
         // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
@@ -2979,7 +3093,7 @@ function createReservationsModel(database) {
       offeredArrivalExtras,
     } = {}) {
       const tx = database.transaction(() => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localTodayIso();
         // specs/sas-offer-complement-lines.md §3.2 rule 6.ter — the check-out recap only RECALLS the
         // arrival complement when something is still owed on it (amount > 0 and unpaid). When it is
         // not recalled, the recap rendered no arrival line, so it holds no authority over their

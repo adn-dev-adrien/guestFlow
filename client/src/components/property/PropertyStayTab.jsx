@@ -9,11 +9,11 @@
  *   form, errors, updateField(field, value), onZeroFocus(event)
  *   timedOptions: { early, late }, updateTimedOptionField(kind, field, value), timeOptions (string[])
  *   propertyId — null for a property not created yet (its texts come once it exists)
- *   arrival — { draft, saved, errors, onChange } of the « Arrivée » block, held by the page (rule 34)
+ *   arrival — { draft, saved, errors, onChange } of the « Arrivée » block, held by the page (rule 35)
  *
- * Cleaning, towels and bed linen (specs/guest-email-texts-made-simple.md rule 27): « Selon les options » leaves
+ * Cleaning, towels and bed linen (specs/guest-email-texts-made-simple.md rule 28): « Selon les options » leaves
  * the emails to the options; empty means not said yet, and the emails stay silent on it. The pool
- * season (rule 33) is the property's: off, no pool sentence at all.
+ * season (rule 34) is the property's: off, no pool sentence at all.
  */
 import React from 'react';
 import { Link as RouterLink } from 'react-router';

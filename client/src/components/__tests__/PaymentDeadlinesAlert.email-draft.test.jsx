@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 22 — without online payment, « Envoyer la demande »
+// specs/plugins-phase-3a-online-payment.md rule 25 — without online payment, « Envoyer la demande »
 // stays on a row « à demander » and opens the request as an email in the send dialog, for the
 // operator to read before it leaves; the reason is said in one short line.
 import React from 'react';
@@ -33,7 +33,7 @@ beforeEach(() => {
   api.sendEmail.mockResolvedValue({ ok: true });
 });
 
-test('rule 22: « Envoyer la demande » opens the request email, not a payment link', async () => {
+test('rule 25: « Envoyer la demande » opens the request email, not a payment link', async () => {
   const user = userEvent.setup();
   render(<DialogProvider><PaymentDeadlinesAlert /></DialogProvider>);
   expect(await screen.findByText('Aucun paiement en ligne : demande par email.')).toBeInTheDocument();

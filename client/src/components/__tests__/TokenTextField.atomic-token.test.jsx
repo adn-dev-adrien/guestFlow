@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 26 — a variable is one unit: Backspace after it or
+// specs/guest-email-texts-made-simple.md rule 27 — a variable is one unit: Backspace after it or
 // Delete before it removes all of it, the caret inside it selects all of it, and a refusal is shown in
 // the brackets the field shows. No half-variable can be left for the guest to read.
 import React, { useState } from 'react';
@@ -23,7 +23,7 @@ function Harness({ initial = 'Bonjour {{clientFirstName}} !', ...props }) {
   );
 }
 
-test('rule 26: Backspace right after a variable removes the whole of it', () => {
+test('rule 27: Backspace right after a variable removes the whole of it', () => {
   render(<Harness />);
   const fr = screen.getByLabelText('Français');
   const end = 'Bonjour ⟦Prénom du voyageur⟧'.length;
@@ -32,7 +32,7 @@ test('rule 26: Backspace right after a variable removes the whole of it', () => 
   expect(last.fr).toBe('Bonjour  !');
 });
 
-test('rule 26: Delete right before a variable removes the whole of it', () => {
+test('rule 27: Delete right before a variable removes the whole of it', () => {
   render(<Harness />);
   const fr = screen.getByLabelText('Français');
   fr.setSelectionRange(8, 8);
@@ -40,7 +40,7 @@ test('rule 26: Delete right before a variable removes the whole of it', () => {
   expect(last.fr).toBe('Bonjour  !');
 });
 
-test('rule 26: the caret inside a variable selects all of it', () => {
+test('rule 27: the caret inside a variable selects all of it', () => {
   render(<Harness />);
   const fr = screen.getByLabelText('Français');
   fr.setSelectionRange(12, 12);
@@ -48,7 +48,7 @@ test('rule 26: the caret inside a variable selects all of it', () => {
   expect([fr.selectionStart, fr.selectionEnd]).toEqual([8, 'Bonjour ⟦Prénom du voyageur⟧'.length]);
 });
 
-test('rule 26: the helpers, and a refusal worded in brackets', () => {
+test('rule 27: the helpers, and a refusal worded in brackets', () => {
   const text = 'A ⟦x⟧ B';
   expect(selectionAround(text, 3)).toEqual([2, 5]);
   expect(selectionAround(text, 2)).toBeNull();

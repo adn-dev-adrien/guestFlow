@@ -1,7 +1,7 @@
-// specs/guest-email-texts-made-simple.md rules 27, 33, 34 — on the property page, the « Arrivée »
-// block is saved by the page's own Enregistrer and guarded like every other field (rule 34); a fact
-// the start assistant could not know shows empty and is sent only once answered (rule 27); the pool
-// season is set on the Séjour tab (rule 33).
+// specs/guest-email-texts-made-simple.md rules 28, 34, 35 — on the property page, the « Arrivée »
+// block is saved by the page's own Enregistrer and guarded like every other field (rule 35); a fact
+// the start assistant could not know shows empty and is sent only once answered (rule 28); the pool
+// season is set on the Séjour tab (rule 34).
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -52,7 +52,7 @@ beforeEach(() => {
   api.getPlatformSettings.mockResolvedValue({ platforms: [] });
 });
 
-test('rule 34: an « Arrivée » edit lights the page bar, is saved by it, and is guarded on leaving', async () => {
+test('rule 35: an « Arrivée » edit lights the page bar, is saved by it, and is guarded on leaving', async () => {
   renderAt();
   const wifi = await screen.findByLabelText('Réseau Wi-Fi');
   expect(screen.queryByRole('button', { name: 'Enregistrer' })).toBeNull();
@@ -71,14 +71,14 @@ test('rule 34: an « Arrivée » edit lights the page bar, is saved by it, and i
   expect(api.updateProperty).not.toHaveBeenCalled();
 });
 
-test('rule 34: « Annuler » puts the « Arrivée » fields back', async () => {
+test('rule 35: « Annuler » puts the « Arrivée » fields back', async () => {
   renderAt();
   fireEvent.change(await screen.findByLabelText('Réseau Wi-Fi'), { target: { value: 'Autre' } });
   fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
   expect(screen.getByLabelText('Réseau Wi-Fi')).toHaveValue('Moulin');
 });
 
-test('rule 27: an unanswered fact is not sent; once chosen it is', async () => {
+test('rule 28: an unanswered fact is not sent; once chosen it is', async () => {
   renderAt();
   await screen.findByLabelText('Réseau Wi-Fi');
   expect(screen.getAllByText('À préciser')).toHaveLength(2);
@@ -92,7 +92,7 @@ test('rule 27: an unanswered fact is not sent; once chosen it is', async () => {
   expect(fd.has('defaultCautionAmount')).toBe(false);
 });
 
-test('rule 33: the pool season is chosen as a day and a month on the Séjour tab', async () => {
+test('rule 34: the pool season is chosen as a day and a month on the Séjour tab', async () => {
   renderAt();
   await screen.findByLabelText('Réseau Wi-Fi');
   fireEvent.click(screen.getByLabelText('Piscine'));

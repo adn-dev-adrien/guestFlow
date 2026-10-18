@@ -28,7 +28,7 @@ vi.mock('../../api', () => ({
   default: {
     getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
     getProperty: vi.fn(), getOptions: vi.fn(),
-    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 34).
+    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
     getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
     savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),

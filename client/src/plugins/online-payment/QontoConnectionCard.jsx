@@ -39,7 +39,7 @@ import {
 
 const PORTAL_HELP = { href: 'https://developers.qonto.com', label: 'Portail développeur Qonto' };
 
-const DIRTY_HINT = 'Enregistre d’abord tes modifications.';
+const DIRTY_HINT = 'Modifications à enregistrer d’abord.';
 
 const severityFor = (state) => {
   if (state === 'ok') return 'success';
@@ -79,8 +79,8 @@ export default function QontoConnectionCard({
           {badge && <StatusBadge status={badge.status} label={badge.label} />}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Les identifiants de ton application Qonto. Ils se recopient depuis developers.qonto.com →
-          Business API access, et prennent effet immédiatement — aucun redémarrage.
+          Identifiants de l'application Qonto, à recopier depuis developers.qonto.com → Business API
+          access. Effet immédiat, sans redémarrage.
         </Typography>
 
         {shown && (

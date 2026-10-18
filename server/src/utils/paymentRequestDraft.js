@@ -1,6 +1,6 @@
 /**
  * The email a payment row offers when no online payment is ready (specs/plugins-phase-3a-online-payment.md
- * rule 22). The operator reads it in the send dialog first, so it must read well without a link:
+ * rule 25). The operator reads it in the send dialog first, so it must read well without a link:
  * a template that prints `{{paymentLink}}` outside `{{#if hasPaymentLink}}` would end on « en ligne : »
  * and nothing. Pure.
  *

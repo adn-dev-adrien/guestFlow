@@ -220,7 +220,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   if (singles) beds.push(t(`${singles} lit${singles > 1 ? 's' : ''} simple${singles > 1 ? 's' : ''}`, `${singles} single bed${singles > 1 ? 's' : ''}`));
   const bedConfigLabel = joinList(beds, L);
 
-  // specs/guest-email-texts-made-simple.md rule 27 — the owner's answer wins over the options; a fact
+  // specs/guest-email-texts-made-simple.md rule 28 — the owner's answer wins over the options; a fact
   // nobody gave yet says nothing.
   const pending = pendingFactsOf(p);
   const linenBooked = cls.booked.has('bedLinen');
@@ -249,7 +249,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   }
 
   // --- pool season (the property's, MM-DD) overlapping the stay; empty means no pool (rule 14,
-  // specs/guest-email-texts-made-simple.md rule 33)
+  // specs/guest-email-texts-made-simple.md rule 34)
   const stayOverlapsPool = (() => {
     const start = safe(p.poolSeasonStart);
     const end = safe(p.poolSeasonEnd);

@@ -377,7 +377,7 @@ function toPublicOptionLimits({ options, persons, nights, checkInTime, checkOutT
 
 function toPublicQuote(quote, {
   available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null, optionLimits = [],
-  lang = 'fr', translate = null,
+  lang = 'fr', translate = null, onlinePaymentReady = false,
 }) {
   // Rule 21 — the quote is a surface like the catalogue, and reads the same catalogue. Until it did,
   // it resolved its lines from `optionLines[].titleEn`, a column the catalogue migration dropped: the
@@ -434,7 +434,10 @@ function toPublicQuote(quote, {
     // The SERVER-decided payment mode (specs/public-online-deposit.md). In 'full' mode the site charges
     // the whole stay at once, so the deposit/balance blocks are OMITTED — the site must not display
     // Acompte/Solde lines that don't reflect how the guest actually pays.
-    payment: { mode: paymentMode === 'deposit' ? 'deposit' : 'full' },
+    // `onlineReady` (specs/public-online-payment.md rule 12): a payment provider is connected now. A
+    // site set to « payer en ligne » sends a plain request while it is false, rather than creating a
+    // devis the payment then fails on.
+    payment: { mode: paymentMode === 'deposit' ? 'deposit' : 'full', onlineReady: Boolean(onlinePaymentReady) },
     complementOnArrival: Number(quote.complementAmount || 0),
     // Cancellation insurance (specs/cancellation-insurance.md §3.3 rule 19) — ALWAYS priced for
     // this stay, selected or not, so the site can show the real amount beside the Oui/Non choice.

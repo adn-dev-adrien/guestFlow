@@ -232,6 +232,7 @@ app.use('/api/establishment-closures', require('./routes/establishmentClosures')
 app.use('/api/users', require('./routes/users'));
 app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/planning', require('./routes/planning'));
+app.use('/api/today', require('./routes/today'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 // specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
 app.use('/api/email-templates', require('./routes/emailTemplates'));
@@ -262,17 +263,15 @@ pluginLoader.mountApi(app);
 // for it to change to know the restart happened (specs/plugins-phase-4-registry.md rule 13).
 const PROCESS_STARTED_AT = new Date().toISOString();
 
-app.get('/api/version', (req, res) => {
-  res.json({
-    // The console's health check reads it to prove the expected release came up
-    // (specs/hosting-h1-fleet-runtime.md rule 10).
-    version: require('./utils/appVersion').getAppVersion(),
-    env: process.env.NODE_ENV || 'development',
-    commitSha: commitSha || null,
-    commitShaShort,
-    startedAt: PROCESS_STARTED_AT,
-  });
-});
+app.get('/api/version', require('./controllers/versionController').buildVersionHandler({
+  getVersion: () => require('./utils/appVersion').getAppVersion(),
+  pluginHealth: (id) => require('./plugins/host').pluginHealth(id),
+  secret: process.env.GUESTFLOW_PROXY_SECRET || null,
+  env: process.env.NODE_ENV,
+  commitSha,
+  commitShaShort,
+  startedAt: PROCESS_STARTED_AT,
+}));
 
 // Dynamic favicon: when the admin has uploaded a company logo via Settings, serve that as the
 // favicon on `/favicon.ico` and `/favicon.svg`. Falls through (next()) to the static middleware

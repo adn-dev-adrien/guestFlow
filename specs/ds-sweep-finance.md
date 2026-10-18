@@ -164,6 +164,12 @@ headings, tokens-only colors, blessed spacing — with no change to any computed
   convention) but gains `tabular-nums`; not forced into cards on xs (dense ledger, scroll-contained).
 - No computed figure changes — presentation only.
 
+**Review fixes (2026-10-18, mega review #5)**
+
+23. **A declared amount keeps its cents** (2026-10-18, mega review #5): the « Taxe de séjour totale »
+    tile of the Suivi taxe de séjour is the figure declared to the commune, so it uses `formatCurrency`
+    (5,95 €), never `formatCurrencyRounded` (6 €). Supersedes the last sentence of rule 1.
+
 ---
 
 ## 4. Architecture

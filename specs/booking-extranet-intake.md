@@ -69,6 +69,8 @@ reconciled to the payout (✓). The operator only checks the fiche.
    session) returns it with the instance's public URL and the plugin's **secret** embedded. The card
    shows « Installer le script » and « Régénérer le secret ». Regenerating invalidates every installed
    copy; the card says so.
+   > **2026-10-18 (code review):** before any secret exists the card shows « Créer le secret » only
+   > (rule 25); the two buttons above come once it is created.
 3. The script runs on `https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/booking.html*`
    only. Once the page shows « Numéro de réservation », it clicks « Afficher le numéro de téléphone »
    when present, waits for the number (≤ 2 s), reads `document.body.innerText` and the `hotel_id` /
@@ -124,9 +126,12 @@ reconciled to the payout (✓). The operator only checks the fiche.
 
 14. **Auto-apply only onto an untouched fiche**: « Paiement plateforme » empty **and** the client has
     neither e-mail nor phone (the iCal placeholder). Anything else is never overwritten silently.
+    > **Amended 2026-10-18 (rule 27):** a client that another reservation also uses counts as « no
+    > e-mail, no phone » — its coordinates may be another guest's.
 15. Applying makes, through `ctx.core.reservations.update` and `ctx.core.clients.update`, the writes
     the operator would make:
-    - client: first name, last name, relay e-mail, phone, e-mail language (rule 11);
+    - client: first name, last name, relay e-mail, phone, e-mail language (rule 11) — on the guest's own
+      client since 2026-10-18 (rule 27), never on the fiche's previous one;
     - reservation: canal `Booking`, booking number = `res_id`, party (rule 10), beds as « Suggérer les
       lits » computes them (`suggestBeds`), arrival time = start of « Heure d'arrivée approximative »
       when given;
@@ -159,6 +164,11 @@ already has it.
     iCal source counted as Booking (plugin setting `sourceKeys`, default `booking` and, while the
     Lodgify exit lasts, `lodgify`), on a property mapped to a Booking establishment (rule 12), with
     « Paiement plateforme » still empty and not dismissed. Computed by the server on read.
+    > **Amended 2026-10-18 (review m7):** the counted sources are read from the property's calendars,
+    > no longer from a setting — the `sourceKeys` setting and its field are gone. A stay counts when
+    > its source is Booking's own feed (`platformKey = 'booking'`, active or not), or the Lodgify relay
+    > **while it is active**: once retired (`isActive = 0`, `specs/lodgify-decommission.md` rule 10),
+    > its leftover stays no longer sit in « Réservations Booking à compléter ».
 22. Dashboard (`dashboard.alerts`): one line per fiche à compléter — « Réservation Booking à
     compléter · La Granja 06/11 → 08/11 » — with « Ouvrir dans Booking » and « Ouvrir la fiche ». The
     iCal carries no booking number, so « Ouvrir dans Booking » opens the extranet list filtered on
@@ -166,6 +176,16 @@ already has it.
 23. The line disappears as soon as the fiche is filled. « Pas une réservation Booking » dismisses it
     (a Lodgify-feed stay can be a direct or another platform's booking).
 24. Arrival within 7 days and still à compléter → the line moves to `dashboard.alerts.urgent`.
+25. **The secret is created by an explicit action, never by a read** (added 2026-10-18, code review
+    m4/m5). Paramètres › Intégrations shows « Créer le secret » while the plugin has none
+    (`POST /api/booking-intake/secret`, idempotent: a second call keeps the existing secret). Until then
+    `GET /api/booking-intake/userscript.user.js` answers `409` « Secret non créé. » and writes nothing;
+    once it exists the card offers « Installer le script » and « Régénérer le secret ».
+26. **A support session never reaches the secret** (added 2026-10-18, code review M2). The script
+    carries the secret in clear, so `GET /api/booking-intake/userscript.user.js`,
+    `POST /api/booking-intake/secret` and `POST /api/booking-intake/secret/regenerate` are declared with
+    `ctx.secretRoutes` and refused to a support session (`specs/hosting-h2-account-security.md` rule 23),
+    whatever the case or a trailing slash.
 
 **Edge cases:**
 - Script runs on a page already filled → `same`, toast « Déjà à jour ».
@@ -178,6 +198,29 @@ already has it.
   GuestFlow ».
 - GuestFlow unreachable → the toast says so; nothing is queued.
 - The plugin is inactive → `404`, the toast says « Module inactif ».
+
+### 3.6 The guest's own client (2026-10-18)
+
+The iCal import hands one placeholder client to every stay of a feed whose summary carries no name
+(« Closed Not available » for every Booking stay, « Reserved Ical » for Airbnb's). Writing the guest
+onto the fiche's client therefore renamed every other stay sharing it, e-mail included, and the
+automatic e-mails of those stays then went to the wrong guest (review 2026-10-18, B1).
+
+27. **The intake never writes a client that another reservation uses.** Applying (rule 15, and
+    « Appliquer » on a proposal, rule 17) finds the guest's client by e-mail
+    (`ctx.core.clients.findOrCreate`, as the Gîtes de France intake does) or creates it, puts its id on
+    the fiche (`clientId` in the reservation patch), and refreshes its fields only while no other
+    reservation uses it. The fiche's previous client is left as it was (an untouched « Ical Booking »
+    placeholder is deleted by the next iCal sync, `specs/ical-import-hardening.md` rule 14,
+    2026-10-18). A fiche whose client is
+    shared with another reservation is untouched in the sense of rule 14 as long as « Paiement
+    plateforme » is empty.
+28. **Repairing what was overwritten before rule 27** is the operator's call, helped by a read-only
+    report: `node server/scripts/diagnose-shared-clients.js <guestflow.db>` lists every client that at
+    least two reservations use, at least one of them iCal-imported, and that carries an e-mail or a
+    phone; for each, its stays, the guest each applied Booking intake wrote, and the stay that intake
+    names as the client's own (« à garder »). The others are « à vérifier ». The script opens the
+    database read-only and changes nothing.
 
 ---
 
@@ -195,20 +238,24 @@ Targets **`master`**, on top of `specs/plugin-engine-backport.md`.
 | `plugins/sdk/` | `coreServices.js` | T | `ctx.core.clients.update(id, patch)` (through `clientsModel`, same normalisation as the client dialog); `ctx.core.reservations.platformCommission(...)`. **Also cherry-picked identically onto `inte/plugins`**, so the same file does not diverge. |
 | `client/src/components/reservation/` | `FinanceSection.jsx` | T | « Calculer la commission » calls the endpoint; `computeCommissionFromPayout` is deleted (CLAUDE.md §6.0). |
 | `client/src/` | `api.js` | T | `computePlatformCommission`. |
+| `server/scripts/` | `diagnose-shared-clients.js` | C | Rule 28: opens a database `readonly`, finds the clients shared by stays and carrying a guest's coordinates, prints the French report (`--json` for the raw result). Outside `src/` because it reads the plugin's table, which no core file names (rule 1). |
 
 ### 4.2 The plugin — server (`server/src/plugins/booking-intake/`)
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `index.js` | C | `register(ctx)`: migrations, settings (`hotelIds`, `sourceKeys`, secret `key`), routes, data. |
+| `index.js` | C | `register(ctx)`: migrations, settings (`hotelIds`, secret `key`), routes, data; `clientShared` (rule 27) reads `reservations` through `ctx.db`. |
 | `pageParser.js` | C | Pure: page text → structured booking or typed error (rules 8–11). |
 | `userscript.js` | C | Pure: `(publicUrl, secret)` → the `.user.js` source (rules 2–6). |
-| `intakeService.js` | C | Rules 12–20: match, plan the writes, apply or propose. |
+| `intakeService.js` | C | Rules 12–20 and 25: match, plan the writes, apply or propose, onto the guest's own client. |
 | `pendingFiches.js` | C | Rules 21–24: read-only query through `ctx.db`. |
 | `intakesModel.js` | C | CRUD on the plugin tables through `ctx.db`. |
 | `routes.js` | C | `/api/booking-intake` (admin) and `/public/booking-intake` (secret). |
 | `tests/*.unit.test.js` | C | §7. |
 | `server/src/constants/plugins.js`, `server/src/plugins/index.js` | T | Catalogue and registration. |
+
+> 2026-10-18 — `index.js` no longer declares `sourceKeys`; `pendingFiches.js` joins `ical_sources` to
+> decide which feeds count (rule 21 amendment).
 
 ### 4.3 The plugin — client (`client/src/plugins/booking-intake/`)
 
@@ -216,7 +263,7 @@ Targets **`master`**, on top of `specs/plugin-engine-backport.md`.
 |---|---|
 | `IntakeBanner.jsx` → `reservation.banners` | Rules 17–18: applied / proposal with « Appliquer » / « Ignorer ». |
 | `PendingAlert.jsx` → `dashboard.alerts` / `dashboard.alerts.urgent` | Rules 22–24. |
-| `SettingsSection.jsx` → `settings.integrations` | Install link, « Régénérer le secret », property → Booking establishment id map, counted iCal sources, last 10 intakes with status. |
+| `SettingsSection.jsx` → `settings.integrations` | Install link, « Régénérer le secret », property → Booking establishment id map, last 10 intakes with status (the counted iCal sources field was removed 2026-10-18, rule 21). |
 | `client/src/plugins/index.js`, `constants/plugins.js` | Registration. |
 
 No page and no route: the operator never leaves the fiche. **Component reuse:** `StatusCard`,
@@ -230,6 +277,7 @@ plugin appears.
 |---|---|---|---|---|
 | POST | `/public/booking-intake/page` | secret header | `{ v, hotelId, resId, text }` | `{ status: 'applied'\|'same'\|'proposed'\|'refused', message, reservationId? }` |
 | GET | `/api/booking-intake/userscript.user.js` | admin | — | the script |
+| POST | `/api/booking-intake/secret` | admin | — | `{ ok, created }` — creates the secret once (rule 25) |
 | POST | `/api/booking-intake/secret/regenerate` | admin | — | `{ ok }` |
 | POST | `/api/reservations/platform-commission` | admin (core) | `{ gross, payout, touristTax, acompteCommission }` | `{ commission }` · 400 without gross and payout |
 | GET | `/api/booking-intake/pending` | admin | — | `[{ reservationId, propertyName, startDate, endDate, extranetUrl, urgent }]` |
@@ -265,9 +313,10 @@ CREATE TABLE IF NOT EXISTS booking_dismissals (
 );
 ```
 
-Plugin settings: `hotelIds` (JSON `{ propertyId: "14407976" }`), `sourceKeys` (JSON, default
-`["booking","lodgify"]`), `key` (**secret**, generated at first activation, encrypted at rest, never
-returned). **No core column, no core table.**
+Plugin settings: `hotelIds` (JSON `{ propertyId: "14407976" }`), `key` (**secret**, created by « Créer le
+secret » (rule 25), encrypted at rest, never returned). **No core column, no core table.** `sourceKeys`
+(JSON, default `["booking","lodgify"]`) existed until 2026-10-18; a value stored under it is no longer
+read (rule 21 amendment).
 
 ## 6. UI / UX
 
@@ -300,14 +349,24 @@ full-width on `xs`; banner buttons likewise; settings card follows `StatusCard`.
     handled, rate limit, inactive plugin → 404, body > 128 kB refused, nothing of the body in logs.
   - `userscript.unit.test.js` (rules 2–5): embeds URL and secret, `@match` limited to the extranet
     reservation page, one request per view guard, no parsing in the script.
+  - `own-client.unit.test.js` (rule 27, 4 cases on a real SQLite): two stays sharing the placeholder
+    filled in turn each keep their guest; a shared client already carrying another guest's e-mail counts
+    as untouched; « Appliquer » relinks instead of renaming; a client found by e-mail that another stay
+    uses is linked, not rewritten.
+  - `server/src/tests/shared-client-diagnostic.unit.test.js` (rule 28, 5 cases): suspects and owner,
+    untouched placeholder and repeat direct guest excluded, French report, database without the intake
+    table, the script leaves the file byte-identical.
   - `pending-fiches.unit.test.js` (rules 21–24): Booking and Lodgify sources counted, others ignored,
     filled / cancelled / past / dismissed / unmapped excluded, extranet URL on the arrival date,
     urgent within 7 days.
+  - `secret-lifecycle.unit.test.js` (rules 25–26): the script GET writes nothing and answers 409
+    without a secret, `POST /secret` creates it once, a support session is refused the three routes.
 - Core: `platform-commission.unit.test.js` — the 22304 example (2042.21 / 28.03 / 1711.49 → 302.69)
   and 22309 (721.82 / 20.02 / 606.44 → 95.36), acompte commission subtracted, never negative; the
   `FinanceSection` button calls the API.
 - Client: `IntakeBanner.<state>.test.jsx` (applied, proposal, guest message pending),
-  `PendingAlert.test.jsx`, `SettingsSection.test.jsx`.
+  `PendingAlert.test.jsx`, `SettingsSection.test.jsx`, `SettingsSection.secret-create.test.jsx`
+  (rule 25).
 - Plugin inactive: no route (404), no banner, no alert, no card.
 - Manual: install the script in Chrome and Safari, open the 22309 page → toast + fiche filled with ✓;
   reopen → « Déjà à jour »; regenerate the secret → old script gets « obsolète »; dashboard alert at
@@ -332,7 +391,7 @@ None.
   plugin) instead of a `ctx.reservationBlock`.
 - A refusal is logged with its reason (`error`), not a code; the HTTP answer also carries `code`.
 - Plugin seeding: a second seed batch (`plugin-engine-backport.md` rule 3) installs the plugin inactive on
-  databases that already ran the first one. _(Superseded 2026-10-18, §10: the seed batches are gone.)_ The secret is created the first time the script is asked for.
+  databases that already ran the first one. _(Superseded 2026-10-18, §10: the seed batches are gone.)_ The secret is created the first time the script is asked for. _(Superseded 2026-10-18, rule 25: created by « Créer le secret », a GET never writes.)_
 - The end-to-end test uses a valid base64 `GUESTFLOW_ENCRYPTION_KEY` (the former one could not encrypt a
   plugin secret).
 
@@ -363,3 +422,13 @@ None.
     (`engine.unit.test.js`). The E2E spec activates and deactivates the plugin from the Plugins page.
   - The public door `/public/booking-intake/page` is a public mount of the engine's dispatcher; the
     `/api` writes keep the same-origin check of phase 4 rule 31, which the public door is outside of.
+- 2026-10-18 — code review (`fix/review-code-security`): rules 25–26. The secret is created by
+  « Créer le secret » (`POST /api/booking-intake/secret`), the script GET writes nothing, and a support
+  session is refused the script and both secret routes (`ctx.secretRoutes`). Plugin `1.0.1`.
+- 2026-10-18 — review fixes on `inte/plugins` (`fix/review-ical-intake`), manifest `1.1.0`:
+  - rule 21 amended: the counted sources are derived from the calendars (`sourceKeys` removed);
+  - the iCal import gives each nameless stay its own placeholder client and the boot pass splits the
+    placeholders shared before (`specs/ical-import-hardening.md` rule 1), so the shared client rule 27
+    guards against is no longer created; rules 27–28 stay as the guard and the repair path.
+  - Tests: `pending-fiches.unit.test.js` +1 (stopped Lodgify relay), `engine.unit.test.js` and the client
+    `SettingsSection.test.jsx` follow the removed setting.

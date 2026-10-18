@@ -1901,6 +1901,31 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Repair the stays left without a number (specs/reservation-number-and-search.md rule 14): until rule 13,
+// a cancellation could make the generator hand out a number already taken, and the failed creation left
+// its row behind. Each one gets a number now and is listed in the boot log — a ghost cannot be told from
+// a real stay by the data, so nothing is deleted. Guarded once; idempotent anyway.
+// Rule 15 — the repair also stamps `numberRepairedAt`, which keeps the stay on the dashboard « À
+// vérifier » card until the operator has looked at it: nobody reads the boot log.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const resCols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+  if (!resCols.includes('numberRepairedAt')) db.exec('ALTER TABLE reservations ADD COLUMN numberRepairedAt TEXT');
+  const migrationName = 'reservation_number_repair_numberless_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { repairNumberlessReservations } = require('./utils/reservationNumber');
+    const tx = db.transaction(() => {
+      const repaired = repairNumberlessReservations(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:reservation-number-repair] numbered ${repaired.length} reservation(s) left without a number`);
+      for (const r of repaired) {
+        console.log(`[migration:reservation-number-repair] reservation ${r.id} → ${r.reservationNumber} (property ${r.propertyId}, ${r.startDate} → ${r.endDate}) — check it is a real stay`);
+      }
+    });
+    tx();
+  }
+}
+
 // ---------- ARRIVAL / DEPARTURE SAS — specs/arrival-departure-sas.md ----------
 // Priced linen items shown in the SAS (operator-managed in Réglages → Blanchisserie). One table,
 // two categories ('bed' bed-linen elements + 'towel' towels/variants).
@@ -2394,7 +2419,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
-// ---------- CGV LINK UNDER ITS CONDITION — specs/guest-email-texts-made-simple.md rule 35 ----------
+// ---------- CGV LINK UNDER ITS CONDITION — specs/guest-email-texts-made-simple.md rule 36 ----------
 {
   const migrationName = 'cgv_link_condition_v1';
   if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
@@ -2516,6 +2541,19 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(c
 // Reset links, second step, backup codes, account history, support access and its log, and the
 // disabled « Support GuestFlow » user. Additive, idempotent.
 require('./utils/accountSecuritySchema').applyAccountSecuritySchema(db);
+
+// ---------- iCal PLACEHOLDER CLIENTS (specs/ical-import-hardening.md rule 1) ----------
+// Before 2026-10-18 every iCal stay without a guest name shared one placeholder client per feed, so a
+// guest written onto one fiche landed on all of them. Gives each such stay its own placeholder; never
+// touches a client that carries a guest's coordinates. Idempotent, data-only (no schema change).
+try {
+  const split = require('./utils/icalPlaceholderClientsMigration').splitSharedIcalPlaceholderClients(db);
+  if (split.movedReservations > 0 || split.renamedClients > 0) {
+    console.log(`[ical-clients] ${split.movedReservations} séjour(s) iCal détaché(s) de ${split.splitClients} client(s) partagé(s), ${split.renamedClients} client(s) renommé(s).`);
+  }
+} catch (err) {
+  console.warn('[ical-clients] séparation des clients iCal partagés impossible :', err.message);
+}
 
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
