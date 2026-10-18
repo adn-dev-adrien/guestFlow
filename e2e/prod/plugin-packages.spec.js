@@ -5,6 +5,7 @@
 // leaves a rollback (rules 13, 16, 20); a package that does not match the signed index is refused
 // with nothing changed (rule 22).
 const { test, expect } = require('@playwright/test');
+const LINEN_VERSION = require('../../server/src/plugins/linen/manifest.json').version;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -38,11 +39,11 @@ test('rules 10, 11, 13: a plugin installs from the registry, and its page render
   await page.goto('/parametres/plugins');
   await page.getByRole('tab', { name: /Disponibles/ }).click();
   const linen = card(page, 'Linge et blanchisserie');
-  await expect(linen.getByText('1.0.1')).toBeVisible();
+  await expect(linen.getByText(LINEN_VERSION)).toBeVisible();
   await linen.getByRole('button', { name: 'Installer' }).click();
   await page.waitForLoadState('load');
   await expect(card(page, 'Linge et blanchisserie').getByText('Actif')).toBeVisible();
-  await expect(card(page, 'Linge et blanchisserie').getByText('1.0.1')).toBeVisible();
+  await expect(card(page, 'Linge et blanchisserie').getByText(LINEN_VERSION)).toBeVisible();
   await page.goto('/parametres/stock-blanchisserie');
   await expect(page.getByText('Parures de lit')).toBeVisible();
   expect(errors).toEqual([]);
