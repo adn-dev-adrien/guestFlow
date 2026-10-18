@@ -611,6 +611,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       tool, tests): it passes, and the operator session still applies;
     - the login page on `app.<domain>` posts to itself, so its forms are same-origin; a page elsewhere
       cannot post to it.
+    In development the console's Vite proxy keeps the browser's `Host` (`changeOrigin: false`), so the
+    gate stays on there too; Caddy keeps it in production.
     *Why:* a page on an instance could otherwise post body-less actions such as « Réinitialiser
     l'accès » (which also turns off the second step) with the operator's cookie.
 
