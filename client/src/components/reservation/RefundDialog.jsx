@@ -356,13 +356,12 @@ export default function RefundDialog({
           </Box>
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', gap: 1, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
+      <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, flexWrap: { sm: 'wrap' }, justifyContent: 'flex-end', gap: 1, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
         {refusal && (
           <Typography
             role={refusal.tone === 'error' ? 'alert' : 'status'}
             variant="caption"
-            color={`${refusal.tone}.main`}
-            sx={{ flexBasis: '100%', textAlign: { xs: 'left', sm: 'right' }, alignSelf: 'stretch' }}
+            sx={{ width: '100%', textAlign: { xs: 'left', sm: 'right' }, fontWeight: 600, color: `${refusal.tone}.main` }}
           >
             {refusal.text}
           </Typography>
