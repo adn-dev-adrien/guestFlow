@@ -549,7 +549,7 @@ export default function ClientsPage() {
               startIcon={<DeleteSweepIcon />}
               onClick={handleCleanupOrphanClients}
             >
-              Cleanup clients
+              Nettoyer les clients
             </Button>
           </Box>
         )}

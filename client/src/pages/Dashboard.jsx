@@ -35,12 +35,10 @@ import { usePlugin } from '../hooks/usePlugins';
 import { SAS } from '../constants/plugins';
 import { statusLockTooltip } from '../constants/receptionSasLock';
 import api from '../api';
+import useToday from '../hooks/useToday';
+import { addIsoDays } from '../utils/localDate';
 
-function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
-}
+const addDays = addIsoDays;
 
 // Row/card background reflecting the check-in/out status (done = greyed, ready = green tint).
 const statusBgSx = (t, done, ready = false) => {
@@ -52,7 +50,7 @@ const statusBgSx = (t, done, ready = false) => {
 const optionsResourcesText = (r) => {
   const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
   const resourcesText = [
-    ...(Number(r.babyBeds || 0) > 0 ? [`Lit bebe x${r.babyBeds}`] : []),
+    ...(Number(r.babyBeds || 0) > 0 ? [`Lit bébé ×${r.babyBeds}`] : []),
     ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
   ].join(', ');
   return [optionsText, resourcesText].filter(Boolean).join(' | ') || '—';
@@ -71,7 +69,11 @@ export default function Dashboard() {
   const sasOn = usePlugin(SAS);
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // The day shown: the server's today until the operator picks another one.
+  const todayStr = useToday();
+  const [pickedDate, setPickedDate] = useState(null);
+  const selectedDate = pickedDate ?? todayStr;
+  const setSelectedDate = (next) => setPickedDate(typeof next === 'function' ? next(selectedDate) : next);
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,12 +107,8 @@ export default function Dashboard() {
   };
 
   const loadDashboardData = async () => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
     const from = todayStr;
-    const toDate = new Date(today);
-    toDate.setDate(toDate.getDate() + 30);
-    const to = toDate.toISOString().split('T')[0];
+    const to = addDays(todayStr, 30);
     // Fetch reservations starting from selectedDate if it's in the past
     const fetchFrom = selectedDate < todayStr ? selectedDate : todayStr;
 
@@ -145,9 +143,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData();
-  }, [selectedDate, reloadNonce]); // eslint-disable-line
-
-  const todayStr = new Date().toISOString().split('T')[0];
+  }, [selectedDate, todayStr, reloadNonce]); // eslint-disable-line
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
   // Reception has no reservation sheet — a row tap jumps to the Planning with the matching SAS open.
@@ -179,7 +175,7 @@ export default function Dashboard() {
         <NavigateNextIcon />
       </IconButton>
       {selectedDate !== todayStr && (
-        <Button size="small" variant="outlined" onClick={() => setSelectedDate(todayStr)}>
+        <Button size="small" variant="outlined" onClick={() => setPickedDate(null)}>
           Aujourd'hui
         </Button>
       )}

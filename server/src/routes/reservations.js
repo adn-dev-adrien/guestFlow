@@ -2,6 +2,7 @@ const router = require('express').Router();
 const controller = require('../controllers/reservationsController');
 const refundsController = require('../controllers/refundsController');
 const cancellationController = require('../controllers/reservationCancellationController');
+const upcomingController = require('../controllers/upcomingReservationsController');
 
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
@@ -10,6 +11,8 @@ router.post('/platform-commission', controller.platformCommission);
 router.get('/', controller.list);
 // MUST stay before '/:id' — otherwise Express matches `:id = 'search'`.
 router.get('/search', controller.search);
+// « Réservations à venir » in one call (specs/upcoming-reservations-cards.md rule 6) — also before '/:id'.
+router.get('/upcoming', upcomingController.upcoming);
 router.get('/occupied-dates/:propertyId', controller.occupiedDates);
 router.get('/:id', controller.getById);
 router.get('/:id/history', controller.getHistory);

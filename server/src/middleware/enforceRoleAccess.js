@@ -29,6 +29,8 @@ const SELF_ENDPOINTS = new Set([
   '/users/me',
   '/users/me/email-status',
   '/version',
+  // The server's calendar day — the reception home opens on it too (specs/upcoming-reservations-cards.md rule 7).
+  '/today',
 ]);
 
 // specs/cancellation-compensation.md §6.3 — the accountant reads the compensations, on the core page

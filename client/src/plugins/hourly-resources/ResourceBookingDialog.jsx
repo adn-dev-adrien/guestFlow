@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Box, TextField, FormControl, InputLabel, Select, MenuItem,
-  FormControlLabel, Checkbox, Typography, Divider, Switch, Autocomplete
+  FormControlLabel, Checkbox, Typography, Divider, Switch, Autocomplete, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
 import { api } from '../sdk';
 import { previewRangeTotal } from './resourceSessions';
+import { localIsoDate } from './localDate';
 
 function timeToMinutes(t) {
   const [h, m] = (t || '00:00').split(':').map(Number);
@@ -62,6 +63,9 @@ export default function ResourceBookingDialog({
     BOOKING_STEP_MINUTES,
   );
 
+  // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [date, setDate] = useState('');
   const [selectedStart, setSelectedStart] = useState('');
   const [selectedEnd, setSelectedEnd] = useState('');
@@ -207,7 +211,7 @@ export default function ResourceBookingDialog({
         setSelectedClient(null);
       }
     } else {
-      setDate(initialDate || new Date().toISOString().split('T')[0]);
+      setDate(initialDate || localIsoDate());
       setSelectedStart('');
       setSelectedEnd('');
       setNotes('');
@@ -263,7 +267,7 @@ export default function ResourceBookingDialog({
 
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle>
         {booking ? 'Modifier la réservation' : 'Nouvelle réservation'}
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.25 }}>

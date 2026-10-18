@@ -49,6 +49,7 @@ vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, d
 
 import api from '../../api';
 import Dashboard from '../Dashboard';
+import { localIsoDate } from '../../utils/localDate';
 
 function renderPage() {
   return render(
@@ -100,7 +101,7 @@ test('the initial load shows the shared LoadingState (aria-busy)', async () => {
 // specs/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
 // collect at the door. A platform booking waiting for its post-stay payout used to be red daily.
 describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localIsoDate();
   const base = {
     id: 7, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
     firstName: 'Luc', lastName: 'Martin', propertyName: 'Gîte du Lac',
@@ -123,7 +124,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
       platformSettled: true,
       platform: 'Airbnb',
     });
-    const detail = await screen.findByText('Solde NON');
+    const detail = await screen.findByText('Solde dû');
     expect(detail).toBeInTheDocument();
     expect(screen.getByText('Réglé par la plateforme')).toBeInTheDocument();
     expect(screen.queryByText(/Complément à encaisser/)).not.toBeInTheDocument();
@@ -140,7 +141,18 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
       platform: 'Airbnb',
     });
     expect(await screen.findByText(/Complément à encaisser/)).toBeInTheDocument();
-    expect(screen.getByText('Solde NON · Complément NON')).toBeInTheDocument();
+    expect(screen.getByText('Solde dû · Complément dû')).toBeInTheDocument();
+  });
+
+  // specs/ds-components.md rule 25 — « Lit bébé ×1 », accent and multiplication sign included.
+  test('a baby bed reads « Lit bébé ×1 »', async () => {
+    api.getReservations.mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...base, babyBeds: 1 }]);
+    api.getReservation.mockReset().mockResolvedValue({ ...base, babyBeds: 1 });
+    renderPage();
+    expect((await screen.findAllByText(/Lit bébé ×1/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Lit bebe/)).not.toBeInTheDocument();
   });
 
   test('a fully settled reservation shows the plain green OK', async () => {
@@ -157,7 +169,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
 });
 
 describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localIsoDate();
   const arrival = {
     id: 42, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
     firstName: 'Marie', lastName: 'Durand', propertyName: 'Gîte du Lac',

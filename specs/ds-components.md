@@ -119,6 +119,53 @@ recoverable screen; statuses and platforms have exactly one chip rendering each;
 18. `Tooltip` + `aria-label` on the icon-only table buttons flagged by the audit
     (`ClientsPage:502`, `EmailHistoryPage:145`).
 
+### 3.8 Display review #8 (added 2026-10-18)
+
+The full-screen review of every route at 390 / 900 / 1280 px (review #8, findings m-6, m-7, m-8, n-2,
+n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for every page.
+
+19. **`PageActionBar` never crushes its title.** The title keeps a readable width — at least
+    `min(100 %, 9rem)` on xs when shown, `min(100 %, 14rem)` from sm — and ends in an ellipsis only
+    past it, its full text in the native tooltip. The subtitle has a slot of its own and wraps under
+    the title when both do not fit. The actions never shrink below their own width: when they do not
+    fit beside the title they take a row of their own, right-aligned, instead of stacking in a
+    column. `center` (or `tabs` from sm) takes a second row of the bar when the **bar** is narrower
+    than 720 px — measured on the bar (container query), not the viewport, since the sidebar takes a
+    different share at each breakpoint.
+20. **Every `PageActionBar` button is 44 × 44** — Save, Cancel, Retour, the overflow « … » and the
+    icon actions — whatever its border (Save used to be 40 px, Cancel 42 px).
+21. **Touch targets.** On a finger-driven screen (`@media (pointer: coarse)`, phones and tablets
+    whatever their width), the theme lifts every `IconButton`, `Checkbox` and `Radio` to 44 × 44
+    and every `Button` and `ToggleButton` to 44 px high, whatever `size` the page asked for. The
+    icon buttons inside a text field (`InputAdornment`, Autocomplete) are left as the field sizes
+    them — the theme neither lifts nor shrinks them, so `QuantityField`'s own 44 × 44 steppers
+    stay. The controls the theme cannot reach carry it themselves: `CollapsibleSection`'s « Voir
+    les N options » toggle (44 px high) and `PlatformColorPicker`'s swatch (a 44 × 44 hit area
+    around the visible square). A mouse keeps the dense sizes.
+22. **Every dialog is full screen under `sm`** — `EmailManualSendDialog` (fiche › « Envoyer un
+    email ») and the hourly-resources `ResourceBookingDialog` were the two left floating.
+23. **The accounting journal reads on a phone.** Under `sm`, each journal line of « Détail des
+    écritures du mois » is a stacked row — type chip, account, labels on the left; « Débit » or
+    « Crédit » and the full amount on the right — closed by the Σ line. From `sm` up the five-column
+    table stays. The summary chips above it (« N écritures », « Tout équilibré », « Total débits »)
+    wrap to a second line instead of running out of the card. Nothing is clipped.
+24. **« Planning ressources » below `lg`.** The bar there also carries the resource picker and the
+    week navigation, so « Nouvelle réservation » becomes its « + » icon action (tooltip « Nouvelle
+    réservation »); from `lg` it keeps its label.
+25. **Plain, impersonal French on screen.** No « tu », no « nous », no English label, no internal
+    mechanics, accents where they belong:
+    - Clients: « Nettoyer les clients » (was « Cleanup clients »);
+    - Planning cards: « Accueil » / « Revoir l'accueil » and « Départ » / « Revoir le départ » (were
+      « Check-in (SAS arrivée) », « Check-out (SAS départ) », « Revoir / modifier le check-in/out »);
+    - Système › Traductions: « Traductions : télécharger le fichier, remplir les colonnes, le
+      renvoyer. Une colonne de plus = une langue de plus. »;
+    - Système, an install without the release layout: « Mise à jour automatique indisponible sur
+      cette installation. » (was the « lien symbolique « current » » sentence);
+    - « Paiements » column: an unpaid part reads « Solde dû », « Complément dû » (was « NON »);
+      a baby bed « Lit bébé ×1 »;
+    - Suivi financier › indemnities page titled « Indemnités » (the menu keeps « Indemnités
+      d'annulation »), explained « … ou l'acompte conservé faute de règlement » (no « nous »).
+
 **Edge cases:**
 - `useToast` outside the provider → same explicit throw as `useAppDialogs`.
 - ErrorBoundary must NOT swallow route changes: reset on `location.pathname` change.
@@ -158,6 +205,16 @@ recoverable screen; statuses and platforms have exactly one chip rendering each;
 **Component reuse declaration:** creates the 7 generics above (all designed for app-wide reuse — the
 whole point of the phase); consumes phase-1 tokens; no page-specific component created.
 
+**2026-10-18 — review #8 (§3.8).** `components/PageActionBar.jsx` (T, rules 19-20),
+`theme.js` + `components/CollapsibleSection.jsx` + `components/PlatformColorPicker.jsx` (T, rule 21),
+`components/EmailManualSendDialog.jsx` +
+`plugins/hourly-resources/ResourceBookingDialog.jsx` (T, rule 22),
+`plugins/accounting-export/AccountingPage.jsx` (T, rule 23: `JournalLinesCompact`, page-specific),
+`plugins/hourly-resources/ResourcePlanningPage.jsx` (T, rule 24), and the texts of rule 25 in
+`ClientsPage`, `ReservationCard`, `DepartureMiniRow`, `TranslationCatalogueCard`,
+`CollectionStatusCell`, `Dashboard`, `CompensationsPage`, `CancellationCompensationsSection` (client)
+and `utils/deploymentPaths.js` (server). No new generic component: the fixes live in the shared ones.
+
 ### 4.3 API contract
 
 Unchanged.
@@ -191,6 +248,17 @@ No schema change, no migration.
   labeled CTA + EmptyState row.
 - [x] Migrated pages: 4 page suites re-wrapped (Router/DialogProvider) — 37 tests green unchanged
   in intent (incl. PlatformAccounts « +N » toast assertion, now hitting the Snackbar portal).
+
+### Review #8 (2026-10-18) — rules 19-25
+- [x] `PageActionBar.narrow.test.jsx` (rules 19-20), `touchTargets.theme.test.jsx` (rule 21),
+  `EmailManualSendDialog.mobile.test.jsx` + `ResourceBookingDialog.mobile.test.jsx` (rule 22),
+  `AccountingPage.mobile-journal.test.jsx` (rule 23), `ResourcePlanningPage.compact-bar.test.jsx`
+  (rule 24), `plainWording.review-8.test.jsx` + `ClientsPage.states` + `Dashboard` +
+  `self-update-plain-reason.unit.test.js` (rule 25).
+- [x] E2E `mobile/narrow-bar-and-touch-targets.spec.js`: at 390 px touch, the Système bar keeps its
+  title whole with Save beside Cancel, both 44 × 44, and the dashboard and planning have no tap
+  target under 44 px; at 900 px the dashboard's date navigation takes the bar's second row.
+- [x] The 46-route sweep re-run at 390 / 900 / 1280 (before/after screenshots in the PR).
 
 ### E2E (Playwright) — 29 passed / 1 skipped
 - [x] +1 smoke `auth/not-found.spec.js`: unknown URL shows « Page introuvable » + CTA back to the

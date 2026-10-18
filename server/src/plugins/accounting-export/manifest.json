@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -14,6 +14,10 @@
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Sur un téléphone, chaque ligne d’écriture s’affiche en entier, montant compris.",
+      "Les totaux du mois passent à la ligne au lieu de sortir du cadre."
     ]
   }
 }

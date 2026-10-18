@@ -30,6 +30,8 @@ import api from '../api';
 import { usePlugin } from '../hooks/usePlugins';
 import { SAS } from '../constants/plugins';
 import { useSlot } from '../plugins/sdk/useSlot';
+import useToday from '../hooks/useToday';
+import { addIsoDays } from '../utils/localDate';
 
 const DAYS_AHEAD = 14;
 
@@ -44,11 +46,7 @@ const contributionId = (c) => `${c.pluginId}:${c.key}`;
 //     `components/DepartureMiniRow.js` for the canonical DEPARTURE_BG constant.
 //   - "Done" green + alert overlays still take priority (each card's sx handles them).
 
-function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
-}
+const addDays = addIsoDays;
 
 function frenchWeekday(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -180,7 +178,11 @@ export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [planningDays, setPlanningDays] = useState([]);
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // The week opens on the server's day until the operator picks another one.
+  const todayStr = useToday();
+  const [pickedStart, setPickedStart] = useState(null);
+  const startDate = pickedStart ?? todayStr;
+  const setStartDate = (next) => setPickedStart(typeof next === 'function' ? next(startDate) : next);
   const [alertMap, setAlertMap] = useState({});
   const [properties, setProperties] = useState([]);
   const [departuresMap, setDeparturesMap] = useState({});
@@ -221,8 +223,6 @@ export default function PlanningPage() {
   }, [searchParams, setSearchParams]);
 
   const lastLoadedRef = useRef(null);
-
-  const todayStr = new Date().toISOString().split('T')[0];
 
   // Load properties once
   useEffect(() => {
