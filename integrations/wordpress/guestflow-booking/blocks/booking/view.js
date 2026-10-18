@@ -953,7 +953,8 @@
       });
       if (terms) body.termsVersion = terms.version;
       var paying = paysNow();
-      var requestKey = JSON.stringify(body);
+      // The stay alone decides a retry (rule 27): a corrected message or phone keeps the same devis.
+      var requestKey = JSON.stringify(stay);
       if (paying && pendingRequest && pendingRequest.key === requestKey) {
         f.submit.disabled = true;
         f.submit.textContent = GF.t('preparingPayment');
@@ -1003,7 +1004,8 @@
     // server-side; the per-devis token authorises both the pay call and the return-page status poll.
     function startPayment(devisId, token) {
       if (!devisId || !token) { paymentError(); return; }
-      var returnPath = window.location.pathname + '?gf_payment=' + devisId + '&gf_token=' + encodeURIComponent(token);
+      // `property` comes back too: a generic booking page knows the lodging only from the address.
+      var returnPath = window.location.pathname + '?property=' + propertyId + '&gf_payment=' + devisId + '&gf_token=' + encodeURIComponent(token);
       GF.api('POST', '/booking-requests/' + devisId + '/pay', { returnPath: returnPath, token: token }).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.paymentUrl) {
           feedback.innerHTML = '';

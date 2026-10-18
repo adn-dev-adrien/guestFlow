@@ -62,6 +62,10 @@ test('rule 31: a new key replaces the old one in the env file and in the running
 });
 
 test('rule 31: a key set by the real environment is refused with 409, nothing written', () => {
+  // Only the environment holds it (rule 32: a key .env.local also holds is the file's to rotate).
+  const withoutKey = fs.readFileSync(process.env.GUESTFLOW_LOCAL_ENV, 'utf8')
+    .split('\n').filter((line) => !line.startsWith('PUBLIC_API_KEY=')).join('\n');
+  fs.writeFileSync(process.env.GUESTFLOW_LOCAL_ENV, withoutKey);
   const before = fs.readFileSync(process.env.GUESTFLOW_LOCAL_ENV, 'utf8');
   const saved = process.env.PUBLIC_API_KEY;
   process.env.PUBLIC_API_KEY = 'from-the-environment';

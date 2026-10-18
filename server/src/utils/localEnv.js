@@ -37,12 +37,32 @@ function readFileVars() {
   return fs.existsSync(ENV_PATH) ? parseEnv(fs.readFileSync(ENV_PATH, 'utf8')) : {};
 }
 
+// Secrets the operator can rotate from the app (rotateSecret). For these the file is the only
+// authority: a value inherited from the environment is a stale copy — pm2 saves the environment it was
+// restarted with (`--update-env`), so the key read at the previous boot would come back after every
+// restart and silently undo the rotation.
+const rotatableNames = new Set();
+
 function loadLocalEnv() {
   if (!fs.existsSync(ENV_PATH)) return;
   const parsed = readFileVars();
   for (const [key, value] of Object.entries(parsed)) {
-    if (process.env[key] === undefined) process.env[key] = value;
+    if (process.env[key] === undefined || rotatableNames.has(key)) process.env[key] = value;
   }
+}
+
+/**
+ * A copy of `process.env` for a child process that outlives this one (the self-update helper hands
+ * its environment to `pm2 … --update-env`, which saves it for every later restart). Values that came
+ * from `.env.local` are left out, so the file stays their single source of truth.
+ */
+function environmentWithoutLocalFile(env = process.env) {
+  const fileVars = readFileVars();
+  const out = { ...env };
+  for (const [key, value] of Object.entries(fileVars)) {
+    if (rotatableNames.has(key) || out[key] === value) delete out[key];
+  }
+  return out;
 }
 
 function appendVar(name, value) {
@@ -54,9 +74,11 @@ function appendVar(name, value) {
 
 /**
  * Returns a persistent base64 secret named `name`, generating `byteLength` random bytes and writing
- * it to `.env.local` the first time. Reads from `process.env` first (real env wins).
+ * it to `.env.local` the first time. Reads from `process.env` first (real env wins), except for a
+ * `rotatable` secret the file already holds: there the file wins (see `rotatableNames`).
  */
-function getOrCreateSecret(name, byteLength = 32) {
+function getOrCreateSecret(name, byteLength = 32, { rotatable = false } = {}) {
+  if (rotatable) rotatableNames.add(name);
   loadLocalEnv();
   const existing = process.env[name];
   if (existing && existing.trim()) return existing.trim();
@@ -80,14 +102,16 @@ function persistVar(name, value) {
 
 /**
  * Replaces the secret `name` with `byteLength` fresh random bytes, in `.env.local` and `process.env`,
- * and returns it. A value the real environment sets cannot be rotated from here (the file would lose
- * to it at the next boot): that throws an error with `code = 'SECRET_FROM_ENVIRONMENT'`.
+ * and returns it; from then on the file wins over any inherited copy. A value only the real
+ * environment sets (absent from the file) cannot be rotated from here: that throws an error with
+ * `code = 'SECRET_FROM_ENVIRONMENT'`.
  */
 function rotateSecret(name, byteLength = 32) {
+  rotatableNames.add(name);
   loadLocalEnv();
   const fileVars = readFileVars();
   const current = process.env[name] && String(process.env[name]).trim();
-  if (current && fileVars[name] !== current) {
+  if (current && fileVars[name] === undefined) {
     const err = new Error(`${name} is set by the environment`);
     err.code = 'SECRET_FROM_ENVIRONMENT';
     throw err;
@@ -104,4 +128,6 @@ function rotateSecret(name, byteLength = 32) {
   return secret;
 }
 
-module.exports = { loadLocalEnv, getOrCreateSecret, persistVar, rotateSecret, ENV_PATH };
+module.exports = {
+  loadLocalEnv, getOrCreateSecret, persistVar, rotateSecret, environmentWithoutLocalFile, ENV_PATH,
+};

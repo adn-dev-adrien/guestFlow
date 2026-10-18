@@ -32,7 +32,14 @@ final class GF_Settings
         'booking' => '<!-- wp:guestflow/booking',
         'cgv'     => '[guestflow_cgv]',
     ];
-    private const DETECTED_TRANSIENT = 'gf_detected_pages';
+    /**
+     * A page whose content holds one of these is not the generic page of `$kind`: a booking block
+     * with its lodging fixed belongs to that lodging's page (rule 26).
+     */
+    private const PAGE_EXCLUSIONS = [
+        'booking' => '"propertyId":',
+    ];
+    private const DETECTED_TRANSIENT = 'gf_detected_pages_v2';
     private const CREATE = '__create__';
 
     public function boot(): void
@@ -106,7 +113,7 @@ final class GF_Settings
         return $detected ? (string) get_permalink($detected) : '';
     }
 
-    /** The oldest published page whose content holds the block or shortcode of `$kind`, or 0. */
+    /** The oldest published page whose content holds the block or shortcode of `$kind` (and none of its exclusions), or 0. */
     public function detected_page(string $kind): int
     {
         $cache = get_transient(self::DETECTED_TRANSIENT);
@@ -114,10 +121,17 @@ final class GF_Settings
         if (!array_key_exists($kind, $cache)) {
             global $wpdb;
             $like = '%' . $wpdb->esc_like(self::PAGE_MARKERS[$kind]) . '%';
-            $cache[$kind] = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s ORDER BY ID ASC LIMIT 1",
-                $like
-            ));
+            $unlike = isset(self::PAGE_EXCLUSIONS[$kind]) ? '%' . $wpdb->esc_like(self::PAGE_EXCLUSIONS[$kind]) . '%' : '';
+            $cache[$kind] = (int) ($unlike === ''
+                ? $wpdb->get_var($wpdb->prepare(
+                    "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s ORDER BY ID ASC LIMIT 1",
+                    $like
+                ))
+                : $wpdb->get_var($wpdb->prepare(
+                    "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s AND post_content NOT LIKE %s ORDER BY ID ASC LIMIT 1",
+                    $like,
+                    $unlike
+                )));
             set_transient(self::DETECTED_TRANSIENT, $cache, DAY_IN_SECONDS);
         }
         return (int) $cache[$kind];

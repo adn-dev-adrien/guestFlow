@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24). |
+| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). |
 | **Branch** | `feature/wordpress-plugin` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
@@ -109,7 +109,8 @@ remaining the single source of truth for prices, availability, and validation.
       « Créer la page » (a published « Réserver » page holding the booking block, or a « Conditions
       générales » page holding the shortcode); a second sanitize of the same save reuses the page it
       just created. A booking block with no property anywhere (no attribute, no `?property=`, no
-      default) renders the properties block, whose cards link back to it.
+      default) renders the properties block, whose cards link back to it — except on the payment
+      return (rule 25). A page whose block fixes a lodging is never detected (rule 26).
     - **Proxys du réseau local** (on by default, `trust_local_proxies`): a reverse proxy with a private
       or loopback address is trusted to pass the visitor's IP in `X-Forwarded-For` without being
       listed. **Proxys de confiance** stays, under « Réglages avancés », for a proxy with a public
@@ -128,7 +129,8 @@ remaining the single source of truth for prices, availability, and validation.
     201 in pay-online mode, the block keeps `requestId`/`publicToken`; while the visitor resubmits the
     very same request body, the retry calls `/booking-requests/:id/pay` only — no second devis, no
     second reference. The error shows the request reference and says the payment can be retried. A
-    changed form (dates, guests, contact…) is a new request.
+    changed form (dates, guests, contact…) is a new request. _(2026-10-18: narrowed to the stay — see
+    rule 27.)_
 17. **The plugin stylesheet sets `box-sizing: border-box` on its own blocks** (`.gf-block` and its
     descendants, pseudo-elements included) and `min-width: 0` on `.gf-field`, so a field's padding
     never overflows its column on a stock theme. Nothing outside `.gf-block` is touched.
@@ -157,6 +159,23 @@ remaining the single source of truth for prices, availability, and validation.
     `Version`, `GF_BOOKING_VERSION` and readme `Stable tag` — with a readme changelog entry, so a
     release never publishes two different `guestflow-booking-X.Y.Z.zip`. The update manifest's
     `tested` (`TESTED_WP`) names a current WordPress (≥ 6.8), the one the plugin was last tested on.
+
+> **Rules 25–27 added 2026-10-18** (second review of plugin v1.15.0, PR #698).
+
+25. **The way back from the payment page always shows that payment.** A booking block with no lodging
+    (rule 14) renders its container — not the properties cards — when the address carries
+    `gf_payment`, and the return address the block sends is
+    `<page>?property=<id>&gf_payment=<devis>&gf_token=<token>`, so a page shared by every lodging
+    knows both the payment and the lodging when the visitor comes back.
+26. **The automatic booking page is a generic one.** The detection of rule 14 skips a page whose
+    content holds `"propertyId":` (a booking block with its lodging fixed belongs to that lodging's
+    page): with « Automatique », a site with one booking block per lodging page has no detected
+    booking page, and its cards keep no button rather than opening another lodging's form. The
+    detection cache moved to `gf_detected_pages_v2` so an earlier lodging-page answer is not reused.
+27. **The stay alone decides a payment retry.** Rule 16's comparison covers the stay sent to
+    `/quote` — dates, times, guests, options (insurance included) and resources — not the contact
+    fields or the message: a corrected message or phone after a failed payment pays the same devis
+    (which keeps the first request's message). Any change of the stay is a new request.
 
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
@@ -341,6 +360,11 @@ respects its container width.
       operator before packaging. No JS build to lint (build-free, Rule 8).
 - [ ] PHP unit (if a WP test harness is set up): `class-gf-api-client` injects the key header and never
       logs it; `class-gf-rest-proxy` rejects the write route without a valid nonce; cache honors TTL.
+- [x] Rules 25–27 (2026-10-18): `server/src/tests/wordpress-plugin-generic-booking-page.unit.test.js`
+      (3 shape tests: payment return renders the container, return address keeps `property`, a
+      fixed-lodging block is never detected) and `client/src/__tests__/wordpress-booking-view.payment-retry.test.js`
+      (+2: a corrected message keeps the devis, the return address names the lodging; the « stay
+      changed » case now changes the guests). Behaviour checked on WordPress 7.1 in Docker.
 
 ### Manual verification
 - [ ] Install the built `.zip` on a WordPress test site; configure base URL + key; "Test connection" =

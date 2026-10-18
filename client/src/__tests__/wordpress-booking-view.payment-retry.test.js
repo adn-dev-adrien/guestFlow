@@ -1,4 +1,4 @@
-// specs/wordpress-plugin.md rule 16 — with online payment on, a payment that fails leaves one
+// specs/wordpress-plugin.md rules 16, 25 and 27 — with online payment on, a payment that fails leaves one
 // request, and trying again pays for that same devis instead of creating another. Also
 // specs/public-online-payment.md rule 12: while GuestFlow says no payment provider is connected
 // (`payment.onlineReady: false`), the button sends a plain request.
@@ -54,7 +54,7 @@ test('rule 16: a retried payment pays for the same devis — one booking request
   expect(screen.getAllByText('Erreur du fournisseur de paiement.')).toHaveLength(1);
 });
 
-test('rule 16: a stay changed after the failure is a new request', async () => {
+test('rule 27: a message corrected after the failure keeps the same devis', async () => {
   const { calls } = await bootAndFill();
   await waitFor(() => expect(submit().disabled).toBe(false), { timeout: 2000 });
   await userEvent.click(submit());
@@ -62,7 +62,28 @@ test('rule 16: a stay changed after the failure is a new request', async () => {
   await userEvent.type(screen.getByLabelText('Message'), 'Arrivée tardive');
   await waitFor(() => expect(submit().disabled).toBe(false));
   await userEvent.click(submit());
+  await waitFor(() => expect(count(calls, '/booking-requests/22299/pay')).toBe(2));
+  expect(count(calls, '/booking-requests')).toBe(1);
+});
+
+test('rule 16: a stay changed after the failure is a new request', async () => {
+  const { calls } = await bootAndFill();
+  await waitFor(() => expect(submit().disabled).toBe(false), { timeout: 2000 });
+  await userEvent.click(submit());
+  await screen.findByText('Erreur du fournisseur de paiement.');
+  await userEvent.click(screen.getByRole('button', { name: 'Ajouter : Adultes' }));
+  await waitFor(() => expect(submit().disabled).toBe(false));
+  await userEvent.click(submit());
   await waitFor(() => expect(count(calls, '/booking-requests')).toBe(2));
+});
+
+test('rule 25: the payment return address names the lodging', async () => {
+  const { calls } = await bootAndFill();
+  await waitFor(() => expect(submit().disabled).toBe(false), { timeout: 2000 });
+  await userEvent.click(submit());
+  await screen.findByText('Erreur du fournisseur de paiement.');
+  const pay = calls.find((c) => c.path === '/booking-requests/22299/pay');
+  expect(pay.body.returnPath).toMatch(/\?property=1&gf_payment=22299&gf_token=tok$/);
 });
 
 test('public-online-payment rule 12: no provider connected → a plain request, no payment call', async () => {

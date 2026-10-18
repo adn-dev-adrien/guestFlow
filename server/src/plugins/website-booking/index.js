@@ -29,7 +29,7 @@ function register(ctx) {
   // from Paramètres › Intégrations into the WordPress proxy settings (rule 30). An uninstall never
   // rotates it.
   const ensureApiKey = () => {
-    sdk.secrets.getOrCreate(KEY_NAME, 32);
+    sdk.secrets.getOrCreate(KEY_NAME, 32, { rotatable: true });
     ctx.log.info(`${KEY_NAME} ready — shown in Paramètres › Intégrations › Site internet.`);
   };
   ctx.onInstall(ensureApiKey);
@@ -37,7 +37,7 @@ function register(ctx) {
 
   const connection = buildSiteConnectionController({
     publicUrl: () => ctx.core.settings.publicUrl(),
-    ensureKey: () => sdk.secrets.getOrCreate(KEY_NAME, 32),
+    ensureKey: () => sdk.secrets.getOrCreate(KEY_NAME, 32, { rotatable: true }),
     rotateKey: () => sdk.secrets.rotate(KEY_NAME, 32),
   });
   ctx.route('get', '/api/settings/website-connection', connection.get);

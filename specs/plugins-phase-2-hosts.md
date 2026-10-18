@@ -367,7 +367,23 @@ without the core knowing it.
     into WordPress) calls `POST /api/settings/website-connection/regenerate`, which writes a new
     32-byte key into the instance's `.env.local` and `process.env` (SDK `secrets.rotate`, SDK 1.2.0) and
     answers `{ apiKey }`. A `PUBLIC_API_KEY` set by the server's real environment cannot be changed
-    from here: 409 `KEY_FROM_ENVIRONMENT`, with a message naming the variable.
+    from here: 409 `KEY_FROM_ENVIRONMENT`, with a message naming the variable. _(2026-10-18, review
+    follow-up: « set by the real environment » now means set there **and absent from `.env.local`**;
+    see rule 32.)_
+32. **A regenerated key survives every later restart** (added 2026-10-18, review follow-up). pm2 saves
+    the environment of `pm2 startOrRestart … --update-env`, which the self-update helper runs: when the
+    helper inherited the key read from `.env.local` at boot, pm2 handed that old key back at every
+    later restart and, since `.env.local` never overrides a variable already set, the rotation was
+    undone (the site answered 401) and a second rotation was refused 409. Two guards:
+    - the self-update helper is spawned with `process.env` minus the values `.env.local` holds
+      (`localEnv.environmentWithoutLocalFile()`, `updateHelper.spawnHelper`), so `.env.local` stays the
+      only source of its secrets;
+    - a secret read with `secrets.getOrCreate(name, n, { rotatable: true })` (the website key) or
+      rotated once is **file-first**: when `.env.local` holds it, that value wins over an inherited
+      copy — which also repairs an installation whose pm2 already saved a stale key. The 409 of rule 31
+      remains for a key only the real environment sets.
+    Test: `website-booking/tests/site-key-rotation-restart.unit.test.js` (rotate, restart with the old
+    key inherited, the new key is still served; the helper's environment leaves `.env.local` out).
 
 ## 4. Architecture
 
