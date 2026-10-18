@@ -120,6 +120,37 @@ function applyGuestEmailSequenceSchema(db) {
     db.exec('ALTER TABLE properties ADD COLUMN nameArticleConfirmed INTEGER NOT NULL DEFAULT 0');
     db.exec('UPDATE properties SET nameArticleConfirmed = 1');
   }
+
+  // specs/guest-email-texts-made-simple.md rule 28 — what the start assistant could not know about a
+  // property (`caution`, `cleaning`, `towels`, comma-separated) is left out of the emails until the
+  // owner answers. Every property that exists when the column appears keeps its emails as they are.
+  // `cleaningIncluded` / `towelsProvided`: the owner's answer, NULL leaving it to the options.
+  if (propertyCols.length) {
+    addColumns('properties', [
+      ['pendingFacts', "TEXT NOT NULL DEFAULT ''"],
+      ['cleaningIncluded', 'INTEGER'],
+      ['towelsProvided', 'INTEGER'],
+      // 2026-10-18 — the bed linen, answered like the towels.
+      ['bedLinenProvided', 'INTEGER'],
+    ]);
+  }
+  // Rule 34 — the pool season belongs to the property that has the pool. The season set once for
+  // the whole instance is copied onto every property when the columns appear, so no email moves.
+  if (propertyCols.length && !propertyCols.includes('poolSeasonStart')) {
+    addColumns('properties', [
+      ['poolSeasonStart', "TEXT NOT NULL DEFAULT ''"],
+      ['poolSeasonEnd', "TEXT NOT NULL DEFAULT ''"],
+    ]);
+    const appCols = db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name);
+    if (appCols.includes('poolSeasonStart') && appCols.includes('poolSeasonEnd')) {
+      const season = db.prepare('SELECT poolSeasonStart AS s, poolSeasonEnd AS e FROM app_settings ORDER BY id LIMIT 1').get();
+      if (season && season.s && season.e) {
+        db.prepare('UPDATE properties SET poolSeasonStart = ?, poolSeasonEnd = ?').run(season.s, season.e);
+      }
+    }
+  }
+  // Rule 29 — the property the start assistant created, so its step 2 edits it instead of adding one.
+  addColumns('app_settings', [['onboardingPropertyId', 'INTEGER']]);
 }
 
 module.exports = { applyGuestEmailSequenceSchema };

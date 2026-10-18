@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box, IconButton, TextField, TableHead, TableBody, TableRow, TableCell,
-  Tooltip, MenuItem, Alert, Typography, Button,
+  Tooltip, MenuItem, Alert, Typography, Button, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -40,6 +41,7 @@ const EMPTY_FORM = {
 
 export default function EstablishmentClosuresPage({ barTabs }) {
   const { confirm, alert } = useAppDialogs();
+  const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
   const [closures, setClosures] = useState([]);
   const [properties, setProperties] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -142,11 +144,12 @@ export default function EstablishmentClosuresPage({ barTabs }) {
     <Box>
       <PageActionBar
         tabs={barTabs}
-        title="Fermetures de l'établissement"
+        title={phone ? 'Fermetures' : "Fermetures de l'établissement"}
+        titleOnXs
         actionsBefore={[{
           node: (
             <Button key="add-closure" variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
-              Ajouter une fermeture
+              {phone ? 'Ajouter' : 'Ajouter une fermeture'}
             </Button>
           ),
         }]}
@@ -155,7 +158,10 @@ export default function EstablishmentClosuresPage({ barTabs }) {
       <Box sx={{ maxWidth: { xs: '100%', md: 920, lg: 1200 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
         {loadError && <ErrorAlert message="Impossible de charger les fermetures." onRetry={load} sx={{ mb: 2 }} />}
         {loading && !loadError && <LoadingState label="Chargement des fermetures…" />}
-        {!loading && !loadError && (
+        {!loading && !loadError && closures.length === 0 && (
+          <EmptyState message="Aucune fermeture configurée." py={4} />
+        )}
+        {!loading && !loadError && closures.length > 0 && (
         <TableCard minWidth={760}>
           <TableHead>
             <TableRow>
@@ -167,13 +173,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {closures.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} sx={{ p: 0, border: 0 }}>
-                  <EmptyState message="Aucune fermeture configurée." py={4} />
-                </TableCell>
-              </TableRow>
-            ) : closures.map((row) => (
+            {closures.map((row) => (
               <TableRow
                 key={row.id}
                 hover

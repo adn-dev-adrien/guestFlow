@@ -109,6 +109,9 @@ column rather than a schema change.
     the file.
 20. **The Settings page gains a « Traductions » card**: how many entries, how many still untranslated
     per language, how many flagged « à revérifier », and the two buttons — download, upload.
+    *Note 2026-10-18 (review):* its explanation is impersonal, like every UI text (it used « tu ») —
+    the wording of specs/ds-components.md rule 25: « Traductions : télécharger le fichier, remplir les
+    colonnes, le renvoyer. Une colonne de plus = une langue de plus. »
 
 **Edge cases:**
 

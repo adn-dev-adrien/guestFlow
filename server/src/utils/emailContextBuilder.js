@@ -9,6 +9,8 @@
  * Pure: no DB access. The caller passes raw rows; this module just shapes them.
  */
 
+const propertyArticle = require('./propertyArticle');
+const { pendingFactsOf } = require('./propertyFacts');
 const { formatDateLong, formatTimeShort } = require('./dateFr');
 const { renderText } = require('./stayTextCatalogue');
 const { formatCurrency } = require('./devisHelpers');
@@ -69,13 +71,10 @@ function formatBedConfig({ singleBeds, doubleBeds, babyBeds }, lang = 'fr') {
 //   "à l'"  + 'Aventura Lodge' → "à l'Aventura Lodge"   (elided forms glue, no space)
 //   'aux'   + 'Gîtes'          → 'aux Gîtes'
 function formatPropertyWithArticle(name, article, lang = 'fr') {
-  const n = safeStr(name).trim();
-  if (!n) return '';
   // English has no gendered article to glue — the EN bodies phrase it as "at {{propertyWithArticle}}",
-  // so we return the bare name (e.g. "the Gite" would over-assume; the name alone reads cleanly).
-  if (lang === 'en') return n;
-  const a = safeStr(article).trim() || 'au';
-  return a.endsWith("'") ? `${a}${n}` : `${a} ${n}`;
+  // so the name alone reads cleanly. A French name starting with its own article contracts with it
+  // (specs/guest-email-texts-made-simple.md rule 30): « Le Fournil » → « au Fournil ».
+  return propertyArticle.format(safeStr(name), article, lang);
 }
 
 // Minimal language normaliser shared with the send pipeline (kept inline to avoid a circular require).
@@ -122,6 +121,9 @@ function buildContext({ reservation, client, property, options = [], resources =
   // specs/email-language-fr-en.md §3 rule 4 — every composed string below is emitted in `lang`.
   const L = normaliseLang(lang);
   const isEn = L === 'en';
+  // An English email writes every amount the English way, « €963.39 », like the prices of its stay
+  // texts (« €8 per person »), never « 963,39 € » beside them (specs/email-language-fr-en.md rule 8).
+  const money = (n) => (isEn ? `€${Number(n || 0).toFixed(2)}` : formatCurrency(n));
   // Localised catalog names (specs/email-client-language-and-fiche-polish.md §3 rule 4): in English use
   // the option/resource English name, falling back to the French one when it's empty (never blanks an item).
   const optionName = (o) => {
@@ -158,7 +160,11 @@ function buildContext({ reservation, client, property, options = [], resources =
   // option (specs/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the
   // beds will be made on arrival, and the bed-linen option is dropped from the "Option(s) réservée(s)"
   // list (it isn't a chosen extra). `optionsList` itself is left intact for other templates (e.g. J-7).
-  const bedLinenProvided = linenByDefault;
+  // The owner's answer on the property wins; unanswered after the start assistant, nothing is said
+  // (specs/guest-email-texts-made-simple.md rule 28, 2026-10-18).
+  const linenPending = pendingFactsOf(p).has('linen');
+  const bedLinenProvided = !linenPending
+    && (Number(p.bedLinenProvided) === 1 || (p.bedLinenProvided == null && linenByDefault));
   const reservedOptionsTitles = (options || [])
     .filter((o) => !(bedLinenProvided && safeStr(o.autoOptionType) === 'bed_linen'))
     .map(optionName)
@@ -168,7 +174,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   const hasReservedOptions = reservedOptionsTitles.length > 0;
   // "Bring your own linen" only when linen is neither provided by default nor on the reservation —
   // never contradicts the "beds made" line.
-  const bedLinenBringYourOwn = !hasBedLinenOption && !bedLinenProvided;
+  const bedLinenBringYourOwn = !hasBedLinenOption && !bedLinenProvided && !linenPending;
 
   // Resources list (specs/manual-email-from-template.md is unrelated; this is J-1 §3 rule 4) —
   // booked resources' names, sorted alphabetically for stable rendering.
@@ -282,8 +288,8 @@ function buildContext({ reservation, client, property, options = [], resources =
   const complementLineText = (l) => {
     const label = localizedComplementLabel(l);
     return (l.qty > 1 && l.unitPrice > 0)
-      ? `- ${label}${complementSep}${l.qty} × ${formatCurrency(l.unitPrice)} = ${formatCurrency(l.amount)}`
-      : `- ${label}${complementSep}${formatCurrency(l.amount)}`;
+      ? `- ${label}${complementSep}${l.qty} × ${money(l.unitPrice)} = ${money(l.amount)}`
+      : `- ${label}${complementSep}${money(l.amount)}`;
   };
   // Only itemise when there's at least one identifiable prestation (option / resource / tax). A pure
   // accommodation auto-gap (a lone « remainder » line, or nothing) → the one-line amount sentence, which
@@ -297,13 +303,13 @@ function buildContext({ reservation, client, property, options = [], resources =
       ? `A balance is payable directly on site ${whenEn}:`
       : `Un complément est à régler directement sur place ${whenFr} :`;
     const totalLine = isEn
-      ? `Total: ${formatCurrency(complementAmountNum)}`
-      : `Total : ${formatCurrency(complementAmountNum)}`;
+      ? `Total: ${money(complementAmountNum)}`
+      : `Total : ${money(complementAmountNum)}`;
     complementNotice = [intro, ...noticeLines.map(complementLineText), totalLine].join('\n');
   } else if (complementToCollect) {
     complementNotice = isEn
-      ? `A balance of ${formatCurrency(complementAmountNum)} is payable directly on site ${whenEn}.`
-      : `Un complément de ${formatCurrency(complementAmountNum)} est à régler directement sur place ${whenFr}.`;
+      ? `A balance of ${money(complementAmountNum)} is payable directly on site ${whenEn}.`
+      : `Un complément de ${money(complementAmountNum)} est à régler directement sur place ${whenFr}.`;
   }
 
   // Spec §4.4: cautionNotBanked = cautionAmount > 0 AND depositPaid != 1. Pragmatic proxy
@@ -322,9 +328,10 @@ function buildContext({ reservation, client, property, options = [], resources =
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
   // specs/caution-live-from-property.md §3 — caution is live from the property's current
   // defaultCautionAmount until received, then frozen to the collected amount on the reservation.
+  // A caution the owner never stated (specs/guest-email-texts-made-simple.md rule 28) is no caution.
   const cautionAmountNum = cautionReceivedFlag
     ? Number(r.cautionAmount || 0)
-    : Number(p.defaultCautionAmount || 0);
+    : (pendingFactsOf(p).has('caution') ? 0 : Number(p.defaultCautionAmount || 0));
   const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1 && !cautionReceivedFlag;
   // Precise caution signal for the J-1 reminder (specs/j1-arrival-reminder-email.md §3 rule 5):
   // the caution cheque is still owed when an amount is due AND it has not been received yet.
@@ -386,19 +393,19 @@ function buildContext({ reservation, client, property, options = [], resources =
       // The arrival address, else the company's (specs/guest-email-texts-made-simple.md rule 3).
       propertyAddress:     stayContent.vars.propertyAddress,
       // Financial
-      finalPrice:      formatCurrency(Number(r.finalPrice || 0)),
-      depositAmount:   formatCurrency(Number(r.depositAmount || 0)),
+      finalPrice:      money(Number(r.finalPrice || 0)),
+      depositAmount:   money(Number(r.depositAmount || 0)),
       depositDueDate:  formatDateLong(r.depositDueDate, L),
       validUntil:      formatDateLong(r.validUntil, L), // devis validity date — used by the deposit reminder
 
-      balanceAmount:   formatCurrency(Number(r.balanceAmount || 0)),
+      balanceAmount:   money(Number(r.balanceAmount || 0)),
       balanceDueDate:  formatDateLong(r.balanceDueDate, L),
       // specs/payment-schedule-and-cancellation.md §3.7 rule 43 — the date an unpaid solde costs the
       // stay, and what would then be kept. Both derived server-side so no email ever does date math.
       cancelOnDate:    formatDateLong(cancelOnDate, L),
-      retainedDepositAmount: formatCurrency(retainedDepositAmount),
-      cautionAmount:   formatCurrency(cautionAmountNum),
-      complementAmount: formatCurrency(complementAmountNum),
+      retainedDepositAmount: money(retainedDepositAmount),
+      cautionAmount:   money(cautionAmountNum),
+      complementAmount: money(complementAmountNum),
       complementNotice,
       // Online payment link — empty by default; the sender injects the real URL per-send via
       // `extraContext` (the link is created on demand, it is not a reservation column).
@@ -407,7 +414,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       // acompte when there is one, the stay otherwise (a last-minute stay owes a single payment). The
       // sender overrides it per-send with the amount the payment link actually charges (tourist tax
       // included); this default keeps template previews meaningful.
-      paymentAmount:   formatCurrency(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.finalPrice || 0)),
+      paymentAmount:   money(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.finalPrice || 0)),
       // Lists
       optionsList,
       reservedOptionsList,
@@ -464,6 +471,7 @@ function buildContext({ reservation, client, property, options = [], resources =
 module.exports = {
   buildContext,
   normaliseLang,
+  buildCgvUrl,
   // Exposed for tests.
   __test: { formatBedConfig, joinAddress, diffDays, formatPropertyWithArticle },
 };

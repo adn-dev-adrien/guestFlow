@@ -12,6 +12,10 @@
  * platform booking whose amount was never entered carries no figure to print at all, only the row's
  * link to the fiche where the operator types it.
  *
+ * Without online payment (specs/plugins-phase-3a-online-payment.md rule 25) the server marks the row
+ * `remindByEmail` with the template to use: « Envoyer la demande » then opens that email in the send
+ * dialog, for the operator to read before it leaves.
+ *
  * No business rule here: the state, the amounts, the days late, whether cancelling is offered — all
  * of it arrives ready to render from the server.
  */
@@ -23,6 +27,7 @@ import SnoozeIcon from '@mui/icons-material/Snooze';
 import api from '../api';
 import StatusBadge from './StatusBadge';
 import ReservationCancelDialog from './ReservationCancelDialog';
+import EmailManualSendDialog from './EmailManualSendDialog';
 import { useToast } from './DialogProvider';
 import { displayDateShort, formatCurrency } from '../utils/formatters';
 import { DEADLINE_STATE_LABELS, DEADLINE_STATE_BADGE, deadlineHeadline } from '../constants/paymentDeadlines';
@@ -32,6 +37,7 @@ export default function PaymentDeadlinesAlert() {
   const [rows, setRows] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [cancelRow, setCancelRow] = useState(null);
+  const [draftRow, setDraftRow] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -45,6 +51,10 @@ export default function PaymentDeadlinesAlert() {
   useEffect(() => { refresh(); }, [refresh]);
 
   const handleRemind = useCallback(async (row) => {
+    if (row.remindByEmail) {
+      setDraftRow(row);
+      return;
+    }
     setBusyId(row.reservationId);
     try {
       await api.remindPaymentDeadline(row.reservationId, row.remindType);
@@ -151,6 +161,11 @@ export default function PaymentDeadlinesAlert() {
                     {row.requestSent ? 'Relancer' : 'Envoyer la demande'}
                   </Button>
                 ) : null}
+                {row.remindByEmail && row.remindNote ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ alignSelf: { sm: 'center' } }}>
+                    {row.remindNote}
+                  </Typography>
+                ) : null}
                 <Button
                   size="small"
                   variant="outlined"
@@ -177,6 +192,20 @@ export default function PaymentDeadlinesAlert() {
           ))}
         </Stack>
       </Alert>
+
+      {draftRow ? (
+        <EmailManualSendDialog
+          key={draftRow.reservationId}
+          open
+          reservationId={draftRow.reservationId}
+          defaultTemplateId={draftRow.remindTemplateId}
+          onClose={() => setDraftRow(null)}
+          onSent={() => {
+            showSuccess(draftRow.remindType === 'deposit' ? "Demande d'acompte envoyée." : 'Demande de solde envoyée.');
+            refresh();
+          }}
+        />
+      ) : null}
 
       <ReservationCancelDialog
         open={Boolean(cancelRow)}

@@ -63,6 +63,11 @@ that threshold are **automatically deleted**. The history is reachable from the 
 - The purge is destructive (rows are deleted, not archived) — this is the intended behavior; the history is
   a rolling operational view, not a permanent audit.
 
+8. **The time is Paris time** (review of 2026-10-18). `sentAt` is stored as SQLite `datetime('now')`,
+   UTC without a zone; the history read it as local time and showed « 00:11 » for a send at 02:11. The
+   server words each row's time in Europe/Paris (`sentAtLabel`, « 18/10/2026 02:11 »), and the « déjà
+   envoyé » question of the send dialog too.
+
 ---
 
 ## 4. Architecture

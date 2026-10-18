@@ -27,12 +27,13 @@ function rewrite(csv, key, column, value) {
   return `﻿${rows.map((r) => r.map((c) => translationCsv.cell(c, sep)).join(sep)).join('\r\n')}\r\n`;
 }
 
-test('rule 16: one row per text, BOM, `;`, the six columns, no secret', async () => {
+test('rules 16 + 31: one row per text, BOM, `;`, the six columns, no secret, no « Accès »', async () => {
   const { db } = setup();
   arrivalFactsModel.buildModel(db).save(1, { accessFr: 'Porte bleue.', accessCode: '4521', wifiPassword: 'pres2026' });
   const csv = await exported(db);
   assert.ok(csv.startsWith('﻿email;clé;description;français;english;texte par défaut (FR)\r\n'));
-  assert.match(csv, /\r\nJ-2;access:1;Accès — Le Gîte;Porte bleue\.;;\r\n/);
+  // Rule 31 — « Accès » may hold a code typed by hand: it never leaves in the file.
+  assert.doesNotMatch(csv, /access:1|Porte bleue/);
   assert.match(csv, /\r\nJ-7;text:beds\.made;Lits préparés;/);
   assert.match(csv, /\r\nJ-7;hook:1;/);
   assert.match(csv, /\r\nConfirmation;subject:reservation_confirmation;Objet — /);

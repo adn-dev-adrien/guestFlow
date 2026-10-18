@@ -75,10 +75,12 @@ beforeEach(() => {
   api.getGoogleCalendars.mockResolvedValue(CALENDARS);
 });
 
-test('state 1 — env vars missing → hint alert, no action buttons', async () => {
+test('state 1 — OAuth client missing → one short line, no server detail, no action buttons', async () => {
   api.getGoogleCalendarStatus.mockResolvedValue({ ...BASE_STATUS, oauthConfigured: false });
-  renderSection();
-  expect(await screen.findByText(/GOOGLE_OAUTH_CLIENT_ID/)).toBeInTheDocument();
+  const { container } = renderSection();
+  expect(await screen.findByText('Connexion Google indisponible sur cette installation.')).toBeInTheDocument();
+  // Review 2026-10-18: an owner cannot act on an environment variable or a server path.
+  expect(container.textContent).not.toMatch(/GOOGLE_OAUTH|\.env\.local|redémarrez/);
   expect(screen.queryByRole('button', { name: /Connecter mon compte Google/i })).not.toBeInTheDocument();
   expect(screen.getByText('Synchronisation non configurée')).toBeInTheDocument();
 });

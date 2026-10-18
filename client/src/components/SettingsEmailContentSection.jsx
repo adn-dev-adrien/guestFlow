@@ -2,19 +2,20 @@
  * SettingsEmailContentSection — « Contenu des mails » card of Paramètres → Emails & notifications.
  *
  * The settings the guest emails quote (specs/guest-email-sequence.md §6.2): the review and Instagram
- * links of the J+1 email, and the pool season the emails mention. Whether an email leaves by itself
+ * links of the J+1 email. The pool season belongs to the property that has the pool (Logement ›
+ * Séjour, specs/guest-email-texts-made-simple.md rule 34). Whether an email leaves by itself
  * is not decided here any more: each template has its own mode (specs/settings-rationalization.md
  * rule 17b).
  *
  * Props:
- *   values:   { googleReviewUrl, instagramUrl, poolSeasonStart, poolSeasonEnd }
+ *   values:   { googleReviewUrl, instagramUrl }
  *   onChange: (key, value) => void
  *   disabled: boolean
  *   errors:   { [column]: string } — server validation messages
  */
 import React from 'react';
 import { Link as RouterLink } from 'react-router';
-import { Card, CardContent, Stack, Typography, Box, TextField, Button } from '@mui/material';
+import { Card, CardContent, Stack, Typography, Box, Button } from '@mui/material';
 import HelpedTextField from './HelpedTextField';
 
 export default function SettingsEmailContentSection({
@@ -50,30 +51,10 @@ export default function SettingsEmailContentSection({
             error={errors.instagramUrl}
             disabled={disabled}
           />
-          <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <TextField
-              label="Piscine ouverte du (MM-JJ)"
-              value={values.poolSeasonStart || ''}
-              onChange={(e) => onChange('poolSeasonStart', e.target.value)}
-              error={Boolean(errors.poolSeasonStart)}
-              helperText={errors.poolSeasonStart || 'ex. 06-15 · vide : sans piscine'}
-              disabled={disabled}
-              fullWidth
-            />
-            <TextField
-              label="au (MM-JJ)"
-              value={values.poolSeasonEnd || ''}
-              onChange={(e) => onChange('poolSeasonEnd', e.target.value)}
-              error={Boolean(errors.poolSeasonEnd)}
-              helperText={errors.poolSeasonEnd || 'ex. 08-31'}
-              disabled={disabled}
-              fullWidth
-            />
-          </Box>
           {/* specs/plugins-phase-p-productisation.md §6 — the sentences of the emails. */}
           <Box>
             <Button component={RouterLink} to="/settings/emails/textes" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              Textes des mails
+              Textes des emails
             </Button>
           </Box>
         </Stack>

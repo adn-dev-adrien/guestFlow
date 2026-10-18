@@ -52,7 +52,6 @@ const ERROR_KEYS = {
   notifications: { recipientEmail: 'notificationRecipientEmail' },
   emails: {
     googleReviewUrl: 'googleReviewUrl', instagramUrl: 'instagramUrl',
-    poolSeasonStart: 'poolSeasonStart', poolSeasonEnd: 'poolSeasonEnd',
   },
 };
 

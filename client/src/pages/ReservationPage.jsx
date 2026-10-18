@@ -1086,7 +1086,7 @@ export default function ReservationPage() {
             depositDueDate: calc ? calc.depositDueDate : '',
             balanceAmount: calc ? calc.balanceAmount : 0,
             balanceDueDate: calc ? calc.balanceDueDate : '',
-            cautionAmount: prop?.defaultCautionAmount ?? 500,
+            cautionAmount: prop?.defaultCautionAmount ?? 0,
             cautionReceived: false,
             cautionReceivedDate: '',
             cautionReturned: false,
@@ -1972,7 +1972,7 @@ export default function ReservationPage() {
       doubleBeds: '',
       babyBeds: '',
       totalPrice: Number(calc.totalPrice || 0),
-      cautionAmount: prop?.defaultCautionAmount ?? 500,
+      cautionAmount: prop?.defaultCautionAmount ?? 0,
       checkInTime: prev.checkInTime || calc.defaultCheckIn || prop?.defaultCheckIn || '15:00',
       checkOutTime: prev.checkOutTime || calc.defaultCheckOut || prop?.defaultCheckOut || '10:00',
     }));

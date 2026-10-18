@@ -35,7 +35,8 @@ test.describe('Textes des emails', () => {
     await page.getByLabel('Adresse', { exact: true }).fill('12 chemin des Prés E2E');
     await page.getByLabel('Accès (français)').fill('La clé est dans la boîte bleue.');
     const saved = page.waitForResponse((r) => r.url().includes('/arrival-facts') && r.request().method() === 'PUT');
-    await page.getByRole('button', { name: 'Enregistrer l’arrivée' }).click();
+    // The « Arrivée » block is saved by the page's own Enregistrer (texts spec rule 34).
+    await page.getByRole('button', { name: 'Enregistrer', exact: true }).first().click();
     expect((await saved).ok()).toBe(true);
 
     await page.goto(`/settings/emails/textes?propertyId=${property.id}#j2`);

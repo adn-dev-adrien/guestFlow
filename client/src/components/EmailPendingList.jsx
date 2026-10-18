@@ -92,6 +92,14 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
                 </TableCell>
                 <TableCell align="right">
                   <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    {/* The row opens the send dialog too; the button says so (specs/email-automation.md rule 18). */}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={(e) => { e.stopPropagation(); onPreview(r); }}
+                    >
+                      Envoyer
+                    </Button>
                     {onMarkSent ? (
                       <Button
                         size="small"

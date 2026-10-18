@@ -411,9 +411,9 @@ test('lang="en": complement list intro + localised labels (Tourist tax, Arrival 
     lang: 'en',
   });
   assert.match(vars.complementNotice, /A balance is payable directly on site on arrival:/);
-  assert.match(vars.complementNotice, /- Tourist tax: 15,00 €/);
-  assert.match(vars.complementNotice, /- Arrival balance: 40,00 €/);   // remainder localised
-  assert.match(vars.complementNotice, /Total: 55,00 €/);
+  assert.match(vars.complementNotice, /- Tourist tax: €15\.00/);
+  assert.match(vars.complementNotice, /- Arrival balance: €40\.00/);   // remainder localised
+  assert.match(vars.complementNotice, /Total: €55\.00/);
 });
 
 test('default lang (fr) is unchanged — English path never leaks into French output', () => {

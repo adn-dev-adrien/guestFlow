@@ -3,7 +3,7 @@
  * See specs/email-automation.md §6.1.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box, Card, TableRow, TableCell,
   IconButton, Chip, Typography, Switch, Button, Stack, FormControl, InputLabel,
@@ -25,6 +25,8 @@ import PageActionBar from '../components/PageActionBar';
 import ErrorAlert from '../components/ErrorAlert';
 import LoadingState from '../components/LoadingState';
 import ResponsiveTable from '../components/ResponsiveTable';
+import TokenTextField from '../components/TokenTextField';
+import { displayError, buildDictionary } from '../utils/tokenDisplay';
 import { isValidEmail } from '../utils/validation';
 
 const EMPTY_CLIENT = {
@@ -63,16 +65,13 @@ function describeOffset(n) {
   return `J+${num}`;
 }
 
+// The « Quand » column: the server's label by anchor (specs/email-automation.md rule 16).
+const whenOf = (row) => row.whenLabel || describeOffset(row.dayOffset);
+
 export default function EmailTemplatesPage() {
   // The chips of the template being edited, labelled by the server (specs/guest-email-texts-made-simple.md
   // rule 10), live plugins' included (specs/plugins-phase-1-sdk.md rule 13).
   const [chips, setChips] = useState({ variables: [], conditions: [] });
-  const variableButtons = chips.variables.map((v) => ({ label: v.label, token: `{{${v.name}}}` }));
-  const conditionButtons = [
-    ...chips.conditions.map((c) => ({ label: c.label, token: `{{#if ${c.name}}}` })),
-    { label: 'Sinon', token: '{{else}}' },
-    { label: 'Fin si', token: '{{/if}}' },
-  ];
   const { confirm, alert } = useAppDialogs();
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -82,11 +81,8 @@ export default function EmailTemplatesPage() {
   const [open, setOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(emptyTemplate);
-  const bodyRef = useRef(null);
-  const subjectRef = useRef(null);
-  const bodyEnRef = useRef(null);
-  const subjectEnRef = useRef(null);
-  const [focusedField, setFocusedField] = useState('body');
+  // A server refusal { field, message }, shown under the field it names.
+  const [fieldError, setFieldError] = useState(null);
 
   const [pending, setPending] = useState([]);
   const [sending, setSending] = useState(null); // { reservationId, templateId, reservationStartDate }
@@ -220,29 +216,7 @@ export default function EmailTemplatesPage() {
     setOpen(true);
   };
 
-  const handleClose = () => setOpen(false);
-
-  const insertToken = (token) => {
-    const ref = { subject: subjectRef, body: bodyRef, subjectEn: subjectEnRef, bodyEn: bodyEnRef }[focusedField] || bodyRef;
-    const field = ref.current;
-    if (!field) {
-      setForm((f) => ({ ...f, [focusedField]: (f[focusedField] || '') + token }));
-      return;
-    }
-    const start = field.selectionStart ?? (form[focusedField] || '').length;
-    const end   = field.selectionEnd   ?? start;
-    const current = form[focusedField] || '';
-    const next = current.slice(0, start) + token + current.slice(end);
-    setForm((f) => ({ ...f, [focusedField]: next }));
-    // Restore cursor position just after the inserted token.
-    requestAnimationFrame(() => {
-      if (field) {
-        field.focus();
-        const pos = start + token.length;
-        field.setSelectionRange(pos, pos);
-      }
-    });
-  };
+  const handleClose = () => { setOpen(false); setFieldError(null); };
 
   const handleSave = async () => {
     const payload = {
@@ -266,6 +240,12 @@ export default function EmailTemplatesPage() {
       // its rendered content → refresh both the library and the « Emails à envoyer » list.
       await Promise.all([reload(), reloadPending()]);
     } catch (e) {
+      // specs/guest-email-texts-made-simple.md rule 27 — a broken variable or condition is refused
+      // by the server and named under its field, in the labels the field shows.
+      if (e?.field && ['subject', 'body', 'subjectEn', 'bodyEn'].includes(e.field)) {
+        setFieldError({ field: e.field, message: displayError(e.message, buildDictionary(chips.variables, chips.conditions)) });
+        return;
+      }
       await alert({ title: 'Erreur', message: e?.message || 'Impossible d\'enregistrer le modèle.' });
     }
   };
@@ -375,7 +355,7 @@ export default function EmailTemplatesPage() {
                     {row.stableKey ? <Chip label="Modèle livré" size="small" variant="outlined" /> : null}
                   </Stack>
                 </TableCell>
-                <TableCell>{describeOffset(row.dayOffset)}</TableCell>
+                <TableCell>{whenOf(row)}</TableCell>
                 <TableCell>{sendModeChip(row)}</TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Switch
@@ -397,7 +377,7 @@ export default function EmailTemplatesPage() {
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>
                   {sendModeChip(row)}
                 </Stack>
-                <Typography variant="caption" color="text.secondary">{describeOffset(row.dayOffset)}</Typography>
+                <Typography variant="caption" color="text.secondary">{whenOf(row)}</Typography>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={Boolean(row.enabled)}
@@ -495,69 +475,36 @@ export default function EmailTemplatesPage() {
             </FormControl>
           </Stack>
 
-          <TextField
+          {/* specs/email-automation.md rule 17 — the same view as « Textes des emails »: each variable
+              by its French label, the chips insert it at the cursor; the English side is optional
+              (empty: the email leaves in French). */}
+          <TokenTextField
+            id="template-subject"
             label="Sujet"
-            value={form.subject}
-            onChange={(e) => setForm({ ...form, subject: e.target.value })}
-            onFocus={() => setFocusedField('subject')}
-            inputRef={subjectRef}
-            fullWidth
-            required
+            fr={form.subject}
+            en={form.subjectEn || ''}
+            onChange={(lang, value) => { setFieldError(null); setForm((f) => ({ ...f, [lang === 'fr' ? 'subject' : 'subjectEn']: value })); }}
+            tokens={chips.variables}
+            errorFr={fieldError?.field === 'subject' ? fieldError.message : undefined}
+            errorEn={fieldError?.field === 'subjectEn' ? fieldError.message : undefined}
           />
-
-          <TextField
+          <TokenTextField
+            id="template-body"
             label="Corps du message"
-            value={form.body}
-            onChange={(e) => setForm({ ...form, body: e.target.value })}
-            onFocus={() => setFocusedField('body')}
-            inputRef={bodyRef}
-            fullWidth
-            required
-            multiline
-            minRows={12}
+            fr={form.body}
+            en={form.bodyEn || ''}
+            onChange={(lang, value) => { setFieldError(null); setForm((f) => ({ ...f, [lang === 'fr' ? 'body' : 'bodyEn']: value })); }}
+            tokens={chips.variables}
+            flags={chips.conditions}
+            minRows={10}
+            errorFr={fieldError?.field === 'body' ? fieldError.message : undefined}
+            errorEn={fieldError?.field === 'bodyEn' ? fieldError.message : undefined}
+            helper={(
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                Anglais vide : l'email part en français. Une seule condition à la fois.
+              </Typography>
+            )}
           />
-
-          {/* English version (specs/email-language-fr-en.md): used when the reservation's email language
-              is English. Optional — leave empty to always send in French. */}
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Version anglaise (optionnelle) — utilisée pour les réservations en anglais. Laissez vide pour envoyer en français.
-          </Typography>
-          <TextField
-            label="Sujet (EN)"
-            value={form.subjectEn || ''}
-            onChange={(e) => setForm({ ...form, subjectEn: e.target.value })}
-            onFocus={() => setFocusedField('subjectEn')}
-            inputRef={subjectEnRef}
-            fullWidth
-          />
-          <TextField
-            label="Corps du message (EN)"
-            value={form.bodyEn || ''}
-            onChange={(e) => setForm({ ...form, bodyEn: e.target.value })}
-            onFocus={() => setFocusedField('bodyEn')}
-            inputRef={bodyEnRef}
-            fullWidth
-            multiline
-            minRows={12}
-          />
-
-          <Box>
-            <Typography variant="caption" color="text.secondary">Variables :</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {variableButtons.map((v) => (
-                <Chip key={v.token} label={v.label} size="small" onClick={() => insertToken(v.token)} variant="outlined" />
-              ))}
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Blocs conditionnels :</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {conditionButtons.map((c) => (
-                <Chip key={c.token} label={c.label} size="small" onClick={() => insertToken(c.token)} variant="outlined" color="secondary" />
-              ))}
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Un seul niveau de condition.
-            </Typography>
-          </Box>
 
           <FormControl>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

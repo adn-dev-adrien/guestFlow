@@ -61,3 +61,39 @@ export function chipSnippet(entry, kind, dict) {
 }
 
 export const chipLabel = (entry, kind, dict) => (kind === 'cond' ? dict.toLabel.cond.get(asEntry(entry).name) : dict.toLabel.var.get(asEntry(entry).name));
+
+/**
+ * A server message as the field shows its text (specs/guest-email-texts-made-simple.md rule 27):
+ * « Variable inconnue : {{Depuis le lo gement}} » reads « Variable inconnue : ⟦Depuis le lo gement⟧ »,
+ * the brackets the operator sees, never the stored braces.
+ */
+export function displayError(message, dict) {
+  return toDisplay(message, dict).replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (m, inner) => `${OPEN}${inner}${CLOSE}`);
+}
+
+/** The `[start, end)` of every ⟦…⟧ of a shown text. */
+export function tokenSpans(text) {
+  const spans = [];
+  const re = /⟦[^⟦⟧]*⟧/g;
+  let m;
+  while ((m = re.exec(String(text || ''))) !== null) spans.push([m.index, m.index + m[0].length]);
+  return spans;
+}
+
+/**
+ * A token is one unit (rule 27): the caret never lands inside it — a click or an arrow selects it
+ * whole — and Backspace after it, or Delete before it, removes it whole.
+ *
+ *   selectionAround(text, pos)  the token holding `pos` strictly inside, as [start, end], or null
+ *   deletion(text, pos, key)    { text, caret } once the whole token is removed, or null
+ */
+export function selectionAround(text, pos) {
+  return tokenSpans(text).find(([start, end]) => pos > start && pos < end) || null;
+}
+
+export function deletion(text, pos, key) {
+  const span = tokenSpans(text).find(([start, end]) => (key === 'Backspace' ? end === pos : start === pos));
+  if (!span) return null;
+  const source = String(text || '');
+  return { text: source.slice(0, span[0]) + source.slice(span[1]), caret: span[0] };
+}

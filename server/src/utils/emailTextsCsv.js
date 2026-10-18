@@ -19,11 +19,16 @@ const EMPTY_MARK = '-';
 
 const titleOf = (section) => (SECTIONS.find((s) => s.id === section) || {}).title || section || '';
 
+// Rule 31 — « Accès » may hold a door code typed by hand: it never leaves in the file.
+const inFile = (item) => item && item.kind !== 'access';
+const ACCESS_REFUSED = '« Accès » se modifie sur la page, pas dans le fichier';
+const CLEARED = '(vidé)';
+
 /** Rule 16 — one row per text, `;`, UTF-8 with a BOM so Excel reads the accents. */
 function serialise(items) {
   const sep = ';';
   const lines = [HEADER.map((h) => cell(h, sep)).join(sep)];
-  for (const item of items) {
+  for (const item of items.filter(inFile)) {
     lines.push([titleOf(item.section), item.key, item.description, item.fr, item.en, item.defaultFr]
       .map((c) => cell(c, sep)).join(sep));
   }
@@ -84,6 +89,7 @@ function plan(rows, model) {
     if (row.formula) { refused.push({ line: row.line, key: row.key, message: `${FORMULA_MESSAGE} — ligne ${row.line}. ${FORMULA_REMEDY}` }); continue; }
     const item = row.key ? model.find(row.key) : null;
     if (!item) { refused.push({ line: row.line, key: row.key, message: `Clé inconnue : ${row.key || '(vide)'}` }); continue; }
+    if (!inFile(item)) { refused.push({ line: row.line, key: row.key, message: ACCESS_REFUSED }); continue; }
     if (seen.has(row.key)) { refused.push({ line: row.line, key: row.key, message: 'Clé en double' }); continue; }
     seen.add(row.key);
     const fr = row.fr !== undefined && row.fr !== item.fr ? row.fr : undefined;
@@ -92,9 +98,14 @@ function plan(rows, model) {
     const error = model.validate(item, { fr, en });
     if (error) { refused.push({ line: row.line, key: row.key, message: error.message }); continue; }
     // Both languages as they will read once saved, the changed one and the kept one (rule 17).
-    changed.push({ line: row.line, key: row.key, description: item.description, fr, en, frShown: fr !== undefined ? fr : item.fr, enShown: en !== undefined ? en : item.en });
+    // A text emptied by `-` reads « (vidé) », not as an empty cell.
+    const shown = (next, current) => {
+      const value = next !== undefined ? next : current;
+      return next !== undefined && String(value).trim() === '' ? CLEARED : value;
+    };
+    changed.push({ line: row.line, key: row.key, description: item.description, fr, en, frShown: shown(fr, item.fr), enShown: shown(en, item.en) });
   }
   return { changed, refused, unchanged };
 }
 
-module.exports = { serialise, parse, plan, HEADER, EMPTY_MARK };
+module.exports = { serialise, parse, plan, HEADER, EMPTY_MARK, CLEARED, ACCESS_REFUSED };

@@ -27,6 +27,8 @@ const { isCleaningOption, normalizeOptionName } = require('./cleaningOption');
 const { isClientVisibleOption } = require('./optionVisibility');
 const { isDirectChannel } = require('./platformNameFormat');
 const { renderStayText, renderText } = require('./stayTextCatalogue');
+const { format: formatWithArticle } = require('./propertyArticle');
+const { pendingFactsOf } = require('./propertyFacts');
 
 const WEEKDAYS = { fr: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
 const MONTHS = { fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'], en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] };
@@ -84,11 +86,7 @@ function joinList(items, lang) {
 }
 
 function withArticle(name, article, lang) {
-  const n = safe(name).trim();
-  if (!n) return '';
-  if (lang === 'en') return n;
-  const a = safe(article).trim() || 'au';
-  return a.endsWith("'") ? `${a}${n}` : `${a} ${n}`;
+  return formatWithArticle(safe(name), article, lang);
 }
 
 // ---------------------------------------------------------------- option roles
@@ -222,16 +220,21 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   if (singles) beds.push(t(`${singles} lit${singles > 1 ? 's' : ''} simple${singles > 1 ? 's' : ''}`, `${singles} single bed${singles > 1 ? 's' : ''}`));
   const bedConfigLabel = joinList(beds, L);
 
-  const bedsMade = cls.included.has('bedLinen') || cls.booked.has('bedLinen');
-  const towelsIncluded = cls.included.has('towels');
+  // specs/guest-email-texts-made-simple.md rule 28 — the owner's answer wins over the options; a fact
+  // nobody gave yet says nothing.
+  const pending = pendingFactsOf(p);
+  const linenBooked = cls.booked.has('bedLinen');
+  const linenUnsaid = pending.has('linen') && !linenBooked;
+  const bedsMade = linenBooked || (!linenUnsaid && (Number(p.bedLinenProvided) === 1 || (p.bedLinenProvided == null && cls.included.has('bedLinen'))));
+  const towelsIncluded = Number(p.towelsProvided) === 1 || (p.towelsProvided == null && cls.included.has('towels'));
   const towelsCovered = towelsIncluded || cls.booked.has('towels');
-  const cleaningIncluded = cls.included.has('cleaning');
+  const cleaningIncluded = Number(p.cleaningIncluded) === 1 || (p.cleaningIncluded == null && cls.included.has('cleaning'));
   const cleaningBooked = cls.booked.has('cleaning');
 
   let bedsParagraph = '';
   if (bedConfigLabel && bedsMade) {
     bedsParagraph = say('beds.made', { bedConfig: bedConfigLabel });
-  } else if (bedConfigLabel) {
+  } else if (bedConfigLabel && !linenUnsaid) {
     const linenOffered = cls.proposable('bedLinen');
     const linenPrice = linenOffered ? cls.priceOf('bedLinen') : null;
     bedsParagraph = say('beds.linenNotIncluded', { bedConfig: bedConfigLabel, ...priced(linenPrice) }, { linenOffered, hasPrice: hasPrice(linenPrice) });
@@ -245,10 +248,11 @@ function buildStayContent({ reservation, client, property, options = [], facts =
     babyParagraph = say('baby.offer', priced(babyPrice), { hasPrice: hasPrice(babyPrice) });
   }
 
-  // --- pool season (settings, MM-DD) overlapping the stay; empty means no pool (rule 14)
+  // --- pool season (the property's, MM-DD) overlapping the stay; empty means no pool (rule 14,
+  // specs/guest-email-texts-made-simple.md rule 34)
   const stayOverlapsPool = (() => {
-    const start = safe(settings.poolSeasonStart);
-    const end = safe(settings.poolSeasonEnd);
+    const start = safe(p.poolSeasonStart);
+    const end = safe(p.poolSeasonEnd);
     const year = safe(r.startDate).slice(0, 4);
     if (!year || !/^\d{2}-\d{2}$/.test(start) || !/^\d{2}-\d{2}$/.test(end)) return false;
     return safe(r.startDate).slice(0, 10) <= `${year}-${end}` && safe(r.endDate).slice(0, 10) > `${year}-${start}`;
@@ -256,7 +260,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
 
   // --- J-7 bag + property facts
   const bagLines = [say('bag.items', {}, { stayOverlapsPool })];
-  if (!towelsCovered) {
+  if (!towelsCovered && !pending.has('towels')) {
     const towelPrice = cls.proposable('towels') ? cls.priceOf('towels') : null;
     bagLines.push(towelPrice != null
       ? say('bag.towelsOffer', priced(towelPrice), { hasPrice: hasPrice(towelPrice) })
@@ -314,7 +318,8 @@ function buildStayContent({ reservation, client, property, options = [], facts =
     .join('\n');
   const coffeeParagraph = say('house');
   let cleaningParagraph;
-  if (cleaningIncluded) cleaningParagraph = say('cleaning.included');
+  if (pending.has('cleaning') && !cleaningBooked) cleaningParagraph = '';
+  else if (cleaningIncluded) cleaningParagraph = say('cleaning.included');
   else if (cleaningBooked) cleaningParagraph = say('cleaning.booked');
   else cleaningParagraph = say('cleaning.notBooked');
   const complementDue = Number(r.complementAmount || 0) > 0 && Number(r.complementPaid || 0) !== 1;

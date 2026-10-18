@@ -2419,6 +2419,20 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- CGV LINK UNDER ITS CONDITION — specs/guest-email-texts-made-simple.md rule 36 ----------
+{
+  const migrationName = 'cgv_link_condition_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runCgvLinkConditionMigration } = require('./utils/migrateCgvLinkCondition');
+    const updated = db.transaction(() => {
+      const n = runCgvLinkConditionMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return n;
+    })();
+    console.log(`[migration:cgv-link-condition] ${updated} template field(s) leave the CGV sentence out while there is no link`);
+  }
+}
+
 // ---------- PLUGINS — specs/plugins-phase-0-foundation.md §5 ----------
 {
   const { ensurePluginsTable, seedBuiltinPlugins, ensurePluginSettingsTable, copyAppSettingsToPlugins, resyncAfterRollback } = require('./utils/pluginsSchema');

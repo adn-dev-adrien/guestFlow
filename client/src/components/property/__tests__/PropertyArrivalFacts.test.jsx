@@ -1,55 +1,45 @@
-// specs/guest-email-texts-made-simple.md rules 1–2, 12 — the « Arrivée » block of a property: the facts
-// saved on their own, the code and the Wi-Fi password masked and sent only when typed, and the link to
-// « Textes des emails ».
+// specs/guest-email-texts-made-simple.md rules 1–2, 12, 25, 35 — the « Arrivée » block of a property:
+// the facts, the code and the Wi-Fi password masked until « Modifier », the link to « Textes des
+// emails ». Controlled by the page (rule 35): no save button of its own.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
-vi.mock('../../../api', () => ({ __esModule: true, default: { getPropertyArrivalFacts: vi.fn(), savePropertyArrivalFacts: vi.fn() } }));
-vi.mock('../../DialogProvider', () => {
-  const stableToast = { showSuccess: vi.fn(), showError: vi.fn() };
-  return { __esModule: true, useToast: () => stableToast };
-});
-
-import api from '../../../api';
 import PropertyArrivalFacts from '../PropertyArrivalFacts';
 
-const FACTS = { address: '12 chemin des Prés', mapUrl: '', accessFr: 'Porte bleue.', accessEn: '', hasAccessCode: true, wifiName: 'Gite', hasWifiPassword: false };
+const DRAFT = { address: '12 chemin des Prés', mapUrl: '', accessFr: 'Porte bleue.', accessEn: '', wifiName: 'Gite', accessCode: undefined, wifiPassword: undefined };
+const SAVED = { hasAccessCode: true, hasWifiPassword: false };
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  api.getPropertyArrivalFacts.mockResolvedValue(FACTS);
-  api.savePropertyArrivalFacts.mockResolvedValue(FACTS);
-});
+const renderBlock = (props = {}) => {
+  const onChange = vi.fn();
+  render(<MemoryRouter><PropertyArrivalFacts propertyId={1} draft={DRAFT} saved={SAVED} onChange={onChange} {...props} /></MemoryRouter>);
+  return onChange;
+};
 
-const renderBlock = () => render(<MemoryRouter><PropertyArrivalFacts propertyId={1} /></MemoryRouter>);
-
-test('rules 1–2: the facts are saved; a masked secret is not sent until typed', async () => {
-  renderBlock();
-  expect(await screen.findByDisplayValue('12 chemin des Prés')).toBeInTheDocument();
+test('rules 1–2: the facts are shown; a masked secret is typed only after « Modifier »', () => {
+  const onChange = renderBlock();
+  expect(screen.getByDisplayValue('12 chemin des Prés')).toBeInTheDocument();
   expect(screen.getAllByText('••••••••••')).toHaveLength(1);
-  const save = screen.getByRole('button', { name: 'Enregistrer l’arrivée' });
-  expect(save).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Réseau Wi-Fi'), { target: { value: 'Gite-Invites' } });
-  fireEvent.click(save);
-  await waitFor(() => expect(api.savePropertyArrivalFacts).toHaveBeenCalledWith(1, {
-    address: '12 chemin des Prés', mapUrl: '', accessFr: 'Porte bleue.', accessEn: '', wifiName: 'Gite-Invites',
-  }));
+  expect(onChange).toHaveBeenCalledWith('wifiName', 'Gite-Invites');
   fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
-  fireEvent.change(screen.getByLabelText('Code de la boîte à clés'), { target: { value: '4521' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer l’arrivée' }));
-  await waitFor(() => expect(api.savePropertyArrivalFacts).toHaveBeenLastCalledWith(1, expect.objectContaining({ accessCode: '4521' })));
+  expect(onChange).toHaveBeenCalledWith('accessCode', '');
 });
 
-test('rule 12: the property links to its texts on « Textes des emails »', async () => {
+test('rule 35: the block has no save button of its own; a refused field shows its message', () => {
+  renderBlock({ errors: { address: 'Adresse trop longue' } });
+  expect(screen.queryByRole('button', { name: /Enregistrer/ })).toBeNull();
+  expect(screen.getByText('Adresse trop longue')).toBeInTheDocument();
+});
+
+test('rule 12: the property links to its texts on « Textes des emails »', () => {
   renderBlock();
-  expect(await screen.findByRole('link', { name: 'Textes des emails' })).toHaveAttribute('href', '/settings/emails/textes?propertyId=1#j2');
+  expect(screen.getByRole('link', { name: 'Textes des emails' })).toHaveAttribute('href', '/settings/emails/textes?propertyId=1#j2');
 });
 
-test('rule 25: a property without Wi-Fi is not asked for one', async () => {
-  render(<MemoryRouter><PropertyArrivalFacts propertyId={1} hasWifi={false} /></MemoryRouter>);
-  await screen.findByDisplayValue('12 chemin des Prés');
+test('rule 25: a property without Wi-Fi is not asked for one', () => {
+  renderBlock({ hasWifi: false });
   expect(screen.queryByLabelText('Réseau Wi-Fi')).toBeNull();
   expect(screen.queryByText('Mot de passe Wi-Fi')).toBeNull();
 });

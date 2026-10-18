@@ -9,12 +9,18 @@
  *   form, errors, updateField(field, value), onZeroFocus(event)
  *   timedOptions: { early, late }, updateTimedOptionField(kind, field, value), timeOptions (string[])
  *   propertyId — null for a property not created yet (its texts come once it exists)
+ *   arrival — { draft, saved, errors, onChange } of the « Arrivée » block, held by the page (rule 35)
+ *
+ * Cleaning, towels and bed linen (specs/guest-email-texts-made-simple.md rule 28): « Selon les options » leaves
+ * the emails to the options; empty means not said yet, and the emails stay silent on it. The pool
+ * season (rule 34) is the property's: off, no pool sentence at all.
  */
 import React from 'react';
 import { Link as RouterLink } from 'react-router';
 import PropertyArrivalFacts from './PropertyArrivalFacts';
+import MonthDayField from '../MonthDayField';
 import {
-  Box, Card, CardContent, FormControl, FormControlLabel, InputLabel, Link, MenuItem, Select, Switch, TextField, Typography,
+  Box, Card, CardContent, FormControl, FormControlLabel, FormHelperText, InputLabel, Link, MenuItem, Select, Switch, TextField, Typography,
 } from '@mui/material';
 
 const TIMED = [
@@ -24,7 +30,26 @@ const TIMED = [
 
 export default function PropertyStayTab({
   form, errors = {}, updateField, onZeroFocus, timedOptions, updateTimedOptionField, timeOptions, propertyId = null,
+  arrival = null,
 }) {
+  const choice = (field, label, options) => (
+    <FormControl size="small" fullWidth error={Boolean(errors[field])}>
+      <InputLabel id={`${field}-label`} shrink>{label}</InputLabel>
+      <Select
+        labelId={`${field}-label`}
+        label={label}
+        value={form[field] ?? ''}
+        displayEmpty
+        notched
+        onChange={(e) => updateField(field, e.target.value)}
+        renderValue={(v) => (v === '' ? <Box component="span" sx={{ color: 'text.disabled' }}>À préciser</Box> : options.find((o) => o.value === v)?.label)}
+      >
+        {options.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+      </Select>
+      <FormHelperText>{errors[field] || (form[field] === '' ? 'Vide : rien n’est dit aux voyageurs.' : ' ')}</FormHelperText>
+    </FormControl>
+  );
+  const hasPool = Boolean(form.poolSeasonStart || form.poolSeasonEnd || form.poolOpen);
   return (
     <>
       <Card sx={{ mb: 3 }}>
@@ -53,11 +78,56 @@ export default function PropertyStayTab({
                 sx={{ minHeight: 44 }}
               />
             </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              {choice('cleaningIncluded', 'Ménage de fin de séjour', [
+                { value: '1', label: 'Compris' },
+                { value: '0', label: 'Non compris' },
+                { value: 'options', label: 'Selon les options' },
+              ])}
+              {choice('towelsProvided', 'Linge de toilette', [
+                { value: '1', label: 'Fourni' },
+                { value: '0', label: 'À apporter' },
+                { value: 'options', label: 'Selon les options' },
+              ])}
+              {choice('bedLinenProvided', 'Linge de lit', [
+                { value: '1', label: 'Fourni' },
+                { value: '0', label: 'À apporter' },
+                { value: 'options', label: 'Selon les options' },
+              ])}
+            </Box>
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={hasPool}
+                  onChange={(e) => {
+                    updateField('poolOpen', e.target.checked);
+                    if (!e.target.checked) { updateField('poolSeasonStart', ''); updateField('poolSeasonEnd', ''); }
+                  }}
+                />
+              )}
+              label="Piscine"
+              sx={{ minHeight: 44 }}
+            />
+            {hasPool && (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                <MonthDayField label="Ouverte du" value={form.poolSeasonStart} onChange={(v) => updateField('poolSeasonStart', v)} error={errors.poolSeasonStart} />
+                <MonthDayField label="Au" value={form.poolSeasonEnd} onChange={(v) => updateField('poolSeasonEnd', v)} error={errors.poolSeasonEnd} />
+              </Box>
+            )}
           </Box>
         </CardContent>
       </Card>
 
-      {propertyId && <PropertyArrivalFacts propertyId={propertyId} hasWifi={Boolean(form.hasWifi)} />}
+      {propertyId && arrival && (
+        <PropertyArrivalFacts
+          propertyId={propertyId}
+          hasWifi={Boolean(form.hasWifi)}
+          draft={arrival.draft}
+          saved={arrival.saved}
+          errors={arrival.errors}
+          onChange={arrival.onChange}
+        />
+      )}
 
       {propertyId && (
         <Card sx={{ mb: 3 }}>

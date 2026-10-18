@@ -82,9 +82,8 @@ const NOTIFICATIONS_FIELDS = [
 const EMAILS_FIELDS = [
   { input: 'googleReviewUrl', column: 'googleReviewUrl', validator: validation.validatePublicUrl },
   { input: 'instagramUrl', column: 'instagramUrl', validator: validation.validatePublicUrl },
-  { input: 'poolSeasonStart', column: 'poolSeasonStart', validator: validation.validateMonthDay },
-  { input: 'poolSeasonEnd', column: 'poolSeasonEnd', validator: validation.validateMonthDay },
 ];
+// The pool season moved to the property that has the pool (specs/guest-email-texts-made-simple.md rule 34).
 
 // Accounting group — the closing month driving every annual window of the Suivi financier
 // (specs/fiscal-year-and-nights-sold.md §4.1).
@@ -102,7 +101,7 @@ const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'noti
 // deliberately tolerates, so a value pasted with a trailing newline can never reach the header.
 const TRIMMED_TEXT_COLUMNS = new Set([
   'smtpFromName', 'smtpFromEmail', 'notificationRecipientEmail',
-  'googleReviewUrl', 'instagramUrl', 'poolSeasonStart', 'poolSeasonEnd',
+  'googleReviewUrl', 'instagramUrl',
 ]);
 
 function pickGroup(body, group) {

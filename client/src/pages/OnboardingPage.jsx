@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
-  Alert, Box, Checkbox, Chip, FormControlLabel, Link, Stack, TextField, Typography,
+  Alert, Box, Button, Checkbox, Chip, Collapse, FormControlLabel, Link, Stack, TextField, Typography,
 } from '@mui/material';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
@@ -41,10 +41,14 @@ export default function OnboardingPage() {
   const [property, setProperty] = useState(EMPTY_PROPERTY);
   const [capacityTouched, setCapacityTouched] = useState(false);
   const [plugins, setPlugins] = useState([]);
+  const [showMore, setShowMore] = useState(false);
   const [picked, setPicked] = useState({});
   const [emails, setEmails] = useState(null);
   const [emailDraft, setEmailDraft] = useState({});
   const [readiness, setReadiness] = useState([]);
+  // Rule 28 — the properties the instance already has, when the assistant did not create them.
+  const [existingProperties, setExistingProperties] = useState(0);
+  const [loginEmail, setLoginEmail] = useState('');
 
   useEffect(() => {
     if (location.pathname !== '/demarrage') navigate('/demarrage', { replace: true });
@@ -54,6 +58,13 @@ export default function OnboardingPage() {
     api.getOnboarding()
       .then((data) => {
         setCompany((c) => ({ ...c, ...data.company }));
+        // Rule 28 — the property the assistant created comes back to be edited, never doubled.
+        if (data.property && data.property.draft) {
+          setProperty({ ...EMPTY_PROPERTY, ...data.property.draft });
+          setCapacityTouched(true);
+        } else if (data.property && data.property.existing > 0) {
+          setExistingProperties(data.property.existing);
+        }
         setPlugins(data.plugins || []);
         setPicked(Object.fromEntries((data.plugins || []).map((p) => [p.id, p.allowed && (p.recommended || p.state === 'active')])));
       })
@@ -102,7 +113,9 @@ export default function OnboardingPage() {
         phone: e.phone,
         senderName: e.senderName,
         properties: Object.fromEntries(e.properties.map((p) => [p.id, {
-          nameArticle: p.nameArticle, address: p.address, access: p.access, wifiName: p.wifiName, wifiPassword: '',
+          nameArticle: p.nameArticle, address: p.address, access: p.access, accessCode: '', wifiName: p.wifiName, wifiPassword: '',
+          caution: p.caution == null ? '' : String(p.caution), cleaningIncluded: p.cleaningIncluded, towelsProvided: p.towelsProvided,
+          bedLinenProvided: p.bedLinenProvided,
         }])),
       });
     }
@@ -114,8 +127,16 @@ export default function OnboardingPage() {
     setBusy(true);
     setFailure('');
     try {
-      if (step === 1) await api.saveOnboardingCompany(company);
-      if (step === 2) await api.saveOnboardingProperty(property);
+      if (step === 1) {
+        // specs/hosting-h2-account-security.md rule 27 — the company email becomes the login of the
+        // bootstrap account; the step says so once.
+        const saved = await api.saveOnboardingCompany(company);
+        if (saved && saved.loginChanged) {
+          setLoginEmail(saved.loginEmail);
+          await refresh();
+        }
+      }
+      if (step === 2 && !existingProperties) await api.saveOnboardingProperty(property);
       if (step === 3) {
         const ids = Object.keys(picked).filter((id) => picked[id]);
         const { results } = await api.saveOnboardingPlugins(ids);
@@ -131,7 +152,20 @@ export default function OnboardingPage() {
         await api.saveOnboardingEmails({
           phone: emailDraft.phone,
           senderName: emailDraft.senderName,
-          properties: Object.entries(emailDraft.properties || {}).map(([id, p]) => ({ id: Number(id), ...p })),
+          // An unanswered article, deposit, cleaning, towels or bed linen is not sent: it stays unsaid (rules 27, 29).
+          properties: Object.entries(emailDraft.properties || {}).map(([id, p]) => {
+            const { nameArticle, caution, cleaningIncluded, towelsProvided, bedLinenProvided, accessCode, ...rest } = p;
+            return {
+              id: Number(id),
+              ...rest,
+              ...(nameArticle ? { nameArticle } : {}),
+              ...(caution !== '' && caution != null ? { caution } : {}),
+              ...(cleaningIncluded != null ? { cleaningIncluded } : {}),
+              ...(towelsProvided != null ? { towelsProvided } : {}),
+              ...(bedLinenProvided != null ? { bedLinenProvided } : {}),
+              ...(accessCode ? { accessCode } : {}),
+            };
+          }),
         });
       }
       if (step === STEPS) { await leave(); return; }
@@ -148,6 +182,20 @@ export default function OnboardingPage() {
   if (loadError) return <Box sx={{ p: 3 }}><ErrorAlert message="Impossible de charger l’assistant." onRetry={() => window.location.reload()} /></Box>;
 
   const active = plugins.filter((p) => picked[p.id] && p.allowed);
+  const renderPlugin = (p) => (
+    <Box key={p.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, py: 1, opacity: p.allowed ? 1 : 0.6 }}>
+      <FormControlLabel
+        control={<Checkbox checked={Boolean(picked[p.id]) && p.allowed} disabled={!p.allowed} onChange={(e) => setPicked((prev) => ({ ...prev, [p.id]: e.target.checked }))} />}
+        label={(
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.label}</Typography>
+            <Typography variant="caption" color="text.secondary">{p.description}</Typography>
+            {!p.allowed && p.plan && <Box><Chip size="small" label={p.plan} sx={{ mt: 0.5 }} /></Box>}
+          </Box>
+        )}
+      />
+    </Box>
+  );
 
   return (
     <StepperPage
@@ -173,7 +221,18 @@ export default function OnboardingPage() {
         </Stack>
       )}
 
-      {step === 2 && (
+      {step === 2 && loginEmail && (
+        <Alert severity="info" sx={{ mb: 2 }}>{`Connexion désormais avec ${loginEmail}.`}</Alert>
+      )}
+
+      {step === 2 && existingProperties > 0 && (
+        <Stack spacing={1}>
+          <Typography>{`Logements : ${existingProperties}`}</Typography>
+          <Link component="button" type="button" onClick={() => leave('/properties')} sx={{ textAlign: 'left' }}>Modifier dans Logements</Link>
+        </Stack>
+      )}
+
+      {step === 2 && !existingProperties && (
         <Stack spacing={1}>
           <TextField label="Nom du logement" required {...field(property, setProperty, 'name')} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2 }}>
@@ -194,20 +253,22 @@ export default function OnboardingPage() {
 
       {step === 3 && (
         <Stack spacing={1}>
-          {plugins.map((p) => (
-            <Box key={p.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, py: 1, opacity: p.allowed ? 1 : 0.6 }}>
-              <FormControlLabel
-                control={<Checkbox checked={Boolean(picked[p.id]) && p.allowed} disabled={!p.allowed} onChange={(e) => setPicked((prev) => ({ ...prev, [p.id]: e.target.checked }))} />}
-                label={(
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.label}</Typography>
-                    <Typography variant="caption" color="text.secondary">{p.description}</Typography>
-                    {!p.allowed && p.plan && <Box><Chip size="small" label={p.plan} sx={{ mt: 0.5 }} /></Box>}
-                  </Box>
-                )}
-              />
-            </Box>
-          ))}
+          {plugins.filter((p) => !p.more).map(renderPlugin)}
+          {plugins.some((p) => p.more) && (
+            <>
+              <Button
+                variant="text"
+                onClick={() => setShowMore((v) => !v)}
+                aria-expanded={showMore}
+                sx={{ alignSelf: 'flex-start', minHeight: 44 }}
+              >
+                {`Pour aller plus loin (${plugins.filter((p) => p.more).length})`}
+              </Button>
+              <Collapse in={showMore} unmountOnExit>
+                <Stack spacing={1}>{plugins.filter((p) => p.more).map(renderPlugin)}</Stack>
+              </Collapse>
+            </>
+          )}
         </Stack>
       )}
 
@@ -229,7 +290,7 @@ export default function OnboardingPage() {
         <Stack spacing={1.5}>
           <Typography>{`${company.name || 'L’établissement'} est prêt.`}</Typography>
           <ReadinessList items={readiness} title="Emails à compléter" onOpen={(target) => leave(targetUrl(target))} />
-          <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={{ textAlign: 'left' }}>Réglages › Emails : les textes des mails</Link>
+          <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={{ textAlign: 'left' }}>Réglages › Emails : les textes des emails</Link>
           <Link component="button" type="button" onClick={() => leave('/properties')} sx={{ textAlign: 'left' }}>Tarifs : saisons et prix des logements</Link>
           <Link component="button" type="button" onClick={() => leave('/parametres/plugins')} sx={{ textAlign: 'left' }}>{`Plugins : ${active.length} actif(s)`}</Link>
         </Stack>

@@ -10,6 +10,8 @@
  * Multipart forms send every value as a string: numbers are parsed here.
  */
 
+const { validateMonthDay } = require('./settingsValidation');
+
 const has = (body, key) => Object.prototype.hasOwnProperty.call(body, key);
 const asNumber = (value) => (value === '' || value === null || value === undefined ? NaN : Number(String(value).replace(',', '.')));
 const isWhole = (n) => Number.isInteger(n) && n >= 0;
@@ -66,8 +68,21 @@ function validatePropertyInput(body = {}, existing = null) {
   }
   for (const key of ['touristTaxPerDayPerPerson', 'touristTaxFixedAmount', 'defaultCautionAmount']) {
     if (!has(body, key)) continue;
+    // An empty deposit keeps the stored one (specs/guest-email-texts-made-simple.md rule 28, 2026-10-18).
+    if (key === 'defaultCautionAmount' && String(body[key] ?? '').trim() === '') continue;
     const amount = asNumber(body[key]);
     if (!Number.isFinite(amount) || amount < 0) errors[key] = 'Un montant ≥ 0 €.';
+  }
+
+  // specs/guest-email-texts-made-simple.md rule 34 — the pool season, both bounds or none.
+  for (const key of ['poolSeasonStart', 'poolSeasonEnd']) {
+    if (!has(body, key)) continue;
+    const error = validateMonthDay(String(body[key] || '').trim());
+    if (error) errors[key] = error;
+  }
+  if (has(body, 'poolSeasonStart') && has(body, 'poolSeasonEnd') && !errors.poolSeasonStart && !errors.poolSeasonEnd
+    && Boolean(String(body.poolSeasonStart || '').trim()) !== Boolean(String(body.poolSeasonEnd || '').trim())) {
+    errors[String(body.poolSeasonStart || '').trim() ? 'poolSeasonEnd' : 'poolSeasonStart'] = 'Les deux dates, ou aucune.';
   }
 
   return errors;

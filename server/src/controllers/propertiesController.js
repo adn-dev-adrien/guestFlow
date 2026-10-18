@@ -6,6 +6,7 @@ const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
 const { validatePropertyInput } = require('../utils/propertyValidation');
 const { quotaRefusal } = require('../utils/planQuota');
+const propertyArticle = require('../utils/propertyArticle');
 
 // Map a model result ({ data } | { error, status, conflictingRule?, code? }) to an HTTP response.
 function respond(res, result) {
@@ -30,6 +31,13 @@ function getOne(req, res) {
   const property = model.getByIdWithDetails(req.params.id);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
   return res.json(property);
+}
+
+// GET /api/properties/article-labels?name= — the five articles as the guest emails write them
+// (« au Fournil »: the server contracts), so the property page shows what is sent
+// (specs/guest-email-texts-made-simple.md rule 30, 2026-10-18).
+function articleLabels(req, res) {
+  res.json({ labels: propertyArticle.labels(String((req.query && req.query.name) || '').slice(0, 200)) });
 }
 
 function platformColors(req, res) {
@@ -129,7 +137,7 @@ function setOptions(req, res) {
 }
 
 module.exports = {
-  list, getOne, platformColors, emailHooks, saveEmailHooks, progressivePreview,
+  list, getOne, articleLabels, platformColors, emailHooks, saveEmailHooks, progressivePreview,
   create, update, remove,
   addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
   addDocument, deleteDocument, setOptions,

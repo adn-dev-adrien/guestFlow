@@ -60,7 +60,7 @@ function SettingsWeatherSection({ onDirtyChange }, ref) {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Affiche une page d'alerte dans le check-in du client quand une vigilance Météo-France
               Orange ou Rouge (canicule, orages…) touche le domaine pendant son séjour. L'adresse
-              utilisée est celle des « Informations sur votre activité ».
+              utilisée est celle de Paramètres › Établissement.
             </Typography>
           </Box>
 

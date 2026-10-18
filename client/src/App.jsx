@@ -10,7 +10,7 @@ import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon,
   ListItemText, Box, IconButton, useMediaQuery, Collapse, Divider,
-  CircularProgress, Card, CardContent
+  CircularProgress
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -20,7 +20,7 @@ import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute 
 import OnboardingPage from './pages/OnboardingPage';
 import EmailTextsSettingsPage from './pages/settings/EmailTextsSettingsPage';
 import LoginPage from './pages/LoginPage';
-import ChangePasswordForm from './components/ChangePasswordForm';
+import ForcedPasswordChangePage from './pages/ForcedPasswordChangePage';
 import LoadingState from './components/LoadingState';
 import UserManagementPage from './pages/UserManagementPage';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -766,27 +766,6 @@ function NotFoundRoute() {
   );
 }
 
-function ForcedPasswordChange() {
-  const { changePassword } = useAuth();
-  return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
-      <Card variant="outlined" sx={{ width: '100%', maxWidth: 440 }}>
-        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-          <Typography variant="pageTitle" component="h1" sx={{ color: 'primary.main', mb: 1 }}>Définir votre mot de passe</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Vous utilisez le mot de passe par défaut. Choisissez-en un nouveau pour accéder à l'application.
-          </Typography>
-          <ChangePasswordForm
-            currentLabel="Mot de passe actuel (par défaut)"
-            submitLabel="Définir le mot de passe"
-            onSubmit={changePassword}
-          />
-        </CardContent>
-      </Card>
-    </Box>
-  );
-}
-
 function AuthGate() {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -803,7 +782,7 @@ function AuthGate() {
     if (location.pathname === '/nouveau-mot-de-passe') return <ResetPasswordPage />;
     return <LoginPage />;
   }
-  if (user.mustChangePassword) return <ForcedPasswordChange />;
+  if (user.mustChangePassword) return <ForcedPasswordChangePage />;
   // The start assistant, full screen and outside the side menu (specs/plugins-phase-p-productisation.md
   // rule 20): an admin lands there while it is open, and may reopen it from Réglages › Système.
   if (userHasRole(user, ADMIN) && (user.onboardingOpen || location.pathname === '/demarrage')) return <OnboardingPage />;

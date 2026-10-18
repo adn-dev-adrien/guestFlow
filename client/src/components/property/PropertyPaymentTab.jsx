@@ -60,7 +60,8 @@ export default function PropertyPaymentTab({ form, errors = {}, updateField, onZ
               "Échéance du solde — ou du paiement unique quand l'acompte est désactivé.")}
             {number('cancelAfterBalanceDueDays', 'Annulation (jours après échéance du solde)',
               "Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre d'indemnité.")}
-            {number('defaultCautionAmount', 'Caution par défaut (€)', '', { step: 50, min: 0 })}
+            {/* specs/guest-email-texts-made-simple.md rule 28 — empty: not sent, the stored amount stays (2026-10-18). */}
+            {number('defaultCautionAmount', 'Caution par défaut (€)', form.defaultCautionAmount === '' ? 'Vide : rien n’est changé. 0 : pas de caution.' : '0 : pas de caution.', { step: 50, min: 0 })}
           </Box>
         </CardContent>
       </Card>

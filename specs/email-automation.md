@@ -217,6 +217,29 @@ The operator can:
   passes the malformed block through verbatim (so the operator sees what's broken in
   the preview before sending).
 
+**Review of 2026-10-18**
+
+15. **A failed send is told in French.** The send dialog and the history never show a code
+    (`EMAIL_SEND_FAILED`) nor the transport's own text (« Missing credentials for "PLAIN" »). The server
+    words the reason (`utils/sendFailure.js`): « Envoi non configuré : Paramètres › Emails. », « Serveur
+    d'envoi refusé : vérifier Paramètres › Emails. », « Serveur d'envoi injoignable : vérifier
+    Paramètres › Emails. », « Adresse du destinataire refusée. », the platform's own quota sentence,
+    else « Envoi impossible : réessayer plus tard. ». The send answer carries it as `message`, a history
+    row as `errorLabel`. In the dialog the error sits next to the buttons, impersonal (« Adresse
+    destinataire manquante. »), and the dialog is full screen on a phone.
+16. **« Quand » follows what the template is tied to.** The server labels each template (`whenLabel`):
+    « À la réservation » (confirmation), « 15 nov. », « 6 janv. » (season emails), « À l'annulation »,
+    « À la demande » (payment requests), « Échéance de l'acompte », the day offset for the arrival
+    emails (« J-7 », « Jour J »), « Lendemain du départ » / « N j après le départ » for a template tied to
+    the departure. The list, the mobile cards and the send dialog's template list read it.
+17. **The full template editor shows labels, like « Textes des emails ».** Subject and body (FR/EN) are
+    edited through the same token field: each variable and condition by its French label (« ⟦Prénom du
+    voyageur⟧ », « ⟦Si parking⟧ … ⟦fin si⟧ »), chips under the field, the raw `{{token}}` saved; never
+    a raw `{{#if}}` on screen. A refusal lands under its field, in labels (specs/guest-email-texts-made-simple.md
+    rule 27).
+18. **A pending email has its own « Envoyer » button.** The row still opens the send dialog; the button
+    says so next to « Marquer comme envoyé » and « Ignorer ».
+
 ---
 
 ## 4. Architecture

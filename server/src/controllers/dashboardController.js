@@ -27,6 +27,15 @@ function buildController({
   // specs/plugins-phase-3a-online-payment.md rule 5 — a request is a payment link: without a provider
   // the row offers no « Envoyer la demande / Relancer » and the endpoint refuses.
   hasPaymentProvider = () => Boolean(require('../utils/paymentProviders').active()),
+  // specs/plugins-phase-3a-online-payment.md rule 25 — without a provider the request leaves as an
+  // email the operator reads first: the id of the template that reads well without a link, or null.
+  requestTemplateId = (type, requestSent) => {
+    const { draftTemplateFor } = require('../utils/paymentRequestDraft');
+    const templates = require('../database').prepare(
+      "SELECT id, stableKey, enabled, subject, body, subjectEn, bodyEn FROM email_templates WHERE stableKey IN ('deposit_request', 'balance_request', 'deposit_reminder', 'balance_reminder')",
+    ).all();
+    return draftTemplateFor(templates, type, requestSent);
+  },
   today: injectedToday = null,
 } = {}) {
   const resolveToday = () => injectedToday || getTodayIsoDate();
@@ -185,8 +194,14 @@ function buildController({
         return { ...row, payoutDueDays: payoutDaysByPlatform.get(key) };
       });
       const canRequest = hasPaymentProvider();
-      const rows = buildPaymentDeadlineRows(candidates, today)
-        .map((row) => (canRequest || !row.remindType ? row : { ...row, remindType: null }));
+      const rows = buildPaymentDeadlineRows(candidates, today).map((row) => {
+        if (canRequest || !row.remindType) return row;
+        // Rule 25: no payment link to mint, so « Envoyer la demande » opens the request email as a draft.
+        const templateId = requestTemplateId(row.remindType, Boolean(row.requestSent));
+        return templateId
+          ? { ...row, remindByEmail: true, remindTemplateId: templateId, remindNote: 'Aucun paiement en ligne : demande par email.' }
+          : { ...row, remindType: null };
+      });
       return res.json({ rows });
     },
 

@@ -134,9 +134,9 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
   function confirm(user, { code } = {}) {
     const row = model.get(user.id);
     if (!row || !row.pendingMethod) throw httpError(409, 'NO_PENDING_METHOD', 'Choisir d’abord une méthode.');
-    const ok = row.pendingMethod === 'totp'
-      ? totp.verifyTotp(row.pendingSecretEncrypted, code, now())
-      : checkEmailCode(user.id, row, code);
+    // Rule 24 — the step of the enrolment code is recorded: the same code cannot then open a session.
+    const step = row.pendingMethod === 'totp' ? totp.matchTotpStep(row.pendingSecretEncrypted, code, now()) : null;
+    const ok = row.pendingMethod === 'totp' ? step !== null : checkEmailCode(user.id, row, code);
     if (!ok) {
       model.recordPendingFailure(user.id);
       if (row.pendingFailures + 1 >= MAX_FAILURES) {
@@ -146,7 +146,7 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
       throw httpError(400, 'BAD_CODE', 'Code incorrect.');
     }
     const { codes, hashes } = freshBackupCodes();
-    model.activatePending(user.id, nowIso(), hashes);
+    model.activatePending(user.id, nowIso(), hashes, step);
     model.addEvent(user.id, `enabled_${row.pendingMethod}`, '', nowIso());
     return { backupCodes: codes, status: status(user) };
   }

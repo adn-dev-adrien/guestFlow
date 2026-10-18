@@ -16,13 +16,16 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import api from '../api';
-import MentionEditor, { SECTIONS } from './MentionEditor';
+import MentionEditor, { SECTIONS, MENTION_TOKENS, MENTION_FLAGS } from './MentionEditor';
+import { buildDictionary, toDisplay } from '../utils/tokenDisplay';
 import FormDialog from './FormDialog';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast } from './DialogProvider';
 
 const EMPTY_MENTION = { section: 'extras', optionIds: [], priceSource: 'min', priceOptionId: null, offerFr: '', offerEn: '', bookedFr: '', bookedEn: '' };
 const TYPED_LABELS = { babyBed: 'Lit bébé', towels: 'Serviettes de toilette' };
+// specs/guest-email-texts-made-simple.md rule 10 — a proposal reads « ⟦Prix⟧ », as in its editor.
+const MENTION_DICT = buildDictionary(MENTION_TOKENS, MENTION_FLAGS);
 
 const move = (list, index, delta) => {
   const next = [...list];
@@ -132,7 +135,7 @@ export default function EmailMentionsPanel({ onChanged }) {
                     )}
                     sx={{ pr: 18 }}
                   >
-                    <ListItemText primary={m.offerFr} secondary={mentionLabel(m)} />
+                    <ListItemText primary={toDisplay(m.offerFr, MENTION_DICT)} secondary={mentionLabel(m)} />
                   </ListItem>
                 ))}
                 {!inSection.length && <Typography variant="body2" color="text.secondary">Aucune phrase.</Typography>}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, TextField, Button, Alert, Stack, CircularProgress, Link } from '@mui/material';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import PasswordField from '../components/PasswordField';
@@ -23,7 +23,7 @@ import api from '../api';
  * rule 7); « Mot de passe oublié ? » shows when the instance can send the link (rule 5).
  */
 const REASONS = {
-  'password-changed': { severity: 'success', text: 'Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe.' },
+  'password-changed': { severity: 'success', text: 'Mot de passe modifié. Connexion avec le nouveau mot de passe.' },
   'support-link': { severity: 'error', text: 'Lien support invalide ou expiré.' },
 };
 
@@ -33,6 +33,14 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const loginHint = searchParams.get('login_hint') || '';
   const [email, setEmail] = useState(loginHint);
+  const passwordRef = useRef(null);
+  // A hint that arrives after the first render (the forced password change leaves for this page) still
+  // fills the email and puts the focus on the password.
+  useEffect(() => {
+    if (!loginHint) return;
+    setEmail(loginHint);
+    if (passwordRef.current) passwordRef.current.focus();
+  }, [loginHint]);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -108,6 +116,7 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             autoFocus={Boolean(loginHint)}
+            inputRef={passwordRef}
             fullWidth
             required
           />

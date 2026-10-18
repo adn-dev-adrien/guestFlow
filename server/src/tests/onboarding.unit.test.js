@@ -65,8 +65,8 @@ test('rule 21, step 1: the company is validated by the server, then saved', asyn
   const { controller, settings, vapid } = setup();
   const refused = await call(controller.saveCompany, { body: { name: '', email: 'nope', siret: '123' } });
   assert.equal(refused.status, 422);
-  assert.deepEqual(refused.body.errors, { name: 'Nom obligatoire', email: 'Adresse invalide', siret: '14 chiffres' });
-  assert.deepEqual((await call(controller.saveCompany, { body: { name: 'X' } })).body.errors, { email: 'Adresse obligatoire' });
+  assert.deepEqual(refused.body.errors, { name: 'Nom obligatoire', email: 'Email invalide', siret: '14 chiffres' });
+  assert.deepEqual((await call(controller.saveCompany, { body: { name: 'X' } })).body.errors, { email: 'Email obligatoire' });
   const ok = await call(controller.saveCompany, { body: { name: 'Les Tilleuls', email: 'bonjour@tilleuls.fr', siret: '123 456 789 00012' } });
   assert.equal(ok.status, 200);
   assert.equal(settings().companyName, 'Les Tilleuls');

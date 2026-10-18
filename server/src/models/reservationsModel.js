@@ -1918,11 +1918,13 @@ function createReservationsModel(database) {
                -- Has the guest ever actually been ASKED for this money? (rule 15) The pure layer needs
                -- it to tell « à demander » from « en retard », and to refuse to propose a cancellation
                -- over a solde nobody ever claimed (rule 12bis).
+               -- A reminder sent by hand asks too: it is the request of an instance without online
+               -- payment (specs/plugins-phase-3a-online-payment.md rule 25).
                EXISTS (SELECT 1 FROM email_log l JOIN email_templates t ON t.id = l.templateId
-                        WHERE l.reservationId = r.id AND t.stableKey = 'deposit_request'
+                        WHERE l.reservationId = r.id AND t.stableKey IN ('deposit_request', 'deposit_reminder')
                           AND l.status = 'sent') AS depositRequestSent,
                EXISTS (SELECT 1 FROM email_log l JOIN email_templates t ON t.id = l.templateId
-                        WHERE l.reservationId = r.id AND t.stableKey = 'balance_request'
+                        WHERE l.reservationId = r.id AND t.stableKey IN ('balance_request', 'balance_reminder')
                           AND l.status = 'sent') AS balanceRequestSent
           FROM reservations r
           JOIN clients c ON c.id = r.clientId

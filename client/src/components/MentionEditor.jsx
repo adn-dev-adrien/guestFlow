@@ -15,6 +15,10 @@ import {
 } from '@mui/material';
 import TokenTextField from './TokenTextField';
 
+// The variables of a proposal, labelled as the list of mentions shows them too.
+export const MENTION_TOKENS = [{ name: 'price', label: 'Prix' }];
+export const MENTION_FLAGS = [{ name: 'hasPrice', label: 'Si prix' }];
+
 export const SECTIONS = [
   { value: 'local', label: 'Produits locaux' },
   { value: 'extras', label: 'À prévoir' },
@@ -64,8 +68,8 @@ export default function MentionEditor({ value, onChange, options, error }) {
         fr={value.offerFr}
         en={value.offerEn}
         onChange={(lang, text) => set({ [lang === 'fr' ? 'offerFr' : 'offerEn']: text })}
-        tokens={[{ name: 'price', label: 'Prix' }]}
-        flags={[{ name: 'hasPrice', label: 'Si prix' }]}
+        tokens={MENTION_TOKENS}
+        flags={MENTION_FLAGS}
         errorFr={err('offerFr')}
         errorEn={err('offerEn')}
       />

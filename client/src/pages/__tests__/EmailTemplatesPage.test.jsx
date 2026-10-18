@@ -116,10 +116,11 @@ test('the variable + condition chips for the picker are rendered in the dialog',
   await user.click(screen.getByRole('button', { name: 'Nouveau modèle' }));
   await screen.findByRole('heading', { name: 'Nouveau modèle' });
   expect(api.getEmailTemplateVariables).toHaveBeenCalledWith(null);
-  expect(await screen.findByText('Prénom du voyageur')).toBeInTheDocument();
-  expect(screen.getByText('Logement')).toBeInTheDocument();
+  // specs/email-automation.md rule 17 — the chips of « Textes des emails », under the subject and
+  // the body; a condition chip inserts its « fin si » with it.
+  expect((await screen.findAllByText('Prénom du voyageur')).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Logement').length).toBeGreaterThan(0);
   expect(screen.getByText('Si linge de lit')).toBeInTheDocument();
-  expect(screen.getByText('Fin si')).toBeInTheDocument();
 });
 
 test('the "Emails à envoyer" card is hidden when the queue is empty', async () => {

@@ -7,7 +7,7 @@
  * in the global settings Save/Cancel anymore.
  *
  * States:
- *   1. env vars missing → info alert (GOOGLE_OAUTH_CLIENT_ID/SECRET hint), no buttons
+ *   1. OAuth client not set on this installation → one short info line, no buttons, no server detail
  *   2. not connected    → explainer + « Connecter mon compte Google » (full-page redirect)
  *   3. connected        → account + calendar picker + « Synchroniser maintenant » /
  *                         « Tester la connexion » / « Déconnecter » (ConfirmDialog)
@@ -195,10 +195,7 @@ export default function SettingsGoogleCalendarSection() {
 
           {/* State 1 — OAuth client env vars missing. */}
           {status && !status.oauthConfigured && (
-            <Alert severity="info">
-              Renseignez GOOGLE_OAUTH_CLIENT_ID et GOOGLE_OAUTH_CLIENT_SECRET dans server/.env.local
-              (voir le README, section Google Calendar), puis redémarrez le serveur.
-            </Alert>
+            <Alert severity="info">Connexion Google indisponible sur cette installation.</Alert>
           )}
 
           {/* State 2 — configured but not connected. */}

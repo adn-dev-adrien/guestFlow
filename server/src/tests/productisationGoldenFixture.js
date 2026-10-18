@@ -118,10 +118,13 @@ function buildSolioDb() {
   insert(db, 'properties', {
     id: GRANJA, name: 'La Granja', nameArticle: 'à', maxGuests: 6, doubleBeds: 2, singleBeds: 2,
     hasFilterCoffeeMaker: 1, hasWifi: 1, parkingDistanceMeters: 0, emailHook: 'Chaque matin, le soleil s\'y lève sur la vallée.',
+    // The season the upgrade copies from app_settings (specs/guest-email-texts-made-simple.md rule 34).
+    poolSeasonStart: '06-15', poolSeasonEnd: '08-31',
   });
   insert(db, 'properties', {
     id: ESTIVA, name: 'L\'Estiva', nameArticle: 'à', maxGuests: 5, doubleBeds: 1, singleBeds: 3,
     hasFilterCoffeeMaker: 0, hasWifi: 0, parkingDistanceMeters: 300,
+    poolSeasonStart: '06-15', poolSeasonEnd: '08-31',
   });
   insert(db, 'pricing_rules', { propertyId: GRANJA, pricePerNight: 319 });
   insert(db, 'pricing_rules', { propertyId: ESTIVA, pricePerNight: 179 });

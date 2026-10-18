@@ -19,18 +19,6 @@ import PropertyPlatformsTab from '../components/property/PropertyPlatformsTab';
 import PropertyDocumentsTab from '../components/property/PropertyDocumentsTab';
 import api from '../api';
 
-// Article options for "votre séjour <article> <name>" in client emails (mirrors the server's
-// formatPropertyWithArticle: the apostrophe form elides, the others get a space).
-// « à » is for names that carry their own article: « à La Granja » (specs/guest-email-sequence.md §5).
-const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
-// Exported for non-regression unit tests (pages/__tests__/PropertyDetail.helpers.test.js).
-export function previewWithArticle(name, article) {
-  const n = String(name || '').trim();
-  if (!n) return '';
-  const a = article || 'au';
-  return a.endsWith("'") ? `${a}${n}` : `${a} ${n}`;
-}
-
 const NEW_DEFAULTS = {
   name: '', nameArticle: 'au', maxGuests: 2, maxBabies: 0,
   basePriceIncludedGuests: 0,
@@ -39,8 +27,10 @@ const NEW_DEFAULTS = {
   singleBeds: 0, doubleBeds: 1,
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   depositEnabled: false,
-  defaultCautionAmount: 500,
+  // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
+  defaultCautionAmount: 0,
   parkingDistanceMeters: 0, hasWifi: true,
+  cleaningIncluded: 'options', towelsProvided: 'options', bedLinenProvided: 'options', poolSeasonStart: '', poolSeasonEnd: '',
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0,
@@ -68,7 +58,37 @@ export const FIELD_TAB = {
   depositEnabled: 'paiement', depositPercent: 'paiement', depositDueDays: 'paiement', balanceDaysBefore: 'paiement',
   cancelAfterBalanceDueDays: 'paiement', defaultCautionAmount: 'paiement',
   parkingDistanceMeters: 'sejour', hasWifi: 'sejour',
+  cleaningIncluded: 'sejour', towelsProvided: 'sejour', bedLinenProvided: 'sejour', poolSeasonStart: 'sejour', poolSeasonEnd: 'sejour',
 };
+
+// specs/guest-email-texts-made-simple.md rule 28 — a fact the start assistant could not know shows
+// empty, and is sent only once answered: an untouched empty field leaves the emails silent on it.
+const PENDING_FIELDS = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
+const choiceOf = (flag) => (flag == null ? 'options' : String(Number(flag)));
+// Rule 30 (2026-10-18) — the article is sent only once chosen: an untouched one is not confirmed.
+export function propertyFormData(form, original = {}) {
+  const fd = new FormData();
+  Object.entries(form).forEach(([k, v]) => {
+    if (k === 'poolOpen') return;
+    if (PENDING_FIELDS[k] && (v === '' || v == null)) return;
+    if (k === 'nameArticle' && (!v || v === original.nameArticle)) return;
+    fd.append(k, v);
+  });
+  return fd;
+}
+
+// The « Arrivée » fields saved with the page (rule 35): plain ones, and the two secrets, sent only
+// when typed.
+const ARRIVAL_PLAIN = ['address', 'mapUrl', 'accessFr', 'accessEn', 'wifiName'];
+const arrivalDraftOf = (facts) => ({
+  ...Object.fromEntries(ARRIVAL_PLAIN.map((k) => [k, (facts && facts[k]) || ''])),
+  accessCode: undefined,
+  wifiPassword: undefined,
+});
+const arrivalChanged = (draft, saved) => Boolean(saved) && (
+  ARRIVAL_PLAIN.some((k) => draft[k] !== ((saved && saved[k]) || ''))
+  || draft.accessCode !== undefined || draft.wifiPassword !== undefined
+);
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SUPPORTED_PHOTO_FORMATS_TEXT = 'Formats pris en charge: JPG, JPEG, PNG, WEBP.';
@@ -137,7 +157,11 @@ export default function PropertyDetail() {
     () => buildTimedOptionsSnapshot(timedOptions) !== buildTimedOptionsSnapshot(initialTimedOptions),
     [timedOptions, initialTimedOptions]
   );
-  const pageDirty = dirty || timedOptionsDirty;
+  const [arrivalSaved, setArrivalSaved] = useState(null);
+  const [arrival, setArrival] = useState(arrivalDraftOf(null));
+  const [arrivalErrors, setArrivalErrors] = useState({});
+  const arrivalDirty = arrivalChanged(arrival, arrivalSaved);
+  const pageDirty = dirty || timedOptionsDirty || arrivalDirty;
 
   const load = useCallback(async () => {
     if (isNew) return;
@@ -150,8 +174,12 @@ export default function PropertyDetail() {
       return;
     }
     setProperty(p);
+    const pending = new Set(String(p.pendingFacts || '').split(',').filter(Boolean));
+    api.getPropertyArrivalFacts(id)
+      .then((facts) => { setArrivalSaved(facts); setArrival(arrivalDraftOf(facts)); setArrivalErrors({}); })
+      .catch(() => setArrivalSaved(null));
     const initial = {
-      name: p.name, nameArticle: p.nameArticle || 'au', maxGuests: p.maxGuests, maxBabies: p.maxBabies,
+      name: p.name, nameArticle: Number(p.nameArticleConfirmed ?? 1) === 1 ? (p.nameArticle || 'au') : '', maxGuests: p.maxGuests, maxBabies: p.maxBabies,
       basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
       extraGuestPrice: p.extraGuestPrice ?? 0,
       extraGuestPriceUnit: p.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
@@ -159,9 +187,13 @@ export default function PropertyDetail() {
       depositPercent: p.depositPercent, depositDueDays: p.depositDueDays,
       balanceDaysBefore: p.balanceDaysBefore, cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
       depositEnabled: Boolean(p.depositEnabled),
-      defaultCautionAmount: p.defaultCautionAmount ?? 500,
+      defaultCautionAmount: pending.has('caution') ? '' : (p.defaultCautionAmount ?? 0),
       parkingDistanceMeters: p.parkingDistanceMeters ?? 0,
       hasWifi: p.hasWifi == null ? true : Boolean(p.hasWifi),
+      cleaningIncluded: pending.has('cleaning') ? '' : choiceOf(p.cleaningIncluded),
+      towelsProvided: pending.has('towels') ? '' : choiceOf(p.towelsProvided),
+      bedLinenProvided: pending.has('linen') ? '' : choiceOf(p.bedLinenProvided),
+      poolSeasonStart: p.poolSeasonStart || '', poolSeasonEnd: p.poolSeasonEnd || '',
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
       touristTaxPercentage: p.touristTaxPercentage ?? 0,
@@ -269,6 +301,20 @@ export default function PropertyDetail() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Rule 30 (2026-10-18) — the articles as the emails write them, from the server (it contracts
+  // « au Le Fournil » into « au Fournil »), following the name as it is typed.
+  const [articleLabels, setArticleLabels] = useState([]);
+  const typedName = form.name || '';
+  useEffect(() => {
+    let alive = true;
+    const timer = setTimeout(() => {
+      api.getArticleLabels(typedName)
+        .then((r) => { if (alive) setArticleLabels((r && r.labels) || []); })
+        .catch(() => {});
+    }, 250);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [typedName]);
+
   // Warn on browser close/refresh
   useEffect(() => {
     if (!pageDirty) return;
@@ -359,7 +405,14 @@ export default function PropertyDetail() {
     }
   };
 
+  const updateArrival = (field, value) => {
+    setArrival((prev) => ({ ...prev, [field]: value }));
+    if (arrivalErrors[field]) setArrivalErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+  };
+
   const handleCancel = () => {
+    setArrival(arrivalDraftOf(arrivalSaved));
+    setArrivalErrors({});
     setForm({ ...originalForm });
     setDirty(false);
     setTimedOptions({ ...initialTimedOptions });
@@ -393,8 +446,7 @@ export default function PropertyDetail() {
     setErrors({});
     try {
       if (isNew) {
-        const fd = new FormData();
-        Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+        const fd = propertyFormData(form, {});
         if (photoFile) fd.append('photo', photoFile);
         const result = await api.createProperty(fd);
         navigate(`/properties/${result.id}`, { replace: true });
@@ -402,10 +454,26 @@ export default function PropertyDetail() {
       }
 
       if (dirty || photoFile) {
-        const fd = new FormData();
-        Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+        const fd = propertyFormData(form, originalForm);
         if (photoFile) fd.append('photo', photoFile);
         await api.updateProperty(id, fd);
+      }
+
+      if (arrivalDirty) {
+        const body = Object.fromEntries(ARRIVAL_PLAIN.map((k) => [k, arrival[k]]));
+        if (arrival.accessCode !== undefined) body.accessCode = arrival.accessCode;
+        if (arrival.wifiPassword !== undefined) body.wifiPassword = arrival.wifiPassword;
+        try {
+          await api.savePropertyArrivalFacts(id, body);
+        } catch (err) {
+          if (err && err.errors) {
+            setArrivalErrors(err.errors);
+            selectTab('sejour');
+            showError('Enregistrement refusé : corrigez les champs en rouge.');
+            return;
+          }
+          throw err;
+        }
       }
 
       if (canManageExtras && timedOptionsDirty) {
@@ -450,10 +518,10 @@ export default function PropertyDetail() {
   const showSaveCancel = isNew || pageDirty;
   const tabState = (key) => {
     const fields = Object.keys(FIELD_TAB).filter((f) => FIELD_TAB[f] === key);
-    if (fields.some((f) => errors[f])) return 'error';
+    if (fields.some((f) => errors[f]) || (key === 'sejour' && Object.keys(arrivalErrors).length > 0)) return 'error';
     const changed = fields.some((f) => String(form[f] ?? '') !== String(originalForm[f] ?? ''))
       || (key === 'general' && Boolean(photoFile))
-      || (key === 'sejour' && timedOptionsDirty);
+      || (key === 'sejour' && (timedOptionsDirty || arrivalDirty));
     return changed ? 'dirty' : '';
   };
   const tabDot = (state) => (state ? (
@@ -493,8 +561,7 @@ export default function PropertyDetail() {
             photoFile={photoFile}
             photoValidationError={photoValidationError}
             onPhotoChange={handlePhotoFileChange}
-            nameArticles={NAME_ARTICLES}
-            previewWithArticle={previewWithArticle}
+            articleLabels={articleLabels}
             photoFormatsText={SUPPORTED_PHOTO_FORMATS_TEXT}
             timeOptions={TIME_OPTIONS}
           />
@@ -516,6 +583,7 @@ export default function PropertyDetail() {
             updateTimedOptionField={updateTimedOptionField}
             timeOptions={TIME_OPTIONS}
             propertyId={isNew ? null : property.id}
+            arrival={arrivalSaved ? { draft: arrival, saved: arrivalSaved, errors: arrivalErrors, onChange: updateArrival } : null}
           />
         )}
         {tab === 'plateformes' && !isNew && (

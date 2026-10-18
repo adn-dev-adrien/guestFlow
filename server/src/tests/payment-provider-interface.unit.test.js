@@ -90,6 +90,8 @@ test('rule 5 — the dashboard rows lose « Relancer » and the reminder refuses
   const build = (has) => buildDashboardController({
     reservationsModel: { listPaymentDeadlineCandidates: () => [row], getPlatform: () => 'direct' },
     hasPaymentProvider: () => has,
+    // No request template enabled: nothing to offer instead (rule 22 covers the email draft).
+    requestTemplateId: () => null,
     sendBalanceRequest: async () => ({ httpStatus: 200, body: { sent: true } }),
     today: '2026-11-10',
   });

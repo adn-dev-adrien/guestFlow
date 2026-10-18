@@ -46,7 +46,7 @@ function lastMailTo(email) {
   return mails.filter((m) => m.to === email).pop() || null;
 }
 
-const codeFor = (secret) => totp.totp(totp.base32Decode(secret.replace(/\s/g, '')), new Date());
+const codeFor = (secret, at = new Date()) => totp.totp(totp.base32Decode(secret.replace(/\s/g, '')), at);
 
 function writeSupportRequest(reason) {
   const token = supportAccess.signRequest({ slug: 'e2e', requestId: crypto.randomUUID(), reason, requestedAt: new Date().toISOString() }, SUPPORT_PRIVATE_KEY);

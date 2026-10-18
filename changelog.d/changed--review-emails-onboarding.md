@@ -1,0 +1,1 @@
+- **Pool season moves to the property** (spec `guest-email-texts-made-simple.md` rule 34). « Piscine » and its two dates (day and month) are set on the property's Séjour tab; Réglages › Emails no longer holds them. The property's Séjour tab also asks « Ménage de fin de séjour » and « Linge de toilette » (« Selon les options » keeps today's behaviour).
