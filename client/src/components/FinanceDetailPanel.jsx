@@ -103,7 +103,14 @@ function LateTable({ data, onOpenReservation, onSettleAll }) {
   const chips = (r) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
       {(r.overdueItems || []).map((item) => (
-        <Chip key={item.kind} size="small" color="error" variant="outlined" label={`${item.label} ${formatCurrency(item.amount)} · échu ${displayDate(item.dueDate)}`} />
+        <Chip
+          key={item.kind}
+          size="small"
+          color="error"
+          variant="outlined"
+          label={`${item.label} ${formatCurrency(item.amount)} · échu ${displayDate(item.dueDate)}`}
+          sx={{ height: 'auto', maxWidth: '100%', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.25 } }}
+        />
       ))}
     </Box>
   );
