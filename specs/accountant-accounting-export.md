@@ -283,11 +283,21 @@ standard).
     it was exported. *Why:* the final review of 2026-10-18 (N4) re-exported February–October 2026 and
     found three entries one cent off what the accountant may already have imported — April
     (Nouville 624,54 / 62,46), July (Nicolet 40,34 / 11,23), September (Van Dijk 117,28 / 11,72).
-    Re-exporting a closed month must give the same file.
+    Re-exporting a closed month must give the same file. *(2026-10-19: the fixed 1 October cutoff is
+    replaced by rule 35 — production exports October before this version is installed.)*
 34. **A trop-perçu refunded is counted once** (2026-10-18, final review N1; the rule lives in
     `reservation-refunds.md` rule 36). The solde entry of a paid then reduced stay books the amount
     received; the refund entry gives back the trop-perçu. Client account net = received − refunded,
     46710000 never negative for the stay.
+35. **The split starts the month after the version is installed (2026-10-19).** Rule 33's cutoff is
+    no longer a fixed date: on its first start, accounting-export 1.0.5 stores `ttcSplitFrom` = the
+    first day of the next month in `plugin_settings` (migration `ttc_split_from_v1`, written once,
+    never moved by a later start). Payments dated before it keep HT and VAT prorated separately, as
+    every release before exported them; from it, rule 32 applies. Not an operator setting: the
+    Plan comptable page does not show it and an erasure leaves the fallback, **1 November 2026**.
+    *Why:* the second pass of the final review (minor 3) noted that production, which never had the
+    split, may export October before installing this version: a fixed 1 October cutoff would then
+    move October's cents on a re-export.
 
 ---
 
@@ -432,8 +442,9 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 - [x] `client-gross-amount.unit.test.js` (7) — gross >= net, negative/NaN rejection.
 - [x] `reservations-commission.unit.test.js` (7) — commission = gross − net, clamped at 0,
       platform-only.
-- [x] `plugins/accounting-export/tests/accounting-exported-months-frozen.unit.test.js` (2) — rule 33:
-      a September 2026 payment keeps 117,28 / 11,72, from 1 October 2026 117,27 / 11,73.
+- [x] `plugins/accounting-export/tests/accounting-exported-months-frozen.unit.test.js` (3) — rules 33,
+      35: September and October 2026 keep 117,28 / 11,72; from the stored cutoff (fallback 1 November
+      2026) 117,27 / 11,73; the migration stores the first day of next month once.
 - [x] `tests/trop-percu-refund-books.unit.test.js` (1) — rule 34: 465,60 € paid, reduced, 110,40 €
       refunded → client account 355,20 €, 46710000 7,20 €, « Encaissé » and « Total perçu » 355,20 €.
 

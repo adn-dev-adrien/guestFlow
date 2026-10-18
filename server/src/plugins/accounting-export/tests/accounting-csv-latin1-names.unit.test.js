@@ -45,7 +45,7 @@ test('rule 32 — a prorated bucket: HT = TTC ÷ (1 + rate), VAT = TTC − HT', 
   // 129,00 € of a 179,17 € stay at 10 % (fraction 0,72).
   const stayHt = 162.88;
   const stayVat = 16.29;
-  const rows = buildRows([entry({ paidDate: '2026-10-17', encaissementTtc: 129, finalPrice: 179.17, fraction: 0.72, buckets: [{ name: 'accommodation', ht: stayHt, vat: stayVat, ratePercent: 10 }] })]);
+  const rows = buildRows([entry({ paidDate: '2026-11-17', encaissementTtc: 129, finalPrice: 179.17, fraction: 0.72, buckets: [{ name: 'accommodation', ht: stayHt, vat: stayVat, ratePercent: 10 }] })]);
   const amount = (cell) => Number(String(cell).replace(',', '.'));
   const credits = rows.map((r) => amount(r[8])).filter((v) => v > 0);
   assert.deepEqual(credits.sort((a, b) => b - a), [117.27, 11.73]);

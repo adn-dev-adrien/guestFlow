@@ -277,6 +277,22 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     every ceiling. *Why: the final review of 2026-10-18 (UI #1) typed 45 on « Linge de lit » 28 € and
     the stepper read « 6.43 », the refusal sat in body text far from a greyed button, and a French
     « 12,5 » typed on desktop was silently dropped by the `type="number"` field.*
+38. **A platform stay has no trop-perçu (2026-10-19).** Rules 34–36 apply to the operator's own
+    channels only (`isDirectChannel`). On a platform stay the guest paid the platform, which refunds
+    them itself: a paid solde follows the platform amount the operator corrects, the save is never
+    refused with `OVERPAID`, the fiche shows no trop-perçu and « Total perçu » is the platform's net.
+    *Why: the second pass of the final review (minor 1) corrected an Abracadaroom stay from 600 € to
+    450 € after ticking « payé »: the solde stayed at 600 € with a 150 € trop-perçu nobody can give
+    back.*
+39. **Money kept on a direct stay stays in the sale (2026-10-19).** The trop-perçu is not a state to
+    dismiss: it says the stay, as now sold, costs less than what was received. When the operator keeps
+    part of it — a night the CGV make non-refundable, say — that money is still a sale, so it is
+    priced on the fiche: a free line in « Prestations » (« Nuit non remboursable », its amount) or the
+    « Prix ajusté » of the stay. The trop-perçu then reads what is still owed back, 0 when everything
+    is kept, and the journal books the kept amount as revenue with its VAT. No « conservé » outcome
+    is added: it would leave received money with no line to book it on. *Why: the same pass reduced
+    stay 22298 by a night without refunding it and saw a 107,20 € trop-perçu stay on the fiche with
+    no documented way to close it.*
 
 ---
 
@@ -465,6 +481,11 @@ like « Nouvelle note », not a page-level one).
       refund of the two lines → journal client account 355,20 €, 46710000 7,20 € with no negative
       line, « Encaissé » and the stay's total 355,20 €, live quote « Total perçu » 355,20 € and
       trop-perçu 0, even with a stale 355,20 € solde sent by the browser.
+- [x] `tests/platform-paid-solde-follows-statement.unit.test.js` (3) — rule 38: Abracadaroom 600 €
+      paid, corrected to 450 € → saved without 409, solde 450 €; `overpaymentOf` 0 on a platform row,
+      150 € on a direct one; the engine keeps a direct paid solde only.
+- [x] `tests/kept-money-priced-closes-trop-percu.unit.test.js` (1) — rule 39: 465,60 € paid, 6 → 2
+      adults, the 96 € of breakfasts kept as a free line → trop-perçu 14,40 €, tax only.
 - [x] `tests/refunds-utils.unit.test.js` — `buildRefundableLines` (accommodation derivation, offered
       lines excluded, `refundedTtc` accumulation, clamp to 0 after a line shrinks), per-key cap,
       global cap, amount/date validation, HT/VAT split incl. `touristTax` at rate 0 (rules 7–14).

@@ -64,6 +64,7 @@ const {
   TIP_ACCOUNT,
   planMapper,
 } = require('./accountPlan');
+const { TTC_SPLIT_FALLBACK } = require('./settings');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
 // after `Mois` is intentional (it's in the example header byte-for-byte) — DO NOT trim it.
@@ -123,12 +124,11 @@ function zerofyMoneyColumns(row) {
 //     platforms with `entry.commission` populated. Σ debits = encaissement GROSS TTC.
 //   - CREDITS unchanged in shape — revenue 70xxx + VAT 44571xxx (scaled to GROSS by the
 //     model upstream) + tax pass-through 46710000. Σ credits = encaissement GROSS TTC.
-// specs/accountant-accounting-export.md rule 33 — the first payment day the rule 32 split applies to.
-// The months before were exported with HT and VAT prorated separately; re-exporting them must give the
-// accountant the same cents.
-const SPLIT_TTC_FROM = '2026-10-01';
-
-function rowsAtDefaults(entry) {
+// specs/accountant-accounting-export.md rules 33 and 35 — the first payment day the rule 32 split applies
+// to: the first day of the month after this version was installed (`ttcSplitFrom`, stored by the
+// plugin's migration). The months before were exported with HT and VAT prorated separately;
+// re-exporting them must give the accountant the same cents.
+function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   // Remboursements (specs/reservation-refunds.md §3.4): the very same money shape, sides swapped.
   if (entry && entry.direction === 'refund') return refundEntryToRows(entry);
   // Indemnités d'annulation (specs/cancellation-compensation.md §3.3 rule 16).
@@ -165,10 +165,10 @@ function rowsAtDefaults(entry) {
     // split at its rate: HT = TTC ÷ (1 + rate), VAT = TTC − HT. Prorating HT and VAT separately left a
     // cent between the journal and the accountant's own check (129,00 € at 10 % → 117,28 / 11,72).
     // A whole bucket (fraction 1) keeps its own HT and VAT, those of the stay's lines.
-    // Rule 33 — only from SPLIT_TTC_FROM: a month the accountant may already have imported keeps the
+    // Rules 33, 35 — only from `splitFrom`: a month the accountant may already have imported keeps the
     // cents it was exported with.
     const rate = Number(bucket.ratePercent) || 0;
-    const split = String(entry.paidDate || '') >= SPLIT_TTC_FROM && fraction !== 1 && rate > 0 && (bucket.vat || 0) > 0;
+    const split = String(entry.paidDate || '') >= splitFrom && fraction !== 1 && rate > 0 && (bucket.vat || 0) > 0;
     const ttc = round2(((bucket.ht || 0) + (bucket.vat || 0)) * fraction);
     const ht = split ? round2(ttc / (1 + rate / 100)) : round2((bucket.ht || 0) * fraction);
     const vat = split ? round2(ttc - ht) : round2((bucket.vat || 0) * fraction);
@@ -455,7 +455,7 @@ const ACCOUNT_COLUMN = 6;
  * rule 27). Without a plan, or with the defaults, the rows are exactly the engine's.
  */
 function entryToRows(entry, plan) {
-  const rows = rowsAtDefaults(entry);
+  const rows = rowsAtDefaults(entry, (plan && plan.ttcSplitFrom) || TTC_SPLIT_FALLBACK);
   if (!plan) return rows;
   const mapper = planMapper(plan);
   return rows.map((row) => {

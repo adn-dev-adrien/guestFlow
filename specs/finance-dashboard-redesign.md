@@ -254,11 +254,17 @@ without losing anything today's page shows.
 40. **A late payout is counted at what the platform owes.** The « Versement <plateforme> » element of
     `overdueItems`, the row's `overdueAmount`, the « En retard » tile and the home dashboard's
     « Versement plateforme en retard » card all carry the solde **net of the platform's commission**
-    (`balanceAmount − platformCommissionAmount`, floored at 0) — the figure « À encaisser » counts
-    (`remainingToPay`). Without a commission the payout is the solde. *Why:* the final review of
+    (`balanceAmount − platformCommissionAmount`, floored at 0) — the **solde part** of what « À
+    encaisser » counts (`remainingToPay` adds the unpaid compléments on top: 735,77 € for 22275, of
+    which the payout is 573,77 €). Without a commission the payout is the solde. *(Wording corrected
+    2026-10-19, second pass minor 2: it used to say « the figure À encaisser counts ».)* *Why:* the final review of
     2026-10-18 (N2) read « En retard 4 866,31 € » with GdF 11 at 1 933,52 € and Abracadaroom 22275 at
     720,82 €, while their fiches recorded payouts of 1 545 € and 573,77 € and « À encaisser » counted
     those: one page, two expected sums for the same stays.
+41. **A payout of 0 € is never late (2026-10-19).** When the commission is at or above the solde, the
+    stay owes nothing: no row in « En retard », not counted in the tile's stays, no home dashboard
+    card. *Why:* the second pass of the final review (minor 4) found such a row listed at 0 € and
+    counted as a stay.
 
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
@@ -448,6 +454,8 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `finance-overdue-payout-net.unit.test.js` (3) — rule 40: GdF 11 (1 545 €) and Abracadaroom 22275
       (573,77 €) shapes on « En retard », its detail and « À encaisser »; no commission → the solde;
       the home dashboard card claims the same payout.
+- [x] `finance-overdue-zero-payout.unit.test.js` (2) — rule 41: commission = solde → out of « En
+      retard » (tile 240 €, 1 stay); commission > solde → no home dashboard card.
 - 2026-10-18 (rule 37 note): the « today » fixtures of `financeDashboardFixture.js`, `finance-model`,
   `finance-fiscal-year-summary`, `finance-per-property-revenue`, `clients-directory`,
   `sas-stay-payment`, `single-payment-at-check-in`, `arrival-payment-fiche-model`,
