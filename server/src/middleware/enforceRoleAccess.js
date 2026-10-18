@@ -29,7 +29,7 @@ const SELF_ENDPOINTS = new Set([
   '/users/me',
   '/users/me/email-status',
   '/version',
-  // The server's calendar day — the reception home opens on it too (specs/upcoming-reservations-cards.md rule 7).
+  // The server's date (specs/ds-sweep-planning.md rule 28): every home page starts from it.
   '/today',
 ]);
 

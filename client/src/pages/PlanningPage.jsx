@@ -30,8 +30,8 @@ import api from '../api';
 import { usePlugin } from '../hooks/usePlugins';
 import { SAS } from '../constants/plugins';
 import { useSlot } from '../plugins/sdk/useSlot';
-import useToday from '../hooks/useToday';
-import { addIsoDays } from '../utils/localDate';
+import useServerToday from '../hooks/useServerToday';
+import { addIsoDays } from '../utils/isoDay';
 
 const DAYS_AHEAD = 14;
 
@@ -178,11 +178,10 @@ export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [planningDays, setPlanningDays] = useState([]);
-  // The week opens on the server's day until the operator picks another one.
-  const todayStr = useToday();
-  const [pickedStart, setPickedStart] = useState(null);
-  const startDate = pickedStart ?? todayStr;
-  const setStartDate = (next) => setPickedStart(typeof next === 'function' ? next(startDate) : next);
+  // The server's date (specs/ds-sweep-planning.md rule 28); the page waits for it before loading.
+  const todayStr = useServerToday();
+  const [pickedStart, setStartDate] = useState(null);
+  const startDate = pickedStart || todayStr;
   const [alertMap, setAlertMap] = useState({});
   const [properties, setProperties] = useState([]);
   const [departuresMap, setDeparturesMap] = useState({});
@@ -417,7 +416,7 @@ export default function PlanningPage() {
   };
 
   useEffect(() => {
-    loadPlanning(startDate);
+    if (startDate) loadPlanning(startDate);
   }, [startDate, properties]); // eslint-disable-line
 
   // Infinite scroll listener — bound to the WINDOW: the page has no scroll container of its own
@@ -541,20 +540,20 @@ export default function PlanningPage() {
   // (specs/ds-sweep-planning.md rule 2). Color legend removed 2026-06-06.
   const renderDateNav = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
-      <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, -1))} aria-label="Jour précédent">
+      <IconButton size="small" onClick={() => setStartDate(addDays(startDate, -1))} disabled={!startDate} aria-label="Jour précédent">
         <NavigateBeforeIcon />
       </IconButton>
       <TextField
         type="date"
         size="small"
-        value={startDate}
+        value={startDate || ''}
         onChange={(e) => setStartDate(e.target.value)}
         sx={{ width: 155 }}
         slotProps={{
           htmlInput: { style: { padding: '6px 10px' }, 'aria-label': 'Date de début' }
         }}
       />
-      <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, 1))} aria-label="Jour suivant">
+      <IconButton size="small" onClick={() => setStartDate(addDays(startDate, 1))} disabled={!startDate} aria-label="Jour suivant">
         <NavigateNextIcon />
       </IconButton>
       {startDate !== todayStr && (

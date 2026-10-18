@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { midStayNoteAccess, countMidStayNotes } from '../../utils/midStayNoteAccess';
-import { localIsoDate } from '../../utils/localDate';
+import { localIsoToday } from '../../utils/isoDay';
 /**
  * Test-only helper: builds a complete mock value for ReservationFormContext so the section
  * components can be rendered in isolation. Not imported by production code.
@@ -96,7 +96,7 @@ export function makeMockContext(overrides = {}) {
       startDate: (formOverrides && formOverrides.startDate) || '2026-06-01',
       notesCount: countMidStayNotes(formOverrides && formOverrides.midStaySettledNotes),
       endOfStaySettled: Boolean(formOverrides && (formOverrides.endOfStayComplementPaid || formOverrides.endOfStayComplementPaidCash)),
-      today: localIsoDate(),
+      today: localIsoToday(),
     }),
     // specs/reservation-refunds.md — server-owned register; empty by default, overridden by the
     // tests that exercise the « Remboursements » block.

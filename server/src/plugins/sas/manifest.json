@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -10,11 +10,14 @@
     "Le rôle « Accueil » et son écran d’accueil"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0",
+  "guestflow": ">=3.9.0 <4.0.0",
   "sdk": "^1.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
     ]
   }
 }

@@ -30,13 +30,13 @@ import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
-import { isReceptionOnly } from '../constants/roles';
+import { ADMIN, isReceptionOnly, userHasRole } from '../constants/roles';
 import { usePlugin } from '../hooks/usePlugins';
 import { SAS } from '../constants/plugins';
 import { statusLockTooltip } from '../constants/receptionSasLock';
 import api from '../api';
-import useToday from '../hooks/useToday';
-import { addIsoDays } from '../utils/localDate';
+import useServerToday from '../hooks/useServerToday';
+import { addIsoDays } from '../utils/isoDay';
 
 const addDays = addIsoDays;
 
@@ -64,16 +64,17 @@ export default function Dashboard() {
   // home: arrivals/departures lists only (no Paiements column, no KPI tiles, no admin alert banners,
   // no month calendar). A row tap opens the SAS on the Planning via the deep-link.
   const receptionMode = isReceptionOnly(user);
+  // The email readiness is an admin read (`GET /api/email-readiness`): an accountant would get a 403.
+  const isAdmin = userHasRole(user, ADMIN);
   // A reception account only acts through the SAS: without it (outside the plan, failed) a row leads
   // nowhere, so it is not offered as a link.
   const sasOn = usePlugin(SAS);
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
-  // The day shown: the server's today until the operator picks another one.
-  const todayStr = useToday();
-  const [pickedDate, setPickedDate] = useState(null);
-  const selectedDate = pickedDate ?? todayStr;
-  const setSelectedDate = (next) => setPickedDate(typeof next === 'function' ? next(selectedDate) : next);
+  // The server's date (specs/ds-sweep-planning.md rule 28); nothing loads before it is known.
+  const todayStr = useServerToday();
+  const [pickedDate, setSelectedDate] = useState(null);
+  const selectedDate = pickedDate || todayStr;
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,8 +107,8 @@ export default function Dashboard() {
     }
   };
 
-  // Only the latest load paints: the browser's day then the server's day (specs/upcoming-reservations-
-  // cards.md rule 7), or quick day-to-day clicks, can answer out of order.
+  // Only the latest load paints: quick day-to-day clicks, or the server's day moving on when the page
+  // comes back to the foreground, can answer out of order (specs/upcoming-reservations-cards.md rule 7).
   const loadSeq = useRef(0);
   const loadDashboardData = async () => {
     const seq = ++loadSeq.current;
@@ -149,7 +150,7 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    loadDashboardData();
+    if (selectedDate) loadDashboardData();
   }, [selectedDate, todayStr, reloadNonce]); // eslint-disable-line
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
@@ -167,18 +168,18 @@ export default function Dashboard() {
   // (PageActionBar hides `center` on xs). specs/ds-sweep-planning.md rule 1.
   const renderDateNav = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-      <IconButton size="small" onClick={() => setSelectedDate((d) => addDays(d, -1))} aria-label="Jour précédent">
+      <IconButton size="small" onClick={() => setSelectedDate(addDays(selectedDate, -1))} disabled={!selectedDate} aria-label="Jour précédent">
         <NavigateBeforeIcon />
       </IconButton>
       <TextField
         type="date"
         size="small"
-        value={selectedDate}
+        value={selectedDate || ''}
         onChange={(e) => setSelectedDate(e.target.value)}
         sx={{ width: 165 }}
         slotProps={{ htmlInput: { style: { padding: '6px 10px' }, 'aria-label': 'Date affichée' } }}
       />
-      <IconButton size="small" onClick={() => setSelectedDate((d) => addDays(d, 1))} aria-label="Jour suivant">
+      <IconButton size="small" onClick={() => setSelectedDate(addDays(selectedDate, 1))} disabled={!selectedDate} aria-label="Jour suivant">
         <NavigateNextIcon />
       </IconButton>
       {selectedDate !== todayStr && (
@@ -404,7 +405,7 @@ export default function Dashboard() {
           <EmailPendingAlert />
           {/* Emails that would leave incomplete before an arrival (specs/guest-email-texts-made-simple.md
               rule 7). Renders nothing when nothing concerns a stay within 14 days. */}
-          <EmailReadinessAlert />
+          {isAdmin && <EmailReadinessAlert />}
         </>
       )}
 

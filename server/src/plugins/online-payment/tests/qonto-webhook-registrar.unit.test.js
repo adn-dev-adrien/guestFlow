@@ -11,7 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { freshSettings, withStubbedFetch, jsonResponse, connectedSettings } = require('./qontoSettingsFixture');
-const { ensureWebhookSubscription } = require('../qonto/qontoWebhookRegistrar');
+const { ensureWebhookSubscription } = require('../../../utils/qonto/qontoWebhookRegistrar');
 
 const PUBLIC_URL = 'https://guestflow.adn-dev.fr';
 const CALLBACK = 'https://guestflow.adn-dev.fr/api/payments/qonto/webhook';

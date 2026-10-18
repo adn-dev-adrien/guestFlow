@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -11,7 +11,7 @@
     "Les étapes linge du sas"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0",
+  "guestflow": ">=3.9.0 <4.0.0",
   "sdk": "^1.1.0",
   "changelog": {
     "1.0.0": [
@@ -22,6 +22,9 @@
       "Un ajout manuel de linge dont la quantité est infinie ou illisible compte pour 0."
     ],
     "1.0.2": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.3": [
       "Le trajet de blanchisserie supplémentaire propose la date du jour même entre minuit et 2 h."
     ]
   }

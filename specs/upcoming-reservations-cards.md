@@ -62,8 +62,12 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    a plugin that must run on older hosts, uses the browser's calendar day.
    > **Amended 2026-10-18 (review of PR #700):** the forms that default to « today » take the
    > browser's calendar day too, never the UTC one — the refund date (and its `max`), the extra
-   > laundry trip (linen plugin 1.0.2), the past/upcoming split of a client's stays in the clients
+   > laundry trip (linen plugin 1.0.3), the past/upcoming split of a client's stays in the clients
    > directory, the fiche's mid-stay note gate in the test mock.
+   > **Amended 2026-10-18 (merge with the security review, PR #699):** one implementation of the
+   > server's day — `GET /api/today` and `useServerToday` of specs/ds-sweep-planning.md rules 28-29.
+   > The dashboard and the planning wait for it rather than opening on the browser's day first; the
+   > browser's calendar day is only the fallback when the server cannot be asked.
 8. **The « prêt » box answers at once** (added 2026-10-18, review of PR #700). Ticking or unticking
    « prêt » on « Réservations à venir » flips the box immediately, without the loader; the page
    then asks `GET /api/reservations/upcoming?day=YYYY-MM-DD` for that day alone and replaces it with
@@ -73,7 +77,7 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    paints. Each click used to re-read the whole season — 2.4 MB and 0.7 s with 500 stays — before
    the box moved.
 9. **Only the latest dashboard load paints** (added 2026-10-18, review of PR #700). The dashboard
-   loads the browser's day, then the server's (rule 7), and reloads on every day change; a load that
+   reloads on every day change (and when the server's day moves on, rule 7); a load that
    answers after a newer one started is dropped, so the day shown and its arrivals and departures
    always match.
 
@@ -81,12 +85,12 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
 | Layer | File | Responsibility |
 |---|---|---|
 | pages | `pages/ReservationsUpcomingPage.jsx` | One `GET /reservations/upcoming` → render the server's days with `ReservationCard` + the `sas.dialog` slot; a « prêt » tick flips at once and refreshes its day with `?day=` (rule 8). Render-only. |
-| pages | `pages/Dashboard.jsx`, `pages/PlanningPage.jsx` | Open on `useToday()` until the operator picks a day (rule 7); the dashboard drops a stale load (rule 9). |
+| pages | `pages/Dashboard.jsx`, `pages/PlanningPage.jsx` | Open on `useServerToday()` until the operator picks a day (rule 7); the dashboard drops a stale load (rule 9). |
 | pages / components | `pages/ClientsPage.jsx`, `components/reservation/RefundDialog.jsx`, `plugins/linen/LaundryExtraTripDialog.jsx` (T) | « Today » defaults on the browser's calendar day (rule 7 amendment). |
-| hooks | `hooks/useToday.js` (C) | The server's calendar day, the browser's calendar day until it answers. |
-| utils | `utils/localDate.js` (C) | `localIsoDate`, `addIsoDays` on `YYYY-MM-DD`. |
-| server routes | `routes/reservations.js` (T), `routes/today.js` (C) | `GET /reservations/upcoming` (before `/:id`), `GET /today`. |
-| server controllers | `controllers/upcomingReservationsController.js` (C), `controllers/todayController.js` (C) | Orchestrate rules 6 and 8 (`?day=`); answer rule 7. |
+| hooks | `hooks/useServerToday.js` (specs/ds-sweep-planning.md rule 29) | The server's calendar day; the browser's calendar day when it cannot be asked. |
+| utils | `utils/isoDay.js` (specs/ds-sweep-planning.md rule 28) | `localIsoToday`, `addIsoDays` on `YYYY-MM-DD`. |
+| server routes | `routes/reservations.js` (T), `routes/today.js` (specs/ds-sweep-planning.md rule 28) | `GET /reservations/upcoming` (before `/:id`), `GET /today`. |
+| server controllers | `controllers/upcomingReservationsController.js` (C) | Orchestrate rules 6 and 8 (`?day=`). |
 | server models | `models/upcomingReservationsModel.js` (C), `models/reservationsModel.js` (T) | The arrival ids from today (`arrivalIdsFrom`) or of one day (`arrivalIdsOn`); the list's payment status on the server day. |
 | server utils | `utils/upcomingArrivals.js` (C) | Group by day, French label, ready counts. |
 | server middleware | `middleware/enforceRoleAccess.js` (T) | `/today` joins the self endpoints. |
@@ -107,17 +111,17 @@ Until 2026-10-18 there was no server change (the page reused `GET /reservations`
   labels, label independent of the server zone, 500 arrivals in one response); client
   `ReservationsUpcomingPage.one-call.test.jsx` (3: 500 stays → one request and no per-reservation
   fetch, server label/count rendered as sent, « prêt » re-asks the server).
-- [x] Rule 7 — server `server-today.unit.test.js` (3: the endpoint, 01:54 Paris = the 18th while UTC
-  reads the 17th, every role may read it); client `Dashboard.server-today.test.jsx` (3: the server's
-  day is shown and queried, the browser's calendar day before it answers, day arithmetic across the
-  October time change).
+- [x] Rule 7 — server `server-today.unit.test.js` (01:54 Paris = the 18th while UTC reads the 17th,
+  beside the rule 28 endpoint test, every role may read it); client `Dashboard.server-today.test.jsx`
+  (2: the browser's calendar day when the server cannot answer, day arithmetic across the October
+  time change — beside the rule 28 tests: the server's day is shown and queried, nothing loads before).
 - [x] Rule 8 — server `upcoming-reservations-day-refresh.unit.test.js` (4: one day in arrival order,
   `?day=` details and counts that day only, a past or empty day answers no day, a malformed day is
   refused); client `ReservationsUpcomingPage.ready-toggle.test.jsx` (3: ticked before the server
   answers and only its day re-asked, a refused save puts the box back, a late recount never
   overwrites a newer one).
-- [x] Rule 9 — client `Dashboard.stale-load.test.jsx` (1: the browser-day load answering last does
-  not replace the server day's arrivals).
+- [x] Rule 9 — client `Dashboard.stale-load.test.jsx` (1: the load of the day left behind, answering
+  last, does not replace the arrivals of the day shown).
 - [x] Rule 7 amendment — `RefundDialog.local-day.test.jsx`, `LaundryExtraTripDialog.local-day.test.jsx`
   (01:54 in Paris on the 18th → the 18th).
 - [x] Browser (2026-10-18, Solio copy + 500 stress reservations): « Réservations à venir » loads with

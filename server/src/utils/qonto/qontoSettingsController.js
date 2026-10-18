@@ -20,14 +20,14 @@
  */
 
 const crypto = require('crypto');
-const { DEFAULT_SCOPES } = require('./qonto/qontoClient');
+const { DEFAULT_SCOPES } = require('./qontoClient');
 const {
   buildConfiguredQontoClient, withQonto, runQontoConnectionTest,
   qontoCredentialsPayload, qontoStatusPayload, applyQontoCredentials,
-} = require('./qonto/qontoService');
-const { resolveQontoConfig } = require('./qonto/qontoConfig');
-const { ensureWebhookSubscription } = require('./qonto/qontoWebhookRegistrar');
-const { validateProviderConnection } = require('./qonto/paymentProviderValidation');
+} = require('./qontoService');
+const { resolveQontoConfig } = require('./qontoConfig');
+const { ensureWebhookSubscription } = require('./qontoWebhookRegistrar');
+const { validateProviderConnection } = require('./paymentProviderValidation');
 
 const SETTINGS_PAGE_PATH = '/parametres/paiements';
 

@@ -5,7 +5,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import RefundDialog from '../RefundDialog';
-import { localIsoDate } from '../../../utils/localDate';
+import { localIsoToday } from '../../../utils/isoDay';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -13,8 +13,8 @@ test('rule 7 — the refund date defaults to the calendar day, not UTC\'s', () =
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date('2026-10-17T23:54:00Z'));
   render(<RefundDialog open onClose={() => {}} refundableLines={[]} collectedTtc={0} onSubmit={() => {}} />);
-  if (process.env.TZ === 'Europe/Paris') expect(localIsoDate()).toBe('2026-10-18');
+  if (process.env.TZ === 'Europe/Paris') expect(localIsoToday()).toBe('2026-10-18');
   const field = screen.getByLabelText('Date du remboursement');
-  expect(field).toHaveValue(localIsoDate());
-  expect(field).toHaveAttribute('max', localIsoDate());
+  expect(field).toHaveValue(localIsoToday());
+  expect(field).toHaveAttribute('max', localIsoToday());
 });

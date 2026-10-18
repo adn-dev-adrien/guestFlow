@@ -49,7 +49,7 @@ vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, d
 
 import api from '../../api';
 import Dashboard from '../Dashboard';
-import { localIsoDate } from '../../utils/localDate';
+import { localIsoToday } from '../../utils/isoDay';
 
 function renderPage() {
   return render(
@@ -101,7 +101,7 @@ test('the initial load shows the shared LoadingState (aria-busy)', async () => {
 // specs/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
 // collect at the door. A platform booking waiting for its post-stay payout used to be red daily.
 describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
-  const today = localIsoDate();
+  const today = localIsoToday();
   const base = {
     id: 7, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
     firstName: 'Luc', lastName: 'Martin', propertyName: 'Gîte du Lac',
@@ -169,7 +169,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
 });
 
 describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () => {
-  const today = localIsoDate();
+  const today = localIsoToday();
   const arrival = {
     id: 42, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
     firstName: 'Marie', lastName: 'Durand', propertyName: 'Gîte du Lac',
