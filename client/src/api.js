@@ -585,6 +585,9 @@ const api = {
   // Dashboard "new iCal reservations today" — read-only notification of bookings imported via
   // iCal during the current day (specs/dashboard-ical-new-reservations.md).
   getNewReservations: () => request('/dashboard/new-reservations'),
+  // Stays numbered by the boot repair, listed until checked (specs/reservation-number-and-search.md rule 15).
+  getRepairedReservationNumbers: () => request('/dashboard/repaired-reservation-numbers'),
+  acknowledgeRepairedReservationNumber: (id) => request(`/dashboard/repaired-reservation-numbers/${id}/acknowledge`, { method: 'POST' }),
   // Dashboard "pending site devis" — booking requests submitted from the public website that are
   // still awaiting handling (specs/site-booking-notifications.md §3 rule 5).
   getPendingPublicDevis: () => request('/dashboard/public-devis-pending'),

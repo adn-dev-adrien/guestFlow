@@ -318,6 +318,7 @@ export default function FinanceSection() {
     // the page holds it and exposes the two mutations.
     refunds = [], refundableLines = [], refundTotals = { book: 0, withCash: 0 }, refundCollectedTtc = 0,
     refundOverpaymentTtc = 0,
+    refundOverpaymentLines = [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
@@ -1381,7 +1382,7 @@ export default function FinanceSection() {
                             <Button
                               color="inherit"
                               size="small"
-                              onClick={() => setRefundDialogOpen({ overpaymentTtc: refundOverpaymentTtc })}
+                              onClick={() => setRefundDialogOpen({ overpaymentTtc: refundOverpaymentTtc, overpaymentLines: refundOverpaymentLines })}
                               sx={{ minHeight: 44, textTransform: 'none' }}
                             >
                               Rembourser
@@ -1389,6 +1390,13 @@ export default function FinanceSection() {
                           )}
                         >
                           Trop-perçu : {formatCurrency(refundOverpaymentTtc)}
+                          {/* Rule 35 — where it comes from, as the save will price it: the summary
+                              above may still show a tax pinned at its collected amount. */}
+                          {refundOverpaymentLines.filter((l) => l.collectedTtc > 0).map((l) => (
+                            <Typography key={l.bucket} variant="caption" component="div" sx={{ overflowWrap: 'anywhere' }}>
+                              {l.label} : {formatCurrency(l.collectedTtc)} encaissés, {formatCurrency(l.dueTtc)} dus
+                            </Typography>
+                          ))}
                         </Alert>
                       )}
                       <Button
@@ -1449,6 +1457,7 @@ export default function FinanceSection() {
                   refundableLines={refundableLines}
                   collectedTtc={refundCollectedTtc}
                   overpaymentTtc={refundDialogOpen && refundDialogOpen.overpaymentTtc ? refundDialogOpen.overpaymentTtc : 0}
+                  overpaymentLines={refundDialogOpen && refundDialogOpen.overpaymentLines ? refundDialogOpen.overpaymentLines : null}
                   onSubmit={createRefund}
                 />
               </>

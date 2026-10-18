@@ -1905,7 +1905,11 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 // a cancellation could make the generator hand out a number already taken, and the failed creation left
 // its row behind. Each one gets a number now and is listed in the boot log — a ghost cannot be told from
 // a real stay by the data, so nothing is deleted. Guarded once; idempotent anyway.
+// Rule 15 — the repair also stamps `numberRepairedAt`, which keeps the stay on the dashboard « À
+// vérifier » card until the operator has looked at it: nobody reads the boot log.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const resCols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+  if (!resCols.includes('numberRepairedAt')) db.exec('ALTER TABLE reservations ADD COLUMN numberRepairedAt TEXT');
   const migrationName = 'reservation_number_repair_numberless_v1';
   const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
   if (!ran) {

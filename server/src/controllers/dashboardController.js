@@ -142,6 +142,28 @@ function buildController({
     },
 
     /**
+     * GET /api/dashboard/repaired-reservation-numbers
+     *
+     * The stays the boot repair numbered (specs/reservation-number-and-search.md rule 15), ready to
+     * render. Empty `alerts: []` once every one has been checked.
+     */
+    repairedReservationNumbers(req, res) {
+      return res.json({ alerts: injectedReservationsModel.listRepairedNumbers() });
+    },
+
+    /**
+     * POST /api/dashboard/repaired-reservation-numbers/:id/acknowledge
+     *
+     * « Vu » — the operator checked the stay; it leaves the card. 404 when it was not listed.
+     */
+    acknowledgeRepairedReservationNumber(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      if (!injectedReservationsModel.acknowledgeRepairedNumber(id)) return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.json({ ok: true });
+    },
+
+    /**
      * GET /api/dashboard/payment-deadlines
      *
      * Every direct reservation with a missed payment deadline (specs/payment-schedule-and-cancellation.md

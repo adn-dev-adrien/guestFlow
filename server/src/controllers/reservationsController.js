@@ -64,7 +64,7 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
-const { overpaymentOf } = require('../utils/overpayment');
+const { overpaymentOf, overpaymentLinesOf } = require('../utils/overpayment');
 const { firstSessionConflict, conflictError: sessionConflictError } = require('../utils/resourceSessionConflicts');
 const { formatCurrency } = require('../utils/devisHelpers');
 const refundsController = require('./refundsController');
@@ -354,14 +354,21 @@ function overpaymentIntroducedBy(reservationId, quote) {
     error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
     code: 'OVERPAID',
     overpaymentTtc: after,
+    // Rule 35 — the same amount split by poste, for the refund the fiche opens next.
+    overpaymentLines: overpaymentLinesOf({
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after,
+    }),
   };
 }
 
 // The live trop-perçu of the fiche being edited (rule 34): the preview re-priced with the payment state
-// the save would use (the stored flags), against the stored payments.
+// the save would use (the stored flags), against the stored payments. Returns the amount and its split
+// by poste (rule 35), each poste carrying what it collected and what the save would now make it cost —
+// the figures the fiche shows beside the alert, since its summary keeps a frozen tax the save recomputes.
 function liveOverpayment(reservationId, engineInput) {
+  const none = { overpaymentTtc: 0, overpaymentLines: [] };
   const row = model.getRow(reservationId);
-  if (!row) return 0;
+  if (!row) return none;
   const depositDisabled = Boolean(engineInput.depositDisabled);
   const savedInput = {
     ...engineInput,
@@ -375,8 +382,8 @@ function liveOverpayment(reservationId, engineInput) {
   const asSaved = quotePostProcessors.applySync({
     engineInput: savedInput, quote: calculateReservationQuote(savedInput), calculate: calculateReservationQuote,
   });
-  if (!asSaved || asSaved.error) return 0;
-  return overpaymentOf({
+  if (!asSaved || asSaved.error) return none;
+  const overpaymentTtc = overpaymentOf({
     row,
     captured: model.capturedScheduleContribs(reservationId),
     refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
@@ -384,6 +391,12 @@ function liveOverpayment(reservationId, engineInput) {
     balanceAmount: asSaved.balanceAmount,
     engineOverTtc: asSaved.overCollectedTtc,
   });
+  return {
+    overpaymentTtc,
+    overpaymentLines: overpaymentLinesOf({
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote: asSaved, overpaymentTtc,
+    }),
+  };
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
@@ -787,7 +800,7 @@ async function calculatePrice(req, res) {
     const row = model.getRow(reservationId);
     if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
     // specs/reservation-refunds.md rule 34 — the trop-perçu the fiche shows, live.
-    if (row) quote.overpaymentTtc = liveOverpayment(reservationId, engineInput);
+    if (row) Object.assign(quote, liveOverpayment(reservationId, engineInput));
   }
 
   res.json(quote);

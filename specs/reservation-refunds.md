@@ -232,7 +232,24 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
       save. When it is above 0, the
       Remboursements block shows « Trop-perçu : X € » with a « Rembourser » button. The button opens the
       refund dialog with a free line « Trop-perçu » (bucket Hébergement) set to that amount; the operator
-      can change both.
+      can change both. *Amended 2026-10-18 by rule 35: one line per poste, no longer always Hébergement.*
+35. **The trop-perçu is split by poste (2026-10-18).** The server also returns `overpaymentLines`
+    (`[{ bucket, label, amountTtc, collectedTtc, dueTtc }]`), on the 409 `OVERPAID` and on the live quote,
+    built by `overpaymentLinesOf` (`utils/overpayment.js`): for each poste (Hébergement, Prestations
+    complémentaires, Activités, Taxe de séjour) what the paid acompte and solde captured on it, what the
+    stay now costs on it as the save would price it, and the excess. The trop-perçu is spread over the
+    postes in proportion to their excess, the rounding cents going to the largest; without a capture to
+    read, or no poste in excess, it stays whole on Hébergement.
+    - **Refund dialog:** opened from « Rembourser » or after « Enregistrer et rembourser », it carries one
+      free line « Trop-perçu » per poste of `overpaymentLines`, each on its bucket and amount.
+    - **Fiche:** under « Trop-perçu : X € », one caption per poste that collected something:
+      « Taxe de séjour : 21,60 € encaissés, 7,20 € dus ». The pricing summary may still show the tax at
+      its frozen, collected amount while the save recomputes it; this caption gives the figure the save
+      will store.
+    *Why: the second review of 2026-10-18 reduced 22304 from 6 to 2 adults after payment. The whole
+    14,40 € came from the tourist tax, yet the dialog proposed « Hébergement »: accepted as is, the refund
+    debited the turnover and the VAT and left 46710000 14,40 € too high. The same review saw the summary
+    say « Taxe de séjour 21,60 € » beside a 14,40 € trop-perçu, with nothing to reconcile the two.*
 
 ---
 
@@ -255,9 +272,10 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `utils/` | `pricing.js` | T | New input `refundsTotal`; new output `refundsTotal` + `sejourNetTotal` net of refunds (single subtraction, no other engine change) |
 | `constants/` | `accounting.js` | T | `REFUND_BUCKET_TO_ACCOUNT` (adds `touristTax → 46710000` on top of the existing `BUCKET_TO_ACCOUNT`) |
 | `utils/` | `reservationSettlement.js` | T | Gains `comptaCollected` / `midStayNotesTotal` / `refundsBook` (extracted from `financeModel` so the fiche's « encaissé » caption and the finance views share ONE authority), all three net of refunds |
-| `utils/` | `overpayment.js` | C | Rule 34 — **pure** `collectedOnSchedule` / `overpaymentOf`: collected on acompte + solde (captured contribs), minus refunds, minus the schedule, or the engine's `overCollectedTtc` when larger |
+| `utils/` | `overpayment.js` | C | Rule 34 — **pure** `collectedOnSchedule` / `overpaymentOf`: collected on acompte + solde (captured contribs), minus refunds, minus the schedule, or the engine's `overCollectedTtc` when larger. Rule 35 — `overpaymentLinesOf` / `currentByPoste`: the same amount split by poste |
 | `utils/` | `pricing.js` | T | Rule 34 — new output `overCollectedTtc`: what a paid acompte and solde hold beyond what the reduced stay now owes |
-| `controllers/` | `reservationsController.js` | T | Rule 34 — `overpaymentIntroducedBy` (409 `OVERPAID` unless `forceOverpayment`) on update; `calculatePrice` returns `overpaymentTtc` for a stored reservation |
+| `controllers/` | `reservationsController.js` | T | Rule 34 — `overpaymentIntroducedBy` (409 `OVERPAID` unless `forceOverpayment`) on update; `calculatePrice` returns `overpaymentTtc` for a stored reservation. Rule 35 — both also return `overpaymentLines` |
+| `models/` | `reservationsModel.js` | T | Rule 35 — `capturedScheduleContribsByPoste`: the captured contribs of each schedule bucket, per poste |
 | `middleware/` | `enforceRoleAccess.js` | — | (none — the new paths are admin-only by default; the reception allowlist drift test pins that) |
 | `schema.sql` | `schema.sql` | T | The two tables + 2 indices. Per specs/migrations-baseline.md the baseline is re-executed at every boot with `CREATE TABLE IF NOT EXISTS`, so a brand-new table needs NO extra block in `database.js` (that file is only for altering existing rows) |
 

@@ -20,6 +20,7 @@ import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
 import NewReservationsAlert from '../components/NewReservationsAlert';
+import RepairedReservationNumbersAlert from '../components/RepairedReservationNumbersAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import EmailReadinessAlert from '../components/EmailReadinessAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
@@ -393,6 +394,9 @@ export default function Dashboard() {
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
           <NewReservationsAlert />
+          {/* Stays left without a number and numbered at boot (specs/reservation-number-and-search.md
+              rule 15): possibly ghosts still blocking their dates. Renders nothing once all are checked. */}
+          <RepairedReservationNumbersAlert />
           {/* The other plugin alerts, e.g. the linen shortage, the tariff-recipe runs to review and the
               website requests still pending (specs/plugins-phase-2-hosts.md rules 15, 25). */}
           <Slot name="dashboard.alerts" />

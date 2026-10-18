@@ -26,6 +26,16 @@ features:
 | F7 — city autocomplete under the CSP | `security-hardening.md` rule 12 |
 | F9 — `7.2` in an amount field | `reservation-price-arithmetic.md` rule 10 |
 
+**Second review (2026-10-18).** An independent re-run of the batch found no blocker and four
+follow-ups, each ruled in its feature's spec:
+
+| Finding | Where the rule lives |
+|---|---|
+| Trop-perçu refund always booked on Hébergement (major) | `reservation-refunds.md` rule 35 |
+| Summary tax and trop-perçu alert disagree while editing | `reservation-refunds.md` rule 35 (the alert's caption per poste) |
+| No « Créer quand même » on the fiche | `clients.md` rule 14 |
+| Repaired stays only in the boot log | `reservation-number-and-search.md` rule 15 |
+
 This spec holds the small display fixes that belong to no single feature: F8, F10, F11, F12, F13, and
 two responsive defects of the display review (M-4, M-5).
 
@@ -109,6 +119,11 @@ None.
 - Client: `PricingSummary.review-labels.test.jsx` (rules 1, 5) — 4 tests;
   `ReservationSasDialog.step-counter.test.jsx` (rule 3) — 1 test.
 - E2E: `reservations/review-2026-10-18-layout.spec.js` (rules 6, 7) — 5 tests at 390, 900 and 1280 px.
+- Second review: server `reservation-overpayment-by-poste.unit.test.js` (5),
+  `clients-duplicate-created-from-the-fiche.unit.test.js` (1),
+  `reservation-number-repair-shown-until-checked.unit.test.js` (3); client
+  `RefundDialog.overpayment-by-poste.test.jsx` (3), `DialogProvider.secondary-action.test.jsx` (4),
+  `RepairedReservationNumbersAlert.test.jsx` (3).
 
 ## 8. Out of scope
 

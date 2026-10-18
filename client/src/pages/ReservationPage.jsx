@@ -1875,7 +1875,7 @@ export default function ReservationPage() {
     };
 
     if (clientDialogMode === 'edit' && !form.clientId && pendingClient) {
-      setPendingClient(payload);
+      setPendingClient(pendingClient.allowDuplicate ? { ...payload, allowDuplicate: true } : payload);
       closeCreateClient();
       return;
     }
@@ -1886,17 +1886,22 @@ export default function ReservationPage() {
       setSelectedClient(updated);
       setClients(prev => prev.map(client => (client.id === updated.id ? updated : client)));
     } else {
-      // specs/clients.md rule 12 — an email or phone already known: use that client.
+      // specs/clients.md rule 12 — an email or phone already known: use that client, or — a couple or a
+      // family sharing one phone — create a second one anyway (rule 14).
       const duplicate = await api.findDuplicateClient({ email: payload.email, phone: payload.phone }).catch(() => null);
       if (duplicate?.client) {
-        const useExisting = await confirm({
+        const choice = await confirm({
           title: 'Client existant',
           message: duplicate.message,
           confirmLabel: 'Utiliser ce client',
+          secondaryLabel: 'Créer quand même',
           cancelLabel: 'Modifier la saisie',
           confirmColor: 'primary',
         });
-        if (!useExisting) return;
+        if (!choice) return;
+        if (choice === 'secondary') payload.allowDuplicate = true;
+      }
+      if (duplicate?.client && !payload.allowDuplicate) {
         const existing = await api.getClient(duplicate.client.id).catch(() => duplicate.client);
         setPendingClient(null);
         setForm(prev => ({ ...prev, clientId: existing.id }));
@@ -2518,7 +2523,7 @@ export default function ReservationPage() {
         });
         if (!proceed) return false;
         return await handleSaveReservation(
-          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0))),
+          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines)),
           forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true,
         );
       }
@@ -2692,9 +2697,9 @@ export default function ReservationPage() {
 
   // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the paid
   // state and open the refund dialog on the amount the server announced.
-  const openOverpaymentRefund = useCallback(async (overpaymentTtc) => {
+  const openOverpaymentRefund = useCallback(async (overpaymentTtc, overpaymentLines) => {
     await reloadReservationFinance();
-    if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc });
+    if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc, overpaymentLines: Array.isArray(overpaymentLines) ? overpaymentLines : null });
   }, [reloadReservationFinance]);
 
   const createRefund = useCallback(async (payload) => {
@@ -3199,6 +3204,7 @@ export default function ReservationPage() {
     refundCollectedTtc: refundRegister.collectedTtc,
     // specs/reservation-refunds.md rule 34 — the trop-perçu, computed by the server with the live quote.
     refundOverpaymentTtc: Number(pricingQuote?.overpaymentTtc || 0),
+    refundOverpaymentLines: Array.isArray(pricingQuote?.overpaymentLines) ? pricingQuote.overpaymentLines : [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.

@@ -116,6 +116,13 @@ list.
     taken, duplicate client…) leaves no client behind. On a fiche already saved, the dialog still creates
     the client at once. *Why: the review of 2026-10-18 (F6) left three copies of the same client after
     three abandoned fiches.*
+14. **« Créer quand même » on the fiche too (2026-10-18).** The fiche's « Client existant » dialog offers a
+    third answer beside « Utiliser ce client » and « Modifier la saisie »: « Créer quand même », which
+    creates the typed client as a second one by sending `allowDuplicate: true` — on `POST /clients` for a
+    fiche already saved, inside `newClient` for one not saved yet (rule 13, `utils/draftClient.js` honours
+    it). The shared `ConfirmDialog` gains an optional `secondaryLabel`, resolved by `confirm()` as the
+    string `'secondary'`. *Why: the second review of 2026-10-18 found no way to create, from the fiche, a
+    partner sharing the family phone (compared on its last 9 digits): only the Clients page could.*
 
 **Edge cases:**
 - Client with only devis (no reservations) → `409` now also triggers (was silently deleted); impact shows

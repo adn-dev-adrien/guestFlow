@@ -1144,6 +1144,43 @@ function createReservationsModel(database) {
       };
     },
 
+    // The same captures split by poste (specs/reservation-refunds.md rule 35), so a trop-perçu can be
+    // refunded on the poste it came from. `null` for a bucket that captured nothing.
+    capturedScheduleContribsByPoste(reservationId) {
+      const none = { deposit: null, balance: null };
+      let row;
+      try {
+        row = database.prepare(`
+          SELECT accommodationAcompteContribTtc AS aa, accommodationSoldeContribTtc AS asol,
+                 touristTaxAcompteContribTtc AS ta, touristTaxSoldeContribTtc AS tsol
+            FROM reservations WHERE id = ?`).get(reservationId);
+      } catch {
+        return none;
+      }
+      if (!row) return none;
+      const lines = { options: [], resources: [] };
+      for (const [table, poste] of [['reservation_options', 'options'], ['reservation_custom_options', 'options'], ['reservation_resources', 'resources']]) {
+        try {
+          lines[poste].push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?`).all(reservationId));
+        } catch {
+          // A minimal schema without this table or its contrib columns.
+        }
+      }
+      const r2 = (v) => Math.round(v * 100) / 100;
+      const sumOf = (list, key) => r2(list.reduce((sum, l) => sum + Number(l[key] || 0), 0));
+      const bucket = (accommodation, tax, key) => {
+        const values = [accommodation, tax, ...lines.options.map((l) => l[key]), ...lines.resources.map((l) => l[key])];
+        if (values.every((v) => v == null)) return null;
+        return {
+          accommodation: r2(Number(accommodation || 0)),
+          touristTax: r2(Number(tax || 0)),
+          options: sumOf(lines.options, key),
+          resources: sumOf(lines.resources, key),
+        };
+      };
+      return { deposit: bucket(row.aa, row.ta, 'a'), balance: bucket(row.asol, row.tsol, 's') };
+    },
+
     // The just-assigned/overridden number, returned to the client after create/update so the fiche
     // field repopulates. Empty string when the column is absent (minimal schema) or unset.
     getReservationNumber(reservationId) {
@@ -1184,6 +1221,48 @@ function createReservationsModel(database) {
           createdAt: row.createdAt || '',
         };
       });
+    },
+
+    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 15): the stays the boot repair
+    // numbered — possibly ghosts of a failed creation, still blocking their dates — until the operator
+    // has looked at them. Empty on a schema without the stamp.
+    listRepairedNumbers() {
+      let rows;
+      try {
+        rows = database.prepare(`
+          SELECT r.id AS reservationId, r.reservationNumber, r.startDate, r.endDate, r.numberRepairedAt,
+                 c.firstName, c.lastName, p.name AS propertyName
+            FROM reservations r
+            LEFT JOIN clients c    ON c.id = r.clientId
+            LEFT JOIN properties p ON p.id = r.propertyId
+           WHERE r.kind = 'reservation' AND r.numberRepairedAt IS NOT NULL
+           ORDER BY r.startDate, r.id
+        `).all();
+      } catch {
+        return [];
+      }
+      return rows.map((row) => {
+        const clientName = `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
+        return {
+          reservationId: row.reservationId,
+          reservationNumber: row.reservationNumber || '',
+          clientName: clientName || 'Sans client',
+          propertyName: row.propertyName || '',
+          startDate: row.startDate || '',
+          endDate: row.endDate || '',
+          repairedAt: row.numberRepairedAt,
+        };
+      });
+    },
+
+    // The operator has checked it: off the card. False when there was nothing to acknowledge.
+    acknowledgeRepairedNumber(reservationId) {
+      try {
+        return database.prepare('UPDATE reservations SET numberRepairedAt = NULL WHERE id = ? AND numberRepairedAt IS NOT NULL')
+          .run(reservationId).changes > 0;
+      } catch {
+        return false;
+      }
     },
 
     // Dashboard alert (specs/site-booking-notifications.md §3 rule 5): site-origin devis still
