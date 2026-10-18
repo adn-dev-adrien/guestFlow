@@ -317,6 +317,10 @@ const api = {
   // Admin-only: guestFlow's address + both secrets, for the Sowel plugin's settings (§3.6 rule 29b).
   getGateConnectorSecrets: () => request('/settings/gate-connector/secrets'),
   getGateKeysAlerts: () => request('/dashboard/gate-keys'),
+  // Admin-only: the address and the key the WordPress plugin is given (specs/plugins-phase-2-hosts.md
+  // rules 30-31).
+  getWebsiteConnection: () => request('/settings/website-connection'),
+  regenerateWebsiteKey: () => request('/settings/website-connection/regenerate', { method: 'POST' }),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
   computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures }),

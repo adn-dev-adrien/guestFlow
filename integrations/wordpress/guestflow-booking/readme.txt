@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.14.0
+Stable tag: 1.15.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -22,10 +22,10 @@ Architecture : le navigateur ne parle qu'au **proxy PHP** du plugin (`/wp-json/g
 
 1. Installez et activez le plugin (Extensions → Ajouter → Téléverser).
 2. Réglages → GuestFlow : renseignez l'URL de l'API GuestFlow et la clé d'API.
-   * La clé est la valeur `PUBLIC_API_KEY` de GuestFlow (`server/.env.local`).
+   * Les deux valeurs se copient dans GuestFlow : Paramètres › Intégrations › Site internet.
    * Plus sûr : définissez-la dans `wp-config.php` via `define('GUESTFLOW_API_KEY', '…');` — elle prime alors sur le réglage et n'est pas stockée en base.
 3. Cliquez « Tester la connexion ».
-4. Ajoutez les blocs GuestFlow dans vos pages. Définissez éventuellement un logement et une page de réservation par défaut dans les réglages.
+4. Ajoutez les blocs GuestFlow dans vos pages. Le logement se choisit par son nom ; la page de réservation et celle des conditions générales sont trouvées d'elles-mêmes, ou créées depuis les réglages.
 
 == Frequently Asked Questions ==
 
@@ -36,6 +36,16 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.15.0 =
+* Réglages : le logement par défaut se choisit dans la liste des logements de GuestFlow ; la page de réservation et celle des conditions générales sont trouvées d'elles-mêmes (la page qui contient le bloc, celle qui contient `[guestflow_cgv]`) ou créées en un clic ; une page dont le bloc fixe un logement n'est jamais retenue comme page de réservation. Un reverse proxy du réseau local est reconnu sans réglage. Le test de connexion se lance à l'ouverture de la page et signale un module « Réservation depuis le site » inactif dans GuestFlow.
+* Accessibilité du moteur : chaque champ porte son libellé, les boutons − / + disent ce qu'ils comptent (« Ajouter : Adultes »), les jours du calendrier se lisent en entier (« vendredi 6 novembre 2026, indisponible ») et le devis, les indications et les erreurs sont annoncés.
+* Paiement en ligne : relancer un paiement échoué paie la même demande au lieu d'en créer une nouvelle, même après une correction du message ou du téléphone, et la référence de la demande s'affiche. Le retour du paiement affiche son suivi, y compris sur une page de réservation commune à tous les logements. Tant qu'aucun moyen de paiement n'est connecté dans GuestFlow, le bouton envoie une demande simple.
+* Sans conditions générales publiées alors que GuestFlow les exige, le formulaire annonce « Réservation en ligne fermée pour le moment. » au lieu de refuser la demande à la fin.
+* Mise en page : les champs restent dans leur cadre sur tous les thèmes (box-sizing propre aux blocs) ; dans un bloc étroit, l'e-mail et « Effacer » prennent une ligne entière.
+* Calendrier de disponibilités : jours de la semaine dans la langue de la page. Récapitulatif : « 1 nuit », « 3 nuits ». Sélecteur de langue des CGV en texte (FR, EN).
+* Un module « Réservation depuis le site » éteint dans GuestFlow affiche « Réservation temporairement indisponible. » plutôt qu'une erreur générique.
+* En-tête `Update URI` : WordPress ne demande plus de mise à jour à wordpress.org pour ce plugin.
 
 = 1.14.0 =
 * Origine des demandes : le plugin note d'où vient la visite (site référent, paramètres utm_*, page d'arrivée) dans la mémoire de l'onglet, sans cookie ni identifiant, et l'envoie avec la demande de réservation. GuestFlow en déduit le canal (recherche, réseaux sociaux, campagne, assistant IA…). Un site peut couper la capture avec le filtre `guestflow_booking_capture_attribution`.

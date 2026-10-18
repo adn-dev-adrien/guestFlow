@@ -65,6 +65,7 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   if (under(path, '/google-calendar/oauth')) return 'credentials';
   if (['/payments/qonto/authorize', '/payments/qonto/callback', '/payments/qonto/refresh-connection'].includes(path)) return 'credentials';
   if (under(path, '/settings/gate-connector/secrets')) return 'credentials';
+  if (under(path, '/settings/website-connection')) return 'credentials';
   if (isSecretRoute(method, path)) return 'credentials';
   // Rotating a property's iCal export token breaks the feed every platform imports; reading it hands
   // out the feed's address in clear, and creates the token on first read.

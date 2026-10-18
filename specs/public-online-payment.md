@@ -145,6 +145,16 @@ Let a website visitor **pay their full stay online** and have the reservation co
     link's authoritative paid state via `getPaymentLinkPayments` before applying the effect (same as the
     poll), so a forged-but-unsigned call can't confirm a booking even if the signature scheme changes.
 
+### Provider readiness on the quote (added 2026-10-18)
+
+12. **The quote says whether a payment can be taken now.** `POST /public/v1/quote` adds
+    `payment.onlineReady` (boolean, field added — the contract is otherwise unchanged): `true` while a
+    payment provider is connected (`paymentProviders.active()`). A booking block set to « payer en
+    ligne » reads it: while it is `false` the button reads « Envoyer la demande » and sends a plain
+    request, instead of creating a devis the payment would then fail on (the operator sends a payment
+    link later). A GuestFlow older than the field (no `onlineReady`) keeps the block's choice. A
+    payment that fails anyway is retried on the same devis (`specs/wordpress-plugin.md` rule 16).
+
 ## 4. Architecture
 
 ### 4.1 Server (`server/src/`)

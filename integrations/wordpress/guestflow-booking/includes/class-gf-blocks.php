@@ -86,7 +86,7 @@ final class GF_Blocks
             'restUrl'           => esc_url_raw(rest_url('guestflow/v1')),
             'nonce'             => wp_create_nonce('wp_rest'),
             'defaultPropertyId' => (int) $s->get('default_property_id', 0),
-            'bookingPageUrl'    => (string) $s->get('booking_page_url', ''),
+            'bookingPageUrl'    => $s->get_booking_page_url(),
             // specs/terms-acceptance-record.md rule 10 — the page the CGV checkbox links to.
             'cgvPageUrl'        => esc_url_raw($s->get_cgv_page_url()),
             'configured'        => $s->is_configured(),
@@ -103,7 +103,9 @@ final class GF_Blocks
                 'noAvailability'  => __('Aucune disponibilité sur cette période.', 'guestflow-booking'),
                 'blocked'         => __('Indisponible', 'guestflow-booking'),
                 'available'       => __('Disponible', 'guestflow-booking'),
-                'nights'          => __('nuit(s)', 'guestflow-booking'),
+                // Real plurals in the recap (specs/wordpress-plugin.md rule 22).
+                'night'           => __('nuit', 'guestflow-booking'),
+                'nights'          => __('nuits', 'guestflow-booking'),
                 'from'            => __('à partir de', 'guestflow-booking'),
                 'perNight'        => __('/ nuit', 'guestflow-booking'),
                 'adults'          => __('Adultes', 'guestflow-booking'),
@@ -198,6 +200,13 @@ final class GF_Blocks
                 'calPrevMonth'    => __('Mois précédent', 'guestflow-booking'),
                 'calNextMonth'    => __('Mois suivant', 'guestflow-booking'),
                 'honeypot'        => __('Ne pas remplir', 'guestflow-booking'),
+                // Stepper buttons, read by screen readers with the line they count (rule 15).
+                'stepAdd'         => __('Ajouter : %s', 'guestflow-booking'),
+                'stepRemove'      => __('Retirer : %s', 'guestflow-booking'),
+                // No CGV published while GuestFlow requires them (rule 21).
+                'bookingClosed'   => __('Réservation en ligne fermée pour le moment.', 'guestflow-booking'),
+                // A failed payment leaves the request recorded (rule 16).
+                'paymentRetry'    => __('Demande enregistrée (référence %s). Le paiement peut être relancé.', 'guestflow-booking'),
             ],
         ];
     }

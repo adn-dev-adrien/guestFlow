@@ -51,6 +51,12 @@ add_filter(
 		if ( is_admin() || 'guestflow/booking' !== ( $bloc['blockName'] ?? '' ) ) {
 			return $contenu;
 		}
+		// Hors des pages hebergement, ni la feuille ni le script du tiroir ne sont charges : un tiroir
+		// rendu la n'est qu'un bouton nu par-dessus un moteur que plus aucun clic n'atteint (revue
+		// 2026-10-18). Le moteur reste alors dans la page, tel que le plugin le rend.
+		if ( ! gf_resa_page_concernee() ) {
+			return $contenu;
+		}
 		// Retour de la page de paiement Qonto (?gf_payment=…) : le moteur affiche sa vue de
 		// confirmation, qui doit vivre dans la page — pas dans un tiroir fermé et invisible.
 		if ( isset( $_GET['gf_payment'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -250,6 +256,13 @@ add_action(
    de leur texte. On leur rend une largeur de base, et le bouton d'effacement garde la sienne. */
 .gf-resa-etape .gf-row > .gf-field { flex: 1 1 150px; }
 .gf-resa-etape .gf-row > .gf-field-clear { flex: 0 0 auto; }
+/* Le tiroir est etroit sur un telephone : l'e-mail tient sur sa propre ligne (sinon il est coupe a
+   mi-adresse), et « Effacer » aussi, plutot que de tomber dans la ligne des horaires. */
+.gf-resa-etape .gf-row > .gf-field-email { flex-basis: 100%; }
+@media (max-width: 600px) {
+	.gf-resa-etape .gf-row > .gf-field-clear { flex-basis: 100%; }
+	.gf-resa-etape .gf-dates-clear { width: 100%; }
+}
 .gf-resa-consigne { margin: 0 0 14px; color: #7d8a6f; font-size: .9rem; }
 /* Conteneur d'origine du moteur, vide une fois ses blocs repartis. */
 .gf-resa-corps > .gf-booking-block:empty { display: none; }
@@ -475,7 +488,12 @@ CSS;
 		if ( assurance && ! assurance.querySelector( '.gf-resa-notice-lien' ) ) {
 			var lien = document.createElement( 'p' );
 			lien.className = 'gf-resa-notice-lien';
-			lien.innerHTML = '<a href="/wp-content/uploads/2026/09/notice-assurance-annulation-neat.pdf" target="_blank" rel="noopener">Consulter la notice d\u2019assurance (PDF)</a>';
+			var a = document.createElement( 'a' );
+			a.href = '/wp-content/uploads/2026/09/notice-assurance-annulation-neat.pdf';
+			a.target = '_blank';
+			a.rel = 'noopener';
+			a.textContent = T.notice || 'Consulter la notice d\u2019assurance (PDF)';
+			lien.appendChild( a );
 			assurance.appendChild( lien );
 		}
 
@@ -526,6 +544,10 @@ CSS;
 		sw.className = 'gf-resa-switch';
 		sw.innerHTML = '<input type="checkbox" /><span class="gf-resa-switch-piste"><span class="gf-resa-switch-curseur"></span></span>';
 		var box = sw.querySelector( 'input' );
+		// L'interrupteur remplace le compteur : il en reprend le nom, sinon un lecteur d'ecran
+		// n'annonce qu'une case a cocher anonyme.
+		var titre = ligne.querySelector( '.gf-line-title' );
+		if ( titre ) { box.setAttribute( 'aria-label', ( titre.firstElementChild || titre ).textContent.trim() ); }
 		var val = function () { return parseInt( step.querySelector( '.gf-step-val' ).textContent, 10 ) || 0; };
 		box.checked = val() > 0;
 		box.addEventListener( 'change', function () {
@@ -801,6 +823,7 @@ JS;
 			'session'   => $lbl2( 'resa_la_session', 'la session' ),
 			'degressif' => $lbl2( 'resa_tarif_degressif', 'tarif dégressif' ),
 			'parPersonne' => $lbl2( 'resa_par_personne', 'par personne' ),
+			'notice'      => $lbl2( 'resa_notice_assurance', 'Consulter la notice d’assurance (PDF)' ),
 		);
 		wp_add_inline_script( 'gf-resa', 'window.GF_RESA_T = ' . wp_json_encode( $t ) . ";\n" . $js );
 	},

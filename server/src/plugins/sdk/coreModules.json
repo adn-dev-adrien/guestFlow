@@ -451,6 +451,12 @@
     "globalVatRate",
     "resolvePublicPaymentMode"
   ],
+  "paymentProviders": [
+    "NO_PROVIDER",
+    "active",
+    "declared",
+    "summary"
+  ],
   "attributionChannel": [
     "CHANNEL_LABELS",
     "UNKNOWN_LABEL",
