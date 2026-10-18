@@ -245,12 +245,12 @@ export default function VersionsPage() {
                     <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{pl.runningLabel}</Typography>
                   </Box>
                   {pl.versions.length === 0 ? (
-                    <Typography variant="caption" color="text.secondary">Aucune version au registre.</Typography>
+                    <Typography variant="caption" color="text.secondary">Aucune version plus récente au registre.</Typography>
                   ) : (
                     <>
                       <TextField select size="small" label="Version" value={pluginVersion(pl)} sx={{ minWidth: 120 }}
                         onChange={(e) => setPluginVersions((v) => ({ ...v, [pl.id]: e.target.value }))}>
-                        {pl.versions.map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+                        {pl.versions.map((v) => <MenuItem key={v.version} value={v.version}>{v.label}</MenuItem>)}
                       </TextField>
                       <Button variant="outlined" sx={{ minHeight: 44 }} disabled={!pluginVersion(pl) || Boolean(data.running)}
                         onClick={() => push(pl, pluginVersion(pl))}>

@@ -118,6 +118,9 @@ These are the recommended options, taken under the owner's instruction to run th
       records the update in its `plugins` row; restart; the health check asks
       `/api/version?plugin=<id>` that the plugin loaded at that version. A failure puts the
       snapshot's database back, `--sync` makes `current` follow the row again, and the push stops.
+    - *Amended 2026-10-18 (second review of PR #701):* only instances whose version is older than
+      the pushed one are reached — never a downgrade (rule 30); a version that rolled back is never
+      the default (rule 31); the health check carries the instance's proxy secret (rule 33).
 
 ### 3.D Backups
 
@@ -244,6 +247,24 @@ These are the recommended options, taken under the owner's instruction to run th
     then health-checked, as the step « Processus redémarré » (retried from the step when it fails).
     A host alert about a customer links to that customer's page, on the home page and in the
     operators' email.
+30. **A plugin push never downgrades** (added 2026-10-18, second review of PR #701). As on the
+    instance (« Mettre à jour » accepts only a newer version), the push reaches only the instances
+    whose version is older than the pushed one; a version older than or equal to what every instance
+    runs is refused (400 `NOT_NEWER`). « Versions › Plugins » offers only the registry's versions
+    newer than the oldest one running (« Aucune version plus récente au registre. » otherwise). The
+    instance's `switch-plugin-package.js` refuses one too (exit 5), unless the installed package
+    cannot run on its release (phase 4 rule 14): a plugin's migrations only move forward.
+31. **A plugin version that failed is never the default.** A version that a push had to roll back
+    and that no instance runs reads « — en échec » in the list; the default is the newest that did
+    not fail. A version that answers but failed to load says so at once — « plugin linen 1.0.3 :
+    chargement en échec » — without waiting out the 60 s.
+32. **« Réinitialiser l'accès » ends the account's sessions.** Every reissue (rule 24) deletes the
+    account's live sessions, like an admin's reset from the Users page (audit AUTH-1).
+33. **`/api/version` says which plugin loaded only to the console.** The endpoint stays public, but
+    `?plugin=<id>` is answered only for a request carrying the instance's proxy secret in
+    `x-guestflow-health` (which Caddy never adds) — or, without a secret (self-hosted, development),
+    one from the machine itself. Anyone else gets no plugin field: the endpoint never tells what is
+    installed.
 
 ---
 
@@ -269,7 +290,7 @@ These are the recommended options, taken under the owner's instruction to run th
 | `scripts/` | `dev-release.js` | C | A release directory built from the checkout, for development and the integration test |
 | `utils/` | `pluginInstaller.js` | C | Rule 11: the registry's published versions, and the instance's own switch script run on a package (install, `--sync` after a rollback) |
 | `controllers/` | `customersController.js` | T | Rules 24, 25, 29: re-sent invitation, « Renvoyer l'invitation », « Réinitialiser l'accès », the establishment seed, « Redémarrer » |
-| `controllers/` | `fleetController.js`, `alertsController.js` | T | Rule 28: failed releases and the default target; rule 11: the plugin block; rule 29: alert links |
+| `controllers/` | `fleetController.js`, `alertsController.js` | T | Rule 28: failed releases and the default target; rule 11: the plugin block, newer versions only and failed ones marked (rules 30–31); rule 29: alert links |
 | `utils/` | `instanceEnv.js`, `provisioner.js`, `drivers/index.js`, `drivers/backup-litestream.js`, `drivers/process-systemd.js`, `health.js` | T | Rules 25, 27, 29, 11: public and registry URLs in the env, the derived rclone remote, `reset-failed`, the plugin health check |
 
 ### 4.2 Instance (`server/src/`)
@@ -281,8 +302,9 @@ These are the recommended options, taken under the owner's instruction to run th
 | `utils/` | `platformMail.js` | C | The platform sender's settings, the day's counter file `<data>/platform-mail.json`, the local outbox |
 | `utils/` | `instancePaths.js` | C | `GUESTFLOW_UPLOADS_DIR`, `GUESTFLOW_LOCAL_ENV`: an instance's own files live outside the shared release (H-D4) |
 | `utils/` | `settingsResponse.js`, `models/settingsModel.js` | T | The `smtp.platform` block (rule 19); `smtpConfigured()` true when the platform sends |
-| `index.js` | — | T | `/api/version` carries `version` (rule 10's check); `GUESTFLOW_TLS_UPSTREAM`, `GUESTFLOW_LISTEN_HOST` behind Caddy; `?plugin=<id>` adds that plugin's loaded version (rule 11) |
-| `scripts/` | `create-first-admin.js`, `switch-plugin-package.js` (C) | T | `--company`, `--establishment`, `--reissue` (rules 24–25); the pushed package switched, or `current` synced (rule 11) |
+| `index.js` | — | T | `GUESTFLOW_TLS_UPSTREAM`, `GUESTFLOW_LISTEN_HOST` behind Caddy; mounts `/api/version` |
+| `controllers/` | `versionController.js` (C) | C | `/api/version` carries `version` (rule 10's check); `?plugin=<id>` adds that plugin's loaded version (rule 11), only for the console (rule 33) |
+| `scripts/` | `create-first-admin.js`, `switch-plugin-package.js` (C) | T | `--company`, `--establishment`, `--reissue` (rules 24–25), sessions revoked on a reissue (rule 32); the pushed package switched, never downgraded (rule 30), or `current` synced (rule 11) |
 | `utils/` | `firstAdmin.js` | T | `reissue` and `seedEstablishment` (rules 24–25) |
 | `plugins/` | `packageStore.js`, `host.js` | T | `installFile` (a package handed over on disk), `pluginHealth` (rule 11) |
 | `models/` | `settingsModel.js`; `utils/settingsResponse.js` | T | `publicUrl()` falls back to `GUESTFLOW_PUBLIC_URL`; `smtp.derived.publicUrl` (rule 25) |
@@ -359,7 +381,8 @@ Mobile: the fleet table becomes cards, and the step list stays vertical.
 - restore check;
 - (2026-10-18) invitation re-sent and access reset (24), env and seed (25), bootstrap key and
   derived rclone remote (26–27), failed release not the default (28), process restart and alert
-  links (29), plugin push with health check and rollback (11).
+  links (29), plugin push with health check and rollback (11), never a downgrade (30), failed
+  plugin version not the default (31).
 
 **Instance unit tests:**
 - 403 on a managed instance;
@@ -498,6 +521,9 @@ rule 11 wired. Tests: control plane `hosting-access-recovery` (5), `hosting-inst
 `hosting-plugin-push` (5); instance `hosting-instance-seed` (5), `hosting-plugin-push` (3); console
 client `CustomerPage.access` (5), `VersionsPage.default-target` (2), `VersionsPage.plugin-push` (2);
 instance client `SystemSettingsPage.public-url` (2).
+
+**Second review of PR #701 (2026-10-18):** rules 30–33 appended. Tests: control plane
+`hosting-plugin-push` (6); instance `hosting-plugin-push` (5), `hosting-instance-seed` (6).
 
 **Left to the owner**: §8, and the host runbook `deploy/hosting/README.md`. Not exercised against a
 real host: systemd, Caddy, Litestream and rclone are covered by their generated files and command

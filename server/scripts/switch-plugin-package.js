@@ -18,6 +18,9 @@
  * After a rollback (the console put the snapshot's database back): `current` follows the row again,
  * and goes when the row is back to the package its release ships.
  *
+ * Like « Mettre à jour » on the instance, only a newer version is accepted — an older one only when
+ * the installed package cannot run on this release (rule 14): a plugin's migrations only move forward.
+ *
  * Prints one JSON line: { switched, from: { version, source }, to } or { synced, version }.
  * Exit codes: 2 usage, 4 plugin not installed, 5 package refused.
  */
@@ -59,6 +62,20 @@ async function main() {
     return;
   }
   const version = arg('version');
+  const { rangeRefusal } = require('../src/utils/pluginOffers');
+  const { getAppVersion } = require('../src/utils/appVersion');
+  const { SDK_VERSION } = require('../src/plugins/sdk/version');
+  const { isNewerVersion, isValidVersion } = require('../src/utils/semver');
+  let hostExports = null;
+  try { hostExports = JSON.parse(fs.readFileSync(path.join(store.distDir, 'hostModules.json'), 'utf8')); } catch { hostExports = null; }
+  const ranges = { coreVersion: getAppVersion(), sdkVersion: SDK_VERSION, hostExports };
+  if (isValidVersion(row.version) && !isNewerVersion(version, row.version)) {
+    const incompatible = Boolean(row.manifest && rangeRefusal(row.manifest, ranges));
+    if (version === row.version || !incompatible) {
+      console.error(`${id} ${version} : version antérieure ou égale à ${row.version}, refusée.`);
+      process.exit(5);
+    }
+  }
   let pkg;
   try {
     pkg = await store.installFile({ id, version, file: arg('file'), sha256: arg('sha256') });
@@ -66,12 +83,7 @@ async function main() {
     console.error(`Paquet refusé : ${err.message}`);
     process.exit(5);
   }
-  const { rangeRefusal } = require('../src/utils/pluginOffers');
-  const { getAppVersion } = require('../src/utils/appVersion');
-  const { SDK_VERSION } = require('../src/plugins/sdk/version');
-  let hostExports = null;
-  try { hostExports = JSON.parse(fs.readFileSync(path.join(store.distDir, 'hostModules.json'), 'utf8')); } catch { hostExports = null; }
-  const refusal = rangeRefusal(pkg.manifest, { coreVersion: getAppVersion(), sdkVersion: SDK_VERSION, hostExports });
+  const refusal = rangeRefusal(pkg.manifest, ranges);
   if (refusal) {
     store.prune(id, [row.version, row.previousVersion].filter(Boolean));
     console.error(`${id} ${version} : ${refusal.message}`);

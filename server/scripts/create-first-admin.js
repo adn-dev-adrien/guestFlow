@@ -94,6 +94,7 @@ try {
   const usersModel = require('../src/models/usersModel');
   const settingsModel = require('../src/models/settingsModel');
   const twoFactorModel = require('../src/models/twoFactorModel').default;
+  const sessionsModel = require('../src/models/sessionsModel');
   const { generateTemporaryPassword } = require('../src/utils/passwordGenerator');
   const { createFirstAdmin, seedEstablishment } = require('../src/utils/firstAdmin');
   let establishment = null;
@@ -106,7 +107,7 @@ try {
     }
   }
   const result = createFirstAdmin({
-    usersModel, twoFactorModel, generatePassword: () => generateTemporaryPassword(), email, name: arg('name'),
+    usersModel, twoFactorModel, sessionsModel, generatePassword: () => generateTemporaryPassword(), email, name: arg('name'),
     companyName: arg('company') || '', reissue: arg('reissue') || 'never',
   });
   const seeded = establishment ? seedEstablishment({ settingsModel, establishment }) : [];

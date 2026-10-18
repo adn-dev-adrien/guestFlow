@@ -60,19 +60,22 @@ test('rule 11 — the script’s last JSON line is its answer; its last stderr l
   }
 });
 
-test('rule 11 — the health check waits for the plugin at the pushed version and says why it failed', async () => {
+test('rules 11, 31 — the health check waits for the plugin at the pushed version and says why it failed', async () => {
   const answer = (plugin) => async (url) => {
     assert.match(url, /\?plugin=linen$/);
     return { ok: true, status: 200, json: async () => ({ version: '3.10.1', plugin }) };
   };
   const base = { url: 'http://x/api/version', expectVersion: '3.10.1', expectPlugin: { id: 'linen', version: '1.0.2' }, timeoutMs: 60, intervalMs: 10 };
   assert.equal((await waitHealthy({ ...base, fetchImpl: answer({ id: 'linen', version: '1.0.2', ok: true }) })).ok, true);
-  assert.equal((await waitHealthy({ ...base, fetchImpl: answer({ id: 'linen', version: '1.0.2', ok: false }) })).error, 'plugin linen en échec en 1.0.2 au lieu de 1.0.2');
+  // The pushed version failed to load: said at once, without waiting out the delay.
+  const t0 = Date.now();
+  assert.equal((await waitHealthy({ ...base, timeoutMs: 5000, fetchImpl: answer({ id: 'linen', version: '1.0.2', ok: false }) })).error, 'plugin linen 1.0.2 : chargement en échec');
+  assert.ok(Date.now() - t0 < 1000, 'no wait');
   assert.equal((await waitHealthy({ ...base, fetchImpl: answer({ id: 'linen', version: '1.0.1', ok: true }) })).error, 'plugin linen chargé en 1.0.1 au lieu de 1.0.2');
   assert.equal((await waitHealthy({ ...base, fetchImpl: answer({ id: 'linen', version: null, ok: false }) })).error, 'plugin linen non chargé au lieu de 1.0.2');
 });
 
-test('rule 11 — a pushed version that does not load is rolled back on that instance and the push stops', async () => {
+test('rules 11, 31 — a pushed version that does not load is rolled back on that instance and the push stops', async () => {
   let h;
   const calls = [];
   const installer = {
@@ -88,17 +91,57 @@ test('rule 11 — a pushed version that does not load is rolled back on that ins
     const a = await customers.create(NEW_CUSTOMER, 'op');
     await customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'jo@moulin.fr' }, 'op');
     const plugin = fleet.view().pluginPush.plugins[0];
-    assert.deepEqual([plugin.id, plugin.name, plugin.count, plugin.versions, plugin.defaultVersion], ['linen', 'Linge et blanchisserie', 2, ['1.0.2', '1.0.1'], '1.0.2']);
+    assert.deepEqual([plugin.id, plugin.name, plugin.count, plugin.versions.map((v) => v.version), plugin.defaultVersion], ['linen', 'Linge et blanchisserie', 2, ['1.0.2', '1.0.1'], '1.0.2']);
     h.host.brokenPlugins.add('linen@1.0.2');
     fleet.pushPlugin({ pluginId: 'linen', version: '1.0.2' }, 'op');
     await h.ctx.fleetUpdater.whenIdle();
     const [u] = fleet.view().history;
     assert.equal(u.state, 'failed');
     assert.deepEqual(u.items.map((i) => i.state), ['rolled_back', 'skipped']);
-    assert.match(u.items[0].detail, /^plugin linen en échec en 1\.0\.2 au lieu de 1\.0\.2 ; retour en linen précédent, base de l’instantané remise\.$/);
+    assert.match(u.items[0].detail, /^plugin linen 1\.0\.2 : chargement en échec ; retour en linen précédent, base de l’instantané remise\.$/);
     assert.deepEqual(calls, [['install', 'aulnes', '1.0.2'], ['rollback', 'aulnes']]);
     assert.ok(customers.view(a.id).history.some((x) => x.text.startsWith('Plugin linen : mise à jour vers 1.0.2 annulée')));
     assert.throws(() => fleet.pushPlugin({ pluginId: 'linen', version: '9.9.9' }, 'op'), (e) => e.status === 400 && e.body.error === 'NOT_PUBLISHED');
+    // The version that just rolled back is « En échec » and no longer the default (as m1 for releases).
+    const after = fleet.view().pluginPush.plugins[0];
+    assert.deepEqual(after.versions, [
+      { version: '1.0.2', failed: true, label: '1.0.2 — en échec' },
+      { version: '1.0.1', failed: false, label: '1.0.1' },
+    ]);
+    assert.equal(after.defaultVersion, '1.0.1');
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rules 11, 30 — never a downgrade: only newer versions are offered and pushed, an older one is refused', async () => {
+  const calls = [];
+  const installer = {
+    async install(inst, id, version) { calls.push(['install', inst.slug, version]); h.host.loaded.set(inst.slug, { [id]: version }); },
+    async rollback() {},
+    published: () => ['1.0.3', '1.0.2', '1.0.1', '1.0.0'],
+  };
+  const h = makeContext({ pluginInstaller: installer, hostingEnv: { CP_HEALTH_TIMEOUT_MS: '100' } });
+  try {
+    const { customers, fleet } = h.ctx.controllers;
+    makeInstance(h.root, 'aulnes', { installed: ['linen'], versions: { linen: '1.0.1' } });
+    makeInstance(h.root, 'moulin', { installed: ['linen'], versions: { linen: '1.0.2' } });
+    await customers.create(NEW_CUSTOMER, 'op');
+    await customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'jo@moulin.fr' }, 'op');
+    const plugin = fleet.view().pluginPush.plugins[0];
+    assert.deepEqual(plugin.versions.map((v) => v.version), ['1.0.3', '1.0.2'], 'newer than the oldest running only');
+    assert.equal(plugin.defaultVersion, '1.0.3');
+    assert.throws(() => fleet.pushPlugin({ pluginId: 'linen', version: '1.0.0' }, 'op'), (e) => e.status === 400 && e.body.error === 'NOT_NEWER');
+    assert.throws(() => fleet.pushPlugin({ pluginId: 'linen', version: '1.0.1' }, 'op'), (e) => e.status === 400 && e.body.error === 'NOT_NEWER');
+    fleet.pushPlugin({ pluginId: 'linen', version: '1.0.2' }, 'op');
+    await h.ctx.fleetUpdater.whenIdle();
+    assert.deepEqual(calls, [['install', 'aulnes', '1.0.2']], 'moulin already runs 1.0.2: left alone');
+    // The health check asked for the plugin with the instance's own proxy secret.
+    const { readEnv } = require('../utils/instanceEnv');
+    const secret = readEnv(h.ctx.instances.envFileOf('aulnes')).GUESTFLOW_PROXY_SECRET;
+    assert.ok(secret);
+    assert.deepEqual(h.host.healthHeaders, [['aulnes', secret]]);
+    assert.deepEqual(fleet.view().history[0].items.map((i) => i.customerId), [1]);
   } finally {
     h.cleanup();
   }
@@ -121,7 +164,7 @@ test('rule 11 — wired by default: the console’s registry gives the versions 
     await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
     const { pluginPush } = h.ctx.controllers.fleet.view();
     assert.equal(pluginPush.available, true);
-    assert.deepEqual(pluginPush.plugins.map((p) => [p.id, p.versions]), [['linen', ['1.0.2']]]);
+    assert.deepEqual(pluginPush.plugins.map((p) => [p.id, p.versions.map((v) => v.version)]), [['linen', ['1.0.2']]]);
     assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), h.ctx.registry.list()[0].sha256);
     fs.rmSync(dir, { recursive: true, force: true });
   } finally {

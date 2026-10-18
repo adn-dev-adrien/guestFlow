@@ -21,6 +21,8 @@ const { backupTo, removeDatabaseFiles } = require('./sqliteBackup');
 const { assertInside, shareDatabase } = require('./instanceFiles');
 const { waitHealthy } = require('./health');
 const { httpError } = require('./httpError');
+const { semver, proxySecret } = require('./gf');
+const { readEnv } = require('./instanceEnv');
 
 const KEEP_SNAPSHOTS = 3;
 const PHASES = { snapshot: 'Instantané de la base', switch: 'Bascule de version', restart: 'Redémarrage', health: 'Contrôle de santé' };
@@ -57,8 +59,11 @@ function createFleetUpdater({
   // A process that has already exited is not waited for 60 s. `expect` = { version, plugin }.
   async function healthy(inst, expect) {
     const gone = async () => ((await drivers.process.state(inst)) === 'failed' ? 'le processus s’est arrêté au démarrage' : null);
+    // The instance says which plugin version loaded only to a request carrying its proxy secret.
+    const secret = expect.plugin && inst.envFile ? (readEnv(inst.envFile) || {}).GUESTFLOW_PROXY_SECRET : null;
     return waitHealthy({
-      url: drivers.proxy.healthUrl(inst), expectVersion: expect.version, expectPlugin: expect.plugin || null, timeoutMs: healthTimeoutMs, fetchImpl, gone,
+      url: drivers.proxy.healthUrl(inst), headers: secret ? { [proxySecret.HEALTH_HEADER]: secret } : undefined,
+      expectVersion: expect.version, expectPlugin: expect.plugin || null, timeoutMs: healthTimeoutMs, fetchImpl, gone,
     });
   }
 
@@ -193,9 +198,15 @@ function createFleetUpdater({
     if (kind === 'plugin') {
       if (!pluginInstaller) throw httpError(412, 'NO_REGISTRY', 'Disponible avec le registre des plugins.');
       if (!pluginInstaller.published(pluginId).includes(targetVersion)) throw httpError(400, 'NOT_PUBLISHED', `${pluginId} ${targetVersion} n’est pas publié dans le registre.`);
-      targets = eligible(customerIds)
+      // Never a downgrade, as on the instance (its own script refuses one too): a plugin's migrations
+      // only move forward. An instance whose version is unknown is left to that script.
+      const having = eligible(customerIds)
         .map((t) => ({ ...t, from: (installedPlugins(t.c) || {})[pluginId] }))
-        .filter((t) => t.from !== undefined && t.from !== targetVersion);
+        .filter((t) => t.from !== undefined);
+      targets = having.filter((t) => !semver.isValidVersion(t.from) || semver.isNewerVersion(targetVersion, t.from));
+      if (having.length && !targets.length && having.some((t) => t.from !== targetVersion)) {
+        throw httpError(400, 'NOT_NEWER', `${pluginId} ${targetVersion} : version antérieure à celle des instances.`);
+      }
     } else {
       if (!releases.has(targetVersion)) throw httpError(400, 'NOT_INSTALLED', `La version ${targetVersion} n’est pas installée sur l’hôte.`);
       targets = eligible(customerIds).filter(({ row }) => row.version !== targetVersion);

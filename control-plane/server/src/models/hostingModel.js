@@ -27,6 +27,8 @@ function buildHostingModel(db) {
   const recentUpdatesStmt = db.prepare('SELECT * FROM fleet_updates ORDER BY id DESC LIMIT ?');
   const rolledBackTargetsStmt = db.prepare(`SELECT DISTINCT u.target_version AS version FROM fleet_updates u
     JOIN fleet_update_items i ON i.update_id = u.id WHERE u.kind = 'release' AND i.state = 'rolled_back'`);
+  const rolledBackPluginTargetsStmt = db.prepare(`SELECT DISTINCT u.plugin_id AS id, u.target_version AS version FROM fleet_updates u
+    JOIN fleet_update_items i ON i.update_id = u.id WHERE u.kind = 'plugin' AND i.state = 'rolled_back'`);
   const skipRestStmt = db.prepare("UPDATE fleet_update_items SET state = 'skipped', detail = ? WHERE update_id = ? AND state = 'pending'");
 
   const insertCheckStmt = db.prepare('INSERT INTO backup_checks (customer_id, at, ok, reservations, detail) VALUES (?, ?, ?, ?, ?)');
@@ -84,6 +86,8 @@ function buildHostingModel(db) {
     recentUpdates: (limit = 10) => recentUpdatesStmt.all(limit),
     // The releases an update had to roll back somewhere (H1 rule 28).
     rolledBackTargets: () => new Set(rolledBackTargetsStmt.all().map((r) => r.version)),
+    // The plugin versions a push had to roll back somewhere, as `id@version` (H1 rule 11).
+    rolledBackPluginTargets: () => new Set(rolledBackPluginTargetsStmt.all().map((r) => `${r.id}@${r.version}`)),
 
     addCheck: ({ customerId, at, ok, reservations = null, detail = '' }) => insertCheckStmt.run(customerId, at, ok ? 1 : 0, reservations, detail),
     lastCheck: (customerId) => lastCheckStmt.get(customerId) || null,

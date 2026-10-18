@@ -262,21 +262,15 @@ pluginLoader.mountApi(app);
 // for it to change to know the restart happened (specs/plugins-phase-4-registry.md rule 13).
 const PROCESS_STARTED_AT = new Date().toISOString();
 
-app.get('/api/version', (req, res) => {
-  res.json({
-    // The console's health check reads it to prove the expected release came up
-    // (specs/hosting-h1-fleet-runtime.md rule 10).
-    version: require('./utils/appVersion').getAppVersion(),
-    env: process.env.NODE_ENV || 'development',
-    commitSha: commitSha || null,
-    commitShaShort,
-    startedAt: PROCESS_STARTED_AT,
-    // A plugin version the console pushed (specs/hosting-h1-fleet-runtime.md rule 11): its health
-    // check asks whether it loaded. Only the asked id, never the list of installed plugins.
-    ...(/^[a-z][a-z0-9-]{1,40}$/.test(String(req.query.plugin || ''))
-      ? { plugin: require('./plugins/host').pluginHealth(String(req.query.plugin)) } : {}),
-  });
-});
+app.get('/api/version', require('./controllers/versionController').buildVersionHandler({
+  getVersion: () => require('./utils/appVersion').getAppVersion(),
+  pluginHealth: (id) => require('./plugins/host').pluginHealth(id),
+  secret: process.env.GUESTFLOW_PROXY_SECRET || null,
+  env: process.env.NODE_ENV,
+  commitSha,
+  commitShaShort,
+  startedAt: PROCESS_STARTED_AT,
+}));
 
 // Dynamic favicon: when the admin has uploaded a company logo via Settings, serve that as the
 // favicon on `/favicon.ico` and `/favicon.svg`. Falls through (next()) to the static middleware

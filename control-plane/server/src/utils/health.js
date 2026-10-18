@@ -4,11 +4,11 @@
  * or the time is up.
  */
 
-async function probeOnce({ url, fetchImpl = fetch, timeoutMs = 5000 }) {
+async function probeOnce({ url, fetchImpl = fetch, timeoutMs = 5000, headers = undefined }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetchImpl(url, { signal: controller.signal, redirect: 'manual' });
+    const res = await fetchImpl(url, { signal: controller.signal, redirect: 'manual', ...(headers ? { headers } : {}) });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     const body = await res.json().catch(() => ({}));
     return { ok: true, version: body.version || null, plugin: body.plugin || null };
@@ -25,15 +25,23 @@ function pluginReady(last, expectPlugin) {
   return Boolean(last.plugin && last.plugin.ok && last.plugin.version === expectPlugin.version);
 }
 
+function loadFailed(last, expectPlugin) {
+  return Boolean(expectPlugin && last.ok && last.plugin && last.plugin.version === expectPlugin.version && !last.plugin.ok);
+}
+const failedLoad = (expectPlugin) => `plugin ${expectPlugin.id} ${expectPlugin.version} : chargement en échec`;
+
 // `gone()` → a reason when waiting is pointless (the process has exited), else null.
-// `expectPlugin` = { id, version }: `/api/version?plugin=<id>` must say it loaded at that version.
-async function waitHealthy({ url, expectVersion = null, expectPlugin = null, timeoutMs = 60000, intervalMs = Math.min(1000, Math.max(50, timeoutMs / 10)), fetchImpl = fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), gone = async () => null }) {
+// `expectPlugin` = { id, version }: `/api/version?plugin=<id>` must say it loaded at that version;
+// the instance answers that only with its proxy secret in `headers` (`x-guestflow-health`).
+async function waitHealthy({ url, headers = undefined, expectVersion = null, expectPlugin = null, timeoutMs = 60000, intervalMs = Math.min(1000, Math.max(50, timeoutMs / 10)), fetchImpl = fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), gone = async () => null }) {
   const deadline = Date.now() + timeoutMs;
   let last = { ok: false, error: 'pas de réponse' };
   const target = expectPlugin ? `${url}${url.includes('?') ? '&' : '?'}plugin=${encodeURIComponent(expectPlugin.id)}` : url;
   for (;;) {
-    last = await probeOnce({ url: target, fetchImpl, timeoutMs: Math.min(5000, timeoutMs) });
+    last = await probeOnce({ url: target, fetchImpl, headers, timeoutMs: Math.min(5000, timeoutMs) });
     if (last.ok && (!expectVersion || last.version === expectVersion) && pluginReady(last, expectPlugin)) return last;
+    // The pushed version is there and failed to load: waiting longer changes nothing.
+    if (loadFailed(last, expectPlugin)) return { ok: false, version: last.version, error: failedLoad(expectPlugin) };
     const reason = last.ok ? null : await gone().catch(() => null);
     if (reason) return { ok: false, error: reason };
     if (Date.now() >= deadline) break;

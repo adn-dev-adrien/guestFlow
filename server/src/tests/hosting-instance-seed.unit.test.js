@@ -66,6 +66,29 @@ test('rule 24 — `always` resets any account and turns its second step off, rec
   assert.deepEqual(events, [['disable', 5], ['disabled_by_script', 5, 'console']]);
 });
 
+test('rules 24, 32 — a reissue ends every live session of the account, like an admin reset (AUTH-1)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-seed-sess-'));
+  const dbPath = path.join(dir, 'guestflow.db');
+  try {
+    run(dbPath, ['--email', 'marc@pins.fr', '--name', 'Marc']);
+    let db = new Database(dbPath);
+    const { id } = db.prepare("SELECT id FROM users WHERE email = 'marc@pins.fr'").get();
+    const add = db.prepare("INSERT INTO sessions (sid, sess, expire) VALUES (?, ?, '2099-01-01T00:00:00Z')");
+    add.run('a', JSON.stringify({ user: { id } }));
+    add.run('b', JSON.stringify({ user: { id } }));
+    add.run('other', JSON.stringify({ user: { id: id + 100 } }));
+    db.exec("UPDATE users SET lastLoginAt = '2026-10-17 10:00:00', mustChangePassword = 0 WHERE email = 'marc@pins.fr'");
+    db.close();
+    const r = run(dbPath, ['--email', 'marc@pins.fr', '--name', 'Marc', '--reissue', 'always']);
+    assert.ok(r.temporaryPassword);
+    db = new Database(dbPath, { readonly: true });
+    assert.deepEqual(db.prepare('SELECT sid FROM sessions ORDER BY sid').all().map((x) => x.sid), ['other']);
+    db.close();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('rule 25 — the establishment is filled one empty field at a time, never over what was typed', () => {
   let row = { companyName: '', companyEmail: 'deja@saisi.fr', companyAddress: '', companyPhone: '', companyTva: '' };
   const settingsModel = { read: () => row, upsert: (p) => { row = { ...row, ...p }; } };

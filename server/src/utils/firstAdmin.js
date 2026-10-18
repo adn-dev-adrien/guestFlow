@@ -8,7 +8,8 @@
  *   console asks for a new provisional password (`reissue`, specs/hosting-h1-fleet-runtime.md
  *   rule 24): `unused` gives one to an account nobody ever signed in to (an invitation that never
  *   arrived), `always` to any account (« Réinitialiser l'accès »), whose second step is also turned
- *   off and recorded in the account's history.
+ *   off and recorded in the account's history. A reissue ends every live session of the account,
+ *   like an admin's reset from the Users page (2026-10-08 audit AUTH-1).
  * - The seeded bootstrap account (`admin@guestflow.local` with its documented password) is removed
  *   once the real admin exists, as long as nobody ever logged in with it: on a hosted instance a
  *   well-known password must not stay open.
@@ -28,12 +29,13 @@ function splitName(name) {
 
 const neverUsed = (user) => user.lastLoginAt == null && Boolean(user.mustChangePassword);
 
-function reissueFor(user, { usersModel, twoFactorModel, generatePassword, reissue, now }) {
+function reissueFor(user, { usersModel, twoFactorModel, sessionsModel, generatePassword, reissue, now }) {
   if (reissue === 'never') return { created: false, temporaryPassword: null, removedBootstrap: false };
   const used = !neverUsed(user);
   if (reissue === 'unused' && used) return { created: false, temporaryPassword: null, removedBootstrap: false, reissued: false, used };
   const temporaryPassword = generatePassword();
   usersModel.resetUserPassword(user.id, temporaryPassword);
+  if (sessionsModel) sessionsModel.revokeAllForUser(user.id);
   let secondStepOff = false;
   if (reissue === 'always' && twoFactorModel && twoFactorModel.isEnabled(user.id)) {
     twoFactorModel.disable(user.id);
@@ -44,11 +46,11 @@ function reissueFor(user, { usersModel, twoFactorModel, generatePassword, reissu
 }
 
 function createFirstAdmin({
-  usersModel, twoFactorModel = null, generatePassword, email, name, companyName = '', reissue = 'never', now = () => new Date(),
+  usersModel, twoFactorModel = null, sessionsModel = null, generatePassword, email, name, companyName = '', reissue = 'never', now = () => new Date(),
 }) {
   if (!REISSUE.includes(reissue)) throw new Error(`reissue: ${reissue}`);
   const existing = usersModel.findByEmail(email);
-  if (existing) return reissueFor(existing, { usersModel, twoFactorModel, generatePassword, reissue, now });
+  if (existing) return reissueFor(existing, { usersModel, twoFactorModel, sessionsModel, generatePassword, reissue, now });
   const temporaryPassword = generatePassword();
   usersModel.createUser({ email, password: temporaryPassword, ...splitName(name), companyName: String(companyName || ''), roles: [ADMIN] });
 

@@ -66,21 +66,32 @@ function createFleetController(ctx, customersController) {
     });
   }
 
-  // Rule 11: each installed plugin, the versions the instances run and the registry's versions.
+  // Rule 11: each installed plugin, the versions the instances run and the registry's versions newer
+  // than the oldest one running — never a downgrade (the instance itself refuses one). A version that
+  // rolled an instance back and that no instance runs is « En échec », never the default.
   function pluginPushView(rows) {
     const facts = rows.map(({ c }) => (instances.readFacts(c.slug) || {}).versions || {});
     const ids = [...new Set(facts.flatMap((f) => Object.keys(f)))].sort();
+    const rolledBack = hosting.rolledBackPluginTargets();
     return ids.map((id) => {
       const running = facts.filter((f) => id in f).map((f) => f[id] || '?');
       const counts = running.reduce((m, v) => m.set(v, (m.get(v) || 0) + 1), new Map());
-      const versions = fleetUpdater.publishedPluginVersions(id);
+      const known = running.filter((v) => semver.isValidVersion(v));
+      const oldest = known.length ? known.reduce((a, b) => (semver.isNewerVersion(a, b) ? b : a)) : null;
+      const versions = fleetUpdater.publishedPluginVersions(id)
+        .filter((v) => !oldest || semver.isNewerVersion(v, oldest))
+        .map((v) => {
+          const failed = rolledBack.has(`${id}@${v}`) && !counts.has(v);
+          return { version: v, failed, label: failed ? `${v} — en échec` : v };
+        });
+      const target = versions.find((v) => !v.failed);
       return {
         id,
         name: (gfPlugins.findPlugin(id) || { name: id }).name,
         count: running.length,
         runningLabel: [...counts].map(([v, n]) => `${v} × ${n}`).join(', '),
         versions,
-        defaultVersion: versions[0] || null,
+        defaultVersion: target ? target.version : null,
       };
     });
   }

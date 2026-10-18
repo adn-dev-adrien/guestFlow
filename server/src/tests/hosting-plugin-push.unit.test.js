@@ -110,6 +110,29 @@ test('rule 11 — a package whose SHA-256 differs, or a plugin the instance does
   }
 });
 
+test('rules 11, 30 — an older or equal version is refused like on the instance, unless the installed package cannot run here', () => {
+  const inst = instance();
+  try {
+    for (const v of ['1.0.0', '1.0.1']) {
+      const pkg = makePackage(inst.dir, 'linen', v);
+      const out = runSwitch(inst.dbPath, ['--id', 'linen', '--version', v, '--file', pkg.file, '--sha256', pkg.sha256]);
+      assert.equal(out.status, 5, v);
+      assert.match(out.stderr, /version antérieure ou égale à 1\.0\.1, refusée/);
+      assert.deepEqual([row(inst.dbPath).source, row(inst.dbPath).version], ['bundled', '1.0.1']);
+    }
+    // The installed 1.0.1 asks for a core this release is not: going back to 1.0.0 is allowed (rule 14).
+    const db = new Database(inst.dbPath);
+    db.prepare("UPDATE plugins SET manifest = ? WHERE id = 'linen'").run(JSON.stringify({ id: 'linen', version: '1.0.1', guestflow: '>=99.0.0', sdk: '^1.0.0', requires: [] }));
+    db.close();
+    const older = makePackage(inst.dir, 'linen', '1.0.0');
+    const out = runSwitch(inst.dbPath, ['--id', 'linen', '--version', '1.0.0', '--file', older.file, '--sha256', older.sha256]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(row(inst.dbPath).version, '1.0.0');
+  } finally {
+    fs.rmSync(inst.dir, { recursive: true, force: true });
+  }
+});
+
 test('rule 11 — pluginHealth says which version loaded, and whether it failed', () => {
   const host = require('../plugins/host');
   host.setLoaded('linen', '1.0.2', 'abc');
@@ -119,4 +142,24 @@ test('rule 11 — pluginHealth says which version loaded, and whether it failed'
   assert.deepEqual(host.pluginHealth('linen', failed), { id: 'linen', version: '1.0.2', ok: false });
   host.unsetLoaded('linen');
   assert.deepEqual(host.pluginHealth('linen', ok), { id: 'linen', version: null, ok: false });
+});
+
+test('rules 11, 33 — /api/version answers the plugin only to the console: its secret header, or loopback without a secret', () => {
+  const { buildVersionHandler } = require('../controllers/versionController');
+  const call = (handler, { plugin = 'linen', headers = {}, remoteAddress = '203.0.113.9' } = {}) => {
+    let body;
+    handler({ query: { plugin }, headers, socket: { remoteAddress } }, { json: (b) => { body = b; } });
+    return body;
+  };
+  const deps = { getVersion: () => '3.10.1', pluginHealth: (id) => ({ id, version: '1.0.0', ok: true }), startedAt: 't' };
+  const hosted = buildVersionHandler({ ...deps, secret: 's3cret' });
+  assert.equal(call(hosted).version, '3.10.1');
+  assert.equal('plugin' in call(hosted), false, 'a visitor never learns what is installed');
+  assert.equal('plugin' in call(hosted, { remoteAddress: '127.0.0.1' }), false, 'behind Caddy every request is loopback');
+  assert.equal('plugin' in call(hosted, { headers: { 'x-guestflow-health': 'wrong' } }), false);
+  assert.deepEqual(call(hosted, { headers: { 'x-guestflow-health': 's3cret' } }).plugin, { id: 'linen', version: '1.0.0', ok: true });
+  const selfHosted = buildVersionHandler(deps);
+  assert.equal('plugin' in call(selfHosted), false);
+  assert.equal(call(selfHosted, { remoteAddress: '::1' }).plugin.version, '1.0.0');
+  assert.equal('plugin' in call(hosted, { plugin: '../x', headers: { 'x-guestflow-health': 's3cret' } }), false);
 });
