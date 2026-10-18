@@ -3,6 +3,9 @@
 // (kind='devis') must never appear in the public feed, or external platforms would treat a tentative
 // quote as booked and block real reservations.
 //
+// It carries no guest data (specs/ical-export-guest-privacy.md): every platform subscribed to the feed
+// reads it, so a guest's name or e-mail in it would hand one platform's guests to its competitors.
+//
 // It also advertises the establishment closures that apply to the property (specs/ical-export-closures.md).
 // Without them a platform happily sells a period the operator declared closed, and the sync guard added
 // in 2026-06 can only drop the incoming booking — the guest keeps a confirmation for a stay that leaves
@@ -14,6 +17,8 @@ const establishmentClosuresModel = require('./establishmentClosuresModel');
 const icalExportRangesModel = require('./icalExportRangesModel');
 
 const DEFAULT_CLOSURE_LABEL = 'Fermeture établissement';
+// specs/ical-export-guest-privacy.md rule 1 — the same word for every stay, whoever the guest is.
+const RESERVATION_SUMMARY = 'Réservé';
 const CLOSURE_DESCRIPTION = 'Période de fermeture — aucune réservation possible.';
 
 function formatIcalDate(date) {
@@ -37,18 +42,37 @@ function closureSummary(label) {
   return `Fermeture — ${trimmed}`;
 }
 
+// The stamp and the two dates of an event. Stays and closures share the convention — start
+// inclusive, end exclusive — so both columns go in untouched: a closure 2026-11-01 → 2027-03-01 blocks
+// the nights of 1 Nov through 28 Feb and leaves 1 March bookable.
+function eventDateLines(startDate, endDate) {
+  return [
+    `DTSTAMP:${formatIcalDate(new Date())}`,
+    `DTSTART:${formatIcalDate(new Date(startDate))}`,
+    `DTEND:${formatIcalDate(new Date(endDate))}`,
+  ];
+}
+
+// specs/ical-export-guest-privacy.md rules 1-3 — what a platform learns of a stay: its dates, nothing
+// else. The UID keeps its namespace so a platform updates the same block across fetches.
+function reservationEventLines(reservation) {
+  return [
+    'BEGIN:VEVENT',
+    `UID:reservation-${reservation.id}@guestflow.local`,
+    ...eventDateLines(reservation.startDate, reservation.endDate),
+    `SUMMARY:${RESERVATION_SUMMARY}`,
+    'TRANSP:OPAQUE',
+    'END:VEVENT',
+  ];
+}
+
 function closureEventLines(closure) {
   return [
     'BEGIN:VEVENT',
     // Own UID namespace, stable across fetches: the platform updates the same block instead of
     // stacking duplicates, and it can never collide with a reservation's.
     `UID:closure-${closure.id}@guestflow.local`,
-    `DTSTAMP:${formatIcalDate(new Date())}`,
-    // Closures use the reservation convention — start inclusive, end exclusive — so both columns go
-    // in untouched: a closure 2026-11-01 → 2027-03-01 blocks the nights of 1 Nov through 28 Feb and
-    // leaves 1 March bookable.
-    `DTSTART:${formatIcalDate(new Date(closure.startDate))}`,
-    `DTEND:${formatIcalDate(new Date(closure.endDate))}`,
+    ...eventDateLines(closure.startDate, closure.endDate),
     `SUMMARY:${escapeIcalText(closureSummary(closure.label))}`,
     `DESCRIPTION:${CLOSURE_DESCRIPTION}`,
     // No ATTENDEE: a closure has no guest.
@@ -100,12 +124,12 @@ function createIcalModel(database) {
       const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
       if (!property) return null;
 
+      // Only what the event needs: the guest's columns never leave the database (privacy rule 2).
       const reservations = database.prepare(`
-        SELECT r.*, c.firstName, c.lastName, c.email
-        FROM reservations r
-        LEFT JOIN clients c ON r.clientId = c.id
-        WHERE r.propertyId = ? AND r.kind = 'reservation'
-        ORDER BY r.startDate
+        SELECT id, startDate, endDate
+        FROM reservations
+        WHERE propertyId = ? AND kind = 'reservation'
+        ORDER BY startDate
       `).all(propertyId);
 
       const lines = [
@@ -117,23 +141,7 @@ function createIcalModel(database) {
         'X-WR-TIMEZONE:Europe/Paris',
       ];
 
-      reservations.forEach((r) => {
-        const clientName = r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : 'Réservation';
-        const eventUid = `reservation-${r.id}@guestflow.local`;
-
-        lines.push('BEGIN:VEVENT');
-        lines.push(`UID:${eventUid}`);
-        lines.push(`DTSTAMP:${formatIcalDate(new Date())}`);
-        lines.push(`DTSTART:${formatIcalDate(new Date(r.startDate))}`);
-        lines.push(`DTEND:${formatIcalDate(new Date(r.endDate))}`);
-        lines.push(`SUMMARY:${escapeIcalText(clientName)}`);
-        lines.push(`DESCRIPTION:${escapeIcalText(`Plateforme: ${r.platform}\nAdultes: ${r.adults}, Enfants: ${r.children}`)}`);
-        if (r.email) {
-          lines.push(`ATTENDEE:mailto:${r.email}`);
-        }
-        lines.push('TRANSP:OPAQUE');
-        lines.push('END:VEVENT');
-      });
+      reservations.forEach((r) => lines.push(...reservationEventLines(r)));
 
       // `list` already scopes to this property's own closures ∪ the global ones, drops those that are
       // over (endDate > from — an ongoing closure stays, which is the one that matters most) and
@@ -158,6 +166,6 @@ function createIcalModel(database) {
 
 const defaultModel = createIcalModel(db);
 defaultModel.buildModel = createIcalModel;
-defaultModel.__test = { escapeIcalText, formatIcalDate };
+defaultModel.__test = { escapeIcalText, formatIcalDate, RESERVATION_SUMMARY };
 
 module.exports = defaultModel;
