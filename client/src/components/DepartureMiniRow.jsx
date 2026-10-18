@@ -61,7 +61,7 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
   const sasLock = reservation.departureSasLock || null;
   const sasLabel = (() => {
     if (sasLock) return sasLockTooltip('departure', sasLock);
-    return sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)';
+    return sasDone ? 'Revoir le départ' : 'Départ';
   })();
   const statusLocked = reservation.checkOutStatusEditable === false;
   const statusLabel = statusLocked

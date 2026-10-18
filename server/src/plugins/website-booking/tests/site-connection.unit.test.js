@@ -88,17 +88,22 @@ test('rule 31: a key set by the real environment is refused with 409, nothing wr
 
 test('rules 30-31: both routes are declared by the plugin, admin-only, closed to a support session', () => {
   const routes = [];
+  const secretRoutes = [];
   const noop = new Proxy(function noop() {}, { get: () => noop, apply: () => noop });
   const ctx = new Proxy({}, {
     get(_, key) {
       if (key === 'id') return 'website-booking';
       if (key === 'route') return (method, p) => routes.push(`${method} ${p}`);
+      if (key === 'secretRoutes') return (entries) => secretRoutes.push(...entries);
       return noop;
     },
   });
   websiteBooking.register(ctx);
   assert.ok(routes.includes('get /api/settings/website-connection'));
   assert.ok(routes.includes('post /api/settings/website-connection/regenerate'));
+  for (const p of ['/settings/website-connection', '/settings/website-connection/regenerate']) {
+    assert.ok(secretRoutes.some((r) => r.re.test(p)), p);
+  }
 
   for (const roles of [['reception'], ['accountant']]) {
     let passed = false;

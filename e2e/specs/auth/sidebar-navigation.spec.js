@@ -11,8 +11,9 @@ const ROUTES = [
   { url: '/calendar',                    heading: 'Calendrier', exact: true },
   { url: '/finance',                     heading: 'Suivi financier' },
   { url: '/comptabilite',                heading: 'Comptabilité' },
-  // specs/plugins-phase-2-hosts.md rule 21 — the core compensations page.
-  { url: '/finance/indemnites',          heading: "Indemnités d'annulation" },
+  // specs/plugins-phase-2-hosts.md rule 21 — the core compensations page, titled « Indemnités » so
+  // the title fits a phone's bar (specs/ds-components.md rule 25).
+  { url: '/finance/indemnites',          heading: 'Indemnités', exact: true },
   { url: '/devis',                       heading: 'Devis' },
   // Paramètres pages (specs/settings-rationalization.md rule 2).
   { url: '/settings/etablissement',      heading: 'Établissement', exact: true },

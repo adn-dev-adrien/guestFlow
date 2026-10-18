@@ -12,17 +12,20 @@
     "La carte « Site internet » de Paramètres › Intégrations"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0",
+  "guestflow": ">=3.9.0 <4.0.0",
   "sdk": "^1.2.0",
   "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
     "1.1.0": [
       "Paramètres › Intégrations › Site internet : l’URL de l’API et la clé à coller dans WordPress, avec « Copier » et « Régénérer la clé ».",
       "Devis du site : le paiement en ligne n’est proposé que lorsqu’un moyen de paiement est connecté.",
       "Sans conditions générales publiées alors qu’elles sont exigées, le site annonce la réservation en ligne fermée avant la saisie.",
       "Une clé régénérée reste valable après le redémarrage suivant de l’application."
-    ],
-    "1.0.0": [
-      "Première version publiée en paquet."
     ]
   }
 }

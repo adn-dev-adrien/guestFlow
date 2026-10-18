@@ -67,6 +67,12 @@ export default function PlatformColorPicker({ color, onChange, disabled = false,
         flexShrink: 0,
         opacity: disabled ? 0.5 : 1,
         '&:hover': disabled ? {} : { boxShadow: 1 },
+        // A finger gets a 44 × 44 hit area around the small swatch, without moving the layout
+        // (specs/ds-components.md rule 21).
+        '@media (pointer: coarse)': {
+          position: 'relative',
+          '&::after': { content: '""', position: 'absolute', inset: Math.min(0, (size - 44) / 2) },
+        },
       }}
     />
   );

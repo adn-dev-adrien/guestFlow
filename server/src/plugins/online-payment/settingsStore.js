@@ -2,7 +2,7 @@
  * The Qonto settings of the instance, in plugin_settings (specs/plugins-phase-3a-online-payment.md
  * rule 13).
  *
- * The Qonto module (qonto/*) and the control plane speak to their settings through one set of method
+ * The Qonto module (server/src/utils/qonto/*) and the control plane speak to their settings through one set of method
  * names — `qontoTokens`, `storeQontoTokens`, `qontoCredentials`… — that GuestFlow's `settingsModel`
  * used to implement over `app_settings`. This store implements the same names over the plugin's own
  * settings, so the module is unchanged and the console keeps passing its own store.

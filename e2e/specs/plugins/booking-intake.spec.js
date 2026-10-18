@@ -63,6 +63,13 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   await setActive(page, true);
   await page.goto('/settings/integrations');
   await expect(page.getByText('N° d’établissement Booking de chaque logement')).toBeVisible({ timeout: 10_000 });
+  // Rule 25 — the secret is created by an explicit action; until then the script is refused.
+  const secretAction = page.getByRole('button', { name: /^(Créer|Régénérer) le secret$/ });
+  await expect(secretAction).toBeVisible({ timeout: 10_000 });
+  if ((await secretAction.textContent()) === 'Créer le secret') {
+    expect((await page.request.get('/api/booking-intake/userscript.user.js')).status()).toBe(409);
+    await secretAction.click();
+  }
   await expect(page.getByRole('link', { name: 'Installer le script' })).toHaveAttribute('href', '/api/booking-intake/userscript.user.js');
   // Scoped to the Booking card: another plugin's card (Gîtes de France, run in parallel) lists the same properties.
   const card = page.locator('.MuiCard-root', { has: page.getByText('N° d’établissement Booking de chaque logement') });

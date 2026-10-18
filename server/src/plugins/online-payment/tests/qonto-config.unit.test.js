@@ -4,8 +4,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { freshSettings } = require('./qontoSettingsFixture');
-const { resolveQontoConfig } = require('../qonto/qontoConfig');
-const { SANDBOX_HOSTS, PROD_HOSTS } = require('../qonto/qontoClient');
+const { resolveQontoConfig } = require('../../../utils/qonto/qontoConfig');
+const { SANDBOX_HOSTS, PROD_HOSTS } = require('../../../utils/qonto/qontoClient');
 
 const ENV = {
   QONTO_CLIENT_ID: 'env_client',

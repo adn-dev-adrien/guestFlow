@@ -42,6 +42,9 @@ function register(ctx) {
   });
   ctx.route('get', '/api/settings/website-connection', connection.get);
   ctx.route('post', '/api/settings/website-connection/regenerate', connection.regenerate);
+  // Both hand out or rotate the key WordPress holds: a support session is refused them
+  // (specs/hosting-h2-account-security.md rule 23).
+  ctx.secretRoutes([{ method: '*', re: /^\/settings\/website-connection(\/regenerate)?$/ }]);
 
   // The controllers bind core models when they load; the routers are built on the first request,
   // not at register, which runs early in the boot (and in suites without a database).

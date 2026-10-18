@@ -11,9 +11,9 @@
 const path = require('path');
 
 const GF_SERVER = path.resolve(__dirname, '..', '..', '..', '..', 'server');
-// The Qonto module lives in the instance's online-payment plugin since specs/plugins-phase-3a-online-payment.md
-// rule 10; the console always passes its own settings store, so it never registers that plugin.
-const GF_ONLINE_PAYMENT = path.join(GF_SERVER, 'src', 'plugins', 'online-payment');
+// The Qonto library is core code (specs/plugins-phase-3a-online-payment.md rule 22): the console never
+// reaches inside a plugin, and always passes its own settings store.
+const qonto = require(path.join(GF_SERVER, 'src', 'utils', 'qonto'));
 
 module.exports = {
   GF_SERVER,
@@ -25,11 +25,11 @@ module.exports = {
   // specs/plugins-phase-4-registry.md rule 8 — the registry checks a package with the instance's own
   // checks: its members, its layout and its manifest.
   packages: require(path.join(GF_SERVER, 'src', 'plugins', 'packageStore')),
-  qontoClient: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoClient')),
-  qontoConfig: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoConfig')),
-  qontoService: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoService')),
-  qontoWebhookSignature: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoWebhookSignature')),
-  qontoSettingsController: require(path.join(GF_ONLINE_PAYMENT, 'qontoSettingsController')),
+  qontoClient: qonto.qontoClient,
+  qontoConfig: qonto.qontoConfig,
+  qontoService: qonto.qontoService,
+  qontoWebhookSignature: qonto.qontoWebhookSignature,
+  qontoSettingsController: qonto.qontoSettingsController,
   // specs/hosting-h1-fleet-runtime.md rule 8 — a release is fetched and checked by the same code the
   // self-update uses: allowed hosts, SHA256SUMS, archive members, release layout, npm ci.
   releaseClient: require(path.join(GF_SERVER, 'src', 'utils', 'releaseClient')),

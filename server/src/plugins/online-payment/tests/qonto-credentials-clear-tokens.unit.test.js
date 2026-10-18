@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { freshSettings } = require('./qontoSettingsFixture');
-const { applyQontoCredentials } = require('../qonto/qontoService');
+const { applyQontoCredentials } = require('../../../utils/qonto/qontoService');
 
 function connected() {
   const { settings } = freshSettings();

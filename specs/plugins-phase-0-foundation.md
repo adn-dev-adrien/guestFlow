@@ -150,6 +150,10 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     their price type reads « Par heure (plugin inactif) » and is only offered in the form of a resource
     that already has it. A per-hour resource already on a stay stays listed there with its price, without
     the sessions picker; its past sessions stay on the stays (rule 7).
+    > **Superseded** (2026-10-18) — by `specs/plugins-phase-3c-hourly-resources.md` rules 18–20: a
+    > `per_hour` resource is hidden while `hourly-resources` is off, and comes back with its slots, prices
+    > and sessions when it is reactivated. « Par heure (plugin inactif) » is no longer offered anywhere.
+    > **Sans test** — replaced; the behaviour that ships is covered by the phase 3c rules 18–20 tests.
 
 ### 3.E The Plugins page
 

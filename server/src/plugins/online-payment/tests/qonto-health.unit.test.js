@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { classifyQontoOutcome, qontoConnectionState } = require('../qonto/qontoHealth');
+const { classifyQontoOutcome, qontoConnectionState } = require('../../../utils/qonto/qontoHealth');
 
 /** The shape `qontoClient.readBody` throws: an HTTP status plus Qonto's own JSON body. */
 function qontoError(status, body) {

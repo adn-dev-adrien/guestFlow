@@ -10,10 +10,13 @@ const express = require('express');
 const sdk = require('../sdk');
 const { DECLARED, KEYS, createSettingsStore, bind } = require('./settingsStore');
 const { createQontoProvider } = require('./provider');
-const { createQontoSettingsController, mountQontoSettingsRoutes } = require('./qontoSettingsController');
 const { createWebhookController } = require('./webhookController');
-const { ensureWebhookSubscription } = require('./qonto/qontoWebhookRegistrar');
 const { resolvePaymentPollTickMs } = require('./paymentPollSchedule');
+
+// The Qonto library is core code (specs/plugins-phase-3a-online-payment.md rule 22), shared with the
+// control plane: the plugin wires it to the instance's settings and routes.
+const { createQontoSettingsController, mountQontoSettingsRoutes } = sdk.coreModule('qonto').qontoSettingsController;
+const { ensureWebhookSubscription } = sdk.coreModule('qonto').qontoWebhookRegistrar;
 
 const id = 'online-payment';
 

@@ -103,7 +103,7 @@ test('SAS button — opens the departure SAS when not yet done', () => {
   render(
     <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenSas={onOpenSas} />
   );
-  const sasBtn = screen.getByRole('button', { name: 'Check-out (SAS départ)' });
+  const sasBtn = screen.getByRole('button', { name: 'Départ' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(200);
@@ -114,7 +114,7 @@ test('SAS button — once the departure SAS is done it stays a clickable ✓ for
   const onOpenSas = vi.fn();
   const r = { ...BASE, departureSasDoneAt: '2026-06-13 11:00:00' };
   render(<DepartureMiniRow reservation={r} onToggleDone={noop} onOpenSas={onOpenSas} />);
-  const sasBtn = screen.getByRole('button', { name: 'Revoir / modifier le check-out' });
+  const sasBtn = screen.getByRole('button', { name: 'Revoir le départ' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(200);
@@ -138,7 +138,7 @@ test.each([
 test('SAS button — no lock field (admin payload) leaves the ✓ clickable', () => {
   const onOpenSas = vi.fn();
   render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenSas={onOpenSas} />);
-  const sasBtn = screen.getByRole('button', { name: 'Check-out (SAS départ)' });
+  const sasBtn = screen.getByRole('button', { name: 'Départ' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(200);
@@ -189,7 +189,7 @@ test('done checkbox — toggling it does NOT trigger any open handler (stopPropa
 test('open handlers omitted — card renders read-only with no action buttons', () => {
   render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} />);
   expect(screen.queryByLabelText('Ouvrir la réservation')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('Check-out (SAS départ)')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Départ', { exact: true })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'M. Martin' })).not.toBeInTheDocument();
   expect(screen.getByText('M. Martin')).toBeInTheDocument();
 });
@@ -246,7 +246,7 @@ test('mobile (matchMedia matches) renders each action button exactly ONCE (no CS
     render(
       <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
     );
-    expect(screen.getByRole('button', { name: 'Check-out (SAS départ)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Départ' })).toBeInTheDocument();
   } finally {
     window.matchMedia = orig;
   }

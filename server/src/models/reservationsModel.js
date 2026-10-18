@@ -17,6 +17,7 @@ const { getOptionsSignature, getResourcesSignature, buildHistoryRows } = require
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { LINEN } = require('../constants/plugins');
 const { computePaymentStatus } = require('../utils/paymentStatus');
+const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
@@ -656,7 +657,9 @@ function createReservationsModel(database) {
       if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
       if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
       sql += ' ORDER BY r.startDate';
-      const today = new Date().toISOString().split('T')[0];
+      // The server's calendar day, not UTC's: between midnight and 2 a.m. in Paris the UTC date is
+      // still yesterday (specs/upcoming-reservations-cards.md rule 7).
+      const today = getTodayIsoDate();
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the
         // response (preserves the former route behavior, which stripped them).

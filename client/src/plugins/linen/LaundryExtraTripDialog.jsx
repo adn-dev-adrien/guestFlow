@@ -32,8 +32,10 @@ const ALL_KEYS = GROUPS.flatMap((g) => g.items.map((i) => i.key));
 const ZEROS = Object.fromEntries(ALL_KEYS.map((k) => [k, 0]));
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// The browser's calendar day, not the UTC one (yesterday between midnight and 2 a.m. in Paris).
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function frDate(iso) {

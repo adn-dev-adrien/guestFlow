@@ -59,6 +59,15 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       record.roleAccess[role].push(...entries);
     },
     reception(entries) { record.roleAccess.reception.push(...entries); },
+    // Routes that hand out, create or rotate a secret ({ method: 'GET' | … | '*', re } on the lower-case
+    // path below /api, like roleAccess). A support session is refused them
+    // (specs/hosting-h2-account-security.md rule 23).
+    secretRoutes(entries) {
+      (entries || []).forEach((e) => {
+        if (!e || !(e.re instanceof RegExp) || typeof e.method !== 'string') throw new Error(`${prefix} a secret route needs { method, re }`);
+      });
+      record.secretRoutes.push(...entries);
+    },
     // A POST under /api/ that no session reaches — a provider calling back. It bypasses the session,
     // role and read-only guards, so the plugin authenticates it itself (specs/plugins-phase-3a-online-payment.md rule 12).
     webhook(path, handler) {

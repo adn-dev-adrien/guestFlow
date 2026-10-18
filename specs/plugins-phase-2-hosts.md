@@ -362,7 +362,9 @@ without the core knowing it.
     flagged as deduced) and « Clé d'API », masked with reveal and « Copier ».
     `GET /api/settings/website-connection` answers `{ address: { value, source }, apiKey }`,
     `Cache-Control: no-store`, creating the key if it is missing; a support session is refused it
-    (`credentials`). No more SSH to read `.env.local`.
+    (`credentials`) — and the regenerate route of rule 31 too: the plugin declares both with
+    `ctx.secretRoutes` (specs/hosting-h2-account-security.md rule 23), beside the core policy's own
+    entry. No more SSH to read `.env.local`.
 31. **« Régénérer la clé »** (confirmation first: the site stops answering until the new key is pasted
     into WordPress) calls `POST /api/settings/website-connection/regenerate`, which writes a new
     32-byte key into the instance's `.env.local` and `process.env` (SDK `secrets.rotate`, SDK 1.2.0) and
