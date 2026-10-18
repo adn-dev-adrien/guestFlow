@@ -7,7 +7,7 @@
 | **Created** | 2026-10-18 |
 | **Author** | Adrien |
 | **Related PR** | #703 |
-| **Depends on** | `specs/lodgify-decommission.md` (Booking echo filter, rules 5–10), `specs/ical-sync-mapping-resilience.md` (empty-feed guard), `specs/platforms-and-ical-rework.md` (the platforms tab), `specs/booking-extranet-intake.md` rules 25–26 |
+| **Depends on** | `specs/lodgify-decommission.md` (Booking echo filter, rules 5–10), `specs/ical-sync-mapping-resilience.md` (empty-feed guard), `specs/platforms-and-ical-rework.md` (the platforms tab), `specs/booking-extranet-intake.md` rules 27–28 |
 
 ---
 
@@ -21,7 +21,7 @@ v3.10.0:
 - **B1** — every iCal stay without a guest name shared one placeholder client per feed (« Closed Not
   available » behind every Booking stay, « Reserved Ical » behind every Airbnb stay). The Booking
   intake wrote the guest onto that client, and every other stay took the guest's name and e-mail. The
-  intake itself is fixed by `specs/booking-extranet-intake.md` rules 25–26; the shared placeholder is
+  intake itself is fixed by `specs/booking-extranet-intake.md` rules 27–28; the shared placeholder is
   this spec's.
 - **M2** — « Synchroniser » on an inactive source (`isActive = 0`, the state of both Lodgify sources
   since 16/10) imported it again and re-created a stay deleted after retirement; the row never showed
@@ -55,7 +55,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
    split: the first stay keeps it, each other stay gets a copy, and its history records « Client :
    <old name> → <new name> ». Every such placeholder is renamed « Ical <platform> ». A shared client
    carrying a guest's coordinates is **never** split: which stay it belongs to is the operator's call
-   (`server/scripts/diagnose-shared-clients.js`, `specs/booking-extranet-intake.md` rule 26). The pass
+   (`server/scripts/diagnose-shared-clients.js`, `specs/booking-extranet-intake.md` rule 28). The pass
    is idempotent.
 2. **A stopped source stays stopped.** An inactive source (`isActive = 0`) is skipped by the hourly
    pass and « Synchroniser tout » (unchanged) and its own « Synchroniser » is refused:
@@ -108,7 +108,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
     again (rule 3). A locked stay keeps its flag: its dates only move through the drift approval.
     *(Added 2026-10-18, second review, mi2.)*
 14. **A placeholder nobody uses is deleted.** An intake moves the stay onto the guest's own client
-    (`specs/booking-extranet-intake.md` rule 25, `specs/gites-de-france-mail-intake.md`), leaving the
+    (`specs/booking-extranet-intake.md` rule 27, `specs/gites-de-france-mail-intake.md`), leaving the
     « Ical <platform> » placeholder without a stay. Every sync deletes the clients named « Ical … » with
     no e-mail, phone, address or note and no reservation or quote. *(Added 2026-10-18, second review.)*
 

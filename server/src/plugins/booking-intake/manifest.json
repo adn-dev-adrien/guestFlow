@@ -10,16 +10,21 @@
     "Une alerte du tableau de bord"
   ],
   "requires": [],
-  "guestflow": ">=3.10.0",
-  "sdk": "^1.1.0",
+  "guestflow": ">=3.10.0 <4.0.0",
+  "sdk": "^1.2.0",
   "changelog": {
-    "1.1.0": [
-      "Le voyageur reçoit sa propre fiche client : remplir une réservation ne renomme plus les autres séjours Booking qui partageaient le même client provisoire.",
-      "Les calendriers comptés comme Booking ne se règlent plus : le flux Booking toujours, le relais Lodgify seulement tant qu’il est actif."
-    ],
     "1.0.0": [
       "Première version publiée en paquet : un script du navigateur envoie la page de la réservation ouverte dans l’extranet Booking, et la fiche iCal se remplit.",
       "Une alerte du tableau de bord liste les réservations Booking encore à compléter."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée.",
+      "Le secret du script se crée par « Créer le secret » ; l’installation du script n’en crée plus.",
+      "Le script et son secret sont refusés à une session du support."
+    ],
+    "1.1.0": [
+      "Le voyageur reçoit sa propre fiche client : remplir une réservation ne renomme plus les autres séjours Booking qui partageaient le même client provisoire.",
+      "Les calendriers comptés comme Booking ne se règlent plus : le flux Booking toujours, le relais Lodgify seulement tant qu’il est actif."
     ]
   }
 }

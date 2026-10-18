@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -12,7 +12,7 @@
     "Le type de prix « à l’heure »"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0",
+  "guestflow": ">=3.9.0 <4.0.0",
   "sdk": "^1.1.0",
   "changelog": {
     "1.0.0": [
@@ -21,6 +21,17 @@
     "1.0.1": [
       "Le planning des ressources ne transmet plus à l’accueil les prix, le téléphone ni les notes des clients.",
       "Le planning des ressources refuse une période de plus de 750 jours."
+    ],
+    "1.0.2": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.3": [
+      "La fenêtre de réservation d’une ressource s’ouvre en plein écran sur un téléphone.",
+      "Sous 1 200 px, « Nouvelle réservation » devient un bouton « + » pour laisser la place au titre et à la semaine.",
+      "Le jour proposé par défaut est celui du calendrier local, même entre minuit et 2 h."
+    ],
+    "1.0.4": [
+      "Créneaux proposés à l’arrivée : plus de créneau de la veille entre minuit et 2 h."
     ]
   }
 }

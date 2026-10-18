@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, Checkbox,
@@ -30,17 +30,15 @@ import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
-import { isReceptionOnly } from '../constants/roles';
+import { ADMIN, isReceptionOnly, userHasRole } from '../constants/roles';
 import { usePlugin } from '../hooks/usePlugins';
 import { SAS } from '../constants/plugins';
 import { statusLockTooltip } from '../constants/receptionSasLock';
 import api from '../api';
+import useServerToday from '../hooks/useServerToday';
+import { addIsoDays } from '../utils/isoDay';
 
-function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
-}
+const addDays = addIsoDays;
 
 // Row/card background reflecting the check-in/out status (done = greyed, ready = green tint).
 const statusBgSx = (t, done, ready = false) => {
@@ -52,7 +50,7 @@ const statusBgSx = (t, done, ready = false) => {
 const optionsResourcesText = (r) => {
   const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
   const resourcesText = [
-    ...(Number(r.babyBeds || 0) > 0 ? [`Lit bebe x${r.babyBeds}`] : []),
+    ...(Number(r.babyBeds || 0) > 0 ? [`Lit bébé ×${r.babyBeds}`] : []),
     ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
   ].join(', ');
   return [optionsText, resourcesText].filter(Boolean).join(' | ') || '—';
@@ -66,12 +64,17 @@ export default function Dashboard() {
   // home: arrivals/departures lists only (no Paiements column, no KPI tiles, no admin alert banners,
   // no month calendar). A row tap opens the SAS on the Planning via the deep-link.
   const receptionMode = isReceptionOnly(user);
+  // The email readiness is an admin read (`GET /api/email-readiness`): an accountant would get a 403.
+  const isAdmin = userHasRole(user, ADMIN);
   // A reception account only acts through the SAS: without it (outside the plan, failed) a row leads
   // nowhere, so it is not offered as a link.
   const sasOn = usePlugin(SAS);
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // The server's date (specs/ds-sweep-planning.md rule 28); nothing loads before it is known.
+  const todayStr = useServerToday();
+  const [pickedDate, setSelectedDate] = useState(null);
+  const selectedDate = pickedDate || todayStr;
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,13 +107,14 @@ export default function Dashboard() {
     }
   };
 
+  // Only the latest load paints: quick day-to-day clicks, or the server's day moving on when the page
+  // comes back to the foreground, can answer out of order (specs/upcoming-reservations-cards.md rule 7).
+  const loadSeq = useRef(0);
   const loadDashboardData = async () => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const seq = ++loadSeq.current;
+    const isCurrent = () => seq === loadSeq.current;
     const from = todayStr;
-    const toDate = new Date(today);
-    toDate.setDate(toDate.getDate() + 30);
-    const to = toDate.toISOString().split('T')[0];
+    const to = addDays(todayStr, 30);
     // Fetch reservations starting from selectedDate if it's in the past
     const fetchFrom = selectedDate < todayStr ? selectedDate : todayStr;
 
@@ -121,9 +125,6 @@ export default function Dashboard() {
         api.getReservations({ from: fetchFrom }),
       ]);
 
-      setProperties(props);
-      setReservations(resv);
-
       const arrivalsBase = allUpcoming
         .filter((r) => r.startDate === selectedDate)
         .sort((a, b) => (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59'));
@@ -131,23 +132,26 @@ export default function Dashboard() {
         .filter((r) => r.endDate === selectedDate)
         .sort((a, b) => (a.checkOutTime || '23:59').localeCompare(b.checkOutTime || '23:59'));
 
-      const arrivalsDetailed = await Promise.all(arrivalsBase.map((r) => api.getReservation(r.id)));
+      const [arrivalsDetailed, departuresDetailed] = await Promise.all([
+        Promise.all(arrivalsBase.map((r) => api.getReservation(r.id))),
+        Promise.all(departuresBase.map((r) => api.getReservation(r.id))),
+      ]);
+      if (!isCurrent()) return;
+      setProperties(props);
+      setReservations(resv);
       setArrivalsToday(arrivalsDetailed);
-      const departuresDetailed = await Promise.all(departuresBase.map((r) => api.getReservation(r.id)));
       setDeparturesToday(departuresDetailed);
       setLoadError(false);
     } catch (e) {
-      setLoadError(true);
+      if (isCurrent()) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDashboardData();
-  }, [selectedDate, reloadNonce]); // eslint-disable-line
-
-  const todayStr = new Date().toISOString().split('T')[0];
+    if (selectedDate) loadDashboardData();
+  }, [selectedDate, todayStr, reloadNonce]); // eslint-disable-line
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
   // Reception has no reservation sheet — a row tap jumps to the Planning with the matching SAS open.
@@ -164,22 +168,22 @@ export default function Dashboard() {
   // (PageActionBar hides `center` on xs). specs/ds-sweep-planning.md rule 1.
   const renderDateNav = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-      <IconButton size="small" onClick={() => setSelectedDate((d) => addDays(d, -1))} aria-label="Jour précédent">
+      <IconButton size="small" onClick={() => setSelectedDate(addDays(selectedDate, -1))} disabled={!selectedDate} aria-label="Jour précédent">
         <NavigateBeforeIcon />
       </IconButton>
       <TextField
         type="date"
         size="small"
-        value={selectedDate}
+        value={selectedDate || ''}
         onChange={(e) => setSelectedDate(e.target.value)}
         sx={{ width: 165 }}
         slotProps={{ htmlInput: { style: { padding: '6px 10px' }, 'aria-label': 'Date affichée' } }}
       />
-      <IconButton size="small" onClick={() => setSelectedDate((d) => addDays(d, 1))} aria-label="Jour suivant">
+      <IconButton size="small" onClick={() => setSelectedDate(addDays(selectedDate, 1))} disabled={!selectedDate} aria-label="Jour suivant">
         <NavigateNextIcon />
       </IconButton>
       {selectedDate !== todayStr && (
-        <Button size="small" variant="outlined" onClick={() => setSelectedDate(todayStr)}>
+        <Button size="small" variant="outlined" onClick={() => setPickedDate(null)}>
           Aujourd'hui
         </Button>
       )}
@@ -401,7 +405,7 @@ export default function Dashboard() {
           <EmailPendingAlert />
           {/* Emails that would leave incomplete before an arrival (specs/guest-email-texts-made-simple.md
               rule 7). Renders nothing when nothing concerns a stay within 14 days. */}
-          <EmailReadinessAlert />
+          {isAdmin && <EmailReadinessAlert />}
         </>
       )}
 

@@ -50,7 +50,8 @@ function mockFetchError(msg) {
   return async () => { throw new Error(msg); };
 }
 
-const NOW = new Date('2026-05-27T12:00:00Z');
+// Local noon: the sync reads the operator's calendar day (finance rule 37), whatever TZ runs the suite.
+const NOW = new Date(2026, 4, 27, 12, 0, 0);
 
 // ---------- helpers ----------
 

@@ -2,6 +2,7 @@
 // The model against the real schema (header + lines in one transaction, cascades, the two total
 // readings), then the controller against stub deps (caps enforced, register refreshed).
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -135,7 +136,7 @@ function fakeRes() {
   };
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localTodayIso();
 
 test('POST creates the refund and hands back the refreshed register', () => {
   const { controller } = stubbedController();

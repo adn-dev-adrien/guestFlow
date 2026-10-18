@@ -140,7 +140,8 @@ test('rules 15-16 — writes and pages are written to support_access_log; me car
 
   // Rule 20: the customer reads what was done, never a method, a path or an HTTP status.
   const { entries } = h.supportAccess.logs(id);
-  assert.deepEqual(entries.map((e) => e.label).sort(), ['Connexion du support', 'Réservation 22301 modifiée', 'Page ouverte : Planning'].sort());
+  // A page opened is a read: it reads « Consultation : … » (specs/hosting-h2-account-security.md rule 25).
+  assert.deepEqual(entries.map((e) => e.label).sort(), ['Connexion du support', 'Réservation 22301 modifiée', 'Consultation : Planning'].sort());
   assert.equal(entries.find((e) => e.label === 'Réservation 22301 modifiée').outcomeLabel, 'Effectué');
   assert.ok(entries.every((e) => !('summary' in e) && !/\/api|PUT|GET|\b200\b/.test(`${e.label} ${e.outcomeLabel}`)));
 

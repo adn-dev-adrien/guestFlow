@@ -20,6 +20,7 @@ const { round2 } = require('../utils/paymentStatus');
 const { parseNotes } = require('../utils/midStayExtras');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
 const { arrivalPaymentAdjustment } = require('../utils/reservationSettlement');
+const { paceStartOf } = require('../utils/bookingPace');
 
 const H = financeModel.helpers;
 
@@ -108,20 +109,28 @@ function createDashboardModel(database, finance) {
     };
   }
 
+  // Rule 33 — the tracking start: the day booking dates are trusted from, the booking pace's own
+  // rule (the earliest creation day is the initial import), on the same stays.
+  const trackingStart = (propertyId) => paceStartOf(finance.getPaceStays({ propertyId }));
+
   // The figures every part of the page shares — computed once per request.
   function figures(ctx) {
     const { window: win, exercise, propertyId, today } = ctx;
     const summary = finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key, propertyId });
     const cover = coverage(propertyId);
-    const range = yoy.comparableRange(win, cover);
     const knownN1 = yoy.shiftYear(today, -1);
+    // Rule 33 — a year ago GuestFlow may not have existed yet: last year « as it stood » is then
+    // unknown, and only the months already over (both sides final) can be compared.
+    const snapshotKnown = yoy.lastYearSnapshotKnown(today, trackingStart(propertyId));
+    let range = yoy.comparableRange(win, cover);
+    if (range && !snapshotKnown) range = yoy.clampToMonthsOver(range, today);
     let comparable = null;
     if (range) {
       const cur = range.complete ? summary : finance.getSummary({ from: range.current.from, to: range.current.to, fiscalYear: exercise.key, propertyId });
-      const prev = finance.getSummary({ from: range.previous.from, to: range.previous.to, fiscalYear: exercise.key, propertyId, knownAt: knownN1 });
+      const prev = finance.getSummary({ from: range.previous.from, to: range.previous.to, fiscalYear: exercise.key, propertyId, knownAt: snapshotKnown ? knownN1 : null });
       comparable = { range, cur, prev };
     }
-    return { summary, cover, comparable, knownN1 };
+    return { summary, cover, comparable, knownN1, snapshotKnown };
   }
 
   const directRevenueOf = (breakdown) => round2((breakdown.site.subtotal.revenue || 0)
@@ -143,7 +152,13 @@ function createDashboardModel(database, finance) {
     const ctx = context(params);
     if (!ctx.ok) return ctx;
     const { window: win, exercise, propertyId, today, allProperties, scopeProperties } = ctx;
-    const { summary, cover, comparable, knownN1 } = figures(ctx);
+    const { summary, cover, comparable, knownN1, snapshotKnown } = figures(ctx);
+    // Rule 33 — which N-1 reading a month gets: as it stood a year ago when that is known, its final
+    // value when the month is over, nothing otherwise.
+    const previousReading = (ym) => {
+      if (snapshotKnown) return 'knownAt';
+      return yoy.isMonthOver(ym, today) ? 'final' : null;
+    };
     const operational = finance.getOperational({ propertyId });
     const everywhere = propertyId ? finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key }) : summary;
     const allClosures = closures();
@@ -175,8 +190,8 @@ function createDashboardModel(database, finance) {
           return {
             month: m.month, label: m.label, initial: m.initial,
             current: occupancy.occupancyOver([p], own, allClosures, from, to, { startOf }).rate,
-            previous: yoy.isComparableMonth(m.month, pCover)
-              ? occupancy.occupancyOver([p], ownN1, allClosures, `${prevMonth}-01`, lastDay(prevMonth), { startOf }).rate
+            previous: yoy.isComparableMonth(m.month, pCover) && previousReading(m.month)
+              ? occupancy.occupancyOver([p], previousReading(m.month) === 'final' ? own : ownN1, allClosures, `${prevMonth}-01`, lastDay(prevMonth), { startOf }).rate
               : null,
           };
         }),
@@ -186,13 +201,17 @@ function createDashboardModel(database, finance) {
     // Revenue per month of the exercise, with last year's month beside it when comparable (rule 22).
     const anyComparable = months.some((m) => yoy.isComparableMonth(m.month, cover));
     const exerciseSummary = win.kind === 'fy' ? summary : finance.getSummary({ from: exercise.from, to: exercise.to, fiscalYear: exercise.key, propertyId });
-    const prevMonths = anyComparable
-      ? finance.getSummary({ from: prevExercise.from, to: prevExercise.to, fiscalYear: exercise.key - 1, propertyId, knownAt: knownN1 }).exerciseMonths
-      : [];
+    const prevMonthsOf = (knownAt) => finance.getSummary({ from: prevExercise.from, to: prevExercise.to, fiscalYear: exercise.key - 1, propertyId, knownAt }).exerciseMonths;
+    const prevMonths = {
+      knownAt: anyComparable && snapshotKnown ? prevMonthsOf(knownN1) : [],
+      final: anyComparable && !snapshotKnown ? prevMonthsOf(null) : [],
+    };
     const revenueMonths = exerciseSummary.exerciseMonths.map((m, i) => ({
       month: m.month, label: m.label, initial: m.initial,
       past: m.past, upcoming: m.upcoming, revenue: m.revenue, revenueHt: m.revenueHt, nights: m.nights,
-      previous: yoy.isComparableMonth(m.month, cover) && prevMonths[i] ? prevMonths[i].revenue : null,
+      previous: yoy.isComparableMonth(m.month, cover) && previousReading(m.month) && prevMonths[previousReading(m.month)][i]
+        ? prevMonths[previousReading(m.month)][i].revenue
+        : null,
       previousLabel: monthLabel(yoy.shiftMonth(m.month, -1)),
       inWindow: m.month >= win.from.slice(0, 7) && m.month <= win.to.slice(0, 7),
     }));
@@ -214,6 +233,9 @@ function createDashboardModel(database, finance) {
     }
 
     const revenue = summary.revenueTotal;
+    // Rule 35 — nights sold are distinct per logement; revenue per night only counts priced stays.
+    const windowNights = occupancy.stayNights(summary.reservations);
+    const everywhereNights = propertyId ? occupancy.stayNights(everywhere.reservations) : windowNights;
     const direct = directRevenueOf(summary.revenueByChannel);
     const goals = readGoals();
     const goalAmount = win.kind === 'fy' && !propertyId ? goals[exercise.key] : null;
@@ -232,9 +254,9 @@ function createDashboardModel(database, finance) {
         months: exerciseMonths(exercise.from, exercise.to).map((m) => ({ month: m.month, label: m.label })),
         propertyId,
         hero: {
-          revenue, revenueHt: summary.revenueTotalHt, stays: summary.reservations.length, nights: summary.revenueTotalNights,
+          revenue, revenueHt: summary.revenueTotalHt, stays: summary.reservations.length, nights: windowNights.nights,
           occupancy: scopeOcc ? scopeOcc.rate : null,
-          revenuePerNight: occupancy.revenuePerNight(revenue, summary.revenueTotalNights),
+          revenuePerNight: occupancy.revenuePerNight(revenue, windowNights.pricedNights),
           directShare: ratio(direct, revenue),
           yoy: comparable ? {
             current: comparable.cur.revenueTotal, previous: comparable.prev.revenueTotal,
@@ -248,19 +270,21 @@ function createDashboardModel(database, finance) {
         insights: buildInsights({
           bestMonth: best ? { month: best.month, revenue: best.past + best.upcoming, previous: best.previous } : null,
           direct: { revenue: direct, averagePlatformRate: averagePlatformRate(summary.reservations) },
-          late: { count: operational.overdue.count, amount: operational.overdue.totalAmount },
+          late: { count: operational.overdue.count, amount: operational.overdue.totalAmount, payouts: operational.overdue.payouts },
+          unpriced: windowNights.unpriced,
         }),
         properties: allProperties.map((p) => {
-          const agg = byId.get(p.id) || { revenue: 0, nights: 0 };
+          const agg = byId.get(p.id) || { revenue: 0 };
           const o = windowOcc.byProperty.get(p.id);
-          return { propertyId: p.id, name: p.name, color: p.color, revenue: agg.revenue, occupancy: o ? o.rate : null, revenuePerNight: occupancy.revenuePerNight(agg.revenue, agg.nights) };
+          const n = everywhereNights.byProperty.get(p.id);
+          return { propertyId: p.id, name: p.name, color: p.color, revenue: agg.revenue, occupancy: o ? o.rate : null, revenuePerNight: occupancy.revenuePerNight(agg.revenue, n ? n.pricedNights : 0) };
         }),
         totalRevenue: everywhere.revenueTotal,
         totalOccupancy: windowOcc.rate,
         tiles: {
           collected: { amount: summary.totalCollected, shareOfRevenue: ratio(summary.totalCollected, revenue) },
           toCollect: { amount: round2(operational.pending.totals.remainingToPay || 0), stays: operational.pending.reservations.length },
-          late: { amount: operational.overdue.totalAmount, stays: operational.overdue.count },
+          late: { amount: operational.overdue.totalAmount, stays: operational.overdue.count, payouts: operational.overdue.payouts.count },
           stays: { count: summary.reservations.length, upcoming: operational.upcoming.reservations.length },
           properties: propertyId
             ? { count: 1, name: scopeRevenue ? scopeRevenue.propertyName : '', revenue: scopeRevenue ? scopeRevenue.revenue : 0, revPar: occupancy.revPar(scopeRevenue ? scopeRevenue.revenue : 0, scopeOcc ? scopeOcc.sellable : 0) }
@@ -312,7 +336,7 @@ function createDashboardModel(database, finance) {
 
     if (tile === 'late' || tile === 'toCollect' || (tile === 'stays' && params.scope === 'upcoming')) {
       const op = finance.getOperational({ propertyId });
-      if (tile === 'late') return { ok: true, data: { rows: op.overdue.reservations, totals: { amount: op.overdue.totalAmount, count: op.overdue.count } } };
+      if (tile === 'late') return { ok: true, data: { rows: op.overdue.reservations, totals: { amount: op.overdue.totalAmount, count: op.overdue.count, payouts: op.overdue.payouts } } };
       if (tile === 'stays') return { ok: true, data: { scope: 'upcoming', rows: op.upcoming.reservations, totals: op.upcoming.totals } };
       const until = /^\d{4}-\d{2}-\d{2}$/.test(String(params.until || '')) ? params.until : plusOneMonth(today);
       const projection = finance.getProjection({ date: until, propertyId });
@@ -327,14 +351,24 @@ function createDashboardModel(database, finance) {
     }
 
     if (tile === 'stays') {
-      const rows = summary.reservations.map((r) => ({
+      // Rule 35 — « Sans montant »: the window's stays with 0 € on the books.
+      const unpricedOnly = params.scope === 'unpriced';
+      const isUnpriced = (r) => Math.round(Number(r.totalSejour || 0) * 100) === 0;
+      const source = unpricedOnly ? summary.reservations.filter(isUnpriced) : summary.reservations;
+      // Rule 39 — a stay with 0 € on the books has no payment to follow: `amountMissing` replaces its
+      // payment chips by « Montant à saisir ».
+      const rows = source.map((r) => ({
         id: r.id, clientName: `${r.firstName || ''} ${r.lastName || ''}`.trim(), propertyName: r.propertyName,
         startDate: r.startDate, endDate: r.endDate, platform: r.platform, nights: r.nights, totalSejour: r.totalSejour,
         settled: r.settled, remainingDue: r.remainingDue,
         depositDisabled: Boolean(r.depositDisabled), depositPaid: Boolean(r.depositPaid), depositDueDate: r.depositDueDate,
         balancePaid: Boolean(r.balancePaid), balanceDueDate: r.balanceDueDate,
+        amountMissing: isUnpriced(r),
       }));
-      return { ok: true, data: { scope: 'window', rows, totals: { count: rows.length, nights: summary.revenueTotalNights, totalSejour: summary.revenueTotal } } };
+      // Rule 39 — « Sans montant » counts the nights the insight announces: those no priced stay covers.
+      const windowNights = occupancy.stayNights(summary.reservations);
+      const nights = unpricedOnly ? windowNights.unpriced.nights : windowNights.nights;
+      return { ok: true, data: { scope: unpricedOnly ? 'unpriced' : 'window', rows, totals: { count: rows.length, nights, totalSejour: round2(source.reduce((n, r) => n + Number(r.totalSejour || 0), 0)) } } };
     }
 
     if (tile === 'properties') {
@@ -342,13 +376,15 @@ function createDashboardModel(database, finance) {
       const occ = occupancy.occupancyOver(scopeProperties, stays, closures(), win.from, win.to, { startOf: coverageStarts() });
       const curBy = new Map((comparable ? comparable.cur : summary).revenueByProperty.map((p) => [p.propertyId, p]));
       const prevBy = comparable ? new Map(comparable.prev.revenueByProperty.map((p) => [p.propertyId, p])) : null;
+      const nightsOf = occupancy.stayNights(summary.reservations);
       const rows = scopeProperties.map((p) => {
-        const agg = summary.revenueByProperty.find((x) => x.propertyId === p.id) || { revenue: 0, revenueHt: 0, nights: 0 };
+        const agg = summary.revenueByProperty.find((x) => x.propertyId === p.id) || { revenue: 0, revenueHt: 0 };
         const o = occ.byProperty.get(p.id);
         const prev = prevBy && prevBy.get(p.id);
+        const n = nightsOf.byProperty.get(p.id) || { nights: 0, pricedNights: 0 };
         return {
-          propertyId: p.id, name: p.name, color: p.color, nights: agg.nights,
-          occupancy: o.rate, revenuePerNight: occupancy.revenuePerNight(agg.revenue, agg.nights), revPar: occupancy.revPar(agg.revenue, o.sellable),
+          propertyId: p.id, name: p.name, color: p.color, nights: n.nights,
+          occupancy: o.rate, revenuePerNight: occupancy.revenuePerNight(agg.revenue, n.pricedNights), revPar: occupancy.revPar(agg.revenue, o.sellable),
           revenue: agg.revenue, revenueHt: agg.revenueHt,
           change: prev ? yoy.change((curBy.get(p.id) || { revenue: 0 }).revenue, prev.revenue) : null,
         };
@@ -358,7 +394,7 @@ function createDashboardModel(database, finance) {
         data: {
           rows,
           totals: {
-            nights: summary.revenueTotalNights, occupancy: occ.rate, revenuePerNight: occupancy.revenuePerNight(summary.revenueTotal, summary.revenueTotalNights),
+            nights: nightsOf.nights, occupancy: occ.rate, revenuePerNight: occupancy.revenuePerNight(summary.revenueTotal, nightsOf.pricedNights),
             revPar: occupancy.revPar(summary.revenueTotal, occ.sellable), revenue: summary.revenueTotal, revenueHt: summary.revenueTotalHt,
           },
           comparableMonths: comparable ? { months: comparable.range.months, totalMonths: comparable.range.totalMonths } : null,

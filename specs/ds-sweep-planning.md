@@ -202,6 +202,19 @@ business behavior, figure, or calendar geometry**.
     `1.25`→`1` or `1.5`, `2.5`→`2` or `3`, `0.25`→`0.5`, `0.375`→`0.5`), except intrinsic dense-cell
     geometry where a raw px value is already the idiom.
 
+### 3.12 Today (added 2026-10-18, code review m1)
+
+28. **« Today » is the server's date.** The Dashboard and the Planning read `GET /api/today`
+    (`{ today: 'YYYY-MM-DD' }`, the Europe/Paris date every engine uses, any signed-in role) and load
+    nothing before it is known; the date arrows stay disabled until then. Days are counted on the
+    calendar (`utils/isoDay.js`), so a window keeps its length across a clock change. Between midnight
+    and 2 a.m. the pages used to open on the previous day (the browser's UTC date). If the server cannot
+    be asked, the browser's own local date is used.
+29. **« Today » follows midnight while the page stays open** (added 2026-10-18, second review of the
+    code review). `useServerToday` reads `GET /api/today` again each time the page comes back to the
+    foreground (window focus, tab visible again). A Dashboard or Planning left open overnight moves to
+    the new day on return, and « Aujourd'hui » leads to it; a date the operator picked stays picked.
+
 **Edge cases:**
 - No computed figure, occupancy math, drag-and-drop behavior, or calendar geometry changes.
 - `calendar-platform-colors.test.js` guard (no direct `PLATFORM_COLORS[…]` outside

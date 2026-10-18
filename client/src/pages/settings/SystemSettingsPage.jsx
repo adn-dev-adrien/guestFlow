@@ -18,6 +18,7 @@ export default function SystemSettingsPage() {
   const navigate = useNavigate();
   const form = useSettingsForm({ groups: ['smtp'], navigate });
   const smtp = form.draft.smtp || {};
+  const derivedUrl = (smtp.derived && smtp.derived.publicUrl) || '';
 
   return (
     <SettingsFormPage title="Système" form={form}>
@@ -30,11 +31,15 @@ export default function SystemSettingsPage() {
             <TextField
               label="URL publique"
               value={smtp.publicUrl || ''}
+              placeholder={derivedUrl || undefined}
+              slotProps={derivedUrl ? { inputLabel: { shrink: true } } : undefined}
               onChange={(e) => form.setField('smtp', 'publicUrl', e.target.value)}
               disabled={form.loading || form.saving}
               error={Boolean(form.errors.publicUrl)}
               helperText={form.errors.publicUrl
-                || 'Adresse de cet espace, utilisée dans les liens des emails (ex. https://guestflow.example.com).'}
+                || (derivedUrl
+                  ? `Par défaut : ${derivedUrl}.`
+                  : 'Adresse de cet espace, utilisée dans les liens des emails (ex. https://guestflow.example.com).')}
               fullWidth
               size="small"
             />

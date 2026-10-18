@@ -19,6 +19,7 @@ test('rule 24: the key is created at boot and the log line does not claim server
     onBoot(fn) { boots.push(fn); },
     mount() {},
     route() {},
+    secretRoutes() {},
     data() {},
     log: { info: (line) => infos.push(line), warn() {} },
   };

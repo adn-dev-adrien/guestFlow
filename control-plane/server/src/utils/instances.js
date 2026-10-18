@@ -53,8 +53,14 @@ function createInstances({ root, envsDir }) {
       let db;
       try {
         db = openReadonly(slug);
-        const rows = db.prepare('SELECT id, enabled FROM plugins').all();
-        return { installed: rows.map((r) => r.id), active: rows.filter((r) => r.enabled).map((r) => r.id) };
+        // `version` arrived with phase 4; an older instance's table has none (null then).
+        const hasVersion = db.prepare("SELECT 1 FROM pragma_table_info('plugins') WHERE name = 'version'").get();
+        const rows = db.prepare(`SELECT id, enabled${hasVersion ? ', version' : ', NULL AS version'} FROM plugins`).all();
+        return {
+          installed: rows.map((r) => r.id),
+          active: rows.filter((r) => r.enabled).map((r) => r.id),
+          versions: Object.fromEntries(rows.map((r) => [r.id, r.version || null])),
+        };
       } catch {
         return null;
       } finally {
@@ -65,15 +71,18 @@ function createInstances({ root, envsDir }) {
     // The support access of the instance (specs/hosting-h2-account-security.md §4.2): its pending
     // request and its open access, read like the rest. null when it cannot be read (an instance from
     // before H2 has no such table).
-    readSupportAccess(slug, nowIso) {
+    // `requestId` — the request the console last wrote: `known` says whether the instance has
+    // imported it yet (specs/hosting-h2-account-security.md rule 26).
+    readSupportAccess(slug, nowIso, requestId = null) {
       let db;
       try {
         db = openReadonly(slug);
+        const known = requestId ? Boolean(db.prepare('SELECT 1 FROM support_access WHERE requestId = ?').get(String(requestId))) : null;
         const pending = db.prepare('SELECT id, requestId, reason, requestedAt FROM support_access WHERE decision IS NULL ORDER BY id DESC LIMIT 1').get() || null;
         const open = db.prepare(`SELECT id, reason, expiresAt FROM support_access WHERE decision = 'accepted' AND revokedAt IS NULL AND expiresAt > ?
           ORDER BY expiresAt DESC LIMIT 1`).get(nowIso) || null;
         const last = db.prepare('SELECT id, reason, decision, decidedAt, expiresAt, revokedAt FROM support_access WHERE decision IS NOT NULL ORDER BY decidedAt DESC, id DESC LIMIT 1').get() || null;
-        return { pending, open, last };
+        return { pending, open, last, known };
       } catch {
         return null;
       } finally {

@@ -5,6 +5,7 @@
 // leaves a rollback (rules 13, 16, 20); a package that does not match the signed index is refused
 // with nothing changed (rule 22).
 const { test, expect } = require('@playwright/test');
+const { bundled, next } = require('./registryVersions');
 
 test.describe.configure({ mode: 'serial' });
 
@@ -38,11 +39,11 @@ test('rules 10, 11, 13: a plugin installs from the registry, and its page render
   await page.goto('/parametres/plugins');
   await page.getByRole('tab', { name: /Disponibles/ }).click();
   const linen = card(page, 'Linge et blanchisserie');
-  await expect(linen.getByText('1.0.1')).toBeVisible();
+  await expect(linen.getByText(next('linen'))).toBeVisible();
   await linen.getByRole('button', { name: 'Installer' }).click();
   await page.waitForLoadState('load');
   await expect(card(page, 'Linge et blanchisserie').getByText('Actif')).toBeVisible();
-  await expect(card(page, 'Linge et blanchisserie').getByText('1.0.1')).toBeVisible();
+  await expect(card(page, 'Linge et blanchisserie').getByText(next('linen'))).toBeVisible();
   await page.goto('/parametres/stock-blanchisserie');
   await expect(page.getByText('Parures de lit')).toBeVisible();
   expect(errors).toEqual([]);
@@ -52,12 +53,12 @@ test('rules 13, 16, 20: an update shows its changelog, restarts the instance and
   await page.goto('/parametres/plugins');
   await expect(page.getByText(/mises? à jour disponibles?/)).toBeVisible();
   const weather = card(page, 'Vigilance Météo-France');
-  await weather.getByText('Mise à jour 1.0.1').click();
+  await weather.getByText(`Mise à jour ${next('weather-alerts')}`).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('L’alerte orange est rappelée la veille de l’arrivée.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Mettre à jour' }).click();
   await expect(page.getByText('Redémarrage en cours')).toBeVisible();
-  await expect(card(page, 'Vigilance Météo-France').getByText('1.0.1')).toBeVisible({ timeout: 45_000 });
+  await expect(card(page, 'Vigilance Météo-France').getByText(next('weather-alerts'))).toBeVisible({ timeout: 45_000 });
   await card(page, 'Vigilance Météo-France').getByText('Vigilance Météo-France', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Revenir à la version précédente' })).toBeVisible();
 });
@@ -65,10 +66,10 @@ test('rules 13, 16, 20: an update shows its changelog, restarts the instance and
 test('rule 22: a package that does not match its signature is refused, nothing changes', async ({ page }) => {
   await page.goto('/parametres/plugins');
   const holidays = card(page, 'Vacances scolaires');
-  await holidays.getByText('Mise à jour 1.0.1').click();
+  await holidays.getByText(`Mise à jour ${next('school-holidays')}`).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Mettre à jour' }).click();
   await expect(dialog.getByRole('alert')).toHaveText('Le paquet reçu ne correspond pas à sa signature — rien n’a été modifié.');
   await dialog.getByRole('button', { name: 'Fermer' }).click();
-  await expect(card(page, 'Vacances scolaires').getByText('1.0.0')).toBeVisible();
+  await expect(card(page, 'Vacances scolaires').getByText(bundled('school-holidays'))).toBeVisible();
 });

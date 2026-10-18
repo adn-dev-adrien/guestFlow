@@ -1,8 +1,9 @@
 /**
  * SettingsSection — the « Saisie Booking » card of Paramètres › Intégrations
- * (specs/booking-extranet-intake.md §4.3): install link of the userscript, secret regeneration, the
- * property → Booking establishment id map, and the last intakes. The feeds that carry Booking stays are
- * read from the calendars themselves (specs/booking-extranet-intake.md rule 21, amended 2026-10-18).
+ * (specs/booking-extranet-intake.md §4.3): « Créer le secret » until one exists, then the install link of
+ * the userscript and the secret regeneration, the property → Booking establishment id map, and the last
+ * intakes. The feeds that carry Booking stays are read from the calendars themselves
+ * (specs/booking-extranet-intake.md rule 21, amended 2026-10-18).
  * No Save of its own: the page's bar saves the map through the ref.
  *
  * Props:
@@ -76,6 +77,18 @@ function SettingsSection({ onDirtyChange }, ref) {
     return { ...d, hotelIds: JSON.stringify(next) };
   });
 
+  // The secret exists only once asked for (specs/booking-extranet-intake.md rule 25).
+  const createSecret = async () => {
+    try {
+      await api.createBookingIntakeSecret();
+      setSaved((v) => ({ ...v, keySet: true }));
+      setDraft((v) => ({ ...v, keySet: true }));
+      setStatus('Secret créé. Installer le script.');
+    } catch (err) {
+      setStatus(err.message || 'Échec');
+    }
+  };
+
   const regenerate = async () => {
     const ok = await confirm({
       title: 'Régénérer le secret',
@@ -105,12 +118,20 @@ function SettingsSection({ onDirtyChange }, ref) {
           </Box>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' } }}>
-            <Button variant="contained" component="a" href={SCRIPT_URL} target="_blank" rel="noopener noreferrer" sx={{ minHeight: 44 }}>
-              Installer le script
-            </Button>
-            <Button variant="outlined" onClick={regenerate} sx={{ minHeight: 44 }}>
-              Régénérer le secret
-            </Button>
+            {draft.keySet ? (
+              <>
+                <Button variant="contained" component="a" href={SCRIPT_URL} target="_blank" rel="noopener noreferrer" sx={{ minHeight: 44 }}>
+                  Installer le script
+                </Button>
+                <Button variant="outlined" onClick={regenerate} sx={{ minHeight: 44 }}>
+                  Régénérer le secret
+                </Button>
+              </>
+            ) : (
+              <Button variant="contained" onClick={createSecret} sx={{ minHeight: 44 }}>
+                Créer le secret
+              </Button>
+            )}
             <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
               {status || 'Nécessite Tampermonkey, Violentmonkey ou Userscripts (Safari).'}
             </Typography>

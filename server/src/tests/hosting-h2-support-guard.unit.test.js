@@ -166,10 +166,13 @@ test('rules 19-20 — the reads of a support session are logged once per path an
   audit({ method: 'POST', path: '/users', body: {}, session: h.session }, refused, () => assert.fail('must not pass'));
   assert.equal(refused.statusCode, 403);
 
+  // Rule 19: the raw rows — one per path and minute; the polled paths are not there.
+  const raw = h.supportAccessModel.logs(h.accessId).filter((l) => l.method === 'GET').map((l) => l.path.toLowerCase().replace(/\/+$/, ''));
+  assert.deepEqual(raw.filter((p) => p.endsWith('/reservations/12')).length, 2);
+  assert.ok(!raw.some((p) => /me|banner/i.test(p)), 'what the application polls is not logged');
+  // Rule 20 with rule 25: each minute's reads read as one line.
   const labels = h.supportAccess.logs(h.accessId).entries.map((e) => [e.label, e.outcomeLabel]);
-  assert.deepEqual(labels.filter(([l]) => l === 'Réservation 12 consultée').length, 2);
-  assert.ok(labels.some(([l]) => l === 'Consultation : Réservations'));
-  assert.ok(!labels.some(([l]) => /me|banner/i.test(l)), 'what the application polls is not logged');
+  assert.ok(labels.some(([l]) => l === 'Consultation : Réservation 12, Réservations'), JSON.stringify(labels));
   assert.deepEqual(labels.find(([l]) => l === 'Utilisateur créé' || l === 'Modification : Utilisateurs'), ['Modification : Utilisateurs', 'Refusé']);
 });
 

@@ -203,6 +203,14 @@ each of these lives on the server — no UI-side calculation.
   today's `if (Number(full.touristTaxTotal || 0) > 0)` guard. No regression on direct
   reservations.
 
+**Review fixes (2026-10-18, mega review #5)**
+
+21. **A devis printed after its validity says so** (2026-10-18, mega review #5): « Valable jusqu'au
+    07/10/2026 (expiré) » (« (expired) » in English). A converted devis and a reservation never carry
+    it. *Why:* an expired devis printed on 18/10 read as a live offer.
+22. **The pricing table's HT column is named for what it holds**, the line total: « Total HT »
+    (« Total excl. VAT »). *Why:* « Hébergement — Qté 3 — Prix HT 272,73 € » read as 3 × 272,73.
+
 ---
 
 ## 4. Architecture

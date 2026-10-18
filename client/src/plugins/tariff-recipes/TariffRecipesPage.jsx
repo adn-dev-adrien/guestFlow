@@ -141,8 +141,7 @@ export default function TariffRecipesPage() {
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
         Les saisons et tarifs des logements en mode automatique sont calculés à partir de ces
-        recettes — jours fériés compris. Une recette déposée dans le dossier <code>recipes/</code> du
-        serveur est prise en compte au redémarrage et remplace la version livrée du même identifiant.
+        recettes, jours fériés compris.
       </Typography>
 
       {loadError && <ErrorAlert message="Impossible de charger les recettes." onRetry={load} />}

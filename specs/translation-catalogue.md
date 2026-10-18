@@ -268,6 +268,9 @@ counts before and after are logged, and the migration refuses to drop if they di
   texte français a changé depuis la traduction »
 - « Les traductions se font dans un fichier : télécharge-le, remplis les colonnes de langue,
   renvoie-le. »
+  > **Changed 2026-10-18** (specs/ds-components.md rule 25, no « tu » on screen): « Traductions :
+  > télécharger le fichier, remplir les colonnes, le renvoyer. Une colonne de plus = une langue de
+  > plus. » The removal confirmation ends « … vérifier le fichier avant de continuer. »
 - Removal confirmation: « Ce fichier retire 4 traductions » / « 4 cases de langue sont vides alors
   qu'une traduction existe aujourd'hui. Si ce n'est pas voulu, vérifie le fichier avant de continuer. »
   / « Appliquer quand même » · « Annuler »

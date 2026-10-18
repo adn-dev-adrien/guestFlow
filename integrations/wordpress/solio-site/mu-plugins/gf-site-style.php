@@ -260,8 +260,8 @@ strong,b{ font-weight:700; }
 /* ---- Selecteur de langue des CGV (drapeaux, en haut a droite) ---- */
 .gf-cgv-entete{ display:flex; align-items:center; justify-content:flex-end; margin-bottom:8px; }
 .gf-cgv-switch{ display:flex; gap:8px; }
-.gf-cgv-switch button{ font-size:22px; line-height:1; padding:8px 12px; border:1px solid var(--gf-line);
-  border-radius:4px; background:var(--gf-card); cursor:pointer; opacity:.45; transition:opacity .2s, border-color .2s; }
+.gf-cgv-switch button{ font-size:14px; font-weight:700; letter-spacing:.08em; line-height:1; min-width:44px; min-height:44px; padding:8px 12px; border:1px solid var(--gf-line);
+  border-radius:4px; background:var(--gf-card); cursor:pointer; opacity:.65; transition:opacity .2s, border-color .2s; }
 .gf-cgv-switch button.is-active{ opacity:1; border-color:var(--gf-ocre); box-shadow:0 0 0 1px var(--gf-ocre); }
 .gf-cgv-lang[data-visible="0"]{ display:none; }
 

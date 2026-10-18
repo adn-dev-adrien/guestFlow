@@ -34,15 +34,52 @@ function sellableNights(propertyId, from, to, closures) {
   return n;
 }
 
-// Nights of the given stays falling in [from, to] (to inclusive).
-function nightsSold(stays, from, to) {
-  let n = 0;
-  for (const s of stays) {
-    const start = s.startDate > from ? s.startDate : from;
-    const endExclusive = s.endDate < addDays(to, 1) ? s.endDate : addDays(to, 1);
-    for (let t = toTime(start); t < toTime(endExclusive); t += DAY) n += 1;
+// Rule 35 — the nights of the given stays as `propertyId|YYYY-MM-DD` keys, optionally bounded to
+// [from, to] (to inclusive). A Set: two stays of the same logement on the same night — an iCal
+// duplicate of a platform booking, a fiche entered twice — are one night sold, never two.
+function nightKeys(stays, from = null, to = null) {
+  const keys = new Set();
+  for (const s of stays || []) {
+    if (!s || !s.startDate || !s.endDate) continue;
+    const start = from && s.startDate < from ? from : s.startDate;
+    const endExclusive = to && s.endDate > addDays(to, 1) ? addDays(to, 1) : s.endDate;
+    for (let t = toTime(start); t < toTime(endExclusive); t += DAY) keys.add(`${s.propertyId}|${toIso(t)}`);
   }
-  return n;
+  return keys;
+}
+
+// Distinct nights of the given stays falling in [from, to] (to inclusive) — rule 35.
+function nightsSold(stays, from, to) {
+  return nightKeys(stays, from, to).size;
+}
+
+/**
+ * Rule 35 — the nights of a set of stays, deduplicated per logement, with their revenue basis:
+ *   nights        distinct nights sold;
+ *   pricedNights  distinct nights of the stays that carry an amount — the revenue-per-night
+ *                 denominator, so a stay with 0 € on the books does not dilute it;
+ *   unpriced      stays with 0 € on the books, and their nights that no priced stay covers.
+ * `byProperty` gives the same figures per logement.
+ */
+function stayNights(stays) {
+  const isPriced = (r) => Math.round(Number(r.totalSejour || 0) * 100) !== 0;
+  const tally = (list) => {
+    const priced = list.filter(isPriced);
+    const unpriced = list.filter((r) => !isPriced(r));
+    const pricedKeys = nightKeys(priced);
+    let unpricedNights = 0;
+    for (const k of nightKeys(unpriced)) if (!pricedKeys.has(k)) unpricedNights += 1;
+    return {
+      nights: nightKeys(list).size,
+      pricedNights: pricedKeys.size,
+      unpriced: { count: unpriced.length, nights: unpricedNights },
+    };
+  };
+  const byProperty = new Map();
+  for (const id of new Set((stays || []).map((r) => r.propertyId))) {
+    byProperty.set(id, tally(stays.filter((r) => r.propertyId === id)));
+  }
+  return { ...tally(stays || []), byProperty };
 }
 
 // Rule 23 — a logement with no sellable night has no rate (a gap on the chart), never a 0.
@@ -79,4 +116,6 @@ function occupancyOver(properties, stays, closures, from, to, { startOf } = {}) 
 const revenuePerNight = (revenue, nights) => (nights > 0 ? Math.round((revenue / nights) * 100) / 100 : null);
 const revPar = (revenue, sellable) => (sellable > 0 ? Math.round((revenue / sellable) * 100) / 100 : null);
 
-module.exports = { sellableNights, nightsSold, occupancyOver, rate, revenuePerNight, revPar, addDays };
+module.exports = {
+  sellableNights, nightsSold, nightKeys, stayNights, occupancyOver, rate, revenuePerNight, revPar, addDays,
+};

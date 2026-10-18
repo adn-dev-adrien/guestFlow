@@ -7,6 +7,7 @@
  * SQL is moved verbatim from the former routes/reservations.js to preserve behavior exactly.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { formatPlatformName, registerDirectChannelSql } = require('../utils/platformNameFormat');
@@ -656,7 +657,9 @@ function createReservationsModel(database) {
       if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
       if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
       sql += ' ORDER BY r.startDate';
-      const today = new Date().toISOString().split('T')[0];
+      // The server's calendar day, not UTC's: between midnight and 2 a.m. in Paris the UTC date is
+      // still yesterday (specs/upcoming-reservations-cards.md rule 7).
+      const today = localTodayIso();
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the
         // response (preserves the former route behavior, which stripped them).
@@ -1202,7 +1205,7 @@ function createReservationsModel(database) {
       const property = database.prepare('SELECT cleaningHours FROM properties WHERE id = ?').get(propertyId);
       const cleaning = property ? (property.cleaningHours ?? 3) : 3;
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = localTodayIso();
       if (startDate < today && !options.allowPastDates) {
         return { error: 'Impossible de réserver dans le passé.' };
       }
@@ -2297,7 +2300,7 @@ function createReservationsModel(database) {
         const notes = parseNotes(row.midStaySettledNotes);
         const note = {
           id: nextNoteId(notes),
-          paidDate: new Date().toISOString().slice(0, 10),
+          paidDate: localTodayIso(),
           paidCash: cash ? 1 : 0,
           total: round2(noteLines.reduce((s, l) => s + Number(l.amount || 0), 0)),
           lines: noteLines,
@@ -2599,7 +2602,7 @@ function createReservationsModel(database) {
       // Bread is counted in baguettes with half steps (specs/sas-breakfast-bread-and-push.md rule 2).
       const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round((Number(v) || 0) * 2) / 2));
       const tx = database.transaction(() => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localTodayIso();
         // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
@@ -2977,7 +2980,7 @@ function createReservationsModel(database) {
       offeredArrivalExtras,
     } = {}) {
       const tx = database.transaction(() => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localTodayIso();
         // specs/sas-offer-complement-lines.md §3.2 rule 6.ter — the check-out recap only RECALLS the
         // arrival complement when something is still owed on it (amount > 0 and unpaid). When it is
         // not recalled, the recap rendered no arrival line, so it holds no authority over their

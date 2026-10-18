@@ -24,6 +24,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { isValidVersion } = require('./semver');
+const { environmentWithoutLocalFile } = require('./localEnv');
 
 const HELPER_SCRIPT = path.resolve(__dirname, '..', '..', 'scripts', 'apply-update.sh');
 const DEFAULT_TIMEOUT_SECONDS = 120;
@@ -102,10 +103,18 @@ function buildSpawnCommand({ script, args, setsidPath = resolveSetsid() }) {
   return { command: 'bash', argv: [script, ...args] };
 }
 
-function spawnHelper(args, { scriptPath = HELPER_SCRIPT, spawnImpl = spawn, setsidPath = resolveSetsid() } = {}) {
+function spawnHelper(args, {
+  scriptPath = HELPER_SCRIPT,
+  spawnImpl = spawn,
+  setsidPath = resolveSetsid(),
+  env = environmentWithoutLocalFile(),
+} = {}) {
   const script = resolveHelperScript(scriptPath);
   const { command, argv } = buildSpawnCommand({ script, args, setsidPath });
+  // The helper restarts the app with `pm2 … --update-env`, which saves this environment for every
+  // later restart: `.env.local` values stay out of it, or a rotated key would come back stale.
   const child = spawnImpl(command, argv, {
+    env,
     detached: true,
     stdio: 'ignore',
     windowsHide: true,

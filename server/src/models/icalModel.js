@@ -11,6 +11,7 @@
 // in 2026-06 can only drop the incoming booking — the guest keeps a confirmation for a stay that leaves
 // no trace at all in GuestFlow. Exporting the closure prevents the sale instead.
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const crypto = require('crypto');
 const db = require('../database');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
@@ -146,7 +147,7 @@ function createIcalModel(database) {
       // `list` already scopes to this property's own closures ∪ the global ones, drops those that are
       // over (endDate > from — an ongoing closure stays, which is the one that matters most) and
       // orders by startDate. Nothing to re-derive here.
-      closures.list({ propertyId, from: new Date().toISOString().slice(0, 10) })
+      closures.list({ propertyId, from: localTodayIso() })
         .forEach((closure) => lines.push(...closureEventLines(closure)));
 
       lines.push('END:VCALENDAR');

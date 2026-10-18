@@ -320,6 +320,12 @@ arrives.
   chez Neat » — a reinstall on the same contract takes them back.
 - Tests: `insurance-price-plugin-off.unit.test.js` (+4: « offert » and the lock frozen, the defaults, the partner only where sold, the property page), `phase-3b-neat.unit.test.js` (+1: the block key; the warning), `OptionRow.plugin-slot.test.jsx`.
 
+### Review fixes (2026-10-18, mega review #5)
+
+24. **`NEAT_API_BASE` points the Neat client at a local mock**, like `QONTO_API_BASE` for Qonto: when
+    set, it replaces the environment's base URL (trailing slash dropped); an explicit `baseUrl` (tests)
+    still wins. *Why:* the plugin could not be exercised end to end without the real API.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

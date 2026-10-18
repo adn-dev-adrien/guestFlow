@@ -34,7 +34,7 @@ function createAlertsController(ctx, customersController, billingController) {
       alerts.push({ customerId: c.id, severity: 'error', text: `${c.companyName} est en « ${STATE_LABELS[c.state]} » depuis le ${frDay(c.stateSince)}.` });
     }
     const labels = new Map([...customersController.CREATE_STEPS, ...customersController.DEPROVISION_STEPS,
-      ...customersController.REACTIVATE_STEPS, ...customersController.RENAME_STEPS].map((s) => [s.step, s.label]));
+      ...customersController.REACTIVATE_STEPS, ...customersController.RENAME_STEPS, ...customersController.PROCESS_RESTART_STEPS].map((s) => [s.step, s.label]));
     for (const s of provisioning.failed()) {
       const c = byId.get(s.customerId);
       if (!c) continue;
@@ -44,7 +44,7 @@ function createAlertsController(ctx, customersController, billingController) {
       alerts.push({ customerId: c.id, severity: 'warning', text: `${c.companyName} : effacement en attente de « Processus et route arrêtés ».` });
     }
     for (const a of ctx.hostAlerts ? ctx.hostAlerts.list() : []) {
-      alerts.push({ customerId: a.customer_id, severity: a.severity === 'warning' ? 'warning' : 'error', text: a.text, link: a.customer_id ? null : '/versions' });
+      alerts.push({ customerId: a.customer_id, severity: a.severity === 'warning' ? 'warning' : 'error', text: a.text, link: a.customer_id ? `/clients/${a.customer_id}` : '/versions' });
     }
     alerts.push(...billingController.alerts());
     return { alerts, queue: billingController.queue() };

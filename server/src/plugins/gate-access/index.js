@@ -93,6 +93,8 @@ function register(ctx) {
   ctx.route('get', '/api/dashboard/gate-keys', controller.dashboard);
   ctx.route('get', '/api/settings/gate-connector', controller.settings);
   ctx.route('get', '/api/settings/gate-connector/secrets', controller.secrets);
+  // The keys come back in clear: a support session is refused them (specs/hosting-h2-account-security.md rule 23).
+  ctx.secretRoutes([{ method: 'GET', re: /^\/settings\/gate-connector\/secrets$/ }]);
 
   ctx.emailContext({
     tokens: TOKENS,

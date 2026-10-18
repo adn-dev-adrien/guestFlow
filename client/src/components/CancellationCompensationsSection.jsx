@@ -152,9 +152,9 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
     <Card variant="outlined" sx={{ mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Ce qu&apos;une plateforme verse pour un séjour annulé, ou l&apos;acompte conservé quand nous
-          annulons un séjour faute de règlement. Comptabilisée au mois du versement, modifiable tant
-          qu&apos;elle n&apos;est pas encaissée.
+          Ce qu&apos;une plateforme verse pour un séjour annulé, ou l&apos;acompte conservé faute de
+          règlement. Comptabilisée au mois du versement, modifiable tant qu&apos;elle n&apos;est pas
+          encaissée.
         </Typography>
 
         {loading ? <LoadingState py={2} /> : (

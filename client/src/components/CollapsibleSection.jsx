@@ -104,7 +104,7 @@ export default function CollapsibleSection({
           onClick={toggle}
           tabIndex={-1}
           aria-hidden
-          sx={{ mt: 1, px: 1.5, py: 0.5, borderRadius: 1, justifyContent: 'flex-start' }}
+          sx={{ mt: 1, px: 1.5, py: 0.5, borderRadius: 1, justifyContent: 'flex-start', '@media (pointer: coarse)': { minHeight: 44 } }}
         >
           <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 500 }}>
             {expanded ? collapseLabel : toggleLabel}

@@ -4,13 +4,14 @@
 // pricing/contrib ones, because settling the acompte / solde also captures the per-bucket
 // contribution snapshot the accounting export reads afterwards.
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = localTodayIso();
 
 function makeDb() {
   const db = new Database(':memory:');

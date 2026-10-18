@@ -17,7 +17,9 @@ const BASE_URLS = {
 
 function buildNeatClient(config = {}) {
   const environment = config.environment === 'production' ? 'production' : 'staging';
-  const baseUrl = config.baseUrl || BASE_URLS[environment];
+  // `NEAT_API_BASE` points the client at a local mock, like `QONTO_API_BASE` (specs/plugins-phase-3b-neat.md).
+  const env = config.env || process.env;
+  const baseUrl = config.baseUrl || String(env.NEAT_API_BASE || '').trim().replace(/\/+$/, '') || BASE_URLS[environment];
   const clientId = String(config.clientId || '');
   const clientSecret = String(config.clientSecret || '');
   const fetchImpl = config.fetchImpl || globalThis.fetch;

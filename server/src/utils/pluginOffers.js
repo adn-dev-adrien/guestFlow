@@ -10,7 +10,7 @@
  * a refusal but a proposal (« installer aussi … », same confirmation).
  */
 
-const { satisfies, compare, highest, floorLabel, isVersion } = require('./semverRange');
+const { satisfies, compare, highest, floorLabel, isVersion, boundedRange } = require('./semverRange');
 
 // A development tree reads `0.0.0-dev` (utils/appVersion.js): it runs whatever its sources are.
 const DEV_CORE = '0.0.0-dev';
@@ -44,7 +44,8 @@ function missingHostImports(manifest, hostExports) {
 
 /** The refusal of a manifest's ranges, or null when the running core and SDK satisfy them. */
 function rangeRefusal(manifest, { coreVersion, sdkVersion, hostExports = null }) {
-  if (coreVersion !== DEV_CORE && !satisfies(coreVersion, manifest.guestflow)) {
+  // Rule 34 — an open `guestflow` range stops at the next major of its floor.
+  if (coreVersion !== DEV_CORE && !satisfies(coreVersion, boundedRange(manifest.guestflow))) {
     const floor = floorLabel(manifest.guestflow);
     const minimum = floor && floor.split('.').length === 2 ? `${floor}.0` : floor;
     if (minimum && isVersion(coreVersion) && isVersion(minimum) && compare(coreVersion, minimum) < 0) {

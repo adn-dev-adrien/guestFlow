@@ -30,6 +30,8 @@ import api from '../api';
 import { usePlugin } from '../hooks/usePlugins';
 import { SAS } from '../constants/plugins';
 import { useSlot } from '../plugins/sdk/useSlot';
+import useServerToday from '../hooks/useServerToday';
+import { addIsoDays } from '../utils/isoDay';
 
 const DAYS_AHEAD = 14;
 
@@ -44,11 +46,7 @@ const contributionId = (c) => `${c.pluginId}:${c.key}`;
 //     `components/DepartureMiniRow.js` for the canonical DEPARTURE_BG constant.
 //   - "Done" green + alert overlays still take priority (each card's sx handles them).
 
-function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
-}
+const addDays = addIsoDays;
 
 function frenchWeekday(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -180,7 +178,10 @@ export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [planningDays, setPlanningDays] = useState([]);
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // The server's date (specs/ds-sweep-planning.md rule 28); the page waits for it before loading.
+  const todayStr = useServerToday();
+  const [pickedStart, setStartDate] = useState(null);
+  const startDate = pickedStart || todayStr;
   const [alertMap, setAlertMap] = useState({});
   const [properties, setProperties] = useState([]);
   const [departuresMap, setDeparturesMap] = useState({});
@@ -221,8 +222,6 @@ export default function PlanningPage() {
   }, [searchParams, setSearchParams]);
 
   const lastLoadedRef = useRef(null);
-
-  const todayStr = new Date().toISOString().split('T')[0];
 
   // Load properties once
   useEffect(() => {
@@ -417,7 +416,7 @@ export default function PlanningPage() {
   };
 
   useEffect(() => {
-    loadPlanning(startDate);
+    if (startDate) loadPlanning(startDate);
   }, [startDate, properties]); // eslint-disable-line
 
   // Infinite scroll listener — bound to the WINDOW: the page has no scroll container of its own
@@ -541,20 +540,20 @@ export default function PlanningPage() {
   // (specs/ds-sweep-planning.md rule 2). Color legend removed 2026-06-06.
   const renderDateNav = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
-      <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, -1))} aria-label="Jour précédent">
+      <IconButton size="small" onClick={() => setStartDate(addDays(startDate, -1))} disabled={!startDate} aria-label="Jour précédent">
         <NavigateBeforeIcon />
       </IconButton>
       <TextField
         type="date"
         size="small"
-        value={startDate}
+        value={startDate || ''}
         onChange={(e) => setStartDate(e.target.value)}
         sx={{ width: 155 }}
         slotProps={{
           htmlInput: { style: { padding: '6px 10px' }, 'aria-label': 'Date de début' }
         }}
       />
-      <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, 1))} aria-label="Jour suivant">
+      <IconButton size="small" onClick={() => setStartDate(addDays(startDate, 1))} disabled={!startDate} aria-label="Jour suivant">
         <NavigateNextIcon />
       </IconButton>
       {startDate !== todayStr && (
