@@ -33,9 +33,13 @@ function parseEnv(content) {
   return out;
 }
 
+function readFileVars() {
+  return fs.existsSync(ENV_PATH) ? parseEnv(fs.readFileSync(ENV_PATH, 'utf8')) : {};
+}
+
 function loadLocalEnv() {
   if (!fs.existsSync(ENV_PATH)) return;
-  const parsed = parseEnv(fs.readFileSync(ENV_PATH, 'utf8'));
+  const parsed = readFileVars();
   for (const [key, value] of Object.entries(parsed)) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
@@ -74,4 +78,30 @@ function persistVar(name, value) {
   return value;
 }
 
-module.exports = { loadLocalEnv, getOrCreateSecret, persistVar, ENV_PATH };
+/**
+ * Replaces the secret `name` with `byteLength` fresh random bytes, in `.env.local` and `process.env`,
+ * and returns it. A value the real environment sets cannot be rotated from here (the file would lose
+ * to it at the next boot): that throws an error with `code = 'SECRET_FROM_ENVIRONMENT'`.
+ */
+function rotateSecret(name, byteLength = 32) {
+  loadLocalEnv();
+  const fileVars = readFileVars();
+  const current = process.env[name] && String(process.env[name]).trim();
+  if (current && fileVars[name] !== current) {
+    const err = new Error(`${name} is set by the environment`);
+    err.code = 'SECRET_FROM_ENVIRONMENT';
+    throw err;
+  }
+  const secret = crypto.randomBytes(byteLength).toString('base64');
+  if (fileVars[name] === undefined) {
+    appendVar(name, secret);
+  } else {
+    const lines = fs.readFileSync(ENV_PATH, 'utf8').split('\n')
+      .map((line) => (line.trim().startsWith(`${name}=`) ? `${name}=${secret}` : line));
+    fs.writeFileSync(ENV_PATH, lines.join('\n'), { mode: 0o600 });
+  }
+  process.env[name] = secret;
+  return secret;
+}
+
+module.exports = { loadLocalEnv, getOrCreateSecret, persistVar, rotateSecret, ENV_PATH };

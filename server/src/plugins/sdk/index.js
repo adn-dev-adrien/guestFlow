@@ -55,6 +55,7 @@ const CORE_MODULES = Object.freeze({
   publicLabels: '../../utils/publicLabels', // public wording, shared with the core meal portions
   publicDevisToken: '../../utils/publicDevisToken', // the capability token of a website devis
   publicPaymentMode: '../../utils/publicPaymentMode', // full or deposit, shared with the public payment
+  paymentProviders: '../../utils/paymentProviders', // whether the site can take a payment now (public-online-payment rule 12)
   attributionChannel: '../../utils/attributionChannel', // request origin, read by finance (rule 26)
   babyBedResource: '../../utils/babyBedResource', // the baby-bed flag of a public resource
   releaseClient: '../../utils/releaseClient', // the allowed download hosts of the plugin manifest
@@ -105,6 +106,8 @@ module.exports = Object.freeze({
   // Secrets the operator copies into another system live in server/.env.local, never in the database.
   secrets: Object.freeze({
     getOrCreate: (name, byteLength = 32) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength),
+    // A new value for a secret another system holds a copy of (specs/plugins-phase-2-hosts.md rule 31).
+    rotate: (name, byteLength = 32) => require('../../utils/localEnv').rotateSecret(name, byteLength),
   }),
   pricing: Object.freeze({
     normalizeProgressiveTiers: (...args) => require('../../utils/pricing').normalizeProgressiveTiers(...args),

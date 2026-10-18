@@ -354,6 +354,21 @@ without the core knowing it.
   « Site internet » group in the finance pages.
 - Tests: `phase-2-sas.unit.test.js` (+1), `phase-2-accounting-export.unit.test.js` (settings refused), `roles.plugins.test.js` (+1: the closures label), `Dashboard.test.jsx` (+1: reception without the SAS), `PropertyDetail.tabs.test.jsx`.
 
+### The website key on screen (added 2026-10-18, review of the website plugin)
+
+30. **Paramètres › Intégrations › « Site internet (WordPress) »** (a `settings.integrations` slot of
+    `website-booking`, admin only) shows the two values the WordPress plugin is given: « URL de l'API
+    GuestFlow » (the core's « Adresse de l'application », else the origin the admin browses from,
+    flagged as deduced) and « Clé d'API », masked with reveal and « Copier ».
+    `GET /api/settings/website-connection` answers `{ address: { value, source }, apiKey }`,
+    `Cache-Control: no-store`, creating the key if it is missing; a support session is refused it
+    (`credentials`). No more SSH to read `.env.local`.
+31. **« Régénérer la clé »** (confirmation first: the site stops answering until the new key is pasted
+    into WordPress) calls `POST /api/settings/website-connection/regenerate`, which writes a new
+    32-byte key into the instance's `.env.local` and `process.env` (SDK `secrets.rotate`, SDK 1.2.0) and
+    answers `{ apiKey }`. A `PUBLIC_API_KEY` set by the server's real environment cannot be changed
+    from here: 409 `KEY_FROM_ENVIRONMENT`, with a message naming the variable.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The linen gating of the SAS, the bed-linen alert, the push target,

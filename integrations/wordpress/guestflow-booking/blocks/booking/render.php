@@ -19,6 +19,12 @@ if ($property_id <= 0 && isset($_GET['property'])) { // phpcs:ignore WordPress.S
 if ($property_id <= 0) {
     $property_id = (int) GF_Settings::instance()->get('default_property_id', 0);
 }
+// No property anywhere (a page created by the settings screen, opened without ?property=): the
+// visitor picks a lodging first, from the cards that link back here (specs/wordpress-plugin.md rule 14).
+if ($property_id <= 0) {
+    echo render_block(['blockName' => 'guestflow/properties', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]); // phpcs:ignore WordPress.Security.EscapeOutput
+    return;
+}
 $show_options = !isset($attributes['showOptions']) || (bool) $attributes['showOptions'];
 $pay_online = !empty($attributes['payOnline']);
 

@@ -36,25 +36,43 @@ final class GF_Api_Client
     }
 
     /**
-     * The visitor's address: REMOTE_ADDR, unless it is one of the trusted reverse proxies — then the
-     * right-most X-Forwarded-For entry that is not itself a trusted proxy (the left part of that
-     * header is written by the client and cannot be believed).
+     * The visitor's address: REMOTE_ADDR, unless it is a trusted reverse proxy — then the right-most
+     * X-Forwarded-For entry that is not itself a trusted proxy (the left part of that header is
+     * written by the client and cannot be believed).
+     *
+     * `$private_trusted` (specs/wordpress-plugin.md rule 14): a proxy on the local network or the
+     * machine itself (private or loopback address) is trusted without being listed, as a reverse
+     * proxy in front of WordPress almost always is. Only a proxy with a public address needs the list.
      */
-    public static function visitor_ip(array $trusted): string
+    public static function visitor_ip(array $trusted, bool $private_trusted = false): string
     {
+        $is_trusted = static function (string $ip) use ($trusted, $private_trusted): bool {
+            return in_array($ip, $trusted, true) || ($private_trusted && self::is_local_ip($ip));
+        };
         $remote = isset($_SERVER['REMOTE_ADDR']) ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
-        if ($remote === '' || !in_array($remote, $trusted, true)) {
+        $forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? trim((string) $_SERVER['HTTP_X_FORWARDED_FOR']) : '';
+        if ($remote === '' || $forwarded === '' || !$is_trusted($remote)) {
             return filter_var($remote, FILTER_VALIDATE_IP) !== false ? $remote : '';
         }
-        $forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? (string) $_SERVER['HTTP_X_FORWARDED_FOR'] : '';
-        $hops = array_reverse(array_map('trim', explode(',', $forwarded)));
-        foreach ($hops as $hop) {
-            if ($hop === '' || in_array($hop, $trusted, true)) {
-                continue;
+        $hops = array_values(array_filter(array_map('trim', explode(',', $forwarded)), static function ($hop) {
+            return filter_var($hop, FILTER_VALIDATE_IP) !== false;
+        }));
+        foreach (array_reverse($hops) as $hop) {
+            if (!$is_trusted($hop)) {
+                return $hop;
             }
-            return filter_var($hop, FILTER_VALIDATE_IP) !== false ? $hop : '';
         }
-        return '';
+        // Every hop is local: the visitor is on the local network too.
+        return $hops[0] ?? $remote;
+    }
+
+    /** A private (10/8, 172.16/12, 192.168/16, fc00::/7) or reserved (127/8, ::1, link-local…) address. */
+    public static function is_local_ip(string $ip): bool
+    {
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
     }
 
     private static function visitor_user_agent(): string
@@ -92,7 +110,7 @@ final class GF_Api_Client
                 'Authorization'          => 'Bearer ' . $key,
                 'Accept'                 => 'application/json',
                 'X-GuestFlow-Plugin'     => GF_BOOKING_VERSION,
-                'X-GuestFlow-Visitor-IP' => self::visitor_ip($settings->get_trusted_proxies()),
+                'X-GuestFlow-Visitor-IP' => self::visitor_ip($settings->get_trusted_proxies(), $settings->trusts_local_proxies()),
                 'X-GuestFlow-Visitor-UA' => self::visitor_user_agent(),
             ],
         ];

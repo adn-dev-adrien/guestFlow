@@ -55,6 +55,7 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   if (under(path, '/google-calendar/oauth')) return 'credentials';
   if (['/payments/qonto/authorize', '/payments/qonto/callback', '/payments/qonto/refresh-connection'].includes(path)) return 'credentials';
   if (under(path, '/settings/gate-connector/secrets')) return 'credentials';
+  if (under(path, '/settings/website-connection')) return 'credentials';
   // Uninstalling or turning off a plugin erases or strands its stored credentials.
   if (/^\/plugins\/[^/]+(\/deactivate)?$/.test(path) && (method === 'DELETE' || /\/deactivate$/.test(path)) && !read) return 'credentials';
   if (path === '/google-calendar/calendar' && !read) return 'credentials';

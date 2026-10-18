@@ -11,6 +11,7 @@ const { PUBLIC_PREFIXES, buildPublicMounts } = require('./routes');
 const settings = require('./settings');
 const { buildEnforcementController } = require('./enforcementController');
 const { buildPendingController } = require('./pendingController');
+const { buildSiteConnectionController, KEY_NAME } = require('./siteConnectionController');
 
 const id = 'website-booking';
 
@@ -24,14 +25,23 @@ function register(ctx) {
   settings.bindStore(ctx.settings);
   ctx.migrations([{ name: 'settings_from_app_settings_v1', up: settings.copyFromAppSettings }]);
 
-  // Rule 24 — the key exists only once the plugin is installed. Never logged: the operator reads it
-  // from .env.local and copies it into the WordPress proxy settings. An uninstall never rotates it.
+  // Rule 24 — the key exists only once the plugin is installed. Never logged: the operator copies it
+  // from Paramètres › Intégrations into the WordPress proxy settings (rule 30). An uninstall never
+  // rotates it.
   const ensureApiKey = () => {
-    sdk.secrets.getOrCreate('PUBLIC_API_KEY', 32);
-    ctx.log.info('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
+    sdk.secrets.getOrCreate(KEY_NAME, 32);
+    ctx.log.info(`${KEY_NAME} ready — shown in Paramètres › Intégrations › Site internet.`);
   };
   ctx.onInstall(ensureApiKey);
   ctx.onBoot(ensureApiKey);
+
+  const connection = buildSiteConnectionController({
+    publicUrl: () => ctx.core.settings.publicUrl(),
+    ensureKey: () => sdk.secrets.getOrCreate(KEY_NAME, 32),
+    rotateKey: () => sdk.secrets.rotate(KEY_NAME, 32),
+  });
+  ctx.route('get', '/api/settings/website-connection', connection.get);
+  ctx.route('post', '/api/settings/website-connection/regenerate', connection.regenerate);
 
   // The controllers bind core models when they load; the routers are built on the first request,
   // not at register, which runs early in the boot (and in suites without a database).

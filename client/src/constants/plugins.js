@@ -38,9 +38,9 @@ export const MODULE_ROUTE_ROLES = liveRecord(
 );
 
 // Pages that only exist for a plugin. An array means « visible while any of them is active »
-// (Intégrations holds the sections of six plugins). Plugin modules add their own pages.
+// (Intégrations holds the sections of seven plugins). Plugin modules add their own pages.
 export const ROUTE_PLUGINS = liveRecord(() => ({
-  '/settings/integrations': [GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE],
+  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE],
   ...Object.fromEntries(moduleRoutes().map((route) => [route.path, route.pluginId])),
 }), modulesVersion);
 

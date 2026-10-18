@@ -60,10 +60,6 @@ msgstr "Deposit due now"
 msgid "Ados"
 msgstr "Teenagers"
 
-#: includes/class-gf-settings.php:265
-msgid "Adresses IP des reverse proxys placés devant WordPress (séparées par des virgules). Sans elles, GuestFlow reçoit l'adresse du proxy au lieu de celle du visiteur : la preuve d'acceptation des CGV et la limite anti-spam en dépendent."
-msgstr "IP addresses of the reverse proxies in front of WordPress (comma-separated). Without them GuestFlow receives the proxy's address instead of the visitor's, and both the terms-acceptance record and the anti-spam limit depend on it."
-
 #: includes/class-gf-blocks.php:95
 msgid "Adultes"
 msgstr "Adults"
@@ -79,10 +75,6 @@ msgstr "Cancellation insurance"
 #: includes/class-gf-blocks.php:89
 msgid "Aucune disponibilité sur cette période."
 msgstr "No availability for these dates."
-
-#: includes/class-gf-settings.php:208
-msgid "Base du serveur GuestFlow, sans /public/v1."
-msgstr "Base URL of the GuestFlow server, without /public/v1."
 
 #: includes/class-gf-blocks.php:98
 msgid "Bébés"
@@ -138,10 +130,6 @@ msgstr "API key"
 #: includes/class-gf-settings.php:314
 msgid "Clé ou URL d'API non configurée."
 msgstr "API key or URL not configured."
-
-#: includes/class-gf-settings.php:221
-msgid "Collez la clé PUBLIC_API_KEY de GuestFlow (server/.env.local). Laissez vide pour conserver l'actuelle."
-msgstr "Paste GuestFlow's PUBLIC_API_KEY (server/.env.local). Leave empty to keep the current one."
 
 #: includes/class-gf-settings.php:195
 msgid "Configuration incomplète : renseignez l'URL de l'API et la clé pour activer les blocs."
@@ -228,17 +216,9 @@ msgstr "Unavailable"
 msgid "J’ai lu et j’accepte les "
 msgstr "I have read and accept the "
 
-#: includes/class-gf-settings.php:257
-msgid "La page qui contient le shortcode [guestflow_cgv]. La case « J'ai lu et j'accepte » du formulaire de réservation y renvoie, sur la version affichée. Vide : /cgv/."
-msgstr "The page holding the [guestflow_cgv] shortcode. The booking form's « I have read and accept » checkbox links to it, on the version displayed. Empty: /cgv/."
-
 #: includes/class-gf-settings.php:236
 msgid "Laissez coché en production. Décochez UNIQUEMENT pour un serveur local/LAN à certificat auto-signé (sinon la connexion échoue avec un code 502)."
 msgstr "Leave ticked in production. Untick ONLY for a local/LAN server with a self-signed certificate (otherwise the connection fails with a 502)."
-
-#: includes/class-gf-settings.php:249
-msgid "Les cartes de logements pointent vers cette page avec ?property=ID."
-msgstr "The property cards link to this page with ?property=ID."
 
 #: includes/class-gf-shortcodes.php:38
 msgid "Les conditions générales sont momentanément indisponibles."
@@ -251,10 +231,6 @@ msgstr "Read the version in force"
 #: includes/class-gf-blocks.php:156
 msgid "Lit(s) bébé souhaité(s) ?"
 msgstr "Cot(s) required?"
-
-#: includes/class-gf-settings.php:241
-msgid "Logement par défaut (ID)"
-msgstr "Default property (ID)"
 
 #: includes/class-gf-blocks.php:120
 msgid "Merci de renseigner tous les champs obligatoires."
@@ -490,10 +466,6 @@ msgstr "terms and conditions"
 msgid "inchangée"
 msgstr "unchanged"
 
-#: includes/class-gf-blocks.php:92
-msgid "nuit(s)"
-msgstr "night(s)"
-
 #: includes/class-gf-blocks.php:119
 msgid "personnes"
 msgstr "guests"
@@ -529,3 +501,107 @@ msgstr "Next month"
 #: includes/class-gf-blocks.php:187
 msgid "Ne pas remplir"
 msgstr "Do not fill in"
+
+#: includes/class-gf-blocks.php
+msgid "nuit"
+msgstr "night"
+
+#: includes/class-gf-blocks.php
+msgid "nuits"
+msgstr "nights"
+
+#: includes/class-gf-blocks.php
+msgid "Ajouter : %s"
+msgstr "Add: %s"
+
+#: includes/class-gf-blocks.php
+msgid "Retirer : %s"
+msgstr "Remove: %s"
+
+#: includes/class-gf-blocks.php
+msgid "Réservation en ligne fermée pour le moment."
+msgstr "Online booking is closed for now."
+
+#: includes/class-gf-blocks.php
+msgid "Demande enregistrée (référence %s). Le paiement peut être relancé."
+msgstr "Request recorded (reference %s). The payment can be tried again."
+
+#: includes/class-gf-settings.php
+msgid "Logement par défaut"
+msgstr "Default property"
+
+#: includes/class-gf-settings.php
+msgid "Aucun"
+msgstr "None"
+
+#: includes/class-gf-settings.php
+msgid "Liste des logements disponible une fois la connexion établie."
+msgstr "The property list shows once the connection works."
+
+#: includes/class-gf-settings.php
+msgid "Affiché par un bloc de réservation qui ne précise pas de logement."
+msgstr "Shown by a booking block that names no property."
+
+#: includes/class-gf-settings.php
+msgid "Les cartes de logements pointent vers cette page avec ?property=ID. Automatique : la page qui contient le bloc de réservation."
+msgstr "The property cards link to this page with ?property=ID. Automatic: the page holding the booking block."
+
+#: includes/class-gf-settings.php
+msgid "La case « J'ai lu et j'accepte » du formulaire de réservation y renvoie. Automatique : la page qui contient le shortcode [guestflow_cgv]."
+msgstr "The booking form's « I have read and accept » checkbox links to it. Automatic: the page holding the [guestflow_cgv] shortcode."
+
+#: includes/class-gf-settings.php
+msgid "Réglages avancés"
+msgstr "Advanced settings"
+
+#: includes/class-gf-settings.php
+msgid "Proxys du réseau local"
+msgstr "Local network proxies"
+
+#: includes/class-gf-settings.php
+msgid "Reconnaître un reverse proxy à adresse privée"
+msgstr "Recognise a reverse proxy with a private address"
+
+#: includes/class-gf-settings.php
+msgid "Un proxy du réseau local ou de la machine (10/8, 172.16/12, 192.168/16, 127/8) transmet l'adresse du visiteur sans réglage."
+msgstr "A proxy on the local network or on this machine (10/8, 172.16/12, 192.168/16, 127/8) passes the visitor's address on with no setting."
+
+#: includes/class-gf-settings.php
+msgid "Uniquement pour un proxy à adresse publique placé devant WordPress (séparées par des virgules). La preuve d'acceptation des CGV et la limite anti-spam reposent sur l'adresse du visiteur."
+msgstr "Only for a proxy with a public address in front of WordPress (comma-separated). The terms-acceptance record and the anti-spam limit rely on the visitor's address."
+
+#: includes/class-gf-settings.php
+msgid "Proxy détecté devant WordPress : %s."
+msgstr "Proxy detected in front of WordPress: %s."
+
+#: includes/class-gf-settings.php
+msgid "Dans GuestFlow : Paramètres › Intégrations › Site internet. Vide : la clé actuelle est conservée."
+msgstr "In GuestFlow: Paramètres › Intégrations › Site internet. Empty: the current key is kept."
+
+#: includes/class-gf-settings.php
+msgid "Dans GuestFlow : Paramètres › Intégrations › Site internet."
+msgstr "In GuestFlow: Paramètres › Intégrations › Site internet."
+
+#: includes/class-gf-settings.php
+msgid "Module « Réservation depuis le site » inactif dans GuestFlow."
+msgstr "The « Réservation depuis le site » module is off in GuestFlow."
+
+#: includes/class-gf-settings.php
+msgid "Automatique : « %s »"
+msgstr "Automatic: « %s »"
+
+#: includes/class-gf-settings.php
+msgid "Automatique : /cgv/"
+msgstr "Automatic: /cgv/"
+
+#: includes/class-gf-settings.php
+msgid "Automatique : aucune page trouvée"
+msgstr "Automatic: no page found"
+
+#: includes/class-gf-settings.php
+msgid "Créer la page"
+msgstr "Create the page"
+
+#: includes/class-gf-settings.php
+msgid "Conditions générales"
+msgstr "Terms and conditions"

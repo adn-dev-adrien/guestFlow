@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). |
+| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24). |
 | **Branch** | `feature/wordpress-plugin` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
@@ -95,6 +95,69 @@ remaining the single source of truth for prices, availability, and validation.
     installable `guestflow-booking.zip` (the deliverable uploaded to WordPress), excluding VCS/OS
     cruft. Source = shipped artifact.
 
+> **Rules 14–24 added 2026-10-18** (review of the website plugin, plugin v1.15.0). Earlier rules keep
+> their numbers.
+
+14. **Paste the URL and the key — nothing else to type.** The settings screen derives the rest:
+    - **Logement par défaut** is a select filled from `GET /public/v1/properties` (chosen by name,
+      pre-selected when GuestFlow has a single property). While GuestFlow cannot be read, the typed id
+      field stays, with a line saying the list appears once connected.
+    - **Page de réservation** and **Page des conditions générales** are page pickers. *Automatique*
+      (the default, stored as `''`) = the oldest published page whose content holds the booking block
+      (`<!-- wp:guestflow/booking`) or the `[guestflow_cgv]` shortcode; the detection is cached in a
+      transient dropped whenever a page is saved or deleted. When none exists the picker offers
+      « Créer la page » (a published « Réserver » page holding the booking block, or a « Conditions
+      générales » page holding the shortcode); a second sanitize of the same save reuses the page it
+      just created. A booking block with no property anywhere (no attribute, no `?property=`, no
+      default) renders the properties block, whose cards link back to it.
+    - **Proxys du réseau local** (on by default, `trust_local_proxies`): a reverse proxy with a private
+      or loopback address is trusted to pass the visitor's IP in `X-Forwarded-For` without being
+      listed. **Proxys de confiance** stays, under « Réglages avancés », for a proxy with a public
+      address; the screen names the one it sees (`REMOTE_ADDR` public + `X-Forwarded-For` present).
+      Without `X-Forwarded-For` the visitor IP is the connecting address, never empty.
+    - Once configured, the connection test runs on arrival; its result is a `role="status"` region.
+15. **The booking engine is usable with a screen reader.** Every input has an `id` and a `<label for>`;
+    the contact fields carry `aria-required`. A stepper is a `role="group"` named after its line and
+    its buttons read « Ajouter : Adultes » / « Retirer : Adultes » (`stepAdd`/`stepRemove`, translated);
+    the count is `aria-live`. A calendar day is named in full in the page's language (« vendredi
+    6 novembre 2026 », plus «, indisponible » when blocked, `GF.dayLabel`) and carries `aria-pressed`
+    on the selected edges; the weekday headings are `aria-hidden`. The calendar hint, the quote
+    summary, the inline warnings, the insurance and CGV notices and the submit feedback are
+    `aria-live="polite"` regions. The honeypot is `aria-hidden`.
+16. **A failed online payment is retried on the same devis.** After `POST /booking-requests` answers
+    201 in pay-online mode, the block keeps `requestId`/`publicToken`; while the visitor resubmits the
+    very same request body, the retry calls `/booking-requests/:id/pay` only — no second devis, no
+    second reference. The error shows the request reference and says the payment can be retried. A
+    changed form (dates, guests, contact…) is a new request.
+17. **The plugin stylesheet sets `box-sizing: border-box` on its own blocks** (`.gf-block` and its
+    descendants, pseudo-elements included) and `min-width: 0` on `.gf-field`, so a field's padding
+    never overflows its column on a stock theme. Nothing outside `.gf-block` is touched.
+18. **A website booking switched off in GuestFlow reads as such.** `{"error":"PLUGIN_INACTIVE"}` (a
+    string error) and a 404 `{"error":{"code":"NOT_FOUND"}}` from `/public/v1` make « Tester la
+    connexion » answer « Module « Réservation depuis le site » inactif dans GuestFlow. », and the
+    blocks show their « Réservation temporairement indisponible. » state (`GF.t('unavailable')`), not
+    the generic error.
+19. **Weekday headings follow the page's language** in both the booking and the calendar blocks, from
+    one `GF.weekdays()` helper (`Intl.DateTimeFormat(GF.locale, { weekday: 'short' })`, Monday first).
+    The calendar block's navigation buttons use the translated `calPrevMonth`/`calNextMonth`.
+20. **`Update URI: https://github.com/adn-dev-adrien/guestFlow`** is in the plugin header, so WordPress
+    never offers a wordpress.org plugin of the same slug as an update; the self-update filter
+    (`specs/wordpress-plugin-self-update.md`) is unchanged.
+21. **No CGV published while GuestFlow requires them → no form.** `GET /public/v1/terms` answers
+    `503 TERMS_NOT_CONFIGURED` with `details: [{ bookingClosed: <requireTermsAcceptance> }]` (field
+    added, envelope unchanged). When `bookingClosed` is `true` the booking block renders « Réservation
+    en ligne fermée pour le moment. » instead of a form the server would refuse at the end. With the
+    enforcement off, the form shows without a CGV box, as before.
+22. **Real plurals in the recap:** « 1 nuit » / « 3 nuits » (`night` / `nights` strings), never
+    « nuit(s) ».
+23. **Narrow layouts and the CGV switch.** The booking block is a size container: below 520 px of its
+    own width the e-mail field and « Effacer » take a row each, so an address is never cut in half.
+    The CGV language switch is text (« FR », « EN », with `lang`), not flag emojis.
+24. **Every plugin change bumps its version in the three places the release reads** — the header
+    `Version`, `GF_BOOKING_VERSION` and readme `Stable tag` — with a readme changelog entry, so a
+    release never publishes two different `guestflow-booking-X.Y.Z.zip`. The update manifest's
+    `tested` (`TESTED_WP`) names a current WordPress (≥ 6.8), the one the plugin was last tested on.
+
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
   page shows a prominent "clé API non configurée" notice; proxy routes return `503` with a generic
@@ -128,14 +191,16 @@ This is a standalone PHP/JS codebase, not part of GuestFlow's Node app. Layout:
 | `uninstall.php` | C | Delete plugin options + transients on uninstall. |
 | `readme.txt` | C | WordPress-style readme (install, config, blocks). |
 | `includes/class-gf-plugin.php` | C | Singleton bootstrap: wires settings, REST proxy, blocks. |
-| `includes/class-gf-settings.php` | C | Settings page + option storage (base URL, key, TTLs, default property). |
-| `includes/class-gf-api-client.php` | C | Server-side HTTP client to `/public/v1` (`wp_remote_*`, key header, timeout, error normalization). **The only place the key is read.** |
+| `includes/class-gf-settings.php` | C | Settings page + option storage (base URL, key, TTLs, default property). Since rule 14: property select from the API, page pickers with content detection / « Créer la page », local-proxy trust, test on arrival, « module inactif » (rule 18). |
+| `includes/class-gf-api-client.php` | C | Server-side HTTP client to `/public/v1` (`wp_remote_*`, key header, timeout, error normalization). **The only place the key is read.** `visitor_ip()` trusts a private/loopback proxy when `trust_local_proxies` is on (rule 14). |
 | `includes/class-gf-rest-proxy.php` | C | Registers `/wp-json/guestflow/v1/*` routes; validates params, calls the client, caches reads, enforces nonce on write. |
 | `includes/class-gf-cache.php` | C | Transient get/set/flush keyed by path+query; TTLs from settings. |
 | `includes/class-gf-blocks.php` | C | Registers the 3 blocks via `register_block_type` (one per `block.json`); enqueues shared front assets. |
 | `blocks/calendar/` | C | `block.json`, `render.php`, `editor.js`, `view.js`, `style.css` — availability calendar (build-free, plain JS). |
 | `blocks/booking/` | C | Same set — quote→request wizard (the core block). |
 | `blocks/properties/` | C | Same set — property list. |
+| `assets/runtime.js` | C | Shared helpers; since 2026-10-18 `GF.weekdays()` (rule 19), `GF.dayLabel()` and `GF.uid()` (rule 15), string-error → « unavailable » (rule 18). |
+| `assets/style.css` | C | Shared styles; scoped `box-sizing` (rule 17), container query for narrow blocks (rule 23). |
 | `bin/make-zip.sh` | C | Zips the plugin folder into `guestflow-booking.zip` (no build; excludes VCS/OS cruft). |
 | `.gitignore` | C | Ignores `*.zip` + OS cruft. |
 
@@ -155,7 +220,11 @@ public-api spec + code (and this spec references it), never patched around in th
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| (all) | — | — | None in this spec. |
+| (all) | — | — | None in this spec until 2026-10-18. |
+| server | `plugins/website-booking/controllers/publicTermsController.js` | T | `TERMS_NOT_CONFIGURED` carries `details[0].bookingClosed` (rule 21). |
+| server | `plugins/website-booking/controllers/pluginUpdateController.js` | T | `TESTED_WP` kept current (rule 24). |
+| server | `plugins/website-booking/publicProjections.js` + `publicQuoteController.js` | T | `payment.onlineReady` on the quote (specs/public-online-payment.md rule 12). |
+| server + client | `siteConnectionController.js`, `SettingsWebsiteSection.jsx` | C | The URL and key the operator pastes (specs/plugins-phase-2-hosts.md rules 30–31). |
 
 ### 4.3 API contract (plugin REST proxy)
 
@@ -191,6 +260,10 @@ the key is wrong; that's an admin concern shown on the settings page).
 - `cache_ttl` (int seconds, default 600)
 - `availability_cache_ttl` (int seconds, default 300)
 - `default_property_id` (int, optional)
+- `booking_page_url`, `cgv_page_url` (string; `''` = *Automatique*, the detected page — rule 14)
+- `trusted_proxies` (string, IP list) and `trust_local_proxies` (int 0/1, default 1 — rule 14)
+
+**Transient** `gf_detected_pages` (1 day): the pages found by content, dropped on any page save/delete.
 
 **Transients:** `gf_cache_<hash(path+query)>` holding cached GET responses, TTL per §5 above. Flushed
 on settings save and on uninstall.
@@ -249,6 +322,11 @@ respects its container width.
 
 - Fields: API base URL, API key (masked, "Modifier" toggle), cache TTL, availability cache TTL, default
   property. "Test connection" button + result chip (success/auth error/unreachable). French labels.
+- Since 2026-10-18 (rule 14): URL and key point to « Paramètres › Intégrations › Site internet » in
+  GuestFlow; « Logement par défaut » is a select by name; the two pages are pickers (*Automatique :
+  « Réserver »*, every published page, « Créer la page »); proxies and cache TTLs sit under a closed
+  « Réglages avancés »; the test runs on arrival and says « Module … inactif dans GuestFlow. » when the
+  module is off (rule 18).
 - This is a WP admin screen (not a GuestFlow `PageActionBar` page — that component is GuestFlow-SPA
   specific and does not apply here).
 
