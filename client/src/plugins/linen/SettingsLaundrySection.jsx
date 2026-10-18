@@ -37,7 +37,7 @@ export default function SettingsLaundrySection({
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary">
-            Jour de la semaine où vous déposez et récupérez le linge à la blanchisserie. Le
+            Jour de la semaine où le linge est déposé et récupéré à la blanchisserie. Le
             Planning affichera, ce jour-là, le nombre de parures à apporter (depuis la semaine
             écoulée) et à récupérer (déposées la semaine précédente).
           </Typography>

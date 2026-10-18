@@ -59,7 +59,8 @@ function Section({ title, action, children }) {
   return (
     <Card>
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+        {/* Rule 37 — on a phone the actions go under the title, aligned with it. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 1, rowGap: 0.5, mb: 1 }}>
           <Typography variant="sectionHeader" component="h2">{title}</Typography>
           {action}
         </Box>
@@ -81,6 +82,7 @@ export default function CustomerPage() {
   const [busyStep, setBusyStep] = useState(null);
   const [busy, setBusy] = useState(false);
   const [renameCheck, setRenameCheck] = useState(null);
+  const [showSteps, setShowSteps] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -228,13 +230,19 @@ export default function CustomerPage() {
               { label: 'Effacement prévu', value: c.eraseAtLabel },
             ]} />
           </Section>
-          <Section title="Création">
-            <ProvisioningSteps steps={c.steps} onAction={stepAction} busy={busyStep} />
+          <Section title="Création" action={c.stepsDone && (
+            <Button size="small" sx={{ minHeight: 44 }} aria-expanded={showSteps} onClick={() => setShowSteps((v) => !v)}>
+              {showSteps ? 'Masquer les étapes' : 'Voir les étapes'}
+            </Button>
+          )}>
+            {c.stepsDone && !showSteps
+              ? <Typography variant="body2" color="text.secondary">{c.stepsSummary}</Typography>
+              : <ProvisioningSteps steps={c.steps} onAction={stepAction} busy={busyStep} />}
           </Section>
         </Box>
         {c.hosting && (
           <Section title="Hébergement" action={(
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, width: { xs: '100%', sm: 'auto' } }}>
               {a.restartProcess && (
                 <Button size="small" variant="contained" color="error" sx={{ minHeight: 44 }} startIcon={<RestartAltIcon />} disabled={busy}
                   onClick={() => act(() => api.restartProcess(c.id))}>

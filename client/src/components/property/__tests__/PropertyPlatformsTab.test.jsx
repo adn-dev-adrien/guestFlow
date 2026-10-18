@@ -42,7 +42,7 @@ test('the global settings are read-only chips, with a link to Plateformes', asyn
   renderTab();
   const airbnb = await screen.findByTestId('platform-row-airbnb');
   expect(within(airbnb).getByText('15.5 %')).toBeInTheDocument();
-  expect(within(airbnb).getByText('Taxe : plateforme → vous')).toBeInTheDocument();
+  expect(within(airbnb).getByText('Taxe : plateforme → établissement')).toBeInTheDocument();
   expect(within(airbnb).getByText('Virement 12 j')).toBeInTheDocument();
   expect(screen.queryByRole('combobox')).toBeNull();
   expect(screen.getByRole('link', { name: 'Plateformes' })).toHaveAttribute('href', '/settings/plateformes');

@@ -28,7 +28,13 @@ export default function ReadinessList({ items = [], title = 'À compléter', don
       <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
         {items.map((item) => (
           <li key={item.id}>
-            <Link component="button" type="button" onClick={() => open(item.target)} sx={{ textAlign: 'left', minHeight: 32 }}>
+            {/* The bullet sits on the first line of a link that wraps, and the link is 44 px tall. */}
+            <Link
+              component="button"
+              type="button"
+              onClick={() => open(item.target)}
+              sx={{ textAlign: 'left', verticalAlign: 'baseline', display: 'inline-flex', alignItems: 'flex-start', minHeight: 44, py: 1.25, boxSizing: 'border-box' }}
+            >
               {item.label}
             </Link>
           </li>

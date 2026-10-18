@@ -1,9 +1,12 @@
 /**
  * OnboardingPage — `/demarrage`, the start assistant (specs/plugins-phase-p-productisation.md §3.D
- * rules 20–23). Five steps: Entreprise, Premier logement, Plugins, Vos emails
+ * rules 20–23). Five steps: Entreprise, Premier logement, Plugins, Emails
  * (specs/guest-email-texts-made-simple.md rule 21), C'est prêt. Every step is
  * validated and saved by the server when « Suivant » is pressed; an error keeps the step open.
  * « Plus tard » closes the assistant and keeps what was saved.
+ *
+ * Props (tests only): onFullLoad(to) — what loading the app again at `to` means once a plugin was
+ * installed from a package (rule 42; default: window.location.assign).
  */
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
@@ -18,16 +21,20 @@ import ErrorAlert from '../components/ErrorAlert';
 import OnboardingEmailsStep from '../components/OnboardingEmailsStep';
 import ReadinessList, { targetUrl } from '../components/ReadinessList';
 
-const TITLES = ['Entreprise', 'Premier logement', 'Plugins', 'Vos emails', 'C’est prêt'];
+const TITLES = ['Entreprise', 'Premier logement', 'Plugins', 'Emails', 'C’est prêt'];
 const STEPS = TITLES.length;
 const EMAILS_STEP = 4;
+// A link of the last step: a full-height touch target, its text at the top-left.
+const LAST_STEP_LINK = { textAlign: 'left', minHeight: 44, display: 'flex', alignItems: 'center' };
 const EMPTY_PROPERTY = { name: '', doubleBeds: '1', singleBeds: '0', maxGuests: '2', checkIn: '16:00', checkOut: '10:00', pricePerNight: '' };
 
 const Brand = () => (
   <Typography sx={{ fontFamily: 'Georgia, serif', fontWeight: 600, color: 'primary.main' }}>GuestFlow</Typography>
 );
 
-export default function OnboardingPage() {
+const loadPage = (to) => window.location.assign(to);
+
+export default function OnboardingPage({ onFullLoad = loadPage }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { refresh } = useAuth();
@@ -49,6 +56,9 @@ export default function OnboardingPage() {
   // Rule 28 — the properties the instance already has, when the assistant did not create them.
   const [existingProperties, setExistingProperties] = useState(0);
   const [loginEmail, setLoginEmail] = useState('');
+  const [pluginsSummary, setPluginsSummary] = useState('');
+  // Rule 42 — a plugin installed from a package is not in the open bundle: leaving loads the app again.
+  const [needsLoad, setNeedsLoad] = useState(false);
 
   useEffect(() => {
     if (location.pathname !== '/demarrage') navigate('/demarrage', { replace: true });
@@ -66,6 +76,7 @@ export default function OnboardingPage() {
           setExistingProperties(data.property.existing);
         }
         setPlugins(data.plugins || []);
+        setPluginsSummary(data.pluginsSummary || '');
         setPicked(Object.fromEntries((data.plugins || []).map((p) => [p.id, p.allowed && (p.recommended || p.state === 'active')])));
       })
       .catch(() => setLoadError(true))
@@ -95,6 +106,7 @@ export default function OnboardingPage() {
     setBusy(true);
     try {
       await api.completeOnboarding();
+      if (needsLoad) { onFullLoad(to); return; }
       await refresh();
       navigate(to, { replace: true });
     } catch (err) {
@@ -103,7 +115,7 @@ export default function OnboardingPage() {
     }
   }
 
-  // « Vos emails » opens pre-filled from what the earlier steps saved; « C'est prêt » lists what is missing.
+  // « Emails » opens pre-filled from what the earlier steps saved; « C'est prêt » lists what is missing.
   async function enter(target) {
     if (target === EMAILS_STEP) {
       const data = await api.getOnboarding();
@@ -139,8 +151,14 @@ export default function OnboardingPage() {
       if (step === 2 && !existingProperties) await api.saveOnboardingProperty(property);
       if (step === 3) {
         const ids = Object.keys(picked).filter((id) => picked[id]);
-        const { results } = await api.saveOnboardingPlugins(ids);
-        const failed = results.filter((r) => !r.ok).map((r) => (plugins.find((p) => p.id === r.id) || {}).label || r.id);
+        const saved = await api.saveOnboardingPlugins(ids);
+        setPluginsSummary(saved.pluginsSummary || '');
+        if (saved.reload) setNeedsLoad(true);
+        // Rule 37 — each plugin left out is named with the server's reason.
+        const failed = saved.results.filter((r) => !r.ok).map((r) => {
+          const label = (plugins.find((p) => p.id === r.id) || {}).label || r.id;
+          return r.reason ? `${label} (${r.reason})` : label;
+        });
         await refresh();
         if (failed.length) {
           setFailure(`Non activé : ${failed.join(', ')}`);
@@ -181,7 +199,6 @@ export default function OnboardingPage() {
   if (loading) return <LoadingState />;
   if (loadError) return <Box sx={{ p: 3 }}><ErrorAlert message="Impossible de charger l’assistant." onRetry={() => window.location.reload()} /></Box>;
 
-  const active = plugins.filter((p) => picked[p.id] && p.allowed);
   const renderPlugin = (p) => (
     <Box key={p.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, py: 1, opacity: p.allowed ? 1 : 0.6 }}>
       <FormControlLabel
@@ -235,7 +252,7 @@ export default function OnboardingPage() {
       {step === 2 && !existingProperties && (
         <Stack spacing={1}>
           <TextField label="Nom du logement" required {...field(property, setProperty, 'name')} />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2, rowGap: 2 }}>
             <TextField label="Lits doubles" type="number" value={property.doubleBeds} onChange={setBeds('doubleBeds')} error={Boolean(errors.doubleBeds)} helperText={errors.doubleBeds || ' '} />
             <TextField label="Lits simples" type="number" value={property.singleBeds} onChange={setBeds('singleBeds')} error={Boolean(errors.singleBeds)} helperText={errors.singleBeds || ' '} />
             <TextField
@@ -244,7 +261,7 @@ export default function OnboardingPage() {
               {...field(property, setProperty, 'maxGuests')}
               onChange={(e) => { setCapacityTouched(true); setProperty((p) => ({ ...p, maxGuests: e.target.value })); setErrors((prev) => ({ ...prev, maxGuests: undefined })); }}
             />
-            <TextField label="Prix par nuit (€)" type="number" {...field(property, setProperty, 'pricePerNight')} />
+            <TextField label="Prix par nuit (€)" type="number" required {...field(property, setProperty, 'pricePerNight')} />
             <TextField label="Arrivée à partir de" type="time" {...field(property, setProperty, 'checkIn')} error={Boolean(errors.defaultCheckIn)} helperText={errors.defaultCheckIn || ' '} />
             <TextField label="Départ avant" type="time" {...field(property, setProperty, 'checkOut')} error={Boolean(errors.defaultCheckOut)} helperText={errors.defaultCheckOut || ' '} />
           </Box>
@@ -290,9 +307,11 @@ export default function OnboardingPage() {
         <Stack spacing={1.5}>
           <Typography>{`${company.name || 'L’établissement'} est prêt.`}</Typography>
           <ReadinessList items={readiness} title="Emails à compléter" onOpen={(target) => leave(targetUrl(target))} />
-          <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={{ textAlign: 'left' }}>Réglages › Emails : les textes des emails</Link>
-          <Link component="button" type="button" onClick={() => leave('/properties')} sx={{ textAlign: 'left' }}>Tarifs : saisons et prix des logements</Link>
-          <Link component="button" type="button" onClick={() => leave('/parametres/plugins')} sx={{ textAlign: 'left' }}>{`Plugins : ${active.length} actif(s)`}</Link>
+          <Stack spacing={0}>
+            <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={LAST_STEP_LINK}>Réglages › Emails : les textes des emails</Link>
+            <Link component="button" type="button" onClick={() => leave('/properties')} sx={LAST_STEP_LINK}>Tarifs : saisons et prix des logements</Link>
+            <Link component="button" type="button" onClick={() => leave('/parametres/plugins')} sx={LAST_STEP_LINK}>{`Plugins : ${pluginsSummary}`}</Link>
+          </Stack>
         </Stack>
       )}
     </StepperPage>

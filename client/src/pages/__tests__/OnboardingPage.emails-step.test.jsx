@@ -51,9 +51,9 @@ async function reachEmails() {
   next(); await screen.findByText('Étape 4 sur 5');
 }
 
-test('rule 21: « Vos emails » is pre-filled and previews the J-2 of a sample stay with what is typed', async () => {
+test('rule 21: « Emails » is pre-filled and previews the J-2 of a sample stay with what is typed', async () => {
   await reachEmails();
-  expect(screen.getByText('Vos emails')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Emails' })).toBeInTheDocument();
   expect(screen.getByLabelText('Téléphone')).toHaveValue('06 12 34 56 78');
   expect(screen.getByLabelText('Nom d’expéditeur')).toHaveValue('Les Prés');
   expect(await screen.findByText('À vendredi, au Gîte des Prés')).toBeInTheDocument();

@@ -5,8 +5,8 @@
  * renewal emails, GuestFlow's own Paiements page (rule 32) and the profile.
  */
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router';
-import { AppBar, Box, Button, CssBaseline, IconButton, Toolbar, Tooltip, Typography } from '@mui/material';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
+import { AppBar, Box, CssBaseline, IconButton, Toolbar, Tooltip, Typography } from '@mui/material';
 import { ThemeProvider } from '@mui/material/styles';
 import LogoutIcon from '@mui/icons-material/Logout';
 import theme from '@gf/theme';
@@ -23,16 +23,7 @@ import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import RegistryPage from './pages/RegistryPage';
 import PaymentsSettingsPage from '@gf/plugins/online-payment/PaymentsSettingsPage';
 import api from './api';
-
-const NAV = [
-  { to: '/', label: 'Clients', match: (p) => p === '/' || p.startsWith('/clients') },
-  { to: '/versions', label: 'Versions', match: (p) => p.startsWith('/versions') },
-  { to: '/catalogue', label: 'Catalogue', match: (p) => p.startsWith('/catalogue') },
-  { to: '/emails', label: 'Emails', match: (p) => p.startsWith('/emails') },
-  { to: '/registre', label: 'Registre', match: (p) => p.startsWith('/registre') },
-  { to: '/parametres/paiements', label: 'Réglages', match: (p) => p.startsWith('/parametres') },
-  { to: '/profil', label: 'Profil', match: (p) => p.startsWith('/profil') },
-];
+import ConsoleNav from './components/ConsoleNav';
 
 function Shell({ operator, setOperator, notice }) {
   const { pathname } = useLocation();
@@ -45,14 +36,7 @@ function Shell({ operator, setOperator, notice }) {
       <AppBar position="sticky" color="primary" elevation={0}>
         <Toolbar sx={{ gap: 1, px: { xs: 1, sm: 2 } }}>
           <Typography variant="h6" component="div" sx={{ fontWeight: 700, display: { xs: 'none', sm: 'block' }, mr: 2 }}>Console GuestFlow</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5, flex: 1, overflowX: 'auto' }}>
-            {NAV.map((n) => (
-              <Button key={n.to} component={Link} to={n.to} color="inherit"
-                sx={{ minHeight: 44, fontWeight: 600, opacity: n.match(pathname) ? 1 : 0.75, borderBottom: n.match(pathname) ? 2 : 0, borderRadius: 0 }}>
-                {n.label}
-              </Button>
-            ))}
-          </Box>
+          <ConsoleNav pathname={pathname} />
           <Tooltip title={`Se déconnecter (${operator.email})`}>
             <IconButton color="inherit" onClick={logout} aria-label="Se déconnecter" sx={{ width: 44, height: 44 }}><LogoutIcon /></IconButton>
           </Tooltip>

@@ -110,7 +110,7 @@ test('rule 1: one press writes the weather key and the Neat card together', asyn
   await screen.findByText('Connectée — staging');
 
   fireEvent.change(screen.getByLabelText('Marge sur la prime Neat (%)'), { target: { value: '18' } });
-  fireEvent.change(await screen.findByLabelText('Clé API Météo-France (Vigilance)'), { target: { value: 'k-123' } });
+  fireEvent.change(await screen.findByLabelText('Clé Météo-France (Vigilance)'), { target: { value: 'k-123' } });
   await waitFor(() => expect(saveButton()).toBeEnabled());
 
   await act(async () => { fireEvent.click(saveButton()); });
@@ -133,7 +133,7 @@ test('rule 4: leaving with only a Neat change still asks for confirmation', asyn
   act(() => { blocked = window.__guestflowBeforeNavigate('/reservations'); });
 
   expect(blocked).toBe(true);
-  expect(await screen.findByText('Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?')).toBeInTheDocument();
+  expect(await screen.findByText('Des modifications ne sont pas enregistrées. Quitter sans enregistrer ?')).toBeInTheDocument();
 });
 
 // Rule 3 — a refusal inside the card is reported, and the card keeps what the operator typed.

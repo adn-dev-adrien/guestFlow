@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -33,6 +33,9 @@
     "1.0.5": [
       "Les mois réglés avant l'installation de cette version gardent au centime près les montants déjà exportés.",
       "Un trop-perçu remboursé n'est plus déduit deux fois : le compte client reprend ce qui a été encaissé, moins le remboursement."
+    ],
+    "1.0.6": [
+      "Texte du taux de TVA des indemnités sans « votre comptable »."
     ]
   }
 }

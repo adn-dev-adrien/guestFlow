@@ -1,4 +1,6 @@
 import { createTheme } from '@mui/material/styles';
+// A finger, not a mouse: phones and tablets, whatever their width.
+import { COARSE_POINTER, TOUCH_TARGET, touchHitArea } from './utils/touchHitArea';
 
 /**
  * GuestFlow theme — « Maison » direction (specs/design-system.md §3.1-§3.2).
@@ -19,9 +21,6 @@ const SANS = "'Inter', sans-serif";
 // Shared by the palette and by the component overrides below (which run before the theme exists).
 const FIR = '#2F5D46';
 const INK_MUTED = '#6E6A5E';
-// A finger, not a mouse: phones and tablets, whatever their width.
-const COARSE_POINTER = '@media (pointer: coarse)';
-const TOUCH_TARGET = 44;
 // Every icon button except those sitting in a text field's adornment.
 const IN_FIELD_EXCLUDED = '&:not(:is(.MuiInputAdornment-root, .MuiAutocomplete-endAdornment) *)';
 
@@ -95,9 +94,17 @@ const theme = createTheme({
         },
       },
     },
+    // An inline link that acts as a button (a client's name, « Fiche ») keeps its size in the text
+    // and gets a 44 px hit area on touch (specs/plugins-phase-p-productisation.md rule 39).
+    MuiLink: {
+      styleOverrides: {
+        root: { '&.MuiLink-button': touchHitArea },
+      },
+    },
+    // Sentence case like every button (specs/plugins-phase-p-productisation.md rule 39), 44 px on touch.
     MuiToggleButton: {
       styleOverrides: {
-        root: { [COARSE_POINTER]: { minHeight: TOUCH_TARGET } },
+        root: { textTransform: 'none', [COARSE_POINTER]: { minHeight: TOUCH_TARGET, minWidth: TOUCH_TARGET } },
       },
     },
     MuiCheckbox: {

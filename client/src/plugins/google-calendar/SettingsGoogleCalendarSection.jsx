@@ -174,7 +174,7 @@ export default function SettingsGoogleCalendarSection() {
                 Synchronisation Google Agenda
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Vos réservations sont copiées et tenues à jour dans l'agenda Google de votre choix.
+                Les réservations sont copiées et tenues à jour dans l’agenda Google choisi.
               </Typography>
             </Box>
             {chip && <Chip size="small" color={chip.color} label={chip.label} sx={{ fontWeight: 600 }} />}
@@ -202,8 +202,8 @@ export default function SettingsGoogleCalendarSection() {
           {status && status.oauthConfigured && !status.connected && (
             <>
               <Typography variant="body2" color="text.secondary">
-                Connectez votre compte Google pour copier automatiquement vos réservations dans
-                l'agenda de votre choix — y compris un agenda privé, sans aucun partage à configurer.
+                Une fois le compte Google connecté, les réservations sont copiées dans l’agenda choisi —
+                y compris un agenda privé, sans partage à configurer.
               </Typography>
               <Box>
                 <Button
@@ -305,7 +305,7 @@ export default function SettingsGoogleCalendarSection() {
         onClose={() => setDisconnectOpen(false)}
         onConfirm={handleDisconnect}
         title="Déconnecter le compte Google ?"
-        message="La synchronisation sera arrêtée. Les événements déjà créés resteront dans votre agenda."
+        message="La synchronisation sera arrêtée. Les événements déjà créés restent dans l’agenda."
         confirmLabel="Déconnecter"
         cancelLabel="Annuler"
         confirmColor="error"

@@ -146,6 +146,9 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     > an E2E check needs every plugin of a page off, which would break the specs running beside it in
     > the parallel local run. The predicate it uses (`isRouteEnabled`) is covered by
     > `roles.plugins.test.js`; the redirect itself was checked by hand on the 8 plugin pages (§7).
+    > _2026-10-18: an administrator is no longer sent home — the address stays and reads « Plugin
+    > inactif » with « Ouvrir Plugins » (specs/plugins-phase-p-productisation.md rule 42). Every
+    > other role keeps this rule._
 20. Existing per-hour resources stay listed in the options catalogue when `hourly-resources` is inactive:
     their price type reads « Par heure (plugin inactif) » and is only offered in the form of a resource
     that already has it. A per-hour resource already on a stay stays listed there with its price, without

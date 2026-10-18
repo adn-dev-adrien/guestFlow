@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -31,6 +31,9 @@
       "Un ajout manuel saisi avec son signe (« -3 ») garde le signe.",
       "Les tapis de bain s’ajoutent ou se retirent à la main, comme les serviettes.",
       "Libellé « lavé hors blanchisserie » pour le linge retiré d’une tournée."
+    ],
+    "1.0.5": [
+      "Textes du stock et du trajet de blanchisserie sans « vous » ni « votre »."
     ]
   }
 }

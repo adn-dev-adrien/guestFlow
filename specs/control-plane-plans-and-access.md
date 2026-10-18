@@ -619,6 +619,24 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     gate stays on there too; Caddy keeps it in production.
     *Why:* a page on an instance could otherwise post body-less actions such as « Réinitialiser
     l'accès » (which also turns off the second step) with the operator's cookie.
+37. **The console's menu fits a phone** (added 2026-10-18, final display sweep C-1). At 390 px the
+    seven entries ran together, « Registre » was cut and « Réglages » and « Profil » were off-screen
+    with no hint. Below `sm` the bar keeps « Clients » and « Versions » and puts the other five
+    under « Plus », a menu of 44 px rows; when the open page is one of them, the button takes its
+    name and reads as current. From `sm` up every entry stays in the bar. The fleet's counter
+    filters are 44 px tall.
+38. **The customer page reads at a glance** (added 2026-10-18, final display sweep C-2).
+    - A creation step's detail names no host path: « Dossier… » reads « Créés. », « Licence » reads
+      « Écrite. ». A step recorded with a path before this change shows no detail; a failed step
+      keeps its whole message.
+    - Once every step is done (`stepsDone`), the « Création » card folds to one line,
+      « Terminée : N étapes » (`stepsSummary`, from the server), with « Voir les étapes » to unfold
+      it. A creation running or failed stays unfolded.
+    - A card's actions wrap under its title on a phone, aligned left (« Hébergement »), instead of
+      splitting around it.
+    - Toggle buttons are in sentence case (« Essentiel », « Mensuelle »), as in GuestFlow
+      (specs/plugins-phase-p-productisation.md rule 39), and 44 px wide under a finger.
+    - « Paiements en ligne » keeps its title on a phone.
 
 ## 4. Architecture
 
@@ -747,6 +765,7 @@ React, MUI and the router from its own `node_modules` so both trees share one co
 | components | `EmailQueue.jsx` (C2b) | Specific: the emails awaiting approval, with their preview, « Envoyer » and « Ignorer »; on the home page and the customer page. |
 | components | `PlanMatrix.jsx` | Specific: the matrix, one card per plan on `xs`. |
 | components | `ProvisioningSteps.jsx` | Specific: steps green, red, to do or skipped, with their one action. |
+| components | `ConsoleNav.jsx` | Specific: the top menu, with « Plus » on a phone (rule 36). |
 | components | `LifecycleChip.jsx` | Generic: a subscription state as a `StatusBadge`. |
 | components | `KeyValues.jsx` | Generic: a « label : value » list, stacked on `xs`. |
 
@@ -1100,6 +1119,9 @@ each plan. The C2a console screens have their own mock
     disabled then previewed and sent, « Vérifier le paiement », the billing identity refused then
     saved.
   - `NewCustomerPage.billing.test.jsx` (1, rule 7), `EmailTemplatesPage.editor.test.jsx` (2, rule 33).
+- **Final display sweep (2026-10-18):** server `customer-creation-fold.unit.test.js` (3, rule 37);
+  client `ConsoleNav.phone-menu.test.jsx` (3, rule 36), `CustomerPage.creation-fold.test.jsx` (2,
+  rule 37).
 
 ### Manual UI verification
 

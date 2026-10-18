@@ -2,12 +2,12 @@
  * Onboarding controller — the start assistant (specs/plugins-phase-p-productisation.md §3.D rules
  * 20–23, §4.3). Admin-only through the role guard.
  *
- *   GET  /api/onboarding            { open, company, property, plugins, emails }
+ *   GET  /api/onboarding            { open, company, property, plugins, emails, pluginsSummary }
  *   PUT  /api/onboarding/company    { name, email, phone, address, siret } → 200 { company, loginEmail, loginChanged } | 422 { errors }
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
  *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 29)
- *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error }] }
+ *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error, reason }], pluginsSummary }
  *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, accessCode,
  *                                     wifiName, wifiPassword, caution, cleaningIncluded, towelsProvided,
  *                                     bedLinenProvided }] }
@@ -33,17 +33,45 @@ const NAME_ARTICLES = propertyArticle.ARTICLES;
 const RECOMMENDED = new Set(['website-booking', 'sas']);
 const MAX_CAPACITY = 50;
 
-/** Runs an Express handler and resolves its answer, so a step can reuse an endpoint as it is. */
+/**
+ * Runs an Express handler and resolves its answer once the handler has finished, so a step can reuse
+ * an endpoint as it is. Rule 37 — an install answers before it releases the plugin lock: resolving on
+ * the answer alone started the next install while the lock was still held.
+ */
 function capture(handler, req) {
   return new Promise((resolve) => {
+    let answer = null;
     const res = {
       statusCode: 200,
       status(code) { this.statusCode = code; return this; },
-      json(body) { resolve({ status: this.statusCode, body }); return this; },
-      end() { resolve({ status: this.statusCode, body: null }); return this; },
+      json(body) { if (!answer) answer = { status: this.statusCode, body }; return this; },
+      end() { if (!answer) answer = { status: this.statusCode, body: null }; return this; },
     };
-    Promise.resolve(handler(req, res)).catch((err) => resolve({ status: 500, body: { error: err && err.message } }));
+    Promise.resolve()
+      .then(() => handler(req, res))
+      .then(() => resolve(answer || { status: 500, body: { error: 'NO_ANSWER' } }))
+      .catch((err) => resolve(answer || { status: 500, body: { error: err && err.message } }));
   });
+}
+
+// Rule 37 — the reason a plugin was not activated, in the words the step prints.
+const PLUGIN_FAILURES = Object.freeze({
+  UNKNOWN_PLUGIN: 'plugin inconnu',
+  PLAN_REQUIRED: 'non inclus dans la formule',
+  UPDATE_IN_PROGRESS: 'activation en cours, réessayer dans un instant',
+  RESTART_PENDING: 'redémarrage en cours, réessayer dans un instant',
+});
+
+function failureReason(code, message) {
+  if (PLUGIN_FAILURES[code]) return PLUGIN_FAILURES[code];
+  if (message) return String(message).replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase());
+  return 'échec de l’activation';
+}
+
+// Rule 38 — « 1 plugin actif », « 2 plugins actifs », « Aucun plugin actif ».
+function activeSummary(count) {
+  if (!count) return 'Aucun plugin actif';
+  return count === 1 ? '1 plugin actif' : `${count} plugins actifs`;
 }
 
 function buildController({ database, settingsModel, propertiesModel, plugins, usersModel = null, ensureVapid = () => {} }) {
@@ -139,7 +167,11 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
 
   async function get(req, res) {
     const row = settingsModel.read();
-    return res.json({ open: model().isOpen(), company: companyOf(row), property: propertyStep(), emails: emailsOf(row), plugins: await pluginList() });
+    const list = await pluginList();
+    return res.json({
+      open: model().isOpen(), company: companyOf(row), property: propertyStep(), emails: emailsOf(row), plugins: list,
+      pluginsSummary: activeSummary(list.filter((p) => p.state === 'active').length),
+    });
   }
 
   // Every field may be skipped: an absent one is left as it is. `properties`: one entry per property.
@@ -254,7 +286,9 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     const capacity = Number(body.maxGuests);
     if (!errors.maxGuests && (!Number.isInteger(capacity) || capacity < 1 || capacity > MAX_CAPACITY)) errors.maxGuests = 'Entre 1 et 50';
     const price = Number(String(b.pricePerNight ?? '').replace(',', '.'));
-    if (b.pricePerNight === '' || b.pricePerNight == null || !Number.isFinite(price) || price < 0) errors.pricePerNight = 'Prix positif ou nul';
+    // Rule 38 — an empty price is a missing one, not a negative one.
+    if (b.pricePerNight == null || String(b.pricePerNight).trim() === '') errors.pricePerNight = 'Prix obligatoire';
+    else if (!Number.isFinite(price) || price < 0) errors.pricePerNight = 'Prix positif ou nul';
     for (const [key, field] of [['checkIn', 'defaultCheckIn'], ['checkOut', 'defaultCheckOut']]) {
       if (b[key] && !/^\d{2}:\d{2}$/.test(String(b[key]))) errors[field] = 'Heure invalide';
     }
@@ -303,16 +337,33 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     const ids = Array.isArray(req.body && req.body.ids) ? [...new Set(req.body.ids.map(String))] : [];
     const known = new Map((await pluginList()).map((p) => [p.id, p]));
     const results = [];
+    const fail = (id, code, message) => results.push({ id, ok: false, error: code, reason: failureReason(code, message) });
+    let restarting = false;
+    // Rule 42 — an install from a package ships pages the open bundle lacks: the client loads the app again.
+    let reload = false;
+    // Rule 37 — one after the other: each install has released the plugin lock before the next starts.
     for (const id of ids) {
       const plugin = known.get(id);
-      if (!plugin) { results.push({ id, ok: false, error: 'UNKNOWN_PLUGIN' }); continue; }
-      if (!plugin.allowed) { results.push({ id, ok: false, error: 'PLAN_REQUIRED' }); continue; }
+      if (!plugin) { fail(id, 'UNKNOWN_PLUGIN'); continue; }
+      if (!plugin.allowed) { fail(id, 'PLAN_REQUIRED'); continue; }
       if (plugin.state === 'active') { results.push({ id, ok: true }); continue; }
+      if (restarting) { fail(id, 'RESTART_PENDING'); continue; }
       const handler = plugin.state === 'available' ? plugins.install : plugins.activate;
-      const answer = await capture(handler, { params: { id } });
-      results.push(answer.status < 300 ? { id, ok: true } : { id, ok: false, error: (answer.body && answer.body.error) || 'FAILED' });
+      const answer = await capture(handler, { params: { id }, body: {} }); // eslint-disable-line no-await-in-loop
+      if (answer.status < 300) {
+        results.push({ id, ok: true });
+        restarting = Boolean(answer.body && answer.body.restarting);
+        reload = reload || Boolean(answer.body && answer.body.reload);
+      } else {
+        const body = answer.body || {};
+        fail(id, body.error || 'FAILED', body.message);
+      }
     }
-    return res.json({ results });
+    return res.json({ results, pluginsSummary: await pluginsSummary(), reload });
+  }
+
+  async function pluginsSummary() {
+    return activeSummary((await pluginList()).filter((p) => p.state === 'active').length);
   }
 
   function done(req, res) {
@@ -323,4 +374,4 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
   return { get, saveCompany, saveProperty, savePlugins, saveEmails, done };
 }
 
-module.exports = { buildController, RECOMMENDED };
+module.exports = { buildController, RECOMMENDED, activeSummary, failureReason };

@@ -1,5 +1,5 @@
 /**
- * OnboardingEmailsStep — step « Vos emails » of the start assistant (specs/guest-email-texts-made-simple.md
+ * OnboardingEmailsStep — step « Emails » of the start assistant (specs/guest-email-texts-made-simple.md
  * rule 21): phone and sender name, then for every property its article as a choice, its address (the
  * company's offered by the server), way in, key-box code and Wi-Fi, the deposit, the cleaning, the
  * bath towels and the bed linen; then the J-2 of a sample stay rendered by the server with what is

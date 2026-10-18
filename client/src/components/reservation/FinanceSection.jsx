@@ -706,7 +706,7 @@ export default function FinanceSection() {
                   ? 'Total du relevé, taxe de séjour comprise. La taxe saisie ci-dessous en est déduite.'
                   : "Hébergement + options, hors taxe de séjour et hors frais de dossier — l'hébergement s'ajuste automatiquement.")
                 : taxReversedByPlatform
-                  ? 'Taxe de séjour comprise — la plateforme vous la reverse avec le virement.'
+                  ? 'Taxe de séjour comprise — la plateforme la reverse avec le virement.'
                   : "L'hébergement s'ajuste automatiquement (brut − options). La taxe de séjour est encaissée à l'arrivée.";
               // Rule 5 — the engine's own estimate, which « Reprendre le calcul » offers. Never written
               // on its own: moving a fiche to the tax-inclusive convention is a deliberate click.
@@ -755,7 +755,7 @@ export default function FinanceSection() {
                             fullWidth
                             size="small"
                             disabled={isReservationLocked}
-                            helperText="Collectée par la plateforme et reversée à la commune — jamais encaissée par nous."
+                            helperText="Collectée par la plateforme et reversée à la commune — jamais encaissée par l’établissement."
                           />
                           <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
                             <Tooltip title={`Reprendre le calcul du moteur : ${formatCurrency(engineTouristTax)}`}>

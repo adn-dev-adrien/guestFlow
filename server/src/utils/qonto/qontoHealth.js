@@ -23,7 +23,7 @@ const STATES = {
     ok: false,
     title: 'Identifiants manquants',
     explanation: "Client ID et Client secret de l'application Qonto absents.",
-    action: 'À recopier ci-dessus depuis developers.qonto.com → Business API access, puis enregistrer.',
+    action: 'À copier ci-dessus depuis le portail développeur de Qonto, puis enregistrer.',
   },
   credentials_rejected: {
     ok: false,
@@ -31,7 +31,7 @@ const STATES = {
     explanation:
       "Qonto ne reconnaît pas le couple Client ID / Client secret. C'est ce qui arrive quand Qonto régénère le secret de l'application.",
     action:
-      'Recopier le Client ID et le Client secret depuis developers.qonto.com → Business API access, enregistrer, puis relancer le test.',
+      'Copier le Client ID et le Client secret depuis le portail développeur de Qonto, enregistrer, puis relancer le test.',
   },
   reauth_required: {
     ok: false,

@@ -3,6 +3,7 @@ import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Toolti
 import RefreshIcon from '@mui/icons-material/Refresh';
 import StatusBadge from './StatusBadge';
 import { formatCurrency, displayDate } from '../utils/formatters';
+import { touchHitArea } from '../utils/touchHitArea';
 import { COMPLEMENT_LABELS, COMPLEMENT_BREAKDOWN_LABELS } from '../constants/complements';
 
 // Discreet italic gray chip surfaced next to a line that is routed to the Complément bucket
@@ -30,6 +31,8 @@ function ComplementChip({ active = true, onClick, readOnly = false }) {
         cursor: clickable ? 'pointer' : 'default',
         '& .MuiChip-label': { px: 0.75 },
         '&:hover': clickable ? { opacity: 1, borderColor: 'divider', bgcolor: 'action.hover' } : undefined,
+        // specs/plugins-phase-p-productisation.md rule 39 — 18 px on screen, 44 px under a finger.
+        ...(clickable ? touchHitArea : {}),
       }}
     />
   );
@@ -224,7 +227,7 @@ export default function PricingSummary({
                     size="small"
                     variant="text"
                     onClick={() => setShowNightlyBreakdown((prev) => !prev)}
-                    sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
+                    sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12, ...touchHitArea }}
                   >
                     {showNightlyBreakdown ? 'Masquer détail' : 'Détail'}
                   </Button>
@@ -668,7 +671,7 @@ export default function PricingSummary({
                       size="small"
                       variant="text"
                       onClick={() => setShowTouristTaxDetail((prev) => !prev)}
-                      sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
+                      sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12, ...touchHitArea }}
                     >
                       {showTouristTaxDetail ? 'Masquer détail' : 'Afficher détail'}
                     </Button>

@@ -322,6 +322,15 @@ function createCustomersController(ctx) {
 
   // --- views ---------------------------------------------------------------------------------
 
+  // Rule 37 — a step done before 2026-10-18 recorded a host path (« Écrite dans /srv/… »): an
+  // operator reads that the step is done, not where it wrote.
+  const HOST_PATH = /(^|\s)\/[^\s]+/;
+  function stepDetail(r) {
+    if (r.status === 'running') return r.detail || 'En cours…';
+    if (r.status === 'ok' && HOST_PATH.test(r.detail || '')) return '';
+    return r.detail || '';
+  }
+
   function stepsView(c, defs) {
     const rows = new Map(provisioning.list(c.id).map((r) => [r.step, r]));
     return defs.filter((d) => rows.has(d.step)).map((d) => {
@@ -331,7 +340,7 @@ function createCustomersController(ctx) {
         label: d.label,
         kind: d.kind,
         status: r.status,
-        detail: r.detail || (r.status === 'running' ? 'En cours…' : ''),
+        detail: stepDetail(r),
         // H1 rule 2: a failed creation step resumes the sequence from itself.
         action: r.status !== 'failed' ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
       };
@@ -371,6 +380,7 @@ function createCustomersController(ctx) {
     const forced = c.forceActiveUntil && day <= c.forceActiveUntil;
     const unsettled = invoices.unsettled(c.id)[0] || null;
     const openInvoice = unsettled && unsettled.status === 'open' ? unsettled : null;
+    const steps = stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS, ...PROCESS_RESTART_STEPS]);
     return {
       id: c.id,
       slug: c.slug,
@@ -400,7 +410,10 @@ function createCustomersController(ctx) {
       archivedAt: c.archivedAt,
       eraseAt: c.eraseAt,
       eraseAtLabel: c.eraseAt ? frDay(c.eraseAt) : null,
-      steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS, ...PROCESS_RESTART_STEPS]),
+      steps,
+      // Rule 37 — once every step is done the card folds to one line.
+      stepsDone: steps.length > 0 && steps.every((s) => s.status === 'ok' || s.status === 'skipped'),
+      stepsSummary: steps.length ? `Terminée : ${steps.length} étape${steps.length > 1 ? 's' : ''}` : '',
       // H1 rule 1: the page polls while a sequence runs.
       provisioningRunning: Boolean(host() && host().running(c.id)) || provisioning.list(c.id).some((r) => r.status === 'running'),
       hosting: hostView(c, hosting.get(c.id), { now: now(), lastCheck: hosting.lastCheck(c.id), dailyMailLimit: ctx.drivers ? ctx.drivers.mail.dailyLimit : null, mailToday: hosting.mailCount(c.id, day) }),

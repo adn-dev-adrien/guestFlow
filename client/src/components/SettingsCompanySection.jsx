@@ -36,23 +36,23 @@ export default function SettingsCompanySection({
         <Stack spacing={2}>
           <Box>
             <Typography variant="sectionHeader">
-              Informations sur votre activité
+              Informations sur l’activité
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Ces informations apparaissent sur vos devis (en-tête et pied de page).
+              Affichées sur les devis (en-tête et pied de page).
             </Typography>
           </Box>
 
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              Logo de votre activité
+              Logo
             </Typography>
             <LogoUpload
               value={v.logoPath || ''}
               onUpload={onUploadLogo}
               onDelete={onDeleteLogo}
               disabled={disabled}
-              helperText="Ce logo apparaît sur vos devis et sert de favicon. Max 2 Mo."
+              helperText="Affiché sur les devis et dans l’onglet du navigateur. 2 Mo maximum."
             />
           </Box>
 
@@ -62,7 +62,7 @@ export default function SettingsCompanySection({
             onChange={setEvt('name')}
             fullWidth
             disabled={disabled}
-            helperText="Nom officiel de votre entreprise."
+            helperText="Nom officiel de l’entreprise."
           />
 
           <TextField
@@ -73,7 +73,7 @@ export default function SettingsCompanySection({
             multiline
             minRows={2}
             disabled={disabled}
-            helperText="Vous pouvez utiliser des retours à la ligne."
+            helperText="Retours à la ligne acceptés."
           />
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -81,7 +81,7 @@ export default function SettingsCompanySection({
               label="Email de contact"
               value={v.email || ''}
               onChange={set('email')}
-              helperText="Affiché sur les devis. C'est aussi l'adresse d'envoi des emails, sauf si vous en choisissez une autre."
+              helperText="Affiché sur les devis. Sert aussi d’adresse d’envoi des emails, sauf autre adresse choisie."
               error={errors.companyEmail}
               disabled={disabled}
             />
@@ -99,7 +99,7 @@ export default function SettingsCompanySection({
               label="SIRET"
               value={v.siret || ''}
               onChange={set('siret')}
-              helperText="14 chiffres. Identifiant unique de votre entreprise."
+              helperText="14 chiffres."
               error={errors.companySiret}
               disabled={disabled}
             />
@@ -107,7 +107,7 @@ export default function SettingsCompanySection({
               label="TVA intracommunautaire"
               value={v.tva || ''}
               onChange={set('tva')}
-              helperText="Format FRxx + 11 chiffres. Laissez vide si vous n'êtes pas assujetti."
+              helperText="Format FRxx + 11 chiffres. Vide si l’entreprise n’est pas assujettie."
               error={errors.companyTva}
               disabled={disabled}
             />
@@ -115,7 +115,7 @@ export default function SettingsCompanySection({
 
           <Divider />
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-            Vos coordonnées bancaires
+            Coordonnées bancaires
           </Typography>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

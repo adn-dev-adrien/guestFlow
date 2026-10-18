@@ -1,0 +1,14 @@
+- **Start assistant: the recommended plugins activate on the first click** (specs/plugins-phase-p-productisation.md rule 37, final display sweep 2026-10-18 N-1). On a fresh install step « Plugins » always failed on the second preselected plugin with `UPDATE_IN_PROGRESS`: the first install answered before it released the plugin lock. The step now waits for each install to finish before the next, and a plugin left out is named with its reason. +5 server tests.
+- **Start assistant wording** (rule 38): « Prix par nuit » is required and an empty price reads « Prix obligatoire »; step 4 is « Emails »; the last step reads « 2 plugins actifs », counted by the server.
+- **Touch targets and sentence case** (rule 39): 44 px hit areas for « Détail », « + compl. », « Fiche » and client-name links on touch screens; toggle buttons in sentence case; « Plus tard » no longer breaks in the second-code banner.
+- **A plugin's page while the plugin is off** (rule 40): « Plugin inactif » with a link to Plugins instead of « Page introuvable », for administrators (`GET /api/plugins/page`).
+- **Impersonal, plain settings texts** (rule 41): no « vous / votre » left in settings, account and accounting texts; the SMTP labels become « Serveur d'envoi »…, the security mode is folded under « Avancé ».
+- **Console on a phone** (specs/control-plane-plans-and-access.md rules 37–38): the top menu keeps two entries and a « Plus » menu; the « Création » card names no host path and folds once done; card actions wrap under their title; « Paiements en ligne » keeps its title.
+- plugin:online-payment « Paiements en ligne » keeps its title on a phone; the Qonto help names no header.
+- plugin:weather-alerts The key field reads « Clé Météo-France (Vigilance) ».
+- plugin:website-booking The WordPress connection text says the fields carry the same names.
+- plugin:accounting-export Impersonal texts.
+- plugin:linen Impersonal texts.
+- plugin:google-calendar Impersonal texts.
+- plugin:sas Impersonal texts.
+- **« Plugin inactif » only while the plugin is off** (specs/plugins-phase-p-productisation.md rule 42): an unknown address under an active plugin's page reads « Page introuvable »; the page of an installed, disabled plugin — and Intégrations with none of its plugins active — shows « Plugin inactif » to an administrator instead of sending home; leaving the start assistant after a package install loads the app again so the new pages are there. +3 server tests, +2 client tests.

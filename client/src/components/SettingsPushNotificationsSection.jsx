@@ -74,7 +74,7 @@ export default function SettingsPushNotificationsSection() {
     setTesting(true); setError(''); setNotice('');
     try {
       const r = await api.sendPushTest();
-      if (r?.skipped === 'no_vapid') setError('Push non configuré côté serveur (VAPID manquant).');
+      if (r?.skipped === 'no_vapid') setError('Notifications indisponibles sur ce serveur.');
       else if (r?.skipped === 'no_subscription') setError("Aucun appareil abonné. Activez d'abord les notifications.");
       else if ((r?.sent || 0) === 0) setError("Échec de l'envoi (voir les logs serveur).");
       else setNotice(`Notification envoyée à ${r.sent} appareil(s) du compte. Verrouillez l'écran ou passez en arrière-plan pour la voir.`);
@@ -102,8 +102,8 @@ export default function SettingsPushNotificationsSection() {
               <Typography variant="sectionHeader">Notifications push (cet appareil)</Typography>
             </Box>
             <Typography variant="body2" color="text.secondary">
-              Recevez une notification, même quand GuestFlow est fermé, sur cet appareil. Le choix des
-              notifications est propre à votre compte.
+              Notifications sur cet appareil, même GuestFlow fermé. Le choix des notifications est
+              propre à chaque compte.
             </Typography>
           </Box>
 
@@ -146,7 +146,7 @@ export default function SettingsPushNotificationsSection() {
                   Envoyer une notification de test
                 </Button>
                 <Typography variant="caption" color="text.secondary">
-                  Envoie une notification de test à vos appareils abonnés pour valider la configuration.
+                  Envoie une notification de test aux appareils abonnés.
                 </Typography>
               </Box>
 

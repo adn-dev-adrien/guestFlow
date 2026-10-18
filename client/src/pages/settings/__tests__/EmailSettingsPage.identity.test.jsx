@@ -60,7 +60,7 @@ function renderPage() {
 test('rule 12: the derived sending address, login and name are shown with their source', async () => {
   renderPage();
   expect(await screen.findByLabelText("Adresse d'envoi")).toHaveValue('contact@solio.fr');
-  expect(screen.getByLabelText('Identifiant SMTP')).toHaveValue('contact@solio.fr');
+  expect(screen.getByLabelText('Identifiant du serveur')).toHaveValue('contact@solio.fr');
   expect(screen.getByLabelText('Nom affiché')).toHaveValue('Domaine Solio');
   expect(screen.getByText("= l'email de contact de l'Établissement")).toBeInTheDocument();
   expect(screen.getByLabelText('Reçues sur')).toHaveValue('contact@solio.fr');

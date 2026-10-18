@@ -1,7 +1,7 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
@@ -19,6 +19,9 @@
     ],
     "1.0.2": [
       "Réglages › Intégrations : une ligne courte quand la connexion Google n’est pas disponible, sans nom de variable ni chemin du serveur."
+    ],
+    "1.0.3": [
+      "Textes de la connexion à Google Agenda sans « vous » ni « votre »."
     ]
   }
 }

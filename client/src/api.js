@@ -105,6 +105,8 @@ const api = {
 
   // Plugins (specs/plugins-phase-0-foundation.md §4.3) — admin only.
   getPlugins: () => request('/plugins'),
+  // specs/plugins-phase-p-productisation.md rule 40 — which plugin an address belongs to.
+  getPluginPage: (path) => request(`/plugins/page?path=${encodeURIComponent(path)}`),
   // `withRequirements` installs the plugins it requires first (specs/plugins-phase-4-registry.md rule 12).
   installPlugin: (id, { withRequirements = false } = {}) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST', body: { withRequirements } }),
   // specs/plugins-phase-4-registry.md rules 9, 13, 16, 20 — versions, updates, rollback.

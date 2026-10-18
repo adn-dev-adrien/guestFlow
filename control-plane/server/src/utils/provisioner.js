@@ -143,7 +143,8 @@ function createProvisioner({
       for (const sub of ['data', 'uploads', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
       hosting.ensure(c.id);
       syncEnv(c);
-      return inst.dir;
+      // specs/control-plane-plans-and-access.md rule 38 — no host path on the customer page.
+      return 'Créés.';
     },
     async secrets(c) {
       const inst = instanceOf(c);
@@ -162,7 +163,7 @@ function createProvisioner({
     async licence(c) {
       const result = hooks.licence(c.id);
       if (!result.written) throw new Error(result.reason);
-      return `Écrite dans ${result.path}`;
+      return 'Écrite.';
     },
     async database(c) {
       const row = hosting.ensure(c.id);

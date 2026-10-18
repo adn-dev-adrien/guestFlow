@@ -114,7 +114,7 @@ describe('AccountPage — "Mes informations" section', () => {
       notes: '',
     });
     await waitFor(() => expect(refreshAuth).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByText(/Vos informations ont été mises à jour/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Informations mises à jour/)).toBeInTheDocument());
   });
 
   test('submit failure with a field error lands under the right input (no snackbar)', async () => {

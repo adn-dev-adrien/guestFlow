@@ -21,7 +21,7 @@ export default function UnsavedChangesDialog({ open, onStay, onDiscard, onSaveAn
       <DialogTitle>Modifications non enregistrées</DialogTitle>
       <DialogContent>
         <Typography variant="body2">
-          Vous avez des modifications non enregistrées. Voulez-vous les enregistrer avant de quitter ?
+          Des modifications ne sont pas enregistrées. Les enregistrer avant de quitter ?
         </Typography>
       </DialogContent>
       <DialogActions>

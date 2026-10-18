@@ -130,8 +130,8 @@ export default function LaundryExtraTripDialog({ open, mode = 'create', date, cu
       </Box>
       <DialogContent sx={{ pt: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Vous apportez tout le linge sale accumulé depuis le dernier voyage et récupérez ce qui est à la
-          blanchisserie — en totalité ou en partie. Les voyages hebdomadaires suivants et le stock sont recalculés.
+          Tout le linge sale accumulé depuis le dernier voyage part à la blanchisserie, et ce qui y est
+          prêt revient — en totalité ou en partie. Les voyages hebdomadaires suivants et le stock sont recalculés.
         </Typography>
         {isEdit ? (
           <Typography variant="body2" sx={{ fontWeight: 600, mb: 2, textTransform: 'capitalize' }}>{frDate(draftDate)}</Typography>

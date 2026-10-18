@@ -217,7 +217,7 @@ export default function TermsSettingsPage() {
           <CardContent sx={{ p: { xs: 1.5, sm: 3 } }}>
             <Typography variant="sectionHeader" component="h2" sx={{ mb: 1 }}>Versions publiées</Typography>
             {overview.versions.length === 0 ? (
-              <EmptyState title="Aucune version publiée" message="Publiez le brouillon pour proposer vos conditions générales aux clients." py={3} />
+              <EmptyState title="Aucune version publiée" message="Le brouillon publié devient les conditions générales proposées aux clients." py={3} />
             ) : isXs ? (
               <Stack divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
                 {overview.versions.map((v) => (

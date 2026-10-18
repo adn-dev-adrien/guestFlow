@@ -119,7 +119,7 @@ export default function FleetPage() {
               variant={filter === c.key ? 'filled' : 'outlined'}
               onClick={() => setFilter(filter === c.key ? null : c.key)}
               aria-pressed={filter === c.key}
-              sx={{ minHeight: 40, fontWeight: 600 }}
+              sx={{ minHeight: 44, borderRadius: 22, fontWeight: 600 }}
             />
           ))}
         </Box>
