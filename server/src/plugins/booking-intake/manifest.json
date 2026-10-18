@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -21,6 +21,10 @@
       "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée.",
       "Le secret du script se crée par « Créer le secret » ; l’installation du script n’en crée plus.",
       "Le script et son secret sont refusés à une session du support."
+    ],
+    "1.1.0": [
+      "Le voyageur reçoit sa propre fiche client : remplir une réservation ne renomme plus les autres séjours Booking qui partageaient le même client provisoire.",
+      "Les calendriers comptés comme Booking ne se règlent plus : le flux Booking toujours, le relais Lodgify seulement tant qu’il est actif."
     ]
   }
 }

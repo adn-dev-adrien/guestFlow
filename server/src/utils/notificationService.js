@@ -233,8 +233,9 @@ function buildNotificationService({
     }
   }
 
-  // `origin` — 'payment' (a paid online booking landed on taken dates) or 'ical' (a Booking.com feed
-  // event overlaps nights already held, specs/lodgify-decommission.md §3 rule 8).
+  // `origin` — 'payment' (a paid online booking landed on taken dates) or 'ical' (a feed event overlaps
+  // nights already held, specs/lodgify-decommission.md §3 rule 8, every feed since
+  // specs/ical-import-hardening.md rule 3).
   const CONFLICT_COPY = {
     payment: {
       title: 'Conflit de dates — paiement en ligne',
@@ -244,18 +245,26 @@ function buildNotificationService({
         'Action requise : remboursement ou relogement.',
       ],
     },
-    ical: {
-      title: 'Conflit de dates — flux Booking',
-      lines: [
-        'Le flux iCal de Booking.com annonce un séjour qui chevauche des nuits déjà prises dans GuestFlow.',
-        'La réservation Booking a été créée pour ne rien perdre : ce peut être deux séjours accolés ou un surbooking.',
-        'Action requise : vérifier dans l\'extranet Booking, puis supprimer le doublon ou reloger.',
-      ],
+    // specs/ical-import-hardening.md rule 3 — any feed, not only Booking's: the platform is named.
+    ical: (resa) => {
+      const platform = String(resa.platform || resa.sourceName || '').trim() || 'iCal';
+      return {
+        title: `Conflit de dates — flux ${platform}`,
+        lines: [
+          `Le flux iCal ${platform} annonce un séjour qui chevauche des nuits déjà prises dans GuestFlow.`,
+          'La réservation a été créée pour ne rien perdre : ce peut être deux séjours accolés ou un surbooking.',
+          `Action requise : vérifier sur ${platform}, puis supprimer le doublon ou reloger.`,
+        ],
+      };
     },
+  };
+  const conflictCopy = (resa, origin) => {
+    const copy = CONFLICT_COPY[origin] || CONFLICT_COPY.payment;
+    return typeof copy === 'function' ? copy(resa) : copy;
   };
 
   function buildConflictEmail(resa, publicUrl, origin = 'payment') {
-    const copy = CONFLICT_COPY[origin] || CONFLICT_COPY.payment;
+    const copy = conflictCopy(resa, origin);
     const guest = `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
     const subject = `⚠️ ${copy.title} (${resa.propertyName || ''})`;
     const lines = [
@@ -277,7 +286,7 @@ function buildNotificationService({
       const resa = loadReservation(reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
       await pushNewReservation({
-        title: `⚠️ ${(CONFLICT_COPY[origin] || CONFLICT_COPY.payment).title}`,
+        title: `⚠️ ${conflictCopy(resa, origin).title}`,
         body: [`${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim(), resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · '),
         url: `/reservations/${Number(resa.id)}`,
       });

@@ -21,10 +21,6 @@ const validateHotelIds = (v) => {
     && Object.entries(map).every(([k, h]) => /^\d+$/.test(k) && /^\d*$/.test(String(h)));
   return ok ? null : 'Un identifiant d’établissement Booking est fait de chiffres.';
 };
-const validateSourceKeys = (v) => {
-  const list = parseJson(v || '[]', null);
-  return Array.isArray(list) && list.every((k) => typeof k === 'string' && /^[a-z0-9-]+$/i.test(k)) ? null : 'Liste de sources illisible.';
-};
 
 const todayIso = () => {
   const d = new Date();
@@ -36,7 +32,6 @@ function register(ctx) {
 
   ctx.settings.declare([
     { key: 'hotelIds', default: '{}', validate: validateHotelIds },
-    { key: 'sourceKeys', default: '["booking","lodgify"]', validate: validateSourceKeys },
     { key: 'key', secret: true },
   ]);
 
@@ -61,8 +56,13 @@ function register(ctx) {
       .prepare("SELECT id FROM reservations WHERE kind = 'reservation' AND propertyId = ? AND startDate = ? AND endDate = ?")
       .all(propertyId, startDate, endDate),
     getReservation: (reservationId) => ctx.core.reservations.getByIdWithDetails(reservationId),
+    // Rule 27 — does a reservation other than this one use the client?
+    clientShared: (clientId, reservationId) => Boolean(ctx.db
+      .prepare('SELECT 1 FROM reservations WHERE clientId = ? AND id != ? LIMIT 1')
+      .get(clientId, reservationId == null ? -1 : reservationId)),
     core: {
       updateReservation: ctx.core.reservations.update,
+      findOrCreateClient: ctx.core.clients.findOrCreate,
       updateClient: ctx.core.clients.update,
       suggestBeds: ctx.core.reservations.suggestBeds,
       platformCommission: ctx.core.reservations.platformCommission,
@@ -72,7 +72,6 @@ function register(ctx) {
   const pending = () => listPending({
     db: ctx.db,
     hotelIds: hotelIds(),
-    sourceKeys: parseJson(ctx.settings.get('sourceKeys') || '[]', []),
     today: todayIso(),
   });
 

@@ -44,7 +44,9 @@ export default function StaySection() {
             </FormControl>
 
             {/* Reservation number (specs/reservation-number-and-search.md): generated server-side on first
-                save, editable/overridable. Hidden for devis (they carry devisNumber instead). */}
+                save, editable/overridable. Hidden for devis (they carry devisNumber instead). Once set it
+                may be a platform's own number (an intake writes it), so the hint no longer says
+                « généré » (amended 2026-10-18). */}
             {!isDevisMode && (
               <TextField
                 label="Numéro de réservation"
@@ -54,7 +56,7 @@ export default function StaySection() {
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
                 helperText={form.reservationNumber
-                  ? 'Généré automatiquement — modifiable'
+                  ? 'Modifiable'
                   : 'Attribué automatiquement à l\'enregistrement'}
               />
             )}

@@ -9,6 +9,9 @@
  *
  * A disabled calendar greys its content (chips, URL, sync line) but not the buttons that still
  * work: « Réactiver » is filled and « Retirer » keeps its colour; only « Synchroniser » is greyed.
+ * A stopped calendar (`isActive = 0`, specs/ical-import-hardening.md rule 2) carries « Arrêté » and has
+ * no « Synchroniser ». The status line is the server's `syncStatus` (rule 9): when, and what changed;
+ * the engine's full sentence is its tooltip.
  *
  * Props: propertyId, propertyName, canManage
  */
@@ -22,11 +25,11 @@ import SyncIcon from '@mui/icons-material/Sync';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import PauseCircleIcon from '@mui/icons-material/PauseCircle';
 import api from '../../api';
 import IcalExportCard from '../IcalExportCard';
 import { useToast } from '../DialogProvider';
 import { DEFAULT_PLATFORM_COLOR, normalizePlatformKey } from '../../constants/platforms';
-import { displayDate } from '../../utils/formatters';
 
 const TAX_SHORT = {
   platform: 'Taxe : plateforme → commune',
@@ -34,16 +37,16 @@ const TAX_SHORT = {
   owner: "Taxe : à l'arrivée",
 };
 
-function syncLine(row) {
-  if (!row.url) return { Icon: null, text: 'Saisie manuelle : pas de synchronisation.' };
-  if (row.lastSyncStatus === 'error') return { Icon: ErrorIcon, color: 'error.main', text: row.lastSyncMessage || 'Erreur de synchronisation' };
-  if (row.lastSyncStatus !== 'success') return { Icon: ScheduleIcon, color: 'text.disabled', text: 'Jamais synchronisé' };
-  return {
-    Icon: CheckCircleIcon,
-    color: 'success.main',
-    text: `Synchronisé${row.lastSyncAt ? ` le ${displayDate(row.lastSyncAt.slice(0, 10))}` : ''}${row.lastSyncMessage ? ` — ${row.lastSyncMessage}` : ''}`,
-  };
-}
+const STATUS_ICON = {
+  manual: { Icon: null },
+  stopped: { Icon: PauseCircleIcon, color: 'text.disabled' },
+  error: { Icon: ErrorIcon, color: 'error.main' },
+  never: { Icon: ScheduleIcon, color: 'text.disabled' },
+  success: { Icon: CheckCircleIcon, color: 'success.main' },
+};
+
+const statusOf = (row) => row.syncStatus || { tone: 'never', text: 'Jamais synchronisé', detail: '' };
+const isStopped = (row) => Boolean(row.sourceId) && row.isActive === false;
 
 export default function PropertyPlatformsTab({ propertyId, propertyName, canManage }) {
   const { showSuccess, showError } = useToast();
@@ -138,7 +141,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                 setSyncingAll(true);
                 try { await api.syncAllPropertyIcalSources(propertyId); await load(); } finally { setSyncingAll(false); }
               }}
-              disabled={!canManage || syncingAll || !rows.some((r) => r.url && !r.disabled)}
+              disabled={!canManage || syncingAll || !rows.some((r) => r.url && !r.disabled && !isStopped(r))}
             >
               {syncingAll ? 'Synchronisation…' : 'Synchroniser tout'}
             </Button>
@@ -147,7 +150,8 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
           {rows.map((row) => {
             const editing = editingKey === row.platformKey;
             const busy = busyKey === row.platformKey;
-            const status = syncLine(row);
+            const status = statusOf(row);
+            const { Icon: StatusIcon, color: statusColor } = STATUS_ICON[status.tone] || STATUS_ICON.never;
             const commission = commissionOf(row);
             return (
               <Box key={row.platformKey} sx={{ borderTop: '1px solid', borderColor: 'divider', py: 1.5 }} data-testid={`platform-row-${row.platformKey}`}>
@@ -159,17 +163,20 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                     {!row.isDirect && <Chip size="small" label={`Acompte : ${row.platformTakesDeposit ? 'oui' : 'non'}`} />}
                     {!row.isDirect && <Chip size="small" label={TAX_SHORT[row.touristTaxCollection] || TAX_SHORT.platform} />}
                     {!row.isDirectChannel && <Chip size="small" label={`Virement ${row.payoutDueDays ?? 10} j`} />}
-                    {row.disabled && <Chip size="small" label="Désactivé" />}
+                    {Boolean(row.disabled) && <Chip size="small" label="Désactivé" />}
+                    {isStopped(row) && <Chip size="small" label="Arrêté" data-testid={`platform-stopped-${row.platformKey}`} />}
                   </Box>
                   {!row.isDirect && !editing && (
                     <>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, wordBreak: 'break-all' }} title={row.url || ''}>
                         {row.url || 'Pas d’URL iCal'}
                       </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        {status.Icon && <status.Icon fontSize="small" sx={{ color: status.color }} />}
-                        <Typography variant="caption" color="text.secondary">{status.text}</Typography>
-                      </Box>
+                      <Tooltip title={status.detail || ''}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }} data-testid={`platform-status-${row.platformKey}`}>
+                          {StatusIcon && <StatusIcon fontSize="small" sx={{ color: statusColor }} />}
+                          <Typography variant="caption" color="text.secondary">{status.text}</Typography>
+                        </Box>
+                      </Tooltip>
                     </>
                   )}
                 </Box>
@@ -199,7 +206,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                         Modifier l&apos;URL
                       </Button>
                     )}
-                    {row.url && row.sourceId && (
+                    {row.url && row.sourceId && !isStopped(row) && (
                       <Tooltip title={row.disabled ? 'Réactivez le calendrier pour le synchroniser' : ''}>
                         <span>
                           <Button size="small" variant="outlined" startIcon={<SyncIcon />} onClick={() => run(row.platformKey, () => api.syncPropertyIcalSource(propertyId, row.sourceId), 'Calendrier synchronisé.')} disabled={!canManage || busy || row.disabled}>

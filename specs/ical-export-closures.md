@@ -62,6 +62,8 @@ iCal feed, with no per-channel manual re-declaration.
 7. `TRANSP:OPAQUE`, like a reservation: the dates read as busy.
 8. Closure events are appended **after** the reservation events, ordered by `startDate`. The
    reservation block is untouched — same query, same fields, same order.
+   > **Amended 2026-10-18:** the reservation block no longer carries guest data
+   > (`specs/ical-export-guest-privacy.md`); the order and the closure events are unchanged.
 9. **A deleted closure disappears from the feed** on the next fetch, and the platform unblocks the
    dates by itself. No extra bookkeeping: the feed is stateless, rebuilt on every request.
 10. The feed stays **additive** for its consumers: no existing event changes shape, so no platform
@@ -192,7 +194,8 @@ No browser UI to verify (§4.2), so no responsive pass.
 - **Exporting devis / options.** Still deliberately excluded (rule 8 of the original feed).
 - **The guest-data question in the feed.** `SUMMARY` carries the guest's name and `ATTENDEE` their
   e-mail on *reservation* events, which is shipped to every platform subscribing to the feed. Raised
-  2026-09-20, worth its own spec, untouched here.
+  2026-09-20, worth its own spec, untouched here. _(Resolved 2026-10-18 by
+  `specs/ical-export-guest-privacy.md`: every stay reads « Réservé », no guest data.)_
 - **Exporting the closure's scope** (global vs per-property) into the event. A platform only cares
   that the dates are blocked.
 

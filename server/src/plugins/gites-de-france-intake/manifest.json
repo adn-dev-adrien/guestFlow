@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -18,6 +18,9 @@
     ],
     "1.0.1": [
       "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.1.0": [
+      "Une fiche dont le loyer reste à choisir apparaît aussi dans l’alerte du tableau de bord."
     ]
   }
 }

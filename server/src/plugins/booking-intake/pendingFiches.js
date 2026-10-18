@@ -14,19 +14,23 @@ const canBeBooking = (platform) => /^(booking|lodgify|)$/.test(String(platform |
 
 const extranetUrl = (hotelId, date) => `${EXTRANET}?hotel_id=${encodeURIComponent(hotelId)}&date_type=arrival&date_from=${date}&date_to=${date}`;
 
-function listPending({ db, hotelIds, sourceKeys, today }) {
+// Rule 21, amended 2026-10-18 — which feeds can carry a Booking stay is read from the sources themselves,
+// no longer from a setting: Booking's own feed always; the Lodgify relay only while it is active (a
+// retired relay's leftover stays are not Booking's to fill — they were already filled, or never will be).
+function listPending({ db, hotelIds, today }) {
   const propertyIds = Object.keys(hotelIds).filter((id) => String(hotelIds[id] || '').trim());
-  if (propertyIds.length === 0 || sourceKeys.length === 0) return [];
+  if (propertyIds.length === 0) return [];
   const rows = db.prepare(`
     SELECT r.id, r.propertyId, r.startDate, r.endDate, r.platform, p.name AS propertyName
     FROM reservations r
     JOIN properties p ON p.id = r.propertyId
+    JOIN ical_sources s ON s.id = r.sourceIcalSourceId
     WHERE r.kind = 'reservation' AND r.startDate >= ? AND r.sourceType = 'ical'
-      AND r.sourcePlatformKey IN (${sourceKeys.map(() => '?').join(',')})
+      AND (lower(s.platformKey) = 'booking' OR (lower(s.platformKey) = 'lodgify' AND s.isActive = 1))
       AND r.propertyId IN (${propertyIds.map(() => '?').join(',')})
       AND (r.platformGrossAmount IS NULL OR r.platformGrossAmount = '')
       AND r.id NOT IN (SELECT reservationId FROM booking_dismissals)
-    ORDER BY r.startDate, r.id`).all(today, ...sourceKeys, ...propertyIds.map(Number));
+    ORDER BY r.startDate, r.id`).all(today, ...propertyIds.map(Number));
   return rows.filter((r) => canBeBooking(r.platform)).map((r) => {
     const days = dayDiff(today, r.startDate);
     return {

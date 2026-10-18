@@ -50,15 +50,12 @@ async function performAutoSync() {
       return;
     }
 
-    // Sync each source. syncSourceAndRecord runs the sync engine, writes the source status
-    // row, and triggers the Google Calendar reconcile itself when bookings changed.
-    for (const source of sources) {
-      try {
-        await propertyIcalModel.syncSourceAndRecord(source);
-      } catch (error) {
-        console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${source.name}":`, error.message);
-      }
-    }
+    // Sync each source. syncMany fetches every feed at once (specs/ical-import-hardening.md rule 4),
+    // then runs the sync engine source by source, which writes the status row and announces the change.
+    const results = await propertyIcalModel.syncMany(sources);
+    results.filter((r) => !r.ok).forEach((r) => {
+      console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${r.sourceName}":`, r.error);
+    });
 
     // specs/lodgify-decommission.md §3 rule 7 — tombstones only matter for 72 h; keep a week.
     icalExportRangesModel.purge();

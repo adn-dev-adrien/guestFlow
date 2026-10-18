@@ -23,9 +23,9 @@ import api from '../../../api';
 import PropertyPlatformsTab from '../PropertyPlatformsTab';
 
 const ROWS = [
-  { platformKey: 'direct', platformLabel: 'Direct', isDirect: true, isDirectChannel: true, isBuiltIn: true, url: '', disabled: 0, sourceId: null },
-  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isDirectChannel: false, isBuiltIn: true, url: '', touristTaxCollection: 'platform_reversed', platformTakesDeposit: 0, payoutDueDays: 12, disabled: 0, sourceId: null },
-  { platformKey: 'vrbo', platformLabel: 'Vrbo', isDirect: false, isDirectChannel: false, isBuiltIn: false, url: 'https://v/c.ics', touristTaxCollection: 'owner', payoutDueDays: 10, disabled: 1, sourceId: 11, lastSyncStatus: 'success' },
+  { platformKey: 'direct', platformLabel: 'Direct', isDirect: true, isDirectChannel: true, isBuiltIn: true, url: '', disabled: false, sourceId: null },
+  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isDirectChannel: false, isBuiltIn: true, url: '', touristTaxCollection: 'platform_reversed', platformTakesDeposit: 0, payoutDueDays: 12, disabled: false, sourceId: null },
+  { platformKey: 'vrbo', platformLabel: 'Vrbo', isDirect: false, isDirectChannel: false, isBuiltIn: false, url: 'https://v/c.ics', touristTaxCollection: 'owner', payoutDueDays: 10, disabled: true, sourceId: 11, lastSyncStatus: 'success' },
 ];
 
 beforeEach(() => {
