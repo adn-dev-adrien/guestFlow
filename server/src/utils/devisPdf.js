@@ -4,6 +4,7 @@
  * from the former routes/devis.js GET /:id/pdf so the output is byte-identical.
  */
 
+const { todayIso: localTodayIso } = require('./localDate');
 const path = require("path");
 const fs = require("fs");
 const PDFDocument = require("pdfkit");
@@ -249,7 +250,7 @@ function generateDevisPdf(full, settings, quote) {
   // The fallback to "today" below is a legacy guard for the handful of pre-fix rows persisted
   // with an empty value (devis #12102, #12097 etc. in the prod-copy DB) — without it those
   // legacy PDFs show an empty "Date du devis" pill.
-  const todayIsoDate = new Date().toISOString().slice(0, 10);
+  const todayIsoDate = localTodayIso();
   const createdAtIsoDate = full.createdAt
     ? String(full.createdAt).slice(0, 10)
     : todayIsoDate;
@@ -272,7 +273,7 @@ function generateDevisPdf(full, settings, quote) {
   // Meta pills
   const metaItems = [
     { label: L.date,       value: fmtDate(createdAtIsoDate) },
-    { label: L.validUntil, value: fmtDate(validUntilIso) },
+    { label: L.validUntil, value: `${fmtDate(validUntilIso)}${isPrintedExpired(full, validUntilIso, todayIsoDate) ? L.expiredSuffix : ''}` },
     { label: L.property,   value: property ? property.name : `#${full.propertyId}` },
   ];
 
@@ -795,9 +796,16 @@ function __resolveFooterText(settings, language, defaultEn, defaultFr) {
   return lang === 'en' ? defaultEn : defaultFr;
 }
 
+// specs/devis-pdf-and-tourist-tax-fixes.md rule 21 — a devis printed after its validity says so
+// (« Valable jusqu'au 07/10/2026 (expiré) »); a converted one is a reservation, past its quote on purpose.
+function isPrintedExpired(full, validUntilIso, todayIsoDate) {
+  return Boolean(full && full.kind === 'devis' && full.devisStatus !== 'converted' && validUntilIso && validUntilIso < todayIsoDate);
+}
+
 module.exports = {
   generateDevisPdf,
   __test: {
+    isPrintedExpired,
     resolveLiveTaxTotals,
     lineAmounts,
     resolveRowGeometry,

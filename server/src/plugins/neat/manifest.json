@@ -1,7 +1,7 @@
 {
   "id": "neat",
   "name": "Assurance annulation Neat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Souscription automatique de l’assurance annulation.",
   "icon": "umbrella",
   "surfaces": [
@@ -14,6 +14,9 @@
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Adresse de l’API réglable par NEAT_API_BASE, pour les essais sur une maquette locale."
     ]
   }
 }

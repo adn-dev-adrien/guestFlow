@@ -290,6 +290,8 @@ all-inclusive pricing as the first such recipe.
     never prevents the others from loading, and never stops the server from booting.
 28. **A read-only recipe browser** lists every recipe with its source (« Livrée » or « Locale »), its
     version, an override indicator, its content, and which properties currently use it.
+    > 2026-10-18 (mega review #5): the browser's intro no longer explains the `recipes/` directory to
+    > the operator — server mechanics, not something done from the page.
 29. **A property's recipe is chosen on its tariff page**, next to the seasons the recipe governs, and
     the choice is echoed read-only in the property's settings with a link back to the tariff page.
 

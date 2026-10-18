@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Liens de paiement envoyés aux voyageurs.",
   "icon": "payments",
   "surfaces": [
@@ -14,6 +14,9 @@
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Textes de la connexion Qonto à la forme impersonnelle."
     ]
   }
 }

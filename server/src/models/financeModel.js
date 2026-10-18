@@ -1,6 +1,7 @@
 // Finance model — all finance DB access + shaping. Returns ready-to-render payloads so the client
 // renders only. Payment figures come from the shared computePaymentStatus authority.
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
@@ -11,8 +12,10 @@ const {
   isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment,
 } = require('../utils/reservationSettlement');
 const fiscalYearUtil = require('../utils/fiscalYear');
-const { bookingChannelOf } = require('../utils/attributionChannel');
+const { bookingChannelOf, platformDisplayName } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
+const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { exerciseMonths } = require('../utils/exerciseOverview');
 
 const UPCOMING_PER_PROPERTY = 5;
@@ -54,7 +57,7 @@ const TAX_ON_ARRIVAL_SQL = `(
 )`;
 
 function todayIso() {
-  return new Date().toISOString().split('T')[0];
+  return localTodayIso();
 }
 
 function nightsBetween(startDate, endDate) {
@@ -185,6 +188,51 @@ function createFinanceModel(database) {
     if (knownAt) { clauses.push(`DATE(${alias}.createdAt) <= ?`); params.push(knownAt); }
     return { sql: clauses.map((c) => ` AND ${c}`).join(''), params };
   };
+
+  // The platform's payout delay, read once per channel and request (specs/platform-payout-due-date.md).
+  const payoutDueDaysOf = (() => {
+    let platforms = null;
+    const cache = new Map();
+    return (platform) => {
+      const key = String(platform || '').toLowerCase();
+      if (!cache.has(key)) {
+        try {
+          platforms = platforms || require('./platformsModel').create(database);
+          cache.set(key, platforms.getPayoutDueDays(platform));
+        } catch {
+          cache.set(key, DEFAULT_PAYOUT_DUE_DAYS);
+        }
+      }
+      return cache.get(key);
+    };
+  })();
+
+  // specs/finance-dashboard-redesign.md rule 34 — what a stay has overdue, as a row of « En retard »,
+  // or null. Each row lists its overdue elements (`overdueItems`) ready to render.
+  function overdueOf(r, today) {
+    if (r.settled) return null;
+    if (isDirectChannel(r.platform)) {
+      if (!r.isOverdue) return null;
+      const overdueItems = [];
+      if (r.depositOverdue) overdueItems.push({ kind: 'deposit', label: 'Acompte', amount: round2(r.depositAmount), dueDate: r.depositDueDate });
+      if (r.balanceOverdue) overdueItems.push({ kind: 'balance', label: 'Solde', amount: round2(r.balanceAmount), dueDate: r.balanceDueDate });
+      return { ...r, payoutOverdue: false, overdueItems };
+    }
+    const balance = round2(r.balanceAmount);
+    if (!(balance > 0) || r.balancePaid || !(r.endDate < today)) return null;
+    const dueDate = addDaysToIsoDate(r.endDate, normalizePayoutDueDays(payoutDueDaysOf(r.platform)));
+    if (!dueDate || dueDate >= today) return null;
+    return {
+      ...r,
+      isOverdue: true,
+      depositOverdue: false,
+      balanceOverdue: true,
+      payoutOverdue: true,
+      overdueAmount: balance,
+      oldestDueDate: dueDate,
+      overdueItems: [{ kind: 'payout', label: `Versement ${platformDisplayName(r.platform)}`, amount: balance, dueDate }],
+    };
+  }
 
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
@@ -610,14 +658,19 @@ function createFinanceModel(database) {
         nights: nightsBetween(r.startDate, r.endDate),
       });
 
-      // Overdue: DIRECT bookings only — platforms collect the guest's payment themselves, so a late
-      // platform reservation isn't the operator's dunning concern (specs/finance-overview-rework.md §3.6).
+      // Overdue (specs/finance-dashboard-redesign.md rule 34): an own-channel stay whose acompte or solde
+      // is past due — `isDirectChannel`, never `platform === 'direct'`, so a « Compté comme vente
+      // directe » platform is chased like a direct booking — and a platform stay whose payout is late
+      // (departure + the platform's payout delay, specs/platform-payout-due-date.md). Platforms collect
+      // the guest's payment themselves: only their own transfer can be late.
       const overdueReservations = allRows.map(enrich)
-        .filter((r) => String(r.platform || 'direct').toLowerCase() === 'direct' && r.isOverdue && !r.settled)
+        .map((r) => overdueOf(r, today))
+        .filter(Boolean)
         .sort((a, b) => (a.oldestDueDate || '').localeCompare(b.oldestDueDate || ''));
       const overdueTotalAmount = round2(
         overdueReservations.reduce((sum, r) => sum + Number(r.overdueAmount || 0), 0),
       );
+      const payoutRows = overdueReservations.filter((r) => r.payoutOverdue);
 
       // Pending = PAST stays (endDate < today) not yet settled. The amount shown is the total de séjour;
       // a caisse-interne complement counts as settled so it drops out (§3.3 / §3.6).
@@ -652,6 +705,10 @@ function createFinanceModel(database) {
           count: overdueReservations.length,
           totalAmount: overdueTotalAmount,
           totals: { overdueAmount: overdueTotalAmount },
+          payouts: {
+            count: payoutRows.length,
+            totalAmount: round2(payoutRows.reduce((sum, r) => sum + Number(r.overdueAmount || 0), 0)),
+          },
         },
         pending: {
           reservations: pending,
@@ -982,6 +1039,6 @@ const defaultModel = createFinanceModel(db);
 defaultModel.buildModel = createFinanceModel;
 // Shared with the dashboard model (specs/finance-dashboard-redesign.md §4.1), which composes this one
 // and must never re-derive a stay's revenue or nights on its own.
-defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, getVatRate, htAmount, todayIso };
+defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, getVatRate, htAmount, todayIso, TAX_ON_ARRIVAL_SQL };
 
 module.exports = defaultModel;

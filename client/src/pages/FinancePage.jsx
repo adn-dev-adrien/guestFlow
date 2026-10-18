@@ -26,7 +26,8 @@ const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
 const FORMAT = { amount: formatCurrencyRounded, percent, date: shortDate };
 const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
-const iso = (d) => d.toISOString().slice(0, 10);
+// The browser's own calendar day, never the UTC one (rule 37).
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // The tiles, in order, each with what its figure reads from `dashboard.tiles` (rule 13).
 const TILES = [
@@ -35,7 +36,7 @@ const TILES = [
   { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
   { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
   { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), `${t.revPar == null ? '—' : formatCurrencyRounded(t.revPar)} de RevPAR`] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
-  { key: 'channels', label: 'Canaux', dot: '#6B8F76', read: (t) => [`− ${formatCurrencyRounded(t.commission)}`, 'commissions payées'] },
+  { key: 'channels', label: 'Canaux', dot: '#6B8F76', read: (t) => [formatCurrencyRounded(t.commission), 'de commissions'] },
 ];
 
 export default function FinancePage() {
@@ -63,7 +64,8 @@ export default function FinancePage() {
   const [tile, setTile] = useState(null);
   const [detail, setDetail] = useState({ data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
-  const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return iso(d); });
+  // Empty until the operator picks a date: the server's default (today + 1 month) applies.
+  const [until, setUntil] = useState('');
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -78,7 +80,7 @@ export default function FinancePage() {
     if (!tile) return;
     setDetail((d) => ({ ...d, loading: true, error: false }));
     try {
-      const data = await api.getFinanceDashboardDetail(tile, { ...params, until, scope: staysScope });
+      const data = await api.getFinanceDashboardDetail(tile, { ...params, ...(until ? { until } : {}), scope: staysScope });
       setDetail({ data, loading: false, error: false });
     } catch {
       setDetail({ data: null, loading: false, error: true });
@@ -126,7 +128,7 @@ export default function FinancePage() {
   const d = dashboard;
   const selectedProperty = d && d.propertyId ? d.properties.find((p) => p.propertyId === d.propertyId) : null;
   const defaultMonth = () => {
-    const now = new Date().toISOString().slice(0, 7);
+    const now = iso(new Date()).slice(0, 7);
     return d && d.months.some((m) => m.month === now) ? now : (d && d.months[0] ? d.months[0].month : now);
   };
   const defaultCustom = () => {
@@ -139,6 +141,7 @@ export default function FinancePage() {
     <Box>
       <PageActionBar
         title="Suivi financier"
+        titleOnXs
         actionsBefore={[{ icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' }]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
@@ -192,7 +195,13 @@ export default function FinancePage() {
               <Grid container spacing={2} sx={{ mb: 2 }}>
                 {d.insights.map((i) => (
                   <Grid key={i.key} size={{ xs: 12, md: 12 / d.insights.length }}>
-                    <InsightCard tone={i.tone} title={i.title} text={i.text} />
+                    <InsightCard
+                      tone={i.tone}
+                      title={i.title}
+                      text={i.text}
+                      actionLabel={i.action ? i.action.label : undefined}
+                      onAction={i.action ? () => { setStaysScope(i.action.scope); setDetail({ data: null, loading: false, error: false }); setTile(i.action.tile); } : undefined}
+                    />
                   </Grid>
                 ))}
               </Grid>

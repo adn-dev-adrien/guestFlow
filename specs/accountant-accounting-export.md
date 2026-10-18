@@ -263,6 +263,19 @@ standard).
 - Property whose stored VAT rates were not 10/20 → the migration logs/surfaces the affected reservations
   (rule 4); never silently re-prices.
 
+### Review fixes (2026-10-18, mega review #5)
+
+31. **Latin-1, transliterated.** The CSV stays ISO-8859-1 without BOM (rule 16, the accountant's
+    example file), so every cell is transliterated before encoding: typographic quotes and apostrophes
+    (« ’ », « “ ») → ASCII, dashes → « - », « … » → « ... », ligatures spelled out (« Œ » → « OE »),
+    letters outside Latin-1 stripped of their accent (« ř » → « r », « Ł » → « L »), anything else
+    « ? ». Latin-1 letters (é, ç, Ë) are kept. *Why:* « Zoë D’Œuvre » came out « ZO\xCB D\x19RUVRE » —
+    « ’ », typed by every iPhone, became the control byte 0x19.
+32. **A prorated bucket splits its TTC share at its rate**: TTC × fraction, then HT = TTC ÷ (1 + rate)
+    and VAT = TTC − HT. A whole bucket (fraction 1) keeps its own HT and VAT. *Why:* prorating HT and
+    VAT separately gave 117,28 / 11,72 for 129,00 € at 10 %, a cent off the accountant's own
+    117,27 / 11,73.
+
 ---
 
 ## 4. Architecture

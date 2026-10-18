@@ -50,7 +50,7 @@ test('« − » goes below zero and the withdrawal is sent as a negative count',
   fireEvent.click(minus);
   fireEvent.click(minus);
   // The line says out loud what a negative number means.
-  expect(screen.getByText('lavé par vos soins')).toBeInTheDocument();
+  expect(screen.getByText('lavé hors blanchisserie')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(onSave).toHaveBeenCalledWith('2026-06-16', expect.objectContaining({ singleBeds: -2 }));
 });

@@ -85,6 +85,16 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
 - Rounding: HT extraction per item rounded to 2 decimals; the adjustment item (rule 3) absorbs ±0,01-0,02 €.
 - Legacy open links (created before this change) keep their 0 % display — no retro-edit (Qonto links are immutable).
 
+**Review fixes (2026-10-18, mega review #5)**
+
+8. **A link created for a reservation gets its basket from the stored columns** (2026-10-18, mega
+   review #5). A devis is replayed by the engine (rule 2); a reservation is not — its stored figures
+   are authoritative — so `storedLinkComponents` builds the same items per type: acompte and full
+   payment = one taxable line at the global VAT rate; solde = « solde − taxe de séjour » taxable plus a
+   0 % « Taxe de séjour » line, unless the tax is collected on arrival (the Suivi taxe de séjour's own
+   predicate). A stored tax above the solde cannot be split → the single 0 % line (rule 6). *Why:*
+   links created from the « Échéances » card on a reservation declared 0 % VAT.
+
 ---
 
 ## 4. Architecture

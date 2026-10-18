@@ -139,6 +139,14 @@ booking is settled by the platform and carries no such promise.
   and its mention, which is the correct promise.
 - Platform devis, last-minute → untouched: no switch, no mention, current block.
 
+**Review fixes (2026-10-18, mega review #5)**
+
+17. **A re-issued devis owes its single payment on its new validity date** (2026-10-18, mega review #5).
+    When a save re-issues an expired devis (`specs/devis-extras-parity-and-price-lock.md` rule 14), the
+    quote's due dates are computed from the validity date the save writes, never from the expired one
+    it replaces. *Why:* after a save the fiche said « À payer avant : 08/10/2026 » while the PDF said
+    02/11.
+
 ---
 
 ## 4. Architecture

@@ -6,7 +6,7 @@
  * `processPaidLink` is the single idempotent effect of a PAID link — shared by the cron/on-demand
  * **poll** (`runPaymentPoll`) and the provider's **webhook**. Every dependency is injected so it's
  * unit-testable without network or the prod DB:
- *   - paymentLinksModel : retireExpired() / listPollable() / touchPolled() / hasKnownExpiry() / markPaid() /
+ *   - paymentLinksModel : retireSettled() / retireExpired() / listPollable() / touchPolled() / hasKnownExpiry() / markPaid() /
  *                         updateStatus() / listRemoteCancelPending() / clearRemoteCancelPending()
  *   - provider          : the payment provider (utils/paymentProviders) — getPayment / getLinkStatus / cancelLink
  *   - devisModel        : convertToReservation(id)
@@ -158,10 +158,17 @@ async function retryPendingCancellations({ paymentLinksModel, provider, notifyPa
 // (`force` = a human asked, every open link). A rate limit that survives the client's back-off stops the
 // pass: the links not yet examined wait for the next tick instead of being requested into a `429`.
 async function runPaymentPoll({ database, paymentLinksModel, provider, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, force = false, now = new Date() }) {
+  // specs/plugins-phase-3a-online-payment.md rule 22 — a link whose bucket was settled another way
+  // leaves the polling list and joins the owed deactivations retried just below.
+  const settled = typeof paymentLinksModel.retireSettled === 'function' ? paymentLinksModel.retireSettled() : [];
   const pending = await retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel });
   const retired = paymentLinksModel.retireExpired({ now });
-  const results = [...pending.results, ...retired.map((link) => ({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'expired', effect: 'retired-locally' }))];
-  if (pending.stoppedBy) return { checked: 0, paid: 0, retired: retired.length, stoppedBy: pending.stoppedBy, results };
+  const results = [
+    ...settled.filter((link) => !link.providerLinkId).map((link) => ({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'settled', effect: 'retired-locally' })),
+    ...pending.results,
+    ...retired.map((link) => ({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'expired', effect: 'retired-locally' })),
+  ];
+  if (pending.stoppedBy) return { checked: 0, paid: 0, retired: retired.length, settled: settled.length, stoppedBy: pending.stoppedBy, results };
   const pollable = paymentLinksModel.listPollable({ now, force }).filter((link) => (link.provider || provider.id) === provider.id);
   let checked = 0;
   let stoppedBy = null;
@@ -199,7 +206,7 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
     }
   }
 
-  return { checked, paid: results.filter((r) => r.status === 'paid').length, retired: retired.length, stoppedBy, results };
+  return { checked, paid: results.filter((r) => r.status === 'paid').length, retired: retired.length, settled: settled.length, stoppedBy, results };
 }
 
 module.exports = { runPaymentPoll, processPaidLink, applyPaidEffect, retryPendingCancellations };

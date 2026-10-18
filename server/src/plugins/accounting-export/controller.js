@@ -6,6 +6,7 @@
 
 const sdk = require('../sdk');
 const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('./accountingExport');
+const { toLatin1Text } = require('./latin1');
 
 const { serializeCsv } = sdk.coreModule('csv');
 
@@ -41,10 +42,10 @@ function createAccountingController(accountingModel, { plan = () => undefined } 
       // ISO-8859-1 (latin1) without BOM — the « Format standard (CSV) », byte-for-byte the
       // accountant's example file. French accounting software (Sage/EBP/Cegid) defaults to
       // latin1 and chokes on the UTF-8 BOM, so we drop it via `{ bom: false }` and re-encode
-      // the string into a latin1 Buffer. Characters outside the latin1 range (rare for French
-      // customer names) get truncated to their low byte — acceptable for the accountant
-      // export's use case.
-      const csv = serializeCsv(CSV_HEADERS, rows, { bom: false });
+      // the string into a latin1 Buffer, once every cell's characters outside latin1 (’, Œ, …) have
+      // been transliterated (rule 31) — before the quoting, which a « ” » → « " » must go through.
+      const latin1Rows = rows.map((row) => row.map((cell) => (typeof cell === 'string' ? toLatin1Text(cell) : cell)));
+      const csv = serializeCsv(CSV_HEADERS, latin1Rows, { bom: false });
       const buffer = Buffer.from(csv, 'latin1');
       const mm = String(params.month).padStart(2, '0');
       res.setHeader('Content-Type', 'text/csv; charset=ISO-8859-1');

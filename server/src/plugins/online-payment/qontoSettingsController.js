@@ -146,9 +146,9 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   // Map an internal error to a clean HTTP response (never leak the Qonto body to the client).
   function qontoError(res, err) {
     if (err && err.code === 'QONTO_NOT_CONNECTED') {
-      return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Connecte d'abord Qonto (OAuth) avant la connexion du provider." });
+      return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Qonto à connecter d'abord (OAuth), avant le provider." });
     }
-    return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto — réessaie ou consulte les logs." });
+    return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto : à réessayer, détail dans les journaux." });
   }
 
   // Resolve a valid access token (refreshing if needed) then run `fn(client, accessToken)`. Goes

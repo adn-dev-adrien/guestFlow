@@ -68,9 +68,16 @@ function copySettingsFromAppSettings(db) {
   db.prepare('INSERT INTO migrations (name) VALUES (?)').run(SETTINGS_COPY_MARKER);
 }
 
+// specs/laundry-bath-mat.md rule 13 — the manual line counts bath mats too. Existing rows read 0.
+function addManualBathMats(db) {
+  const columns = new Set(db.prepare('PRAGMA table_info(laundry_trip_manual_additions)').all().map((c) => c.name));
+  if (!columns.has('bathMats')) db.exec('ALTER TABLE laundry_trip_manual_additions ADD COLUMN bathMats INTEGER NOT NULL DEFAULT 0');
+}
+
 const MIGRATIONS = Object.freeze([
   { name: 'laundry_tables_v1', up: createTables },
   { name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings },
+  { name: 'manual_additions_bath_mats_v1', up: addManualBathMats },
 ]);
 
 module.exports = { MIGRATIONS, SETTINGS_COPY_MARKER };

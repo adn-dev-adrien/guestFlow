@@ -58,10 +58,13 @@ test('rule 14 — « À encaisser » and « En retard » ignore the window but h
   // A finished direct stay from an older exercise, balance overdue and unpaid.
   insert(db, { startDate: `${Y - 3}-05-01`, endDate: `${Y - 3}-05-03`, balanceAmount: 200, balanceDueDate: `${Y - 3}-04-01`, createdAt: early(Y - 3) });
   const d = dashboard.getDashboard({ fiscalYear: Y }).data;
-  assert.equal(d.tiles.late.stays, 1);
-  assert.equal(d.tiles.late.amount, 200);
+  // Rule 34 — the seed's Airbnb payout (500 €, never received) is late too.
+  assert.equal(d.tiles.late.stays, 2);
+  assert.equal(d.tiles.late.amount, 700);
+  assert.equal(d.tiles.late.payouts, 1);
   assert.ok(d.tiles.toCollect.stays >= 1);
-  assert.equal(dashboard.getDashboard({ fiscalYear: Y, propertyId: 2 }).data.tiles.late.stays, 0);
+  assert.equal(dashboard.getDashboard({ fiscalYear: Y, propertyId: 1 }).data.tiles.late.stays, 1);
+  assert.equal(dashboard.getDashboard({ fiscalYear: Y, propertyId: 3 }).data.tiles.late.stays, 0);
   assert.equal(d.insights.find((i) => i.key === 'late').tone, 'error');
 });
 

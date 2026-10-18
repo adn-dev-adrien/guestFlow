@@ -12,6 +12,7 @@
  *   create({ reservationId, type, amountCents, currency?, provider?, providerLinkId?, url?, status?, expiresAt? }) → row
  *   listOpen()                              → all status='open' rows
  *   retireExpired({ now })                  → flips open links past a known expiresAt to 'expired'; returns them
+ *   retireSettled()                         → cancels the open links whose bucket the stay already settled; returns them
  *   listPollable({ now, force, cadence })   → the open links due for a provider check (the polling worklist)
  *   touchPolled(id, at?)                    → stamps lastPolledAt (every provider call made for a link)
  *   hasKnownExpiry(link)                    → whether the link carries a real expiry date
@@ -142,6 +143,38 @@ function buildModel(database) {
     return retired;
   }
 
+  // specs/plugins-phase-3a-online-payment.md rule 22 — a link whose bucket the stay settled another
+  // way (transfer, cash, platform, a second link) is abandoned like a stale one: cancelled here with
+  // the remote-deactivation marker, so the poll deactivates it at the provider — after checking it was
+  // not paid in the meantime, which would be a double payment to refund. A link on a devis reads the
+  // reservation the devis became.
+  function retireSettled() {
+    const settled = database.prepare(`
+      SELECT ${SELECT_COLS.split(',').map((c) => `l.${c.trim()}`).join(', ')}
+        FROM payment_links l
+        JOIN reservations r ON r.id = l.reservationId
+        LEFT JOIN reservations c ON c.id = r.convertedReservationId
+       WHERE l.status = 'open'
+         AND (
+           (l.type = 'deposit' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1)
+           OR (l.type IN ('balance', 'full') AND COALESCE(c.balancePaid, r.balancePaid, 0) = 1)
+           OR (l.type = 'complement' AND COALESCE(c.complementPaid, r.complementPaid, 0) = 1)
+         )
+       ORDER BY l.id
+    `).all();
+    const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ? WHERE id = ? AND status = 'open'");
+    const retired = [];
+    const at = new Date().toISOString();
+    database.transaction(() => {
+      for (const link of settled) {
+        if (Number(retire.run(link.providerLinkId ? at : null, link.id).changes) > 0) {
+          retired.push({ ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null });
+        }
+      }
+    })();
+    return retired;
+  }
+
   function listPollable({ now = new Date(), force = false, cadence = resolvePollCadence() } = {}) {
     const open = listOpen();
     if (force) return open;
@@ -231,6 +264,7 @@ function buildModel(database) {
     findById,
     listOpen,
     retireExpired,
+    retireSettled,
     listPollable,
     touchPolled,
     hasKnownExpiry,

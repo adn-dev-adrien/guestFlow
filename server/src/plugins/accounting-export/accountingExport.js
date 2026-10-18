@@ -156,13 +156,17 @@ function rowsAtDefaults(entry) {
   for (const bucket of entry.buckets) {
     const account = BUCKET_TO_ACCOUNT[bucket.name];
     if (!account) continue;
-    const ht = round2((bucket.ht || 0) * fraction);
-    const vat = round2((bucket.vat || 0) * fraction);
+    // specs/accountant-accounting-export.md rule 32 — the bucket's TTC share is prorated first, then
+    // split at its rate: HT = TTC ÷ (1 + rate), VAT = TTC − HT. Prorating HT and VAT separately left a
+    // cent between the journal and the accountant's own check (129,00 € at 10 % → 117,28 / 11,72).
+    // A whole bucket (fraction 1) keeps its own HT and VAT, those of the stay's lines.
+    const rate = Number(bucket.ratePercent) || 0;
+    const split = fraction !== 1 && rate > 0 && (bucket.vat || 0) > 0;
+    const ttc = round2(((bucket.ht || 0) + (bucket.vat || 0)) * fraction);
+    const ht = split ? round2(ttc / (1 + rate / 100)) : round2((bucket.ht || 0) * fraction);
+    const vat = split ? round2(ttc - ht) : round2((bucket.vat || 0) * fraction);
     if (ht > 0) revenueLines.push({ account, amount: ht });
-    if (vat > 0) {
-      const rate = Number(bucket.ratePercent) || 0;
-      vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
-    }
+    if (vat > 0) vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
   }
 
   const vatLines = [...vatByRate.entries()].map(([rate, amount]) => ({

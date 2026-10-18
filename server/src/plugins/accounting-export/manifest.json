@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -14,6 +14,11 @@
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "L’export CSV transcrit les caractères hors Latin-1 (’, Œ, …) au lieu de les corrompre.",
+      "Une écriture au prorata ventile son TTC au taux de TVA : plus d’écart d’un centime.",
+      "Le plan comptable affiche « Direct » au lieu de « direct »."
     ]
   }
 }

@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -20,6 +20,11 @@
     "1.0.1": [
       "Le planning de la blanchisserie refuse une période de plus de 750 jours au lieu de la calculer.",
       "Un ajout manuel de linge dont la quantité est infinie ou illisible compte pour 0."
+    ],
+    "1.1.0": [
+      "Un ajout manuel saisi avec son signe (« -3 ») garde le signe.",
+      "Les tapis de bain s’ajoutent ou se retirent à la main, comme les serviettes.",
+      "Libellé « lavé hors blanchisserie » pour le linge retiré d’une tournée."
     ]
   }
 }

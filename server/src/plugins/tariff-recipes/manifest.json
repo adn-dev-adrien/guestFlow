@@ -1,7 +1,7 @@
 {
   "id": "tariff-recipes",
   "name": "Recettes tarifaires",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Génère les saisons et les prix à partir d’une recette.",
   "icon": "trending-up",
   "surfaces": [
@@ -15,6 +15,9 @@
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Page des recettes : texte d’introduction raccourci."
     ]
   }
 }

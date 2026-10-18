@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 // specs/manual-laundry-additions.md §4.1 — per-trip manual linen additions model.
 const model = require('../manualAdditionsModel');
 
-const ZEROS = { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 };
+const ZEROS = { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 };
 
 function makeDb() {
   const db = new Database(':memory:');
@@ -13,6 +13,7 @@ function makeDb() {
     tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
     singleBeds INTEGER NOT NULL DEFAULT 0, doubleBeds INTEGER NOT NULL DEFAULT 0, babyBeds INTEGER NOT NULL DEFAULT 0,
     largeTowels INTEGER NOT NULL DEFAULT 0, mediumTowels INTEGER NOT NULL DEFAULT 0, smallTowels INTEGER NOT NULL DEFAULT 0,
+    bathMats INTEGER NOT NULL DEFAULT 0,
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   );`);
   return model.create(db);

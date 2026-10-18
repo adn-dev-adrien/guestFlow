@@ -1,0 +1,6 @@
+- plugin:accounting-export the CSV transliterates what Latin-1 cannot hold (« ’ », « Œ ») instead of corrupting it; a prorated bucket splits its TTC at its rate (no more one-cent gap); « Direct » in the Plan comptable (`accountant-accounting-export.md` rules 31-32, `accounting-platform-commission-and-no-deposit.md` rule 23, mega review #5 M3, m4, N5).
+- plugin:linen a manual count typed with its sign keeps it, and bath mats get their own stepper (`laundry-manual-removals.md` rule 9, `laundry-bath-mat.md` rule 13, M4).
+- plugin:neat `NEAT_API_BASE` points the client at a local mock (`plugins-phase-3b-neat.md` rule 24, N9).
+- plugin:online-payment the Qonto connection copy is impersonal (N1).
+- plugin:tariff-recipes the recipe browser's intro no longer explains server internals (N4).
+- plugin:website-booking « today » of the public catalogue is the local day (rule 37).

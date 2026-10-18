@@ -76,14 +76,16 @@ test('renders the default account + every platform row from the GET payload', as
   // Each platform name appears as a row label.
   expect(await screen.findByText('Airbnb')).toBeInTheDocument();
   expect(screen.getByText('Gitedefrance')).toBeInTheDocument();
-  expect(screen.getByText('direct')).toBeInTheDocument();
+  // specs/accounting-platform-commission-and-no-deposit.md rule 23 — the display label, never the key.
+  expect(screen.getByText('Direct')).toBeInTheDocument();
+  expect(screen.queryByText('direct')).toBeNull();
 });
 
 test("Direct row is rendered with disabled inputs + the 'Pas de commission' caption", async () => {
   renderPage();
   // The aria-label of the TVA switch carries the platform name — that's the cheapest stable
   // way to locate the Direct row's Switch.
-  const directSwitch = await screen.findByLabelText('TVA déductible commission direct');
+  const directSwitch = await screen.findByLabelText('TVA déductible commission Direct');
   expect(directSwitch).toBeDisabled();
   expect(screen.getByText(/Pas de commission sur les réservations directes/i)).toBeInTheDocument();
 });

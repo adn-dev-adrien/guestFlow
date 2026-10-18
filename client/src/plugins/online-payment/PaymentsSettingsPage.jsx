@@ -112,8 +112,8 @@ export default function PaymentsSettingsPage() {
   useEffect(() => {
     const q = new URLSearchParams(location.search).get('qonto');
     if (q === 'connected') showSuccess('Qonto connecté ✓');
-    else if (q === 'error') showError('Échec de la connexion Qonto — vérifie les identifiants et les logs.');
-    else if (q === 'invalid_state') showError('Connexion Qonto invalide (state). Réessaie depuis cette page.');
+    else if (q === 'error') showError('Échec de la connexion Qonto : identifiants et journaux à vérifier.');
+    else if (q === 'invalid_state') showError('Connexion Qonto invalide (state) : à relancer depuis cette page.');
   }, [location.search]);
 
   // Return from the provider onboarding (KYC) → re-check the status.
@@ -172,7 +172,7 @@ export default function PaymentsSettingsPage() {
       if (messages.length) showSuccess(`${messages.join(' · ')} ✓`);
     } catch (e) {
       // Rule 3: whatever was written stays written, and what was refused stays in the form.
-      showError(e?.body?.message || e.message || "Échec de l'enregistrement (vérifie les valeurs).");
+      showError(e?.body?.message || e.message || "Échec de l'enregistrement : valeurs à vérifier.");
     } finally {
       setSaving(false);
     }
@@ -275,9 +275,9 @@ export default function PaymentsSettingsPage() {
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="sectionHeader" sx={{ display: 'block', mb: 1 }}>Connexion du provider de liens</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Dernière étape avant de pouvoir générer des liens de paiement : on connecte ton compte
-                Qonto au provider de paiement. Une vérification (KYC) peut être demandée — tu seras alors
-                redirigé vers Qonto puis ramené ici.
+                Dernière étape avant les liens de paiement : relier le compte Qonto au provider de
+                paiement. Une vérification (KYC) peut être demandée, avec un passage par Qonto puis un
+                retour ici.
               </Typography>
               <Stack spacing={2}>
                 <FormControl fullWidth size="small">

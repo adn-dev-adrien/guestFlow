@@ -284,6 +284,20 @@ Other facts the design rests on:
   fixed address.
 - Tests: `payment-link-deactivation.unit.test.js` (+2), `stay-payment-recorder.unit.test.js` (+2, history line), `payment-provider-interface.unit.test.js`, `phase-3a-online-payment.unit.test.js` (+1), `PaymentDeadlinesAlert.payment-provider.test.jsx`.
 
+### Review fixes (2026-10-18, mega review #5)
+
+22. **A link whose bucket the stay settled another way is abandoned too** (transfer, cash, platform,
+    another link). Like a stale link (rule 7), it is cancelled locally with the deactivation owed
+    (`remoteCancelPendingAt`), then the poll asks the provider once whether it was paid — paid → the
+    admin is told and the payment id stays on the row for the refund (rule 8); not paid → it is
+    deactivated. It leaves the open links, so the cron stops polling it and the fiche no longer offers
+    it. This happens at the start of every poll (`paymentLinksModel.retireSettled`) and at once when a
+    payment is ticked by hand (`PATCH /api/reservations/:id/payment`). A link on a devis reads the
+    reservation the devis became. *Why:* links 6 and 7 stayed open and payable, polled every day, on
+    stays whose solde was paid in July and August.
+    > Qonto links carry no expiry (`specs/qonto-payment-link-reference.md`), so nothing else would
+    > ever close them.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
