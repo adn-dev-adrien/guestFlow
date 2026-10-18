@@ -57,6 +57,12 @@ and pressing **Enter** or clicking away **evaluates** it and sets the numeric re
    time. Pasting `1 197,00 €` into « Total séjour facturé par la plateforme » therefore erased
    itself on Enter, with no message and nothing to explain it (production, 2026-09-25).
 
+10. **A committed amount is shown as money (2026-10-18).** Outside editing, and after a commit, the field
+    shows the amount with two decimals and a comma (`7,20`, `1234,50`), never the raw number (`7.2`),
+    through the shared `formatAmountInput` (`utils/formatters.js`). No grouping and no `€`, so the text
+    reads back unchanged through rules 1, 8 and 9. *Why: the review of 2026-10-18 (F9) saw « Taxe de
+    séjour retenue » showing `7.2` on the mobile fiche.*
+
 **Edge cases:**
 - `100/0` (division by zero) → invalid → revert.
 - `100/3` → `33.33` (rounded to 2 decimals).

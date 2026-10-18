@@ -25,7 +25,7 @@ async function withRequest(fn) {
 
 async function createClient({ firstName = 'Jean', lastName = 'Dupont', email = '', phone = '' } = {}) {
   return withRequest(async (ctx) => {
-    const res = await ctx.post('/api/clients', { data: { firstName, lastName, email, phone } });
+    const res = await ctx.post('/api/clients', { data: { firstName, lastName, email, phone, allowDuplicate: true } });
     if (!res.ok()) throw new Error(`createClient failed: ${res.status()} ${await res.text()}`);
     return res.json();
   });

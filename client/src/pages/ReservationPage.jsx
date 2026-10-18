@@ -3237,6 +3237,9 @@ export default function ReservationPage() {
             </>
           )
           : null}
+        // specs/review-2026-10-18-reservations.md rule 6 — at tablet width the centred client name
+        // overlapped the title: it shows from lg only.
+        centerFrom="lg"
         center={(selectedClient || form.reservationNumber) ? (
           <>
             <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2, maxWidth: 340, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -3265,7 +3268,10 @@ export default function ReservationPage() {
           px: 2,
           py: 3,
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
+          // Two columns from lg only: at 900 px the form and the summary side by side overflowed the
+          // page (specs/review-2026-10-18-reservations.md rule 6). minmax(0, …) lets a long value
+          // ellipsise instead of widening the track.
+          gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1fr) 320px' },
           gap: 3,
           '& .MuiOutlinedInput-root': {
             bgcolor: 'background.paper',

@@ -78,7 +78,7 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         onDropText={(raw) => { setAddressDraft(raw); parseAddress(raw); }}
         disabled={busyField === 'address'}
         error={Boolean(parseFailed.address)}
-        helperText={parseFailed.address ? PARSE_ERROR_HELPER : "Dépose ou saisis l'adresse en une ligne : n° rue CP ville"}
+        helperText={parseFailed.address ? PARSE_ERROR_HELPER : "Adresse en une ligne : n° rue CP ville"}
         fullWidth
       />
       <FormRow>

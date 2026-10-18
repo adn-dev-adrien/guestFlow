@@ -49,7 +49,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   function qontoAuthorize(req, res) {
     const config = qontoConfig();
     if (!config.configured) {
-      return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto (client id/secret) manquants — renseigne-les dans Réglages → Paiements.' });
+      return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto manquants (Réglages › Paiements).' });
     }
     const client = buildConfiguredQontoClient({ settings, env, config });
     const redirectUri = config.redirectUri;

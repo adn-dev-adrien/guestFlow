@@ -1980,7 +1980,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Box sx={{ mt: 1 }}>
             <LinearProgress variant="determinate" value={((stepIdx + 1) / activeKeys.length) * 100}
               sx={(t) => ({ height: 6, borderRadius: 3, bgcolor: alpha(t.palette.common.white, 0.3), '& .MuiLinearProgress-bar': { bgcolor: 'common.white' } })} />
-            <Typography variant="caption" sx={{ opacity: 0.9, mt: 0.5, display: 'block' }}>Étape {stepIdx + 1}/{activeKeys.length}</Typography>
+            {/* No total: an accepted upsell opens its own pages, and « 9/10 » turning into « 9/12 » read as
+                going backwards (specs/review-2026-10-18-reservations.md rule 3). */}
+            <Typography variant="caption" sx={{ opacity: 0.9, mt: 0.5, display: 'block' }}>Étape {stepIdx + 1}</Typography>
           </Box>
         )}
       </Box>

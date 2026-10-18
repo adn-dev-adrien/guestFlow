@@ -1,4 +1,16 @@
 const priceLineContributors = require('./priceLineContributors');
+
+// What an option line's `quantity` counts, when the summary has to say it
+// (specs/review-2026-10-18-reservations.md rule 5; review F13:
+// « Petit déjeuner ×3 » read as three portions when it meant three mornings). A breakfast counted by
+// the day — placed on its mornings, or a plain per-night price — counts mornings; a breakfast still
+// to plan counts portions and is left unnamed.
+function withQuantityUnit(line, option) {
+  if (!line || !option || option.autoOptionType !== 'breakfast' || line.toBeScheduled) return line;
+  const placed = Array.isArray(line.cardOccurrences) && line.cardOccurrences.length > 0;
+  const byDay = !option.showsPlanningCard && ['per_night', 'per_person_per_night'].includes(line.priceType || option.priceType);
+  return placed || byDay ? { ...line, quantityUnit: 'morning' } : line;
+}
 const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
@@ -1795,7 +1807,8 @@ function calculateReservationQuote({
         ...pickContribsAndForce(selected, locked),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((line) => withQuantityUnit(line, optionsById.get(Number(line.optionId))));
 
   // Custom option lines never have a persisted locked row keyed by optionId (their id rolls each
   // save), so the only source of `inComplement` / contribs is the payload itself. The contribs
@@ -2766,6 +2779,7 @@ module.exports = {
 };
 
 module.exports.__test = {
+  withQuantityUnit,
   timeToDecimalHour,
   computeAutoTimedOptionContext,
   normalizeOptionProgressiveTiers,
