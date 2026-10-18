@@ -33,7 +33,7 @@ export default function EmailSettingsPage() {
       const out = await api.sendSmtpTest();
       setTestResult({
         severity: 'success',
-        message: `Email de test envoyé à ${out.recipient || 'votre adresse'}.`,
+        message: `Email de test envoyé à ${out.recipient || 'l’adresse du compte'}.`,
         onClose: () => setTestResult(null),
       });
     } catch (err) {

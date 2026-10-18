@@ -217,7 +217,7 @@ export default function PaymentsSettingsPage() {
   if (!qonto || !credentials) {
     return (
       <Box>
-        <PageActionBar title="Paiements en ligne" />
+        <PageActionBar title="Paiements en ligne" titleOnXs />
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}><CircularProgress /></Box>
       </Box>
     );
@@ -240,6 +240,7 @@ export default function PaymentsSettingsPage() {
     <Box>
       <PageActionBar
         title="Paiements en ligne"
+        titleOnXs
         onSave={handleSave}
         saveDisabled={!isDirty}
         saveBusy={saving}
@@ -321,7 +322,7 @@ export default function PaymentsSettingsPage() {
         onClose={dismissGuard}
         onConfirm={confirmLeave}
         title="Modifications non enregistrées"
-        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        message="Des modifications ne sont pas enregistrées. Quitter sans enregistrer ?"
         confirmLabel="Quitter sans enregistrer"
         cancelLabel="Rester"
         confirmColor="error"

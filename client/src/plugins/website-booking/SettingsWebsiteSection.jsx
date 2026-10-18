@@ -55,7 +55,7 @@ export default function SettingsWebsiteSection() {
           <Box>
             <Typography variant="sectionHeader">Site internet (WordPress)</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Ces deux valeurs se collent dans WordPress, Réglages › GuestFlow.
+              Ces deux valeurs se collent dans WordPress, Réglages › GuestFlow, dans les champs du même nom.
             </Typography>
           </Box>
 

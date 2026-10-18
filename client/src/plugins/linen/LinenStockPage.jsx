@@ -130,9 +130,8 @@ export default function LinenStockPage() {
         />
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Indiquez combien de jeux complets de chaque type vous possédez. Le total est partagé
-          entre tous les logements. Les valeurs sont utilisées pour projeter la disponibilité de
-          votre stock jour par jour et alerter en cas de rupture prévue.
+          Nombre de jeux complets de chaque type. Le total est partagé entre tous les logements ; il
+          sert à projeter le stock jour par jour et à alerter en cas de rupture prévue.
         </Typography>
 
         {/* Two small cards side-by-side on lg+ (masonry), stacked on smaller screens. */}
@@ -147,7 +146,7 @@ export default function LinenStockPage() {
                   Parures de lit
                 </Typography>
               </Box>
-              <FormHelperText>Indiquez 0 si vous ne souhaitez pas suivre ce type.</FormHelperText>
+              <FormHelperText>0 : type non suivi.</FormHelperText>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
                   label="Doubles"
@@ -201,7 +200,7 @@ export default function LinenStockPage() {
                   Serviettes
                 </Typography>
               </Box>
-              <FormHelperText>Indiquez 0 si vous ne souhaitez pas suivre ce type.</FormHelperText>
+              <FormHelperText>0 : type non suivi.</FormHelperText>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
                   label="Grandes"
@@ -263,7 +262,7 @@ export default function LinenStockPage() {
         onClose={dismissGuard}
         onConfirm={confirmLeave}
         title="Modifications non enregistrées"
-        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        message="Des modifications ne sont pas enregistrées. Quitter sans enregistrer ?"
         confirmLabel="Quitter sans enregistrer"
         cancelLabel="Rester"
         confirmColor="error"

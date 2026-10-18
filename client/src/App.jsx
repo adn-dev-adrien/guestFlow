@@ -89,8 +89,7 @@ import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import AppVersionBadge from './components/AppVersionBadge';
 import RouteErrorBoundary from './components/ErrorBoundary';
-import EmptyState from './components/EmptyState';
-import SearchOffIcon from '@mui/icons-material/SearchOff';
+import NotFoundPage from './components/NotFoundPage';
 
 const MODULE_PAGES = allContributions('routes');
 
@@ -743,26 +742,11 @@ function AppShell() {
           <Route path="/emails"            element={<EmailTemplatesPage />} />
           <Route path="/emails/modeles"    element={<Navigate to="/emails" replace />} />
           <Route path="/emails/historique" element={<EmailHistoryPage />} />
-          <Route path="*" element={<NotFoundRoute />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </RouteErrorBoundary>
       </Box>
     </Box>
-  );
-}
-
-// Catch-all 404 (specs/ds-components.md §3.4) — no role gate: any signed-in user can land here.
-function NotFoundRoute() {
-  const navigate = useNavigate();
-  return (
-    <EmptyState
-      icon={<SearchOffIcon />}
-      title="Page introuvable"
-      message="Cette adresse ne correspond à aucune page de GuestFlow."
-      actionLabel="Retour au tableau de bord"
-      onAction={() => navigate('/')}
-      py={10}
-    />
   );
 }
 

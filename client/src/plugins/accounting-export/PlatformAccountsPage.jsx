@@ -367,7 +367,7 @@ export default function PlatformAccountsPage() {
                   value={vatRateCompensation}
                   onChange={(e) => handleVatChange(setVatRateCompensation, 'vatRateCompensation')(e.target.value)}
                   error={Boolean(errors.vatRateCompensation)}
-                  helperText={errors.vatRateCompensation || "0 % = hors champ de TVA (recommandé). À changer seulement si votre comptable le demande."}
+                  helperText={errors.vatRateCompensation || "0 % = hors champ de TVA (recommandé). À changer seulement à la demande du cabinet comptable."}
                   sx={{ maxWidth: { sm: 320 } }}
                   slotProps={{ htmlInput: { inputMode: 'decimal' } }}
                   disabled={saving}
@@ -456,7 +456,7 @@ export default function PlatformAccountsPage() {
         onClose={dismissGuard}
         onConfirm={confirmLeave}
         title="Modifications non enregistrées"
-        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        message="Des modifications ne sont pas enregistrées. Quitter sans enregistrer ?"
         confirmLabel="Quitter sans enregistrer"
         cancelLabel="Rester"
         confirmColor="error"

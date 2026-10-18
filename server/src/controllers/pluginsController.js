@@ -10,7 +10,7 @@
 const defaultModel = require('../models/pluginsModel');
 const registry = require('../plugins/sdk/registry');
 const { forgetPluginMigrations } = require('../plugins/sdk/pluginMigrations');
-const { PLUGIN_CATALOG, findPlugin, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT } = require('../constants/plugins');
+const { PLUGIN_CATALOG, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
 const { compare } = require('../utils/semverRange');
 const {
@@ -481,6 +481,19 @@ function createController(model = defaultModel, deps = {}) {
       model.install(entry.id);
       if (reg.get(entry.id)) await loader().runInstallHooks(entry.id);
       return res.json(view(entry));
+    },
+
+    // GET /api/plugins/page?path=/comptabilite — specs/plugins-phase-p-productisation.md rule 40: the
+    // address of a page whose plugin is off reads « module inactif », not « page introuvable ».
+    pageOwner(req, res) {
+      const ids = pluginsOfPage(req.query && req.query.path);
+      if (!ids.length) return res.json({ plugins: [], message: null });
+      const plugins = ids.map((id) => view(findPlugin(id))).map((p) => ({ id: p.id, name: p.name, state: p.state }));
+      const names = plugins.map((p) => `« ${p.name} »`);
+      const message = names.length === 1
+        ? `Cette page dépend du plugin ${names[0]}, qui n’est pas activé.`
+        : 'Cette page dépend de plugins qui ne sont pas activés.';
+      return res.json({ plugins, message });
     },
 
     // GET /api/plugins/status — the banner, the registry line (rules 9, 20).

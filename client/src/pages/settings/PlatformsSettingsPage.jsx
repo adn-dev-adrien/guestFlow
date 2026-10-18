@@ -29,7 +29,7 @@ import Slot from '../../plugins/sdk/Slot';
 
 const TAX_OPTIONS = [
   { value: 'platform', label: 'Plateforme → commune' },
-  { value: 'platform_reversed', label: 'Plateforme → vous' },
+  { value: 'platform_reversed', label: 'Plateforme → établissement' },
   { value: 'owner', label: "À l'arrivée" },
 ];
 const EDITABLE = ['color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays', 'countsAsDirect'];
@@ -272,7 +272,7 @@ export default function PlatformsSettingsPage() {
         onClose={dismissGuard}
         onConfirm={confirmLeave}
         title="Modifications non enregistrées"
-        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        message="Des modifications ne sont pas enregistrées. Quitter sans enregistrer ?"
         confirmLabel="Quitter sans enregistrer"
         cancelLabel="Rester"
         confirmColor="error"

@@ -33,7 +33,7 @@ import { DEFAULT_PLATFORM_COLOR, normalizePlatformKey } from '../../constants/pl
 
 const TAX_SHORT = {
   platform: 'Taxe : plateforme → commune',
-  platform_reversed: 'Taxe : plateforme → vous',
+  platform_reversed: 'Taxe : plateforme → établissement',
   owner: "Taxe : à l'arrivée",
 };
 

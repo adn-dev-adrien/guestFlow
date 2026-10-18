@@ -324,6 +324,52 @@ Decisions taken on 2026-10-06:
     under « Pour aller plus loin (N) », closed at first. The server marks them (`more` on each plugin
     of `GET /api/onboarding`); nothing is ticked or unticked by the fold.
 
+37. **Step « Plugins » activates the ticked plugins one after the other** (final display sweep of
+    2026-10-18, N-1). On a fresh install the two recommended plugins failed on the first click: the
+    second install found the plugin lock still held by the first, whose answer had been sent before
+    the lock was released, and the step read « Non activé : Arrivée et départ guidés » with no
+    reason. The server now waits for each install to finish — answer sent and lock released —
+    before starting the next, and stops trying once an install asks for a restart. Each plugin left
+    out comes back with its reason in words (`reason`: « non inclus dans la formule », « activation en
+    cours, réessayer dans un instant », or the install's own message), and the step prints
+    « Non activé : <nom> (<raison>) ».
+
+38. **The assistant's words are exact** (final display sweep of 2026-10-18, N-2). Step 2 marks « Prix
+    par nuit (€) » as required, and the server answers « Prix obligatoire » for an empty price
+    (« Prix positif ou nul » stays for a negative one); the fields of step 2 keep a row of space
+    between them on a phone. Step 4 is titled « Emails ». The last step's Plugins line is the
+    server's count, as a real plural: « Aucun plugin actif », « 1 plugin actif », « 2 plugins
+    actifs » (`pluginsSummary`); its links are 44 px tall and their text starts at the top left.
+
+39. **Touch targets and sentence case** (final display sweep of 2026-10-18, n-7 and R-1). On a
+    finger-driven screen, the small controls that must stay small on screen — « Détail » and « +
+    compl. » in the pricing summary, « Fiche » in the SAS header, a client's name in Planning, À
+    venir and the emails list — get an invisible hit area of at least 44 × 44, centred on them,
+    without moving the layout. Toggle buttons are in sentence case, like every button, and 44 px
+    on both sides under a finger. The « second code » banner puts « Activer » and « Plus tard » on
+    one line, under the sentence when the phone is too narrow, instead of breaking « Plus tard ».
+
+40. **A page whose plugin is off says so** (final display sweep of 2026-10-18, n-7). On an instance
+    where a plugin is not active, its address (`/comptabilite`, `/resource-planning`,
+    `/school-holidays`, `/parametres/paiements`…) showed « Page introuvable ». For an administrator
+    it now shows « Plugin inactif » — « Cette page dépend du plugin « <nom> », qui n'est pas
+    activé. » — and « Ouvrir Plugins ». The server knows which plugin owns which page
+    (`GET /api/plugins/page?path=`), because a release does not ship the pages of a plugin that is
+    not installed. Any other address, and every other role, keeps « Page introuvable ».
+
+41. **Settings texts are impersonal and plain** (final display sweep of 2026-10-18, R-3). The
+    settings, account and accounting texts lose their « vous / votre / nous » (« Informations sur
+    l'activité », « Plateforme → établissement », « Des modifications ne sont pas enregistrées.
+    Quitter sans enregistrer ? »…). Technical words leave the main text: « Serveur d'envoi »,
+    « Identifiant du serveur » and « Mot de passe du serveur » replace the SMTP labels, and the
+    security mode (STARTTLS, TLS) is folded under « Avancé », closed at first; the Qonto help names
+    the portal's section, not its header name; « Clé Météo-France » drops « API ». « URL de l'API
+    GuestFlow » and « Clé d'API » stay, because they are the names of the WordPress fields they
+    are pasted into. The guest-facing emails keep their « vous ».
+    _Owner action, not code (n-5):_ Solio's stored J-7 subject reads « Plus qu'une semaine avant
+    {{propertyName}} », which renders « avant Gite ». The code default is right; the stored subject
+    is edited by hand in Réglages › Emails, and no migration rewrites an owner's own text.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -350,7 +396,9 @@ Decisions taken on 2026-10-06:
 | `scripts/` | `seed-e2e.js` | T | Closes the assistant on the E2E database |
 | `controllers/` | `stayTextsController.js` | C | List, save with token validation, reset to default |
 | `controllers/` | `emailMentionsController.js` | C | CRUD, both orders, preview |
-| `controllers/` | `onboardingController.js` | C | State, the 4 steps, « Plus tard » |
+| `controllers/` | `onboardingController.js` | C | State, the 4 steps, « Plus tard »; the plugins one after the other with their reason and the active count (rules 37–38) |
+| `constants/` | `plugins.js` | T | `PLUGIN_PAGES` / `pluginsOfPage(path)`: which plugin owns which page (rule 40) |
+| `controllers/` | `pluginsController.js` (`pageOwner`), `routes/plugins.js` | T | `GET /api/plugins/page` (rule 40) |
 | `controllers/public/` | `emailPreferencesController.js` | T | Company name, neutral copy (rule 17) |
 | `routes/` | `stayTexts.js`, `emailMentions.js`, `onboarding.js` | C | Thin |
 | `database.js`, `schema.sql` | — | T | New tables and columns; empty pool defaults; the migration call; catering seed and extinguisher rows removed |
@@ -380,6 +428,11 @@ Decisions taken on 2026-10-06:
 | `plugins/accounting-export/` | settings section | T | « Plan comptable » (rules 27–28) |
 | `plugins/sas/` | settings + `ReservationSasDialog.jsx` | T | Rule 16 |
 | `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20) |
+| `components/` | `NotFoundPage.jsx` | C | **Generic**: the app's 404, or « Plugin inactif » for a plugin's page (rule 40) |
+| `components/` | `AdvancedDetails.jsx` | C | **Generic**: a folded « Avancé » block for the technical names a setting needs (rule 41) |
+| `utils/` | `touchHitArea.js` + `theme.js` | C/T | The 44 px hit area of a small control; link-buttons and toggles in the theme (rule 39) |
+| `components/` | `TwoFactorNudgeCard.jsx`, `PricingSummary.jsx`, `ReadinessList.jsx` | T | Rule 39 |
+| settings, account, accounting, linen, Google Agenda, Qonto, Météo-France texts | — | T | Rule 41 |
 
 Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `StatusBadge`, `ErrorAlert`,
 `LoadingState`.
@@ -397,7 +450,8 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 | POST | `/api/email-mentions/preview` | `{ propertyId, children, startDate }` → `{ fr, en }`: the J-7 offers paragraph and the J-2 confirmations, rendered by the server |
 | GET | `/api/onboarding` | `{ open, company, plugins: [{ id, label, description, allowed, plan, state, recommended }] }` |
 | PUT | `/api/onboarding/company`, `/api/onboarding/property` | Validated writes; 422 `{ errors }` per field; 402 when the plan's unit quota is reached |
-| PUT | `/api/onboarding/plugins` | `{ ids }` → `{ results: [{ id, ok, error }] }`, each through the existing install or activate handler |
+| PUT | `/api/onboarding/plugins` | `{ ids }` → `{ results: [{ id, ok, error, reason }], pluginsSummary }`, each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
+| GET | `/api/plugins/page?path=` | `{ plugins: [{ id, name, state }], message }`; `{ plugins: [], message: null }` for a core or unknown page (rule 40) |
 | GET | `/api/auth/me` | gains `onboardingOpen` (admins only) |
 | GET / PUT | `/api/platforms/settings` | each row gains `countsAsDirect` |
 | GET / PUT | `/api/accounting/platform-accounts` | gains `plan: [{ key, value, default }]`; PUT takes `plan: { key: value }` |
@@ -442,6 +496,12 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
   email filled in (rule 33); « Fermetures » keeps a short title and an empty state on a phone (rule 34);
   Plateformes and Utilisateurs are cards below 1200 px (rule 35); step « Plugins » folds the extra
   plugins under « Pour aller plus loin (N) » (rule 36).
+- **Final display sweep of 2026-10-18:** the recommended plugins activate on the first click, and a
+  plugin left out is named with its reason (rule 37); « Prix par nuit » is required, step 4 is
+  « Emails », the last step reads « 2 plugins actifs » (rule 38); 44 px hit areas, sentence-case
+  toggles and the « second code » banner on one line (rule 39); « Plugin inactif » instead of « Page
+  introuvable » (rule 40); impersonal settings texts, protocol names under « Avancé » (rule 41).
+  On a phone (390 px) the price helper keeps its own row and « Plus tard » stays on one line.
 - **Logement › Séjour:** « Textes propres à ce logement » holds the overridable keys, each empty by
   default with the global text shown as placeholder.
 - **Ressource:** « Phrase dans les mails une fois réservée » (FR/EN, `{{slots}}` chip).
@@ -485,6 +545,12 @@ Review of 2026-10-18 (rules 32–36): server `platform-seed-neutral` (rule 32),
 `onboarding-plugins-fold` (1, rule 36); client `ForcedPasswordChangePage.login-notice` (1, rule 33),
 `EstablishmentClosuresPage.mobile-empty` (1, rule 34), `PlatformsSettingsPage.tablet-cards` (1) and
 `UserManagementPage.tablet-cards` (2, rule 35), `OnboardingPage.plugins-fold` (1, rule 36).
+
+Final display sweep of 2026-10-18 (rules 37–41): server `onboarding-plugins-sequential` (5, rules
+37–38), `plugin-page-owner` (3, rule 40), `onboarding` (2 updated); client
+`OnboardingPage.plugins-reason` (3, rules 37–38), `NotFoundPage.plugin-inactive` (3, rule 40),
+`touchHitArea.theme` (2, rule 39), `SettingsSmtpSection.plain-words` (1, rule 41), and the
+suites whose texts changed (rule 41).
 
 ### E2E
 

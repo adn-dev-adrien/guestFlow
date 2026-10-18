@@ -40,6 +40,27 @@ const SEEDED_ON_EXISTING_IDS = Object.freeze([
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
 ]);
 
+// specs/plugins-phase-p-productisation.md rule 40 — the pages that exist only with a plugin, known
+// even when that plugin is not installed (a release ships its pages in the plugin's own bundle). A
+// path matches itself and the paths below it. Kept in step with each plugin's `contributes.routes`
+// by tests/plugin-page-owner.unit.test.js.
+const PLUGIN_PAGES = Object.freeze({
+  '/comptabilite': [ACCOUNTING_EXPORT],
+  '/resource-planning': [HOURLY_RESOURCES],
+  '/parametres/stock-blanchisserie': [LINEN],
+  '/parametres/paiements': [ONLINE_PAYMENT],
+  '/school-holidays': [SCHOOL_HOLIDAYS],
+  '/parametres/recettes': [TARIFF_RECIPES],
+  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE],
+});
+
+/** → the ids of the plugins a page belongs to, or [] for a core page or an unknown address. */
+function pluginsOfPage(path) {
+  const clean = String(path || '').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+  const key = Object.keys(PLUGIN_PAGES).find((p) => clean === p || clean.startsWith(`${p}/`));
+  return key ? [...PLUGIN_PAGES[key]] : [];
+}
+
 function findPlugin(id) {
   return PLUGIN_CATALOG.find((p) => p.id === id) || null;
 }
@@ -61,4 +82,6 @@ module.exports = {
   PLUGIN_IDS,
   SEEDED_ON_EXISTING_IDS,
   findPlugin,
+  PLUGIN_PAGES,
+  pluginsOfPage,
 };

@@ -56,13 +56,13 @@ test('rule 11: there is no port field; the port in use is stated under the secur
   renderSection();
   expect(screen.queryByLabelText('Port')).not.toBeInTheDocument();
   expect(screen.getByText('Port utilisé : 587 (déduit).')).toBeInTheDocument();
-  expect(screen.getByLabelText('Sécurité')).toBeInTheDocument();
+  expect(screen.getByLabelText('Sécurité de la connexion')).toBeInTheDocument();
 });
 
 test('typing in the host field forwards (key, value) to onChange', async () => {
   const user = userEvent.setup();
   const { onChange } = renderSection({ values: { ...COMPLETE, host: '' } });
-  await user.type(screen.getByLabelText(/Serveur SMTP/), 'x');
+  await user.type(screen.getByLabelText(/Serveur d’envoi/), 'x');
   expect(onChange).toHaveBeenCalledWith('host', 'x');
 });
 
@@ -120,6 +120,6 @@ test('renders the test result alert', () => {
 
 test('every field is disabled when the section is disabled', () => {
   renderSection({ disabled: true });
-  expect(screen.getByLabelText(/Serveur SMTP/)).toBeDisabled();
+  expect(screen.getByLabelText(/Serveur d’envoi/)).toBeDisabled();
   expect(screen.getByRole('button', { name: /Envoyer un mail de test/ })).toBeDisabled();
 });

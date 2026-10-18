@@ -34,6 +34,7 @@ import MaskedTextField from './MaskedTextField';
 import DerivedValueField from './DerivedValueField';
 import StatusBadge from './StatusBadge';
 import CollapsibleSection from './CollapsibleSection';
+import AdvancedDetails from './AdvancedDetails';
 
 export default function SettingsSmtpSection({
   values,
@@ -61,31 +62,16 @@ export default function SettingsSmtpSection({
   const platform = v.platform || { available: false, active: false, replyTo: '' };
   const smtpFields = (
     <>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-        <TextField
-          label="Serveur SMTP"
-          value={v.host || ''}
-          onChange={setEvt('host')}
-          disabled={disabled}
-          error={Boolean(errors.smtpHost)}
-          helperText={errors.smtpHost || 'Exemple : smtp.gmail.com'}
-          fullWidth
-          size="small"
-        />
-        <TextField
-          label="Sécurité"
-          select
-          value={v.secure ? 1 : 0}
-          onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
-          disabled={disabled}
-          size="small"
-          fullWidth
-          helperText={`Port utilisé : ${v.secure ? 465 : 587} (déduit).`}
-        >
-          <MenuItem value={0}>STARTTLS</MenuItem>
-          <MenuItem value={1}>TLS implicite</MenuItem>
-        </TextField>
-      </Stack>
+      <TextField
+        label="Serveur d’envoi"
+        value={v.host || ''}
+        onChange={setEvt('host')}
+        disabled={disabled}
+        error={Boolean(errors.smtpHost)}
+        helperText={errors.smtpHost || 'Exemple : smtp.gmail.com'}
+        fullWidth
+        size="small"
+      />
 
       <DerivedValueField
         label="Adresse d'envoi"
@@ -101,7 +87,7 @@ export default function SettingsSmtpSection({
       />
 
       <DerivedValueField
-        label="Identifiant SMTP"
+        label="Identifiant du serveur"
         value={v.username || ''}
         derivedValue={derived.username}
         derivedFrom="l'adresse d'envoi"
@@ -111,11 +97,11 @@ export default function SettingsSmtpSection({
       />
 
       <MaskedTextField
-        label="Mot de passe SMTP"
+        label="Mot de passe du serveur"
         hasValue={Boolean(v.passwordSet)}
         value={v.passwordDraft}
         onChange={onChangePassword}
-        helperText="Pour Gmail, utilisez un mot de passe d'application."
+        helperText="Pour Gmail : un mot de passe d’application."
       />
 
       <DerivedValueField
@@ -130,6 +116,23 @@ export default function SettingsSmtpSection({
         disabled={disabled}
       />
 
+      {/* specs/plugins-phase-p-productisation.md rule 41 — the protocol names stay under « Avancé ». */}
+      <AdvancedDetails>
+        <TextField
+          label="Sécurité de la connexion"
+          select
+          value={v.secure ? 1 : 0}
+          onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
+          disabled={disabled}
+          size="small"
+          fullWidth
+          helperText={`Port utilisé : ${v.secure ? 465 : 587} (déduit).`}
+        >
+          <MenuItem value={0}>STARTTLS</MenuItem>
+          <MenuItem value={1}>TLS implicite</MenuItem>
+        </TextField>
+      </AdvancedDetails>
+
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Button
           variant="outlined"
@@ -142,7 +145,7 @@ export default function SettingsSmtpSection({
           Envoyer un mail de test
         </Button>
         <Typography variant="caption" color="text.secondary">
-          Envoie « Email de test GuestFlow » à votre propre adresse pour valider la configuration.
+          Envoie « Email de test GuestFlow » à l’adresse du compte connecté.
         </Typography>
         {testResult && (
           <Alert severity={testResult.severity} onClose={testResult.onClose}>

@@ -82,7 +82,7 @@ test('rule 21, step 2: beds cover the capacity, 1 to 50 guests, a price ≥ 0', 
   const big = await call(controller.saveProperty, { body: { name: 'Gîte', doubleBeds: 30, singleBeds: 0, maxGuests: 60, pricePerNight: 90 } });
   assert.equal(big.body.errors.maxGuests, 'Entre 1 et 50');
   const noPrice = await call(controller.saveProperty, { body: { name: 'Gîte', doubleBeds: 1, maxGuests: 2, pricePerNight: '' } });
-  assert.equal(noPrice.body.errors.pricePerNight, 'Prix positif ou nul');
+  assert.equal(noPrice.body.errors.pricePerNight, 'Prix obligatoire');
   const ok = await call(controller.saveProperty, { body: { name: 'La Grange', doubleBeds: 1, singleBeds: 2, maxGuests: 4, checkIn: '16:00', checkOut: '10:00', pricePerNight: '90' } });
   assert.equal(ok.status, 200);
   assert.equal(created[0].pricePerNight, 90);
@@ -96,9 +96,9 @@ test('rule 21, step 3: allowed plugins go through, others are refused, a failure
   assert.equal(list.find((p) => p.id === 'neat').plan, 'Forfait Premium');
   const { body } = await call(controller.savePlugins, { body: { ids: ['website-booking', 'sas', 'neat', 'weather'] } });
   assert.deepEqual(body.results, [
-    { id: 'website-booking', ok: false, error: 'PLUGIN_MIGRATION_FAILED' },
+    { id: 'website-booking', ok: false, error: 'PLUGIN_MIGRATION_FAILED', reason: 'échec de l’activation' },
     { id: 'sas', ok: true },
-    { id: 'neat', ok: false, error: 'PLAN_REQUIRED' },
+    { id: 'neat', ok: false, error: 'PLAN_REQUIRED', reason: 'non inclus dans la formule' },
     { id: 'weather', ok: true },
   ]);
   assert.deepEqual(installed, ['activate:sas']);

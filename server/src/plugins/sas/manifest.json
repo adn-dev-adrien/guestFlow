@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -21,6 +21,9 @@
     ],
     "1.0.2": [
       "Le compteur d’étapes du sas n’affiche plus de total, qui grandissait quand une prestation était ajoutée."
+    ],
+    "1.0.3": [
+      "Message des modifications non enregistrées sans « vous »."
     ]
   }
 }

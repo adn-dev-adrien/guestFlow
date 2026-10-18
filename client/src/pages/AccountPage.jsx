@@ -56,7 +56,7 @@ export default function AccountPage() {
       await api.updateSelf(payload);
       if (typeof refreshAuth === 'function') await refreshAuth();
       await refreshEmailStatus();
-      showSuccess('Vos informations ont été mises à jour.');
+      showSuccess('Informations mises à jour.');
     } catch (err) {
       if (err && err.field) {
         const friendly = err.error === 'INVALID_EMAIL' ? 'Adresse email invalide.'
@@ -95,7 +95,7 @@ export default function AccountPage() {
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                   Choisissez un nouveau mot de passe d'au moins 10 caractères.
                   {wasMustChange && (
-                    <>{' '}Vous serez ensuite redirigé vers la page de connexion pour vous reconnecter avec votre nouveau mot de passe.</>
+                    <>{' '}Reconnexion ensuite avec le nouveau mot de passe.</>
                   )}
                 </Typography>
               </Box>

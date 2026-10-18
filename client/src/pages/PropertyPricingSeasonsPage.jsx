@@ -1485,12 +1485,12 @@ export default function PropertyPricingSeasonsPage() {
         title={
           confirmDialogAction === 'prefill'
             ? 'Pré-remplir le modèle dégressif'
-            : 'Vous avez des modifications non enregistrées'
+            : 'Modifications non enregistrées'
         }
         message={
           confirmDialogAction === 'prefill'
-            ? 'Êtes-vous sûr ? Cela remplacera tous les tarifs actuels par le modèle de pricing dégressif standard et vous perdrez vos modifications.'
-            : 'Vous avez des modifications dans cette saison qui ne seront pas enregistrées. Êtes-vous sûr de vouloir continuer ?'
+            ? 'Tous les tarifs actuels seront remplacés par le modèle dégressif standard, et les modifications en cours perdues.'
+            : 'Des modifications de cette saison ne sont pas enregistrées. Continuer sans les enregistrer ?'
         }
         confirmLabel={confirmDialogAction === 'prefill' ? 'Pré-remplir' : 'Abandonner les modifications'}
         confirmColor={confirmDialogAction === 'prefill' ? 'warning' : 'error'}

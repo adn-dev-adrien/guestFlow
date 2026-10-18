@@ -1,7 +1,7 @@
 {
   "id": "weather-alerts",
   "name": "Vigilance Météo-France",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Prévient le voyageur d’une alerte météo à l’arrivée.",
   "icon": "thunderstorm",
   "surfaces": [
@@ -20,6 +20,9 @@
     ],
     "1.0.2": [
       "Réglages › Intégrations : l’adresse utilisée est désignée par Paramètres › Établissement."
+    ],
+    "1.0.3": [
+      "Champ « Clé Météo-France (Vigilance) », sans le mot « API »."
     ]
   }
 }

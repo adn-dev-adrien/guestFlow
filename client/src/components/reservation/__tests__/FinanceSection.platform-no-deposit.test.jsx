@@ -215,7 +215,7 @@ test('brut field: the platform collects + remits the tax → « Total séjour fa
 test('brut field: the platform reverses the tax to us → « Montant total payé », taxe comprise', () => {
   renderFinance({ form: { platform: 'Lodgify' }, pricingQuote: { touristTaxReversedByPlatform: true } });
   expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
-  expect(screen.getByText(/la plateforme vous la reverse avec le virement/i)).toBeInTheDocument();
+  expect(screen.getByText(/la plateforme la reverse avec le virement/i)).toBeInTheDocument();
 });
 
 test('owner-collect platform, no commission: the on-arrival tax is excluded → no écart (regression)', () => {

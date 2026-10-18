@@ -89,8 +89,7 @@ export default function SettingsFiscalYearSection({
               Exercice comptable
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Sur quel mois votre bilan est-il arrêté ? Le suivi financier calcule ses totaux annuels
-              sur cet exercice.
+              Mois d’arrêté du bilan. Le suivi financier calcule ses totaux annuels sur cet exercice.
             </Typography>
           </Box>
 

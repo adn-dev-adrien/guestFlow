@@ -79,8 +79,8 @@ export default function QontoConnectionCard({
           {badge && <StatusBadge status={badge.status} label={badge.label} />}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Identifiants de l'application Qonto, à recopier depuis developers.qonto.com → Business API
-          access. Effet immédiat, sans redémarrage.
+          Identifiants de l’application Qonto, à copier depuis le portail développeur de Qonto. Effet
+          immédiat, sans redémarrage.
         </Typography>
 
         {shown && (
@@ -153,7 +153,7 @@ export default function QontoConnectionCard({
               hasValue={Boolean(secrets.stagingToken?.configured)}
               value={draft.stagingToken}
               onChange={(v) => onChange('stagingToken', v)}
-              helperText="En-tête X-Qonto-Staging-Token, section « Sandbox access » du portail."
+              helperText="Rubrique « Sandbox access » du portail Qonto."
             />
           )}
 

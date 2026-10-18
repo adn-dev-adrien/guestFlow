@@ -65,7 +65,7 @@ function SettingsWeatherSection({ onDirtyChange }, ref) {
           </Box>
 
           <MaskedTextField
-            label="Clé API Météo-France (Vigilance)"
+            label="Clé Météo-France (Vigilance)"
             hasValue={Boolean(v.apiKeySet)}
             value={v.apiKeyDraft}
             onChange={onChangeApiKey}
@@ -73,7 +73,7 @@ function SettingsWeatherSection({ onDirtyChange }, ref) {
               <>
                 Clé gratuite à créer sur le{' '}
                 <Link href="https://portail-api.meteofrance.fr/" target="_blank" rel="noopener noreferrer">
-                  portail API Météo-France
+                  portail Météo-France
                 </Link>{' '}
                 (application « Données Vigilance / DPVigilance »). Sans clé, la fonction reste inactive.
               </>

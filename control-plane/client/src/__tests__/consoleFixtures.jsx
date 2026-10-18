@@ -42,7 +42,7 @@ export const customerFixture = {
     { code: 'premium', name: 'Premium', addonChoices: [{ pluginId: 'neat', name: 'Assurance annulation Neat', priceLabel: '9,00 € HT / mois', included: true }] },
   ],
   steps: [
-    { step: 'dir', label: 'Dossier, données et fichier d’environnement', kind: 'auto', status: 'ok', detail: '/srv/guestflow/instances/moulin', action: null },
+    { step: 'dir', label: 'Dossier, données et fichier d’environnement', kind: 'auto', status: 'ok', detail: 'Créés.', action: null },
     { step: 'route', label: 'Route et certificat TLS', kind: 'auto', status: 'failed', detail: 'Caddy : unrecognized directive (configuration précédente conservée)', action: 'resume' },
     { step: 'health', label: 'Contrôle de santé', kind: 'auto', status: 'todo', detail: '', action: null },
     { step: 'restart', label: 'Processus et route relancés depuis le dossier', kind: 'auto', status: 'failed', detail: 'Unit failed.', action: 'retry' },
