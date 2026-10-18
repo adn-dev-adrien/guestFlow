@@ -70,8 +70,11 @@ function secretsOf(env) {
 /**
  * The variables of one instance. `inst` = { slug, dir, port, version }; `releasesDir` the shared
  * releases; `extra` the drivers' own variables (proxy: trust and TLS; mail: the platform sender).
+ * `publicUrl` is the instance's own address and `registryUrl` the console's plugin registry
+ * (specs/hosting-h1-fleet-runtime.md rule 25): both follow the console's records, so a rename moves
+ * the address and every instance reads the registry the console publishes, with nothing typed.
  */
-function buildEnv({ inst, releasesDir, secrets, licencePublicKey, extra = {} }) {
+function buildEnv({ inst, releasesDir, secrets, licencePublicKey, publicUrl = null, registryUrl = null, extra = {} }) {
   const data = path.join(inst.dir, 'data');
   return {
     NODE_ENV: 'production',
@@ -85,6 +88,10 @@ function buildEnv({ inst, releasesDir, secrets, licencePublicKey, extra = {} }) 
     GUESTFLOW_UPLOADS_DIR: path.join(inst.dir, 'uploads'),
     GUESTFLOW_LOCAL_ENV: path.join(data, 'local.env'),
     GUESTFLOW_LICENCE_PUBLIC_KEY: licencePublicKey || undefined,
+    GUESTFLOW_PUBLIC_URL: publicUrl || undefined,
+    // The registry's index is signed with the licence key (specs/plugins-phase-4-registry.md P23).
+    GUESTFLOW_REGISTRY_URL: registryUrl && licencePublicKey ? registryUrl : undefined,
+    GUESTFLOW_REGISTRY_PUBLIC_KEY: registryUrl && licencePublicKey ? licencePublicKey : undefined,
     TZ: 'Europe/Paris',
     ...(secrets || {}),
     ...extra,

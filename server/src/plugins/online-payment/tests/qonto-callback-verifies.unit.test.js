@@ -13,7 +13,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { freshSettings, withStubbedFetch, jsonResponse, connectedSettings } = require('./qontoSettingsFixture');
-const { createQontoSettingsController } = require('../qontoSettingsController');
+const { createQontoSettingsController } = require('../../../utils/qonto/qontoSettingsController');
 
 const completeQontoAuthorization = ({ settings, env }) => createQontoSettingsController({ settings, env }).completeQontoAuthorization();
 

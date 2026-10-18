@@ -170,6 +170,7 @@ function gf_i18n_dictionnaire() {
             'resa_etapes'      => 'Étapes de la réservation',
             'resa_retour'      => 'Retour',
             'resa_suivant'     => 'Suivant',
+            'resa_notice_assurance' => 'Consulter la notice d’assurance (PDF)',
         ),
         'en' => array(
             'nav_accueil'      => 'Home',
@@ -222,6 +223,7 @@ function gf_i18n_dictionnaire() {
             'resa_etapes'      => 'Booking steps',
             'resa_retour'      => 'Back',
             'resa_suivant'     => 'Next',
+            'resa_notice_assurance' => 'Read the insurance policy (PDF, in French)',
         ),
     );
     return $d;

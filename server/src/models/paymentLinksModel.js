@@ -145,7 +145,7 @@ function buildModel(database) {
     return retired;
   }
 
-  // specs/plugins-phase-3a-online-payment.md rule 22 — a link whose bucket the stay settled another
+  // specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket the stay settled another
   // way (transfer, cash, platform, a second link) is abandoned like a stale one: cancelled here with
   // the remote-deactivation marker, so the poll deactivates it at the provider — after checking it was
   // not paid in the meantime, which would be a double payment to refund. A link on a devis reads the
@@ -177,7 +177,7 @@ function buildModel(database) {
     return retired;
   }
 
-  // Rule 23 — the day the stay recorded the bucket of a link retired by rule 22 (a link on a devis
+  // Rule 24 — the day the stay recorded the bucket of a link retired by rule 23 (a link on a devis
   // reads the reservation the devis became); null when unknown or no longer paid.
   function settledBucketDateOf(link) {
     const col = { deposit: 'depositPaid', balance: 'balancePaid', full: 'balancePaid', complement: 'complementPaid' }[link && link.type];
@@ -192,7 +192,7 @@ function buildModel(database) {
     return stay && Number(stay.paid) === 1 && stay.paidDate ? String(stay.paidDate).slice(0, 10) : null;
   }
 
-  // Rule 23 — a link retired by rule 22 that the guest had paid IS the payment that settled the bucket:
+  // Rule 24 — a link retired by rule 23 that the guest had paid IS the payment that settled the bucket:
   // it becomes `paid` with the provider's payment, and its deactivation is no longer owed.
   function markRetiredLinkPaid(id, { providerPaymentId = null, paidAt = null } = {}) {
     const info = database.prepare(`

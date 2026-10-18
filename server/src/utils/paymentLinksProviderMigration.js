@@ -12,7 +12,7 @@ function migratePaymentLinksToProviders(db) {
   if (cols.includes('qontoPaymentId')) db.exec('ALTER TABLE payment_links RENAME COLUMN qontoPaymentId TO providerPaymentId');
   if (!cols.includes('provider')) db.exec("ALTER TABLE payment_links ADD COLUMN provider TEXT NOT NULL DEFAULT 'qonto'");
   if (!cols.includes('remoteCancelPendingAt')) db.exec('ALTER TABLE payment_links ADD COLUMN remoteCancelPendingAt TEXT');
-  // Rule 23 — why GuestFlow abandoned the link: 'settled' when its bucket was paid another way (rule 22).
+  // Rule 24 — why GuestFlow abandoned the link: 'settled' when its bucket was paid another way (rule 23).
   if (!cols.includes('cancelReason')) db.exec('ALTER TABLE payment_links ADD COLUMN cancelReason TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_payment_links_provider ON payment_links(provider, providerLinkId)');
 }

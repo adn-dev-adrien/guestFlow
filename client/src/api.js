@@ -45,6 +45,7 @@ const api = {
   getSystemVersion: () => request('/system/version'),
   // The running process's start time: the Plugins page waits for it to change after a restart.
   getRuntimeVersion: () => request('/version'),
+  getToday: () => request('/today'),
   checkSystemVersion: () => request('/system/version/check', { method: 'POST' }),
   getUpdateStatus: () => request('/system/update/status'),
   startUpdate: (targetVersion) => request('/system/update/start', { method: 'POST', body: { targetVersion } }),
@@ -136,6 +137,7 @@ const api = {
   getBookingIntakePending: () => request('/booking-intake/pending'),
   dismissBookingIntakePending: (reservationId) => request(`/booking-intake/pending/${reservationId}/dismiss`, { method: 'POST' }),
   getBookingIntakeLog: (limit = 10) => request(`/booking-intake/intakes?limit=${limit}`),
+  createBookingIntakeSecret: () => request('/booking-intake/secret', { method: 'POST' }),
   regenerateBookingIntakeSecret: () => request('/booking-intake/secret/regenerate', { method: 'POST' }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
@@ -300,6 +302,10 @@ const api = {
   savePlatformSettings: (platforms) => request('/platforms/settings', { method: 'PUT', body: { platforms } }),
   // J-7 hooks per property, edited from the J-7 template (rule 17c).
   getReservation: (id) => request(`/reservations/${id}`),
+  // Every arrival from today on, grouped by day and detailed, in one call (specs/upcoming-reservations-cards.md rule 6).
+  getUpcomingReservations: (day) => request(day ? `/reservations/upcoming?day=${encodeURIComponent(day)}` : '/reservations/upcoming'),
+  // The server's calendar day (specs/upcoming-reservations-cards.md rule 7).
+  getToday: () => request('/today'),
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
   getReservationHistory: (id) => request(`/reservations/${id}/history`),
@@ -311,6 +317,10 @@ const api = {
   // Admin-only: guestFlow's address + both secrets, for the Sowel plugin's settings (§3.6 rule 29b).
   getGateConnectorSecrets: () => request('/settings/gate-connector/secrets'),
   getGateKeysAlerts: () => request('/dashboard/gate-keys'),
+  // Admin-only: the address and the key the WordPress plugin is given (specs/plugins-phase-2-hosts.md
+  // rules 30-31).
+  getWebsiteConnection: () => request('/settings/website-connection'),
+  regenerateWebsiteKey: () => request('/settings/website-connection/regenerate', { method: 'POST' }),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
   computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures }),

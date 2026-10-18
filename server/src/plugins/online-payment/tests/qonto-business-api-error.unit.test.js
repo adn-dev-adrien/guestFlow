@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { classifyQontoOutcome, errorCodeOf, errorMessageOf } = require('../qonto/qontoHealth');
+const { classifyQontoOutcome, errorCodeOf, errorMessageOf } = require('../../../utils/qonto/qontoHealth');
 
 /** The envelope `POST /v2/payment_links` answers with. */
 function businessApiError(status, errors, traceId = 'abc123') {

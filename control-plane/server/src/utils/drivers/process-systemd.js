@@ -72,7 +72,11 @@ function createSystemdProcessDriver({
     disableNow: (inst) => run('disable', '--now', unitOf(inst.slug)),
     start: (inst) => run('start', unitOf(inst.slug)),
     stop: (inst) => run('stop', unitOf(inst.slug)),
-    restart: (inst) => run('restart', unitOf(inst.slug)),
+    // Past systemd's start limit a unit refuses `restart` until its failure is reset (H1 rule 29).
+    async restart(inst) {
+      await run('reset-failed', unitOf(inst.slug)).catch(() => {});
+      await run('restart', unitOf(inst.slug));
+    },
     // `keepIdentity` at a rename: the unit of the old slug goes, the user stays for the new one.
     async remove(inst, { keepIdentity = false } = {}) {
       await run('disable', '--now', unitOf(inst.slug));

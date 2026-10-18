@@ -9,5 +9,7 @@ export default {
     'dashboard.alerts': [{ key: 'site-requests', order: 90, Component: lazy(() => import('./DevisPublicRequestAlert')) }],
     // Paramètres › Conditions générales: the two alerts and the « Réservation en ligne » card.
     'terms.settings': [{ key: 'online-booking', order: 10, Component: lazy(() => import('./OnlineBookingCard')) }],
+    // Paramètres › Intégrations: what the WordPress plugin is given (specs/plugins-phase-2-hosts.md rule 30).
+    'settings.integrations': [{ key: 'website', order: 5, Component: lazy(() => import('./SettingsWebsiteSection')) }],
   },
 };

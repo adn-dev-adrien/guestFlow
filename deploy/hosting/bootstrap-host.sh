@@ -4,8 +4,15 @@
 # Debian 12 / Ubuntu 24.04, run as root. Idempotent: running it again changes nothing that is in place.
 #
 #   sudo DOMAIN=guestflow.fr ACME_EMAIL=ops@guestflow.fr \
-#        REPO_URL=git@github.com:<owner>/guestFlow.git REF=v3.10.0 \
+#        REPO_URL=https://github.com/<owner>/guestFlow.git REF=v3.10.0 \
+#        S3_ACCESS_KEY_ID=… S3_SECRET_ACCESS_KEY=… \
 #        bash deploy/hosting/bootstrap-host.sh
+#
+# The object storage keys are typed once, here (specs/hosting-h1-fleet-runtime.md rule 27): they go
+# into the console's environment, which is their only source — /etc/default/litestream is rewritten
+# from it at every run, and rclone takes them from the console (no `rclone config`). BACKUP_URL,
+# BACKUP_ENDPOINT and BACKUP_REGION override the example's Scaleway values. Running the script again
+# without them keeps what the environment already holds.
 #
 # What it does (see deploy/hosting/README.md for the whole runbook):
 #   1. Node 24, Caddy, Litestream and rclone;
@@ -16,7 +23,8 @@
 #   4. Caddy's main file (admin API on a unix socket), the closed page; Litestream as guestflow-app,
 #      its configuration root-owned and written only by guestflow-litestream-apply;
 #   5. the console's source at REF, its dependencies and its build;
-#   6. the console's environment from console.env.example (never overwritten once written);
+#   6. the console's environment from console.env.example (never overwritten once written), with the
+#      licence key pair generated when the private key is empty (rule 26) and the object storage;
 #   7. the firewall: SSH, HTTP, HTTPS.
 # The console itself starts once its environment is filled in (step « Remplir l'environnement »).
 
@@ -115,16 +123,11 @@ say "✓ Caddy configuré (console.$DOMAIN, app.$DOMAIN, sites/*.caddy ; API d'a
 # Root-owned, never writable by the console: it is written by guestflow-litestream-apply only.
 grep -q 'guestflow-litestream-apply' /etc/litestream.yml 2>/dev/null || install -o root -g root -m 644 "$HERE/litestream.yml" /etc/litestream.yml
 chown root:root /etc/litestream.yml && chmod 644 /etc/litestream.yml
-if [ ! -f /etc/default/litestream ]; then
-  printf 'LITESTREAM_ACCESS_KEY_ID=\nLITESTREAM_SECRET_ACCESS_KEY=\n' > /etc/default/litestream
-fi
-chown root:root /etc/default/litestream && chmod 600 /etc/default/litestream
 mkdir -p /etc/systemd/system/litestream.service.d
 install -m 644 "$HERE/litestream.override.conf" /etc/systemd/system/litestream.service.d/guestflow.conf
 systemctl daemon-reload
 systemctl enable litestream >/dev/null
-systemctl restart litestream
-say "✓ Litestream en guestflow-backup (/etc/litestream.yml root 644, clés dans /etc/default/litestream)"
+say "✓ Litestream en guestflow-backup (/etc/litestream.yml root 644 ; ses clés viennent de l'environnement de la console, étape 6)"
 
 # ── 5. The console's source ──────────────────────────────────────────────────────────────────────
 SRC="$ROOT/console/src"
@@ -147,6 +150,44 @@ if [ ! -f "$ENVF" ]; then
 else
   say "✓ $ENVF déjà en place (non modifié)"
 fi
+
+env_get() { sed -n "s/^$1=//p" "$ENVF" | head -n1 | sed -e 's/^"//' -e 's/"$//'; }
+env_set() {
+  local key="$1" value="$2" tmp
+  tmp="$(mktemp)"
+  if grep -q "^$key=" "$ENVF"; then
+    awk -v k="$key" -v v="$value" 'BEGIN { FS = OFS = "=" } $1 == k { print k "=" v; next } { print }' "$ENVF" > "$tmp"
+  else
+    cat "$ENVF" > "$tmp" && printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  fi
+  cat "$tmp" > "$ENVF" && rm -f "$tmp"
+}
+
+# Rule 26 — the licence key pair (Ed25519, base64 DER: PKCS8 private, SPKI public), generated once.
+if [ -z "$(env_get CP_LICENCE_PRIVATE_KEY)" ]; then
+  KEYS="$(node -e "const c=require('crypto');const k=c.generateKeyPairSync('ed25519');process.stdout.write(k.privateKey.export({format:'der',type:'pkcs8'}).toString('base64')+' '+k.publicKey.export({format:'der',type:'spki'}).toString('base64'))")"
+  env_set CP_LICENCE_PRIVATE_KEY "${KEYS%% *}"
+  say "✓ clé de licence générée dans $ENVF (CP_LICENCE_PRIVATE_KEY) — à copier hors ligne"
+  say "  clé publique : ${KEYS##* } — rien à y faire : la console l'écrit dans chaque instance"
+else
+  say "✓ clé de licence déjà en place"
+fi
+
+# Rule 27 — the object storage, typed once.
+[ -n "${S3_ACCESS_KEY_ID:-}" ] && env_set LITESTREAM_ACCESS_KEY_ID "$S3_ACCESS_KEY_ID"
+[ -n "${S3_SECRET_ACCESS_KEY:-}" ] && env_set LITESTREAM_SECRET_ACCESS_KEY "$S3_SECRET_ACCESS_KEY"
+[ -n "${BACKUP_URL:-}" ] && env_set CP_BACKUP_URL "$BACKUP_URL"
+[ -n "${BACKUP_ENDPOINT:-}" ] && env_set CP_BACKUP_ENDPOINT "$BACKUP_ENDPOINT"
+[ -n "${BACKUP_REGION:-}" ] && env_set CP_BACKUP_REGION "$BACKUP_REGION"
+chown guestflow:guestflow "$ENVF" && chmod 600 "$ENVF"
+printf 'LITESTREAM_ACCESS_KEY_ID=%s\nLITESTREAM_SECRET_ACCESS_KEY=%s\n' "$(env_get LITESTREAM_ACCESS_KEY_ID)" "$(env_get LITESTREAM_SECRET_ACCESS_KEY)" > /etc/default/litestream
+chown root:root /etc/default/litestream && chmod 600 /etc/default/litestream
+systemctl restart litestream
+if [ -n "$(env_get LITESTREAM_ACCESS_KEY_ID)" ]; then
+  say "✓ stockage objet : $(env_get CP_BACKUP_URL) (clés dans $ENVF, recopiées dans /etc/default/litestream)"
+else
+  say "… stockage objet sans clés : relancer avec S3_ACCESS_KEY_ID et S3_SECRET_ACCESS_KEY"
+fi
 systemctl enable guestflow-console >/dev/null
 
 # ── 7. Firewall ──────────────────────────────────────────────────────────────────────────────────
@@ -158,7 +199,7 @@ say "✓ pare-feu : 22, 80, 443"
 
 echo
 echo "Reste à faire :"
-echo "  1. compléter $ENVF (clé de licence, SMTP de la console, stockage objet et ses clés, SMTP de la plateforme) ;"
-echo "  2. compléter /etc/default/litestream (les mêmes clés que la console), puis : sudo -u guestflow rclone config ;"
+echo "  1. compléter $ENVF : SMTP de la console et SMTP de la plateforme ;"
+echo "  2. copier hors ligne CP_LICENCE_PRIVATE_KEY et /srv/guestflow/console/data/.key, .directory-key (créés au premier démarrage) ;"
 echo "  3. systemctl start guestflow-console && sudo -u guestflow node $SRC/control-plane/server/scripts/create-operator.js ;"
 echo "  4. ouvrir https://console.$DOMAIN, page « Versions » : installer la dernière version."

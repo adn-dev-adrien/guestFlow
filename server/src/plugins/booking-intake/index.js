@@ -46,8 +46,12 @@ function register(ctx) {
 
   const newSecret = () => crypto.randomBytes(24).toString('base64url');
   const secret = () => ctx.settings.get('key');
-  // Born the first time the script is asked for: nothing is authenticated before that.
-  const ensureSecret = () => { if (!secret()) ctx.settings.set('key', newSecret()); return secret(); };
+  // Rule 25 — created by an explicit POST only: a GET never writes, and nothing is authenticated before.
+  const createSecret = () => {
+    if (secret()) return { ok: true, created: false };
+    ctx.settings.set('key', newSecret());
+    return { ok: true, created: true };
+  };
 
   const service = () => createIntakeService({
     intakes: intakes(),
@@ -87,10 +91,19 @@ function register(ctx) {
     userscript: () => {
       const publicUrl = ctx.core.settings.publicUrl();
       if (!publicUrl) return { ok: false, error: 'URL publique de GuestFlow non renseignée (Paramètres › Société).' };
-      return { ok: true, source: buildUserscript({ publicUrl, secret: ensureSecret() }) };
+      const key = secret();
+      if (!key) return { ok: false, error: 'Secret non créé.' };
+      return { ok: true, source: buildUserscript({ publicUrl, secret: key }) };
     },
+    createSecret,
     regenerateSecret: () => ctx.settings.set('key', newSecret()),
   }));
+  // Rule 26 — the script carries the secret, and these three create, hand out or rotate it: a support
+  // session is refused them (specs/hosting-h2-account-security.md rule 23).
+  ctx.secretRoutes([
+    { method: 'GET', re: /^\/booking-intake\/userscript\.user\.js$/ },
+    { method: '*', re: /^\/booking-intake\/secret(\/regenerate)?$/ },
+  ]);
 
   ctx.data({
     tables: ['booking_intakes', 'booking_dismissals'],

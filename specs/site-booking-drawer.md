@@ -112,6 +112,18 @@ button says why it is greyed, and the engine's own refinements never flicker on 
     fix**; these two rules are what keeps the funnel readable until then.
 > **Sans test** — cascade CSS d'un mu-plugin WordPress ; vérifié §7 points 7 et 8 — refus mesuré à `rgb(163, 58, 42)`, dates entières à 420 px comme à 1200 px.
 
+### Review of 2026-10-18
+
+14. **The drawer wraps the engine only where it loads.** The `render_block` filter returns the booking
+    block untouched when `gf_resa_page_concernee()` is false: outside the lodging pages neither the
+    drawer's stylesheet nor its script is enqueued, and a « Réserver » or « Payer » page showed a bare
+    button over an engine no click could reach.
+15. **The insurance notice link speaks the page's language** (`resa_notice_assurance` in `gf-i18n.php`,
+    passed as `GF_RESA_T.notice`; EN « Read the insurance policy (PDF, in French) »), and the yes/no
+    switch that replaces a stepper carries the option title as its `aria-label`.
+16. **On a phone the e-mail field takes its own row in the drawer**, and « Effacer » too below 600 px,
+    instead of an address cut in half and a button falling into the times row.
+
 ## 4. Architecture
 
 > This lives entirely in the WordPress site, not in GuestFlow. No server layer and no client layer of

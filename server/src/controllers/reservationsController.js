@@ -1472,7 +1472,7 @@ function updatePayment(req, res) {
   if (checkOutDone !== undefined) {
     model.updatePaymentField('UPDATE reservations SET checkOutDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkOutDone ? 1 : 0, id);
   }
-  // specs/plugins-phase-3a-online-payment.md rule 22 — a bucket settled by hand retires its open link
+  // specs/plugins-phase-3a-online-payment.md rule 23 — a bucket settled by hand retires its open link
   // at once; the next poll deactivates it at the provider after checking it was not paid meanwhile.
   if (depositPaid || balancePaid || complementPaid) {
     try { require('../models/paymentLinksModel').retireSettled(); } catch { /* no link table: nothing to retire */ }

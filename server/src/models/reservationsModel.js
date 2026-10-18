@@ -657,6 +657,8 @@ function createReservationsModel(database) {
       if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
       if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
       sql += ' ORDER BY r.startDate';
+      // The server's calendar day, not UTC's: between midnight and 2 a.m. in Paris the UTC date is
+      // still yesterday (specs/upcoming-reservations-cards.md rule 7).
       const today = localTodayIso();
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the

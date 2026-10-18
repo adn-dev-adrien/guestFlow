@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { nextPatch } = require('./pluginVersions');
+const { next } = require('./registryVersions');
 
 const PORT = process.env.E2E_PROD_PORT || '4300';
 const REGISTRY_PORT = process.env.E2E_REGISTRY_PORT || '4301';
@@ -44,9 +44,9 @@ module.exports = async () => {
   await waitForRestart(ctx, before);
 
   const publish = (body) => ctx.post(`${REGISTRY}/__control/publish`, { data: body });
-  await publish({ id: 'linen', version: '1.0.1', lines: ['Le stock des serviettes se lit sur la bonne semaine.'] });
-  await publish({ id: 'weather-alerts', version: nextPatch('weather-alerts'), lines: ['L’alerte orange est rappelée la veille de l’arrivée.'] });
-  await publish({ id: 'school-holidays', version: nextPatch('school-holidays'), badHash: true });
+  await publish({ id: 'linen', version: next('linen'), lines: ['Le stock des serviettes se lit sur la bonne semaine.'] });
+  await publish({ id: 'weather-alerts', version: next('weather-alerts'), lines: ['L’alerte orange est rappelée la veille de l’arrivée.'] });
+  await publish({ id: 'school-holidays', version: next('school-holidays'), badHash: true });
 
   fs.mkdirSync(path.join(ROOT, 'e2e', '.auth'), { recursive: true });
   const auth = await request.newContext({ baseURL: BASE });

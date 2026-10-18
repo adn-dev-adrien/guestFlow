@@ -55,6 +55,7 @@ const CORE_MODULES = Object.freeze({
   publicLabels: '../../utils/publicLabels', // public wording, shared with the core meal portions
   publicDevisToken: '../../utils/publicDevisToken', // the capability token of a website devis
   publicPaymentMode: '../../utils/publicPaymentMode', // full or deposit, shared with the public payment
+  paymentProviders: '../../utils/paymentProviders', // whether the site can take a payment now (public-online-payment rule 12)
   attributionChannel: '../../utils/attributionChannel', // request origin, read by finance (rule 26)
   babyBedResource: '../../utils/babyBedResource', // the baby-bed flag of a public resource
   releaseClient: '../../utils/releaseClient', // the allowed download hosts of the plugin manifest
@@ -75,6 +76,7 @@ const CORE_MODULES = Object.freeze({
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money
   paymentEffectDeps: '../../utils/paymentEffectDeps', // confirmation email, conflict check, notifications
+  qonto: '../../utils/qonto', // the Qonto library, shared with the control plane (phase 3a rule 22)
   // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
   reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
   pushService: '../../utils/pushService', // « Souscriptions Neat » push
@@ -104,7 +106,10 @@ module.exports = Object.freeze({
   }),
   // Secrets the operator copies into another system live in server/.env.local, never in the database.
   secrets: Object.freeze({
-    getOrCreate: (name, byteLength = 32) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength),
+    getOrCreate: (name, byteLength = 32, options) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength, options),
+    // A new value for a secret another system holds a copy of (specs/plugins-phase-2-hosts.md rule 31).
+    // Read it with getOrCreate(name, n, { rotatable: true }) so the file wins over a stale inherited copy.
+    rotate: (name, byteLength = 32) => require('../../utils/localEnv').rotateSecret(name, byteLength),
   }),
   pricing: Object.freeze({
     normalizeProgressiveTiers: (...args) => require('../../utils/pricing').normalizeProgressiveTiers(...args),

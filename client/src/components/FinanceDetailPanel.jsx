@@ -354,7 +354,7 @@ export default function FinanceDetailPanel({
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {tile === 'stays' && (
-              <ToggleButtonGroup exclusive size="small" value={staysScope} onChange={(_, v) => v && onStaysScopeChange(v)} aria-label="Réservations" sx={{ '& .MuiToggleButton-root': { textTransform: 'none', minHeight: 36 } }}>
+              <ToggleButtonGroup exclusive size="small" value={staysScope} onChange={(_, v) => v && onStaysScopeChange(v)} aria-label="Réservations" sx={{ '& .MuiToggleButton-root': { textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } } }}>
                 <ToggleButton value="window">De la période</ToggleButton>
                 <ToggleButton value="upcoming">À venir</ToggleButton>
                 <ToggleButton value="unpriced">Sans montant</ToggleButton>

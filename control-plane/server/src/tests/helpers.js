@@ -29,7 +29,8 @@ function makeMailer() {
 
 // A minimal GuestFlow instance directory: data/guestflow.db with a `plugins` table, a `users` table
 // (the directory reads it) and a couple of tables the export reads.
-function makeInstance(root, slug, { installed = [], users = [] } = {}) {
+// `versions` = { id: version }: the table then has phase 4's `version` column.
+function makeInstance(root, slug, { installed = [], users = [], versions = null } = {}) {
   const dataDir = path.join(root, slug, 'data');
   fs.mkdirSync(dataDir, { recursive: true });
   const db = new Database(path.join(dataDir, 'guestflow.db'));
@@ -38,8 +39,11 @@ function makeInstance(root, slug, { installed = [], users = [] } = {}) {
     CREATE TABLE clients (id INTEGER PRIMARY KEY, name TEXT, email TEXT);
     INSERT INTO reservations (guest, total) VALUES ('Martin, "Jo"', 420.5);
     INSERT INTO clients (name, email) VALUES ('Jo Martin', 'jo@example.fr');`);
-  const insert = db.prepare('INSERT INTO plugins (id, enabled, source) VALUES (?, 1, ?)');
-  for (const id of installed) insert.run(id, 'builtin');
+  if (versions) db.exec('ALTER TABLE plugins ADD COLUMN version TEXT');
+  const insert = versions
+    ? db.prepare('INSERT INTO plugins (id, enabled, source, version) VALUES (?, 1, ?, ?)')
+    : db.prepare('INSERT INTO plugins (id, enabled, source) VALUES (?, 1, ?)');
+  for (const id of installed) (versions ? insert.run(id, 'builtin', versions[id] || null) : insert.run(id, 'builtin'));
   db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL, isActive INTEGER NOT NULL DEFAULT 1)');
   const insertUser = db.prepare('INSERT INTO users (email, isActive) VALUES (?, ?)');
   for (const u of users) insertUser.run(u.email, u.isActive === false ? 0 : 1);
@@ -140,13 +144,24 @@ function makeFakeDrivers({ domain = 'guestflow.test', now = () => new Date() } =
     },
     mail: createMailDriver({ kind: 'local', domain, env: { CP_MAIL_DAILY_LIMIT: '300' } }),
   };
-  async function fetchImpl(url) {
+  // `loaded.set(slug, { id: version })` — the plugins a fake instance says it loaded (rule 11);
+  // `brokenPlugins.add('<id>@<version>')` makes that version fail to load.
+  const loaded = new Map();
+  const brokenPlugins = new Set();
+  // The plugin answer needs the instance's proxy secret, as on a real instance (rule 11).
+  const healthHeaders = [];
+  async function fetchImpl(url, opts = {}) {
     const slug = String(url).split('/')[3];
     const p = procs.get(slug);
     if (!p || !p.running || unhealthy.has(p.version)) throw Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
-    return { ok: true, status: 200, json: async () => ({ version: p.version }) };
+    const secret = (opts.headers || {})['x-guestflow-health'];
+    const asked = secret ? new URL(url).searchParams.get('plugin') : null;
+    if (new URL(url).searchParams.get('plugin')) healthHeaders.push([slug, secret || null]);
+    const version = asked ? (loaded.get(slug) || {})[asked] || null : null;
+    const plugin = asked ? { id: asked, version, ok: Boolean(version) && !brokenPlugins.has(`${asked}@${version}`) } : undefined;
+    return { ok: true, status: 200, json: async () => ({ version: p.version, ...(plugin ? { plugin } : {}) }) };
   }
-  return { drivers, fetchImpl, calls, procs, routes, replicas, failNext, unhealthy, certs, memory, named: (n) => calls.filter((c) => c.name === n) };
+  return { drivers, fetchImpl, calls, procs, routes, replicas, failNext, unhealthy, certs, memory, loaded, brokenPlugins, healthHeaders, named: (n) => calls.filter((c) => c.name === n) };
 }
 
 // The facade of utils/qontoBilling.js, in memory. `state.failNext = { step, error }` makes one call

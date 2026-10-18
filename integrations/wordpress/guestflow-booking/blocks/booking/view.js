@@ -30,18 +30,7 @@
     } catch (e) { return fallback; }
   })();
 
-  var DOW = (function () {
-    var fallback = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    try {
-      var f = new Intl.DateTimeFormat(GF.locale || 'fr-FR', { weekday: 'short' });
-      var out = [];
-      for (var i = 0; i < 7; i++) {
-        var j = f.format(new Date(2024, 0, 1 + i));
-        out.push(j.charAt(0).toUpperCase() + j.slice(1).replace(/\.$/, ''));
-      }
-      return out;
-    } catch (e) { return fallback; }
-  })();
+  var DOW = GF.weekdays();
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function isoOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -90,6 +79,15 @@
       if (r[0].status < 200 || r[0].status >= 300 || !r[0].body || !r[0].body.data) {
         container.innerHTML = '';
         container.appendChild(GF.el('div', { class: 'gf-error' }, GF.errorMessage(r[0])));
+        return;
+      }
+      // No CGV published while GuestFlow requires them: every request would be refused at the end,
+      // so the form is not offered at all (specs/wordpress-plugin.md rule 21).
+      var termsError = r[3].body && r[3].body.error;
+      if (termsError && termsError.code === 'TERMS_NOT_CONFIGURED' && termsError.details && termsError.details[0]
+        && termsError.details[0].bookingClosed === true) {
+        container.innerHTML = '';
+        container.appendChild(GF.el('div', { class: 'gf-error', role: 'status' }, GF.t('bookingClosed')));
         return;
       }
       var termsData = (r[3].status >= 200 && r[3].status < 300 && r[3].body && r[3].body.data) || null;
@@ -254,7 +252,8 @@
     // ---- calendar (range select — the ONLY way to set the dates, spec §3.1-4) ----
     var calBase = firstOfMonth(new Date());
     var calMonths = GF.el('div', { class: 'gf-cal-wrap' });
-    var calHint = GF.el('div', { class: 'gf-cal-hint' });
+    // Spoken as it changes: the hint is where a refused date explains itself (rule 15).
+    var calHint = GF.el('div', { class: 'gf-cal-hint', role: 'status', 'aria-live': 'polite' });
     var calBox = GF.el('div', { class: 'gf-cal-box' },
       GF.el('div', { class: 'gf-cal-topbar' },
         GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calPrevMonth'), onClick: function () { navCal(-1); } }, '‹'),
@@ -305,7 +304,7 @@
       var year = monthDate.getFullYear();
       var month = monthDate.getMonth();
       var grid = GF.el('div', { class: 'gf-cal-grid' });
-      DOW.forEach(function (d) { grid.appendChild(GF.el('div', { class: 'gf-cal-dow' }, d)); });
+      DOW.forEach(function (d) { grid.appendChild(GF.el('div', { class: 'gf-cal-dow', 'aria-hidden': 'true' }, d)); });
       var lead = (new Date(year, month, 1).getDay() + 6) % 7; // Monday-based
       for (var i = 0; i < lead; i++) grid.appendChild(GF.el('div', { class: 'gf-cal-day gf-empty-cell' }));
       var days = new Date(year, month + 1, 0).getDate();
@@ -320,8 +319,12 @@
         if (state.start && ds === state.start) cls += ' gf-edge';
         if (state.end && ds === state.end) cls += ' gf-edge';
         if (state.start && state.end && ds > state.start && ds < state.end) cls += ' gf-range';
+        // Read in full, with its state (rule 15): « vendredi 6 novembre 2026, indisponible ».
+        var isEdge = (state.start && ds === state.start) || (state.end && ds === state.end);
         var btn = GF.el('button', {
           type: 'button', class: cls, disabled: disabled ? 'disabled' : null,
+          'aria-label': GF.dayLabel(year, month, d, isBlocked(ds)),
+          'aria-pressed': isEdge ? 'true' : 'false',
           onClick: (function (iso) { return function () { onPick(iso); }; })(ds),
         }, String(d));
         grid.appendChild(btn);
@@ -356,6 +359,13 @@
       scheduleQuote();
     }
 
+    // A field and its label, tied by `for` so a screen reader names the input (rule 15).
+    function field(labelText, input, extraClass) {
+      var id = GF.uid('gf-field');
+      input.setAttribute('id', id);
+      return GF.el('div', { class: 'gf-field' + (extraClass ? ' ' + extraClass : '') }, GF.el('label', { for: id }, labelText), input);
+    }
+
     // ---- read-only date recap + time selects (spec §3.3, §3.5) ----
     f.startDisplay = GF.el('input', { type: 'text', class: 'gf-ro', readonly: 'readonly', tabindex: '-1', 'aria-readonly': 'true', value: '—' });
     f.endDisplay = GF.el('input', { type: 'text', class: 'gf-ro', readonly: 'readonly', tabindex: '-1', 'aria-readonly': 'true', value: '—' });
@@ -371,15 +381,16 @@
     }, '✕', GF.el('span', {}, GF.t('clearDatesShort')));
 
     var datesRow = GF.el('div', { class: 'gf-row' },
-      GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('startDate')), f.startDisplay),
-      GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('endDate')), f.endDisplay),
+      field(GF.t('startDate'), f.startDisplay),
+      field(GF.t('endDate'), f.endDisplay),
       GF.el('div', { class: 'gf-field gf-field-clear' }, f.clearDates),
-      GF.el('div', { class: 'gf-field gf-field-time' }, GF.el('label', {}, GF.t('checkInTime')), f.checkInTime),
-      GF.el('div', { class: 'gf-field gf-field-time' }, GF.el('label', {}, GF.t('checkOutTime')), f.checkOutTime)
+      field(GF.t('checkInTime'), f.checkInTime, 'gf-field-time'),
+      field(GF.t('checkOutTime'), f.checkOutTime, 'gf-field-time')
     );
 
     // ---- stepper (− n +), the single quantity control of the widget (spec §3.6-7, ≥44px) ----
-    function stepper(get, set, min, max) {
+    // `name` is the line the stepper counts: its buttons read « Ajouter : Adultes » (rule 15).
+    function stepper(get, set, min, max, name) {
       var val = GF.el('span', { class: 'gf-step-val' }, String(get()));
       function ceiling() { return (typeof max === 'function') ? max() : (max == null ? 99 : max); }
       // Repaint WITHOUT asking for a new quote: the quote itself is what tells us the number moved
@@ -389,12 +400,13 @@
         inc.disabled = get() >= ceiling();
       }
       function apply(v) { set(v); repaint(); scheduleQuote(); }
-      var dec = GF.el('button', { type: 'button', class: 'gf-step-btn', 'aria-label': '−', onClick: function () { apply(Math.max(min, get() - 1)); } }, '−');
+      var dec = GF.el('button', { type: 'button', class: 'gf-step-btn', 'aria-label': GF.t('stepRemove', name || ''), onClick: function () { apply(Math.max(min, get() - 1)); } }, '−');
       var inc = GF.el('button', {
-        type: 'button', class: 'gf-step-btn', 'aria-label': '+',
+        type: 'button', class: 'gf-step-btn', 'aria-label': GF.t('stepAdd', name || ''),
         onClick: function () { apply(Math.min(ceiling(), get() + 1)); },
       }, '+');
-      var node = GF.el('span', { class: 'gf-step' }, dec, val, inc);
+      val.setAttribute('aria-live', 'polite');
+      var node = GF.el('span', { class: 'gf-step', role: 'group', 'aria-label': name || null }, dec, val, inc);
       node.gfRepaint = repaint;
       repaint();
       return node;
@@ -440,7 +452,7 @@
       babyBedsHolder.innerHTML = '';
       if (state.babies > 0 && babyRes) {
         babyBedsHolder.appendChild(line(GF.t('babyBedsLabel'), babyBedsSub, null,
-          stepper(function () { return state.babyBeds; }, function (v) { state.babyBeds = Math.min(v, state.babies); }, 0, function () { return state.babies; })));
+          stepper(function () { return state.babyBeds; }, function (v) { state.babyBeds = Math.min(v, state.babies); }, 0, function () { return state.babies; }, GF.t('babyBedsLabel'))));
       } else {
         state.babyBeds = 0;
       }
@@ -469,10 +481,10 @@
       GF.el('div', { class: 'gf-section-title' }, GF.t('travelers')),
       capacityNote ? GF.el('div', { class: 'gf-line-sub' }, capacityNote) : null,
       GF.el('div', { class: 'gf-lines' },
-        line(GF.t('adults'), null, null, stepper(function () { return state.adults; }, function (v) { state.adults = v; renderSupplements(); }, 1, guestCap(function () { return state.adults; }))),
-        line(GF.t('teens'), GF.t('teensAges'), null, stepper(function () { return state.teens; }, function (v) { state.teens = v; renderSupplements(); }, 0, guestCap(function () { return state.teens; }))),
-        line(GF.t('children'), GF.t('childrenAges'), null, stepper(function () { return state.children; }, function (v) { state.children = v; renderSupplements(); }, 0, guestCap(function () { return state.children; }))),
-        line(GF.t('babies'), GF.t('babiesAges'), null, stepper(function () { return state.babies; }, function (v) { state.babies = v; if (state.babyBeds > v) state.babyBeds = v; renderBabyBeds(); }, 0, function () { return maxBabies; })),
+        line(GF.t('adults'), null, null, stepper(function () { return state.adults; }, function (v) { state.adults = v; renderSupplements(); }, 1, guestCap(function () { return state.adults; }), GF.t('adults'))),
+        line(GF.t('teens'), GF.t('teensAges'), null, stepper(function () { return state.teens; }, function (v) { state.teens = v; renderSupplements(); }, 0, guestCap(function () { return state.teens; }), GF.t('teens'))),
+        line(GF.t('children'), GF.t('childrenAges'), null, stepper(function () { return state.children; }, function (v) { state.children = v; renderSupplements(); }, 0, guestCap(function () { return state.children; }), GF.t('children'))),
+        line(GF.t('babies'), GF.t('babiesAges'), null, stepper(function () { return state.babies; }, function (v) { state.babies = v; if (state.babyBeds > v) state.babyBeds = v; renderBabyBeds(); }, 0, function () { return maxBabies; }, GF.t('babies'))),
         babyBedsHolder
       )
     );
@@ -526,7 +538,8 @@
         function () { return state.opt[o.id]; },
         function (v) { state.opt[o.id] = v; if (onChange) onChange(); },
         0,
-        max
+        max,
+        o.title || ''
       );
       optionNodes[o.id] = { step: step, hint: hint, onChange: onChange };
       return line(
@@ -640,7 +653,7 @@
           r.name || '',
           r.quantityLabel || null,
           priceText(r),
-          stepper(function () { return state.res[r.id]; }, function (v) { state.res[r.id] = v; }, 0),
+          stepper(function () { return state.res[r.id]; }, function (v) { state.res[r.id] = v; }, 0, null, r.name || ''),
           extras
         ));
       });
@@ -652,7 +665,7 @@
     // Rendered between the supplements and the price summary: the visitor sees what the stay costs
     // to insure just before committing, and cannot submit without answering.
     var insuranceAmount = GF.el('span', { class: 'gf-line-price' }, insurance ? insurance.priceLabel : '');
-    var insuranceNotice = GF.el('div', {});
+    var insuranceNotice = GF.el('div', { 'aria-live': 'polite' });
     var insuranceYes = null;
     var insuranceNo = null;
     var insuranceBox = null;
@@ -684,8 +697,9 @@
       paintInsurance();
     }
 
-    var summary = GF.el('div', { class: 'gf-summary' });
-    var warn = GF.el('div', {});
+    // The quote and its refusals are spoken as they arrive (rule 15).
+    var summary = GF.el('div', { class: 'gf-summary', 'aria-live': 'polite' });
+    var warn = GF.el('div', { 'aria-live': 'polite' });
 
     // Contact + message + honeypot
     f.firstName = GF.el('input', { type: 'text', autocomplete: 'given-name' });
@@ -695,17 +709,20 @@
     f.message = GF.el('textarea', { rows: '3' });
     f.hp = GF.el('input', { type: 'text', tabindex: '-1', autocomplete: 'off' });
 
+    [f.firstName, f.lastName, f.email, f.phone].forEach(function (input) { input.setAttribute('aria-required', 'true'); });
+    // `gf-field-email` takes a row of its own in a narrow layout: an address cut in half cannot be
+    // checked by the visitor who typed it (rule 23).
     var contact = GF.el('div', {},
       GF.el('div', { class: 'gf-row' },
-        GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('firstName') + ' *'), f.firstName),
-        GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('lastName') + ' *'), f.lastName)
+        field(GF.t('firstName') + ' *', f.firstName),
+        field(GF.t('lastName') + ' *', f.lastName)
       ),
       GF.el('div', { class: 'gf-row' },
-        GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('email') + ' *'), f.email),
-        GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('phone') + ' *'), f.phone)
+        field(GF.t('email') + ' *', f.email, 'gf-field-email'),
+        field(GF.t('phone') + ' *', f.phone)
       ),
-      GF.el('div', { class: 'gf-row' }, GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('message')), f.message)),
-      GF.el('div', { class: 'gf-hp' }, GF.el('label', {}, GF.t('honeypot'), f.hp))
+      GF.el('div', { class: 'gf-row' }, field(GF.t('message'), f.message)),
+      GF.el('div', { class: 'gf-hp', 'aria-hidden': 'true' }, GF.el('label', {}, GF.t('honeypot'), f.hp))
     );
 
     // CGV acceptance (specs/terms-acceptance-record.md rules 10-13): never pre-ticked; the version
@@ -713,7 +730,7 @@
     // version was published meanwhile.
     var terms = termsData ? { version: termsData.version } : null;
     var cgvBox = GF.el('div', {});
-    var cgvNotice = GF.el('div', {});
+    var cgvNotice = GF.el('div', { 'aria-live': 'polite' });
     function paintCgv() {
       cgvBox.innerHTML = '';
       if (!terms) return;
@@ -731,9 +748,22 @@
     }
     paintCgv();
 
-    var submitLabel = payOnline ? GF.t('payOnline') : GF.t('sendRequest');
-    f.submit = GF.el('button', { class: 'gf-btn', type: 'button', disabled: 'disabled', onClick: submit }, submitLabel);
-    var feedback = GF.el('div', {});
+    // Online payment is asked for by the block, and possible only while GuestFlow has a payment provider
+    // connected (specs/public-online-payment.md rule 12): until then the button sends a plain request
+    // rather than a devis the payment would fail on. A GuestFlow older than the flag keeps the block's
+    // choice.
+    function paysNow() {
+      return payOnline && !(lastQuote && lastQuote.payment && lastQuote.payment.onlineReady === false);
+    }
+    function submitLabel() {
+      if (!paysNow()) return GF.t('sendRequest');
+      return lastQuote && lastQuote.payment && lastQuote.payment.mode === 'deposit' ? GF.t('payDeposit') : GF.t('payOnline');
+    }
+    // The request a failed payment left behind (rule 16): retrying the same stay pays for that devis
+    // instead of creating another one. { key, requestId, token, reference }
+    var pendingRequest = null;
+    f.submit = GF.el('button', { class: 'gf-btn', type: 'button', disabled: 'disabled', onClick: submit }, submitLabel());
+    var feedback = GF.el('div', { 'aria-live': 'polite' });
 
     var form = GF.el('div', { class: 'gf-booking' },
       GF.el('h3', { class: 'gf-booking-name' }, detail.name || ''),
@@ -845,7 +875,7 @@
       applyOptionLimits(q);
       summary.innerHTML = '';
       function sline(label, value, cls) { return GF.el('div', { class: 'gf-summary-line ' + (cls || '') }, GF.el('span', {}, label), GF.el('span', {}, value)); }
-      summary.appendChild(sline(q.nights + ' ' + GF.t('nights'), GF.euro(q.accommodationTotal)));
+      summary.appendChild(sline(q.nights + ' ' + GF.t(q.nights === 1 ? 'night' : 'nights'), GF.euro(q.accommodationTotal)));
       (q.options || []).forEach(function (o) {
         summary.appendChild(sline(o.title + ' ×' + o.quantity, o.offered ? GF.t('offered') : GF.euro(o.total)));
       });
@@ -869,8 +899,9 @@
           summary.appendChild(sline(balLabel, GF.euro(q.balance.amount)));
         }
       }
-      // Button reflects what the guest pays now (« Payer l'acompte » vs « Payer en ligne »).
-      if (payOnline) f.submit.textContent = depositMode ? GF.t('payDeposit') : GF.t('payOnline');
+      // Button reflects what the guest pays now (« Payer l'acompte » vs « Payer en ligne »), or that
+      // nothing is paid now.
+      f.submit.textContent = submitLabel();
 
       // The insurance amount is priced by the server for THIS stay, taken or not (spec §3.3
       // rule 19), so the visitor decides on a real amount rather than on a percentage.
@@ -921,22 +952,37 @@
         _hp: f.hp.value,
       });
       if (terms) body.termsVersion = terms.version;
+      var paying = paysNow();
+      // The stay alone decides a retry (rule 27): a corrected message or phone keeps the same devis.
+      var requestKey = JSON.stringify(stay);
+      if (paying && pendingRequest && pendingRequest.key === requestKey) {
+        f.submit.disabled = true;
+        f.submit.textContent = GF.t('preparingPayment');
+        startPayment(pendingRequest.requestId, pendingRequest.token);
+        return;
+      }
       // Where the visit came from (specs/site-traffic-analytics.md rule 14). Optional: without it the
       // request reads « Origine inconnue », it is never refused.
       var attribution = GF.attribution();
       if (attribution) body.attribution = attribution;
       f.submit.disabled = true;
-      f.submit.textContent = payOnline ? GF.t('preparingPayment') : GF.t('sending');
+      f.submit.textContent = paying ? GF.t('preparingPayment') : GF.t('sending');
       GF.api('POST', '/booking-requests', body).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
           GF.track('booking-requested', { lodging: lodging, nights: nightsOf(stay.startDate, stay.endDate), guests: persons() });
-          if (payOnline) { startPayment(res.body.data.requestId, res.body.data.publicToken); return; }
+          if (paying) {
+            pendingRequest = {
+              key: requestKey, requestId: res.body.data.requestId, token: res.body.data.publicToken, reference: res.body.data.reference || '',
+            };
+            startPayment(pendingRequest.requestId, pendingRequest.token);
+            return;
+          }
           container.innerHTML = '';
           container.appendChild(GF.el('div', { class: 'gf-success' }, GF.t('requestSent', res.body.data.reference || '')));
           return;
         }
         f.submit.disabled = false;
-        f.submit.textContent = submitLabel;
+        f.submit.textContent = submitLabel();
         // A newer CGV version was published while the guest was filling the form (rule 13): offer
         // that one, unticked, and let GuestFlow's message say why.
         var err = res.body && res.body.error;
@@ -958,7 +1004,8 @@
     // server-side; the per-devis token authorises both the pay call and the return-page status poll.
     function startPayment(devisId, token) {
       if (!devisId || !token) { paymentError(); return; }
-      var returnPath = window.location.pathname + '?gf_payment=' + devisId + '&gf_token=' + encodeURIComponent(token);
+      // `property` comes back too: a generic booking page knows the lodging only from the address.
+      var returnPath = window.location.pathname + '?property=' + propertyId + '&gf_payment=' + devisId + '&gf_token=' + encodeURIComponent(token);
       GF.api('POST', '/booking-requests/' + devisId + '/pay', { returnPath: returnPath, token: token }).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.paymentUrl) {
           feedback.innerHTML = '';
@@ -971,10 +1018,14 @@
       });
     }
 
+    // The request is recorded whatever the payment did: say so, with its reference, so a visitor who
+    // stops here knows GuestFlow has it (rule 16).
     function paymentError(res) {
       f.submit.disabled = false;
-      f.submit.textContent = submitLabel;
+      f.submit.textContent = submitLabel();
+      feedback.innerHTML = '';
       feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, res ? GF.errorMessage(res) : GF.t('genericError')));
+      if (pendingRequest) feedback.appendChild(GF.el('div', { class: 'gf-inline-info' }, GF.t('paymentRetry', pendingRequest.reference)));
     }
 
     renderBabyBeds();

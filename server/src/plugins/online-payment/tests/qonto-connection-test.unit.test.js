@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { freshSettings } = require('./qontoSettingsFixture');
-const { runQontoConnectionTest, qontoStatusPayload } = require('../qonto/qontoService');
+const { runQontoConnectionTest, qontoStatusPayload } = require('../../../utils/qonto/qontoService');
 
 /**
  * A settings model whose token refresh is intercepted, so the test exercises the real code path

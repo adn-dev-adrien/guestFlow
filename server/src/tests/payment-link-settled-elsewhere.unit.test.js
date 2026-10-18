@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 22 — a link whose bucket the stay settled another way
+// specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket the stay settled another way
 // (transfer, cash, platform) is abandoned like a stale one: it leaves the open links, is deactivated at
 // the provider after a last « was it paid? » check, and the poll stops asking about it (mega review #5,
 // M2: links 6 and 7 still open and polled on stays paid in July and August).
@@ -37,7 +37,7 @@ function provider({ paid = false } = {}) {
   };
 }
 
-test('rule 22 — retireSettled cancels only the links whose bucket is settled, with the deactivation owed', () => {
+test('rule 23 — retireSettled cancels only the links whose bucket is settled, with the deactivation owed', () => {
   const { db, paidId, unpaidId } = seed();
   const links = paymentLinksModel.buildModel(db);
   const settled = links.create({ reservationId: paidId, type: 'balance', amountCents: 21000, providerLinkId: 'ql_6', url: 'https://pay/6' });
@@ -50,7 +50,7 @@ test('rule 22 — retireSettled cancels only the links whose bucket is settled, 
   assert.deepEqual(links.retireSettled(), [], 'idempotent');
 });
 
-test('rule 22 — the poll deactivates the settled link and never polls it again', async () => {
+test('rule 23 — the poll deactivates the settled link and never polls it again', async () => {
   const { db, paidId } = seed();
   const links = paymentLinksModel.buildModel(db);
   const link = links.create({ reservationId: paidId, type: 'balance', amountCents: 21000, providerLinkId: 'ql_6', url: 'https://pay/6' });
@@ -67,9 +67,9 @@ test('rule 22 — the poll deactivates the settled link and never polls it again
   assert.deepEqual(p.calls, [], 'nothing left to ask the provider');
 });
 
-test('rule 22 — paid at the provider after the bucket was settled another way: not deactivated, kept for the refund', async () => {
+test('rule 23 — paid at the provider after the bucket was settled another way: not deactivated, kept for the refund', async () => {
   const { db, paidId } = seed();
-  // Settled by transfer on 1 August; the link payment (pay_9, now) comes later (rule 23).
+  // Settled by transfer on 1 August; the link payment (pay_9, now) comes later (rule 24).
   db.prepare("UPDATE reservations SET balancePaidDate = '2026-08-01' WHERE id = ?").run(paidId);
   const links = paymentLinksModel.buildModel(db);
   const link = links.create({ reservationId: paidId, type: 'balance', amountCents: 21000, providerLinkId: 'ql_6', url: 'https://pay/6' });

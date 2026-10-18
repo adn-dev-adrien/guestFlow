@@ -35,6 +35,7 @@ const CREATE_STEPS = [
 const DEPROVISION_STOP = { step: 'deprov-stop', label: 'Processus et route arrêtés, page « Cet espace a été fermé »' };
 const RESTART = { step: 'restart', label: 'Processus et route relancés depuis le dossier' };
 const RENAME = { step: 'rename', label: 'Dossier renommé, processus et route relancés, redirection 301 posée' };
+const PROCESS_RESTART = { step: 'process-restart', label: 'Processus redémarré' };
 const REDIRECT_DAYS = 90;
 
 function parseRange(text) {
@@ -61,6 +62,7 @@ function addDaysIso(day, n) {
 function createProvisioner({
   models, drivers, releases, instances, now, fetchImpl = fetch, hooks,
   portRange = '4400-4499', healthTimeoutMs = 60000, licencePublicKey = null, isPortFree = portIsFree, today,
+  publicUrlOf = () => null, registryUrl = null,
 }) {
   const { customers, provisioning, hosting } = models;
   const [portLo, portHi] = parseRange(portRange);
@@ -94,6 +96,8 @@ function createProvisioner({
       releasesDir: releases.dir,
       secrets,
       licencePublicKey,
+      publicUrl: publicUrlOf(inst.slug),
+      registryUrl,
       extra: { ...drivers.proxy.instanceEnv(), ...drivers.mail.envFor(inst), GUESTFLOW_PROXY_SECRET: proxySecret },
     }));
   }
@@ -297,6 +301,28 @@ function createProvisioner({
     });
   }
 
+  // Rule 29: a process that failed (or no longer answers) is restarted, then checked; the env file
+  // is rewritten first, so the restart also picks up what the console writes now.
+  function restartProcess(customerId) {
+    return exclusive(customerId, async () => {
+      const c = customers.get(customerId);
+      return runStep(c, PROCESS_RESTART, async () => {
+        const inst = instanceOf(c);
+        if (!fs.existsSync(inst.dir) || !inst.port) throw new Error('Aucune instance à redémarrer.');
+        syncEnv(c);
+        await drivers.process.restart(inst);
+        hosting.set(c.id, { unit_state: 'running' });
+        const res = await healthy(inst);
+        if (!res.ok) {
+          hosting.set(c.id, { unit_state: (await drivers.process.state(inst).catch(() => 'failed')) || 'failed' });
+          throw new Error(`Contrôle de santé : ${res.error}.`);
+        }
+        hosting.set(c.id, { down_since: null });
+        return `${res.version} répond.`;
+      });
+    });
+  }
+
   // Rule 5: the directory moves, the unit runs under the new slug, the new site is added, and the
   // old address answers 301 for 90 days. `c.slug` is already the new one.
   function rename(customerId, oldSlug) {
@@ -363,6 +389,7 @@ function createProvisioner({
     DEPROVISION_STOP,
     RESTART,
     RENAME,
+    PROCESS_RESTART,
     REDIRECT_DAYS,
     instanceOf,
     syncEnv,
@@ -372,6 +399,7 @@ function createProvisioner({
     create,
     stop,
     restart,
+    restartProcess,
     rename,
     erase,
     running,

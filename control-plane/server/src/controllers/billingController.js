@@ -8,7 +8,7 @@
  */
 
 const crypto = require('crypto');
-const { dueWindow, renewedEndsAt } = require('../utils/lifecycle');
+const { dueWindow } = require('../utils/lifecycle');
 const { parisDay, addDays, addMonths, frDay } = require('../utils/days');
 const { KINDS, render } = require('../utils/templates');
 const { httpError } = require('../utils/httpError');
@@ -309,9 +309,7 @@ function createBillingController(ctx, customersController) {
   function settle(inv, { paidBy, paidAt, operator }) {
     if (!invoices.markPaid({ id: inv.id, paidAt, paidBy })) return false;
     const c = customers.get(inv.customerId);
-    const endsAt = renewedEndsAt(c.endsAt, inv.months, today());
-    customers.setEndsAt(c.id, endsAt);
-    customers.setForceActiveUntil(c.id, null);
+    const endsAt = customersController.applyPayment(c, inv.months);
     drop(inv.id, 'la facture est payée');
     journal(c.id, operator, 'payment', `Facture ${inv.number || '(en préparation)'} ${paidBy === 'qonto' ? 'payée (Qonto)' : 'soldée à la main'} : ${euros(inv.amountCents)} HT, échéance au ${frDay(endsAt)}`);
     refresh(c.id, operator);

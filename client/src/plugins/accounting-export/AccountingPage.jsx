@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton,
+  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton, Divider, useMediaQuery, useTheme,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -163,7 +163,7 @@ export default function AccountingPage() {
                 </Typography>
               </Box>
               {sales && sales.totals.entriesCount > 0 && (
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   {/* « écritures » plutôt qu'« encaissements » : le journal mêle désormais les
                       encaissements et les avoirs (specs/reservation-refunds.md §3.4). */}
                   <Chip size="small" label={`${sales.totals.entriesCount} écriture${sales.totals.entriesCount > 1 ? 's' : ''}`} />
@@ -474,7 +474,64 @@ function KindBadge({ kind }) {
   );
 }
 
-function JournalEntryCard({ entry, canOpenReservation = false }) {
+const MONO_AMOUNT_SX = { fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums', fontWeight: 700 };
+
+/**
+ * The journal lines on a phone: one stacked row per line, the amount always in view on the right
+ * (specs/ds-components.md rule 23). The five-column table needs ~470 px and the card clips it.
+ */
+function JournalLinesCompact({ entry }) {
+  return (
+    <Stack divider={<Divider flexItem />} data-testid="journal-lines-compact">
+      {entry.lines.map((line, idx) => {
+        const s = LINE_STYLES[line.type] || LINE_STYLES.other;
+        return (
+          <Box key={idx} data-testid="journal-line" sx={{ px: 2, py: 1, bgcolor: lineBg(s.color), display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Chip size="small" color={s.color} variant="filled" label={s.label} sx={{ height: 22 }} />
+                <Box sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem' }}>{line.compte}</Box>
+              </Stack>
+              {line.accountLabel && (
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', lineHeight: 1.2, mt: 0.5 }}>
+                  {line.accountLabel}
+                </Typography>
+              )}
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', overflowWrap: 'anywhere' }}>
+                {line.libelle}
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+              {line.debit != null && (
+                <>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Débit</Typography>
+                  <Typography variant="body2" sx={MONO_AMOUNT_SX}>{formatCurrency(line.debit)}</Typography>
+                </>
+              )}
+              {line.credit != null && (
+                <>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Crédit</Typography>
+                  <Typography variant="body2" sx={MONO_AMOUNT_SX}>{formatCurrency(line.credit)}</Typography>
+                </>
+              )}
+              {line.debit == null && line.credit == null && <Typography variant="body2">—</Typography>}
+            </Box>
+          </Box>
+        );
+      })}
+      <Box sx={{ px: 2, py: 1, bgcolor: 'grey.100', display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>Σ</Typography>
+        <Typography variant="body2" sx={MONO_AMOUNT_SX}>
+          Débit {formatCurrency(entry.sumDebits)} · Crédit {formatCurrency(entry.sumCredits)}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
+export function JournalEntryCard({ entry, canOpenReservation = false }) {
+  const theme = useTheme();
+  const compact = useMediaQuery(theme.breakpoints.down('sm'));
   const isPlatform = Boolean(entry.platform.platform);
   // An avoir reads « argent rendu » : warning-toned chip, an explicit minus on the amount, and no
   // « % du séjour » caption (a refund covers no share of it — the server sends `stayShare: null`).
@@ -579,6 +636,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
         </Box>
       )}
 
+      {compact ? <JournalLinesCompact entry={entry} /> : (
       <Table size="small" sx={{ '& td, & th': { borderColor: (t) => alpha(t.palette.common.black, 0.06) } }}>
         <TableHead>
           <TableRow sx={{ bgcolor: 'grey.50' }}>
@@ -622,6 +680,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           </TableRow>
         </TableBody>
       </Table>
+      )}
     </Card>
   );
 }

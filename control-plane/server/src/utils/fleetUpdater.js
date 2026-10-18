@@ -21,6 +21,8 @@ const { backupTo, removeDatabaseFiles } = require('./sqliteBackup');
 const { assertInside, shareDatabase } = require('./instanceFiles');
 const { waitHealthy } = require('./health');
 const { httpError } = require('./httpError');
+const { semver, proxySecret } = require('./gf');
+const { readEnv } = require('./instanceEnv');
 
 const KEEP_SNAPSHOTS = 3;
 const PHASES = { snapshot: 'Instantané de la base', switch: 'Bascule de version', restart: 'Redémarrage', health: 'Contrôle de santé' };
@@ -54,10 +56,15 @@ function createFleetUpdater({
     return file;
   }
 
-  // A process that has already exited is not waited for 60 s.
-  async function healthy(inst, expectVersion) {
+  // A process that has already exited is not waited for 60 s. `expect` = { version, plugin }.
+  async function healthy(inst, expect) {
     const gone = async () => ((await drivers.process.state(inst)) === 'failed' ? 'le processus s’est arrêté au démarrage' : null);
-    return waitHealthy({ url: drivers.proxy.healthUrl(inst), expectVersion, timeoutMs: healthTimeoutMs, fetchImpl, gone });
+    // The instance says which plugin version loaded only to a request carrying its proxy secret.
+    const secret = expect.plugin && inst.envFile ? (readEnv(inst.envFile) || {}).GUESTFLOW_PROXY_SECRET : null;
+    return waitHealthy({
+      url: drivers.proxy.healthUrl(inst), headers: secret ? { [proxySecret.HEALTH_HEADER]: secret } : undefined,
+      expectVersion: expect.version, expectPlugin: expect.plugin || null, timeoutMs: healthTimeoutMs, fetchImpl, gone,
+    });
   }
 
   // How each kind of update changes an instance, and undoes it.
@@ -67,24 +74,26 @@ function createFleetUpdater({
         const row = hosting.get(c.id);
         hosting.set(c.id, { previous_version: row.version, version: update.target_version });
         provisioner.syncEnv(c);
-        return update.target_version;
+        return { version: update.target_version };
       },
       async revert(c, item) {
         hosting.set(c.id, { version: item.from_version, previous_version: null });
         provisioner.syncEnv(c);
-        return item.from_version;
+        return { version: item.from_version };
       },
     },
-    // Rule 11: a plugin version pushed to the instances that have the plugin installed. The package
-    // itself is installed by the registry of phase 4 (`pluginInstaller`).
+    // Rule 11: a plugin version from the console's registry, pushed to the instances that have the
+    // plugin installed (`pluginInstaller`: the instance's own script switches the package). The
+    // health check also asks that the plugin loaded at that version; the rollback puts the snapshot's
+    // database back — the row and its previous package — then `current` follows it.
     plugin: {
       async apply(c, update) {
         await pluginInstaller.install(provisioner.instanceOf(c), update.plugin_id, update.target_version);
-        return (hosting.get(c.id) || {}).version;
+        return { version: (hosting.get(c.id) || {}).version, plugin: { id: update.plugin_id, version: update.target_version } };
       },
       async revert(c, item, update) {
         await pluginInstaller.rollback(provisioner.instanceOf(c), update.plugin_id);
-        return (hosting.get(c.id) || {}).version;
+        return { version: (hosting.get(c.id) || {}).version };
       },
     },
   };
@@ -134,12 +143,13 @@ function createFleetUpdater({
       const expect = await kind.revert(c, item, update);
       await drivers.process.start(provisioner.instanceOf(c));
       const res = await healthy(provisioner.instanceOf(c), expect);
-      back = res.ok ? `retour en ${expect}, base de l’instantané remise` : `retour en ${expect} sans réponse (${res.error})`;
+      const where = update.kind === 'plugin' ? `${update.plugin_id} ${item.from_version || 'précédent'}` : expect.version;
+      back = res.ok ? `retour en ${where}, base de l’instantané remise` : `retour en ${where} sans réponse (${res.error})`;
     } catch (err) {
       back = `retour arrière impossible (${err.message})`;
     }
     set('rolled_back', 'health', `${failure} ; ${back}.`, snap);
-    journal(c.id, update.operator, 'update', `Mise à jour vers ${update.target_version} annulée : ${failure} ; ${back}`);
+    journal(c.id, update.operator, 'update', `${update.kind === 'plugin' ? `Plugin ${update.plugin_id} : mise à jour` : 'Mise à jour'} vers ${update.target_version} annulée : ${failure} ; ${back}`);
     return { ok: false, error: `${c.companyName} : ${failure}.` };
   }
 
@@ -187,7 +197,16 @@ function createFleetUpdater({
     let targets;
     if (kind === 'plugin') {
       if (!pluginInstaller) throw httpError(412, 'NO_REGISTRY', 'Disponible avec le registre des plugins.');
-      targets = eligible(customerIds).filter(({ c }) => (installedPlugins(c) || []).includes(pluginId));
+      if (!pluginInstaller.published(pluginId).includes(targetVersion)) throw httpError(400, 'NOT_PUBLISHED', `${pluginId} ${targetVersion} n’est pas publié dans le registre.`);
+      // Never a downgrade, as on the instance (its own script refuses one too): a plugin's migrations
+      // only move forward. An instance whose version is unknown is left to that script.
+      const having = eligible(customerIds)
+        .map((t) => ({ ...t, from: (installedPlugins(t.c) || {})[pluginId] }))
+        .filter((t) => t.from !== undefined);
+      targets = having.filter((t) => !semver.isValidVersion(t.from) || semver.isNewerVersion(targetVersion, t.from));
+      if (having.length && !targets.length && having.some((t) => t.from !== targetVersion)) {
+        throw httpError(400, 'NOT_NEWER', `${pluginId} ${targetVersion} : version antérieure à celle des instances.`);
+      }
     } else {
       if (!releases.has(targetVersion)) throw httpError(400, 'NOT_INSTALLED', `La version ${targetVersion} n’est pas installée sur l’hôte.`);
       targets = eligible(customerIds).filter(({ row }) => row.version !== targetVersion);
@@ -196,7 +215,7 @@ function createFleetUpdater({
     const scope = customerIds ? (customerIds.length === 1 ? 'one' : 'selection') : 'all';
     const updateId = hosting.createUpdate({
       kind, pluginId, targetVersion, scope, startedAt: stamp(), operator,
-      items: targets.map(({ c, row }) => ({ customerId: c.id, fromVersion: row.version })),
+      items: targets.map(({ c, row, from }) => ({ customerId: c.id, fromVersion: kind === 'plugin' ? from || null : row.version })),
     });
     current = run(updateId).catch((err) => {
       hosting.endUpdate(updateId, 'failed', stamp(), err.message);
@@ -217,7 +236,11 @@ function createFleetUpdater({
     }
   }
 
-  return { start, busy, whenIdle, recover, whileRestoring, PHASES, pluginPushAvailable: () => Boolean(pluginInstaller) };
+  return {
+    start, busy, whenIdle, recover, whileRestoring, PHASES,
+    pluginPushAvailable: () => Boolean(pluginInstaller),
+    publishedPluginVersions: (id) => (pluginInstaller ? pluginInstaller.published(id) : []),
+  };
 }
 
 module.exports = { createFleetUpdater, PHASES };

@@ -9,6 +9,14 @@
  * Prints one JSON line on stdout, `{ "created": true, "temporaryPassword": "…" }`, which the control
  * plane emails to the customer. The password is never logged anywhere else.
  *
+ * Optional (specs/hosting-h1-fleet-runtime.md rules 24–25):
+ *   --company "<name>"            the user's company, shown by the instance as the account's company
+ *   --establishment '<json>'      { name, email, address, phone, tva } — fills the empty fields of the
+ *                                 establishment (`seeded` lists the columns written)
+ *   --reissue unused|always       an existing account gets a new provisional password: `unused` only
+ *                                 when nobody ever signed in to it, `always` in any case (and its
+ *                                 second step is turned off)
+ *
  * Opening the database runs this code's migrations. So on an existing database the script first
  * replays them on a copy, and refuses when they would change anything: a script of another version
  * than the instance must never move the customer's schema ahead of (or behind) the code that runs it.
@@ -84,10 +92,26 @@ try {
   }
   require('../src/database');
   const usersModel = require('../src/models/usersModel');
+  const settingsModel = require('../src/models/settingsModel');
+  const twoFactorModel = require('../src/models/twoFactorModel').default;
+  const sessionsModel = require('../src/models/sessionsModel');
   const { generateTemporaryPassword } = require('../src/utils/passwordGenerator');
-  const { createFirstAdmin } = require('../src/utils/firstAdmin');
-  const result = createFirstAdmin({ usersModel, generatePassword: () => generateTemporaryPassword(), email, name: arg('name') });
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  const { createFirstAdmin, seedEstablishment } = require('../src/utils/firstAdmin');
+  let establishment = null;
+  if (arg('establishment')) {
+    try {
+      establishment = JSON.parse(arg('establishment'));
+    } catch {
+      console.error('--establishment : JSON illisible.');
+      process.exit(2);
+    }
+  }
+  const result = createFirstAdmin({
+    usersModel, twoFactorModel, sessionsModel, generatePassword: () => generateTemporaryPassword(), email, name: arg('name'),
+    companyName: arg('company') || '', reissue: arg('reissue') || 'never',
+  });
+  const seeded = establishment ? seedEstablishment({ settingsModel, establishment }) : [];
+  process.stdout.write(`${JSON.stringify(establishment ? { ...result, seeded } : result)}\n`);
   process.exit(0);
 } catch (err) {
   console.error(err.message);

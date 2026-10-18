@@ -8,8 +8,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box,
   Typography, Stack, FormControl, InputLabel, Select, MenuItem, TextField,
-  CircularProgress, Chip, Tooltip,
+  CircularProgress, Chip, Tooltip, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
@@ -37,6 +38,9 @@ function formatTargetDate(startDateIso, dayOffset) {
 export default function EmailManualSendDialog({
   open, reservationId, reservationStartDate, defaultTemplateId, onClose, onSent,
 }) {
+  // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState(defaultTemplateId || '');
   const [subject, setSubject] = useState('');
@@ -150,7 +154,7 @@ export default function EmailManualSendDialog({
   const sendDisabled = sending || loading || !templateId || !emailValid;
 
   return (
-    <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle>Aperçu de l'email</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>

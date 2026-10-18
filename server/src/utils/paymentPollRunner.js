@@ -16,7 +16,7 @@
  *   - checkConflict?    : ({ reservationId }) => boolean — dates no longer free at conversion
  *   - notifyConflict?   : (reservationId) => notify the admin of an over-booked paid booking (best-effort)
  *   - notifyPaidAfterCancel? : (link, { settledOn }?) => tell the admin a cancelled link was paid (best-effort,
- *                              rule 8; `settledOn` = the bucket was settled another way before, rule 23)
+ *                              rule 8; `settledOn` = the bucket was settled another way before, rule 24)
  *
  * Idempotent: a link already `paid` is never re-listed by the poll; converting an already-converted devis
  * only records the bucket again, which the recorder ignores; a webhook replay re-runs the same no-ops.
@@ -158,7 +158,7 @@ async function retryPendingCancellations({ paymentLinksModel, provider, notifyPa
   return { results, stoppedBy: null };
 }
 
-// specs/plugins-phase-3a-online-payment.md rule 23 — a link retired by rule 22 and found paid. Most of
+// specs/plugins-phase-3a-online-payment.md rule 24 — a link retired by rule 23 and found paid. Most of
 // the time it is the very payment the operator saw arrive and ticked by hand before the webhook did:
 // the link becomes `paid` and the bucket goes through the idempotent recorder (already paid → nothing).
 // Only a bucket recorded paid on an EARLIER day than this payment points to a second payment: then the
@@ -187,7 +187,7 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
 // (`force` = a human asked, every open link). A rate limit that survives the client's back-off stops the
 // pass: the links not yet examined wait for the next tick instead of being requested into a `429`.
 async function runPaymentPoll({ database, paymentLinksModel, provider, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, force = false, now = new Date() }) {
-  // specs/plugins-phase-3a-online-payment.md rule 22 — a link whose bucket was settled another way
+  // specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket was settled another way
   // leaves the polling list and joins the owed deactivations retried just below.
   const settled = typeof paymentLinksModel.retireSettled === 'function' ? paymentLinksModel.retireSettled() : [];
   const pending = await retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment });

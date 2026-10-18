@@ -62,6 +62,12 @@ supports multiple users later, but ships with a single admin account for now.
    **Revocation (AUTH-1/AUTH-6):** account-lifecycle events delete the stored session rows via
    `models/sessionsModel.js` — deactivation, admin password reset and a role change revoke *all* of
    the target's sessions; a voluntary password change revokes every session *except* the caller's.
+   > **2026-10-18 (code review):** a session waiting for its second step belongs to its user too
+   > (`sess.pendingTwoFactor.userId`): revoking a user's sessions ends it, so a code typed after a
+   > deactivation or a password reset opens nothing. The second step itself re-reads the user and
+   > refuses an inactive one (`401 NO_PENDING_LOGIN`, also for « Renvoyer le code »). If the session
+   > store cannot regenerate the id at login, the login fails closed: the error goes to Express (500),
+   > nothing is written in the session, and the user simply logs in again.
 4. **Passwords** are hashed with `scrypt` (Node built-in) + a per-password random salt; never stored or
    logged in clear. Verification is constant-time.
 5. **Default admin + forced first-login password change.** `users` table with a `role` column

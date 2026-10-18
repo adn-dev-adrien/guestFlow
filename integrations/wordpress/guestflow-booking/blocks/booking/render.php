@@ -19,6 +19,14 @@ if ($property_id <= 0 && isset($_GET['property'])) { // phpcs:ignore WordPress.S
 if ($property_id <= 0) {
     $property_id = (int) GF_Settings::instance()->get('default_property_id', 0);
 }
+// No property anywhere (a page created by the settings screen, opened without ?property=): the
+// visitor picks a lodging first, from the cards that link back here (specs/wordpress-plugin.md rule 14).
+// Never on the way back from the payment page: the container shows that payment's status (rule 23).
+$returning_from_payment = isset($_GET['gf_payment']); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+if ($property_id <= 0 && !$returning_from_payment) {
+    echo render_block(['blockName' => 'guestflow/properties', 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => []]); // phpcs:ignore WordPress.Security.EscapeOutput
+    return;
+}
 $show_options = !isset($attributes['showOptions']) || (bool) $attributes['showOptions'];
 $pay_online = !empty($attributes['payOnline']);
 

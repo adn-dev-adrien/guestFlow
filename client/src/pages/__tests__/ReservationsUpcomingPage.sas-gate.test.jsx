@@ -11,7 +11,7 @@ import DialogProvider from '../../components/DialogProvider';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getReservations: vi.fn(),
+    getUpcomingReservations: vi.fn(),
     getReservation: vi.fn(),
     markPayment: vi.fn(),
     getReservationSas: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock('../../hooks/usePlugins', () => ({ usePlugin: (id) => enabled.has(id) })
 import api from '../../api';
 import ReservationsUpcomingPage from '../ReservationsUpcomingPage';
 
-const TOMORROW = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+const TOMORROW = '2099-01-01';
 const STAY = {
   id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Tente', platform: 'direct',
   startDate: TOMORROW, endDate: '2099-01-02', checkInTime: '15:00', checkOutTime: '10:00',
@@ -45,21 +45,23 @@ function renderPage() {
 beforeEach(() => {
   enabled.clear();
   vi.clearAllMocks();
-  api.getReservations.mockResolvedValue([STAY]);
-  api.getReservation.mockResolvedValue(STAY);
+  api.getUpcomingReservations.mockResolvedValue({
+    today: '2026-10-18',
+    days: [{ date: TOMORROW, label: 'jeudi 1 janvier', isToday: false, reservations: [STAY], readyCount: 0, total: 1, allReady: false }],
+  });
   api.getReservationSas.mockReturnValue(new Promise(() => {}));
 });
 
 test('specs/plugins-phase-2-hosts.md rule 9 — without sas, the « À venir » cards carry no SAS button (gap 4)', async () => {
   renderPage();
   expect(await screen.findByText(/Dupont/)).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Check-in (SAS arrivée)' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Accueil' })).not.toBeInTheDocument();
   expect(api.getReservationSas).not.toHaveBeenCalled();
 });
 
 test('specs/plugins-phase-2-hosts.md rule 9 — with sas active, the button opens the dialog contributed to sas.dialog', async () => {
   enabled.add('sas');
   renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: 'Check-in (SAS arrivée)' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Accueil' }));
   await waitFor(() => expect(api.getReservationSas).toHaveBeenCalledWith(1, 'arrival'));
 });
