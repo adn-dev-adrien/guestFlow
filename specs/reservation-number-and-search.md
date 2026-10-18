@@ -91,6 +91,26 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 - Accent sensitivity: matching uses SQLite `LOWER` + `LIKE` (ASCII-case-insensitive), mirroring the existing
   `/emails/eligible-reservations` search. Accent-insensitive matching is out of scope (see §8).
 
+### Numbering after a cancellation (2026-10-18)
+
+> **Why this was added.** A cancelled stay keeps its number (`kind = 'cancelled'`) and the unique index
+> covers it, but the generator only scanned `kind = 'reservation'`. Once the latest number of the month
+> belonged to a cancelled stay, every creation reused it: HTTP 500 on the fiche, on the devis conversion
+> and on the iCal import, until the month changed. The failed fiche creation also left its row behind,
+> without a number, blocking the dates and exported in the iCal feed.
+
+13. The next number is computed over **every row that carries a number**, whatever its `kind` (a cancelled
+    stay included), and the counter max is **numeric** (the all-digit suffix after `AAAAMM`; a value of
+    another shape is ignored). A reservation creation — the row, its number, its history entry, its option,
+    night and resource lines — is **one transaction**: a failure anywhere rolls the whole write back, so no
+    stay is ever left half-written or without a number. The devis conversion and the iCal import were
+    already transactional; they share the generator and therefore the fix.
+14. A **one-shot repair** at boot (`reservation_number_repair_numberless_v1`) gives a number to every
+    `kind = 'reservation'` row still lacking one, in the month of its `createdAt`, writes a history line on
+    it (« N° de réservation → `AAAAMM###` (attribué par réparation) ») and lists each one in the boot log.
+    Nothing is deleted: a ghost left by the old failure cannot be told from a real stay by the data, so the
+    operator decides. Idempotent.
+
 ---
 
 ## 4. Architecture
@@ -104,11 +124,11 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | `routes/reservations.js` | T | Add `GET /reservations/search` → `controller.search`. Route stays thin. |
-| `controllers/` | `controllers/reservationsController.js` | T | `search(req,res)` (reads `q`, delegates to model). In `create`/`update`: generate `reservationNumber` when missing, accept an override, validate uniqueness → 400 `RESERVATION_NUMBER_TAKEN` on collision. |
+| `controllers/` | `controllers/reservationsController.js` | T | `search(req,res)` (reads `q`, delegates to model). In `create`/`update`: generate `reservationNumber` when missing, accept an override, validate uniqueness → 400 `RESERVATION_NUMBER_TAKEN` on collision. `create` writes the row and its lines in one transaction (rule 13). |
 | `models/` | `models/reservationsModel.js` | T | `search({ q })` (the 5-way LIKE query, shaped + capped). `insertReservation`/`updateReservation` persist `reservationNumber` (`persistReservationNumber`: override verbatim, else keep/generate). `isReservationNumberTaken(number, exceptId)` + `getReservationNumber(id)`. |
 | `models/` | `models/devisModel.js` | T | `convertToReservation` calls `assignReservationNumberIfMissing` so a converted devis gets a number (rule 5). |
 | `models/` | `models/propertyIcalModel.js` | T | Each iCal-imported reservation calls `assignReservationNumberIfMissing` so iCal bookings are numbered too. |
-| `utils/` | `utils/reservationNumber.js` | C | Pure helpers: `monthPrefix`, `nextNumberForPrefix`, `generateReservationNumber(db,{now})`, `assignReservationNumberIfMissing(db,id)` (the shared "number any reservation that lacks one" used by the side insert paths), `backfillReservationNumbers(db)`, `dehyphenateReservationNumbers(db)` (the one-shot format reformat). Mirrors `generateDevisNumber` but scoped to `reservationNumber`. |
+| `utils/` | `utils/reservationNumber.js` | C | Pure helpers: `monthPrefix`, `nextNumberForPrefix` (every numbered row counts, numeric max — rule 13), `repairNumberlessReservations(db)` (rule 14), `generateReservationNumber(db,{now})`, `assignReservationNumberIfMissing(db,id)` (the shared "number any reservation that lacks one" used by the side insert paths), `backfillReservationNumbers(db)`, `dehyphenateReservationNumbers(db)` (the one-shot format reformat). Mirrors `generateDevisNumber` but scoped to `reservationNumber`. |
 | `utils/` | `utils/emailContextBuilder.js` | T | New `vars.reservationNumber` + `flags.hasReservationNumber` (from the reservation row — both email loaders `SELECT *`). |
 | `utils/` | `utils/defaultEmailTemplatesRegistry.js` | T | J-7 + J-2 bodies gain the gated `{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}{{/if}}` recap line. |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE reservations ADD COLUMN reservationNumber TEXT`; partial unique index `ux_reservations_reservationNumber`; one-shot backfill migration (migrations-table guard, key `reservation_number_backfill_v1`); a one-shot **drop-hyphens** migration (`reservation_number_drop_hyphens_v1`) reformatting original-format numbers `AAAA-MM-###`→`AAAAMM###` (custom/non-conforming left as-is, collision-safe); idempotent content REPLACE injecting the number line into already-seeded J-7/J-2 bodies. |
@@ -168,6 +188,9 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
    (`REPLACE(..., '-', '')`). Custom / non-conforming numbers are **left untouched**. A row is skipped when
    its de-hyphenated value would collide with an existing number (the partial unique index stays satisfied).
    Idempotent.
+
+5. **Repair numberless stays** (run once, key `reservation_number_repair_numberless_v1`, 2026-10-18 — rule 14):
+   number every `kind = 'reservation'` row still without one, add a history line, log each id. Never deletes.
 
 **Data impact:** additive column; no existing data lost. Backfill only writes NULL/empty rows; the
 drop-hyphens migration only rewrites original-format `reservationNumber` values (never devis, never custom
@@ -231,6 +254,11 @@ numbers, never a value that would collide). Devis rows are never touched.
   (+2 asserts) — J-7 & J-2 bodies carry the gated recall; it renders when set, is omitted when blank.
 - [x] Boot-verified: backfill assigns per-month numbers on an existing DB; the email content migration injects
   the line once (idempotent) into already-seeded J-7/J-2 bodies.
+
+- [x] `tests/reservation-number-after-cancellation.unit.test.js` (+9, 2026-10-18 — rules 13-14) — the next
+  number steps over a cancelled max; numeric max past 999; non-conforming numbers ignored; model insert, devis
+  conversion and iCal import after a cancellation; the real controller answers 200 after a cancellation and
+  rolls back a creation that fails half-way; the repair numbers, records history, ignores devis, is idempotent.
 
 ### E2E (Playwright — `e2e/specs/reservations/reservation-search.spec.js`, +2)
 - [x] All **5 query forms** surface the reservation: number, first name, last name, "first last", "last first"
