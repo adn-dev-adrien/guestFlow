@@ -61,9 +61,10 @@ function buildModel(db) {
       return hydrate(db.prepare(`SELECT * FROM gdf_intakes WHERE reservationId = ? AND dismissedAt IS NULL
         ORDER BY id DESC LIMIT 1`).get(Number(reservationId)));
     },
-    // Dashboard: unreadable mails, and bookings still without a fiche after a day.
+    // Dashboard: unreadable mails, bookings still without a fiche after a day, and fiches waiting for the
+    // operator to choose the rent (rule 14, amended 2026-10-18: the banner alone was easy to miss).
     listAttention(nowIso) {
-      return db.prepare(`SELECT * FROM gdf_intakes WHERE dismissedAt IS NULL AND (status = 'error'
+      return db.prepare(`SELECT * FROM gdf_intakes WHERE dismissedAt IS NULL AND (status IN ('error', 'needs_rent')
         OR (status = 'pending' AND datetime(receivedAt) <= datetime(?, '-1 day'))) ORDER BY receivedAt DESC`).all(nowIso).map(hydrate);
     },
     count() {

@@ -2528,6 +2528,19 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(c
 // disabled « Support GuestFlow » user. Additive, idempotent.
 require('./utils/accountSecuritySchema').applyAccountSecuritySchema(db);
 
+// ---------- iCal PLACEHOLDER CLIENTS (specs/ical-import-hardening.md rule 1) ----------
+// Before 2026-10-18 every iCal stay without a guest name shared one placeholder client per feed, so a
+// guest written onto one fiche landed on all of them. Gives each such stay its own placeholder; never
+// touches a client that carries a guest's coordinates. Idempotent, data-only (no schema change).
+try {
+  const split = require('./utils/icalPlaceholderClientsMigration').splitSharedIcalPlaceholderClients(db);
+  if (split.movedReservations > 0 || split.renamedClients > 0) {
+    console.log(`[ical-clients] ${split.movedReservations} séjour(s) iCal détaché(s) de ${split.splitClients} client(s) partagé(s), ${split.renamedClients} client(s) renommé(s).`);
+  }
+} catch (err) {
+  console.warn('[ical-clients] séparation des clients iCal partagés impossible :', err.message);
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

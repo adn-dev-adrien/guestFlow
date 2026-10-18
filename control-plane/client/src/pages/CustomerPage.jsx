@@ -28,11 +28,14 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import ReplayIcon from '@mui/icons-material/Replay';
 import SettingsBackupRestoreIcon from '@mui/icons-material/SettingsBackupRestore';
+import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox';
+import LockResetIcon from '@mui/icons-material/LockReset';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import PageActionBar from '@gf/components/PageActionBar';
 import FormDialog from '@gf/components/FormDialog';
 import LoadingState from '@gf/components/LoadingState';
 import ErrorAlert from '@gf/components/ErrorAlert';
-import { useToast } from '@gf/components/DialogProvider';
+import { useAppDialogs, useToast } from '@gf/components/DialogProvider';
 import LifecycleChip from '../components/LifecycleChip';
 import ProvisioningSteps from '../components/ProvisioningSteps';
 import KeyValues from '../components/KeyValues';
@@ -70,6 +73,7 @@ export default function CustomerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
+  const { confirm } = useAppDialogs();
   const [c, setC] = useState(null);
   const [error, setError] = useState(null);
   const [dialog, setDialog] = useState(null);
@@ -145,6 +149,14 @@ export default function CustomerPage() {
   if (!c) return <><PageActionBar title="Client" backTo="/" /><LoadingState /></>;
 
   const a = c.actions;
+  const resetAccess = async () => {
+    const ok = await confirm({
+      title: 'Réinitialiser l’accès ?',
+      message: `Un nouveau mot de passe provisoire part à ${c.contactEmail} ; l’ancien ne sert plus et le second facteur est désactivé.`,
+      confirmLabel: 'Réinitialiser',
+    });
+    if (ok) act(() => api.resetAccess(c.id));
+  };
   const openRemind = async () => {
     try {
       const { preview } = await api.remindPreview(c.id);
@@ -182,6 +194,8 @@ export default function CustomerPage() {
     a.extend && { icon: <EventIcon />, tooltip: 'Prolonger', color: 'info', onClick: () => openDialog('extend', { endsAt: c.defaults.extendTo, reason: '', expectedEndsAt: c.endsAt }) },
     a.forceActive && { icon: <LockOpenIcon />, tooltip: 'Remettre en actif', color: 'info', onClick: () => openDialog('force', { until: c.defaults.forceActiveUntil, reason: '' }) },
     a.rename && { icon: <DriveFileRenameOutlineIcon />, tooltip: 'Changer l’adresse', color: 'info', onClick: () => { setRenameCheck(null); openDialog('rename', { slug: '', checked: [] }); } },
+    a.resendInvitation && { icon: <ForwardToInboxIcon />, tooltip: 'Renvoyer l’invitation', color: 'info', onClick: () => act(() => api.resendInvitation(c.id)) },
+    a.resetAccess && { icon: <LockResetIcon />, tooltip: 'Réinitialiser l’accès', color: 'warning', onClick: resetAccess },
     a.changePlan && { icon: <SwapHorizIcon />, tooltip: 'Changer de forfait', color: 'info', onClick: () => openDialog('plan', { planCode: c.planCode, billing: c.billing, addons: c.addons.map((x) => x.id) }) },
     { icon: <DownloadIcon />, tooltip: 'Télécharger la licence', onClick: () => { window.location.href = api.licenceUrl(c.id); } },
   ].filter(Boolean);
@@ -221,6 +235,12 @@ export default function CustomerPage() {
         {c.hosting && (
           <Section title="Hébergement" action={(
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {a.restartProcess && (
+                <Button size="small" variant="contained" color="error" sx={{ minHeight: 44 }} startIcon={<RestartAltIcon />} disabled={busy}
+                  onClick={() => act(() => api.restartProcess(c.id))}>
+                  Redémarrer
+                </Button>
+              )}
               <Button size="small" sx={{ minHeight: 44 }} onClick={() => navigate(`/versions?client=${c.id}`)}>Mettre à jour</Button>
               {c.hosting.canRestore && (
                 <Button size="small" sx={{ minHeight: 44 }} startIcon={<SettingsBackupRestoreIcon />} onClick={() => openDialog('restore', { at: '' })}>

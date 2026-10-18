@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildQontoClient, mapQontoStatus } = require('../qonto/qontoClient');
+const { buildQontoClient, mapQontoStatus } = require('../../../utils/qonto/qontoClient');
 
 // A fetch stub that records the last call and returns a canned JSON response.
 function stubFetch(response = {}, { ok = true, status = 200 } = {}) {

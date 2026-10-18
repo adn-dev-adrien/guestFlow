@@ -12,11 +12,12 @@ const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
  * @param {{
  *   bestMonth: { month: 'YYYY-MM', revenue: number, previous: number|null } | null,
  *   direct: { revenue: number, averagePlatformRate: number|null },
- *   late: { count: number, amount: number },
+ *   late: { count: number, amount: number, payouts?: { count: number, totalAmount: number } },
+ *   unpriced?: { count: number, nights: number },
  * }} facts
  * @returns {Array<{ key, tone: 'success'|'warning'|'error'|'info', title, text }>}
  */
-function buildInsights({ bestMonth, direct, late }) {
+function buildInsights({ bestMonth, direct, late, unpriced }) {
   const out = [];
   if (bestMonth && bestMonth.revenue > 0) {
     const name = capitalise(MONTH_NAMES[Number(bestMonth.month.slice(5, 7)) - 1]);
@@ -31,14 +32,32 @@ function buildInsights({ bestMonth, direct, late }) {
   if (direct && direct.revenue > 0 && direct.averagePlatformRate != null) {
     out.push({
       key: 'directSavings',
-      tone: 'warning',
-      title: `Le direct vous a évité ${eur(direct.revenue * direct.averagePlatformRate)} de commissions`,
-      text: `${eur(direct.revenue)} réservés en direct, au taux moyen de vos plateformes (${pct(direct.averagePlatformRate)}).`,
+      tone: 'success',
+      title: `Commissions évitées par le direct : ${eur(direct.revenue * direct.averagePlatformRate)}`,
+      text: `${eur(direct.revenue)} réservés en direct, au taux moyen des plateformes (${pct(direct.averagePlatformRate)}).`,
     });
   }
+  // Rule 34 — the late payments cover the guests AND the platforms' payouts.
+  const payouts = (late && late.payouts) || { count: 0, totalAmount: 0 };
+  let lateText = `${eur(late && late.amount)} à relancer : tuile « En retard ».`;
+  if (payouts.count > 0 && payouts.count === late.count) lateText = `${eur(late.amount)} de ${payouts.count > 1 ? 'versements' : 'versement'} plateforme attendu${payouts.count > 1 ? 's' : ''} : tuile « En retard ».`;
+  else if (payouts.count > 0) lateText = `${eur(late.amount)} à relancer, dont ${eur(payouts.totalAmount)} de versements plateforme : tuile « En retard ».`;
   out.push(late && late.count > 0
-    ? { key: 'late', tone: 'error', title: `${plural(late.count, 'séjour')} en retard de paiement`, text: `${eur(late.amount)} à relancer : tuile « En retard ».` }
+    ? { key: 'late', tone: 'error', title: `${plural(late.count, 'séjour')} en retard de paiement`, text: lateText }
     : { key: 'late', tone: 'info', title: 'Aucun paiement en retard', text: 'Tout est à jour.' });
+  // Rule 35 — stays on the books without an amount count as nights but not as revenue: said out loud,
+  // with the way to them.
+  if (unpriced && unpriced.count > 0) {
+    out.push({
+      key: 'unpriced',
+      tone: 'warning',
+      title: `${plural(unpriced.count, 'séjour')} sans montant`,
+      text: unpriced.nights > 0
+        ? `${plural(unpriced.nights, 'nuit')} sans revenu sur la période : montants à saisir.`
+        : 'Nuits déjà couvertes par un autre séjour : doublons à vérifier.',
+      action: { label: 'Voir les séjours', tile: 'stays', scope: 'unpriced' },
+    });
+  }
   return out;
 }
 

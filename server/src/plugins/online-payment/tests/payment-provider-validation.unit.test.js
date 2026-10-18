@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validateProviderConnection, normalizePhone } = require('../qonto/paymentProviderValidation');
+const { validateProviderConnection, normalizePhone } = require('../../../utils/qonto/paymentProviderValidation');
 
 const VALID = {
   bankAccountId: 'acc_123',

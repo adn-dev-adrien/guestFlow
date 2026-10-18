@@ -180,6 +180,18 @@ npm run dev:server
 npm run dev:client
 ```
 
+### Recette on a copy of the production database
+
+Trying a change on a copy of the real data must never email a guest. Start the server with a mail
+outbox: every email it would send (guest emails, account emails, notifications) is written as a JSON
+file in that folder instead, and no SMTP connection is opened. The variable is ignored when
+`NODE_ENV=production` (`specs/guest-email-texts-made-simple.md` rule 26).
+
+```bash
+sqlite3 server/guestflow.db "VACUUM INTO '/tmp/recette.db'"
+DB_PATH=/tmp/recette.db GUESTFLOW_MAIL_OUTBOX=/tmp/outbox npm run dev:server
+```
+
 ### Running Unit Tests
 
 Unit tests are currently implemented on the server side using Node's built-in test runner.

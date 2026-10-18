@@ -158,7 +158,7 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | `App.js` (`AppShell`) | `App.js` | T | **Global mount (2026-06-19):** the box lives in the top `AppBar`/`Toolbar` next to the « GuestFlow » wordmark, so the reservation jump is reachable from **every** page. Desktop (`md+`): the field is always visible (`maxWidth: 440`). Mobile (`< md`): a magnifier `IconButton` toggles `searchOpen`, expanding a full-width field (with a close button) over the bar. `onSelect` navigates to `/reservations/:id` with `withFrom(currentLocation)` for the back affordance. |
 | ~~`pages/CalendarPage.js`~~ / ~~`pages/Dashboard.js`~~ | — | **Removed (2026-06-19):** the per-page boxes are gone — redundant now the search is global in the header. `CalendarPage.handleReservationClick` stays (grid clicks); Dashboard keeps `withFrom`/`navigate` for its row links. |
 | `pages/` | `pages/ReservationPage.js` | T | Add `reservationNumber` to the form state; render a read-mostly field in `StaySection`; include it in the create/update payload; surface the 400 `RESERVATION_NUMBER_TAKEN` error. |
-| `components/` | `components/reservation/StaySection.js` | T | Render the "Numéro de réservation" field (editable TextField, helper "généré automatiquement, modifiable"). |
+| `components/` | `components/reservation/StaySection.js` | T | Render the "Numéro de réservation" field (editable TextField, helper « Modifiable » once a number is set, since 2026-10-18). |
 | `components/` | `components/RepairedReservationNumbersAlert.jsx` | C | Rule 15 — dashboard card, self-fetching, one row per repaired stay (opens the fiche) with « Vu ». Specific: it renders one server list. |
 | `pages/` | `pages/Dashboard.jsx` | T | Rule 15 — mounts the card under the new reservations, admin only. |
 | `api.js` | `api.js` | T | Add `searchReservations(q)` → `GET /reservations/search?q=`. `createReservation`/`updateReservation` already pass the full form payload (number rides along). |
@@ -217,7 +217,9 @@ numbers, never a value that would collide). Devis rows are never touched.
 ### Reservation fiche — number field (`StaySection`)
 
 - A **"Numéro de réservation"** TextField near the top of the Stay section (after the property select).
-  Pre-filled with the generated number; editable. Helper text: *« Généré automatiquement — modifiable »*.
+  Pre-filled with the generated number; editable. Helper text: *« Modifiable »* — until 2026-10-18 it
+  read *« Généré automatiquement — modifiable »*, which was false on a fiche whose number an intake had
+  replaced by the platform's own (review 2026-10-18, n4).
 - On save collision → the server returns 400 `RESERVATION_NUMBER_TAKEN` with the message *« Ce numéro est
   déjà utilisé par une autre réservation. »*, surfaced through the fiche's **standard save-error dialog**
   (the same `alert()` path as the min-nights / capacity / gross errors — consistent with the page, no

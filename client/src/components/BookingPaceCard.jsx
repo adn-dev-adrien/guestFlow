@@ -119,7 +119,7 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
             value={metric}
             aria-label="Mesure"
             onChange={(_, next) => { if (next) setMetric(next); }}
-            sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 1.5, minHeight: 36 } }}
+            sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 1.5, minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } } }}
           >
             {METRICS.map((m) => <ToggleButton key={m.value} value={m.value}>{m.label}</ToggleButton>)}
           </ToggleButtonGroup>

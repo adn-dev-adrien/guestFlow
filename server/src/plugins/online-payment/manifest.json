@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Liens de paiement envoyés aux voyageurs.",
   "icon": "payments",
   "surfaces": [
@@ -9,14 +9,17 @@
     "Les boutons « Envoyer la demande de paiement / de solde »"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0",
-  "sdk": "^1.0.0",
+  "guestflow": ">=3.9.0 <4.0.0",
+  "sdk": "^1.2.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
     ],
     "1.0.1": [
-      "Message plus court quand les identifiants Qonto manquent."
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Textes de la connexion Qonto à la forme impersonnelle."
     ]
   }
 }

@@ -43,8 +43,15 @@ function readerYaml({ dbPath, url, key, endpoint, region }) {
 function createLitestreamBackupDriver({
   exec, listReplicas, url, endpoint = '', region = '', credentials = {},
   litestreamBin = 'litestream', applyCommand = 'sudo -n /usr/local/sbin/guestflow-litestream-apply', rcloneBin = 'rclone', rcloneRemote,
-  tmpDir = os.tmpdir(),
+  rcloneEnv = null, tmpDir = os.tmpdir(),
 }) {
+  // A derived remote travels in rclone's environment (rule 27); a hand-made one reads rclone.conf.
+  const rcloneOpts = rcloneEnv ? { env: { PATH: process.env.PATH, ...rcloneEnv } } : undefined;
+  const rclone = (args) => exec(rcloneBin, args, rcloneOpts);
+  const remote = () => {
+    if (!rcloneRemote) throw new Error('Stockage objet non configuré (CP_BACKUP_URL).');
+    return rcloneRemote.replace(/\/+$/, '');
+  };
   const apply = splitCommand(applyCommand);
   // The object storage keys go to Litestream through its environment, never into a file.
   const env = { PATH: process.env.PATH, ...credentials };
@@ -89,7 +96,7 @@ function createLitestreamBackupDriver({
     addReplica: (inst) => sync(inst),
     removeReplica: (inst) => sync(null, inst),
     async purge(inst) {
-      await exec(rcloneBin, ['purge', `${rcloneRemote.replace(/\/+$/, '')}/${inst.key}`]);
+      await rclone(['purge', `${remote()}/${inst.key}`]);
     },
     // Rule 10: Litestream ships the WAL every second; the update's own snapshot is the local copy.
     async snapshotNow() {
@@ -113,12 +120,12 @@ function createLitestreamBackupDriver({
       return at ? new Date(at).toISOString() : null;
     },
     async syncUploads(inst) {
-      await exec(rcloneBin, ['sync', path.join(inst.dir, 'uploads'), `${rcloneRemote.replace(/\/+$/, '')}/${inst.key}/uploads`]);
+      await rclone(['sync', path.join(inst.dir, 'uploads'), `${remote()}/${inst.key}/uploads`]);
     },
     // The console's own database, copied nightly (it is not replicated by Litestream, which runs as
     // the instances' user and cannot read the console's directory).
     async syncConsole(file) {
-      await exec(rcloneBin, ['copy', file, `${rcloneRemote.replace(/\/+$/, '')}/console/`]);
+      await rclone(['copy', file, `${remote()}/console/`]);
     },
   };
 }

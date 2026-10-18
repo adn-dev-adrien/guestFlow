@@ -13,6 +13,7 @@
  */
 
 const { fetchOfficialHolidays } = require('./educationGouvClient');
+const { localIsoDate } = require('./localDay');
 
 const ZONE_FIELD = {
   'Zone A': ['zoneA_start', 'zoneA_end'],
@@ -91,7 +92,7 @@ function groupRecords(records) {
 }
 
 function todayIso(now) {
-  return now.toISOString().slice(0, 10);
+  return localIsoDate(now);
 }
 
 async function runSync({ model, fetchFn = fetch, horizonMonths, now = new Date() }) {

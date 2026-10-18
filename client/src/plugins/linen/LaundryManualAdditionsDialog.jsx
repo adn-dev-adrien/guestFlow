@@ -2,14 +2,15 @@
  * LaundryManualAdditionsDialog — editor for a laundry trip's manual linen line
  * (specs/manual-laundry-additions.md §6, specs/laundry-manual-removals.md §6).
  *
- * Six per-type steppers grouped « Draps » (simple / double / bébé) + « Serviettes » (grande /
- * moyenne / petite), pre-filled with the trip's current values. The values are SIGNED: positive =
- * extra linen to wash on this trip, negative = linen the operator washes himself, withdrawn from the
- * trip. Saving calls `onSave(date, counts)` with the six counts; the parent PUTs and reloads the
- * planning.
+ * Seven per-type steppers grouped « Draps » (simple / double / bébé) + « Serviettes » (grande /
+ * moyenne / petite / tapis), pre-filled with the trip's current values. The values are SIGNED:
+ * positive = extra linen to wash on this trip, negative = linen washed outside the laundry, withdrawn
+ * from the trip. A value can be typed with its sign (« -3 »): the field keeps what is typed and
+ * settles on blur (specs/laundry-manual-removals.md rule 9). Saving calls `onSave(date, counts)`;
+ * the parent PUTs and reloads the planning.
  *
  * Props: { open, date, current, saving, onClose, onSave }
- *   current — { singleBeds, doubleBeds, babyBeds, largeTowels, mediumTowels, smallTowels } | undefined.
+ *   current — { singleBeds, doubleBeds, babyBeds, largeTowels, mediumTowels, smallTowels, bathMats } | undefined.
  */
 import React, { useEffect, useState } from 'react';
 import {
@@ -21,7 +22,7 @@ import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 
 const GROUPS = [
   { title: 'Draps', items: [{ key: 'singleBeds', label: 'Simple' }, { key: 'doubleBeds', label: 'Double' }, { key: 'babyBeds', label: 'Bébé' }] },
-  { title: 'Serviettes', items: [{ key: 'largeTowels', label: 'Grande' }, { key: 'mediumTowels', label: 'Moyenne' }, { key: 'smallTowels', label: 'Petite' }] },
+  { title: 'Serviettes', items: [{ key: 'largeTowels', label: 'Grande' }, { key: 'mediumTowels', label: 'Moyenne' }, { key: 'smallTowels', label: 'Petite' }, { key: 'bathMats', label: 'Tapis' }] },
 ];
 const ALL_KEYS = GROUPS.flatMap((g) => g.items.map((i) => i.key));
 const ZEROS = Object.fromEntries(ALL_KEYS.map((k) => [k, 0]));
@@ -32,30 +33,45 @@ function frDate(iso) {
   catch { return iso; }
 }
 
+// What the field holds while typing → the count it means: « -3 » is −3, a lone « - » or an empty
+// field is still 0 (rule 9). Exported for the tests.
+export function parseSignedCount(raw) {
+  const text = String(raw == null ? '' : raw).trim().replace('−', '-');
+  if (!/^-?\d+$/.test(text)) return 0;
+  return Math.trunc(Number(text));
+}
+
 // A signed stepper: « − » keeps going below zero, and a negative line says out loud what it means —
-// this is linen the operator washes himself (specs/laundry-manual-removals.md §6).
+// linen washed outside the laundry (specs/laundry-manual-removals.md §6). The field keeps the raw text
+// typed — « - » included — so a sign typed first survives until the digits follow.
 function Stepper({ label, value, onChange }) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft((current) => (parseSignedCount(current) === value ? current : String(value)));
+  }, [value]);
   const withdrawn = value < 0;
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
         {withdrawn && (
-          <Typography variant="caption" sx={{ color: 'info.main', fontWeight: 600 }}>lavé par vos soins</Typography>
+          <Typography variant="caption" sx={{ color: 'info.main', fontWeight: 600 }}>lavé hors blanchisserie</Typography>
         )}
       </Box>
       <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
         <Button size="small" variant="outlined" onClick={() => onChange(value - 1)} sx={{ minWidth: 40 }}>−</Button>
         <TextField
-          value={value}
+          value={draft}
           onChange={(e) => {
-            // Keep a lone « - » usable while typing: it means « I'm about to withdraw ».
-            const raw = String(e.target.value).trim();
-            onChange(raw === '-' || raw === '' ? 0 : Math.trunc(Number(raw) || 0));
+            const raw = String(e.target.value);
+            if (!/^\s*[-−]?\d*\s*$/.test(raw)) return;
+            setDraft(raw);
+            onChange(parseSignedCount(raw));
           }}
+          onBlur={() => setDraft(String(value))}
           size="small"
           sx={{ width: 64 }}
-          slotProps={{ htmlInput: { style: { textAlign: 'center' }, inputMode: 'numeric' } }}
+          slotProps={{ htmlInput: { style: { textAlign: 'center' }, inputMode: 'text', 'aria-label': label } }}
         />
         <Button size="small" variant="outlined" onClick={() => onChange(value + 1)} sx={{ minWidth: 40 }}>+</Button>
       </Stack>
@@ -86,9 +102,8 @@ export default function LaundryManualAdditionsDialog({ open, date, current, savi
       </Box>
       <DialogContent sx={{ pt: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Valeur positive : du linge à laver ce voyage en plus des réservations. Valeur négative : du linge
-          que vous lavez vous-même, retiré du voyage. Dans les deux cas le calcul À apporter / À récupérer
-          et le stock suivent.
+          Valeur positive : linge à laver ce voyage en plus des réservations. Valeur négative : linge lavé
+          hors blanchisserie, retiré du voyage. À apporter, À récupérer et le stock suivent.
         </Typography>
         <Stack spacing={1.5} divider={<Divider />}>
           {GROUPS.map((g) => (

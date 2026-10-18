@@ -1,3 +1,4 @@
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -34,7 +35,7 @@ function iso(daysFromToday) {
   d.setDate(d.getDate() + daysFromToday);
   return d.toISOString().split('T')[0];
 }
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = localTodayIso();
 
 function freshModel() {
   const db = new Database(':memory:');

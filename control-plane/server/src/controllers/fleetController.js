@@ -6,7 +6,7 @@
  */
 
 const { httpError } = require('../utils/httpError');
-const { semver } = require('../utils/gf');
+const { semver, plugins: gfPlugins } = require('../utils/gf');
 
 const PHASE_LABELS = { downloading: 'Téléchargement…', verifying: 'Empreinte SHA-256 vérifiée…', extracting: 'Archive dépaquetée…', installing: 'Dépendances installées…' };
 const ITEM_LABELS = { pending: 'En attente', running: 'En cours', done: 'Fait', rolled_back: 'Revenue en arrière', skipped: 'Non traitée' };
@@ -48,17 +48,61 @@ function createFleetController(ctx, customersController) {
     };
   }
 
+  // H1 rule 28: a release that rolled an instance back and that no instance runs is « En échec »:
+  // it is never the default target.
+  function releaseRows(rows) {
+    const rolledBack = hosting.rolledBackTargets();
+    return releases.list().map((r) => {
+      const on = rows.filter(({ row }) => row.version === r.version);
+      const failed = rolledBack.has(r.version) && on.length === 0;
+      return {
+        version: r.version,
+        installedAt: paris(r.installedAt),
+        count: on.length,
+        names: on.map(({ c }) => c.companyName),
+        failed,
+        statusLabel: failed ? 'En échec' : `${on.length} instance${on.length > 1 ? 's' : ''}`,
+      };
+    });
+  }
+
+  // Rule 11: each installed plugin, the versions the instances run and the registry's versions newer
+  // than the oldest one running — never a downgrade (the instance itself refuses one). A version that
+  // rolled an instance back and that no instance runs is « En échec », never the default.
+  function pluginPushView(rows) {
+    const facts = rows.map(({ c }) => (instances.readFacts(c.slug) || {}).versions || {});
+    const ids = [...new Set(facts.flatMap((f) => Object.keys(f)))].sort();
+    const rolledBack = hosting.rolledBackPluginTargets();
+    return ids.map((id) => {
+      const running = facts.filter((f) => id in f).map((f) => f[id] || '?');
+      const counts = running.reduce((m, v) => m.set(v, (m.get(v) || 0) + 1), new Map());
+      const known = running.filter((v) => semver.isValidVersion(v));
+      const oldest = known.length ? known.reduce((a, b) => (semver.isNewerVersion(a, b) ? b : a)) : null;
+      const versions = fleetUpdater.publishedPluginVersions(id)
+        .filter((v) => !oldest || semver.isNewerVersion(v, oldest))
+        .map((v) => {
+          const failed = rolledBack.has(`${id}@${v}`) && !counts.has(v);
+          return { version: v, failed, label: failed ? `${v} — en échec` : v };
+        });
+      const target = versions.find((v) => !v.failed);
+      return {
+        id,
+        name: (gfPlugins.findPlugin(id) || { name: id }).name,
+        count: running.length,
+        runningLabel: [...counts].map(([v, n]) => `${v} × ${n}`).join(', '),
+        versions,
+        defaultVersion: target ? target.version : null,
+      };
+    });
+  }
+
   function view() {
     const rows = instanceRows();
-    const list = releases.list();
-    const newest = list[0] ? list[0].version : null;
-    const pluginIds = new Set();
-    for (const { c } of rows) for (const id of ((instances.readFacts(c.slug) || {}).installed || [])) pluginIds.add(id);
+    const releaseList = releaseRows(rows);
+    const newest = releaseList[0] ? releaseList[0].version : null;
+    const target = releaseList.find((r) => !r.failed);
     return {
-      releases: list.map((r) => {
-        const on = rows.filter(({ row }) => row.version === r.version);
-        return { version: r.version, installedAt: paris(r.installedAt), count: on.length, names: on.map(({ c }) => c.companyName) };
-      }),
+      releases: releaseList,
       published: published && {
         version: published.version,
         installed: releases.has(published.version),
@@ -67,12 +111,12 @@ function createFleetController(ctx, customersController) {
       },
       install,
       instances: rows.map(({ c, row }) => ({ id: c.id, companyName: c.companyName, version: row.version })),
-      defaultTarget: newest,
+      defaultTarget: target ? target.version : null,
       running: updateView(hosting.runningUpdate()),
       history: hosting.recentUpdates(8).filter((u) => u.state !== 'running').map(updateView),
       pluginPush: {
         available: fleetUpdater.pluginPushAvailable(),
-        plugins: [...pluginIds].sort().map((id) => ({ id, count: rows.filter(({ c }) => ((instances.readFacts(c.slug) || {}).installed || []).includes(id)).length })),
+        plugins: fleetUpdater.pluginPushAvailable() ? pluginPushView(rows) : [],
       },
     };
   }
@@ -112,7 +156,7 @@ function createFleetController(ctx, customersController) {
     const ids = Array.isArray(body.customerIds) ? body.customerIds.map(Number).filter(Boolean) : null;
     fleetUpdater.start({
       kind: 'plugin', pluginId: String(body.pluginId || ''), targetVersion: String(body.version || ''), customerIds: ids, operator,
-      installedPlugins: (c) => (instances.readFacts(c.slug) || {}).installed || [],
+      installedPlugins: (c) => (instances.readFacts(c.slug) || {}).versions || {},
     });
     return view();
   }

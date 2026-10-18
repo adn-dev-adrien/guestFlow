@@ -9,7 +9,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SyncIcon from '@mui/icons-material/Sync';
 import {
-  api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast,
+  api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast, formatPlatformLabel,
 } from '../sdk';
 
 /**
@@ -413,7 +413,7 @@ export default function PlatformAccountsPage() {
                     return (
                       <TableRow key={p.id}>
                         <TableCell sx={{ fontWeight: p.isDirect ? 600 : 500 }}>
-                          {p.name}
+                          {formatPlatformLabel(p.name)}
                           {p.isDirect && (
                             <Typography variant="caption" sx={{ display: 'block', color: 'text.disabled', fontStyle: 'italic' }}>
                               Pas de commission sur les réservations directes
@@ -438,7 +438,7 @@ export default function PlatformAccountsPage() {
                             checked={Boolean(p.hasVatOnCommission)}
                             onChange={(e) => updatePlatformField(p.id, 'hasVatOnCommission', e.target.checked)}
                             disabled={p.isDirect || saving}
-                            slotProps={{ input: { 'aria-label': `TVA déductible commission ${p.name}` } }}
+                            slotProps={{ input: { 'aria-label': `TVA déductible commission ${formatPlatformLabel(p.name)}` } }}
                           />
                         </TableCell>
                       </TableRow>

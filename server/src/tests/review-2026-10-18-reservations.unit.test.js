@@ -35,7 +35,7 @@ test('rule 4 — the reviewed texts address nobody', () => {
   const files = {
     'client/src/components/ClientFormFields.jsx': 'Adresse en une ligne : n° rue CP ville',
     'client/src/components/reservation/OptionRow.jsx': 'Par défaut toute la tablée.',
-    'server/src/plugins/online-payment/qontoSettingsController.js': 'Identifiants Qonto manquants (Réglages › Paiements).',
+    'server/src/utils/qonto/qontoSettingsController.js': 'Identifiants Qonto manquants (Réglages › Paiements).',
   };
   for (const [file, expected] of Object.entries(files)) {
     const source = fs.readFileSync(path.join(root, file), 'utf8');

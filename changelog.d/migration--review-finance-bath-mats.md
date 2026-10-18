@@ -1,0 +1,1 @@
+- plugin:linen `laundry_trip_manual_additions.bathMats INTEGER NOT NULL DEFAULT 0` (plugin migration `manual_additions_bath_mats_v1`); existing manual lines read 0 bath mats. No data rewritten.

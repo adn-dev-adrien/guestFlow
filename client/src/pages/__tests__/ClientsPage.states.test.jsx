@@ -62,3 +62,11 @@ test('an empty clients list shows the empty state, not an error', async () => {
   expect(await screen.findByText('Aucun client trouvé')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
 });
+
+// specs/ds-components.md rule 25 — the toolbar speaks French: « Nettoyer les clients », not « Cleanup clients ».
+test('the cleanup button is labelled in French', async () => {
+  api.getClientsDirectory.mockResolvedValue({ items: [], counts: { upcoming: 0, past: 0 } });
+  renderPage();
+  expect(await screen.findByRole('button', { name: 'Nettoyer les clients' })).toBeInTheDocument();
+  expect(screen.queryByText('Cleanup clients')).not.toBeInTheDocument();
+});

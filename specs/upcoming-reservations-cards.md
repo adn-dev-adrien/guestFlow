@@ -29,20 +29,74 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
 ## 3. Functional rules
 1. Source = **all reservations whose `startDate ≥ today`** (no upper bound). The list endpoint is queried
    with a far `to`; the client keeps arrivals `startDate ≥ today`.
+   > **Amended 2026-10-18:** the server selects them now — see rule 6.
 2. Each reservation's **full detail** is fetched (`api.getReservation`, same as the Planning) so the card
    shows beds / famille / options / ressources / complément / caution / bed-linen alert.
+   > **Amended 2026-10-18:** the detail rides the single response of rule 6; the page fetches no
+   > reservation on its own.
 3. Grouped by **arrival day**; each day shows a header (French weekday + a `prêt` count chip, highlighted
    when today / all-ready), then the `ReservationCard`s sorted by check-in time.
 4. Card actions: row → fiche, arrival SAS (`ReservationSasDialog`), client, toggle « prêt »
    (`checkInReady` via `PATCH /reservations/:id/payment`). The SAS `onCommitted` reloads the page.
 5. Empty state when there is no future reservation.
+6. **One call** (added 2026-10-18, review #8 m-9). `GET /api/reservations/upcoming` returns
+   `{ today, days: [{ date, label, isToday, reservations, readyCount, total, allReady }] }`: every
+   reservation (kind `reservation`, devis and cancelled stays excluded) arriving on the server's
+   today or later, in arrival order — day, then check-in time with an unset time last, then id —
+   each in the same detailed shape as `GET /api/reservations/:id`'s model read, grouped by day, the
+   day labelled in French (« vendredi 23 octobre ») and its « prêt » count computed. The page renders
+   it and counts nothing; after a « prêt » toggle it asks again rather than recounting. The page
+   used to send one request per stay — about 350 for 500 bookings — and a few visits exhausted the
+   API rate limit (3 000 / 15 min): every page then answered 429 and the operator was in effect
+   logged out. Admin-only, like the page (deny-by-default role guard).
+   > **Amended 2026-10-18 (review of PR #700):** after a « prêt » toggle the page asks for that one
+   > day only — see rule 8.
+7. **The server's today** (added 2026-10-18, review #8 n-1). The pages that open « on today » — the
+   dashboard's day, the planning's first day, this page's « Aujourd'hui » — take the calendar day of
+   the server, whose clock runs in the accommodations' time zone (specs/server-timezone.md), from
+   `GET /api/today` → `{ today }` (any signed-in role: it is a self endpoint). Until it answers they
+   use the browser's own calendar day — never `toISOString()`, the UTC day, which read yesterday
+   between midnight and 2 a.m. in Paris (« 17/10/2026 » shown at 01:54 on the 18th). Day arithmetic
+   on `YYYY-MM-DD` stays in UTC so a time change cannot skip or repeat a day. The reservation list's
+   payment status (`GET /api/reservations`) uses the server day too. The hourly-resources planning,
+   a plugin that must run on older hosts, uses the browser's calendar day.
+   > **Amended 2026-10-18 (review of PR #700):** the forms that default to « today » take the
+   > browser's calendar day too, never the UTC one — the refund date (and its `max`), the extra
+   > laundry trip (linen plugin 1.0.3), the past/upcoming split of a client's stays in the clients
+   > directory, the fiche's mid-stay note gate in the test mock.
+   > **Amended 2026-10-18 (merge with the security review, PR #699):** one implementation of the
+   > server's day — `GET /api/today` and `useServerToday` of specs/ds-sweep-planning.md rules 28-29.
+   > The dashboard and the planning wait for it rather than opening on the browser's day first; the
+   > browser's calendar day is only the fallback when the server cannot be asked.
+8. **The « prêt » box answers at once** (added 2026-10-18, review of PR #700). Ticking or unticking
+   « prêt » on « Réservations à venir » flips the box immediately, without the loader; the page
+   then asks `GET /api/reservations/upcoming?day=YYYY-MM-DD` for that day alone and replaces it with
+   the server's answer (same shape as rule 6, `days` holding that day or nothing; a past day answers
+   no day, a malformed one 400 « Date invalide. »). The count stays the server's. A refused save
+   puts the box back and shows the error. When two ticks on one day cross, only the latest recount
+   paints. Each click used to re-read the whole season — 2.4 MB and 0.7 s with 500 stays — before
+   the box moved.
+9. **Only the latest dashboard load paints** (added 2026-10-18, review of PR #700). The dashboard
+   reloads on every day change (and when the server's day moves on, rule 7); a load that
+   answers after a newer one started is dropped, so the day shown and its arrivals and departures
+   always match.
 
 ## 4. Architecture
 | Layer | File | Responsibility |
 |---|---|---|
-| pages | `pages/ReservationsUpcomingPage.js` | Fetch the list (far `to`) → filter `startDate ≥ today` → fetch each detail → group by day → render `ReservationCard` + `ReservationSasDialog`. Render-only; reuses the Planning components. |
+| pages | `pages/ReservationsUpcomingPage.jsx` | One `GET /reservations/upcoming` → render the server's days with `ReservationCard` + the `sas.dialog` slot; a « prêt » tick flips at once and refreshes its day with `?day=` (rule 8). Render-only. |
+| pages | `pages/Dashboard.jsx`, `pages/PlanningPage.jsx` | Open on `useServerToday()` until the operator picks a day (rule 7); the dashboard drops a stale load (rule 9). |
+| pages / components | `pages/ClientsPage.jsx`, `components/reservation/RefundDialog.jsx`, `plugins/linen/LaundryExtraTripDialog.jsx` (T) | « Today » defaults on the browser's calendar day (rule 7 amendment). |
+| hooks | `hooks/useServerToday.js` (specs/ds-sweep-planning.md rule 29) | The server's calendar day; the browser's calendar day when it cannot be asked. |
+| utils | `utils/isoDay.js` (specs/ds-sweep-planning.md rule 28) | `localIsoToday`, `addIsoDays` on `YYYY-MM-DD`. |
+| server routes | `routes/reservations.js` (T), `routes/today.js` (specs/ds-sweep-planning.md rule 28) | `GET /reservations/upcoming` (before `/:id`), `GET /today`. |
+| server controllers | `controllers/upcomingReservationsController.js` (C) | Orchestrate rules 6 and 8 (`?day=`). |
+| server models | `models/upcomingReservationsModel.js` (C), `models/reservationsModel.js` (T) | The arrival ids from today (`arrivalIdsFrom`) or of one day (`arrivalIdsOn`); the list's payment status on the server day. |
+| server utils | `utils/upcomingArrivals.js` (C) | Group by day, French label, ready counts. |
+| server middleware | `middleware/enforceRoleAccess.js` (T) | `/today` joins the self endpoints. |
 
-No server change (reuses `GET /reservations`, `GET /reservations/:id`, `PATCH /reservations/:id/payment`).
+Until 2026-10-18 there was no server change (the page reused `GET /reservations`,
+`GET /reservations/:id`); rules 6-7 added the two endpoints above.
 
 ## 5. Out of scope
 - The tight-turnover cleaning **alert** badge (the Planning computes it from per-property adjacency;
@@ -53,3 +107,22 @@ No server change (reuses `GET /reservations`, `GET /reservations/:id`, `PATCH /r
 ## 6. Test plan
 - [ ] Manual (dev): the page shows day-grouped Planning cards for all future arrivals; a card opens the
   fiche, the SAS, the client; « prêt » toggles + persists; empty state when none.
+- [x] Rule 6 — server `upcoming-reservations-one-call.unit.test.js` (5: order, exclusions, grouping and
+  labels, label independent of the server zone, 500 arrivals in one response); client
+  `ReservationsUpcomingPage.one-call.test.jsx` (3: 500 stays → one request and no per-reservation
+  fetch, server label/count rendered as sent, « prêt » re-asks the server).
+- [x] Rule 7 — server `server-today.unit.test.js` (01:54 Paris = the 18th while UTC reads the 17th,
+  beside the rule 28 endpoint test, every role may read it); client `Dashboard.server-today.test.jsx`
+  (2: the browser's calendar day when the server cannot answer, day arithmetic across the October
+  time change — beside the rule 28 tests: the server's day is shown and queried, nothing loads before).
+- [x] Rule 8 — server `upcoming-reservations-day-refresh.unit.test.js` (4: one day in arrival order,
+  `?day=` details and counts that day only, a past or empty day answers no day, a malformed day is
+  refused); client `ReservationsUpcomingPage.ready-toggle.test.jsx` (3: ticked before the server
+  answers and only its day re-asked, a refused save puts the box back, a late recount never
+  overwrites a newer one).
+- [x] Rule 9 — client `Dashboard.stale-load.test.jsx` (1: the load of the day left behind, answering
+  last, does not replace the arrivals of the day shown).
+- [x] Rule 7 amendment — `RefundDialog.local-day.test.jsx`, `LaundryExtraTripDialog.local-day.test.jsx`
+  (01:54 in Paris on the 18th → the 18th).
+- [x] Browser (2026-10-18, Solio copy + 500 stress reservations): « Réservations à venir » loads with
+  one API call and no 429 after repeated visits.

@@ -51,7 +51,7 @@ export default function PeriodSelector({ kind, month, from, to, months = [], onC
           if (!next) return;
           onChange(next === 'custom' ? { kind: 'custom', from: draft.from, to: draft.to } : { kind: next, month });
         }}
-        sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 1.5, minHeight: 36 } }}
+        sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 1.5, minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } } }}
       >
         <ToggleButton value="fy">{labels.fy}</ToggleButton>
         <ToggleButton value="month">{labels.month}</ToggleButton>

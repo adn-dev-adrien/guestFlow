@@ -119,18 +119,20 @@ test('edge case — restoring while a fleet update runs is refused (409) until i
 
 test('rule 11 — a plugin update is pushed the same way, only to the instances that have the plugin installed', async () => {
   const pushed = [];
+  let h;
   const installer = {
-    async install(inst, id, version) { pushed.push([inst.slug, id, version]); },
+    async install(inst, id, version) { pushed.push([inst.slug, id, version]); h.host.loaded.set(inst.slug, { [id]: version }); },
     async rollback() {},
+    published: () => ['1.2.0'],
   };
-  const h = makeContext({ pluginInstaller: installer });
+  h = makeContext({ pluginInstaller: installer });
   try {
     const { customers, fleet } = h.ctx.controllers;
     makeInstance(h.root, 'aulnes', { installed: ['sas', 'neat'] });
     makeInstance(h.root, 'moulin', { installed: ['sas'] });
     await customers.create(NEW_CUSTOMER, 'op');
     await customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'jo@moulin.fr' }, 'op');
-    assert.deepEqual(fleet.view().pluginPush, { available: true, plugins: [{ id: 'neat', count: 1 }, { id: 'sas', count: 2 }] });
+    assert.deepEqual(fleet.view().pluginPush.plugins.map((p) => [p.id, p.count]), [['neat', 1], ['sas', 2]]);
     fleet.pushPlugin({ pluginId: 'neat', version: '1.2.0' }, 'op');
     await h.ctx.fleetUpdater.whenIdle();
     assert.deepEqual(pushed, [['aulnes', 'neat', '1.2.0']]);
@@ -142,8 +144,8 @@ test('rule 11 — a plugin update is pushed the same way, only to the instances 
   }
 });
 
-test('rule 11 — without the plugin registry the push is not offered', () => {
-  const h = makeContext();
+test('rule 11 — with the push turned off it is not offered', () => {
+  const h = makeContext({ pluginInstaller: false });
   try {
     assert.equal(h.ctx.controllers.fleet.view().pluginPush.available, false);
     assert.throws(() => h.ctx.controllers.fleet.pushPlugin({ pluginId: 'neat', version: '1.2.0' }, 'op'), (e) => e.status === 412);

@@ -16,6 +16,7 @@
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const { EVENT_TRIGGERED_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
 const { registerDirectChannelSql } = require('../utils/platformNameFormat');
 
@@ -37,7 +38,7 @@ function buildModel(database) {
   const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail';
 
   // Resolve "today" to a UTC ISO date (matches SQLite's date('now')); injectable for tests.
-  const resolveToday = (today) => (today ? String(today) : new Date().toISOString().slice(0, 10));
+  const resolveToday = (today) => (today ? String(today) : localTodayIso());
 
   const insertStmt = database.prepare(`
     INSERT INTO email_log

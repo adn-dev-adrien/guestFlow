@@ -21,7 +21,7 @@ function enrichStayComponent(database, id, type, components) {
   let info = null;
   try {
     info = database.prepare(`
-      SELECT res.devisNumber, res.startDate, res.endDate, c.firstName, c.lastName, p.name AS propertyName
+      SELECT res.*, c.firstName, c.lastName, p.name AS propertyName
       FROM reservations res
       LEFT JOIN clients c ON c.id = res.clientId
       LEFT JOIN properties p ON p.id = res.propertyId
@@ -30,7 +30,8 @@ function enrichStayComponent(database, id, type, components) {
   if (!info) return;
   const { title, description } = buildStayLineLabel({
     propertyName: info.propertyName,
-    reference: info.devisNumber,
+    // A reservation without a devis number is named by its reservation number (rule 10).
+    reference: String(info.devisNumber || '').trim() || info.reservationNumber || null,
     guest: { firstName: info.firstName, lastName: info.lastName },
     startDate: info.startDate,
     endDate: info.endDate,
@@ -78,7 +79,7 @@ async function ensurePaymentLink(deps, id, type) {
   const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal FROM reservations WHERE id = ?').get(id);
   if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   const amountCents = resolveAmountCents(id, type, r);
-  if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type — vérifie le devis/réservation.' };
+  if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type : devis ou réservation à vérifier.' };
 
   // Reuse the current open link of that type if there is one (avoid duplicates on a double-click) — but
   // ONLY if it still bills the current amount. If the devis was edited between two `pay` calls the stored
@@ -107,6 +108,12 @@ async function ensurePaymentLink(deps, id, type) {
         linkArgs.expectedTotalCents = expectedTotalCents;
       }
     }
+  }
+  // specs/qonto-payment-link-reference.md rule 10 — the single 0 % line is named like the stay line.
+  if (!linkArgs.items) {
+    const single = [{ title: LINK_TITLES[type] }];
+    enrichStayComponent(database, id, type, single);
+    linkArgs.title = single[0].title;
   }
   if (deps.redirectUrl) linkArgs.redirectUrl = deps.redirectUrl;
   const link = await provider.createLink(linkArgs, { origin: deps.origin || 'manual-link' });

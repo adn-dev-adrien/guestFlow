@@ -24,7 +24,7 @@ const { isClientVisibleOption } = sdk.coreModule('optionVisibility');
 const { groupOptionsByCategory } = sdk.coreModule('optionGrouping');
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return sdk.coreModule('reservationHelpers').getTodayIsoDate();
 }
 
 function propertyExists(propertyId) {

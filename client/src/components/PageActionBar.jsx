@@ -47,6 +47,10 @@
  *    (with `center`, the two side sections take equal flex so the centre is truly centred).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
+ *  - Narrow bar (specs/ds-components.md rules 19-20): the title keeps a readable width and ends
+ *    in an ellipsis only past it; the subtitle wraps under the title; the actions never shrink
+ *    (they take a row of their own when they do not fit), and `center`/`tabs` move to a second row
+ *    when the bar is under 720 px wide. Every button is 44 × 44.
  */
 import React, { useState } from 'react';
 import {
@@ -60,13 +64,21 @@ import CloseIcon from '@mui/icons-material/Close';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate } from 'react-router';
 
+// Every bar button is a 44 × 44 touch target, whatever its border (specs/ds-components.md rule 20).
+const BUTTON_SIZE = { width: 44, height: 44 };
+
+// Under this bar width the centre node (or the tabs) takes a second row instead of crushing the title.
+const CENTER_ROW_BELOW = 720;
+
 const borderedSx = (color) => ({
+  ...BUTTON_SIZE,
   border: '1px solid',
   borderColor: color && color !== 'default' ? `${color}.main` : 'divider',
   borderRadius: 1,
 });
 
 const saveFilledSx = {
+  ...BUTTON_SIZE,
   bgcolor: 'primary.main',
   color: '#fff',
   borderRadius: 1,
@@ -146,40 +158,69 @@ export default function PageActionBar({
         borderBottom: '1px solid',
         borderColor: 'divider',
         mb: 2,
+        // The layout below answers to the bar's own width, not the viewport's: the sidebar takes a
+        // different share of it on every page and breakpoint.
+        containerType: 'inline-size',
       }}
     >
       <Box
+        data-testid="page-action-bar-row"
         sx={{
           px: { xs: 1.5, sm: 2 },
           py: { xs: 1, sm: 1.25 },
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
-          gap: 1,
+          columnGap: 1,
+          rowGap: 1,
         }}
       >
-        {/* Left section: back + title + subtitle. When a `center` node is set, both side sections take an
-            equal flex basis (1 1 0) so the centre node is truly centred across the bar. */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, ...(centerNode ? { flex: '1 1 0' } : { flexGrow: 1 }) }}>
-          {(onBack || backTo) && (
-            <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
-              <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={borderedSx('default')}>
-                <ArrowBackIcon />
-              </IconButton>
-            </Tooltip>
+        {/* Left section: back + title + subtitle. It never gets narrower than a readable title; the
+            subtitle wraps under the title rather than squeezing it (specs/ds-components.md rule 19). */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            columnGap: 1.5,
+            rowGap: 0.25,
+            flex: '1 1 0',
+            // Only a visible title claims that width: a bar showing just « Retour » gives it to the actions.
+            minWidth: {
+              xs: title && showTitleOnXs ? 'min(100%, 9rem)' : 0,
+              sm: title ? 'min(100%, 14rem)' : 0,
+            },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, maxWidth: '100%' }}>
+            {(onBack || backTo) && (
+              <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
+                <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={{ ...borderedSx('default'), flexShrink: 0 }}>
+                  <ArrowBackIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {title && (
+              <Typography
+                variant="pageTitle"
+                title={title}
+                sx={{
+                  display: { xs: showTitleOnXs ? 'block' : 'none', sm: 'block' },
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  minWidth: 0,
+                }}
+              >
+                {title}
+              </Typography>
+            )}
+          </Box>
+          {subtitle && (
+            <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
+              {subtitle}
+            </Box>
           )}
-          {title && (
-            <Typography
-              variant="pageTitle"
-              sx={{
-                display: { xs: showTitleOnXs ? 'block' : 'none', sm: 'block' },
-                whiteSpace: 'nowrap',
-                ...(showTitleOnXs && { overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }),
-              }}
-            >
-              {title}
-            </Typography>
-          )}
-          {subtitle}
         </Box>
 
         {centerNode && (
@@ -194,13 +235,33 @@ export default function PageActionBar({
               flex: '0 1 auto',
               minWidth: 0,
               px: 1,
+              [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { order: 3, flexBasis: '100%', px: 0 },
             }}
           >
             {centerNode}
           </Box>
         )}
 
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', minWidth: 0, ...(centerNode ? { flex: '1 1 0' } : {}) }}>
+        {/* The actions keep their full width: when they do not fit beside the title they take a row of
+            their own, right-aligned — never a column of stacked buttons. */}
+        <Box
+          data-testid="page-action-bar-actions"
+          sx={{
+            display: 'flex',
+            gap: 1,
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            // The centre's twin only while the centre sits beside the title: hidden on xs, or on its own
+            // row, it leaves the title the room (rule 19, amended 2026-10-18).
+            flex: { xs: '0 1 auto', sm: centerNode ? '1 1 0' : '0 1 auto' },
+            [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { flex: '0 1 auto' },
+            minWidth: 'fit-content',
+            maxWidth: '100%',
+            ml: 'auto',
+            '& .MuiButton-root': { whiteSpace: 'nowrap' },
+          }}
+        >
           {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
 
           {useOverflow && (

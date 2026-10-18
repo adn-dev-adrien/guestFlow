@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { getValidQontoAccessToken } = require('../qonto/qontoAuth');
+const { getValidQontoAccessToken } = require('../../../utils/qonto/qontoAuth');
 
 // A settings double exposing the two methods the manager touches.
 function fakeSettings(tokens) {

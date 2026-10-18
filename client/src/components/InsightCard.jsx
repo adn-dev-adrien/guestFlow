@@ -7,9 +7,10 @@
  *   title:  string
  *   text:   string
  *   icon?:  ReactNode   defaults to an icon matching the tone
+ *   actionLabel?, onAction?: an optional text button under the caption (rule 35: « Voir les séjours »)
  */
 import React from 'react';
-import { Box, Card, CardContent, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import ScheduleIcon from '@mui/icons-material/Schedule';
@@ -22,7 +23,7 @@ const TONES = {
   info: { bg: '#E4EDF3', fg: 'info.main', icon: <InfoOutlinedIcon fontSize="small" /> },
 };
 
-export default function InsightCard({ tone = 'info', title, text, icon }) {
+export default function InsightCard({ tone = 'info', title, text, icon, actionLabel, onAction }) {
   const t = TONES[tone] || TONES.info;
   return (
     <Card sx={{ height: '100%' }}>
@@ -33,6 +34,9 @@ export default function InsightCard({ tone = 'info', title, text, icon }) {
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 700 }}>{title}</Typography>
           <Typography variant="body2" color="text.secondary">{text}</Typography>
+          {actionLabel && onAction && (
+            <Button size="small" onClick={onAction} sx={{ mt: 0.5, ml: -1, minHeight: 44, textTransform: 'none' }}>{actionLabel}</Button>
+          )}
         </Box>
       </CardContent>
     </Card>

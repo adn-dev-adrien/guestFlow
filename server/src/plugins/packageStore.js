@@ -228,6 +228,23 @@ function createPackageStore({ dataDir, distDir, fetchImpl = fetch, now = () => n
     return unpack({ id, version, buf, sha: actual });
   }
 
+  /**
+   * A package file handed over on disk — the console pushing a version from its registry
+   * (specs/hosting-h1-fleet-runtime.md rule 11): the same checks as a download, then unpacked.
+   */
+  async function installFile({ id, version, file, sha256: expected }) {
+    let buf;
+    try {
+      buf = fs.readFileSync(file);
+    } catch (err) {
+      throw new PackageError('DOWNLOAD_FAILED', err.message);
+    }
+    if (buf.length > MAX_PACKAGE_BYTES) throw new PackageError('PACKAGE_REJECTED', `too large (${buf.length} bytes)`);
+    const actual = sha256(buf);
+    if (!expected || actual !== String(expected).toLowerCase()) throw new PackageError('PACKAGE_REJECTED', `sha256 ${actual}`);
+    return unpack({ id, version, buf, sha: actual });
+  }
+
   async function unpack({ id, version, buf, sha }) {
     const tmpRoot = path.join(packagesDir, '.tmp');
     fs.mkdirSync(tmpRoot, { recursive: true });
@@ -291,6 +308,7 @@ function createPackageStore({ dataDir, distDir, fetchImpl = fetch, now = () => n
     clearCurrent,
     readCurrent,
     fetchFromRegistry,
+    installFile,
     prune,
     dataDirFor,
     dataDirPath: (id) => path.join(pluginDataRoot, id),

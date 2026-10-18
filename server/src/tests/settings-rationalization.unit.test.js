@@ -181,6 +181,7 @@ test('rule 12: GET /settings returns each override and what it falls back to whe
     fromEmail: 'contact@solio.fr', // the contact email
     username: 'no-reply@solio.fr', // the sending address in force
     fromName: 'Domaine Solio', // the company name
+    publicUrl: '', // the hosting's address (specs/hosting-h1-fleet-runtime.md rule 25): none here
   });
   assert.equal(shaped.notifications.derivedRecipient, 'no-reply@solio.fr');
   assert.equal('port' in shaped.smtp, false);

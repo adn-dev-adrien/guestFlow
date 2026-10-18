@@ -12,6 +12,7 @@
  * Exports a `buildController({ database, translator })` factory; the route binds production.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const emailTextsModel = require('../models/emailTextsModel');
 const emailTextsCsv = require('../utils/emailTextsCsv');
 const { badlyEncoded, ENCODING_MESSAGE } = require('../utils/translationCsv');
@@ -60,7 +61,7 @@ function buildController({ database, translator = textTranslator }) {
 
   function exportCsv(req, res) {
     const csv = emailTextsCsv.serialise(model().all());
-    const day = new Date().toISOString().slice(0, 10);
+    const day = localTodayIso();
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="textes-emails-${day}.csv"`);
     return res.send(csv);

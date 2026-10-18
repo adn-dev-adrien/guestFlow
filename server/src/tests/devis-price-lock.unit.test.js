@@ -6,6 +6,7 @@
  * save re-prices everything at the current tariffs and re-issues a fresh window.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -132,7 +133,7 @@ test('saving an expired devis re-issues a validity window (rule 14)', () => {
   expire(db, created.data.id);
 
   const updated = model.update(created.data.id, { ...BASE });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localTodayIso();
 
   assert.equal(isDevisExpired(updated.data.validUntil, today), false, 'the refreshed quote is valid again');
   assert.equal(updated.data.expired, false);

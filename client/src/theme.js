@@ -19,6 +19,11 @@ const SANS = "'Inter', sans-serif";
 // Shared by the palette and by the component overrides below (which run before the theme exists).
 const FIR = '#2F5D46';
 const INK_MUTED = '#6E6A5E';
+// A finger, not a mouse: phones and tablets, whatever their width.
+const COARSE_POINTER = '@media (pointer: coarse)';
+const TOUCH_TARGET = 44;
+// Every icon button except those sitting in a text field's adornment.
+const IN_FIELD_EXCLUDED = '&:not(:is(.MuiInputAdornment-root, .MuiAutocomplete-endAdornment) *)';
 
 const theme = createTheme({
   palette: {
@@ -74,7 +79,35 @@ const theme = createTheme({
     },
     MuiButton: {
       styleOverrides: {
-        root: { textTransform: 'none', fontWeight: 500 },
+        root: { textTransform: 'none', fontWeight: 500, [COARSE_POINTER]: { minHeight: TOUCH_TARGET } },
+      },
+    },
+    // Touch targets (specs/ds-components.md rule 21): on a finger-driven screen every icon button,
+    // checkbox, radio and toggle button is at least 44 × 44, whatever `size` the page asked for. The
+    // icon buttons inside a text field are left as the field sets them (the field itself is the
+    // target, and a stepper like QuantityField already sizes its own).
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          [COARSE_POINTER]: {
+            [IN_FIELD_EXCLUDED]: { minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET },
+          },
+        },
+      },
+    },
+    MuiToggleButton: {
+      styleOverrides: {
+        root: { [COARSE_POINTER]: { minHeight: TOUCH_TARGET } },
+      },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: { [COARSE_POINTER]: { minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET } },
+      },
+    },
+    MuiRadio: {
+      styleOverrides: {
+        root: { [COARSE_POINTER]: { minWidth: TOUCH_TARGET, minHeight: TOUCH_TARGET } },
       },
     },
     MuiTableContainer: {

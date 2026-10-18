@@ -11,6 +11,11 @@
  */
 
 const resourcesModel = require('../sdk').coreModule('resourcesModel');
+
+// The local day, like the local hour it is paired with (specs/finance-dashboard-redesign.md rule 37);
+// kept in the plugin so its package does not require a newer core.
+const pad2 = (n) => String(n).padStart(2, '0');
+const localIsoDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const resourceOccupancyModel = require('./occupancyModel');
 const { buildDays, validateBlock, toAbsMinutes } = require('./availability');
 const { eveningSupplement, toMinutes } = require('./hourlyPricing');
@@ -130,7 +135,9 @@ function createModel(database) {
   function stayBounds(reservation, now = new Date()) {
     const checkIn = toAbsMinutes(reservation.startDate, reservation.checkInTime || '15:00');
     const checkOut = toAbsMinutes(reservation.endDate || reservation.startDate, reservation.checkOutTime || '10:00');
-    const nowIso = now.toISOString().slice(0, 10);
+    // The local day, like the local hour beside it: between midnight and 02:00 in Paris the UTC day is
+    // still yesterday, which put « not before » a day early.
+    const nowIso = localIsoDate(now);
     const nowAbs = toAbsMinutes(nowIso, `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
     return { notBefore: Math.max(checkIn, nowAbs), notAfter: checkOut };
   }

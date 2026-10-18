@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Button, IconButton, Select, MenuItem,
-  FormControl, InputLabel, Tooltip, Chip,
+  FormControl, InputLabel, Tooltip, Chip, useMediaQuery, useTheme,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
@@ -12,6 +12,7 @@ import {
   api, PageActionBar, EmptyState, ErrorAlert, useToast, withFrom,
 } from '../sdk';
 import ResourceBookingDialog from './ResourceBookingDialog';
+import { localIsoDate as todayStr } from './localDate';
 
 const PIXELS_PER_MINUTE = 1.5; // 60 min = 90px
 const MIN_BOOKING_HEIGHT = 18;
@@ -48,7 +49,6 @@ function getWeekDates(mondayStr) {
   return Array.from({ length: 7 }, (_, i) => addDays(mondayStr, i));
 }
 
-const todayStr = () => new Date().toISOString().split('T')[0];
 
 export default function ResourcePlanningPage() {
   const navigate = useNavigate();
@@ -56,6 +56,8 @@ export default function ResourcePlanningPage() {
   const [resources, setResources] = useState([]);
   const [selectedResourceId, setSelectedResourceId] = useState(null);
   const [monday, setMonday] = useState(() => getMondayOf(todayStr()));
+  const theme = useTheme();
+  const wideBar = useMediaQuery(theme.breakpoints.up('lg'));
   // Standalone bookings AND the sessions placed on reservations, already merged and tagged `kind` by
   // the server (specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 rule 29). This page used to
   // fetch the two separately and merge them here — a second definition of « occupied », which the
@@ -160,6 +162,13 @@ export default function ResourcePlanningPage() {
     setDialogOpen(true);
   }
 
+  function openNewBooking() {
+    setEditingBooking(null);
+    setClickedDate(todayStr());
+    setClickedTime(selectedResource?.openTime || '08:00');
+    setDialogOpen(true);
+  }
+
   function handleBookingClick(e, booking) {
     e.stopPropagation();
     // A reservation session is read-only here → open the reservation fiche instead of the booking editor.
@@ -247,18 +256,25 @@ export default function ResourcePlanningPage() {
         title="Planning ressources"
         titleOnXs
         center={resources.length > 0 ? renderWeekControls() : undefined}
-        actionsBefore={resources.length > 0 ? [{
+        // Below lg the bar also carries the week controls: the button shrinks to its « + » icon
+        // (specs/ds-components.md rule 24).
+        actionsBefore={resources.length > 0 ? [wideBar ? {
           node: (
             <Button
               key="create-booking"
               variant="contained"
               size="small"
               startIcon={<AddIcon />}
-              onClick={() => { setEditingBooking(null); setClickedDate(todayStr()); setClickedTime(selectedResource?.openTime || '08:00'); setDialogOpen(true); }}
+              onClick={openNewBooking}
             >
               Nouvelle réservation
             </Button>
           ),
+        } : {
+          icon: <AddIcon />,
+          tooltip: 'Nouvelle réservation',
+          onClick: openNewBooking,
+          color: 'primary',
         }] : []}
       />
       {resources.length > 0 && (

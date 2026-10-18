@@ -324,7 +324,7 @@ test('rule 13 — the recorded sync message and counts name the Booking echoes',
 // ---------- conflict notification copy (rule 8) ----------
 
 test('rule 8 — the conflict e-mail says it comes from the Booking feed, not from an online payment', () => {
-  const resa = { id: 7, firstName: 'Booking', lastName: '', propertyName: 'Gite', startDate: '2027-07-04', endDate: '2027-07-07' };
+  const resa = { id: 7, firstName: 'Booking', lastName: '', platform: 'Booking', propertyName: 'Gite', startDate: '2027-07-04', endDate: '2027-07-07' };
   const ical = notificationService.__test.buildConflictEmail(resa, 'https://gf.example', 'ical');
   assert.match(ical.subject, /flux Booking/);
   assert.doesNotMatch(ical.text, /paiement en ligne/);

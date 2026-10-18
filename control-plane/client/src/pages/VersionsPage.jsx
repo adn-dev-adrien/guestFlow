@@ -63,9 +63,11 @@ export default function VersionsPage() {
   const [error, setError] = useState(null);
   const [checking, setChecking] = useState(false);
   const [target, setTarget] = useState('');
-  const [scope, setScope] = useState(preselected ? 'selection' : 'all');
+  // H1 rule 28: nothing is preselected — the whole fleet is a choice, never a default.
+  const [scope, setScope] = useState(preselected ? 'selection' : null);
   const [chosen, setChosen] = useState(preselected ? [preselected] : []);
   const [pluginVersions, setPluginVersions] = useState({});
+  const pluginVersion = (pl) => pluginVersions[pl.id] || pl.defaultVersion || '';
 
   const load = useCallback(() => {
     setError(null);
@@ -85,7 +87,7 @@ export default function VersionsPage() {
     if (data && !target && data.defaultTarget) setTarget(data.defaultTarget);
   }, [data, target]);
 
-  const selected = useMemo(() => (scope === 'all' ? null : chosen), [scope, chosen]);
+  const selected = useMemo(() => (scope === 'selection' ? chosen : null), [scope, chosen]);
 
   async function check() {
     setChecking(true);
@@ -122,9 +124,15 @@ export default function VersionsPage() {
     }
   }
 
-  async function push(pluginId, version) {
+  async function push(pl, version) {
+    const ok = await confirm({
+      title: `Pousser ${pl.name} ${version} ?`,
+      message: `Les instances qui l’ont (${pl.count}), une après l’autre. Un contrôle de santé raté remet l’instance sur son paquet et sa base, et arrête la mise à jour.`,
+      confirmLabel: 'Pousser',
+    });
+    if (!ok) return;
     try {
-      setData(await api.pushPlugin(pluginId, version));
+      setData(await api.pushPlugin(pl.id, version));
       showSuccess('Mise à jour lancée.');
     } catch (err) {
       showError(err.message);
@@ -156,7 +164,7 @@ export default function VersionsPage() {
                   <Box component="li" key={r.version} sx={{ listStyle: 'none', py: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{r.version}</Typography>
-                      <StatusBadge status={r.count ? 'success' : 'neutral'} label={`${r.count} instance${r.count > 1 ? 's' : ''}`} />
+                      <StatusBadge status={r.failed ? 'error' : r.count ? 'success' : 'neutral'} label={r.statusLabel} />
                     </Box>
                     <Typography variant="caption" color="text.secondary">
                       {[`installée le ${r.installedAt}`, r.names.join(', ')].filter(Boolean).join(' · ')}
@@ -197,9 +205,9 @@ export default function VersionsPage() {
             <Stack spacing={2}>
               <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' } }}>
                 <TextField select size="small" label="Version cible" value={target} onChange={(e) => setTarget(e.target.value)} sx={{ minWidth: 160 }}>
-                  {data.releases.map((r) => <MenuItem key={r.version} value={r.version}>{r.version}</MenuItem>)}
+                  {data.releases.map((r) => <MenuItem key={r.version} value={r.version}>{r.failed ? `${r.version} — en échec` : r.version}</MenuItem>)}
                 </TextField>
-                <ToggleButtonGroup exclusive value={scope} onChange={(e, v) => v && setScope(v)} size="small" aria-label="Portée">
+                <ToggleButtonGroup exclusive value={scope} onChange={(e, v) => v && setScope(v)} size="small" aria-label="Portée" sx={{ flexWrap: 'wrap' }}>
                   <ToggleButton value="all" sx={{ minHeight: 44 }}>Toute la flotte</ToggleButton>
                   <ToggleButton value="selection" sx={{ minHeight: 44 }}>Sélection</ToggleButton>
                 </ToggleButtonGroup>
@@ -213,7 +221,7 @@ export default function VersionsPage() {
                 </Box>
               )}
               <Button variant="contained" startIcon={<SystemUpdateAltIcon />} onClick={update}
-                disabled={!target || Boolean(data.running) || (scope === 'selection' && chosen.length === 0)}
+                disabled={!target || !scope || Boolean(data.running) || (scope === 'selection' && chosen.length === 0)}
                 sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' }, minHeight: 44 }}>
                 Mettre à jour
               </Button>
@@ -229,19 +237,27 @@ export default function VersionsPage() {
 
         {data.pluginPush.available && data.pluginPush.plugins.length > 0 && (
           <Section title="Plugins">
-            <Stack spacing={1}>
+            <Stack spacing={1.5} divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
               {data.pluginPush.plugins.map((pl) => (
-                <Box key={pl.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Box sx={{ flex: 1, minWidth: 160 }}>
-                    <Typography variant="body2">{pl.id}</Typography>
-                    <Typography variant="caption" color="text.secondary">{pl.count} instance{pl.count > 1 ? 's' : ''}</Typography>
+                <Box key={pl.id} sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{pl.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{pl.runningLabel}</Typography>
                   </Box>
-                  <TextField size="small" label="Version" value={pluginVersions[pl.id] || ''} sx={{ width: 120 }}
-                    onChange={(e) => setPluginVersions((v) => ({ ...v, [pl.id]: e.target.value.trim() }))} />
-                  <Button variant="outlined" sx={{ minHeight: 44 }} disabled={!pluginVersions[pl.id] || Boolean(data.running)}
-                    onClick={() => push(pl.id, pluginVersions[pl.id])}>
-                    Pousser
-                  </Button>
+                  {pl.versions.length === 0 ? (
+                    <Typography variant="caption" color="text.secondary">Aucune version plus récente au registre.</Typography>
+                  ) : (
+                    <>
+                      <TextField select size="small" label="Version" value={pluginVersion(pl)} sx={{ minWidth: 120 }}
+                        onChange={(e) => setPluginVersions((v) => ({ ...v, [pl.id]: e.target.value }))}>
+                        {pl.versions.map((v) => <MenuItem key={v.version} value={v.version}>{v.label}</MenuItem>)}
+                      </TextField>
+                      <Button variant="outlined" sx={{ minHeight: 44 }} disabled={!pluginVersion(pl) || Boolean(data.running)}
+                        onClick={() => push(pl, pluginVersion(pl))}>
+                        Pousser
+                      </Button>
+                    </>
+                  )}
                 </Box>
               ))}
             </Stack>

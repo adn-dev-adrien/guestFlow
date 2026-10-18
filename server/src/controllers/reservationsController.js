@@ -4,6 +4,7 @@
  * live inline in routes/reservations.js; all SQL is in reservationsModel, all rules in utils.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
@@ -1469,7 +1470,7 @@ function updatePayment(req, res) {
     const beforeRow = model.getRow(Number(id));
     const wasDepositPaid = Number(beforeRow?.depositPaid || 0) === 1;
     const willBeDepositPaid = Boolean(depositPaid);
-    const date = willBeDepositPaid ? (depositPaidDate || new Date().toISOString().split('T')[0]) : null;
+    const date = willBeDepositPaid ? (depositPaidDate || localTodayIso()) : null;
     try {
       if (!wasDepositPaid && willBeDepositPaid) {
         // specs/plugins-phase-3a-online-payment.md rule 1 — the same write an online payment makes.
@@ -1494,7 +1495,7 @@ function updatePayment(req, res) {
     const beforeRow = model.getRow(Number(id));
     const wasBalancePaid = Number(beforeRow?.balancePaid || 0) === 1;
     const willBeBalancePaid = Boolean(balancePaid);
-    const date = willBeBalancePaid ? (balancePaidDate || new Date().toISOString().split('T')[0]) : null;
+    const date = willBeBalancePaid ? (balancePaidDate || localTodayIso()) : null;
     try {
       if (!wasBalancePaid && willBeBalancePaid) {
         recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date });
@@ -1531,7 +1532,7 @@ function updatePayment(req, res) {
     // Arrival complement: normal (compta) paid OR « payé en liquide » (cash, off the books — spec
     // cash-complement-and-endofstay-finance.md §3.2). See resolveComplementPayment for the rules.
     const before = model.getRow(Number(id));
-    const today = new Date().toISOString().split('T')[0];
+    const today = localTodayIso();
     const { paid, cash, date } = resolveComplementPayment({
       paidInput: complementPaid, cashInput: complementPaidCash, dateInput: complementPaidDate,
       prevPaid: before?.complementPaid, prevCash: before?.complementPaidCash, prevDate: before?.complementPaidDate,
@@ -1566,7 +1567,7 @@ function updatePayment(req, res) {
   if (endOfStayComplementPaid !== undefined || endOfStayComplementPaidCash !== undefined) {
     // End-of-stay complement (departure SAS): same paid / cash model as the arrival complement (§3.1).
     const before = model.getRow(Number(id));
-    const today = new Date().toISOString().split('T')[0];
+    const today = localTodayIso();
     const { paid, cash, date } = resolveComplementPayment({
       paidInput: endOfStayComplementPaid, cashInput: endOfStayComplementPaidCash, dateInput: endOfStayComplementPaidDate,
       prevPaid: before?.endOfStayComplementPaid, prevCash: before?.endOfStayComplementPaidCash, prevDate: before?.endOfStayComplementPaidDate,
@@ -1586,7 +1587,7 @@ function updatePayment(req, res) {
     }
   }
   if (cautionReceived !== undefined) {
-    const date = cautionReceivedDate || (cautionReceived ? new Date().toISOString().split('T')[0] : null);
+    const date = cautionReceivedDate || (cautionReceived ? localTodayIso() : null);
     if (cautionReceived) {
       // specs/caution-live-from-property.md §3 rule 2 — freeze the live property caution on receipt.
       model.updatePaymentField('UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = ?, cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime(\'now\') WHERE id = ?', date, id);
@@ -1595,7 +1596,7 @@ function updatePayment(req, res) {
     }
   }
   if (cautionReturned !== undefined) {
-    const date = cautionReturnedDate || (cautionReturned ? new Date().toISOString().split('T')[0] : null);
+    const date = cautionReturnedDate || (cautionReturned ? localTodayIso() : null);
     model.updatePaymentField('UPDATE reservations SET cautionReturned = ?, cautionReturnedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?', cautionReturned ? 1 : 0, date, id);
   }
   if (checkInReady !== undefined) {
@@ -1607,13 +1608,18 @@ function updatePayment(req, res) {
   if (checkOutDone !== undefined) {
     model.updatePaymentField('UPDATE reservations SET checkOutDone = ?, updatedAt = datetime(\'now\') WHERE id = ?', checkOutDone ? 1 : 0, id);
   }
+  // specs/plugins-phase-3a-online-payment.md rule 23 — a bucket settled by hand retires its open link
+  // at once; the next poll deactivates it at the provider after checking it was not paid meanwhile.
+  if (depositPaid || balancePaid || complementPaid) {
+    try { require('../models/paymentLinksModel').retireSettled(); } catch { /* no link table: nothing to retire */ }
+  }
   res.json({ ok: true });
 }
 
 function remove(req, res) {
   const existing = model.getForArchiveCheck(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
-  const today = new Date().toISOString().split('T')[0];
+  const today = localTodayIso();
   // Same per-reservation unlock as `update` (rule 17a): an admin who unlocked the fiche may delete a
   // stay that has ended.
   if (existing.endDate < today && !pastUnlockRequested(req)) {

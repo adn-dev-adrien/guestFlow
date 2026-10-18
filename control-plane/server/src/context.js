@@ -34,6 +34,7 @@ const { createDrivers } = require('./utils/drivers');
 const { createReleases } = require('./utils/releases');
 const { createProvisioner } = require('./utils/provisioner');
 const { createFleetUpdater } = require('./utils/fleetUpdater');
+const { createPluginInstaller } = require('./utils/pluginInstaller');
 const { createRestoreVerifier } = require('./utils/restoreVerifier');
 const { createHostAlerts } = require('./utils/hostAlerts');
 const { createProbe } = require('./tasks/probe');
@@ -117,6 +118,8 @@ function createContext({
     portRange: hostingEnv.CP_PORT_RANGE || '4400-4499',
     ...(isPortFree ? { isPortFree } : {}),
     healthTimeoutMs,
+    publicUrlOf: (slug) => `https://${slug}.${domain}`,
+    registryUrl: `${publicUrl.replace(/\/+$/, '')}/registry/v1`,
     licencePublicKey: privateKey ? crypto.createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).toString('base64') : null,
     hooks: {
       licence: (id) => ctx.controllers.customers.issueLicence(id),
@@ -125,8 +128,11 @@ function createContext({
     },
   });
   ctx.hostAlerts = createHostAlerts({ hosting: models.hosting, operators: models.operators, mailer, now, consoleUrl: publicUrl });
+  // Rule 11: plugin versions are pushed from the console's own registry. `pluginInstaller: false`
+  // turns the push off; tests pass a fake.
+  ctx.pluginInstaller = pluginInstaller === false ? null : (pluginInstaller || createPluginInstaller({ registry: ctx.registry, releases: ctx.releases }));
   ctx.fleetUpdater = createFleetUpdater({
-    models, drivers: ctx.drivers, releases: ctx.releases, provisioner: ctx.provisioner, now, fetchImpl, healthTimeoutMs, journal, pluginInstaller,
+    models, drivers: ctx.drivers, releases: ctx.releases, provisioner: ctx.provisioner, now, fetchImpl, healthTimeoutMs, journal, pluginInstaller: ctx.pluginInstaller,
   });
   ctx.restoreVerifier = createRestoreVerifier({
     models, drivers: ctx.drivers, provisioner: ctx.provisioner, fleetUpdater: ctx.fleetUpdater, now, fetchImpl, healthTimeoutMs, alerts: ctx.hostAlerts, journal,

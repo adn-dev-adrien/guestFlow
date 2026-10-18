@@ -33,8 +33,8 @@ test('exportProperty includes real reservations but NEVER a devis (the fusion fi
   const ics = model.exportProperty(1);
   const eventCount = (ics.match(/BEGIN:VEVENT/g) || []).length;
   assert.equal(eventCount, 1); // only the kind='reservation' row
-  assert.ok(ics.includes('Real Booking'));
-  assert.ok(!ics.includes('Quote Devis'), 'a devis must not appear in the public iCal feed');
+  assert.ok(ics.includes('UID:reservation-1@guestflow.local'));
+  assert.ok(!ics.includes('reservation-2@guestflow.local'), 'a devis must not appear in the public iCal feed');
 });
 
 test('exportProperty returns null for an unknown property', () => {

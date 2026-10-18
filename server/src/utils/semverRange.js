@@ -32,4 +32,24 @@ function floorLabel(range) {
   return min.patch === 0 ? `${min.major}.${min.minor}` : min.version;
 }
 
-module.exports = { isVersion, isRange, satisfies, compare, highest, floorLabel };
+/**
+ * Whether a range stops below some future major (`>=3.9.0 <4.0.0`, `^1.2.0`): an open range
+ * (`>=3.9.0`) would accept a core that renamed what the plugin calls (specs/plugins-phase-4-registry.md
+ * rule 34).
+ */
+function hasUpperBound(range) {
+  if (!isRange(range)) return false;
+  return !semver.intersects(range, '>=1000000.0.0');
+}
+
+/**
+ * The range a core reads: an open range is capped at the next major of its floor (rule 34), so a
+ * package published before the cap existed is still refused by GuestFlow 4.
+ */
+function boundedRange(range) {
+  if (!isRange(range) || hasUpperBound(range)) return range;
+  const min = semver.minVersion(range);
+  return min ? `${range} <${min.major + 1}.0.0` : range;
+}
+
+module.exports = { isVersion, isRange, satisfies, compare, highest, floorLabel, hasUpperBound, boundedRange };

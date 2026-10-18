@@ -61,7 +61,7 @@ export default function CompensationsPage() {
   return (
     <Box>
       <PageActionBar
-        title="Indemnités d'annulation"
+        title="Indemnités"
         titleOnXs
         center={monthNav}
         actionsBefore={canEdit ? [{

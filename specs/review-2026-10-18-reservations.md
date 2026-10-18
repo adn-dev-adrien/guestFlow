@@ -84,7 +84,7 @@ The reservation screens say what they mean, on a phone, a tablet and a desktop.
 |---|---|---|
 | utils | `utils/pricing.js` | `withQuantityUnit` tags breakfast lines counting mornings (rule 5). |
 | utils | `utils/devisPdf.js` | `showsStruckOriginal`: strike only above (rule 2); `forceOriginal` removed. |
-| plugins | `plugins/online-payment/qontoSettingsController.js` | Message (rule 4); plugin 1.0.1. |
+| utils | `utils/qonto/qontoSettingsController.js` | Message (rule 4). Core code since specs/plugins-phase-3a-online-payment.md rule 22, so no plugin bump. |
 
 ### 4.2 Client side (`client/src/`)
 

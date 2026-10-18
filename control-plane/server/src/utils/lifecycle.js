@@ -60,7 +60,16 @@ function renewedEndsAt(endsAt, months, today) {
   return addMonths(endsAt > today ? endsAt : today, months);
 }
 
+// specs/control-plane-plans-and-access.md rule 35: a payment received during the trial ends it, and
+// the paid period starts that day (« la première période payée commence au paiement », rule 7);
+// otherwise rule 15.
+function paidEndsAt(sub, months, today) {
+  if (sub.trialEndsAt && today < sub.trialEndsAt) return addMonths(today, months);
+  return renewedEndsAt(sub.endsAt, months, today);
+}
+
 module.exports = {
+  paidEndsAt,
   GRACE_DAYS,
   READ_ONLY_LAST_DAY,
   DUE_WINDOW_DAYS,

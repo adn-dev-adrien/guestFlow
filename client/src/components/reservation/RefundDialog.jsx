@@ -10,6 +10,7 @@ import DateField from '../DateField';
 import QuantityField from '../QuantityField';
 import ErrorAlert from '../ErrorAlert';
 import { formatCurrency } from '../../utils/formatters';
+import { localIsoToday } from '../../utils/isoDay';
 
 /**
  * « Nouveau remboursement » — specs/reservation-refunds.md §6.
@@ -46,7 +47,7 @@ const FREE_LINE_BUCKETS = [
   { value: 'touristTax', label: 'Taxe de séjour' },
 ];
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localIsoToday();
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 export default function RefundDialog({

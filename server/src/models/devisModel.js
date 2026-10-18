@@ -726,10 +726,6 @@ function createModel(database) {
       ])),
     };
 
-    const quote = computeQuote(payloadWithIncluded, existing, property);
-    if (quote.code === insuranceOffer.NOT_OFFERED.code || quote.code === resourceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
-    // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
-    const beforeSnapshot = snapshotFromDb(numId);
     // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and the payload
     // doesn't override. This silently rescues legacy devis (NULL validUntil) on the first edit
     // without needing a data migration. specs/devis-extras-parity-and-price-lock.md §3 rule 14: a
@@ -744,6 +740,13 @@ function createModel(database) {
       const createdAtIsoDate = existing.validUntil ? today : String(existing.createdAt || sqliteNow()).slice(0, 10);
       return computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) || null;
     })();
+    // specs/deposit-blocks-the-dates.md rule 17 — the quote's due dates hang off the validity
+    // date the save is about to write, never the expired one it replaces: a re-issued devis owes its
+    // single payment on its new validity date, on the fiche and on the PDF alike.
+    const quote = computeQuote({ ...payloadWithIncluded, validUntil: resolvedValidUntil }, existing, property);
+    if (quote.code === insuranceOffer.NOT_OFFERED.code || quote.code === resourceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
+    // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
+    const beforeSnapshot = snapshotFromDb(numId);
 
     const tx = database.transaction(() => {
       // pdfLanguage (specs/devis-english-language.md §3 rule 1): preserve existing when not in

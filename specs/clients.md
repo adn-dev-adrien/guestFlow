@@ -69,7 +69,8 @@ list.
    delete is dropped). Force deletes everything (reservations + devis).
 7. **Cleanup orphans** unchanged in behavior: delete clients with **no** reservations **and no** devis;
    report `deletedCount` + `keptWithDevisCount`. Logic moves into the model.
-8. **Selective cleanup popup (added 2026-06-06).** Clicking **Cleanup clients** no longer deletes
+8. **Selective cleanup popup (added 2026-06-06).** Clicking **Cleanup clients** (labelled « Nettoyer
+   les clients » since 2026-10-18, specs/ds-components.md rule 25) no longer deletes
    immediately. The page fetches the orphan list (clients with no reservation **and** no devis), opens a
    popup listing one row per client (last name + first name + email + phone) with a **checkbox checked by
    default** on each row, plus a "Tout cocher / décocher" master toggle. Two actions:
