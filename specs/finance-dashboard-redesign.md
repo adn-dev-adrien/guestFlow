@@ -227,6 +227,27 @@ without losing anything today's page shows.
     never `toISOString()`, the UTC day: between midnight and 01:00 / 02:00 in Paris the page said
     « au 17 oct. » on the 18th, and « late », « upcoming » and the pace were one day behind. The client
     derives its default month from the browser's own calendar day.
+    > 2026-10-18 (review of PR #702, minor 3): the plugins too — the « not before » bound of the
+    > arrival scheduling (`hourly-resources/schedulingModel.stayBounds`, which pairs it with the local
+    > hour) and the school-holiday sync window (`school-holidays/sync.js`, `educationGouvClient.js`) use
+    > the local day — with a helper of their own (`school-holidays/localDay.js`), not the core's
+    > `utils/localDate`, so that a plugin package never requires a newer core. The server tests'
+    > « today » fixtures read `utils/localDate`, so the suites no longer fail between midnight and
+    > 02:00 in Paris.
+
+### 3.11 Review of PR #702 (2026-10-18)
+
+38. **« Marquer payé » on a late row ticks exactly what its chips list.** Each element of
+    `overdueItems` names the payment flag it settles (`paidField`: `depositPaid` for « Acompte »,
+    `balancePaid` for « Solde » and « Versement <plateforme> »), and the button sends those flags and
+    nothing else. *Why:* on a late platform payout the button reused « Tout solder » of « À encaisser »
+    and also ticked the guest's unpaid on-site complement (22275: 132 €, 11: 21 €), which left
+    « À encaisser » and reached the accounts unannounced.
+39. **« Sans montant » reads as such.** A stay with 0 € on the books carries `amountMissing`; its
+    payment column shows one chip « Montant à saisir » instead of « Réglé · Acompte non payé · Solde
+    non payé » (in every « Réservations » filter). The filter's total counts the nights its insight
+    announces: those no priced stay covers (`stayNights(...).unpriced.nights`). *Why:* the insight said
+    « 15 nuits », the table total 17.
 
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
@@ -251,14 +272,15 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 |---|---|---|---|
 | `routes/` | `finance.js` | T | `GET /dashboard`, `GET /dashboard/detail/:tile`, `GET /goal-context`; `/summary`, `/breakdown`, `/projection`, `/operational` removed with the old page |
 | `controllers/` | `financeController.js` | T | Pass the query through, map `{ ok:false, status, error }` to the response |
-| `models/` | `financeDashboardModel.js` | C | Resolves window / exercise / logement, composes financeModel, adds occupancy, year-over-year, insights, the payments ledger and the per-channel commission; returns ready-to-render payloads |
-| `models/` | `financeModel.js` | T | 2026-10-18: `getOperational().overdue` follows rule 34 (`isDirectChannel`, late platform payouts, `overdueItems`, `payouts`), `todayIso` reads `utils/localDate` (rule 37). `getSummary`, `getOperational`, `getProjection` gain `propertyId`; `getSummary` gains `knownAt` (rule 21) and returns `exerciseMonths` (the 3.6.0 overview reduced to its months); `getGoalContext()`; `getBreakdown` removed; shared helpers exported |
+| `models/` | `financeDashboardModel.js` | C | 2026-10-18 `stays` rows carry `amountMissing`, the `unpriced` total counts the insight's nights (rule 39). Resolves window / exercise / logement, composes financeModel, adds occupancy, year-over-year, insights, the payments ledger and the per-channel commission; returns ready-to-render payloads |
+| `models/` | `financeModel.js` | T | 2026-10-18: `getOperational().overdue` follows rule 34 (`isDirectChannel`, late platform payouts, `overdueItems`, `payouts`), `todayIso` reads `utils/localDate` (rule 37); each `overdueItems` element names its `paidField` (rule 38). `getSummary`, `getOperational`, `getProjection` gain `propertyId`; `getSummary` gains `knownAt` (rule 21) and returns `exerciseMonths` (the 3.6.0 overview reduced to its months); `getGoalContext()`; `getBreakdown` removed; shared helpers exported |
 | `models/` | `settingsModel.js` | T | `revenueGoals` column whitelisted |
 | `controllers/` | `settingsController.js` | T | Validates and merges `accounting.revenueGoals`, one error per exercise (rule 27) |
 | `utils/` | `revenueGoals.js` | C | Pure: parse, validate, merge, read the goals |
 | `utils/` | `financeWindow.js` | C | Pure: resolve *exercice / mois / personnalisée* into bounds, reject invalid windows |
 | `utils/` | `financeOccupancy.js` | C | Pure: sellable nights with closures, nights sold, occupancy from each logement's data start, revenue per night, RevPAR; 2026-10-18 `nightKeys` / `stayNights`: distinct nights per logement, priced nights, stays without amount (rule 35) |
 | `utils/` | `localDate.js` | C | 2026-10-18 — today's `YYYY-MM-DD` in the process time zone; every server read of « today » (rule 37) |
+| `plugins/` | `hourly-resources/schedulingModel.js`, `school-holidays/localDay.js` (C), `school-holidays/sync.js`, `school-holidays/educationGouvClient.js` | T | 2026-10-18 — the local day instead of the UTC one (rule 37 note) |
 | `utils/` | `bookingPace.js` | T | 2026-10-18 — pace nights distinct per logement (rule 35); `paceStartOf` reused as the tracking start (rule 33) |
 | `utils/` | `yearOverYear.js` | C | Pure: coverage start, comparable months, comparable range, change (rules 17-21); 2026-10-18 `lastYearSnapshotKnown`, `isMonthOver`, `clampToMonthsOver` (rule 33) |
 | `utils/` | `financeInsights.js` | C | Pure: the French insight lines (rule 11; payouts, stays without amount and wording, rules 34-36) |
@@ -269,7 +291,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `FinancePage.jsx` | T (rewrite) | URL state, loads `/dashboard`, lays out strip → hero → insights → tiles + detail → charts |
+| `pages/` | `FinancePage.jsx` | T (rewrite) | URL state, loads `/dashboard`, lays out strip → hero → insights → tiles + detail → charts; 2026-10-18 `handleSettleOverdue` sends the late row's `paidField`s only (rule 38) |
 | `components/` | `FinanceHero.jsx` | C | Ink banner: revenue, badge, goal bar, 4 figures in a grid, cumulative curve (Recharts `AreaChart`, numeric axis on `hero.axis`) |
 | `components/` | `PeriodSelector.jsx` | C | Generic: segmented *Exercice / Mois / Personnalisée* + month select / date pair with its refusal message |
 | `components/` | `ChoiceCardStrip.jsx` | C | Generic: horizontally scrollable selectable cards (label, value, caption, colour dot) |
@@ -278,7 +300,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | `components/` | `YearOverYearBadge.jsx` | C | Generic: « ▲ +12 % vs N-1 · sur 6 mois comparables » from server figures |
 | `components/` | `SmallMultiplesLineChart.jsx` | C | Generic: one small line chart per series, solid current / dashed previous, per-chart tooltip |
 | `components/` | `MonthlyRevenueChart.jsx` | C | Finance-specific: stacked current column + last year's column, window highlight |
-| `components/` | `FinanceDetailPanel.jsx` | C | Finance-specific: the six tables of rule 13, each with its `xs` card layout; 2026-10-18 « En retard » renders `overdueItems`, « Réservations » gains « Sans montant », « Encaissable d'ici le » (rules 34-36) |
+| `components/` | `FinanceDetailPanel.jsx` | C | Finance-specific: the six tables of rule 13, each with its `xs` card layout; 2026-10-18 « En retard » renders `overdueItems`, « Réservations » gains « Sans montant », « Encaissable d'ici le » (rules 34-36); « Marquer payé » calls `onSettleOverdue`, a 0 € stay shows « Montant à saisir » (rules 38-39) |
 | `components/` | `OperationalPaymentsTable.jsx` | T | Reused as is for « À encaisser » |
 | `components/` | `ChannelBreakdownCard.jsx` | Removed | Its table is rebuilt inside `FinanceDetailPanel` (« Canaux »), with the commission / net columns and the website sub-rows |
 | `components/` | `FinanceExerciseOverview.jsx`, `RankedBarList.jsx`, `FinanceBreakdownDialog.jsx` | Removed | Superseded; no other consumer |
@@ -336,8 +358,10 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 `GET /api/finance/dashboard/detail/:tile` — same query; `:tile ∈ collected | toCollect | late | stays
 | properties | channels`; extra `until=` for `toCollect` (omitted → today + 1 month, echoed as
 `projection.until`), `scope=window|upcoming|unpriced` for `stays` (rule 35). `late` rows carry
-`overdueItems: [{ kind: deposit|balance|payout, label, amount, dueDate }]` and its totals
-`payouts: { count, totalAmount }` (rule 34). Each
+`overdueItems: [{ kind: deposit|balance|payout, paidField: depositPaid|balancePaid, label, amount,
+dueDate }]` (rules 34, 38) and its totals `payouts: { count, totalAmount }` (rule 34). `stays` rows
+carry `amountMissing` (rule 39); with `scope=unpriced`, `totals.nights` is the insight's uncovered
+nights. Each
 returns `{ rows, totals }` shaped for its table (amounts, labels, due dates, chips), never computed on
 the client. Unknown tile → 404; invalid window or unknown logement → 400 `{ error }`.
 
@@ -404,6 +428,17 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `finance-distinct-nights.unit.test.js` (5) — rule 35: distinct nights, priced nights, 0 € stays
       insight and its `unpriced` table, pace nights.
 - [x] `local-today.unit.test.js` (3) — rule 37: the local day, every helper, no `toISOString` today.
+- [x] `finance-settle-overdue.unit.test.js` (2) — rule 38: a late payout names `balancePaid` only, a
+      late acompte and solde their own flags.
+- [x] `finance-unpriced-filter.unit.test.js` (2) — rule 39: the filter total equals the insight's
+      nights, `amountMissing` on 0 € stays only.
+- [x] `plugins/hourly-resources/tests/hourly-not-before-local-day.unit.test.js` (1) — rule 37 note: at
+      00:30 local, « not before » is today 00:30.
+- 2026-10-18 (rule 37 note): the « today » fixtures of `financeDashboardFixture.js`, `finance-model`,
+  `finance-fiscal-year-summary`, `finance-per-property-revenue`, `clients-directory`,
+  `sas-stay-payment`, `single-payment-at-check-in`, `arrival-payment-fiche-model`,
+  `settings-revenue-goals`, `refunds-model` and `devis-price-lock` read `utils/localDate`; the
+  school-holiday sync suite fixes its clock at local noon.
 - 2026-10-18: `finance-dashboard.unit.test.js` rule 14 counts the seed's late Airbnb payout (rule 34);
   `finance-insights.unit.test.js` reads the rule 36 wording.
 - Removed with their code: `financeBreakdown.unit.test.js`, `finance-exercise-overview.unit.test.js`;
@@ -421,6 +456,10 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `FinancePage.late-and-unpriced.test.jsx` (4) — rules 34-36: payout chip in « En retard »,
       « Voir les séjours » opens « Sans montant », channels tile wording, « Encaissable d'ici le » on the
       server's date. Fixtures shared through `financePageFixtures.jsx`.
+- [x] `FinancePage.settle-overdue.test.jsx` (2) — rule 38: « Marquer payé » on a payout sends
+      `{ balancePaid: true }` only, on a late acompte `{ depositPaid: true }` only.
+- [x] `FinancePage.unpriced-chips.test.jsx` (1) — rule 39: « Montant à saisir », no « Réglé » nor
+      « non payé », total in the insight's nights.
 - [x] `SettingsFiscalYearSection.revenue-goals.test.jsx` (4) — refusals disable Enregistrer, hint.
 - [x] `FinanceDashboard.radii.test.jsx` (3) — rule 32: tile and banner at 14 px, logement card at
       10 px, as the browser computes them from the theme.
@@ -440,6 +479,9 @@ par mois » and « Taux d'occupation » side by side.
 ### Manual UI verification of rules 33-37 (2026-10-18, copy of the Solio database)
 - See the PR of the mega review #5 finance fixes: 390 and 1280 px, Finance page insights, « En retard »
   with payouts, « Sans montant », « Encaissable d'ici le ».
+
+### Manual UI verification of rules 38-39 (2026-10-18, copy of the Solio database)
+- See the PR #702 follow-up: 390 and 1280 px, « Marquer payé » on a payout row, « Sans montant ».
 
 ### Manual UI verification of rules 30-32 (2026-09-29, dev database)
 - [x] 1440 px: ink banner, figures centred in their grid, tiles and strip at 14 / 10 px; graduations

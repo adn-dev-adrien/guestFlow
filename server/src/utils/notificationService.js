@@ -294,14 +294,27 @@ function buildNotificationService({
   // specs/plugins-phase-3a-online-payment.md rule 8 — a link GuestFlow had abandoned (stay cancelled,
   // amount replaced) but could not deactivate was paid anyway. Nothing is recorded on the stay: the
   // admin refunds from the provider. Best-effort: never throws.
-  function buildPaidAfterCancelEmail(resa, link, publicUrl) {
+  // Rule 23 — `settledOn`: the link was retired because its amount was already settled another way on
+  // that earlier day; the payment may be a second one, or the same money recorded by hand: to check.
+  const PAID_AFTER_CANCEL_TITLE = '⚠️ Paiement reçu sur un lien annulé';
+  const PAID_AFTER_SETTLED_TITLE = '⚠️ Paiement à vérifier sur un lien retiré';
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null } = {}) {
     const amount = (Number(link.amountCents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
-    const subject = `⚠️ Paiement reçu sur un lien annulé — ${ref} · ${amount}`;
+    const subject = `${settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE} — ${ref} · ${amount}`;
+    const intro = settledOn
+      ? [
+        `Un lien de paiement a été payé alors que ce montant était déjà noté réglé le ${settledOn.split('-').reverse().join('/')}.`,
+        'Le paiement n’est pas enregistré une seconde fois sur le séjour.',
+        'À vérifier : s’il s’agit d’un double paiement, le rembourser depuis l’espace du prestataire de paiement.',
+      ]
+      : [
+        'Un client a payé un lien de paiement que GuestFlow avait annulé mais n’avait pas pu désactiver.',
+        'Le paiement n’est pas enregistré sur le séjour.',
+        'Action requise : rembourser ce paiement depuis votre espace du prestataire de paiement.',
+      ];
     const lines = [
-      'Un client a payé un lien de paiement que GuestFlow avait annulé mais n’avait pas pu désactiver.',
-      'Le paiement n’est pas enregistré sur le séjour.',
-      'Action requise : rembourser ce paiement depuis votre espace du prestataire de paiement.',
+      ...intro,
       '',
       `Réservation : ${ref}`,
       `Montant : ${amount}`,
@@ -313,15 +326,16 @@ function buildNotificationService({
     return { subject, text: lines.join('\n') };
   }
 
-  async function notifyPaidAfterCancel(link) {
+  async function notifyPaidAfterCancel(link, options = {}) {
     try {
       const resa = loadReservation(link.reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
-      const { subject, text } = buildPaidAfterCancelEmail(resa, link, '');
-      await pushNewReservation({ title: '⚠️ Paiement reçu sur un lien annulé', body: subject.replace(/^⚠️ Paiement reçu sur un lien annulé — /, ''), url: `/reservations/${Number(resa.id)}` });
+      const title = options.settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE;
+      const { subject } = buildPaidAfterCancelEmail(resa, link, '', options);
+      await pushNewReservation({ title, body: subject.slice(`${title} — `.length), url: `/reservations/${Number(resa.id)}` });
       const ctx = resolveContext();
       if (ctx.skip) return { sent: false, skipped: ctx.skip };
-      const email = buildPaidAfterCancelEmail(resa, link, ctx.publicUrl);
+      const email = buildPaidAfterCancelEmail(resa, link, ctx.publicUrl, options);
       return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
     } catch (err) {
       logger.warn('[notificationService.notifyPaidAfterCancel]', err && err.message ? err.message : err);

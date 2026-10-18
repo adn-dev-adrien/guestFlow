@@ -7,6 +7,8 @@
  * Dataset: https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/
  */
 
+const { localIsoDate } = require('./localDay');
+
 const DATASET_URL = 'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records';
 const DEFAULT_TIMEOUT_MS = 30000;
 const PAGE_LIMIT = 100;
@@ -14,11 +16,11 @@ const PAGE_LIMIT = 100;
 function buildIsoEnd(horizonMonths, now = new Date()) {
   const d = new Date(now.getTime());
   d.setMonth(d.getMonth() + horizonMonths);
-  return d.toISOString().slice(0, 10);
+  return localIsoDate(d);
 }
 
 function buildUrl({ horizonMonths, now = new Date(), offset = 0 }) {
-  const todayIso = now.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(now);
   const endIso = buildIsoEnd(horizonMonths, now);
   // Overlap filter: any holiday whose interval intersects [today, today+horizon]. The dataset marks
   // most periods `population="-"` (the same dates for everyone) and only splits pupils from staff

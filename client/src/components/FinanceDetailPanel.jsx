@@ -12,7 +12,8 @@
  *   windowLabel:        string   « Exercice 2026 »…
  *   staysScope:         'window' | 'upcoming';  onStaysScopeChange(scope)
  *   until:              'YYYY-MM-DD';           onUntilChange(date)
- *   onClose, onOpenReservation(id), onTogglePayment(row, field), onSettleAll(row), onSelectProperty(id)
+ *   onClose, onOpenReservation(id), onTogglePayment(row, field), onSettleAll(row), onSettleOverdue(row) (ticks only the row's
+ *   `overdueItems`), onSelectProperty(id)
  */
 import React from 'react';
 import {
@@ -99,7 +100,7 @@ function CollectedTable({ data, onOpenReservation }) {
   );
 }
 
-function LateTable({ data, onOpenReservation, onSettleAll }) {
+function LateTable({ data, onOpenReservation, onSettleOverdue }) {
   const chips = (r) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
       {(r.overdueItems || []).map((item) => (
@@ -114,7 +115,7 @@ function LateTable({ data, onOpenReservation, onSettleAll }) {
       ))}
     </Box>
   );
-  const settle = (r) => (e) => { e.stopPropagation(); onSettleAll(r); };
+  const settle = (r) => (e) => { e.stopPropagation(); onSettleOverdue(r); };
   return (
     <>
       <ResponsiveTable
@@ -157,7 +158,9 @@ function LateTable({ data, onOpenReservation, onSettleAll }) {
 }
 
 function StaysTable({ data, emptyText, onOpenReservation }) {
-  const paymentChips = (r) => (
+  const paymentChips = (r) => (r.amountMissing ? (
+    <Chip size="small" color="warning" variant="outlined" label="Montant à saisir" />
+  ) : (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
       <Chip size="small" color={r.settled ? 'success' : 'warning'} label={r.settled ? 'Réglé' : `Reste ${formatCurrency(r.remainingDue)}`} />
       {r.depositDisabled
@@ -165,7 +168,7 @@ function StaysTable({ data, emptyText, onOpenReservation }) {
         : <Chip size="small" color={r.depositPaid ? 'success' : 'default'} variant={r.depositPaid ? 'filled' : 'outlined'} label={`Acompte ${r.depositPaid ? 'payé' : 'non payé'}${r.depositDueDate && !r.depositPaid ? ` (${displayDate(r.depositDueDate)})` : ''}`} />}
       <Chip size="small" color={r.balancePaid ? 'success' : 'default'} variant={r.balancePaid ? 'filled' : 'outlined'} label={`Solde ${r.balancePaid ? 'payé' : 'non payé'}${r.balanceDueDate && !r.balancePaid ? ` (${displayDate(r.balanceDueDate)})` : ''}`} />
     </Box>
-  );
+  ));
   return (
     <>
       <ResponsiveTable
@@ -310,7 +313,7 @@ function ChannelsTable({ data }) {
 
 export default function FinanceDetailPanel({
   id, tile, data, loading, error, onRetry, windowLabel, staysScope, onStaysScopeChange, until, onUntilChange,
-  onClose, onOpenReservation, onTogglePayment, onSettleAll, onSelectProperty,
+  onClose, onOpenReservation, onTogglePayment, onSettleAll, onSettleOverdue, onSelectProperty,
 }) {
   const [title, caption] = TITLES[tile];
   const windowed = !['toCollect', 'late'].includes(tile) && !(tile === 'stays' && staysScope === 'upcoming');
@@ -319,7 +322,7 @@ export default function FinanceDetailPanel({
   if (error) body = <ErrorAlert message="Impossible de charger ce tableau." onRetry={onRetry} />;
   else if (loading || !data) body = <LoadingState label="Chargement du tableau…" />;
   else if (tile === 'collected') body = <CollectedTable data={data} onOpenReservation={onOpenReservation} />;
-  else if (tile === 'late') body = <LateTable data={data} onOpenReservation={onOpenReservation} onSettleAll={onSettleAll} />;
+  else if (tile === 'late') body = <LateTable data={data} onOpenReservation={onOpenReservation} onSettleOverdue={onSettleOverdue} />;
   else if (tile === 'properties') body = <PropertiesTable data={data} onSelectProperty={onSelectProperty} />;
   else if (tile === 'channels') body = <ChannelsTable data={data} />;
   else if (tile === 'stays' && data.scope === 'upcoming') {

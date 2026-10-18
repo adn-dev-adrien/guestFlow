@@ -1,6 +1,7 @@
 // Shared fixture of the finance dashboard suites (specs/finance-dashboard-redesign.md): an in-memory
 // schema holding just the columns the finance models read, plus closures and refunds. Not a test file.
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const Database = require('better-sqlite3');
 const financeModel = require('../models/financeModel');
 const dashboardModel = require('../models/financeDashboardModel');
@@ -28,7 +29,7 @@ const DDL = `
 `;
 
 const THIS_YEAR = new Date().getFullYear();
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = localTodayIso();
 
 function freshDb({ closingMonth = 12, properties = ['Gite', 'Tente', 'Yourte'] } = {}) {
   const db = new Database(':memory:');

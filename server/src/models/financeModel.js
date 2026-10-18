@@ -208,14 +208,15 @@ function createFinanceModel(database) {
   })();
 
   // specs/finance-dashboard-redesign.md rule 34 — what a stay has overdue, as a row of « En retard »,
-  // or null. Each row lists its overdue elements (`overdueItems`) ready to render.
+  // or null. Each row lists its overdue elements (`overdueItems`) ready to render; `paidField` names the
+  // payment flag « Marquer payé » ticks for that element, and nothing else (rule 38).
   function overdueOf(r, today) {
     if (r.settled) return null;
     if (isDirectChannel(r.platform)) {
       if (!r.isOverdue) return null;
       const overdueItems = [];
-      if (r.depositOverdue) overdueItems.push({ kind: 'deposit', label: 'Acompte', amount: round2(r.depositAmount), dueDate: r.depositDueDate });
-      if (r.balanceOverdue) overdueItems.push({ kind: 'balance', label: 'Solde', amount: round2(r.balanceAmount), dueDate: r.balanceDueDate });
+      if (r.depositOverdue) overdueItems.push({ kind: 'deposit', paidField: 'depositPaid', label: 'Acompte', amount: round2(r.depositAmount), dueDate: r.depositDueDate });
+      if (r.balanceOverdue) overdueItems.push({ kind: 'balance', paidField: 'balancePaid', label: 'Solde', amount: round2(r.balanceAmount), dueDate: r.balanceDueDate });
       return { ...r, payoutOverdue: false, overdueItems };
     }
     const balance = round2(r.balanceAmount);
@@ -230,7 +231,7 @@ function createFinanceModel(database) {
       payoutOverdue: true,
       overdueAmount: balance,
       oldestDueDate: dueDate,
-      overdueItems: [{ kind: 'payout', label: `Versement ${platformDisplayName(r.platform)}`, amount: balance, dueDate }],
+      overdueItems: [{ kind: 'payout', paidField: 'balancePaid', label: `Versement ${platformDisplayName(r.platform)}`, amount: balance, dueDate }],
     };
   }
 

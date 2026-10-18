@@ -1,3 +1,4 @@
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -28,7 +29,7 @@ const DDL = `
 
 // « Today » is the real clock (the model reads it), so the fixtures are anchored on it: the exercise
 // under test is always the CURRENT one, and « past » / « future » are relative to now.
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = localTodayIso();
 function shift(days, base = TODAY) {
   const d = new Date(`${base}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);

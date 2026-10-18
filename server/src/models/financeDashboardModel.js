@@ -353,15 +353,21 @@ function createDashboardModel(database, finance) {
     if (tile === 'stays') {
       // Rule 35 — « Sans montant »: the window's stays with 0 € on the books.
       const unpricedOnly = params.scope === 'unpriced';
-      const source = unpricedOnly ? summary.reservations.filter((r) => Math.round(Number(r.totalSejour || 0) * 100) === 0) : summary.reservations;
+      const isUnpriced = (r) => Math.round(Number(r.totalSejour || 0) * 100) === 0;
+      const source = unpricedOnly ? summary.reservations.filter(isUnpriced) : summary.reservations;
+      // Rule 39 — a stay with 0 € on the books has no payment to follow: `amountMissing` replaces its
+      // payment chips by « Montant à saisir ».
       const rows = source.map((r) => ({
         id: r.id, clientName: `${r.firstName || ''} ${r.lastName || ''}`.trim(), propertyName: r.propertyName,
         startDate: r.startDate, endDate: r.endDate, platform: r.platform, nights: r.nights, totalSejour: r.totalSejour,
         settled: r.settled, remainingDue: r.remainingDue,
         depositDisabled: Boolean(r.depositDisabled), depositPaid: Boolean(r.depositPaid), depositDueDate: r.depositDueDate,
         balancePaid: Boolean(r.balancePaid), balanceDueDate: r.balanceDueDate,
+        amountMissing: isUnpriced(r),
       }));
-      const nights = unpricedOnly ? occupancy.stayNights(source).nights : occupancy.stayNights(summary.reservations).nights;
+      // Rule 39 — « Sans montant » counts the nights the insight announces: those no priced stay covers.
+      const windowNights = occupancy.stayNights(summary.reservations);
+      const nights = unpricedOnly ? windowNights.unpriced.nights : windowNights.nights;
       return { ok: true, data: { scope: unpricedOnly ? 'unpriced' : 'window', rows, totals: { count: rows.length, nights, totalSejour: round2(source.reduce((n, r) => n + Number(r.totalSejour || 0), 0)) } } };
     }
 

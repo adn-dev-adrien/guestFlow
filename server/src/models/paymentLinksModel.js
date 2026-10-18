@@ -13,6 +13,8 @@
  *   listOpen()                              → all status='open' rows
  *   retireExpired({ now })                  → flips open links past a known expiresAt to 'expired'; returns them
  *   retireSettled()                         → cancels the open links whose bucket the stay already settled; returns them
+ *   settledBucketDateOf(link)               → the day the stay recorded that link's bucket as paid, or null
+ *   markRetiredLinkPaid(id, { providerPaymentId, paidAt }) → a link retired by retireSettled was the payment: cancelled→paid
  *   listPollable({ now, force, cadence })   → the open links due for a provider check (the polling worklist)
  *   touchPolled(id, at?)                    → stamps lastPolledAt (every provider call made for a link)
  *   hasKnownExpiry(link)                    → whether the link carries a real expiry date
@@ -85,7 +87,7 @@ function isPollDue(link, nowMs, cadence = POLL_CADENCE_DEFAULTS) {
 
 function buildModel(database) {
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
-    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt`;
+    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason`;
 
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
@@ -162,17 +164,46 @@ function buildModel(database) {
          )
        ORDER BY l.id
     `).all();
-    const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ? WHERE id = ? AND status = 'open'");
+    const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'settled' WHERE id = ? AND status = 'open'");
     const retired = [];
     const at = new Date().toISOString();
     database.transaction(() => {
       for (const link of settled) {
         if (Number(retire.run(link.providerLinkId ? at : null, link.id).changes) > 0) {
-          retired.push({ ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null });
+          retired.push({ ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null, cancelReason: 'settled' });
         }
       }
     })();
     return retired;
+  }
+
+  // Rule 23 — the day the stay recorded the bucket of a link retired by rule 22 (a link on a devis
+  // reads the reservation the devis became); null when unknown or no longer paid.
+  function settledBucketDateOf(link) {
+    const col = { deposit: 'depositPaid', balance: 'balancePaid', full: 'balancePaid', complement: 'complementPaid' }[link && link.type];
+    if (!col) return null;
+    const row = database.prepare(`
+      SELECT COALESCE(c.id, r.id) AS id FROM reservations r
+        LEFT JOIN reservations c ON c.id = r.convertedReservationId
+       WHERE r.id = ?
+    `).get(Number(link.reservationId));
+    if (!row) return null;
+    const stay = database.prepare(`SELECT ${col} AS paid, ${col}Date AS paidDate FROM reservations WHERE id = ?`).get(row.id);
+    return stay && Number(stay.paid) === 1 && stay.paidDate ? String(stay.paidDate).slice(0, 10) : null;
+  }
+
+  // Rule 23 — a link retired by rule 22 that the guest had paid IS the payment that settled the bucket:
+  // it becomes `paid` with the provider's payment, and its deactivation is no longer owed.
+  function markRetiredLinkPaid(id, { providerPaymentId = null, paidAt = null } = {}) {
+    const info = database.prepare(`
+      UPDATE payment_links
+         SET status = 'paid',
+             remoteCancelPendingAt = NULL,
+             providerPaymentId = COALESCE(?, providerPaymentId),
+             paidAt = COALESCE(?, paidAt, datetime('now'))
+       WHERE id = ? AND status = 'cancelled' AND cancelReason = 'settled'
+    `).run(providerPaymentId == null ? null : String(providerPaymentId), paidAt == null ? null : String(paidAt), Number(id));
+    return { flipped: Number(info.changes) > 0, row: findById(id) };
   }
 
   function listPollable({ now = new Date(), force = false, cadence = resolvePollCadence() } = {}) {
@@ -265,6 +296,8 @@ function buildModel(database) {
     listOpen,
     retireExpired,
     retireSettled,
+    settledBucketDateOf,
+    markRetiredLinkPaid,
     listPollable,
     touchPolled,
     hasKnownExpiry,

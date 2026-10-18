@@ -67,8 +67,10 @@ test('rule 22 — the poll deactivates the settled link and never polls it again
   assert.deepEqual(p.calls, [], 'nothing left to ask the provider');
 });
 
-test('rule 22 — paid at the provider meanwhile: not deactivated, kept for the refund', async () => {
+test('rule 22 — paid at the provider after the bucket was settled another way: not deactivated, kept for the refund', async () => {
   const { db, paidId } = seed();
+  // Settled by transfer on 1 August; the link payment (pay_9, now) comes later (rule 23).
+  db.prepare("UPDATE reservations SET balancePaidDate = '2026-08-01' WHERE id = ?").run(paidId);
   const links = paymentLinksModel.buildModel(db);
   const link = links.create({ reservationId: paidId, type: 'balance', amountCents: 21000, providerLinkId: 'ql_6', url: 'https://pay/6' });
   const notified = [];
@@ -77,4 +79,5 @@ test('rule 22 — paid at the provider meanwhile: not deactivated, kept for the 
   assert.deepEqual(p.calls.map((c) => c[0]), ['getPayment']);
   assert.equal(links.findById(link.id).providerPaymentId, 'pay_9');
   assert.deepEqual(notified, [link.id]);
+  assert.equal(links.findById(link.id).status, 'cancelled');
 });

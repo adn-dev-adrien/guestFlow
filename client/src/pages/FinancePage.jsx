@@ -124,6 +124,12 @@ export default function FinancePage() {
     if (Object.keys(payload).length === 0) return;
     await markPayment(r.id, payload);
   };
+  // Rule 38 — « Marquer payé » on a late row ticks exactly the elements its chips list.
+  const handleSettleOverdue = async (r) => {
+    const payload = Object.fromEntries((r.overdueItems || []).map((item) => [item.paidField, true]));
+    if (Object.keys(payload).length === 0) return;
+    await markPayment(r.id, payload);
+  };
 
   const d = dashboard;
   const selectedProperty = d && d.propertyId ? d.properties.find((p) => p.propertyId === d.propertyId) : null;
@@ -245,6 +251,7 @@ export default function FinancePage() {
                 onOpenReservation={(id) => navigate(`/reservations/${id}`)}
                 onTogglePayment={handleTogglePayment}
                 onSettleAll={handleSettleAll}
+                onSettleOverdue={handleSettleOverdue}
                 onSelectProperty={(id) => setParams({ propertyId: id })}
               />
             ) : (

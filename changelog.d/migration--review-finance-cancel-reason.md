@@ -1,0 +1,1 @@
+- `payment_links.cancelReason TEXT` (idempotent `ALTER TABLE` in `utils/paymentLinksProviderMigration.js`): `'settled'` on the links retired because their bucket was paid another way; existing rows read NULL. No data rewritten.
