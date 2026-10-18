@@ -83,11 +83,11 @@ test('an unsupported deployment explains itself and hides the install button', a
     latest: '1.2.0',
     updateAvailable: true,
     selfUpdateSupported: false,
-    selfUpdateReason: "Ce déploiement n'utilise pas le lien symbolique « current » : mise à jour manuelle requise.",
+    selfUpdateReason: 'Mise à jour automatique indisponible sur cette installation.',
   }));
   render(<SettingsSystemUpdateSection />);
 
-  expect(await screen.findByText(/mise à jour manuelle requise/)).toBeInTheDocument();
+  expect(await screen.findByText(/Mise à jour automatique indisponible/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Installer/ })).not.toBeInTheDocument();
 });
 

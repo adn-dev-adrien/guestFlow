@@ -20,8 +20,9 @@ function bindStore(settingsStore) {
 }
 
 // Only an explicit '0' lifts the enforcement (specs/terms-acceptance-record.md rule 17): a missing
-// value keeps the safe default, on.
+// value keeps the safe default, on — and so does a store not bound yet (a suite without the loader).
 function termsSettings() {
+  if (!store) return { requireTermsAcceptance: true, lastSeenPluginVersion: '' };
   return {
     requireTermsAcceptance: String(store.get('requireTermsAcceptance')) !== '0',
     lastSeenPluginVersion: String(store.get('lastSeenPluginVersion') || ''),

@@ -1,6 +1,12 @@
 /* GuestFlow Booking — shared styles for the three blocks. Theme-agnostic, responsive. */
 
 .gf-block { --gf-accent: #1976d2; --gf-muted: #6b7280; --gf-border: #e2e5ea; --gf-blocked: #f3f4f6; max-width: 100%; }
+/* Padding inside the declared width, whatever the theme sets (specs/wordpress-plugin.md rule 17):
+   with the browser's content-box, `width: 100%` plus padding overflowed the card on a stock theme.
+   Scoped to the blocks, so the theme's own elements are never touched. */
+.gf-block, .gf-block *, .gf-block *::before, .gf-block *::after { box-sizing: border-box; }
+/* Two equal columns per form row, on any width: the booking block sizes against its own box. */
+.gf-booking { container-type: inline-size; }
 .gf-loading, .gf-error, .gf-empty { padding: 1rem; color: var(--gf-muted); font-style: italic; }
 .gf-error { color: #b3261e; font-style: normal; }
 
@@ -32,7 +38,7 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-booking { border: 1px solid var(--gf-border); border-radius: 12px; padding: 1.25rem 1.4rem; }
 .gf-booking-name { margin-top: 0; }
 .gf-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: .9rem; }
-.gf-field { display: flex; flex-direction: column; flex: 1 1 160px; gap: .25rem; }
+.gf-field { display: flex; flex-direction: column; flex: 1 1 160px; gap: .25rem; min-width: 0; }
 .gf-field-time { flex: 0 1 130px; }
 .gf-field label { font-size: .8rem; color: var(--gf-muted); }
 .gf-field input, .gf-field select, .gf-field textarea { padding: .55rem; border: 1px solid var(--gf-border); border-radius: 8px; font: inherit; width: 100%; }
@@ -115,6 +121,14 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-prop-meta { color: var(--gf-muted); font-size: .85rem; }
 .gf-prop-price { color: var(--gf-accent); font-weight: 600; }
 .gf-prop-card .gf-btn { margin-top: auto; text-align: center; text-decoration: none; display: inline-block; }
+
+/* A narrow booking block (a sidebar, a drawer, a phone) gives the e-mail a row of its own: an address
+   cut in half cannot be checked by the visitor who typed it (rule 23). */
+@container (max-width: 520px) {
+  .gf-field-email { flex-basis: 100%; }
+  .gf-field-clear { flex-basis: 100%; }
+  .gf-dates-clear { width: 100%; }
+}
 
 @media (max-width: 600px) {
   .gf-cal-month { flex-basis: 100%; }

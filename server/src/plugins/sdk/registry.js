@@ -24,6 +24,8 @@ function emptyRecord(id) {
     routes: [],
     // role → [{ method, re }] allowlist entries (specs/plugins-phase-2-hosts.md rule 3).
     roleAccess: { reception: [], accountant: [] },
+    // [{ method, re }] — refused to a support session (specs/hosting-h2-account-security.md rule 23).
+    secretRoutes: [],
     migrations: [],
     settings: [],
     jobs: [],
@@ -65,6 +67,7 @@ module.exports = {
       record.mounts = previous.mounts;
       record.routes = previous.routes;
       record.webhooks = previous.webhooks;
+      record.secretRoutes = previous.secretRoutes;
     }
     records.set(id, record);
   },

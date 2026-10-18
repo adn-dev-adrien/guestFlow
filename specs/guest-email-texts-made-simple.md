@@ -96,6 +96,8 @@ email shown beside the text. The whole wording can also go out and come back as 
 7. The page « Textes des emails » opens on this list when it is not empty. The onboarding wizard shows
    it on its last step. The dashboard shows one alert « Emails incomplets » while an item concerns a
    stay in the next 14 days.
+   > **2026-10-18 (code review m6):** the alert reads `GET /api/email-readiness`, an admin route: the
+   > dashboard loads it for an admin only, so an accountant's dashboard no longer gets a 403.
 8. A sentence that depends on an empty setting is omitted, never printed with a hole. This covers the
    company phone, the Google review link and Instagram.
 
@@ -283,6 +285,13 @@ email shown beside the text. The whole wording can also go out and come back as 
     line (its name and the start of its French, with « EN manquant » or « À relire » when due) until
     tapped, and the opened editor takes the focus: Solio's J-2 section went from about 7,000 px to
     3,400 px at 390 px. Only an enabled template counts as placing a sentence.
+26. **A « recette » never emails a guest** (added 2026-10-18, code review m3). With
+    `GUESTFLOW_MAIL_OUTBOX=<dir>` set and `NODE_ENV` not `production`, every email the instance would
+    send — guest emails, account emails, notifications, the SMTP test — is written as one JSON file in
+    `<dir>` (`to`, `subject`, `text`, `from`, `replyTo`, `at`) and no SMTP connection is opened. Nothing
+    else changes: an instance without SMTP still refuses to send, and a send is still logged as sent. In
+    production the variable is ignored. The safe way to try a copy of the production database is
+    therefore `GUESTFLOW_MAIL_OUTBOX=/tmp/outbox npm run dev:server` (README › Recette).
 
 ---
 

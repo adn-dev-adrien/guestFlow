@@ -20,7 +20,7 @@ const SLUG = 'guestflow-booking';
 // Kept in sync with the plugin header (integrations/wordpress/guestflow-booking/guestflow-booking.php).
 const REQUIRES_WP = '6.4';
 const REQUIRES_PHP = '8.0';
-const TESTED_WP = '6.7';
+const TESTED_WP = '7.1';
 
 function escapeHtml(text) {
   return String(text)

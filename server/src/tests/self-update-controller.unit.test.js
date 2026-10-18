@@ -98,7 +98,7 @@ test('buildVersionInfo says why self-update is unavailable on a dev tree', () =>
   const info = buildVersionInfo(model);
   // The dev checkout has no `current` symlink, so the engine must refuse — with a reason.
   assert.equal(info.selfUpdateSupported, false);
-  assert.match(info.selfUpdateReason, /manuelle|current|PM2|releases/);
+  assert.match(info.selfUpdateReason, /indisponible|PM2|releases/);
   cleanup();
 });
 

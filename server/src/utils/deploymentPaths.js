@@ -122,7 +122,7 @@ function selfUpdateSupported(env = process.env, paths = resolvePaths(env)) {
     return { supported: false, reason: "La mise à jour depuis l'application est désactivée sur cette instance (GUESTFLOW_SELF_UPDATE=off)." };
   }
   if (!isSymlink(paths.currentLink)) {
-    return { supported: false, reason: "Ce déploiement n'utilise pas le lien symbolique « current » : mise à jour manuelle requise." };
+    return { supported: false, reason: 'Mise à jour automatique indisponible sur cette installation.' };
   }
   if (!isDirectory(paths.releasesDir)) {
     return { supported: false, reason: "Le dossier « releases » du déploiement est introuvable." };

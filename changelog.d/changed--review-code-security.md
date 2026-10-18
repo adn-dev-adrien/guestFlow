@@ -1,0 +1,4 @@
+- **Plugin compatibility:** every plugin manifest bounds its GuestFlow range below 4.0.0, the package build refuses an open range, and an instance reads an open range already published as capped at the next major — a 3.x package never loads on GuestFlow 4 (specs/plugins-phase-4-registry.md rule 34).
+- **SDK contract:** `server/src/plugins/sdk/coreModules.json` lists what `coreModule()` exposes; a test and `check-plugin-versions` fail when a listed module or name disappears without an SDK major bump. SDK 1.2.0 (specs/plugins-phase-4-registry.md rule 35).
+- **Qonto library:** moved back from the online-payment plugin to `server/src/utils/qonto/`, shared by the plugin and the control plane, which no longer imports a plugin file (specs/plugins-phase-3a-online-payment.md rule 22).
+- **Recette mode:** `GUESTFLOW_MAIL_OUTBOX=<dir>` outside production now catches every email, guest emails included (specs/guest-email-texts-made-simple.md rule 26, README › Recette).

@@ -72,7 +72,7 @@ function createInstances({ root, envsDir }) {
     // request and its open access, read like the rest. null when it cannot be read (an instance from
     // before H2 has no such table).
     // `requestId` — the request the console last wrote: `known` says whether the instance has
-    // imported it yet (specs/hosting-h2-account-security.md rule 24).
+    // imported it yet (specs/hosting-h2-account-security.md rule 26).
     readSupportAccess(slug, nowIso, requestId = null) {
       let db;
       try {

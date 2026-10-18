@@ -1,4 +1,4 @@
-// specs/hosting-h2-account-security.md rule 24 — right after « Demander l'accès » the console shows
+// specs/hosting-h2-account-security.md rule 26 — right after « Demander l'accès » the console shows
 // « En attente », not « Aucun accès »: a request it wrote and the instance has not imported yet is
 // already pending. Once the instance imported it, the instance's own row is the state again.
 
@@ -13,7 +13,7 @@ const { supportAccess } = require('../utils/gf');
 const SUPPORT_TABLE = `CREATE TABLE support_access (id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT NOT NULL UNIQUE, reason TEXT NOT NULL,
   requestedAt TEXT NOT NULL, decision TEXT, decidedBy INTEGER, decidedAt TEXT, expiresAt TEXT, revokedAt TEXT, revokedBy INTEGER)`;
 
-test('rule 24 — the request just written reads « En attente » before the instance imports it', async () => {
+test('rule 26 — the request just written reads « En attente » before the instance imports it', async () => {
   const h = makeContext();
   try {
     const dataDir = makeInstance(h.root, 'aulnes', { users: [{ email: 'claire@aulnes.fr' }] });
@@ -41,7 +41,7 @@ test('rule 24 — the request just written reads « En attente » before the ins
   }
 });
 
-test('rule 24 — a request file that is a link out of the instance is never read', async () => {
+test('rule 26 — a request file that is a link out of the instance is never read', async () => {
   const h = makeContext();
   try {
     const dataDir = makeInstance(h.root, 'aulnes', { users: [{ email: 'claire@aulnes.fr' }] });

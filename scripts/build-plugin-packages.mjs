@@ -440,6 +440,11 @@ export async function buildPackage(id, outDir, usage = {}) {
   const own = {};
   const { readSourceManifest } = require(path.join(SERVER_PLUGINS, 'manifest.js'));
   const manifest = readSourceManifest(id);
+  // Rule 34 — a package never claims a core major it was not built against.
+  const { hasUpperBound } = require(path.join(SERVER_PLUGINS, '..', 'utils', 'semverRange.js'));
+  if (!hasUpperBound(manifest.guestflow)) {
+    throw new Error(`plugin ${id}: "guestflow" range "${manifest.guestflow}" has no upper bound (e.g. ">=3.9.0 <4.0.0")`);
+  }
   const stage = path.join(outDir, id);
   fs.rmSync(stage, { recursive: true, force: true });
   fs.mkdirSync(stage, { recursive: true });

@@ -54,7 +54,7 @@ export default function PublicSiteOriginCard({ value, onSaved }) {
             disabled={saving}
             sx={{ flex: 1, maxWidth: { sm: 520 } }}
           />
-          <Button variant="outlined" onClick={save} disabled={!dirty || saving} sx={{ minHeight: 40, width: { xs: '100%', sm: 'auto' } }}>
+          <Button variant="outlined" onClick={save} disabled={!dirty || saving} sx={{ minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 }, width: { xs: '100%', sm: 'auto' } }}>
             Enregistrer l’adresse
           </Button>
         </Box>

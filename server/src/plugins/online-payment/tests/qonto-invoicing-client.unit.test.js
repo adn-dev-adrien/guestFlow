@@ -5,7 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildQontoClient } = require('../qonto/qontoClient');
+const { buildQontoClient } = require('../../../utils/qonto/qontoClient');
 
 function stubFetch(response = {}) {
   const calls = [];

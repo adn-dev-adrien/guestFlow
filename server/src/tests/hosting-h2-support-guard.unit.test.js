@@ -170,7 +170,7 @@ test('rules 19-20 — the reads of a support session are logged once per path an
   const raw = h.supportAccessModel.logs(h.accessId).filter((l) => l.method === 'GET').map((l) => l.path.toLowerCase().replace(/\/+$/, ''));
   assert.deepEqual(raw.filter((p) => p.endsWith('/reservations/12')).length, 2);
   assert.ok(!raw.some((p) => /me|banner/i.test(p)), 'what the application polls is not logged');
-  // Rule 20 with rule 23: each minute's reads read as one line.
+  // Rule 20 with rule 25: each minute's reads read as one line.
   const labels = h.supportAccess.logs(h.accessId).entries.map((e) => [e.label, e.outcomeLabel]);
   assert.ok(labels.some(([l]) => l === 'Consultation : Réservation 12, Réservations'), JSON.stringify(labels));
   assert.deepEqual(labels.find(([l]) => l === 'Utilisateur créé' || l === 'Modification : Utilisateurs'), ['Modification : Utilisateurs', 'Refusé']);

@@ -66,10 +66,10 @@ function catalogue() {
 test('every aria-label in the booking view is looked up, never written in place (rule 49)', () => {
   const labels = [...view.matchAll(/'aria-label'\s*:\s*([^,}]+)/g)].map((m) => m[1].trim());
   assert.ok(labels.length > 0, 'no aria-label found at all — the file was restructured');
-  // A literal is allowed only when it carries no letter: the steppers announce « − » and « + »,
-  // symbols that read the same in both languages and belong in no catalogue. Anything with a word
-  // in it is a string a screen reader speaks, so it follows the page.
-  const literals = labels.filter((value) => !value.startsWith('GF.t(') && /[A-Za-zÀ-ÿ]/.test(value));
+  // A literal is a quoted string with a word in it: a string a screen reader speaks, so it follows
+  // the page. Computed names are fine — a day read through GF.dayLabel(), a stepper named after its
+  // line (specs/wordpress-plugin.md rule 15) — they are built from translated parts.
+  const literals = labels.filter((value) => /^['"`]/.test(value) && /[A-Za-zÀ-ÿ]/.test(value));
   assert.deepStrictEqual(
     literals,
     [],

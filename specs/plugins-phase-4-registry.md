@@ -260,6 +260,24 @@ below are the recommended ones; each is reversible in a later spec.
     does not expose, with the refusal of a core too old (« Nécessite une version plus récente de
     GuestFlow. »). `client/src/plugins/hostModules.json` only grows: `--write-host` keeps what was there,
     and CI refuses a PR or a release that removes a module or a name since its base.
+34. **A package names the last GuestFlow major it runs on** (added 2026-10-18, code review M3). Every
+    manifest's `guestflow` range has an upper bound (`">=3.9.0 <4.0.0"`); the package build refuses a
+    manifest without one. An instance reads an open range published before this rule as stopping at
+    the next major of its floor (`>=3.9.0` → `>=3.9.0 <4.0.0`), so GuestFlow 4 refuses every 3.x
+    package — install, update or loading at boot — until a version built for it is published. The
+    refusal blames the package, not the core: « Incompatible avec cette version de GuestFlow. » on the
+    Plugins page (`CORE_INCOMPATIBLE`), « Incompatible avec cette version. » for a package refused at
+    boot. *(Corrected 2026-10-18, second review: the text first quoted rule 33's « Nécessite une version
+    plus récente de GuestFlow. », which is for a core too old.)*
+35. **What `coreModule()` hands a server plugin is part of the SDK contract** (added 2026-10-18, code
+    review M3). `server/src/plugins/sdk/coreModules.json` lists every module of `CORE_MODULES` and the
+    names it exports. A unit test fails when a listed module or name is no longer exported, when the
+    list and `CORE_MODULES` differ, or when a plugin calls `coreModule()` with a name outside the list;
+    `check-plugin-versions` refuses a PR or a release that removes a module or a name since its base
+    unless the SDK major version moves (`server/src/plugins/sdk/version.js`). Adding stays free, like
+    the host modules of rule 33. *(Clarified 2026-10-18, second review: the list holds names only. It
+    catches a module or an export removed or renamed; a changed signature behind the same name is not
+    detected, and stays a matter of review and of the SDK major version.)*
 
 ---
 
@@ -290,6 +308,8 @@ below are the recommended ones; each is reversible in a later spec.
 | `plugins/sdk/` | `createContext.js`, `registry.js` | T | _(added 2026-10-08)_ `ctx.dataDir` (rule 15); a plugin with no record is not live in the package mode |
 | `models/` | `pluginsModel.js` | T | _(added 2026-10-08)_ `switchVersion`, `rollBack`, `expireRollback`, `syncBundled` |
 | `scripts/` | `seed-e2e.js` | T | _(added 2026-10-08)_ `E2E_SEED_PLUGINS` picks the installed plugins; rows are `bundled` |
+| `plugins/sdk/` | `coreModules.json` | C | _(added 2026-10-18)_ The modules and names `coreModule()` exposes (rule 35) |
+| `utils/` | `semverRange.js` | T | _(added 2026-10-18)_ `hasUpperBound`, `boundedRange` (rule 34) |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -359,6 +379,8 @@ word per line (seen in the browser check of 2026-10-17).
 - E2E: production-build suite (rule 19) — app renders with plugins loaded from bundles; install from
   a test registry; update with restart.
 - Release tooling: version check fails on a changed plugin without a bump.
+- _(added 2026-10-18)_ `plugins-manifest-upper-bound.unit.test.js` (rule 34) and
+  `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
 
 ## 8. Out of scope
 
@@ -383,6 +405,12 @@ plugin of the catalogue » from then on.
 rule 12ter) raise the SDK to **1.1.0** (rule 3, minor). Under rule 28 the plugins whose sources the
 merge changed are bumped in the merge PR: `gate-access` 1.1.0 (« Partager » on the « Portail » step),
 `linen` 1.0.1 and `hourly-resources` 1.0.1 (both `sdk ^1.1.0`).
+
+2026-10-18 — code review (`fix/review-code-security`): rules 34 and 35. Every manifest is bounded
+`<4.0.0`, an open range is read as bounded, and `coreModules.json` freezes what `coreModule()` exposes.
+`ctx.secretRoutes` (`specs/hosting-h2-account-security.md` rule 23) and the core module `qonto`
+(`specs/plugins-phase-3a-online-payment.md` rule 22) raise the SDK to **1.2.0** (minor); every plugin is
+bumped for its new range, and `booking-intake`, `gate-access` and `online-payment` ask for `sdk ^1.2.0`.
 
 | Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|

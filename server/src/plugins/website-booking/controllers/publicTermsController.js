@@ -7,6 +7,7 @@ const sdk = require('../../sdk');
 
 const termsModel = sdk.coreModule('termsModel');
 const { ok, failT } = sdk.coreModule('publicHttp');
+const settings = require('../settings');
 
 function shape(v) {
   return {
@@ -18,7 +19,12 @@ function shape(v) {
 
 function getCurrent(req, res) {
   const v = termsModel.getCurrent();
-  if (!v) return failT(res, req, 503, 'TERMS_NOT_CONFIGURED', 'termsNotConfigured');
+  // specs/wordpress-plugin.md rule 21 — `bookingClosed` tells the site a request would be refused, so
+  // the form is replaced before the visitor fills it.
+  if (!v) {
+    const { requireTermsAcceptance } = settings.termsSettings();
+    return failT(res, req, 503, 'TERMS_NOT_CONFIGURED', 'termsNotConfigured', [{ bookingClosed: requireTermsAcceptance }]);
+  }
   return ok(res, { ...shape(v), currentVersion: v.version });
 }
 

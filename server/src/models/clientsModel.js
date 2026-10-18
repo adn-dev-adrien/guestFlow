@@ -10,7 +10,7 @@
  */
 
 const db = require('../database');
-const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
+const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
 
 const MS_PER_DAY = 86400000;
 
@@ -46,8 +46,8 @@ function buildClientFields(payload) {
   const address = sentenceCase(payload.address)
     || sentenceCase([streetNumber, street].filter(Boolean).join(' '));
   return {
-    lastName: sentenceCase(payload.lastName),
-    firstName: sentenceCase(payload.firstName),
+    lastName: personNameCase(payload.lastName),
+    firstName: personNameCase(payload.firstName),
     streetNumber,
     street,
     postalCode: String(payload.postalCode || '').trim(),
