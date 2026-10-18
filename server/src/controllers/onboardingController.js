@@ -2,12 +2,14 @@
  * Onboarding controller — the start assistant (specs/plugins-phase-p-productisation.md §3.D rules
  * 20–23, §4.3). Admin-only through the role guard.
  *
- *   GET  /api/onboarding            { open, company, plugins }
- *   PUT  /api/onboarding/company    { name, email, phone, address, siret } → 200 | 422 { errors }
+ *   GET  /api/onboarding            { open, company, property, plugins, emails }
+ *   PUT  /api/onboarding/company    { name, email, phone, address, siret } → 200 { company, loginEmail, loginChanged } | 422 { errors }
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
+ *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 28)
  *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error }] }
- *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, wifiName, wifiPassword }] }
+ *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, accessCode,
+ *                                     wifiName, wifiPassword, caution, cleaningIncluded, towelsProvided }] }
  *                                     → 200 | 422 { errors } (specs/guest-email-texts-made-simple.md rule 21)
  *   POST /api/onboarding/done       records onboardingCompletedAt (« C'est prêt » and « Plus tard »)
  *
@@ -20,10 +22,12 @@ const { validatePropertyInput } = require('../utils/propertyValidation');
 const { quotaRefusal } = require('../utils/planQuota');
 const onboardingModel = require('../models/onboardingModel');
 const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
-const { __test: { formatPropertyWithArticle } } = require('../utils/emailContextBuilder');
+const propertyArticle = require('../utils/propertyArticle');
+const { pendingFactsOf, withoutPending, answeredFlag, PENDABLE } = require('../utils/propertyFacts');
+const { DEFAULT_ADMIN_EMAIL } = require('../constants/authDefaults');
 
-// The articles a property name may take (models/propertiesModel.js), offered as a choice.
-const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
+// The articles a property name may take (models/propertiesModel.js).
+const NAME_ARTICLES = propertyArticle.ARTICLES;
 
 const RECOMMENDED = new Set(['website-booking', 'sas']);
 const MAX_CAPACITY = 50;
@@ -41,7 +45,7 @@ function capture(handler, req) {
   });
 }
 
-function buildController({ database, settingsModel, propertiesModel, plugins, ensureVapid = () => {} }) {
+function buildController({ database, settingsModel, propertiesModel, plugins, usersModel = null, ensureVapid = () => {} }) {
   const model = () => onboardingModel.buildModel(database);
 
   function companyOf(row) {
@@ -69,19 +73,28 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
   // 2026-10-17): the address typed at step 1 is not asked twice.
   function emailsOf(row) {
     const arrival = arrivalFactsModel.buildModel(database);
-    const properties = database.prepare('SELECT id, name, nameArticle, hasWifi FROM properties ORDER BY id').all().map((p) => {
+    const properties = database.prepare('SELECT * FROM properties ORDER BY id').all().map((p) => {
       const facts = arrival.forForm(p.id);
+      const pending = pendingFactsOf(p);
       return {
         id: p.id,
         name: p.name,
-        nameArticle: p.nameArticle || 'au',
-        // The article as the guest will read it: « au Gîte », « à la Maison »…
-        articles: NAME_ARTICLES.map((value) => ({ value, label: formatPropertyWithArticle(p.name, value) })),
+        // Rule 29 — an article nobody chose is not shown as chosen.
+        nameArticle: Number(p.nameArticleConfirmed || 0) === 1 ? (p.nameArticle || 'au') : null,
+        // The articles worth offering for this name, as the guest will read them: « au Fournil »…
+        articles: propertyArticle.choices(p.name),
         address: facts.address || row.companyAddress || '',
         access: facts.accessFr,
+        hasAccessCode: facts.hasAccessCode,
         hasWifi: Number(p.hasWifi == null ? 1 : p.hasWifi) !== 0,
         wifiName: facts.wifiName,
         hasWifiPassword: facts.hasWifiPassword,
+        // Rule 27 — what the emails say about the deposit, the cleaning and the towels; null while
+        // nobody answered.
+        caution: pending.has('caution') ? null : Number(p.defaultCautionAmount || 0),
+        cleaningIncluded: pending.has('cleaning') ? null : answeredFlag(p.cleaningIncluded),
+        towelsProvided: pending.has('towels') ? null : answeredFlag(p.towelsProvided),
+        pending: [...pending],
       };
     });
     return {
@@ -92,9 +105,33 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     };
   }
 
+  // Rule 28 — the property the assistant created, so step 2 edits it instead of adding a second one.
+  function assistantProperty() {
+    let id = null;
+    try { id = (database.prepare('SELECT onboardingPropertyId AS id FROM app_settings ORDER BY id LIMIT 1').get() || {}).id; } catch { id = null; }
+    if (!id) return null;
+    return database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(id)) || null;
+  }
+
+  function propertyStep() {
+    const own = assistantProperty();
+    const count = database.prepare('SELECT COUNT(*) AS n FROM properties').get().n;
+    if (own) {
+      return {
+        id: own.id, existing: count,
+        draft: {
+          name: own.name, doubleBeds: String(own.doubleBeds ?? 0), singleBeds: String(own.singleBeds ?? 0),
+          maxGuests: String(own.maxGuests ?? 1), checkIn: own.defaultCheckIn || '16:00', checkOut: own.defaultCheckOut || '10:00',
+          pricePerNight: String((database.prepare('SELECT MIN(pricePerNight) AS p FROM pricing_rules WHERE propertyId = ?').get(own.id) || {}).p ?? ''),
+        },
+      };
+    }
+    return { id: null, existing: count, draft: null };
+  }
+
   async function get(req, res) {
     const row = settingsModel.read();
-    return res.json({ open: model().isOpen(), company: companyOf(row), emails: emailsOf(row), plugins: await pluginList() });
+    return res.json({ open: model().isOpen(), company: companyOf(row), property: propertyStep(), emails: emailsOf(row), plugins: await pluginList() });
   }
 
   // Every field may be skipped: an absent one is left as it is. `properties`: one entry per property.
@@ -106,8 +143,12 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     list.forEach((p, i) => {
       if (!p || !known.has(Number(p.id))) errors[`properties.${i}`] = 'Logement inconnu';
       else if (p.nameArticle !== undefined && !NAME_ARTICLES.includes(p.nameArticle)) errors[`properties.${i}.nameArticle`] = 'Article inconnu';
-      for (const key of ['address', 'access', 'wifiName', 'wifiPassword']) {
+      for (const key of ['address', 'access', 'accessCode', 'wifiName', 'wifiPassword']) {
         if (p && p[key] !== undefined && String(p[key]).length > arrivalFactsModel.MAX_LENGTH) errors[`properties.${i}.${key}`] = 'Trop long';
+      }
+      if (p && p.caution !== undefined && p.caution !== null) {
+        const amount = Number(String(p.caution).replace(',', '.'));
+        if (String(p.caution).trim() === '' || !Number.isFinite(amount) || amount < 0) errors[`properties.${i}.caution`] = 'Un montant ≥ 0 €';
       }
     });
     if (Object.keys(errors).length) return res.status(422).json({ errors });
@@ -119,19 +160,58 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     const arrival = arrivalFactsModel.buildModel(database);
     database.transaction(() => {
       for (const p of list) {
+        const id = Number(p.id);
         if (p.nameArticle !== undefined) {
-          database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(p.nameArticle, Number(p.id));
+          database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(p.nameArticle, id);
+        }
+        // Rule 27 — an answered fact is stored and leaves the pending list.
+        const answered = [];
+        if (p.caution !== undefined && p.caution !== null) {
+          database.prepare('UPDATE properties SET defaultCautionAmount = ? WHERE id = ?').run(Number(String(p.caution).replace(',', '.')), id);
+          answered.push('caution');
+        }
+        for (const [field, fact] of [['cleaningIncluded', 'cleaning'], ['towelsProvided', 'towels']]) {
+          const flag = answeredFlag(p[field]);
+          if (flag === null) continue;
+          database.prepare(`UPDATE properties SET ${field} = ? WHERE id = ?`).run(Number(flag), id);
+          answered.push(fact);
+        }
+        if (answered.length) {
+          const row = database.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(id);
+          database.prepare('UPDATE properties SET pendingFacts = ? WHERE id = ?').run(withoutPending(row.pendingFacts, answered), id);
         }
         const patch = {};
         // The company's address left as it was stays derived, so a later change of it follows.
         if (p.address !== undefined) patch.address = String(p.address).trim() === companyAddress ? '' : p.address;
         if (p.access !== undefined) patch.accessFr = p.access;
+        // Rule 31 — the code has its own field, kept encrypted, out of the texts and the file.
+        if (p.accessCode !== undefined && p.accessCode !== '') patch.accessCode = p.accessCode;
         if (p.wifiName !== undefined) patch.wifiName = p.wifiName;
         if (p.wifiPassword !== undefined && p.wifiPassword !== '') patch.wifiPassword = p.wifiPassword;
-        if (Object.keys(patch).length) arrival.save(Number(p.id), patch);
+        if (Object.keys(patch).length) arrival.save(id, patch);
       }
     })();
     return res.json({ emails: emailsOf(settingsModel.read()) });
+  }
+
+  /**
+   * specs/hosting-h2-account-security.md rule 23 — the bootstrap login (`admin@guestflow.local`) is
+   * nobody's mailbox: the company email typed at step 1 becomes the administrator's login, so « Mot de
+   * passe oublié » reaches someone. Any other login is the owner's own choice and is kept. Returns the
+   * login after the step.
+   */
+  function adoptLoginEmail(user, email) {
+    const kept = (row) => ({ loginEmail: row && row.email ? row.email : null, loginChanged: false });
+    if (!usersModel || !user || !user.id) return kept(user);
+    const current = usersModel.findById(user.id);
+    if (!current || String(current.email).toLowerCase() !== DEFAULT_ADMIN_EMAIL) return kept(current);
+    const holder = usersModel.findByEmail(email);
+    if (holder && Number(holder.id) !== Number(current.id)) return kept(current);
+    try {
+      return { loginEmail: usersModel.updateUser(current.id, { email }).email, loginChanged: true };
+    } catch {
+      return kept(current);
+    }
   }
 
   function saveCompany(req, res) {
@@ -142,8 +222,8 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     };
     const errors = {};
     if (!company.name) errors.name = 'Nom obligatoire';
-    if (!company.email) errors.email = 'Adresse obligatoire';
-    else if (validation.validateEmail(company.email)) errors.email = 'Adresse invalide';
+    if (!company.email) errors.email = 'Email obligatoire';
+    else if (validation.validateEmail(company.email)) errors.email = 'Email invalide';
     if (company.siret && validation.validateSiret(company.siret)) errors.siret = '14 chiffres';
     if (Object.keys(errors).length) return res.status(422).json({ errors });
     settingsModel.upsert({
@@ -151,7 +231,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
       companyAddress: company.address, companySiret: company.siret,
     });
     ensureVapid(settingsModel.read());
-    return res.json({ company });
+    return res.json({ company, ...adoptLoginEmail(req.user, company.email) });
   }
 
   async function saveProperty(req, res) {
@@ -171,10 +251,41 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
       if (b[key] && !/^\d{2}:\d{2}$/.test(String(b[key]))) errors[field] = 'Heure invalide';
     }
     if (Object.keys(errors).length) return res.status(422).json({ errors });
+    // Rule 28 — « Précédent » then « Suivant », or the assistant opened again: the property it created
+    // is edited, never created twice; an instance that already has properties gets none from it.
+    const own = assistantProperty();
+    if (own) {
+      database.prepare(`UPDATE properties SET name = ?, doubleBeds = ?, singleBeds = ?, maxGuests = ?, defaultCheckIn = ?, defaultCheckOut = ?,
+        updatedAt = datetime('now') WHERE id = ?`).run(
+        body.name, Number(body.doubleBeds) || 0, Number(body.singleBeds) || 0, capacity,
+        body.defaultCheckIn || own.defaultCheckIn || '15:00', body.defaultCheckOut || own.defaultCheckOut || '10:00', own.id,
+      );
+      if (b.name && b.name.trim() !== own.name) renamed(own.id, body.name);
+      database.prepare('UPDATE pricing_rules SET pricePerNight = ? WHERE propertyId = ?').run(price, own.id);
+      return res.json({ id: own.id });
+    }
+    if (database.prepare('SELECT COUNT(*) AS n FROM properties').get().n > 0) {
+      return res.status(409).json({ error: 'PROPERTIES_EXIST', message: 'Logements déjà créés : les modifier dans Logements.' });
+    }
     const refusal = quotaRefusal('units', () => propertiesModel.count());
     if (refusal) return res.status(402).json(refusal);
-    const created = await propertiesModel.create({ ...body, pricePerNight: price });
+    // Rule 29 — a name that says its article is not asked for one; rule 27 — the deposit, the cleaning
+    // and the towels are not asked here, so the emails say nothing of them until they are answered.
+    const article = propertyArticle.derive(body.name);
+    const created = await propertiesModel.create({ ...body, nameArticle: article.article, pricePerNight: price, defaultCautionAmount: 0 });
+    database.prepare('UPDATE properties SET nameArticleConfirmed = ?, pendingFacts = ? WHERE id = ?')
+      .run(article.certain ? 1 : 0, PENDABLE.join(','), Number(created.id));
+    database.prepare(`INSERT INTO app_settings (id, onboardingPropertyId) VALUES (1, @id)
+      ON CONFLICT (id) DO UPDATE SET onboardingPropertyId = @id`).run({ id: Number(created.id) });
     return res.json(created);
+  }
+
+  // A renamed property takes the article its new name says, unless the owner chose one.
+  function renamed(id, name) {
+    const row = database.prepare('SELECT nameArticleConfirmed FROM properties WHERE id = ?').get(id);
+    const article = propertyArticle.derive(name);
+    if (row && Number(row.nameArticleConfirmed) === 1 && !article.certain) return;
+    database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = ? WHERE id = ?').run(article.article, article.certain ? 1 : 0, id);
   }
 
   async function savePlugins(req, res) {

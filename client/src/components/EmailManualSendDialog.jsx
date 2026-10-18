@@ -8,14 +8,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box,
   Typography, Stack, FormControl, InputLabel, Select, MenuItem, TextField,
-  CircularProgress, Chip, Tooltip,
+  CircularProgress, Chip, Tooltip, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
 import ConfirmDialog from './ConfirmDialog';
 import LanguageBadge from './LanguageBadge';
 import { displayDateTime } from '../utils/formatters';
+import { NO_RECIPIENT, sendErrorMessage } from '../constants/emailSendErrors';
 
 function offsetLabel(n) {
   const num = Number(n);
@@ -37,6 +39,7 @@ function formatTargetDate(startDateIso, dayOffset) {
 export default function EmailManualSendDialog({
   open, reservationId, reservationStartDate, defaultTemplateId, onClose, onSent,
 }) {
+  const fullScreen = useMediaQuery(useTheme().breakpoints.down('sm'));
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState(defaultTemplateId || '');
   const [subject, setSubject] = useState('');
@@ -111,7 +114,7 @@ export default function EmailManualSendDialog({
 
   const handleSend = async (confirmResend = false) => {
     if (!recipient) {
-      setError('Renseigne une adresse email destinataire.');
+      setError(NO_RECIPIENT);
       return;
     }
     setSending(true);
@@ -129,17 +132,11 @@ export default function EmailManualSendDialog({
       if (onSent) onSent(res);
       if (onClose) onClose();
     } catch (e) {
-      const message = e?.message || 'Échec de l\'envoi.';
-      if (message === 'ALREADY_SENT') {
-        setAlreadySentAt(e.sentAt || '');
-      } else if (message.includes('EMAIL_NOT_CONFIGURED')) {
-        setError('SMTP non configuré. Configure les paramètres SMTP dans /settings avant d\'envoyer des emails.');
-      } else if (message.includes('CLIENT_NO_EMAIL')) {
-        setError('Renseigne une adresse email destinataire.');
-      } else if (message.includes('INVALID_EMAIL')) {
-        setError('Adresse email invalide.');
+      if (e?.error === 'ALREADY_SENT' || e?.message === 'ALREADY_SENT') {
+        // The server words the time in Europe/Paris (specs/email-history-rolling-window.md rule 8).
+        setAlreadySentAt(e.sentAtLabel || (e.sentAt ? displayDateTime(e.sentAt) : ''));
       } else {
-        setError(message);
+        setError(sendErrorMessage(e));
       }
     } finally {
       setSending(false);
@@ -150,7 +147,7 @@ export default function EmailManualSendDialog({
   const sendDisabled = sending || loading || !templateId || !emailValid;
 
   return (
-    <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle>Aperçu de l'email</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
@@ -219,7 +216,7 @@ export default function EmailManualSendDialog({
             <Select label="Modèle" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
               {templates.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
-                  {t.name} ({offsetLabel(t.dayOffset)})
+                  {t.name} ({t.whenLabel || offsetLabel(t.dayOffset)})
                 </MenuItem>
               ))}
             </Select>
@@ -265,14 +262,13 @@ export default function EmailManualSendDialog({
             </Box>
           ) : null}
 
-          {error ? (
-            <Box sx={{ p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
-              <Typography variant="body2" color="error.main">{error}</Typography>
-            </Box>
-          ) : null}
         </Stack>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+        {/* Next to the buttons, so a failure is seen without scrolling back through the body. */}
+        {error ? (
+          <Typography role="alert" variant="body2" color="error.main" sx={{ flex: '1 1 100%', px: 1 }}>{error}</Typography>
+        ) : null}
         <Button onClick={onClose} disabled={sending}>Annuler</Button>
         <Button
           onClick={() => handleSend(false)}
@@ -286,7 +282,7 @@ export default function EmailManualSendDialog({
       <ConfirmDialog
         open={alreadySentAt !== null}
         title="Déjà envoyé"
-        message={`Ce mail a déjà été envoyé${alreadySentAt ? ` le ${displayDateTime(alreadySentAt)}` : ''}. Le renvoyer quand même ?`}
+        message={`Ce mail a déjà été envoyé${alreadySentAt ? ` le ${alreadySentAt}` : ''}. Le renvoyer quand même ?`}
         confirmLabel="Renvoyer"
         confirmColor="primary"
         onClose={() => setAlreadySentAt(null)}

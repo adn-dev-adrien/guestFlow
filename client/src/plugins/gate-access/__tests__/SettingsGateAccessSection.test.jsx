@@ -49,14 +49,16 @@ test('shows the address, and the two secrets masked until « Afficher »', async
   api.getGateConnector.mockResolvedValue(state());
   const { container } = render(<SettingsGateAccessSection />);
 
-  expect(await screen.findByText('guestFlow address')).toBeTruthy();
-  expect(screen.getByText('API key (GATE_API_KEY)')).toBeTruthy();
-  expect(screen.getByText('Signing secret (GATE_SIGNING_SECRET)')).toBeTruthy();
+  expect(await screen.findByText('Adresse de GuestFlow')).toBeTruthy();
+  expect(screen.getByText('Clé d’accès')).toBeTruthy();
+  expect(screen.getByText('Secret de signature')).toBeTruthy();
   expect(screen.getByText('https://guestflow.adn-dev.fr')).toBeTruthy();
   expect(container.textContent).not.toContain('the-api-key');
+  // Review 2026-10-18: no variable name, no server path shown to the owner.
+  expect(container.textContent).not.toMatch(/GATE_API_KEY|GATE_SIGNING_SECRET|\.env\.local/);
   expect(container.textContent).not.toContain('the-signing-secret');
 
-  await userEvent.click(screen.getByRole('button', { name: 'Afficher — API key (GATE_API_KEY)' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Afficher — Clé d’accès' }));
   expect(screen.getByText('the-api-key')).toBeTruthy();
   expect(container.textContent).not.toContain('the-signing-secret');
 });
@@ -67,7 +69,7 @@ test('« Copier » copies a secret without revealing it', async () => {
   api.getGateConnector.mockResolvedValue(state());
   const { container } = render(<SettingsGateAccessSection />);
 
-  await userEvent.click(await screen.findByRole('button', { name: 'Copier — Signing secret (GATE_SIGNING_SECRET)' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Copier — Secret de signature' }));
   expect(writeText).toHaveBeenCalledWith('the-signing-secret');
   expect(container.textContent).not.toContain('the-signing-secret');
 });

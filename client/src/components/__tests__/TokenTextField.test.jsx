@@ -48,6 +48,7 @@ test('rule 10: typed text round-trips; an unlabelled name stays raw for the serv
 
 test('the server refusal shows under its field; the placeholder shows the global text', () => {
   render(<Harness errorEn="Variable inconnue : {{prix}}" placeholderFr="Texte commun {{price}}" />);
-  expect(screen.getByText('Variable inconnue : {{prix}}')).toBeInTheDocument();
+  // specs/guest-email-texts-made-simple.md rule 26 — the refusal in the brackets the field shows.
+  expect(screen.getByText('Variable inconnue : ⟦prix⟧')).toBeInTheDocument();
   expect(screen.getByLabelText('Français')).toHaveAttribute('placeholder', 'Texte commun ⟦Prix⟧');
 });

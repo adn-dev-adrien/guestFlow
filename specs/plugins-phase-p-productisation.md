@@ -300,6 +300,11 @@ Decisions taken on 2026-10-06:
 31. **The WordPress plugin** names « GuestFlow » as its author, and its settings placeholder is
     `https://guestflow.example.com`.
 
+32. **A fresh install lists only the platforms it uses** (review of 2026-10-18). The fold of the
+    Gîtes de France spellings (`utils/platformMerge.js`) creates its « GitesDeFrance » target only when
+    the instance already holds a variant, a reservation on that name or an iCal source of that brand: a
+    new instance shows « direct » alone in Paramètres › Plateformes. Solio's rows are folded as before.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

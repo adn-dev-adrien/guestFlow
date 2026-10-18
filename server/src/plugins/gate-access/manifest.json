@@ -1,7 +1,7 @@
 {
   "id": "gate-access",
   "name": "Accès au portail (Sowel)",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Codes et clés du portail envoyés à Sowel.",
   "icon": "key",
   "surfaces": [
@@ -15,6 +15,9 @@
   "guestflow": ">=3.9.0",
   "sdk": "^1.0.0",
   "changelog": {
+    "1.1.1": [
+      "Réglages › Intégrations : libellés en français (« Adresse de GuestFlow », « Clé d’accès », « Secret de signature ») et plus de chemin de fichier affiché."
+    ],
     "1.0.0": [
       "Première version publiée en paquet."
     ],

@@ -34,10 +34,11 @@ export default function EmailLogViewDialog({ open, row, onClose }) {
             </Typography>
           </Stack>
 
-          {row.status === 'failed' && row.errorMessage ? (
+          {row.status === 'failed' && (row.errorLabel || row.errorMessage) ? (
             <Box sx={{ p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
               <Typography variant="body2" color="error.main" sx={{ fontWeight: 600 }}>
-                Erreur : {row.errorMessage}
+                {/* The server words the failure in French (specs/email-automation.md rule 15). */}
+                Erreur : {row.errorLabel || row.errorMessage}
               </Typography>
             </Box>
           ) : null}

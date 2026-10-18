@@ -12,6 +12,19 @@
  *   500 EMAIL_SEND_FAILED      ← nodemailer threw at send time
  */
 
+const { sendFailureMessage } = require('../utils/sendFailure');
+const { parisDateTimeLabel } = require('../utils/parisDateTime');
+
+// A stored failure reason as the history shows it: the known codes, else the transport's text read
+// through sendFailureMessage (specs/email-automation.md rule 15).
+const FAILURE_CODES = { CLIENT_NO_EMAIL: 'Pas d’adresse email.', NO_TEMPLATE: 'Modèle manquant.' };
+function failureLabel(stored) {
+  const text = String(stored || '').trim();
+  if (!text) return '';
+  if (FAILURE_CODES[text]) return FAILURE_CODES[text];
+  if (/[àâçéèêëîïôûùüÿœ]/i.test(text) && !/^[A-Z_]+$/.test(text)) return text;
+  return sendFailureMessage({ message: text, code: /^[A-Z_]+$/.test(text) ? text : '' });
+}
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
@@ -184,7 +197,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       const existing = ledger.findByKey(plan.dedupKey);
       if (existing && existing.status !== 'failed') {
         if (confirmResend !== true) {
-          return res.status(409).json({ error: 'ALREADY_SENT', sentAt: existing.sentAt || existing.claimedAt, status: existing.status });
+          return res.status(409).json({ error: 'ALREADY_SENT', sentAt: existing.sentAt || existing.claimedAt, sentAtLabel: parisDateTimeLabel(existing.sentAt || existing.claimedAt), status: existing.status });
         }
         plan.dedupKey = ledger.nextResendKey(plan.dedupKey);
       }
@@ -240,6 +253,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       const code = err?.code === 'EMAIL_NOT_CONFIGURED' ? 409 : 500;
       return res.status(code).json({
         error: err?.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : 'EMAIL_SEND_FAILED',
+        message: sendFailureMessage(err),
         emailLogId: failed.id,
       });
     }
@@ -382,7 +396,14 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       templateId:    templateId    != null ? Number(templateId)    : undefined,
       status,
     });
-    return res.json(result);
+    // specs/email-history-rolling-window.md rule 8 — the time as the operator lives it (Europe/Paris);
+    // specs/email-automation.md rule 15 — a failure in French, not the transport's own words.
+    const rows = (result.rows || []).map((row) => ({
+      ...row,
+      sentAtLabel: parisDateTimeLabel(row.sentAt),
+      errorLabel: row.status === 'failed' ? failureLabel(row.errorMessage) : '',
+    }));
+    return res.json({ ...result, rows });
   }
 
   // Compact reservation list for the "Créer un email" picker
@@ -472,7 +493,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       const notConfigured = err && err.code === 'EMAIL_NOT_CONFIGURED';
       return res.status(notConfigured ? 409 : 500).json({
         error: notConfigured ? 'EMAIL_NOT_CONFIGURED' : 'EMAIL_SEND_FAILED',
-        message: notConfigured ? 'SMTP non configuré : Paramètres › Emails' : 'Envoi impossible',
+        message: sendFailureMessage(err),
       });
     }
   }

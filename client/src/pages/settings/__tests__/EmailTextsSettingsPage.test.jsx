@@ -66,7 +66,7 @@ test('rule 11: the server refusal lands under its field', async () => {
   const field = await screen.findByDisplayValue('Café offert.');
   fireEvent.change(field, { target: { value: 'Café {{prix}}' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  expect(await screen.findByText('Variable inconnue : {{prix}}', { selector: 'p' })).toBeInTheDocument();
+  expect(await screen.findByText('Variable inconnue : ⟦prix⟧', { selector: 'p' })).toBeInTheDocument();
 });
 
 test('mentions by section; the confirmation order moves on its own', async () => {
@@ -74,7 +74,8 @@ test('mentions by section; the confirmation order moves on its own', async () =>
   renderAt(EmailTextsSettingsPage);
   await screen.findByText('1. Confirmation');
   fireEvent.click(screen.getByRole('tab', { name: 'Options citées' }));
-  expect(await screen.findByText('le cidre ({{price}})')).toBeInTheDocument();
+  // The list reads the variable by its label, as its editor does.
+  expect(await screen.findByText('le cidre (⟦Prix⟧)')).toBeInTheDocument();
   expect(screen.getByText('1. Lit bébé')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Descendre Lit bébé' }));
   await waitFor(() => expect(api.saveConfirmationOrder).toHaveBeenCalledWith(['towels', 'babyBed', 'mention:1', 'mention:2']));

@@ -71,21 +71,21 @@ export default function SettingsGateAccessSection() {
         {secrets ? (
           <Stack spacing={2} sx={{ mt: 2 }}>
             <SecretRevealField
-              label="guestFlow address"
+              label="Adresse de GuestFlow"
               value={address.value}
               masked={false}
               helperText={address.source === 'request'
                 ? "Adresse déduite de ce navigateur : l'URL publique n'est pas renseignée (Réglages → Système)."
                 : null}
             />
-            <SecretRevealField label="API key (GATE_API_KEY)" value={secrets.apiKey} />
-            <SecretRevealField label="Signing secret (GATE_SIGNING_SECRET)" value={secrets.signingSecret} />
+            <SecretRevealField label="Clé d’accès" value={secrets.apiKey} />
+            <SecretRevealField label="Secret de signature" value={secrets.signingSecret} />
           </Stack>
         ) : null}
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
           Ces trois valeurs se recopient dans le plugin « guestflow » de Sowel, qui lit la liste des clés
-          chaque heure. Les secrets sont conservés dans <code>{state.secretsFile}</code>. Les clés, leurs codes et leurs horaires vivent dans Sowel ; guestFlow n&apos;ouvre
+          chaque heure. Les clés, leurs codes et leurs horaires vivent dans Sowel ; GuestFlow n&apos;ouvre
           jamais le portail lui-même.
         </Typography>
       </CardContent>

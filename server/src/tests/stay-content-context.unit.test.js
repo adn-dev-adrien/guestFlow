@@ -44,8 +44,8 @@ function content({ reservation = {}, property = {}, options = [], facts = GRANJA
   return buildStayContent({
     reservation: { ...RES, ...reservation },
     client: { id: 1, email: 'c@x.fr' },
-    property: { name: 'La Granja', nameArticle: 'à', ...property },
-    options, facts: withSolioWording(facts, { filterCoffee }), settings: { poolSeasonStart: '06-15', poolSeasonEnd: '08-31', ...settings }, lang, sequence,
+    property: { name: 'La Granja', nameArticle: 'à', poolSeasonStart: '06-15', poolSeasonEnd: '08-31', ...property },
+    options, facts: withSolioWording(facts, { filterCoffee }), settings, lang, sequence,
   });
 }
 
@@ -108,11 +108,15 @@ test('bed configuration and the included nordic-bath duration', () => {
   assert.equal(content({ facts: { ...GRANJA, bathFreeMinutes: 0 } }).flags.hasBathIncluded, false);
 });
 
-test('pool: mentioned only when the stay overlaps the season set in Réglages', () => {
+// specs/guest-email-texts-made-simple.md rule 33 — the season is the property's, not the instance's.
+test('pool: mentioned only when the stay overlaps the season of the property', () => {
   assert.equal(content().flags.stayOverlapsPool, true);
   assert.equal(content({ reservation: { startDate: '2027-10-02', endDate: '2027-10-04' } }).flags.stayOverlapsPool, false);
-  assert.equal(content({ settings: { poolSeasonStart: '07-15', poolSeasonEnd: '08-15' } }).flags.stayOverlapsPool, true);
-  assert.equal(content({ settings: { poolSeasonStart: '07-20', poolSeasonEnd: '08-15' } }).flags.stayOverlapsPool, false);
+  assert.equal(content({ property: { poolSeasonStart: '07-15', poolSeasonEnd: '08-15' } }).flags.stayOverlapsPool, true);
+  assert.equal(content({ property: { poolSeasonStart: '07-20', poolSeasonEnd: '08-15' } }).flags.stayOverlapsPool, false);
+  assert.equal(content({ property: { poolSeasonStart: '', poolSeasonEnd: '' } }).flags.stayOverlapsPool, false);
+  // A season left in app_settings is no longer read.
+  assert.equal(content({ property: { poolSeasonStart: '', poolSeasonEnd: '' }, settings: { poolSeasonStart: '06-15', poolSeasonEnd: '08-31' } }).flags.stayOverlapsPool, false);
 });
 
 test('L\'Estiva facts: travel light (parking distance), no wifi; La Granja: family coffee maker', () => {

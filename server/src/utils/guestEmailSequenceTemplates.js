@@ -72,8 +72,8 @@ const CONFIRMATION_BODY_EN = lines(
 
 // ---------------------------------------------------------------- 2. J-7
 
-const J7_SUBJECT = 'Plus qu\'une semaine avant {{propertyName}}';
-const J7_SUBJECT_EN = 'One week to go before {{propertyName}}';
+const J7_SUBJECT = 'Plus qu\'une semaine avant votre séjour {{propertyWithArticle}}';
+const J7_SUBJECT_EN = 'One week to go before your stay at {{propertyWithArticle}}';
 
 const J7_BODY = lines(
   'Bonjour {{clientFirstName}},',

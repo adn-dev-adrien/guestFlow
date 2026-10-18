@@ -24,7 +24,7 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
   const activateStmt = db.prepare(`UPDATE user_two_factor SET method = pendingMethod,
     secretEncrypted = CASE WHEN pendingMethod = 'totp' THEN pendingSecretEncrypted ELSE NULL END, enabledAt = ?,
     pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0, failedCount = 0, lockedUntil = NULL,
-    lastTotpStep = NULL, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
+    lastTotpStep = ?, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
   const deleteStmt = db.prepare('DELETE FROM user_two_factor WHERE userId = ?');
   const setCodeStmt = db.prepare('UPDATE user_two_factor SET emailCodeHash = ?, emailCodeExpiresAt = ? WHERE userId = ?');
   const clearCodeStmt = db.prepare('UPDATE user_two_factor SET emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?');
@@ -71,8 +71,10 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     },
     recordPendingFailure: (userId) => pendingFailStmt.run(Number(userId)),
     dropPending: (userId) => dropPendingStmt.run(Number(userId)),
-    activatePending: db.transaction((userId, nowIso, backupHashes) => {
-      activateStmt.run(nowIso, Number(userId));
+    // `totpStep`: the step of the code that confirmed the enrolment, so that code cannot also open a
+    // session (specs/hosting-h2-account-security.md rule 24).
+    activatePending: db.transaction((userId, nowIso, backupHashes, totpStep = null) => {
+      activateStmt.run(nowIso, totpStep == null ? null : Number(totpStep), Number(userId));
       replaceCodes(Number(userId), backupHashes);
     }),
     disable: db.transaction((userId) => {

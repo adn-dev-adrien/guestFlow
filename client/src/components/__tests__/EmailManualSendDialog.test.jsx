@@ -149,5 +149,6 @@ test('EMAIL_NOT_CONFIGURED surfaces a recognisable error', async () => {
   render(<EmailManualSendDialog open reservationId={100} reservationStartDate="2026-07-10" onClose={() => {}} />);
   await screen.findByDisplayValue('Préparation de votre séjour à Villa A');
   await user.click(screen.getByRole('button', { name: /^Envoyer$/ }));
-  expect(await screen.findByText(/SMTP non configuré/)).toBeInTheDocument();
+  // specs/email-automation.md rule 15 — in French, with where to fix it.
+  expect(await screen.findByText('Envoi non configuré : Paramètres › Emails.')).toBeInTheDocument();
 });

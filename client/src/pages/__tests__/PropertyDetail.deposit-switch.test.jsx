@@ -25,6 +25,9 @@ vi.mock('../../components/PropertyDefaultOptionsCard', () => ({ default: () => n
 vi.mock('../../api', () => ({
   default: {
     getProperty: vi.fn(), getOptions: vi.fn(),
+    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 34).
+    getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
+    savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
     getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(), setPlatformTouristTax: vi.fn(),
     setPlatformPayoutDueDays: vi.fn(),

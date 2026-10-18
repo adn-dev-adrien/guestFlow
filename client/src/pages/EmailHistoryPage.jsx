@@ -146,7 +146,8 @@ export default function EmailHistoryPage() {
       >
         {rows.map((r) => (
           <TableRow key={r.id} hover>
-            <TableCell>{displayDateTime(r.sentAt)}</TableCell>
+            {/* Europe/Paris, worded by the server (specs/email-history-rolling-window.md rule 8). */}
+            <TableCell>{r.sentAtLabel || displayDateTime(r.sentAt)}</TableCell>
             <TableCell>
               <Stack>
                 <Typography variant="body2">{r.templateName || <em>(modèle supprimé)</em>}</Typography>

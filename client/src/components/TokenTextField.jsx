@@ -13,22 +13,31 @@
  *   tokens                 [{ name, label }] (or names) — chips inserting a variable at the cursor
  *   flags                  [{ name, label }] (or names) — chips inserting a condition
  *   errorFr, errorEn       server refusals, shown under their field
- *   placeholderFr/En       shown in an empty field (e.g. the global text a property overrides)
+ *   placeholderFr/En       shown in an empty field (e.g. the global text a property overrides); the
+ *                          label stays above the field so the placeholder is seen without focus
+ *   emptyHint              under an empty field without error (e.g. « Vide : texte commun utilisé »)
  *   helper                 ReactNode — under the pair (e.g. « Rétablir »)
  *   badge                  ReactNode — beside the label (e.g. « à relire »)
  *   disabled, id
  *   autoFocus              focus the French field on mount (an editor opened from a compact row)
+ *   minRows                rows of each field (1 by default; a template body asks more)
+ *
+ * A variable is one unit (specs/guest-email-texts-made-simple.md rule 26): the caret never stops
+ * inside ⟦…⟧ (it selects the whole of it), and Backspace or Delete next to it removes it whole, so
+ * no half-variable can be left for the guest to read.
  *
  * French and English sit side by side from `md`, stacked below. The chips insert into the field that
  * last had the focus (French by default).
  */
 import React, { useMemo, useRef, useState } from 'react';
 import { Box, Chip, Stack, TextField, Typography } from '@mui/material';
-import { buildDictionary, toDisplay, toRaw, chipSnippet, chipLabel } from '../utils/tokenDisplay';
+import {
+  buildDictionary, toDisplay, toRaw, chipSnippet, chipLabel, displayError, selectionAround, deletion,
+} from '../utils/tokenDisplay';
 
 export default function TokenTextField({
   label, fr = '', en = '', onChange, tokens = [], flags = [], errorFr, errorEn,
-  placeholderFr, placeholderEn, helper, badge, disabled = false, id, autoFocus = false,
+  placeholderFr, placeholderEn, helper, badge, disabled = false, id, autoFocus = false, minRows = 1, emptyHint,
 }) {
   const refs = { fr: useRef(null), en: useRef(null) };
   const [focused, setFocused] = useState('fr');
@@ -49,6 +58,25 @@ export default function TokenTextField({
     });
   };
 
+  // The caret inside a variable selects all of it: typing then replaces the variable, never splits it.
+  const handleSelect = (lang) => (e) => {
+    const field = e.target;
+    if (field.selectionStart !== field.selectionEnd) return;
+    const span = selectionAround(shown[lang], field.selectionStart);
+    if (span) field.setSelectionRange(span[0], span[1]);
+  };
+
+  const handleKeyDown = (lang) => (e) => {
+    if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+    const field = e.target;
+    if (field.selectionStart !== field.selectionEnd) return;
+    const next = deletion(shown[lang], field.selectionStart, e.key);
+    if (!next) return;
+    e.preventDefault();
+    onChange(lang, toRaw(next.text, dict));
+    requestAnimationFrame(() => field.setSelectionRange(next.caret, next.caret));
+  };
+
   const input = (lang, error, placeholder) => (
     <TextField
       id={id ? `${id}-${lang}` : undefined}
@@ -56,12 +84,15 @@ export default function TokenTextField({
       value={shown[lang]}
       onChange={(e) => onChange(lang, toRaw(e.target.value, dict))}
       onFocus={() => setFocused(lang)}
+      onSelect={handleSelect(lang)}
+      onKeyDown={handleKeyDown(lang)}
       inputRef={refs[lang]}
       error={Boolean(error)}
-      helperText={error || ' '}
+      helperText={error ? displayError(error, dict) : ((emptyHint && !String(shown[lang]).trim()) ? emptyHint : ' ')}
       placeholder={placeholder ? toDisplay(placeholder, dict) : undefined}
+      slotProps={placeholder ? { inputLabel: { shrink: true } } : undefined}
       multiline
-      minRows={1}
+      minRows={minRows}
       fullWidth
       size="small"
       disabled={disabled}

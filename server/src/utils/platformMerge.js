@@ -71,8 +71,14 @@ function mergePlatformDuplicates(db, { slugs, targetName }) {
 
   // 3. platforms registry → ensure the target exists, carry over a custom colour, delete the variants.
   const hasColor = db.prepare('PRAGMA table_info(platforms)').all().some((c) => c.name === 'color');
-  db.prepare('INSERT OR IGNORE INTO platforms (name) VALUES (?)').run(targetName);
+  // The target is created only for a brand the instance already speaks of: a fresh install gets no
+  // « GitesDeFrance » it never asked for (specs/plugins-phase-p-productisation.md rule 32).
   const variants = db.prepare('SELECT * FROM platforms').all().filter((p) => matches(p.name) && p.name !== targetName);
+  const inUse = variants.length > 0
+    || Boolean(db.prepare('SELECT 1 FROM reservations WHERE platform = ? LIMIT 1').get(targetName))
+    || Boolean(db.prepare('SELECT 1 FROM ical_sources WHERE platformKey = ? LIMIT 1').get(targetSlug));
+  if (!inUse) return changed;
+  db.prepare('INSERT OR IGNORE INTO platforms (name) VALUES (?)').run(targetName);
   for (const v of variants) {
     if (hasColor && v.color) {
       const tgt = db.prepare('SELECT color FROM platforms WHERE name = ?').get(targetName);

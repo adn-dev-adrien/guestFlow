@@ -23,6 +23,7 @@ const { templateAutoSends } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { isoToday } = require('../utils/emailAutoSendRunner');
 const { PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
+const { templateWhenLabel } = require('../utils/templateWhen');
 const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
 
 // specs/guest-email-texts-made-simple.md rule 11 — a template refuses an unknown variable with the
@@ -97,7 +98,8 @@ function buildController(model, settingsModel, deps = {}) {
 
   // `textsSection`: the section of « Textes des emails » that writes this template's sentences
   // (specs/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
-  const withSection = (row) => ({ ...row, textsSection: sectionOfStableKey(row.stableKey) });
+  // `whenLabel`: the « Quand » column (specs/email-automation.md rule 16).
+  const withSection = (row) => ({ ...row, textsSection: sectionOfStableKey(row.stableKey), whenLabel: templateWhenLabel(row) });
 
   function list(req, res) {
     return res.json(model.list().filter(sendable).map(withSection));

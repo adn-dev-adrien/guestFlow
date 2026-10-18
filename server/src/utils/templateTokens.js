@@ -11,7 +11,7 @@
  * scope renders, it simply gets no chip.
  */
 
-const { unknownToken } = require('./emailTemplateRenderer');
+const { unknownToken, structureError, STRUCTURE_MESSAGES } = require('./emailTemplateRenderer');
 
 /** The emails of the single page, in send order (rule 9), and the stored templates of each. */
 const SECTIONS = Object.freeze([
@@ -292,10 +292,13 @@ function chipsForText({ tokens = [], flags = [] } = {}) {
 }
 
 /**
- * Rule 11 — the one validation of the three editors: the first unknown name of a text, as the 422
- * body `{ field, message }`, or null.
+ * Rule 11 — the one validation of the three editors: a broken variable or condition (rule 26), else
+ * the first unknown name of a text, as the 422 body `{ field, message }`, or null.
  */
 function tokenError(field, text, allowed) {
+  // Rule 26 — a broken variable or condition first: the renderer would print it as it is.
+  const broken = structureError(text);
+  if (broken) return { field, message: STRUCTURE_MESSAGES[broken] };
   const name = unknownToken(text, allowed);
   if (name == null) return null;
   // A known variable used where it means nothing is named by its label (rule 11, 2026-10-17).

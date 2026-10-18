@@ -11,7 +11,9 @@
 
 const emailTextsModel = require('../models/emailTextsModel');
 const { templateAllowed, sectionOfStableKey, namesUsedBy, namesUsedOutside } = require('../utils/templateTokens');
-const { unknownToken } = require('../utils/emailTemplateRenderer');
+const { unknownToken, structureError } = require('../utils/emailTemplateRenderer');
+const { pendingFactsOf } = require('../utils/propertyFacts');
+const { buildCgvUrl } = require('../utils/emailContextBuilder');
 
 const HORIZON_DAYS = 14;
 const TEXTS_PAGE = '/settings/emails/textes';
@@ -81,12 +83,26 @@ function buildController({ database, settingsModel }) {
     const addressNeeded = addressUsed && blank(settings.companyAddress);
     const accessNeeded = uses('accessParagraph', 'hasAccessParagraph');
     const wifiNeeded = uses('arrivalWifiParagraph', 'hasArrivalWifiParagraph');
+    const cautionUsed = uses('cautionNotReceived', 'cautionAmount');
+    const cleaningUsed = uses('cleaningParagraph', 'hasCleaningParagraph');
+    const towelsUsed = uses('bagList', 'hasBagList', 'hasTowelsIncluded');
     for (const p of properties) {
       const stay = stays[p.id] || { any: false, soon: false };
       const target = { path: `/properties/${p.id}` };
       const stayTab = { path: `/properties/${p.id}`, search: 'tab=sejour' };
       if (Number(p.nameArticleConfirmed || 0) !== 1) {
         push({ id: `property.article:${p.id}`, check: 'article', label: `Article — ${p.name}`, propertyId: p.id, target, soon: stay.soon });
+      }
+      // Rule 27 — what the start assistant could not know, while a template would say it.
+      const pending = pendingFactsOf(p);
+      for (const [fact, label, needed] of [
+        ['caution', 'Caution', cautionUsed],
+        ['cleaning', 'Ménage compris ou non', cleaningUsed],
+        ['towels', 'Linge de toilette fourni ou non', towelsUsed],
+      ]) {
+        if (pending.has(fact) && needed) {
+          push({ id: `property.${fact}:${p.id}`, check: 'fact', label: `${label} — ${p.name}`, section: fact === 'towels' ? 'j7' : 'j2', propertyId: p.id, target: fact === 'caution' ? { path: `/properties/${p.id}`, search: 'tab=paiement' } : stayTab, soon: stay.soon });
+        }
       }
       if (!stay.any) continue;
       const f = facts.get(p.id) || {};
@@ -109,7 +125,8 @@ function buildController({ database, settingsModel }) {
     // A French without its English, in a sentence a template places: absent from the English email.
     // Urgent only when an English-speaking guest arrives within 14 days.
     const englishSoon = englishStaySoon();
-    for (const item of emailTextsModel.buildModel(database).all()) {
+    const textItems = emailTextsModel.buildModel(database).all();
+    for (const item of textItems) {
       if (!['text', 'mention', 'hook', 'resource'].includes(item.kind) || !item.used || blank(item.fr) || !blank(item.en)) continue;
       push({
         id: `english:${item.key}`, check: 'english', label: `Anglais manquant — ${item.label}`,
@@ -117,18 +134,47 @@ function buildController({ database, settingsModel }) {
       });
     }
 
-    // A stored template naming a variable that does not exist.
+    // Rule 26 — a sentence holding a broken variable or condition: the guest would read it as it is.
+    for (const item of textItems) {
+      if (!['fr', 'en'].some((lang) => structureError(item[lang]))) continue;
+      push({
+        id: `text.broken:${item.key}`, check: 'token', label: `Texte à corriger — ${item.label}`,
+        section: item.section, propertyId: item.propertyId || null, target: { path: TEXTS_PAGE, hash: item.section }, soon: anySoon,
+      });
+    }
+
+    // A stored template naming a variable that does not exist, or holding a broken one (rule 26).
     const allowed = templateAllowed();
     for (const t of database.prepare('SELECT * FROM email_templates').all()) {
-      const bad = ['subject', 'body', 'subjectEn', 'bodyEn'].map((f) => unknownToken(t[f], allowed)).find((n) => n != null);
-      if (bad == null) continue;
+      const fields = ['subject', 'body', 'subjectEn', 'bodyEn'];
+      const broken = fields.some((f) => structureError(t[f]));
+      const bad = broken ? null : fields.map((f) => unknownToken(t[f], allowed)).find((n) => n != null);
+      if (!broken && bad == null) continue;
       const section = sectionOfStableKey(t.stableKey);
       push({
-        id: `template.token:${t.id}`, check: 'token', label: `Variable inconnue {{${bad}}} — ${t.name}`, section,
+        id: `template.token:${t.id}`, check: 'token', label: broken ? `Modèle à corriger — ${t.name}` : `Variable inconnue {{${bad}}} — ${t.name}`, section,
         target: section ? { path: TEXTS_PAGE, hash: section } : { path: '/emails' }, soon: anySoon,
       });
     }
+
+    // Rule 35 — the CGV link printed while there is none to print.
+    if (!cgvUrlKnown(settings)) {
+      for (const t of templates) {
+        if (!['body', 'bodyEn'].some((f) => namesUsedOutside(t[f], 'hasCgvUrl').has('cgvUrl'))) continue;
+        push({
+          id: `template.cgv:${t.id}`, check: 'cgv', label: `Lien des conditions générales vide — ${t.name}`,
+          section: sectionOfStableKey(t.stableKey), target: { path: '/parametres/conditions-generales' }, soon: anySoon,
+        });
+      }
+    }
     return { items, soonCount: items.filter((i) => i.soon).length };
+  }
+
+  // A published CGV version and the public site's address make the link (specs/terms-acceptance-record.md rule 27).
+  function cgvUrlKnown(settings) {
+    let version = null;
+    try { version = (database.prepare('SELECT MAX(version) AS v FROM terms_versions').get() || {}).v; } catch { version = null; }
+    return Boolean(buildCgvUrl(settings, version));
   }
 
   function get(req, res) {

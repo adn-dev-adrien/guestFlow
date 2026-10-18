@@ -131,6 +131,7 @@ export default function PageActionBar({
   const tabsOnSecondRow = Boolean(tabs) && isMobile;
   const centerNode = tabsOnSecondRow ? null : (tabs || center);
   const showTitleOnXs = titleOnXs || Boolean(tabs);
+  const hasNodes = [...actionsBefore, ...actionsAfter].some((a) => a.node);
 
   return (
     <Box
@@ -195,7 +196,15 @@ export default function PageActionBar({
           </Box>
         )}
 
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', minWidth: 0, ...(centerNode ? { flex: '1 1 0' } : {}) }}>
+        {/* On a phone, icon actions stay on one row: the title gives way (ellipsis) rather than Cancel
+            wrapping under Save. A custom node may be wide, so a bar holding one keeps wrapping. */}
+        <Box sx={{
+          display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', minWidth: 0,
+          flexWrap: hasNodes ? 'wrap' : { xs: 'nowrap', sm: 'wrap' },
+          ...(hasNodes ? {} : { flexShrink: { xs: 0, sm: 1 } }),
+          ...(centerNode ? { flex: '1 1 0' } : {}),
+        }}
+        >
           {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
 
           {useOverflow && (

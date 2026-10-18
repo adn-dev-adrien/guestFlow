@@ -9,8 +9,9 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Card, CardContent, Stack, ToggleButton, ToggleButtonGroup, Typography,
+  Alert, Box, Button, Card, CardContent, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import api from '../api';
 import StatusBadge from './StatusBadge';
 import PasswordField from './PasswordField';
@@ -23,6 +24,7 @@ import ErrorAlert from './ErrorAlert';
 const errorText = (err, fallback) => (err && err.message && err.message !== err.error ? err.message : fallback);
 
 export default function TwoFactorSection({ account }) {
+  const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
   const [status, setStatus] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [method, setMethod] = useState('totp');
@@ -125,15 +127,19 @@ export default function TwoFactorSection({ account }) {
 
           {status && !status.enabled && !enrolment && (
             <>
+              {/* One column on a phone, one row above: never a broken staircase (rule 25). */}
               <ToggleButtonGroup
                 exclusive
                 value={method}
                 onChange={(e, v) => v && setMethod(v)}
                 size="small"
-                sx={{ flexWrap: 'wrap' }}
+                orientation={phone ? 'vertical' : 'horizontal'}
+                fullWidth={phone}
+                aria-label="Méthode du second code"
+                sx={{ alignSelf: phone ? 'stretch' : 'flex-start' }}
               >
-                <ToggleButton value="totp" sx={{ minHeight: 44 }}>Appli d’authentification</ToggleButton>
-                <ToggleButton value="email" disabled={!status.emailAvailable} sx={{ minHeight: 44 }}>Code par email</ToggleButton>
+                <ToggleButton value="totp" sx={{ minHeight: 44, textTransform: 'none' }}>Appli d’authentification</ToggleButton>
+                <ToggleButton value="email" disabled={!status.emailAvailable} sx={{ minHeight: 44, textTransform: 'none' }}>Code par email</ToggleButton>
               </ToggleButtonGroup>
               <PasswordField
                 label="Mot de passe actuel"

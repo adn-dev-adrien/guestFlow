@@ -1,7 +1,7 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
@@ -11,6 +11,9 @@
   "guestflow": ">=3.9.0",
   "sdk": "^1.0.0",
   "changelog": {
+    "1.0.1": [
+      "Réglages › Intégrations : une ligne courte quand la connexion Google n’est pas disponible, sans nom de variable ni chemin du serveur."
+    ],
     "1.0.0": [
       "Première version publiée en paquet."
     ]

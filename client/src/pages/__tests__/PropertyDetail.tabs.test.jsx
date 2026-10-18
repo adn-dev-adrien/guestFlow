@@ -16,7 +16,10 @@ vi.mock('react-router', async (importOriginal) => {
 vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getProperty: vi.fn(), getOptions: vi.fn(), updateProperty: vi.fn(), createProperty: vi.fn(), deleteProperty: vi.fn(),
+    getProperty: vi.fn(), getOptions: vi.fn(),
+    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 34).
+    getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
+    savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})), updateProperty: vi.fn(), createProperty: vi.fn(), deleteProperty: vi.fn(),
     getPropertyPlatforms: vi.fn(), getPlatformSettings: vi.fn(), createOption: vi.fn(), updateOption: vi.fn(),
   },
 }));

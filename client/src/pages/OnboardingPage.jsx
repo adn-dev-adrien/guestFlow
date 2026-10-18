@@ -45,6 +45,9 @@ export default function OnboardingPage() {
   const [emails, setEmails] = useState(null);
   const [emailDraft, setEmailDraft] = useState({});
   const [readiness, setReadiness] = useState([]);
+  // Rule 28 — the properties the instance already has, when the assistant did not create them.
+  const [existingProperties, setExistingProperties] = useState(0);
+  const [loginEmail, setLoginEmail] = useState('');
 
   useEffect(() => {
     if (location.pathname !== '/demarrage') navigate('/demarrage', { replace: true });
@@ -54,6 +57,13 @@ export default function OnboardingPage() {
     api.getOnboarding()
       .then((data) => {
         setCompany((c) => ({ ...c, ...data.company }));
+        // Rule 28 — the property the assistant created comes back to be edited, never doubled.
+        if (data.property && data.property.draft) {
+          setProperty({ ...EMPTY_PROPERTY, ...data.property.draft });
+          setCapacityTouched(true);
+        } else if (data.property && data.property.existing > 0) {
+          setExistingProperties(data.property.existing);
+        }
         setPlugins(data.plugins || []);
         setPicked(Object.fromEntries((data.plugins || []).map((p) => [p.id, p.allowed && (p.recommended || p.state === 'active')])));
       })
@@ -102,7 +112,8 @@ export default function OnboardingPage() {
         phone: e.phone,
         senderName: e.senderName,
         properties: Object.fromEntries(e.properties.map((p) => [p.id, {
-          nameArticle: p.nameArticle, address: p.address, access: p.access, wifiName: p.wifiName, wifiPassword: '',
+          nameArticle: p.nameArticle, address: p.address, access: p.access, accessCode: '', wifiName: p.wifiName, wifiPassword: '',
+          caution: p.caution == null ? '' : String(p.caution), cleaningIncluded: p.cleaningIncluded, towelsProvided: p.towelsProvided,
         }])),
       });
     }
@@ -114,8 +125,16 @@ export default function OnboardingPage() {
     setBusy(true);
     setFailure('');
     try {
-      if (step === 1) await api.saveOnboardingCompany(company);
-      if (step === 2) await api.saveOnboardingProperty(property);
+      if (step === 1) {
+        // specs/hosting-h2-account-security.md rule 23 — the company email becomes the login of the
+        // bootstrap account; the step says so once.
+        const saved = await api.saveOnboardingCompany(company);
+        if (saved && saved.loginChanged) {
+          setLoginEmail(saved.loginEmail);
+          await refresh();
+        }
+      }
+      if (step === 2 && !existingProperties) await api.saveOnboardingProperty(property);
       if (step === 3) {
         const ids = Object.keys(picked).filter((id) => picked[id]);
         const { results } = await api.saveOnboardingPlugins(ids);
@@ -131,7 +150,19 @@ export default function OnboardingPage() {
         await api.saveOnboardingEmails({
           phone: emailDraft.phone,
           senderName: emailDraft.senderName,
-          properties: Object.entries(emailDraft.properties || {}).map(([id, p]) => ({ id: Number(id), ...p })),
+          // An unanswered article, deposit, cleaning or towels is not sent: it stays unsaid (rules 27, 29).
+          properties: Object.entries(emailDraft.properties || {}).map(([id, p]) => {
+            const { nameArticle, caution, cleaningIncluded, towelsProvided, accessCode, ...rest } = p;
+            return {
+              id: Number(id),
+              ...rest,
+              ...(nameArticle ? { nameArticle } : {}),
+              ...(caution !== '' && caution != null ? { caution } : {}),
+              ...(cleaningIncluded != null ? { cleaningIncluded } : {}),
+              ...(towelsProvided != null ? { towelsProvided } : {}),
+              ...(accessCode ? { accessCode } : {}),
+            };
+          }),
         });
       }
       if (step === STEPS) { await leave(); return; }
@@ -173,7 +204,18 @@ export default function OnboardingPage() {
         </Stack>
       )}
 
-      {step === 2 && (
+      {step === 2 && loginEmail && (
+        <Alert severity="info" sx={{ mb: 2 }}>{`Connexion désormais avec ${loginEmail}.`}</Alert>
+      )}
+
+      {step === 2 && existingProperties > 0 && (
+        <Stack spacing={1}>
+          <Typography>{`Logements : ${existingProperties}`}</Typography>
+          <Link component="button" type="button" onClick={() => leave('/properties')} sx={{ textAlign: 'left' }}>Modifier dans Logements</Link>
+        </Stack>
+      )}
+
+      {step === 2 && !existingProperties && (
         <Stack spacing={1}>
           <TextField label="Nom du logement" required {...field(property, setProperty, 'name')} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2 }}>
@@ -229,7 +271,7 @@ export default function OnboardingPage() {
         <Stack spacing={1.5}>
           <Typography>{`${company.name || 'L’établissement'} est prêt.`}</Typography>
           <ReadinessList items={readiness} title="Emails à compléter" onOpen={(target) => leave(targetUrl(target))} />
-          <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={{ textAlign: 'left' }}>Réglages › Emails : les textes des mails</Link>
+          <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={{ textAlign: 'left' }}>Réglages › Emails : les textes des emails</Link>
           <Link component="button" type="button" onClick={() => leave('/properties')} sx={{ textAlign: 'left' }}>Tarifs : saisons et prix des logements</Link>
           <Link component="button" type="button" onClick={() => leave('/parametres/plugins')} sx={{ textAlign: 'left' }}>{`Plugins : ${active.length} actif(s)`}</Link>
         </Stack>

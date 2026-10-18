@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router';
-import { Box, IconButton, Typography } from '@mui/material';
+import { Box, IconButton, Typography, useMediaQuery } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
@@ -25,6 +26,8 @@ function shiftMonth({ month, year }, delta) {
 
 export default function CompensationsPage() {
   const { user } = useAuth();
+  // A phone has room for one word beside the actions (the month has its own strip below).
+  const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
   const canEdit = userHasRole(user, ADMIN);
   const sectionRef = useRef(null);
   const today = useMemo(() => new Date(), []);
@@ -61,7 +64,7 @@ export default function CompensationsPage() {
   return (
     <Box>
       <PageActionBar
-        title="Indemnités d'annulation"
+        title={phone ? 'Indemnités' : "Indemnités d'annulation"}
         titleOnXs
         center={monthNav}
         actionsBefore={canEdit ? [{

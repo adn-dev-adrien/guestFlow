@@ -34,6 +34,8 @@ import FormDialog from '../../components/FormDialog';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorAlert from '../../components/ErrorAlert';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import useDirtyFormGuard from '../../hooks/useDirtyFormGuard';
 import { useToast } from '../../components/DialogProvider';
 import readTextFile from '../../utils/readTextFile';
 import { buildDictionary, toDisplay } from '../../utils/tokenDisplay';
@@ -99,6 +101,25 @@ export default function EmailTextsSettingsPage() {
   const section = data.sections.find((s) => s.id === open) || null;
   const templateId = section ? (templateBySection[section.id] || (section.templates[0] || {}).id) : null;
   const dirty = Object.keys(drafts).length > 0;
+
+  // Typed sentences are not lost on a link, the menu, « Retour » or a reload (rule 34).
+  const { guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({ draft: drafts, saved: {}, navigate });
+  const leave = (path) => {
+    const guard = window.__guestflowBeforeNavigate;
+    if (typeof guard === 'function' && guard(path)) return;
+    navigate(path);
+  };
+  // A link inside the page (« Traductions », the readiness list) goes through the same guard.
+  const guardLinks = (event) => {
+    if (!dirty || event.defaultPrevented) return;
+    const anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!anchor || anchor.target === '_blank') return;
+    const url = new URL(anchor.getAttribute('href'), window.location.href);
+    if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return;
+    event.preventDefault();
+    event.stopPropagation();
+    leave(`${url.pathname}${url.search}${url.hash}`);
+  };
 
   const valueOf = (item, lang) => (drafts[item.key] && drafts[item.key][lang] !== undefined ? drafts[item.key][lang] : item[lang]);
   const edit = (item, lang, value) => {
@@ -248,6 +269,9 @@ export default function EmailTextsSettingsPage() {
   // what needs attention (English missing, machine translation to read).
   const compactOf = (item) => {
     const englishMissing = Boolean(String(valueOf(item, 'fr')).trim()) && !String(valueOf(item, 'en')).trim();
+    const dict = buildDictionary(item.chips.variables, item.chips.conditions);
+    // A property's own text left empty: the shared text is what the guest reads (rule 34).
+    const inherited = !String(valueOf(item, 'fr')).trim() && item.placeholderFr ? toDisplay(item.placeholderFr, dict) : '';
     return (
       <ButtonBase
         key={item.key}
@@ -260,9 +284,16 @@ export default function EmailTextsSettingsPage() {
           {englishMissing && <StatusBadge status="warning" label="EN manquant" />}
           {item.autoTranslated && <StatusBadge status="info" label="À relire" />}
         </Box>
-        <Typography component="span" variant="body2" color={valueOf(item, 'fr') ? 'text.secondary' : 'text.disabled'} sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          {toDisplay(valueOf(item, 'fr'), buildDictionary(item.chips.variables, item.chips.conditions)) || 'Vide'}
-        </Typography>
+        {inherited ? (
+          <Typography component="span" variant="body2" color="text.disabled" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600 }}>Texte commun utilisé : </Box>
+            {inherited}
+          </Typography>
+        ) : (
+          <Typography component="span" variant="body2" color={valueOf(item, 'fr') ? 'text.secondary' : 'text.disabled'} sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {toDisplay(valueOf(item, 'fr'), dict) || 'Vide'}
+          </Typography>
+        )}
       </ButtonBase>
     );
   };
@@ -281,6 +312,7 @@ export default function EmailTextsSettingsPage() {
       errorEn={errors[item.key]?.en}
       placeholderFr={item.placeholderFr || 'Vide : pas de phrase'}
       placeholderEn={item.placeholderEn || 'Vide : pas de phrase'}
+      emptyHint={item.placeholderFr ? 'Vide : texte commun utilisé' : undefined}
       disabled={saving}
       autoFocus={!desktop && editingKey === item.key}
       badge={item.autoTranslated && <StatusBadge status="info" label="Traduit automatiquement, à relire" />}
@@ -298,10 +330,10 @@ export default function EmailTextsSettingsPage() {
   );
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1400, mx: 'auto' }} onClickCapture={guardLinks}>
       <PageActionBar
-        title="Textes des emails"
-        backTo="/settings/emails"
+        title={desktop ? 'Textes des emails' : 'Textes'}
+        onBack={() => leave('/settings/emails')}
         tabs={<PageTabs value={tab} onChange={setTab} items={TABS} ariaLabel="Textes des emails" />}
         onSave={tab === 'texts' ? save : undefined}
         saveDisabled={!dirty || saving}
@@ -395,6 +427,17 @@ export default function EmailTextsSettingsPage() {
           {desktop && section && <Box sx={{ position: 'sticky', top: 128 }}>{pane}</Box>}
         </Box>
       )}
+
+      <ConfirmDialog
+        open={guardDialogOpen}
+        onClose={dismissGuard}
+        onConfirm={confirmLeave}
+        title="Modifications non enregistrées"
+        message="Des textes ne sont pas enregistrés. Quitter sans enregistrer ?"
+        confirmLabel="Quitter sans enregistrer"
+        cancelLabel="Rester"
+        confirmColor="warning"
+      />
 
       <FormDialog
         open={Boolean(fullTemplate)}

@@ -27,11 +27,12 @@ test('rule 21: the step is pre-filled from what is known, for every property', a
   assert.equal(emails.previewStableKey, 'arrival_reminder_1d');
   assert.deepEqual(emails.properties.map((p) => [p.id, p.name, p.nameArticle, p.address, p.hasWifi]), [
     [1, 'Le Gîte', 'au', '12 chemin des Prés', true],
-    [2, 'La Cabane', 'à la', '12 chemin des Prés', false],
+    // Rule 29 — an article nobody confirmed is not shown as chosen.
+    [2, 'La Cabane', null, '12 chemin des Prés', false],
   ]);
-  assert.deepEqual(emails.properties[0].articles.slice(0, 3), [
-    { value: 'au', label: 'au Le Gîte' }, { value: 'à la', label: 'à la Le Gîte' }, { value: "à l'", label: "à l'Le Gîte" },
-  ]);
+  // Rule 29 — a name holding its own article offers that one, contracted.
+  assert.deepEqual(emails.properties[0].articles, [{ value: 'au', label: 'au Gîte' }]);
+  assert.deepEqual(emails.properties[1].articles, [{ value: 'à la', label: 'à la Cabane' }]);
 });
 
 test('rule 21: saved fields land where the emails read them; the article is then confirmed', async () => {

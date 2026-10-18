@@ -284,6 +284,20 @@ Other facts the design rests on:
   fixed address.
 - Tests: `payment-link-deactivation.unit.test.js` (+2), `stay-payment-recorder.unit.test.js` (+2, history line), `payment-provider-interface.unit.test.js`, `phase-3a-online-payment.unit.test.js` (+1), `PaymentDeadlinesAlert.payment-provider.test.jsx`.
 
+**Review of 2026-10-18 (dashboard without a provider)**
+
+22. **Without online payment, a row « à demander » keeps « Envoyer la demande ».** Rule 5 removed the
+    button with the payment link, which left a red alert with only « Reporter » (a regression from
+    v3.10.0). Without a provider, the server marks the row `remindByEmail` with the template to use and
+    the reason « Aucun paiement en ligne : demande par email. »; the button opens that email in the
+    send dialog, where the operator reads and can edit it before it leaves. The template must read well
+    without a link: the request (`deposit_request` / `balance_request`) while the guest was never asked
+    and when it does not print `{{paymentLink}}` outside `{{#if hasPaymentLink}}`, otherwise the
+    reminder (`deposit_reminder` / `balance_reminder`, « Contactez-nous pour le règlement. »). A
+    reminder sent by hand counts as asked (rule 15 of specs/payment-schedule-and-cancellation.md). With
+    a provider nothing changes: the link is minted and sent as before. No enabled template fitting →
+    no button, as before.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

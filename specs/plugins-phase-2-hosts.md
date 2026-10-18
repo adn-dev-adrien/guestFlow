@@ -234,6 +234,9 @@ without the core knowing it.
     - a `PageActionBar` with the title, a compact month picker (◀ « Septembre 2026 » ▶) in its centre,
       and « Ajouter » for the admin; then the existing `CancellationCompensationsSection`: « Encaissées en
       <mois> » and « En attente », whatever the month;
+    - *2026-10-18 (review):* the bar reads « Indemnités » on a phone (the full title was cut to
+      « Indemnités d'an… »), and the card's explanation is impersonal: « Ce qu'une plateforme verse pour
+      un séjour annulé, ou l'acompte conservé faute de règlement. »;
     - « Encaisser », « Rouvrir » and « Modifier » for the admin, and « Supprimer » on a pending one (new
       in the screen; the API already refused deleting a banked one). Read-only for an accountant
       (rule 3); the accountant's Suivi financier entries, this one included, show while

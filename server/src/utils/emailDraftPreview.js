@@ -13,11 +13,12 @@
  *   template   { subject?, body?, subjectEn?, bodyEn? }  the full template being edited
  *   settings   { companyName?, companyPhone?, smtpFromName? }
  *   arrival    { [propertyId]: { address?, mapUrl?, accessFr?, accessEn?, accessCode?, wifiName?, wifiPassword? } }
- *   properties { [propertyId]: { nameArticle? } }
+ *   properties { [propertyId]: { nameArticle?, caution?, cleaningIncluded?, towelsProvided? } }
  */
 
 const emailTextsModel = require('../models/emailTextsModel');
 const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
+const { answeredFlag, withoutPending } = require('./propertyFacts');
 const { sectionOfStableKey, templateAllowed, tokenError } = require('./templateTokens');
 
 const SETTINGS_KEYS = ['companyName', 'companyPhone', 'smtpFromName'];
@@ -93,6 +94,11 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
       INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, doubleBeds, singleBeds, finalPrice, totalPrice, createdAt)
       VALUES (?, ?, ?, ?, 2, 0, 1, 0, ?, ?, datetime('now'))
     `).run(pid, clientId, isoDay(SAMPLE_LEAD_DAYS), isoDay(SAMPLE_LEAD_DAYS + SAMPLE_NIGHTS), price * SAMPLE_NIGHTS, price * SAMPLE_NIGHTS).lastInsertRowid;
+    // Rule 30 — the sample arrives and leaves at the property's own times, as a real stay would.
+    const times = database.prepare('SELECT defaultCheckIn, defaultCheckOut FROM properties WHERE id = ?').get(pid) || {};
+    const resCols = new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name));
+    if (resCols.has('checkInTime') && times.defaultCheckIn) database.prepare('UPDATE reservations SET checkInTime = ? WHERE id = ?').run(times.defaultCheckIn, id);
+    if (resCols.has('checkOutTime') && times.defaultCheckOut) database.prepare('UPDATE reservations SET checkOutTime = ? WHERE id = ?').run(times.defaultCheckOut, id);
     for (const table of ['clients', 'reservations']) {
       if (database.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'emailLanguage')) {
         database.prepare(`UPDATE ${table} SET emailLanguage = ? WHERE id = ?`).run(lang, table === 'clients' ? clientId : id);
@@ -124,6 +130,22 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
     for (const [pid, props] of Object.entries(draft.properties || {})) {
       if (props && NAME_ARTICLES.includes(props.nameArticle)) {
         database.prepare('UPDATE properties SET nameArticle = ? WHERE id = ?').run(props.nameArticle, Number(pid));
+      }
+      // Rule 27 — the deposit, cleaning and towels being answered in the assistant.
+      const answered = [];
+      if (props && props.caution != null && String(props.caution).trim() !== '' && Number.isFinite(Number(String(props.caution).replace(',', '.')))) {
+        database.prepare('UPDATE properties SET defaultCautionAmount = ? WHERE id = ?').run(Number(String(props.caution).replace(',', '.')), Number(pid));
+        answered.push('caution');
+      }
+      for (const [field, fact] of [['cleaningIncluded', 'cleaning'], ['towelsProvided', 'towels']]) {
+        const flag = props ? answeredFlag(props[field]) : null;
+        if (flag === null) continue;
+        database.prepare(`UPDATE properties SET ${field} = ? WHERE id = ?`).run(Number(flag), Number(pid));
+        answered.push(fact);
+      }
+      if (answered.length) {
+        const row = database.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(Number(pid));
+        if (row) database.prepare('UPDATE properties SET pendingFacts = ? WHERE id = ?').run(withoutPending(row.pendingFacts, answered), Number(pid));
       }
     }
     return null;

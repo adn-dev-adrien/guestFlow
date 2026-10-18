@@ -6,6 +6,7 @@ const controller = buildController({
   database: require('../database'),
   settingsModel: require('../models/settingsModel'),
   propertiesModel: require('../models/propertiesModel'),
+  usersModel: require('../models/usersModel'),
   plugins: require('../controllers/pluginsController'),
   ensureVapid: (settings) => require('../utils/vapid').ensureVapid(settings),
 });

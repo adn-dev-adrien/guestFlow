@@ -197,6 +197,18 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
   ends.
 - Two requests in a row → only one pending request; the new reason replaces the old one.
 
+**Review of 2026-10-18**
+
+23. **The first login is the company email.** At step 1 of the start assistant, when the administrator
+    still logs in with the bootstrap `admin@guestflow.local`, the company email typed becomes the login
+    (unless another account holds it), and the assistant says so once: « Connexion désormais avec … ».
+    « Mot de passe oublié » then reaches a real mailbox. A login the owner chose is never changed.
+24. **The enrolment code is spent.** The authenticator code that confirms the enrolment records its
+    step, like a login code (rule 6): the same code cannot open a session in the same 30 s, even from
+    another browser.
+25. **The method picker fits a phone.** « Appli d'authentification » / « Code par email » stack in one
+    full-width column below 600 px and sit on one row above, in sentence case.
+
 ---
 
 ## 4. Architecture

@@ -93,8 +93,6 @@ const COLUMNS = [
   'guestSequenceStartDate',
   'googleReviewUrl',
   'instagramUrl',
-  'poolSeasonStart',
-  'poolSeasonEnd',
   // The public website's origin: the CGV link of the emails and the return page of an online payment
   // (specs/plugins-phase-3a-online-payment.md rule 15). The 20 Qonto columns moved to the
   // online-payment plugin's settings (rule 13); they stay in the table, unread.
