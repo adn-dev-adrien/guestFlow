@@ -109,6 +109,51 @@ function requestLabel(method, path) {
   return name ? `Modification : ${name}` : 'Modification';
 }
 
+// What a successful read shows: « Réservation 12 », « Planning », or null when it names nothing.
+function readTarget(method, path, summary) {
+  if (method === 'PAGE') return pageName(path);
+  if (method !== 'GET') return undefined;
+  const status = Number(summary);
+  if (Number.isInteger(status) && status >= 400) return undefined;
+  const [section, id] = String(path || '').toLowerCase().split(/[?#]/)[0].replace(/^\/api/, '').split('/').filter(Boolean);
+  const entity = ENTITIES[section];
+  if (entity && /^\d+$/.test(id || '')) return `${entity.name} ${id}`;
+  return SECTIONS[section] || (entity ? entity.plural : null);
+}
+
+/**
+ * specs/hosting-h2-account-security.md rule 23 — the log as the customer reads it: the successful reads
+ * of one minute in a row (pages opened and the API calls behind them) fold into one line
+ * « Consultation : Planning, Linge », each name once; writes and refusals keep their own line.
+ * `rows` newest first, as stored. → [{ at, label, outcomeLabel }]
+ */
+function journal(rows) {
+  const out = [];
+  let group = null;
+  const flush = () => {
+    if (!group) return;
+    const names = [...new Set(group.names.reverse().filter(Boolean))];
+    out.push({ at: group.at, label: names.length ? `Consultation : ${names.join(', ')}` : 'Consultation', outcomeLabel: '' });
+    group = null;
+  };
+  for (const row of rows) {
+    const target = row.method === 'LOGIN' ? undefined : readTarget(row.method, row.path, row.summary);
+    if (target === undefined) {
+      flush();
+      out.push({ at: row.at, ...describe(row) });
+      continue;
+    }
+    const minute = String(row.at || '').slice(0, 16);
+    if (!group || group.minute !== minute) {
+      flush();
+      group = { at: row.at, minute, names: [] };
+    }
+    group.names.push(target);
+  }
+  flush();
+  return out;
+}
+
 // A stored log row → { label, outcomeLabel }.
 function describe({ method, path, summary }) {
   if (method === 'LOGIN') return { label: 'Connexion du support', outcomeLabel: '' };
@@ -122,4 +167,4 @@ function describe({ method, path, summary }) {
   return { label: requestLabel(method, path), outcomeLabel };
 }
 
-module.exports = { describe, pageName, requestLabel };
+module.exports = { describe, journal, pageName, requestLabel, readTarget };

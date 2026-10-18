@@ -79,6 +79,8 @@ function shapeResponse(row, env = process.env) {
         fromEmail: safeStr(row.companyEmail).trim(),
         username: identity.fromEmail,
         fromName: resolveEmailIdentity({ companyName: row.companyName }).fromName,
+        // specs/hosting-h1-fleet-runtime.md rule 25 — the address the hosting gives the instance.
+        publicUrl: safeStr(env.GUESTFLOW_PUBLIC_URL).trim(),
       },
       // specs/hosting-h1-fleet-runtime.md rule 19 — a hosted instance offers the platform's sender.
       // `active` while no host of its own is saved; `replyTo` is where the guests' answers go.

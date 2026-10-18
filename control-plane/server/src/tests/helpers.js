@@ -140,13 +140,20 @@ function makeFakeDrivers({ domain = 'guestflow.test', now = () => new Date() } =
     },
     mail: createMailDriver({ kind: 'local', domain, env: { CP_MAIL_DAILY_LIMIT: '300' } }),
   };
+  // `loaded.set(slug, { id: version })` — the plugins a fake instance says it loaded (rule 11);
+  // `brokenPlugins.add('<id>@<version>')` makes that version fail to load.
+  const loaded = new Map();
+  const brokenPlugins = new Set();
   async function fetchImpl(url) {
     const slug = String(url).split('/')[3];
     const p = procs.get(slug);
     if (!p || !p.running || unhealthy.has(p.version)) throw Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
-    return { ok: true, status: 200, json: async () => ({ version: p.version }) };
+    const asked = new URL(url).searchParams.get('plugin');
+    const version = asked ? (loaded.get(slug) || {})[asked] || null : null;
+    const plugin = asked ? { id: asked, version, ok: Boolean(version) && !brokenPlugins.has(`${asked}@${version}`) } : undefined;
+    return { ok: true, status: 200, json: async () => ({ version: p.version, ...(plugin ? { plugin } : {}) }) };
   }
-  return { drivers, fetchImpl, calls, procs, routes, replicas, failNext, unhealthy, certs, memory, named: (n) => calls.filter((c) => c.name === n) };
+  return { drivers, fetchImpl, calls, procs, routes, replicas, failNext, unhealthy, certs, memory, loaded, brokenPlugins, named: (n) => calls.filter((c) => c.name === n) };
 }
 
 // The facade of utils/qontoBilling.js, in memory. `state.failNext = { step, error }` makes one call

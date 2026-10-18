@@ -178,6 +178,17 @@ function boot({ db, loader, registry, model, catalogue }) {
   loader.registerAll({ db, modules, dataDir: (id) => s.store.dataDirPath(id) });
 }
 
+/**
+ * specs/hosting-h1-fleet-runtime.md rule 11 — whether a plugin pushed by the console came up: the
+ * version this process loaded, and `ok` false when it was left out or its `register` threw.
+ */
+function pluginHealth(id, registry = require('./sdk/registry')) {
+  const s = ensure();
+  const record = registry.get ? registry.get(id) : null;
+  const version = s.loaded[id] || null;
+  return { id, version, ok: Boolean(version) && !s.incompatible[id] && !(record && record.failed) };
+}
+
 function startBackground({ model, ids, setIntervalFn = setInterval } = {}) {
   const s = ensure();
   if (s.mode !== 'packages') return;
@@ -204,5 +215,6 @@ module.exports = {
   setIncompatible(map) { ensure().incompatible = { ...map }; },
   setLoaded,
   unsetLoaded,
+  pluginHealth,
   dataDirOf: (id) => path.join(ensure().store.dataDirPath(id)),
 };

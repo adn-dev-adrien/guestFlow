@@ -419,7 +419,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       - the iCal export feed URLs pasted on every platform;
       - the redirect URIs declared in the customer's own Google and Qonto applications (rule 28),
         then « Connecter » again in the instance;
-      - the instance's public URL (Réglages → Envoi d'emails);
+      - the instance's public URL (Réglages → Envoi d'emails) — *removed 2026-10-18 (hosting H1
+        rule 25): the console writes it into the instance's environment and a rename rewrites it;*
       - the push notifications, which each device accepts again.
 
       « Changer l'adresse » stays disabled until every item is ticked and the new slug is valid.
@@ -429,6 +430,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       **Since 2026-10-08 (hosting H1 rule 5):** that step runs by itself; the old address answers
       `301` for **90 days** and stays reserved for the 12 months.
     - The directory (rule 26) follows at its next read.
+    - *2026-10-18 (console review m2):* « Anciennes adresses » shows both dates while the redirect
+      lasts — « aulnes.guestflow.fr → redirigée jusqu'au 30/12/2026, réservée jusqu'au 01/10/2027 »
+      — then only « réservée jusqu'au … ».
     - Until « Dossier renommé… » is ticked, the instance still runs from its old directory: the login
       page sends its users to the old address, the directory and the fleet read the old directory,
       and the licence (carrying the new slug) is written when the step is ticked (added 2026-10-04).
@@ -590,6 +594,12 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       link.
     - A plan change while an invoice is open leaves that invoice as issued: the new price applies
       from the next invoice.
+35. **A payment during the trial ends the trial** (added 2026-10-18, console review m4). A payment
+    received while the free trial runs — recorded by hand or detected in Qonto — clears
+    `trialEndsAt`: the paid period starts that day (« la première période payée commence au
+    paiement », rule 7), the state is `active` at once, the countdown runs to the paid end date, and
+    the licence the instance reads no longer says « essai ». The payment dialog says « l'essai
+    s'arrête : la période part d'aujourd'hui ». Outside the trial, rule 15 is unchanged.
 
 ## 4. Architecture
 

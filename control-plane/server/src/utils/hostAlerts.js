@@ -25,7 +25,7 @@ function createHostAlerts({ hosting, operators, mailer, now, consoleUrl, log = (
       if (!due.length) return 0;
       const recipients = operators.list();
       const text = [
-        ...due.map((a) => `• ${a.text}`),
+        ...due.map((a) => `• ${a.text}${a.customer_id ? ` ${consoleUrl}/clients/${a.customer_id}` : ''}`),
         '',
         `Ouvrir la console : ${consoleUrl}/`,
       ].join('\n');

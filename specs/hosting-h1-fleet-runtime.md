@@ -109,6 +109,15 @@ These are the recommended options, taken under the owner's instruction to run th
     there with the error shown.
 11. **Plugin updates (phase 4) can be pushed the same way**, per plugin, to the instances that have it
     installed.
+    - *Wired 2026-10-18 (console review M2/nit):* the versions offered are the console registry's
+      published, not withdrawn, versions (newest first); « Versions › Plugins » shows each installed
+      plugin with what the instances run (« 1.0.1 × 2 ») and pushes after a confirmation. For each
+      instance that has the plugin at another version, one at a time: stop, snapshot, then the
+      instance's own `server/scripts/switch-plugin-package.js` (of the release it runs) checks the
+      registry's package file and SHA-256 like a download, unpacks it, points `current` at it and
+      records the update in its `plugins` row; restart; the health check asks
+      `/api/version?plugin=<id>` that the plugin loaded at that version. A failure puts the
+      snapshot's database back, `--sync` makes `current` follow the row again, and the push stops.
 
 ### 3.D Backups
 
@@ -188,6 +197,54 @@ These are the recommended options, taken under the owner's instruction to run th
 23. **One customer's failed erasure never stops the daily run.** It raises an alert, the other
     customers are erased, and it is tried again the next day.
 
+### 3.H The operator's path without a shell (added 2026-10-18 after the console review)
+
+24. **A lost invitation is never a dead end.** « Reprendre » on a failed « Premier compte
+    administrateur et invitation » step gives the account, when nobody ever signed in to it, a new
+    provisional password and sends the invitation again (« Nouvelle invitation envoyée à … »); an
+    account that already served is left alone and the step says so. Once the step is done, the
+    customer's page offers:
+    - « Renvoyer l'invitation » — a new provisional password, only for an account never used
+      (409 otherwise);
+    - « Réinitialiser l'accès » — after a confirmation, a new provisional password for the account
+      in any case, its second step turned off and recorded in its history.
+
+    Both run the instance's own `create-first-admin.js --reissue unused|always`, send the email and
+    are journaled; a failed send is shown (502) and nothing is claimed sent.
+25. **A new instance starts with what the console knows.** Its environment carries, rewritten at
+    every sync (so a rename moves them):
+    - `GUESTFLOW_PUBLIC_URL=https://<slug>.<domain>` — the instance's public URL whenever none is
+      typed in Réglages › Système, so « mot de passe oublié » and the email links work from day one;
+      the field shows it as its default, and the rename checklist no longer lists it;
+    - `GUESTFLOW_REGISTRY_URL=<CP_PUBLIC_URL>/registry/v1` and `GUESTFLOW_REGISTRY_PUBLIC_KEY` (the
+      licence key that signs the index), only when the console has a licence key.
+
+    At the creation step the establishment is seeded from the customer's record — name, contact
+    email, billing address, VAT number — and the account's company is the customer's name. Only
+    empty fields are filled: what the customer typed is never overwritten. The contact email gives
+    the platform mails their Reply-To and lets push notifications be configured.
+26. **Bootstrap generates the licence key.** When `CP_LICENCE_PRIVATE_KEY` is empty,
+    `bootstrap-host.sh` writes an Ed25519 private key in base64 DER (PKCS8) into the console's
+    environment and prints the public key (nothing to do with it: the console writes it into every
+    instance). It never replaces a key in place. The runbook lists it with `.key` and
+    `.directory-key` among what the owner keeps offline.
+27. **The object storage keys are typed once.** `bootstrap-host.sh` takes them as
+    `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` (and optionally `BACKUP_URL`, `BACKUP_ENDPOINT`,
+    `BACKUP_REGION`) into the console's environment, their only source; `/etc/default/litestream` is
+    rewritten from it at each run. rclone gets the same bucket and keys from the console: its remote
+    is derived from `CP_BACKUP_URL` and configured through rclone's environment
+    (`RCLONE_CONFIG_GFBACKUP_*`), so no `rclone config`. `CP_RCLONE_REMOTE`, when set, still wins.
+28. **A release that failed is never the default.** A release that an update had to roll back and
+    that no instance runs reads « En échec » on « Versions » (and « — en échec » in the target list).
+    The default target is the newest release that did not fail, and no scope is preselected: « Toute
+    la flotte » is a choice, « Mettre à jour » stays disabled until one is made.
+29. **A crashed process is restarted from its page.** When the process failed (or runs without
+    answering), the customer's « Hébergement » card offers « Redémarrer »: the env file is rewritten,
+    the unit restarted (systemd's failure reset first, so a unit past its start limit restarts too),
+    then health-checked, as the step « Processus redémarré » (retried from the step when it fails).
+    A host alert about a customer links to that customer's page, on the home page and in the
+    operators' email.
+
 ---
 
 ## 4. Architecture
@@ -210,6 +267,10 @@ These are the recommended options, taken under the owner's instruction to run th
 | `utils/` | `instanceEnv.js`, `health.js`, `sqliteBackup.js`, `hostAlerts.js`, `hostView.js` | C | Env file build/parse (mode 600); health polling; SQLite online backup and integrity check; alerts sent once then every 24 h; ready-to-render fleet columns |
 | `models/` | `hostingModel.js` | C | The tables above |
 | `scripts/` | `dev-release.js` | C | A release directory built from the checkout, for development and the integration test |
+| `utils/` | `pluginInstaller.js` | C | Rule 11: the registry's published versions, and the instance's own switch script run on a package (install, `--sync` after a rollback) |
+| `controllers/` | `customersController.js` | T | Rules 24, 25, 29: re-sent invitation, « Renvoyer l'invitation », « Réinitialiser l'accès », the establishment seed, « Redémarrer » |
+| `controllers/` | `fleetController.js`, `alertsController.js` | T | Rule 28: failed releases and the default target; rule 11: the plugin block; rule 29: alert links |
+| `utils/` | `instanceEnv.js`, `provisioner.js`, `drivers/index.js`, `drivers/backup-litestream.js`, `drivers/process-systemd.js`, `health.js` | T | Rules 25, 27, 29, 11: public and registry URLs in the env, the derived rclone remote, `reset-failed`, the plugin health check |
 
 ### 4.2 Instance (`server/src/`)
 
@@ -220,7 +281,11 @@ These are the recommended options, taken under the owner's instruction to run th
 | `utils/` | `platformMail.js` | C | The platform sender's settings, the day's counter file `<data>/platform-mail.json`, the local outbox |
 | `utils/` | `instancePaths.js` | C | `GUESTFLOW_UPLOADS_DIR`, `GUESTFLOW_LOCAL_ENV`: an instance's own files live outside the shared release (H-D4) |
 | `utils/` | `settingsResponse.js`, `models/settingsModel.js` | T | The `smtp.platform` block (rule 19); `smtpConfigured()` true when the platform sends |
-| `index.js` | — | T | `/api/version` carries `version` (rule 10's check); `GUESTFLOW_TLS_UPSTREAM`, `GUESTFLOW_LISTEN_HOST` behind Caddy |
+| `index.js` | — | T | `/api/version` carries `version` (rule 10's check); `GUESTFLOW_TLS_UPSTREAM`, `GUESTFLOW_LISTEN_HOST` behind Caddy; `?plugin=<id>` adds that plugin's loaded version (rule 11) |
+| `scripts/` | `create-first-admin.js`, `switch-plugin-package.js` (C) | T | `--company`, `--establishment`, `--reissue` (rules 24–25); the pushed package switched, or `current` synced (rule 11) |
+| `utils/` | `firstAdmin.js` | T | `reissue` and `seedEstablishment` (rules 24–25) |
+| `plugins/` | `packageStore.js`, `host.js` | T | `installFile` (a package handed over on disk), `pluginHealth` (rule 11) |
+| `models/` | `settingsModel.js`; `utils/settingsResponse.js` | T | `publicUrl()` falls back to `GUESTFLOW_PUBLIC_URL`; `smtp.derived.publicUrl` (rule 25) |
 
 ### 4.3 Client
 
@@ -228,8 +293,12 @@ These are the recommended options, taken under the owner's instruction to run th
   - `CustomerPage` (live steps, resume, restore);
   - `FleetPage` (real columns);
   - `VersionsPage` (C, releases and fleet update).
+- Console (2026-10-18): `CustomerPage` « Renvoyer l'invitation », « Réinitialiser l'accès »
+  (confirmation), « Redémarrer » (rules 24, 29); `VersionsPage` failed releases, no preselected
+  scope, the plugin block with the registry's versions and a confirmation (rules 28, 11).
 - Instance:
-  - `SystemSettings` (managed message);
+  - `SystemSettings` (managed message; « URL publique » shows the hosting's address as its default,
+    rule 25);
   - `EmailSettings` (platform state, own server expander).
 - Component reuse: `StatusBadge`, `StatusCard`, `ConfirmDialog`, `PageActionBar`, `ErrorAlert`.
 
@@ -287,7 +356,10 @@ Mobile: the fleet table becomes cards, and the step list stays vertical.
 - release verification (a bad hash is refused);
 - fleet update rollback on a failed health check;
 - probe thresholds, and an alert sent once then every 24 h;
-- restore check.
+- restore check;
+- (2026-10-18) invitation re-sent and access reset (24), env and seed (25), bootstrap key and
+  derived rclone remote (26–27), failed release not the default (28), process restart and alert
+  links (29), plugin push with health check and rollback (11).
 
 **Instance unit tests:**
 - 403 on a managed instance;
@@ -342,7 +414,8 @@ Implemented 2026-10-08 → 2026-10-17 on `feature/hosting-h1-fleet-runtime` (PR 
   (the instance units) and `/usr/local/sbin/guestflow-litestream-apply` (rule 21).
 - **Rule 11** is wired end to end (scope = instances whose `plugins` table has the plugin, same
   snapshot/health/rollback loop) behind a `pluginInstaller` adapter. Until the registry of phase 4
-  provides it, the push answers 412 and « Versions » does not show it.
+  provides it, the push answers 412 and « Versions » does not show it. *2026-10-18:* the adapter is
+  `utils/pluginInstaller.js` on the console's own registry, wired by default (rule 11's note).
 - **Local drivers**: detached child processes with a pid file and an `.enabled` marker (restarted
   when the console starts, as systemd does at boot), `proxy-routes.json` instead of Caddy, timestamped
   SQLite online-backup snapshots (every 10 min, 30 days) instead of Litestream. The copies outlive
@@ -418,6 +491,13 @@ company's name at the platform address, Reply-To the company, counted in the day
 need no SMTP. Covered by a rule 19 test.
 - Console client: `CustomerPage.hosting`, `FleetPage.hosting`, `VersionsPage.updates`. Instance client:
   `SettingsSystemUpdateSection.managed`, `SettingsSmtpSection.platform`.
+
+**Console review of 2026-10-18** (branch `fix/review-console`): rules 24–29 appended (§3.H) and
+rule 11 wired. Tests: control plane `hosting-access-recovery` (5), `hosting-instance-identity` (3),
+`hosting-bootstrap-keys` (4), `hosting-release-target` (1), `hosting-process-restart` (4),
+`hosting-plugin-push` (5); instance `hosting-instance-seed` (5), `hosting-plugin-push` (3); console
+client `CustomerPage.access` (5), `VersionsPage.default-target` (2), `VersionsPage.plugin-push` (2);
+instance client `SystemSettingsPage.public-url` (2).
 
 **Left to the owner**: §8, and the host runbook `deploy/hosting/README.md`. Not exercised against a
 real host: systemd, Caddy, Litestream and rclone are covered by their generated files and command

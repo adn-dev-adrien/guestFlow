@@ -271,6 +271,10 @@ app.get('/api/version', (req, res) => {
     commitSha: commitSha || null,
     commitShaShort,
     startedAt: PROCESS_STARTED_AT,
+    // A plugin version the console pushed (specs/hosting-h1-fleet-runtime.md rule 11): its health
+    // check asks whether it loaded. Only the asked id, never the list of installed plugins.
+    ...(/^[a-z][a-z0-9-]{1,40}$/.test(String(req.query.plugin || ''))
+      ? { plugin: require('./plugins/host').pluginHealth(String(req.query.plugin)) } : {}),
   });
 });
 

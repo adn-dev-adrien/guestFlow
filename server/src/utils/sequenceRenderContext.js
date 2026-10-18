@@ -27,7 +27,7 @@ function sequenceContextFor({ stableKey, reservation, client, settings, preferen
     ...context,
     sendDate: date,
     giftDeadline: giftDeadline(stableKey, date),
-    unsubscribeUrl: unsubscribeUrl(settings && settings.publicUrl, token),
+    unsubscribeUrl: unsubscribeUrl((settings && settings.publicUrl) || process.env.GUESTFLOW_PUBLIC_URL, token),
   };
 }
 

@@ -167,6 +167,17 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     slug: `GUESTFLOW_SLUG` when the hosting sets it, else the slug of the verified licence (the
     console's provisioning does not set `GUESTFLOW_SLUG`). An instance that can tell neither accepts
     nothing.
+23. **The journal folds the reads** (added 2026-10-18, console review m8). In Paramètres › Accès du
+    support, the successful reads of one minute in a row — the pages opened and the API calls behind
+    them — make one line « Consultation : Planning, Linge », each name once, in the order they were
+    opened. A read that names nothing joins the line silently (alone, the line reads « Consultation »).
+    Writes, refused requests and « Connexion du support » keep their own line. The table keeps every
+    raw row (rule 19); only the wording folds.
+24. **A request just sent reads « En attente »** (added 2026-10-18, console review m3). The console
+    reads the request it wrote (verified with its key, never through a link the instance planted) and,
+    while the instance has not imported it yet, shows it pending with its reason — the form is no
+    longer offered right after « Demande envoyée ». Once the instance imported it, its own row
+    decides again.
 
 **Implementation choices (2026-10-08, the recommended options, see the summary page):**
 - **The channel.** The console signs the request with the licence key and writes it to
