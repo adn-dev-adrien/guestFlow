@@ -25,6 +25,11 @@ const E2E_SESSION_SECRET = 'e2e-fixed-session-secret-not-for-prod-use-32b';
 // before never decoded to 32 bytes, which went unseen until an E2E spec first stored a secret.
 const E2E_ENCRYPTION_KEY = 'ZTJlZml4ZWRlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MGE='; // base64 of 32 bytes
 
+// The server runs on Europe/Paris whatever the host says. Specs compute « today » with local Date
+// arithmetic, so the runner and its workers must share that zone — on a UTC CI runner, between
+// 00:00 and 02:00 Paris, « today » was still yesterday and the API refused the stay as past.
+process.env.TZ = 'Europe/Paris';
+
 const isCI = Boolean(process.env.CI);
 
 module.exports = defineConfig({

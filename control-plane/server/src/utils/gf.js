@@ -36,4 +36,6 @@ module.exports = {
   updateStaging: require(path.join(GF_SERVER, 'src', 'utils', 'updateStaging')),
   semver: require(path.join(GF_SERVER, 'src', 'utils', 'semver')),
   proxySecret: require(path.join(GF_SERVER, 'src', 'utils', 'proxySecret')),
+  // specs/control-plane-plans-and-access.md rule 36 — the instance's same-origin gate for writes.
+  sameOriginWrites: require(path.join(GF_SERVER, 'src', 'middleware', 'sameOriginWrites')),
 };

@@ -249,9 +249,18 @@ without losing anything today's page shows.
     announces: those no priced stay covers (`stayNights(...).unpriced.nights`). *Why:* the insight said
     « 15 nuits », the table total 17.
 
-### 3.12 Final review (2026-10-18)
+### 3.12 Final code review (2026-10-18)
 
-40. **A late payout is counted at what the platform owes.** The « Versement <plateforme> » element of
+40. **The email runners and the draft preview read rule 37's day too.** The automatic email pass, the
+    guest email sequence, the push runners, the email templates controller and the scheduler take
+    « today » from `utils/localDate`; the two private `isoToday` copies are gone. The email draft
+    preview picks « the stays that receive this email » and dates its sample stay on the operator's
+    calendar day, counted in calendar days, not in 24 h steps. *Why:* the preview used the UTC day, one
+    day behind between midnight and 02:00 in Paris. The plugins keep their own helpers (rule 37 note).
+
+### 3.13 Final review — money (2026-10-18)
+
+41. **A late payout is counted at what the platform owes.** The « Versement <plateforme> » element of
     `overdueItems`, the row's `overdueAmount`, the « En retard » tile and the home dashboard's
     « Versement plateforme en retard » card all carry the solde **net of the platform's commission**
     (`balanceAmount − platformCommissionAmount`, floored at 0) — the **solde part** of what « À
@@ -261,7 +270,7 @@ without losing anything today's page shows.
     2026-10-18 (N2) read « En retard 4 866,31 € » with GdF 11 at 1 933,52 € and Abracadaroom 22275 at
     720,82 €, while their fiches recorded payouts of 1 545 € and 573,77 € and « À encaisser » counted
     those: one page, two expected sums for the same stays.
-41. **A payout of 0 € is never late (2026-10-19).** When the commission is at or above the solde, the
+42. **A payout of 0 € is never late (2026-10-19).** When the commission is at or above the solde, the
     stay owes nothing: no row in « En retard », not counted in the tile's stays, no home dashboard
     card. *Why:* the second pass of the final review (minor 4) found such a row listed at 0 € and
     counted as a stay.
@@ -445,16 +454,17 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `finance-distinct-nights.unit.test.js` (5) — rule 35: distinct nights, priced nights, 0 € stays
       insight and its `unpriced` table, pace nights.
 - [x] `local-today.unit.test.js` (3) — rule 37: the local day, every helper, no `toISOString` today.
+- [x] `local-today-email-runners.unit.test.js` (3) — rule 40: the draft preview's local day across midnight and a DST change, no `isoToday` copy left in the email runners.
 - [x] `finance-settle-overdue.unit.test.js` (2) — rule 38: a late payout names `balancePaid` only, a
       late acompte and solde their own flags.
 - [x] `finance-unpriced-filter.unit.test.js` (2) — rule 39: the filter total equals the insight's
       nights, `amountMissing` on 0 € stays only.
 - [x] `plugins/hourly-resources/tests/hourly-not-before-local-day.unit.test.js` (1) — rule 37 note: at
       00:30 local, « not before » is today 00:30.
-- [x] `finance-overdue-payout-net.unit.test.js` (3) — rule 40: GdF 11 (1 545 €) and Abracadaroom 22275
+- [x] `finance-overdue-payout-net.unit.test.js` (3) — rule 41: GdF 11 (1 545 €) and Abracadaroom 22275
       (573,77 €) shapes on « En retard », its detail and « À encaisser »; no commission → the solde;
       the home dashboard card claims the same payout.
-- [x] `finance-overdue-zero-payout.unit.test.js` (2) — rule 41: commission = solde → out of « En
+- [x] `finance-overdue-zero-payout.unit.test.js` (2) — rule 42: commission = solde → out of « En
       retard » (tile 240 €, 1 stay); commission > solde → no home dashboard card.
 - 2026-10-18 (rule 37 note): the « today » fixtures of `financeDashboardFixture.js`, `finance-model`,
   `finance-fiscal-year-summary`, `finance-per-property-revenue`, `clients-directory`,

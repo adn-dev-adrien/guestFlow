@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 40 — a late platform payout is counted at what the
+// specs/finance-dashboard-redesign.md rule 41 — a late platform payout is counted at what the
 // platform owes: the solde net of its commission, the figure « À encaisser » counts too. Final review
 // 2026-10-18, N2: « En retard » showed GdF 11 at 1 933,52 € and Abracadaroom 22275 at 720,82 € while
 // their fiches recorded payouts of 1 545 € and 573,77 €.
@@ -21,7 +21,7 @@ function setup() {
 
 test.after(() => refreshDirectChannels({ prepare: () => { throw new Error('reset'); } }));
 
-test('rule 40 — GdF 11 and Abracadaroom 22275: « En retard » shows the payouts, as « À encaisser » does', () => {
+test('rule 41 — GdF 11 and Abracadaroom 22275: « En retard » shows the payouts, as « À encaisser » does', () => {
   const { db, dashboard } = setup();
   // GdF 11: solde 1 933,52 €, commission 388,52 € → payout 1 545 €.
   insert(db, {
@@ -48,7 +48,7 @@ test('rule 40 — GdF 11 and Abracadaroom 22275: « En retard » shows the payou
   assert.equal(remaining.Abracadaroom, 573.77);
 });
 
-test('rule 40 — without a commission the payout is the solde', () => {
+test('rule 41 — without a commission the payout is the solde', () => {
   const { db, dashboard } = setup();
   insert(db, { platform: 'GitesDeFrance', startDate: daysAgo(40), endDate: daysAgo(35), balanceAmount: 706 });
   const row = dashboard.getDashboardDetail('late', {}).data.rows[0];
@@ -56,7 +56,7 @@ test('rule 40 — without a commission the payout is the solde', () => {
   assert.equal(row.overdueAmount, 706);
 });
 
-test('rule 40 — the home dashboard card claims the same payout', () => {
+test('rule 41 — the home dashboard card claims the same payout', () => {
   const { buildPaymentDeadlineRow } = require('../utils/paymentDeadlines');
   const out = buildPaymentDeadlineRow({
     id: 11, platform: 'GitesDeFrance', startDate: '2026-08-17', endDate: '2026-08-24', finalPrice: 1954.52,

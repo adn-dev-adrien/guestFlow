@@ -20,6 +20,7 @@ const emailTextsModel = require('../models/emailTextsModel');
 const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
 const { answeredFlag, withoutPending, FLAG_FACTS } = require('./propertyFacts');
 const { sectionOfStableKey, templateAllowed, tokenError } = require('./templateTokens');
+const { localIsoDate } = require('./localDate');
 
 const SETTINGS_KEYS = ['companyName', 'companyPhone', 'smtpFromName'];
 const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
@@ -31,7 +32,11 @@ const ENGLISH_OMITTED = 'Texte anglais manquant : phrase absente de l’email an
 
 class Rollback extends Error {}
 
-const isoDay = (offsetDays) => new Date(Date.now() + offsetDays * 86400000).toISOString().slice(0, 10);
+// The operator's calendar day, `offsetDays` from today — never the UTC one (utils/localDate.js).
+const isoDay = (offsetDays, now = new Date()) => {
+  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays);
+  return localIsoDate(day);
+};
 const frDate = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
 
 function buildDraftPreview({ database, templatesModel, buildPreview }) {
@@ -214,4 +219,4 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
   return { render, candidates };
 }
 
-module.exports = { buildDraftPreview };
+module.exports = { buildDraftPreview, __test: { isoDay } };

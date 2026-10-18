@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/finance-dashboard-redesign.md rule 41 — a platform payout of 0 € (commission ≥ solde) is never
+// specs/finance-dashboard-redesign.md rule 42 — a platform payout of 0 € (commission ≥ solde) is never
 // late: no row in « En retard », no stay counted, no home dashboard card. Final review 2026-10-18
 // (minor 4): the row stayed in the list at 0 € and counted as a stay.
 const { freshDb, insert, TODAY } = require('./financeDashboardFixture');
@@ -13,7 +13,7 @@ const daysAgo = (n) => addDaysToIsoDate(TODAY, -n);
 
 test.after(() => refreshDirectChannels({ prepare: () => { throw new Error('reset'); } }));
 
-test('rule 41 — commission equal to the solde: nothing late on the finance page', () => {
+test('rule 42 — commission equal to the solde: nothing late on the finance page', () => {
   const ctx = freshDb();
   ctx.db.exec('CREATE TABLE platforms (id INTEGER PRIMARY KEY, name TEXT, countsAsDirect INTEGER DEFAULT 0, payoutDueDays INTEGER)');
   ctx.db.prepare("INSERT INTO platforms (name, countsAsDirect) VALUES ('GitesDeFrance', 0)").run();
@@ -33,7 +33,7 @@ test('rule 41 — commission equal to the solde: nothing late on the finance pag
   assert.deepEqual(detail.rows.map((r) => r.overdueAmount), [240]);
 });
 
-test('rule 41 — the home dashboard card leaves a 0 € payout out', () => {
+test('rule 42 — the home dashboard card leaves a 0 € payout out', () => {
   const out = buildPaymentDeadlineRow({
     id: 12, platform: 'GitesDeFrance', startDate: '2026-08-17', endDate: '2026-08-24', finalPrice: 200,
     depositAmount: 0, depositPaid: 0, balanceAmount: 120, balancePaid: 0, platformCommissionAmount: 150,

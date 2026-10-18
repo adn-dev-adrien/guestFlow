@@ -59,7 +59,7 @@ test('rule 14 — « À encaisser » and « En retard » ignore the window but h
   insert(db, { startDate: `${Y - 3}-05-01`, endDate: `${Y - 3}-05-03`, balanceAmount: 200, balanceDueDate: `${Y - 3}-04-01`, createdAt: early(Y - 3) });
   const d = dashboard.getDashboard({ fiscalYear: Y }).data;
   // Rule 34 — the seed's Airbnb payout (500 €, never received) is late too, counted net of its
-  // 75 € commission (rule 40): 200 + 425.
+  // 75 € commission (rule 41): 200 + 425.
   assert.equal(d.tiles.late.stays, 2);
   assert.equal(d.tiles.late.amount, 625);
   assert.equal(d.tiles.late.payouts, 1);

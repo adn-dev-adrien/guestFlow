@@ -223,7 +223,7 @@ function createFinanceModel(database) {
     if (!(balance > 0) || r.balancePaid || !(r.endDate < today)) return null;
     const dueDate = addDaysToIsoDate(r.endDate, normalizePayoutDueDays(payoutDueDaysOf(r.platform)));
     if (!dueDate || dueDate >= today) return null;
-    // specs/finance-dashboard-redesign.md rule 40 — the platform owes its payout, not what the guest paid it: the solde net of the
+    // specs/finance-dashboard-redesign.md rule 41 — the platform owes its payout, not what the guest paid it: the solde net of the
     // platform's commission, the solde part of what « À encaisser » counts (`remainingToPay` adds the compléments).
     const payout = round2(Math.max(0, balance - Number(r.platformCommissionAmount || 0)));
     // Rule 41 — a commission that eats the whole solde leaves nothing to wait for.

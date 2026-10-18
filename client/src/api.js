@@ -45,7 +45,6 @@ const api = {
   getSystemVersion: () => request('/system/version'),
   // The running process's start time: the Plugins page waits for it to change after a restart.
   getRuntimeVersion: () => request('/version'),
-  getToday: () => request('/today'),
   checkSystemVersion: () => request('/system/version/check', { method: 'POST' }),
   getUpdateStatus: () => request('/system/update/status'),
   startUpdate: (targetVersion) => request('/system/update/start', { method: 'POST', body: { targetVersion } }),
