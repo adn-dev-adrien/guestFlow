@@ -44,7 +44,7 @@ module.exports = async () => {
 
   const publish = (body) => ctx.post(`${REGISTRY}/__control/publish`, { data: body });
   await publish({ id: 'linen', version: '1.0.1', lines: ['Le stock des serviettes se lit sur la bonne semaine.'] });
-  await publish({ id: 'weather-alerts', version: '1.0.1', lines: ['L’alerte orange est rappelée la veille de l’arrivée.'] });
+  await publish({ id: 'weather-alerts', version: '1.0.2', lines: ['L’alerte orange est rappelée la veille de l’arrivée.'] });
   await publish({ id: 'school-holidays', version: '1.0.1', badHash: true });
 
   fs.mkdirSync(path.join(ROOT, 'e2e', '.auth'), { recursive: true });

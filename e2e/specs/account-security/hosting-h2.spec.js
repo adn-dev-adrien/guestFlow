@@ -62,7 +62,8 @@ test('rules 6-7 — turn on the authenticator app, then log in with a computed c
   await page.getByRole('button', { name: 'Utiliser un code de secours' }).click();
   await expect(page.getByLabel('Code de secours')).toHaveAttribute('inputmode', 'text');
   await page.getByRole('button', { name: 'Utiliser le code de l’application' }).click();
-  await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret));
+  // Rule 24: the enrolment code is spent, so the login takes the next 30 s step's code.
+  await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret, new Date(Date.now() + 30_000)));
   await page.getByRole('button', { name: 'Valider' }).click();
   await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
 });

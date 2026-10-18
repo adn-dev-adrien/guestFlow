@@ -52,12 +52,12 @@ test('rules 13, 16, 20: an update shows its changelog, restarts the instance and
   await page.goto('/parametres/plugins');
   await expect(page.getByText(/mises? à jour disponibles?/)).toBeVisible();
   const weather = card(page, 'Vigilance Météo-France');
-  await weather.getByText('Mise à jour 1.0.1').click();
+  await weather.getByText('Mise à jour 1.0.2').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('L’alerte orange est rappelée la veille de l’arrivée.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Mettre à jour' }).click();
   await expect(page.getByText('Redémarrage en cours')).toBeVisible();
-  await expect(card(page, 'Vigilance Météo-France').getByText('1.0.1')).toBeVisible({ timeout: 45_000 });
+  await expect(card(page, 'Vigilance Météo-France').getByText('1.0.2')).toBeVisible({ timeout: 45_000 });
   await card(page, 'Vigilance Météo-France').getByText('Vigilance Météo-France', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Revenir à la version précédente' })).toBeVisible();
 });
