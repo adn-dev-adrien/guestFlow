@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, TextField, Button, Alert, Stack, CircularProgress, Link } from '@mui/material';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import PasswordField from '../components/PasswordField';
@@ -33,7 +33,14 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const loginHint = searchParams.get('login_hint') || '';
   const [email, setEmail] = useState(loginHint);
-  useEffect(() => { if (loginHint) setEmail(loginHint); }, [loginHint]);
+  const passwordRef = useRef(null);
+  // A hint that arrives after the first render (the forced password change leaves for this page) still
+  // fills the email and puts the focus on the password.
+  useEffect(() => {
+    if (!loginHint) return;
+    setEmail(loginHint);
+    if (passwordRef.current) passwordRef.current.focus();
+  }, [loginHint]);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -109,6 +116,7 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             autoFocus={Boolean(loginHint)}
+            inputRef={passwordRef}
             fullWidth
             required
           />

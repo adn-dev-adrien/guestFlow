@@ -307,8 +307,8 @@ Decisions taken on 2026-10-06:
 
 33. **After the forced first password change, the login says so** (review of 2026-10-18). The server
     closes the session on that change; the page then opens the login with « Mot de passe modifié.
-    Connexion avec le nouveau mot de passe. » and the account's email already filled in, instead of an
-    empty login with no message.
+    Connexion avec le nouveau mot de passe. », the account's email already filled in and the focus on
+    the password, instead of an empty login with no message.
 
 34. **The closures page reads on a phone** (review of 2026-10-18). At `xs` its bar keeps a short title
     (« Fermetures ») and a short « Ajouter », and with no closure « Aucune fermeture configurée. » is

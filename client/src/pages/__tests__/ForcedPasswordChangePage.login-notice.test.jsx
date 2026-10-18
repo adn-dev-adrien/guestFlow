@@ -36,4 +36,5 @@ test('the change leaves for the login with the notice and the email', async () =
   await waitFor(() => expect(screen.getByText('Mot de passe modifié. Connexion avec le nouveau mot de passe.')).toBeInTheDocument());
   expect(changePassword).toHaveBeenCalledWith('ChangeMe!2026', 'Un-nouveau-mot-2026', { wasMustChange: true });
   expect(screen.getByLabelText(/Email/)).toHaveValue('admin@guestflow.local');
+  expect(document.activeElement).toBe(screen.getByLabelText(/^Mot de passe/));
 });
