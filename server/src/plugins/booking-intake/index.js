@@ -57,8 +57,13 @@ function register(ctx) {
       .prepare("SELECT id FROM reservations WHERE kind = 'reservation' AND propertyId = ? AND startDate = ? AND endDate = ?")
       .all(propertyId, startDate, endDate),
     getReservation: (reservationId) => ctx.core.reservations.getByIdWithDetails(reservationId),
+    // Rule 25 — does a reservation other than this one use the client?
+    clientShared: (clientId, reservationId) => Boolean(ctx.db
+      .prepare('SELECT 1 FROM reservations WHERE clientId = ? AND id != ? LIMIT 1')
+      .get(clientId, reservationId == null ? -1 : reservationId)),
     core: {
       updateReservation: ctx.core.reservations.update,
+      findOrCreateClient: ctx.core.clients.findOrCreate,
       updateClient: ctx.core.clients.update,
       suggestBeds: ctx.core.reservations.suggestBeds,
       platformCommission: ctx.core.reservations.platformCommission,

@@ -124,9 +124,12 @@ reconciled to the payout (✓). The operator only checks the fiche.
 
 14. **Auto-apply only onto an untouched fiche**: « Paiement plateforme » empty **and** the client has
     neither e-mail nor phone (the iCal placeholder). Anything else is never overwritten silently.
+    > **Amended 2026-10-18 (rule 25):** a client that another reservation also uses counts as « no
+    > e-mail, no phone » — its coordinates may be another guest's.
 15. Applying makes, through `ctx.core.reservations.update` and `ctx.core.clients.update`, the writes
     the operator would make:
-    - client: first name, last name, relay e-mail, phone, e-mail language (rule 11);
+    - client: first name, last name, relay e-mail, phone, e-mail language (rule 11) — on the guest's own
+      client since 2026-10-18 (rule 25), never on the fiche's previous one;
     - reservation: canal `Booking`, booking number = `res_id`, party (rule 10), beds as « Suggérer les
       lits » computes them (`suggestBeds`), arrival time = start of « Heure d'arrivée approximative »
       when given;
@@ -179,6 +182,27 @@ already has it.
 - GuestFlow unreachable → the toast says so; nothing is queued.
 - The plugin is inactive → `404`, the toast says « Module inactif ».
 
+### 3.6 The guest's own client (2026-10-18)
+
+The iCal import hands one placeholder client to every stay of a feed whose summary carries no name
+(« Closed Not available » for every Booking stay, « Reserved Ical » for Airbnb's). Writing the guest
+onto the fiche's client therefore renamed every other stay sharing it, e-mail included, and the
+automatic e-mails of those stays then went to the wrong guest (review 2026-10-18, B1).
+
+25. **The intake never writes a client that another reservation uses.** Applying (rule 15, and
+    « Appliquer » on a proposal, rule 17) finds the guest's client by e-mail
+    (`ctx.core.clients.findOrCreate`, as the Gîtes de France intake does) or creates it, puts its id on
+    the fiche (`clientId` in the reservation patch), and refreshes its fields only while no other
+    reservation uses it. The fiche's previous client is left as it was. A fiche whose client is
+    shared with another reservation is untouched in the sense of rule 14 as long as « Paiement
+    plateforme » is empty.
+26. **Repairing what was overwritten before rule 25** is the operator's call, helped by a read-only
+    report: `node server/scripts/diagnose-shared-clients.js <guestflow.db>` lists every client that at
+    least two reservations use, at least one of them iCal-imported, and that carries an e-mail or a
+    phone; for each, its stays, the guest each applied Booking intake wrote, and the stay that intake
+    names as the client's own (« à garder »). The others are « à vérifier ». The script opens the
+    database read-only and changes nothing.
+
 ---
 
 ## 4. Architecture
@@ -194,15 +218,16 @@ Targets **`master`**, on top of `specs/plugin-engine-backport.md`.
 | `plugins/sdk/` | `coreServices.js` | T | `ctx.core.clients.update(id, patch)` (through `clientsModel`, same normalisation as the client dialog); `ctx.core.reservations.platformCommission(...)`. **Also cherry-picked identically onto `inte/plugins`**, so the same file does not diverge. |
 | `client/src/components/reservation/` | `FinanceSection.jsx` | T | « Calculer la commission » calls the endpoint; `computeCommissionFromPayout` is deleted (CLAUDE.md §6.0). |
 | `client/src/` | `api.js` | T | `computePlatformCommission`. |
+| `server/scripts/` | `diagnose-shared-clients.js` | C | Rule 26: opens a database `readonly`, finds the clients shared by stays and carrying a guest's coordinates, prints the French report (`--json` for the raw result). Outside `src/` because it reads the plugin's table, which no core file names (rule 1). |
 
 ### 4.2 The plugin — server (`server/src/plugins/booking-intake/`)
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `index.js` | C | `register(ctx)`: migrations, settings (`hotelIds`, `sourceKeys`, secret `key`), routes, data. |
+| `index.js` | C | `register(ctx)`: migrations, settings (`hotelIds`, `sourceKeys`, secret `key`), routes, data; `clientShared` (rule 25) reads `reservations` through `ctx.db`. |
 | `pageParser.js` | C | Pure: page text → structured booking or typed error (rules 8–11). |
 | `userscript.js` | C | Pure: `(publicUrl, secret)` → the `.user.js` source (rules 2–6). |
-| `intakeService.js` | C | Rules 12–20: match, plan the writes, apply or propose. |
+| `intakeService.js` | C | Rules 12–20 and 25: match, plan the writes, apply or propose, onto the guest's own client. |
 | `pendingFiches.js` | C | Rules 21–24: read-only query through `ctx.db`. |
 | `intakesModel.js` | C | CRUD on the plugin tables through `ctx.db`. |
 | `routes.js` | C | `/api/booking-intake` (admin) and `/public/booking-intake` (secret). |
@@ -299,6 +324,13 @@ full-width on `xs`; banner buttons likewise; settings card follows `StatusCard`.
     handled, rate limit, inactive plugin → 404, body > 128 kB refused, nothing of the body in logs.
   - `userscript.unit.test.js` (rules 2–5): embeds URL and secret, `@match` limited to the extranet
     reservation page, one request per view guard, no parsing in the script.
+  - `own-client.unit.test.js` (rule 25, 4 cases on a real SQLite): two stays sharing the placeholder
+    filled in turn each keep their guest; a shared client already carrying another guest's e-mail counts
+    as untouched; « Appliquer » relinks instead of renaming; a client found by e-mail that another stay
+    uses is linked, not rewritten.
+  - `server/src/tests/shared-client-diagnostic.unit.test.js` (rule 26, 5 cases): suspects and owner,
+    untouched placeholder and repeat direct guest excluded, French report, database without the intake
+    table, the script leaves the file byte-identical.
   - `pending-fiches.unit.test.js` (rules 21–24): Booking and Lodgify sources counted, others ignored,
     filled / cancelled / past / dismissed / unmapped excluded, extranet URL on the arrival date,
     urgent within 7 days.
