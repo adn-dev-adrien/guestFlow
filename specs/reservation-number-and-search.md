@@ -110,6 +110,14 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
     it (« N° de réservation → `AAAAMM###` (attribué par réparation) ») and lists each one in the boot log.
     Nothing is deleted: a ghost left by the old failure cannot be told from a real stay by the data, so the
     operator decides. Idempotent.
+15. **A repaired stay stays on the dashboard until checked (2026-10-18).** The repair of rule 14 also
+    stamps `numberRepairedAt` on each stay it numbers. The dashboard card « À vérifier — N réservation(s)
+    restée(s) sans numéro » (`RepairedReservationNumbersAlert`, admin only) lists them — number, client,
+    lodging, dates — each row opening the fiche, with « Vu » clearing the stamp
+    (`POST /dashboard/repaired-reservation-numbers/:id/acknowledge`). The number is kept; a stay found to
+    be a ghost is cancelled from its fiche like any other. *Why: the second review of 2026-10-18 noted
+    that the boot log is the only place rule 14 reported its repairs, that the operator never reads it,
+    and that a ghost keeps blocking its dates and leaves in the iCal export.*
 
 ---
 
@@ -131,6 +139,9 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | `utils/` | `utils/reservationNumber.js` | C | Pure helpers: `monthPrefix`, `nextNumberForPrefix` (every numbered row counts, numeric max — rule 13), `repairNumberlessReservations(db)` (rule 14), `generateReservationNumber(db,{now})`, `assignReservationNumberIfMissing(db,id)` (the shared "number any reservation that lacks one" used by the side insert paths), `backfillReservationNumbers(db)`, `dehyphenateReservationNumbers(db)` (the one-shot format reformat). Mirrors `generateDevisNumber` but scoped to `reservationNumber`. |
 | `utils/` | `utils/emailContextBuilder.js` | T | New `vars.reservationNumber` + `flags.hasReservationNumber` (from the reservation row — both email loaders `SELECT *`). |
 | `utils/` | `utils/defaultEmailTemplatesRegistry.js` | T | J-7 + J-2 bodies gain the gated `{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}{{/if}}` recap line. |
+| `controllers/` | `controllers/dashboardController.js` | T | Rule 15 — `repairedReservationNumbers` (list) and `acknowledgeRepairedReservationNumber` (« Vu », 404 when not listed). |
+| `models/` | `models/reservationsModel.js` | T | Rule 15 — `listRepairedNumbers()` (shaped rows, empty without the column) and `acknowledgeRepairedNumber(id)`. |
+| `routes/` | `routes/dashboard.js` | T | Rule 15 — `GET /repaired-reservation-numbers`, `POST /repaired-reservation-numbers/:id/acknowledge`. |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE reservations ADD COLUMN reservationNumber TEXT`; partial unique index `ux_reservations_reservationNumber`; one-shot backfill migration (migrations-table guard, key `reservation_number_backfill_v1`); a one-shot **drop-hyphens** migration (`reservation_number_drop_hyphens_v1`) reformatting original-format numbers `AAAA-MM-###`→`AAAAMM###` (custom/non-conforming left as-is, collision-safe); idempotent content REPLACE injecting the number line into already-seeded J-7/J-2 bodies. |
 
 **Notes:**
@@ -148,6 +159,8 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | ~~`pages/CalendarPage.js`~~ / ~~`pages/Dashboard.js`~~ | — | **Removed (2026-06-19):** the per-page boxes are gone — redundant now the search is global in the header. `CalendarPage.handleReservationClick` stays (grid clicks); Dashboard keeps `withFrom`/`navigate` for its row links. |
 | `pages/` | `pages/ReservationPage.js` | T | Add `reservationNumber` to the form state; render a read-mostly field in `StaySection`; include it in the create/update payload; surface the 400 `RESERVATION_NUMBER_TAKEN` error. |
 | `components/` | `components/reservation/StaySection.js` | T | Render the "Numéro de réservation" field (editable TextField, helper "généré automatiquement, modifiable"). |
+| `components/` | `components/RepairedReservationNumbersAlert.jsx` | C | Rule 15 — dashboard card, self-fetching, one row per repaired stay (opens the fiche) with « Vu ». Specific: it renders one server list. |
+| `pages/` | `pages/Dashboard.jsx` | T | Rule 15 — mounts the card under the new reservations, admin only. |
 | `api.js` | `api.js` | T | Add `searchReservations(q)` → `GET /reservations/search?q=`. `createReservation`/`updateReservation` already pass the full form payload (number rides along). |
 
 **Component reuse declaration:**
@@ -165,6 +178,8 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | GET | `/api/reservations/search?q=<str>` | — | `[{ id, reservationNumber, clientFullName, propertyName, startDate, endDate, status }]` | `kind='reservation'` only; ≤20 rows; blank `q` → `[]`. Auth: same as other reservation reads. |
 | POST | `/api/reservations` | existing body **+ optional `reservationNumber`** | `{ id, reservationNumber }` | Number generated if absent; 400 `{ error: 'RESERVATION_NUMBER_TAKEN' }` on collision. |
 | PUT | `/api/reservations/:id` | existing body **+ optional `reservationNumber`** | `{ id, reservationNumber }` | Empty → keep existing; non-empty → override (unique-checked). |
+| GET | `/api/dashboard/repaired-reservation-numbers` | — | `{ alerts: [{ reservationId, reservationNumber, clientName, propertyName, startDate, endDate, repairedAt }] }` | Rule 15. Admin. |
+| POST | `/api/dashboard/repaired-reservation-numbers/:id/acknowledge` | — | `{ ok: true }` | Rule 15. 404 `NOT_FOUND` when not listed, 400 `INVALID_ID`. |
 
 ---
 
@@ -189,7 +204,8 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
    its de-hyphenated value would collide with an existing number (the partial unique index stays satisfied).
    Idempotent.
 
-5. **Repair numberless stays** (run once, key `reservation_number_repair_numberless_v1`, 2026-10-18 — rule 14):
+5. **Repair numberless stays** (run once, key `reservation_number_repair_numberless_v1`, 2026-10-18 — rule 14;
+   preceded by `ALTER TABLE reservations ADD COLUMN numberRepairedAt TEXT`, guarded, rule 15):
    number every `kind = 'reservation'` row still without one, add a history line, log each id. Never deletes.
 
 **Data impact:** additive column; no existing data lost. Backfill only writes NULL/empty rows; the

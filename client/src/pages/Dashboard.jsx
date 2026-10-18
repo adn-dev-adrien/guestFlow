@@ -23,6 +23,7 @@ import CancellationCompensationsPendingAlert from '../components/CancellationCom
 import NewReservationsAlert from '../components/NewReservationsAlert';
 import TariffRecipeRunsAlert from '../components/TariffRecipeRunsAlert';
 import GateKeysAlert from '../components/GateKeysAlert';
+import RepairedReservationNumbersAlert from '../components/RepairedReservationNumbersAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
@@ -390,6 +391,9 @@ export default function Dashboard() {
               notification; renders nothing when nothing was imported today. */}
           <NewReservationsAlert />
           <TariffRecipeRunsAlert />
+          {/* Stays left without a number and numbered at boot (specs/reservation-number-and-search.md
+              rule 15): possibly ghosts still blocking their dates. Renders nothing once all are checked. */}
+          <RepairedReservationNumbersAlert />
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
           <Slot name="dashboard.alerts" />

@@ -70,7 +70,11 @@ function backfillReservationNumbers(db) {
   const rows = db.prepare(
     "SELECT id, createdAt FROM reservations WHERE kind = 'reservation' AND (reservationNumber IS NULL OR reservationNumber = '') ORDER BY datetime(createdAt), id",
   ).all();
-  const update = db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?');
+  const stamps = db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'numberRepairedAt');
+  // Rule 15 — stamped, so the dashboard lists the stay until the operator has checked it.
+  const update = stamps
+    ? db.prepare("UPDATE reservations SET reservationNumber = ?, numberRepairedAt = datetime('now') WHERE id = ?")
+    : db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?');
   let assigned = 0;
   for (const row of rows) {
     const number = nextNumberForPrefix(db, monthPrefix(row.createdAt || new Date()));
@@ -108,7 +112,11 @@ function repairNumberlessReservations(db) {
   const rows = db.prepare(
     "SELECT id, createdAt, propertyId, startDate, endDate FROM reservations WHERE kind = 'reservation' AND (reservationNumber IS NULL OR reservationNumber = '') ORDER BY datetime(createdAt), id",
   ).all();
-  const update = db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?');
+  const stamps = db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'numberRepairedAt');
+  // Rule 15 — stamped, so the dashboard lists the stay until the operator has checked it.
+  const update = stamps
+    ? db.prepare("UPDATE reservations SET reservationNumber = ?, numberRepairedAt = datetime('now') WHERE id = ?")
+    : db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?');
   const hasHistory = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservation_history'").get());
   const history = hasHistory
     ? db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
