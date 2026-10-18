@@ -43,7 +43,9 @@ module.exports = async () => {
   await waitForRestart(ctx, before);
 
   const publish = (body) => ctx.post(`${REGISTRY}/__control/publish`, { data: body });
-  await publish({ id: 'linen', version: '1.0.1', lines: ['Le stock des serviettes se lit sur la bonne semaine.'] });
+  // linen is published at the version the build ships: the install test reads the same manifest.
+  const linenVersion = require(path.join(ROOT, 'server', 'src', 'plugins', 'linen', 'manifest.json')).version;
+  await publish({ id: 'linen', version: linenVersion, lines: ['Le stock des serviettes se lit sur la bonne semaine.'] });
   await publish({ id: 'weather-alerts', version: '1.0.1', lines: ['L’alerte orange est rappelée la veille de l’arrivée.'] });
   await publish({ id: 'school-holidays', version: '1.0.1', badHash: true });
 
