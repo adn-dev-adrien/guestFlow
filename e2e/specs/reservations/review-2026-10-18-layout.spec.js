@@ -35,7 +35,7 @@ for (const width of [390, 900]) {
   test(`rule 7 — the calendar of a long-named property fits ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(`/calendar?propertyId=${propertyId}`);
-    await expect(page.getByLabel('Logement').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Logement', { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15_000 });
     expect(await pageWidth(page)).toBeLessThanOrEqual(width);
   });
 }
