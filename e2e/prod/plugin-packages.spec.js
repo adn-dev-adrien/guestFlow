@@ -6,6 +6,7 @@
 // with nothing changed (rule 22).
 const { test, expect } = require('@playwright/test');
 const LINEN_VERSION = require('../../server/src/plugins/linen/manifest.json').version;
+const { current, nextPatch } = require('./pluginVersions');
 
 test.describe.configure({ mode: 'serial' });
 
@@ -53,12 +54,12 @@ test('rules 13, 16, 20: an update shows its changelog, restarts the instance and
   await page.goto('/parametres/plugins');
   await expect(page.getByText(/mises? à jour disponibles?/)).toBeVisible();
   const weather = card(page, 'Vigilance Météo-France');
-  await weather.getByText('Mise à jour 1.0.1').click();
+  await weather.getByText(`Mise à jour ${nextPatch('weather-alerts')}`).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('L’alerte orange est rappelée la veille de l’arrivée.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Mettre à jour' }).click();
   await expect(page.getByText('Redémarrage en cours')).toBeVisible();
-  await expect(card(page, 'Vigilance Météo-France').getByText('1.0.1')).toBeVisible({ timeout: 45_000 });
+  await expect(card(page, 'Vigilance Météo-France').getByText(nextPatch('weather-alerts'))).toBeVisible({ timeout: 45_000 });
   await card(page, 'Vigilance Météo-France').getByText('Vigilance Météo-France', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Revenir à la version précédente' })).toBeVisible();
 });
@@ -66,10 +67,10 @@ test('rules 13, 16, 20: an update shows its changelog, restarts the instance and
 test('rule 22: a package that does not match its signature is refused, nothing changes', async ({ page }) => {
   await page.goto('/parametres/plugins');
   const holidays = card(page, 'Vacances scolaires');
-  await holidays.getByText('Mise à jour 1.0.1').click();
+  await holidays.getByText(`Mise à jour ${nextPatch('school-holidays')}`).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Mettre à jour' }).click();
   await expect(dialog.getByRole('alert')).toHaveText('Le paquet reçu ne correspond pas à sa signature — rien n’a été modifié.');
   await dialog.getByRole('button', { name: 'Fermer' }).click();
-  await expect(card(page, 'Vacances scolaires').getByText('1.0.0')).toBeVisible();
+  await expect(card(page, 'Vacances scolaires').getByText(current('school-holidays'))).toBeVisible();
 });
