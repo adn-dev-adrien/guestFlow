@@ -1,7 +1,8 @@
 // specs/hosting-h2-account-security.md rule 23 — a route that hands out, creates or rotates a secret is
 // refused to a support session: the routes a plugin declares with `ctx.secretRoutes` (the gate
 // connector's keys here; the Booking script in booking-intake's own suite), and the core's iCal export
-// token rotation.
+// token rotation. specs/hosting-h2-account-security.md rule 31 — the plugin's declaration is the only
+// source of those routes: the core policy keeps no copy.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -44,8 +45,14 @@ test('rule 23 — ctx.secretRoutes records its entries and refuses a malformed o
 test('rule 23 — the gate connector declares its keys as a secret route', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'plugins', 'gate-access', 'index.js'), 'utf8');
   assert.match(source, /ctx\.secretRoutes\(\[\{ method: 'GET', re: \/\^\\\/settings\\\/gate-connector\\\/secrets\$\/ \}\]\)/);
+  // The plugin's declaration is the only source: the core policy holds no copy of the path.
+  registry.reset();
+  assert.equal(forbiddenReason('GET', '/settings/gate-connector/secrets', {}), null, 'nothing declared, nothing refused');
+  require('../plugins/gate-access').register(createContext('gate-access', { db: new Database(':memory:') }));
   assert.equal(forbiddenReason('GET', '/settings/gate-connector/secrets', {}), 'credentials');
+  assert.equal(forbiddenReason('HEAD', '/SETTINGS/Gate-Connector/Secrets/', {}), 'credentials');
   assert.equal(forbiddenReason('GET', '/settings/gate-connector', {}), null, 'the connector status stays readable');
+  registry.reset();
 });
 
 test('rule 23 — rotating a property iCal export token is refused', () => {

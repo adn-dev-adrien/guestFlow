@@ -10,7 +10,7 @@ const icalExportRangesModel = require('./models/icalExportRangesModel');
 // (specs/no-automatic-email-without-approval.md §3 rule 2b).
 const emailAutoSendScheduler = require('./utils/emailAutoSendScheduler');
 const emailLogModel       = require('./models/emailLogModel');
-const { isoToday } = require('./utils/emailAutoSendRunner');
+const { localIsoDate } = require('./utils/localDate');
 
 // Arrival/departure push (specs/pwa-push-notifications.md §3.3).
 const reservationsModel = require('./models/reservationsModel');
@@ -79,7 +79,7 @@ function runEmailHistoryPurge(reason = 'cron') {
 
 // Hourly tick, once-per-local-day guard (the window only moves day-by-day).
 function tickEmailHistoryPurge() {
-  const today = isoToday(new Date());
+  const today = localIsoDate(new Date());
   if (lastEmailHistoryPurgeDate === today) return;
   lastEmailHistoryPurgeDate = today;
   runEmailHistoryPurge('daily pass');

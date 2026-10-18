@@ -10,11 +10,11 @@
  * - deciding or revoking its own access, the account it borrows (password, second step, profile);
  * - rule 18: any write under `/api/users`, and the settings that hold credentials or secrets — the
  *   SMTP group, a plugin setting declared `secret`, the Google and Qonto OAuth connections (any
- *   method), the Qonto and Neat credentials, the gate connector's secrets (a read: they come back in
- *   clear), and uninstalling or turning off a plugin;
+ *   method), the Qonto and Neat credentials, and uninstalling or turning off a plugin;
  * - rule 23: every route a plugin declares with `ctx.secretRoutes` — it hands out, creates or rotates a
- *   secret (the Booking userscript and its key, the gate connector's keys) — and reading or rotating a
- *   property's iCal export token.
+ *   secret (the Booking userscript and its key, the gate connector's keys, read in clear, the website
+ *   connection key) — and reading or rotating a property's iCal export token. A plugin's route is
+ *   declared once, by the plugin; the core holds no copy of it.
  */
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -64,8 +64,6 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   // Any method: an OAuth « GET » stores tokens, and a clear-text secret is a read.
   if (under(path, '/google-calendar/oauth')) return 'credentials';
   if (['/payments/qonto/authorize', '/payments/qonto/callback', '/payments/qonto/refresh-connection'].includes(path)) return 'credentials';
-  if (under(path, '/settings/gate-connector/secrets')) return 'credentials';
-  if (under(path, '/settings/website-connection')) return 'credentials';
   if (isSecretRoute(method, path)) return 'credentials';
   // Rotating a property's iCal export token breaks the feed every platform imports; reading it hands
   // out the feed's address in clear, and creates the token on first read.

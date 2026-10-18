@@ -16,7 +16,9 @@ const { paymentsRoutes, qontoWebhook } = require('./routes/payments');
 const { publicRoutes } = require('./routes/public');
 const { registryPublicRoutes, registryRoutes } = require('./routes/registry');
 const { requireOperator } = require('./middleware/requireOperator');
-const { proxySecret } = require('./utils/gf');
+const { proxySecret, sameOriginWrites } = require('./utils/gf');
+
+const QONTO_WEBHOOK = '/api/payments/qonto/webhook';
 
 function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, clientDist, appHost, proxySecret: proxySecretValue = null } = {}) {
   const app = express();
@@ -25,6 +27,11 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
   // (specs/hosting-h1-fleet-runtime.md rule 21).
   app.use(proxySecret.proxySecretGuard(proxySecretValue));
   app.use(helmet());
+  // specs/control-plane-plans-and-access.md rule 36 — a write comes from the console's own pages or the
+  // login page's own forms. `SameSite=Lax` alone lets a same-site page (an instance on
+  // `<slug>.<domain>`) post with the operator's cookie. Exempt: Qonto's webhook, server to server and
+  // signed. A request without Origin or Referer (scripts, tests) passes; the session guard still applies.
+  app.use(sameOriginWrites.createSameOriginWrites({ isExempt: (req) => req.method === 'POST' && req.path === QONTO_WEBHOOK }));
 
   // Rule 24: `app.<domain>` is the shared login page and nothing else. It shares this process with the
   // console, and neither answers on the other's host.
@@ -46,7 +53,7 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
   }));
 
   app.use('/api/auth', authRoutes(ctx));
-  app.post('/api/payments/qonto/webhook', qontoWebhook(ctx));
+  app.post(QONTO_WEBHOOK, qontoWebhook(ctx));
   app.use('/api/registry', requireOperator({ now: ctx.now }), registryRoutes(ctx));
   app.use('/api', requireOperator({ now: ctx.now }), consoleRoutes(ctx), fleetRoutes(ctx));
   app.use('/api/payments', paymentsRoutes(ctx));

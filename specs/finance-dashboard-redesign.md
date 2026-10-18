@@ -249,6 +249,15 @@ without losing anything today's page shows.
     announces: those no priced stay covers (`stayNights(...).unpriced.nights`). *Why:* the insight said
     « 15 nuits », the table total 17.
 
+### 3.12 Final code review (2026-10-18)
+
+40. **The email runners and the draft preview read rule 37's day too.** The automatic email pass, the
+    guest email sequence, the push runners, the email templates controller and the scheduler take
+    « today » from `utils/localDate`; the two private `isoToday` copies are gone. The email draft
+    preview picks « the stays that receive this email » and dates its sample stay on the operator's
+    calendar day, counted in calendar days, not in 24 h steps. *Why:* the preview used the UTC day, one
+    day behind between midnight and 02:00 in Paris. The plugins keep their own helpers (rule 37 note).
+
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
 - Empty window → hero 0 €, figures 0 / « — », tables in their empty state, charts keep their axes.
@@ -428,6 +437,7 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `finance-distinct-nights.unit.test.js` (5) — rule 35: distinct nights, priced nights, 0 € stays
       insight and its `unpriced` table, pace nights.
 - [x] `local-today.unit.test.js` (3) — rule 37: the local day, every helper, no `toISOString` today.
+- [x] `local-today-email-runners.unit.test.js` (3) — rule 40: the draft preview's local day across midnight and a DST change, no `isoToday` copy left in the email runners.
 - [x] `finance-settle-overdue.unit.test.js` (2) — rule 38: a late payout names `balancePaid` only, a
       late acompte and solde their own flags.
 - [x] `finance-unpriced-filter.unit.test.js` (2) — rule 39: the filter total equals the insight's

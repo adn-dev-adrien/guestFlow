@@ -26,7 +26,9 @@ function publicRoutes(ctx, { secureCookies = false } = {}) {
     `form-action 'self' https://*.${ctx.domain}`, "base-uri 'none'", "frame-ancestors 'none'",
     ...(secureCookies ? ['upgrade-insecure-requests'] : []),
   ].join('; ');
-  router.use((req, res, next) => { res.set('Content-Security-Policy', csp); next(); });
+  // `same-origin`, not helmet's `no-referrer`: under `no-referrer` a browser posts a form with
+  // `Origin: null`, which the same-origin gate refuses (rule 36) — every form here answered 403.
+  router.use((req, res, next) => { res.set({ 'Content-Security-Policy': csp, 'Referrer-Policy': 'same-origin' }); next(); });
   router.use(express.urlencoded({ extended: false, limit: '4kb' }));
 
   const go = (res, slug, email) => {

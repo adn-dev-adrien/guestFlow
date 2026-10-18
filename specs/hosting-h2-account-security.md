@@ -240,6 +240,14 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 30. **One « Mot de passe actuel » per page.** « Mon compte » shows it on the password card; the
     « Second code » card asks for the same password as « Mot de passe (confirmation) », so the two
     fields are never read as two different passwords.
+31. **A plugin's secret route is declared once, by the plugin** (added 2026-10-18, final code review,
+    low 2). The website connection (`GET /api/settings/website-connection`,
+    `POST …/regenerate`, which hand out and rotate the WordPress site's `PUBLIC_API_KEY`) and the gate
+    connector's keys (`GET /api/settings/gate-connector/secrets`) are refused to a support session
+    only through the `ctx.secretRoutes` their plugins declare (rule 23); `supportSessionPolicy` keeps
+    no hard-coded copy of them. A plugin that is not installed serves neither route. Rule 23's « the
+    website's `PUBLIC_API_KEY` is never returned by any route » no longer holds since the website
+    connection card (plugins-phase-2-hosts rules 30-31): that route is refused here.
 
 ---
 
@@ -374,6 +382,10 @@ See the summary page. Mobile:
 - 2026-10-18 (code review): `ctx.secretRoutes` and the iCal token rotation refused to a support
   session (rule 23) — `hosting-h2-support-secret-routes.unit.test.js`, and booking-intake's
   `secret-lifecycle.unit.test.js`.
+- 2026-10-18 (final code review): rule 31 — with an empty plugin registry the two routes are not
+  refused, once the real `gate-access` / `website-booking` `register(ctx)` ran they are, any case and
+  trailing slash (`hosting-h2-support-secret-routes.unit.test.js`, `hosting-h2-support-guard.unit.test.js`,
+  website-booking's `site-connection.unit.test.js`).
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).
