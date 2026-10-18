@@ -69,6 +69,8 @@ reconciled to the payout (✓). The operator only checks the fiche.
    session) returns it with the instance's public URL and the plugin's **secret** embedded. The card
    shows « Installer le script » and « Régénérer le secret ». Regenerating invalidates every installed
    copy; the card says so.
+   > **2026-10-18 (code review):** before any secret exists the card shows « Créer le secret » only
+   > (rule 25); the two buttons above come once it is created.
 3. The script runs on `https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/booking.html*`
    only. Once the page shows « Numéro de réservation », it clicks « Afficher le numéro de téléphone »
    when present, waits for the number (≤ 2 s), reads `document.body.innerText` and the `hotel_id` /
@@ -166,6 +168,16 @@ already has it.
 23. The line disappears as soon as the fiche is filled. « Pas une réservation Booking » dismisses it
     (a Lodgify-feed stay can be a direct or another platform's booking).
 24. Arrival within 7 days and still à compléter → the line moves to `dashboard.alerts.urgent`.
+25. **The secret is created by an explicit action, never by a read** (added 2026-10-18, code review
+    m4/m5). Paramètres › Intégrations shows « Créer le secret » while the plugin has none
+    (`POST /api/booking-intake/secret`, idempotent: a second call keeps the existing secret). Until then
+    `GET /api/booking-intake/userscript.user.js` answers `409` « Secret non créé. » and writes nothing;
+    once it exists the card offers « Installer le script » and « Régénérer le secret ».
+26. **A support session never reaches the secret** (added 2026-10-18, code review M2). The script
+    carries the secret in clear, so `GET /api/booking-intake/userscript.user.js`,
+    `POST /api/booking-intake/secret` and `POST /api/booking-intake/secret/regenerate` are declared with
+    `ctx.secretRoutes` and refused to a support session (`specs/hosting-h2-account-security.md` rule 23),
+    whatever the case or a trailing slash.
 
 **Edge cases:**
 - Script runs on a page already filled → `same`, toast « Déjà à jour ».
@@ -230,6 +242,7 @@ plugin appears.
 |---|---|---|---|---|
 | POST | `/public/booking-intake/page` | secret header | `{ v, hotelId, resId, text }` | `{ status: 'applied'\|'same'\|'proposed'\|'refused', message, reservationId? }` |
 | GET | `/api/booking-intake/userscript.user.js` | admin | — | the script |
+| POST | `/api/booking-intake/secret` | admin | — | `{ ok, created }` — creates the secret once (rule 25) |
 | POST | `/api/booking-intake/secret/regenerate` | admin | — | `{ ok }` |
 | POST | `/api/reservations/platform-commission` | admin (core) | `{ gross, payout, touristTax, acompteCommission }` | `{ commission }` · 400 without gross and payout |
 | GET | `/api/booking-intake/pending` | admin | — | `[{ reservationId, propertyName, startDate, endDate, extranetUrl, urgent }]` |
@@ -266,7 +279,7 @@ CREATE TABLE IF NOT EXISTS booking_dismissals (
 ```
 
 Plugin settings: `hotelIds` (JSON `{ propertyId: "14407976" }`), `sourceKeys` (JSON, default
-`["booking","lodgify"]`), `key` (**secret**, generated at first activation, encrypted at rest, never
+`["booking","lodgify"]`), `key` (**secret**, created by « Créer le secret » (rule 25), encrypted at rest, never
 returned). **No core column, no core table.**
 
 ## 6. UI / UX
@@ -303,11 +316,14 @@ full-width on `xs`; banner buttons likewise; settings card follows `StatusCard`.
   - `pending-fiches.unit.test.js` (rules 21–24): Booking and Lodgify sources counted, others ignored,
     filled / cancelled / past / dismissed / unmapped excluded, extranet URL on the arrival date,
     urgent within 7 days.
+  - `secret-lifecycle.unit.test.js` (rules 25–26): the script GET writes nothing and answers 409
+    without a secret, `POST /secret` creates it once, a support session is refused the three routes.
 - Core: `platform-commission.unit.test.js` — the 22304 example (2042.21 / 28.03 / 1711.49 → 302.69)
   and 22309 (721.82 / 20.02 / 606.44 → 95.36), acompte commission subtracted, never negative; the
   `FinanceSection` button calls the API.
 - Client: `IntakeBanner.<state>.test.jsx` (applied, proposal, guest message pending),
-  `PendingAlert.test.jsx`, `SettingsSection.test.jsx`.
+  `PendingAlert.test.jsx`, `SettingsSection.test.jsx`, `SettingsSection.secret-create.test.jsx`
+  (rule 25).
 - Plugin inactive: no route (404), no banner, no alert, no card.
 - Manual: install the script in Chrome and Safari, open the 22309 page → toast + fiche filled with ✓;
   reopen → « Déjà à jour »; regenerate the secret → old script gets « obsolète »; dashboard alert at
@@ -332,7 +348,7 @@ None.
   plugin) instead of a `ctx.reservationBlock`.
 - A refusal is logged with its reason (`error`), not a code; the HTTP answer also carries `code`.
 - Plugin seeding: a second seed batch (`plugin-engine-backport.md` rule 3) installs the plugin inactive on
-  databases that already ran the first one. _(Superseded 2026-10-18, §10: the seed batches are gone.)_ The secret is created the first time the script is asked for.
+  databases that already ran the first one. _(Superseded 2026-10-18, §10: the seed batches are gone.)_ The secret is created the first time the script is asked for. _(Superseded 2026-10-18, rule 25: created by « Créer le secret », a GET never writes.)_
 - The end-to-end test uses a valid base64 `GUESTFLOW_ENCRYPTION_KEY` (the former one could not encrypt a
   plugin secret).
 
@@ -363,3 +379,6 @@ None.
     (`engine.unit.test.js`). The E2E spec activates and deactivates the plugin from the Plugins page.
   - The public door `/public/booking-intake/page` is a public mount of the engine's dispatcher; the
     `/api` writes keep the same-origin check of phase 4 rule 31, which the public door is outside of.
+- 2026-10-18 — code review (`fix/review-code-security`): rules 25–26. The secret is created by
+  « Créer le secret » (`POST /api/booking-intake/secret`), the script GET writes nothing, and a support
+  session is refused the script and both secret routes (`ctx.secretRoutes`). Plugin `1.0.1`.

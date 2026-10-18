@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -11,11 +11,14 @@
     "L’API publique appelée par le site"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0",
+  "guestflow": ">=3.9.0 <4.0.0",
   "sdk": "^1.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
     ]
   }
 }

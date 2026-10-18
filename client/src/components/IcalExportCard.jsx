@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Box, Card, CardContent, Typography, TextField, CircularProgress, IconButton } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import api from '../api';
+import ErrorAlert from './ErrorAlert';
 
 export default function IcalExportCard({ propertyId, propertyName }) {
   const [icalUrl, setIcalUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadIcalToken();
@@ -14,11 +16,13 @@ export default function IcalExportCard({ propertyId, propertyName }) {
 
   const loadIcalToken = async () => {
     setLoading(true);
+    setError('');
     try {
       const data = await api.getIcalToken(propertyId);
       setIcalUrl(data.url);
     } catch (err) {
-      console.error('Erreur lors du chargement du lien iCal:', err);
+      setIcalUrl('');
+      setError(err.status === 403 ? err.message : 'Impossible de charger le lien iCal.');
     } finally {
       setLoading(false);
     }
@@ -45,6 +49,8 @@ export default function IcalExportCard({ propertyId, propertyName }) {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 3 }}>
             <CircularProgress size={30} />
           </Box>
+        ) : error ? (
+          <ErrorAlert message={error} />
         ) : (
           <>
             <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>

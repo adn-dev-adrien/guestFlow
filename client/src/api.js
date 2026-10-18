@@ -45,6 +45,7 @@ const api = {
   getSystemVersion: () => request('/system/version'),
   // The running process's start time: the Plugins page waits for it to change after a restart.
   getRuntimeVersion: () => request('/version'),
+  getToday: () => request('/today'),
   checkSystemVersion: () => request('/system/version/check', { method: 'POST' }),
   getUpdateStatus: () => request('/system/update/status'),
   startUpdate: (targetVersion) => request('/system/update/start', { method: 'POST', body: { targetVersion } }),
@@ -136,6 +137,7 @@ const api = {
   getBookingIntakePending: () => request('/booking-intake/pending'),
   dismissBookingIntakePending: (reservationId) => request(`/booking-intake/pending/${reservationId}/dismiss`, { method: 'POST' }),
   getBookingIntakeLog: (limit = 10) => request(`/booking-intake/intakes?limit=${limit}`),
+  createBookingIntakeSecret: () => request('/booking-intake/secret', { method: 'POST' }),
   regenerateBookingIntakeSecret: () => request('/booking-intake/secret/regenerate', { method: 'POST' }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),

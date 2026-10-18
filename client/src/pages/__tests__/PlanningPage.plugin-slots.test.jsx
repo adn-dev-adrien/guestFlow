@@ -20,16 +20,16 @@ vi.mock('../../api', () => ({
     getReservation: vi.fn(),
     getBreakfastPlanningSummary: vi.fn().mockResolvedValue({ breakfastByDate: {} }),
     getPlanningOptionCards: vi.fn().mockResolvedValue({ optionCardsByDate: {} }),
+    // The server's date, in the week the clocks go back: the window must still end 13 days later,
+    // whatever the time zone the suite runs in (specs/ds-sweep-planning.md rule 28).
+    getToday: vi.fn().mockResolvedValue({ today: '2026-10-25' }),
   },
 }));
 
 import PlanningPage from '../PlanningPage';
+import { addIsoDays } from '../../utils/isoDay';
 
-const iso = (offset) => {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return d.toISOString().split('T')[0];
-};
+const iso = (offset) => addIsoDays('2026-10-25', offset);
 const TODAY = iso(0);
 const LATER = iso(3);
 
@@ -63,9 +63,11 @@ function renderPage() {
   return render(<MemoryRouter><PlanningPage /></MemoryRouter>);
 }
 
-// The page loads on mount and again once the properties arrive (its own behaviour): wait for both.
+// The page loads once the server date is known, and again if the properties arrive later (its own
+// behaviour): wait until the counts stop moving, and compare against them.
 async function settled(...contributions) {
-  await waitFor(() => contributions.forEach((c) => expect(c.load).toHaveBeenCalledTimes(2)));
+  await waitFor(() => contributions.forEach((c) => expect(c.load).toHaveBeenCalled()));
+  await new Promise((resolve) => setTimeout(resolve, 50));
   return contributions.map((c) => c.load.mock.calls.length);
 }
 
@@ -93,13 +95,13 @@ test('specs/plugins-phase-2-hosts.md rule 5: reload() reloads that contribution 
   const other = dayContribution('other', 'notes', 50, { [TODAY]: 'z' });
   slots['planning.days'] = [laundry, other];
   renderPage();
-  await settled(laundry, other);
+  const [l, o] = await settled(laundry, other);
 
   fireEvent.click(await screen.findByText('Recharger laundry'));
-  expect(await screen.findByText(`laundry ${TODAY} 3`)).toBeInTheDocument();
-  expect(laundry.load).toHaveBeenCalledTimes(3);
-  expect(other.load).toHaveBeenCalledTimes(2);
-  expect(screen.getByText(`notes ${TODAY} 2`)).toBeInTheDocument();
+  expect(await screen.findByText(`laundry ${TODAY} ${l + 1}`)).toBeInTheDocument();
+  expect(laundry.load).toHaveBeenCalledTimes(l + 1);
+  expect(other.load).toHaveBeenCalledTimes(o);
+  expect(screen.getByText(`notes ${TODAY} ${o}`)).toBeInTheDocument();
 });
 
 test('specs/plugins-phase-2-hosts.md rule 5: a failed load says so with the contribution message, and the other cards render', async () => {
@@ -126,12 +128,12 @@ test('specs/plugins-phase-2-hosts.md rule 6: planning.actions renders in the act
     Component: ({ reload }) => <button type="button" onClick={reload}>Voyage exceptionnel</button>,
   }];
   const { container } = renderPage();
-  await settled(laundry, other);
+  const [l, o] = await settled(laundry, other);
 
   const bar = container.querySelector('.MuiBox-root');
   fireEvent.click(within(bar).getByText('Voyage exceptionnel'));
-  expect(await screen.findByText(`laundry ${TODAY} 3`)).toBeInTheDocument();
-  expect(other.load).toHaveBeenCalledTimes(2);
+  expect(await screen.findByText(`laundry ${TODAY} ${l + 1}`)).toBeInTheDocument();
+  expect(other.load).toHaveBeenCalledTimes(o);
 });
 
 test('specs/plugins-phase-2-hosts.md rule 7: the day chip counts what a contribution says it holds to tick', async () => {

@@ -177,6 +177,9 @@ Other facts the design rests on:
     - `qonto/`: `qontoClient`, `qontoConfig`, `qontoService`, `qontoAuth`, `qontoHealth`,
       `qontoWebhookSignature`, `qontoWebhookRegistrar`, `httpRetry`, `paymentProviderValidation`.
     - `qontoSettingsController` and `webhookController` (from `qontoWebhookController`).
+    > **Superseded in part** (2026-10-18) — by rule 22: `qonto/` and `qontoSettingsController` moved
+    > back to the core, in `server/src/utils/qonto/`; the plugin keeps `webhookController`,
+    > `paymentPollSchedule`, `provider` and `settingsStore`.
     - `paymentPollSchedule.js`: the poll cadence, now the plugin job's.
     - `provider.js`: the rule 4 adapter over `qontoClient` (`cancelLink` = `deactivatePaymentLink`).
     - `settingsStore.js`: rule 13.
@@ -260,6 +263,11 @@ Other facts the design rests on:
       after the upgrade finds them by `(provider, providerLinkId)`.
 21. **A new customer** starts with the plugin not installed (phase 0). Installing it and connecting Qonto
     is the only way to reach the fiche buttons and the dashboard reminder.
+22. **The Qonto library is core code** (added 2026-10-18, code review m2). The client, configuration,
+    health, OAuth, webhook signature and registrar and the settings handlers live in
+    `server/src/utils/qonto/`. The plugin reaches them through `sdk.coreModule('qonto')` and wires them
+    to the instance's settings and routes; the control plane `require`s the same folder for its own
+    billing. Neither imports a file of the other, so moving a plugin file never breaks the console.
 
 ### Review fixes (2026-10-04)
 
@@ -314,6 +322,7 @@ Other facts the design rests on:
 | `plugins/sdk/` | `createContext.js`, `registry.js`, `eventBus.js`, `index.js` | T | `ctx.paymentProvider`, `ctx.webhook`, event `reservation.paid`; `CORE_MODULES` gains the three payment modules the plugin calls |
 | `plugins/` | `loader.js`, `index.js` | T | Mounts webhooks, `isWebhook()`; registers the module |
 | `plugins/online-payment/` | `index.js`, `provider.js`, `settingsStore.js`, `webhookController.js`, `qontoSettingsController.js`, `paymentPollSchedule.js`, `qonto/*`, `tests/` | C (mostly moved) | Rules 10–16 |
+| `utils/qonto/` | `index.js`, the Qonto library, `qontoSettingsController.js` | C (moved back) | _(added 2026-10-18)_ Rule 22: shared by the plugin (`coreModule('qonto')`) and the control plane |
 | `plugins/website-booking/` | `routes/bookingRequests.js` | T | Gate on a declared provider |
 | — | `index.js` | T | Guards ask the loader; `/api/payments` mounted without `requirePlugin` |
 | — | `database.js`, `schema.sql` | T | Rule 20 migration; fresh databases get the neutral table |
@@ -409,6 +418,9 @@ the moved page. No behaviour change.
   and website-booking's `phase-2-website-booking` assert the new gates, jobs and events.
 - The control plane's suites run unchanged against the moved files (87).
 - Server total: 4,765.
+- _(2026-10-18, rule 22)_ The Qonto suites stay under `plugins/online-payment/tests/` and import
+  `server/src/utils/qonto/`; `control-plane/server/src/tests/console-plugin-boundary.unit.test.js` fails
+  when a console file names a plugin folder of the instance.
 
 ### Client (Vitest) — new tests (7)
 
