@@ -32,7 +32,11 @@ function buildController({ capacity, stored = null, captures = {} }) {
       depositDueDate: null, balanceDueDate: null, nights: 2, error: null,
     }),
   };
-  const dbMock = { prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }) };
+  // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
+  const dbMock = {
+    prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }),
+    transaction: (fn) => fn,
+  };
 
   return withMocks({
     '../utils/pricing': pricingMock,

@@ -2025,6 +2025,27 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Repair the stays left without a number (specs/reservation-number-and-search.md rule 14): until rule 13,
+// a cancellation could make the generator hand out a number already taken, and the failed creation left
+// its row behind. Each one gets a number now and is listed in the boot log — a ghost cannot be told from
+// a real stay by the data, so nothing is deleted. Guarded once; idempotent anyway.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'reservation_number_repair_numberless_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { repairNumberlessReservations } = require('./utils/reservationNumber');
+    const tx = db.transaction(() => {
+      const repaired = repairNumberlessReservations(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:reservation-number-repair] numbered ${repaired.length} reservation(s) left without a number`);
+      for (const r of repaired) {
+        console.log(`[migration:reservation-number-repair] reservation ${r.id} → ${r.reservationNumber} (property ${r.propertyId}, ${r.startDate} → ${r.endDate}) — check it is a real stay`);
+      }
+    });
+    tx();
+  }
+}
+
 // ---------- ARRIVAL / DEPARTURE SAS — specs/arrival-departure-sas.md ----------
 // Priced linen items shown in the SAS (operator-managed in Réglages → Blanchisserie). One table,
 // two categories ('bed' bed-linen elements + 'towel' towels/variants).
