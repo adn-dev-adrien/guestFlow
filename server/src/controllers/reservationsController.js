@@ -376,6 +376,9 @@ function liveOverpayment(reservationId, engineInput) {
     depositPaid: depositDisabled ? false : Number(row.depositPaid || 0) === 1,
     balancePaid: Number(row.balancePaid || 0) === 1,
     complementPaid: Number(row.complementPaid || 0) === 1,
+    // Rule 36 — the save prices a paid acompte or solde on its stored amount: so does this preview.
+    ...(Number(row.depositPaid || 0) === 1 && !depositDisabled ? { depositAmount: row.depositAmount } : {}),
+    ...(Number(row.balancePaid || 0) === 1 ? { balanceAmount: row.balanceAmount } : {}),
     // The save prices the tax unpinned (performUpdate passes no freeze): mirror it, or the preview
     // would announce no trop-perçu where the save refuses one.
     freezeTouristTax: false,
@@ -787,6 +790,13 @@ async function calculatePrice(req, res) {
     // at `endDate + N` instead of the guest-facing J-30.
     platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
   };
+  // specs/reservation-refunds.md rule 36 — a stored paid acompte or solde is priced on what it
+  // collected, as the save does, whatever amount the fiche still carries from an earlier preview.
+  if (reservationId > 0) {
+    const stored = model.getRow(reservationId);
+    if (stored && Number(stored.depositPaid || 0) === 1 && engineInput.depositPaid) engineInput.depositAmount = stored.depositAmount;
+    if (stored && Number(stored.balancePaid || 0) === 1 && engineInput.balancePaid) engineInput.balanceAmount = stored.balanceAmount;
+  }
   if (!gateInsurance(res, engineInput, reservationId > 0 ? reservationId : devisId)) return;
   let quote = calculateReservationQuote(engineInput);
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): the live preview may
@@ -1204,12 +1214,14 @@ function applyUpdate(req, res, pastUnlocked) {
     depositPaid: effectiveDepositPaid,
     balancePaid: effectiveBalancePaid,
     complementPaid: effectiveComplementPaid,
-    depositAmount: req.body.depositAmount,
+    // specs/reservation-refunds.md rule 36 — a paid acompte or solde is priced on what it collected
+    // (the stored amount), never on a figure the browser carried over from an earlier preview.
+    depositAmount: effectiveDepositPaid ? storedPaymentForQuote.depositAmount : req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
     // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
     // other branch, so it corrects even a frozen complement.
     complementAmountOverride: req.body.complementAmountOverride,
-    balanceAmount: req.body.balanceAmount,
+    balanceAmount: effectiveBalancePaid ? storedPaymentForQuote.balanceAmount : req.body.balanceAmount,
     complementAmount: frozenComplementAmount,
     offeredOptionIds: updateOfferedOptionIds,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,

@@ -2435,6 +2435,14 @@ function calculateReservationQuote({
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = roundMoney(preArrivalAmount);
   }
+  // specs/reservation-refunds.md rule 36 — a paid solde keeps what it collected. The branches above
+  // re-price a solde that carries the whole pre-arrival amount (no acompte), so reducing the stay after
+  // payment used to lower the money received with it, and the trop-perçu refund then took the same
+  // euros off a second time. The excess stays visible as `overCollectedTtc` until a refund returns it.
+  // Rule 38 — a platform stay is the exception: the platform paid what its statement says and refunds its
+  // guest itself, so the paid solde follows the platform amount the operator corrects.
+  const paidBalanceAmount = roundMoney(Number(balanceAmount) || 0);
+  if (balancePaid && isDirectChannel(platform) && paidBalanceAmount > resolvedBalanceAmount) resolvedBalanceAmount = paidBalanceAmount;
 
   // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
   // the BOOKING and never moves again (`existingDepositDueDate` wins on every recompute); the solde
@@ -2591,8 +2599,12 @@ function calculateReservationQuote({
   const resolvedRefundsTotal = roundMoney(Math.max(0, Number(refundsTotal) || 0));
   const resolvedArrivalReduction = roundMoney(Math.max(0, Number(arrivalPaymentReduction) || 0));
   const resolvedArrivalTip = roundMoney(Math.max(0, Number(arrivalPaymentTip) || 0));
+  // Rule 36 — the trop-perçu is money received too: it stays in the total until a refund returns it,
+  // so a refund of it brings the total down to the reduced stay, not below. Rule 38: never on a platform
+  // stay, whose net is the platform's statement.
+  const keptOverCollected = isDirectChannel(platform) ? overCollectedTtc : 0;
   const sejourNetTotal = roundMoney(
-    netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal + midStaySettledTotal
+    netReceivedForTotal + keptOverCollected + resolvedComplementAmount + endOfStayComplementTotal + midStaySettledTotal
     - resolvedRefundsTotal - resolvedArrivalReduction + resolvedArrivalTip,
   );
 

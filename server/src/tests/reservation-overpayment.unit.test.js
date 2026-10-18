@@ -76,8 +76,8 @@ test('rule 34 — paid online, then reduced: 409 OVERPAID with the amount, saved
   const forced = controller.performUpdate(id, { ...body(2), forceOverpayment: true });
   assert.equal(forced.status, 200, JSON.stringify(forced.body));
   const after = db.prepare('SELECT balanceAmount FROM reservations WHERE id = ?').get(id).balanceAmount;
-  const expected = Math.round((paid - after) * 100) / 100;
-  assert.equal(refused.body.overpaymentTtc, expected);
+  assert.equal(after, paid, 'rule 36 — the paid solde keeps what it collected');
+  const expected = refused.body.overpaymentTtc;
 
   const refunds = require('../controllers/refundsController');
   assert.equal(await liveOverpayment(controller, id, body(2)), expected, 'the fiche shows the trop-perçu');

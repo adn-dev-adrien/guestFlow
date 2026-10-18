@@ -37,7 +37,7 @@ test('public full stay: taxable stay @10 + tourist tax @0 → exact 266.05', () 
   assert.equal(tax.amountCents, 980, 'no residual needed here');
 });
 
-test('residual is folded into the 0 % tourist-tax line and total stays exact', () => {
+test('residual becomes an Ajustement line, the tourist-tax line stays exact, total exact', () => {
   // 256.24 stay @10 is an "unreachable" TTC: floor-HT 232.94 → Qonto 256.23 → residual 1 cent.
   const { items, expectedTotalCents } = buildVatItems({
     components: [
@@ -49,7 +49,8 @@ test('residual is folded into the 0 % tourist-tax line and total stays exact', (
   assert.equal(expectedTotalCents, 26604);
   assert.equal(qontoCharge(items), 26604, 'residual absorbed → exact');
   assert.equal(items.find((i) => i.vatRate === 10).amountCents, 23294);
-  assert.equal(items.find((i) => i.title === 'Taxe de séjour').amountCents, 981, 'tax line carries the +1 cent');
+  assert.equal(items.find((i) => i.title === 'Taxe de séjour').amountCents, 980, 'the tax line is the tax');
+  assert.equal(items.find((i) => i.title === 'Ajustement').amountCents, 1, 'the cent rides on its own line');
 });
 
 test('deposit-only (no 0 % line): residual becomes an Ajustement line, total exact', () => {

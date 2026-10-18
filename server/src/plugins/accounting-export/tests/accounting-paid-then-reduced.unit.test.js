@@ -105,7 +105,9 @@ test('rule 11 — online payment, then a reduced party: the journal stays positi
   const entries = createAccountingModel(db).encaissementsByMonth({ month: 10, year: 2026 })
     .filter((e) => Number(e.reservationId) === Number(id));
   assert.ok(entries.length > 0, 'the solde is in the journal');
-  const row = db.prepare('SELECT balanceAmount, touristTaxTotal FROM reservations WHERE id = ?').get(id);
+  // specs/reservation-refunds.md rule 36 — the paid solde keeps what it collected, so the entry books
+  // the tax the solde received; the trop-perçu refund then gives the excess back on 46710000.
+  const row = db.prepare('SELECT balanceAmount, touristTaxSoldeContribTtc FROM reservations WHERE id = ?').get(id);
   for (const entry of entries) {
     const { lines } = entryToStructured(entry);
     for (const l of lines) assert.ok(!(Number(l.credit) < 0), `negative credit on ${l.compte}: ${l.credit}`);
@@ -113,6 +115,6 @@ test('rule 11 — online payment, then a reduced party: the journal stays positi
     const debits = round2(lines.reduce((s, l) => s + Number(l.debit || 0), 0));
     assert.equal(credits, debits, 'balanced');
     const tax = lines.find((l) => l.compte === '46710000');
-    assert.equal(Number(tax.credit), row.touristTaxTotal, 'the tax line is the stay\'s current tax');
+    assert.equal(Number(tax.credit), row.touristTaxSoldeContribTtc, 'the tax line is the tax the solde collected');
   }
 });

@@ -46,7 +46,7 @@ test('la fenêtre ouverte sur un trop-perçu porte une ligne libre « Trop-perç
   const onSubmit = vi.fn();
   render(<RefundDialog open onClose={vi.fn()} refundableLines={[]} collectedTtc={798.2} overpaymentTtc={133.2} onSubmit={onSubmit} />);
   expect(screen.getByDisplayValue('Trop-perçu')).toBeInTheDocument();
-  expect(screen.getByDisplayValue('133.2')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('133,20')).toBeInTheDocument();
 });
 
 test('ouverte sans trop-perçu, la fenêtre n’a aucune ligne libre', () => {

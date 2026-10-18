@@ -66,6 +66,6 @@ test('plusieurs postes en excès : une ligne chacun', () => {
     />,
   );
   expect(screen.getAllByDisplayValue('Trop-perçu')).toHaveLength(2);
-  expect(screen.getByDisplayValue('40')).toBeInTheDocument();
-  expect(screen.getByDisplayValue('10')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('40,00')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('10,00')).toBeInTheDocument();
 });

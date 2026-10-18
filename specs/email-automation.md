@@ -239,6 +239,14 @@ The operator can:
     rule 27).
 18. **A pending email has its own « Envoyer » button.** The row still opens the send dialog; the button
     says so next to « Marquer comme envoyé » and « Ignorer ».
+19. **An iCal placeholder is greeted neutrally (2026-10-18).** When the reservation's client is an iCal
+    placeholder (`utils/placeholderClient.js`: first name « Ical », or a name made only of platform
+    words such as « Reserved » or « Closed Not available », the iCal import's own test), the context
+    carries `clientFirstName`, `clientLastName` and `clientFullName` empty, and the renderer drops the
+    spaces before an empty name token followed by punctuation: « Bonjour {{clientFirstName}}, » reads
+    « Bonjour, », « Hello {{clientFirstName}}, » reads « Hello, ». Any other empty token renders as
+    before. *Why: the final review of 2026-10-18 (N5) saw « Bonjour Ical, » / « Hello Ical, » in 24
+    previews of 22281, whose placeholder the boot pass had renamed « Ical Airbnb ».*
 
 ---
 
@@ -707,6 +715,9 @@ inline property form just above the capacity fields. The value is stored on
       content migrations: `séjour à {{propertyName}}` → `séjour {{propertyWithArticle}}` and
       signature `{{companyName}}` → `{{senderName}}`, both idempotent, scoped to the shipped
       `arrival_reminder_7d` template, leaving operator templates + the plain Logement line alone.
+- [x] `tests/email-greeting-placeholder-client.unit.test.js` — _(rule 19)_ « Ical Airbnb »,
+      « Ical Lodgify », « Reserved », « Closed Not available » greeted « Bonjour, » / « Hello, »; a
+      guest keeps their name; a non-name empty token keeps its spaces (4 tests).
 - [x] `tests/email-context-builder.unit.test.js` — _(rules 13 + 14 added)_ `propertyWithArticle`
       joins article + name (`au Gite`, `à la Tente`, `aux Gîtes`), elides the apostrophe
       form (`à l'Aventura Lodge`), defaults to `au`, empty when no name; `senderName` uses

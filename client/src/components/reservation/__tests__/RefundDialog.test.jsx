@@ -42,7 +42,7 @@ test('cocher une ligne pré-remplit tout le remboursable et alimente le total', 
   const user = userEvent.setup();
   renderDialog();
   await user.click(screen.getAllByRole('checkbox')[1]); // Petit-déjeuner
-  expect(screen.getByLabelText('Montant')).toHaveValue(60);
+  expect(screen.getByLabelText('Montant')).toHaveValue('60,00');
   expect(screen.getByText('− 60,00 €')).toBeInTheDocument();
 });
 
@@ -102,7 +102,7 @@ test('un dépassement de l’encaissé affiche un avertissement sans bloquer', a
   renderDialog({ collectedTtc: 50 });
   await user.click(screen.getAllByRole('checkbox')[1]); // 60 € > 50 € encaissés
 
-  expect(screen.getByText('Ce remboursement dépasse le montant encaissé à ce jour.')).toBeInTheDocument();
+  expect(screen.getByText('Dépasse l’encaissé de 10,00 €.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enregistrer le remboursement' })).toBeEnabled();
 });
 
