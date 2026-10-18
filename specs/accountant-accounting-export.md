@@ -276,6 +276,19 @@ standard).
     VAT separately gave 117,28 / 11,72 for 129,00 € at 10 %, a cent off the accountant's own
     117,27 / 11,73.
 
+### Final review fixes (2026-10-18)
+
+33. **A month already exported keeps its cents.** Rule 32's split applies to payments dated from
+    **1 October 2026** (`SPLIT_TTC_FROM`); an earlier payment keeps HT and VAT prorated separately, as
+    it was exported. *Why:* the final review of 2026-10-18 (N4) re-exported February–October 2026 and
+    found three entries one cent off what the accountant may already have imported — April
+    (Nouville 624,54 / 62,46), July (Nicolet 40,34 / 11,23), September (Van Dijk 117,28 / 11,72).
+    Re-exporting a closed month must give the same file.
+34. **A trop-perçu refunded is counted once** (2026-10-18, final review N1; the rule lives in
+    `reservation-refunds.md` rule 36). The solde entry of a paid then reduced stay books the amount
+    received; the refund entry gives back the trop-perçu. Client account net = received − refunded,
+    46710000 never negative for the stay.
+
 ---
 
 ## 4. Architecture
@@ -419,6 +432,10 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 - [x] `client-gross-amount.unit.test.js` (7) — gross >= net, negative/NaN rejection.
 - [x] `reservations-commission.unit.test.js` (7) — commission = gross − net, clamped at 0,
       platform-only.
+- [x] `plugins/accounting-export/tests/accounting-exported-months-frozen.unit.test.js` (2) — rule 33:
+      a September 2026 payment keeps 117,28 / 11,72, from 1 October 2026 117,27 / 11,73.
+- [x] `tests/trop-percu-refund-books.unit.test.js` (1) — rule 34: 465,60 € paid, reduced, 110,40 €
+      refunded → client account 355,20 €, 46710000 7,20 €, « Encaissé » and « Total perçu » 355,20 €.
 
 ### Manual UI verification
 - [ ] Happy path: create accountant → log in → forced password change → see only `/comptabilite` → download

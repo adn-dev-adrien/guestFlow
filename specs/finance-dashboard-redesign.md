@@ -249,6 +249,17 @@ without losing anything today's page shows.
     announces: those no priced stay covers (`stayNights(...).unpriced.nights`). *Why:* the insight said
     « 15 nuits », the table total 17.
 
+### 3.12 Final review (2026-10-18)
+
+40. **A late payout is counted at what the platform owes.** The « Versement <plateforme> » element of
+    `overdueItems`, the row's `overdueAmount`, the « En retard » tile and the home dashboard's
+    « Versement plateforme en retard » card all carry the solde **net of the platform's commission**
+    (`balanceAmount − platformCommissionAmount`, floored at 0) — the figure « À encaisser » counts
+    (`remainingToPay`). Without a commission the payout is the solde. *Why:* the final review of
+    2026-10-18 (N2) read « En retard 4 866,31 € » with GdF 11 at 1 933,52 € and Abracadaroom 22275 at
+    720,82 €, while their fiches recorded payouts of 1 545 € and 573,77 € and « À encaisser » counted
+    those: one page, two expected sums for the same stays.
+
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
 - Empty window → hero 0 €, figures 0 / « — », tables in their empty state, charts keep their axes.
@@ -434,6 +445,9 @@ par mois » and « Taux d'occupation » side by side.
       nights, `amountMissing` on 0 € stays only.
 - [x] `plugins/hourly-resources/tests/hourly-not-before-local-day.unit.test.js` (1) — rule 37 note: at
       00:30 local, « not before » is today 00:30.
+- [x] `finance-overdue-payout-net.unit.test.js` (3) — rule 40: GdF 11 (1 545 €) and Abracadaroom 22275
+      (573,77 €) shapes on « En retard », its detail and « À encaisser »; no commission → the solde;
+      the home dashboard card claims the same payout.
 - 2026-10-18 (rule 37 note): the « today » fixtures of `financeDashboardFixture.js`, `finance-model`,
   `finance-fiscal-year-summary`, `finance-per-property-revenue`, `clients-directory`,
   `sas-stay-payment`, `single-payment-at-check-in`, `arrival-payment-fiche-model`,

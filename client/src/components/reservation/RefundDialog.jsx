@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Box, Typography, Stack, Divider, Button,
   Checkbox, FormControlLabel, TextField, MenuItem, RadioGroup, Radio, FormControl, FormLabel,
@@ -11,6 +11,7 @@ import QuantityField from '../QuantityField';
 import ErrorAlert from '../ErrorAlert';
 import { formatCurrency } from '../../utils/formatters';
 import { localIsoToday } from '../../utils/isoDay';
+import { evaluateArithmetic } from '../../utils/arithmetic';
 
 /**
  * « Nouveau remboursement » — specs/reservation-refunds.md §6.
@@ -32,6 +33,11 @@ import { localIsoToday } from '../../utils/isoDay';
  *    `[{ bucket, label, amountTtc }]`): one « Trop-perçu » line per poste, so a tax paid too much is
  *    refunded on the tax. Wins over `overpaymentTtc` when present.
  *  - `onSubmit(payload)` — throws an Error carrying the server message when the API refuses.
+ *
+ * Amounts are typed as text (« 12,5 » accepted, rule 37): a typed amount that is a whole number of
+ * units moves the stepper to that count, any other amount leaves the line in « Montant libre » —
+ * never a fractional quantity. The ceiling shows under each amount, and a refused total says why
+ * right above the save button.
  */
 
 const METHODS = [
@@ -49,6 +55,20 @@ const FREE_LINE_BUCKETS = [
 
 const todayIso = () => localIsoToday();
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+// NaN when the text is not an amount, so an unreadable entry blocks the save instead of counting 0.
+const parseAmount = (text) => {
+  if (String(text ?? '').trim() === '') return 0;
+  const v = evaluateArithmetic(text);
+  return v == null ? NaN : round2(v);
+};
+const amountText = (n) => round2(n).toFixed(2).replace('.', ',');
+// A whole number of units, or null (« Montant libre »).
+const wholeUnits = (amount, unitPrice) => {
+  if (!(unitPrice > 0) || !Number.isFinite(amount)) return null;
+  const q = Math.round(amount / unitPrice);
+  return Math.abs(q * unitPrice - amount) < 0.005 ? q : null;
+};
+const DECIMAL_INPUT = { htmlInput: { inputMode: 'decimal' } };
 
 export default function RefundDialog({
   open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, onSubmit,
@@ -69,9 +89,9 @@ export default function RefundDialog({
     setSelected({});
     const split = Array.isArray(overpaymentLines) ? overpaymentLines.filter((l) => Number(l.amountTtc) > 0) : [];
     if (split.length > 0) {
-      setFreeLines(split.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amount: String(l.amountTtc) })));
+      setFreeLines(split.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amount: amountText(l.amountTtc) })));
     } else {
-      setFreeLines(overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: String(overpaymentTtc) }] : []);
+      setFreeLines(overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: amountText(overpaymentTtc) }] : []);
     }
     setRefundDate(todayIso());
     setMethod('transfer');
@@ -85,37 +105,50 @@ export default function RefundDialog({
       const next = { ...prev };
       if (!checked) delete next[line.key];
       // Ticking a line pre-fills the whole refundable part — the common case is « give it all back ».
-      else next[line.key] = { amount: line.refundableTtc, quantity: line.unitPrice ? round2(line.refundableTtc / line.unitPrice) : null };
+      else next[line.key] = { text: amountText(line.refundableTtc), amount: line.refundableTtc, quantity: wholeUnits(line.refundableTtc, line.unitPrice) };
       return next;
     });
   };
 
-  const setLineAmount = (line, rawAmount) => {
-    const amount = round2(rawAmount);
+  const setLineAmount = (line, text) => {
+    const amount = parseAmount(text);
     setSelected((prev) => ({
       ...prev,
-      [line.key]: { amount, quantity: line.unitPrice ? round2(amount / line.unitPrice) : null },
+      [line.key]: { text, amount, quantity: wholeUnits(amount, line.unitPrice) },
     }));
   };
 
   const setLineQuantity = (line, rawQuantity) => {
-    const quantity = Math.max(0, Number(rawQuantity) || 0);
+    const quantity = Math.max(0, Math.floor(Number(rawQuantity) || 0));
+    const amount = round2(quantity * (line.unitPrice || 0));
     setSelected((prev) => ({
       ...prev,
-      [line.key]: { quantity, amount: round2(quantity * (line.unitPrice || 0)) },
+      [line.key]: { text: amountText(amount), quantity, amount },
     }));
   };
 
-  const total = useMemo(() => round2(
-    Object.values(selected).reduce((s, l) => s + (Number(l.amount) || 0), 0)
-    + freeLines.reduce((s, l) => s + (Number(l.amount) || 0), 0),
-  ), [selected, freeLines]);
+  const freeAmounts = freeLines.map((l) => parseAmount(l.amount));
+  const total = round2(
+    Object.values(selected).reduce((s, l) => s + (Number.isFinite(l.amount) ? l.amount : 0), 0)
+    + freeAmounts.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0),
+  );
 
   const overCollected = total > round2(collectedTtc);
-  const lineOverCap = refundableLines.some((line) => {
+  const overCapLine = refundableLines.find((line) => {
     const picked = selected[line.key];
-    return picked && Number(picked.amount) > line.refundableTtc;
+    return picked && picked.amount > line.refundableTtc;
   });
+  const unreadable = Object.values(selected).some((l) => !Number.isFinite(l.amount))
+    || freeAmounts.some((v) => !Number.isFinite(v));
+  let refusal = null;
+  if (unreadable) refusal = { tone: 'error', text: 'Montant illisible.' };
+  else if (overCapLine) {
+    const excess = round2(selected[overCapLine.key].amount - overCapLine.refundableTtc);
+    refusal = { tone: 'error', text: `${overCapLine.label} : dépasse le remboursable de ${formatCurrency(excess)}.` };
+  } else if (overCollected && total > 0) {
+    refusal = { tone: 'warning', text: `Dépasse l’encaissé de ${formatCurrency(round2(total - collectedTtc))}.` };
+  }
+  const blocked = unreadable || Boolean(overCapLine);
 
   const submit = async () => {
     setError('');
@@ -128,12 +161,13 @@ export default function RefundDialog({
         lines: [
           ...Object.entries(selected).map(([key, value]) => ({
             key,
-            amountTtc: Number(value.amount) || 0,
+            amountTtc: value.amount,
             quantity: value.quantity || undefined,
           })),
           ...freeLines
-            .filter((l) => String(l.label || '').trim() && Number(l.amount) > 0)
-            .map((l) => ({ label: l.label.trim(), bucket: l.bucket, amountTtc: Number(l.amount) })),
+            .map((l, i) => ({ ...l, amountTtc: freeAmounts[i] }))
+            .filter((l) => String(l.label || '').trim() && l.amountTtc > 0)
+            .map((l) => ({ label: l.label.trim(), bucket: l.bucket, amountTtc: l.amountTtc })),
         ],
       });
       onClose();
@@ -187,22 +221,26 @@ export default function RefundDialog({
                       )}
                     />
                     {picked && (
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                        {line.unitPrice > 0 && (
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                        {line.unitPrice > 0 && (picked.quantity != null ? (
                           <QuantityField
-                            value={picked.quantity || 0}
+                            value={picked.quantity}
                             min={0}
                             onCommit={(v) => setLineQuantity(line, v)}
                           />
-                        )}
+                        ) : (
+                          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center', whiteSpace: 'nowrap' }}>
+                            Montant libre
+                          </Typography>
+                        ))}
                         <TextField
                           size="small"
-                          type="number"
                           label="Montant"
-                          value={picked.amount}
+                          value={picked.text}
                           onChange={(e) => setLineAmount(line, e.target.value)}
-                          error={Number(picked.amount) > line.refundableTtc}
-                          helperText={Number(picked.amount) > line.refundableTtc ? `Max ${formatCurrency(line.refundableTtc)}` : ''}
+                          error={!Number.isFinite(picked.amount) || picked.amount > line.refundableTtc}
+                          helperText={`Max ${formatCurrency(line.refundableTtc)}`}
+                          slotProps={DECIMAL_INPUT}
                           sx={{ width: { xs: '100%', sm: 130 } }}
                         />
                       </Box>
@@ -238,10 +276,11 @@ export default function RefundDialog({
                 </TextField>
                 <TextField
                   size="small"
-                  type="number"
                   label="Montant"
                   value={line.amount}
                   onChange={(e) => setFreeLines((prev) => prev.map((l, i) => (i === index ? { ...l, amount: e.target.value } : l)))}
+                  error={!Number.isFinite(freeAmounts[index])}
+                  slotProps={DECIMAL_INPUT}
                   sx={{ width: { xs: '100%', sm: 130 } }}
                 />
                 <IconButton
@@ -309,12 +348,6 @@ export default function RefundDialog({
             fullWidth
           />
 
-          {overCollected && total > 0 && (
-            <Typography variant="caption" color="warning.main">
-              Ce remboursement dépasse le montant encaissé à ce jour.
-            </Typography>
-          )}
-
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total remboursé</Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
@@ -323,12 +356,22 @@ export default function RefundDialog({
           </Box>
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
+      <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', gap: 1, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
+        {refusal && (
+          <Typography
+            role={refusal.tone === 'error' ? 'alert' : 'status'}
+            variant="caption"
+            color={`${refusal.tone}.main`}
+            sx={{ flexBasis: '100%', textAlign: { xs: 'left', sm: 'right' }, alignSelf: 'stretch' }}
+          >
+            {refusal.text}
+          </Typography>
+        )}
         <Button onClick={onClose} disabled={busy} fullWidth={isMobile}>Annuler</Button>
         <Button
           variant="contained"
           onClick={submit}
-          disabled={busy || total <= 0 || lineOverCap}
+          disabled={busy || total <= 0 || blocked}
           fullWidth={isMobile}
         >
           Enregistrer le remboursement

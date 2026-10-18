@@ -250,6 +250,33 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     14,40 € came from the tourist tax, yet the dialog proposed « Hébergement »: accepted as is, the refund
     debited the turnover and the VAT and left 46710000 14,40 € too high. The same review saw the summary
     say « Taxe de séjour 21,60 € » beside a 14,40 € trop-perçu, with nothing to reconcile the two.*
+36. **A paid solde keeps what it collected; the refund is the only reduction (2026-10-18).** A save
+    that reduces a stay whose solde is paid never lowers `balanceAmount` below the stored, collected
+    amount: the engine re-prices the stay (`finalPrice` drops), the excess stays visible as
+    `overCollectedTtc` / the trop-perçu (rule 34), and the trop-perçu refund (rule 35) is what brings the
+    money down. The live quote of a stored reservation prices a paid acompte or solde on its **stored**
+    amount, whatever figure the browser still carries. One model on every surface:
+    - accounting journal: the solde entry books the amount received, the refund entry gives back the
+      trop-perçu — client account net = received − refunded, 46710000 never negative for the stay;
+    - finance « Encaissé » and the stay's total: received − refunded;
+    - fiche « Total perçu sur le séjour »: received − refunded, and the trop-perçu reads 0 after the
+      refund.
+    *Why: the final review of 2026-10-18 (N1) paid 465,60 €, reduced the party (trop-perçu 110,40 €)
+    and refunded it. The save had already lowered the paid solde to 355,20 € and the refund took the
+    110,40 € off a second time: journal, « Encaissé » and « Total perçu » read 244,80 € for a real net
+    of 355,20 €, and 46710000 read −7,20 €.*
+37. **The refund dialog's amounts are typed as text and say why they are refused (2026-10-18).** Every
+    « Montant » field is a text field with the decimal keypad (`inputmode="decimal"`), read by the
+    money parser of the fiche (`utils/arithmetic`): « 12,5 » is 12,50 €. On a line refunded by the
+    unit, an amount that is a whole number of units moves the stepper to that count; any other amount
+    hides the stepper behind « Montant libre » — the dialog never shows a fractional quantity (the
+    server still derives the quantity from the amount, rule 28). The line's ceiling shows under its
+    amount from the start (« Max 28,00 € »). The refusal sits on one line right above the save button:
+    « <ligne> : dépasse le remboursable de X € » or « Montant illisible. » (save disabled),
+    « Dépasse l'encaissé de X € » (warning, save still allowed). The server stays the authority on
+    every ceiling. *Why: the final review of 2026-10-18 (UI #1) typed 45 on « Linge de lit » 28 € and
+    the stepper read « 6.43 », the refusal sat in body text far from a greyed button, and a French
+    « 12,5 » typed on desktop was silently dropped by the `type="number"` field.*
 
 ---
 
@@ -386,7 +413,9 @@ Empty state: the block renders with the button only, no total chip, no history l
 1. **Prestations facturées** — one row per refundable line: checkbox, label, `Facturé 72,00 €` /
    `Déjà remboursé 0,00 €`, and an amount field prefilled at the full `refundableTtc`, editable,
    capped client-side as a UX hint (the server is the authority). Options priced per unit also show a
-   quantity stepper that drives the amount (`qty × unitPrice`).
+   quantity stepper that drives the amount (`qty × unitPrice`). *(2026-10-18, rule 37: the amount is
+   a text field accepting « 12,5 », « Max X € » shows under it from the start, and a typed amount that
+   is not a whole number of units shows « Montant libre » instead of the stepper.)*
 2. **Autre ligne** — « + Ajouter une ligne libre » : libellé + montant + catégorie
    (Hébergement / Prestation complémentaire / Activité / Taxe de séjour), default « Prestation
    complémentaire ».
@@ -396,7 +425,9 @@ Empty state: the block renders with the button only, no total chip, no history l
 5. **Motif** (optionnel) — free text, e.g. « Départ anticipé — petits-déjeuners non pris ».
 6. **Total remboursé : −24,00 €** at the bottom, live.
 7. Caption warning (not a block) when the total exceeds what has actually been collected so far:
-   « Ce remboursement dépasse le montant encaissé à ce jour. »
+   « Ce remboursement dépasse le montant encaissé à ce jour. » *(2026-10-18, rule 37: it now reads
+   « Dépasse l'encaissé de X € » on one line right above the save button, where a blocking refusal —
+   « <ligne> : dépasse le remboursable de X € », « Montant illisible. » — shows too.)*
 8. Validation errors from the server (`REFUND_EXCEEDS_LINE` / `REFUND_EXCEEDS_STAY`) surface as an
    `ErrorAlert` inside the dialog, the dialog stays open with the input preserved.
 
@@ -429,6 +460,11 @@ like « Nouvelle note », not a page-level one).
 ## 7. Test plan
 
 ### Server unit tests (38 new — full suite 2421 ✅)
+- [x] `tests/trop-percu-refund-books.unit.test.js` (1) — rule 36: 465,60 € paid, 6 → 2 adults, 409
+      `OVERPAID` 110,40 € (options 96 + taxe 14,40), forced save keeps the paid solde at 465,60 €, the
+      refund of the two lines → journal client account 355,20 €, 46710000 7,20 € with no negative
+      line, « Encaissé » and the stay's total 355,20 €, live quote « Total perçu » 355,20 € and
+      trop-perçu 0, even with a stale 355,20 € solde sent by the browser.
 - [x] `tests/refunds-utils.unit.test.js` — `buildRefundableLines` (accommodation derivation, offered
       lines excluded, `refundedTtc` accumulation, clamp to 0 after a line shrinks), per-key cap,
       global cap, amount/date validation, HT/VAT split incl. `touristTax` at rate 0 (rules 7–14).
@@ -457,6 +493,9 @@ like « Nouvelle note », not a page-level one).
 - [x] `FinanceSection.refunds.test.jsx` — block hidden-when-empty, total, history, delete flow.
 - [x] `RefundDialog.test.jsx` — the tourist-tax line announces its unit and refunds by night.
 - [x] `TouristTaxPage.test.jsx` — the refunded-night annotation, absent when nothing was refunded.
+- [x] `RefundDialog.amount-input.test.jsx` (5) — rule 37: ceiling before typing, 45 € on 28 € → no
+      « 6.43 », « Montant libre », refusal by the button; « 12,5 » sent as 12,50 €; 14 € → stepper 2;
+      « abc » → « Montant illisible. ».
 
 ### Manual UI verification
 - [x] Happy path: the trigger case end-to-end — full payment collected, refund 2 breakfasts by

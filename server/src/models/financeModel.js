@@ -223,15 +223,18 @@ function createFinanceModel(database) {
     if (!(balance > 0) || r.balancePaid || !(r.endDate < today)) return null;
     const dueDate = addDaysToIsoDate(r.endDate, normalizePayoutDueDays(payoutDueDaysOf(r.platform)));
     if (!dueDate || dueDate >= today) return null;
+    // specs/finance-dashboard-redesign.md rule 40 — the platform owes its payout, not what the guest paid it: the solde net of the
+    // platform's commission, the same figure « À encaisser » counts (`remainingToPay`).
+    const payout = round2(Math.max(0, balance - Number(r.platformCommissionAmount || 0)));
     return {
       ...r,
       isOverdue: true,
       depositOverdue: false,
       balanceOverdue: true,
       payoutOverdue: true,
-      overdueAmount: balance,
+      overdueAmount: payout,
       oldestDueDate: dueDate,
-      overdueItems: [{ kind: 'payout', paidField: 'balancePaid', label: `Versement ${platformDisplayName(r.platform)}`, amount: balance, dueDate }],
+      overdueItems: [{ kind: 'payout', paidField: 'balancePaid', label: `Versement ${platformDisplayName(r.platform)}`, amount: payout, dueDate }],
     };
   }
 

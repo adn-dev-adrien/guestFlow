@@ -57,7 +57,8 @@ test('rule 8 — a reservation link is created as a VAT basket named after the s
   assert.equal(sent.length, 1);
   const { items, expectedTotalCents } = sent[0];
   assert.equal(expectedTotalCents, 30720);
-  assert.ok(Array.isArray(items) && items.length === 2, 'two lines: the stay and the tourist tax');
+  // specs/payment-links-vat.md rule 9 — the rounding cent, when there is one, rides on its own line.
+  assert.deepEqual(items.filter((i) => i.title !== 'Ajustement').length, 2, 'two lines: the stay and the tourist tax');
   const stay = items[0];
   assert.match(stay.title, /Gîte/);
   assert.match(stay.title, /202609-014/);

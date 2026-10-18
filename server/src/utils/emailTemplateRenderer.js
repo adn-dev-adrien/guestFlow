@@ -25,7 +25,6 @@
 // Single-level conditional regex — captures: cond name, inner body (may contain {{else}}).
 // Non-greedy match so multiple blocks in the same template are evaluated independently.
 const COND_BLOCK_RE = /\{\{#if\s+([a-zA-Z0-9_]+)\s*\}\}([\s\S]*?)\{\{\/if\}\}/g;
-const VARIABLE_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
 function renderConditionals(text, flags) {
   return String(text || '').replace(COND_BLOCK_RE, (_match, condName, inner) => {
@@ -41,14 +40,23 @@ function renderConditionals(text, flags) {
   });
 }
 
+// specs/email-automation.md rule 19 — an empty name token right before punctuation takes its leading
+// spaces with it: « Bonjour {{clientFirstName}}, » reads « Bonjour, », never « Bonjour , ».
+const NAME_TOKENS = new Set(['clientFirstName', 'clientLastName', 'clientFullName']);
+const LEADING_VARIABLE_RE = /([ \t]*)\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+
 function renderVariables(text, vars, missing) {
-  return String(text || '').replace(VARIABLE_RE, (_match, tokenName) => {
+  return String(text || '').replace(LEADING_VARIABLE_RE, (match, lead, tokenName, offset, whole) => {
+    let value = '';
     if (vars && Object.prototype.hasOwnProperty.call(vars, tokenName)) {
       const v = vars[tokenName];
-      return v == null ? '' : String(v);
+      value = v == null ? '' : String(v);
+    } else if (missing) {
+      missing.add(tokenName);
     }
-    if (missing) missing.add(tokenName);
-    return '';
+    const next = whole.charAt(offset + match.length);
+    if (value === '' && NAME_TOKENS.has(tokenName) && /[,.!?;:]/.test(next)) return '';
+    return lead + value;
   });
 }
 
