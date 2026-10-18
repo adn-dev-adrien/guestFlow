@@ -79,4 +79,23 @@ function splitSharedIcalPlaceholderClients(db) {
   return out;
 }
 
-module.exports = { splitSharedIcalPlaceholderClients };
+/**
+ * Rule 14 — a placeholder the stay no longer uses (an intake moved the stay onto the guest's own client)
+ * is deleted: named « Ical … », no coordinates, no reservation or quote. Runs at every sync.
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @returns {number} deleted clients
+ */
+function removeOrphanIcalPlaceholders(db) {
+  const clientCols = new Set(db.prepare('PRAGMA table_info(clients)').all().map((c) => c.name));
+  if (!clientCols.has('firstName')) return 0;
+  const empty = CONTACT_COLUMNS.filter((c) => clientCols.has(c)).map((c) => `trim(ifnull(${c}, '')) = ''`);
+  return db.prepare(`
+    DELETE FROM clients
+    WHERE firstName = 'Ical'
+      ${empty.length ? `AND ${empty.join(' AND ')}` : ''}
+      AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = clients.id)
+  `).run().changes;
+}
+
+module.exports = { splitSharedIcalPlaceholderClients, removeOrphanIcalPlaceholders };

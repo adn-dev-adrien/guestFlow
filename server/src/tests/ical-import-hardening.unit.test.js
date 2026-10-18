@@ -136,17 +136,21 @@ test('rule 1: a summary that names the guest still reuses that guest’s client'
 test('rule 1 (data): the boot pass splits a shared placeholder per stay, renames it, and logs each move in the history', () => {
   const { db } = fresh();
   db.exec(`
-    INSERT INTO clients (id, firstName, lastName) VALUES (140, 'Closed', 'Not available'), (141, 'Reserved', 'Ical');
+    INSERT INTO clients (id, firstName, lastName) VALUES (140, 'Closed', 'Not available'), (141, 'Reserved', 'Ical'), (142, 'Booked', 'Ical');
     INSERT INTO reservations (id, propertyId, clientId, startDate, endDate, platform, sourceType) VALUES
       (1, 1, 140, '2027-02-05', '2027-02-07', 'Booking', 'ical'),
       (2, 1, 140, '2027-02-26', '2027-02-28', 'Booking', 'ical'),
-      (3, 1, 141, '2027-03-01', '2027-03-03', 'Airbnb', 'ical');
+      (3, 1, 141, '2027-03-01', '2027-03-03', 'Airbnb', 'ical'),
+      (4, 1, 142, '2027-04-01', '2027-04-03', 'Gîtes de France', 'ical'),
+      (5, 1, 142, '2027-05-01', '2027-05-03', 'Gîtes de France', 'ical');
   `);
-  assert.deepEqual(splitSharedIcalPlaceholderClients(db), { splitClients: 1, movedReservations: 1, renamedClients: 2 });
+  assert.deepEqual(splitSharedIcalPlaceholderClients(db), { splitClients: 2, movedReservations: 2, renamedClients: 3 });
   const rows = all(db);
   assert.equal(rows[0].clientId, 140);
   assert.notEqual(rows[1].clientId, 140);
-  assert.deepEqual(rows.map((r) => `${r.firstName} ${r.lastName}`), ['Ical Booking', 'Ical Booking', 'Ical Airbnb']);
+  assert.equal(rows[3].clientId, 142);
+  assert.notEqual(rows[4].clientId, 142);
+  assert.deepEqual(rows.map((r) => `${r.firstName} ${r.lastName}`), ['Ical Booking', 'Ical Booking', 'Ical Airbnb', 'Ical Gîtes de France', 'Ical Gîtes de France']);
   const history = JSON.parse(db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = 2').get().changedFields);
   assert.deepEqual(history[0], { field: 'clientId', label: 'Client', from: 'Closed Not available', to: 'Ical Booking' });
   assert.deepEqual(splitSharedIcalPlaceholderClients(db), { splitClients: 0, movedReservations: 0, renamedClients: 0 }, 'idempotent');
@@ -337,12 +341,83 @@ test('rule 7: a UTC instant is read as a day in Europe/Paris', () => {
 // ---------- rule 8 — placeholder names ----------
 
 test('rule 8: platform words are not a name — « Closed Not available » and « Reserved » fall back to « Ical <platform> »', () => {
-  for (const summary of ['CLOSED - Not available', 'Reserved', 'Réservé', 'Airbnb (Reserved)', 'Reserved Ical']) {
+  for (const summary of ['CLOSED - Not available', 'Reserved', 'Réservé', 'Airbnb (Reserved)', 'Reserved Ical', 'BOOKED', 'Booked Ical']) {
     assert.equal(parseGuestName(summary, '').isFallback, true, summary);
   }
   assert.deepEqual(resolveIcalClientIdentity(parseGuestName('CLOSED - Not available', ''), 'Booking'), { firstName: 'Ical', lastName: 'Booking' });
   assert.deepEqual(parseGuestName('Claire Dupont', ''), { firstName: 'Claire', lastName: 'Dupont', isFallback: false });
   assert.deepEqual(parseGuestName('Closer Reserva', ''), { firstName: 'Closer', lastName: 'Reserva', isFallback: false }, 'whole words only');
+});
+
+test('rule 11: the Gîtes de France « BOOKED » stays get one « Ical Gîtes de France » client each', async () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'GdF', 'http://gdf.test/ical', 'gites-de-france', 'Gîtes de France')").run();
+  stubFeeds({ 'http://gdf.test/ical': ics([
+    { uid: 'g1', start: '20270205', end: '20270207', summary: 'BOOKED' },
+    { uid: 'g2', start: '20270226', end: '20270228', summary: 'BOOKED' },
+  ]) });
+  await model.syncSource(source(db, 1));
+  const [first, second] = all(db);
+  assert.notEqual(first.clientId, second.clientId);
+  assert.deepEqual([first.firstName, first.lastName], ['Ical', 'Gîtes de France']);
+  assert.equal(parseGuestName('Booker Smith', '').isFallback, false, 'whole words only');
+});
+
+// ---------- rule 12 — a repeated UID keeps the stay it was mapped to ----------
+
+test('rule 12: when a known UID starts repeating, its stay stays with the event on its own dates — no move, no drift', async () => {
+  const { db, model } = fresh();
+  stubFeeds({ [AIRBNB.url]: ics([{ uid: 'X', start: '20270120', end: '20270122', summary: 'Jean Dupont' }]) });
+  await model.syncSource(source(db, AIRBNB.id));
+  const r = all(db)[0];
+  db.prepare('UPDATE reservations SET icalSyncLocked = 1 WHERE id = ?').run(r.id);
+  stubFeeds({ [AIRBNB.url]: ics([
+    { uid: 'X', start: '20270110', end: '20270112', summary: 'Jean Dupont' },
+    { uid: 'X', start: '20270120', end: '20270122', summary: 'Jean Dupont' },
+  ]) });
+  const result = await model.syncSource(source(db, AIRBNB.id));
+  const rows = all(db);
+  assert.equal(rows.find((row) => row.id === r.id).startDate, '2027-01-20', 'the known stay keeps its dates');
+  assert.equal(rows.find((row) => row.id === r.id).sourceIcalEventUid, 'X#2027-01-20');
+  assert.deepEqual(rows.map((row) => row.startDate).sort(), ['2027-01-10', '2027-01-20']);
+  assert.equal(result.createdCount, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM ical_date_drift_alerts').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM ical_cancellation_alerts').get().n, 0);
+  assert.deepEqual(db.prepare('SELECT eventUid FROM ical_import_events ORDER BY eventUid').all().map((m) => m.eventUid), ['X#2027-01-10', 'X#2027-01-20']);
+});
+
+// ---------- rule 13 — the conflict flag follows the dates ----------
+
+test('rule 13: a stay moved off the taken nights loses its conflict flag; moved back, it is flagged again', async () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, sourceType) VALUES (1, 1, '2027-03-08', '2027-03-11', 'Direct', 'manual')").run();
+  stubFeeds({ [AIRBNB.url]: ics([{ uid: 'a1', start: '20270309', end: '20270312' }]) });
+  await model.syncSource(source(db, AIRBNB.id));
+  assert.ok(all(db)[1].bookingConflictAt);
+  stubFeeds({ [AIRBNB.url]: ics([{ uid: 'a1', start: '20270409', end: '20270412' }]) });
+  await model.syncSource(source(db, AIRBNB.id));
+  assert.equal(all(db)[1].bookingConflictAt, null);
+  stubFeeds({ [AIRBNB.url]: ics([{ uid: 'a1', start: '20270310', end: '20270313' }]) });
+  const back = await model.syncSource(source(db, AIRBNB.id));
+  assert.ok(all(db)[1].bookingConflictAt);
+  assert.deepEqual(back.movedIntoConflictIds, [all(db)[1].id]);
+});
+
+// ---------- rule 14 — the placeholder an intake left behind ----------
+
+test('rule 14: a placeholder no stay uses any more is deleted at the next sync; a client with coordinates is kept', async () => {
+  const { db, model } = fresh();
+  const feed = ics([{ uid: 'b1', start: '20270205', end: '20270207', summary: 'CLOSED - Not available' }]);
+  stubFeeds({ [BOOKING.url]: feed });
+  await model.syncSource(source(db, BOOKING.id));
+  const placeholder = all(db)[0].clientId;
+  db.exec(`
+    INSERT INTO clients (id, firstName, lastName, email) VALUES (500, 'David', 'Roux', 'd@guest.booking.com'), (501, 'Ical', 'Booking', 'kept@x.fr');
+    UPDATE reservations SET clientId = 500;
+  `);
+  await model.syncSource(source(db, BOOKING.id));
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM clients WHERE id = ?').get(placeholder).n, 0);
+  assert.deepEqual(db.prepare('SELECT id FROM clients ORDER BY id').all().map((c) => c.id), [500, 501]);
 });
 
 // ---------- rule 9 — status line ----------

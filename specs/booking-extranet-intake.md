@@ -198,7 +198,9 @@ automatic e-mails of those stays then went to the wrong guest (review 2026-10-18
     « Appliquer » on a proposal, rule 17) finds the guest's client by e-mail
     (`ctx.core.clients.findOrCreate`, as the Gîtes de France intake does) or creates it, puts its id on
     the fiche (`clientId` in the reservation patch), and refreshes its fields only while no other
-    reservation uses it. The fiche's previous client is left as it was. A fiche whose client is
+    reservation uses it. The fiche's previous client is left as it was (an untouched « Ical Booking »
+    placeholder is deleted by the next iCal sync, `specs/ical-import-hardening.md` rule 14,
+    2026-10-18). A fiche whose client is
     shared with another reservation is untouched in the sense of rule 14 as long as « Paiement
     plateforme » is empty.
 26. **Repairing what was overwritten before rule 25** is the operator's call, helped by a read-only
@@ -230,7 +232,7 @@ Targets **`master`**, on top of `specs/plugin-engine-backport.md`.
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `index.js` | C | `register(ctx)`: migrations, settings (`hotelIds`, `sourceKeys`, secret `key`), routes, data; `clientShared` (rule 25) reads `reservations` through `ctx.db`. |
+| `index.js` | C | `register(ctx)`: migrations, settings (`hotelIds`, secret `key`), routes, data; `clientShared` (rule 25) reads `reservations` through `ctx.db`. |
 | `pageParser.js` | C | Pure: page text → structured booking or typed error (rules 8–11). |
 | `userscript.js` | C | Pure: `(publicUrl, secret)` → the `.user.js` source (rules 2–6). |
 | `intakeService.js` | C | Rules 12–20 and 25: match, plan the writes, apply or propose, onto the guest's own client. |

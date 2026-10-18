@@ -126,7 +126,8 @@ function parseAdultsFromText(summary, description) {
 // specs/ical-import-hardening.md rule 8 — the words a platform puts in SUMMARY instead of a name
 // (« CLOSED - Not available » on every Booking stay, « Reserved » on Airbnb's) say nothing about the guest:
 // a summary made only of them is « no name », and the stay gets the « Ical <platform> » fallback.
-const NOT_A_NAME = /(?<![\p{L}\d])(airbnb|booking|abritel|greengo|direct|reservation|r[eé]servation|r[eé]serv[eé]e?s?|reserved|blocked|bloqu[eé]e?|indisponible|closed|not\s+available|unavailable|ical)(?![\p{L}\d])/giu;
+// « BOOKED » is what the Gîtes de France feed sends for every stay (rule 11).
+const NOT_A_NAME = /(?<![\p{L}\d])(airbnb|booking|booked|abritel|greengo|direct|reservation|r[eé]servation|r[eé]serv[eé]e?s?|reserved|blocked|bloqu[eé]e?|indisponible|closed|not\s+available|unavailable|ical)(?![\p{L}\d])/giu;
 
 function parseGuestName(summary, description) {
   const candidate = String(summary || '').trim() || String(description || '').split('\n')[0].trim();
@@ -259,7 +260,7 @@ function disambiguateRepeatedUids(events) {
   return events.map((e) => {
     const { recurrenceId, ...event } = e;
     if (counts.get(e.uid) < 2) return event;
-    return { ...event, uid: `${e.uid}#${recurrenceId || e.startDate}`, repeatedUid: true };
+    return { ...event, uid: `${e.uid}#${recurrenceId || e.startDate}`, baseUid: e.uid, repeatedUid: true };
   });
 }
 

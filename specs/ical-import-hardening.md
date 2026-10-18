@@ -6,7 +6,7 @@
 | **Branch** | `fix/review-ical-intake` → `inte/plugins` |
 | **Created** | 2026-10-18 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #703 |
 | **Depends on** | `specs/lodgify-decommission.md` (Booking echo filter, rules 5–10), `specs/ical-sync-mapping-resilience.md` (empty-feed guard), `specs/platforms-and-ical-rework.md` (the platforms tab), `specs/booking-extranet-intake.md` rules 25–26 |
 
 ---
@@ -86,14 +86,31 @@ nothing, and the platforms tab says in one short line what the last sync did.
    unchanged.
 8. **Platform words are not a name.** A summary made only of platform words — `airbnb`, `booking`,
    `abritel`, `greengo`, `direct`, `réservation`, `réservé`, `reserved`, `blocked`, `bloqué`,
-   `indisponible`, `closed`, `not available`, `unavailable`, `ical` — is « no name »: the stay's client
-   is « Ical <platform> ». Whole words only (« Closer » stays a name).
+   `indisponible`, `closed`, `not available`, `unavailable`, `ical` (and `booked`, rule 11) — is
+   « no name »: the stay's client is « Ical <platform> ». Whole words only (« Closer » stays a name).
 9. **The status line says when and what changed.** The platforms tab prints the server's `syncStatus`:
    « Synchronisé à 02:05 » (« le 17/10 à 02:05 » on another day), followed by the non-zero changes only
    — nouvelles, modifiées, reprises, annulations à valider, en conflit, sur une fermeture, au même
    identifiant. An error reads « Échec à 02:05 : <message> ». The engine's full sentence is the line's
    tooltip.
 10. **`disabled` is a boolean** in the `/platforms` payload, and the tab never prints it.
+11. **« BOOKED » is not a name either.** The Gîtes de France feed sends `SUMMARY:BOOKED` for every stay:
+    `booked` joins rule 8's words, so each such stay gets its own « Ical Gîtes de France » client, and
+    the boot pass of rule 1 splits the « Booked Ical » client the import shared until then. Whole word
+    only (« Booker » stays a name). *(Added 2026-10-18, second review, Ma1.)*
+12. **A UID that starts repeating keeps its stay on its dates.** When a UID already mapped to a stay
+    appears several times in the feed (rule 6), the stay goes to the event arriving on the stay's
+    mapped arrival date; the other events under that UID never re-claim it through the same-summary
+    match. No move, no drift alert, no duplicate on the stay's own dates. *(Added 2026-10-18, second
+    review, mi1.)*
+13. **The conflict flag follows the dates.** A pristine stay that its feed moves off every taken night
+    loses `bookingConflictAt` (the badge goes); moved back onto taken nights, it is flagged and notified
+    again (rule 3). A locked stay keeps its flag: its dates only move through the drift approval.
+    *(Added 2026-10-18, second review, mi2.)*
+14. **A placeholder nobody uses is deleted.** An intake moves the stay onto the guest's own client
+    (`specs/booking-extranet-intake.md` rule 25, `specs/gites-de-france-mail-intake.md`), leaving the
+    « Ical <platform> » placeholder without a stay. Every sync deletes the clients named « Ical … » with
+    no e-mail, phone, address or note and no reservation or quote. *(Added 2026-10-18, second review.)*
 
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
@@ -101,8 +118,9 @@ nothing, and the platforms tab says in one short line what the last sync did.
   (`specs/ical-sync-mapping-resilience.md` rule 4).
 - A repeated-UID stay mapped before rule 6 is re-claimed by its dates and summary (step ②) or, on
   Booking, by its exact dates; the old mapping is dropped, no duplicate.
-- A client split by rule 1 whose stay is later deleted stays an orphan client; the existing orphan
-  cleanup in « Clients » lists it.
+- A client split by rule 1 whose stay is later deleted is deleted at the next sync (rule 14); one the
+  operator filled stays an orphan client, listed by the existing orphan cleanup in « Clients ».
+  *(2026-10-18 — was « stays an orphan client » before rule 14.)*
 
 ---
 
@@ -117,11 +135,11 @@ nothing, and the platforms tab says in one short line what the last sync did.
 |---|---|---|---|
 | `routes/` | — | — | (none — `/api/properties/:id/ical-sources/:sourceId/sync` and `/platforms` unchanged) |
 | `controllers/` | — | — | (none) |
-| `models/` | `models/propertyIcalModel.js` | T | `fetchFeed(source)` (rules 4–5); `syncSource(source, { prefetched })`; `syncMany(sources)` (rule 4); per-stay placeholder in `getOrCreateIcalClient` (rule 1); overlap stamp on create and on a date move for every feed (rule 3); `repeatedUidCount` (rule 6); `syncOne` refuses an inactive source (rule 2). |
+| `models/` | `models/propertyIcalModel.js` | T | `fetchFeed(source)` (rules 4–5); `syncSource(source, { prefetched })`; `syncMany(sources)` (rule 4); per-stay placeholder in `getOrCreateIcalClient` (rule 1); overlap stamp on create and on a date move for every feed (rule 3), cleared when the move leaves every taken night (rule 13); a repeated UID's former mapping kept by the event on its date (rule 12); orphan placeholders deleted after each sync (rule 14); `repeatedUidCount` (rule 6); `syncOne` refuses an inactive source (rule 2). |
 | `models/` | `models/platformsModel.js` | T | `listForProperty` rows carry `isActive`, `syncStatus`, boolean `disabled` (rules 2, 9, 10). |
-| `utils/` | `utils/icalParser.js` | T | `isCompleteIcs` (rule 5), repeated-UID keys (rule 6), UTC instant in the server zone (rule 7), placeholder words (rule 8). |
+| `utils/` | `utils/icalParser.js` | T | `isCompleteIcs` (rule 5), repeated-UID keys with their `baseUid` (rules 6, 12), UTC instant in the server zone (rule 7), placeholder words (rules 8, 11). |
 | `utils/` | `utils/icalSyncStatus.js` | C | Pure `describeIcalSync(row, { now, timeZone })` → `{ tone, text, detail }` (rule 9). |
-| `utils/` | `utils/icalPlaceholderClientsMigration.js` | C | `splitSharedIcalPlaceholderClients(db)` (rule 1, data side). |
+| `utils/` | `utils/icalPlaceholderClientsMigration.js` | C | `splitSharedIcalPlaceholderClients(db)` (rule 1, data side); `removeOrphanIcalPlaceholders(db)` (rule 14). |
 | `utils/` | `utils/notificationService.js` | T | The `ical` conflict copy names the platform (rule 3). |
 | `scheduledTasks.js` | — | T | `performAutoSync` goes through `syncMany` (rule 4). |
 | `database.js` | — | T | Runs the placeholder split at boot (rule 1). |
@@ -165,7 +183,7 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 
 ## 7. Test plan
 
-### Server unit tests — `server/src/tests/ical-import-hardening.unit.test.js` (16 cases)
+### Server unit tests — `server/src/tests/ical-import-hardening.unit.test.js` (20 cases)
 
 - Rule 1: two nameless Booking stays get two clients; a named guest is still reused; the boot split
   (move, rename, history, idempotence); a client with an e-mail, a real name or a direct stay is never
@@ -179,6 +197,11 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 - Rule 5: truncated feed refused, no cancellation, mappings intact.
 - Rule 6: two stays under one UID both exist and the second pass is unchanged; `RECURRENCE-ID` keys.
 - Rules 7–9: UTC instant in Paris; placeholder words; the status line.
+- Rule 11: two GdF « BOOKED » stays get two clients; the boot split also covers « Booked Ical ».
+- Rule 12: a locked stay mapped under `X`, then `X` twice in the feed → the stay keeps its dates, one
+  new stay, no drift, no cancellation.
+- Rule 13: moved off the taken nights → flag cleared; moved back → flagged and notified again.
+- Rule 14: the placeholder an intake left is deleted at the next sync; a client with an e-mail is kept.
 - Updated: `properties-ical.unit.test.js` (UTC instant now in Paris), `platforms-and-ical-rework.unit.test.js`
   (`disabled: false`), `lodgify-decommission-native-feeds.unit.test.js` (the conflict mail names the
   platform it is given).
@@ -210,3 +233,5 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 ## 10. Implementation progress
 
 - 2026-10-18 — implemented on `fix/review-ical-intake` → `inte/plugins`.
+- 2026-10-18 — second review: rules 11–14 added (GdF « BOOKED », repeated UID keeps its stay, conflict
+  flag cleared, orphan placeholders deleted); 20 server cases.

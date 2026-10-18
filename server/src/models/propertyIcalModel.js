@@ -32,6 +32,7 @@ const icalExportRangesModel = require('./icalExportRangesModel');
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
 const notificationService = require('../utils/notificationService');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
+const { removeOrphanIcalPlaceholders } = require('../utils/icalPlaceholderClientsMigration');
 // Establishment closures (2026-06-06): every iCal event is checked against the
 // closure table BEFORE touching the local reservations table. Until this guard
 // landed, the iCal sync called `INSERT INTO reservations` directly — bypassing
@@ -325,12 +326,13 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
         // generic summary like "Closed Period") and (b) enforce a uniqueness gate over
         // the remaining truly-stale candidates.
         const listSameSourceMappingsBySummary = database.prepare(`
-          SELECT eventUid, reservationId, eventHash
+          SELECT eventUid, reservationId, eventHash, startDate
             FROM ical_import_events
            WHERE sourceId = ? AND summaryNormalized = ?
            ORDER BY datetime(lastSeenAt) DESC
         `);
         const listMappings = database.prepare('SELECT eventUid, reservationId FROM ical_import_events WHERE sourceId = ?');
+        const getMappingWithDates = database.prepare('SELECT eventUid, reservationId, eventHash, startDate FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
         const deleteMapping = database.prepare('DELETE FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
         const upsertMapping = database.prepare(`
           INSERT INTO ical_import_events (sourceId, eventUid, reservationId, eventHash, startDate, endDate, summaryNormalized, lastSeenAt)
@@ -582,6 +584,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
         // `kind` or the conflict column simply has no check.
         let otherStays = null;
         let markConflict = null;
+        let clearConflict = null;
         let isFlagged = null;
         try {
           const cols = database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
@@ -591,6 +594,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
               WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
             `).all(source.propertyId, source.id);
             markConflict = database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ?');
+            clearConflict = database.prepare('UPDATE reservations SET bookingConflictAt = NULL WHERE id = ?');
             isFlagged = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND ifnull(bookingConflictAt, '') != ''");
           }
         } catch { otherStays = null; }
@@ -617,6 +621,13 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
 
         const syncTx = database.transaction((eventList) => {
           const seenUids = new Set(eventList.map((event) => event.uid));
+          // Rule 12 — a repeated UID's former mapping belongs to the event that arrives on its date: the
+          // other events under that UID must not re-claim it through the same-summary heuristic.
+          const repeatedClaims = new Map();
+          eventList.filter((event) => event.repeatedUid).forEach((event) => {
+            const base = getMappingWithDates.get(source.id, event.baseUid);
+            if (base && String(base.startDate) === event.startDate) repeatedClaims.set(event.baseUid, { ...base, claimedBy: event.uid });
+          });
 
           // Auto-resolve any pending cancellation alerts whose UID is back in the feed —
           // the platform un-cancelled the booking, so the alert is moot
@@ -655,6 +666,16 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
             const summaryNormalized = normalizeIcalSummary(event.summary);
             let mapping = getMapping.get(source.id, event.uid);
             let previousUid = event.uid;
+
+            // Rule 12 — the stay mapped under the bare UID before the feed repeated it stays with the event
+            // arriving on the same date.
+            if (!mapping && event.repeatedUid) {
+              const claim = repeatedClaims.get(event.baseUid);
+              if (claim && claim.claimedBy === event.uid) {
+                mapping = { reservationId: Number(claim.reservationId), eventHash: claim.eventHash };
+                previousUid = event.baseUid;
+              }
+            }
 
             // Step ①bis — direct UID match on the reservations table (mapping memory lost).
             if (!mapping) {
@@ -702,7 +723,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
             // (specs/lodgify-decommission.md §3 rule 4bis — the exact-dates re-claim covers Booking).
             if (!mapping && summaryNormalized && !isBookingFeed) {
               const sameSummaryCandidates = listSameSourceMappingsBySummary.all(source.id, summaryNormalized);
-              const staleCandidates = sameSummaryCandidates.filter((c) => !seenUids.has(c.eventUid));
+              const staleCandidates = sameSummaryCandidates.filter((c) => !seenUids.has(c.eventUid) && !repeatedClaims.has(c.eventUid));
               if (staleCandidates.length === 1) {
                 const candidate = staleCandidates[0];
                 mapping = { reservationId: Number(candidate.reservationId), eventHash: candidate.eventHash };
@@ -921,10 +942,17 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
             upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
             // Rule 3 — a date change that lands on nights another stay holds is flagged once.
             const datesMoved = String(mappedReservation.startDate) !== event.startDate || String(mappedReservation.endDate) !== event.endDate;
-            if (datesMoved && markConflict && !isFlagged.get(mapping.reservationId) && overlapsOtherStay(event, mapping.reservationId)) {
-              markConflict.run(new Date().toISOString(), mapping.reservationId);
-              conflictReservationIds.push(Number(mapping.reservationId));
-              movedIntoConflictIds.push(Number(mapping.reservationId));
+            if (datesMoved && markConflict) {
+              const overlaps = overlapsOtherStay(event, mapping.reservationId);
+              const flagged = Boolean(isFlagged.get(mapping.reservationId));
+              if (overlaps && !flagged) {
+                markConflict.run(new Date().toISOString(), mapping.reservationId);
+                conflictReservationIds.push(Number(mapping.reservationId));
+                movedIntoConflictIds.push(Number(mapping.reservationId));
+              } else if (!overlaps && flagged) {
+                // Rule 13 — moved off every taken night: the conflict is over, so is its badge.
+                clearConflict.run(mapping.reservationId);
+              }
             }
             updatedCount += 1;
           }
@@ -975,6 +1003,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
             WHERE NOT EXISTS (SELECT 1 FROM reservations WHERE reservations.clientId = clients.id)
               AND notes LIKE 'iCal {%'
           `).run();
+          removeOrphanIcalPlaceholders(database);
         });
 
         syncTx(events);
