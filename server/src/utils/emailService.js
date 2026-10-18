@@ -7,10 +7,16 @@
 // A hosted instance without its own SMTP sends through the platform (specs/hosting-h1-fleet-runtime.md
 // rules 18–20): From the company's name at the platform's noreply address, Reply-To the company, and
 // at most the day's quota. A configured SMTP always wins — a host typed in Paramètres is « own ».
+//
+// `GUESTFLOW_MAIL_OUTBOX` outside production (utils/mailOutbox.js): whatever this service would send
+// lands in that folder instead — guest emails included (specs/guest-email-texts-made-simple.md
+// rule 26). It changes no answer: an unconfigured SMTP is still refused, so a recette behaves as the
+// real instance would, minus the emails leaving.
 
 const nodemailer = require('nodemailer');
 const { testEmailBody } = require('./emailTemplates');
 const platformMail = require('./platformMail');
+const { outboxDir, writeToOutbox } = require('./mailOutbox');
 
 function createEmailService(settings, {
   transportFactory = nodemailer.createTransport,
@@ -32,8 +38,13 @@ function createEmailService(settings, {
   const isConfigured = platform ? true : Boolean(host) && Boolean(fromEmail) && !passwordDecryptFailed;
 
   let transport = null;
+  const outbox = outboxDir(env);
 
   function getTransport() {
+    if (outbox && isConfigured) {
+      if (!transport) transport = { sendMail: async (message) => ({ messageId: writeToOutbox(outbox, message, now()), outbox: true }) };
+      return transport;
+    }
     if (platform) {
       if (!transport) {
         transport = platform.outbox

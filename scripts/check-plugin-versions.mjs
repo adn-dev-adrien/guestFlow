@@ -16,7 +16,9 @@
  *                                                      # change (a dependency bump); it fails only when the
  *                                                      # sources changed without a bump
  *
- * Every run but `--built` also checks that the host module list only grows (rule 33).
+ * Every run but `--built` also checks that the host module list only grows (rule 33), and that the
+ * core modules a server plugin reaches through `coreModule()` lose nothing unless the SDK's major
+ * version moves (rule 35).
  *
  * "Changed" means a file of `server/src/plugins/<id>/` or `client/src/plugins/<id>/` differs from the
  * previous tag, tests excepted (a test changes no package). The previous tag is the newest `v*` tag
@@ -36,6 +38,8 @@ const SERVER_PLUGINS = 'server/src/plugins';
 const CLIENT_PLUGINS = 'client/src/plugins';
 const HOST_DIRS = new Set(['sdk']);
 const HOST_JSON = 'client/src/plugins/hostModules.json';
+const CORE_JSON = 'server/src/plugins/sdk/coreModules.json';
+const SDK_VERSION_FILE = 'server/src/plugins/sdk/version.js';
 
 const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 
@@ -83,6 +87,17 @@ export function hostRemovals(before, after) {
   }
   return removed;
 }
+
+/**
+ * Rule 35 — what `coreModules.json` lost, when the SDK major did not move. → ['module', 'module#name']
+ */
+export function coreRemovals(before, after, { sdkBefore = null, sdkAfter = null } = {}) {
+  const major = (v) => String(v || '').split('.')[0];
+  if (sdkBefore && sdkAfter && major(sdkBefore) !== major(sdkAfter)) return [];
+  return hostRemovals(before, after);
+}
+
+const sdkVersionOf = (source) => ((String(source || '').match(/SDK_VERSION\s*=\s*'([^']+)'/) || [])[1] || null);
 
 // id → { version, contentHash } of the `.tgz` packages in `dir` (their manifest only).
 function packagesIn(dir) {
@@ -205,6 +220,18 @@ function main() {
   if (removals.length) {
     process.stderr.write(`✗ client/src/plugins/hostModules.json lost since ${base}: ${removals.join(', ')}.\n`
       + '  A plugin already published may need them: the list only grows.\n');
+    return 1;
+  }
+  let coreBefore = null;
+  let sdkBefore = null;
+  try { coreBefore = JSON.parse(git(['show', `${base}:${CORE_JSON}`])); } catch { coreBefore = null; }
+  try { sdkBefore = sdkVersionOf(git(['show', `${base}:${SDK_VERSION_FILE}`])); } catch { sdkBefore = null; }
+  const coreLost = coreBefore ? coreRemovals(coreBefore, JSON.parse(fs.readFileSync(path.join(ROOT, CORE_JSON), 'utf8')), {
+    sdkBefore, sdkAfter: sdkVersionOf(fs.readFileSync(path.join(ROOT, SDK_VERSION_FILE), 'utf8')),
+  }) : [];
+  if (coreLost.length) {
+    process.stderr.write(`✗ ${CORE_JSON} lost since ${base}: ${coreLost.join(', ')}.\n`
+      + '  A published plugin may call them: keep them, or raise the SDK major version (server/src/plugins/sdk/version.js).\n');
     return 1;
   }
   if (violations.length || undocumented.length) {

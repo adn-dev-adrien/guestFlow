@@ -43,13 +43,15 @@ function publicRouter({ secret, handlePage, perMinute = REQUESTS_PER_MINUTE, log
   return router;
 }
 
-function adminRouter({ service, pending, dismissFiche, intakeLog, userscript, regenerateSecret }) {
+function adminRouter({ service, pending, dismissFiche, intakeLog, userscript, createSecret, regenerateSecret }) {
   const router = express.Router();
+  // A read: it never creates the secret (rule 25).
   router.get('/userscript.user.js', (req, res) => {
     const built = userscript();
     if (!built.ok) return res.status(409).json({ error: built.error });
     res.type('text/javascript; charset=utf-8').send(built.source);
   });
+  router.post('/secret', (req, res) => res.json(createSecret()));
   router.post('/secret/regenerate', (req, res) => { regenerateSecret(); res.json({ ok: true }); });
   router.get('/pending', (req, res) => res.json(pending()));
   router.post('/pending/:reservationId/dismiss', (req, res) => { dismissFiche(Number(req.params.reservationId)); res.json({ ok: true }); });

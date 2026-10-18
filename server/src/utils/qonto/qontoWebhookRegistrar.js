@@ -14,10 +14,9 @@
 
 const crypto = require('crypto');
 
-// The instance's settings are resolved on first use only: the control plane (control-plane/) requires
-// this module with its own settings store and never registers the plugin
-// (specs/control-plane-plans-and-access.md rule 32, specs/plugins-phase-3a-online-payment.md rule 13).
-const guestflowSettings = () => require('../settingsStore').current();
+// Shared by the instance's online-payment plugin and the control plane, each with its own settings store
+// (specs/plugins-phase-3a-online-payment.md rule 22): the caller always hands it in.
+const guestflowSettings = () => { throw new Error('[qonto] a settings store is required'); };
 const { resolveQontoConfig } = require('./qontoConfig');
 const { withQonto, recordQontoFailure } = require('./qontoService');
 

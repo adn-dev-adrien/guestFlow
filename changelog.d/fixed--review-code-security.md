@@ -1,0 +1,5 @@
+- **Support access:** a support session can no longer download the Booking userscript (it carries the secret in clear), create or regenerate that secret, read the gate connector's keys, or rotate a property's iCal export token; plugins declare such routes with `ctx.secretRoutes` (specs/hosting-h2-account-security.md rule 23).
+- **Sign-in:** revoking a user's sessions (deactivation, password reset, role change) also ends a session waiting for that user's second step, and the second step refuses a user deactivated after the password (specs/security-auth-encryption.md rule 3).
+- **Today:** the Dashboard and the Planning open on the server's date (Europe/Paris) instead of the browser's UTC date, which was the previous day between midnight and 2 a.m. (specs/ds-sweep-planning.md rule 28).
+- **Dashboard:** an accountant's dashboard no longer calls the admin-only email readiness and gets no 403.
+- plugin:booking-intake The secret is created by « Créer le secret »; serving the script never creates one (specs/booking-extranet-intake.md rules 25–26).

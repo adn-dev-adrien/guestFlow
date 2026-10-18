@@ -11,7 +11,10 @@
  * - rule 18: any write under `/api/users`, and the settings that hold credentials or secrets — the
  *   SMTP group, a plugin setting declared `secret`, the Google and Qonto OAuth connections (any
  *   method), the Qonto and Neat credentials, the gate connector's secrets (a read: they come back in
- *   clear), and uninstalling or turning off a plugin.
+ *   clear), and uninstalling or turning off a plugin;
+ * - rule 23: every route a plugin declares with `ctx.secretRoutes` — it hands out, creates or rotates a
+ *   secret (the Booking userscript and its key, the gate connector's keys) — and rotating a property's
+ *   iCal export token.
  */
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -27,13 +30,20 @@ const hasAnyKey = (obj, keys) => Boolean(obj && typeof obj === 'object' && keys.
 
 const NEAT_CREDENTIAL_KEYS = ['clientId', 'clientSecret', 'environment'];
 
+function defaultIsSecretRoute(method, path) {
+  // Express answers a HEAD with the GET handler.
+  const verb = String(method || '').toUpperCase() === 'HEAD' ? 'GET' : String(method || '').toUpperCase();
+  return require('../plugins/sdk/registry').all().some((record) => (record.secretRoutes || [])
+    .some((e) => (e.method === '*' || e.method.toUpperCase() === verb) && e.re.test(path)));
+}
+
 function defaultIsSecretSetting(pluginId, key) {
   const record = require('../plugins/sdk/registry').get(pluginId);
   return Boolean(record && record.settings.some((s) => s.key === key && s.secret));
 }
 
 // → 'account' (rule 15: the access itself and the borrowed account), 'credentials' (rule 18), or null.
-function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = defaultIsSecretSetting } = {}) {
+function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = defaultIsSecretSetting, isSecretRoute = defaultIsSecretRoute } = {}) {
   const path = normalizePath(rawPath);
   const read = isRead(method);
 
@@ -55,6 +65,9 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   if (under(path, '/google-calendar/oauth')) return 'credentials';
   if (['/payments/qonto/authorize', '/payments/qonto/callback', '/payments/qonto/refresh-connection'].includes(path)) return 'credentials';
   if (under(path, '/settings/gate-connector/secrets')) return 'credentials';
+  if (isSecretRoute(method, path)) return 'credentials';
+  // Rotating a property's iCal export token breaks the feed every platform imports.
+  if (/^\/ical\/regenerate-token\/[^/]+$/.test(path) && !read) return 'credentials';
   // Uninstalling or turning off a plugin erases or strands its stored credentials.
   if (/^\/plugins\/[^/]+(\/deactivate)?$/.test(path) && (method === 'DELETE' || /\/deactivate$/.test(path)) && !read) return 'credentials';
   if (path === '/google-calendar/calendar' && !read) return 'credentials';

@@ -5,8 +5,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { freshSettings } = require('./qontoSettingsFixture');
-const { qontoCredentialsPayload, applyQontoCredentials } = require('../qonto/qontoService');
-const { resolveQontoConfig } = require('../qonto/qontoConfig');
+const { qontoCredentialsPayload, applyQontoCredentials } = require('../../../utils/qonto/qontoService');
+const { resolveQontoConfig } = require('../../../utils/qonto/qontoConfig');
 
 // Rule 1 — the whole point: rotating a secret must not need a file edit or a restart. Storing it
 // and resolving it are the same act, so the next call to Qonto already uses the new value.
@@ -104,7 +104,7 @@ test('rule 7: the payload shows the core public site origin, and the form no lon
 
 // Rule 16 — these settings hang under /api/payments/**, which the session guard already covers.
 test('rule 16: the credential routes are declared under the guarded /api/payments router', () => {
-  const { mountQontoSettingsRoutes, createQontoSettingsController } = require('../qontoSettingsController');
+  const { mountQontoSettingsRoutes, createQontoSettingsController } = require('../../../utils/qonto/qontoSettingsController');
   const router = mountQontoSettingsRoutes(require('express').Router(), createQontoSettingsController({ settings: freshSettings().settings }));
   const routes = router.stack
     .filter((layer) => layer.route)

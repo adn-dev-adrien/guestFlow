@@ -8,8 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const { resolveRetryOptions, parseRetryAfterMs, retryDelayMs, RETRY_DEFAULTS } = require('../qonto/httpRetry');
-const { buildQontoClient } = require('../qonto/qontoClient');
+const { resolveRetryOptions, parseRetryAfterMs, retryDelayMs, RETRY_DEFAULTS } = require('../../../utils/qonto/httpRetry');
+const { buildQontoClient } = require('../../../utils/qonto/qontoClient');
 const paymentLinksModel = require('../../../models/paymentLinksModel');
 const devisModel = require('../../../models/devisModel');
 const { runPaymentPoll } = require('../../../utils/paymentPollRunner');

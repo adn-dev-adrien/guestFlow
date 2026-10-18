@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { freshSettings } = require('./qontoSettingsFixture');
-const { withQonto, recordQontoSuccess, recordQontoFailure } = require('../qonto/qontoService');
+const { withQonto, recordQontoSuccess, recordQontoFailure } = require('../../../utils/qonto/qontoService');
 
 function connected(settings) {
   settings.storeQontoCredentials({ clientId: 'cid', clientSecret: 'sec' });

@@ -167,6 +167,18 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     slug: `GUESTFLOW_SLUG` when the hosting sets it, else the slug of the verified licence (the
     console's provisioning does not set `GUESTFLOW_SLUG`). An instance that can tell neither accepts
     nothing.
+23. **A route that hands out, creates or rotates a secret is refused to a support session** (added
+    2026-10-18, code review M2). A plugin declares such routes with `ctx.secretRoutes([{ method, re }])`
+    (method `'*'` for any; `re` on the lower-case path below `/api`, like `ctx.roleAccess`), and the
+    guard refuses them with rule 18's « Identifiants et accès réservés au client. », whatever the case
+    or a trailing slash. Declared today: the Booking userscript and its secret
+    (`GET /api/booking-intake/userscript.user.js`, `POST /api/booking-intake/secret`,
+    `POST …/secret/regenerate`, `specs/booking-extranet-intake.md` rule 26) and the gate connector's
+    keys (`GET /api/settings/gate-connector/secrets`). The core also refuses rotating a property's iCal
+    export token (`POST /api/ical/regenerate-token/:id`), which breaks the feed every platform imports.
+    Audit of the other plugins on that date: the Météo-France key is a setting declared `secret`
+    (rule 18), the Google, Qonto and Neat credentials are already refused, the website's
+    `PUBLIC_API_KEY` is never returned by any route.
 
 **Implementation choices (2026-10-08, the recommended options, see the summary page):**
 - **The channel.** The console signs the request with the licence key and writes it to
@@ -327,6 +339,9 @@ See the summary page. Mobile:
   minute, the worded log, the support account's flag and locks, `reset-admin.js` after
   `create-first-admin.js`, the slug from the licence, the forgotten password answering before any
   lookup, the bounded counters.
+- 2026-10-18 (code review): `ctx.secretRoutes` and the iCal token rotation refused to a support
+  session (rule 23) — `hosting-h2-support-secret-routes.unit.test.js`, and booking-intake's
+  `secret-lifecycle.unit.test.js`.
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).
