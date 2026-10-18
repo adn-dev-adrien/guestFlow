@@ -144,7 +144,7 @@ test('rule 11 — pluginHealth says which version loaded, and whether it failed'
   assert.deepEqual(host.pluginHealth('linen', ok), { id: 'linen', version: null, ok: false });
 });
 
-test('rules 11, 33 — /api/version answers the plugin only to the console: its secret header, or loopback without a secret', () => {
+test('rules 11, 33, 34 — /api/version answers the plugin only to the console: its secret header, never without a secret', () => {
   const { buildVersionHandler } = require('../controllers/versionController');
   const call = (handler, { plugin = 'linen', headers = {}, remoteAddress = '203.0.113.9' } = {}) => {
     let body;
@@ -160,6 +160,10 @@ test('rules 11, 33 — /api/version answers the plugin only to the console: its 
   assert.deepEqual(call(hosted, { headers: { 'x-guestflow-health': 's3cret' } }).plugin, { id: 'linen', version: '1.0.0', ok: true });
   const selfHosted = buildVersionHandler(deps);
   assert.equal('plugin' in call(selfHosted), false);
-  assert.equal(call(selfHosted, { remoteAddress: '::1' }).plugin.version, '1.0.0');
+  for (const remoteAddress of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) {
+    assert.equal('plugin' in call(selfHosted, { remoteAddress }), false, `rule 34: a proxy on the machine makes every visitor ${remoteAddress}`);
+  }
+  assert.equal('plugin' in call(selfHosted, { headers: { 'x-guestflow-health': '' } }), false, 'an empty header matches no secret');
+  assert.equal(call(selfHosted, { remoteAddress: '::1' }).startedAt, 't', 'the restart probe still reads startedAt');
   assert.equal('plugin' in call(hosted, { plugin: '../x', headers: { 'x-guestflow-health': 's3cret' } }), false);
 });

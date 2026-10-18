@@ -21,7 +21,7 @@
 
 const { templateAutoSends } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
-const { isoToday } = require('../utils/emailAutoSendRunner');
+const { todayIso } = require('../utils/localDate');
 const { PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
 const { templateWhenLabel } = require('../utils/templateWhen');
 const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
@@ -82,7 +82,7 @@ function validateForUpdate(payload) {
  * @param {{ scheduler?: { syncWithTemplates: Function }, today?: () => string }} deps
  */
 function buildController(model, settingsModel, deps = {}) {
-  const today = deps.today || (() => isoToday());
+  const today = deps.today || todayIso;
   const isLive = deps.isLive || ((id) => require('../plugins/sdk/registry').isLive(id));
   const editorTokens = deps.editorTokens || (() => require('../plugins/sdk/eventBus').editorTokens());
   // A template only an inactive plugin could send is not listed (specs/plugins-phase-1-sdk.md rule 13).

@@ -15,7 +15,7 @@
  * we don't retry a missed push forever).
  */
 
-const { isoToday } = require('./emailAutoSendRunner');
+const { localIsoDate } = require('./localDate');
 
 function hhmm(date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -37,7 +37,7 @@ function clientName(r) {
 async function runArrivalDeparturePush({
   reservationsModel, pushService, now = new Date(), firstRun = false, logger = console, isSasLive = defaultIsSasLive,
 } = {}) {
-  const today = isoToday(now);
+  const today = localIsoDate(now);
   const nowHHMM = hhmm(now);
   let sent = 0;
   let stamped = 0;

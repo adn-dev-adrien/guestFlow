@@ -600,6 +600,19 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     paiement », rule 7), the state is `active` at once, the countdown runs to the paid end date, and
     the licence the instance reads no longer says « essai ». The payment dialog says « l'essai
     s'arrête : la période part d'aujourd'hui ». Outside the trial, rule 15 is unchanged.
+36. **A write reaches the console only from its own pages** (added 2026-10-18, final code review,
+    low 6). Every `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` (or, failing it, `Referer`) names another
+    host — an instance on `<slug>.<domain>` included, which `SameSite=Lax` treats as same-site — is
+    refused 403 `CROSS_ORIGIN`, before the session is read. It is the instance's own gate
+    (`server/src/middleware/sameOriginWrites.js`, plugins-phase-4-registry rule 31), shared through
+    `utils/gf.js`. The console's exemptions:
+    - Qonto's webhook (`POST /api/payments/qonto/webhook`): server to server and signed (rule 32);
+    - a request with neither `Origin` nor `Referer` is not a browser's (scripts, the registry upload
+      tool, tests): it passes, and the operator session still applies;
+    - the login page on `app.<domain>` posts to itself, so its forms are same-origin; a page elsewhere
+      cannot post to it.
+    *Why:* a page on an instance could otherwise post body-less actions such as « Réinitialiser
+    l'accès » (which also turns off the second step) with the operator's cookie.
 
 ## 4. Architecture
 
@@ -942,6 +955,10 @@ each plan. The C2a console screens have their own mock
 
 ### Server unit tests
 
+- **Final code review (2026-10-18): `console-same-origin.unit.test.js`, 3 tests** (rule 36): a
+  signed-in operator's write from another host (an instance's included, `Origin` or `Referer`) is
+  refused 403 `CROSS_ORIGIN`, reads and the console's own origin pass; the login from another host
+  mails no code; Qonto's webhook and a request without `Origin`/`Referer` are exempt.
 - **Control plane (C2a, implemented): `control-plane/server/src/tests/`, 48 tests** (`node --test`,
   one file per subject, fixtures in `helpers.js`: an in-memory database, a temporary instances root,
   a throwaway key pair, a clock the test moves, a recording mailer).

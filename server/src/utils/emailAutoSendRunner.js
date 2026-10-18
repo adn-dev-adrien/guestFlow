@@ -22,14 +22,7 @@ const reservationsModel = require('../models/reservationsModel');
 const { registerDirectChannelSql } = require('./platformNameFormat');
 const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
-
-function isoToday(now = new Date()) {
-  // Use the server's local date — same locale the cron fires at 08:00 of.
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+const { todayIso } = require('./localDate');
 
 /**
  * @param {{ database, templatesModel, logModel, settingsModel, emailServiceFactory,
@@ -37,7 +30,7 @@ function isoToday(now = new Date()) {
  */
 async function performAutoEmailPass(deps) {
   const { database, templatesModel, logModel, settingsModel, emailServiceFactory } = deps;
-  const today = deps.today || isoToday();
+  const today = deps.today || todayIso();
 
   // 0. No template in « auto » mode (specs/settings-rationalization.md rule 17b) → this pass is a
   // no-op: nothing is listed, nothing is rendered, no SMTP connection is opened and no `email_log`
@@ -246,5 +239,4 @@ async function performAutoEmailPass(deps) {
 
 module.exports = {
   performAutoEmailPass,
-  isoToday,
 };
