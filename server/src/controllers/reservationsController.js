@@ -64,6 +64,7 @@ function gateInsurance(res, engineInput, bookingId) {
 }
 const refundsModel = require('../models/refundsModel');
 const { overpaymentOf } = require('../utils/overpayment');
+const { firstSessionConflict, conflictError: sessionConflictError } = require('../utils/resourceSessionConflicts');
 const { formatCurrency } = require('../utils/devisHelpers');
 const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
@@ -310,6 +311,17 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
     model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType);
   }
   return null;
+}
+
+// specs/plugins-phase-3c-hourly-resources.md rule 30 — sessions of the stay that use a resource more
+// times at once than it exists are refused (409 `SESSIONS_OVERLAP`). Answers and returns false.
+function refuseSessionConflict(res, resources) {
+  const conflict = firstSessionConflict(resources, (resourceId) => {
+    try { return (db.prepare('SELECT quantity FROM resources WHERE id = ?').get(resourceId) || {}).quantity; } catch { return 1; }
+  });
+  if (!conflict) return true;
+  res.status(409).json(sessionConflictError(conflict));
+  return false;
 }
 
 // specs/reservation-refunds.md rule 34 — a save that brings the stay below what the guest already paid
@@ -881,6 +893,7 @@ function create(req, res) {
     ...scheduleQuoteInputs(0),
   };
   if (!gateInsurance(res, engineInput, 0)) return;
+  if (!refuseSessionConflict(res, engineInput.selectedResources)) return;
   let quote = calculateReservationQuote(engineInput);
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): cache only — the
   // preview warmed it, so the save bills what the preview announced.
@@ -1155,6 +1168,7 @@ function applyUpdate(req, res, pastUnlocked) {
     ...scheduleQuoteInputs(id),
   };
   if (!gateInsurance(res, engineInput, Number(id))) return;
+  if (!refuseSessionConflict(res, engineInput.selectedResources)) return;
   req.body.options = engineInput.selectedOptions;
   let quote = calculateReservationQuote(engineInput);
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): same as the preview.

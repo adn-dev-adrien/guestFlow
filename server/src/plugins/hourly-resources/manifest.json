@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -21,6 +21,10 @@
     "1.0.1": [
       "Le planning des ressources ne transmet plus à l’accueil les prix, le téléphone ni les notes des clients.",
       "Le planning des ressources refuse une période de plus de 750 jours."
+    ],
+    "1.0.2": [
+      "« Ajouter une séance » propose le premier créneau libre du séjour, à partir de l’heure d’arrivée le premier jour.",
+      "Les créneaux avant l’arrivée et après le départ sont grisés dans le sélecteur de séances."
     ]
   }
 }
