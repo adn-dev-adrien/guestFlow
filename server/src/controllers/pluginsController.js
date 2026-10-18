@@ -489,7 +489,8 @@ function createController(model = defaultModel, deps = {}) {
       const ids = pluginsOfPage(req.query && req.query.path);
       if (!ids.length) return res.json({ plugins: [], message: null });
       const plugins = ids.map((id) => view(findPlugin(id))).map((p) => ({ id: p.id, name: p.name, state: p.state }));
-      const names = plugins.map((p) => `« ${p.name} »`);
+      // Non-breaking spaces: a closing « » » never starts a line on its own.
+      const names = plugins.map((p) => `«\u00a0${p.name}\u00a0»`);
       const message = names.length === 1
         ? `Cette page dépend du plugin ${names[0]}, qui n’est pas activé.`
         : 'Cette page dépend de plugins qui ne sont pas activés.';

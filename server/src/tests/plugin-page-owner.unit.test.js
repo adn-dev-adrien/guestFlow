@@ -44,7 +44,7 @@ test('rule 40: the answer carries the plugin name, its state and the sentence to
   const { db, ctrl } = controller();
   const one = ask(ctrl, '/comptabilite');
   assert.deepEqual(one.plugins.map((p) => [p.id, p.state]), [['accounting-export', 'available']]);
-  assert.equal(one.message, 'Cette page dépend du plugin « Export comptable », qui n’est pas activé.');
+  assert.equal(one.message, 'Cette page dépend du plugin «\u00a0Export comptable\u00a0», qui n’est pas activé.');
   const many = ask(ctrl, '/settings/integrations');
   assert.equal(many.plugins.length, 7);
   assert.equal(many.message, 'Cette page dépend de plugins qui ne sont pas activés.');

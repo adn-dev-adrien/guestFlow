@@ -363,7 +363,8 @@ Decisions taken on 2026-10-06:
     Quitter sans enregistrer ? »…). Technical words leave the main text: « Serveur d'envoi »,
     « Identifiant du serveur » and « Mot de passe du serveur » replace the SMTP labels, and the
     security mode (STARTTLS, TLS) is folded under « Avancé », closed at first; the Qonto help names
-    the portal's section, not its header name; « Clé Météo-France » drops « API ». « URL de l'API
+    « le portail développeur de Qonto », not a menu path or a header name (its health hints too);
+    « Clé Météo-France » drops « API ». « URL de l'API
     GuestFlow » and « Clé d'API » stay, because they are the names of the WordPress fields they
     are pasted into. The guest-facing emails keep their « vous ».
     _Owner action, not code (n-5):_ Solio's stored J-7 subject reads « Plus qu'une semaine avant
