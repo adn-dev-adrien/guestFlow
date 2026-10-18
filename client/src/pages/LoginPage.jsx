@@ -23,7 +23,7 @@ import api from '../api';
  * rule 7); « Mot de passe oublié ? » shows when the instance can send the link (rule 5).
  */
 const REASONS = {
-  'password-changed': { severity: 'success', text: 'Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe.' },
+  'password-changed': { severity: 'success', text: 'Mot de passe modifié. Connexion avec le nouveau mot de passe.' },
   'support-link': { severity: 'error', text: 'Lien support invalide ou expiré.' },
 };
 
@@ -33,6 +33,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const loginHint = searchParams.get('login_hint') || '';
   const [email, setEmail] = useState(loginHint);
+  useEffect(() => { if (loginHint) setEmail(loginHint); }, [loginHint]);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

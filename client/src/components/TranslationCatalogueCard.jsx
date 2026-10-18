@@ -94,8 +94,8 @@ export default function TranslationCatalogueCard() {
                 <Typography variant="body2" color="text.secondary">{counts()}</Typography>
               </Tooltip>
               <Typography variant="body2" color="text.secondary">
-                Les traductions se font dans un fichier : télécharge-le, remplis les colonnes de
-                langue, renvoie-le. Pour ajouter une langue, ajoute simplement sa colonne.
+                Traductions dans un fichier : le télécharger, remplir les colonnes de langue, le
+                renvoyer. Une colonne de plus ajoute une langue.
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
                 <Button

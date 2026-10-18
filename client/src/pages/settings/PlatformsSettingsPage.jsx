@@ -59,7 +59,7 @@ function changedRows(draft, saved) {
 export default function PlatformsSettingsPage() {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
   const { showSuccess, showError } = useToast();
   const [saved, setSaved] = useState(null);
   const [draft, setDraft] = useState(null);

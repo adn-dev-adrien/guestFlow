@@ -142,7 +142,7 @@ export default function TwoFactorSection({ account }) {
                 <ToggleButton value="email" disabled={!status.emailAvailable} sx={{ minHeight: 44, textTransform: 'none' }}>Code par email</ToggleButton>
               </ToggleButtonGroup>
               <PasswordField
-                label="Mot de passe actuel"
+                label="Mot de passe (confirmation)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -203,7 +203,7 @@ export default function TwoFactorSection({ account }) {
           {passwordDialog === 'codes' && <Typography variant="body2">Les anciens codes ne marcheront plus.</Typography>}
           {dialogError && <Alert severity="error">{dialogError}</Alert>}
           <PasswordField
-            label="Mot de passe actuel"
+            label="Mot de passe (confirmation)"
             value={dialogPassword}
             onChange={(e) => setDialogPassword(e.target.value)}
             autoComplete="current-password"

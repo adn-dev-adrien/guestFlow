@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
-  Alert, Box, Checkbox, Chip, FormControlLabel, Link, Stack, TextField, Typography,
+  Alert, Box, Button, Checkbox, Chip, Collapse, FormControlLabel, Link, Stack, TextField, Typography,
 } from '@mui/material';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
@@ -41,6 +41,7 @@ export default function OnboardingPage() {
   const [property, setProperty] = useState(EMPTY_PROPERTY);
   const [capacityTouched, setCapacityTouched] = useState(false);
   const [plugins, setPlugins] = useState([]);
+  const [showMore, setShowMore] = useState(false);
   const [picked, setPicked] = useState({});
   const [emails, setEmails] = useState(null);
   const [emailDraft, setEmailDraft] = useState({});
@@ -179,6 +180,20 @@ export default function OnboardingPage() {
   if (loadError) return <Box sx={{ p: 3 }}><ErrorAlert message="Impossible de charger l’assistant." onRetry={() => window.location.reload()} /></Box>;
 
   const active = plugins.filter((p) => picked[p.id] && p.allowed);
+  const renderPlugin = (p) => (
+    <Box key={p.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, py: 1, opacity: p.allowed ? 1 : 0.6 }}>
+      <FormControlLabel
+        control={<Checkbox checked={Boolean(picked[p.id]) && p.allowed} disabled={!p.allowed} onChange={(e) => setPicked((prev) => ({ ...prev, [p.id]: e.target.checked }))} />}
+        label={(
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.label}</Typography>
+            <Typography variant="caption" color="text.secondary">{p.description}</Typography>
+            {!p.allowed && p.plan && <Box><Chip size="small" label={p.plan} sx={{ mt: 0.5 }} /></Box>}
+          </Box>
+        )}
+      />
+    </Box>
+  );
 
   return (
     <StepperPage
@@ -236,20 +251,22 @@ export default function OnboardingPage() {
 
       {step === 3 && (
         <Stack spacing={1}>
-          {plugins.map((p) => (
-            <Box key={p.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, py: 1, opacity: p.allowed ? 1 : 0.6 }}>
-              <FormControlLabel
-                control={<Checkbox checked={Boolean(picked[p.id]) && p.allowed} disabled={!p.allowed} onChange={(e) => setPicked((prev) => ({ ...prev, [p.id]: e.target.checked }))} />}
-                label={(
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.label}</Typography>
-                    <Typography variant="caption" color="text.secondary">{p.description}</Typography>
-                    {!p.allowed && p.plan && <Box><Chip size="small" label={p.plan} sx={{ mt: 0.5 }} /></Box>}
-                  </Box>
-                )}
-              />
-            </Box>
-          ))}
+          {plugins.filter((p) => !p.more).map(renderPlugin)}
+          {plugins.some((p) => p.more) && (
+            <>
+              <Button
+                variant="text"
+                onClick={() => setShowMore((v) => !v)}
+                aria-expanded={showMore}
+                sx={{ alignSelf: 'flex-start', minHeight: 44 }}
+              >
+                {`Pour aller plus loin (${plugins.filter((p) => p.more).length})`}
+              </Button>
+              <Collapse in={showMore} unmountOnExit>
+                <Stack spacing={1}>{plugins.filter((p) => p.more).map(renderPlugin)}</Stack>
+              </Collapse>
+            </>
+          )}
         </Stack>
       )}
 

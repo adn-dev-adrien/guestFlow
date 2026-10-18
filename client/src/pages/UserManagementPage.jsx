@@ -60,7 +60,7 @@ function fullName(user) {
 
 export default function UserManagementPage() {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
   const { user: me } = useAuth();
   const isAdmin = userHasRole(me, ADMIN);
 

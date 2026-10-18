@@ -208,6 +208,9 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     another browser.
 25. **The method picker fits a phone.** « Appli d'authentification » / « Code par email » stack in one
     full-width column below 600 px and sit on one row above, in sentence case.
+26. **One « Mot de passe actuel » per page.** « Mon compte » shows it on the password card; the
+    « Second code » card asks for the same password as « Mot de passe (confirmation) », so the two
+    fields are never read as two different passwords.
 
 ---
 

@@ -8,3 +8,6 @@
 - plugin:gate-access Intégrations labels in French, no server path shown.
 - plugin:google-calendar One short line when the Google connection is not available on the installation, no variable name or server path.
 - plugin:weather-alerts The address it uses is named after Paramètres › Établissement.
+- **English emails write amounts the English way** (spec `email-language-fr-en.md` rule 8): « Stay amount: €963.39 », « deposit cheque of €400.00 », like the « €8 per person » of the stay texts, instead of « 963,39 € » beside them. French emails are unchanged.
+- **First login and setup pages** (spec `plugins-phase-p-productisation.md` rules 33–36): after the forced first password change, the login says « Mot de passe modifié » with the email filled in; « Fermetures » keeps a title and a whole « Aucune fermeture configurée. » on a phone; Plateformes and Utilisateurs switch to cards below 1200 px so no column hides in an inner scroll; the assistant's « Plugins » step folds the extra plugins under « Pour aller plus loin ».
+- « Mon compte » no longer shows two « Mot de passe actuel » fields: the « Second code » card asks for « Mot de passe (confirmation) » (spec `hosting-h2-account-security.md` rule 26). Système › Traductions explains the file impersonally.

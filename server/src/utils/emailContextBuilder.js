@@ -121,6 +121,9 @@ function buildContext({ reservation, client, property, options = [], resources =
   // specs/email-language-fr-en.md §3 rule 4 — every composed string below is emitted in `lang`.
   const L = normaliseLang(lang);
   const isEn = L === 'en';
+  // An English email writes every amount the English way, « €963.39 », like the prices of its stay
+  // texts (« €8 per person »), never « 963,39 € » beside them (specs/email-language-fr-en.md rule 8).
+  const money = (n) => (isEn ? `€${Number(n || 0).toFixed(2)}` : formatCurrency(n));
   // Localised catalog names (specs/email-client-language-and-fiche-polish.md §3 rule 4): in English use
   // the option/resource English name, falling back to the French one when it's empty (never blanks an item).
   const optionName = (o) => {
@@ -281,8 +284,8 @@ function buildContext({ reservation, client, property, options = [], resources =
   const complementLineText = (l) => {
     const label = localizedComplementLabel(l);
     return (l.qty > 1 && l.unitPrice > 0)
-      ? `- ${label}${complementSep}${l.qty} × ${formatCurrency(l.unitPrice)} = ${formatCurrency(l.amount)}`
-      : `- ${label}${complementSep}${formatCurrency(l.amount)}`;
+      ? `- ${label}${complementSep}${l.qty} × ${money(l.unitPrice)} = ${money(l.amount)}`
+      : `- ${label}${complementSep}${money(l.amount)}`;
   };
   // Only itemise when there's at least one identifiable prestation (option / resource / tax). A pure
   // accommodation auto-gap (a lone « remainder » line, or nothing) → the one-line amount sentence, which
@@ -296,13 +299,13 @@ function buildContext({ reservation, client, property, options = [], resources =
       ? `A balance is payable directly on site ${whenEn}:`
       : `Un complément est à régler directement sur place ${whenFr} :`;
     const totalLine = isEn
-      ? `Total: ${formatCurrency(complementAmountNum)}`
-      : `Total : ${formatCurrency(complementAmountNum)}`;
+      ? `Total: ${money(complementAmountNum)}`
+      : `Total : ${money(complementAmountNum)}`;
     complementNotice = [intro, ...noticeLines.map(complementLineText), totalLine].join('\n');
   } else if (complementToCollect) {
     complementNotice = isEn
-      ? `A balance of ${formatCurrency(complementAmountNum)} is payable directly on site ${whenEn}.`
-      : `Un complément de ${formatCurrency(complementAmountNum)} est à régler directement sur place ${whenFr}.`;
+      ? `A balance of ${money(complementAmountNum)} is payable directly on site ${whenEn}.`
+      : `Un complément de ${money(complementAmountNum)} est à régler directement sur place ${whenFr}.`;
   }
 
   // Spec §4.4: cautionNotBanked = cautionAmount > 0 AND depositPaid != 1. Pragmatic proxy
@@ -386,19 +389,19 @@ function buildContext({ reservation, client, property, options = [], resources =
       // The arrival address, else the company's (specs/guest-email-texts-made-simple.md rule 3).
       propertyAddress:     stayContent.vars.propertyAddress,
       // Financial
-      finalPrice:      formatCurrency(Number(r.finalPrice || 0)),
-      depositAmount:   formatCurrency(Number(r.depositAmount || 0)),
+      finalPrice:      money(Number(r.finalPrice || 0)),
+      depositAmount:   money(Number(r.depositAmount || 0)),
       depositDueDate:  formatDateLong(r.depositDueDate, L),
       validUntil:      formatDateLong(r.validUntil, L), // devis validity date — used by the deposit reminder
 
-      balanceAmount:   formatCurrency(Number(r.balanceAmount || 0)),
+      balanceAmount:   money(Number(r.balanceAmount || 0)),
       balanceDueDate:  formatDateLong(r.balanceDueDate, L),
       // specs/payment-schedule-and-cancellation.md §3.7 rule 43 — the date an unpaid solde costs the
       // stay, and what would then be kept. Both derived server-side so no email ever does date math.
       cancelOnDate:    formatDateLong(cancelOnDate, L),
-      retainedDepositAmount: formatCurrency(retainedDepositAmount),
-      cautionAmount:   formatCurrency(cautionAmountNum),
-      complementAmount: formatCurrency(complementAmountNum),
+      retainedDepositAmount: money(retainedDepositAmount),
+      cautionAmount:   money(cautionAmountNum),
+      complementAmount: money(complementAmountNum),
       complementNotice,
       // Online payment link — empty by default; the sender injects the real URL per-send via
       // `extraContext` (the link is created on demand, it is not a reservation column).
@@ -407,7 +410,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       // acompte when there is one, the stay otherwise (a last-minute stay owes a single payment). The
       // sender overrides it per-send with the amount the payment link actually charges (tourist tax
       // included); this default keeps template previews meaningful.
-      paymentAmount:   formatCurrency(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.finalPrice || 0)),
+      paymentAmount:   money(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.finalPrice || 0)),
       // Lists
       optionsList,
       reservedOptionsList,

@@ -44,7 +44,7 @@ test('rules 6-7 — turn on the authenticator app, then log in with a computed c
   await page.goto('/mon-compte');
   // The « Second code » card loads its status first; only then is its password field the last one.
   await expect(page.getByRole('button', { name: 'Activer' })).toBeVisible();
-  await page.getByLabel(/^Mot de passe actuel/).last().fill(account.password);
+  await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
   await page.getByRole('button', { name: 'Activer' }).click();
   await expect(page.getByAltText('QR code de l’appli d’authentification')).toBeVisible();
   const secret = await page.getByText(/^([A-Z2-7]{4} ?)+$/).textContent();

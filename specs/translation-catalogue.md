@@ -109,6 +109,9 @@ column rather than a schema change.
     the file.
 20. **The Settings page gains a « Traductions » card**: how many entries, how many still untranslated
     per language, how many flagged « à revérifier », and the two buttons — download, upload.
+    *Note 2026-10-18 (review):* its explanation is impersonal, like every UI text — « Traductions dans
+    un fichier : le télécharger, remplir les colonnes de langue, le renvoyer. Une colonne de plus ajoute
+    une langue. » (it used « tu »).
 
 **Edge cases:**
 

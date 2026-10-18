@@ -65,6 +65,8 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
       plan: p.planChip,
       state: p.state,
       recommended: RECOMMENDED.has(p.id),
+      // Neither recommended nor active: folded under « Pour aller plus loin » (rule 36).
+      more: !RECOMMENDED.has(p.id) && p.state !== 'active',
     }));
   }
 

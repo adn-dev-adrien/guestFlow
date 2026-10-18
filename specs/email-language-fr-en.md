@@ -65,6 +65,10 @@ render in that language. The two shipped default reminders (J-7, J-2) ship with 
    preserved; the French side is untouched).
 7. **Fat backend.** Language resolution, fallback, and all composition live server-side. The client only
    renders the chosen-language preview it receives and offers the selectors.
+8. **One way to write an amount per language** (review of 2026-10-18). In an English email every amount of
+   the context (stay amount, deposit, balance, caution, complement lines…) reads « €963.39 », like the
+   prices of the stay texts (« €8 per person »); it used to read « 963,39 € » beside them. French is
+   unchanged (« 963,39 € »).
 
 **Edge cases:**
 - `emailLanguage = 'en'` but the template has no `bodyEn` → French body sent (logged language = the body

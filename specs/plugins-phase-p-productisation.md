@@ -305,6 +305,25 @@ Decisions taken on 2026-10-06:
     the instance already holds a variant, a reservation on that name or an iCal source of that brand: a
     new instance shows « direct » alone in Paramètres › Plateformes. Solio's rows are folded as before.
 
+33. **After the forced first password change, the login says so** (review of 2026-10-18). The server
+    closes the session on that change; the page then opens the login with « Mot de passe modifié.
+    Connexion avec le nouveau mot de passe. » and the account's email already filled in, instead of an
+    empty login with no message.
+
+34. **The closures page reads on a phone** (review of 2026-10-18). At `xs` its bar keeps a short title
+    (« Fermetures ») and a short « Ajouter », and with no closure « Aucune fermeture configurée. » is
+    shown as an empty state outside the table, not cut inside its horizontal scroll.
+
+35. **Below 1200 px, Plateformes and Utilisateurs are cards** (review of 2026-10-18). With the side menu
+    open, a 900 px screen left « Taxe de séjour », « Virement », « Vente directe », « Dernière
+    connexion » and the actions hidden in an unmarked inner scroll; both pages now switch to their card
+    layout below `lg` instead of below `md`.
+
+36. **Step « Plugins » shows what matters first** (review of 2026-10-18). The recommended plugins and
+    those already active are listed; every other one (Neat, Sowel, the platform intake…) is folded
+    under « Pour aller plus loin (N) », closed at first. The server marks them (`more` on each plugin
+    of `GET /api/onboarding`); nothing is ticked or unticked by the fold.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -419,6 +438,10 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
     them.
 
   Every text is impersonal on the admin side; the guest copy keeps the « vous » of the emails.
+- **Review of 2026-10-18:** the forced password change ends on the login with its notice and the
+  email filled in (rule 33); « Fermetures » keeps a short title and an empty state on a phone (rule 34);
+  Plateformes and Utilisateurs are cards below 1200 px (rule 35); step « Plugins » folds the extra
+  plugins under « Pour aller plus loin (N) » (rule 36).
 - **Logement › Séjour:** « Textes propres à ce logement » holds the overridable keys, each empty by
   default with the global text shown as placeholder.
 - **Ressource:** « Phrase dans les mails une fois réservée » (FR/EN, `{{slots}}` chip).
@@ -457,6 +480,11 @@ does.
 `TokenTextField` (2), `MentionEditor` (2), `EmailTextsSettingsPage` (3), `OnboardingPage` (4),
 `PropertyStayTexts` (1), `ReservationSasDialog.extinguisher-off` (1),
 `PlatformsSettingsPage.counts-as-direct` (1), `PlatformAccountsPage.account-plan` (2).
+
+Review of 2026-10-18 (rules 32–36): server `platform-seed-neutral` (rule 32),
+`onboarding-plugins-fold` (1, rule 36); client `ForcedPasswordChangePage.login-notice` (1, rule 33),
+`EstablishmentClosuresPage.mobile-empty` (1, rule 34), `PlatformsSettingsPage.tablet-cards` (1) and
+`UserManagementPage.tablet-cards` (2, rule 35), `OnboardingPage.plugins-fold` (1, rule 36).
 
 ### E2E
 
