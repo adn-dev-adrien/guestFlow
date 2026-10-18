@@ -302,6 +302,10 @@ const api = {
   savePlatformSettings: (platforms) => request('/platforms/settings', { method: 'PUT', body: { platforms } }),
   // J-7 hooks per property, edited from the J-7 template (rule 17c).
   getReservation: (id) => request(`/reservations/${id}`),
+  // Every arrival from today on, grouped by day and detailed, in one call (specs/upcoming-reservations-cards.md rule 6).
+  getUpcomingReservations: (day) => request(day ? `/reservations/upcoming?day=${encodeURIComponent(day)}` : '/reservations/upcoming'),
+  // The server's calendar day (specs/upcoming-reservations-cards.md rule 7).
+  getToday: () => request('/today'),
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
   getReservationHistory: (id) => request(`/reservations/${id}/history`),

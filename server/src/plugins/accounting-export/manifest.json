@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -17,6 +17,10 @@
     ],
     "1.0.1": [
       "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Sur un téléphone, chaque ligne d’écriture s’affiche en entier, montant compris.",
+      "Les totaux du mois passent à la ligne au lieu de sortir du cadre."
     ]
   }
 }

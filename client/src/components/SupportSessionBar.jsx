@@ -54,7 +54,7 @@ export default function SupportSessionBar() {
       }}
     >
       <span>{`Session support — jusqu’au ${expiryLabel(session.expiresAt)}`}</span>
-      <Button size="small" color="inherit" variant="outlined" onClick={logout} sx={{ minHeight: 28, py: 0 }}>Quitter</Button>
+      <Button size="small" color="inherit" variant="outlined" onClick={logout} sx={{ minHeight: 28, py: 0, '@media (pointer: coarse)': { minHeight: 44 } }}>Quitter</Button>
     </Box>
   );
 }

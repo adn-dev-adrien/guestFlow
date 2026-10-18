@@ -247,6 +247,8 @@ Auth: unchanged (session required). Reception-only requesters never receive the 
 - `Complément à encaisser {montant}` (arrivals, alert)
 - `À encaisser {montant}` (departures, alert)
 - `Acompte` / `Solde` / `Complément` + ` OK` | ` NON` | ` reporté`
+  > **Changed 2026-10-18** (specs/ds-components.md rule 25): an unpaid bucket reads ` dû`
+  > (« Solde dû »), not ` NON`. The examples above keep their original wording.
 - `Réglé par la plateforme` (chip, `StatusBadge status="info"`), tooltip
   « {Plateforme} verse le montant de la location après le séjour. »
 - `OK` (arrivals, settled) / `Paiements OK` (departures, settled)

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, Checkbox,
@@ -50,7 +50,7 @@ const statusBgSx = (t, done, ready = false) => {
 const optionsResourcesText = (r) => {
   const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
   const resourcesText = [
-    ...(Number(r.babyBeds || 0) > 0 ? [`Lit bebe x${r.babyBeds}`] : []),
+    ...(Number(r.babyBeds || 0) > 0 ? [`Lit bébé ×${r.babyBeds}`] : []),
     ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
   ].join(', ');
   return [optionsText, resourcesText].filter(Boolean).join(' | ') || '—';
@@ -107,7 +107,12 @@ export default function Dashboard() {
     }
   };
 
+  // Only the latest load paints: quick day-to-day clicks, or the server's day moving on when the page
+  // comes back to the foreground, can answer out of order (specs/upcoming-reservations-cards.md rule 7).
+  const loadSeq = useRef(0);
   const loadDashboardData = async () => {
+    const seq = ++loadSeq.current;
+    const isCurrent = () => seq === loadSeq.current;
     const from = todayStr;
     const to = addDays(todayStr, 30);
     // Fetch reservations starting from selectedDate if it's in the past
@@ -120,9 +125,6 @@ export default function Dashboard() {
         api.getReservations({ from: fetchFrom }),
       ]);
 
-      setProperties(props);
-      setReservations(resv);
-
       const arrivalsBase = allUpcoming
         .filter((r) => r.startDate === selectedDate)
         .sort((a, b) => (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59'));
@@ -130,21 +132,26 @@ export default function Dashboard() {
         .filter((r) => r.endDate === selectedDate)
         .sort((a, b) => (a.checkOutTime || '23:59').localeCompare(b.checkOutTime || '23:59'));
 
-      const arrivalsDetailed = await Promise.all(arrivalsBase.map((r) => api.getReservation(r.id)));
+      const [arrivalsDetailed, departuresDetailed] = await Promise.all([
+        Promise.all(arrivalsBase.map((r) => api.getReservation(r.id))),
+        Promise.all(departuresBase.map((r) => api.getReservation(r.id))),
+      ]);
+      if (!isCurrent()) return;
+      setProperties(props);
+      setReservations(resv);
       setArrivalsToday(arrivalsDetailed);
-      const departuresDetailed = await Promise.all(departuresBase.map((r) => api.getReservation(r.id)));
       setDeparturesToday(departuresDetailed);
       setLoadError(false);
     } catch (e) {
-      setLoadError(true);
+      if (isCurrent()) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (selectedDate) loadDashboardData();
-  }, [selectedDate, reloadNonce]); // eslint-disable-line
+  }, [selectedDate, todayStr, reloadNonce]); // eslint-disable-line
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
   // Reception has no reservation sheet — a row tap jumps to the Planning with the matching SAS open.
@@ -176,7 +183,7 @@ export default function Dashboard() {
         <NavigateNextIcon />
       </IconButton>
       {selectedDate !== todayStr && (
-        <Button size="small" variant="outlined" onClick={() => setSelectedDate(todayStr)}>
+        <Button size="small" variant="outlined" onClick={() => setPickedDate(null)}>
           Aujourd'hui
         </Button>
       )}

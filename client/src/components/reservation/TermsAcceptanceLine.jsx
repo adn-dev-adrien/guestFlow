@@ -63,7 +63,7 @@ export default function TermsAcceptanceLine({ block }) {
         <Typography variant="body2">
           CGV v{a.version} acceptées le {a.acceptedAtLabel}
         </Typography>
-        <Button size="small" variant="text" onClick={() => setDetailsOpen(true)} sx={{ minHeight: 32 }}>
+        <Button size="small" variant="text" onClick={() => setDetailsOpen(true)} sx={{ minHeight: 32, '@media (pointer: coarse)': { minHeight: 44 } }}>
           Détails
         </Button>
       </Box>
