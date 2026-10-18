@@ -77,6 +77,7 @@ const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
+const { saveWithDraftClient } = require('../utils/draftClient');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -763,7 +764,7 @@ function pastUnlockRequested(req) {
     || (req.query && String(req.query.unlockPast) === '1');
 }
 
-function create(req, res) {
+function createStay(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -972,6 +973,23 @@ function create(req, res) {
   emitPluginEvent('reservation.created', { reservationId });
   // No acompte request leaves here (specs/payment-schedule-and-cancellation.md §1 amendment, rule 36):
   // the booking raises a `deposit_to_request` row on the dashboard instead, and the operator sends it.
+}
+
+// The HTTP creation of a stay. A client typed on the fiche (`newClient`) is written in the same
+// transaction (specs/clients.md rule 13).
+function create(req, res) {
+  if (!req.body || req.body.clientId || !req.body.newClient) return createStay(req, res);
+  const result = saveWithDraftClient({
+    db,
+    clientsModel: require('../models/clientsModel'),
+    body: req.body,
+    run: (body) => {
+      const recorder = createResultRecorder();
+      createStay({ ...req, body }, recorder);
+      return recorder.result();
+    },
+  });
+  return res.status(result.status).json(result.body);
 }
 
 // The HTTP save of the fiche. The work itself lives in `performUpdate` so a server caller (a plugin,

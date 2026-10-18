@@ -8,6 +8,7 @@
 
 const { validateClientPayload } = require('../utils/clientValidation');
 const { parseAddressBlock, extractEmail, extractPhone } = require('../utils/contactParsing');
+const { clientExistsRefusal } = require('../utils/clientDuplicates');
 
 // When a drop holds nothing recognizable, the raw text is echoed back rather than swallowed: the user
 // sees what they dropped and the field's format validation flags it (spec §3 rules 8 and 11).
@@ -35,15 +36,31 @@ function createController(model) {
     return res.json(client);
   }
 
+  // specs/clients.md rule 12 — the client a record being typed would duplicate, or null: the fiche
+  // offers to use it before anything is written.
+  function duplicate(req, res) {
+    const { email, phone } = req.query || {};
+    const existing = typeof model.findDuplicate === 'function' ? model.findDuplicate({ email, phone }) : null;
+    if (!existing) return res.json({ client: null });
+    const { client, error } = clientExistsRefusal(existing);
+    return res.json({ client, message: error });
+  }
+
   function getDeleteImpact(req, res) {
     const impact = model.getDeleteImpact(req.params.id);
     if (!impact) return res.status(404).json({ error: 'Client non trouvé' });
     return res.json(impact);
   }
 
+  // specs/clients.md rule 12 — a record with the email or phone of an existing client is
+  // refused with that client, unless the operator asked for a second one (`allowDuplicate`).
   function create(req, res) {
     const error = validateClientPayload(req.body);
     if (error) return res.status(400).json({ error });
+    if (!req.body.allowDuplicate && typeof model.findDuplicate === 'function') {
+      const existing = model.findDuplicate(req.body);
+      if (existing) return res.status(409).json(clientExistsRefusal(existing));
+    }
     return res.json(model.insert(req.body));
   }
 
@@ -109,7 +126,7 @@ function createController(model) {
   }
 
   return {
-    list, directory, getOne, getDeleteImpact, create, update, remove, parseContact,
+    list, directory, duplicate, getOne, getDeleteImpact, create, update, remove, parseContact,
     cleanupOrphans, cleanupOrphansPreview, cleanupOrphansDelete,
   };
 }

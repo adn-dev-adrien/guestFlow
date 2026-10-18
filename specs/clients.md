@@ -101,6 +101,22 @@ list.
    Confirmer it came back on a client the server no longer had — « Client non trouvé », reading as if
    the deletion had already happened. Same race, same cure as `clientId` on the edit side.)
 
+12. **No duplicate client (2026-10-18).** A client whose email (case-insensitive) or phone (its last 9
+    digits, so `06 12 34 56 78` and `+33 6 12 34 56 78` match) already belongs to a client is a
+    duplicate. `POST /clients` refuses it with 409 `CLIENT_EXISTS`, carrying the existing client
+    (`{ id, firstName, lastName, email, phone }`) and « Client existant : Camille Revue (email). »,
+    unless the body asks `allowDuplicate` — the Clients page offers « Créer quand même ».
+    `GET /clients/duplicate?email=&phone=` answers `{ client, message }` or `{ client: null }`: the fiche's
+    « Créer un nouveau client » asks it first and offers « Utiliser ce client » or « Modifier la saisie ».
+    *Why: the review of 2026-10-18 (F6) created a second client with an email that already existed.*
+13. **A client typed on a new fiche is written with the stay (2026-10-18).** On a reservation or a devis
+    not saved yet, « Créer un nouveau client » writes nothing: the fiche shows the typed client and sends
+    it as `newClient` (no `clientId`) with the first save. `POST /reservations` and `POST /devis` then
+    write the client and the stay in one transaction (`utils/draftClient.js`): a refused save (dates
+    taken, duplicate client…) leaves no client behind. On a fiche already saved, the dialog still creates
+    the client at once. *Why: the review of 2026-10-18 (F6) left three copies of the same client after
+    three abandoned fiches.*
+
 **Edge cases:**
 - Client with only devis (no reservations) → `409` now also triggers (was silently deleted); impact shows
   the devis. Force deletes them.
@@ -154,7 +170,8 @@ list.
 | GET | `/clients?q=` | — | `[client]` (`phone` string) | Search incl. phone. |
 | GET | `/clients/:id` | — | `client` | `404` if missing. |
 | GET | `/clients/:id/delete-impact` | — | `{ client, reservationsCount, reservations[], devisCount, devis[] }` | Sorted; reservations carry `nights`. |
-| POST | `/clients` | client body (`phone`) | created `client` | `400` on invalid email/phone. |
+| GET | `/clients/duplicate?email=&phone=` | — | `{ client, message }` or `{ client: null }` | _(NEW 2026-10-18, rule 12)_ The existing client a record would duplicate. |
+| POST | `/clients` | client body (`phone`, optional `allowDuplicate`) | created `client` | `400` on invalid email/phone; `409 CLIENT_EXISTS` (+`client`) on a duplicate (rule 12). |
 | PUT | `/clients/:id` | client body (`phone`) | updated `client` | `400` / `404`. |
 | DELETE | `/clients/:id?force=` | — | `{ ok }` or `409 CLIENT_IN_USE` (+impact) | Force cascades reservations + devis. |
 | POST | `/clients/cleanup-orphans` | — | `{ ok, deletedCount, keptWithDevisCount }` | Bulk delete-all (kept for back-compat / headless callers — UI no longer uses it). |

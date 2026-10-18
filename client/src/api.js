@@ -154,6 +154,13 @@ const api = {
     return request(`/clients/directory${suffix}`);
   },
   getClient: (id) => request(`/clients/${id}`),
+  // specs/clients.md rule 12 — the existing client a record being typed would duplicate ({ client: null } if none).
+  findDuplicateClient: ({ email = '', phone = '' } = {}) => {
+    const params = new URLSearchParams();
+    if (email) params.set('email', email);
+    if (phone) params.set('phone', phone);
+    return request(`/clients/duplicate?${params.toString()}`);
+  },
   getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
   cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),
   getOrphanClientsPreview: () => request('/clients/cleanup-orphans/preview'),

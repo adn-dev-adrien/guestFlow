@@ -49,6 +49,10 @@ allowing a different **existing** client to be attached via a search that stays 
 
 ---
 
+> **2026-10-18 — rule 5 amended by `specs/clients.md` rules 12-13.** On a fiche not saved yet, the
+> created client is attached as a draft and written with the first save of the stay; an email or phone
+> already known first offers « Utiliser ce client ». On a saved fiche the client is still created at once.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** No business logic added — the client CRUD endpoints already exist
