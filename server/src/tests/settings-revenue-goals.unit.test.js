@@ -1,3 +1,4 @@
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -96,7 +97,7 @@ test('rules 26 + 28 — the goal context names the current and next exercise and
     INSERT INTO properties (id, name) VALUES (1, 'Gite');
     INSERT INTO clients (id) VALUES (1);
   `);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localTodayIso();
   db.prepare("INSERT INTO reservations (clientId, propertyId, startDate, endDate, balanceAmount) VALUES (1, 1, ?, ?, 400)").run(today, today);
   const ctx = financeModel.buildModel(db).getGoalContext();
   const [y, m] = today.split('-').map(Number);

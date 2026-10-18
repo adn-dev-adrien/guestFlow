@@ -65,6 +65,14 @@ clean stock.
 - An existing all-positive trip is unaffected: the stored values, the blocks and the stock are
   bit-for-bit what they were.
 
+### Review fixes (2026-10-18, mega review #5)
+
+9. **A count typed with its sign keeps it.** The field holds the raw text typed — « - » included — and
+   means its signed count (« -3 » = −3, « − » accepted); a lone sign or an empty field means 0 and
+   settles back to « 0 » on blur; any other character is refused (the field keeps its value). *Why:*
+   the lone « - » was turned into 0 at once, so typing « -3 » saved +3. The negative hint and caption
+   read « lavé hors blanchisserie » (impersonal; « lavé par vos soins » until this date).
+
 ---
 
 ## 4. Architecture

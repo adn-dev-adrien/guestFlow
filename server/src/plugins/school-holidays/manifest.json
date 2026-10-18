@@ -1,7 +1,7 @@
 {
   "id": "school-holidays",
   "name": "Vacances scolaires",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Zones A, B, C récupérées sur education.gouv.fr.",
   "icon": "school",
   "surfaces": [
@@ -17,6 +17,9 @@
     ],
     "1.0.1": [
       "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Synchronisation calée sur le jour local, aussi entre minuit et 2 h."
     ]
   }
 }

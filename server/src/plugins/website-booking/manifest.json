@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -26,6 +26,9 @@
       "Devis du site : le paiement en ligne n’est proposé que lorsqu’un moyen de paiement est connecté.",
       "Sans conditions générales publiées alors qu’elles sont exigées, le site annonce la réservation en ligne fermée avant la saisie.",
       "Une clé régénérée reste valable après le redémarrage suivant de l’application."
+    ],
+    "1.1.1": [
+      "« Aujourd’hui » suit le fuseau des logements, même entre minuit et 2 h."
     ]
   }
 }

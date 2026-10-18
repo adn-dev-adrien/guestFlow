@@ -13,7 +13,7 @@ import ErrorAlert from '../components/ErrorAlert';
 import { useToast } from '../components/DialogProvider';
 import api from '../api';
 import { withFrom } from '../utils/navigation';
-import { displayDate, formatCurrency, formatCurrencyRounded } from '../utils/formatters';
+import { displayDate, formatCurrency } from '../utils/formatters';
 
 const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 
@@ -131,7 +131,7 @@ export default function TouristTaxPage() {
   const kpiCards = data ? [
     { label: 'Réservations directes (mois)', value: String(data.totals.reservationsCount || 0), accent: 'info.main' },
     { label: 'Adultes-nuits (mois)', value: String(data.totals.adultNights), accent: 'primary.main' },
-    { label: 'Taxe de séjour totale', value: formatCurrencyRounded(data.totals.taxAmount), accent: 'warning.main' },
+    { label: 'Taxe de séjour totale', value: formatCurrency(data.totals.taxAmount), accent: 'warning.main' },
   ] : [];
 
   return (

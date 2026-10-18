@@ -1,7 +1,7 @@
 {
   "id": "neat",
   "name": "Assurance annulation Neat",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Souscription automatique de l’assurance annulation.",
   "icon": "umbrella",
   "surfaces": [
@@ -17,6 +17,9 @@
     ],
     "1.0.1": [
       "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Adresse de l’API réglable par NEAT_API_BASE, pour les essais sur une maquette locale."
     ]
   }
 }

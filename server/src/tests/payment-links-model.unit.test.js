@@ -19,6 +19,7 @@ const DDL = `
     status TEXT NOT NULL DEFAULT 'open',
     providerPaymentId TEXT,
     remoteCancelPendingAt TEXT,
+    cancelReason TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     paidAt TEXT,
     expiresAt TEXT,

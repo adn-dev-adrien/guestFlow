@@ -32,6 +32,7 @@ const DDL = `
     largeTowels  INTEGER NOT NULL DEFAULT 0,
     mediumTowels INTEGER NOT NULL DEFAULT 0,
     smallTowels  INTEGER NOT NULL DEFAULT 0,
+    bathMats     INTEGER NOT NULL DEFAULT 0,
     updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `;

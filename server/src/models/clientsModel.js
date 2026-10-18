@@ -9,13 +9,14 @@
  * against an in-memory schema.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
 
 const MS_PER_DAY = 86400000;
 
 function todayKey() {
-  return new Date().toISOString().split('T')[0];
+  return localTodayIso();
 }
 
 function computeNights(startDate, endDate) {

@@ -9,6 +9,7 @@
  * (`settings.js`), shaped like the former app_settings row.
  */
 
+const sdk = require('../sdk');
 const { simulateInventory, findHorizon } = require('./linenInventory');
 
 function buildModel(database, deps = {}) {
@@ -95,7 +96,7 @@ function buildModel(database, deps = {}) {
    * @returns {object|null} `{ horizon, days, shortagesByType }` or null when there are no
    *   reservations beyond `today` (no horizon to project against).
    */
-  function simulate({ today = new Date().toISOString().slice(0, 10) } = {}) {
+  function simulate({ today = sdk.coreModule('reservationHelpers').getTodayIsoDate() } = {}) {
     const settingsRow = settingsModel.read();
     const stock = {
       single: Number(settingsRow.bedLinenStockSingle || 0),
@@ -134,13 +135,13 @@ function buildModel(database, deps = {}) {
     }
     const skippedDates = new Set(laundryTripSkipsModel.listAll());
 
-    // Map the per-trip manual additions (stored with singleBeds/…/smallTowels keys) onto the engine's
+    // Map the per-trip manual additions (stored with singleBeds/…/bathMats keys) onto the engine's
     // byType keys (single/…/small) so simulateInventory washes them like reservation linen.
     const manualAdditionsByDate = new Map();
     for (const [date, c] of Object.entries(laundryManualAdditionsModel.listAll())) {
       manualAdditionsByDate.set(date, {
         single: c.singleBeds, double: c.doubleBeds, baby: c.babyBeds,
-        large: c.largeTowels, medium: c.mediumTowels, small: c.smallTowels,
+        large: c.largeTowels, medium: c.mediumTowels, small: c.smallTowels, bathMat: c.bathMats,
       });
     }
 

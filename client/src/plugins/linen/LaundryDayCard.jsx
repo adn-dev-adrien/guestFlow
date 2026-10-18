@@ -332,7 +332,7 @@ export default function LaundryDayCard({
             )}
             {hasWithdrawn && (
               <Typography variant="caption" sx={{ display: 'block', mt: 0.25, fontStyle: 'italic', color: 'text.secondary' }}>
-                dont lavé par vos soins : {[withdrawnSheets, withdrawnTowels].filter(Boolean).join(' · ')}
+                dont lavé hors blanchisserie : {[withdrawnSheets, withdrawnTowels].filter(Boolean).join(' · ')}
               </Typography>
             )}
             {incomplete.length > 0 && (

@@ -110,7 +110,7 @@ test('rule 13: unsaved changes make both actions unavailable, and say why on hov
   expect(screen.getByRole('button', { name: 'Test' })).toBeDisabled();
 
   fireEvent.mouseOver(screen.getByRole('button', { name: 'Test' }).parentElement);
-  expect(await screen.findAllByText('Enregistre d’abord tes modifications.')).not.toHaveLength(0);
+  expect(await screen.findAllByText('Modifications à enregistrer d’abord.')).not.toHaveLength(0);
 });
 
 // Rule 13 — without credentials there is nothing to authorise; the reason is its own.

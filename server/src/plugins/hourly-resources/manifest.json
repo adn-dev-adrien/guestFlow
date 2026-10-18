@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -29,6 +29,9 @@
       "La fenêtre de réservation d’une ressource s’ouvre en plein écran sur un téléphone.",
       "Sous 1 200 px, « Nouvelle réservation » devient un bouton « + » pour laisser la place au titre et à la semaine.",
       "Le jour proposé par défaut est celui du calendrier local, même entre minuit et 2 h."
+    ],
+    "1.0.4": [
+      "Créneaux proposés à l’arrivée : plus de créneau de la veille entre minuit et 2 h."
     ]
   }
 }

@@ -20,6 +20,8 @@ const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const { createEmailService } = require('../utils/emailService');
 const { formatCurrency } = require('../utils/devisHelpers');
+const financeModel = require('../models/financeModel');
+const { storedLinkComponents } = require('../utils/storedLinkComponents');
 
 // ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
 
@@ -78,9 +80,9 @@ function resolveAmountCents(id, type, row, quoteOf = runDevisEngineQuote) {
 // tax is VAT-exempt and (for direct stays) rides on the solde, so only `balance` carries a 0 %-VAT tax
 // line; deposit (accommodation-only) and admin full (finalPrice, tax-excl) are single taxable lines.
 // Returns null for reservations / engine failure → the caller keeps the safe single 0 %-VAT line.
-function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote) {
+function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote, storedOf = storedReservationComponents) {
   const quote = quoteOf(id);
-  if (!quote) return null;
+  if (!quote) return storedOf(id, type);
   const cents = (v) => Math.round(Number(v || 0) * 100);
   const vatRatePercent = quote.vatPercentageAccommodation != null ? Number(quote.vatPercentageAccommodation) : 10;
   const taxCents = Boolean(quote.touristTaxCollectedOnArrival) ? 0 : cents(quote.touristTaxTotal);
@@ -99,6 +101,24 @@ function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote) {
   return { components, vatRatePercent };
 }
 
+// specs/payment-links-vat.md rule 8 — a reservation's basket, from its stored columns: the global VAT
+// rate, and the tourist tax on the solde unless it is collected on arrival (the Suivi taxe de séjour's
+// own predicate). Devis rows never reach here: the engine replays them.
+function storedReservationComponents(id, type, db = database) {
+  let row = null;
+  try {
+    row = db.prepare(`
+      SELECT r.depositAmount, r.balanceAmount, r.finalPrice, r.touristTaxTotal, ${financeModel.helpers.TAX_ON_ARRIVAL_SQL} AS taxOnArrival
+        FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
+  } catch { row = null; }
+  if (!row) return null;
+  return storedLinkComponents(row, type, {
+    vatRatePercent: financeModel.helpers.getVatRate(db),
+    taxOnArrival: Boolean(row.taxOnArrival),
+    titles: LINK_TITLES,
+  });
+}
+
 const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
 
 // Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; anything
@@ -106,10 +126,10 @@ const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER
 function sendError(res, err, provider) {
   if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
   if (err && err.code === 'QONTO_NOT_CONNECTED') {
-    return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Connecte d'abord Qonto (OAuth) avant la connexion du provider." });
+    return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Qonto à connecter d'abord (OAuth), avant le provider." });
   }
   const label = provider ? provider.label : 'du prestataire';
-  return res.status(502).json({ error: provider ? provider.errorCode : 'PAYMENT_PROVIDER_ERROR', status: (err && err.status) || null, message: `Erreur de l'API ${label} — réessaie ou consulte les logs.` });
+  return res.status(502).json({ error: provider ? provider.errorCode : 'PAYMENT_PROVIDER_ERROR', status: (err && err.status) || null, message: `Erreur de l'API ${label} : à réessayer, détail dans les journaux.` });
 }
 
 // Rule 5 — every handler needs a provider; without one it refuses before touching anything.
@@ -187,4 +207,4 @@ module.exports = {
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents };
+module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents };

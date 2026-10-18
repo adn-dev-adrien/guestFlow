@@ -25,6 +25,7 @@ const FR = Object.freeze({
   // ── Meta pills (date / valid until / property) ────────────────────────────
   date:            'Date du devis',
   validUntil:      'Valable jusqu\'au',
+  expiredSuffix:   ' (expiré)',
   property:        'Logement',
 
   // ── Stay block ────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ const FR = Object.freeze({
   pricingHeading:  'DÉTAIL TARIFAIRE',
   colDesignation:  'Désignation',
   colQuantity:     'Qté',
-  colUnitPriceHt:  'Prix HT',
+  colUnitPriceHt:  'Total HT',
   colVatRate:      'TVA %',
   colTotalTtc:     'Total TTC',
 
@@ -116,6 +117,7 @@ const EN = Object.freeze({
   // ── Meta pills ────────────────────────────────────────────────────────────
   date:            'Quote date',
   validUntil:      'Valid until',
+  expiredSuffix:   ' (expired)',
   property:        'Property',
 
   // ── Stay block ────────────────────────────────────────────────────────────
@@ -133,7 +135,7 @@ const EN = Object.freeze({
   pricingHeading:  'PRICING DETAILS',
   colDesignation:  'Description',
   colQuantity:     'Qty',
-  colUnitPriceHt:  'Price excl. VAT',
+  colUnitPriceHt:  'Total excl. VAT',
   colVatRate:      'VAT %',
   colTotalTtc:     'Total incl. VAT',
 

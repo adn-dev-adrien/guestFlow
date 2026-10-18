@@ -1,7 +1,7 @@
 {
   "id": "tariff-recipes",
   "name": "Recettes tarifaires",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Génère les saisons et les prix à partir d’une recette.",
   "icon": "trending-up",
   "surfaces": [
@@ -18,6 +18,9 @@
     ],
     "1.0.1": [
       "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Page des recettes : texte d’introduction raccourci."
     ]
   }
 }

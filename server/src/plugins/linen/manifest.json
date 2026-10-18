@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -26,6 +26,11 @@
     ],
     "1.0.3": [
       "Le trajet de blanchisserie supplémentaire propose la date du jour même entre minuit et 2 h."
+    ],
+    "1.0.4": [
+      "Un ajout manuel saisi avec son signe (« -3 ») garde le signe.",
+      "Les tapis de bain s’ajoutent ou se retirent à la main, comme les serviettes.",
+      "Libellé « lavé hors blanchisserie » pour le linge retiré d’une tournée."
     ]
   }
 }
