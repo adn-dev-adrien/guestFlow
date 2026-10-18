@@ -13,6 +13,9 @@
  *   onBack?      () => void      (back handler; takes precedence over backTo for computed navigation)
  *   subtitle?    ReactNode      (rendered beside the title — e.g. a Chip or caption)
  *   center?      ReactNode      (rendered CENTERED in the bar; hidden on xs — too tight on mobile)
+ *   centerFrom?  'sm'|'md'|'lg' (breakpoint from which `center` shows; default 'sm'. A page whose
+ *                                bar is crowded at tablet width raises it — specs/review-2026-10-18-
+ *                                reservations.md rule 6)
  *   tabs?        ReactNode      (a <PageTabs> node — CENTERED in the bar on sm+, and folded onto a
  *                                SECOND ROW of the same sticky block on xs. Implies titleOnXs, so a
  *                                page with tabs always shows its title. Mutually exclusive with
@@ -116,6 +119,7 @@ export default function PageActionBar({
   // bar switches to a 3-equal-columns layout so the content is truly centred. Hidden on xs (the mobile
   // bar is too tight) — pass content that the page can afford to drop on small screens.
   center,
+  centerFrom = 'sm',
   // A <PageTabs> node: centred in the bar on sm+, second row of the same sticky block on xs.
   tabs,
   onSave,
@@ -223,7 +227,7 @@ export default function PageActionBar({
           <Box
             data-testid="page-action-bar-center"
             sx={{
-              display: { xs: 'none', sm: 'flex' },
+              display: { xs: 'none', [tabs ? 'sm' : centerFrom]: 'flex' },
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',

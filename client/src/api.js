@@ -156,6 +156,13 @@ const api = {
     return request(`/clients/directory${suffix}`);
   },
   getClient: (id) => request(`/clients/${id}`),
+  // specs/clients.md rule 12 — the existing client a record being typed would duplicate ({ client: null } if none).
+  findDuplicateClient: ({ email = '', phone = '' } = {}) => {
+    const params = new URLSearchParams();
+    if (email) params.set('email', email);
+    if (phone) params.set('phone', phone);
+    return request(`/clients/duplicate?${params.toString()}`);
+  },
   getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
   cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),
   getOrphanClientsPreview: () => request('/clients/cleanup-orphans/preview'),
@@ -588,6 +595,9 @@ const api = {
   // Dashboard "new iCal reservations today" — read-only notification of bookings imported via
   // iCal during the current day (specs/dashboard-ical-new-reservations.md).
   getNewReservations: () => request('/dashboard/new-reservations'),
+  // Stays numbered by the boot repair, listed until checked (specs/reservation-number-and-search.md rule 15).
+  getRepairedReservationNumbers: () => request('/dashboard/repaired-reservation-numbers'),
+  acknowledgeRepairedReservationNumber: (id) => request(`/dashboard/repaired-reservation-numbers/${id}/acknowledge`, { method: 'POST' }),
   // Dashboard "pending site devis" — booking requests submitted from the public website that are
   // still awaiting handling (specs/site-booking-notifications.md §3 rule 5).
   getPendingPublicDevis: () => request('/dashboard/public-devis-pending'),

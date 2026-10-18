@@ -74,6 +74,11 @@ const ROW_PAD_TOP = 7;
 const ROW_PAD_BOTTOM = 6;
 const ROW_BADGE_GAP = 4;
 
+// A « was » price is struck only above the billed one (specs/review-2026-10-18-reservations.md rule 2).
+function showsStruckOriginal(originalTtc, billedTtc) {
+  return Number(originalTtc || 0) > Number(billedTtc || 0) + 0.009;
+}
+
 function resolveRowGeometry({
   descHeight = 0, badgeHeight = 0, moneyLineHeight = 0, struckLineHeight = 0, showOriginal = false,
 } = {}) {
@@ -365,11 +370,10 @@ function generateDevisPdf(full, settings, quote) {
 
   function drawRow(desc, qty, totalTtc, vatRate, italic, meta = {}) {
     const originalTtc = Number(meta.originalTtc || 0);
-    // By default the original is struck only when it's higher (a reduction). `forceOriginal` strikes it
-    // in either direction (used for a manual accommodation price, which can be lower or higher).
-    const showOriginal = meta.forceOriginal
-      ? originalTtc > 0 && Math.abs(originalTtc - Number(totalTtc || 0)) > 0.009
-      : originalTtc > Number(totalTtc || 0) + 0.009;
+    // The original is struck only when it's higher: a strike-through reads as a reduction, so a lower
+    // « was » price above a higher billed one reads as a discount that is not there
+    // (specs/review-2026-10-18-reservations.md rule 2).
+    const showOriginal = showsStruckOriginal(originalTtc, totalTtc);
     const hasBadge = Boolean(meta.badgeText);
     const descText = String(desc == null ? '' : desc);
     const badgeText = hasBadge ? String(meta.badgeText) : '';
@@ -442,7 +446,6 @@ function generateDevisPdf(full, settings, quote) {
     const manualAccommodationTtc = roundMoney(Number(full.finalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
     drawRow(L.accommodation(nights), nights, manualAccommodationTtc, vatAccommodation, false, {
       originalTtc: engineAccommodationTtc,
-      forceOriginal: true,
     });
     accommodationTtcDrawn += manualAccommodationTtc;
   } else if (full.nights && full.nights.length > 0) {
@@ -805,6 +808,7 @@ function isPrintedExpired(full, validUntilIso, todayIsoDate) {
 module.exports = {
   generateDevisPdf,
   __test: {
+    showsStruckOriginal,
     isPrintedExpired,
     resolveLiveTaxTotals,
     lineAmounts,

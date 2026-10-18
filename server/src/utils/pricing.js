@@ -1,4 +1,16 @@
 const priceLineContributors = require('./priceLineContributors');
+
+// What an option line's `quantity` counts, when the summary has to say it
+// (specs/review-2026-10-18-reservations.md rule 5; review F13:
+// « Petit déjeuner ×3 » read as three portions when it meant three mornings). A breakfast counted by
+// the day — placed on its mornings, or a plain per-night price — counts mornings; a breakfast still
+// to plan counts portions and is left unnamed.
+function withQuantityUnit(line, option) {
+  if (!line || !option || option.autoOptionType !== 'breakfast' || line.toBeScheduled) return line;
+  const placed = Array.isArray(line.cardOccurrences) && line.cardOccurrences.length > 0;
+  const byDay = !option.showsPlanningCard && ['per_night', 'per_person_per_night'].includes(line.priceType || option.priceType);
+  return placed || byDay ? { ...line, quantityUnit: 'morning' } : line;
+}
 const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
@@ -1795,7 +1807,8 @@ function calculateReservationQuote({
         ...pickContribsAndForce(selected, locked),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((line) => withQuantityUnit(line, optionsById.get(Number(line.optionId))));
 
   // Custom option lines never have a persisted locked row keyed by optionId (their id rolls each
   // save), so the only source of `inComplement` / contribs is the payload itself. The contribs
@@ -2472,6 +2485,14 @@ function calculateReservationQuote({
     ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount
       - complementForcedItemsTotal - taxInComplement - midStayTotal,
   ));
+  // specs/reservation-refunds.md rule 34 — the other side of that gap: what the paid acompte and solde
+  // hold beyond what they now have to cover, once the stay was reduced after they were paid. The engine
+  // keeps a paid bucket's amount, so without this the money received above the new total went unseen.
+  const paidOnSchedule = (depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0);
+  const overCollectedTtc = roundMoney(Math.max(
+    0,
+    paidOnSchedule - (ownerStayTotal - complementForcedItemsTotal - taxInComplement - midStayTotal),
+  ));
   const rawComplement = roundMoney(complementForcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
   let resolvedComplementAmount;
   if (complementPaid) {
@@ -2629,6 +2650,7 @@ function calculateReservationQuote({
     depositAmount: resolvedDepositAmount,
     balanceAmount: resolvedBalanceAmount,
     complementAmount: resolvedComplementAmount,
+    overCollectedTtc,
     // specs/adjustable-complement-amounts.md §3.6 — what the engine produces on its own, so the fiche
     // can print « Calcul auto (X €) » under the adjustment field and ventilate the adjusted amount
     // over the postes the auto complement is actually made of.
@@ -2766,6 +2788,7 @@ module.exports = {
 };
 
 module.exports.__test = {
+  withQuantityUnit,
   timeToDecimalHour,
   computeAutoTimedOptionContext,
   normalizeOptionProgressiveTiers,

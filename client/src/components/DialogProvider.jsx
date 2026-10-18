@@ -3,7 +3,8 @@
  *
  *   const { confirm, alert, openForm } = useAppDialogs();
  *     confirm(options)  → Promise<boolean>   ConfirmDialog (options: title, message, confirmLabel,
- *                                            cancelLabel, confirmColor)
+ *                                            cancelLabel, confirmColor; with `secondaryLabel` a third
+ *                                            button resolves the string 'secondary')
  *     alert(options)    → Promise<void>      information dialog (options OBJECT: title, message,
  *                                            buttonLabel — never a bare string)
  *     openForm(options) → Promise<boolean>   FormDialog (title, content, onSubmit, submitLabel…)
@@ -97,6 +98,11 @@ export default function DialogProvider({ children }) {
     setConfirmState(null);
   };
 
+  const secondaryConfirm = () => {
+    if (confirmState?.resolve) confirmState.resolve('secondary');
+    setConfirmState(null);
+  };
+
   const closeAlert = () => {
     if (alertState?.resolve) alertState.resolve();
     setAlertState(null);
@@ -136,6 +142,8 @@ export default function DialogProvider({ children }) {
         confirmLabel={confirmState?.confirmLabel || 'Confirmer'}
         cancelLabel={confirmState?.cancelLabel || 'Annuler'}
         confirmColor={confirmState?.confirmColor || 'error'}
+        secondaryLabel={confirmState?.secondaryLabel || null}
+        onSecondary={secondaryConfirm}
       />
 
       <Dialog open={!!alertState} onClose={closeAlert} maxWidth="sm" fullWidth fullScreen={fullScreen}>

@@ -8,6 +8,7 @@
  *   displayDateShort       10 juil. 2026          — compact humanized (alert cards, dialogs)
  *   displayDateLong        10 juillet 2026        — prose-like contexts (SAS, notices)
  *   displayDateTime        10/07/2026 14:35       — timestamps (history, logs)
+ *   formatAmountInput      7,20 / 1234,50         — an amount shown inside an editable money field
  *
  * Amounts use REGULAR spaces (grouping + before €) on purpose — not Intl's narrow no-break spaces —
  * so rendered strings stay greppable/assertable and match the app's historical output.
@@ -21,6 +22,15 @@ export function formatCurrency(n) {
   const [int, dec] = Math.abs(rounded).toFixed(2).split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return `${rounded < 0 ? '-' : ''}${grouped},${dec} €`;
+}
+
+// An amount inside an editable field: two decimals, a comma, no grouping and no « € », so the text
+// reads as money and still parses back (specs/reservation-price-arithmetic.md rule 10).
+export function formatAmountInput(n) {
+  if (n == null || n === '') return '';
+  const num = Number(n);
+  if (!Number.isFinite(num)) return String(n);
+  return (Math.round(num * 100) / 100).toFixed(2).replace('.', ',');
 }
 
 export function formatCurrencyRounded(n) {

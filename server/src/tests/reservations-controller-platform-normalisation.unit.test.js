@@ -43,7 +43,9 @@ function buildController({ quoteFinalPrice = 100, quoteBalanceAmount, captures }
       };
     },
   };
+  // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
   const dbMock = {
+    transaction: (fn) => fn,
     prepare() {
       return {
         get() { return { countsAsBedLinen: 0 }; },

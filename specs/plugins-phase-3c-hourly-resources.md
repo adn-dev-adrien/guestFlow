@@ -389,6 +389,24 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
     through every save (the engine copies them when no plugin prices the line), and its tile is never
     « Indispo ».
 
+### 3.H Review of 2026-10-18
+
+> **Why this was added.** The review of 2026-10-18 (F4, F5) clicked « Ajouter une séance » twice on a
+> stay arriving at 16:00: both sessions landed on the arrival day at 11:00–12:00, before the check-in
+> and on the same slot of a bath that exists once, and the fiche saved them. The arrival SAS already
+> refused both; the fiche did not.
+
+30. **Overlapping sessions are refused on save.** A fiche create or update whose sessions use a
+    resource more times at once than its quantity is refused with 409 `SESSIONS_OVERLAP`
+    (« Séances qui se chevauchent le 13 novembre 2026 à 11:00. ») and nothing is written. Back-to-back
+    sessions are not an overlap. The check is in the core (`utils/resourceSessionConflicts.js`): the
+    sessions are a core field of the line, and the check runs whether or not the plugin is live.
+31. **The proposed session respects the stay.** « Ajouter une séance » proposes the first slot of the
+    stay that overlaps no session already placed, inside its day's window: the opening hours, from the
+    check-in on arrival day and up to the check-out on departure day, the bounds the SAS uses. Starts
+    and ends outside that window are greyed out in the pickers. With no slot left, the button is
+    disabled. The fiche passes `checkInTime` and `checkOutTime` in the picker's `stay`.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

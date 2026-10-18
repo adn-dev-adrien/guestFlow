@@ -20,6 +20,10 @@ router.post('/ical-cancellation/:id/reject', controller.rejectIcalCancellation);
 // specs/dashboard-ical-new-reservations.md — read-only card listing the last 24 hours' reservations.
 router.get('/new-reservations', controller.newReservations);
 
+// specs/reservation-number-and-search.md rule 15 — stays numbered by the boot repair, until checked.
+router.get('/repaired-reservation-numbers', controller.repairedReservationNumbers);
+router.post('/repaired-reservation-numbers/:id/acknowledge', controller.acknowledgeRepairedReservationNumber);
+
 // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4). Admin-only: the reception
 // allowlist is deny-by-default, so these three are already out of that role's reach.
 router.get('/payment-deadlines', controller.paymentDeadlines);

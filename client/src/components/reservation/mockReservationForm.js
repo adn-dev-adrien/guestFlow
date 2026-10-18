@@ -104,6 +104,7 @@ export function makeMockContext(overrides = {}) {
     refundableLines: [],
     refundTotals: { book: 0, withCash: 0 },
     refundCollectedTtc: 0,
+    refundOverpaymentTtc: 0,
     refundDialogOpen: false,
     setRefundDialogOpen: vi.fn(),
     createRefund: vi.fn(),

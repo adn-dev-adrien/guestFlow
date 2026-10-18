@@ -108,7 +108,8 @@ export default function PricingSummary({
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [showTouristTaxDetail, setShowTouristTaxDetail] = useState(false);
 
-  const nights = Number(quote?.nights || Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000)));
+  // The server's night count; 0 before dates are chosen, and then no count is shown.
+  const nights = Number(quote?.nights) > 0 ? Number(quote.nights) : 0;
   const touristTaxLabel = String(quote?.touristTaxLabel || '').trim();
   const touristTaxTotal = Number(quote?.touristTaxTotal ?? form.touristTaxTotal ?? 0);
   const touristTaxOriginalTotal = Number(quote?.touristTaxOriginalTotal ?? touristTaxTotal);
@@ -181,13 +182,14 @@ export default function PricingSummary({
   return (
     <Box
       sx={{
-        position: { xs: 'static', md: 'sticky' },
-        top: { md: 148 },
+        // Beside the form from lg (the fiche's two-column breakpoint), in the page flow below it.
+        position: { xs: 'static', lg: 'sticky' },
+        top: { lg: 148 },
         // Desktop: the summary becomes its own scroll area so the wheel/trackpad scrolls inside the
         // panel rather than the page when the cursor sits over it. We leave the mobile flow alone
         // (`xs` keeps the natural page scroll).
-        maxHeight: { md: 'calc(100vh - 148px - 16px)' },
-        overflowY: { md: 'auto' },
+        maxHeight: { lg: 'calc(100vh - 148px - 16px)' },
+        overflowY: { lg: 'auto' },
         // Hint browsers/scroll-snap engines to keep the inner scroll independent of the page.
         overscrollBehavior: 'contain',
       }}
@@ -196,7 +198,7 @@ export default function PricingSummary({
         <Typography variant="sectionHeader" sx={{ mb: 2 }}>
           Résumé tarifaire
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
           {selectedProperty?.label || selectedProperty?.name || 'Logement non sélectionné'}
         </Typography>
 
@@ -229,7 +231,9 @@ export default function PricingSummary({
                 ) : (
                   <Box />
                 )}
-                <Typography variant="caption" color="text.secondary">({nights} nuit{nights > 1 ? 's' : ''})</Typography>
+                {nights > 0 && (
+                  <Typography variant="caption" color="text.secondary">({nights} nuit{nights > 1 ? 's' : ''})</Typography>
+                )}
               </Box>
             </Box>
           </Box>
@@ -370,7 +374,14 @@ export default function PricingSummary({
                 const plannedVsSold = Number.isFinite(soldUnits) && soldUnits > 0
                   ? `planifié ${Number(so.billedUnits || 0)} · vendu ${soldUnits}`
                   : '';
-                const baseLabel = `${so.title || opt?.title || '—'}${Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}`;
+                // A line whose quantity counts mornings (the server says so) reads « · 3 matins »,
+                // not « ×3 », which reads as portions (specs/pricing-summary-labels rule, F13).
+                const countsMornings = so.quantityUnit === 'morning';
+                const quantity = Number(so.quantity);
+                const quantitySuffix = countsMornings
+                  ? ` · ${quantity} matin${quantity > 1 ? 's' : ''}`
+                  : (quantity > 1 ? ` ×${so.quantity}` : '');
+                const baseLabel = `${so.title || opt?.title || '—'}${quantitySuffix}`;
                 const baseKey = so.optionId || so.customKey || `custom_${index}`;
 
                 // Single callback unifies regular / auto / custom — the page knows which channel

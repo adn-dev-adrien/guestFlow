@@ -97,3 +97,32 @@ export function previewSessionsTotal(sessions, cfg = {}, freeMinutes = 0) {
 export function isHourlyScheduled(resource) {
   return Boolean(resource) && Number(resource.showsPlanningCard || 0) === 1 && resource.priceType === 'per_hour';
 }
+
+// The window a session may use on one day of the stay: the opening hours, narrowed to the check-in
+// on arrival day and to the check-out on departure day — the same bounds the arrival SAS applies
+// (specs/plugins-phase-3c-hourly-resources.md rule 31).
+export function dayWindow(date, { stay = {}, openTime, closeTime }) {
+  let lo = toMinutes(openTime || '00:00');
+  let hi = toMinutes(closeTime || '23:59');
+  if (date === stay.startDate && stay.checkInTime) lo = Math.max(lo, toMinutes(stay.checkInTime));
+  if (date === stay.endDate && stay.checkOutTime) hi = Math.min(hi, toMinutes(stay.checkOutTime));
+  return { lo, hi };
+}
+
+const overlaps = (a, b) => a.date === b.date && toMinutes(a.start) < toMinutes(b.end) && toMinutes(b.start) < toMinutes(a.end);
+
+// The session « Ajouter une séance » proposes: the first slot of the stay, in its day's window, that
+// overlaps none of the sessions already placed (rule 31). Null when the stay has no room left.
+export function nextFreeSession({ days, times, sessions = [], durationMinutes, stay, openTime, closeTime }) {
+  for (const date of days) {
+    const { lo, hi } = dayWindow(date, { stay, openTime, closeTime });
+    for (const start of times) {
+      const s = toMinutes(start);
+      const e = s + durationMinutes;
+      if (s < lo || e > hi) continue;
+      const candidate = { date, start, end: minutesToTime(e) };
+      if (!sessions.some((existing) => overlaps(existing, candidate))) return candidate;
+    }
+  }
+  return null;
+}

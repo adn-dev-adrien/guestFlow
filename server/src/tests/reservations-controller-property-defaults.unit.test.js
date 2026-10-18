@@ -89,7 +89,8 @@ function buildController(defaults, captures, carriedOptionIds = []) {
     } }),
     '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': propertyOptionDefaultsModel,
-    '../database': { prepare: () => ({ run: () => null, get: () => null, all: () => [] }) },
+    // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
+    '../database': { prepare: () => ({ run: () => null, get: () => null, all: () => [] }), transaction: (fn) => fn },
   }, () => {
     delete require.cache[require.resolve(controllerModule)];
     return require(controllerModule);

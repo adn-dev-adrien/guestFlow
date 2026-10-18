@@ -31,8 +31,10 @@ export default function StaySection() {
         <Stack spacing={2}>
           {/* Logement + Numéro de réservation share one row on md+ (specs/email-client-language-and-fiche-polish.md
               §3 rule 8); they stack on xs. Devis have no reservation number → Logement stays full-width. */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: isDevisMode ? '1fr' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-            <FormControl fullWidth>
+          {/* minmax(0, …) + minWidth 0: a long property name ellipsises instead of widening the page
+              (specs/review-2026-10-18-reservations.md rule 7). */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: isDevisMode ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+            <FormControl fullWidth sx={{ minWidth: 0 }}>
               <InputLabel>Logement</InputLabel>
               <Select
                 value={selectedProp}

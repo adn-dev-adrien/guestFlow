@@ -3,7 +3,9 @@
  * fullScreen under the `sm` breakpoint (specs/ds-components.md §3.3 — CLAUDE.md dialog rule).
  *
  * Props: open, onClose, onConfirm, title ('Confirmer'), message,
- *        confirmLabel ('Confirmer'), cancelLabel ('Annuler'), confirmColor ('error').
+ *        confirmLabel ('Confirmer'), cancelLabel ('Annuler'), confirmColor ('error'),
+ *        secondaryLabel + onSecondary — an optional third way out, drawn outlined between the two
+ *        (e.g. « Créer quand même » beside « Utiliser ce client »). The actions stack on `xs`.
  */
 import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, useMediaQuery } from '@mui/material';
@@ -18,6 +20,8 @@ export default function ConfirmDialog({
   confirmLabel = 'Confirmer',
   cancelLabel = 'Annuler',
   confirmColor = 'error',
+  secondaryLabel = null,
+  onSecondary = null,
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -27,8 +31,18 @@ export default function ConfirmDialog({
       <DialogContent>
         <Typography>{message}</Typography>
       </DialogContent>
-      <DialogActions>
+      <DialogActions
+        sx={secondaryLabel ? {
+          flexDirection: { xs: 'column-reverse', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: 1,
+          '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } },
+        } : undefined}
+      >
         <Button onClick={onClose}>{cancelLabel}</Button>
+        {secondaryLabel && onSecondary && (
+          <Button variant="outlined" color="inherit" onClick={onSecondary}>{secondaryLabel}</Button>
+        )}
         <Button variant="contained" color={confirmColor} onClick={onConfirm}>{confirmLabel}</Button>
       </DialogActions>
     </Dialog>

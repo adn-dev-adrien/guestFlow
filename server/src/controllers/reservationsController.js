@@ -7,6 +7,7 @@
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
 const { validateFinanceInputs } = require('../utils/financeValidation');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
@@ -64,6 +65,9 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
+const { overpaymentOf, overpaymentLinesOf } = require('../utils/overpayment');
+const { firstSessionConflict, conflictError: sessionConflictError } = require('../utils/resourceSessionConflicts');
+const { formatCurrency } = require('../utils/devisHelpers');
 const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
@@ -75,6 +79,7 @@ const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
+const { saveWithDraftClient } = require('../utils/draftClient');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -309,6 +314,99 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
     model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType);
   }
   return null;
+}
+
+// specs/plugins-phase-3c-hourly-resources.md rule 30 — sessions of the stay that use a resource more
+// times at once than it exists are refused (409 `SESSIONS_OVERLAP`). Answers and returns false.
+function refuseSessionConflict(res, resources) {
+  const conflict = firstSessionConflict(resources, (resourceId) => {
+    try { return (db.prepare('SELECT quantity FROM resources WHERE id = ?').get(resourceId) || {}).quantity; } catch { return 1; }
+  });
+  if (!conflict) return true;
+  res.status(409).json(sessionConflictError(conflict));
+  return false;
+}
+
+// specs/reservation-refunds.md rule 34 — a save that brings the stay below what the guest already paid
+// on the acompte and the solde is a trop-perçu: refused with its amount (409 `OVERPAID`) until the
+// operator confirms (`forceOverpayment`), so the money received and the sale never diverge silently.
+// A stay already over-collected can still be saved for anything else: only a save that ADDS to the
+// trop-perçu is stopped.
+function overpaymentIntroducedBy(reservationId, quote) {
+  const row = model.getRow(reservationId);
+  if (!row) return null;
+  const captured = model.capturedScheduleContribs(reservationId);
+  const refundedTtc = refundsModel.totalsByReservation(Number(reservationId)).withCash;
+  // The stay as stored, re-priced: what it already held in excess before this save.
+  let storedOver = 0;
+  try {
+    const stored = calculateReservationQuote(buildReservationEngineInput(db, row));
+    storedOver = stored && !stored.error ? Number(stored.overCollectedTtc || 0) : 0;
+  } catch {
+    storedOver = 0;
+  }
+  const before = overpaymentOf({ row, captured, refundedTtc, engineOverTtc: storedOver });
+  const after = overpaymentOf({
+    row, captured, refundedTtc,
+    depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
+  });
+  if (after <= before + 0.01) return null;
+  return {
+    error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
+    code: 'OVERPAID',
+    overpaymentTtc: after,
+    // Rule 35 — the same amount split by poste, for the refund the fiche opens next.
+    overpaymentLines: overpaymentLinesOf({
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after,
+    }),
+  };
+}
+
+// The live trop-perçu of the fiche being edited (rule 34): the preview re-priced with the payment state
+// the save would use (the stored flags), against the stored payments. Returns the amount and its split
+// by poste (rule 35), each poste carrying what it collected and what the save would now make it cost —
+// the figures the fiche shows beside the alert, since its summary keeps a frozen tax the save recomputes.
+function liveOverpayment(reservationId, engineInput) {
+  const none = { overpaymentTtc: 0, overpaymentLines: [] };
+  const row = model.getRow(reservationId);
+  if (!row) return none;
+  const depositDisabled = Boolean(engineInput.depositDisabled);
+  const savedInput = {
+    ...engineInput,
+    depositPaid: depositDisabled ? false : Number(row.depositPaid || 0) === 1,
+    balancePaid: Number(row.balancePaid || 0) === 1,
+    complementPaid: Number(row.complementPaid || 0) === 1,
+    // The save prices the tax unpinned (performUpdate passes no freeze): mirror it, or the preview
+    // would announce no trop-perçu where the save refuses one.
+    freezeTouristTax: false,
+  };
+  const asSaved = quotePostProcessors.applySync({
+    engineInput: savedInput, quote: calculateReservationQuote(savedInput), calculate: calculateReservationQuote,
+  });
+  if (!asSaved || asSaved.error) return none;
+  const overpaymentTtc = overpaymentOf({
+    row,
+    captured: model.capturedScheduleContribs(reservationId),
+    refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
+    depositAmount: asSaved.depositAmount,
+    balanceAmount: asSaved.balanceAmount,
+    engineOverTtc: asSaved.overCollectedTtc,
+  });
+  return {
+    overpaymentTtc,
+    overpaymentLines: overpaymentLinesOf({
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote: asSaved, overpaymentTtc,
+    }),
+  };
+}
+
+// A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
+// as the HTTP error it carries.
+class CreationRefused extends Error {
+  constructor(refusal) {
+    super(refusal.body && refusal.body.error);
+    this.refusal = refusal;
+  }
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────
@@ -702,6 +800,8 @@ async function calculatePrice(req, res) {
   if (reservationId > 0) {
     const row = model.getRow(reservationId);
     if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
+    // specs/reservation-refunds.md rule 34 — the trop-perçu the fiche shows, live.
+    if (row) Object.assign(quote, liveOverpayment(reservationId, engineInput));
   }
 
   res.json(quote);
@@ -719,7 +819,7 @@ function pastUnlockRequested(req) {
     || (req.query && String(req.query.unlockPast) === '1');
 }
 
-function create(req, res) {
+function createStay(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -849,6 +949,7 @@ function create(req, res) {
     ...scheduleQuoteInputs(0),
   };
   if (!gateInsurance(res, engineInput, 0)) return;
+  if (!refuseSessionConflict(res, engineInput.selectedResources)) return;
   let quote = calculateReservationQuote(engineInput);
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): cache only — the
   // preview warmed it, so the save bills what the preview announced.
@@ -887,33 +988,63 @@ function create(req, res) {
   const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: null });
   if (babyError) return res.status(400).json({ error: babyError });
 
-  const reservationId = model.insertReservation(req.body, quote, nightBlocks);
-  model.addHistoryEntry(reservationId, 'create', [
-    { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
-  ]);
-  if (reservationOptions && reservationOptions.length > 0) model.insertOptions(reservationId, quote.optionLines);
-  if (reservationCustomOptions && reservationCustomOptions.length > 0) model.insertCustomOptions(reservationId, quote.optionLines);
-  model.insertNights(reservationId, quote.nightlyBreakdown);
+  // specs/reservation-number-and-search.md rule 13 — the row, its number and its lines are written as
+  // one: a failure anywhere (a number collision, a resource no longer free) leaves no numberless stay
+  // behind to block the dates and leak into the iCal export.
+  const creation = db.transaction(() => {
+    const id = model.insertReservation(req.body, quote, nightBlocks);
+    model.addHistoryEntry(id, 'create', [
+      { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
+    ]);
+    if (reservationOptions && reservationOptions.length > 0) model.insertOptions(id, quote.optionLines);
+    if (reservationCustomOptions && reservationCustomOptions.length > 0) model.insertCustomOptions(id, quote.optionLines);
+    model.insertNights(id, quote.nightlyBreakdown);
 
-  if (reservationResources && reservationResources.length > 0) {
-    const resourceError = insertResourceLines(reservationId, quote, { propertyId, startDate, endDate, excludeId: null });
-    if (resourceError) return res.status(resourceError.status).json(resourceError.body);
+    if (reservationResources && reservationResources.length > 0) {
+      const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: null });
+      if (resourceError) throw new CreationRefused(resourceError);
+    }
+
+    // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — a reservation created while the
+    // stay is already running (walk-in, saisie a posteriori, import iCal) takes its own extras as the
+    // baseline: nothing it was created with counts as sold mid-stay.
+    model.captureArrivalExtrasBaselineIfDue(id);
+
+    // specs/adjustable-complement-amounts.md §3.6 rule 36 — the fiche decides how an adjusted complement
+    // splits across the accounting postes, and stores it. Runs after the lines: it reads them.
+    model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
+    return id;
+  });
+  let reservationId;
+  try {
+    reservationId = creation();
+  } catch (err) {
+    if (err instanceof CreationRefused) return res.status(err.refusal.status).json(err.refusal.body);
+    throw err;
   }
-
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — a reservation created while the
-  // stay is already running (walk-in, saisie a posteriori, import iCal) takes its own extras as the
-  // baseline: nothing it was created with counts as sold mid-stay.
-  model.captureArrivalExtrasBaselineIfDue(reservationId);
-
-  // specs/adjustable-complement-amounts.md §3.6 rule 36 — the fiche decides how an adjusted complement
-  // splits across the accounting postes, and stores it. Runs after the lines: it reads them.
-  model.syncComplementAllocation(reservationId, { autoAmount: quote.complementAmountAuto });
 
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Plugins react after the response and can never fail it (specs/plugins-phase-1-sdk.md rule 9).
   emitPluginEvent('reservation.created', { reservationId });
   // No acompte request leaves here (specs/payment-schedule-and-cancellation.md §1 amendment, rule 36):
   // the booking raises a `deposit_to_request` row on the dashboard instead, and the operator sends it.
+}
+
+// The HTTP creation of a stay. A client typed on the fiche (`newClient`) is written in the same
+// transaction (specs/clients.md rule 13).
+function create(req, res) {
+  if (!req.body || req.body.clientId || !req.body.newClient) return createStay(req, res);
+  const result = saveWithDraftClient({
+    db,
+    clientsModel: require('../models/clientsModel'),
+    body: req.body,
+    run: (body) => {
+      const recorder = createResultRecorder();
+      createStay({ ...req, body }, recorder);
+      return recorder.result();
+    },
+  });
+  return res.status(result.status).json(result.body);
 }
 
 // The HTTP save of the fiche. The work itself lives in `performUpdate` so a server caller (a plugin,
@@ -1110,6 +1241,7 @@ function applyUpdate(req, res, pastUnlocked) {
     ...scheduleQuoteInputs(id),
   };
   if (!gateInsurance(res, engineInput, Number(id))) return;
+  if (!refuseSessionConflict(res, engineInput.selectedResources)) return;
   req.body.options = engineInput.selectedOptions;
   let quote = calculateReservationQuote(engineInput);
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): same as the preview.
@@ -1161,6 +1293,10 @@ function applyUpdate(req, res, pastUnlocked) {
   }
   if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
     return res.status(409).json(changeoverErrorPayload(quote));
+  }
+  if (!req.body.forceOverpayment) {
+    const overpaid = overpaymentIntroducedBy(id, quote);
+    if (overpaid) return res.status(409).json(overpaid);
   }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);

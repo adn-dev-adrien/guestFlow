@@ -53,7 +53,7 @@ test('reception lock: a « done » arrival renders the locked panel, no wizard',
   await screen.findByText(/Ce check-in a déjà été validé le 04\/08\/2026\. Sa modification est réservée à l'administrateur\./);
   expect(screen.getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
   expect(screen.queryByText('Commencer')).toBeNull();
-  expect(screen.queryByText(/Étape 1\//)).toBeNull();
+  expect(screen.queryByText(/^Étape \d/)).toBeNull();
 });
 
 test('reception lock: a « past » arrival names the arrival day, not a commit date', async () => {

@@ -315,7 +315,7 @@ export default function ExtrasSection() {
                               <Component
                                 resource={resource}
                                 sessions={selected?.sessions}
-                                stay={{ startDate: form.startDate, endDate: form.endDate }}
+                                stay={{ startDate: form.startDate, endDate: form.endDate, checkInTime: form.checkInTime, checkOutTime: form.checkOutTime }}
                                 onSessionsChange={(next) => setResourceSessions(resource.id, next)}
                                 disabled={isReservationLocked}
                               />

@@ -7,7 +7,9 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { enumerateStayDates, timeOptions, toMinutes, minutesToTime } from './resourceSessions';
+import {
+  enumerateStayDates, timeOptions, toMinutes, minutesToTime, dayWindow, nextFreeSession,
+} from './resourceSessions';
 
 // French day-of-week + date label (e.g. « lun. 7 juil. »).
 function dateLabel(iso) {
@@ -33,10 +35,14 @@ export default function ResourceSessionsPicker({ resource, sessions: given, stay
   const removeSession = (idx) => onSessionsChange(sessions.filter((_, i) => i !== idx));
   // Picking a start auto-sets the end to start + 1 h (the first whole hour).
   const setStart = (idx, start) => updateSession(idx, { start, end: endForStart(start) });
+  const windowOf = (date) => dayWindow(date, { stay, openTime: resource.openTime, closeTime: resource.closeTime });
+  // Rule 31 — the proposed session is the first free slot of the stay, after the check-in on arrival
+  // day; none left → the button is disabled.
+  const proposed = nextFreeSession({
+    days, times, sessions, durationMinutes: firstDur, stay, openTime: resource.openTime, closeTime: resource.closeTime,
+  });
   const addSession = () => {
-    const date = days[0] || stay.startDate;
-    const start = (times[0]) || resource.openTime || '12:00';
-    onSessionsChange([...sessions, { date, start, end: endForStart(start) }]);
+    if (proposed) onSessionsChange([...sessions, proposed]);
   };
   const isInvalid = (s) => {
     const dur = toMinutes(s.end) - toMinutes(s.start);
@@ -67,8 +73,16 @@ export default function ResourceSessionsPicker({ resource, sessions: given, stay
               onChange={(e) => setStart(idx, e.target.value)}
               disabled={disabled} sx={{ width: 110 }}
             >
-              {/* A start that can't fit the first whole hour before closing is disabled. */}
-              {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) + firstDur > closeMin}>{t}</MenuItem>)}
+              {/* A start that can't fit the first whole hour in its day's window is disabled. */}
+              {times.map((t) => (
+                <MenuItem
+                  key={t}
+                  value={t}
+                  disabled={toMinutes(t) + firstDur > Math.min(closeMin, windowOf(s.date).hi) || toMinutes(t) < windowOf(s.date).lo}
+                >
+                  {t}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField
               select size="small" label="Fin" value={times.includes(s.end) ? s.end : ''}
@@ -79,14 +93,18 @@ export default function ResourceSessionsPicker({ resource, sessions: given, stay
             >
               {/* End options before « début + 1 h » are greyed out; the Select opens centred on the
                   current value (MUI scrolls the selected item into view). */}
-              {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) < toMinutes(s.start) + firstDur}>{t}</MenuItem>)}
+              {times.map((t) => (
+                <MenuItem key={t} value={t} disabled={toMinutes(t) < toMinutes(s.start) + firstDur || toMinutes(t) > windowOf(s.date).hi}>
+                  {t}
+                </MenuItem>
+              ))}
             </TextField>
             <IconButton size="small" color="error" onClick={() => removeSession(idx)} disabled={disabled} aria-label="Retirer la séance">
               <DeleteIcon fontSize="small" />
             </IconButton>
           </Stack>
         ))}
-        <Button size="small" startIcon={<AddIcon />} onClick={addSession} disabled={disabled || days.length === 0} sx={{ alignSelf: 'flex-start' }}>
+        <Button size="small" startIcon={<AddIcon />} onClick={addSession} disabled={disabled || !proposed} sx={{ alignSelf: 'flex-start' }}>
           Ajouter une séance
         </Button>
       </Stack>
