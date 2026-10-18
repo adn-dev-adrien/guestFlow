@@ -62,7 +62,7 @@ function fixture() {
   return { db, controller, id, body };
 }
 
-test('rule 34 — paid online, then reduced: 409 OVERPAID with the amount, saved once confirmed, then offered as a refund', () => {
+test('rule 34 — paid online, then reduced: 409 OVERPAID with the amount, saved once confirmed, then offered as a refund', async () => {
   const { db, controller, id, body } = fixture();
   const paid = db.prepare('SELECT balanceAmount FROM reservations WHERE id = ?').get(id).balanceAmount;
 
@@ -80,8 +80,7 @@ test('rule 34 — paid online, then reduced: 409 OVERPAID with the amount, saved
   assert.equal(refused.body.overpaymentTtc, expected);
 
   const refunds = require('../controllers/refundsController');
-  const register = refunds.buildRegister(id);
-  assert.equal(register.payload.overpaymentTtc, expected, 'the fiche shows the trop-perçu');
+  assert.equal(await liveOverpayment(controller, id, body(2)), expected, 'the fiche shows the trop-perçu');
 
   // An unrelated save of a stay already over-collected is not stopped again.
   const again = controller.performUpdate(id, { ...body(2), notes: 'Arrivée tardive' });
@@ -94,5 +93,42 @@ test('rule 34 — paid online, then reduced: 409 OVERPAID with the amount, saved
     body: { refundDate: '2026-10-18', method: 'transfer', reason: '', lines: [{ label: 'Trop-perçu', bucket: 'options', amountTtc: expected }] },
   }, res);
   assert.equal(res.statusCode, 201, JSON.stringify(res.body));
-  assert.equal(refunds.buildRegister(id).payload.overpaymentTtc, 0);
+  assert.equal(await liveOverpayment(controller, id, body(2)), 0);
+});
+
+// The quote the fiche asks for carries the live trop-perçu.
+async function liveOverpayment(controller, id, body) {
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  await controller.calculatePrice({ body: { ...body, selectedOptions: body.options, reservationId: id }, user: { role: 'admin' } }, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  return res.body.overpaymentTtc;
+}
+
+// The engine keeps a paid acompte and solde frozen: reducing the stay afterwards leaves them above the
+// new total (browser check 2026-10-18 — 1 adult fewer, 3,60 € of tourist tax, nothing said).
+test('rule 34 — acompte and solde paid, then the stay reduced: the frozen excess is a trop-perçu', async () => {
+  const db = require('../database');
+  const controller = require('../controllers/reservationsController');
+  db.prepare("INSERT OR IGNORE INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson) VALUES (2, 'Lodge', 8, 'per_day_per_person', 1.2)").run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (2, 'Standard', 100)").run();
+  const body = (adults, extra = {}) => ({
+    propertyId: 2, clientId: 1, startDate: '2027-02-24', endDate: '2027-02-27',
+    checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
+    adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, ...extra,
+  });
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  controller.create({ body: body(2), user: { role: 'admin' } }, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const id = res.body.id;
+  const row = db.prepare('SELECT depositAmount, balanceAmount, touristTaxTotal FROM reservations WHERE id = ?').get(id);
+  const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
+  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'full', paidDate: '2026-10-18' });
+
+  const paidFlags = { depositPaid: true, balancePaid: true, depositAmount: row.depositAmount, balanceAmount: row.balanceAmount };
+  assert.equal(await liveOverpayment(controller, id, body(2, paidFlags)), 0, 'nothing in excess before the change');
+  const refused = controller.performUpdate(id, body(1, paidFlags));
+  assert.equal(refused.status, 409, JSON.stringify(refused.body));
+  assert.equal(refused.body.code, 'OVERPAID');
+  assert.equal(refused.body.overpaymentTtc, 3.6, 'one adult × 3 nights × 1,20 €');
+  assert.equal(await liveOverpayment(controller, id, body(1, paidFlags)), 3.6);
 });

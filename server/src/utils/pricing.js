@@ -2485,6 +2485,14 @@ function calculateReservationQuote({
     ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount
       - complementForcedItemsTotal - taxInComplement - midStayTotal,
   ));
+  // specs/reservation-refunds.md rule 34 — the other side of that gap: what the paid acompte and solde
+  // hold beyond what they now have to cover, once the stay was reduced after they were paid. The engine
+  // keeps a paid bucket's amount, so without this the money received above the new total went unseen.
+  const paidOnSchedule = (depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0);
+  const overCollectedTtc = roundMoney(Math.max(
+    0,
+    paidOnSchedule - (ownerStayTotal - complementForcedItemsTotal - taxInComplement - midStayTotal),
+  ));
   const rawComplement = roundMoney(complementForcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
   let resolvedComplementAmount;
   if (complementPaid) {
@@ -2642,6 +2650,7 @@ function calculateReservationQuote({
     depositAmount: resolvedDepositAmount,
     balanceAmount: resolvedBalanceAmount,
     complementAmount: resolvedComplementAmount,
+    overCollectedTtc,
     // specs/adjustable-complement-amounts.md §3.6 — what the engine produces on its own, so the fiche
     // can print « Calcul auto (X €) » under the adjustment field and ventilate the adjusted amount
     // over the postes the auto complement is actually made of.

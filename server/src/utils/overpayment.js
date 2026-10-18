@@ -36,12 +36,17 @@ function collectedOnSchedule(row = {}, captured = {}) {
  * @param {number} args.refundedTtc    every refund already given back, whatever the means
  * @param {number} [args.depositAmount] the schedule the stay now has (default: the stored one)
  * @param {number} [args.balanceAmount]
+ * @param {number} [args.engineOverTtc] the engine's `overCollectedTtc`: what a paid acompte and solde
+ *   hold beyond what they now cover, when the engine kept their amounts frozen
  * @returns {number} ≥ 0 — the trop-perçu, 0 when the stay is not over-collected
  */
-function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount, balanceAmount }) {
+function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount, balanceAmount, engineOverTtc = 0 }) {
   const pick = (given, stored) => Number((given === undefined ? stored : given) || 0);
   const due = pick(depositAmount, row.depositAmount) + pick(balanceAmount, row.balanceAmount);
-  return Math.max(0, round2(collectedOnSchedule(row, captured) - Number(refundedTtc || 0) - due));
+  // A paid bucket lowered by the save (captured above the new amount), or kept frozen by the engine
+  // above what the smaller stay now owes: the two ways a reduction leaves money received in excess.
+  const excess = Math.max(collectedOnSchedule(row, captured) - due, Number(engineOverTtc) || 0);
+  return Math.max(0, round2(excess - Number(refundedTtc || 0)));
 }
 
 module.exports = { collectedOnSchedule, overpaymentOf };

@@ -6,6 +6,7 @@
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
 const { validateFinanceInputs } = require('../utils/financeValidation');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
@@ -335,9 +336,18 @@ function overpaymentIntroducedBy(reservationId, quote) {
   if (!row) return null;
   const captured = model.capturedScheduleContribs(reservationId);
   const refundedTtc = refundsModel.totalsByReservation(Number(reservationId)).withCash;
-  const before = overpaymentOf({ row, captured, refundedTtc });
+  // The stay as stored, re-priced: what it already held in excess before this save.
+  let storedOver = 0;
+  try {
+    const stored = calculateReservationQuote(buildReservationEngineInput(db, row));
+    storedOver = stored && !stored.error ? Number(stored.overCollectedTtc || 0) : 0;
+  } catch {
+    storedOver = 0;
+  }
+  const before = overpaymentOf({ row, captured, refundedTtc, engineOverTtc: storedOver });
   const after = overpaymentOf({
-    row, captured, refundedTtc, depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount,
+    row, captured, refundedTtc,
+    depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
   });
   if (after <= before + 0.01) return null;
   return {
@@ -345,6 +355,35 @@ function overpaymentIntroducedBy(reservationId, quote) {
     code: 'OVERPAID',
     overpaymentTtc: after,
   };
+}
+
+// The live trop-perçu of the fiche being edited (rule 34): the preview re-priced with the payment state
+// the save would use (the stored flags), against the stored payments.
+function liveOverpayment(reservationId, engineInput) {
+  const row = model.getRow(reservationId);
+  if (!row) return 0;
+  const depositDisabled = Boolean(engineInput.depositDisabled);
+  const savedInput = {
+    ...engineInput,
+    depositPaid: depositDisabled ? false : Number(row.depositPaid || 0) === 1,
+    balancePaid: Number(row.balancePaid || 0) === 1,
+    complementPaid: Number(row.complementPaid || 0) === 1,
+    // The save prices the tax unpinned (performUpdate passes no freeze): mirror it, or the preview
+    // would announce no trop-perçu where the save refuses one.
+    freezeTouristTax: false,
+  };
+  const asSaved = quotePostProcessors.applySync({
+    engineInput: savedInput, quote: calculateReservationQuote(savedInput), calculate: calculateReservationQuote,
+  });
+  if (!asSaved || asSaved.error) return 0;
+  return overpaymentOf({
+    row,
+    captured: model.capturedScheduleContribs(reservationId),
+    refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
+    depositAmount: asSaved.depositAmount,
+    balanceAmount: asSaved.balanceAmount,
+    engineOverTtc: asSaved.overCollectedTtc,
+  });
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
@@ -747,6 +786,8 @@ async function calculatePrice(req, res) {
   if (reservationId > 0) {
     const row = model.getRow(reservationId);
     if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
+    // specs/reservation-refunds.md rule 34 — the trop-perçu the fiche shows, live.
+    if (row) quote.overpaymentTtc = liveOverpayment(reservationId, engineInput);
   }
 
   res.json(quote);

@@ -123,7 +123,6 @@ const EMPTY_REFUND_REGISTER = {
   refundableLines: [],
   refundTotals: { book: 0, withCash: 0 },
   collectedTtc: 0,
-  overpaymentTtc: 0,
 };
 
 const EMPTY_CLIENT = {
@@ -891,7 +890,6 @@ export default function ReservationPage() {
             refundableLines: res.refundableLines || [],
             refundTotals: res.refundTotals || { book: 0, withCash: 0 },
             collectedTtc: Number(res.collectedTtc || 0),
-            overpaymentTtc: Number(res.overpaymentTtc || 0),
           });
           setPluginBlocks(res.pluginBlocks || {});
           setCgvBlock(res.cgv || null);
@@ -2520,7 +2518,7 @@ export default function ReservationPage() {
         });
         if (!proceed) return false;
         return await handleSaveReservation(
-          safeAfterSaveAction || openOverpaymentRefund,
+          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0))),
           forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true,
         );
       }
@@ -2688,25 +2686,16 @@ export default function ReservationPage() {
       refundableLines: payload.refundableLines || [],
       refundTotals: payload.refundTotals || { book: 0, withCash: 0 },
       collectedTtc: Number(payload.collectedTtc || 0),
-      overpaymentTtc: Number(payload.overpaymentTtc || 0),
     });
     setRefundsVersion((v) => v + 1);
   }, []);
 
-  // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the
-  // register and the paid state, then open the refund dialog on the server's amount.
-  const openOverpaymentRefund = useCallback(async () => {
-    if (!editingReservationId) return;
-    try {
-      const payload = await api.getReservationRefunds(editingReservationId);
-      applyRefundPayload(payload);
-      await reloadReservationFinance();
-      const overpaymentTtc = Number(payload?.overpaymentTtc || 0);
-      if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc });
-    } catch (err) {
-      await alert({ title: 'Erreur', message: err.message || 'Impossible de relire les remboursements.' });
-    }
-  }, [editingReservationId, applyRefundPayload, reloadReservationFinance, alert]);
+  // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the paid
+  // state and open the refund dialog on the amount the server announced.
+  const openOverpaymentRefund = useCallback(async (overpaymentTtc) => {
+    await reloadReservationFinance();
+    if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc });
+  }, [reloadReservationFinance]);
 
   const createRefund = useCallback(async (payload) => {
     const res = await api.createReservationRefund(editingReservationId, payload);
@@ -3208,8 +3197,8 @@ export default function ReservationPage() {
     refundableLines: refundRegister.refundableLines,
     refundTotals: refundRegister.refundTotals,
     refundCollectedTtc: refundRegister.collectedTtc,
-    // specs/reservation-refunds.md rule 34 — the trop-perçu, computed by the server.
-    refundOverpaymentTtc: refundRegister.overpaymentTtc,
+    // specs/reservation-refunds.md rule 34 — the trop-perçu, computed by the server with the live quote.
+    refundOverpaymentTtc: Number(pricingQuote?.overpaymentTtc || 0),
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.

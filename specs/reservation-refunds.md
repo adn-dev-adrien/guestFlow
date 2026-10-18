@@ -219,13 +219,17 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     solde actually collected, minus every refund already given back, minus the schedule the stay now
     has (`acompte + solde`), floored at 0 (`utils/overpayment.js`). A paid bucket's collected amount is the
     sum of the contribs captured when it was ticked, which survives a later save that lowers it; without
-    a capture it is the stored amount. A caisse-interne bucket counts as collected.
+    a capture it is the stored amount. A caisse-interne bucket counts as collected. A paid acompte or
+    solde whose amount the engine keeps frozen above what the reduced stay now owes counts too: the
+    engine reports that excess as `overCollectedTtc`, and the trop-perçu is the larger of the two.
     - **On save:** a save that adds to the trop-perçu is refused with 409 `OVERPAID`, carrying
       `overpaymentTtc`, and nothing is written. The fiche asks « Trop-perçu » with two answers:
       « Enregistrer et rembourser » (the same save, sent again with `forceOverpayment`; the fiche stays
       open and the refund dialog opens on the amount) or « Annuler ». A stay that is already
       over-collected can still be saved for anything else.
-    - **On the fiche:** the refund register carries `overpaymentTtc`. When it is above 0, the
+    - **On the fiche:** the live quote (`POST /calculate-price` with a `reservationId`) carries
+      `overpaymentTtc`, priced as the save would price it, so the amount follows each edit before the
+      save. When it is above 0, the
       Remboursements block shows « Trop-perçu : X € » with a « Rembourser » button. The button opens the
       refund dialog with a free line « Trop-perçu » (bucket Hébergement) set to that amount; the operator
       can change both.
@@ -251,6 +255,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `utils/` | `pricing.js` | T | New input `refundsTotal`; new output `refundsTotal` + `sejourNetTotal` net of refunds (single subtraction, no other engine change) |
 | `constants/` | `accounting.js` | T | `REFUND_BUCKET_TO_ACCOUNT` (adds `touristTax → 46710000` on top of the existing `BUCKET_TO_ACCOUNT`) |
 | `utils/` | `reservationSettlement.js` | T | Gains `comptaCollected` / `midStayNotesTotal` / `refundsBook` (extracted from `financeModel` so the fiche's « encaissé » caption and the finance views share ONE authority), all three net of refunds |
+| `utils/` | `overpayment.js` | C | Rule 34 — **pure** `collectedOnSchedule` / `overpaymentOf`: collected on acompte + solde (captured contribs), minus refunds, minus the schedule, or the engine's `overCollectedTtc` when larger |
+| `utils/` | `pricing.js` | T | Rule 34 — new output `overCollectedTtc`: what a paid acompte and solde hold beyond what the reduced stay now owes |
+| `controllers/` | `reservationsController.js` | T | Rule 34 — `overpaymentIntroducedBy` (409 `OVERPAID` unless `forceOverpayment`) on update; `calculatePrice` returns `overpaymentTtc` for a stored reservation |
 | `middleware/` | `enforceRoleAccess.js` | — | (none — the new paths are admin-only by default; the reception allowlist drift test pins that) |
 | `schema.sql` | `schema.sql` | T | The two tables + 2 indices. Per specs/migrations-baseline.md the baseline is re-executed at every boot with `CREATE TABLE IF NOT EXISTS`, so a brand-new table needs NO extra block in `database.js` (that file is only for altering existing rows) |
 
