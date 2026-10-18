@@ -1,5 +1,5 @@
 // specs/guest-email-texts-made-simple.md rules 27–31 — the start assistant on a fresh instance:
-// rule 27 nothing is asserted to a guest that the owner did not say (deposit, cleaning, towels),
+// rule 27 nothing is asserted to a guest that the owner did not say (deposit, cleaning, towels, bed linen),
 // rule 28 its property is edited, never created twice, rule 29 the article comes from the name,
 // rule 30 the sample stay keeps the property's times, rule 31 the key-box code has its own field.
 
@@ -56,13 +56,13 @@ function render(db, propertyId, stableKey) {
   return renderTemplate({ subject: template.subject, body: template.body }, context);
 }
 
-test('rule 27: a property made by the assistant has no deposit and three facts left unsaid', async () => {
+test('rule 27: a property made by the assistant has no deposit and four facts left unsaid', async () => {
   const { db, controller } = setup();
   const res = await call(controller.saveProperty, { body: PROPERTY });
   assert.equal(res.status, 200);
   const p = db.prepare('SELECT * FROM properties WHERE id = ?').get(res.body.id);
   assert.equal(Number(p.defaultCautionAmount), 0);
-  assert.deepEqual([...pendingFactsOf(p)], ['caution', 'cleaning', 'towels']);
+  assert.deepEqual([...pendingFactsOf(p)], ['caution', 'cleaning', 'towels', 'linen']);
   const j2 = render(db, p.id, 'arrival_reminder_1d').body;
   assert.doesNotMatch(j2, /caution/i);
   assert.doesNotMatch(j2, /ménage/i);
@@ -74,26 +74,26 @@ test('rule 27: what is still unsaid is listed, and answering it in « Vos emails
   const { db, controller, settingsModel } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   const readiness = () => buildReadiness({ database: db, settingsModel }).compute().items.map((i) => i.id);
-  for (const fact of ['caution', 'cleaning', 'towels']) assert.ok(readiness().includes(`property.${fact}:${id}`), fact);
+  for (const fact of ['caution', 'cleaning', 'towels', 'linen']) assert.ok(readiness().includes(`property.${fact}:${id}`), fact);
 
-  const saved = await call(controller.saveEmails, { body: { properties: [{ id, caution: '300', cleaningIncluded: false, towelsProvided: false }] } });
+  const saved = await call(controller.saveEmails, { body: { properties: [{ id, caution: '300', cleaningIncluded: false, towelsProvided: false, bedLinenProvided: false }] } });
   assert.equal(saved.status, 200);
   const p = db.prepare('SELECT * FROM properties WHERE id = ?').get(id);
   assert.equal(p.defaultCautionAmount, 300);
   assert.equal(p.pendingFacts, '');
-  assert.ok(!readiness().some((i) => /^property\.(caution|cleaning|towels):/.test(i)));
+  assert.ok(!readiness().some((i) => /^property\.(caution|cleaning|towels|linen):/.test(i)));
   const j2 = render(db, id, 'arrival_reminder_1d').body;
   assert.match(j2, /caution de 300,00 €/);
   assert.match(j2, /ménage/i);
   const emails = (await call(controller.get, {})).body.emails.properties[0];
-  assert.deepEqual([emails.caution, emails.cleaningIncluded, emails.towelsProvided, emails.pending], [300, false, false, []]);
+  assert.deepEqual([emails.caution, emails.cleaningIncluded, emails.towelsProvided, emails.bedLinenProvided, emails.pending], [300, false, false, false, []]);
 });
 
 test('rule 27: an untouched step answers nothing; a negative deposit is refused', async () => {
   const { db, controller } = setup();
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   await call(controller.saveEmails, { body: { properties: [{ id, address: '1 place du Lac' }] } });
-  assert.equal(db.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(id).pendingFacts, 'caution,cleaning,towels');
+  assert.equal(db.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(id).pendingFacts, 'caution,cleaning,towels,linen');
   const refused = await call(controller.saveEmails, { body: { properties: [{ id, caution: '-5' }] } });
   assert.equal(refused.status, 422);
   assert.equal(refused.body.errors['properties.0.caution'], 'Un montant ≥ 0 €');
@@ -112,8 +112,8 @@ test('rule 27: saving the property page answers only the facts it sends', async 
   const { body: { id } } = await call(controller.saveProperty, { body: PROPERTY });
   const model = propertiesModelModule.buildModel(db);
   await model.update(id, { name: 'Le Fournil', parkingDistanceMeters: 0, cleaningIncluded: 'options' });
-  assert.equal(db.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(id).pendingFacts, 'caution,towels');
-  await model.update(id, { name: 'Le Fournil', defaultCautionAmount: 0, towelsProvided: '1' });
+  assert.equal(db.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(id).pendingFacts, 'caution,towels,linen');
+  await model.update(id, { name: 'Le Fournil', defaultCautionAmount: 0, towelsProvided: '1', bedLinenProvided: '1' });
   const p = db.prepare('SELECT pendingFacts, towelsProvided, cleaningIncluded FROM properties WHERE id = ?').get(id);
   assert.deepEqual({ ...p }, { pendingFacts: '', towelsProvided: 1, cleaningIncluded: null });
 });

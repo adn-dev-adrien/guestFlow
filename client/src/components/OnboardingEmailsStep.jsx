@@ -1,15 +1,15 @@
 /**
  * OnboardingEmailsStep — step « Vos emails » of the start assistant (specs/guest-email-texts-made-simple.md
  * rule 21): phone and sender name, then for every property its article as a choice, its address (the
- * company's offered by the server), way in, key-box code and Wi-Fi, the deposit, the cleaning and the
- * bath towels; then the J-2 of a sample stay rendered by the server with what is typed. Every field
- * can be left empty: an article, a deposit, the cleaning or the towels left unanswered are not said
+ * company's offered by the server), way in, key-box code and Wi-Fi, the deposit, the cleaning, the
+ * bath towels and the bed linen; then the J-2 of a sample stay rendered by the server with what is
+ * typed. Every field can be left empty: an article, a deposit, the cleaning or the linen left unanswered are not said
  * to the guest (rules 27, 29). Specific to the assistant.
  *
  * Props:
  *   emails     the server's `emails` block of GET /api/onboarding
  *   value      { phone, senderName, properties: { [id]: { nameArticle, address, access, accessCode, wifiName,
- *              wifiPassword, caution, cleaningIncluded, towelsProvided } } } — null / '' while unanswered
+ *              wifiPassword, caution, cleaningIncluded, towelsProvided, bedLinenProvided } } } — null / '' while unanswered
  *   onChange   (patch) => void — `{ phone }`, or `{ property: id, patch }`
  *   errors     { [field]: message }
  */
@@ -37,6 +37,7 @@ export default function OnboardingEmailsStep({ emails, value, onChange, errors =
         ...(p.caution !== '' && p.caution != null ? { caution: p.caution } : {}),
         ...(p.cleaningIncluded != null ? { cleaningIncluded: p.cleaningIncluded } : {}),
         ...(p.towelsProvided != null ? { towelsProvided: p.towelsProvided } : {}),
+        ...(p.bedLinenProvided != null ? { bedLinenProvided: p.bedLinenProvided } : {}),
       };
     }
     const timer = setTimeout(() => {
@@ -117,6 +118,7 @@ export default function OnboardingEmailsStep({ emails, value, onChange, errors =
             })}
             {yesNo('Ménage de fin de séjour', p.cleaningIncluded, (v) => set({ cleaningIncluded: v }), 'Compris', 'Non compris')}
             {yesNo('Linge de toilette', p.towelsProvided, (v) => set({ towelsProvided: v }), 'Fourni', 'À apporter')}
+            {yesNo('Linge de lit', p.bedLinenProvided, (v) => set({ bedLinenProvided: v }), 'Fourni', 'À apporter')}
           </Box>
         );
       })}

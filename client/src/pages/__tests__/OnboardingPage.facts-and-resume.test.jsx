@@ -26,7 +26,7 @@ const EMAILS = {
   properties: [{
     id: 1, name: 'Gite', nameArticle: null, articles: [{ value: 'au', label: 'au Gite' }, { value: 'à la', label: 'à la Gite' }],
     address: '', access: '', hasAccessCode: false, hasWifi: false, wifiName: '', hasWifiPassword: false,
-    caution: null, cleaningIncluded: null, towelsProvided: null, pending: ['caution', 'cleaning', 'towels'],
+    caution: null, cleaningIncluded: null, towelsProvided: null, bedLinenProvided: null, pending: ['caution', 'cleaning', 'towels', 'linen'],
   }],
 };
 const DRAFT = { name: 'Gite', doubleBeds: '1', singleBeds: '0', maxGuests: '2', checkIn: '17:00', checkOut: '10:00', pricePerNight: '80' };
@@ -98,5 +98,22 @@ test('rules 27, 29, 31: nothing chosen by default; only what is answered is sent
   expect(sent).toEqual(expect.objectContaining({ id: 1, cleaningIncluded: false, accessCode: '4821' }));
   expect(sent).not.toHaveProperty('nameArticle');
   expect(sent).not.toHaveProperty('caution');
+  expect(sent).not.toHaveProperty('towelsProvided');
+  expect(sent).not.toHaveProperty('bedLinenProvided');
+});
+
+test('rule 27 (2026-10-18): the bed linen is asked like the towels, and sent once answered', async () => {
+  await start();
+  next(); await screen.findByText('Étape 2 sur 5');
+  fireEvent.change(screen.getByLabelText(/Nom du logement/), { target: { value: 'Gite' } });
+  fireEvent.change(screen.getByLabelText(/Prix par nuit/), { target: { value: '80' } });
+  next(); await screen.findByText('Étape 3 sur 5');
+  next(); await screen.findByText('Étape 4 sur 5');
+  const gite = within(await screen.findByRole('region', { name: 'Gite' }));
+  fireEvent.click(within(gite.getByRole('radiogroup', { name: 'Linge de lit' })).getByRole('radio', { name: 'À apporter' }));
+  next();
+  await waitFor(() => expect(api.saveOnboardingEmails).toHaveBeenCalled());
+  const [sent] = api.saveOnboardingEmails.mock.calls[0][0].properties;
+  expect(sent).toEqual(expect.objectContaining({ id: 1, bedLinenProvided: false }));
   expect(sent).not.toHaveProperty('towelsProvided');
 });

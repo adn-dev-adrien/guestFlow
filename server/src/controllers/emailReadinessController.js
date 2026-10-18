@@ -86,6 +86,7 @@ function buildController({ database, settingsModel }) {
     const cautionUsed = uses('cautionNotReceived', 'cautionAmount');
     const cleaningUsed = uses('cleaningParagraph', 'hasCleaningParagraph');
     const towelsUsed = uses('bagList', 'hasBagList', 'hasTowelsIncluded');
+    const linenUsed = uses('bedsParagraph', 'hasBedsParagraph');
     for (const p of properties) {
       const stay = stays[p.id] || { any: false, soon: false };
       const target = { path: `/properties/${p.id}` };
@@ -99,9 +100,10 @@ function buildController({ database, settingsModel }) {
         ['caution', 'Caution', cautionUsed],
         ['cleaning', 'Ménage compris ou non', cleaningUsed],
         ['towels', 'Linge de toilette fourni ou non', towelsUsed],
+        ['linen', 'Linge de lit fourni ou non', linenUsed],
       ]) {
         if (pending.has(fact) && needed) {
-          push({ id: `property.${fact}:${p.id}`, check: 'fact', label: `${label} — ${p.name}`, section: fact === 'towels' ? 'j7' : 'j2', propertyId: p.id, target: fact === 'caution' ? { path: `/properties/${p.id}`, search: 'tab=paiement' } : stayTab, soon: stay.soon });
+          push({ id: `property.${fact}:${p.id}`, check: 'fact', label: `${label} — ${p.name}`, section: fact === 'towels' || fact === 'linen' ? 'j7' : 'j2', propertyId: p.id, target: fact === 'caution' ? { path: `/properties/${p.id}`, search: 'tab=paiement' } : stayTab, soon: stay.soon });
         }
       }
       if (!stay.any) continue;

@@ -130,6 +130,8 @@ function applyGuestEmailSequenceSchema(db) {
       ['pendingFacts', "TEXT NOT NULL DEFAULT ''"],
       ['cleaningIncluded', 'INTEGER'],
       ['towelsProvided', 'INTEGER'],
+      // 2026-10-18 — the bed linen, answered like the towels.
+      ['bedLinenProvided', 'INTEGER'],
     ]);
   }
   // Rule 33 — the pool season belongs to the property that has the pool. The season set once for

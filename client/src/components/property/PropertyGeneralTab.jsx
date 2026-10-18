@@ -4,8 +4,9 @@
  *
  * Props:
  *   property, form, errors ({ field: message }), updateField(field, value), onZeroFocus(event)
- *   isNew, photoFile, photoValidationError, onPhotoChange(event), nameArticles (string[]),
- *   previewWithArticle(name, article), photoFormatsText, timeOptions (string[])
+ *   isNew, photoFile, photoValidationError, onPhotoChange(event),
+ *   articleLabels ([{ value, label }] — the articles as the emails write them, from the server),
+ *   photoFormatsText, timeOptions (string[])
  */
 import React from 'react';
 import {
@@ -15,7 +16,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 
 export default function PropertyGeneralTab({
   property, form, errors = {}, updateField, onZeroFocus, isNew,
-  photoFile, photoValidationError, onPhotoChange, nameArticles, previewWithArticle, photoFormatsText, timeOptions,
+  photoFile, photoValidationError, onPhotoChange, articleLabels = [], photoFormatsText, timeOptions,
 }) {
   const number = (field, label, helperText, inputProps = { min: 0 }) => (
     <TextField
@@ -31,7 +32,9 @@ export default function PropertyGeneralTab({
       slotProps={{ htmlInput: inputProps }}
     />
   );
-  const preview = previewWithArticle(form.name, form.nameArticle);
+  const article = form.nameArticle || '';
+  const options = articleLabels.length ? articleLabels : (article ? [{ value: article, label: article }] : []);
+  const preview = String(form.name || '').trim() ? (options.find((o) => o.value === article) || {}).label : '';
 
   return (
     <>
@@ -52,13 +55,13 @@ export default function PropertyGeneralTab({
             <TextField
               select
               label="Article du nom (emails clients)"
-              value={form.nameArticle || 'au'}
+              value={options.some((o) => o.value === article) ? article : ''}
               onChange={(e) => updateField('nameArticle', e.target.value)}
               size="small"
               fullWidth
-              helperText={preview ? `Aperçu : « votre séjour ${preview} »` : 'Utilisé pour « votre séjour … » dans les emails clients.'}
+              helperText={preview ? `Aperçu : « votre séjour ${preview} »` : (article ? 'Utilisé pour « votre séjour … » dans les emails clients.' : 'À choisir pour les emails clients.')}
             >
-              {nameArticles.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+              {options.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
             </TextField>
           </Box>
           {property.photo && <Box component="img" src={property.photo} alt={property.name} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, mb: 2 }} />}

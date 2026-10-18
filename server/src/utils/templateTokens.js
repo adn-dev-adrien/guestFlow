@@ -292,12 +292,26 @@ function chipsForText({ tokens = [], flags = [] } = {}) {
 }
 
 /**
+ * Rule 26 (2026-10-18) — a known variable inside one pair of braces, « {clientFirstName} »: the
+ * renderer leaves it as it is, so the guest would read it. Text in single braces that names no
+ * variable stays prose.
+ */
+function singleBraced(text, { tokens = [], flags = [] } = {}) {
+  const known = new Set([...tokens, ...flags, ...VARIABLES.map((v) => v.name), ...FLAGS.map((f) => f.name), ...Object.keys(STAY_TOKEN_LABELS)]);
+  const outside = String(text || '').replace(/\{\{[^{}]*\}\}/g, ' ');
+  const re = /\{\s*([A-Za-z0-9_]+)\s*\}/g;
+  let m;
+  while ((m = re.exec(outside)) !== null) if (known.has(m[1])) return true;
+  return false;
+}
+
+/**
  * Rule 11 — the one validation of the three editors: a broken variable or condition (rule 26), else
  * the first unknown name of a text, as the 422 body `{ field, message }`, or null.
  */
 function tokenError(field, text, allowed) {
   // Rule 26 — a broken variable or condition first: the renderer would print it as it is.
-  const broken = structureError(text);
+  const broken = structureError(text) || (singleBraced(text, allowed) ? 'brace' : null);
   if (broken) return { field, message: STRUCTURE_MESSAGES[broken] };
   const name = unknownToken(text, allowed);
   if (name == null) return null;

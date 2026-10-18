@@ -13,12 +13,12 @@
  *   template   { subject?, body?, subjectEn?, bodyEn? }  the full template being edited
  *   settings   { companyName?, companyPhone?, smtpFromName? }
  *   arrival    { [propertyId]: { address?, mapUrl?, accessFr?, accessEn?, accessCode?, wifiName?, wifiPassword? } }
- *   properties { [propertyId]: { nameArticle?, caution?, cleaningIncluded?, towelsProvided? } }
+ *   properties { [propertyId]: { nameArticle?, caution?, cleaningIncluded?, towelsProvided?, bedLinenProvided? } }
  */
 
 const emailTextsModel = require('../models/emailTextsModel');
 const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
-const { answeredFlag, withoutPending } = require('./propertyFacts');
+const { answeredFlag, withoutPending, FLAG_FACTS } = require('./propertyFacts');
 const { sectionOfStableKey, templateAllowed, tokenError } = require('./templateTokens');
 
 const SETTINGS_KEYS = ['companyName', 'companyPhone', 'smtpFromName'];
@@ -131,13 +131,13 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
       if (props && NAME_ARTICLES.includes(props.nameArticle)) {
         database.prepare('UPDATE properties SET nameArticle = ? WHERE id = ?').run(props.nameArticle, Number(pid));
       }
-      // Rule 27 — the deposit, cleaning and towels being answered in the assistant.
+      // Rule 27 — the deposit, cleaning, towels and bed linen being answered in the assistant.
       const answered = [];
       if (props && props.caution != null && String(props.caution).trim() !== '' && Number.isFinite(Number(String(props.caution).replace(',', '.')))) {
         database.prepare('UPDATE properties SET defaultCautionAmount = ? WHERE id = ?').run(Number(String(props.caution).replace(',', '.')), Number(pid));
         answered.push('caution');
       }
-      for (const [field, fact] of [['cleaningIncluded', 'cleaning'], ['towelsProvided', 'towels']]) {
+      for (const [field, fact] of FLAG_FACTS) {
         const flag = props ? answeredFlag(props[field]) : null;
         if (flag === null) continue;
         database.prepare(`UPDATE properties SET ${field} = ? WHERE id = ?`).run(Number(flag), Number(pid));

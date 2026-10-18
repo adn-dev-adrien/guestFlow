@@ -52,11 +52,15 @@ const EMAIL_FACT_FIELDS = [
   { key: 'poolSeasonEnd', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'cleaningIncluded', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
   { key: 'towelsProvided', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
+  { key: 'bedLinenProvided', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
 ];
 // The form field that answers each pending fact (rule 27).
-const FACT_OF_FIELD = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels' };
+const FACT_OF_FIELD = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
 
 const EMAIL_HOOK_MAX_LENGTH = 300;
+
+// A field a form really sent: present and not empty (a FormData carries an empty input as '').
+const sent = (body, key) => Object.prototype.hasOwnProperty.call(body, key) && body[key] != null && String(body[key]).trim() !== '';
 
 function normalizeNameArticle(value) {
   const v = String(value || '').trim();
@@ -282,11 +286,11 @@ function createPropertiesModel(database) {
       database.prepare(`UPDATE properties SET ${key} = ? WHERE id = ?`).run(coerce(body[key]), Number(id));
     }
     // specs/guest-email-texts-made-simple.md rule 6 — an article sent by a form is a confirmed one.
-    if (propertyCols.has('nameArticleConfirmed') && Object.prototype.hasOwnProperty.call(body, 'nameArticle')) {
+    if (propertyCols.has('nameArticleConfirmed') && sent(body, 'nameArticle')) {
       database.prepare('UPDATE properties SET nameArticleConfirmed = 1 WHERE id = ?').run(Number(id));
     }
     // Rule 27 — a fact the form sends is answered: its sentences come back in the emails.
-    const answered = Object.keys(FACT_OF_FIELD).filter((field) => Object.prototype.hasOwnProperty.call(body, field)).map((f) => FACT_OF_FIELD[f]);
+    const answered = Object.keys(FACT_OF_FIELD).filter((field) => sent(body, field)).map((f) => FACT_OF_FIELD[f]);
     if (propertyCols.has('pendingFacts') && answered.length) {
       const row = database.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(Number(id));
       if (row && row.pendingFacts) {
@@ -584,7 +588,7 @@ function createPropertiesModel(database) {
     },
 
     async update(id, body = {}, photoFile = null) {
-      const existing = database.prepare('SELECT photo, extraGuestPriceUnit, welcomePackCost FROM properties WHERE id = ?').get(id);
+      const existing = database.prepare('SELECT photo, nameArticle, extraGuestPriceUnit, welcomePackCost, defaultCautionAmount FROM properties WHERE id = ?').get(id);
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
 
@@ -593,7 +597,9 @@ function createPropertiesModel(database) {
         WHERE id=?
       `).run(
         propertyName(body.name),
-        normalizeNameArticle(body.nameArticle),
+        // specs/guest-email-texts-made-simple.md rule 29 (2026-10-18) — a form that does not send the
+        // article keeps the stored one, and does not confirm it.
+        normalizeNameArticle(sent(body, 'nameArticle') ? body.nameArticle : existing?.nameArticle),
         photo,
         body.maxGuests || 2,
         body.maxBabies || 0,
@@ -615,7 +621,8 @@ function createPropertiesModel(database) {
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
-        body.defaultCautionAmount ?? 500,
+        // Rule 27 (2026-10-18) — an absent or empty deposit keeps the stored amount: it never resets.
+        sent(body, 'defaultCautionAmount') ? Number(String(body.defaultCautionAmount).replace(',', '.')) : Number(existing?.defaultCautionAmount ?? 0),
         body.touristTaxPerDayPerPerson ?? 0,
         body.touristTaxMode || 'per_day_per_person',
         body.touristTaxPercentage ?? 0,

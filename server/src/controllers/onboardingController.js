@@ -9,7 +9,8 @@
  *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 28)
  *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error }] }
  *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, accessCode,
- *                                     wifiName, wifiPassword, caution, cleaningIncluded, towelsProvided }] }
+ *                                     wifiName, wifiPassword, caution, cleaningIncluded, towelsProvided,
+ *                                     bedLinenProvided }] }
  *                                     → 200 | 422 { errors } (specs/guest-email-texts-made-simple.md rule 21)
  *   POST /api/onboarding/done       records onboardingCompletedAt (« C'est prêt » and « Plus tard »)
  *
@@ -23,7 +24,7 @@ const { quotaRefusal } = require('../utils/planQuota');
 const onboardingModel = require('../models/onboardingModel');
 const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
 const propertyArticle = require('../utils/propertyArticle');
-const { pendingFactsOf, withoutPending, answeredFlag, PENDABLE } = require('../utils/propertyFacts');
+const { pendingFactsOf, withoutPending, answeredFlag, PENDABLE, FLAG_FACTS } = require('../utils/propertyFacts');
 const { DEFAULT_ADMIN_EMAIL } = require('../constants/authDefaults');
 
 // The articles a property name may take (models/propertiesModel.js).
@@ -94,8 +95,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
         // Rule 27 — what the emails say about the deposit, the cleaning and the towels; null while
         // nobody answered.
         caution: pending.has('caution') ? null : Number(p.defaultCautionAmount || 0),
-        cleaningIncluded: pending.has('cleaning') ? null : answeredFlag(p.cleaningIncluded),
-        towelsProvided: pending.has('towels') ? null : answeredFlag(p.towelsProvided),
+        ...Object.fromEntries(FLAG_FACTS.map(([field, fact]) => [field, pending.has(fact) ? null : answeredFlag(p[field])])),
         pending: [...pending],
       };
     });
@@ -115,6 +115,12 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     return database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(id)) || null;
   }
 
+  // Rule 28 (2026-10-18) — the rule the assistant created with the property is its first one; the
+  // seasons added since are the owner's, and the assistant never writes them.
+  function assistantRule(propertyId) {
+    return database.prepare('SELECT id, pricePerNight FROM pricing_rules WHERE propertyId = ? ORDER BY id LIMIT 1').get(propertyId) || null;
+  }
+
   function propertyStep() {
     const own = assistantProperty();
     const count = database.prepare('SELECT COUNT(*) AS n FROM properties').get().n;
@@ -124,7 +130,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
         draft: {
           name: own.name, doubleBeds: String(own.doubleBeds ?? 0), singleBeds: String(own.singleBeds ?? 0),
           maxGuests: String(own.maxGuests ?? 1), checkIn: own.defaultCheckIn || '16:00', checkOut: own.defaultCheckOut || '10:00',
-          pricePerNight: String((database.prepare('SELECT MIN(pricePerNight) AS p FROM pricing_rules WHERE propertyId = ?').get(own.id) || {}).p ?? ''),
+          pricePerNight: String((assistantRule(own.id) || {}).pricePerNight ?? ''),
         },
       };
     }
@@ -172,7 +178,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
           database.prepare('UPDATE properties SET defaultCautionAmount = ? WHERE id = ?').run(Number(String(p.caution).replace(',', '.')), id);
           answered.push('caution');
         }
-        for (const [field, fact] of [['cleaningIncluded', 'cleaning'], ['towelsProvided', 'towels']]) {
+        for (const [field, fact] of FLAG_FACTS) {
           const flag = answeredFlag(p[field]);
           if (flag === null) continue;
           database.prepare(`UPDATE properties SET ${field} = ? WHERE id = ?`).run(Number(flag), id);
@@ -263,7 +269,10 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
         body.defaultCheckIn || own.defaultCheckIn || '15:00', body.defaultCheckOut || own.defaultCheckOut || '10:00', own.id,
       );
       if (b.name && b.name.trim() !== own.name) renamed(own.id, body.name);
-      database.prepare('UPDATE pricing_rules SET pricePerNight = ? WHERE propertyId = ?').run(price, own.id);
+      const rule = assistantRule(own.id);
+      if (rule && Number(rule.pricePerNight) !== price) {
+        database.prepare('UPDATE pricing_rules SET pricePerNight = ? WHERE id = ?').run(price, rule.id);
+      }
       return res.json({ id: own.id });
     }
     if (database.prepare('SELECT COUNT(*) AS n FROM properties').get().n > 0) {

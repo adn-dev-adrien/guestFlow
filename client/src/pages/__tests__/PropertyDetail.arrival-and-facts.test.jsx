@@ -17,6 +17,7 @@ vi.mock('react-router', async (importOriginal) => {
 vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
+    getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
     getProperty: vi.fn(), getOptions: vi.fn(), getPropertyArrivalFacts: vi.fn(), savePropertyArrivalFacts: vi.fn(),
     updateProperty: vi.fn(), createProperty: vi.fn(), deleteProperty: vi.fn(),
     getPropertyPlatforms: vi.fn(), getPlatformSettings: vi.fn(), createOption: vi.fn(), updateOption: vi.fn(),

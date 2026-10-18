@@ -11,7 +11,7 @@
  *   propertyId — null for a property not created yet (its texts come once it exists)
  *   arrival — { draft, saved, errors, onChange } of the « Arrivée » block, held by the page (rule 34)
  *
- * Cleaning and towels (specs/guest-email-texts-made-simple.md rule 27): « Selon les options » leaves
+ * Cleaning, towels and bed linen (specs/guest-email-texts-made-simple.md rule 27): « Selon les options » leaves
  * the emails to the options; empty means not said yet, and the emails stay silent on it. The pool
  * season (rule 33) is the property's: off, no pool sentence at all.
  */
@@ -85,6 +85,11 @@ export default function PropertyStayTab({
                 { value: 'options', label: 'Selon les options' },
               ])}
               {choice('towelsProvided', 'Linge de toilette', [
+                { value: '1', label: 'Fourni' },
+                { value: '0', label: 'À apporter' },
+                { value: 'options', label: 'Selon les options' },
+              ])}
+              {choice('bedLinenProvided', 'Linge de lit', [
                 { value: '1', label: 'Fourni' },
                 { value: '0', label: 'À apporter' },
                 { value: 'options', label: 'Selon les options' },

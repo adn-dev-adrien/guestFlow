@@ -6,13 +6,16 @@
  * « au Fournil », « La Bergerie » with « à la » reads « à la Bergerie », « Les Pins » with « aux »
  * reads « aux Pins », « L'Oustal » with « à l' » reads « à l'Oustal ». Such a name says its own
  * article, so it is derived with certainty; a name starting with a vowel takes « à l' » as a guess;
- * any other name gives no clue.
+ * any other name gives no clue. « y » and « h » are no vowels here: « la Yourte », « le Hameau » (h
+ * aspiré) but « l'Hôtel » — a name starting with one is offered the five articles.
  *
  *   ARTICLES                       the five articles a property accepts
  *   format(name, article, lang)    « au Fournil »; English has no article: the name alone
  *   derive(name)                   { article, certain } — the article to start from
  *   choices(name)                  [{ value, label }] — the articles worth offering for this name
- *                                  (a name holding its own article offers that one only)
+ *                                  (a name holding its own article offers that one only; a name
+ *                                  starting with « y » or « h » offers the five, the guess first)
+ *   labels(name)                   [{ value, label }] — the five articles as the guest reads them
  */
 
 const ARTICLES = Object.freeze(['au', 'à la', "à l'", 'aux', 'à']);
@@ -36,7 +39,8 @@ function leading(name) {
   return null;
 }
 
-const startsWithVowel = (name) => /^[aeiouyhàâäéèêëîïôöùûü]/i.test(str(name));
+const startsWithVowel = (name) => /^[aeiouàâäéèêëîïôöùûü]/i.test(str(name));
+const startsAmbiguous = (name) => /^[yhŷÿ]/i.test(str(name));
 
 function format(name, article, lang = 'fr') {
   const n = str(name);
@@ -59,9 +63,14 @@ function choices(name) {
   const own = leading(name);
   let values;
   if (own) values = [own.article];
+  else if (startsAmbiguous(name)) values = [...ARTICLES];
   else if (startsWithVowel(name)) values = ["à l'", 'aux', 'à'];
   else values = ['au', 'à la', 'aux', 'à'];
   return values.map((value) => ({ value, label: format(name, value) }));
 }
 
-module.exports = { ARTICLES, format, derive, choices };
+function labels(name) {
+  return ARTICLES.map((value) => ({ value, label: format(name, value) || value }));
+}
+
+module.exports = { ARTICLES, format, derive, choices, labels };

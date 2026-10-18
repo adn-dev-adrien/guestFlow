@@ -297,6 +297,9 @@ email shown beside the text. The whole wording can also go out and come back as 
     « Modèle à corriger — … »). On the page a variable is one unit: the caret never stops inside
     `⟦…⟧` (it selects all of it), Backspace after it or Delete before it removes all of it, and a refusal
     is shown with `⟦ ⟧`, never with the stored braces.
+    *2026-10-18 bis (review of PR #705):* a known variable in one pair of braces (« {clientFirstName} »,
+    « { propertyName } ») is refused too, with « Variable incomplète : la remettre depuis les boutons. »:
+    the renderer would send it as it is. Braces around any other text stay prose (« {à bientôt} »).
 27. **A fresh instance asserts nothing nobody said.** A property created by the start assistant has no
     deposit (0 €) and three facts left unsaid (`properties.pendingFacts`): the deposit, whether the
     end-of-stay cleaning is included, whether bath towels are provided. While a fact is unsaid, every
@@ -309,17 +312,37 @@ email shown beside the text. The whole wording can also go out and come back as 
     options », which leaves it to the property's options as before. A property that existed before this
     rule has nothing pending: no Solio email moves. A property created from the Logements page starts at
     a 0 € deposit.
+    *2026-10-18 bis (review of PR #705):* the bed linen is the fourth fact (`linen`): the option created
+    at install no longer makes a fresh instance say « Le linge de lit n'étant pas compris, pensez à
+    prendre draps et taies d'oreiller ». While unsaid, the J-7 has no beds paragraph (unless the guest
+    booked the linen) and the legacy flags `bedLinenProvidedByDefault` / `bedLinenBringYourOwn` are
+    false; « À compléter » lists « Linge de lit fourni ou non — X » (J-7). « Linge de lit » is answered
+    like the towels (« Fourni / À apporter / Selon les options ») on the Séjour tab and in « Vos
+    emails » (`properties.bedLinenProvided`). Saving the property page never resets what it does not
+    send: an empty deposit is not sent and keeps the stored amount (« Vide : rien n'est changé. 0 : pas
+    de caution. ») — before, the server put 500 € back and an emptied 400 € became 500 €. The
+    reservation page no longer falls back to 500 € either.
 28. **The start assistant never creates a property twice.** It remembers the property it created
     (`app_settings.onboardingPropertyId`): « Précédent » then « Suivant », a reload or the assistant
     opened again from Réglages › Système edits that property and its price. An instance that already
     has properties it did not create gets none from it: step 2 reads « Logements : N » with « Modifier
     dans Logements », and the server answers `409 PROPERTIES_EXIST` to a direct call.
+    *2026-10-18 bis (review of PR #705):* « its price » is the price of the rule the assistant created
+    (the property's first pricing rule), shown at step 2 and written only when it changed. A season the
+    owner added since is never touched: reopening the assistant and clicking « Suivant » used to set
+    every rule of the property to the step's price.
 29. **The article comes from the name.** « Le X » takes « au X », « La X » « à la X », « Les X » « aux X »,
     « L'X » « à l'X »: such a name says its article, so it is confirmed at once and the chip offers
     that one only; the leading article contracts (« au Fournil », never « au Le Fournil »). Any other
     name is offered « au / à la / aux / à » (« à l' » too when it starts with a vowel or an h), with
     nothing chosen until the owner clicks: the article is saved and confirmed only then, so the
     readiness check of rule 8 still fires. No « à l'Gite ».
+    *2026-10-18 bis (review of PR #705):* « y » and « h » are no vowels here: « la Yourte », « le Hameau »
+    (h aspiré) but « l'Hôtel ». A name starting with one is not guessed « à l' »; it is offered the five
+    articles. On the property page, an article nobody confirmed shows empty (« À choisir pour les emails
+    clients. ») and is not sent by a save of another field, so it stays unconfirmed and listed; the
+    choices and the preview are the labels the server writes (`GET /api/properties/article-labels`:
+    « au Fournil », never « au Le Fournil »), no longer composed in the page.
 30. **The sample stay arrives and leaves at the property's own times.** The preview's « Exemple » stay
     (rule 13) takes the property's check-in and check-out times, as a real stay would: the assistant's
     J-2 says « à partir de 16 h » for a property saved at 16:00.
@@ -440,6 +463,11 @@ email shown beside the text. The whole wording can also go out and come back as 
 | PUT | `/api/onboarding/emails` | `{ phone, senderName, properties: [{ id, nameArticle?, address, access, accessCode?, wifiName, wifiPassword?, caution?, cleaningIncluded?, towelsProvided? }] }` — an absent field is left unanswered (rules 27, 29, 31, 2026-10-18) |
 | GET | `/api/onboarding` | adds `property: { id, existing, draft }` — the property the assistant created, to edit (rule 28, 2026-10-18) |
 | PUT | `/api/onboarding/property` | edits the assistant's own property; 409 `PROPERTIES_EXIST` on an instance it did not equip (rule 28, 2026-10-18) |
+| GET | `/api/properties/article-labels?name=` | `{ labels: [{ value, label }] }` — the five articles as the emails write them (rule 29, 2026-10-18 bis) |
+
+*2026-10-18 bis:* `PUT /api/onboarding/emails` and `PUT /api/properties/:id` also take
+`bedLinenProvided`; `PUT /api/properties/:id` keeps the stored `nameArticle` and `defaultCautionAmount`
+when they are absent or empty (rules 27, 29).
 
 ## 5. Data model
 
@@ -466,6 +494,10 @@ decide), `properties.poolSeasonStart` / `poolSeasonEnd TEXT NOT NULL DEFAULT ''`
 `app_settings`, whose two columns stay in the table, unread), `app_settings.onboardingPropertyId INTEGER`.
 One-shot content migration `cgv_link_condition_v1` (rule 35).
 
+*2026-10-18 bis (rule 27):* `properties.bedLinenProvided INTEGER` (1 / 0, NULL: the options decide);
+`pendingFacts` may also hold `linen`, set on a property the start assistant creates. Existing rows keep
+NULL and nothing pending: no email moves.
+
 ## 6. UI / UX
 
 See the summary page.
@@ -475,6 +507,8 @@ See the summary page.
   a property's empty text reads « Texte commun utilisé : … » (rule 34). The property's Séjour tab adds
   « Ménage de fin de séjour », « Linge de toilette » and « Piscine » (rules 27, 33); « Vos emails » adds
   « Code de la boîte à clés », « Caution (€) », and the two yes/no chip pairs (rules 27, 31).
+- *2026-10-18 bis:* « Linge de lit » joins the Séjour tab and « Vos emails » (rule 27); the property
+  page's article menu lists « au Fournil »… from the server and shows empty while unconfirmed (rule 29).
 
 ## 7. Test plan
 
@@ -504,6 +538,12 @@ rules 27–32), `email-texts-csv-secrets` (3, rule 31), `property-pool-season` (
 `EmailTextsSettingsPage.unsaved-and-inherited` (4, rule 34), `PropertyDetail.arrival-and-facts` (4,
 rules 27, 33, 34), `OnboardingPage.facts-and-resume` (4, rules 27–29, 31), `PropertyArrivalFacts` (4,
 rewritten for the controlled block).
+
+*2026-10-18 bis (review of PR #705):* server `onboarding-reopen-keeps-seasons` (3, rule 28),
+`property-update-keeps-unsent-facts` (4, rules 27, 29), `property-article-ambiguous-initial` (3,
+rule 29), `bed-linen-pending-fact` (4, rule 27), `template-single-brace` (3, rule 26); client
+`PropertyDetail.article-and-deposit` (4, rules 27, 29), `OnboardingPage.facts-and-resume` (+1, rule 27).
+The `previewWithArticle` helper tests are gone with the helper.
 
 ## 8. Out of scope
 

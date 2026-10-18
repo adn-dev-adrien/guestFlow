@@ -68,6 +68,8 @@ function validatePropertyInput(body = {}, existing = null) {
   }
   for (const key of ['touristTaxPerDayPerPerson', 'touristTaxFixedAmount', 'defaultCautionAmount']) {
     if (!has(body, key)) continue;
+    // An empty deposit keeps the stored one (specs/guest-email-texts-made-simple.md rule 27, 2026-10-18).
+    if (key === 'defaultCautionAmount' && String(body[key] ?? '').trim() === '') continue;
     const amount = asNumber(body[key]);
     if (!Number.isFinite(amount) || amount < 0) errors[key] = 'Un montant ≥ 0 €.';
   }

@@ -115,6 +115,7 @@ export default function OnboardingPage() {
         properties: Object.fromEntries(e.properties.map((p) => [p.id, {
           nameArticle: p.nameArticle, address: p.address, access: p.access, accessCode: '', wifiName: p.wifiName, wifiPassword: '',
           caution: p.caution == null ? '' : String(p.caution), cleaningIncluded: p.cleaningIncluded, towelsProvided: p.towelsProvided,
+          bedLinenProvided: p.bedLinenProvided,
         }])),
       });
     }
@@ -151,9 +152,9 @@ export default function OnboardingPage() {
         await api.saveOnboardingEmails({
           phone: emailDraft.phone,
           senderName: emailDraft.senderName,
-          // An unanswered article, deposit, cleaning or towels is not sent: it stays unsaid (rules 27, 29).
+          // An unanswered article, deposit, cleaning, towels or bed linen is not sent: it stays unsaid (rules 27, 29).
           properties: Object.entries(emailDraft.properties || {}).map(([id, p]) => {
-            const { nameArticle, caution, cleaningIncluded, towelsProvided, accessCode, ...rest } = p;
+            const { nameArticle, caution, cleaningIncluded, towelsProvided, bedLinenProvided, accessCode, ...rest } = p;
             return {
               id: Number(id),
               ...rest,
@@ -161,6 +162,7 @@ export default function OnboardingPage() {
               ...(caution !== '' && caution != null ? { caution } : {}),
               ...(cleaningIncluded != null ? { cleaningIncluded } : {}),
               ...(towelsProvided != null ? { towelsProvided } : {}),
+              ...(bedLinenProvided != null ? { bedLinenProvided } : {}),
               ...(accessCode ? { accessCode } : {}),
             };
           }),

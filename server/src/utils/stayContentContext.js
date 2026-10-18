@@ -220,10 +220,12 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   if (singles) beds.push(t(`${singles} lit${singles > 1 ? 's' : ''} simple${singles > 1 ? 's' : ''}`, `${singles} single bed${singles > 1 ? 's' : ''}`));
   const bedConfigLabel = joinList(beds, L);
 
-  const bedsMade = cls.included.has('bedLinen') || cls.booked.has('bedLinen');
   // specs/guest-email-texts-made-simple.md rule 27 — the owner's answer wins over the options; a fact
   // nobody gave yet says nothing.
   const pending = pendingFactsOf(p);
+  const linenBooked = cls.booked.has('bedLinen');
+  const linenUnsaid = pending.has('linen') && !linenBooked;
+  const bedsMade = linenBooked || (!linenUnsaid && (Number(p.bedLinenProvided) === 1 || (p.bedLinenProvided == null && cls.included.has('bedLinen'))));
   const towelsIncluded = Number(p.towelsProvided) === 1 || (p.towelsProvided == null && cls.included.has('towels'));
   const towelsCovered = towelsIncluded || cls.booked.has('towels');
   const cleaningIncluded = Number(p.cleaningIncluded) === 1 || (p.cleaningIncluded == null && cls.included.has('cleaning'));
@@ -232,7 +234,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   let bedsParagraph = '';
   if (bedConfigLabel && bedsMade) {
     bedsParagraph = say('beds.made', { bedConfig: bedConfigLabel });
-  } else if (bedConfigLabel) {
+  } else if (bedConfigLabel && !linenUnsaid) {
     const linenOffered = cls.proposable('bedLinen');
     const linenPrice = linenOffered ? cls.priceOf('bedLinen') : null;
     bedsParagraph = say('beds.linenNotIncluded', { bedConfig: bedConfigLabel, ...priced(linenPrice) }, { linenOffered, hasPrice: hasPrice(linenPrice) });

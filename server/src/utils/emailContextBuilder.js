@@ -160,7 +160,11 @@ function buildContext({ reservation, client, property, options = [], resources =
   // option (specs/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the
   // beds will be made on arrival, and the bed-linen option is dropped from the "Option(s) réservée(s)"
   // list (it isn't a chosen extra). `optionsList` itself is left intact for other templates (e.g. J-7).
-  const bedLinenProvided = linenByDefault;
+  // The owner's answer on the property wins; unanswered after the start assistant, nothing is said
+  // (specs/guest-email-texts-made-simple.md rule 27, 2026-10-18).
+  const linenPending = pendingFactsOf(p).has('linen');
+  const bedLinenProvided = !linenPending
+    && (Number(p.bedLinenProvided) === 1 || (p.bedLinenProvided == null && linenByDefault));
   const reservedOptionsTitles = (options || [])
     .filter((o) => !(bedLinenProvided && safeStr(o.autoOptionType) === 'bed_linen'))
     .map(optionName)
@@ -170,7 +174,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   const hasReservedOptions = reservedOptionsTitles.length > 0;
   // "Bring your own linen" only when linen is neither provided by default nor on the reservation —
   // never contradicts the "beds made" line.
-  const bedLinenBringYourOwn = !hasBedLinenOption && !bedLinenProvided;
+  const bedLinenBringYourOwn = !hasBedLinenOption && !bedLinenProvided && !linenPending;
 
   // Resources list (specs/manual-email-from-template.md is unrelated; this is J-1 §3 rule 4) —
   // booked resources' names, sorted alphabetically for stable rendering.
