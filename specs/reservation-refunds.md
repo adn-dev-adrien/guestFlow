@@ -209,6 +209,27 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 33. Refunding anything else (petit-déjeuner, hébergement, ligne libre) leaves the declaration
     **untouched** — only the `touristTax` key feeds it.
 
+### 3.6 Trop-perçu (2026-10-18)
+
+> **Why this was added.** The review of 2026-10-18 (F3) found reservation 22296 with 798,20 € received
+> online and a solde lowered to 665 € by a later save, with nothing on the fiche to say so. The money
+> received and the sale diverged silently.
+
+34. **A trop-perçu is computed by the server and offered as a refund.** It is what the acompte and the
+    solde actually collected, minus every refund already given back, minus the schedule the stay now
+    has (`acompte + solde`), floored at 0 (`utils/overpayment.js`). A paid bucket's collected amount is the
+    sum of the contribs captured when it was ticked, which survives a later save that lowers it; without
+    a capture it is the stored amount. A caisse-interne bucket counts as collected.
+    - **On save:** a save that adds to the trop-perçu is refused with 409 `OVERPAID`, carrying
+      `overpaymentTtc`, and nothing is written. The fiche asks « Trop-perçu » with two answers:
+      « Enregistrer et rembourser » (the same save, sent again with `forceOverpayment`; the fiche stays
+      open and the refund dialog opens on the amount) or « Annuler ». A stay that is already
+      over-collected can still be saved for anything else.
+    - **On the fiche:** the refund register carries `overpaymentTtc`. When it is above 0, the
+      Remboursements block shows « Trop-perçu : X € » with a « Rembourser » button. The button opens the
+      refund dialog with a free line « Trop-perçu » (bucket Hébergement) set to that amount; the operator
+      can change both.
+
 ---
 
 ## 4. Architecture

@@ -1112,6 +1112,38 @@ function createReservationsModel(database) {
       return database.prepare('SELECT id FROM reservations WHERE id = ?').get(reservationId);
     },
 
+    // Σ of the contribs captured per schedule bucket when it was ticked — what that bucket actually
+    // collected (specs/reservation-refunds.md rule 34). `null` for a bucket that captured nothing.
+    // Guarded: a minimal schema without the contrib columns captures nothing.
+    capturedScheduleContribs(reservationId) {
+      const none = { deposit: null, balance: null };
+      let row;
+      try {
+        row = database.prepare(`
+          SELECT accommodationAcompteContribTtc AS aa, accommodationSoldeContribTtc AS asol,
+                 touristTaxAcompteContribTtc AS ta, touristTaxSoldeContribTtc AS tsol
+            FROM reservations WHERE id = ?`).get(reservationId);
+      } catch {
+        return none;
+      }
+      if (!row) return none;
+      const lines = [];
+      for (const table of ['reservation_options', 'reservation_custom_options', 'reservation_resources']) {
+        try {
+          lines.push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?`).all(reservationId));
+        } catch {
+          // A minimal schema without this table or its contrib columns.
+        }
+      }
+      const sum = (values) => (values.every((v) => v == null)
+        ? null
+        : Math.round(values.reduce((acc, v) => acc + Number(v || 0), 0) * 100) / 100);
+      return {
+        deposit: sum([row.aa, row.ta, ...lines.map((l) => l.a)]),
+        balance: sum([row.asol, row.tsol, ...lines.map((l) => l.s)]),
+      };
+    },
+
     // The just-assigned/overridden number, returned to the client after create/update so the fiche
     // field repopulates. Empty string when the column is absent (minimal schema) or unset.
     getReservationNumber(reservationId) {

@@ -25,6 +25,8 @@ import { formatCurrency } from '../../utils/formatters';
  *  - `open`, `onClose()`
  *  - `refundableLines` — `[{ key, label, bucket, quantity, unitPrice, billedTtc, refundedTtc, refundableTtc }]`
  *  - `collectedTtc` — what has actually been collected so far, for the over-refund caption.
+ *  - `overpaymentTtc` — the server's trop-perçu (rule 34); when > 0 the dialog opens with a free line
+ *    « Trop-perçu » set to it, which the operator may change.
  *  - `onSubmit(payload)` — throws an Error carrying the server message when the API refuses.
  */
 
@@ -44,7 +46,7 @@ const FREE_LINE_BUCKETS = [
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-export default function RefundDialog({ open, onClose, refundableLines = [], collectedTtc = 0, onSubmit }) {
+export default function RefundDialog({ open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, onSubmit }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -59,13 +61,13 @@ export default function RefundDialog({ open, onClose, refundableLines = [], coll
   useEffect(() => {
     if (!open) return;
     setSelected({});
-    setFreeLines([]);
+    setFreeLines(overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: String(overpaymentTtc) }] : []);
     setRefundDate(todayIso());
     setMethod('transfer');
     setReason('');
     setError('');
     setBusy(false);
-  }, [open]);
+  }, [open, overpaymentTtc]);
 
   const toggleLine = (line, checked) => {
     setSelected((prev) => {

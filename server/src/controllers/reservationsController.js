@@ -63,6 +63,8 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
+const { overpaymentOf } = require('../utils/overpayment');
+const { formatCurrency } = require('../utils/devisHelpers');
 const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
@@ -308,6 +310,28 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
     model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType);
   }
   return null;
+}
+
+// specs/reservation-refunds.md rule 34 — a save that brings the stay below what the guest already paid
+// on the acompte and the solde is a trop-perçu: refused with its amount (409 `OVERPAID`) until the
+// operator confirms (`forceOverpayment`), so the money received and the sale never diverge silently.
+// A stay already over-collected can still be saved for anything else: only a save that ADDS to the
+// trop-perçu is stopped.
+function overpaymentIntroducedBy(reservationId, quote) {
+  const row = model.getRow(reservationId);
+  if (!row) return null;
+  const captured = model.capturedScheduleContribs(reservationId);
+  const refundedTtc = refundsModel.totalsByReservation(Number(reservationId)).withCash;
+  const before = overpaymentOf({ row, captured, refundedTtc });
+  const after = overpaymentOf({
+    row, captured, refundedTtc, depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount,
+  });
+  if (after <= before + 0.01) return null;
+  return {
+    error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
+    code: 'OVERPAID',
+    overpaymentTtc: after,
+  };
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
@@ -1182,6 +1206,10 @@ function applyUpdate(req, res, pastUnlocked) {
   }
   if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
     return res.status(409).json(changeoverErrorPayload(quote));
+  }
+  if (!req.body.forceOverpayment) {
+    const overpaid = overpaymentIntroducedBy(id, quote);
+    if (overpaid) return res.status(409).json(overpaid);
   }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);

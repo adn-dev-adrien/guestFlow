@@ -32,6 +32,9 @@ const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationComp
 const { parseComplementAllocation } = sdk.coreModule('complementAllocation');
 const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
 
+// The residue the export absorbs on the last credit of a contrib-driven entry (rounding cents).
+const CONTRIB_RESIDUE_TOLERANCE_TTC = 0.02;
+
 // `settings` — the export's account and VAT settings (./settings), bound to `database` by default.
 function createAccountingModel(database, { settings = createAccountSettings(database) } = {}) {
   // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
@@ -769,8 +772,15 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   // used AS-IS (the former × grossRatio scaling distorted them; spec rule 10). `fraction = 1`:
   // the export engine multiplies by 1 and writes the values verbatim, the ≤ 2-cent residue
   // being absorbed on the last credit so Σ credits = CA.
-  if (hasContribs) {
-    const ttcByBucket = computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComplement);
+  const ttcByBucket = hasContribs ? computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComplement) : null;
+  // specs/accounting-books-the-money-collected.md rule 11 — contribs frozen at payment time that no
+  // longer fit in the entry (the stay was reduced after it was paid: one guest fewer, breakfast cut)
+  // would push the residue onto the last credit, the 46710000 tourist tax, as a negative line. Such an
+  // entry is booked like one that never captured contribs: pro-rata of the lines as they stand now.
+  const contribsOverflow = Boolean(ttcByBucket)
+    && round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc)
+      > round2(encaissementTtc + CONTRIB_RESIDUE_TOLERANCE_TTC);
+  if (hasContribs && !contribsOverflow) {
     const totalBucketsTtc = round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc);
     // Nothing to credit (e.g. a complement whose lines all contributed 0) → drop the entry,
     // a debit-only card can never balance.

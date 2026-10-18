@@ -123,6 +123,7 @@ const EMPTY_REFUND_REGISTER = {
   refundableLines: [],
   refundTotals: { book: 0, withCash: 0 },
   collectedTtc: 0,
+  overpaymentTtc: 0,
 };
 
 const EMPTY_CLIENT = {
@@ -887,6 +888,7 @@ export default function ReservationPage() {
             refundableLines: res.refundableLines || [],
             refundTotals: res.refundTotals || { book: 0, withCash: 0 },
             collectedTtc: Number(res.collectedTtc || 0),
+            overpaymentTtc: Number(res.overpaymentTtc || 0),
           });
           setPluginBlocks(res.pluginBlocks || {});
           setCgvBlock(res.cgv || null);
@@ -2057,7 +2059,7 @@ export default function ReservationPage() {
     }
   };
 
-  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false) => {
+  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     
     if (!selectedProp) {
@@ -2122,7 +2124,7 @@ export default function ReservationPage() {
         confirmColor: 'warning',
       });
       if (proceed) {
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment);
       }
       return false;
     }
@@ -2194,7 +2196,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights);
+        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 23 — changeover breach: same confirm + force-override
@@ -2211,7 +2213,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum guard.
@@ -2224,7 +2226,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
       }
 
       if (isDevisMode) {
@@ -2359,6 +2361,7 @@ export default function ReservationPage() {
           forceCapacity,
           forceChangeover,
           forceMaxNights,
+          forceOverpayment,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
@@ -2443,7 +2446,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights);
+          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
         }
         return false;
       }
@@ -2456,9 +2459,25 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights);
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment);
         }
         return false;
+      }
+      // specs/reservation-refunds.md rule 34 — the save would leave more collected than the stay now
+      // costs. Confirmed, it is saved, the fiche stays open and the refund dialog opens on the amount.
+      if (err?.code === 'OVERPAID' && !forceOverpayment) {
+        const proceed = await confirm({
+          title: 'Trop-perçu',
+          message: err.message || 'Le nouveau total est inférieur au montant encaissé.',
+          confirmLabel: 'Enregistrer et rembourser',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (!proceed) return false;
+        return await handleSaveReservation(
+          safeAfterSaveAction || openOverpaymentRefund,
+          forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true,
+        );
       }
       if (err?.code === 'MAX_NIGHTS' && !forceMaxNights) {
         const proceed = await confirm({
@@ -2469,7 +2488,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true);
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
         }
         return false;
       }
@@ -2624,9 +2643,25 @@ export default function ReservationPage() {
       refundableLines: payload.refundableLines || [],
       refundTotals: payload.refundTotals || { book: 0, withCash: 0 },
       collectedTtc: Number(payload.collectedTtc || 0),
+      overpaymentTtc: Number(payload.overpaymentTtc || 0),
     });
     setRefundsVersion((v) => v + 1);
   }, []);
+
+  // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the
+  // register and the paid state, then open the refund dialog on the server's amount.
+  const openOverpaymentRefund = useCallback(async () => {
+    if (!editingReservationId) return;
+    try {
+      const payload = await api.getReservationRefunds(editingReservationId);
+      applyRefundPayload(payload);
+      await reloadReservationFinance();
+      const overpaymentTtc = Number(payload?.overpaymentTtc || 0);
+      if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc });
+    } catch (err) {
+      await alert({ title: 'Erreur', message: err.message || 'Impossible de relire les remboursements.' });
+    }
+  }, [editingReservationId, applyRefundPayload, reloadReservationFinance, alert]);
 
   const createRefund = useCallback(async (payload) => {
     const res = await api.createReservationRefund(editingReservationId, payload);
@@ -3128,6 +3163,8 @@ export default function ReservationPage() {
     refundableLines: refundRegister.refundableLines,
     refundTotals: refundRegister.refundTotals,
     refundCollectedTtc: refundRegister.collectedTtc,
+    // specs/reservation-refunds.md rule 34 — the trop-perçu, computed by the server.
+    refundOverpaymentTtc: refundRegister.overpaymentTtc,
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.

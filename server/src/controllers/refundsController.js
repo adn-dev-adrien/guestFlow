@@ -15,6 +15,7 @@ const defaultReservationsModel = require('../models/reservationsModel');
 const defaultSettingsModel = require('../models/settingsModel');
 const { buildRefundableLines, validateRefundPayload } = require('../utils/refunds');
 const { comptaCollected } = require('../utils/reservationSettlement');
+const { overpaymentOf } = require('../utils/overpayment');
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -62,6 +63,14 @@ function createRefundsController(deps = {}) {
         // dialog's « ce remboursement dépasse le montant encaissé » caption (spec §6 rule 7). Same
         // authority as the finance views, never recomputed client-side.
         collectedTtc: comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book }),
+        // Rule 34 — the trop-perçu the fiche warns about, with its « Rembourser » prompt.
+        overpaymentTtc: overpaymentOf({
+          row: reservation,
+          captured: typeof reservationsModel.capturedScheduleContribs === 'function'
+            ? reservationsModel.capturedScheduleContribs(reservationId)
+            : {},
+          refundedTtc: refundTotals.withCash,
+        }),
       },
     };
   }

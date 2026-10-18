@@ -131,6 +131,23 @@ options and resources appear once, at their real amount, only when they were rea
 - A refund keeps its own path (`buildRefundEntry`, per-line, already correct).
 - A stay cancelled after collection keeps its entries in their original month, unchanged.
 
+### Paid, then reduced (2026-10-18)
+
+> **Why this was added.** The review of 2026-10-18 (F2) found a stay paid, then saved with fewer
+> guests and less breakfast, booking `46710000 C-88,80`. The contribs captured when the solde was
+> ticked described the bigger stay; used as they were, they overflowed the entry, and the export put
+> the gap on its last credit, the tourist tax. An online payment goes through the same recorder as the
+> manual tick (`specs/plugins-phase-3a-online-payment.md` rule 1), so it reached the bug too. Before
+> that recorder, an online payment captured nothing and was booked pro-rata, which gave the right
+> journal.
+
+11. **Captured contribs that no longer fit the entry are not used.** When the contribs of an entry plus
+    its tourist tax exceed the entry's amount by more than the 2-cent rounding residue, the entry is
+    booked like one that never captured anything: pro-rata of the lines as they stand now (rules 5-7).
+    No credit line is ever negative, and the 46710000 line is the stay's own tax. Contribs that still
+    fit keep driving the entry as before. The money received beyond the new total is a trop-perçu, which
+    the fiche reports (`specs/reservation-refunds.md` rule 34).
+
 ---
 
 ## 4. Architecture
