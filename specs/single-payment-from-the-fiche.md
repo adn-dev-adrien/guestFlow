@@ -112,6 +112,11 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
     les branches « échéance gelée » du moteur et la ligne qu'il s'apprête à écrire ne puissent pas
     diverger. La seule exception est `depositDisabled`, qui EST un champ du formulaire et continue de
     remettre l'acompte à zéro ([disable-deposit-per-reservation.md](disable-deposit-per-reservation.md)).
+    **Étendu le 2026-10-19 aux quatre colonnes de la caution** (`cautionReceived`,
+    `cautionReceivedDate`, `cautionReturned`, `cautionReturnedDate`) par
+    [reservation-payment-ledger.md](reservation-payment-ledger.md) règle 13 : l'enregistrement les
+    relit en base, la liste blanche de la fiche passée ne les contient plus, et seul le PATCH de
+    paiement — avec ses contrôles d'ordre et de date — les modifie.
 
     **Mesuré en production sur la réservation 22281 le 2026-08-31.** L'opérateur ouvrait la fiche,
     cliquait « Encaisser en une fois » — le solde et le complément de fin de séjour étaient encaissés

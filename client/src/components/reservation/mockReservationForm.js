@@ -109,6 +109,12 @@ export function makeMockContext(overrides = {}) {
     setRefundDialogOpen: vi.fn(),
     createRefund: vi.fn(),
     deleteRefund: vi.fn(),
+    // specs/reservation-payment-ledger.md — the server-built ledger and its round-trips.
+    ledger: null,
+    checkLedgerEdit: vi.fn(async () => ({ ok: true, effects: [], formPatch: {} })),
+    applyLedgerPatch: vi.fn(),
+    markFromLedger: vi.fn(async () => ({ ok: true })),
+    resendPaymentRequest: vi.fn(),
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line.
     pluginBlocks: {},
     setPluginBlock: vi.fn(),

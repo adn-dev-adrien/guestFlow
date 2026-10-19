@@ -6,11 +6,14 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from '../mockReservationForm';
 import { vi } from 'vitest';
+import { dueRow, editable, ledgerOf } from './ledgerFixtures';
 
 import api from '../../../api';
 
-// specs/mid-stay-notes.md §3.5 — le bloc « Complément durant le séjour » : total courant, entrée
-// « Nouvelle note », historique dépliable et annulation. Le bloc complément de fin de séjour, lui,
+// specs/mid-stay-notes.md §3.5 — les notes en séjour : total courant, entrée « Nouvelle note »,
+// historique dépliable et annulation. Depuis specs/reservation-payment-ledger.md rule 2 elles sont
+// une ligne du registre (« Notes en séjour », présente dès qu'une note porte de l'argent), leur
+// historique replié sous « Détail », et « + Nouvelle note » sous le registre. Le bloc complément de fin de séjour, lui,
 // ne gagne AUCUN bouton par ligne (décision 2026-08-06 : ne pas charger la fiche).
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
@@ -23,12 +26,18 @@ const NOTES = JSON.stringify([
   { id: 2, paidDate: '2026-08-05', paidCash: 1, total: 17, lines: [{ label: 'Boisson', amount: 17, key: 'opt:14' }] },
 ]);
 
-// Une résa EN COURS (arrivée passée) : c'est la condition d'apparition du bloc.
+const NOTES_ROW = {
+  key: 'midStayNotes', label: 'Notes en séjour', amount: 47, state: 'paid', tone: 'done', stateLabel: '2 notes perçues',
+  action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null }, detail: { slot: 'midStayNotes' },
+};
+
+// Une résa EN COURS (arrivée passée) : c'est la condition d'apparition de « Nouvelle note ».
 function renderFinance(overrides = {}) {
   const { form: formOverrides, ...rest } = overrides;
   const ctx = makeMockContext({
     editingReservationId: 7,
     reservationId: 7,
+    ledger: ledgerOf(formOverrides && formOverrides.midStaySettledNotes ? [NOTES_ROW] : []),
     form: { startDate: '2020-01-01', endDate: '2099-01-01', ...formOverrides },
     ...rest,
   });
@@ -44,23 +53,24 @@ function renderFinance(overrides = {}) {
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-test('le bloc apparaît dès que le séjour a commencé, avec le bouton « Nouvelle note »', () => {
+test('« Nouvelle note » apparaît dès que le séjour a commencé', () => {
   renderFinance();
-  expect(screen.getByText('Complément durant le séjour')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Nouvelle note/i })).toBeEnabled();
 });
 
-test('séjour à venir et aucun encaissement → pas de bloc', () => {
+test('séjour à venir et aucun encaissement → pas de « Nouvelle note », pas de ligne', () => {
   renderFinance({ form: { startDate: '2099-01-01', endDate: '2099-01-05' } });
-  expect(screen.queryByText('Complément durant le séjour')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Nouvelle note/i })).not.toBeInTheDocument();
+  expect(screen.queryByText('Notes en séjour')).not.toBeInTheDocument();
 });
 
 test('le total cumulé des notes est affiché, l\'historique se déplie avec date, mode et lignes', async () => {
   const user = userEvent.setup();
   renderFinance({ form: { midStaySettledNotes: NOTES } });
-  expect(screen.getByText('(47,00 €)')).toBeInTheDocument(); // 30 + 17
+  expect(screen.getByText('Notes en séjour')).toBeInTheDocument();
+  expect(screen.getByText(/47,00/)).toBeInTheDocument(); // 30 + 17, the server's row
 
-  await user.click(screen.getByRole('button', { name: /Voir l'historique \(2 notes\)/i }));
+  await user.click(screen.getByRole('button', { name: 'Détail' }));
   expect(screen.getByText('06/08 — 30,00 € — CB')).toBeInTheDocument();
   expect(screen.getByText('05/08 — 17,00 € — Caisse interne')).toBeInTheDocument();
   expect(screen.getByText('Petit-déjeuner : 24,00 €')).toBeInTheDocument();
@@ -69,7 +79,7 @@ test('le total cumulé des notes est affiché, l\'historique se déplie avec dat
 test('reporter une note au départ : confirmation puis PATCH cancelMidStayNote + rechargement', async () => {
   const user = userEvent.setup();
   const ctx = renderFinance({ form: { midStaySettledNotes: NOTES } });
-  await user.click(screen.getByRole('button', { name: /Voir l'historique/i }));
+  await user.click(screen.getByRole('button', { name: 'Détail' }));
   await user.click(screen.getAllByRole('button', { name: /Reporter au départ/i })[0]);
 
   expect(await screen.findByText(/rejoignent le complément de fin de séjour/i)).toBeInTheDocument();
@@ -86,6 +96,7 @@ test('complément de fin de séjour déjà encaissé → « Nouvelle note » dé
 
 test('le bloc complément de fin de séjour ne gagne AUCUN bouton par ligne', () => {
   renderFinance({
+    ledger: ledgerOf([dueRow('endOfStayComplement', 'Complément de fin de séjour', 24, { amountEdit: editable('complement'), detail: { slot: 'endOfStayComplement' } })]),
     form: {
       endOfStayComplementAmount: 24,
       endOfStayComplementDetail: JSON.stringify([

@@ -283,7 +283,7 @@ test('releaseStayBucket: a bucket written from the fiche stops being the SAS\'s'
 });
 
 // specs/collect-stay-payment-at-check-in.md rule 2
-test('a stay whose stored solde disagrees with the engine is STILL collected (contribs left NULL)', () => {
+test('a stay whose stored solde disagrees with the engine is STILL collected (split on the stored amounts)', () => {
   // The common OTA case: the stored solde is the platform's figure, the engine re-derives another
   // number, and the conservation invariant of the capture cannot hold. Losing the whole check-in over
   // it would cost the caution, the upsells and the planning flags — for something the operator cannot
@@ -300,7 +300,9 @@ test('a stay whose stored solde disagrees with the engine is STILL collected (co
   const after = rowOf(db, id);
   assert.equal(after.balancePaid, 1, 'the money is recorded');
   assert.equal(after.balancePaidAtArrival, 1);
-  assert.equal(after.accommodationSoldeContribTtc, null, 'no per-line freeze — the export derives it');
+  // specs/reservation-payment-ledger.md rule 42 — the shared fallback: the stored-amount split, so the
+  // export never books the solde whole on the tourist-tax account once an acompte captured its own.
+  assert.ok(after.accommodationSoldeContribTtc > 0, 'split on the stored amounts');
   assert.equal(after.arrivalSasDoneAt !== null, true, 'and the check-in is not lost');
 });
 

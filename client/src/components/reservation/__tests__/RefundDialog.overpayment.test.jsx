@@ -36,9 +36,13 @@ test('sans trop-perçu, aucune alerte', () => {
 });
 
 test('un trop-perçu s’affiche avec son montant et « Rembourser » ouvre la fenêtre sur ce montant', async () => {
-  const ctx = renderFinance({ refundOverpaymentTtc: 133.2 });
-  expect(screen.getByText(/Trop-perçu : 133,20/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Rembourser' }));
+  // specs/reservation-payment-ledger.md rule 2 — the trop-perçu is a ledger row, shaped by the server.
+  const ctx = renderFinance({ refundOverpaymentTtc: 133.2, ledger: { rows: [{ key: 'overpayment', label: 'Trop-perçu', amount: 133.2, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+    action: { kind: 'refund', label: 'Rembourser' }, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+    detail: { lines: [] } }], closing: null } });
+  expect(screen.getByText('Trop-perçu')).toBeInTheDocument();
+  expect(screen.getByText(/133,20/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /^Rembourser/ }));
   expect(ctx.setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 133.2, overpaymentLines: [] });
 });
 

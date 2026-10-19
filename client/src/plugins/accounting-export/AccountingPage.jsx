@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton, Divider, useMediaQuery, useTheme,
+  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton, Divider, useMediaQuery, useTheme, Alert,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -175,6 +175,15 @@ export default function AccountingPage() {
                 </Stack>
               )}
             </Stack>
+
+            {/* specs/reservation-payment-ledger.md rule 43 — entries with no revenue and no VAT. */}
+            {!salesLoading && sales && (sales.totals.taxOnlyEntries || []).length > 0 && (
+              <Alert severity="warning" sx={{ mb: 1.5 }}>
+                {sales.totals.taxOnlyEntries.length === 1 ? 'Une écriture porte' : `${sales.totals.taxOnlyEntries.length} écritures portent`} tout
+                {' '}leur montant sur la taxe de séjour (46710000), sans chiffre d&apos;affaires ni TVA :
+                {' '}{sales.totals.taxOnlyEntries.map((e) => `${e.libelle} (${formatCurrency(e.amount)})`).join(', ')}. À vérifier avant l&apos;envoi au cabinet.
+              </Alert>
+            )}
 
             {salesLoading && <LoadingState label="Chargement des écritures…" py={2} />}
 

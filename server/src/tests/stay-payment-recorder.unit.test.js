@@ -100,10 +100,12 @@ test('rule 1 — a failed capture ticks nothing by hand, but never loses money a
   assert.deepEqual(result.captureFailed, ['balance']);
   const row = moneyRow(db, online);
   assert.equal(row.balancePaid, 1, 'the guest paid: the stay says so');
-  assert.equal(row.accommodationSoldeContribTtc, null, 'and no half-written contribs');
+  // specs/reservation-payment-ledger.md rule 37 — the split falls back to the stored amounts (never the
+  // whole entry on the tourist-tax account), instead of no split at all.
+  assert.ok(row.accommodationSoldeContribTtc != null, 'a stored-amount split, not half-written contribs');
   const history = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND eventType = 'payment_capture_failed'").all(online);
   assert.equal(history.length, 1, 'said on the stay, not only in the server log');
-  assert.match(history[0].changedFields, /répartition comptable non enregistrée/);
+  assert.match(history[0].changedFields, /Paiement en ligne \(solde\).*répartition comptable sur les montants enregistrés/);
 });
 
 test('rule 3 — an online payment is dated by the provider’s time, as a local day', () => {

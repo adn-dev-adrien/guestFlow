@@ -6,13 +6,15 @@
  *   status:  'success' | 'warning' | 'error' | 'info' | 'neutral'   (required)
  *   label:   string                                                  (required)
  *   icon?:   ReactNode                                               (optional leading icon)
+ *   wrap?:   boolean — a long label wraps on several lines instead of being cut (ledger states,
+ *            specs/reservation-payment-ledger.md §6)
  */
 import React from 'react';
 import { Chip } from '@mui/material';
 
 const SEMANTIC = ['success', 'warning', 'error', 'info'];
 
-export default function StatusBadge({ status, label, icon }) {
+export default function StatusBadge({ status, label, icon, wrap = false }) {
   const sem = SEMANTIC.includes(status) ? status : null;
   return (
     <Chip
@@ -25,6 +27,10 @@ export default function StatusBadge({ status, label, icon }) {
         // AA on the soft background (specs/shell-and-home-day-first.md rule 14).
         color: sem ? t.palette[sem].text : t.palette.text.secondary,
         '& .MuiChip-icon': { color: 'inherit' },
+        ...(wrap ? {
+          height: 'auto', maxWidth: '100%', py: 0.25,
+          '& .MuiChip-label': { whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.35 },
+        } : {}),
       })}
     />
   );

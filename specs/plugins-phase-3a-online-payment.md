@@ -336,6 +336,18 @@ Other facts the design rests on:
     a provider nothing changes: the link is minted and sent as before. No enabled template fitting →
     no button, as before.
 
+**Payments ledger (2026-10-19)**
+
+26. **A link whose amount the fiche changed is retired with the reason `'amount-changed'`.** At save,
+    an open link whose `amountCents` no longer matches the row it bills is checked at the provider
+    (paid meanwhile → the save is refused, 409 `LINK_ALREADY_PAID`), cancelled with
+    `cancelReason = 'amount-changed'` and deactivated (provider down → `remoteCancelPendingAt`, rule 8).
+    Unlike the other retired links of rule 8, one found paid afterwards IS recorded on the stay at the
+    link's amount — the acompte becomes that amount, the solde is recorded at it, a complement is
+    recorded and its row warns — unless the bucket was meanwhile perceived another way (double payment,
+    admin told, as rule 8). [reservation-payment-ledger.md](reservation-payment-ledger.md) rules 29-31
+    (§9 Q3).
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

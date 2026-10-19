@@ -8,6 +8,7 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from '../mockReservationForm';
 import api from '../../../api';
+import { dueRow, paidRow, ledgerOf } from './ledgerFixtures';
 
 // specs/single-payment-from-the-fiche.md — recording the single arrival payment WITHOUT re-opening
 // the SAS. The fiche decides nothing about the money: it renders what the server says is collectible
@@ -49,6 +50,18 @@ const GROUP = {
   ],
 };
 
+// Since specs/reservation-payment-ledger.md rule 4 the buckets the group covered read « paiement
+// unique » on their rows, and the payment's detail folds under the first of them.
+const GROUP_LEDGER = ledgerOf([
+  paidRow('balance', 'Solde', 720.82, { state: 'paid-group', stateLabel: 'Perçu le 30/08 · paiement unique' }),
+  paidRow('complement', "Complément d'arrivée", 132, { state: 'paid-group', stateLabel: 'Perçu le 30/08 · paiement unique' }),
+], { label: 'Tout est perçu', amount: null });
+const DUE_LEDGER = ledgerOf([dueRow('balance', 'Solde', 720.82), dueRow('complement', "Complément d'arrivée", 132)]);
+
+async function openGroup(user) {
+  await user.click(screen.getAllByRole('button', { name: 'Détail' })[0]);
+}
+
 beforeEach(() => { vi.clearAllMocks(); });
 
 test('two collectible buckets → the control announces the total and what it covers', () => {
@@ -88,8 +101,11 @@ test('« Caisse interne » posts the cash mode, and says it is off the books', a
 });
 
 // specs/single-payment-at-check-in.md rule 16
-test('a group already recorded → the summary and its undo, and never the control', () => {
-  renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: GROUP } });
+test('a group already recorded → the summary and its undo, and never the control', async () => {
+  const user = userEvent.setup();
+  renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: GROUP }, ledger: GROUP_LEDGER });
+  expect(screen.getAllByText('Perçu le 30/08 · paiement unique')).toHaveLength(2);
+  await openGroup(user);
   expect(screen.getByText(/paiement unique de 852,82 €/)).toBeInTheDocument();
   expect(screen.getByText(/solde 720,82 € · complément 132,00 €/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Annuler ce paiement' })).toBeInTheDocument();
@@ -98,7 +114,8 @@ test('a group already recorded → the summary and its undo, and never the contr
 
 test('« Annuler ce paiement » posts the undo', async () => {
   const user = userEvent.setup();
-  renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: GROUP } });
+  renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: GROUP }, ledger: GROUP_LEDGER });
+  await openGroup(user);
   await user.click(screen.getByRole('button', { name: 'Annuler ce paiement' }));
   expect(api.settleArrivalPayment).toHaveBeenCalledWith(7, 'undo', expect.any(String));
 });
@@ -124,10 +141,11 @@ test('le contrôle se rend au-dessus des échéances du séjour', () => {
     editingReservationId: 7,
     reservationId: 7,
     form: { arrivalPayment: COLLECTIBLE, balanceAmount: 720.82, complementAmount: 132 },
+    ledger: DUE_LEDGER,
   });
 
   const control = screen.getByText(/Encaisser en une fois : 852,82 €/);
-  const bucketButton = screen.getByRole('button', { name: 'Marquer solde payé' });
+  const bucketButton = screen.getAllByRole('button', { name: /^Marquer perçu/ })[0];
   // eslint-disable-next-line no-bitwise
   const controlComesFirst = control.compareDocumentPosition(bucketButton)
     & Node.DOCUMENT_POSITION_FOLLOWING;
@@ -143,9 +161,9 @@ test('les boutons par échéance restent offerts à côté du contrôle', () => 
     reservationId: 7,
     pricingQuote: { complementAmount: 132 },
     form: { arrivalPayment: COLLECTIBLE, balanceAmount: 720.82 },
+    ledger: DUE_LEDGER,
   });
 
   expect(screen.getByText(/Encaisser en une fois/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Marquer solde payé' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Marquer complément payé' })).toBeInTheDocument();
+  expect(screen.getAllByRole('button', { name: /^Marquer perçu/ })).toHaveLength(2);
 });

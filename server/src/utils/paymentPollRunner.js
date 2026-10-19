@@ -123,7 +123,8 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 }
 
 // specs/plugins-phase-3a-online-payment.md rule 8 — the links GuestFlow abandoned but could not
-// deactivate. A paid one is never recorded on the stay (it was cancelled or replaced): the admin is told,
+// deactivate. A paid one is never recorded on the stay (it was cancelled or replaced) — except a link
+// retired for an amount change, booked at its amount (specs/reservation-payment-ledger.md rule 31): the admin is told,
 // the payment's id stays on the row for the refund. Returns the per-link results, and whether a rate
 // limit stopped the retries.
 async function retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment }) {
@@ -134,6 +135,10 @@ async function retryPendingCancellations({ paymentLinksModel, provider, notifyPa
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'cancel-link' });
       if (pay.paid && link.cancelReason === 'settled') {
         results.push(await settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, link, pay }));
+        continue;
+      }
+      if (pay.paid && link.cancelReason === 'amount-changed' && database) {
+        results.push(await bookAmountChangedPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, recordPayment, link, pay }));
         continue;
       }
       if (pay.paid) {
@@ -180,6 +185,30 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
     try { await notifyPaidAfterCancel(link); } catch { /* best effort */ }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
+}
+
+// specs/reservation-payment-ledger.md rule 31 (§9 Q3) — a link the fiche retired because its amount
+// changed, paid anyway. The money is real: it lands on the fiche at the link's amount (the acompte
+// becomes that amount and the solde absorbs the rest; the solde is recorded at it; the complement is
+// recorded and its ledger row warns). The link becomes `paid` and the admin is told, as for every paid
+// retired link. If the bucket was meanwhile perceived another way it is a double payment: nothing is
+// recorded, the link keeps its payment id for the refund — the behaviour of rule 8.
+async function bookAmountChangedPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, recordPayment, link, pay }) {
+  const { paidDayOf } = require('./stayPaymentRecorder');
+  const { bookPaidAfterAmountChange } = require('./ledgerLinks');
+  const paidAt = pay.paidAt || new Date().toISOString();
+  const booked = bookPaidAfterAmountChange(
+    { database, recordPayment: recordPayment || recordOn(database) },
+    link,
+    { paidDay: paidDayOf(paidAt) },
+  );
+  if (booked.effect === 'double-payment' || booked.effect === 'no-reservation' || booked.effect === 'not-a-reservation') {
+    paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
+  } else {
+    paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: pay.paymentId || null, paidAt, reason: 'amount-changed' });
+  }
+  if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
+  return { id: link.id, reservationId: link.reservationId, type: link.type, status: booked.effect === 'double-payment' ? 'paid-after-cancel' : 'paid', ...booked };
 }
 
 // One pass (specs/payment-polling-fair-use.md): retry the owed deactivations, retire links past a known

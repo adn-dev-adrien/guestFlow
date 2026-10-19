@@ -14,7 +14,7 @@
  * never vanish from the stay.
  */
 
-const { captureContribsOnFlip } = require('./forceItemContribsCapture');
+const { captureContribsOnFlip, captureBucketSplit } = require('./forceItemContribsCapture');
 
 const BUCKETS = { deposit: ['deposit'], balance: ['balance'], full: ['deposit', 'balance'] };
 const COLUMNS = {
@@ -45,7 +45,7 @@ const BUCKET_LABELS = { deposit: 'acompte', balance: 'solde' };
  * @returns {{ flipped: string[], captureFailed: string[] }} the buckets this call ticked, and those
  *   ticked without their capture
  */
-function recordStayPayment({ db, reservationsModel, emit }, { reservationId, bucket, paidDate, keepPaymentOnCaptureFailure = false }) {
+function recordStayPayment({ db, reservationsModel, emit }, { reservationId, bucket, paidDate, keepPaymentOnCaptureFailure = false, origin = 'online' }) {
   const buckets = BUCKETS[bucket];
   if (!buckets) throw new Error(`Unknown payment bucket: ${bucket}`);
   const id = Number(reservationId);
@@ -58,17 +58,20 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
       const row = reservationsModel.getRow(id);
       if (!row) throw new Error(`Reservation ${id} not found`);
       if (Number(row[COLUMNS[b].flag] || 0) === 1) return;
-      try {
-        // A savepoint: a failed capture leaves no half-written contribs behind.
+      if (!keepPaymentOnCaptureFailure) {
+        // A tick by hand without the shared fallback: a failed capture refuses the tick (savepoint).
         db.transaction(() => captureContribsOnFlip({ db, reservation: row, bucket: b }))();
-      } catch (err) {
-        if (!keepPaymentOnCaptureFailure) throw err;
-        // eslint-disable-next-line no-console
-        console.error(`[payments] reservation ${id}: ${b} received but its contribs capture failed — ${err.message}`);
-        captureFailed.push(b);
-        // Said on the stay, where the operator looks: its accounting split is missing.
-        db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'payment_capture_failed', ?)")
-          .run(id, JSON.stringify([{ field: b, label: `Paiement en ligne (${BUCKET_LABELS[b]})`, from: null, to: 'reçu, répartition comptable non enregistrée' }]));
+      } else {
+        // Money already received (rule 37 / 42): the shared capture never throws — engine split, else
+        // the stored-amount split, else none (logged). Said on the stay when the engine split failed.
+        const outcome = captureBucketSplit({ db, reservation: row, bucket: b });
+        if (outcome !== 'captured') {
+          captureFailed.push(b);
+          const label = origin === 'fiche' ? `Encaissement (${BUCKET_LABELS[b]})` : `Paiement en ligne (${BUCKET_LABELS[b]})`;
+          const to = outcome === 'stored' ? 'reçu, répartition comptable sur les montants enregistrés' : 'reçu, répartition comptable non enregistrée';
+          db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'payment_capture_failed', ?)")
+            .run(id, JSON.stringify([{ field: b, label, from: null, to }]));
+        }
       }
       db.prepare(`UPDATE reservations SET ${COLUMNS[b].flag} = 1, ${COLUMNS[b].date} = ?, updatedAt = datetime('now') WHERE id = ?`)
         .run(date, id);

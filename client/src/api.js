@@ -434,6 +434,8 @@ const api = {
   // is one, for the whole stay otherwise, and says which in its response.
   sendPaymentRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: {} }),
   sendBalanceRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'balance' } }),
+  // specs/reservation-payment-ledger.md rule 28 — « Renvoyer la demande » of a ledger row.
+  sendPaymentRequestOfType: (id, type) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type } }),
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),

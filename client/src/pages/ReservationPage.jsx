@@ -25,6 +25,7 @@ import ReservationConflictBadge from '../components/ReservationConflictBadge';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import StickyTotalBar from '../components/StickyTotalBar';
+import StoredPricingSummary from '../components/reservation/StoredPricingSummary';
 import DevisValidityChip from '../components/reservation/DevisValidityChip';
 import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
@@ -242,6 +243,8 @@ export default function ReservationPage() {
   const [frozenResources, setFrozenResources] = useState([]);
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [pricingQuote, setPricingQuote] = useState(null);
+  const pricingQuoteRef = useRef(null);
+  pricingQuoteRef.current = pricingQuote;
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   // specs/tourist-tax-freeze-past-with-refresh.md — past reservations keep a FROZEN tourist tax; this
@@ -371,6 +374,15 @@ export default function ReservationPage() {
   const frozenResourceUnitByQuantityRef = useRef({});
   const pendingLeaveActionRef = useRef(null);
   const pricingQuoteRequestRef = useRef(0);
+  // specs/reservation-payment-ledger.md — the body of the last live quote (the amount editors re-send
+  // it with `ledgerEdit`) and the ledger edit the next save carries for the history (rule 23).
+  const lastQuoteBodyRef = useRef(null);
+  // specs/reservation-payment-ledger.md rule 7 — the STORED ledger (GET), outside the form so that
+  // re-reading it never makes the fiche « modified ».
+  const [storedLedger, setStoredLedger] = useState(null);
+  const [storedHeadline, setStoredHeadline] = useState(null);
+  const [storedSummary, setStoredSummary] = useState(null);
+  const ledgerEditMarkerRef = useRef(null);
 
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
@@ -566,6 +578,18 @@ export default function ReservationPage() {
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
   }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, isPlatformReservation, refreshTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
+  // Review of #727 (H2) — a mark re-reads what the server wrote, then the quote re-prices the form on
+  // that state: neither is an edit. A fiche that was clean takes its baseline again once that quote has
+  // landed.
+  const isDirtyRef = useRef(false);
+  isDirtyRef.current = isDirty;
+  const resnapshotAfterQuoteRef = useRef(null);
+  useEffect(() => {
+    if (!resnapshotAfterQuoteRef.current || !pricingQuote) return;
+    if (pricingQuote === resnapshotAfterQuoteRef.current.quote) return;
+    resnapshotAfterQuoteRef.current = null;
+    setInitialSnapshot(formSnapshot);
+  }, [pricingQuote, formSnapshot]);
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
   // that promise has an end date: while the quote is valid its prices are frozen exactly like a
@@ -900,6 +924,9 @@ export default function ReservationPage() {
           setPluginBlocks(res.pluginBlocks || {});
           setCgvBlock(res.cgv || null);
           setOnlinePayment(res.onlinePayment || null);
+          setStoredLedger(res.ledger || null);
+          setStoredHeadline(res.storedHeadline || null);
+          setStoredSummary(res.storedSummary || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
           setIsIcalSource(res.sourceType === 'ical');
@@ -1253,7 +1280,7 @@ export default function ReservationPage() {
 
     const refreshBasePrice = async () => {
       try {
-        const calc = await api.calculatePrice({
+        const quoteBody = {
           propertyId: selectedProp,
           startDate: form.startDate,
           endDate: form.endDate,
@@ -1296,7 +1323,12 @@ export default function ReservationPage() {
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
-        });
+        // specs/reservation-payment-ledger.md rule 7 — the ledger follows the transfer typed on the fiche.
+        platformPayoutAmount: form.platformPayoutAmount,
+        };
+        // specs/reservation-payment-ledger.md rule 21 — the amount editors re-ask this same quote.
+        lastQuoteBodyRef.current = quoteBody;
+        const calc = await api.calculatePrice(quoteBody);
 
         if (requestId !== pricingQuoteRequestRef.current) return;
         setPricingQuote(calc);
@@ -2409,10 +2441,9 @@ export default function ReservationPage() {
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
           platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount,
           cautionAmount: form.cautionAmount,
-          cautionReceived: form.cautionReceived,
-          cautionReceivedDate: form.cautionReceivedDate,
-          cautionReturned: form.cautionReturned,
-          cautionReturnedDate: form.cautionReturnedDate,
+          // specs/reservation-payment-ledger.md rule 13 — the caution columns are not sent: only the
+          // payment PATCH changes them. Rule 23 — the ledger edit this save carries, for the history.
+          ledgerAmountEdit: ledgerEditMarkerRef.current || undefined,
           notes: form.notes,
           refreshPricingToCurrent: useCurrentPricing,
           forceMinNights,
@@ -2426,6 +2457,9 @@ export default function ReservationPage() {
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
+        ledgerEditMarkerRef.current = null;
+        // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
+        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
@@ -2654,8 +2688,10 @@ export default function ReservationPage() {
   const reloadReservationFinance = useCallback(async () => {
     if (!editingReservationId) return;
     const res = await api.getReservation(editingReservationId);
-    setForm((prev) => ({
-      ...prev,
+    setStoredLedger(res.ledger || null);
+    setStoredHeadline(res.storedHeadline || null);
+    setStoredSummary(res.storedSummary || null);
+    const serverWritten = {
       // L'état d'encaissement du complément d'arrivée est écrit par le serveur (les boutons de la
       // carte le PATCHent immédiatement) : le relire ici évite que le formulaire et la base ne
       // divergent, ce qui faisait échouer la fusion des cartes après un dé-marquage.
@@ -2681,16 +2717,88 @@ export default function ReservationPage() {
       arrivalPayment: res.arrivalPayment || null,
       checkoutComplement: res.checkoutComplement || null,
       complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
+      // specs/reservation-payment-ledger.md — the caution is written by the PATCH only (rule 13), and
+      // the ledger as stored (rule 1).
+      cautionReceived: Boolean(res.cautionReceived),
+      cautionReceivedDate: res.cautionReceivedDate || '',
+      cautionReturned: Boolean(res.cautionReturned),
+      cautionReturnedDate: res.cautionReturnedDate || '',
+      cautionAmount: res.cautionAmount,
+      platformPayoutAmount: res.platformPayoutAmount == null ? '' : res.platformPayoutAmount,
+      platformCommissionAmount: res.platformCommissionAmount == null ? '' : res.platformCommissionAmount,
+      // Rule 35 — undoing a received acompte freezes it server-side: the form must carry it on.
+      depositAmountOverride: res.depositAmountOverride === '' || res.depositAmountOverride == null ? '' : Number(res.depositAmountOverride),
       endOfStayComplementAmountOverride: res.endOfStayComplementAmountOverride == null ? '' : res.endOfStayComplementAmountOverride,
       endOfStayComplementAmountAuto: Number(res.endOfStayComplementAmountAuto || 0),
       complementAdjustment: res.complementAdjustment || null,
-    }));
+    };
+    if (!isDirtyRef.current) resnapshotAfterQuoteRef.current = { quote: pricingQuoteRef.current };
+    setForm((prev) => ({ ...prev, ...serverWritten }));
+    // Review of #727 (H2) — what the server just wrote is not an edit of the operator: the clean
+    // baseline moves with it, so a mark never makes the fiche « modified ».
+    setInitialSnapshot((prevSnapshot) => {
+      if (!prevSnapshot) return prevSnapshot;
+      try {
+        const snap = JSON.parse(prevSnapshot);
+        return JSON.stringify({ ...snap, form: { ...snap.form, ...serverWritten } });
+      } catch { return prevSnapshot; }
+    });
     // Le devis live dépend de l'état serveur qu'on vient de changer (report du complément, note
     // encaissée / ajustée) : sans ce rafraîchissement, le panneau de droite garderait l'ancien split
     // pendant que la carte affiche déjà le nouveau (specs/defer-arrival-complement-to-checkout.md
     // §3.3 rule 16).
     setRefundsVersion((v) => v + 1);
   }, [editingReservationId]);
+
+  // ── specs/reservation-payment-ledger.md — the ledger's round-trips ───────────────────────────────
+  // Rule 21 — the amount editor asks the live quote; the server answers the refusal or the effects.
+  const checkLedgerEdit = useCallback(async (row, amount) => {
+    if (!lastQuoteBodyRef.current) return { ok: false, reason: 'Calcul en cours : réessayer.' };
+    const quote = await api.calculatePrice({ ...lastQuoteBodyRef.current, ledgerEdit: { row, amount }, unlockPast: pastUnlocked });
+    return quote.ledgerEdit || { ok: false, reason: 'Calcul impossible.' };
+  }, [pastUnlocked]);
+  // « Valider » applies the server's form fields verbatim; the save traces it (rule 23).
+  const applyLedgerPatch = useCallback((patch) => {
+    const { ledgerAmountEdit, ...fields } = patch || {};
+    if (ledgerAmountEdit) ledgerEditMarkerRef.current = ledgerAmountEdit;
+    if (Object.keys(fields).length > 0) setForm((prev) => ({ ...prev, ...fields }));
+  }, []);
+
+  // Rule 10 — a mark saves the fiche first only when the operator changed something, so it is never
+  // recorded against an amount the server has not stored, and never forces a re-pricing on its own.
+  const markFromLedger = (body) => new Promise((resolve) => {
+    const action = async () => {
+      try {
+        const answer = await api.markPayment(editingReservationId, body);
+        await reloadReservationFinance();
+        // Rule 37 — recorded, but its accounting split falls back to the stored amounts.
+        if (answer && answer.warning) showSuccess(answer.warning);
+        resolve({ ok: true });
+      } catch (err) {
+        if (err && err.code === 'AMOUNT_CHANGED') await reloadReservationFinance();
+        resolve({ ok: false, error: err?.message || 'Enregistrement impossible.', field: err?.field || null });
+      }
+    };
+    if (!isDirty) { action(); return; }
+    // A locked fiche is never saved whole to record a payment (review of #727, B1): the operator
+    // saves or cancels his edits first.
+    if (isReservationLocked) {
+      resolve({ ok: false, error: 'Fiche modifiée : enregistrer ou annuler les modifications avant de marquer un paiement.' });
+      return;
+    }
+    Promise.resolve(handleSaveReservation(action)).then((saved) => { if (saved === false) resolve({ ok: false }); });
+  });
+
+  // Rule 28 — « Renvoyer la demande » on a still-due row whose link was retired.
+  const resendPaymentRequest = async (type) => {
+    try {
+      const r = await api.sendPaymentRequestOfType(editingReservationId, type);
+      showSuccess(`Demande envoyée — lien de paiement de ${formatCurrency(Number(r.amountCents || 0) / 100)} envoyé à ${r.recipientEmail || 'le client'}.`);
+      await reloadReservationFinance();
+    } catch (e) {
+      showError(e.message || 'Envoi impossible.');
+    }
+  };
 
   // specs/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the
   // server's answer and bump `refundsVersion` so the quote (and thus the fiche's « total de séjour »)
@@ -2779,6 +2887,7 @@ export default function ReservationPage() {
   }
 
   const goBackToOrigin = () => {
+    ledgerEditMarkerRef.current = null;
     if (isDevisMode) {
       requestLeave(() => navigateBack(navigate, '/devis'));
       return;
@@ -2966,6 +3075,14 @@ export default function ReservationPage() {
   const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
   const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
   const isReservationLocked = Boolean(reservationId && existingReservationLocked && !pastUnlocked);
+  // specs/reservation-payment-ledger.md rules 7, 39 — the stored money (ledger and headline) until the
+  // operator changes the fiche, never the live one on a locked fiche.
+  const showLiveMoney = !storedLedger || (isDirty && !isReservationLocked);
+  const headline = showLiveMoney ? pricingQuote?.headline : (storedHeadline || pricingQuote?.headline);
+  // Rules 44-45 — while the stored ledger shows and today's quote differs from the stored money, the
+  // pricing summary (desktop panel and phone sheet) is the stored one, whole: never live lines next to
+  // stored totals. Without a difference the live summary already says the same.
+  const showStoredSummary = !showLiveMoney && Boolean(storedSummary) && Boolean(pricingQuote?.storedDrift);
   const todayIso = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
   // A new reservation dated in the past can only be recorded by an admin who unlocks it.
   const pastNewReservation = Boolean(!reservationId && !isDevisMode && form.startDate && form.startDate < todayIso);
@@ -3223,7 +3340,9 @@ export default function ReservationPage() {
     setResourceSessions,
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
-    accommodationBasePriceDisplay, pricingQuote,
+    // Rule 45 — the brut card follows the stored summary when it shows.
+    accommodationBasePriceDisplay: showStoredSummary && storedSummary.accommodationBase != null ? storedSummary.accommodationBase : accommodationBasePriceDisplay,
+    pricingQuote,
     // specs/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload
     // through the page (it owns the pipeline); the block itself holds no reservation logic.
     saveThenRun, reloadReservationFinance,
@@ -3240,6 +3359,12 @@ export default function ReservationPage() {
     refundOverpaymentTtc: Number(pricingQuote?.overpaymentTtc || 0),
     refundOverpaymentLines: Array.isArray(pricingQuote?.overpaymentLines) ? pricingQuote.overpaymentLines : [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
+    // specs/reservation-payment-ledger.md — the ledger (live quote first, the stored one until then)
+    // and its round-trips.
+    // Rule 7 (review of #727) — the stored ledger by default, the live one only once the operator has
+    // changed the fiche, never on a locked one; a fiche never saved has only the live one.
+    ledger: showLiveMoney ? (pricingQuote?.ledger || storedLedger) : storedLedger,
+    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,
@@ -3256,7 +3381,14 @@ export default function ReservationPage() {
     form.startDate && form.endDate ? `${displayDate(form.startDate).slice(0, 5)} → ${displayDate(form.endDate).slice(0, 5)}` : '',
   ].filter(Boolean).join(' · ') || null;
 
-  const pricingSummary = (
+  const pricingSummary = showStoredSummary ? (
+    <StoredPricingSummary
+      summary={storedSummary}
+      form={form}
+      propertyLabel={selectedProperty?.label || selectedProperty?.name || ''}
+      isPlatform={isPlatformReservation}
+    />
+  ) : (
     <PricingSummary
       quote={pricingQuote}
       form={form}
@@ -3553,11 +3685,11 @@ export default function ReservationPage() {
       {/* specs/ui-review-2026-10-19-operations.md rules 10-11 — below lg the server's headline figure
           stays on screen and opens the full summary in a sheet (decision 6: « Vous percevez » for a
           platform stay). */}
-      {pricingQuote?.headline && (
+      {headline && (
         <StickyTotalBar
-          label={pricingQuote.headline.label}
-          amount={pricingQuote.headline.amount}
-          secondary={pricingQuote.headline.secondary}
+          label={headline.label}
+          amount={headline.amount}
+          secondary={headline.secondary}
           sheetTitle="Résumé tarifaire"
           showBelow="lg"
           // The page padding of the app's main area (App.jsx): flush with the screen's edges and bottom.

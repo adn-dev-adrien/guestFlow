@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 
@@ -8,6 +8,7 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from '../mockReservationForm';
 import api from '../../../api';
+import { paidRow, ledgerOf } from './ledgerFixtures';
 
 // specs/arrival-payment-detail-and-adjustment.md §3.1-§3.2 — le paiement unique, détaillé, et son
 // ajustement. La fiche ne décide rien : elle imprime les lignes que le serveur envoie et lui transmet
@@ -59,9 +60,17 @@ const DETAILED = {
   ],
 };
 
-const render7 = (payment) => renderFinance({
-  editingReservationId: 7, reservationId: 7, form: { arrivalPayment: payment },
-});
+// Since specs/reservation-payment-ledger.md rule 4 the group's buckets are ledger rows reading
+// « paiement unique »; the payment's detail folds under the first of them.
+const GROUP_LEDGER = ledgerOf([
+  paidRow('balance', 'Solde', 720.82, { state: 'paid-group', stateLabel: 'Perçu le 30/08 · paiement unique' }),
+  paidRow('complement', "Complément d'arrivée", 132, { state: 'paid-group', stateLabel: 'Perçu le 30/08 · paiement unique' }),
+], { label: 'Tout est perçu', amount: null });
+const render7 = (payment) => {
+  const ctx = renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: payment }, ledger: GROUP_LEDGER });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Détail' })[0]);
+  return ctx;
+};
 
 beforeEach(() => { vi.clearAllMocks(); });
 
@@ -146,7 +155,7 @@ test('at the floor, the helper names the accommodation as the limit', () => {
 // un remplacement : les contrôles par échéance restent là, intacts, sous lui.
 test('les contrôles par échéance restent affichés sous le bloc', () => {
   render7(DETAILED);
-  expect(screen.getByRole('button', { name: /solde payé/i })).toBeInTheDocument();
+  expect(screen.getAllByRole('button', { name: /^Annuler : / })).toHaveLength(2);
   expect(screen.getByRole('button', { name: 'Annuler ce paiement' })).toBeInTheDocument();
 });
 

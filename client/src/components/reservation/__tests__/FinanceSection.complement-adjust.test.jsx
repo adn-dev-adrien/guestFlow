@@ -1,28 +1,26 @@
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ReservationFormProvider } from '../ReservationFormContext';
-import DialogProvider from '../../DialogProvider';
-import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
 import { vi } from 'vitest';
-
 import api from '../../../api';
+import { renderFinance as renderLedger, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
 
 // specs/adjustable-complement-amounts.md §3.1/§3.6 (montant ajusté + ventilation) et
-// specs/defer-arrival-complement-to-checkout.md §3.3 (bascule depuis la fiche).
+// specs/defer-arrival-complement-to-checkout.md §3.3 (bascule depuis la fiche). Since
+// specs/reservation-payment-ledger.md rule 22 (§9 Q5), a complement is a ledger row and its adjustment
+// folds under « Détail ».
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
 
-function renderFinance(overrides) {
-  const ctx = makeMockContext(overrides);
-  render(
-    <DialogProvider>
-      <ReservationFormProvider value={ctx}>
-        <FinanceSection />
-      </ReservationFormProvider>
-    </DialogProvider>,
-  );
+const complementRow = (key, label, amount, { paid = false } = {}) => (paid ? paidRow : dueRow)(key, label, amount, {
+  amountEdit: editable('complement'), detail: { slot: key },
+});
+const ARRIVAL = ledgerOf([complementRow('complement', "Complément d'arrivée", 24)]);
+const ARRIVAL_PAID = ledgerOf([complementRow('complement', "Complément d'arrivée", 24, { paid: true })]);
+
+// Renders the fiche and opens the « Détail » of every complement row.
+async function renderFinance(overrides) {
+  const { ctx } = renderLedger({ ledger: ARRIVAL, ...overrides });
+  for (const button of screen.queryAllByRole('button', { name: 'Détail' })) await userEvent.click(button);
   return ctx;
 }
 
@@ -31,8 +29,8 @@ const FUTURE = { startDate: '2099-06-01', endDate: '2099-06-05' };
 beforeEach(() => { vi.clearAllMocks(); });
 
 // specs/adjustable-complement-amounts.md rule 1
-test('le champ « Montant ajusté » affiche le calcul auto tant qu\'il est vide', () => {
-  renderFinance({
+test('le champ « Montant ajusté » affiche le calcul auto tant qu\'il est vide', async () => {
+  await renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 93.6, complementAmountAuto: 93.6 },
     form: { ...FUTURE },
@@ -43,7 +41,7 @@ test('le champ « Montant ajusté » affiche le calcul auto tant qu\'il est vide
 
 test('saisir un montant remonte l\'ajustement au formulaire', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance({
+  const ctx = await renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 93.6, complementAmountAuto: 93.6 },
     form: { ...FUTURE, complementAdjustment: { floor: 9.6, tax: 9.6, accommodation: 0, allocation: null } },
@@ -56,7 +54,7 @@ test('saisir un montant remonte l\'ajustement au formulaire', async () => {
 
 test('règle 33 — une valeur sous le plancher est ramenée au plancher', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance({
+  const ctx = await renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 93.6, complementAmountAuto: 93.6 },
     form: { ...FUTURE, complementAdjustment: { floor: 9.6, tax: 9.6, accommodation: 0, allocation: null } },
@@ -66,8 +64,8 @@ test('règle 33 — une valeur sous le plancher est ramenée au plancher', async
   expect(ctx.updateForm).toHaveBeenCalledWith({ complementAmountOverride: 9.6 });
 });
 
-test('§3.6 — la ventilation comptable est affichée quand un ajustement est posé', () => {
-  renderFinance({
+test('§3.6 — la ventilation comptable est affichée quand un ajustement est posé', async () => {
+  await renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 85, complementAmountAuto: 93.6 },
     form: {
@@ -89,18 +87,9 @@ test('§3.6 — la ventilation comptable est affichée quand un ajustement est p
   expect(screen.getByText(/Montant figé/)).toBeInTheDocument();
 });
 
-test('règle 9 — une carte ajustée à 0 € reste affichée', () => {
-  renderFinance({
-    editingReservationId: 7, reservationId: 7,
-    pricingQuote: { complementAmount: 0, complementAmountAuto: 24 },
-    form: { ...FUTURE, complementAmountOverride: 0 },
-  });
-  expect(screen.getByText("Complément d'arrivée")).toBeInTheDocument();
-});
-
 test('§3.3 — « Percevoir en fin de séjour » pose le marqueur et recharge', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance({
+  const ctx = await renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
     form: { ...FUTURE },
@@ -111,8 +100,8 @@ test('§3.3 — « Percevoir en fin de séjour » pose le marqueur et recharge',
   expect(ctx.reloadReservationFinance).toHaveBeenCalled();
 });
 
-test('§3.3 règle 15 — le séjour commencé ne verrouille plus le report', () => {
-  renderFinance({
+test('§3.3 règle 15 — le séjour commencé ne verrouille plus le report', async () => {
+  await renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
     form: { startDate: '2020-01-01', endDate: '2020-01-05' },
@@ -122,10 +111,11 @@ test('§3.3 règle 15 — le séjour commencé ne verrouille plus le report', ()
 
 test('§3.3 règle 15 — un complément encaissé reste reportable, après confirmation', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance({
+  const ctx = await renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
     form: { ...FUTURE, complementPaid: true, complementPaidDate: '2099-06-01' },
+    ledger: ARRIVAL_PAID,
   });
   await user.click(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i }));
   expect(await screen.findByText(/Il est marqué encaissé/i)).toBeInTheDocument();
@@ -139,8 +129,9 @@ test('§3.3 règle 15 — un complément encaissé reste reportable, après conf
 // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — une prestation vendue sur un
 // complément d'arrivée encaissé part au complément de fin de séjour, et la carte doit le montrer
 // AVANT l'enregistrement : sinon l'opérateur voit son option disparaître de l'écran.
-test('la carte de fin de séjour rend le devis live, pas seulement le montant stocké', () => {
-  renderFinance({
+test('la carte de fin de séjour rend le devis live, pas seulement le montant stocké', async () => {
+  await renderFinance({
+    ledger: ledgerOf([complementRow('endOfStayComplement', 'Complément de fin de séjour', 30)]),
     editingReservationId: 7, reservationId: 7,
     pricingQuote: {
       complementAmount: 24, complementAmountAuto: 24,
@@ -149,31 +140,15 @@ test('la carte de fin de séjour rend le devis live, pas seulement le montant st
     },
     form: { ...FUTURE, complementPaid: true, endOfStayComplementAmount: 0, endOfStayComplementAmountAuto: 0 },
   });
-  expect(screen.getByText('Complément de fin de séjour')).toBeInTheDocument();
   expect(screen.getByText(/Petit déjeuner : 30,00 €/)).toBeInTheDocument();
   expect(screen.getByText(/Calcul auto \(30,00 €\)/)).toBeInTheDocument();
 });
 
-// Le bouton « Complément payé » de la carte d'arrivée n'écrivait en base que sur une réservation
-// VERROUILLÉE : ailleurs il n'y avait que le formulaire, et le serveur — qui décide de la fusion des
-// cartes — continuait de croire le complément encaissé. Dé-marquer puis reporter ne fusionnait rien.
-test('dé-marquer l\'encaissement part immédiatement au serveur', async () => {
-  const user = userEvent.setup();
-  const ctx = renderFinance({
-    editingReservationId: 7, reservationId: 7,
-    pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
-    form: { ...FUTURE, complementPaid: true, complementPaidDate: '2099-06-01' },
-  });
-  await user.click(screen.getByRole('button', { name: /^Complément payé$/i }));
-  await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { complementPaid: false, complementPaidDate: null }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ complementPaid: false, complementPaidDate: '' });
-  expect(ctx.reloadReservationFinance).toHaveBeenCalled();
-});
-
 // §3.2 rule 7bis — la carte fusionnée suit le devis LIVE : le bloc stocké date du dernier
 // enregistrement et gardait les anciennes lignes pendant que le résumé suivait déjà le moteur.
-test('la carte fusionnée préfère le bloc live du devis au bloc stocké', () => {
-  renderFinance({
+test('la carte fusionnée préfère le bloc live du devis au bloc stocké', async () => {
+  await renderFinance({
+    ledger: ledgerOf([complementRow('checkoutComplement', 'Complément de fin de séjour', 158.05)]),
     editingReservationId: 7, reservationId: 7,
     pricingQuote: {
       complementAmount: 128.05, complementAmountAuto: 128.05,
@@ -198,22 +173,8 @@ test('la carte fusionnée préfère le bloc live du devis au bloc stocké', () =
       },
     },
   });
-  expect(screen.getByText('(158,05 €)')).toBeInTheDocument();
   expect(screen.getByText(/Le repas des trappeurs : 75,00 €/)).toBeInTheDocument();
-  expect(screen.queryByText('(183,05 €)')).not.toBeInTheDocument();
   expect(screen.queryByText(/Le repas des trappeurs : 100,00 €/)).not.toBeInTheDocument();
-});
-
-test('§6.5 — les deux compléments sont rendus dans la même grille, chacun sur une demi-largeur', () => {
-  renderFinance({
-    editingReservationId: 7, reservationId: 7,
-    pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
-    form: { ...FUTURE, endOfStayComplementAmount: 40, endOfStayComplementAmountAuto: 40 },
-  });
-  const arrival = screen.getByText("Complément d'arrivée").closest('.MuiGrid-root');
-  const endOfStay = screen.getByText('Complément de fin de séjour').closest('.MuiGrid-root');
-  expect(arrival).not.toBe(endOfStay);
-  expect(arrival.parentElement).toBe(endOfStay.parentElement);
 });
 
 // specs/adjustable-complement-amounts.md rule 29 — complément d'arrivée reporté au check-out : la
@@ -221,6 +182,7 @@ test('§6.5 — les deux compléments sont rendus dans la même grille, chacun s
 // « cible − montant de fin de séjour ». Le total saisi est celui que l'opérateur a annoncé au client ;
 // c'est au code de retrouver quel bucket doit bouger pour l'obtenir.
 const MERGED = {
+  ledger: ledgerOf([complementRow('checkoutComplement', 'Complément de fin de séjour', 158.05)]),
   editingReservationId: 7,
   reservationId: 7,
   pricingQuote: {
@@ -241,7 +203,7 @@ const MERGED = {
 
 test('règle 29 — ajuster la carte fusionnée écrit l’ajustement d’ARRIVÉE, net de la fin de séjour', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance(MERGED);
+  const ctx = await renderFinance(MERGED);
 
   await user.type(screen.getByLabelText(/Montant ajusté/i), '150');
   await user.tab();
@@ -256,7 +218,7 @@ test('règle 30 — une cible sous la fin de séjour bute sur le plancher', asyn
   const user = userEvent.setup();
   // Sans taxe de séjour dans le complément, le seul plancher qui reste est celui de la règle 30 :
   // la part de fin de séjour, que la carte fusionnée ne peut pas négocier.
-  const ctx = renderFinance({
+  const ctx = await renderFinance({
     ...MERGED,
     form: { ...MERGED.form, complementAdjustment: { floor: 0, tax: 0, accommodation: 0, allocation: null } },
   });
@@ -270,8 +232,9 @@ test('règle 30 — une cible sous la fin de séjour bute sur le plancher', asyn
 // specs/adjustable-complement-amounts.md rule 19 — la ligne « Ajustement » du complément de fin de
 // séjour est VISIBLE dans les lignes de la carte, négative comprise : aucune écriture séparée n'est
 // produite, donc c'est la seule façon pour l'opérateur de voir de combien il a corrigé.
-test('règle 19 — la ligne d’ajustement se lit dans les lignes de la carte, même négative', () => {
-  renderFinance({
+test('règle 19 — la ligne d’ajustement se lit dans les lignes de la carte, même négative', async () => {
+  await renderFinance({
+    ledger: ledgerOf([complementRow('endOfStayComplement', 'Complément de fin de séjour', 70)]),
     editingReservationId: 7, reservationId: 7,
     form: {
       ...FUTURE,

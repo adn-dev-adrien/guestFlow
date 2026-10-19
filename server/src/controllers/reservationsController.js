@@ -81,6 +81,43 @@ const { toReceptionReservationView, toReceptionReservationList, toReceptionPayme
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
+const { buildLedger } = require('../utils/reservationLedger');
+const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
+const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
+const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
+const ledgerLinks = require('../utils/ledgerLinks');
+
+// specs/reservation-payment-ledger.md §3.1 — the payments ledger of a fiche, built by the server from
+// the stored row (paid states, dates, caution, single payment) and, while the fiche is edited, the live
+// quote (the unpaid amounts, rule 7). `live` carries the form values the quote does not echo.
+function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpayment = null }) {
+  const id = row && row.id ? Number(row.id) : null;
+  let links = [];
+  let refunds = [];
+  if (id) {
+    try { links = require('../models/paymentLinksModel').listForReservation(id); } catch { links = []; }
+    try { refunds = refundsModel.listByReservation(id); } catch { refunds = []; }
+  }
+  // specs/caution-live-from-property.md §3 — live from the property until received, then frozen.
+  let cautionAmount = Number(row && row.cautionAmount) || 0;
+  if (!(row && Number(row.cautionReceived || 0) === 1)) {
+    const pid = Number(propertyId || (row && row.propertyId) || 0);
+    const prop = pid ? db.prepare('SELECT defaultCautionAmount FROM properties WHERE id = ?').get(pid) : null;
+    cautionAmount = Number(prop && prop.defaultCautionAmount) || 0;
+  }
+  return buildLedger({
+    row,
+    quote,
+    live,
+    links,
+    refunds,
+    overpayment,
+    midStayNotes: parseMidStayNotes(row && row.midStaySettledNotes),
+    cautionAmount,
+    canRequest: Boolean(paymentProviders.summary()),
+    today: getTodayIsoDate(),
+  });
+}
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -438,8 +475,43 @@ function suggestBeds(req, res) {
 // « Calculer la commission » of the fiche (specs/booking-extranet-intake.md §4.1): the rule lives here,
 // the client only shows the figure.
 function platformCommission(req, res) {
-  const { gross, payout, touristTax, acompteCommission } = req.body || {};
+  const { gross, payout, touristTax, acompteCommission, expectedNet } = req.body || {};
   const commission = computePlatformCommission({ gross, payout, touristTax, acompteCommission });
+  // specs/reservation-payment-ledger.md rule 26 — « Marquer reçu » asks for the transfer: the gap with
+  // the expected net and the commission it implies are worded here, the form only prints them.
+  const hasExpected = expectedNet !== undefined && expectedNet !== null && expectedNet !== '';
+  // Review of #727 (H-a) — without a known commission there is no expected net: the transfer is typed,
+  // and the commission it implies is proposed from the gross.
+  if (!hasExpected && req.body && req.body.forMark) {
+    const p = Number(payout);
+    if (payout === '' || payout == null || !Number.isFinite(p) || p <= 0) {
+      return res.status(400).json({ error: 'Virement reçu : montant requis.' });
+    }
+    const fmt = require('../utils/reservationLedger').formatEuros;
+    return res.json({
+      commission, gap: null, gapLabel: null,
+      commissionLabel: commission != null && commission > 0 ? `Commission solde → ${fmt(commission)}` : null,
+    });
+  }
+  if (hasExpected) {
+    const p = Number(payout);
+    if (payout === '' || payout == null || !Number.isFinite(p) || p <= 0) {
+      return res.status(400).json({ error: 'Virement reçu : montant requis.' });
+    }
+    const gap = round2(Number(expectedNet) - p);
+    const fmt = require('../utils/reservationLedger').formatEuros;
+    // Never a commission without the gross it is computed from, nor when the gap is the tourist tax
+    // (a stay priced under the earlier tax convention): a commission is not the explanation then.
+    const taxLike = [touristTax, req.body.taxEstimate].map((v) => round2(v)).filter((v) => v > 0);
+    const gapIsTax = taxLike.some((t) => Math.abs(Math.abs(gap) - t) < 0.01);
+    const none = Math.abs(gap) < 0.005;
+    return res.json({
+      commission,
+      gap,
+      gapLabel: none ? null : `Écart : ${fmt(gap)} avec le net attendu${gapIsTax ? ' (le montant de la taxe de séjour)' : ''}`,
+      commissionLabel: commission == null || !(commission > 0) || none || gapIsTax ? null : `Commission solde → ${fmt(commission)}`,
+    });
+  }
   if (commission == null) return res.status(400).json({ error: 'Total facturé et virement requis' });
   return res.json({ commission });
 }
@@ -615,6 +687,73 @@ function settleArrivalPayment(req, res) {
   return res.json({ arrivalPayment: buildArrivalPaymentView(detailed || after), reservation: after });
 }
 
+function storedHeadlineOf(row) {
+  if (!row) return null;
+  const { quoteHeadline } = require('../utils/quoteHeadline');
+  const { comptaCollected, remainingToPay } = require('../utils/reservationSettlement');
+  const { isDirectChannel } = require('../utils/platformNameFormat');
+  let refundsBookTtc = 0;
+  try { refundsBookTtc = Number(refundsModel.totalsByReservation(Number(row.id)).book || 0); } catch { refundsBookTtc = 0; }
+  const midStay = storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+  return quoteHeadline({
+    finalPrice: row.finalPrice,
+    touristTaxTotal: row.touristTaxTotal,
+    platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : row.platformTouristTaxAmount,
+    endOfStayComplementTotal: row.endOfStayComplementAmount,
+    midStayRemainingTotal: midStay,
+    sejourNetTotal: round2(comptaCollected({ ...row, refundsBookTtc }) + remainingToPay(row)),
+  }, { isPlatform: !isDirectChannel(row.platform) });
+}
+
+function storedSummaryOf(row) {
+  if (!row) return null;
+  const headline = storedHeadlineOf(row);
+  const isPlatform = String(row.platform || 'direct').trim().toLowerCase() !== 'direct';
+  const acompteCommission = isPlatform ? round2(row.acompteCommissionAmount) : 0;
+  const soldeCommission = isPlatform ? round2(row.platformCommissionAmount) : 0;
+  const totalCommission = round2(acompteCommission + soldeCommission);
+  const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
+  const tax = round2(row.touristTaxTotal);
+  // HT / TVA of the stored total, the live summary's rule (one rate, per poste, TTC → HT), on the
+  // stored lines: options and resources as stored, the accommodation the rest of the stored price.
+  const sumOf = (sql) => { try { return round2(db.prepare(sql).get(row.id).total); } catch { return 0; } };
+  const optionsTotal = round2(sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_options WHERE reservationId = ?')
+    + sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE amount END),0) AS total FROM reservation_custom_options WHERE reservationId = ?'));
+  const resourcesTotal = sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_resources WHERE reservationId = ?');
+  const accommodation = round2(Math.max(0, Number(row.finalPrice || 0) - optionsTotal - resourcesTotal));
+  const settings = settingsModel.read() || {};
+  const vatRate = settings.vatRate != null ? Number(settings.vatRate) : 10;
+  const vatOf = (ttc) => round2(ttc * (vatRate / (100 + vatRate)));
+  const totalVatAmount = round2(vatOf(accommodation) + vatOf(optionsTotal) + vatOf(resourcesTotal));
+  return {
+    accommodation,
+    accommodationBase: row.totalPrice == null ? null : round2(row.totalPrice),
+    optionsTotal,
+    resourcesTotal,
+    vatRate,
+    totalVatAmount,
+    totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),
+    depositDueDate: row.depositDueDate || null,
+    balanceDueDate: row.balanceDueDate || null,
+    finalPrice: round2(row.finalPrice),
+    touristTaxTotal: tax,
+    touristTaxOriginalTotal: tax,
+    platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : round2(row.platformTouristTaxAmount),
+    depositAmount: round2(row.depositAmount),
+    balanceAmount: round2(row.balanceAmount),
+    complementAmount: round2(row.complementAmount),
+    endOfStayComplementTotal: round2(row.endOfStayComplementAmount),
+    preArrivalAmount: preArrival,
+    totalStayPrice: round2(Number(row.finalPrice || 0) + tax),
+    sejourNetTotal: headline ? (headline.label === 'Vous percevez' ? headline.amount : (headline.secondary ? headline.secondary.amount : headline.amount)) : null,
+    acompteCommissionAmount: acompteCommission,
+    platformCommissionAmount: soldeCommission,
+    totalPlatformCommission: totalCommission,
+    platformNetReceivedAmount: totalCommission > 0 ? round2(preArrival - totalCommission) : null,
+    headline,
+  };
+}
+
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -631,6 +770,13 @@ function getById(req, res) {
     // paid the buckets separately, which is every reservation before this feature. The raw column
     // rides along untouched for the SAS, which re-reads it as the stored group.
     arrivalPayment: buildArrivalPaymentView(reservation),
+    // specs/reservation-payment-ledger.md rule 1 — the payments ledger, ready to render.
+    ledger: ledgerFor({ row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount } }),
+    // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
+    // shows the stored ledger (rule 7), so the two never disagree.
+    storedHeadline: storedHeadlineOf(model.getRow(reservation.id)),
+    // Rule 44 — the money figures of the pricing summary, stored, for the same switch.
+    storedSummary: storedSummaryOf(model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the
     // subscription chip and its actions), keyed by block, each shaped for display.
     pluginBlocks: reservationBlocks(reservation),
@@ -747,6 +893,9 @@ async function calculatePrice(req, res) {
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount: req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
+    // specs/reservation-payment-ledger.md rule 7 — the live quote prices the per-reservation opt-out
+    // like the save does, so the ledger's solde is the one « Enregistrer » will store.
+    depositDisabled: req.body.depositDisabled ? 1 : 0,
     // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
     // other branch, so it corrects even a frozen complement.
     complementAmountOverride: req.body.complementAmountOverride,
@@ -815,6 +964,56 @@ async function calculatePrice(req, res) {
     if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
     // specs/reservation-refunds.md rule 34 — the trop-perçu the fiche shows, live.
     if (row) Object.assign(quote, liveOverpayment(reservationId, engineInput));
+  }
+
+  // specs/reservation-payment-ledger.md rules 1, 7 — the ledger follows the live quote; the paid
+  // states come from the stored row. A reception-only user never sees the amounts.
+  if (!isReceptionOnly(req.user)) {
+    const storedId = reservationId > 0 ? reservationId : devisId;
+    const storedRow = storedId > 0 ? model.getRow(storedId) : null;
+    const live = {
+      platform: req.body.platform,
+      depositDisabled: req.body.depositDisabled,
+      depositAmountOverride: req.body.depositAmountOverride,
+      platformPayoutAmount: req.body.platformPayoutAmount,
+      startDate: req.body.startDate,
+      ...(storedRow ? {} : { kind: devisId > 0 ? 'devis' : 'reservation' }),
+    };
+    // Rule 45 — whether today's quote differs from the stored money (amounts or due dates): the fiche
+    // then shows the stored summary, never live lines next to stored totals.
+    if (storedRow && storedRow.kind !== 'devis') {
+      const c = (v) => Math.round(round2(v) * 100);
+      quote.storedDrift = ['finalPrice', 'touristTaxTotal', 'depositAmount', 'balanceAmount', 'complementAmount']
+        .some((f) => c(quote[f]) !== c(storedRow[f]))
+        || String(quote.depositDueDate || '') !== String(storedRow.depositDueDate || '')
+        || String(quote.balanceDueDate || '') !== String(storedRow.balanceDueDate || '');
+    }
+    quote.ledger = ledgerFor({
+      row: storedRow,
+      quote,
+      live,
+      propertyId,
+      overpayment: { ttc: quote.overpaymentTtc, lines: quote.overpaymentLines },
+    });
+    // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
+    const edit = req.body.ledgerEdit;
+    if (edit && (edit.row === 'deposit' || edit.row === 'balance')) {
+      const pastLocked = Boolean(storedRow && storedRow.kind === 'reservation' && storedRow.startDate
+        && storedRow.startDate <= getTodayIsoDate()) && !(req.body.unlockPast && userHasRole(req.user, ADMIN));
+      quote.ledgerEdit = evaluateLedgerEdit({
+        row: edit.row,
+        amount: edit.amount,
+        quote,
+        ledger: quote.ledger,
+        stored: storedRow || {},
+        pastLocked,
+        evaluate: (customPrice) => quotePostProcessors.applySync({
+          engineInput: { ...engineInput, customPrice },
+          quote: calculateReservationQuote({ ...engineInput, customPrice }),
+          calculate: calculateReservationQuote,
+        }),
+      });
+    }
   }
 
   res.json(quote);
@@ -1060,23 +1259,130 @@ function create(req, res) {
   return res.status(result.status).json(result.body);
 }
 
+const formatEurosFr = (n) => require('../utils/reservationLedger').formatEuros(n);
+
+// specs/reservation-payment-ledger.md rules 16, 18, 21 — the save-side twin of the row editor.
+function ledgerAmountRefusal({ body, stored, quote, engineInput }) {
+  const blank = (v) => v === '' || v === null || v === undefined;
+  const H = round2(quote.accommodationPreArrival);
+  const storedOverride = blank(stored.depositAmountOverride) ? null : round2(stored.depositAmountOverride);
+  const nextOverride = blank(body.depositAmountOverride) ? null : round2(body.depositAmountOverride);
+  const depositPaid = Number(stored.depositPaid || 0) === 1;
+  if (nextOverride != null && nextOverride !== storedOverride && !depositPaid && nextOverride > H + 0.004) {
+    return `L'acompte ne dépasse pas l'hébergement (${formatEurosFr(H)}) : la taxe de séjour reste sur le solde.`;
+  }
+  // Rule 18 floor — a solde typed in the ledger never takes the accommodation under the acompte received.
+  if (body.ledgerAmountEdit === 'balance' && depositPaid && quote.accommodationPreArrival < round2(stored.depositAmount) - 0.004) {
+    const { floorPrice } = require('../utils/ledgerAmountEdit');
+    const evaluate = (customPrice) => calculateReservationQuote({ ...engineInput, customPrice });
+    const floorQuote = evaluate(floorPrice({ evaluate, startPrice: quote.accommodationAdjustedPrice, acompte: round2(stored.depositAmount) }));
+    return `Pas en dessous de ${formatEurosFr(floorQuote.balanceAmount)} : l'acompte perçu (${formatEurosFr(stored.depositAmount)}) couvre déjà l'hébergement.`;
+  }
+  return null;
+}
+
+// Rule 23 — « Acompte : 252,00 € → 300,00 € », « Solde : 614,40 € → 600,00 € (acompte 266,40 €) ».
+function ledgerHistoryChange({ body, stored, quote }) {
+  const edited = body.ledgerAmountEdit;
+  if (edited === 'deposit' && round2(stored.depositAmount) !== round2(quote.depositAmount)) {
+    return { field: 'ledgerDepositAmount', label: 'Acompte', from: formatEurosFr(stored.depositAmount), to: formatEurosFr(quote.depositAmount) };
+  }
+  if (edited === 'balance' && round2(stored.balanceAmount) !== round2(quote.balanceAmount)) {
+    return {
+      field: 'ledgerBalanceAmount', label: 'Solde',
+      from: formatEurosFr(stored.balanceAmount),
+      to: `${formatEurosFr(quote.balanceAmount)} (acompte ${formatEurosFr(quote.depositAmount)})`,
+    };
+  }
+  return null;
+}
+
 // The HTTP save of the fiche. The work itself lives in `performUpdate` so a server caller (a plugin,
 // through `ctx.core.reservations.update`) goes through exactly the same validation, pricing, history and
 // `reservation.updated` event as the operator's « Enregistrer » (specs/gites-de-france-mail-intake.md §4.1).
-function update(req, res) {
-  const result = performUpdate(req.params.id, req.body, { unlockPast: pastUnlockRequested(req) });
-  return res.status(result.status).json(result.body);
+//
+// specs/reservation-payment-ledger.md rules 29-30 (§9 Q3) — when the stay carries an open payment link,
+// the save is first played in a rolled-back transaction to learn the amounts it would store. A link
+// whose amount would change and that the guest has paid meanwhile refuses the save (409
+// LINK_ALREADY_PAID); otherwise the save goes through and the stale links are retired and deactivated.
+async function update(req, res) {
+  try {
+    const id = Number(req.params.id);
+    const unlockPast = pastUnlockRequested(req);
+    const open = openPaymentLinks(id);
+    let stale = [];
+    if (open.length > 0) {
+      const preview = performUpdate(id, req.body, { unlockPast, dryRun: true });
+      if (preview.status !== 200) return res.status(preview.status).json(preview.body);
+      stale = ledgerLinks.staleLinks(open, preview.row);
+      const paidLink = await ledgerLinks.findPaidStaleLink(stale, paymentProviders.active());
+      if (paidLink) {
+        return res.status(409).json({
+          error: `Le lien de ${formatEurosFr(Number(paidLink.amountCents) / 100)} vient d'être payé : montant non modifié.`,
+          code: 'LINK_ALREADY_PAID',
+        });
+      }
+    }
+    const result = performUpdate(id, req.body, { unlockPast });
+    if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[reservations] update failed:', err);
+    return res.status(500).json({ error: 'Enregistrement impossible.' });
+  }
+}
+
+function openPaymentLinks(reservationId) {
+  try {
+    return require('../models/paymentLinksModel').listForReservation(Number(reservationId))
+      .filter((l) => l.status === 'open');
+  } catch {
+    return [];
+  }
+}
+
+// Rule 29 — retire every open link whose amount no longer matches the stored row, then deactivate it
+// at the provider; a provider that cannot answer leaves the remote-deactivation marker for the poll.
+async function retireStaleLinks(reservationId) {
+  const paymentLinksModel = require('../models/paymentLinksModel');
+  const row = model.getRow(Number(reservationId));
+  if (!row) return;
+  const retired = [];
+  for (const link of ledgerLinks.staleLinks(openPaymentLinks(reservationId), row)) {
+    retired.push(...paymentLinksModel.retireForAmountChange(reservationId, link.type, ledgerLinks.linkAmountCents(link.type, row)));
+  }
+  if (retired.length === 0) return;
+  try {
+    await require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(retired, { paymentLinksModel });
+  } catch { /* the marker stays: the poll retries */ }
 }
 
 // `body` is the full PUT payload of the fiche (the model rewrites every column from it). `unlockPast`
-// is the admin's « Déverrouiller cette fiche » for this one save. Returns `{ status, body }`.
-function performUpdate(reservationId, body, { unlockPast = false } = {}) {
+// is the admin's « Déverrouiller cette fiche » for this one save. `dryRun` plays the save inside a
+// transaction that is rolled back and returns the row it would have stored (`row`), without the
+// `reservation.updated` event. Returns `{ status, body }`.
+const DRY_RUN = Symbol('dry-run');
+function performUpdate(reservationId, body, { unlockPast = false, dryRun = false } = {}) {
   const res = createResultRecorder();
-  applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
-  return res.result();
+  if (!dryRun) {
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
+    return res.result();
+  }
+  let preview = null;
+  try {
+    db.transaction(() => {
+      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true });
+      preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
+      throw DRY_RUN;
+    })();
+  } catch (err) {
+    if (err !== DRY_RUN) throw err;
+  }
+  return preview;
 }
 
-function applyUpdate(req, res, pastUnlocked) {
+function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -1103,6 +1409,14 @@ function applyUpdate(req, res, pastUnlocked) {
 
   const cancelled = cancelledGuard(id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
+
+  // specs/reservation-payment-ledger.md rule 13 — the save never writes a payment state: the four
+  // caution columns are re-read from the database like the paid flags (single-payment-from-the-fiche
+  // rule 11bis). The payment PATCH, with its guards, is the only way to change them.
+  const storedCaution = model.getRow(id) || {};
+  for (const col of ['cautionReceived', 'cautionReceivedDate', 'cautionReturned', 'cautionReturnedDate']) {
+    req.body[col] = storedCaution[col] ?? null;
+  }
 
   // Reservation number override collision guard (specs/reservation-number-and-search.md §3 rule 4) —
   // a blank value keeps the existing number (handled in the model), so only a non-empty duplicate fails.
@@ -1271,12 +1585,19 @@ function applyUpdate(req, res, pastUnlocked) {
     quote.balanceDueDate = storedPaymentForQuote.balanceDueDate;
   }
 
+  // specs/reservation-payment-ledger.md rule 21 — the amounts the ledger sets are validated again
+  // here, so a crafted request meets the same refusal as the row editor. New writes only: an override
+  // stored before this rule and clamped since by a price drop is left as it is (rule 17).
+  const ledgerRefusal = ledgerAmountRefusal({ body: req.body, stored: storedPaymentForQuote, quote, engineInput });
+  if (ledgerRefusal) return res.status(400).json({ error: ledgerRefusal, code: 'LEDGER_AMOUNT_REFUSED' });
+
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
       'extraGuestSurchargeOffered', 'depositAmount', 'balanceAmount', 'depositPaid', 'balancePaid',
-      'cautionReceived', 'cautionReceivedDate', 'cautionReturned', 'cautionReturnedDate',
+      // The caution columns left this list with specs/reservation-payment-ledger.md rule 13: the save
+      // carries the stored values back, only the payment PATCH changes them.
       // `depositDisabled` is allowed on past reservations too — an admin may realise after
       // the fact that a booking was platform-handled and should never have had a deposit.
       // See specs/disable-deposit-per-reservation.md §3.6.
@@ -1415,13 +1736,16 @@ function applyUpdate(req, res, pastUnlocked) {
   model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
 
   const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
+  // specs/reservation-payment-ledger.md rule 23 — an amount set from the ledger reads as such.
+  const ledgerChange = ledgerHistoryChange({ body: req.body, stored: storedPaymentForQuote, quote });
+  if (ledgerChange) changes.unshift(ledgerChange);
   if (existingReservation && String(existingReservation.sourceType || '') === 'ical' && Number(existingReservation.icalSyncLocked || 0) !== 1 && nextIcalSyncLocked === 1) {
     changes.push({ field: 'icalSyncLocked', label: 'Synchronisation iCal', from: 'Active', to: 'Verrouillée après modification manuelle' });
   }
   if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
 
   res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
-  emitPluginEvent('reservation.updated', { reservationId: Number(id) });
+  if (!silent) emitPluginEvent('reservation.updated', { reservationId: Number(id) });
 }
 
 // specs/reception-sas-today-only.md §3.2 rule 6 — reception may flip the status toggles only on the
@@ -1438,6 +1762,125 @@ function receptionStatusLock(reservationId, body, now = new Date()) {
   }
   if (touchesDeparture && !isWithinSasWindow(row.endDate, now)) {
     return sasLockReason({ dateIso: row.endDate, doneAt: null, now });
+  }
+  return null;
+}
+
+const PAID_DATE_FIELDS = [
+  ['depositPaid', 'depositPaidDate'],
+  ['balancePaid', 'balancePaidDate'],
+  ['complementPaid', 'complementPaidDate'],
+  ['endOfStayComplementPaid', 'endOfStayComplementPaidDate'],
+  ['cautionReceived', 'cautionReceivedDate'],
+  ['cautionReturned', 'cautionReturnedDate'],
+];
+
+/**
+ * specs/reservation-payment-ledger.md — the guards of a payment mark:
+ *   - rule 9: every recorded date is a real day, not in the future (« not before the booking » is not
+ *     applied: reservations typed after the fact carry a later `createdAt` than their payments);
+ *   - rule 11: `expectedAmountCents` is the amount the operator saw; it must equal the stored one;
+ *   - rule 12: the caution is returned only once received, and not before its receipt.
+ * Returns `{ status, body }` or null.
+ */
+function paymentMarkRefusal(row, body, today) {
+  for (const [flagField, dateField] of PAID_DATE_FIELDS) {
+    if (!body[flagField] || body[dateField] === undefined || body[dateField] === null || body[dateField] === '') continue;
+    const checked = validateCollectionDate(body[dateField], { today, invalidReason: 'Date invalide.' });
+    if (!checked.ok) return { status: 400, body: { error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: dateField } };
+  }
+  // Rule 32 — a bucket with nothing to collect is never marked: a converted devis carried a 0 € acompte
+  // and « Marquer acompte payé » ticked it, which the books then read as a payment.
+  {
+    const deferredZero = Number(row.complementDeferredToCheckout || 0) === 1;
+    const amountOf = {
+      depositPaid: [row.depositAmount, row.depositPaid],
+      balancePaid: [row.balanceAmount, row.balancePaid],
+      complementPaid: [deferredZero ? Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0) : row.complementAmount, row.complementPaid],
+      endOfStayComplementPaid: [row.endOfStayComplementAmount, row.endOfStayComplementPaid],
+    };
+    const cashOf = { complementPaid: 'complementPaidCash', endOfStayComplementPaid: 'endOfStayComplementPaidCash' };
+    const marks = (field) => body[field] === true || body[field] === 1
+      || (cashOf[field] && (body[cashOf[field]] === true || body[cashOf[field]] === 1));
+    for (const [field, [amount, already]] of Object.entries(amountOf)) {
+      if (marks(field) && Number(already || 0) !== 1 && !(round2(amount) > 0)) {
+        return { status: 409, body: { error: 'Rien à percevoir sur cette échéance.', code: 'NOTHING_TO_COLLECT', field } };
+      }
+    }
+  }
+  // Rule 38 — a bucket already perceived is never marked again: a second tab, a replayed request or a
+  // crafted one would re-date it (moving its accounting entry to another month) and rewrite its figures.
+  const alreadyOf = {
+    depositPaid: row.depositPaid, balancePaid: row.balancePaid, complementPaid: row.complementPaid,
+    endOfStayComplementPaid: row.endOfStayComplementPaid, cautionReceived: row.cautionReceived, cautionReturned: row.cautionReturned,
+  };
+  const ALREADY_LABELS = {
+    depositPaid: "L'acompte est déjà perçu.", balancePaid: 'Le solde est déjà perçu.',
+    complementPaid: 'Le complément est déjà perçu.', endOfStayComplementPaid: 'Le complément de fin de séjour est déjà perçu.',
+    cautionReceived: 'La caution est déjà reçue.', cautionReturned: 'La caution est déjà restituée.',
+  };
+  for (const [field, already] of Object.entries(alreadyOf)) {
+    if ((body[field] === true || body[field] === 1) && Number(already || 0) === 1) {
+      return { status: 409, body: { error: `${ALREADY_LABELS[field]} Relire la fiche.`, code: 'ALREADY_PAID', field } };
+    }
+  }
+  // Rule 34 — a payout is received with its transfer (and the commission it implies): the two figures
+  // ride the mark, under its guards, so a past or locked fiche never needs a full save to record it.
+  // Only on the reception itself (unpaid → paid) of a stay settled by a platform.
+  const isPlatformStay = String(row.platform || 'direct').trim().toLowerCase() !== 'direct';
+  for (const field of ['platformPayoutAmount', 'platformCommissionAmount']) {
+    if (body[field] === undefined) continue;
+    if (!(body.balancePaid === true || body.balancePaid === 1)) {
+      return { status: 400, body: { error: 'Le virement se saisit avec la réception du versement.', code: 'PAYOUT_WITHOUT_MARK', field } };
+    }
+    if (!isPlatformStay) {
+      return { status: 400, body: { error: 'Pas de virement de plateforme sur une réservation directe.', code: 'PAYOUT_NOT_PLATFORM', field } };
+    }
+    const n = Number(body[field]);
+    if (body[field] === null || body[field] === '' || !Number.isFinite(n) || n < 0) {
+      return { status: 400, body: { error: field === 'platformPayoutAmount' ? 'Virement reçu : montant requis.' : 'Commission invalide.', code: 'INVALID_AMOUNT', field } };
+    }
+    if (field === 'platformCommissionAmount') {
+      const gross = row.platformGrossAmount != null && row.platformGrossAmount !== ''
+        ? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
+      if (n > round2(gross) + 0.004) {
+        return { status: 400, body: { error: `La commission dépasse le montant facturé (${formatEurosFr(gross)}).`, code: 'INVALID_AMOUNT', field } };
+      }
+    }
+  }
+  if (body.expectedAmountCents !== undefined && body.expectedAmountCents !== null) {
+    const expected = Number(body.expectedAmountCents);
+    if (!Number.isInteger(expected)) return { status: 400, body: { error: 'Montant attendu invalide.' } };
+    const markedCount = ['depositPaid', 'balancePaid', 'complementPaid', 'endOfStayComplementPaid']
+      .filter((f) => body[f] === true || body[f] === 1).length;
+    if (markedCount > 1) {
+      return { status: 400, body: { error: 'Un montant attendu ne vaut que pour une échéance à la fois.', code: 'AMBIGUOUS_EXPECTED_AMOUNT' } };
+    }
+    const deferred = Number(row.complementDeferredToCheckout || 0) === 1;
+    const storedOf = {
+      depositPaid: row.depositAmount,
+      balancePaid: row.balanceAmount,
+      complementPaid: deferred
+        ? Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0)
+        : row.complementAmount,
+      endOfStayComplementPaid: row.endOfStayComplementAmount,
+    };
+    const marked = Object.keys(storedOf).find((f) => body[f] === true || body[f] === 1);
+    if (marked && Math.round(round2(storedOf[marked]) * 100) !== expected) {
+      return { status: 409, body: { error: 'Le montant a changé entre-temps : relire la fiche.', code: 'AMOUNT_CHANGED' } };
+    }
+  }
+  if (body.cautionReturned) {
+    const receivedNow = body.cautionReceived === undefined ? Number(row.cautionReceived || 0) === 1 : Boolean(body.cautionReceived);
+    if (!receivedNow) {
+      return { status: 409, body: { error: 'La caution n\'a pas encore été reçue.', code: 'CAUTION_NOT_RECEIVED' } };
+    }
+    const receivedOn = String((body.cautionReceived ? body.cautionReceivedDate : row.cautionReceivedDate) || '').slice(0, 10);
+    const returnedOn = String(body.cautionReturnedDate || today || '').slice(0, 10);
+    if (receivedOn && returnedOn && returnedOn < receivedOn) {
+      const [, m, d] = receivedOn.split('-');
+      return { status: 400, body: { error: `Restitution avant la réception (${d}/${m}).`, code: 'INVALID_PAYMENT_DATE', field: 'cautionReturnedDate' } };
+    }
   }
   return null;
 }
@@ -1464,11 +1907,17 @@ function updatePayment(req, res) {
   const cancelledPayment = cancelledGuard(Number(req.params.id));
   if (cancelledPayment) return res.status(cancelledPayment.status).json(cancelledPayment.body);
 
+  // specs/reservation-payment-ledger.md rules 9, 11, 12 — the guards of a mark, all checked BEFORE
+  // anything is written, so a refusal leaves the whole PATCH without effect.
+  const markRefusal = paymentMarkRefusal(model.getRow(Number(req.params.id)) || {}, req.body, getTodayIsoDate());
+  if (markRefusal) return res.status(markRefusal.status).json(markRefusal.body);
+
   // specs/mid-stay-notes.md — settle / cancel a « note en séjour ». Runs FIRST: both actions are
   // transactional and self-contained, and a rejection must leave the whole PATCH without effect.
   const noteError = applyMidStayNoteActions(Number(req.params.id), req.body);
   if (noteError) return res.status(noteError.status).json(noteError.body);
 
+  const captureWarnings = [];
   const { depositPaid, depositPaidDate, balancePaid, balancePaidDate,
     complementPaid, complementPaidDate, complementPaidCash,
     complementDeferredToCheckout,
@@ -1489,10 +1938,20 @@ function updatePayment(req, res) {
     try {
       if (!wasDepositPaid && willBeDepositPaid) {
         // specs/plugins-phase-3a-online-payment.md rule 1 — the same write an online payment makes.
-        recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'deposit', paidDate: date });
+        // specs/reservation-payment-ledger.md rule 37 — the money was received: a stay whose stored
+        // amounts no longer match today's engine (priced under an earlier rule) keeps the payment, its
+        // per-line split falls back to the stored amounts, and the operator is told.
+        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'deposit', paidDate: date, keepPaymentOnCaptureFailure: true, origin: 'fiche' });
+        if (recorded && recorded.captureFailed && recorded.captureFailed.length) captureWarnings.push('deposit');
       } else db.transaction(() => {
         if (wasDepositPaid && !willBeDepositPaid) {
           clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'deposit' });
+          // specs/reservation-payment-ledger.md rule 35 — the acompte keeps the amount it was received
+          // at, so undoing then redoing lands on the same amount instead of a re-priced one.
+          model.updatePaymentField(
+            "UPDATE reservations SET depositAmountOverride = depositAmount, updatedAt = datetime('now') WHERE id = ? AND depositAmount > 0",
+            id,
+          );
         }
         model.updatePaymentField(
           "UPDATE reservations SET depositPaid = ?, depositPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
@@ -1506,6 +1965,19 @@ function updatePayment(req, res) {
       return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });
     }
   }
+  // Rule 34 — the transfer and the commission of a payout, written with its reception.
+  if (balancePaid && (req.body.platformPayoutAmount !== undefined || req.body.platformCommissionAmount !== undefined)) {
+    const before = model.getRow(Number(id)) || {};
+    const changes = [];
+    for (const [field, label] of [['platformPayoutAmount', 'Virement reçu'], ['platformCommissionAmount', 'Commission solde']]) {
+      if (req.body[field] === undefined) continue;
+      const next = round2(req.body[field]);
+      if (before[field] != null && round2(before[field]) === next) continue;
+      model.updatePaymentField(`UPDATE reservations SET ${field} = ?, updatedAt = datetime('now') WHERE id = ?`, next, id);
+      changes.push({ field, label, from: before[field] == null ? 'vide' : formatEurosFr(before[field]), to: formatEurosFr(next) });
+    }
+    if (changes.length > 0) model.addHistoryEntry(Number(id), 'update', changes);
+  }
   if (balancePaid !== undefined) {
     const beforeRow = model.getRow(Number(id));
     const wasBalancePaid = Number(beforeRow?.balancePaid || 0) === 1;
@@ -1513,7 +1985,11 @@ function updatePayment(req, res) {
     const date = willBeBalancePaid ? (balancePaidDate || localTodayIso()) : null;
     try {
       if (!wasBalancePaid && willBeBalancePaid) {
-        recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date });
+        // specs/reservation-payment-ledger.md rule 37 — the money was received: a stay whose stored
+        // amounts no longer match today's engine (priced under an earlier rule) keeps the payment, its
+        // per-line split falls back to the stored amounts, and the operator is told.
+        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date, keepPaymentOnCaptureFailure: true, origin: 'fiche' });
+        if (recorded && recorded.captureFailed && recorded.captureFailed.length) captureWarnings.push('balance');
       } else db.transaction(() => {
         if (wasBalancePaid && !willBeBalancePaid) {
           clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'balance' });
@@ -1607,7 +2083,9 @@ function updatePayment(req, res) {
       // specs/caution-live-from-property.md §3 rule 2 — freeze the live property caution on receipt.
       model.updatePaymentField('UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = ?, cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime(\'now\') WHERE id = ?', date, id);
     } else {
-      model.updatePaymentField('UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?', date, id);
+      // specs/reservation-payment-ledger.md rule 14 — undoing the receipt undoes the return too: a
+      // caution never received cannot have been given back.
+      model.updatePaymentField('UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, cautionReturned = 0, cautionReturnedDate = NULL, updatedAt = datetime(\'now\') WHERE id = ?', id);
     }
   }
   if (cautionReturned !== undefined) {
@@ -1628,7 +2106,9 @@ function updatePayment(req, res) {
   if (depositPaid || balancePaid || complementPaid) {
     try { require('../models/paymentLinksModel').retireSettled(); } catch { /* no link table: nothing to retire */ }
   }
-  res.json({ ok: true });
+  res.json(captureWarnings.length
+    ? { ok: true, warning: 'Encaissement enregistré. Ses montants diffèrent du calcul actuel du séjour : la répartition comptable reprend les montants enregistrés.' }
+    : { ok: true });
 }
 
 function remove(req, res) {

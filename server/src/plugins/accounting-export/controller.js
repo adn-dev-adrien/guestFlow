@@ -30,6 +30,17 @@ function monthEntries(accountingModel, params) {
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 
+const TOURIST_TAX_ACCOUNT = '46710000';
+function taxOnlyEntries(structured) {
+  return structured
+    .filter((e) => e.direction === 'sale')
+    .filter((e) => {
+      const credits = (e.lines || []).filter((l) => Number(l.credit) > 0);
+      return credits.length > 0 && credits.every((l) => String(l.compte) === TOURIST_TAX_ACCOUNT);
+    })
+    .map((e) => ({ reservationId: e.reservationId, kind: e.kind, libelle: e.libelle, paidDate: e.paidDate, amount: e.encaissementTtc }));
+}
+
 // `plan()` — the account plan of the export (specs/plugins-phase-p-productisation.md rule 27); none
 // means the defaults.
 function createAccountingController(accountingModel, { plan = () => undefined } = {}) {
@@ -70,6 +81,9 @@ function createAccountingController(accountingModel, { plan = () => undefined } 
           totalDebits: Math.round(totalDebits * 100) / 100,
           totalCredits: Math.round(totalCredits * 100) / 100,
           allBalanced: structured.every((e) => e.balanced),
+          // specs/reservation-payment-ledger.md rule 43 — a sale whose credits are all on the
+          // tourist-tax account carries no revenue and no VAT: shown, never silently exported.
+          taxOnlyEntries: taxOnlyEntries(structured),
         },
       });
     },
@@ -117,5 +131,5 @@ function createAccountingController(accountingModel, { plan = () => undefined } 
 
 module.exports = {
   create: createAccountingController,
-  __test: { parseMonthYear, monthEntries },
+  __test: { parseMonthYear, monthEntries, taxOnlyEntries },
 };
