@@ -78,23 +78,6 @@ export function formatPlatformLabel(platform) {
   return raw.charAt(0).toUpperCase() + tail;
 }
 
-// Stored names that do not read as a name — the same display names as the server's
-// `platformDisplayName` (utils/attributionChannel.js).
-const PLATFORM_DISPLAY_NAMES = {
-  gitesdefrance: 'Gîtes de France',
-  gitedefrance: 'Gîtes de France',
-  greengo: 'GreenGo',
-};
-
-/**
- * The name a guest-facing or at-a-glance surface prints for a platform: « Gîtes de France », never
- * the stored key « GitesDeFrance » (specs/ui-review-2026-10-19-operations.md rule 15). Falls back to
- * `formatPlatformLabel` for every other platform.
- */
-export function platformDisplayName(platform) {
-  return PLATFORM_DISPLAY_NAMES[normalizePlatformKey(platform)] || formatPlatformLabel(platform);
-}
-
 /**
  * Merge platform-name variants that differ only by case or punctuation into ONE entry.
  *

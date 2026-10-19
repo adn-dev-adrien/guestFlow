@@ -1653,7 +1653,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Divider />
               {/* specs/ui-review-2026-10-19-operations.md rule 4 — nothing to collect reads as such, not
                   as « Total : 0,00 € ». Amounts never render in serif → bold sans body. */}
-              {total <= 0 && stayDue <= 0 ? (
+              {/* The server says nothing was owed before this run (rule 4); the caution deferred to the
+                  departure is money still to come, so the badge stays away. */}
+              {data.nothingToCollect && total <= 0 && stayDue <= 0 && caution !== 'reporte' ? (
                 <Box><StatusBadge status="success" label="Rien à percevoir" icon={<CheckIcon sx={{ fontSize: 16 }} />} /></Box>
               ) : (total > 0 || !stayStep) && (
                 <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums' }}>
@@ -1735,7 +1737,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               </Typography>
             )}
             {/* specs/ui-review-2026-10-19-operations.md rule 4 — nothing to collect at the door. */}
-            {departureGrandTotal <= 0 && (
+            {data.nothingToCollect && departureGrandTotal <= 0 && (
               <Box><StatusBadge status="success" label="Rien à percevoir" icon={<CheckIcon sx={{ fontSize: 16 }} />} /></Box>
             )}
             {/* Every check-out line is offerable (specs/sas-offer-complement-lines.md §3.2 rule 6). */}
@@ -2002,7 +2004,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         </Stack>
         {stepIdx >= 0 && (
           <Box sx={{ mt: 1 }}>
-            <LinearProgress variant="determinate" value={((stepIdx + 1) / activeKeys.length) * 100}
+            <LinearProgress variant="determinate" value={stepNumber ? (stepNumber.number / stepNumber.total) * 100 : 0}
               sx={(t) => ({ height: 6, borderRadius: 3, bgcolor: alpha(t.palette.common.white, 0.3), '& .MuiLinearProgress-bar': { bgcolor: 'common.white' } })} />
             {/* specs/ui-review-2026-10-19-operations.md rule 3 — « 3 sur 9 »: the total counts the
                 questions, so a page an answer opens never makes it grow. */}
@@ -2020,7 +2022,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       </DialogContent>
       {/* Reading order on a phone: the primary action, rendered last, lands at the bottom under the
           thumb (specs/ui-review-2026-10-19-operations.md rule 1); on the right from sm. */}
-      <DialogActions sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
+      <DialogActions sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: 0 }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
       </DialogActions>
     </Dialog>

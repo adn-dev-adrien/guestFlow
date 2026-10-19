@@ -44,4 +44,18 @@ function isDevisExpired(validUntil, todayIso) {
   return String(validUntil).slice(0, 10) < String(todayIso).slice(0, 10);
 }
 
-module.exports = { computeValidUntil, isDevisExpired };
+// A quote still open to the guest: neither accepted nor converted into a reservation.
+const OPEN_STATUSES = new Set(['draft', 'sent']);
+
+/**
+ * May this quote be re-issued from today (specs/ui-review-2026-10-19-operations.md rule 20)? Only an
+ * EXPIRED quote that is still open: a converted quote is a reservation now, and an accepted one is
+ * a promise already taken — re-dating either would re-price a stay the guest has agreed to.
+ */
+function isDevisExtendable(row, todayIso) {
+  if (!row) return false;
+  const status = row.devisStatus == null || row.devisStatus === '' ? 'draft' : String(row.devisStatus);
+  return OPEN_STATUSES.has(status) && isDevisExpired(row.validUntil, todayIso);
+}
+
+module.exports = { computeValidUntil, isDevisExpired, isDevisExtendable };

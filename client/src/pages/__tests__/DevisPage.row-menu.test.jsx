@@ -85,3 +85,25 @@ test('rule 8 — the phone card reads « Logement · dates » with a real separa
   const caption = await screen.findByText((_, el) => el?.tagName === 'SPAN' && /^Gite · 04\/09\/2026 → 06\/09\/2026$/.test(el.textContent));
   expect(caption).toBeInTheDocument();
 });
+
+test('rule 8 — at 900 px the list is cards (the table ran past its card), the PDF icon still beside « ⋯ »', async () => {
+  setViewport(900);
+  renderPage();
+  await screen.findByRole('button', { name: 'Actions du devis 2026-08-002' });
+  expect(screen.queryByRole('table')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Télécharger le PDF' })).toBeInTheDocument();
+});
+
+// specs/ui-review-2026-10-19-operations.md rule 21
+test('rule 21 — a stale quote reads « Périmé » and its PDF asks before downloading', async () => {
+  setViewport(1280);
+  api.getDevis.mockResolvedValue([{ ...ROW, expired: true, extendable: true }]);
+  api.getDevisPdfBlob.mockResolvedValue(new Blob(['%PDF']));
+  const user = userEvent.setup();
+  renderPage();
+  expect(await screen.findByText('Périmé')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Télécharger le PDF' }));
+  expect(mockConfirm).toHaveBeenCalledTimes(1);
+  expect(mockConfirm.mock.calls[0][0].confirmLabel).toBe('Télécharger quand même');
+  expect(api.getDevisPdfBlob).not.toHaveBeenCalled();
+});

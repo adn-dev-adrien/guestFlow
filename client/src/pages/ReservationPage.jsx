@@ -26,6 +26,7 @@ import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import StickyTotalBar from '../components/StickyTotalBar';
 import DevisValidityChip from '../components/reservation/DevisValidityChip';
+import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import { ReservationFormProvider } from '../components/reservation/ReservationFormContext';
@@ -159,7 +160,7 @@ export default function ReservationPage() {
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
   // Pure-info confirmations toast instead of modaling (specs/ds-components.md §3.2).
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
   const from = getFromParam(searchParams);
   
   // Check if in devis mode
@@ -347,7 +348,7 @@ export default function ReservationPage() {
 
   // Validity state of the devis being edited, straight from the server (`validUntil` + `expired`).
   // Drives the action-bar chip and the price lock — the fiche decides nothing here.
-  const [devisValidity, setDevisValidity] = useState({ validUntil: null, expired: false });
+  const [devisValidity, setDevisValidity] = useState({ validUntil: null, expired: false, extendable: false, converted: false });
 
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -1019,7 +1020,12 @@ export default function ReservationPage() {
           setUseCurrentPricing(false);
           // The server replays the quoted prices while the devis is valid; the fiche mirrors that by
           // pinning the same unit prices in its live preview (§3 rule 13).
-          setDevisValidity({ validUntil: devis.validUntil || null, expired: Boolean(devis.expired) });
+          setDevisValidity({
+            validUntil: devis.validUntil || null,
+            expired: Boolean(devis.expired),
+            extendable: Boolean(devis.extendable),
+            converted: devis.status === 'converted',
+          });
           frozenOptionUnitByQuantityRef.current = frozenUnitPrices(devis.options, 'optionId');
           frozenResourceUnitByQuantityRef.current = frozenUnitPrices(devis.resources, 'resourceId');
           initialPricingContextRef.current = {
@@ -3030,12 +3036,46 @@ export default function ReservationPage() {
   // Which promise this quote still carries (specs/devis-extras-parity-and-price-lock.md §3 rule 16).
   // Both the date and the expiry verdict come from the server; the fiche only picks the wording — a
   // terser one on xs, where the bar shares its row with the language toggle and the action buttons.
-  const devisValidityChip = (editingDevisId && devisValidity.validUntil) ? (
+  // specs/ui-review-2026-10-19-operations.md rule 20 — « prolonger » announces the new price and the
+  // new schedule (the server's preview) before re-issuing the quote, then reloads the fiche from it.
+  const handleExtendDevis = async () => {
+    let preview;
+    try {
+      preview = await api.getDevisExtension(editingDevisId);
+    } catch (e) {
+      showError(e.message || 'Prolongation impossible.');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Prolonger le devis',
+      message: <DevisExtensionSummary preview={preview} unsavedChanges={isDirty} />,
+      confirmLabel: 'Prolonger',
+      confirmColor: 'primary',
+    });
+    if (!ok) return;
+    try {
+      const devis = await api.extendDevis(editingDevisId);
+      setDevisValidity({
+        validUntil: devis.validUntil || null,
+        expired: Boolean(devis.expired),
+        extendable: Boolean(devis.extendable),
+        converted: devis.status === 'converted',
+      });
+      setReloadToken((token) => token + 1);
+      showSuccess(`Devis prolongé jusqu'au ${displayDate(devis.validUntil)}.`);
+    } catch (e) {
+      showError(e.message || 'Prolongation impossible.');
+    }
+  };
+
+  const devisValidityChip = (editingDevisId && devisValidity.validUntil && !devisValidity.converted) ? (
     <DevisValidityChip
       validUntil={devisValidity.validUntil}
       expired={devisValidity.expired}
+      extendable={devisValidity.extendable}
+      converted={devisValidity.converted}
       compact={downSm}
-      onExtend={handleSaveClick}
+      onExtend={handleExtendDevis}
     />
   ) : null;
 
@@ -3517,6 +3557,8 @@ export default function ReservationPage() {
           secondary={pricingQuote.headline.secondary}
           sheetTitle="Résumé tarifaire"
           showBelow="lg"
+          // The page padding of the app's main area (App.jsx): flush with the screen's edges and bottom.
+          bleed={{ x: { xs: 1.5, sm: 2, md: 3 }, bottom: { xs: 2, md: 3 } }}
         >
           {pricingSummary}
         </StickyTotalBar>

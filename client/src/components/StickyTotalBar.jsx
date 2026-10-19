@@ -16,6 +16,9 @@
  *   sheetTitle   string             accessible name of the sheet (« Résumé tarifaire »)
  *   children     ReactNode          the sheet's content (the full detail)
  *   showBelow?   'sm' | 'md' | 'lg' | 'xl'   breakpoint under which the bar exists (default 'lg')
+ *   bleed?       { x, bottom }      theme spacing (responsive objects allowed) the bar extends past its
+ *                                    container — the page padding — so it sits flush with the screen
+ *                                    edges and the bottom, even scrolled to the end
  */
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, SwipeableDrawer, useMediaQuery } from '@mui/material';
@@ -43,7 +46,11 @@ function useTyping(enabled) {
   return enabled && typing;
 }
 
-export default function StickyTotalBar({ label, amount, secondary = null, sheetTitle, children, showBelow = 'lg' }) {
+const negate = (v) => (typeof v === 'object' && v !== null
+  ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, -n]))
+  : -(v || 0));
+
+export default function StickyTotalBar({ label, amount, secondary = null, sheetTitle, children, showBelow = 'lg', bleed = null }) {
   const theme = useTheme();
   const narrow = useMediaQuery(theme.breakpoints.down(showBelow));
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
@@ -58,7 +65,7 @@ export default function StickyTotalBar({ label, amount, secondary = null, sheetT
         component="button"
         type="button"
         data-testid="sticky-total-bar"
-        aria-label={`${label} ${formatCurrency(amount)} — ouvrir le ${String(sheetTitle).toLowerCase()}`}
+        aria-label={`${label} ${formatCurrency(amount)}${secondary ? `, ${secondary.label} ${formatCurrency(secondary.amount)}` : ''} — ouvrir le ${String(sheetTitle).toLowerCase()}`}
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
         sx={{
@@ -67,11 +74,13 @@ export default function StickyTotalBar({ label, amount, secondary = null, sheetT
           zIndex: (t) => t.zIndex.appBar - 2,
           width: '100%',
           mt: 2,
+          // Content-box: 100 % of the page's width plus the bleed on each side, pulled back by the margins.
+          ...(bleed ? { boxSizing: 'content-box', mx: negate(bleed.x), mb: negate(bleed.bottom), px: bleed.x } : {}),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 1.5,
-          px: 2,
+          ...(bleed ? {} : { px: 2 }),
           pt: 1.25,
           pb: 'calc(10px + env(safe-area-inset-bottom, 0px))',
           border: 0,

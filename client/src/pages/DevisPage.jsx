@@ -115,6 +115,16 @@ export default function DevisPage() {
   };
 
   const handleOpenPdf = async (devis) => {
+    // specs/ui-review-2026-10-19-operations.md rule 21 — a stale quote's PDF carries a validity date
+    // already past: confirm before it leaves.
+    if (devis.expired) {
+      const ok = await confirm({
+        title: 'Devis périmé',
+        message: `Le devis ${devis.devisNumber} n'est plus valable : son PDF porte une date de validité passée. Le prolonger depuis sa fiche le re-date aux tarifs actuels.`,
+        confirmLabel: 'Télécharger quand même',
+      });
+      if (!ok) return;
+    }
     try {
       const blob = await api.getDevisPdfBlob(devis.id);
       const fileUrl = window.URL.createObjectURL(blob);
@@ -158,6 +168,14 @@ export default function DevisPage() {
     />
   );
 
+  // The quote's status, then « Périmé » when its validity has passed (rule 21 — from the server).
+  const statusCell = (d) => (
+    <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
+      <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
+      {d.expired && <StatusBadge status="warning" label="Périmé" />}
+    </Stack>
+  );
+
   const filters = (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
       <FormControl size="small" sx={{ minWidth: 160 }}>
@@ -198,9 +216,7 @@ export default function DevisPage() {
   const renderRow = (d) => (
     <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleEditDevis(d)}>
       <TableCell>{devisNumberCell(d)}</TableCell>
-      <TableCell onClick={(e) => e.stopPropagation()}>
-        <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
-      </TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>{statusCell(d)}</TableCell>
       <TableCell>
         <Typography variant="body2" noWrap sx={{ maxWidth: { md: 180, lg: 220 } }} title={`${d.firstName || ''} ${d.lastName || ''}`.trim()}>{d.firstName} {d.lastName}</Typography>
       </TableCell>
@@ -219,7 +235,7 @@ export default function DevisPage() {
     <Stack spacing={1}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
         <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer', minWidth: 0 }}>{devisNumberCell(d)}</Box>
-        <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
+        {statusCell(d)}
       </Stack>
       <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer', minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{d.firstName} {d.lastName}</Typography>
@@ -246,6 +262,9 @@ export default function DevisPage() {
       error={loadError}
       onRetry={load}
       minWidth={820}
+      // specs/ui-review-2026-10-19-operations.md rule 8 — at tablet width the table ran 289 px past
+      // its card: cards until lg.
+      cardsBelow="lg"
       head={head}
       emptyText="Aucun devis trouvé."
       items={devisList}

@@ -17,7 +17,7 @@ import { Box, Typography, Button, Stack, Tooltip, CircularProgress, Chip, Collap
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { alpha } from '@mui/material/styles';
 import api from '../api';
-import { getPlatformColor, platformDisplayName, mergePlatformVariants } from '../constants/platforms';
+import { getPlatformColor, formatPlatformLabel, mergePlatformVariants, normalizePlatformKey } from '../constants/platforms';
 import { formatDate, shiftDate, getDaysInMonth } from '../utils/calendarVisuals';
 import useInfiniteMonthScroll from '../hooks/useInfiniteMonthScroll';
 
@@ -87,6 +87,8 @@ export function normalizeItems(reservations, closures) {
       groupKey: propertyName || `#${r.propertyId}`, propertyName,
       startDate: r.startDate, lastDay: r.endDate,
       platform: r.platform,
+      // The display name comes with the list (specs/ui-review-2026-10-19-operations.md rule 15).
+      platformDisplay: r.platformDisplay || formatPlatformLabel(r.platform),
       label: `${propertyName ? `${propertyName} · ` : ''}${resLabel(r)}`,
     });
   }
@@ -273,7 +275,7 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                 </Box>
                 <Stack spacing={0.25} sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
                   <Typography variant="caption" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{frRange(it.startDate, it.lastDay)}</Typography>
-                  {!closure && <Chip label={platformDisplayName(it.platform)} size="small" sx={{ height: 20, fontSize: 11, fontWeight: 600, bgcolor: barTint(color), color: 'text.primary', boxShadow: `inset 3px 0 0 ${color}` }} />}
+                  {!closure && <Chip label={it.platformDisplay} size="small" sx={{ height: 20, fontSize: 11, fontWeight: 600, bgcolor: barTint(color), color: 'text.primary', boxShadow: `inset 3px 0 0 ${color}` }} />}
                 </Stack>
               </Box>
             );
@@ -342,7 +344,11 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
               <Tooltip key={`${c.item.key}-label`} title={`${c.item.label} (${frRange(c.item.startDate, c.item.lastDay)})`} arrow>
                 <Typography
                   component="span"
+                  // Reachable from the keyboard: focus shows the tooltip with the dates (rule 13).
+                  tabIndex={0}
+                  aria-label={`${closureLabel(c.item)} — ${c.item.label}, ${frRange(c.item.startDate, c.item.lastDay)}`}
                   sx={{
+                    '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1, borderRadius: 0.5 },
                     position: 'absolute',
                     left: `calc(${(c.startCol / 7) * 100}% + 6px)`,
                     maxWidth: `calc(${((c.endCol - c.startCol + 1) / 7) * 100}% - 10px)`,
@@ -379,7 +385,8 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                       transition: 'background-color 120ms ease-out',
                       '&:hover': { bgcolor: alpha(color, 0.24) },
                       // Past stays greyed (visual only), consistent with the mobile agenda + per-property grid.
-                      opacity: todayStr > item.lastDay ? 0.5 : 1,
+                      // 0.65, not 0.5: ink on a tint keeps ≥ 3:1 once faded (rule 14).
+                      opacity: todayStr > item.lastDay ? 0.65 : 1,
                     }}
                   >
                     <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -464,10 +471,16 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
 
   // The legend lists each platform ONCE: variants that differ only by case or punctuation
   // ('Abracadaroom' / 'abracadaroom') are the same platform and merge into one canonical entry.
-  const platformsInView = useMemo(
-    () => mergePlatformVariants(Object.values(reservationsById).map((r) => r.platform)),
-    [reservationsById],
-  );
+  const platformsInView = useMemo(() => {
+    // Each platform once, named as the server names it (rule 15).
+    const displayBySlug = new Map();
+    Object.values(reservationsById).forEach((r) => {
+      const slug = normalizePlatformKey(r.platform);
+      if (r.platformDisplay && !displayBySlug.has(slug)) displayBySlug.set(slug, r.platformDisplay);
+    });
+    return mergePlatformVariants(Object.values(reservationsById).map((r) => r.platform))
+      .map((p) => ({ ...p, label: displayBySlug.get(p.platform) || p.label }));
+  }, [reservationsById]);
   const hasClosures = Object.keys(closuresById).length > 0;
   // The legend is folded behind « Légende » (rule 15): the colours are learnt once, the stays every day.
   const [legendOpen, setLegendOpen] = useState(false);
@@ -499,7 +512,7 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
           {platformsInView.map(({ platform, label, color }) => (
             <Stack key={platform} direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <Box sx={{ width: 14, height: 12, borderRadius: 0.5, bgcolor: barTint(color), boxShadow: `inset 3px 0 0 ${color}` }} />
-              <Typography variant="caption" color="text.secondary">{platformDisplayName(label)}</Typography>
+              <Typography variant="caption" color="text.secondary">{label}</Typography>
             </Stack>
           ))}
           {hasClosures && (

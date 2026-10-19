@@ -29,6 +29,19 @@ test('rule 10 — a refund, a reduction or a tip makes a direct stay name « Tot
   }
 });
 
+test('rule 10 — direct with commission (Lodgify counted as direct): « Total perçu » shows the net', () => {
+  const h = quoteHeadline({ finalPrice: 243.55, touristTaxOriginalTotal: 0, sejourNetTotal: 237.21 }, { isPlatform: false });
+  assert.equal(h.amount, 243.55);
+  assert.deepEqual(h.secondary, { label: 'Total perçu', amount: 237.21 });
+});
+
+test('rule 10 — over-collected: money received above the stay shows as « Total perçu »', () => {
+  const h = quoteHeadline({ finalPrice: 300, touristTaxOriginalTotal: 0, sejourNetTotal: 320 }, { isPlatform: false });
+  assert.deepEqual(h.secondary, { label: 'Total perçu', amount: 320 });
+  // Under a cent: no second figure.
+  assert.equal(quoteHeadline({ finalPrice: 300, sejourNetTotal: 300.004 }, { isPlatform: false }).secondary, null);
+});
+
 test('rule 10 — the gross is the summary\'s first line: withheld tax wins, only the SAS half of the end-of-stay', () => {
   assert.equal(stayGross({ finalPrice: 100, touristTaxOriginalTotal: 8, platformTouristTaxWithheld: 6 }), 106);
   assert.equal(stayGross({ finalPrice: 100, touristTaxOriginalTotal: 0, endOfStayComplementTotal: 50, midStayRemainingTotal: 20 }), 130);

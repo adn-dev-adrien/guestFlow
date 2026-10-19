@@ -27,6 +27,8 @@ test('rule 11 — below lg the bar prints the figure it is given, with its secon
   expect(bar).toHaveTextContent(/829,42/);
   expect(bar).toHaveTextContent('Total du séjour');
   expect(bar).toHaveTextContent(/987,39/);
+  // Both figures reach a screen reader.
+  expect(bar.getAttribute('aria-label')).toMatch(/Vous percevez 829,42\s?€, Total du séjour 987,39\s?€/);
   expect(getComputedStyle(bar).position).toBe('sticky');
 });
 

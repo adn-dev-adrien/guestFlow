@@ -1,6 +1,6 @@
 // specs/ui-review-2026-10-19-operations.md rules 1, 2 and 4 — the SAS answered with the thumb: the
 // primary answer last (at the bottom on a phone), the alternative neutral, « Rien à percevoir ».
-import { screen, within } from '@testing-library/react';
+import { screen, within, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
@@ -19,7 +19,7 @@ vi.mock('../../../api', () => ({
 beforeEach(() => { vi.clearAllMocks(); });
 
 const footerButtons = () => {
-  const footer = screen.getByRole('button', { name: /Caution perçue|Rendue|Non merci|Valider et terminer/ }).closest('.MuiDialogActions-root');
+  const footer = document.querySelector('.MuiDialogActions-root');
   return within(footer).getAllByRole('button');
 };
 
@@ -101,4 +101,40 @@ test('rule 4 — a departure with nothing billed says « Rien à percevoir »', 
   clickBtn('Oui');
   await screen.findByRole('button', { name: 'Valider et terminer' });
   expect(screen.getByText('Rien à percevoir')).toBeInTheDocument();
+});
+
+test('rule 4 — a caution deferred to the departure keeps the badge away', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({ cleaning: { included: true, price: null } }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByRole('button', { name: 'Reporter au départ' });
+  clickBtn('Reporter au départ');
+  // Walk the remaining pages with the primary (last) answer, the deferred caution reminder included.
+  for (let i = 0; i < 10 && !screen.queryByRole('button', { name: 'Valider et terminer' }); i += 1) {
+    const buttons = footerButtons();
+    fireEvent.click(buttons[buttons.length - 1]);
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  await screen.findByRole('button', { name: 'Valider et terminer' });
+  expect(screen.queryByText('Rien à percevoir')).toBeNull();
+});
+
+test('rule 4 — a stay still owed at departure (server: nothingToCollect false) gets no badge', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionAmount: 0 },
+    cleaning: { included: true, price: null },
+    extinguisherCheck: false,
+    nothingToCollect: false,
+  }));
+  renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
+  clickBtn('Non');
+  await screen.findByRole('button', { name: 'Oui' });
+  clickBtn('Oui');
+  await screen.findByRole('button', { name: 'Valider et terminer' });
+  expect(screen.queryByText('Rien à percevoir')).toBeNull();
 });

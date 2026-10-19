@@ -30,18 +30,74 @@ const PDF_PALETTE = Object.freeze({
 });
 
 // The serif of the app (Source Serif 4, SIL Open Font License), embedded so the document reads in the
-// same voice on every machine. A missing file falls back to the PDF standard serif.
-const SERIF_FILE = path.join(__dirname, '..', 'assets', 'fonts', 'SourceSerif4-Semibold.woff');
+// same voice on every machine: its Latin subset, plus the Latin Extended one (Ł, ą, ğ, č…) for the
+// names of customers outside France. A missing file falls back to the PDF standard serif.
+const FONT_DIR = path.join(__dirname, '..', 'assets', 'fonts');
+const SERIF_FACES = [
+  { name: 'MaisonSerif', file: path.join(FONT_DIR, 'SourceSerif4-Semibold.woff') },
+  { name: 'MaisonSerifExt', file: path.join(FONT_DIR, 'SourceSerif4-Semibold-LatinExt.woff') },
+];
+const STANDARD_BOLD = 'Helvetica-Bold';
+
 function registerSerif(doc) {
   try {
-    if (fs.existsSync(SERIF_FILE)) {
-      doc.registerFont('MaisonSerif', SERIF_FILE);
-      return 'MaisonSerif';
-    }
+    const present = SERIF_FACES.filter((f) => fs.existsSync(f.file));
+    if (present.length === 0) return 'Times-Bold';
+    present.forEach((f) => doc.registerFont(f.name, f.file));
+    return 'MaisonSerif';
   } catch {
-    // fall through to the standard serif
+    return 'Times-Bold';
   }
-  return 'Times-Bold';
+}
+
+// Which glyphs each embedded face can draw, read once from the fonts themselves.
+let faceCoverage;
+function coverage() {
+  if (faceCoverage !== undefined) return faceCoverage;
+  try {
+    const fontkit = require('fontkit');
+    faceCoverage = SERIF_FACES.filter((f) => fs.existsSync(f.file)).map((f) => ({ name: f.name, font: fontkit.openSync(f.file) }));
+  } catch {
+    faceCoverage = [];
+  }
+  return faceCoverage;
+}
+
+/**
+ * A text cut into runs, each drawn by the first serif face that has all its glyphs — the Latin one,
+ * then the Latin Extended one — or by the standard bold of the rest of the document as a last resort
+ * (rule 17). Whitespace stays with the run it sits in. Pure (reads the font files once).
+ */
+function serifRuns(text) {
+  const faces = coverage();
+  const faceOf = (ch) => {
+    if (/\s/.test(ch)) return null;
+    const face = faces.find((f) => f.font.hasGlyphForCodePoint(ch.codePointAt(0)));
+    return face ? face.name : STANDARD_BOLD;
+  };
+  const runs = [];
+  for (const ch of String(text || '')) {
+    const face = faceOf(ch);
+    const last = runs[runs.length - 1];
+    if (last && (face === null || face === last.font)) last.text += ch;
+    else runs.push({ font: face || (faces[0] ? faces[0].name : STANDARD_BOLD), text: ch });
+  }
+  return runs;
+}
+
+// Draws a serif text run by run, so one name can mix the Latin and Latin Extended faces.
+function drawSerifText(doc, serif, text, x, y, options = {}) {
+  if (serif !== 'MaisonSerif') {
+    doc.font(serif).text(text, x, y, options);
+    return;
+  }
+  const runs = serifRuns(text);
+  runs.forEach((run, i) => {
+    const last = i === runs.length - 1;
+    doc.font(run.font);
+    if (i === 0) doc.text(run.text, x, y, { ...options, continued: !last });
+    else doc.text(run.text, { continued: !last });
+  });
 }
 
 // specs/devis-pdf-total-parity.md §3.2 rules 6–10 — single source of truth for the tax + grand-total
@@ -203,8 +259,8 @@ function generateDevisPdf(full, settings, quote) {
 
   // ── Header: serif company name and « DEVIS » on paper, a fir-green rule under them (rule 17) ──
   if (settings.companyName) {
-    doc.fontSize(20).fillColor(TEXT_DARK).font(SERIF)
-      .text(settings.companyName, LEFT, BAND_TOP + 8, { width: PAGE_W * 0.55 });
+    doc.fontSize(20).fillColor(TEXT_DARK);
+    drawSerifText(doc, SERIF, settings.companyName, LEFT, BAND_TOP + 8, { width: PAGE_W * 0.55 });
   }
 
   doc.fontSize(22).fillColor(BRAND).font(SERIF)
@@ -581,7 +637,7 @@ function generateDevisPdf(full, settings, quote) {
   // Rule 18 — one row « Offert avec le séjour » naming every offered line, billed 0, valued once.
   const offeredGroup = groupOffered(offeredLines);
   if (offeredGroup) {
-    drawRow(offeredGroup.names, offeredGroup.count, 0, vatOptions, false, {
+    drawRow(offeredGroup.names, '', 0, vatOptions, false, {
       badgeText: `${L.offeredGroup} · ${L.offeredValue(formatCurrency(offeredGroup.value))}`,
     });
   }
@@ -915,6 +971,7 @@ module.exports = {
     showsStruckOriginal,
     groupOffered,
     summarySchedule,
+    serifRuns,
     PDF_PALETTE,
     resolveLiveTaxTotals,
     lineAmounts,

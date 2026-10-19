@@ -21,7 +21,7 @@ const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 const bookingLinesModel = require('./bookingLinesModel');
-const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
+const { isDevisExpired, isDevisExtendable, computeValidUntil } = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
 const { devisListRow } = require('../utils/devisListRow');
@@ -217,6 +217,9 @@ function createModel(database) {
       status: row.devisStatus,
       validUntil: resolvedValidUntil,
       expired,
+      // specs/ui-review-2026-10-19-operations.md rule 20 — only an expired quote still open may be
+      // re-issued; the fiche offers « prolonger » on this flag alone.
+      extendable: isDevisExtendable(row, today),
       // While the quote holds, its prices are frozen exactly like a saved reservation's (rule 13).
       pricingLocked: !expired,
       ...schedule,
@@ -501,6 +504,84 @@ function createModel(database) {
     } catch { return null; }
   }
 
+  // ---- re-issue an expired quote (specs/ui-review-2026-10-19-operations.md rule 20) ----
+  // The save a « prolonger » performs: the stored quote, as it stands, re-priced at today's tariffs
+  // with a validity window opened today. Built from the stored row so a preview and the save it
+  // announces run the very same computation.
+  function extensionPayload(existing) {
+    const full = enrichDevis(existing);
+    const today = sqliteNow().slice(0, 10);
+    return {
+      ...engineInputFromPersistedDevis(full),
+      clientId: existing.clientId,
+      status: existing.devisStatus,
+      singleBeds: existing.singleBeds, doubleBeds: existing.doubleBeds, babyBeds: existing.babyBeds,
+      cautionAmount: existing.cautionAmount,
+      notes: existing.notes,
+      pdfLanguage: existing.pdfLanguage,
+      breakfastTime: existing.breakfastTime,
+      validUntil: computeValidUntil({
+        createdAtIsoDate: today, startDateIso: existing.startDate, quoteValidityDays: readQuoteValidityDays(),
+      }),
+    };
+  }
+
+  // The schedule lines a quote's figures read as: acompte then solde, or the single payment.
+  function scheduleLines({ depositAmount, depositDueDate, balanceAmount, balanceDueDate, platform }) {
+    const lines = [];
+    if (Number(depositAmount) > 0) lines.push({ label: 'Acompte', amount: roundMoney(depositAmount), dueDate: depositDueDate || null });
+    if (Number(balanceAmount) > 0) {
+      const single = Number(depositAmount) <= 0 && isDirectChannel(platform);
+      lines.push({ label: single ? 'Paiement intégral' : 'Solde', amount: roundMoney(balanceAmount), dueDate: balanceDueDate || null });
+    }
+    return lines;
+  }
+
+  function loadExtendable(id) {
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    if (!isDevisExtendable(existing, sqliteNow().slice(0, 10))) {
+      return existing.devisStatus === 'converted'
+        ? { error: 'Devis converti en réservation : sa validité ne se prolonge pas.', status: 409, code: 'DEVIS_CONVERTED' }
+        : { error: 'Ce devis ne se prolonge pas : il est encore valable, ou déjà accepté.', status: 409, code: 'DEVIS_NOT_EXTENDABLE' };
+    }
+    return { existing };
+  }
+
+  // What « prolonger » would change, computed exactly as `extend` will, nothing written.
+  function previewExtension(id) {
+    const loaded = loadExtendable(id);
+    if (loaded.error) return loaded;
+    const { existing } = loaded;
+    const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(existing.propertyId));
+    if (!property) return { error: 'Logement introuvable', status: 404 };
+    const payload = extensionPayload(existing);
+    const quote = computeQuote(payload, existing, property);
+    if (quote.error) return { error: quote.error, status: quote.status || 400, code: quote.code };
+    const current = enrichDevis(existing);
+    return {
+      ok: true,
+      data: {
+        validUntil: payload.validUntil,
+        current: {
+          validUntil: current.validUntil,
+          totalTtc: roundMoney(Number(existing.finalPrice || 0) + Number(existing.touristTaxTotal || 0)),
+          schedule: scheduleLines({ ...current, platform: existing.platform }),
+        },
+        next: {
+          totalTtc: roundMoney(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)),
+          schedule: scheduleLines({ ...quote, platform: existing.platform }),
+        },
+      },
+    };
+  }
+
+  function extend(id) {
+    const loaded = loadExtendable(id);
+    if (loaded.error) return loaded;
+    return update(id, extensionPayload(loaded.existing));
+  }
+
   // ---- persist lines (shared by create/update) — into the reservation_* children ----
   // Same store as a reservation's, so a devis line keeps everything a reservation line keeps:
   // scheduled occurrences, hourly sessions, Complément routing (§4.1). Amounts are rounded here,
@@ -547,8 +628,10 @@ function createModel(database) {
     if (requestOrigin === 'public') { sql += " AND d.requestOrigin = 'public'"; }
     else if (requestOrigin === 'internal') { sql += " AND (d.requestOrigin IS NULL OR d.requestOrigin != 'public')"; }
     sql += ' ORDER BY d.createdAt DESC';
-    // specs/ui-review-2026-10-19-operations.md rules 5, 9 — total and origin shaped for the list.
-    return database.prepare(sql).all(...params).map(devisListRow);
+    // specs/ui-review-2026-10-19-operations.md rules 5, 9, 21 — total, origin and validity shaped for
+    // the list.
+    const today = sqliteNow().slice(0, 10);
+    return database.prepare(sql).all(...params).map((row) => devisListRow(row, today));
   }
 
   function findById(id) {
@@ -700,6 +783,12 @@ function createModel(database) {
     const numId = Number(id);
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    // specs/ui-review-2026-10-19-operations.md rule 20 — a converted quote is a reservation now: saving
+    // it would re-date it and, once expired, re-price it at today's tariffs. Its reservation is edited
+    // instead.
+    if (existing.devisStatus === 'converted') {
+      return { error: 'Devis converti en réservation : la réservation se modifie à sa place.', status: 409, code: 'DEVIS_CONVERTED' };
+    }
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId || existing.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
 
@@ -969,6 +1058,8 @@ function createModel(database) {
     updateStatus,
     create,
     update,
+    previewExtension,
+    extend,
     remove,
     convertToReservation,
     convertFromReservation,

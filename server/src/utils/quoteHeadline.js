@@ -3,8 +3,8 @@
  * (specs/ui-review-2026-10-19-operations.md rules 10-11, decision 6 of the UI/UX review).
  *
  * A platform stay leads with what the operator banks (« Vous percevez » = `sejourNetTotal`), with what
- * the guest pays as its second figure. A direct stay leads with « Total du séjour » and only names
- * « Total perçu » when a refund, a reduction or a tip makes the two differ.
+ * the guest pays as its second figure. A direct stay leads with « Total du séjour » and names « Total
+ * perçu » as soon as the two differ by a cent, whatever the reason.
  *
  * « Total du séjour » is the same gross as the first line of the pricing summary's cascade: the stay
  * price, the real tourist tax (the amount the platform withheld when the operator stated it) and the
@@ -36,13 +36,12 @@ function quoteHeadline(quote = {}, { isPlatform = false } = {}) {
   if (isPlatform) {
     return { label: 'Vous percevez', amount: net, secondary: { label: 'Total du séjour', amount: gross } };
   }
-  const adjusted = Number(quote.refundsTotal || 0) > 0
-    || Number(quote.arrivalPaymentReduction || 0) > 0
-    || Number(quote.arrivalPaymentTip || 0) > 0;
+  // Whatever makes the two differ — a refund, a reduction, a tip, a commission on a channel that counts
+  // as direct (Lodgify on Solio), money collected above the stay — the operator sees what is banked.
   return {
     label: 'Total du séjour',
     amount: gross,
-    secondary: adjusted ? { label: 'Total perçu', amount: net } : null,
+    secondary: Math.abs(net - gross) > 0.005 ? { label: 'Total perçu', amount: net } : null,
   };
 }
 

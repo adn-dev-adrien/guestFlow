@@ -82,7 +82,8 @@ test('arrival recap: offering a pre-existing extra sends its ref in offeredExtra
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByText(/Total : 20,00 €/)).toBeInTheDocument();
   clickBtn('Offrir');
-  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
+  // A stored complement was owed before this run: the server's flag keeps the badge away, the total reads 0.
+  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
   // Nothing left to collect → the settlement buttons disappear (§3.3 rule 11).
   expect(screen.queryByRole('button', { name: 'CB / Chèque' })).toBeNull();
 

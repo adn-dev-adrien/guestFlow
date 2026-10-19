@@ -23,3 +23,4 @@ test('rule 9 — a known origin keeps its label; an operator quote has none', ()
   const internal = devisListRow({ id: 2, requestOrigin: null, attributionChannel: null, finalPrice: 0 });
   assert.equal(internal.originLabel, null);
 });
+

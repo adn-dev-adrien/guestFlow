@@ -66,6 +66,9 @@ describe('rendered calendar', () => {
     await waitFor(() => expect(screen.getAllByText('Aventura lodge fermé').length).toBeGreaterThan(0));
     expect(screen.queryByText(/Fermé —/)).toBeNull();
     expect(container.querySelectorAll('[data-closure-band="c10"]').length).toBeGreaterThan(0);
+    // Reachable from the keyboard, the dates in its name.
+    const label = screen.getAllByLabelText(/Aventura lodge fermé — Fermeture hivernale, 13 juillet → 30 août/)[0];
+    expect(label).toHaveAttribute('tabindex', '0');
   });
 
   it('rule 14 — a stay bar is a 14 % tint with a stripe of its colour and ink text', async () => {
@@ -80,8 +83,8 @@ describe('rendered calendar', () => {
     expect(barTint('#F4C430')).toBe('rgba(244, 196, 48, 0.14)');
   });
 
-  it('rule 15 — the legend is folded, then lists « Gîtes de France », never the raw key', async () => {
-    api.getReservations.mockResolvedValue([{ ...RES[0], platform: 'GitesDeFrance' }]);
+  it('rule 15 — the legend is folded, then lists the server\'s « Gîtes de France », never the raw key', async () => {
+    api.getReservations.mockResolvedValue([{ ...RES[0], platform: 'GitesDeFrance', platformDisplay: 'Gîtes de France' }]);
     api.getEstablishmentClosures.mockResolvedValue([]);
     renderCal();
     const toggle = await screen.findByRole('button', { name: 'Légende' });
