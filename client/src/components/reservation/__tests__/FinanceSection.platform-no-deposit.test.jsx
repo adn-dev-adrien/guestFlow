@@ -60,7 +60,7 @@ test('rule 21 — platform reservation: the acompte row says « Sans objet », w
 test('platform reservation: the payout row is the single encaissement, « Marquer reçu »', () => {
   renderFinance({ form: { platform: 'GitesDeFrance' } });
   expect(screen.getByText('Versement Gîtes de France')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Marquer reçu' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Marquer reçu/ })).toBeInTheDocument();
 });
 
 // specs/platform-deposit-toggle.md — « Acompte = Oui »: the commission of the acompte is a statement field.

@@ -2444,6 +2444,13 @@ function calculateReservationQuote({
   // guest itself, so the paid solde follows the platform amount the operator corrects.
   const paidBalanceAmount = roundMoney(Number(balanceAmount) || 0);
   if (balancePaid && isDirectChannel(platform) && paidBalanceAmount > resolvedBalanceAmount) resolvedBalanceAmount = paidBalanceAmount;
+  // specs/reservation-payment-ledger.md rule 36 — with no acompte to share the stay with, a paid solde
+  // also keeps what it collected when the stay costs MORE: raising it would book money never received
+  // (a link paid at its old amount, rule 31). The difference is owed as the arrival complement below.
+  const noDepositToShare = !depositPaid && roundMoney(resolvedDepositAmount) === 0;
+  if (balancePaid && isDirectChannel(platform) && noDepositToShare && Number(balanceAmount) > 0) {
+    resolvedBalanceAmount = paidBalanceAmount;
+  }
 
   // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
   // the BOOKING and never moves again (`existingDepositDueDate` wins on every recompute); the solde
@@ -2503,16 +2510,18 @@ function calculateReservationQuote({
     paidOnSchedule - (ownerStayTotal - complementForcedItemsTotal - taxInComplement - midStayTotal),
   ));
   const rawComplement = roundMoney(complementForcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
+  // Rule 36 — the paid solde of a stay without acompte was kept at what it collected: the gap is owed.
+  const noDepositGap = balancePaid && isDirectChannel(platform) && noDepositToShare && Number(balanceAmount) > 0;
   let resolvedComplementAmount;
   if (complementPaid) {
     resolvedComplementAmount = roundMoney(complementAmount);
   } else if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || complementForcedItemsTotal > 0) {
     // Forced contributions are visible from save 1, regardless of payment state.
-    resolvedComplementAmount = depositPaid && balancePaid
+    resolvedComplementAmount = (depositPaid || noDepositGap) && balancePaid
       ? rawComplement
       : roundMoney(complementForcedItemsTotal + taxInComplement);
   } else {
-    resolvedComplementAmount = depositPaid && balancePaid ? autoGapBetweenDepositAndBalance : 0;
+    resolvedComplementAmount = (depositPaid || noDepositGap) && balancePaid ? autoGapBetweenDepositAndBalance : 0;
   }
   // What the engine would collect on its own — the « Calcul auto (X €) » the fiche shows under the
   // adjustment field, and the base the accounting ventilation is spread over (§3.6 rule 36).

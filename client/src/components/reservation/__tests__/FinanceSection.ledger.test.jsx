@@ -19,34 +19,33 @@ beforeEach(() => { vi.clearAllMocks(); });
 test('rule 8 — no « Caisse interne » on the acompte or the solde; closing the form restores the row', async () => {
   const user = userEvent.setup();
   renderFinance({ editingReservationId: 7, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90), dueRow('balance', 'Solde', 217.2)]) });
-  await user.click(within(rowEl('deposit')).getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(within(rowEl('deposit')).getByRole('button', { name: /^Marquer perçu/ }));
   expect(screen.queryByLabelText('Caisse interne')).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Annuler' }));
   expect(screen.queryByLabelText('Perçu le')).toBeNull();
-  expect(within(rowEl('deposit')).getByRole('button', { name: 'Marquer perçu' })).toBeInTheDocument();
+  expect(within(rowEl('deposit')).getByRole('button', { name: /^Marquer perçu/ })).toBeInTheDocument();
 });
 
 test('rule 9 — the server\'s date refusal shows under the date field and the form stays open', async () => {
   const user = userEvent.setup();
   const markFromLedger = vi.fn(async () => ({ ok: false, error: 'Un encaissement ne peut pas être daté dans le futur.', field: 'date' }));
   renderFinance({ editingReservationId: 7, markFromLedger, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90)]) });
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   const date = screen.getByLabelText('Perçu le');
   fireEvent.change(date, { target: { value: '2099-01-01' } });
   await user.click(screen.getByRole('button', { name: 'Valider' }));
   expect(await screen.findByText('Un encaissement ne peut pas être daté dans le futur.')).toBeInTheDocument();
   expect(screen.getByLabelText('Perçu le')).toHaveValue('2099-01-01');
-  expect(markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ depositPaidDate: '2099-01-01' }), null);
+  expect(markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ depositPaidDate: '2099-01-01' }));
 });
 
 test('rules 10-11 — a mark goes through the page\'s save-first pipeline with the amount seen, in cents', async () => {
   const user = userEvent.setup();
   const { ctx } = renderFinance({ editingReservationId: 7, ledger: ledgerOf([dueRow('balance', 'Solde', 614.4)]) });
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
   expect(ctx.markFromLedger).toHaveBeenCalledWith(
     { balancePaid: true, balancePaidDate: expect.any(String), expectedAmountCents: 61440 },
-    null,
   );
   expect(api.markPayment).not.toHaveBeenCalled();
 });
@@ -60,7 +59,7 @@ test('rule 12 — « Restituer » is not offered before the caution is received'
     ]),
   });
   expect(screen.getByText('Après réception')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Restituer' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Restituer/ })).toBeNull();
 });
 
 test('rule 14 — undo asks with the server\'s sentence (date + accounting entry), then un-ticks', async () => {
@@ -70,7 +69,7 @@ test('rule 14 — undo asks with the server\'s sentence (date + accounting entry
     editingReservationId: 7,
     ledger: ledgerOf([paidRow('deposit', 'Acompte', 90, { action: { kind: 'undo', label: 'Annuler', confirm: confirmText } })]),
   });
-  await user.click(screen.getByRole('button', { name: 'Annuler' }));
+  await user.click(screen.getByRole('button', { name: /^Annuler : / }));
   expect(await screen.findByText(confirmText)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Annuler la perception' }));
   await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { depositPaid: false }));
@@ -80,7 +79,7 @@ test('rule 14 — undo asks with the server\'s sentence (date + accounting entry
 test('rule 14 — « Garder » keeps the payment', async () => {
   const user = userEvent.setup();
   renderFinance({ editingReservationId: 7, ledger: ledgerOf([paidRow('cautionReceived', 'Caution reçue', 400)]) });
-  await user.click(screen.getByRole('button', { name: 'Annuler' }));
+  await user.click(screen.getByRole('button', { name: /^Annuler : / }));
   await user.click(await screen.findByRole('button', { name: 'Garder' }));
   expect(api.markPayment).not.toHaveBeenCalled();
 });
@@ -111,7 +110,7 @@ test('rule 15 — a locked amount shows its reason on demand', async () => {
     ledger: ledgerOf([dueRow('deposit', 'Acompte', 90, { amountEdit: { editable: false, mode: 'locked', reason: 'Solde déjà perçu : l\'acompte ne peut plus changer.' } })]),
   });
   await user.click(screen.getByRole('button', { name: /Montant figé : Acompte/ }));
-  expect(screen.getByRole('alert')).toHaveTextContent('Solde déjà perçu : l\'acompte ne peut plus changer.');
+  expect(screen.getByText(/Solde déjà perçu/)).toHaveTextContent('Solde déjà perçu : l\'acompte ne peut plus changer.');
 });
 
 test('rule 16 — « Calcul automatique » applies the server\'s reset patch', async () => {
@@ -141,17 +140,17 @@ test('rule 19 — « Créer le remboursement » opens the refund dialog prefille
   expect(ctx.setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 66.4, overpaymentLines: null });
 });
 
-test('rule 26 — « Marquer reçu » asks for the transfer, words the gap and carries the commission in the form patch', async () => {
+test('rules 26 + 34 — « Marquer reçu » asks for the transfer, words the gap and carries transfer and commission in the mark', async () => {
   const user = userEvent.setup();
   api.computePlatformCommission.mockResolvedValue({ gap: 12.03, gapLabel: 'Écart : 12,03 € avec le net attendu', commission: 170, commissionLabel: 'Commission solde → 170,00 €' });
   const { ctx } = renderFinance({
     editingReservationId: 7,
     form: { platform: 'Booking', platformGrossAmount: 987.39 },
     ledger: ledgerOf([dueRow('balance', 'Versement Booking', 987.39, {
-      stateLabel: 'Attendu le 22/10', action: { kind: 'mark', label: 'Marquer reçu', payout: { expected: 829.42 } }, amountEdit: editable('statement'),
+      stateLabel: 'Attendu le 22/10', action: { kind: 'mark', label: 'Marquer reçu', dateLabel: 'Reçu le', payout: { expected: 829.42 } }, amountEdit: editable('statement'),
     })]),
   });
-  await user.click(screen.getByRole('button', { name: 'Marquer reçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer reçu/ }));
   expect(screen.getByLabelText('Reçu le')).toBeInTheDocument();
   const payout = screen.getByLabelText('Virement reçu (€)');
   expect(payout).toHaveValue('829,42');
@@ -162,8 +161,7 @@ test('rule 26 — « Marquer reçu » asks for the transfer, words the gap and c
   expect(api.computePlatformCommission).toHaveBeenLastCalledWith(expect.objectContaining({ payout: 817.39, expectedNet: 829.42 }));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
   expect(ctx.markFromLedger).toHaveBeenCalledWith(
-    expect.objectContaining({ balancePaid: true, expectedAmountCents: 98739 }),
-    { platformPayoutAmount: 817.39, platformCommissionAmount: 170 },
+    expect.objectContaining({ balancePaid: true, expectedAmountCents: 98739, platformPayoutAmount: 817.39, platformCommissionAmount: 170 }),
   );
 });
 
@@ -199,5 +197,60 @@ test('rule 32 — a zero acompte reads « Aucun acompte » with no action', () =
     ledger: ledgerOf([{ ...dueRow('deposit', 'Acompte', 0), state: 'none', tone: 'muted', stateLabel: 'Aucun acompte', action: null }]),
   });
   expect(within(rowEl('deposit')).getByText('Aucun acompte')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Marquer perçu' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Marquer perçu/ })).toBeNull();
+});
+
+// Review of #727 — M1: on a past, locked fiche the amounts are read-only; only the marks stay.
+test('M1 — a locked fiche opens no amount editor, it says why; the mark stays', async () => {
+  const user = userEvent.setup();
+  renderFinance({
+    editingReservationId: 7, isReservationLocked: true,
+    ledger: ledgerOf([dueRow('balance', 'Solde', 217.2, { amountEdit: editable('split') })]),
+  });
+  await user.click(screen.getByRole('button', { name: /Modifier le montant : Solde/ }));
+  expect(screen.getByText('Séjour commencé : déverrouiller la fiche pour modifier les montants.')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Montant du solde (€)')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Fermer' }));
+  expect(screen.getByRole('button', { name: 'Marquer perçu : Solde' })).toBeInTheDocument();
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /Modifier le montant : Solde/ })));
+});
+
+test('rule 14 — the confirmation names the gesture of the row (« Annuler la réception » for a caution)', async () => {
+  const user = userEvent.setup();
+  renderFinance({
+    editingReservationId: 7,
+    ledger: ledgerOf([paidRow('cautionReceived', 'Caution reçue', 400, { action: { kind: 'undo', label: 'Annuler', confirm: 'Annuler la réception de la caution du 14/08 ?', confirmLabel: 'Annuler la réception' } })]),
+  });
+  await user.click(screen.getByRole('button', { name: 'Annuler : Caution reçue' }));
+  await user.click(await screen.findByRole('button', { name: 'Annuler la réception' }));
+  await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { cautionReceived: false }));
+});
+
+test('rule 33 — a row the save would change says what is stored', () => {
+  renderFinance({
+    editingReservationId: 7,
+    ledger: ledgerOf([dueRow('complement', "Complément d'arrivée", 24, { changesOnSave: true, storedAmount: 45, detail: { pending: 'Enregistré : 45,00 € · « Enregistrer » applique le nouveau montant' } })]),
+  });
+  expect(screen.getByText('Enregistré : 45,00 € · « Enregistrer » applique le nouveau montant')).toBeInTheDocument();
+});
+
+test('rule 11 — a refusal of the whole mark (AMOUNT_CHANGED) shows under the form, not under the date', async () => {
+  const user = userEvent.setup();
+  const markFromLedger = vi.fn(async () => ({ ok: false, error: 'Le montant a changé entre-temps : relire la fiche.', field: null }));
+  renderFinance({ editingReservationId: 7, markFromLedger, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90, { action: { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' } })]) });
+  await user.click(screen.getByRole('button', { name: 'Marquer perçu : Acompte' }));
+  await user.click(screen.getByRole('button', { name: 'Valider' }));
+  const message = await screen.findByText('Le montant a changé entre-temps : relire la fiche.');
+  expect(screen.getByLabelText('Perçu le')).not.toHaveAttribute('aria-invalid', 'true');
+  expect(message).toHaveAttribute('aria-live', 'polite');
+});
+
+test('the mark form takes its date label from the server', async () => {
+  const user = userEvent.setup();
+  renderFinance({
+    editingReservationId: 7,
+    ledger: ledgerOf([dueRow('cautionReturned', 'Caution restituée', 400, { action: { kind: 'mark', label: 'Restituer', dateLabel: 'Rendue le' } })]),
+  });
+  await user.click(screen.getByRole('button', { name: 'Restituer : Caution restituée' }));
+  expect(screen.getByLabelText('Rendue le')).toBeInTheDocument();
 });

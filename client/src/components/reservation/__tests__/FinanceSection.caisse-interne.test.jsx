@@ -33,7 +33,7 @@ test('end-of-stay complement row renders its amount and, folded, its breakdown',
   await user.click(screen.getByRole('button', { name: 'Détail' }));
   expect(screen.getByText(/Ménage : 40,00 €/)).toBeInTheDocument();
   expect(screen.getByText(/Serviette : 8,00 €/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Marquer perçu' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Marquer perçu/ })).toBeInTheDocument();
 });
 
 test('end-of-stay « Marquer perçu » sends endOfStayComplementPaid + date', async () => {
@@ -42,11 +42,10 @@ test('end-of-stay « Marquer perçu » sends endOfStayComplementPaid + date', as
     editingReservationId: 7, reservationId: 7,
     ledger: ledgerOf([complement('endOfStayComplement', 'Complément de fin de séjour', 88)]),
   });
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
   expect(ctx.markFromLedger).toHaveBeenCalledWith(
     expect.objectContaining({ endOfStayComplementPaid: true, endOfStayComplementPaidDate: expect.any(String), expectedAmountCents: 8800 }),
-    null,
   );
 });
 
@@ -56,10 +55,10 @@ test('end-of-stay « Caisse interne » sends the cash flag with the mark', async
     editingReservationId: 7, reservationId: 7,
     ledger: ledgerOf([complement('endOfStayComplement', 'Complément de fin de séjour', 88)]),
   });
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   await user.click(screen.getByLabelText('Caisse interne'));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
-  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ endOfStayComplementPaid: true, endOfStayComplementPaidCash: true }), null);
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ endOfStayComplementPaid: true, endOfStayComplementPaidCash: true }));
 });
 
 test('arrival « Caisse interne » sends complementPaidCash with the mark', async () => {
@@ -68,10 +67,10 @@ test('arrival « Caisse interne » sends complementPaidCash with the mark', asyn
     editingReservationId: 7, reservationId: 7,
     ledger: ledgerOf([complement('complement', "Complément d'arrivée", 50)]),
   });
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   await user.click(screen.getByLabelText('Caisse interne'));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
-  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ complementPaid: true, complementPaidCash: true }), null);
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ complementPaid: true, complementPaidCash: true }));
 });
 
 test('a caisse-interne complement reads its origin on the row (server label)', () => {

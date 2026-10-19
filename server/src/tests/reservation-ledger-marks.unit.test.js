@@ -16,8 +16,8 @@ test('rule 8 — one action per due row; « Caisse interne » only on the comple
   const id = createStay();
   db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(id);
   const q = await liveQuote(id);
-  assert.deepEqual(rowIn(q, 'deposit').action, { kind: 'mark', label: 'Marquer perçu' });
-  assert.deepEqual(rowIn(q, 'balance').action, { kind: 'mark', label: 'Marquer perçu' });
+  assert.deepEqual(rowIn(q, 'deposit').action, { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' });
+  assert.deepEqual(rowIn(q, 'balance').action, { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' });
   assert.equal(rowIn(q, 'cautionReceived').action.label, 'Recevoir');
   const stored = await liveQuote(id, { complementAmountOverride: 24 });
   assert.equal(rowIn(stored, 'complement').action.cash, true);
@@ -185,4 +185,100 @@ test('rule 26 — « Marquer reçu » asks for the transfer: the server words th
   const same = { ...res, body: null };
   require('../controllers/reservationsController').platformCommission({ body: { gross: 987.39, payout: 829.42, expectedNet: 829.42 } }, same);
   assert.equal(same.body.gapLabel, null);
+});
+
+// Review of #727 (B1) — a payout received on a past, locked stay: the transfer and the commission
+// ride the mark, no full save, nothing re-priced.
+test('rule 34 — « Marquer reçu » writes the transfer and the commission with the mark, on a past locked stay', () => {
+  const id = createStay({ platform: 'Booking' });
+  db.prepare("UPDATE reservations SET startDate = '2026-01-10', endDate = '2026-01-13' WHERE id = ?").run(id);
+  const before = rowOf(id);
+  const res = mark(id, { balancePaid: true, balancePaidDate: '2026-01-20', platformPayoutAmount: 260.5, platformCommissionAmount: 46.7,
+    expectedAmountCents: Math.round(before.balanceAmount * 100) });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const after = rowOf(id);
+  assert.deepEqual([after.balancePaid, after.platformPayoutAmount, after.platformCommissionAmount], [1, 260.5, 46.7]);
+  assert.deepEqual([after.balanceAmount, after.finalPrice], [before.balanceAmount, before.finalPrice], 'nothing re-priced');
+  const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).map((h) => h.changedFields).join(' ');
+  assert.match(history, /Virement reçu/);
+});
+
+test('rule 34 — the transfer is refused without the reception, and when not a money amount', () => {
+  const id = createStay({ platform: 'Booking' });
+  assert.equal(mark(id, { platformPayoutAmount: 100 }).body.code, 'PAYOUT_WITHOUT_MARK');
+  const bad = mark(id, { balancePaid: true, balancePaidDate: TODAY, platformPayoutAmount: -3 });
+  assert.equal(bad.statusCode, 400);
+  assert.equal(bad.body.field, 'platformPayoutAmount');
+  assert.equal(rowOf(id).balancePaid, 0);
+});
+
+test('rule 11 — one expected amount for two marked buckets is refused', () => {
+  const id = createStay();
+  const r = rowOf(id);
+  const res = mark(id, { depositPaid: true, balancePaid: true, depositPaidDate: TODAY, balancePaidDate: TODAY, expectedAmountCents: Math.round(r.depositAmount * 100) });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'AMBIGUOUS_EXPECTED_AMOUNT');
+  assert.equal(rowOf(id).depositPaid, 0);
+});
+
+// Review of #727 (B2) — undo then redo a received acompte must land on the same amount.
+test('rule 35 — undoing a received acompte freezes it at the received amount, so redoing it is not refused', async () => {
+  const id = createStay();
+  const received = rowOf(id).depositAmount;
+  mark(id, { depositPaid: true, depositPaidDate: TODAY, expectedAmountCents: Math.round(received * 100) });
+  await save(id, { customPrice: 200 }); // the stay is re-priced after the acompte was received
+  assert.equal(mark(id, { depositPaid: false }).statusCode, 200);
+  assert.equal(rowOf(id).depositAmountOverride, received);
+  const q = await liveQuote(id, { customPrice: 200, depositAmountOverride: received });
+  const deposit = q.ledger.rows.find((r) => r.key === 'deposit');
+  assert.equal(deposit.amount, received);
+  const redo = mark(id, { depositPaid: true, depositPaidDate: TODAY, expectedAmountCents: Math.round(deposit.amount * 100) });
+  assert.equal(redo.statusCode, 200, JSON.stringify(redo.body));
+});
+
+test('rule 33 — while the fiche is edited, a row whose amount the save would change shows the stored amount', async () => {
+  const id = createStay();
+  const q = await liveQuote(id, { customPrice: 250 });
+  const balance = q.ledger.rows.find((r) => r.key === 'balance');
+  assert.equal(balance.changesOnSave, true);
+  assert.equal(balance.storedAmount, rowOf(id).balanceAmount);
+  assert.match(balance.detail.pending, /^Enregistré : /);
+  const same = (await liveQuote(id)).ledger.rows.find((r) => r.key === 'balance');
+  assert.equal(same.changesOnSave, undefined);
+});
+
+test('rule 26 — no commission suggestion when the gap is the tourist tax, nor without a gross', () => {
+  const ctl = require('../controllers/reservationsController');
+  const res = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
+  const tax = res();
+  ctl.platformCommission({ body: { gross: 1000, payout: 829.6, expectedNet: 850, taxEstimate: 20.4 } }, tax);
+  assert.equal(tax.body.commissionLabel, null);
+  assert.match(tax.body.gapLabel, /taxe de séjour/);
+  const noGross = res();
+  ctl.platformCommission({ body: { gross: '', payout: 400, expectedNet: 838.92 } }, noGross);
+  assert.equal(noGross.body.commissionLabel, null);
+});
+
+test('rule 32 — a stay imported without a price says « Prix à renseigner », never « En retard »', async () => {
+  const id = createStay();
+  db.prepare("UPDATE reservations SET finalPrice = 0, totalPrice = 0, depositAmount = 0, balanceAmount = 0, balanceDueDate = '2026-01-01' WHERE id = ?").run(id);
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  require('../controllers/reservationsController').getById({ params: { id: String(id) }, user: { role: 'admin' } }, res);
+  const balance = res.body.ledger.rows.find((r) => r.key === 'balance');
+  assert.equal(balance.stateLabel, 'Prix à renseigner');
+  assert.equal(balance.action, null);
+  assert.equal(res.body.ledger.remaining, 0);
+});
+
+// Review of #727 (B1, Solio 11, 12, 22245) — a stay priced under an earlier rule: its stored solde no
+// longer matches today's engine, the per-line capture cannot balance, the money is still recorded.
+test('rule 37 — a payout on a stay whose stored amounts drifted is recorded, with a warning, nothing re-priced', () => {
+  const id = createStay({ platform: 'Booking' });
+  db.prepare('UPDATE reservations SET balanceAmount = balanceAmount - 50.4 WHERE id = ?').run(id);
+  const before = rowOf(id);
+  const res = mark(id, { balancePaid: true, balancePaidDate: TODAY, expectedAmountCents: Math.round(before.balanceAmount * 100), platformPayoutAmount: 200 });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.match(res.body.warning, /la répartition comptable reprend les montants enregistrés/);
+  const after = rowOf(id);
+  assert.deepEqual([after.balancePaid, after.balanceAmount, after.finalPrice], [1, before.balanceAmount, before.finalPrice]);
 });

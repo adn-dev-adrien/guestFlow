@@ -16,6 +16,7 @@
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const toCents = (n) => Math.round(round2(n) * 100);
+const fmt = (n) => require('./reservationLedger').formatEuros(n);
 
 /**
  * What a link of `type` would be minted for today on this stored row — the same columns
@@ -83,18 +84,38 @@ function bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay 
   if (bucket === 'deposit') {
     // The acompte is the link's amount; the solde absorbs the difference (pre-arrival unchanged).
     const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
-    database.prepare(`UPDATE reservations SET depositAmountOverride = ?, depositAmount = ?, balanceAmount = ?,
-      updatedAt = datetime('now') WHERE id = ?`)
-      .run(paidAmount, paidAmount, round2(Math.max(0, preArrival - paidAmount)), row.id);
-    recordPayment({ reservationId: row.id, bucket: 'deposit', paidDate: paidDay });
+    database.transaction(() => {
+      database.prepare(`UPDATE reservations SET depositAmountOverride = ?, depositAmount = ?, balanceAmount = ?,
+        updatedAt = datetime('now') WHERE id = ?`)
+        .run(paidAmount, paidAmount, round2(Math.max(0, preArrival - paidAmount)), row.id);
+      database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+        .run(row.id, JSON.stringify([{ field: 'ledgerDepositAmount', label: 'Acompte', from: fmt(row.depositAmount), to: `${fmt(paidAmount)} (payé par un lien retiré)` }]));
+      recordPayment({ reservationId: row.id, bucket: 'deposit', paidDate: paidDay });
+    })();
     return { effect: 'deposit-booked', amount: paidAmount };
   }
   if (bucket === 'balance') {
-    // The solde is what the guest paid; the next save routes any gap (auto-gap complement, or the
-    // trop-perçu of specs/reservation-refunds.md rule 34).
-    database.prepare("UPDATE reservations SET balanceAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(paidAmount, row.id);
-    recordPayment({ reservationId: row.id, bucket: 'balance', paidDate: paidDay });
-    return { effect: 'balance-booked', amount: paidAmount };
+    // The solde is what the guest paid. Short of the new solde, the rest is owed as the arrival
+    // complement (the engine keeps a paid solde of a stay without acompte, pricing rule 36, and routes
+    // the gap there); above it, the excess is the trop-perçu of specs/reservation-refunds.md rule 34.
+    // One transaction: the amounts, the payment and the history land together or not at all.
+    const before = round2(row.balanceAmount);
+    const shortfall = round2(before - paidAmount);
+    const complementOpen = Number(row.complementPaid || 0) !== 1 && Number(row.complementPaidCash || 0) !== 1;
+    database.transaction(() => {
+      database.prepare("UPDATE reservations SET balanceAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(paidAmount, row.id);
+      const changes = [{ field: 'ledgerBalanceAmount', label: 'Solde', from: fmt(before), to: `${fmt(paidAmount)} (payé par un lien retiré)` }];
+      if (shortfall > 0 && complementOpen) {
+        const complementBefore = round2(row.complementAmount);
+        database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?")
+          .run(round2(complementBefore + shortfall), row.id);
+        changes.push({ field: 'complementAmount', label: "Complément d'arrivée", from: fmt(complementBefore), to: `${fmt(complementBefore + shortfall)} (reste dû après le lien retiré)` });
+      }
+      database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+        .run(row.id, JSON.stringify(changes));
+      recordPayment({ reservationId: row.id, bucket: 'balance', paidDate: paidDay });
+    })();
+    return { effect: 'balance-booked', amount: paidAmount, shortfall: shortfall > 0 ? shortfall : 0, excess: shortfall < 0 ? -shortfall : 0 };
   }
   // The complement keeps its amount: the ledger row warns « Payé X par un lien retiré, Y attendus ».
   database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = ?, updatedAt = datetime('now') WHERE id = ?")

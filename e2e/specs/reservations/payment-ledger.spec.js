@@ -5,15 +5,21 @@
 // (rule 12), and a platform payout received with its transfer (rule 26).
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
-import { enablePropertyDeposit } from '../../fixtures/dbSeed.js';
+import { enablePropertyDeposit, setReservationAmounts, setReservationDates } from '../../fixtures/dbSeed.js';
 
 const today = () => new Date().toLocaleDateString('sv-SE');
 
 async function openFiche(page, id) {
   await page.goto(`/reservations/${id}`);
   await expect(page.getByTestId('ledger')).toBeVisible({ timeout: 10_000 });
-  // The live quote replaces the stored ledger: wait for the solde amount to be the editable one.
-  await expect(page.locator('[data-row="balance"]').getByRole('button', { name: /Modifier le montant/ })).toBeVisible();
+  await expect(page.locator('[data-row="balance"]').getByRole('button', { name: /montant/i })).toBeVisible();
+}
+
+// Every full save of the fiche the page sends while the test runs.
+function watchSaves(page) {
+  const puts = [];
+  page.on('request', (r) => { if (r.method() === 'PUT' && /\/api\/reservations\/\d+$/.test(r.url())) puts.push(r.url()); });
+  return puts;
 }
 
 test('direct stay: set the solde, refusal in place, mark the acompte (future refused), undo, caution in order', async ({ page }) => {
@@ -27,12 +33,12 @@ test('direct stay: set the solde, refusal in place, mark the acompte (future ref
 
   const deposit = page.locator('[data-row="deposit"]');
   const balance = page.locator('[data-row="balance"]');
-  await expect(deposit.getByRole('button', { name: 'Marquer perçu' })).toBeVisible();
+  await expect(deposit.getByRole('button', { name: 'Marquer perçu : Acompte' })).toBeVisible();
 
   // Rule 16 — an acompte above the accommodation is refused, in French, under the field.
   await deposit.getByRole('button', { name: /Modifier le montant : Acompte/ }).click();
   await page.getByLabel("Montant de l'acompte (€)").fill('99999');
-  await expect(deposit.getByRole('alert')).toContainText("L'acompte ne dépasse pas l'hébergement");
+  await expect(deposit.getByText(/L'acompte ne dépasse pas l'hébergement/)).toBeVisible();
   await expect(deposit.getByRole('button', { name: 'Valider' })).toBeDisabled();
   await deposit.getByRole('button', { name: 'Annuler', exact: true }).click();
 
@@ -44,7 +50,7 @@ test('direct stay: set the solde, refusal in place, mark the acompte (future ref
   await expect(balance.getByRole('button', { name: /Modifier le montant : Solde/ })).toContainText('150,00');
 
   // Rule 9 — a future date is refused, the form stays open with the typed value.
-  await deposit.getByRole('button', { name: 'Marquer perçu' }).click();
+  await deposit.getByRole('button', { name: 'Marquer perçu : Acompte' }).click();
   await deposit.getByLabel('Perçu le').fill('2099-01-01');
   await deposit.getByRole('button', { name: 'Valider' }).click();
   await expect(deposit.getByText('Un encaissement ne peut pas être daté dans le futur.')).toBeVisible({ timeout: 10_000 });
@@ -59,20 +65,20 @@ test('direct stay: set the solde, refusal in place, mark the acompte (future ref
   expect(stored.balanceAmount).toBe(150);
 
   // Rule 14 — undo asks, naming the date and the accounting entry.
-  await deposit.getByRole('button', { name: 'Annuler', exact: true }).click();
+  await deposit.getByRole('button', { name: 'Annuler : Acompte' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText("L'écriture comptable correspondante disparaît.");
   await dialog.getByRole('button', { name: 'Annuler la perception' }).click();
-  await expect(deposit.getByRole('button', { name: 'Marquer perçu' })).toBeVisible({ timeout: 10_000 });
+  await expect(deposit.getByRole('button', { name: 'Marquer perçu : Acompte' })).toBeVisible({ timeout: 10_000 });
 
   // Rule 12 — « Restituer » only after « Recevoir ».
   const returned = page.locator('[data-row="cautionReturned"]');
   await expect(returned.getByText('Après réception')).toBeVisible();
-  await expect(returned.getByRole('button', { name: 'Restituer' })).toHaveCount(0);
+  await expect(returned.getByRole('button', { name: /^Restituer/ })).toHaveCount(0);
   const received = page.locator('[data-row="cautionReceived"]');
-  await received.getByRole('button', { name: 'Recevoir' }).click();
+  await received.getByRole('button', { name: /^Recevoir/ }).click();
   await received.getByRole('button', { name: 'Valider' }).click();
-  await expect(returned.getByRole('button', { name: 'Restituer' })).toBeVisible({ timeout: 10_000 });
+  await expect(returned.getByRole('button', { name: /^Restituer/ })).toBeVisible({ timeout: 10_000 });
 });
 
 test('platform stay: « Marquer reçu » asks for the transfer and shows the gap', async ({ page }) => {
@@ -86,7 +92,7 @@ test('platform stay: « Marquer reçu » asks for the transfer and shows the gap
 
   const payout = page.locator('[data-row="balance"]');
   await expect(payout).toContainText('Versement Booking');
-  await payout.getByRole('button', { name: 'Marquer reçu' }).click();
+  await payout.getByRole('button', { name: /^Marquer reçu/ }).click();
   await payout.getByLabel('Virement reçu (€)').fill('100');
   await expect(payout.getByText(/^Écart : .* avec le net attendu$/)).toBeVisible({ timeout: 10_000 });
   await payout.getByRole('button', { name: 'Valider' }).click();
@@ -105,4 +111,60 @@ test('the ledger does not scroll sideways on a phone', async ({ page }) => {
   });
   await openFiche(page, reservation.id);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
+// Review of #727 (B1) — a payout received on a PAST, locked platform stay: the transfer rides the mark,
+// the fiche is never saved whole, nothing is re-priced (specs/reservation-payment-ledger.md rule 34).
+test('past platform stay: « Marquer reçu » records the transfer without saving the fiche', async ({ page }) => {
+  const property = await createProperty({ name: 'E2E ledger past platform villa' });
+  const client = await createClient({ firstName: 'Iris', lastName: 'Passé' });
+  const reservation = await createReservation({
+    propertyId: property.id, clientId: client.id, startDate: '2099-08-05', endDate: '2099-08-08', adults: 2, platform: 'Booking',
+  });
+  setReservationDates(reservation.id, '2026-01-05', '2026-01-08');
+  setReservationAmounts(reservation.id, { balanceDueDate: '2026-01-18', depositDueDate: null });
+  const before = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const puts = watchSaves(page);
+  await openFiche(page, reservation.id);
+  const payout = page.locator('[data-row="balance"]');
+  await expect(payout.getByText(/^En retard depuis le/)).toBeVisible();
+  await payout.getByRole('button', { name: /^Marquer reçu/ }).click();
+  await payout.getByLabel('Virement reçu (€)').fill('250');
+  await payout.getByRole('button', { name: 'Valider' }).click();
+  await expect(payout.getByText(/^Reçu le .* · Booking$/)).toBeVisible({ timeout: 10_000 });
+  const after = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  expect(after.balancePaid).toBeTruthy();
+  expect(after.platformPayoutAmount).toBe(250);
+  expect([after.balanceAmount, after.finalPrice]).toEqual([before.balanceAmount, before.finalPrice]);
+  expect(puts).toEqual([]);
+  // The amounts of a locked fiche are read-only.
+  await payout.getByRole('button', { name: /Montant figé|Modifier le montant/ }).click();
+  await expect(payout.getByText(/Versement reçu le|déverrouiller la fiche/)).toBeVisible();
+});
+
+// Review of #727 (B2, M3, H2) — a stay whose stored amount drifted from today's engine: the fiche shows
+// and marks the STORED amount, without a save, and stays unmodified afterwards (rules 7, 10, 33).
+test('drifted stored amount: shown and marked as stored, no save, the fiche stays unmodified', async ({ page }) => {
+  const property = await createProperty({ name: 'E2E ledger drift villa' });
+  const client = await createClient({ firstName: 'Noé', lastName: 'Dérive' });
+  const reservation = await createReservation({
+    propertyId: property.id, clientId: client.id, startDate: '2099-09-05', endDate: '2099-09-08', adults: 2,
+  });
+  const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  const drifted = Math.round((stored.balanceAmount - 24) * 100) / 100;
+  setReservationAmounts(reservation.id, { balanceAmount: drifted });
+  const puts = watchSaves(page);
+  await openFiche(page, reservation.id);
+  const balance = page.locator('[data-row="balance"]');
+  await expect(balance.getByRole('button', { name: /Modifier le montant : Solde/ })).toContainText(String(drifted).replace('.', ','));
+  await balance.getByRole('button', { name: /^Marquer perçu/ }).click();
+  await balance.getByRole('button', { name: 'Valider' }).click();
+  await expect(balance.getByText(/^Perçu le /)).toBeVisible({ timeout: 10_000 });
+  expect(puts).toEqual([]);
+  const after = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
+  expect(after.balancePaid).toBeTruthy();
+  expect(after.balanceAmount).toBe(drifted);
+  // Unmodified: leaving the fiche asks nothing.
+  await page.getByRole('button', { name: 'Annuler', exact: true }).first().click();
+  await expect(page).not.toHaveURL(new RegExp(`/reservations/${reservation.id}$`), { timeout: 10_000 });
 });

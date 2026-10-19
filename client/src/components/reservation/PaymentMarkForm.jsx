@@ -17,7 +17,7 @@
  *   checkPayout: async (payout) → { gapLabel, commissionLabel, commission } — rule 26
  *   formatAmountInput: (number) → « 829,42 »
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
 import DateField from '../DateField';
 import { evaluateArithmetic } from '../../utils/arithmetic';
@@ -64,10 +64,17 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
       date, cash, payout: payoutMode ? Math.round(payoutValue * 100) / 100 : null, commission,
     });
     setBusy(false);
-    if (res && res.ok === false && res.error) setError({ message: res.error, field: res.field || 'date' });
+    // The refusal goes under the field the server names; a refusal of the whole mark under the form.
+    if (res && res.ok === false && res.error) {
+      const field = res.field && /Date$/.test(res.field) ? 'date'
+        : res.field === 'platformPayoutAmount' ? 'payout' : null;
+      setError({ message: res.error, field });
+    }
   };
 
-  const dateError = error.field !== 'payout' ? error.message : '';
+  const messageId = useId();
+  const dateError = error.field === 'date' ? error.message : '';
+  const formError = error.field == null ? error.message : '';
   return (
     <Box
       component="form"
@@ -94,7 +101,7 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
         onChange={(e) => { setDate(e.target.value); if (error.message) setError({ message: '', field: null }); }}
         error={Boolean(dateError)}
         helperText={dateError || ' '}
-        slotProps={{ inputLabel: { shrink: true }, htmlInput: { 'aria-describedby': 'ledger-mark-message' } }}
+        slotProps={{ inputLabel: { shrink: true } }}
       />
       {payoutMode && (
         <TextField
@@ -131,7 +138,10 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
           sx={{ minHeight: 44, m: 0 }}
         />
       )}
-      <Box id="ledger-mark-message" sx={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+      <Typography id={messageId} aria-live="polite" variant="body2" sx={{ gridColumn: '1 / -1', color: 'error.main', fontWeight: 600, '&:empty': { display: 'none' } }}>
+        {formError}
+      </Typography>
+      <Box sx={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
         <Button type="submit" variant="contained" disabled={busy || !date} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
           Valider
         </Button>

@@ -50,6 +50,7 @@ function AmountCell({ row, formatAmount, onAmountClick, readOnly }) {
   return (
     <Button
       variant="text"
+      data-ledger-amount=""
       onClick={() => onAmountClick(row)}
       aria-label={`${locked ? 'Montant figé' : 'Modifier le montant'} : ${row.label}, ${text}`}
       endIcon={locked
@@ -118,11 +119,14 @@ export default function LedgerList({
                 <AmountCell row={row} formatAmount={formatAmount} onAmountClick={onAmountClick} readOnly={readOnly} />
               </Box>
               <Box sx={{ gridArea: 'state', minWidth: 0, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {row.stateLabel && <StatusBadge status={TONE_TO_STATUS[row.tone] || 'neutral'} label={row.stateLabel} wrap />}
+                {/* §6 — an open panel replaces the state line while it is open. */}
+                {row.stateLabel && !open && <StatusBadge status={TONE_TO_STATUS[row.tone] || 'neutral'} label={row.stateLabel} wrap />}
               </Box>
               <Box sx={{ gridArea: 'action', justifySelf: 'end' }}>
                 {action && (
                   <Button
+                    data-ledger-action=""
+                    aria-label={`${action.label} : ${row.label}`}
                     variant={action.kind === 'undo' || action.kind === 'deleteRefund' ? 'text' : 'outlined'}
                     color={action.kind === 'deleteRefund' ? 'error' : 'primary'}
                     onClick={() => onAction && onAction(row)}

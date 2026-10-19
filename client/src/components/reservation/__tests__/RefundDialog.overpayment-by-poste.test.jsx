@@ -41,7 +41,7 @@ test('l’alerte montre la taxe encaissée et la taxe recalculée', async () => 
   const overpayment = document.querySelector('[data-row="overpayment"]');
   expect(within(overpayment).getByText('Trop-perçu')).toBeInTheDocument();
   expect(within(overpayment).getByText('Taxe de séjour : 21,60 € encaissés, 7,20 € dus')).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Rembourser' }));
+  await userEvent.click(screen.getByRole('button', { name: /^Rembourser/ }));
   expect(ctx.setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 14.4, overpaymentLines: TAX_ONLY });
 });
 

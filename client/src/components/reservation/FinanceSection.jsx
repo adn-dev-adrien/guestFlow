@@ -237,14 +237,15 @@ function ComplementDetail({
 
 // What the PATCH flips for each ledger row (specs/reservation-payment-ledger.md rules 8, 14).
 const MARK_FIELDS = {
-  deposit: { flag: 'depositPaid', date: 'depositPaidDate', label: 'Perçu le' },
-  balance: { flag: 'balancePaid', date: 'balancePaidDate', label: 'Perçu le' },
-  complement: { flag: 'complementPaid', date: 'complementPaidDate', cash: 'complementPaidCash', label: 'Perçu le' },
-  checkoutComplement: { flag: 'complementPaid', date: 'complementPaidDate', cash: 'complementPaidCash', label: 'Perçu le' },
-  endOfStayComplement: { flag: 'endOfStayComplementPaid', date: 'endOfStayComplementPaidDate', cash: 'endOfStayComplementPaidCash', label: 'Perçu le' },
-  cautionReceived: { flag: 'cautionReceived', date: 'cautionReceivedDate', label: 'Reçue le' },
-  cautionReturned: { flag: 'cautionReturned', date: 'cautionReturnedDate', label: 'Rendue le' },
+  deposit: { flag: 'depositPaid', date: 'depositPaidDate' },
+  balance: { flag: 'balancePaid', date: 'balancePaidDate' },
+  complement: { flag: 'complementPaid', date: 'complementPaidDate', cash: 'complementPaidCash' },
+  checkoutComplement: { flag: 'complementPaid', date: 'complementPaidDate', cash: 'complementPaidCash' },
+  endOfStayComplement: { flag: 'endOfStayComplementPaid', date: 'endOfStayComplementPaidDate', cash: 'endOfStayComplementPaidCash' },
+  cautionReceived: { flag: 'cautionReceived', date: 'cautionReceivedDate' },
+  cautionReturned: { flag: 'cautionReturned', date: 'cautionReturnedDate' },
 };
+const LOCKED_AMOUNT_REASON = 'Séjour commencé : déverrouiller la fiche pour modifier les montants.';
 const AMOUNT_ROWS = new Set(['deposit', 'balance', 'complement', 'checkoutComplement', 'endOfStayComplement']);
 const EDITOR_LABELS = { deposit: "Montant de l'acompte (€)", balance: 'Montant du solde (€)' };
 
@@ -421,7 +422,18 @@ export default function FinanceSection() {
 
   // ── Ledger actions (rules 8-14, 19, 25-26, 28) ─────────────────────────────
   const rows = ledger?.rows || [];
-  const close = () => setPanel(null);
+  // Closing a panel gives the focus back to what opened it (the amount, or the row's action).
+  const close = () => {
+    const key = panel && panel.key;
+    setPanel(null);
+    if (key) {
+      setTimeout(() => {
+        const row = document.querySelector(`[data-row="${key}"]`);
+        const target = row && (row.querySelector('[data-ledger-amount]') || row.querySelector('[data-ledger-action]'));
+        if (target) target.focus();
+      }, 0);
+    }
+  };
 
   const onAction = async (row) => {
     const action = row.action || {};
@@ -437,7 +449,7 @@ export default function FinanceSection() {
     }
     if (action.kind === 'undo') {
       // §9 Q4 — the confirmation names the date and the accounting entry (server wording).
-      const ok = await confirm({ title: 'Annuler la perception ?', message: action.confirm, confirmLabel: 'Annuler la perception', cancelLabel: 'Garder' });
+      const ok = await confirm({ title: `${action.confirmLabel || 'Annuler la perception'} ?`, message: action.confirm, confirmLabel: action.confirmLabel || 'Annuler la perception', cancelLabel: 'Garder' });
       if (!ok) return;
       const fields = MARK_FIELDS[row.key];
       if (!fields) return;
@@ -452,6 +464,9 @@ export default function FinanceSection() {
 
   const onAmountClick = (row) => {
     const mode = row.amountEdit?.mode;
+    // Review of #727 (M1) — on a past, locked fiche the amounts and the split are read-only; only the
+    // marks stay. The complement detail still unfolds.
+    if (isReservationLocked && mode !== 'complement') { setPanel({ key: row.key, kind: 'locked', reason: LOCKED_AMOUNT_REASON }); return; }
     if (mode === 'complement') { toggleFold(row.key); return; }
     if (mode === 'statement') { setPanel({ key: row.key, kind: 'statement' }); return; }
     if (mode === 'locked') { setPanel({ key: row.key, kind: 'locked' }); return; }
@@ -464,11 +479,12 @@ export default function FinanceSection() {
     if (cash && fields.cash) body[fields.cash] = true;
     // Rule 11 — the amount the operator saw, to the cent.
     if (AMOUNT_ROWS.has(row.key) && row.amount != null) body.expectedAmountCents = Math.round(Number(row.amount) * 100);
-    // Rule 26 — the transfer (and the commission, if taken) are fiche fields, saved with the fiche.
-    const formPatch = payout != null
-      ? { platformPayoutAmount: payout, ...(commission != null ? { platformCommissionAmount: commission } : {}) }
-      : null;
-    const res = await markFromLedger(body, formPatch);
+    // Rule 34 — the transfer (and the commission, if taken) ride the mark: no full save of the fiche.
+    if (payout != null) {
+      body.platformPayoutAmount = payout;
+      if (commission != null) body.platformCommissionAmount = commission;
+    }
+    const res = await markFromLedger(body);
     if (res && res.ok) close();
     return res;
   };
@@ -479,6 +495,7 @@ export default function FinanceSection() {
     if (d.commission) bits.push(<span key="c">{d.commission}</span>);
     if (d.hint) bits.push(<span key="h">{d.hint}</span>);
     if (d.link) bits.push(<span key="l">{d.link.label}</span>);
+    if (d.pending) bits.push(<span key="p">{d.pending}</span>);
     const warnings = d.warnings || [];
     const lines = d.lines || [];
     const slot = d.slot;
@@ -575,7 +592,7 @@ export default function FinanceSection() {
         <PaymentMarkForm
           row={row}
           today={todayStr()}
-          dateLabel={row.action?.payout && row.label.startsWith('Versement') ? 'Reçu le' : (MARK_FIELDS[row.key]?.label || 'Perçu le')}
+          dateLabel={row.action?.dateLabel || 'Perçu le'}
           onSubmit={(values) => submitMark(row, values)}
           onCancel={close}
           formatAmountInput={formatAmountInput}
@@ -585,6 +602,7 @@ export default function FinanceSection() {
             touristTax: form.platformTouristTaxAmount,
             acompteCommission: form.acompteCommissionAmount,
             expectedNet: row.action.payout.expected,
+            taxEstimate: pricingQuote?.touristTaxOriginalTotal ?? form.touristTaxTotal,
           })}
         />
       );
@@ -606,7 +624,7 @@ export default function FinanceSection() {
     if (panel.kind === 'locked') {
       return (
         <Box sx={{ mt: 1.25, p: 1.25, borderRadius: 1.5, bgcolor: 'background.default', display: 'grid', gap: 1 }}>
-          <Typography role="alert" variant="body2" sx={{ fontWeight: 600 }}>{row.amountEdit?.reason}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>{panel.reason || row.amountEdit?.reason}</Typography>
           <Box><Button variant="text" onClick={close} sx={{ minHeight: 44, textTransform: 'none' }}>Fermer</Button></Box>
         </Box>
       );

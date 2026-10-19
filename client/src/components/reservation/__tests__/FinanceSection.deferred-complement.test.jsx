@@ -55,21 +55,20 @@ test('deferred: a single « Complément de fin de séjour » row with every line
 test('deferred: « Marquer perçu » sends ONE mark for the merged amount (the server settles both buckets)', async () => {
   const user = userEvent.setup();
   const { ctx } = renderFinance(BASE);
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
   expect(ctx.markFromLedger).toHaveBeenCalledWith(
     expect.objectContaining({ complementPaid: true, complementPaidDate: expect.any(String), expectedAmountCents: 7800 }),
-    null,
   );
 });
 
 test('deferred: « Caisse interne » in the mark form flags the merged complement', async () => {
   const user = userEvent.setup();
   const { ctx } = renderFinance(BASE);
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   await user.click(screen.getByLabelText('Caisse interne'));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
-  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ complementPaid: true, complementPaidCash: true }), null);
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ complementPaid: true, complementPaidCash: true }));
 });
 
 test('not deferred: the two complements are two rows', () => {

@@ -48,7 +48,7 @@ test('rule 3 — one action per row, at most; a not-applicable row has none (rul
   const caution = document.querySelector('[data-row="caution"]');
   expect(within(caution).queryByRole('button')).toBeNull();
   expect(within(caution).getByText('—')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   expect(onAction).toHaveBeenCalledWith(ROWS[1]);
 });
 
@@ -80,7 +80,7 @@ test('read-only: no action, no amount affordance', () => {
 test('an open row shows its panel in place of its action', () => {
   renderList({ openKey: 'balance', renderPanel: (row) => <div>panel {row.key}</div> });
   expect(screen.getByText('panel balance')).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Marquer perçu' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Marquer perçu/ })).toBeNull();
 });
 
 test('§6 xs layout — two lines under 600 px (label + amount, then state + action); one line wider', () => {

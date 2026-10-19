@@ -57,7 +57,7 @@ test('deleting a refund asks for confirmation, then calls deleteRefund', async (
   const user = userEvent.setup();
   const deleteRefund = vi.fn();
   renderFinance({ ledger: ledgerOf([REFUND_ROWS[0]]), deleteRefund });
-  await user.click(screen.getByRole('button', { name: 'Supprimer' }));
+  await user.click(screen.getByRole('button', { name: /^Supprimer/ }));
   expect(await screen.findByText('Supprimer ce remboursement ?')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /^Confirmer$/ }));
   await waitFor(() => expect(deleteRefund).toHaveBeenCalledWith(3));
@@ -83,6 +83,6 @@ test('rule 34 — « Rembourser » on the trop-perçu row opens the dialog on th
       action: { kind: 'refund', label: 'Rembourser' }, amountEdit: NONE, detail: { lines: ['Prestations : 96,00 € encaissés, 0,00 € dus'] },
     }]),
   });
-  await user.click(screen.getByRole('button', { name: 'Rembourser' }));
+  await user.click(screen.getByRole('button', { name: /^Rembourser/ }));
   expect(setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 96, overpaymentLines: lines });
 });

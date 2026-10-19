@@ -196,3 +196,41 @@ test('rule 31 — perceived another way meanwhile: a double payment, nothing rec
   assert.equal(stored.providerPaymentId, `pay_${link.providerLinkId}`, 'kept for the refund');
   assert.ok(notified.includes(link.id));
 });
+
+// Review of #727 (H1) — the old balance link was paid at its old amount: the money received is the
+// solde, the rest is owed (arrival complement) or given back (trop-perçu), and a later save keeps it.
+const { bookPaidAfterAmountChange } = require('../utils/ledgerLinks');
+const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
+const { remainingToPay } = require('../utils/reservationSettlement');
+const recordReal = (p) => recordStayPayment(depsFor(db), { ...p, keepPaymentOnCaptureFailure: true });
+
+test('rules 31 + 36 — paid SHORT of the new solde: the shortfall is owed as the arrival complement, and stays owed after a save', async () => {
+  const id = createStay({ depositDisabled: 1 });
+  const oldCents = Math.round(rowOf(id).balanceAmount * 100); // 307,20 €
+  await save(id, { depositDisabled: 1, customPrice: 350 }); // new solde 357,20 €
+  const booked = bookPaidAfterAmountChange({ database: db, recordPayment: recordReal },
+    { reservationId: id, type: 'balance', amountCents: oldCents }, { paidDay: '2026-10-19' });
+  assert.deepEqual([booked.effect, booked.shortfall], ['balance-booked', 50]);
+  let row = rowOf(id);
+  assert.deepEqual([row.balancePaid, row.balanceAmount, row.complementAmount, remainingToPay(row)], [1, 307.2, 50, 50]);
+  const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).map((h) => h.changedFields).join(' ');
+  assert.match(history, /reste dû après le lien retiré/);
+  const res = await save(id, { depositDisabled: 1, customPrice: 350 });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  row = rowOf(id);
+  assert.deepEqual([row.balanceAmount, row.complementAmount, remainingToPay(row)], [307.2, 50, 50],
+    'the 50 € never received are never booked as paid');
+});
+
+test('rules 31 + 36 — paid ABOVE the new solde: the excess is a trop-perçu, nothing owed', async () => {
+  const id = createStay({ depositDisabled: 1 });
+  const oldCents = Math.round(rowOf(id).balanceAmount * 100); // 307,20 €
+  await save(id, { depositDisabled: 1, customPrice: 280 }); // new solde 287,20 €
+  const booked = bookPaidAfterAmountChange({ database: db, recordPayment: recordReal },
+    { reservationId: id, type: 'balance', amountCents: oldCents }, { paidDay: '2026-10-19' });
+  assert.equal(booked.excess, 20);
+  const row = rowOf(id);
+  assert.deepEqual([row.balanceAmount, row.complementAmount, remainingToPay(row)], [307.2, 0, 0]);
+  const live = await liveQuote(id, { depositDisabled: 1, customPrice: 280 });
+  assert.equal(live.overpaymentTtc, 20, 'reservation-refunds rule 34 shows it to refund');
+});

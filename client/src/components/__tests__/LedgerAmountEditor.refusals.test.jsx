@@ -38,7 +38,7 @@ test('rule 17 — a refusal is shown under the field, the typed value stays, « 
   const { field, onApply } = renderEditor(onCheck);
   await user.clear(field);
   await user.type(field, '10');
-  expect(await screen.findByRole('alert')).toHaveTextContent('Le solde porte la taxe de séjour (26,40 €) : pas en dessous.');
+  expect(await screen.findByText(/./, { selector: '[data-ledger-refusal]' })).toHaveTextContent('Le solde porte la taxe de séjour (26,40 €) : pas en dessous.');
   expect(field).toHaveValue('10');
   expect(field).toHaveAttribute('aria-invalid', 'true');
   expect(screen.getByRole('button', { name: 'Valider' })).toBeDisabled();

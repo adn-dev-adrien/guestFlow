@@ -51,12 +51,11 @@ test('"Actualiser tarifs" (edit mode) calls refreshToCurrentPricing', async () =
 test('the acompte row marks through the inline form, with today\'s date', async () => {
   const user = userEvent.setup();
   const ctx = renderFinance({ editingReservationId: 7, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90)]) });
-  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
   expect(screen.getByLabelText('Perçu le')).toHaveValue(new Date().toLocaleDateString('sv-SE'));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
   expect(ctx.markFromLedger).toHaveBeenCalledWith(
     expect.objectContaining({ depositPaid: true, depositPaidDate: expect.any(String), expectedAmountCents: 9000 }),
-    null,
   );
 });
 
@@ -64,9 +63,9 @@ test('the caution row « Recevoir » records a reception date', async () => {
   const user = userEvent.setup();
   const ctx = renderFinance({
     editingReservationId: 7,
-    ledger: ledgerOf([dueRow('cautionReceived', 'Caution reçue', 400, { action: { kind: 'mark', label: 'Recevoir' } })]),
+    ledger: ledgerOf([dueRow('cautionReceived', 'Caution reçue', 400, { action: { kind: 'mark', label: 'Recevoir', dateLabel: 'Reçue le' } })]),
   });
-  await user.click(screen.getByRole('button', { name: 'Recevoir' }));
+  await user.click(screen.getByRole('button', { name: /^Recevoir/ }));
   await user.click(screen.getByRole('button', { name: 'Valider' }));
-  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ cautionReceived: true, cautionReceivedDate: expect.any(String) }), null);
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ cautionReceived: true, cautionReceivedDate: expect.any(String) }));
 });

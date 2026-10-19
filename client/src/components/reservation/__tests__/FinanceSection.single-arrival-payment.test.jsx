@@ -145,7 +145,7 @@ test('le contrôle se rend au-dessus des échéances du séjour', () => {
   });
 
   const control = screen.getByText(/Encaisser en une fois : 852,82 €/);
-  const bucketButton = screen.getAllByRole('button', { name: 'Marquer perçu' })[0];
+  const bucketButton = screen.getAllByRole('button', { name: /^Marquer perçu/ })[0];
   // eslint-disable-next-line no-bitwise
   const controlComesFirst = control.compareDocumentPosition(bucketButton)
     & Node.DOCUMENT_POSITION_FOLLOWING;
@@ -165,5 +165,5 @@ test('les boutons par échéance restent offerts à côté du contrôle', () => 
   });
 
   expect(screen.getByText(/Encaisser en une fois/)).toBeInTheDocument();
-  expect(screen.getAllByRole('button', { name: 'Marquer perçu' })).toHaveLength(2);
+  expect(screen.getAllByRole('button', { name: /^Marquer perçu/ })).toHaveLength(2);
 });

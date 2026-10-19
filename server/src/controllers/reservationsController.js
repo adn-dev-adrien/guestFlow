@@ -487,11 +487,16 @@ function platformCommission(req, res) {
     }
     const gap = round2(Number(expectedNet) - p);
     const fmt = require('../utils/reservationLedger').formatEuros;
+    // Never a commission without the gross it is computed from, nor when the gap is the tourist tax
+    // (a stay priced under the earlier tax convention): a commission is not the explanation then.
+    const taxLike = [touristTax, req.body.taxEstimate].map((v) => round2(v)).filter((v) => v > 0);
+    const gapIsTax = taxLike.some((t) => Math.abs(Math.abs(gap) - t) < 0.01);
+    const none = Math.abs(gap) < 0.005;
     return res.json({
       commission,
       gap,
-      gapLabel: Math.abs(gap) < 0.005 ? null : `Écart : ${fmt(gap)} avec le net attendu`,
-      commissionLabel: commission == null || Math.abs(gap) < 0.005 ? null : `Commission solde → ${fmt(commission)}`,
+      gapLabel: none ? null : `Écart : ${fmt(gap)} avec le net attendu${gapIsTax ? ' (le montant de la taxe de séjour)' : ''}`,
+      commissionLabel: commission == null || !(commission > 0) || none || gapIsTax ? null : `Commission solde → ${fmt(commission)}`,
     });
   }
   if (commission == null) return res.status(400).json({ error: 'Total facturé et virement requis' });
@@ -1709,9 +1714,26 @@ function paymentMarkRefusal(row, body, today) {
       }
     }
   }
+  // Rule 34 — a payout is received with its transfer (and the commission it implies): the two figures
+  // ride the mark, under its guards, so a past or locked fiche never needs a full save to record it.
+  for (const field of ['platformPayoutAmount', 'platformCommissionAmount']) {
+    if (body[field] === undefined) continue;
+    if (!(body.balancePaid === true || body.balancePaid === 1)) {
+      return { status: 400, body: { error: 'Le virement se saisit avec la réception du versement.', code: 'PAYOUT_WITHOUT_MARK', field } };
+    }
+    const n = Number(body[field]);
+    if (body[field] === null || body[field] === '' || !Number.isFinite(n) || n < 0) {
+      return { status: 400, body: { error: field === 'platformPayoutAmount' ? 'Virement reçu : montant requis.' : 'Commission invalide.', code: 'INVALID_AMOUNT', field } };
+    }
+  }
   if (body.expectedAmountCents !== undefined && body.expectedAmountCents !== null) {
     const expected = Number(body.expectedAmountCents);
     if (!Number.isInteger(expected)) return { status: 400, body: { error: 'Montant attendu invalide.' } };
+    const markedCount = ['depositPaid', 'balancePaid', 'complementPaid', 'endOfStayComplementPaid']
+      .filter((f) => body[f] === true || body[f] === 1).length;
+    if (markedCount > 1) {
+      return { status: 400, body: { error: 'Un montant attendu ne vaut que pour une échéance à la fois.', code: 'AMBIGUOUS_EXPECTED_AMOUNT' } };
+    }
     const deferred = Number(row.complementDeferredToCheckout || 0) === 1;
     const storedOf = {
       depositPaid: row.depositAmount,
@@ -1773,6 +1795,7 @@ function updatePayment(req, res) {
   const noteError = applyMidStayNoteActions(Number(req.params.id), req.body);
   if (noteError) return res.status(noteError.status).json(noteError.body);
 
+  const captureWarnings = [];
   const { depositPaid, depositPaidDate, balancePaid, balancePaidDate,
     complementPaid, complementPaidDate, complementPaidCash,
     complementDeferredToCheckout,
@@ -1793,10 +1816,20 @@ function updatePayment(req, res) {
     try {
       if (!wasDepositPaid && willBeDepositPaid) {
         // specs/plugins-phase-3a-online-payment.md rule 1 — the same write an online payment makes.
-        recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'deposit', paidDate: date });
+        // specs/reservation-payment-ledger.md rule 37 — the money was received: a stay whose stored
+        // amounts no longer match today's engine (priced under an earlier rule) keeps the payment, its
+        // per-line split falls back to the stored amounts, and the operator is told.
+        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'deposit', paidDate: date, keepPaymentOnCaptureFailure: true });
+        if (recorded && recorded.captureFailed && recorded.captureFailed.length) captureWarnings.push('deposit');
       } else db.transaction(() => {
         if (wasDepositPaid && !willBeDepositPaid) {
           clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'deposit' });
+          // specs/reservation-payment-ledger.md rule 35 — the acompte keeps the amount it was received
+          // at, so undoing then redoing lands on the same amount instead of a re-priced one.
+          model.updatePaymentField(
+            "UPDATE reservations SET depositAmountOverride = depositAmount, updatedAt = datetime('now') WHERE id = ? AND depositAmount > 0",
+            id,
+          );
         }
         model.updatePaymentField(
           "UPDATE reservations SET depositPaid = ?, depositPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
@@ -1810,6 +1843,19 @@ function updatePayment(req, res) {
       return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });
     }
   }
+  // Rule 34 — the transfer and the commission of a payout, written with its reception.
+  if (balancePaid && (req.body.platformPayoutAmount !== undefined || req.body.platformCommissionAmount !== undefined)) {
+    const before = model.getRow(Number(id)) || {};
+    const changes = [];
+    for (const [field, label] of [['platformPayoutAmount', 'Virement reçu'], ['platformCommissionAmount', 'Commission solde']]) {
+      if (req.body[field] === undefined) continue;
+      const next = round2(req.body[field]);
+      if (before[field] != null && round2(before[field]) === next) continue;
+      model.updatePaymentField(`UPDATE reservations SET ${field} = ?, updatedAt = datetime('now') WHERE id = ?`, next, id);
+      changes.push({ field, label, from: before[field] == null ? 'vide' : formatEurosFr(before[field]), to: formatEurosFr(next) });
+    }
+    if (changes.length > 0) model.addHistoryEntry(Number(id), 'update', changes);
+  }
   if (balancePaid !== undefined) {
     const beforeRow = model.getRow(Number(id));
     const wasBalancePaid = Number(beforeRow?.balancePaid || 0) === 1;
@@ -1817,7 +1863,11 @@ function updatePayment(req, res) {
     const date = willBeBalancePaid ? (balancePaidDate || localTodayIso()) : null;
     try {
       if (!wasBalancePaid && willBeBalancePaid) {
-        recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date });
+        // specs/reservation-payment-ledger.md rule 37 — the money was received: a stay whose stored
+        // amounts no longer match today's engine (priced under an earlier rule) keeps the payment, its
+        // per-line split falls back to the stored amounts, and the operator is told.
+        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date, keepPaymentOnCaptureFailure: true });
+        if (recorded && recorded.captureFailed && recorded.captureFailed.length) captureWarnings.push('balance');
       } else db.transaction(() => {
         if (wasBalancePaid && !willBeBalancePaid) {
           clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'balance' });
@@ -1934,7 +1984,9 @@ function updatePayment(req, res) {
   if (depositPaid || balancePaid || complementPaid) {
     try { require('../models/paymentLinksModel').retireSettled(); } catch { /* no link table: nothing to retire */ }
   }
-  res.json({ ok: true });
+  res.json(captureWarnings.length
+    ? { ok: true, warning: 'Encaissement enregistré. Ses montants diffèrent du calcul actuel du séjour : la répartition comptable reprend les montants enregistrés.' }
+    : { ok: true });
 }
 
 function remove(req, res) {

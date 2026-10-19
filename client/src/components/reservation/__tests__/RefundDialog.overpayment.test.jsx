@@ -42,7 +42,7 @@ test('un trop-perçu s’affiche avec son montant et « Rembourser » ouvre la f
     detail: { lines: [] } }], closing: null } });
   expect(screen.getByText('Trop-perçu')).toBeInTheDocument();
   expect(screen.getByText(/133,20/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Rembourser' }));
+  await userEvent.click(screen.getByRole('button', { name: /^Rembourser/ }));
   expect(ctx.setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 133.2, overpaymentLines: [] });
 });
 

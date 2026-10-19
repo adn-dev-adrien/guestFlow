@@ -19,7 +19,7 @@
  *   extraActions: ReactNode — secondary buttons after « Annuler » (« Calcul automatique »)
  *   debounceMs:   number — delay before a typed value is checked (default 250)
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, TextField, Typography } from '@mui/material';
 
 export default function LedgerAmountEditor({
@@ -30,6 +30,7 @@ export default function LedgerAmountEditor({
   const [checking, setChecking] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const seq = useRef(0);
+  const messageId = useId();
   const inputRef = useRef(null);
   const touched = draft !== initialValue;
 
@@ -87,7 +88,7 @@ export default function LedgerAmountEditor({
         error={refused}
         size="small"
         autoComplete="off"
-        slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-describedby': 'ledger-amount-message' } }}
+        slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-describedby': messageId } }}
         sx={{
           maxWidth: { sm: 260 },
           '& input': { fontSize: 16, fontVariantNumeric: 'tabular-nums' },
@@ -98,10 +99,10 @@ export default function LedgerAmountEditor({
           } : {}),
         }}
       />
-      <Box id="ledger-amount-message" aria-live="polite" sx={{ fontSize: '0.8125rem', minHeight: 0 }}>
+      <Box id={messageId} aria-live="polite" sx={{ fontSize: '0.8125rem', minHeight: 0 }}>
         {refused && (
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-            <Typography role="alert" variant="body2" sx={{ color: 'error.main', fontWeight: 600 }}>{answer.reason}</Typography>
+            <Typography variant="body2" data-ledger-refusal="" sx={{ color: 'error.main', fontWeight: 600 }}>{answer.reason}</Typography>
             {answer.refund && onRefund && (
               <Button variant="outlined" size="small" onClick={() => onRefund(answer.refund)} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
                 {answer.refund.label}

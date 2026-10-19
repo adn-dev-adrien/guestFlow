@@ -173,8 +173,14 @@ function buildLedger({
   const warn = (label) => ({ tone: 'warning', label });
   const futureWarning = (date) => (isoDay(date) && today && isoDay(date) > today ? [warn('Date future enregistrée')] : []);
 
+  // A 0 € solde: nothing to collect — or, on a stay imported without a price, a price to enter (the
+  // ledger never invents a remainder, nor a delay, out of a missing price).
+  const unpriced = row != null && !(Number(r.finalPrice) > 0);
+  const nothingDue = () => (unpriced
+    ? { state: 'none', tone: 'muted', stateLabel: 'Prix à renseigner' }
+    : { state: 'none', tone: 'muted', stateLabel: 'Rien à percevoir' });
   const paidLabel = (verb, date, origin) => `${verb} le ${shortDate(date, stayYear)}${origin ? ` · ${origin}` : ''}`;
-  const undo = (confirm, label = 'Annuler') => (canAct ? { kind: 'undo', label, confirm } : null);
+  const undo = (confirm, confirmLabel = 'Annuler la perception') => (canAct ? { kind: 'undo', label: 'Annuler', confirm, confirmLabel } : null);
   const groupNote = (bucket) => (inGroup(bucket) ? ` Le paiement unique du ${shortDate(group.at, stayYear)} est dissous.` : '');
 
   const originOf = (bucket, cashFlag) => {
@@ -239,7 +245,7 @@ function buildLedger({
         }
         base = {
           ...due,
-          action: canAct && depositAmount > 0 ? { kind: 'mark', label: 'Marquer perçu' } : null,
+          action: canAct && depositAmount > 0 ? { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' } : null,
           amountEdit,
         };
         if (override != null && quote && quote.autoDepositAmount != null) {
@@ -285,7 +291,7 @@ function buildLedger({
         base = {
           state: 'paid', tone: 'done',
           stateLabel: paidLabel(ota ? 'Reçu' : 'Perçu', r.balancePaidDate, ota ? platformName : originOf('balance', r.balancePaidCash)),
-          action: undo(`Annuler la réception du versement du ${shortDate(r.balancePaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('balance')}`),
+          action: undo(`Annuler la réception du versement du ${shortDate(r.balancePaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('balance')}`, 'Annuler le versement'),
           amountEdit: {
             editable: false, mode: 'locked', min: null, max: null,
             reason: `Versement reçu le ${shortDate(r.balancePaidDate, stayYear)} : annuler la réception pour corriger les montants.`,
@@ -294,9 +300,9 @@ function buildLedger({
         detail.warnings.push(...futureWarning(r.balancePaidDate));
       } else {
         base = {
-          ...dueState(balanceDueDate, today, stayYear, { platformPayout: ota }),
+          ...(balanceAmount > 0 ? dueState(balanceDueDate, today, stayYear, { platformPayout: ota }) : nothingDue()),
           action: canAct && balanceAmount > 0
-            ? { kind: 'mark', label: ota ? 'Marquer reçu' : 'Marquer perçu', payout: { expected: round2(balanceAmount - soldeCommission) } }
+            ? { kind: 'mark', label: ota ? 'Marquer reçu' : 'Marquer perçu', dateLabel: ota ? 'Reçu le' : 'Perçu le', payout: { expected: round2(balanceAmount - soldeCommission) } }
             : null,
           amountEdit: cancelled
             ? { editable: false, mode: 'none', min: null, max: null, reason: null }
@@ -317,9 +323,7 @@ function buildLedger({
       detail.warnings.push(...futureWarning(r.balancePaidDate));
     } else {
       const split = depositApplies && !paid.deposit;
-      const due = balanceAmount > 0
-        ? dueState(balanceDueDate, today, stayYear)
-        : { state: 'none', tone: 'muted', stateLabel: 'Rien à percevoir' };
+      const due = balanceAmount > 0 ? dueState(balanceDueDate, today, stayYear) : nothingDue();
       let amountEdit;
       if (cancelled) amountEdit = { editable: false, mode: 'none', min: null, max: null, reason: null };
       else if (isDevis) amountEdit = DEVIS_LOCK;
@@ -332,7 +336,7 @@ function buildLedger({
         amountEdit = { editable: true, mode: 'price', min: null, max: null, reason: null, help: 'Un autre solde change le prix de l\'hébergement.' };
       }
       if (paid.deposit) detail.hint = 'Acompte perçu : modifier le solde change le prix';
-      base = { ...due, action: canAct && balanceAmount > 0 ? { kind: 'mark', label: 'Marquer perçu' } : null, amountEdit };
+      base = { ...due, action: canAct && balanceAmount > 0 ? { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' } : null, amountEdit };
     }
     rows.push({ key: 'balance', label, amount: balanceAmount, ...base, detail: tidyDetail(detail) });
   }
@@ -368,7 +372,7 @@ function buildLedger({
     } else {
       base = {
         state: 'due', tone: amount > 0 ? 'due' : 'muted', stateLabel: amount > 0 ? dueLabel : 'Rien à percevoir',
-        action: canAct && amount > 0 ? { kind: 'mark', label: 'Marquer perçu', cash: true } : null,
+        action: canAct && amount > 0 ? { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le', cash: true } : null,
       };
     }
     return {
@@ -454,13 +458,13 @@ function buildLedger({
         ? {
           key: 'cautionReceived', label: 'Caution reçue', amount: caution, state: 'paid', tone: 'done',
           stateLabel: `Reçue le ${shortDate(r.cautionReceivedDate, stayYear)}`,
-          action: undo(`Annuler la réception de la caution du ${shortDate(r.cautionReceivedDate, stayYear)} ?${returned ? ' La restitution est annulée aussi.' : ''}`),
+          action: undo(`Annuler la réception de la caution du ${shortDate(r.cautionReceivedDate, stayYear)} ?${returned ? ' La restitution est annulée aussi.' : ''}`, 'Annuler la réception'),
           amountEdit: none, detail: tidyDetail(recvDetail),
         }
         : {
           key: 'cautionReceived', label: 'Caution reçue', amount: caution, state: 'due', tone: 'due',
           stateLabel: 'À recevoir à l\'arrivée',
-          action: canAct ? { kind: 'mark', label: 'Recevoir' } : null,
+          action: canAct ? { kind: 'mark', label: 'Recevoir', dateLabel: 'Reçue le' } : null,
           amountEdit: none, detail: null,
         });
       const retDetail = { warnings: futureWarning(r.cautionReturnedDate) };
@@ -469,7 +473,7 @@ function buildLedger({
         rows.push({
           key: 'cautionReturned', label: 'Caution restituée', amount: caution, state: 'paid', tone: 'done',
           stateLabel: `Rendue le ${shortDate(r.cautionReturnedDate, stayYear)}`,
-          action: undo(`Annuler la restitution de la caution du ${shortDate(r.cautionReturnedDate, stayYear)} ?`),
+          action: undo(`Annuler la restitution de la caution du ${shortDate(r.cautionReturnedDate, stayYear)} ?`, 'Annuler la restitution'),
           amountEdit: none, detail: tidyDetail(retDetail),
         });
       } else if (!received) {
@@ -481,9 +485,29 @@ function buildLedger({
         rows.push({
           key: 'cautionReturned', label: 'Caution restituée', amount: caution, state: 'due', tone: 'due',
           stateLabel: 'À rendre au départ',
-          action: canAct ? { kind: 'mark', label: 'Restituer', after: isoDay(r.cautionReceivedDate) } : null,
+          action: canAct ? { kind: 'mark', label: 'Restituer', dateLabel: 'Rendue le', after: isoDay(r.cautionReceivedDate) } : null,
           amountEdit: none, detail: null,
         });
+      }
+    }
+  }
+
+  // Rule 33 — while the fiche is edited (live quote), a row whose amount the save would change says
+  // what is stored now: a mark is recorded against the stored amount, after the save.
+  if (quote && stored) {
+    const storedOf = {
+      deposit: depositDisabled ? 0 : round2(r.depositAmount),
+      balance: round2(r.balanceAmount),
+      complement: round2(r.complementAmount),
+      endOfStayComplement: round2(r.endOfStayComplementAmount),
+      checkoutComplement: round2(Number(r.complementAmount || 0) + Number(r.endOfStayComplementAmount || 0)),
+    };
+    for (const row of rows) {
+      if (!(row.key in storedOf) || row.amount == null || String(row.state).startsWith('paid')) continue;
+      row.storedAmount = storedOf[row.key];
+      if (cents(row.amount) !== cents(row.storedAmount)) {
+        row.changesOnSave = true;
+        row.detail = { ...(row.detail || {}), pending: `Enregistré : ${formatEuros(row.storedAmount)} · « Enregistrer » applique le nouveau montant` };
       }
     }
   }

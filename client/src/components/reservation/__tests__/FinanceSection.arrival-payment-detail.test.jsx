@@ -155,7 +155,7 @@ test('at the floor, the helper names the accommodation as the limit', () => {
 // un remplacement : les contrôles par échéance restent là, intacts, sous lui.
 test('les contrôles par échéance restent affichés sous le bloc', () => {
   render7(DETAILED);
-  expect(screen.getAllByRole('button', { name: 'Annuler' })).toHaveLength(2);
+  expect(screen.getAllByRole('button', { name: /^Annuler : / })).toHaveLength(2);
   expect(screen.getByRole('button', { name: 'Annuler ce paiement' })).toBeInTheDocument();
 });
 
