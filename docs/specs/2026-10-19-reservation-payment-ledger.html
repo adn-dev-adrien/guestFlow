@@ -152,7 +152,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
 <ul>
   <li><b>L'état n'est jamais affiché comme un état.</b> Acompte, solde et caution sont des boutons à bascule (« Marquer solde payé » → « Solde payé ») : seule la couleur du bouton dit si c'est payé. Aucun « en retard », « payé par lien » ou « payé à l'arrivée ».</li>
   <li><b>Des champs vides toujours visibles</b> : les dates de caution en <code>mm/dd/yyyy</code> avant toute réception, et les échéances en champs modifiables alors que le serveur les calcule.</li>
-  <li><b>Rien ne garde l'ordre des choses.</b> On peut restituer une caution jamais reçue, et dater un paiement dans le futur (seul le paiement unique à l'arrivée vérifie sa date).</li>
+  <li><b>Rien ne garde l'ordre des choses.</b> On peut restituer une caution jamais reçue — par le bouton comme par « Enregistrer », qui écrit les champs de caution tels que le navigateur les envoie — et dater un paiement dans le futur (seul le paiement unique à l'arrivée vérifie sa date).</li>
   <li><b>Un paiement peut être enregistré au mauvais montant.</b> Modifier l'acompte puis cliquer « Marquer acompte payé » sans enregistrer : le serveur enregistre le paiement à l'ancien montant.</li>
   <li><b>Seul l'acompte est réglable</b>, et un acompte trop grand est rogné sans rien dire (900 tapés, 840 retenus). Le solde est toujours déduit.</li>
   <li><b>Les liens de paiement dérivent.</b> Un lien Qonto ouvert reste payable à l'ancien montant tant que personne ne renvoie la demande ; payé entre-temps, il marque l'échéance payée au nouveau montant. La fiche n'affiche jamais l'état d'un lien.</li>
@@ -160,7 +160,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
 </ul>
 
 <h2>À manipuler</h2>
-<p class="try">Trois séjours, deux largeurs. Essayer : taper l'acompte à 900 ou à −5 (refusé), le solde à 10 (refusé : il porte la taxe de séjour), puis marquer l'acompte perçu avec une date future (refusé) avant de le valider à la date du jour. Une fois l'acompte perçu, modifier le solde montre la conséquence sur le prix. Solde perçu puis montant plus bas : la fiche propose le remboursement. Caution : « Restituer » n'apparaît qu'après la réception. Sur Booking.com, taper un virement différent du net pour voir l'écart.</p>
+<p class="try">Trois séjours, deux largeurs. Essayer : taper l'acompte à 900 ou à −5 (refusé), le solde à 10 (refusé : il porte la taxe de séjour), puis marquer l'acompte perçu avec une date future (refusé) avant de le valider à la date du jour. Une fois l'acompte perçu, modifier le solde montre la conséquence sur le prix. Solde perçu puis montant plus bas : la fiche propose le remboursement. Le complément se marque avec ou sans « Caisse interne ». Caution : « Restituer » n'apparaît qu'après la réception. Sur Booking.com, taper un virement différent du net pour voir l'écart.</p>
 <div class="bar">
   <div class="seg" role="group" aria-label="Séjour" data-k="sc">
     <button data-v="direct" aria-pressed="true">Direct</button>
@@ -178,35 +178,45 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
 
 <h2>Ce qu'on propose</h2>
 <ul>
-  <li><b>Une ligne par mouvement d'argent</b>, dans l'ordre où l'argent circule : acompte, solde (ou versement de la plateforme), compléments, notes en séjour, remboursements, caution reçue, caution restituée. Chaque ligne : libellé · montant · état en mots · <b>une seule action</b>. Fin du registre : « Reste à percevoir » ou « Tout est perçu ».</li>
+  <li><b>Une ligne par mouvement d'argent</b>, dans l'ordre où l'argent circule : acompte, solde (ou versement de la plateforme), compléments, notes en séjour, remboursements, caution reçue, caution restituée. Chaque ligne : libellé · montant · état en mots · <b>une seule action</b>. Fin du registre : « Reste à percevoir » ou « Tout est perçu », calculé par la <b>même fonction serveur</b> que le suivi opérationnel des Finances (net de commission, compléments compris) : un seul « reste dû » dans l'application.</li>
   <li><b>Le serveur construit le registre</b> : lignes, ordre, libellés, états, action, et pour chaque montant s'il est modifiable, entre quelles bornes, et sinon pourquoi. Le navigateur affiche et ne calcule rien.</li>
   <li><b>Les montants restent réglables (condition de l'arbitrage 8).</b>
     <ul>
       <li>Acompte non perçu : entre 0 et l'hébergement. Au-delà, refusé avec la raison, plus rogné en silence. Le solde absorbe, comme aujourd'hui.</li>
       <li>Solde, acompte non perçu : entre la taxe de séjour qu'il porte et le total avant arrivée. Taper le solde règle la répartition, pas le prix (l'acompte devient le reste).</li>
-      <li>Solde, acompte déjà perçu (ou sans acompte) : un autre solde est un autre prix. Le serveur le traduit en prix d'hébergement ajusté et montre la conséquence avant « Valider » (arbitrage Q1).</li>
+      <li>Solde, acompte déjà perçu (ou sans acompte) : un autre solde est un autre prix. Le serveur relance tout le moteur (taxe de séjour, assurance annulation au pourcentage…) pour trouver le prix d'hébergement, propose le solde atteignable le plus proche quand le centime exact n'existe pas, refuse de descendre l'hébergement sous l'acompte déjà reçu, et montre la conséquence avant « Valider » (arbitrage Q1).</li>
+      <li>Après un solde tapé, c'est l'acompte qui reste fixe ; si le prix baisse ensuite sous l'acompte, la ligne le signale.</li>
       <li>Ligne déjà perçue : montant figé. Plus bas, la fiche propose le remboursement ; plus haut, annuler la perception puis la refaire.</li>
       <li>Saisie : « 12,5 », « 12.5 » et « 100+20 » acceptés, arrondi au centime, refus sous le champ, valeur tapée conservée.</li>
     </ul>
   </li>
-  <li><b>Marquer perçu</b> ouvre un petit formulaire sous la ligne (date du jour, « Caisse interne » quand elle existe). La date est vérifiée par le serveur : pas dans le futur, pas avant la réservation. Le marquage <b>enregistre la fiche d'abord</b>, et porte le montant vu : si le montant a changé dans un autre onglet, refus.</li>
-  <li><b>Caution dans l'ordre</b> : « Restituer » n'existe qu'après la réception, et pas à une date antérieure.</li>
+  <li><b>Marquer perçu</b> ouvre un petit formulaire sous la ligne (date du jour ; « Caisse interne » sur les compléments, comme aujourd'hui — sur l'acompte et le solde elle reste une origine en lecture seule, posée par le SAS). La date est vérifiée par le serveur : pas dans le futur. Une date antérieure à la création de la fiche reste acceptée (saisies après coup, imports). Le marquage <b>enregistre la fiche d'abord</b>, et porte le montant vu au centime : s'il a changé dans un autre onglet, refus.</li>
+  <li><b>Caution dans l'ordre</b> : « Restituer » n'existe qu'après la réception, et pas à une date antérieure. « Enregistrer » n'écrit plus jamais l'état de la caution : seul le marquage le fait, avec ses contrôles.</li>
   <li><b>Plateforme</b> : la ligne « Versement Booking.com » remplace le solde, avec commission et net. « Modifier » ouvre les champs du relevé (total facturé, taxe retenue, commission), inchangés. « Marquer reçu » demande le virement et montre l'écart, avec le calcul de commission en un bouton.</li>
-  <li><b>Liens de paiement</b> visibles sur leur ligne. Changer un montant retire le lien ouvert (après avoir vérifié qu'il n'a pas été payé) et propose « Renvoyer la demande ».</li>
+  <li><b>Liens de paiement</b> (acompte, solde, paiement intégral, complément) visibles sur leur ligne. Changer un montant retire le lien ouvert (après avoir vérifié qu'il n'a pas été payé) ; « Renvoyer la demande » n'apparaît que sur une ligne encore due. Si le voyageur paie quand même l'ancien lien, l'argent est enregistré sur la fiche à son montant réel, et l'écart suit les règles existantes (le solde absorbe, ou complément, ou trop-perçu).</li>
   <li><b>Aucune migration</b> : le registre est une vue sur les colonnes existantes.</li>
 </ul>
 
 <h2>Ce qu'on ne fait pas</h2>
 <ul>
   <li>Les paiements partiels (plusieurs versements sur un même acompte) et la correction automatique d'un lien payé à un ancien montant.</li>
-  <li>Une colonne « moyen de paiement » (virement, CB, chèque…) : arbitrage Q2.</li>
+  <li>Une colonne « moyen de paiement » (virement, CB, chèque…) : arbitrage Q2. Pas d'interrupteur « Caisse interne » sur l'acompte et le solde depuis la fiche.</li>
+  <li>Supprimer l'ancienne fonction <code>computePaymentStatus</code>, qui ne sert plus qu'à son test : nettoyage à part.</li>
   <li>Déplacer « Envoyer la demande d'acompte / de solde » hors des actions de page.</li>
   <li>Le résumé tarifaire (proposition 6) et la barre de total collante (arbitrage 6) : autres lots.</li>
   <li>Le montant de la caution (figé depuis le logement à la réception) et les écrans SAS.</li>
 </ul>
 
+<h2>Specs modifiées à l'implémentation</h2>
+<ul>
+  <li><code>editable-deposit-amount.md</code> : règle 4 (l'acompte trop grand est refusé, plus rogné) et §8 (le solde devient réglable).</li>
+  <li><code>single-payment-from-the-fiche.md</code> : règle 11bis étendue aux quatre champs de caution.</li>
+  <li><code>plugins-phase-3a-online-payment.md</code> : nouveau motif de retrait « montant modifié » et enregistrement d'un paiement tardif.</li>
+  <li>« Lien de paiement visible et renouvelable » : résumé Draft du 25/09, présent seulement dans la copie de travail principale ; à réconcilier quand il arrivera, pas recopié ici.</li>
+</ul>
+
 <h2>Risque</h2>
-<p><b>Moyen : c'est la surface de l'argent.</b> Le registre doit reproduire exactement la logique payé / non payé d'aujourd'hui. Garde-fou prévu : un test de parité sur une copie neutralisée de la base Solio (montants perçus, reste dû et export comptable identiques avant et après). Les nouveaux refus ne s'appliquent qu'aux nouvelles écritures ; une caution déjà restituée sans réception s'affiche telle quelle, avec un avertissement. La traduction d'un solde en prix (Q1) passe par le moteur existant : la taxe de séjour suit l'hébergement, donc le serveur recalcule jusqu'au centime et montre le résultat avant d'appliquer.</p>
+<p><b>Moyen : c'est la surface de l'argent.</b> Le registre doit reproduire exactement la logique payé / non payé d'aujourd'hui. Garde-fou prévu : un test de parité sur une copie neutralisée de la base Solio (état de chaque échéance, reste dû par la fonction partagée, export comptable identique octet pour octet avant et après). Les nouveaux refus ne s'appliquent qu'aux nouvelles écritures ; une caution déjà restituée sans réception s'affiche telle quelle, avec un avertissement. La traduction d'un solde en prix (Q1) passe par le moteur existant : la taxe de séjour suit l'hébergement, donc le serveur recalcule jusqu'au centime et montre le résultat avant d'appliquer.</p>
 
 <h2>Arbitrages en attente</h2>
 <div class="arb"><p><b>Q1. Solde tapé alors que l'acompte est déjà perçu (ou sans acompte)</b></p>
@@ -216,7 +226,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
   <p>(a) Pas de nouvelle colonne : la ligne dit l'origine déjà connue (lien, caisse interne, plateforme, paiement unique). <span class="rec">recommandé</span></p>
   <p>(b) Une colonne « moyen » (virement, CB, chèque, espèces, ANCV) demandée au marquage.</p></div>
 <div class="arb"><p><b>Q3. Lien de paiement ouvert quand son montant change</b></p>
-  <p>(a) Retiré et désactivé à l'enregistrement, la ligne propose « Renvoyer la demande ». <span class="rec">recommandé</span></p>
+  <p>(a) Retiré et désactivé à l'enregistrement ; la ligne, encore due, propose « Renvoyer la demande » ; un paiement tardif de l'ancien lien est quand même enregistré. <span class="rec">recommandé</span></p>
   <p>(b) Changement de montant refusé tant qu'un lien est ouvert.</p></div>
 <div class="arb"><p><b>Q4. Annuler un paiement enregistré</b></p>
   <p>(a) Confirmation qui nomme la date et l'écriture comptable. <span class="rec">recommandé</span></p>
@@ -230,7 +240,6 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
 (function () {
   'use strict';
   var TODAY = '2026-10-19';
-  var BOOKED = '2026-09-02';
   var frame = document.getElementById('frame');
   var fitEl = document.getElementById('fit');
   var live = document.getElementById('live');
@@ -268,7 +277,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
         bal: { paid: false }, payout: null, cRecv: { paid: false }, cRet: { paid: false }, refunds: [], open: null, edit: null, err: '', confirm: null };
     }
     var s = { kind: 'direct', H: 84000, depOverride: null, pct: 30, depDue: '2026-10-26', balDue: '2027-06-22',
-      dep: { paid: false }, bal: { paid: false }, cRecv: { paid: false }, cRet: { paid: false },
+      dep: { paid: false }, bal: { paid: false }, comp: { paid: false }, cRecv: { paid: false }, cRet: { paid: false },
       link: { type: 'dep', amount: 25200, at: '2026-10-15', status: 'open' }, refunds: [], open: null, edit: null, err: '', confirm: null };
     if (kind === 'paid') { s.dep = { paid: true, date: '2026-10-12', amount: 25200, origin: 'lien de paiement' }; s.link = { type: 'dep', amount: 25200, at: '2026-10-05', status: 'paid', paidAt: '2026-10-12' }; }
     return s;
@@ -308,7 +317,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
       }
       // Acompte perçu : a different solde is a different price. Solve H' so that H' − A + tax(H') = v.
       var a = s.dep.amount, floor = taxOf(a);
-      if (v < floor) return { ok: false, reason: 'Pas en dessous de ' + eur(floor) + ' : l\'acompte perçu couvre déjà l\'hébergement.' };
+      if (v < floor) return { ok: false, reason: 'Pas en dessous de ' + eur(floor) + ' : l\'acompte perçu (' + eur(a) + ') couvre déjà l\'hébergement.' };
       var h = Math.round((v + a) / (1 + TAX_RATE));
       for (var k = 0; k < 4; k++) { var got = h - a + taxOf(h); if (got === v) break; h += v - got; }
       var reached = h - a + taxOf(h);
@@ -322,7 +331,6 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
   function checkDate(d, after) {
     if (!d) return 'Date requise.';
     if (d > TODAY) return 'Un encaissement ne peut pas être daté dans le futur.';
-    if (d < BOOKED) return 'La réservation n\'existait pas encore le ' + fr(d) + '/' + d.slice(0, 4) + '.';
     if (after && d < after) return 'Restitution avant la réception (' + fr(after) + ').';
     return '';
   }
@@ -352,16 +360,18 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
       if (s.link) {
         if (s.link.status === 'open') dr.detail = 'Lien envoyé le ' + fr(s.link.at) + ' · ' + eur(s.link.amount);
         else if (s.link.status === 'paid') dr.detail = 'Payé par lien le ' + fr(s.link.paidAt);
-        else if (s.link.status === 'retired') { dr.detail = 'Lien retiré · montant modifié'; dr.resend = true; }
-        else if (s.link.status === 'retired-settled') dr.detail = 'Lien retiré · acompte perçu autrement';
+        else if (s.link.status === 'retired') { dr.detail = 'Lien retiré · montant modifié'; dr.resend = !s.dep.paid; }
+        else if (s.link.status === 'retired-settled') dr.detail = 'Lien retiré · perçu autrement';
       }
       r.push(dr);
       var br = { key: 'bal', label: 'Solde', amount: S(s), editable: true };
-      if (s.bal.paid) { br.chips = [['done', 'Perçu le ' + fr(s.bal.date) + (s.bal.cash ? ' · caisse interne' : '')]]; br.action = { kind: 'undo', label: 'Annuler' }; br.lockedPaid = true; }
+      if (s.bal.paid) { br.chips = [['done', 'Perçu le ' + fr(s.bal.date)]]; br.action = { kind: 'undo', label: 'Annuler' }; br.lockedPaid = true; }
       else { br.chips = [['due', 'À percevoir avant le ' + fr(s.balDue)]]; br.action = { kind: 'mark', label: 'Marquer perçu' }; }
       if (!s.bal.paid && s.dep.paid) br.hint = 'Acompte perçu : modifier le solde change le prix';
       r.push(br);
-      r.push({ key: 'comp', label: 'Complément d\'arrivée', amount: 2400, chips: [['due', 'À percevoir à l\'arrivée']], detail: 'Linge de lit · 2 × 12,00 €', action: null, info: 'Ajustable comme aujourd\'hui (Montant ajusté)' });
+      r.push(s.comp.paid
+        ? { key: 'comp', label: 'Complément d\'arrivée', amount: 2400, chips: [['done', 'Perçu le ' + fr(s.comp.date) + (s.comp.cash ? ' · caisse interne' : '')]], detail: 'Linge de lit · 2 × 12,00 €', action: { kind: 'undo', label: 'Annuler' } }
+        : { key: 'comp', label: 'Complément d\'arrivée', amount: 2400, chips: [['due', 'À percevoir à l\'arrivée']], detail: 'Linge de lit · 2 × 12,00 €', info: 'Montant ajusté comme aujourd\'hui', action: { kind: 'mark', label: 'Marquer perçu' } });
     }
     s.refunds.forEach(function (f, i) { r.push({ key: 'ref' + i, label: 'Remboursement', amount: -f.amount, chips: [['info', 'Rendu le ' + fr(f.date) + ' · virement']], action: null }); });
     var cr = { key: 'cRecv', label: 'Caution reçue', amount: 40000 };
@@ -377,7 +387,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
   }
   function remaining(s) {
     if (s.kind === 'booking') return s.bal.paid ? 0 : s.gross - s.commission;
-    return (s.dep.paid ? 0 : A(s)) + (s.bal.paid ? 0 : S(s)) + 2400;
+    return (s.dep.paid ? 0 : A(s)) + (s.bal.paid ? 0 : S(s)) + (s.comp.paid ? 0 : 2400);
   }
 
   // ---------- render ----------
@@ -405,8 +415,8 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
   function confirmText(s, k) {
     if (k === 'cRecv') return 'Annuler la réception de la caution du ' + fr(s.cRecv.date) + ' ?' + (s.cRet.paid ? ' La restitution est annulée aussi.' : '');
     if (k === 'cRet') return 'Annuler la restitution de la caution du ' + fr(s.cRet.date) + ' ?';
-    var d = k === 'dep' ? s.dep.date : s.bal.date;
-    var n = k === 'dep' ? 'de l\'acompte' : k === 'plat' ? 'du versement' : 'du solde';
+    var d = k === 'dep' ? s.dep.date : k === 'comp' ? s.comp.date : s.bal.date;
+    var n = k === 'dep' ? 'de l\'acompte' : k === 'plat' ? 'du versement' : k === 'comp' ? 'du complément' : 'du solde';
     return 'Annuler la perception ' + n + ' du ' + fr(d) + ' ? L\'écriture comptable correspondante disparaît.';
   }
   function editHtml(s, r) {
@@ -429,7 +439,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
       '<div class="btns full"><button type="button" class="btn fill" data-act="edit-ok"' + (chk && chk.ok ? '' : ' disabled') + '>Valider</button><button type="button" class="btn text" data-act="close">Annuler</button>' + auto + '</div></div>';
   }
   function markHtml(s, r) {
-    var cash = r.key === 'dep' || r.key === 'bal';
+    var cash = r.key === 'comp';
     var h = '<div class="form' + (animNext ? ' anim' : '') + '" data-form="mark"><div class="fld"><label for="m-date">' + (r.key === 'cRet' ? 'Rendue le' : r.key === 'cRecv' ? 'Reçue le' : r.key === 'plat' ? 'Reçu le' : 'Perçu le') + '</label><input class="inp' + (s.err ? ' bad' : '') + '" id="m-date" type="date" value="' + esc(s.mDate || TODAY) + '" aria-describedby="m-msg"></div>';
     if (r.key === 'plat') {
       var net = s.gross - s.commission;
@@ -495,6 +505,7 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
       if (key === 'bal' || key === 'plat') { s.bal = { paid: false }; s.payout = null; }
       if (key === 'cRecv') { s.cRecv = { paid: false }; s.cRet = { paid: false }; }
       if (key === 'cRet') s.cRet = { paid: false };
+      if (key === 'comp') s.comp = { paid: false };
       closeAll(s); render(); say('Perception annulée.'); return;
     }
     if (act === 'auto') { s.depOverride = null; retireLink(s); closeAll(s); render(); say('Acompte revenu au calcul automatique.'); return; }
@@ -522,8 +533,9 @@ table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-a
       if (key === 'plat' && !err) { var pv = parseAmount(frame.querySelector('#m-pay').value); if (pv == null || pv <= 0) err = 'Virement reçu : montant requis.'; else s.payout = pv; }
       if (err) { s.err = err; s.mDate = d; render('#m-date'); shake('#m-date'); return; }
       var cash = frame.querySelector('#m-cash'); cash = cash ? cash.checked : false;
-      if (key === 'dep') s.dep = { paid: true, date: d, amount: A(s), origin: cash ? 'caisse interne' : '' };
-      if (key === 'bal') s.bal = { paid: true, date: d, amount: S(s), cash: cash };
+      if (key === 'dep') s.dep = { paid: true, date: d, amount: A(s), origin: '' };
+      if (key === 'bal') s.bal = { paid: true, date: d, amount: S(s) };
+      if (key === 'comp') s.comp = { paid: true, date: d, cash: cash };
       if (key === 'plat') s.bal = { paid: true, date: d };
       if (key === 'cRecv') s.cRecv = { paid: true, date: d };
       if (key === 'cRet') s.cRet = { paid: true, date: d };
