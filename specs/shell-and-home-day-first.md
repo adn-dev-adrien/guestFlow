@@ -6,7 +6,7 @@
 | **Branch** | `feature/ui-shell-home` |
 | **Created** | 2026-10-19 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#725](https://github.com/adn-dev-adrien/guestFlow/pull/725) |
 
 Source: UI/UX review of 2026-10-18 (`docs/rapports/2026-10-18-ui-ux-review.html`, zone « Coque,
 navigation et accueil »), proposals **1**, **14** and **15** retained and decisions **1 to 4**
