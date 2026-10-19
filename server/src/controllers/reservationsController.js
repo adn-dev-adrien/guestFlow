@@ -285,6 +285,15 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
   return null;
 }
 
+// A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
+// as the HTTP error it carries.
+class CreationRefused extends Error {
+  constructor(refusal) {
+    super(refusal.body && refusal.body.error);
+    this.refusal = refusal;
+  }
+}
+
 // ── Handlers ─────────────────────────────────────────────────────────────
 
 function suggestBeds(req, res) {
@@ -862,27 +871,40 @@ function create(req, res) {
   const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: null });
   if (babyError) return res.status(400).json({ error: babyError });
 
-  const reservationId = model.insertReservation(req.body, quote, nightBlocks);
-  model.addHistoryEntry(reservationId, 'create', [
-    { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
-  ]);
-  if (reservationOptions && reservationOptions.length > 0) model.insertOptions(reservationId, quote.optionLines);
-  if (reservationCustomOptions && reservationCustomOptions.length > 0) model.insertCustomOptions(reservationId, quote.optionLines);
-  model.insertNights(reservationId, quote.nightlyBreakdown);
+  // specs/reservation-number-and-search.md rule 13 — the row, its number and its lines are written as
+  // one: a failure anywhere (a number collision, a resource no longer free) leaves no numberless stay
+  // behind to block the dates and leak into the iCal export.
+  const creation = db.transaction(() => {
+    const id = model.insertReservation(req.body, quote, nightBlocks);
+    model.addHistoryEntry(id, 'create', [
+      { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
+    ]);
+    if (reservationOptions && reservationOptions.length > 0) model.insertOptions(id, quote.optionLines);
+    if (reservationCustomOptions && reservationCustomOptions.length > 0) model.insertCustomOptions(id, quote.optionLines);
+    model.insertNights(id, quote.nightlyBreakdown);
 
-  if (reservationResources && reservationResources.length > 0) {
-    const resourceError = insertResourceLines(reservationId, quote, { propertyId, startDate, endDate, excludeId: null });
-    if (resourceError) return res.status(resourceError.status).json(resourceError.body);
+    if (reservationResources && reservationResources.length > 0) {
+      const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: null });
+      if (resourceError) throw new CreationRefused(resourceError);
+    }
+
+    // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — a reservation created while the
+    // stay is already running (walk-in, saisie a posteriori, import iCal) takes its own extras as the
+    // baseline: nothing it was created with counts as sold mid-stay.
+    model.captureArrivalExtrasBaselineIfDue(id);
+
+    // specs/adjustable-complement-amounts.md §3.6 rule 36 — the fiche decides how an adjusted complement
+    // splits across the accounting postes, and stores it. Runs after the lines: it reads them.
+    model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
+    return id;
+  });
+  let reservationId;
+  try {
+    reservationId = creation();
+  } catch (err) {
+    if (err instanceof CreationRefused) return res.status(err.refusal.status).json(err.refusal.body);
+    throw err;
   }
-
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — a reservation created while the
-  // stay is already running (walk-in, saisie a posteriori, import iCal) takes its own extras as the
-  // baseline: nothing it was created with counts as sold mid-stay.
-  model.captureArrivalExtrasBaselineIfDue(reservationId);
-
-  // specs/adjustable-complement-amounts.md §3.6 rule 36 — the fiche decides how an adjusted complement
-  // splits across the accounting postes, and stores it. Runs after the lines: it reads them.
-  model.syncComplementAllocation(reservationId, { autoAmount: quote.complementAmountAuto });
 
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).

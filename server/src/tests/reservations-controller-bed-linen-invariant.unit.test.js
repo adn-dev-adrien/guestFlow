@@ -51,7 +51,9 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
       };
     },
   };
+  // The creation is one transaction (specs/reservation-number-and-search.md rule 13): run it inline.
   const dbMock = {
+    transaction: (fn) => fn,
     prepare(sql) {
       const isSingleIdLookup = /SELECT\s+countsAsBedLinen\s+FROM\s+options\s+WHERE\s+id\s*=\s*\?/i.test(String(sql || ''));
       return {

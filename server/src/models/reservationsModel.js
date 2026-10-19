@@ -1173,6 +1173,48 @@ function createReservationsModel(database) {
       });
     },
 
+    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 15): the stays the boot repair
+    // numbered — possibly ghosts of a failed creation, still blocking their dates — until the operator
+    // has looked at them. Empty on a schema without the stamp.
+    listRepairedNumbers() {
+      let rows;
+      try {
+        rows = database.prepare(`
+          SELECT r.id AS reservationId, r.reservationNumber, r.startDate, r.endDate, r.numberRepairedAt,
+                 c.firstName, c.lastName, p.name AS propertyName
+            FROM reservations r
+            LEFT JOIN clients c    ON c.id = r.clientId
+            LEFT JOIN properties p ON p.id = r.propertyId
+           WHERE r.kind = 'reservation' AND r.numberRepairedAt IS NOT NULL
+           ORDER BY r.startDate, r.id
+        `).all();
+      } catch {
+        return [];
+      }
+      return rows.map((row) => {
+        const clientName = `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
+        return {
+          reservationId: row.reservationId,
+          reservationNumber: row.reservationNumber || '',
+          clientName: clientName || 'Sans client',
+          propertyName: row.propertyName || '',
+          startDate: row.startDate || '',
+          endDate: row.endDate || '',
+          repairedAt: row.numberRepairedAt,
+        };
+      });
+    },
+
+    // The operator has checked it: off the card. False when there was nothing to acknowledge.
+    acknowledgeRepairedNumber(reservationId) {
+      try {
+        return database.prepare('UPDATE reservations SET numberRepairedAt = NULL WHERE id = ? AND numberRepairedAt IS NOT NULL')
+          .run(reservationId).changes > 0;
+      } catch {
+        return false;
+      }
+    },
+
     // Dashboard alert (specs/site-booking-notifications.md §3 rule 5): site-origin devis still
     // pending handling — requestOrigin='public', kind='devis', still draft, not yet converted.
     // Disappears from the alert once the operator changes its status / converts / deletes it.
