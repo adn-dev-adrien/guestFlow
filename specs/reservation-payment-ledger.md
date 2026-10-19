@@ -417,6 +417,17 @@ decimals is rounded and shown rounded.
     #727 (fiche 11: Total HT 1 822,66 + TVA 182,26 = 2 004,92 and « À payer avant 03/09 » next to a
     stored 1 954,52 and « En retard depuis le 10/08 »).
 
+46. **The stored-amount split only on a reservation that already has a contribution.** The export
+    chooses its path per reservation (`accountingModel` `hasContribs`): the first contribution written
+    on a stay moves every one of its entries onto the per-line path, where a bucket recorded without one
+    reads 0 and is dropped. So when the engine split fails, `captureBucketSplit` writes the stored split
+    (rule 37) only if the reservation already carries a contribution — the case of an acompte captured
+    and a drifted solde (rule 42). On a stay with none — an older stay whose acompte was recorded before
+    contributions existed — the bucket stays without one (`'legacy'`) and the whole stay keeps the
+    stored-money path, as it always had: its earlier entries, possibly already sent to the accountant,
+    are unchanged. Found while porting rule 42 to master (2026-10-19); reproduced on `inte/plugins`
+    (acompte of May 2026 vanishing from the May export once the solde was marked in October).
+
 **Edge cases:**
 
 - Acompte override set, then the platform switched from direct → the engine ignores it as today; the

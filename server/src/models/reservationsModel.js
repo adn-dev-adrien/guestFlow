@@ -2670,7 +2670,7 @@ function createReservationsModel(database) {
     captureStayContribs(reservationId, bucket) {
       const outcome = captureBucketSplit({ db: database, reservation: model.getRow(reservationId), bucket });
       // eslint-disable-next-line no-console
-      if (outcome !== 'captured') console.warn(`[sas-stay-payment] ${bucket} of reservation ${reservationId}: ${outcome === 'stored' ? 'split on the stored amounts' : 'no split'}`);
+      if (outcome !== 'captured') console.warn(`[sas-stay-payment] ${bucket} of reservation ${reservationId}: ${outcome === 'stored' ? 'split on the stored amounts' : outcome === 'legacy' ? 'left on the stored-money path' : 'no split'}`);
       return outcome === 'captured';
     },
 

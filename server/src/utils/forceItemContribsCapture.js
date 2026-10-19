@@ -365,13 +365,38 @@ function captureStoredSplit({ db, reservation, bucket }) {
  * split at all — logged, never thrown: money received is never lost to its accounting split.
  * Each attempt runs in its own savepoint, so a failure leaves nothing half-written.
  *
- * @returns {'captured'|'stored'|'none'}
+ * @returns {'captured'|'stored'|'legacy'|'none'}
  */
+/**
+ * Whether any schedule bucket of the reservation already carries a per-line contribution. The export
+ * picks its path per RESERVATION (accountingModel `hasContribs`): a first contribution flips every
+ * entry of the stay onto the per-line path, where an older bucket recorded without one reads 0.
+ */
+function hasAnyContrib(db, reservationId) {
+  const q = (sql) => db.prepare(sql).get(reservationId);
+  const own = q(`SELECT 1 AS hit FROM reservations WHERE id = ? AND (accommodationAcompteContribTtc IS NOT NULL
+    OR accommodationSoldeContribTtc IS NOT NULL OR touristTaxAcompteContribTtc IS NOT NULL OR touristTaxSoldeContribTtc IS NOT NULL)`);
+  if (own) return true;
+  return ['reservation_options', 'reservation_custom_options', 'reservation_resources'].some((table) => Boolean(
+    q(`SELECT 1 AS hit FROM ${table} WHERE reservationId = ? AND (acompteContribTtc IS NOT NULL OR soldeContribTtc IS NOT NULL) LIMIT 1`),
+  ));
+}
+
 function captureBucketSplit({ db, reservation, bucket, log = console }) {
   try {
     db.transaction(() => captureContribsOnFlip({ db, reservation, bucket }))();
     return 'captured';
   } catch (err) {
+    // specs/reservation-payment-ledger.md rule 46 — on a reservation with no contribution yet, the
+    // whole stay is exported on the stored-money path; a stored split here would be its FIRST
+    // contribution and would flip every earlier entry (an acompte recorded without one) to 0 — out of
+    // a month possibly already exported. Leave it NULL: the stored-money path books it as before.
+    try {
+      if (reservation && !hasAnyContrib(db, reservation.id)) return 'legacy';
+    } catch (errCheck) {
+      log.error(`[payments] reservation ${reservation && reservation.id}: contribution check failed on ${bucket} — ${errCheck.message}`);
+      return 'none';
+    }
     try {
       db.transaction(() => captureStoredSplit({ db, reservation, bucket }))();
       return 'stored';
@@ -387,6 +412,7 @@ function captureBucketSplit({ db, reservation, bucket, log = console }) {
 function writeDepositContribs() { /* no-op: 0-eur stays never persist contribs */ }
 
 module.exports = {
+  hasAnyContrib,
   captureStoredSplit,
   captureBucketSplit,
   captureContribsOnFlip,

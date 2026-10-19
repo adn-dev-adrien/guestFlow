@@ -68,7 +68,8 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
         if (outcome !== 'captured') {
           captureFailed.push(b);
           const label = origin === 'fiche' ? `Encaissement (${BUCKET_LABELS[b]})` : `Paiement en ligne (${BUCKET_LABELS[b]})`;
-          const to = outcome === 'stored' ? 'reçu, répartition comptable sur les montants enregistrés' : 'reçu, répartition comptable non enregistrée';
+          const to = outcome === 'stored' || outcome === 'legacy'
+            ? 'reçu, répartition comptable sur les montants enregistrés' : 'reçu, répartition comptable non enregistrée';
           db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'payment_capture_failed', ?)")
             .run(id, JSON.stringify([{ field: b, label, from: null, to }]));
         }
