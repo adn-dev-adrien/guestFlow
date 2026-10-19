@@ -44,6 +44,8 @@ on desktop as on mobile — and a page can no longer invent its own.
    sticky block**, directly under the title row — never above the bar, never on the paper background.
 3. **The title is always visible when tabs are present.** Passing `tabs` to `PageActionBar` implies
    `titleOnXs`: the mobile bar can never be an anonymous row of actions again.
+   > 2026-10-19: the intent holds, the means changed — on `xs` every page title now lives in the top
+   > bar (`specs/shell-and-home-day-first.md` rule 15) and `titleOnXs` is gone.
 4. **Card-level tabs** (a switch that belongs to one card or dialog, not to the page) use the same
    component with `variant="card"`: same typography, left-aligned, a bottom divider and a standard
    `mb: 2` rhythm. No forced width, no `fullWidth` stretching.

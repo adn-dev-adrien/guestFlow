@@ -44,6 +44,8 @@ function emptyRecord(id) {
     // specs/plugins-phase-3c-hourly-resources.md rules 1, 6.
     priceLineContributor: null,
     sasCommits: [],
+    // specs/shell-and-home-day-first.md rule 9 — subjects of the home's « À traiter ».
+    attention: [],
   };
 }
 

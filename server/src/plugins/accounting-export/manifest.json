@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -36,6 +36,9 @@
     ],
     "1.0.6": [
       "Texte du taux de TVA des indemnités sans « votre comptable »."
+    ],
+    "1.0.7": [
+      "Sur téléphone, le titre de la page s’affiche dans la barre du haut."
     ]
   }
 }

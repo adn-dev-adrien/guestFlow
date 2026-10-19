@@ -17,14 +17,16 @@
  * dialog, for the operator to read before it leaves.
  *
  * No business rule here: the state, the amounts, the days late, whether cancelling is offered — all
- * of it arrives ready to render from the server.
+ * of it arrives ready to render from the server; the card's title, count, « N en retard · M à
+ * demander » and severity come with `attention` (specs/shell-and-home-day-first.md rules 3, 6).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, AlertTitle, Box, Button, Divider, Stack, Typography } from '@mui/material';
+import { Box, Button, Divider, Stack, Typography } from '@mui/material';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import SendIcon from '@mui/icons-material/Send';
 import SnoozeIcon from '@mui/icons-material/Snooze';
 import api from '../api';
+import AttentionCard from './AttentionCard';
 import StatusBadge from './StatusBadge';
 import ReservationCancelDialog from './ReservationCancelDialog';
 import EmailManualSendDialog from './EmailManualSendDialog';
@@ -32,7 +34,7 @@ import { useToast } from './DialogProvider';
 import { displayDateShort, formatCurrency } from '../utils/formatters';
 import { DEADLINE_STATE_LABELS, DEADLINE_STATE_BADGE, deadlineHeadline } from '../constants/paymentDeadlines';
 
-export default function PaymentDeadlinesAlert() {
+export default function PaymentDeadlinesAlert({ attention }) {
   const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
   const [busyId, setBusyId] = useState(null);
@@ -104,23 +106,10 @@ export default function PaymentDeadlinesAlert() {
 
   if (rows.length === 0) return null;
 
-  // The worst of the rows: a card holding only « à demander » to-dos must not shout like one holding
-  // a stay about to be cancelled.
-  const severity = ['error', 'warning', 'info'].find((level) => rows.some((row) => row.severity === level))
-    || 'warning';
-  const lateCount = rows.filter((row) => !String(row.state).endsWith('_to_request')).length;
-  const toRequestCount = rows.length - lateCount;
-
   return (
     <>
-      <Alert severity={severity} variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }} icon={false}>
-        <AlertTitle sx={{ fontWeight: 700 }}>
-          Échéances de paiement — {[
-            lateCount > 0 ? `${lateCount} en retard` : null,
-            toRequestCount > 0 ? `${toRequestCount} à demander` : null,
-          ].filter(Boolean).join(' · ')}
-        </AlertTitle>
-        <Stack divider={<Divider flexItem />} spacing={1.5} sx={{ mt: 1 }}>
+      <AttentionCard attention={attention}>
+        <Stack divider={<Divider flexItem />} spacing={1.5}>
           {rows.map((row) => (
             <Box key={row.reservationId}>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -191,7 +180,7 @@ export default function PaymentDeadlinesAlert() {
             </Box>
           ))}
         </Stack>
-      </Alert>
+      </AttentionCard>
 
       {draftRow ? (
         <EmailManualSendDialog

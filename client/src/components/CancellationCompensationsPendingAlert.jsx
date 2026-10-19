@@ -11,12 +11,13 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, AlertTitle, Box, Typography, Button, IconButton, Tooltip, Divider, Stack,
+  Box, Typography, Button, IconButton, Tooltip, Divider, Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import api from '../api';
+import AttentionCard from './AttentionCard';
 import StatusBadge from './StatusBadge';
 import CancellationCompensationDialog from './CancellationCompensationDialog';
 import { useAppDialogs, useToast } from './DialogProvider';
@@ -29,7 +30,7 @@ function currentMonthParams() {
   return { month: d.getMonth() + 1, year: d.getFullYear() };
 }
 
-export default function CancellationCompensationsPendingAlert() {
+export default function CancellationCompensationsPendingAlert({ attention }) {
   const { confirm } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [pending, setPending] = useState([]);
@@ -97,11 +98,8 @@ export default function CancellationCompensationsPendingAlert() {
 
   return (
     <>
-      <Alert severity="info" variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }} icon={false}>
-        <AlertTitle sx={{ fontWeight: 700 }}>
-          Indemnités d&apos;annulation — {pending.length} versement{pending.length > 1 ? 's' : ''} en attente
-        </AlertTitle>
-        <Stack divider={<Divider flexItem />} spacing={1.5} sx={{ mt: 1 }}>
+      <AttentionCard attention={attention}>
+        <Stack divider={<Divider flexItem />} spacing={1.5}>
           {pending.map((compensation) => (
             <Box key={compensation.id} sx={{ position: 'relative', pr: 5 }}>
               <Tooltip title="Supprimer cette indemnité">
@@ -160,7 +158,7 @@ export default function CancellationCompensationsPendingAlert() {
             </Box>
           ))}
         </Stack>
-      </Alert>
+      </AttentionCard>
 
       <CancellationCompensationDialog
         open={Boolean(dialog)}

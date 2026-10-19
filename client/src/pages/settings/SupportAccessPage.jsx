@@ -61,7 +61,7 @@ export default function SupportAccessPage() {
 
   return (
     <Box>
-      <PageActionBar title="Accès du support" titleOnXs />
+      <PageActionBar title="Accès du support" />
       <Box sx={{ maxWidth: 980, mx: 'auto', p: { xs: 1.5, sm: 3 } }}>
         {error && <ErrorAlert message={error} onRetry={load} />}
         {!data && !error && <LoadingState />}

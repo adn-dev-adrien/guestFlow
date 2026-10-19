@@ -77,7 +77,7 @@ export default function AccountPage() {
 
   return (
     <Box>
-      <PageActionBar title="Mon compte" titleOnXs subtitle={subtitle} />
+      <PageActionBar title="Mon compte" subtitle={subtitle} />
       <Box sx={{ maxWidth: 880, mx: 'auto', p: { xs: 1.5, sm: 3 } }}>
         <SelfProfileSection
           initialValues={me}

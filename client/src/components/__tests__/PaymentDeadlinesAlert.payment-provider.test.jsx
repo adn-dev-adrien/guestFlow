@@ -23,6 +23,9 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
+
 const ROW = {
   reservationId: 10,
   reservationNumber: '2026-09-004',
@@ -46,7 +49,7 @@ const ROW = {
   requestSent: true,
 };
 
-const renderCard = () => render(<DialogProvider><PaymentDeadlinesAlert /></DialogProvider>);
+const renderCard = () => render(<DialogProvider><PaymentDeadlinesAlert attention={ATTENTION} /></DialogProvider>);
 
 beforeEach(() => vi.clearAllMocks());
 

@@ -52,7 +52,6 @@ export default function PropertiesPage() {
     <Box>
       <PageActionBar
         title="Logements"
-        titleOnXs
         actionsBefore={[{
           node: (
             <Button key="create-property" variant="contained" size="small" startIcon={<AddIcon />} onClick={createProperty}>

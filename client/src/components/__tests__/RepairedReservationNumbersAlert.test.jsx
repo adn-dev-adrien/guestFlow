@@ -5,6 +5,9 @@ import { vi } from 'vitest';
 import RepairedReservationNumbersAlert from '../RepairedReservationNumbersAlert';
 import api from '../../api';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'repaired-reservation-numbers', severity: 'todo', count: 1, title: 'Réservations restées sans numéro', detail: 'Un séjour fantôme bloque ses dates : vérifier qu’il s’agit d’un vrai séjour.' };
+
 // specs/reservation-number-and-search.md rule 15 — les séjours restés sans numéro, numérotés au
 // démarrage, restent sur le tableau de bord jusqu'à « Vu ».
 
@@ -24,7 +27,7 @@ beforeEach(() => { vi.clearAllMocks(); });
 
 test('rien à vérifier : la carte ne s’affiche pas', async () => {
   api.getRepairedReservationNumbers.mockResolvedValue({ alerts: [] });
-  const { container } = render(<RepairedReservationNumbersAlert />);
+  const { container } = render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
   await waitFor(() => expect(api.getRepairedReservationNumbers).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();
 });
@@ -32,18 +35,18 @@ test('rien à vérifier : la carte ne s’affiche pas', async () => {
 test('une réservation renumérotée s’affiche, s’ouvre, et « Vu » la retire', async () => {
   api.getRepairedReservationNumbers.mockResolvedValue({ alerts: [ROW] });
   api.acknowledgeRepairedReservationNumber.mockResolvedValue({ ok: true });
-  render(<RepairedReservationNumbersAlert />);
-  expect(await screen.findByText(/1 réservation restée sans numéro/)).toBeInTheDocument();
+  render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
+  expect(await screen.findByText('Réservations restées sans numéro')).toBeInTheDocument();
   await userEvent.click(screen.getByText(/N° 202610007 · Jean Dupont · Gîte/));
   expect(mockNavigate).toHaveBeenCalledWith('/reservations/42');
   await userEvent.click(screen.getByRole('button', { name: 'Vu' }));
   expect(api.acknowledgeRepairedReservationNumber).toHaveBeenCalledWith(42);
-  await waitFor(() => expect(screen.queryByText(/restée sans numéro/)).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByText(/N° 202610007/)).not.toBeInTheDocument());
 });
 
 test('une erreur de chargement n’affiche rien', async () => {
   api.getRepairedReservationNumbers.mockRejectedValue(new Error('boom'));
-  const { container } = render(<RepairedReservationNumbersAlert />);
+  const { container } = render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
   await waitFor(() => expect(api.getRepairedReservationNumbers).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();
 });

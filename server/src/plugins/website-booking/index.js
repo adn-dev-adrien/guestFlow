@@ -59,6 +59,7 @@ function register(ctx) {
     listPendingPublicDevis: () => sdk.coreModule('reservationsModel').listPendingPublicDevis(),
   });
   ctx.route('get', '/api/dashboard/public-devis-pending', pending.list);
+  ctx.attention({ key: 'site-requests', rank: 20, handler: pending.list, summarize: require('./attention').summarize });
 
   const enforcement = buildEnforcementController({
     settings,

@@ -254,7 +254,6 @@ export default function ResourcePlanningPage() {
     <Box>
       <PageActionBar
         title="Planning ressources"
-        titleOnXs
         center={resources.length > 0 ? renderWeekControls() : undefined}
         // Below lg the bar also carries the week controls: the button shrinks to its « + » icon
         // (specs/ds-components.md rule 24).

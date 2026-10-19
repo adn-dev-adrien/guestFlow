@@ -12,20 +12,13 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getToday: vi.fn(),
-    getProperties: vi.fn(),
+    getAttention: vi.fn(),
     getReservations: vi.fn(),
     getReservation: vi.fn(),
     markPayment: vi.fn(),
   },
 }));
 vi.mock('../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => ({ user: { roles: ['admin'] } }) }));
-vi.mock('../../plugins/linen/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/IcalCancellationAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/NewReservationsAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/EmailPendingAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/EmailReadinessAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/TwoFactorNudgeCard', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, default: () => null }));
 
 import api from '../../api';
@@ -51,7 +44,7 @@ const stay = (id, lastName, startDate) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  api.getProperties.mockResolvedValue([]);
+  api.getAttention.mockResolvedValue({ pinned: [], items: [], total: 0 });
 });
 
 test('rule 9 — a late answer for the day left behind does not replace the arrivals of the day shown', async () => {
@@ -70,7 +63,7 @@ test('rule 9 — a late answer for the day left behind does not replace the arri
   });
   api.getReservation.mockImplementation((id) => Promise.resolve(id === 1 ? late : fresh));
   renderPage();
-  await waitFor(() => expect(slow).toHaveLength(2));
+  await waitFor(() => expect(slow).toHaveLength(1));
   clicked = true;
   fireEvent.click(screen.getAllByLabelText('Jour précédent')[0]);
   expect((await screen.findAllByText(/Actuel/)).length).toBeGreaterThan(0);
