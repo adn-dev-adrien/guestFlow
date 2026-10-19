@@ -34,8 +34,8 @@ test('rules 16 + 31: one row per text, BOM, `;`, the six columns, no secret, no 
   assert.ok(csv.startsWith('﻿email;clé;description;français;english;texte par défaut (FR)\r\n'));
   // Rule 31 — « Accès » may hold a code typed by hand: it never leaves in the file.
   assert.doesNotMatch(csv, /access:1|Porte bleue/);
-  assert.match(csv, /\r\nJ-7;text:beds\.made;Lits préparés;/);
-  assert.match(csv, /\r\nJ-7;hook:1;/);
+  assert.match(csv, /\r\nPréparation du séjour;text:beds\.made;Lits préparés;/);
+  assert.match(csv, /\r\nPréparation du séjour;hook:1;/);
   assert.match(csv, /\r\nConfirmation;subject:reservation_confirmation;Objet — /);
   assert.doesNotMatch(csv, /4521|pres2026/);
 });
@@ -97,7 +97,7 @@ test('rule 22: a text starting with - = + @ is exported as text and read back un
   const { db } = setup();
   db.prepare("INSERT INTO stay_texts (key, propertyId, fr, en) VALUES ('parkingLine', 0, '- Garez-vous au parking.', '=Park here')").run();
   const csv = await exported(db);
-  assert.match(csv, /\r\nJ-2;text:parkingLine;[^;]*;'- Garez-vous au parking\.;'=Park here;'- Garez-vous/);
+  assert.match(csv, /\r\nAccès et arrivée;text:parkingLine;[^;]*;'- Garez-vous au parking\.;'=Park here;'- Garez-vous/);
   const res = await call(buildController({ database: db, translator }).importCsv, { body: csv, query: {} });
   assert.deepEqual(res.body.changed, []);
   assert.deepEqual(emailTextsCsv.parse("clé;français;english\ntext:house;'-x;'@y\n")[0], { line: 2, key: 'text:house', fr: '-x', en: '@y' });

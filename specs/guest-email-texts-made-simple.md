@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (2026-10-08) |
+| **Status** | Implemented (2026-10-08; rules 41–45 on 2026-10-19) |
 | **Branch** | `feature/email-texts-made-simple` (from `inte/plugins`) |
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
@@ -418,6 +418,114 @@ The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email
     - An apostrophe in an email's local part stays in it (« jean.o'brien@… »).
     - No heading when the instance has no name of its own (the sender falls back to « GuestFlow »):
       the software's name never heads a guest's email.
+### 3.K UI/UX review of 2026-10-18 (decisions 5, 10, 11, 12, 13)
+
+Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.html`, settings mocks
+1–4 and 8). Each rule cites its decision.
+
+41. **Variables on demand, refused where they are typed** (decision 5). No chip wall under a field: one
+    « + Variable » button beside its name, and the `[` key in the field, open one filterable list at the
+    field (`VariablePicker`): typing filters by the label (« pré » → « Prénom du voyageur »), ↑ ↓ choose,
+    Entrée inserts, Échap closes without inserting. Conditions follow the variables as « Seulement si :
+    … ». The server stays the only validator (rule 11): its refusal now also carries the word typed
+    (`unknown`) and, when one is close enough, the variable this text may use that it most likely meant
+    (`suggestion: { name, label }` — a name or label starting with what was typed, else at most a third
+    of its letters apart, two at least). The field shows the refusal under itself with « <label> ? »
+    and a « Remplacer » button that swaps the word for the variable. While a draft is refused, the
+    preview keeps the last email it rendered, dimmed, with « Texte à corriger : l'aperçu montre le
+    dernier texte valide. » — it no longer replaces the email by the error. The subject of « Modèle
+    complet » shows its variables by their label too (one notation). The three private characters of
+    rule 45 are refused in any typed text (« Variable incomplète … »).
+    *2026-10-19 bis (review of PR #723):* a typed `[` stays in the text and opens the list there:
+    picking a variable replaces that `[`, Échap keeps it. It is read on the change, not the key, so it
+    works whatever the layout (« ⌥⇧( » on a French Mac) and never while an input method composes; where
+    a keyboard reports no key (Android), « + Variable » remains. Échap and Entrée stop at the list:
+    the template dialog, « Modèle complet » or the phone's sheet around the field stays open. Tab or
+    leaving the list closes it. A tag character is refused with its own message: « Caractère
+    invisible collé dans le texte : le retirer. »
+42. **One language at a time** (decision 10). FR | EN at the top of the texts (and in « Modèle complet »
+    and the template dialog) shows one field per text, full width. In EN, each English field has the
+    French above it as a grey reference line. Beside the switch, the server's count: « N à traduire »
+    (a text a stored template places, French written, English empty — `toTranslate`), « Anglais
+    complet » at zero. The page reads it from `GET /api/email-texts`, then from every preview while a
+    draft is typed (the count follows what is typed, computed on the draft in the rolled-back
+    transaction). « Traduire » (rule 19) moves next to the count and shows only while something is to
+    translate. The preview follows the same switch; its own FR/EN toggle is gone from this page
+    (« Aperçu · EN »). On a phone the rows show the language chosen, « À traduire » in EN.
+43. **« Quand ? » is one sentence** (decision 11). The server says when an email leaves:
+    « Envoyé 2 jours avant l'arrivée », « Envoyé le jour de l'arrivée », « Envoyé 3 jours après
+    l'échéance du solde », « Envoyé à la réservation », « Envoyé le 15 novembre »
+    (`utils/templateWhen.js`, `when` on each template; `whenLabel` is the same without « Envoyé »).
+    The template dialog edits it as « Envoyé [n] jours [avant | après | le jour même de] <ancre> »
+    (`RelativeDayField`); every change is read by `POST /api/email-templates/when`, which answers the
+    signed offset, the sentence and the day it would leave for the next stay (« Prochain séjour (Gite,
+    vendredi 23 octobre au lundi 26 octobre) : envoyé le mercredi 21 octobre. »), or refuses under the
+    number: « Indiquer un nombre de jours. », « Un nombre entier de jours, sans signe. », « 0 jour :
+    choisir « le jour même de ». », « 90 jours au plus. ». « Enregistrer » waits for a valid reading;
+    the stored value stays the signed `dayOffset`. Only a moment the scheduler counts from the offset is
+    editable: a template of the operator's own (arrival) and the deposit and balance reminders (their due
+    dates). The guest sequence computes its own days and the event emails leave on an action: their
+    sentence reads fixed.
+    *Departure from the mock:* the anchor is not a choice (« l'arrivée ▾ / le départ ▾ »): the scheduler
+    has no departure anchor for a template of the operator's own (`utils/emailAutoSendRunner.js`), so
+    offering it would save a moment nothing sends at. The anchor reads as words.
+    *2026-10-19 bis (review of PR #723):* the save carries the sentence itself, `when: { days,
+    direction }`, on `POST` / `PUT /api/email-templates`; the server reads it against the template's
+    own moment and stores the offset it reads — never an offset a page kept from an earlier answer
+    (« Enregistrer » right after 3 → 12 used to store 3). « Enregistrer » waits while a reading is on its
+    way, and a late answer to an earlier reading is dropped. A moment the application fixes (the
+    sequence, an action) is refused, read or written: `422` « Moment fixé par l'application : il ne se
+    règle pas ici. ». The example names the next stay the offset still reaches (its send day today or
+    later), with its year when it is not the current one.
+44. **One name per email, in stay order** (decision 12). The server names every shipped email by its
+    purpose (`utils/emailTimeline.js`): Confirmation, Demande d'acompte, Rappel d'acompte, Demande de
+    paiement, Demande de solde, Rappel de solde, Préparation du séjour, Accès et arrivée, Merci et avis,
+    Bons cadeaux, Vœux et dates, Avis d'annulation; a template of the operator's own keeps its name.
+    The same name is used by Emails › Modèles, the sections of this page (« Accès et arrivée » with
+    « Envoyé 2 jours avant l'arrivée » under it, no number, no « J-2 »), the email column of the file
+    (rule 16), the manual send and compose dialogs, the history filter and the assistant's preview.
+    Emails › Modèles becomes a timeline grouped by moment — À la réservation, Avant l'arrivée,
+    Pendant le séjour, Après le départ, Saison, Annulation (`GET /api/email-templates?view=timeline`)
+    — each row its name, « personnalisé » for the operator's own, « Auto » only when it leaves by
+    itself (« Manuel » is no longer repeated on every row), its « Quand » under it, the « Envoyer »
+    switch, and « ⋯ » holding « Envoi automatique » / « Revenir à l'envoi manuel », « Modifier le
+    modèle », « Modifier les textes » and « Supprimer ». A shipped row opens its texts; one of the
+    operator's own opens its editor. The editor of a shipped email is titled by its name and no longer
+    shows the internal « Nom du modèle » field; only the operator's own template has a name to type. A shipped email is switched off, never deleted: « Supprimer » is
+    disabled for it (« Email livré : il se coupe seulement ») and the server answers `409
+    SHIPPED_TEMPLATE` « Email livré : il se coupe, il ne se supprime pas. » — the seed used to put it
+    back at the next start anyway.
+    *2026-10-19 bis (review of PR #723):* no guest email leaves without validation unless it is said
+    once, explicitly: « Envoi automatique… » is no longer the first item of « ⋯ » (after « Modifier le
+    modèle » and « Modifier les textes ») and asks first, « Cet email partira sans validation, à sa
+    date. »; so does saving a template switched to « Automatique » in its dialog. Back to manual needs
+    no confirmation.
+45. **The rendered email is the map** (decision 13). The preview (rule 13) answers the email cut into
+    `segments: [{ text, key }]`, `key` being the text key of §4.3 the words come from (`text:house@1`,
+    `mention:4:booked`, `hook:1`, `access:1`, `resource:9`…) or null for the template's own words, and
+    `subjectKey`. On the page each sentence is a button: hover marks it, a click (or Entrée) opens its
+    field — on a computer the column scrolls to it and focuses it; on a phone a sheet opens over the
+    email with the field and « OK ». The text being edited is highlighted in the email while typing.
+    The template's own words open « Modèle complet ».
+    **No tag ever leaves.** The tagging happens only in `utils/emailDraftPreview.js`, inside its
+    rolled-back transaction: every stored text is rewritten wrapped with three private-use characters
+    (U+E000 key U+E001 … U+E002) around each piece holding words — never around a condition, never
+    around the spaces — so an empty text, a false condition and a trimmed paragraph render exactly as
+    untagged. The rendering is then split into the segments and the plain text, which is what `body`
+    carries, what « M'envoyer un test » sends, and character for character what a real send renders
+    (tested on every sequence email, FR and EN). Nothing persists (rolled back), the send path
+    (`emailsController.buildPreview`, the scheduler, and the HTML part of rule 37)
+    never tags, and the shared validator refuses the three characters in anything typed.
+    *2026-10-19 bis (review of PR #723):* `body` and `subject` are the email rendered before any tag;
+    the tagged rendering only cuts it into segments, and is kept only when its text is exactly that
+    email — otherwise the email is shown whole, not clickable (an empty first name before a comma,
+    a value carrying one of the characters). A tag character a value carried, alone, is text. A
+    sentence whose field is folded away (its section closed, or « Phrases non utilisées ») unfolds it,
+    then the field is reached.
+    *2026-10-19 ter (merge of PR #720):* the preview's HTML part (rule 37) is built from that same
+    email rendered before any tag — the plain text — never from the tagged rendering; so is the HTML
+    of « M'envoyer un test ». The sentences are clickable in the « Texte » view only; the « HTML »
+    frame is a plain rendering.
 
 ---
 
@@ -463,6 +571,16 @@ The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email
 | `controllers/` | `emailTemplatesController.js` | T | Shared validation (rule 11), `GET /:id/variables`, `textsSection` (rule 12) |
 | `controllers/` | `onboardingController.js` | T | `emails` block and `PUT /api/onboarding/emails` (rule 21) |
 | `routes/` | `emailReadiness.js`, `onboarding.js`, `emailTemplates.js` | C/T | Thin |
+| `utils/` | `templateTokens.js` | T | `closestVariable`: the suggestion of a refusal (rule 41); sections named by purpose with their « Quand » (rule 44); the private tag characters refused (rule 45) |
+| `utils/` | `previewTags.js` | C | Tags a stored text with its key, splits a tagged rendering into segments and plain text (rule 45) |
+| `utils/` | `emailDraftPreview.js` | T | Tags every stored text inside the rolled-back transaction; answers `segments`, `subjectKey`, `toTranslate` (rules 42, 45) |
+| `utils/` | `templateWhen.js` | T | The « Quand » sentence, whether its number is editable, and the reading of a typed sentence (rule 43) |
+| `utils/` | `emailTimeline.js` | C | One name per email and its moment; the timeline in stay order (rule 44) |
+| `utils/` | `dateFr.js` | T | `weekdayLabel` — « mercredi 21 octobre » (rule 43) |
+| `models/` | `emailTextsModel.js` | T | `countToTranslate` (rule 42); subjects described by the email's name (rule 44) |
+| `models/` | `emailTemplatesModel.js` | T | `nextStay` — the stay of the « Quand ? » example (rule 43) |
+| `controllers/` | `emailTemplatesController.js` | T | `displayName`, `when`, `shipped`, `?view=timeline`, `POST /when`, `409 SHIPPED_TEMPLATE` (rules 43–44) |
+| `controllers/` | `emailTextsController.js` | T | `toTranslate`, section `when`, template names; the 422 carries `unknown` and `suggestion` (rules 41, 42, 44) |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -495,11 +613,22 @@ The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email
 | `components/` | `EmailMentionsPanel.jsx` | T | A proposal reads « ⟦Prix⟧ », as in its editor |
 | `components/` | `EmailPreviewPane.jsx` | T | Optional `html` prop: « Texte \| HTML » switch, the HTML in a sandboxed frame (rule 37) |
 | `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | Passes the preview's `html` to the pane (rule 37) |
+| `components/` | `VariablePicker.jsx` | C | Generic: the filterable list of variables and conditions opened by « + Variable » or `[` (rule 41) |
+| `components/` | `TokenTextField.jsx` | T | No chip wall; « + Variable » / `[`; refusal with « Remplacer »; `language` (one field, French reference in EN) (rules 41–42) |
+| `components/` | `EmailPreviewPane.jsx` | T | `segments` as buttons, `activeKey`, `stale`, « Aperçu · FR » without its own toggle (rules 41, 45) |
+| `components/` | `RelativeDayField.jsx` | C | Generic: « Envoyé [n] jours [avant ▾] <ancre> », refusal and example from the server (rule 43) |
+| `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | FR | EN and the count; sections by name and « Quand »; a sentence of the preview opens its field or the phone's sheet (rules 42, 44, 45) |
+| `pages/` | `EmailTemplatesPage.jsx` | T | The timeline with « ⋯ »; the « Quand ? » sentence; FR | EN (rules 42–44) |
+| `components/` | `EmailManualSendDialog.jsx`, `EmailComposeDialog.jsx`, `pages/EmailHistoryPage.jsx`, `OnboardingEmailsStep.jsx` | T | The email's one name (rule 44) |
+| `utils/` | `tokenDisplay.js` | T | `replaceVariable` — the suggested fix (rule 41); `chipLabel` gone with the chips |
 
 **Component reuse:**
 - Reused: `MaskedTextField`, `HelpedTextField`, `PageActionBar`, `StatusBadge`, `EmptyState`,
   `ErrorAlert`, `FormDialog`.
 - Generic and new: `EmailPreviewPane` (the manual send dialog can use it) and `ReadinessList`.
+- *2026-10-19:* generic and new: `VariablePicker` (any editor inserting server-labelled tokens) and
+  `RelativeDayField` (any moment counted in days from an anchor). Reused: `StatusBadge` for « N à
+  traduire » and « Auto », MUI `Drawer` for the phone's sheet, MUI `Menu` for « ⋯ ».
 
 ### 4.3 API contract
 
@@ -520,6 +649,19 @@ The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email
 | GET | `/api/onboarding` | adds `property: { id, existing, draft }` — the property the assistant created, to edit (rule 29, 2026-10-18) |
 | PUT | `/api/onboarding/property` | edits the assistant's own property; 409 `PROPERTIES_EXIST` on an instance it did not equip (rule 29, 2026-10-18) |
 | GET | `/api/properties/article-labels?name=` | `{ labels: [{ value, label }] }` — the five articles as the emails write them (rule 30, 2026-10-18 bis) |
+
+*2026-10-19 (rules 41–45):*
+
+| Method | Path | Body / answer |
+|---|---|---|
+| GET | `/api/email-texts` | adds `toTranslate` and, per section, `when`; section `templates[].name` is the email's one name |
+| PUT | `/api/email-texts` | the 422 adds `unknown` and `suggestion: { name, label }` when one is close |
+| POST | `/api/emails/preview` | adds `segments: [{ text, key }]`, `subjectKey`, `toTranslate`; its 422 carries `unknown` / `suggestion` |
+| GET | `/api/email-templates` | each row adds `displayName`, `when: { editable, anchor, anchorLabel, days, direction, label, sentence }`, `shipped`; `whenLabel` reads « 2 jours avant l'arrivée » |
+| GET | `/api/email-templates?view=timeline` | `{ groups: [{ id, label, templates }] }` in stay order |
+| POST | `/api/email-templates/when` | `{ templateId?, days, direction }` → `{ offsetDays, sentence, example }` or 422 `{ field, message }` |
+| POST / PUT | `/api/email-templates[/:id]` | accept `when: { days, direction }`, read by the server into `dayOffset`; 422 `{ field: 'days' \| 'direction' \| 'when', message }` (2026-10-19 bis) |
+| DELETE | `/api/email-templates/:id` | 409 `SHIPPED_TEMPLATE` for a shipped email |
 
 *2026-10-18 bis:* `PUT /api/onboarding/emails` and `PUT /api/properties/:id` also take
 `bedLinenProvided`; `PUT /api/properties/:id` keeps the stored `nameArticle` and `defaultCautionAmount`
@@ -565,6 +707,21 @@ See the summary page.
   « Code de la boîte à clés », « Caution (€) », and the two yes/no chip pairs (rules 28, 32).
 - *2026-10-18 bis:* « Linge de lit » joins the Séjour tab and « Vos emails » (rule 28); the property
   page's article menu lists « au Fournil »… from the server and shows empty while unconfirmed (rule 30).
+- *2026-10-19 (rules 41–45, the review's settings mocks 1–4 and 8):*
+  - **Desktop (≥ 900 px):** above the sections, FR | EN and « N à traduire » (« Traduire » beside it
+    when the platform key exists). One field per text, full width of the column; « + Variable » at the
+    right of each text's name. The preview (« Aperçu · FR ») says « Cliquer une phrase pour la
+    modifier. »; hover marks a sentence, a click scrolls the column to its field and focuses it, the
+    sentence stays highlighted while it is typed.
+  - **Tablet (~900 px):** the same; the one-language column is about twice as wide as each of the two
+    side-by-side columns before.
+  - **Mobile (≤ 600 px):** the rows stay one line until tapped (rule 25) and show the language chosen,
+    « À traduire » in EN. « Voir l'email » shows the preview under the section; a tapped sentence opens a
+    bottom sheet (rounded top, safe-area padding, at most 85 % of the height) with its field focused
+    and « OK ». The variable list opens under the field, the width of the screen less 32 px.
+  - **Emails › Modèles:** one list for every width — moment headers, rows of 44 px at least, the
+    switch and « ⋯ » at the right; no table, no horizontal scroll at 390 px. The template dialog reads
+    « Envoyé [2] jours [avant ▾] l'arrivée », the example day under it, the refusal under the number.
 - *2026-10-19 (rules 37–39):* the preview pane of « Textes des emails » gains « Texte | HTML » beside
   FR | EN (text first). On a phone the switch wraps under the language toggle; the HTML frame is
   520 px high (640 px from `md`), and the email itself, 600 px at most, fills the 390 px width with a
@@ -617,6 +774,32 @@ rule 30), `bed-linen-pending-fact` (4, rule 28), `template-single-brace` (3, rul
 `PropertyDetail.article-and-deposit` (4, rules 28, 30), `OnboardingPage.facts-and-resume` (+1, rule 28).
 The `previewWithArticle` helper tests are gone with the helper.
 
+*2026-10-19 (rules 41–45):* server `email-preview-tags` (5, rule 45: tagging keeps the words, split,
+segments keyed by the page's keys, the preview equal to the real send on four emails × FR/EN, nothing
+persisted, the test send and a real send carry no tag, the characters refused), `email-texts-variable-suggestion`
+(3, rule 41), `email-texts-translate-count` (2, rule 42), `email-template-when-sentence` (3, rule 43),
+`email-templates-timeline` (4, rule 44); `email-texts-page`, `email-texts-csv`, `email-texts-tokens`,
+`email-send-failure-and-when`, `email-mentions`, `stay-texts` follow the new names and the refusal's
+`unknown`. Client `TokenTextField.variables-on-demand` (5, rules 41–42), `EmailTextsSettingsPage.one-language`
+(3, rule 42), `EmailTextsSettingsPage.click-preview` (4, rules 41, 45), `EmailTemplatesPage.when-sentence`
+(3, rule 43); `EmailTemplatesPage` rewritten for the timeline (rule 44), `TokenTextField`,
+`MentionEditor`, `EmailTemplatesPage.texts-link`, `EmailTemplatesPage.token-view` and the page fixtures
+follow the picker and the names. E2E `email-texts.spec.js` and `emails-page.spec.js` follow the names;
+`email-texts.spec.js` adds a click on a sentence of the J-2 preview.
+
+*2026-10-19 bis (review of PR #723):* server `email-preview-tags` +2 (a lone tag character, an empty
+first name), `email-template-when-sentence` +3 (`when` in a write, a fixed moment refused, the
+reachable example and its year); client `VariablePicker.inside-dialogs` (5: Échap and Entrée inside a
+dialog and a sheet, Tab), `TokenTextField.variables-on-demand` (6: the typed `[` kept, replaced, input
+method), `EmailTemplatesPage.when-sentence` +1 (pending and late answers), `EmailTemplatesPage` +1
+(confirmation before « Envoi automatique », its place), `EmailTextsSettingsPage.click-preview` +1
+(a folded field unfolds).
+
+*2026-10-19 ter (merge of PR #720; rules 37–40 are its HTML part, this section's rules became
+41–45):* `email-preview-tags` asserts the preview's `html` equals the HTML sent and carries no tag,
+and that the test send and a real send carry their HTML part, tag-free; client
+`EmailTextsSettingsPage.click-preview` +1 (no clickable sentence in the HTML view).
+
 ## 8. Out of scope
 
 - A rich-text (WYSIWYG) editor. The HTML part (rule 37) is derived, never edited.
@@ -656,6 +839,9 @@ read back from the dev mail catcher; export, then re-import with one changed and
 **Manual check:** the page, typing with the live preview, FR/EN, export then import with a refused row,
 the property « Arrivée » block and the assistant's « Vos emails » at 390, 900 and 1280 px, on a copy of
 the dev database: no console error, no horizontal scroll.
+
+**2026-10-19 (rules 41–45):** see the Test plan note of the same date; measured on a copy of Solio's
+database below.
 
 **Solio, measured on a copy of the dev database (65 reservations, 12 templates):** every template ×
 every reservation × FR/EN rendered before and after through the real preview path: 1,560 renderings

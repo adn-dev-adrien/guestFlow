@@ -74,9 +74,9 @@ test('rule 4: an unknown token or flag is refused at save, never stored', () => 
   const { controller } = setup();
   const unknown = call(controller.save, { params: { key: 'offers.localIntro' }, body: { fr: 'Nos produits : {{prix}}', en: '' } });
   assert.equal(unknown.status, 422);
-  assert.deepEqual(unknown.body, { field: 'fr', message: 'Variable inconnue : {{prix}}' });
+  assert.deepEqual(unknown.body, { field: 'fr', message: 'Variable inconnue : {{prix}}', unknown: 'prix' });
   const flag = call(controller.save, { params: { key: 'house' }, body: { fr: '', en: '{{#if hasPool}}Pool{{/if}}' } });
-  assert.deepEqual(flag.body, { field: 'en', message: 'Variable inconnue : {{hasPool}}' });
+  assert.deepEqual(flag.body, { field: 'en', message: 'Variable inconnue : {{hasPool}}', unknown: 'hasPool' });
   assert.ok(call(controller.list, {}).body.texts.every((t) => t.isDefault));
   assert.equal(call(controller.save, { params: { key: 'nope' }, body: {} }).status, 404);
 });

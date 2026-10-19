@@ -218,7 +218,7 @@ export default function EmailManualSendDialog({
             <Select label="Modèle" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
               {templates.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
-                  {t.name} ({t.whenLabel || offsetLabel(t.dayOffset)})
+                  {t.displayName || t.name} ({t.whenLabel || offsetLabel(t.dayOffset)})
                 </MenuItem>
               ))}
             </Select>

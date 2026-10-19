@@ -172,7 +172,7 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // the `qonto` core module (2026-10-18 code review) and `secrets.rotate`, for the website key's
 // « Régénérer ». Both minor bumps.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
-  assert.equal(SDK_VERSION, '1.2.0');
+  assert.equal(SDK_VERSION, '1.3.0');
   assert.equal(satisfies(SDK_VERSION, '^1.0.0'), true);
   assert.equal(satisfies(SDK_VERSION, '^2.0.0'), false);
 });

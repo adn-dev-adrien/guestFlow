@@ -133,7 +133,6 @@ final class GF_Blocks
                 'bookNow'         => __('Réserver', 'guestflow-booking'),
                 'capacity'        => __('Capacité', 'guestflow-booking'),
                 'persons'         => __('personnes', 'guestflow-booking'),
-                'requiredFields'  => __('Merci de renseigner tous les champs obligatoires.', 'guestflow-booking'),
                 // Online payment flow (specs/public-online-payment.md)
                 'payOnline'       => __('Payer en ligne', 'guestflow-booking'),
                 'preparingPayment' => __('Préparation du paiement…', 'guestflow-booking'),
@@ -157,7 +156,7 @@ final class GF_Blocks
                 'pickArrival'     => __('Sélectionnez votre date d’arrivée', 'guestflow-booking'),
                 'pickDeparture'   => __('Sélectionnez votre date de départ', 'guestflow-booking'),
                 'rangeBlocked'    => __('Ces dates incluent une nuit indisponible. Choisissez une autre période.', 'guestflow-booking'),
-                // specs/wp-booking-widget-redesign.md §3 rules 29-31 — a complete range stays editable.
+                // specs/wp-booking-widget-redesign.md §3 rules 24-28 — a complete range stays editable.
                 'changeDeparture' => __('Cliquez une autre date pour changer le départ, ou l’arrivée pour recommencer.', 'guestflow-booking'),
                 'minNightsExtend' => __('Cliquez une date plus tard pour allonger le séjour.', 'guestflow-booking'),
                 'clearDates'      => __('Effacer les dates', 'guestflow-booking'),
@@ -207,6 +206,20 @@ final class GF_Blocks
                 'bookingClosed'   => __('Réservation en ligne fermée pour le moment.', 'guestflow-booking'),
                 // A failed payment leaves the request recorded (rule 16).
                 'paymentRetry'    => __('Demande enregistrée (référence %s). Le paiement peut être relancé.', 'guestflow-booking'),
+                // UI/UX review 2026-10-18 — the calendar's states and its way out of a closed window
+                // (specs/wp-booking-widget-redesign.md rules 30-31).
+                'legendFree'      => __('Libre', 'guestflow-booking'),
+                'legendTaken'     => __('Pris', 'guestflow-booking'),
+                'nextAvailable'   => __('Prochaine disponibilité : %s', 'guestflow-booking'),
+                'nextAvailableGo' => __('Voir', 'guestflow-booking'),
+                // Refused on the field (specs/wordpress-plugin.md rule 28). The server sends its own
+                // sentence per field; these two are the local check and the fallback for an older server.
+                'fieldRequired'   => __('Champ requis.', 'guestflow-booking'),
+                'emailInvalid'    => __('Adresse e-mail incomplète.', 'guestflow-booking'),
+                // The sticky bar's button follows the step (specs/wp-booking-widget-redesign.md rule 32).
+                'barPickDates'    => __('Choisir les dates', 'guestflow-booking'),
+                'barContinue'     => __('Continuer', 'guestflow-booking'),
+                'taxIncluded'     => __('taxe de séjour incluse', 'guestflow-booking'),
             ],
         ];
     }

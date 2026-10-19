@@ -44,8 +44,23 @@ function formatTimeShort(value) {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+const FR_WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+// `2026-10-21` → `mercredi 21 octobre` — a day of the coming weeks; its year is said only when it is
+// not `currentYear` (« lundi 4 janvier 2027 »).
+function weekdayLabel(isoDate, currentYear = null) {
+  const match = String(isoDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  const [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const day = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(day.getTime()) || m < 1 || m > 12) return '';
+  const year = currentYear != null && Number(currentYear) !== y ? ` ${y}` : '';
+  return `${FR_WEEKDAYS[day.getUTCDay()]} ${d === 1 ? '1er' : d} ${FR_MONTHS[m - 1]}${year}`;
+}
+
 module.exports = {
   formatDateLong,
+  weekdayLabel,
   formatTimeShort,
   FR_MONTHS,
   EN_MONTHS,

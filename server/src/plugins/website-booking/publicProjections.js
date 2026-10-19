@@ -342,7 +342,7 @@ function collapseToRanges(sortedDates) {
   return ranges;
 }
 
-function toPublicAvailability({ propertyId, from, to, blockedDates }) {
+function toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate = null }) {
   const sorted = Array.from(new Set(blockedDates || [])).filter(Boolean).sort();
   return {
     propertyId: Number(propertyId),
@@ -350,6 +350,8 @@ function toPublicAvailability({ propertyId, from, to, blockedDates }) {
     to,
     blockedDates: sorted,
     blockedRanges: collapseToRanges(sorted),
+    // The first free night on or after max(from, today), looked up to a year ahead; null when none.
+    nextAvailableDate: nextAvailableDate || null,
   };
 }
 

@@ -13,15 +13,18 @@
 
 const { unknownToken, structureError, STRUCTURE_MESSAGES } = require('./emailTemplateRenderer');
 
-/** The emails of the single page, in send order (rule 9), and the stored templates of each. */
+/**
+ * The emails of the single page, in send order (rule 9), and the stored templates of each. Each is
+ * named by what it is for, with its « Quand » (rule 44, UI/UX review 2026-10-18 decision 12).
+ */
 const SECTIONS = Object.freeze([
-  { id: 'confirmation', title: 'Confirmation', stableKeys: ['reservation_confirmation'] },
-  { id: 'payment', title: 'Demande d’acompte / de solde', stableKeys: ['deposit_request', 'deposit_reminder', 'full_request', 'balance_request', 'balance_reminder'] },
-  { id: 'j7', title: 'J-7', stableKeys: ['arrival_reminder_7d'] },
-  { id: 'j2', title: 'J-2', stableKeys: ['arrival_reminder_1d'] },
-  { id: 'j1', title: 'Lendemain du départ', stableKeys: ['guest_thanks_j1'] },
-  { id: 'season', title: 'Relances novembre / janvier', stableKeys: ['season_gift_vouchers', 'season_new_year'] },
-  { id: 'cancellation', title: 'Annulation', stableKeys: ['cancellation_notice'] },
+  { id: 'confirmation', title: 'Confirmation', when: 'Envoyé à la réservation', stableKeys: ['reservation_confirmation'] },
+  { id: 'payment', title: 'Demandes de paiement', when: 'Envoyées à la demande et aux échéances', stableKeys: ['deposit_request', 'deposit_reminder', 'full_request', 'balance_request', 'balance_reminder'] },
+  { id: 'j7', title: 'Préparation du séjour', when: 'Envoyé 7 jours avant l’arrivée', stableKeys: ['arrival_reminder_7d'] },
+  { id: 'j2', title: 'Accès et arrivée', when: 'Envoyé 2 jours avant l’arrivée', stableKeys: ['arrival_reminder_1d'] },
+  { id: 'j1', title: 'Merci et avis', when: 'Envoyé le lendemain du départ', stableKeys: ['guest_thanks_j1'] },
+  { id: 'season', title: 'Bons cadeaux, vœux et dates', when: 'Envoyés le 15 novembre et le 6 janvier', stableKeys: ['season_gift_vouchers', 'season_new_year'] },
+  { id: 'cancellation', title: 'Avis d’annulation', when: 'Envoyé à l’annulation', stableKeys: ['cancellation_notice'] },
 ]);
 
 /** The stay-text catalogue's email names (utils/stayTextCatalogue.js MAILS) → section ids. */
@@ -305,12 +308,16 @@ function singleBraced(text, { tokens = [], flags = [] } = {}) {
   return false;
 }
 
+const TAG_CHARACTER_MESSAGE = 'Caractère invisible collé dans le texte : le retirer.';
+
 /**
  * Rule 11 — the one validation of the three editors: a broken variable or condition (rule 26), else
  * the first unknown name of a text, as the 422 body `{ field, message }`, or null.
  */
 function tokenError(field, text, allowed) {
   // Rule 26 — a broken variable or condition first: the renderer would print it as it is.
+  // Rule 45 — the preview's private tag characters never enter a stored text, so none can be sent.
+  if (/[\uE000-\uE002]/.test(String(text || ''))) return { field, message: TAG_CHARACTER_MESSAGE };
   const broken = structureError(text) || (singleBraced(text, allowed) ? 'brace' : null);
   if (broken) return { field, message: STRUCTURE_MESSAGES[broken] };
   const name = unknownToken(text, allowed);
@@ -318,7 +325,54 @@ function tokenError(field, text, allowed) {
   // A known variable used where it means nothing is named by its label (rule 11, 2026-10-17).
   const known = VARIABLES.find((v) => v.name === name) || FLAGS.find((f) => f.name === name);
   const label = known ? known.label : STAY_TOKEN_LABELS[name];
-  return { field, message: label ? `Variable non disponible ici : ${label}` : `Variable inconnue : {{${name}}}` };
+  const message = label ? `Variable non disponible ici : ${label}` : `Variable inconnue : {{${name}}}`;
+  // Rule 41 — the closest variable this text may use, offered as a one-tap fix under the field.
+  const suggestion = closestVariable(name, allowed);
+  return suggestion ? { field, message, unknown: name, suggestion } : { field, message, unknown: name };
+}
+
+const normalised = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+function distance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const kept = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = kept;
+    }
+  }
+  return row[b.length];
+}
+
+const labelOfName = (name) => {
+  const known = VARIABLES.find((v) => v.name === name);
+  return known ? known.label : (STAY_TOKEN_LABELS[name] || name);
+};
+
+/**
+ * The variable a mistyped name most likely meant, among those the text may use (rule 41), or null.
+ * « prenon » → clientFirstName (« Prénom du voyageur »): a name or a label starting with what was
+ * typed wins, else the smallest edit distance on the name or the start of the label, within a third
+ * of the typed length (two edits at least).
+ */
+function closestVariable(typed, { tokens = [] } = {}) {
+  const word = normalised(typed);
+  if (!word) return null;
+  let best = null;
+  let score = Infinity;
+  for (const name of tokens) {
+    const label = labelOfName(name);
+    const words = normalised(label);
+    for (const candidate of [normalised(name), words, normalised(label.split(' ')[0])]) {
+      if (!candidate) continue;
+      const d = candidate.startsWith(word) ? 0 : distance(word, candidate.slice(0, Math.max(word.length, 3)));
+      if (d < score) { score = d; best = { name, label }; }
+    }
+  }
+  return score <= Math.max(2, Math.floor(word.length / 3)) ? best : null;
 }
 
 module.exports = {
@@ -333,6 +387,7 @@ module.exports = {
   chipsForSubject,
   chipsForText,
   tokenError,
+  closestVariable,
   namesUsed,
   namesUsedBy,
   namesUsedOutside,

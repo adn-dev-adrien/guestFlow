@@ -124,6 +124,19 @@ button says why it is greyed, and the engine's own refinements never flicker on 
 16. **On a phone the e-mail field takes its own row in the drawer**, and « Effacer » too below 600 px,
     instead of an address cut in half and a button falling into the times row.
 
+### UI/UX review 2026-10-18 — engine plugin 1.16.0 (added 2026-10-19)
+
+17. **A refusal the engine announces shows the screen that holds it.** The engine dispatches a
+    cancelable `gf:refused` event (detail `{ field, element }`, [wordpress-plugin.md](wordpress-plugin.md)
+    rule 28) before revealing a refused requirement. The drawer listens on `.gf-resa`: when the
+    element sits on the other screen — the insurance on screen 1 while the visitor pressed
+    « Réserver » on screen 2 — it calls `preventDefault()`, goes to that screen, and once the track
+    has arrived (360 ms) scrolls the screen to bring the field to its upper third and focuses it.
+    Without this the engine moved the focus to a field off-screen and nothing visible happened.
+    **Not deployed**: the repo copy of `gf-seo-reservation.php` carries it; until it is copied to the
+    site, the engine's own reveal still runs (no handler, no `preventDefault`).
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; le contrat de l'événement est testé côté moteur (`wordpress-booking-view.field-refusal.test.js`), le passage d'écran vérifié dans le banc d'essai avec le tiroir.
+
 ## 4. Architecture
 
 > This lives entirely in the WordPress site, not in GuestFlow. No server layer and no client layer of

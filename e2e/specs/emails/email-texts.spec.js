@@ -1,7 +1,8 @@
 // @ts-check
 // specs/guest-email-texts-made-simple.md §7 E2E — fill a property's arrival facts and see them in the
-// J-2 preview, export the texts then re-import them (one changed row, one refused row), and run a
-// test send that lands in the dev mail catcher, with its HTML part (rule 37).
+// « Accès et arrivée » preview, export the texts then re-import them (one changed row, one refused
+// row), run a test send that lands in the dev mail catcher with its HTML part (rule 37), and open a
+// text from a sentence of the preview (rule 45).
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
@@ -77,10 +78,11 @@ test.describe('Textes des emails', () => {
     expect(csv.startsWith('﻿email;clé;description;français;english;texte par défaut (FR)')).toBe(true);
 
     const lines = csv.split('\r\n');
-    const house = lines.findIndex((l) => l.startsWith('J-2;text:house;'));
-    const cleaning = lines.findIndex((l) => l.startsWith('J-2;text:cleaning.included;'));
-    lines[house] = 'J-2;text:house;Dans le logement;Thé offert E2E.;;';
-    lines[cleaning] = 'J-2;text:cleaning.included;Ménage compris;Bonjour {{prenon}};;';
+    // Rule 44 — the email column names the email by its purpose.
+    const house = lines.findIndex((l) => l.startsWith('Accès et arrivée;text:house;'));
+    const cleaning = lines.findIndex((l) => l.startsWith('Accès et arrivée;text:cleaning.included;'));
+    lines[house] = 'Accès et arrivée;text:house;Dans le logement;Thé offert E2E.;;';
+    lines[cleaning] = 'Accès et arrivée;text:cleaning.included;Ménage compris;Bonjour {{prenon}};;';
     const edited = testInfo.outputPath('textes-modifies.csv');
     fs.writeFileSync(edited, lines.join('\r\n'));
 
@@ -91,7 +93,19 @@ test.describe('Textes des emails', () => {
     await expect(dialog.getByRole('cell', { name: String(cleaning + 1), exact: true })).toBeVisible();
     await dialog.getByRole('button', { name: 'Enregistrer 1' }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.getByLabel('Français').and(page.locator('#text\\:house-fr'))).toHaveValue('Thé offert E2E.');
+    await expect(page.locator('#text\\:house-fr')).toHaveValue('Thé offert E2E.');
     await expect(page.getByTestId('email-preview')).toContainText('Thé offert E2E.');
+  });
+
+  test('rule 45: a click on a sentence of the email opens its field; the email sent carries no tag', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/settings/emails/textes?propertyId=${property.id}#j2`);
+    const preview = page.getByTestId('email-preview');
+    await expect(preview).toContainText('Bonjour Textes,', { timeout: 10_000 });
+    const sentence = preview.getByRole('button', { name: /La clé est dans la boîte bleue/ });
+    await sentence.click();
+    await expect(page.locator('#access\\:' + property.id + '-fr')).toBeFocused();
+    await expect(sentence).toHaveAttribute('data-active', 'true');
+    expect(await preview.innerText()).not.toMatch(/[\uE000-\uE002]/);
   });
 });

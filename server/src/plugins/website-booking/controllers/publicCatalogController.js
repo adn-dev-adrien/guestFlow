@@ -14,6 +14,7 @@ const resourcesModel = sdk.coreModule('resourcesModel');
 const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { computeBlockedDates, rangeHasBlockedNight } = sdk.coreModule('blockedDates');
 const { validateAvailabilityQuery } = require('../publicInputValidation');
+const { findNextAvailableDate, stayRulesPredicate } = require('../nextAvailability');
 const {
   toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
   toPublicCancellationInsurance,
@@ -119,7 +120,20 @@ function getAvailability(req, res) {
   const v = validateAvailabilityQuery({ from: req.query.from, to: req.query.to, todayIso: todayIso() });
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'periodInvalid', v.errors);
   const blockedDates = computeBlockedDates(propertyId, v.value.from, v.value.to);
-  return ok(res, toPublicAvailability({ propertyId, from: v.value.from, to: v.value.to, blockedDates }));
+  // Where the calendar can jump when its window holds no bookable arrival (specs/public-api.md, additive).
+  const nextAvailableDate = findNextAvailableDate({
+    from: v.value.from,
+    to: v.value.to,
+    todayIso: todayIso(),
+    blockedDates,
+    loadBlocked: (a, b) => computeBlockedDates(propertyId, a, b),
+    // The seasons as the pricing engine reads them: a free night the quote would refuse (minimum
+    // stay, arrival day) is not an availability.
+    isStayAllowed: stayRulesPredicate(
+      db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId),
+    ),
+  });
+  return ok(res, toPublicAvailability({ propertyId, from: v.value.from, to: v.value.to, blockedDates, nextAvailableDate }));
 }
 
 module.exports = {

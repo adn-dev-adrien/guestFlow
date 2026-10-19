@@ -21,6 +21,8 @@ const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
 const { answeredFlag, withoutPending, FLAG_FACTS } = require('./propertyFacts');
 const { sectionOfStableKey, templateAllowed, tokenError } = require('./templateTokens');
 const { localIsoDate } = require('./localDate');
+const stayTextsModel = require('../models/stayTextsModel');
+const { tagText, split } = require('./previewTags');
 
 const SETTINGS_KEYS = ['companyName', 'companyPhone', 'smtpFromName'];
 const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
@@ -118,7 +120,10 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
     const changes = Object.entries(texts).map(([key, v]) => ({ key, fr: v && v.fr, en: v && v.en }));
     if (changes.length) {
       const result = emailTextsModel.buildModel(database).apply(changes);
-      if (!result.ok) return { key: result.key, field: result.field, message: result.message };
+      if (!result.ok) {
+        const { ok, ...refusal } = result;
+        return refusal;
+      }
     }
     if (draft.template && typeof draft.template === 'object') {
       const allowed = templateAllowed();
@@ -154,6 +159,36 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
       }
     }
     return null;
+  }
+
+  /**
+   * Rule 45 (UI/UX review 2026-10-18, decision 13) — every stored text tagged with its key, inside the
+   * rolled-back transaction only, so the rendered email says which text each sentence comes from.
+   * An empty text stays empty: a property's own text left blank still lets the shared one speak.
+   */
+  function tagStoredTexts() {
+    const stayTexts = stayTextsModel.buildModel(database);
+    const both = (item) => ({ fr: tagText(item.fr, item.key), en: tagText(item.en, item.key) });
+    for (const item of emailTextsModel.buildModel(database).all()) {
+      const rest = item.key.slice(item.key.indexOf(':') + 1);
+      const { fr, en } = both(item);
+      if (item.kind === 'text') {
+        stayTexts.save(rest, { fr, en }, 0);
+      } else if (item.kind === 'override') {
+        const [key, pid] = rest.split('@');
+        if (String(item.fr).trim() || String(item.en).trim()) stayTexts.save(key, { fr: item.fr ? fr : null, en: item.en ? en : null }, Number(pid));
+      } else if (item.kind === 'mention') {
+        const [id, side] = rest.split(':');
+        const prefix = side === 'booked' ? 'booked' : 'offer';
+        database.prepare(`UPDATE email_mentions SET ${prefix}Fr = ?, ${prefix}En = ? WHERE id = ?`).run(fr, en, Number(id));
+      } else if (item.kind === 'hook') {
+        database.prepare('UPDATE properties SET emailHook = ?, emailHookEn = ? WHERE id = ?').run(fr, en, Number(rest));
+      } else if (item.kind === 'resource') {
+        database.prepare('UPDATE resources SET emailBookedText = ?, emailBookedTextEn = ? WHERE id = ?').run(fr, en, Number(rest));
+      } else if (item.kind === 'access') {
+        database.prepare('UPDATE property_arrival_facts SET accessFr = ?, accessEn = ? WHERE propertyId = ?').run(fr, en, Number(rest));
+      }
+    }
   }
 
   /**
@@ -195,18 +230,33 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
         const refusal = applyDraft(template, draft);
         if (refusal) { outcome = { error: 'INVALID_TEXT', status: 422, body: refusal }; throw new Rollback(); }
         const id = reservationId || insertSample(propertyId, lang);
+        const stayProperty = (database.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(id) || {}).propertyId;
+        // Rule 42 — the count follows what is typed: it is read on the draft, before the tags.
+        const toTranslate = emailTextsModel.countToTranslate(emailTextsModel.buildModel(database).list({ propertyId: propertyId || stayProperty }));
+        const notice = lang === 'en' ? englishNotice(template, stayProperty) : null;
+        // The email as it is sent, rendered before any tag: what `body` carries, always.
         const preview = buildPreview(id, template.id, {}, lang, { settings });
         if (preview.error) { outcome = { error: preview.error, status: preview.status }; throw new Rollback(); }
+        // Rule 45 — the same email with every text tagged; its segments are kept only when they read
+        // exactly as the email sent, else the email is shown whole, not clickable.
+        tagStoredTexts();
+        const tagged = split(buildPreview(id, template.id, {}, lang, { settings }).body || '');
+        const segments = tagged.plain === preview.body ? tagged.segments : [{ text: preview.body, key: null }];
         outcome = {
           payload: {
             subject: preview.subject,
             body: preview.body,
+            segments,
+            subjectKey: template.stableKey ? `subject:${template.stableKey}` : null,
+            // The HTML of the email rendered before any tag (`preview`, above): built from the plain
+            // text, never from the tagged rendering, which only gives the segments.
             html: preview.html,
             lang,
             reservationId: reservationId || null,
             sample: !reservationId,
             reservations: list,
-            englishNotice: lang === 'en' ? englishNotice(template, preview.graph.reservation.propertyId) : null,
+            englishNotice: notice,
+            toTranslate,
           },
         };
         throw new Rollback();
