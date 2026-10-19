@@ -28,7 +28,10 @@ test('A pending cancellation alert renders an orange card on the Dashboard', asy
   });
 
   await page.goto('/');
-  await expect(page.getByText(/Annulations iCal/i)).toBeVisible({ timeout: 10_000 });
+  // The subject's row in « À traiter » (specs/shell-and-home-day-first.md rules 6, 10), unfolded in place.
+  const row = page.getByRole('button', { name: /Annulations iCal à valider/ });
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await row.click();
   // The source name appears in the card body.
   await expect(page.getByText(/Cancel feed|Airbnb/i)).toBeVisible();
 });

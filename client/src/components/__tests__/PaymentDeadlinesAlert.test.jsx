@@ -23,6 +23,9 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
+
 const CANCEL_DUE = {
   reservationId: 10,
   reservationNumber: '2026-09-004',
@@ -103,7 +106,7 @@ const AMOUNT_MISSING = {
 
 const renderCard = () => render(
   <DialogProvider>
-    <PaymentDeadlinesAlert />
+    <PaymentDeadlinesAlert attention={ATTENTION} />
   </DialogProvider>,
 );
 
@@ -258,9 +261,10 @@ test('a to-do past its deadline says how long the asking has waited, not that th
   expect(await screen.findByText(/Acompte jamais demandé — échéance dépassée de 4 jours/)).toBeInTheDocument();
 });
 
-test('the title counts the late rows and the to-dos separately', async () => {
+test('the title, count and « N en retard · M à demander » are the server’s (specs/shell-and-home-day-first.md rule 6)', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE, DEPOSIT_TO_REQUEST] });
   renderCard();
 
-  expect(await screen.findByText(/Échéances de paiement — 1 en retard · 1 à demander/)).toBeInTheDocument();
+  expect(await screen.findByText('Échéances de paiement')).toBeInTheDocument();
+  expect(screen.getByText(ATTENTION.detail)).toBeInTheDocument();
 });

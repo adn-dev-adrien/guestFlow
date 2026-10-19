@@ -1,6 +1,8 @@
 /**
  * UpdateAvailableAlert — dashboard notification for a published GuestFlow version.
- * specs/self-update-and-releases.md §3.C rules 17-20 + §6.1.
+ * specs/self-update-and-releases.md §3.C rules 17-20 + §6.1. Whether it shows (not up to date, not
+ * postponed, not running) and its words are the server's since 2026-10-19
+ * (specs/shell-and-home-day-first.md rules 6, 8 — dashboard-attention.unit.test.js).
  */
 
 import React from 'react';
@@ -25,6 +27,8 @@ vi.mock('../../hooks/useAuth', () => ({
 
 import api from '../../api';
 import UpdateAvailableAlert from '../UpdateAvailableAlert';
+
+const ATTENTION = { key: 'update-available', severity: 'info', count: 1, title: 'GuestFlow 1.1.0 disponible', detail: 'Version installée : 1.0.0' };
 
 function versionInfo(overrides = {}) {
   return {
@@ -53,45 +57,31 @@ beforeEach(() => {
 
 test('announces the published version and the installed one', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo());
-  render(<UpdateAvailableAlert />);
-  expect(await screen.findByText('GuestFlow 1.1.0 est disponible')).toBeInTheDocument();
-  expect(screen.getByText(/Vous utilisez la version 1\.0\.0/)).toBeInTheDocument();
+  render(<UpdateAvailableAlert attention={ATTENTION} />);
+  expect(screen.getByText('GuestFlow 1.1.0 disponible')).toBeInTheDocument();
+  expect(screen.getByText('Version installée : 1.0.0')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Voir les nouveautés' })).toBeEnabled());
 });
 
-test('stays silent for a non-admin — and never even calls the admin endpoint', async () => {
+test('stays silent without a subject (up to date, postponed or running — the server decides)', async () => {
+  api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false }));
+  const { container } = render(<UpdateAvailableAlert attention={null} />);
+  await waitFor(() => expect(api.getSystemVersion).toHaveBeenCalled());
+  expect(container.firstChild).toBeNull();
+});
+
+test('a non-admin never even calls the admin endpoint', async () => {
   currentUser = { id: 2, roles: ['reception'] };
-  const { container } = render(<UpdateAvailableAlert />);
-  await waitFor(() => expect(container.firstChild).toBeNull());
+  render(<UpdateAvailableAlert attention={null} />);
+  await new Promise((r) => setTimeout(r, 10));
   expect(api.getSystemVersion).not.toHaveBeenCalled();
-});
-
-test('stays silent when up to date, when postponed, and while an update is running', async () => {
-  const cases = [
-    versionInfo({ updateAvailable: false }),
-    versionInfo({ dismissedVersion: '1.1.0' }),
-    versionInfo({ updateInProgress: true }),
-  ];
-  for (const info of cases) {
-    api.getSystemVersion.mockResolvedValue(info);
-    const { container, unmount } = render(<UpdateAvailableAlert />);
-    await waitFor(() => expect(api.getSystemVersion).toHaveBeenCalled());
-    await waitFor(() => expect(container.firstChild).toBeNull());
-    unmount();
-    api.getSystemVersion.mockReset();
-  }
-});
-
-test('renders nothing rather than an error when the API call fails', async () => {
-  api.getSystemVersion.mockRejectedValue(new Error('boom'));
-  const { container } = render(<UpdateAvailableAlert />);
-  await waitFor(() => expect(container.firstChild).toBeNull());
 });
 
 test('"Plus tard" postpones that exact version', async () => {
   const user = userEvent.setup();
   api.getSystemVersion.mockResolvedValue(versionInfo());
   api.dismissUpdate.mockResolvedValue({ dismissedVersion: '1.1.0' });
-  render(<UpdateAvailableAlert />);
+  render(<UpdateAvailableAlert attention={ATTENTION} />);
 
   await user.click(await screen.findByRole('button', { name: 'Plus tard' }));
   expect(api.dismissUpdate).toHaveBeenCalledWith('1.1.0');
@@ -100,7 +90,7 @@ test('"Plus tard" postpones that exact version', async () => {
 test('nothing installs without reading the notes first: the button opens the dialog', async () => {
   const user = userEvent.setup();
   api.getSystemVersion.mockResolvedValue(versionInfo());
-  render(<UpdateAvailableAlert />);
+  render(<UpdateAvailableAlert attention={ATTENTION} />);
 
   await user.click(await screen.findByRole('button', { name: 'Voir les nouveautés' }));
 
@@ -118,7 +108,7 @@ test('when the deployment cannot self-update, the dialog explains and blocks the
     selfUpdateSupported: false,
     selfUpdateReason: 'PM2 est introuvable : le redémarrage automatique est impossible.',
   }));
-  render(<UpdateAvailableAlert />);
+  render(<UpdateAvailableAlert attention={ATTENTION} />);
 
   await user.click(await screen.findByRole('button', { name: 'Voir les nouveautés' }));
   expect(screen.getByText(/PM2 est introuvable/)).toBeInTheDocument();

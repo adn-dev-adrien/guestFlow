@@ -465,7 +465,7 @@ Logement colours: the server gives each logement a stable slot `colorIndex` in `
 
 ## 6. UI / UX
 
-Order, top to bottom: `PageActionBar` (« Suivi financier », refresh; the title shows on `xs` too since 2026-10-18 — `titleOnXs`, the bar was an empty white strip on a phone) → toolbar (exercise + period
+Order, top to bottom: `PageActionBar` (« Suivi financier », refresh; the title shows on `xs` too since 2026-10-18 — `titleOnXs`, the bar was an empty white strip on a phone; since 2026-10-19 that title is the top bar's, `specs/shell-and-home-day-first.md` rule 15) → toolbar (exercise + period
 selector) → logements strip → ink hero → three insight cards → six tiles (+ open table) → « Revenu
 par mois » and « Taux d'occupation » side by side.
 

@@ -793,7 +793,6 @@ export default function PropertyPricingSeasonsPage() {
         // On a phone the property name costs the whole title (« Gesti… ») — the sidebar and the
         // recipe card both name the property anyway.
         title={isCompact ? 'Gestion tarifaire' : `Gestion tarifaire - ${property.name}`}
-        titleOnXs
         backTo={`/properties/${id}`}
         // Compact: ICON actions, which PageActionBar collapses into its « … » overflow menu past two
         // items. As custom `node` buttons they stayed inline by design and stacked into a staircase

@@ -19,6 +19,9 @@ vi.mock('../../../api', () => ({
 import api from '../../../api';
 import GateKeysAlert from '../GateKeysAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'gate-keys', severity: 'urgent', count: 1, title: 'Clés portail', detail: '' };
+
 const failure = (over = {}) => ({
   reservationId: 123,
   reservationNumber: 'R-2026-041',
@@ -36,22 +39,23 @@ beforeEach(() => { vi.clearAllMocks(); });
 // specs/gate-access-sowel-connector.md §3.3 rule 16
 test('renders nothing when no key failed and Sowel reads', async () => {
   api.getGateKeysAlerts.mockResolvedValue({ failures: [], stale: false, lastReadAt: '2026-09-27T16:00:00.000Z' });
-  const { container } = render(<GateKeysAlert />);
+  const { container } = render(<GateKeysAlert attention={ATTENTION} />);
   await waitFor(() => expect(api.getGateKeysAlerts).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();
 });
 
-test('renders nothing either when the server does not answer', async () => {
-  api.getGateKeysAlerts.mockRejectedValue(new Error('403'));
-  const { container } = render(<GateKeysAlert />);
-  await waitFor(() => expect(api.getGateKeysAlerts).toHaveBeenCalled());
-  expect(container).toBeEmptyDOMElement();
+// specs/shell-and-home-day-first.md rule 20 — an unreadable list is said, not hidden.
+test('when the list cannot be read, the pinned card says so with the server words', async () => {
+  api.getGateKeysAlerts.mockRejectedValue(new Error('503'));
+  render(<GateKeysAlert attention={{ ...ATTENTION, detail: 'Lecture des clés impossible' }} />);
+  expect(await screen.findByText('Lecture des clés impossible')).toBeInTheDocument();
+  expect(screen.getByText('Clés portail')).toBeInTheDocument();
 });
 
 // specs/gate-access-sowel-connector.md §3.3 rule 13
 test('a failed key shows the number, the first name and the reason, and opens the reservation', async () => {
   api.getGateKeysAlerts.mockResolvedValue({ failures: [failure()], stale: false, lastReadAt: null });
-  render(<GateKeysAlert />);
+  render(<GateKeysAlert attention={ATTENTION} />);
 
   expect(await screen.findByText('Clés portail')).toBeInTheDocument();
   expect(screen.getByText('R-2026-041 · Marie — Clé portail non créée')).toBeInTheDocument();
@@ -65,7 +69,7 @@ test('a failure on a deleted reservation is listed but opens nothing', async () 
     failures: [failure({ exists: false, action: 'revoke', title: 'Clé portail non révoquée' })],
     stale: false,
   });
-  render(<GateKeysAlert />);
+  render(<GateKeysAlert attention={ATTENTION} />);
   expect(await screen.findByText(/Clé portail non révoquée/)).toBeInTheDocument();
   expect(screen.queryByRole('button')).toBeNull();
 });
@@ -73,6 +77,6 @@ test('a failure on a deleted reservation is listed but opens nothing', async () 
 // specs/gate-access-sowel-connector.md §3.3 rule 17
 test('a Sowel that stopped reading shows since when, in Paris time', async () => {
   api.getGateKeysAlerts.mockResolvedValue({ failures: [], stale: true, lastReadAt: '2026-09-27T12:05:00.000Z' });
-  render(<GateKeysAlert />);
+  render(<GateKeysAlert attention={ATTENTION} />);
   expect(await screen.findByText(/Sowel ne lit plus les clés depuis le 27 septembre à 14:05/)).toBeInTheDocument();
 });

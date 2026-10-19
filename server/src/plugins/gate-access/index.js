@@ -91,6 +91,8 @@ function register(ctx) {
   });
   ctx.reception([{ method: 'GET', re: /^\/reservations\/\d+\/gate-access$/ }]);
   ctx.route('get', '/api/dashboard/gate-keys', controller.dashboard);
+  // Pinned above the day on the home (specs/shell-and-home-day-first.md rule 3).
+  ctx.attention({ key: 'gate-keys', rank: 10, handler: controller.dashboard, summarize: require('./attention').summarize });
   ctx.route('get', '/api/settings/gate-connector', controller.settings);
   ctx.route('get', '/api/settings/gate-connector/secrets', controller.secrets);
   // The keys come back in clear: a support session is refused them (specs/hosting-h2-account-security.md rule 23).

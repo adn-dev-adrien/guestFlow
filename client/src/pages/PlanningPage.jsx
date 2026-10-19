@@ -573,7 +573,6 @@ export default function PlanningPage() {
     <Box>
       <PageActionBar
         title="Planning"
-        titleOnXs
         center={renderDateNav()}
         // Buttons plugins add to the bar (slot `planning.actions`, specs/plugins-phase-2-hosts.md
         // rule 6); `reload()` reloads that plugin's day cards.

@@ -1,0 +1,1 @@
+- Home: the « Aujourd'hui » button of the date navigation brings the date back to today again (it threw an error).

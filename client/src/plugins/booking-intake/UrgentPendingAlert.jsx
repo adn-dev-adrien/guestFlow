@@ -5,6 +5,6 @@
 import React from 'react';
 import PendingAlert from './PendingAlert';
 
-export default function UrgentPendingAlert() {
-  return <PendingAlert urgent />;
+export default function UrgentPendingAlert({ attention }) {
+  return <PendingAlert urgent attention={attention} />;
 }

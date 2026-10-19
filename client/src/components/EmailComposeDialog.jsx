@@ -137,7 +137,7 @@ export default function EmailComposeDialog({ open, onClose, onQueued }) {
             </FormControl>
 
             {error ? (
-              <Box sx={{ p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
+              <Box sx={{ p: 1.5, bgcolor: 'error.soft', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
                 <Typography variant="body2" color="error.main">{error}</Typography>
               </Box>
             ) : null}

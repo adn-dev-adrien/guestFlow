@@ -2,17 +2,19 @@
  * PendingAlert — Dashboard lines for the Booking stays the iCal import created and nobody filled yet
  * (specs/booking-extranet-intake.md rules 21–24). The slot `dashboard.alerts` shows the ones arriving later
  * than a week; `UrgentPendingAlert` (slot `dashboard.alerts.urgent`) shows the others, higher on the page.
- * Renders nothing when there is none.
+ * Renders nothing when there is none. Title, count and severity are the server's
+ * (specs/shell-and-home-day-first.md rule 6), drawn by `AttentionCard`.
  *
  * Props:
- *   urgent   boolean   which half of the list this instance shows (default false)
+ *   urgent     boolean   which half of the list this instance shows (default false)
+ *   attention  the home's subject (`booking-intake` or `booking-intake-urgent`)
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, AlertTitle, Button, Stack, Typography } from '@mui/material';
+import { Button, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router';
-import { api, displayDate } from '../sdk';
+import { api, displayDate, AttentionCard } from '../sdk';
 
-export default function PendingAlert({ urgent = false }) {
+export default function PendingAlert({ urgent = false, attention }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
 
@@ -29,8 +31,7 @@ export default function PendingAlert({ urgent = false }) {
   };
 
   return (
-    <Alert severity={urgent ? 'error' : 'warning'} variant="outlined" sx={{ mb: 3, bgcolor: 'background.paper' }}>
-      <AlertTitle>{urgent ? 'Réservations Booking à compléter, arrivée proche' : 'Réservations Booking à compléter'}</AlertTitle>
+    <AttentionCard attention={attention}>
       <Stack spacing={1.5}>
         {shown.map((item) => (
           <Stack key={item.reservationId} spacing={1}>
@@ -52,6 +53,6 @@ export default function PendingAlert({ urgent = false }) {
           </Stack>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

@@ -1,65 +1,14 @@
 /**
- * EmailPendingAlert — dashboard widget that surfaces the count of pending manual emails.
- * Self-contained: renders NOTHING when the count is 0, so it disappears as soon as the
- * operator catches up. Clicking the card navigates to the Emails page where the queue is
- * reviewed inline (specs/email-automation.md §3 rule 8 + §6.2 + §6.10).
+ * EmailPendingAlert — the manual emails waiting to be read and sent (specs/email-automation.md §3
+ * rule 8, §6.2). Drawn by `AttentionCard` with the server's count and detail (« 2 messages à
+ * envoyer · 1 client sans adresse », specs/shell-and-home-day-first.md rule 6); « Voir et envoyer »
+ * opens the Emails page where the queue is reviewed inline.
  */
-
-import React, { useEffect, useState } from 'react';
-import {
-  Card, CardActionArea, CardContent, Stack, Typography, Chip, Box,
-} from '@mui/material';
-import MailOutlineIcon from '@mui/icons-material/MailOutlined';
+import React from 'react';
 import { useNavigate } from 'react-router';
-import api from '../api';
+import AttentionCard from './AttentionCard';
 
-export default function EmailPendingAlert() {
+export default function EmailPendingAlert({ attention }) {
   const navigate = useNavigate();
-  const [pending, setPending] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    api.getPendingEmails()
-      .then((rows) => setPending(rows || []))
-      .catch(() => setPending([]))
-      .finally(() => setLoaded(true));
-  }, []);
-
-  // Render nothing while loading + when empty — disappears entirely as soon as the queue
-  // clears, by spec design.
-  if (!loaded) return null;
-  if (pending.length === 0) return null;
-
-  const noEmailCount = pending.filter((r) => !r.clientEmail).length;
-
-  return (
-    <Card
-      sx={{
-        mb: 3,
-        bgcolor: 'info.lighter',
-        border: '1px solid',
-        borderColor: 'info.light',
-      }}
-    >
-      <CardActionArea onClick={() => navigate('/emails')}>
-        <CardContent>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-            <Box sx={{ color: 'info.main', display: 'flex' }}>
-              <MailOutlineIcon fontSize="large" />
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Emails à vérifier ({pending.length})
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {pending.length} message{pending.length > 1 ? 's' : ''} en attente d'envoi manuel sur les 7 derniers jours.
-                {noEmailCount > 0 ? ` ${noEmailCount} client${noEmailCount > 1 ? 's' : ''} sans adresse email.` : ''}
-              </Typography>
-            </Box>
-            <Chip label="Voir et envoyer" color="info" />
-          </Stack>
-        </CardContent>
-      </CardActionArea>
-    </Card>
-  );
+  return <AttentionCard attention={attention} actions={[{ label: 'Voir et envoyer', onClick: () => navigate('/emails') }]} />;
 }

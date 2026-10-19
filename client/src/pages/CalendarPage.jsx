@@ -414,7 +414,6 @@ export default function CalendarPage() {
     <Box>
       <PageActionBar
         title="Calendrier"
-        titleOnXs
         center={renderPropertyPicker()}
         actionsBefore={[
           ...(selectedProp ? [

@@ -1,5 +1,7 @@
 // Vite injects build-time env vars via `import.meta.env`. CRA's `process.env.REACT_APP_*`
 // equivalents become `VITE_*` (specs/cra-to-vite-migration.md §3.1 rule 6).
+import { DATA_CHANGED_EVENT } from './constants/appEvents';
+
 const API = import.meta.env.VITE_API_URL || '/api';
 
 async function request(path, options = {}) {
@@ -28,6 +30,10 @@ async function request(path, options = {}) {
     }
     throw apiError;
   }
+  // Every write that succeeded tells the open pages their counts may have moved: the home re-reads
+  // its « À traiter » (specs/shell-and-home-day-first.md rule 11).
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT));
   if (res.status === 204) return null;
   return res.json();
 }
@@ -610,6 +616,9 @@ const api = {
   // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4 / §3.5). Rows arrive
   // ready to render — the client decides nothing about states, amounts or available actions.
   getPaymentDeadlines: () => request('/dashboard/payment-deadlines'),
+  // The home's pinned subjects and « À traiter », counted and ordered by the server
+  // (specs/shell-and-home-day-first.md §3.B).
+  getAttention: () => request('/dashboard/attention'),
   snoozePaymentDeadline: (id, days) => request(`/dashboard/payment-deadlines/${id}/snooze`, { method: 'POST', body: { days } }),
   remindPaymentDeadline: (id, type) => request(`/dashboard/payment-deadlines/${id}/remind`, { method: 'POST', body: { type } }),
   cancelReservation: (id, payload) => request(`/reservations/${id}/cancel`, { method: 'POST', body: payload }),

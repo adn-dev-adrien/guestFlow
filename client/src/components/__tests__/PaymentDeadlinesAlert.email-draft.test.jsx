@@ -18,6 +18,9 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
+
 const ROW = {
   reservationId: 22270, state: 'balance_to_request', severity: 'warning', clientName: 'Marie Dupont', clientEmail: 'marie@example.com',
   propertyName: 'Gite', startDate: '2026-11-20', endDate: '2026-11-25', depositDue: 0, balanceDue: 640, totalDue: 640,
@@ -35,7 +38,7 @@ beforeEach(() => {
 
 test('rule 25: « Envoyer la demande » opens the request email, not a payment link', async () => {
   const user = userEvent.setup();
-  render(<DialogProvider><PaymentDeadlinesAlert /></DialogProvider>);
+  render(<DialogProvider><PaymentDeadlinesAlert attention={ATTENTION} /></DialogProvider>);
   expect(await screen.findByText('Aucun paiement en ligne : demande par email.')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
   expect(await screen.findByDisplayValue('Votre solde')).toBeInTheDocument();

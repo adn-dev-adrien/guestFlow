@@ -20,11 +20,14 @@ vi.mock('../../../api', () => ({
 import api from '../../../api';
 import TariffRecipeRunsAlert from '../TariffRecipeRunsAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'recipe-runs', severity: 'todo', count: 1, title: 'Calendrier saisonnier', detail: '1 point à relire' };
+
 beforeEach(() => { vi.clearAllMocks(); });
 
 test('renders nothing when there is neither a run nor a missing event year', async () => {
   api.getTariffRecipeRuns.mockResolvedValue({ runs: [], missingEvents: [] });
-  const { container } = render(<TariffRecipeRunsAlert />);
+  const { container } = render(<TariffRecipeRunsAlert attention={ATTENTION} />);
   await waitFor(() => expect(api.getTariffRecipeRuns).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();
 });
@@ -37,7 +40,7 @@ test('a missing event year renders a warning row that opens the tariff page — 
       key: 'ardechoise', label: "L'Ardéchoise", year: 2028, sourceUrl: 'https://www.ardechoise.com/',
     }],
   });
-  render(<TariffRecipeRunsAlert />);
+  render(<TariffRecipeRunsAlert attention={ATTENTION} />);
   expect(await screen.findByText("Aventura Lodge — L'Ardéchoise 2028")).toBeInTheDocument();
   expect(screen.getByText(/Dates pas encore connues/)).toBeInTheDocument();
   // No dismiss button: the row only leaves when the recipe gains the dates.
@@ -52,7 +55,7 @@ test('runs and missing years live in the same card, runs keeping their dismiss',
     runs: [{ id: 7, propertyId: 2, propertyName: 'Aventura Lodge', generatedYear: 2028, blocking: 0, note: 'Saisons générées jusqu\'à fin 2028 — à relire.' }],
     missingEvents: [{ propertyId: 2, propertyName: 'Aventura Lodge', key: 'ardechoise', label: "L'Ardéchoise", year: 2028, sourceUrl: null }],
   });
-  render(<TariffRecipeRunsAlert />);
+  render(<TariffRecipeRunsAlert attention={ATTENTION} />);
   expect(await screen.findByText('Aventura Lodge — 2028 généré')).toBeInTheDocument();
   expect(screen.getByText("Aventura Lodge — L'Ardéchoise 2028")).toBeInTheDocument();
   expect(screen.getByLabelText('Marquer comme lu (Aventura Lodge)')).toBeInTheDocument();
