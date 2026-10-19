@@ -84,6 +84,32 @@ test('rule 25: « Configurer » on Google Agenda opens its section of Intégrati
   await expect(page.getByText('Synchronisation Google Agenda')).toBeInViewport({ timeout: 10_000 });
 });
 
+// specs/plugins-phase-0-foundation.md rule 26 — « Configurer » lands on the plugin's section and it
+// stays there while the later sections load: in the viewport, below the sticky bars, phone and desktop.
+for (const width of [390, 1280]) {
+  for (const [name, id] of [['Assurance annulation Neat', 'neat'], ['Vigilance Météo-France', 'weather-alerts']]) {
+    test(`rule 26: at ${width} px « Configurer » on ${name} lands on its section`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/parametres/plugins');
+      const card = page.locator('.MuiCard-root').filter({ hasText: name });
+      await card.getByRole('button', { name: 'Configurer' }).click();
+      await expect(page).toHaveURL(new RegExp(`/settings/integrations#plugin-${id}$`));
+      const anchor = page.locator(`#plugin-${id}`);
+      await expect(anchor).toBeInViewport({ timeout: 10_000 });
+      // Every section has loaded and the page has settled (rule 27: 800 ms after the last change).
+      await page.waitForTimeout(1_800);
+      await expect(anchor).toBeInViewport();
+      const { top, barsBottom } = await anchor.evaluate((el) => ({
+        top: el.getBoundingClientRect().top,
+        barsBottom: Math.max(...[...document.querySelectorAll('header, [data-sticky-bar]')]
+          .map((b) => b.getBoundingClientRect().bottom)),
+      }));
+      expect(top).toBeGreaterThanOrEqual(barsBottom - 1);
+      expect(top).toBeLessThan(barsBottom + 40);
+    });
+  }
+}
+
 test('the Plugins entry sits in the Paramètres submenu', async ({ page }) => {
   await page.goto('/parametres/plugins');
   const nav = page.getByRole('navigation').first().or(page.locator('.MuiDrawer-root').first());

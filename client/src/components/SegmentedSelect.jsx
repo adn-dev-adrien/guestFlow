@@ -1,7 +1,7 @@
 /**
  * SegmentedSelect — one choice among a few, shown as a segmented control while the options fit, as a
  * select past that (specs/ui-review-2026-10-19-operations.md rule 16). Full width on a phone either
- * way: a select squeezed into a corner reads « L… ».
+ * way: a select squeezed into a corner reads « L… ». On a phone a long segment label wraps (rule 25).
  *
  * Props:
  *   label         string                         accessible name (« Logement »)
@@ -27,14 +27,18 @@ export default function SegmentedSelect({ label, options = [], value, onChange, 
           width: { xs: '100%', sm: 'auto' },
           maxWidth: '100%',
           '& .MuiToggleButton-root': {
-            flex: { xs: 1, sm: 'none' },
+            // Phone: a long name takes the room it needs and wraps on two lines rather than reading
+            // « Aventura l… » (rule 25); from sm the segments keep one line.
+            flex: { xs: '1 1 auto', sm: 'none' },
             minHeight: 44,
-            px: 1.5,
+            px: { xs: 1, sm: 1.5 },
+            lineHeight: 1.2,
             textTransform: 'none',
             fontWeight: 600,
-            whiteSpace: 'nowrap',
+            whiteSpace: { xs: 'normal', sm: 'nowrap' },
+            overflowWrap: { xs: 'anywhere', sm: 'normal' },
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            textOverflow: { xs: 'clip', sm: 'ellipsis' },
             minWidth: 0,
           },
           '& .MuiToggleButton-root.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText' },

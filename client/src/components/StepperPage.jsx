@@ -12,7 +12,10 @@
  *   onLater      optional () => void — « Plus tard »
  *   busy         boolean — disables the actions and shows a spinner in the primary one
  *
- * Mobile: the actions stack and the primary one is full width.
+ * Phone (specs/design-system-reference.md §9, UI/UX review 2026-10-18 decision 5 — the SAS rule): the
+ * actions stack in a bar kept at the bottom of the screen, the primary one filled and LAST, under the
+ * thumb; « Précédent » and « Plus tard » above it, neutral.
+ * (specs/plugins-phase-p-productisation.md rule 44.)
  */
 import React from 'react';
 import { Box, Button, Card, CardContent, CircularProgress, LinearProgress, Stack, Typography } from '@mui/material';
@@ -22,9 +25,17 @@ export default function StepperPage({
 }) {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', justifyContent: 'center', alignItems: { xs: 'stretch', sm: 'flex-start' }, py: { xs: 0, sm: 6 }, px: { xs: 0, sm: 2 } }}>
-      <Card variant="outlined" sx={{ width: '100%', maxWidth: 600, borderRadius: { xs: 0, sm: 2 } }}>
-        <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
-          <Stack spacing={2.5}>
+      {/* Phone: the card fills the screen (100dvh) so a short step still puts its actions at the
+          bottom, under the thumb; a long step keeps them in view with `sticky`. */}
+      <Card
+        variant="outlined"
+        sx={{
+          width: '100%', maxWidth: 600, borderRadius: { xs: 0, sm: 2 }, overflow: { xs: 'visible', sm: 'hidden' },
+          display: { xs: 'flex', sm: 'block' }, flexDirection: 'column', minHeight: { xs: '100dvh', sm: 0 },
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, sm: 4 }, flex: { xs: 1, sm: 'none' }, display: { xs: 'flex', sm: 'block' }, flexDirection: 'column' }}>
+          <Stack spacing={2.5} useFlexGap sx={{ flex: { xs: 1, sm: 'none' } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Box>{brand}</Box>
               <Typography variant="body2" color="text.secondary">{`Étape ${step} sur ${total}`}</Typography>
@@ -32,7 +43,26 @@ export default function StepperPage({
             <LinearProgress variant="determinate" value={(step / total) * 100} aria-label={`Étape ${step} sur ${total}`} />
             <Typography variant="pageTitle" component="h1">{title}</Typography>
             <Box>{children}</Box>
-            <Stack direction={{ xs: 'column-reverse', sm: 'row' }} spacing={1} sx={{ justifyContent: 'flex-end', pt: 1 }}>
+            <Stack
+              data-testid="stepper-actions"
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              sx={{
+                justifyContent: 'flex-end',
+                mt: { xs: 'auto', sm: 0 },
+                pt: 1,
+                // Phone: a bar stuck to the bottom of the screen, the primary action last, under the thumb.
+                position: { xs: 'sticky', sm: 'static' },
+                bottom: { xs: 0 },
+                zIndex: 1,
+                bgcolor: 'background.paper',
+                pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 0 },
+                borderTopStyle: { xs: 'solid', sm: 'none' },
+                borderTopWidth: 1,
+                borderTopColor: 'divider',
+                '& .MuiButton-root': { minHeight: 44, width: { xs: '100%', sm: 'auto' } },
+              }}
+            >
               {onLater && <Button color="inherit" onClick={onLater} disabled={busy}>Plus tard</Button>}
               {onBack && <Button variant="outlined" color="inherit" onClick={onBack} disabled={busy}>Précédent</Button>}
               <Button
@@ -40,7 +70,6 @@ export default function StepperPage({
                 onClick={onNext}
                 disabled={busy}
                 startIcon={busy ? <CircularProgress size={16} color="inherit" /> : null}
-                sx={{ width: { xs: '100%', sm: 'auto' }, minHeight: 44 }}
               >
                 {nextLabel}
               </Button>

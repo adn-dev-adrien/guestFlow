@@ -48,7 +48,10 @@
  *  - Layout: [Back Title Subtitle] … [center | tabs] … [actionsBefore Save Cancel actionsAfter]
  *    (with `center`, the two side sections take equal flex so the centre is truly centred).
  *  - On xs the title lives in the top bar; a bar left with no back button, subtitle, tabs nor action
- *    is not drawn at all (specs/shell-and-home-day-first.md rule 15).
+ *    is not drawn at all (specs/shell-and-home-day-first.md rule 15); one left with a single icon
+ *    action (not Save/Cancel, not a node, not `error`, not the overflow menu) hands it to the top bar
+ *    while the title keeps its full text there (rule 23). On xs the actions align with the back button, not with the
+ *    middle of a wrapped subtitle (rule 24).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
  *  - Narrow bar (specs/ds-components.md rules 19-20): the title keeps a readable width and ends
@@ -66,8 +69,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
-import { usePublishPageTitle } from '../hooks/usePageTitle';
+import { usePublishPageTitle, useTopBarActionSlot } from '../hooks/usePageTitle';
 
 // Every bar button is a 44 × 44 touch target, whatever its border (specs/ds-components.md rule 20).
 const BUTTON_SIZE = { width: 44, height: 44 };
@@ -145,6 +149,7 @@ export default function PageActionBar({
   const navigate = useNavigate();
   const [menuAnchor, setMenuAnchor] = useState(null);
   usePublishPageTitle(title);
+  const topBarSlot = useTopBarActionSlot();
 
   // Only icon actions collapse into the mobile overflow menu; custom-node items always stay inline.
   const iconExtras = [...actionsBefore, ...actionsAfter].filter((a) => !a.node);
@@ -157,10 +162,101 @@ export default function PageActionBar({
   const centerNode = tabsOnSecondRow ? null : (tabs || center);
   // On a phone the title is the top bar's; `center` is hidden there. Nothing else → no empty band.
   const hasActions = Boolean(onSave || onCancel || useOverflow || visibleBefore.length || visibleAfter.length);
-  if (isMobile && !(onBack || backTo) && !subtitle && !tabs && !hasActions) return null;
+  const bareOnPhone = isMobile && !(onBack || backTo) && !subtitle && !tabs && !identityOnSecondRow;
+  if (bareOnPhone && !hasActions) return null;
+  // A phone bar left with one ICON action and nothing else gives it to the top bar instead of drawing
+  // a nearly empty band (specs/shell-and-home-day-first.md rule 23). Never Save / Cancel, never a
+  // custom node (a text button, a select), never a destructive action, never the « ⋯ » menu; and only
+  // while the top bar's title keeps its full text beside it (the slot is null otherwise).
+  const lone = [...visibleBefore, ...visibleAfter];
+  const movable = lone.length === 1 && !lone[0].node && lone[0].color !== 'error';
+  const inTopBar = bareOnPhone && !onSave && !onCancel && !useOverflow && movable && Boolean(topBarSlot);
+
+  // The actions keep their full width: when they do not fit beside the title they take a row of their
+  // own, right-aligned — never a column of stacked buttons.
+  const actions = (
+    <Box
+      data-testid="page-action-bar-actions"
+      sx={{
+        display: 'flex',
+        gap: 1,
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        flexWrap: 'wrap',
+        // The centre's twin only while the centre sits beside the title: hidden on xs, or on its own
+        // row, it leaves the title the room (rule 19, amended 2026-10-18).
+        flex: { xs: '0 1 auto', sm: centerNode ? '1 1 0' : '0 1 auto' },
+        [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { flex: '0 1 auto' },
+        minWidth: 'fit-content',
+        maxWidth: '100%',
+        ml: 'auto',
+        '& .MuiButton-root': { whiteSpace: 'nowrap' },
+      }}
+    >
+      {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
+
+      {useOverflow && (
+        <>
+          <Tooltip title="Plus d'actions" enterDelay={500}>
+            <IconButton aria-label="Plus d'actions" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={borderedSx('default')}>
+              <MoreVertIcon />
+            </IconButton>
+          </Tooltip>
+          <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+            {iconExtras.map((a, i) => (
+              <MenuItem
+                key={`menu-${i}`}
+                onClick={() => { setMenuAnchor(null); a.onClick(); }}
+                disabled={a.disabled}
+              >
+                <ListItemIcon>{a.icon}</ListItemIcon>
+                <ListItemText>{a.tooltip}</ListItemText>
+              </MenuItem>
+            ))}
+          </Menu>
+        </>
+      )}
+
+      {onSave && (
+        <Tooltip title={saveBusy ? `${saveTooltip}...` : saveTooltip} enterDelay={500} enterNextDelay={500}>
+          <span>
+            <IconButton
+              color="primary"
+              aria-label={saveTooltip}
+              onClick={onSave}
+              disabled={saveDisabled || saveBusy}
+              sx={saveFilledSx}
+            >
+              {saveBusy ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+
+      {onCancel && (
+        <Tooltip title={cancelTooltip} enterDelay={500} enterNextDelay={500}>
+          <span>
+            <IconButton
+              aria-label={cancelTooltip}
+              onClick={onCancel}
+              disabled={cancelDisabled}
+              sx={borderedSx('default')}
+            >
+              <CloseIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+
+      {visibleAfter.map((action, i) => renderCustomAction(action, `after-${i}`))}
+    </Box>
+  );
+
+  if (inTopBar) return createPortal(actions, topBarSlot);
 
   return (
     <Box
+      data-sticky-bar=""
       sx={{
         position: 'sticky',
         top: { xs: 56, sm: 64 },
@@ -181,7 +277,9 @@ export default function PageActionBar({
           py: { xs: 1, sm: 1.25 },
           display: 'flex',
           flexWrap: 'wrap',
-          alignItems: 'center',
+          // A phone's subtitle wraps under the back button: the actions stay level with the button, not
+          // with the middle of the two lines (specs/shell-and-home-day-first.md rule 24).
+          alignItems: { xs: 'flex-start', sm: 'center' },
           columnGap: 1,
           rowGap: 1,
         }}
@@ -250,83 +348,7 @@ export default function PageActionBar({
           </Box>
         )}
 
-        {/* The actions keep their full width: when they do not fit beside the title they take a row of
-            their own, right-aligned — never a column of stacked buttons. */}
-        <Box
-          data-testid="page-action-bar-actions"
-          sx={{
-            display: 'flex',
-            gap: 1,
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            flexWrap: 'wrap',
-            // The centre's twin only while the centre sits beside the title: hidden on xs, or on its own
-            // row, it leaves the title the room (rule 19, amended 2026-10-18).
-            flex: { xs: '0 1 auto', sm: centerNode ? '1 1 0' : '0 1 auto' },
-            [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { flex: '0 1 auto' },
-            minWidth: 'fit-content',
-            maxWidth: '100%',
-            ml: 'auto',
-            '& .MuiButton-root': { whiteSpace: 'nowrap' },
-          }}
-        >
-          {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
-
-          {useOverflow && (
-            <>
-              <Tooltip title="Plus d'actions" enterDelay={500}>
-                <IconButton aria-label="Plus d'actions" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={borderedSx('default')}>
-                  <MoreVertIcon />
-                </IconButton>
-              </Tooltip>
-              <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
-                {iconExtras.map((a, i) => (
-                  <MenuItem
-                    key={`menu-${i}`}
-                    onClick={() => { setMenuAnchor(null); a.onClick(); }}
-                    disabled={a.disabled}
-                  >
-                    <ListItemIcon>{a.icon}</ListItemIcon>
-                    <ListItemText>{a.tooltip}</ListItemText>
-                  </MenuItem>
-                ))}
-              </Menu>
-            </>
-          )}
-
-          {onSave && (
-            <Tooltip title={saveBusy ? `${saveTooltip}...` : saveTooltip} enterDelay={500} enterNextDelay={500}>
-              <span>
-                <IconButton
-                  color="primary"
-                  aria-label={saveTooltip}
-                  onClick={onSave}
-                  disabled={saveDisabled || saveBusy}
-                  sx={saveFilledSx}
-                >
-                  {saveBusy ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-                </IconButton>
-              </span>
-            </Tooltip>
-          )}
-
-          {onCancel && (
-            <Tooltip title={cancelTooltip} enterDelay={500} enterNextDelay={500}>
-              <span>
-                <IconButton
-                  aria-label={cancelTooltip}
-                  onClick={onCancel}
-                  disabled={cancelDisabled}
-                  sx={borderedSx('default')}
-                >
-                  <CloseIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
-          )}
-
-          {visibleAfter.map((action, i) => renderCustomAction(action, `after-${i}`))}
-        </Box>
+        {actions}
       </Box>
 
       {identityOnSecondRow && (

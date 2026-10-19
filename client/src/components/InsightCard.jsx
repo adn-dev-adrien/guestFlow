@@ -18,10 +18,10 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const TONES = {
-  success: { bg: '#E6EFE7', fg: 'success.main', icon: <TrendingUpIcon fontSize="small" /> },
-  warning: { bg: '#F6EDD7', fg: 'warning.main', icon: <SavingsOutlinedIcon fontSize="small" /> },
-  error: { bg: '#F7E8E5', fg: 'error.main', icon: <ScheduleIcon fontSize="small" /> },
-  info: { bg: '#E4EDF3', fg: 'info.main', icon: <InfoOutlinedIcon fontSize="small" /> },
+  success: { bg: 'success.soft', fg: 'success.text', icon: <TrendingUpIcon fontSize="small" /> },
+  warning: { bg: 'warning.soft', fg: 'warning.text', icon: <SavingsOutlinedIcon fontSize="small" /> },
+  error: { bg: 'error.soft', fg: 'error.text', icon: <ScheduleIcon fontSize="small" /> },
+  info: { bg: 'info.soft', fg: 'info.text', icon: <InfoOutlinedIcon fontSize="small" /> },
 };
 
 export default function InsightCard({ tone = 'info', title, text, icon, actionLabel, onAction }) {

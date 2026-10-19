@@ -37,6 +37,7 @@ const CHART = {
   band: '#F3EFE6',           // the window's months behind « Revenu par mois »
   selected: '#F6EDD7',       // the open month behind the pace chart
   cursor: 'rgba(60, 54, 36, 0.05)',
+  channels: '#6B8F76',       // the « Canaux » tile's dot (decoration beside its label)
   tooltip: '#27251F',
   // One per logement, in the server's slot order; each ≥ 3:1 and told apart under the three
   // colour-vision deficiencies (dataviz validator, adjacent pairs).
@@ -59,6 +60,8 @@ const theme = createTheme({
     warning: { main: '#8F6A1D', soft: '#F6EDD7', text: '#6F5112' },
     error: { main: '#A8433A', soft: '#F7E8E5', text: '#A8433A' },
     info: { main: '#31556E', soft: '#E4EDF3', text: '#31556E' },
+    // The « stable » shade of a comparison badge: no good, no bad news.
+    neutral: { main: INK_MUTED, soft: '#EEEBE4', text: INK_MUTED },
     divider: 'rgba(60, 54, 36, 0.1)',
     chart: CHART,
   },

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   Box, Typography, Stack, FormControl, InputLabel, Select, MenuItem,
   Tooltip, TableRow, TableCell,
@@ -55,13 +55,11 @@ export default function DevisPage() {
     navigate('/reservations/new?mode=devis');
   };
 
-  const handleEditDevis = (devis) => {
-    if (devis.status === 'converted' && devis.convertedReservationId) {
-      navigate(`/reservations/${devis.convertedReservationId}`);
-    } else {
-      navigate(`/reservations/new?mode=devis&devisId=${devis.id}`);
-    }
-  };
+  const editPathOf = (devis) => (devis.status === 'converted' && devis.convertedReservationId
+    ? `/reservations/${devis.convertedReservationId}`
+    : `/reservations/new?mode=devis&devisId=${devis.id}`);
+
+  const handleEditDevis = (devis) => navigate(editPathOf(devis));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,7 +140,30 @@ export default function DevisPage() {
 
   const devisNumberCell = (d) => (
     <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-      <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>{d.devisNumber}</Typography>
+      {/* specs/ui-review-2026-10-19-operations.md rule 23 — the number is the row's link: Tab reaches
+          it, Entrée opens the quote (the rest of the row stays clickable with the mouse). */}
+      <Typography
+        component={Link}
+        to={editPathOf(d)}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={`Ouvrir le devis ${d.devisNumber}`}
+        variant="body2"
+        sx={{
+          fontWeight: 600,
+          fontFamily: 'monospace',
+          color: 'inherit',
+          textDecoration: 'none',
+          borderRadius: 0.5,
+          // A phone's finger needs 44 px: the link is as tall as a touch target there (rule 26).
+          display: 'inline-flex',
+          alignItems: 'center',
+          minHeight: { xs: 44, md: 'auto' },
+          '&:hover': { textDecoration: 'underline' },
+          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+        }}
+      >
+        {d.devisNumber}
+      </Typography>
       {/* Origin badge (specs/public-api.md follow-up) — booking request from the website. */}
       {websiteOn && d.requestOrigin === 'public' && (
         <Tooltip title="Demande de réservation reçue depuis le site internet">

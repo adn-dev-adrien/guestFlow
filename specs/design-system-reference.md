@@ -119,3 +119,16 @@ outcome toasts. A toast is never a substitute for « impossible de charger la pa
 ## 8. Per-page done-criteria (sweeps)
 
 See [design-system.md §3.9](design-system.md) — the checklist every swept page must satisfy.
+
+## 9. Shared rule — the primary action on a phone
+
+Recorded 2026-10-19 (integrated review of inte/plugins, L4), from the SAS decision of the UI/UX review
+of 2026-10-18 (decision 5). Under `sm`, a step-by-step flow or a dialog whose actions stack puts them
+**at the bottom of the screen, under the thumb**, in this order from top to bottom: the secondary
+actions first (« Plus tard », « Précédent », « Reporter »), **neutral** (`color="inherit"`, text or
+outlined), then the **primary action last, filled** (`variant="contained"`) and full width — never the
+primary on top of a column. A bar that stays at the bottom pads itself with
+`env(safe-area-inset-bottom)`. From `sm` the actions sit on one row, right-aligned, the primary one
+last. Applied by `plugins/sas/ReservationSasDialog.jsx` (specs/ui-review-2026-10-19-operations.md) and
+`components/StepperPage.jsx`, the onboarding assistant (specs/plugins-phase-p-productisation.md
+rule 44).

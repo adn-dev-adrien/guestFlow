@@ -1,6 +1,6 @@
 /**
  * TokenTextField — a French/English text with its variables
- * (specs/plugins-phase-p-productisation.md §6, specs/guest-email-texts-made-simple.md rules 10, 27, 37, 38).
+ * (specs/plugins-phase-p-productisation.md §6, specs/guest-email-texts-made-simple.md rules 10, 27, 37, 38, 46).
  * Generic: any text the server fills with `{{token}}` and `{{#if flag}}…{{/if}}`.
  *
  * The field shows each variable by its French label (« ⟦Prénom du voyageur⟧ ») and hands the raw
@@ -55,8 +55,17 @@ export default function TokenTextField({
   const languages = language ? [language] : ['fr', 'en'];
   const hasVariables = tokens.length > 0 || flags.length > 0;
 
+  // A field that never had a caret receives the variable at its end, not before its first word
+  // (rule 46): a browser reports a caret at 0 for a field nobody has clicked yet.
+  const hadCaret = useRef({ fr: false, en: false });
+
   const openPicker = (lang) => {
     const field = refs[lang].current;
+    if (!hadCaret.current[lang]) {
+      const endOf = (shown[lang] || '').length;
+      setPicker({ lang, start: endOf, end: endOf, atEnd: true });
+      return;
+    }
     const start = field?.selectionStart ?? shown[lang].length;
     setPicker({ lang, start, end: field?.selectionEnd ?? start });
   };
@@ -90,10 +99,16 @@ export default function TokenTextField({
   };
 
   const insert = (entry, kind) => {
-    const { lang, start, end } = picker;
+    const { lang, end, atEnd } = picker;
     const field = refs[lang].current;
     const current = shown[lang] || '';
-    const { snippet, caret } = chipSnippet(entry, kind, dict);
+    const { snippet: bare, caret: bareCaret } = chipSnippet(entry, kind, dict);
+    // Appended to a text that does not end in a space: one space keeps the variable off the last word.
+    const spaced = atEnd && current.length > 0 && !/\s$/.test(current);
+    const snippet = spaced ? ` ${bare}` : bare;
+    const caret = spaced ? bareCaret + 1 : bareCaret;
+    const { start } = picker;
+    hadCaret.current[lang] = true;
     onChange(lang, toRaw(current.slice(0, start) + snippet + current.slice(end), dict));
     setPicker(null);
     requestAnimationFrame(() => {
@@ -163,6 +178,8 @@ export default function TokenTextField({
       value={shown[lang]}
       onChange={handleChange(lang)}
       onFocus={() => { setFocused(lang); if (onFocus) onFocus(lang); }}
+      onPointerUp={() => { hadCaret.current[lang] = true; }}
+      onKeyUp={(e) => { if (e.key !== 'Tab' && e.key !== 'Shift') hadCaret.current[lang] = true; }}
       onSelect={handleSelect(lang)}
       onKeyDown={handleKeyDown(lang)}
       inputRef={refs[lang]}
