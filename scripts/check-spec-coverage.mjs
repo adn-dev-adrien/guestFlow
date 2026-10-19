@@ -301,51 +301,119 @@ export function rulesChangedInDiff(diff, specsNow) {
   };
 }
 
-// Règle 14 : une spec « Draft » n'est pas encore livrée — ses règles décrivent ce qu'on va
-// construire, pas ce qui existe. Elles ne bloquent pas tant que la spec est Draft ; la PR qui la
-// fait sortir de Draft doit les couvrir TOUTES, qu'elle touche ou non leurs lignes. Sans cette
-// seconde moitié, une spec écrite en Draft puis passée « Implemented » ne serait jamais vérifiée.
+// Règle 14 : une spec pas encore livrée (Status « Draft » ou « Approved ») décrit ce qu'on va
+// construire. Une PR de spec seule doit pouvoir la poser ou l'approuver sans tests décoratifs ; mais
+// rien ne doit passer à travers : voir `specTransitions` et `exemptCitations`.
+const UNDELIVERED = /^\s*(draft|approved)\b/i;
+
+/** Le Status de la spec dit-il « pas encore livrée » (Draft ou Approved) ? */
+export function isUndelivered(markdown) {
+  const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
+  return Boolean(status && UNDELIVERED.test(status[1]));
+}
+
+/** « Draft » seulement — l'état d'avant toute approbation. */
 export function isDraft(markdown) {
   const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
   return Boolean(status && /^\s*draft\b/i.test(status[1]));
 }
 
 /**
- * Applique la règle 14 au résultat de `rulesChangedInDiff`. `drafts` : les specs Draft après le
- * changement ; `promoted` : nom → règles des specs qui étaient Draft avant et ne le sont plus.
+ * Règle 14, pour chaque spec touchée par la PR (`before` = son texte au merge-base, sous son ancien
+ * nom si elle a été renommée ; `null` si elle n'existait pas) :
+ *   - exemptée : non livrée APRÈS la PR, et au merge-base absente ou Draft. Une spec déjà Approved
+ *     au merge-base reste soumise à la barrière comme avant ; une spec livrée qu'on repasse en Draft
+ *     n'est jamais exemptée (ce serait un contournement) ;
+ *   - livrée : non livrée au merge-base, livrée après — TOUTES ses règles sont exigées.
+ *
+ * @param {Array<{name: string, before: (string|null), now: string}>} touched
+ * @returns {{exempt: Set<string>, delivered: Set<string>}}
  */
-export function applyDraftStatus({ addedRules = [], modifiedRules = [] } = {}, { drafts = new Set(), promoted = new Map() } = {}) {
-  const keep = (r) => !drafts.has(r.spec);
+export function specTransitions(touched = []) {
+  const exempt = new Set();
+  const delivered = new Set();
+  for (const { name, before, now } of touched) {
+    const nowPending = isUndelivered(now);
+    const wasPending = before != null && isUndelivered(before);
+    if (nowPending && (before == null || isDraft(before))) exempt.add(name);
+    else if (!nowPending && wasPending) delivered.add(name);
+  }
+  return { exempt, delivered };
+}
+
+/**
+ * Applique la règle 14 au résultat de `rulesChangedInDiff` : les règles d'une spec exemptée sortent
+ * du contrôle ; celles d'une spec livrée y entrent toutes, comme si elles venaient d'être écrites.
+ */
+export function applyDraftStatus({ addedRules = [], modifiedRules = [] } = {}, { exempt = new Set(), delivered = new Set(), specsNow = new Map() } = {}) {
+  const keep = (r) => !exempt.has(r.spec);
   const added = addedRules.filter(keep);
-  for (const [spec, rules] of promoted) {
-    for (const rule of rules) {
+  for (const spec of delivered) {
+    for (const rule of specsNow.get(spec) || []) {
       if (!added.some((a) => a.spec === spec && a.rule === rule.id)) added.push({ spec, rule: rule.id, exempt: Boolean(rule.exempt) });
     }
   }
-  const promotedNames = new Set(promoted.keys());
   return {
     addedRules: added,
-    modifiedRules: modifiedRules.filter((r) => keep(r) && !promotedNames.has(r.spec)),
+    modifiedRules: modifiedRules.filter((r) => keep(r) && !delivered.has(r.spec)),
   };
+}
+
+/**
+ * Règle 14, second verrou : du code ne part pas contre une spec non livrée. Lit un diff unifié de
+ * la PR HORS `specs/` et `docs/` (les résumés HTML d'une spec la citent légitimement) et renvoie
+ * chaque ligne AJOUTÉE qui nomme `specs/<x>.md` d'une spec exemptée.
+ *
+ * @returns {Array<{file: string, spec: string}>}
+ */
+export function exemptCitations(diff, exempt = new Set()) {
+  const out = [];
+  let file = null;
+  for (const line of String(diff || '').split('\n')) {
+    const head = line.match(/^\+\+\+ b\/(.+)$/);
+    if (head) { file = head[1]; continue; }
+    if (!file || /^(specs|docs)\//.test(file) || !line.startsWith('+') || line.startsWith('+++')) continue;
+    for (const m of line.matchAll(/specs\/([a-z0-9-]+)\.md/gi)) {
+      const spec = m[1].toLowerCase();
+      if (exempt.has(spec) && !out.some((o) => o.file === file && o.spec === spec)) out.push({ file, spec });
+    }
+  }
+  return out;
+}
+
+/** `git diff --name-status -M` → [{ path, from }] pour les specs touchées (`from` = ancien chemin). */
+export function parseNameStatus(text) {
+  const out = [];
+  for (const line of String(text || '').split('\n')) {
+    const parts = line.split('\t');
+    if (parts.length < 2) continue;
+    const code = parts[0].trim();
+    if (code.startsWith('D')) continue;
+    const isMove = /^[RC]/.test(code);
+    const from = isMove ? parts[1] : (code.startsWith('A') ? null : parts[1]);
+    const to = isMove ? parts[2] : parts[1];
+    if (/^specs\/[^/]+\.md$/.test(to)) out.push({ path: to, from });
+  }
+  return out;
 }
 
 function changedRules(base) {
   const specsNow = readSpecs();
-  const changed = rulesChangedInDiff(git(['diff', '--unified=0', `${base}...HEAD`, '--', 'specs/']), specsNow);
-  const drafts = new Set();
-  const promoted = new Map();
-  const touched = git(['diff', '--name-only', `${base}...HEAD`, '--', 'specs/']).split('\n')
-    .map((f) => f.trim()).filter((f) => /^specs\/[^/]+\.md$/.test(f));
-  for (const f of touched) {
-    const name = path.basename(f, '.md').toLowerCase();
+  const mb = git(['merge-base', base, 'HEAD']).trim();
+  const changed = rulesChangedInDiff(git(['diff', '--unified=0', `${mb}..HEAD`, '--', 'specs/']), specsNow);
+  const touched = [];
+  for (const { path: f, from } of parseNameStatus(git(['diff', '--name-status', '-M', `${mb}..HEAD`, '--', 'specs/']))) {
     let now = '';
     try { now = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { continue; }
-    if (isDraft(now)) { drafts.add(name); continue; }
-    let before = '';
-    try { before = git(['show', `${base}:${f}`]); } catch { before = ''; }
-    if (isDraft(before) && specsNow.has(name)) promoted.set(name, specsNow.get(name));
+    let before = null;
+    if (from) {
+      try { before = execFileSync('git', ['show', `${mb}:${from}`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { before = null; }
+    }
+    touched.push({ name: path.basename(f, '.md').toLowerCase(), before, now });
   }
-  return applyDraftStatus(changed, { drafts, promoted });
+  const { exempt, delivered } = specTransitions(touched);
+  const outside = git(['diff', '--unified=0', `${mb}..HEAD`, '--', '.', ':(exclude)specs/', ':(exclude)docs/']);
+  return { ...applyDraftStatus(changed, { exempt, delivered, specsNow }), exempt, codeCitations: exemptCitations(outside, exempt) };
 }
 
 function report({ specName }) {
@@ -383,9 +451,18 @@ function report({ specName }) {
 }
 
 function gate(base) {
-  const { addedRules, modifiedRules } = changedRules(base);
+  const { addedRules, modifiedRules, exempt, codeCitations } = changedRules(base);
   const citedAfter = new Set(readCitations().map((c) => `${c.spec}:${c.rule}`));
   const verdict = gateVerdict({ addedRules, modifiedRules, citedAfter });
+  for (const spec of exempt) console.log(`… specs/${spec}.md : pas encore livrée (Draft / Approved), règles différées (règle 14).`);
+  if (codeCitations.length) {
+    for (const c of codeCitations) {
+      console.error(`✗ ${c.file} cite specs/${c.spec}.md, qui n'est pas encore livrée (Draft / Approved).`);
+    }
+    console.error('\n  Du code ne part pas contre une spec non livrée : passez-la en « Implemented » dans la même PR');
+    console.error('  (toutes ses règles devront alors être citées par un test, ou déclarées « Sans test »).');
+    return 1;
+  }
   for (const w of verdict.warnings) {
     console.log(`⚠ specs/${w.spec}.md règle ${w.rule} : reformulée, et toujours citée par aucun test.`);
   }
