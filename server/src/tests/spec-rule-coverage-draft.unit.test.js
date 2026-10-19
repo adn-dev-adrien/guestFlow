@@ -80,13 +80,13 @@ test('rule 14 — a demoted spec is gated like any other', async () => {
 test('rule 14 — code added outside specs/ and docs/ may not cite an exempt spec', async () => {
   const { exemptCitations } = await load();
   const diff = [
-    '+++ b/server/src/utils/reservationLedger.js', '+// specs/reservation-payment-ledger.md rule 3',
-    '+++ b/docs/specs/2026-10-19-reservation-payment-ledger.html', '+<code>specs/reservation-payment-ledger.md</code>',
-    '+++ b/specs/other.md', '+see specs/reservation-payment-ledger.md',
-    '+++ b/client/src/x.jsx', '+// specs/clients.md rule 2', '-// specs/reservation-payment-ledger.md removed line',
+    '+++ b/server/src/utils/pendingFeature.js', '+// specs/some-pending-spec.md rule 3',
+    '+++ b/docs/specs/some-pending-spec.html', '+<code>specs/some-pending-spec.md</code>',
+    '+++ b/specs/other.md', '+see specs/some-pending-spec.md',
+    '+++ b/client/src/x.jsx', '+// specs/clients.md rule 2', '-// specs/some-pending-spec.md removed line',
   ].join('\n');
-  assert.deepEqual(exemptCitations(diff, new Set(['reservation-payment-ledger'])),
-    [{ file: 'server/src/utils/reservationLedger.js', spec: 'reservation-payment-ledger' }]);
+  assert.deepEqual(exemptCitations(diff, new Set(['some-pending-spec'])),
+    [{ file: 'server/src/utils/pendingFeature.js', spec: 'some-pending-spec' }]);
   assert.deepEqual(exemptCitations(diff, new Set()), []);
 });
 
