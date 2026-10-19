@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -24,6 +24,9 @@
     ],
     "1.2.0": [
       "Accueil : les mails Gîtes de France à vérifier rejoignent « À traiter », comptés par le serveur."
+    ],
+    "1.2.1": [
+      "Le délai de relève n’accepte que 1 à 24 heures et les numéros de gîte ouvrent le clavier numérique sur téléphone."
     ]
   }
 }

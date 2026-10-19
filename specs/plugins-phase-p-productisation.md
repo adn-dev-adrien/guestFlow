@@ -425,7 +425,10 @@ Decisions taken on 2026-10-06:
     shared rule: specs/design-system-reference.md §9). Under `sm` the actions of `StepperPage` stack in
     a bar kept at the bottom of the screen (safe area included): « Plus tard » and « Précédent » first,
     neutral, then « Suivant » (or « Ouvrir le tableau de bord ») last, filled and full width. From `sm`
-    they stay on one row, right-aligned, the primary one last.
+    they stay on one row, right-aligned, the primary one last. *Review of PR #728 (M3):* `sticky`
+    alone left a short step's actions mid-screen; under `sm` the card fills the screen (`100dvh`, a
+    flex column) and the actions are pushed to its bottom (`margin-top: auto`), still `sticky` for a
+    long step, inside the card's 16 px padding.
 
 ## 4. Architecture
 

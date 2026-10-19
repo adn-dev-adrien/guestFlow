@@ -8,7 +8,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createSmtpDetector, detectionMessage, domainOf } = require('../utils/smtpPresets');
+const { createSmtpDetector: createDetector, detectionMessage, domainOf } = require('../utils/smtpPresets');
+
+// The suite never reads the process environment: an E2E or development shell exporting
+// GUESTFLOW_SMTP_DETECT=off would otherwise turn every MX case below into « off ».
+const createSmtpDetector = (options = {}) => createDetector({ env: {}, ...options });
 
 const mx = (...exchanges) => async () => exchanges.map((exchange, i) => ({ exchange, priority: (i + 1) * 10 }));
 

@@ -20,7 +20,7 @@ import useAnchorScroll from '../../hooks/useAnchorScroll';
 
 export default function IntegrationsSettingsPage() {
   const navigate = useNavigate();
-  const { hash } = useLocation();
+  const { hash, key: navigationKey } = useLocation();
   const form = useSettingsForm({ groups: [], navigate });
   const { setExternalDirty } = form;
   const sections = useSlot('settings.integrations');
@@ -55,8 +55,8 @@ export default function IntegrationsSettingsPage() {
   });
 
   // The sections load lazily and grow as their data arrives: the anchor is placed once it exists and
-  // kept in place while the page settles (specs/plugins-phase-0-foundation.md rule 26).
-  useAnchorScroll(hash, { prefix: '#plugin-' });
+  // kept in place while the page settles (specs/plugins-phase-0-foundation.md rules 26–27).
+  useAnchorScroll(hash, { prefix: '#plugin-', navigationKey });
 
   const anchored = new Set();
   const renderSection = ({ key, pluginId, Component }) => {

@@ -25,9 +25,17 @@ export default function StepperPage({
 }) {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', justifyContent: 'center', alignItems: { xs: 'stretch', sm: 'flex-start' }, py: { xs: 0, sm: 6 }, px: { xs: 0, sm: 2 } }}>
-      <Card variant="outlined" sx={{ width: '100%', maxWidth: 600, borderRadius: { xs: 0, sm: 2 }, overflow: { xs: 'visible', sm: 'hidden' } }}>
-        <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
-          <Stack spacing={2.5}>
+      {/* Phone: the card fills the screen (100dvh) so a short step still puts its actions at the
+          bottom, under the thumb; a long step keeps them in view with `sticky`. */}
+      <Card
+        variant="outlined"
+        sx={{
+          width: '100%', maxWidth: 600, borderRadius: { xs: 0, sm: 2 }, overflow: { xs: 'visible', sm: 'hidden' },
+          display: { xs: 'flex', sm: 'block' }, flexDirection: 'column', minHeight: { xs: '100dvh', sm: 0 },
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, sm: 4 }, flex: { xs: 1, sm: 'none' }, display: { xs: 'flex', sm: 'block' }, flexDirection: 'column' }}>
+          <Stack spacing={2.5} useFlexGap sx={{ flex: { xs: 1, sm: 'none' } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Box>{brand}</Box>
               <Typography variant="body2" color="text.secondary">{`Étape ${step} sur ${total}`}</Typography>
@@ -41,14 +49,13 @@ export default function StepperPage({
               spacing={1}
               sx={{
                 justifyContent: 'flex-end',
+                mt: { xs: 'auto', sm: 0 },
                 pt: 1,
                 // Phone: a bar stuck to the bottom of the screen, the primary action last, under the thumb.
                 position: { xs: 'sticky', sm: 'static' },
                 bottom: { xs: 0 },
                 zIndex: 1,
                 bgcolor: 'background.paper',
-                mx: { xs: -2, sm: 0 },
-                px: { xs: 2, sm: 0 },
                 pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 0 },
                 borderTopStyle: { xs: 'solid', sm: 'none' },
                 borderTopWidth: 1,

@@ -192,6 +192,12 @@ guessing; and the quote the guest receives looks like the house that sends it.
 25. **A long logement name stays readable in the segmented filter** (integrated review, 2026-10-19,
     L7). Under `sm` a segment takes the width its label needs and wraps on two lines (« Aventura /
     lodge ») instead of ending in an ellipsis; from `sm` the segments keep one line (rule 16).
+26. **The way back survives the unsaved-changes guard; a logement and a phone finger too** (review of
+    PR #728). The guards that keep a dirty page on Back (`useDirtyFormGuard`, the reservation page,
+    the logement page) put the page's own router state back (`pushState(<page state>)`), never `null`:
+    a null entry lost `idx`, so after « Rester » the next « Retour » believed the page was opened
+    directly and went to the planning. A logement opened directly goes back to the logements list
+    (`/properties`), not the planning. On a phone the quote-number link of rule 23 is 44 px tall.
 
 **Edge cases:**
 - A SAS with only intro and recap → « 1 sur 2 », « 2 sur 2 ».
@@ -277,6 +283,8 @@ devis, options), `SegmentedSelect` (every short exclusive filter). Page-specific
 - Client `pages/DevisPage.jsx`: the quote number is a `Link` to `editPathOf(devis)`.
 - Client `components/MiniPlanningStrip.jsx`: named arrows.
 - Client `components/SegmentedSelect.jsx`: segments wrap under `sm`.
+- Client `hooks/useDirtyFormGuard.js`, `pages/ReservationPage.jsx`, `pages/PropertyDetail.jsx`: the
+  Back guard re-pushes the page's state; `PropertyDetail` falls back to `/properties` (rule 26).
 
 ## 5. Data model
 
@@ -327,9 +335,10 @@ step numbering are shown in `docs/specs/2026-10-19-ui-review-operations.html`.
   The PDF of quote 22274 (six offered lines) checked with `qlmanage -t`: one « Offert avec le séjour »
   row, total on page 1, no « (expiré) ».
 
-**Integrated review of inte/plugins (2026-10-19)** — rules 22–25: `utils/__tests__/navigation.back-fallback.test.js` (3),
-`pages/__tests__/DevisPage.keyboard.test.jsx` (4: the link at 1280 and 390 opens with Entrée, a
-converted quote links to its reservation, the mini planning arrows),
+**Integrated review of inte/plugins (2026-10-19)** — rules 22–26: `utils/__tests__/navigation.back-fallback.test.js` (3),
+`hooks/__tests__/useDirtyFormGuard.history-state.test.jsx` (1, rule 26),
+`pages/__tests__/DevisPage.keyboard.test.jsx` (5: the link at 1280 and 390 opens with Entrée, a
+converted quote links to its reservation, the mini planning arrows, the 44 px link on a phone),
 `components/__tests__/SegmentedSelect.phone-wrap.test.jsx` (2).
 
 ## 8. Out of scope

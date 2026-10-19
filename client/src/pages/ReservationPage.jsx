@@ -649,12 +649,15 @@ export default function ReservationPage() {
 
   useEffect(() => {
     if (!isDirty) return;
+    const pageState = window.history.state;
 
     const onPopState = () => {
       pendingLeaveActionRef.current = () => navigate(-1);
       setUnsavedDialogOpen(true);
       // Keep user on the current page until they confirm.
-      window.history.pushState(null, '', window.location.href);
+      // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
+      // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
+      window.history.pushState(pageState, '', window.location.href);
     };
 
     window.addEventListener('popstate', onPopState);

@@ -415,7 +415,9 @@ export default function CalendarPage() {
       <PageActionBar
         title="Calendrier"
         center={renderPropertyPicker()}
-        actionsBefore={[
+        // A phone showing one logement uses the week view, which has its own « Aujourd'hui » and week
+        // arrows: the month actions would repeat it (specs/shell-and-home-day-first.md rule 23).
+        actionsBefore={selectedProp && isMobile ? [] : [
           ...(selectedProp ? [
             { icon: <NavigateBeforeIcon />, tooltip: 'Mois précédent', onClick: prependMonth },
             { icon: <NavigateNextIcon />, tooltip: 'Mois suivant', onClick: appendMonth },

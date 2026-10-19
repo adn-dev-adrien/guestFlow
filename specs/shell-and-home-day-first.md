@@ -160,12 +160,26 @@ the top bar says which page is open.
     rendered as before, in card mode under the pinned subjects (`specs/plugins-phase-1-sdk.md` §3.C,
     note of 2026-10-19). The SDK 1.4.0 plugins state `guestflow >=3.10.0`, the convention of the 1.2.0
     bump (the core version of the branch that ships the SDK).
-23. **A phone page bar with one button gives it to the top bar** (integrated review of inte/plugins,
-    2026-10-19, L7). Under `sm`, a `PageActionBar` with no back button, no subtitle, no tabs and no
-    identity line, and a single visible button (an action, or « Plus d'actions » holding several),
-    renders that button in the top bar, between the page title and the search — no band of its own,
-    which was a nearly empty 60 px white strip on Suivi financier and Calendrier. From `sm`, or with
-    anything else to show, the bar is drawn as before.
+23. **A phone page bar with one icon action gives it to the top bar** (integrated review of inte/plugins,
+    2026-10-19, L7; narrowed by the review of PR #728, B1/M1/M2). Under `sm`, a `PageActionBar` with
+    no back button, no subtitle, no tabs and no identity line whose only button is **one icon action**
+    renders it in the top bar, between the page title and the search — no band of its own. Never
+    moved: Save or Cancel, a custom node (a text button such as « Nouveau logement », a select), a
+    destructive (`error`) action, the « ⋯ » menu of folded actions. The title keeps at least 12
+    characters' width, and the action stays in the band whenever the title's full text would not fit
+    beside it: the top bar measures the title's natural width against the room it leaves it, the slot
+    left out of the sum, so the answer does not flip when the button moves. While the phone search
+    covers the bar, the slot stays mounted, hidden: the page does not redraw its band and jump.
+    Pages concerned, measured at 390 px on the Solio data (2026-10-19): Suivi financier
+    (« Actualiser »), Calendrier with every logement (« Aujourd'hui »), Indemnités (« Ajouter »),
+    Comptabilité (« Télécharger le CSV des ventes »), Recettes tarifaires (« Déclarer un changement
+    tarifaire »), Planning ressources (« Nouvelle réservation », its icon form below `lg`), and by the
+    same shape Vacances scolaires (« Synchroniser maintenant »). Every title stays whole. Planning,
+    Logements, Devis, Emails, Utilisateurs, Fermetures, Plan comptable and the settings pages keep
+    their band (a text button, a select, a back button or Save/Cancel) — Planning's linen button
+    stays on that page, out of the global chrome. Calendrier on one logement shows the week view,
+    which has its own « Aujourd'hui » and week arrows: its bar carries no month action on a phone, so
+    nothing is shown twice and no « ⋯ » appears.
 24. **On a phone the bar's actions stay level with its back button** (integrated review, 2026-10-19,
     L7). When a subtitle (« Dernière mise à jour : … ») wraps under the back button, Enregistrer and
     Annuler align with the button's row, not with the middle of the two lines (Intégrations, Emails &
@@ -241,8 +255,11 @@ the top bar says which page is open.
 
 **Integrated review of inte/plugins (2026-10-19)** — rules 23–24:
 - Client `hooks/usePageTitle.jsx`: the provider also holds the top bar's action slot
-  (`TopBarActionSlot`, `useTopBarActionSlot`).
-- Client `App.jsx`: renders the slot on phones, before the search button.
+  (`TopBarActionSlot`, kept mounted and hidden during the phone search; `useTopBarActionSlot`, null
+  when the title has no room) and the title-room flag (`useSetTopBarTitleRoom`).
+- Client `App.jsx`: renders the slot on phones, before the search button (flex `order`);
+  `useTopBarTitleRoom` measures whether the title keeps its full text beside one more button.
+- Client `pages/CalendarPage.jsx`: no month action on a phone showing one logement (week view).
 - Client `components/PageActionBar.jsx`: portals its single button into the slot (rule 23); row aligned
   to the top on xs (rule 24).
 
@@ -289,7 +306,9 @@ None.
 - [x] 390 / 900 / 1280 on a neutralised copy of the Solio base: day first, box unfolds, pinned cards,
   no horizontal scroll at 390, drawer labels wrap, title in the top bar on a phone.
 
-**Integrated review of inte/plugins (2026-10-19)** — rules 23–24: `components/__tests__/PageActionBar.top-bar-action.test.jsx` (4) with the shared
+**Integrated review of inte/plugins (2026-10-19)** — rules 23–24: `components/__tests__/PageActionBar.top-bar-action.test.jsx` (10: moved, what is
+never moved, the folded « ⋯ », a title without room, the hidden slot during the search, level actions) and
+E2E `e2e/specs/mobile/top-bar-action.spec.js` (the titles stay whole at 390 px), with the shared
 `mediaRulesFixture.js` (jsdom applies no `@media`: the suite reads the declarations under each
 breakpoint).
 

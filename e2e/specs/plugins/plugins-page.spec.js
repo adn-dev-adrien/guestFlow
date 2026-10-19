@@ -96,7 +96,7 @@ for (const width of [390, 1280]) {
       await expect(page).toHaveURL(new RegExp(`/settings/integrations#plugin-${id}$`));
       const anchor = page.locator(`#plugin-${id}`);
       await expect(anchor).toBeInViewport({ timeout: 10_000 });
-      // Every section has loaded and the page has settled (rule 26: 1.5 s).
+      // Every section has loaded and the page has settled (rule 27: 800 ms after the last change).
       await page.waitForTimeout(1_800);
       await expect(anchor).toBeInViewport();
       const { top, barsBottom } = await anchor.evaluate((el) => ({

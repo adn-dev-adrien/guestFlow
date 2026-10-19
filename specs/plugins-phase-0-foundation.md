@@ -194,12 +194,22 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 
 26. **« Configurer » lands on its plugin, and stays there while the page loads** (integrated review of
     inte/plugins, 2026-10-19, M1). The anchor `#plugin-<id>` (rule 25) is placed as soon as it exists,
-    and put back in place at every layout change for 1.5 s — the Intégrations sections load lazily and
+    and put back in place at every layout change until the page settles (rule 27) — the Intégrations sections load lazily and
     grow as their own requests answer, which pushed it down after the first scroll — until the user
     scrolls, touches, clicks or types: from then on the page is theirs. Its `scroll-margin-top` is the
     measured bottom of the sticky bars (the app bar and the PageActionBar) plus 8 px, never a guessed
     constant. Generic hook: `hooks/useAnchorScroll.js`. E2E: after « Configurer » on Neat and on
     Vigilance Météo-France the anchor is in the viewport, below the bars, at 390 and 1280 px.
+27. **The anchor lets go when the page has settled, and never breaks the page** (review of PR #728, M4
+    and B2). The re-placing of rule 26 stops 800 ms after the LAST layout change (a slow section keeps
+    it going), at 8 s at the latest, and at once on a wheel, a touch, a click, a key, or a scroll with
+    no layout change behind it (the scrollbar dragged; a scroll that follows a change of the page's
+    height is the browser's and places the anchor again). Everything before the anchor is left out of
+    the browser's scroll anchoring (`overflow-anchor: none`) until the user takes over, so a section
+    above that grows after the timers have stopped does not push it away. The same « Configurer »
+    clicked twice (same hash, new navigation)
+    runs it again. A hash that does not decode (« #plugin-%E0%A4%A ») is looked up as typed instead
+    of throwing into the error screen.
 
 **Edge cases:**
 - (rule 25) A plugin out of the plan never counts as « à configurer ».
@@ -297,7 +307,8 @@ Unknown id → 404 `UNKNOWN_PLUGIN`.
 
 **Integrated review of inte/plugins (2026-10-19)** — rule 26:
 - Client `hooks/useAnchorScroll.js` (new, generic): places the element a hash names below the measured
-  sticky bars and keeps it there while the page settles; stops at the first user scroll.
+  sticky bars and keeps it there while the page settles; stops at the first user scroll (rule 27:
+  `quietMs`, `maxMs`, `navigationKey`, `anchorIdOf` for a malformed hash).
 - Client `pages/settings/IntegrationsSettingsPage.jsx`: uses it for `#plugin-<id>` (the fixed
   `scroll-margin-top` is gone). `components/PageActionBar.jsx` marks itself `data-sticky-bar`.
 
@@ -410,9 +421,11 @@ dialog: the uninstall confirmation is inline.
 - Plugins page: installing Linge adds « Linge » to the menu without a reload; SAS deactivation refused.
 - Mobile 375 px: Plugins page without horizontal scroll, detail and two-click uninstall in place.
 
-**Integrated review of inte/plugins (2026-10-19)** — rule 26: `hooks/__tests__/useAnchorScroll.settle.test.jsx` (4: waits for the anchor, measured
-margin, put back on a layout change, left alone after a user scroll or the settle time);
-E2E `e2e/specs/settings/plugin-configure-anchor.spec.js` (« Configurer » on Neat and Vigilance
+**Integrated review of inte/plugins (2026-10-19)** — rule 26: `hooks/__tests__/useAnchorScroll.settle.test.jsx` (waits for the anchor, measured
+margin, put back on a layout change, stops 800 ms after the last change and at 8 s, stops on a user
+scroll or a scrollbar drag, re-places after a browser scroll that follows a layout change, runs
+again for a new navigation of the same hash, malformed hash, scroll anchoring left out — rule 27; 10);
+E2E `e2e/specs/plugins/plugins-page.spec.js` (« Configurer » on Neat and Vigilance
 Météo-France: the anchor is in the viewport below the bars, at 390 and 1280 px).
 
 ## 8. Out of scope

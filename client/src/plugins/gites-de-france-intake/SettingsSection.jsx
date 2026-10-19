@@ -93,7 +93,7 @@ function SettingsSection({ onDirtyChange }, ref) {
             <TextField
               label="Relève toutes les (heures)"
               type="number"
-              inputProps={{ min: 1, max: 24 }}
+              slotProps={{ htmlInput: { min: 1, max: 24 } }}
               value={draft.pollEveryHours || ''}
               onChange={set('pollEveryHours')}
               error={Boolean(errors.pollEveryHours)}
@@ -123,7 +123,7 @@ function SettingsSection({ onDirtyChange }, ref) {
                   label={p.name}
                   value={giteMap[p.id] || ''}
                   onChange={(e) => setGite(p.id, e.target.value)}
-                  inputProps={{ inputMode: 'numeric' }}
+                  slotProps={{ htmlInput: { inputMode: 'numeric' } }}
                   sx={{ maxWidth: { sm: 320 } }}
                 />
               ))}
@@ -136,7 +136,7 @@ function SettingsSection({ onDirtyChange }, ref) {
             label="Remplir seul une fiche iCal encore intacte"
           />
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' } }}>
             <Button variant="outlined" sx={{ minHeight: 44 }} onClick={() => act('Connexion', api.testGdfIntakeMailbox, (r) => (r.ok ? 'Connexion réussie.' : `Échec : ${r.error}`))}>
               Tester la connexion
             </Button>

@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 23-24 — the quotes list opens from the keyboard (the
+// specs/ui-review-2026-10-19-operations.md rules 23-24 and 26 — the quotes list opens from the keyboard (the
 // number is a link), and the reservation page's mini planning names its two arrows.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -8,6 +8,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
 import theme from '../../theme';
 import { setViewport, resetViewport } from '../../components/__tests__/viewportFixture';
+import { valueUnder } from '../../components/__tests__/mediaRulesFixture';
 import MiniPlanningStrip from '../../components/MiniPlanningStrip';
 
 vi.mock('../../api', () => ({
@@ -57,6 +58,13 @@ test.each([1280, 390])('rule 23: at %i px the quote number is a link Entrée ope
   link.focus();
   await user.keyboard('{Enter}');
   expect(screen.getByTestId('where')).toHaveTextContent('/reservations/new?mode=devis&devisId=7');
+});
+
+test('rule 26: on a phone the quote-number link is a 44 px touch target', async () => {
+  setViewport(390);
+  renderPage();
+  const link = await screen.findByRole('link', { name: 'Ouvrir le devis 2026-08-002' });
+  expect(valueUnder(link, 'min-height', 'min-width:0px')).toBe('44px');
 });
 
 test('rule 23: a converted quote links to its reservation', async () => {

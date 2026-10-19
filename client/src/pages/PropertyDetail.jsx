@@ -4,6 +4,9 @@ import { Box } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
+
+// A logement opened directly goes back to the list (specs/ui-review-2026-10-19-operations.md rule 26).
+const PROPERTIES_LIST = '/properties';
 import PageActionBar from '../components/PageActionBar';
 import PageTabs from '../components/PageTabs';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -364,11 +367,14 @@ export default function PropertyDetail() {
   // Intercept browser back/forward
   useEffect(() => {
     if (!pageDirty) return;
+    const pageState = window.history.state;
     const handler = () => {
       pendingNavRef.current = null;
       setNavGuardOpen(true);
       // push current location back to cancel the pop
-      window.history.pushState(null, '', window.location.href);
+      // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
+      // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
+      window.history.pushState(pageState, '', window.location.href);
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
@@ -381,7 +387,7 @@ export default function PropertyDetail() {
     dirtyRef.current = false;
     setDirty(false);
     if (dest) navigate(dest);
-    else navigateBackWithFrom(navigate, from);
+    else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
 
   const handleNavGuardSave = async () => {
@@ -390,7 +396,7 @@ export default function PropertyDetail() {
     const dest = pendingNavRef.current;
     pendingNavRef.current = null;
     if (dest) navigate(dest);
-    else navigateBackWithFrom(navigate, from);
+    else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
 
   const updateField = (field, value) => {
@@ -504,14 +510,14 @@ export default function PropertyDetail() {
   const handleDeleteProperty = async () => {
     try {
       await api.deleteProperty(id);
-      navigateBackWithFrom(navigate, from);
+      navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
     } catch (err) {
       showError(err?.message || 'Impossible de supprimer le logement.');
     }
   };
 
   if (loadError) {
-    return <Box><PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from)} /><ErrorAlert message="Impossible de charger le logement." onRetry={load} /></Box>;
+    return <Box><PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from, PROPERTIES_LIST)} /><ErrorAlert message="Impossible de charger le logement." onRetry={load} /></Box>;
   }
   if (!property) return <Box><PageActionBar title="Logement" /><LoadingState label="Chargement du logement…" /></Box>;
 
@@ -542,7 +548,7 @@ export default function PropertyDetail() {
           saveTooltip: isNew ? 'Créer le logement' : 'Enregistrer',
           saveDisabled: saving || !form.name?.trim(),
           saveBusy: saving,
-          onCancel: isNew ? () => navigateBackWithFrom(navigate, from) : handleCancel,
+          onCancel: isNew ? () => navigateBackWithFrom(navigate, from, PROPERTIES_LIST) : handleCancel,
         } : {})}
         actionsAfter={!isNew ? [{
           icon: <DeleteIcon />,

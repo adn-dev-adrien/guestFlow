@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
@@ -91,7 +91,7 @@ import EmailHistoryPage from './pages/EmailHistoryPage';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import AppVersionBadge, { AppVersionFooter } from './components/AppVersionBadge';
-import { PageTitleProvider, TopBarActionSlot, usePageTitle } from './hooks/usePageTitle';
+import { PageTitleProvider, TopBarActionSlot, usePageTitle, useSetTopBarTitleRoom } from './hooks/usePageTitle';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import NotFoundPage from './components/NotFoundPage';
 
@@ -524,6 +524,43 @@ function NavContent({ onItemClick }) {
   );
 }
 
+// The page action button of a phone's top bar (specs/shell-and-home-day-first.md rule 23) is 44 px wide.
+const TOP_BAR_ACTION_WIDTH = 44;
+
+/**
+ * Whether the top bar's title keeps its full text beside one more button: the title's natural width
+ * against the room the bar leaves it, the action slot and the spacer left out — so the answer does
+ * not change when the button moves in or out (rule 23).
+ */
+function useTopBarTitleRoom(toolbarRef, titleRef, title, active) {
+  const setTitleRoom = useSetTopBarTitleRoom();
+  useLayoutEffect(() => {
+    const bar = toolbarRef.current;
+    const heading = titleRef.current;
+    if (!active || !bar || !heading) { setTitleRoom(true); return undefined; }
+    const measure = () => {
+      const style = getComputedStyle(bar);
+      const gap = parseFloat(style.columnGap) || 0;
+      const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      let others = 0;
+      let items = 0;
+      [...bar.children].forEach((child) => {
+        if (child === heading || child.hasAttribute('data-topbar-slot') || child.hasAttribute('data-topbar-spacer')) return;
+        const box = child.getBoundingClientRect();
+        const margins = parseFloat(getComputedStyle(child).marginLeft) + parseFloat(getComputedStyle(child).marginRight);
+        if (box.width > 0) { others += box.width + (margins || 0); items += 1; }
+      });
+      const room = bar.clientWidth - padding - others - gap * (items + 1);
+      setTitleRoom(heading.scrollWidth + gap + TOP_BAR_ACTION_WIDTH <= room);
+    };
+    measure();
+    if (typeof ResizeObserver !== 'function') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [toolbarRef, titleRef, title, active, setTitleRoom]);
+}
+
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -541,6 +578,9 @@ function AppShell() {
   // Global reservation search lives in the top bar (specs/reservation-number-and-search.md §6).
   // On mobile it collapses behind a magnifier that expands into a full-width field.
   const [searchOpen, setSearchOpen] = useState(false);
+  const toolbarRef = useRef(null);
+  const titleRef = useRef(null);
+  useTopBarTitleRoom(toolbarRef, titleRef, pageTitle, showPageTitle && !searchOpen);
   const handleHeaderSearchSelect = (id) => {
     setSearchOpen(false);
     navigate(withFrom(`/reservations/${id}`, `${location.pathname}${location.search}`));
@@ -634,7 +674,7 @@ function AppShell() {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Toolbar sx={{ gap: 1 }}>
+        <Toolbar ref={toolbarRef} sx={{ gap: 1 }}>
           {isMobile && (
             <IconButton edge="start" aria-label="Ouvrir le menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
               <MenuIcon />
@@ -655,12 +695,14 @@ function AppShell() {
               {showPageTitle ? (
                 // The page's heading on a phone: the bar's own copy is not drawn there.
                 <Typography
+                  ref={titleRef}
                   component="h1"
                   title={pageTitle}
                   data-testid="appbar-page-title"
                   sx={{
                     fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 600, fontSize: '1.1rem',
-                    lineHeight: 1.25, minWidth: 0, flexShrink: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    // Never squeezed below a readable word (rule 23): « Logements », not « L… ».
+                    lineHeight: 1.25, minWidth: 'min(12ch, 100%)', flexShrink: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}
                 >
                   {pageTitle}
@@ -679,19 +721,22 @@ function AppShell() {
                   <ReservationSearchBox onSelect={handleHeaderSearchSelect} />
                 </Box>
               )}
-              <Box sx={{ flexGrow: 1 }} />
-              {/* A phone page's single action (specs/shell-and-home-day-first.md rule 23). */}
-              {isPhone && <TopBarActionSlot />}
-              {isMobile && (
-                <IconButton onClick={() => setSearchOpen(true)} aria-label="Rechercher une réservation">
-                  <SearchIcon />
-                </IconButton>
-              )}
-              {/* The update offer (specs/self-update-and-releases.md §6.5); the installed version is at the
-                  foot of the drawer (specs/shell-and-home-day-first.md rule 16). */}
-              <AppVersionBadge />
+              <Box data-topbar-spacer="" sx={{ flexGrow: 1 }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, order: 2 }}>
+                {isMobile && (
+                  <IconButton onClick={() => setSearchOpen(true)} aria-label="Rechercher une réservation">
+                    <SearchIcon />
+                  </IconButton>
+                )}
+                {/* The update offer (specs/self-update-and-releases.md §6.5); the installed version is at the
+                    foot of the drawer (specs/shell-and-home-day-first.md rule 16). */}
+                <AppVersionBadge />
+              </Box>
             </>
           )}
+          {/* A phone page's single action (specs/shell-and-home-day-first.md rule 23), placed before the
+              search by `order`; mounted, hidden, while the search covers the bar, so the page does not move. */}
+          {isPhone && <TopBarActionSlot hidden={searchOpen} />}
         </Toolbar>
       </AppBar>
 

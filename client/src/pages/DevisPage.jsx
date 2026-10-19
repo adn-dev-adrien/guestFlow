@@ -154,6 +154,10 @@ export default function DevisPage() {
           color: 'inherit',
           textDecoration: 'none',
           borderRadius: 0.5,
+          // A phone's finger needs 44 px: the link is as tall as a touch target there (rule 26).
+          display: 'inline-flex',
+          alignItems: 'center',
+          minHeight: { xs: 44, md: 'auto' },
           '&:hover': { textDecoration: 'underline' },
           '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
         }}

@@ -48,8 +48,9 @@
  *  - Layout: [Back Title Subtitle] … [center | tabs] … [actionsBefore Save Cancel actionsAfter]
  *    (with `center`, the two side sections take equal flex so the centre is truly centred).
  *  - On xs the title lives in the top bar; a bar left with no back button, subtitle, tabs nor action
- *    is not drawn at all (specs/shell-and-home-day-first.md rule 15); one left with a single button
- *    hands it to the top bar (rule 23). On xs the actions align with the back button, not with the
+ *    is not drawn at all (specs/shell-and-home-day-first.md rule 15); one left with a single icon
+ *    action (not Save/Cancel, not a node, not `error`, not the overflow menu) hands it to the top bar
+ *    while the title keeps its full text there (rule 23). On xs the actions align with the back button, not with the
  *    middle of a wrapped subtitle (rule 24).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
@@ -163,10 +164,13 @@ export default function PageActionBar({
   const hasActions = Boolean(onSave || onCancel || useOverflow || visibleBefore.length || visibleAfter.length);
   const bareOnPhone = isMobile && !(onBack || backTo) && !subtitle && !tabs && !identityOnSecondRow;
   if (bareOnPhone && !hasActions) return null;
-  const visibleCount = [onSave, onCancel, useOverflow].filter(Boolean).length + visibleBefore.length + visibleAfter.length;
-  // A phone bar left with one button and nothing else gives it to the top bar instead of drawing a
-  // nearly empty band (specs/shell-and-home-day-first.md rule 23).
-  const inTopBar = bareOnPhone && visibleCount === 1 && Boolean(topBarSlot);
+  // A phone bar left with one ICON action and nothing else gives it to the top bar instead of drawing
+  // a nearly empty band (specs/shell-and-home-day-first.md rule 23). Never Save / Cancel, never a
+  // custom node (a text button, a select), never a destructive action, never the « ⋯ » menu; and only
+  // while the top bar's title keeps its full text beside it (the slot is null otherwise).
+  const lone = [...visibleBefore, ...visibleAfter];
+  const movable = lone.length === 1 && !lone[0].node && lone[0].color !== 'error';
+  const inTopBar = bareOnPhone && !onSave && !onCancel && !useOverflow && movable && Boolean(topBarSlot);
 
   // The actions keep their full width: when they do not fit beside the title they take a row of their
   // own, right-aligned — never a column of stacked buttons.
