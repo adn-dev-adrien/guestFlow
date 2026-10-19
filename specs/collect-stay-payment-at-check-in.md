@@ -120,7 +120,9 @@ wizard.
       operator cannot fix at the door, so the failure is **logged and the money is still recorded**,
       contribs left NULL: the accounting then derives the attribution the legacy way — exactly what a
       full fiche save has always done with these reservations. The assert runs **before** any write,
-      so nothing partial is ever persisted.
+      so nothing partial is ever persisted. **Revised 2026-10-19 by rule 26**: once another bucket of
+      the reservation carries a split, NULL is no longer the legacy way, and the bucket gets the
+      stored-amount split instead.
 13.bis. **Ordering inside the commit.** The acompte is settled before the solde, and the solde's
     capture re-reads the reservation: that capture is defined as « what the line still owes **after**
     its acompte snapshot », so a stale row would make it claim the whole line and break its own
@@ -191,6 +193,32 @@ wizard.
     **dropped before processing** (same discipline as `toReceptionPaymentPatch`), never rejected — a
     stale client must not lose a whole check-in over a field it should not have sent.
 
+### 3.7 Accounting split of a bucket collected at the door (added 2026-10-19)
+
+26. **A bucket collected at the door never lands entirely on the tourist-tax account.** The SAS stay
+    payment and the single arrival payment from the fiche (« Encaisser en une fois »,
+    `settleArrivalBuckets`) capture a bucket through one shared helper, `captureBucketSplit`
+    (`utils/forceItemContribsCapture.js`):
+    1. the engine-replayed split (`captureContribsOnFlip`) first;
+    2. when its conservation invariant fails (stored amounts that drifted from today's engine) **and
+       the reservation already carries a per-line contribution somewhere** (typically the acompte,
+       marked from the fiche), the **stored-amount split** (`captureStoredSplit`): the tourist tax the
+       export puts on that entry, the rest pro rata on the accommodation and the lines still owed, on
+       the stored amounts;
+    3. otherwise no split at all — the reservation has no contribution anywhere, so the export reads
+       every bucket of it from the stored money, consistently (rule 13).
+
+    Each attempt runs in its own savepoint and the helper never throws: if even the stored-amount
+    split fails, the failure is logged and the payment is recorded with no split. Why: the export picks
+    the per-line path **for the whole reservation** as soon as one contribution exists
+    (`accountingModel.buildPerLineData` → `hasContribs`); a solde left NULL beside a captured acompte
+    then credited nothing but its tourist tax, the whole solde falling on 46710000 — no revenue, no
+    VAT (production stay 22224, June 2026). Why not always the stored split: on a reservation with no
+    contribution at all, giving one bucket a split would switch the whole reservation to the per-line
+    path, and a NULL acompte paid earlier would then drop out of its (possibly already exported) month.
+    The adjustment of a single payment (réduction / pourboire) books on its own entry and is unchanged.
+    Existing rows are not rewritten.
+
 **Edge cases:**
 - `stayDue = 0` (prepaid stay, the ordinary case) → no step, no recap block, nothing written. Unchanged
   SAS.
@@ -219,6 +247,7 @@ wizard.
 | `controllers/` | `controllers/sasController.js` | T | `getSas` builds the `stayPayment` block (`buildStayPayment`: amounts, `collectible`, channel flavour), forced to `{ applicable: false }` for a reception-only user; `commitArrival` reads `stayPaid` / `stayPaidCash`, drops them for reception, and passes the tri-state down to the model. |
 | `controllers/` | `controllers/reservationsController.js` | T | `updatePayment` + the full save clear `depositPaidAtArrival` / `balancePaidAtArrival` (and the cash flag when a bucket goes back to unpaid) whenever they write a stay bucket — rule 15. |
 | `models/` | `models/reservationsModel.js` | T | `commitArrivalSas` gains the stay-settlement block, at the **end** of the existing transaction (after the complement lines are written): flip / revert the buckets, write the dates + cash + marker columns. New `captureStayContribs` (best-effort snapshot, rule 13) and `releaseStayBucket` (ownership release, rule 15, also called by `updateReservation` on a real flip). |
+| `utils/` | `utils/forceItemContribsCapture.js` | T | `captureBucketSplit` (engine split → stored-amount split when the reservation is already on the per-line path → none; savepoints, never throws) and `captureStoredSplit` — rule 26. `captureStayContribs` delegates to it. |
 | `models/` | `models/accountingModel.js` | T | `encaissementsByMonth`: exclude a cash-flagged acompte / solde, in the SQL `WHERE` **and** in the per-entry `inMonth(...)` guards — same shape as the two complements. |
 | `models/` | `models/financeModel.js` | T | `totalSejour` drops a cash-paid acompte / solde (rule 17); the summary SQL selects the two new cash columns. |
 | `utils/` | `utils/reservationSettlement.js` | T | `bucketStates` marks a cash-settled bucket `settled`; `remainingToPay` and `comptaCollected` exclude it; new pure `stayDueAtArrival(r)` returning `{ total, deposit, balance }` — the single source of truth shared by the SAS payload and the tests. |
@@ -352,6 +381,12 @@ header (title + progress + ✕ = Quitter) and pinned footer actions are unchange
       rest of the check-in commits; a stay whose stored solde disagrees with the engine is **still
       collected**, contribs NULL, check-in preserved (rule 13); `releaseStayBucket` drops the marker
       and the cash flag.
+- [x] `tests/stay-payment-split-fallback.unit.test.js` (new, 5 — added 2026-10-19, rule 26) — real
+      schema: acompte captured from the fiche, solde drifted; « Encaisser en une fois » and its
+      adjustment, then the SAS stay payment → stored-amount split, the month's journal balanced and no
+      sale entry credited only on 46710000; a stay with no contribution anywhere keeps NULL and its
+      acompte entry; every attempt failing still records the payment, nothing half-written; the helper
+      never throws.
 - [x] `tests/reservation-settlement.unit.test.js` (+5) — `stayDueAtArrival`: last-minute solde, both
       buckets, GROSS (commission not netted), disabled acompte / fully paid stay; a cash-settled bucket
       is `settled`, out of `remainingToPay` and out of `comptaCollected`.

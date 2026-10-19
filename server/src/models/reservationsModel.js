@@ -42,7 +42,7 @@ const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
 const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
-const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
+const { clearContribsOnUnflip, captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
 const bookingLinesModel = require('./bookingLinesModel');
@@ -2613,19 +2613,16 @@ function createReservationsModel(database) {
      * contributions sum to the stored échéance; on a booking whose stored solde is the platform's
      * figure — most OTA stays — the two legitimately disagree and it throws. Letting that abort the
      * commit would cost the whole check-in (caution, upsells, planning flags) for something the
-     * operator cannot fix at the door, so the failure is logged and the money is recorded with NULL
-     * contribs: the accounting then derives the attribution the legacy way, which is exactly what a
-     * full fiche save has always done with these same reservations.
+     * operator cannot fix at the door, so the money is always recorded (`captureBucketSplit`, rule 26):
+     * with no contrib anywhere the bucket stays NULL and the accounting derives the attribution from
+     * the stored money; once another bucket captured, it gets the stored-amount split instead — NULL
+     * there booked the whole solde on the tourist-tax account (production stay 22224, June 2026).
      */
     captureStayContribs(reservationId, bucket) {
-      try {
-        captureContribsOnFlip({ db: database, reservation: model.getRow(reservationId), bucket });
-        return true;
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn(`[sas-stay-payment] contribs not captured on ${bucket} of reservation ${reservationId}: ${err.message}`);
-        return false;
-      }
+      const outcome = captureBucketSplit({ db: database, reservation: model.getRow(reservationId), bucket });
+      // eslint-disable-next-line no-console
+      if (outcome !== 'captured') console.warn(`[sas-stay-payment] ${bucket} of reservation ${reservationId}: ${outcome === 'stored' ? 'split on the stored amounts' : 'no split'}`);
+      return outcome === 'captured';
     },
 
     commitArrivalSas(reservationId, {
