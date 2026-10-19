@@ -122,7 +122,7 @@ export default function OnboardingEmailsStep({ emails, value, onChange, errors =
           </Box>
         );
       })}
-      <Typography variant="body2" color="text.secondary">Aperçu — J-2 · Exemple</Typography>
+      <Typography variant="body2" color="text.secondary">Aperçu — Accès et arrivée · Exemple</Typography>
       <EmailPreviewPane subject={preview.subject} body={preview.body} loading={preview.loading} error={preview.error} />
     </Stack>
   );

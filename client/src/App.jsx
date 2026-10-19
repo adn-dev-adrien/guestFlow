@@ -90,13 +90,15 @@ import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import EmailHistoryPage from './pages/EmailHistoryPage';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
-import AppVersionBadge from './components/AppVersionBadge';
+import AppVersionBadge, { AppVersionFooter } from './components/AppVersionBadge';
+import { PageTitleProvider, usePageTitle } from './hooks/usePageTitle';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import NotFoundPage from './components/NotFoundPage';
 
 const MODULE_PAGES = allContributions('routes');
 
-const DRAWER_WIDTH = 240;
+// 256 px, labels wrap rather than being cut (specs/shell-and-home-day-first.md rule 17).
+const DRAWER_WIDTH = 256;
 
 const navItems = [
   { label: 'Tableau de bord', path: '/', icon: <DashboardIcon /> },
@@ -116,6 +118,24 @@ const navItems = [
 const CALENDAR_CHILDREN  = ['/calendar', ...CALENDAR_PATHS];
 const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const SETTINGS_CHILDREN  = ['/settings', ...SETTINGS_PATHS];
+
+// A group's chevron: its own button, beside the row, reachable with the keyboard and saying whether the
+// group is open (specs/shell-and-home-day-first.md rule 18).
+function NavChevron({ open, label, onToggle }) {
+  return (
+    <IconButton
+      aria-expanded={open}
+      aria-label={`${open ? 'Replier' : 'Déplier'} ${label}`}
+      onClick={onToggle}
+      sx={{ width: 40, height: 40, flexShrink: 0, color: 'text.secondary' }}
+    >
+      {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+    </IconButton>
+  );
+}
+
+// Wrapped labels instead of « Conditions génér… » (rule 17).
+const WRAP = { overflowWrap: 'anywhere' };
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -220,108 +240,70 @@ function NavContent({ onItemClick }) {
         const linkProps = isParentReachable ? { component: Link, to: item.path } : {};
         return (
           <Box key={item.path}>
-            <ListItemButton
-              {...linkProps}
-              onClick={(e) => {
-                if (item.path === '/calendar') {
-                  setCalendarMenuOpen(isCalendarPath(location.pathname) ? true : (prev) => !prev);
-                  setEmailsMenuOpen(false);
-                  setFinanceMenuOpen(false);
-                  setSettingsMenuOpen(false);
-                } else if (item.path === '/emails') {
-                  setEmailsMenuOpen(location.pathname.startsWith('/emails') ? true : (prev) => !prev);
-                  setCalendarMenuOpen(false);
-                  setFinanceMenuOpen(false);
-                  setSettingsMenuOpen(false);
-                } else if (item.path === '/finance') {
-                  setFinanceMenuOpen(isFinancePath(location.pathname) ? true : (prev) => !prev);
-                  setCalendarMenuOpen(false);
-                  setEmailsMenuOpen(false);
-                  setSettingsMenuOpen(false);
-                } else if (item.path === '/settings') {
-                  setSettingsMenuOpen(isSettingsPath(location.pathname) ? true : (prev) => !prev);
-                  setCalendarMenuOpen(false);
-                  setEmailsMenuOpen(false);
-                  setFinanceMenuOpen(false);
-                  setSettingsPropertiesMenuOpen(location.pathname.startsWith('/properties'));
-                } else {
-                  setCalendarMenuOpen(false);
-                  setEmailsMenuOpen(false);
-                  setFinanceMenuOpen(false);
-                  setSettingsMenuOpen(false);
-                  setSettingsPropertiesMenuOpen(false);
+            <Box sx={{ display: 'flex', alignItems: 'center', mx: 1, mb: 0.5 }}>
+              <ListItemButton
+                {...linkProps}
+                onClick={(e) => {
+                  if (item.path === '/calendar') {
+                    setCalendarMenuOpen(isCalendarPath(location.pathname) ? true : (prev) => !prev);
+                    setEmailsMenuOpen(false);
+                    setFinanceMenuOpen(false);
+                    setSettingsMenuOpen(false);
+                  } else if (item.path === '/emails') {
+                    setEmailsMenuOpen(location.pathname.startsWith('/emails') ? true : (prev) => !prev);
+                    setCalendarMenuOpen(false);
+                    setFinanceMenuOpen(false);
+                    setSettingsMenuOpen(false);
+                  } else if (item.path === '/finance') {
+                    setFinanceMenuOpen(isFinancePath(location.pathname) ? true : (prev) => !prev);
+                    setCalendarMenuOpen(false);
+                    setEmailsMenuOpen(false);
+                    setSettingsMenuOpen(false);
+                  } else if (item.path === '/settings') {
+                    setSettingsMenuOpen(isSettingsPath(location.pathname) ? true : (prev) => !prev);
+                    setCalendarMenuOpen(false);
+                    setEmailsMenuOpen(false);
+                    setFinanceMenuOpen(false);
+                    setSettingsPropertiesMenuOpen(location.pathname.startsWith('/properties'));
+                  } else {
+                    setCalendarMenuOpen(false);
+                    setEmailsMenuOpen(false);
+                    setFinanceMenuOpen(false);
+                    setSettingsMenuOpen(false);
+                    setSettingsPropertiesMenuOpen(false);
+                  }
+                  // Suppress the drawer-close on toggle-only parents so the user can pick their child.
+                  if (onItemClick && (isParentReachable || !isSubmenuParent)) onItemClick(e, item.path);
+                }}
+                selected={
+                  item.path === '/properties'
+                    ? location.pathname.startsWith('/properties')
+                    : item.path === '/emails'
+                      ? location.pathname.startsWith('/emails')
+                    : item.path === '/finance'
+                      ? isFinancePath(location.pathname)
+                      : item.path === '/settings'
+                        ? isSettingsPath(location.pathname)
+                        : location.pathname === item.path
                 }
-                // Suppress the drawer-close on toggle-only parents so the user can pick their child.
-                if (onItemClick && (isParentReachable || !isSubmenuParent)) onItemClick(e, item.path);
-              }}
-              selected={
-                item.path === '/properties'
-                  ? location.pathname.startsWith('/properties')
-                  : item.path === '/emails'
-                    ? location.pathname.startsWith('/emails')
-                  : item.path === '/finance'
-                    ? isFinancePath(location.pathname)
-                    : item.path === '/settings'
-                      ? isSettingsPath(location.pathname)
-                      : location.pathname === item.path
-              }
-              sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} />
-              {item.path === '/calendar' && (
-                <Box
-                  component="span"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setCalendarMenuOpen((prev) => !prev);
-                  }}
-                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                >
-                  {calendarMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                </Box>
+                sx={{ flex: 1, minWidth: 0, borderRadius: 2 }}
+              >
+                <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.label} slotProps={{ primary: { sx: WRAP } }} />
+              </ListItemButton>
+              {isSubmenuParent && (
+                <NavChevron
+                  label={item.label}
+                  open={{ '/calendar': calendarMenuOpen, '/emails': emailsMenuOpen, '/finance': financeMenuOpen, '/settings': settingsMenuOpen }[item.path]}
+                  onToggle={{
+                    '/calendar': () => setCalendarMenuOpen((prev) => !prev),
+                    '/emails': () => setEmailsMenuOpen((prev) => !prev),
+                    '/finance': () => setFinanceMenuOpen((prev) => !prev),
+                    '/settings': () => setSettingsMenuOpen((prev) => !prev),
+                  }[item.path]}
+                />
               )}
-              {item.path === '/emails' && (
-                <Box
-                  component="span"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setEmailsMenuOpen((prev) => !prev);
-                  }}
-                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                >
-                  {emailsMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                </Box>
-              )}
-              {item.path === '/finance' && (
-                <Box
-                  component="span"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setFinanceMenuOpen((prev) => !prev);
-                  }}
-                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                >
-                  {financeMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                </Box>
-              )}
-              {item.path === '/settings' && (
-                <Box
-                  component="span"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSettingsMenuOpen((prev) => !prev);
-                  }}
-                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                >
-                  {settingsMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                </Box>
-              )}
-            </ListItemButton>
+            </Box>
             {item.path === '/calendar' && (
               <Collapse in={calendarMenuOpen} timeout="auto" unmountOnExit>
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
@@ -355,10 +337,7 @@ function NavContent({ onItemClick }) {
                       <ListItemText
                         primary={p.name}
                         slotProps={{
-                          primary: {
-                            variant: 'body2',
-                            noWrap: true,
-                          }
+                          primary: { variant: 'body2', sx: WRAP }
                         }}
                       />
                     </ListItemButton>
@@ -378,7 +357,7 @@ function NavContent({ onItemClick }) {
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemText primary="Modèles" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
+                      primary: { variant: 'body2', sx: WRAP }
                     }} />
                   </ListItemButton>
                   )}
@@ -391,7 +370,7 @@ function NavContent({ onItemClick }) {
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemText primary="Historique" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
+                      primary: { variant: 'body2', sx: WRAP }
                     }} />
                   </ListItemButton>
                   )}
@@ -412,7 +391,7 @@ function NavContent({ onItemClick }) {
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemText primary={entry.label} slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
+                      primary: { variant: 'body2', sx: WRAP }
                     }} />
                   </ListItemButton>
                   ))}
@@ -439,7 +418,7 @@ function NavContent({ onItemClick }) {
                         >
                           <ListItemIcon sx={{ minWidth: 34 }}><group.Icon fontSize="small" /></ListItemIcon>
                           <ListItemText primary={group.label} slotProps={{
-                            primary: { variant: 'body2', sx: { fontWeight: 600 } }
+                            primary: { variant: 'body2', sx: { ...WRAP, fontWeight: 600 } }
                           }} />
                           {unfolded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                         </ListItemButton>
@@ -449,34 +428,30 @@ function NavContent({ onItemClick }) {
                     const isProperties = entry.path === PROPERTIES_PATH;
                     return (
                       <Box key={entry.path}>
-                        <ListItemButton
-                          component={Link}
-                          to={entry.path}
-                          onClick={(e) => {
-                            if (isProperties) setSettingsPropertiesMenuOpen((prev) => !prev);
-                            if (onItemClick) onItemClick(e, entry.path);
-                          }}
-                          selected={isEntrySelected(entry, location.pathname)}
-                          sx={{ pl: 8, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                        >
-                          <ListItemIcon sx={{ minWidth: 34 }}><entry.Icon fontSize="small" /></ListItemIcon>
-                          <ListItemText primary={entry.label} slotProps={{
-                            primary: { variant: 'body2', noWrap: true }
-                          }} />
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <ListItemButton
+                            component={Link}
+                            to={entry.path}
+                            onClick={(e) => {
+                              if (isProperties) setSettingsPropertiesMenuOpen((prev) => !prev);
+                              if (onItemClick) onItemClick(e, entry.path);
+                            }}
+                            selected={isEntrySelected(entry, location.pathname)}
+                            sx={{ flex: 1, minWidth: 0, pl: 7, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                          >
+                            <ListItemIcon sx={{ minWidth: 34 }}><entry.Icon fontSize="small" /></ListItemIcon>
+                            <ListItemText primary={entry.label} slotProps={{
+                              primary: { variant: 'body2', sx: WRAP }
+                            }} />
+                          </ListItemButton>
                           {isProperties && (
-                            <Box
-                              component="span"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setSettingsPropertiesMenuOpen((prev) => !prev);
-                              }}
-                              sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                            >
-                              {settingsPropertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                            </Box>
+                            <NavChevron
+                              label={entry.label}
+                              open={settingsPropertiesMenuOpen}
+                              onToggle={() => setSettingsPropertiesMenuOpen((prev) => !prev)}
+                            />
                           )}
-                        </ListItemButton>
+                        </Box>
                         {isProperties && (
                           <Collapse in={settingsPropertiesMenuOpen} timeout="auto" unmountOnExit>
                             <List disablePadding sx={{ px: 1, pb: 0.25 }}>
@@ -487,11 +462,11 @@ function NavContent({ onItemClick }) {
                                   to={`/properties/${p.id}`}
                                   onClick={(e) => onItemClick && onItemClick(e, `/properties/${p.id}`)}
                                   selected={location.pathname === `/properties/${p.id}`}
-                                  sx={{ pl: 10, py: 0.65, borderRadius: 2, mb: 0.25 }}
+                                  sx={{ pl: 9, py: 0.65, borderRadius: 2, mb: 0.25 }}
                                 >
                                   <ListItemText
                                     primary={p.name}
-                                    slotProps={{ primary: { variant: 'body2', noWrap: true } }}
+                                    slotProps={{ primary: { variant: 'body2', sx: WRAP } }}
                                   />
                                 </ListItemButton>
                               ))}
@@ -545,6 +520,11 @@ function AppShell() {
   // administrator reads as « Plugin inactif » (specs/plugins-phase-p-productisation.md rule 42).
   const pluginRoute = (path, element) => (isRouteEnabled(user, path) ? element : <NotFoundPage />);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // On a phone the top bar names the open page; the home keeps the wordmark
+  // (specs/shell-and-home-day-first.md rule 15).
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
+  const pageTitle = usePageTitle();
+  const showPageTitle = isPhone && location.pathname !== '/' && Boolean(pageTitle);
   const [mobileOpen, setMobileOpen] = useState(false);
   // Global reservation search lives in the top bar (specs/reservation-number-and-search.md §6).
   // On mobile it collapses behind a magnifier that expands into a full-width field.
@@ -644,7 +624,7 @@ function AppShell() {
       <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Toolbar sx={{ gap: 1 }}>
           {isMobile && (
-            <IconButton edge="start" onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
+            <IconButton edge="start" aria-label="Ouvrir le menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
               <MenuIcon />
             </IconButton>
           )}
@@ -660,11 +640,27 @@ function AppShell() {
             </>
           ) : (
             <>
-              {/* Wordmark in the « Maison » serif (specs/ds-sweep-planning.md rule 25) — same face
-                  as the page titles, keeps the primary green and the h6 size. */}
-              <Typography variant="h6" sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, color: 'primary.main' }}>
-                GuestFlow
-              </Typography>
+              {showPageTitle ? (
+                // The page's heading on a phone: the bar's own copy is not drawn there.
+                <Typography
+                  component="h1"
+                  title={pageTitle}
+                  data-testid="appbar-page-title"
+                  sx={{
+                    fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 600, fontSize: '1.1rem',
+                    lineHeight: 1.25, minWidth: 0, flexShrink: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}
+                >
+                  {pageTitle}
+                </Typography>
+              ) : (
+                // Wordmark in the « Maison » serif (specs/ds-sweep-planning.md rule 25) — same face
+                // as the page titles, keeps the primary green and the h6 size. On a phone's home it
+                // is the page's heading: the home's page bar is not drawn there (rule 15).
+                <Typography variant="h6" component={isPhone && location.pathname === '/' ? 'h1' : 'p'} sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, color: 'primary.main' }}>
+                  GuestFlow
+                </Typography>
+              )}
               {!isMobile && (
                 // Desktop: the search field is always visible next to the logo.
                 <Box sx={{ ml: 3, flexGrow: 1, maxWidth: 440 }}>
@@ -677,7 +673,8 @@ function AppShell() {
                   <SearchIcon />
                 </IconButton>
               )}
-              {/* Version installée + point d'entrée mise à jour (specs/self-update-and-releases.md §6.5). */}
+              {/* The update offer (specs/self-update-and-releases.md §6.5); the installed version is at the
+                  foot of the drawer (specs/shell-and-home-day-first.md rule 16). */}
               <AppVersionBadge />
             </>
           )}
@@ -701,6 +698,9 @@ function AppShell() {
       >
         <Toolbar />
         <NavContent onItemClick={handleNavItemClick} />
+        <Box sx={{ mt: 'auto', borderTop: '1px solid', borderColor: 'divider' }}>
+          <AppVersionFooter />
+        </Box>
       </Drawer>
 
       {/* A support session's red bar (specs/hosting-h2-account-security.md rule 16). */}
@@ -804,7 +804,7 @@ function AuthGate() {
   // The start assistant, full screen and outside the side menu (specs/plugins-phase-p-productisation.md
   // rule 20): an admin lands there while it is open, and may reopen it from Réglages › Système.
   if (userHasRole(user, ADMIN) && (user.onboardingOpen || location.pathname === '/demarrage')) return <OnboardingPage />;
-  return <AppShell />;
+  return <PageTitleProvider><AppShell /></PageTitleProvider>;
 }
 
 function App() {

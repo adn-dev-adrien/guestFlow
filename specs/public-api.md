@@ -171,6 +171,8 @@ or **[CREATE]** (genuinely new logic).
 | `utils/` | `utils/publicProjections.js` | C | Pure functions: `toPublicProperty`, `toPublicPropertyDetail`, `toPublicOption`, `toPublicAvailability`, `toPublicQuote`. Unit-testable. |
 | `utils/` | `utils/publicInputValidation.js` | C | Pure validators for public query/body params (dates, counts, ids, email, phone). Unit-testable. |
 | `utils/` | `pricing.js` | REUSE | **Untouched.** Called by `publicQuoteController` and indirectly by the devis create path. |
+| `plugins/website-booking/` | `nextAvailability.js` | C (2026-10-19) | Pure `findNextAvailableDate` + `stayRulesPredicate` (the engine's min/max stay and changeover days, through SDK 1.3.0 core modules `pricing` and `changeover`) — the availability payload's `nextAvailableDate` (§4.3). Test: `public-next-availability.unit.test.js`. |
+| `plugins/website-booking/` | `publicInputValidation.js` + `utils/publicLabels.js` | T (2026-10-19) | Guest errors carry `reason`; `withFieldMessages` adds `labels(lang).fieldErrors` as `message` (§4.3 booking-requests). Test: `public-guest-field-errors.unit.test.js`. |
 | `scheduledTasks.js` | `scheduledTasks.js` | T (only if hold enabled) | Releases expired holds (see §8). |
 | `database.js` | `database.js` | T | Idempotent migration: add `reservations.requestOrigin TEXT` (NULL); if hold enabled, add hold columns/table. |
 | `index.js` | `index.js` | T | Mount `app.use('/public/v1', require('./routes/public'))` **before** the `/api` guard block; add `trust proxy` already present. |
@@ -344,13 +346,25 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     "from": "2026-06-08",
     "to": "2027-06-08",
     "blockedDates": ["2026-07-10", "2026-07-11", "2026-07-12"],
-    "blockedRanges": [ { "start": "2026-07-10", "end": "2026-07-12" } ]
+    "blockedRanges": [ { "start": "2026-07-10", "end": "2026-07-12" } ],
+    "nextAvailableDate": "2026-06-08"
   }
 }
 ```
   - `blockedDates` = consolidated occupied nights from reservations (incl. `sourceType='ical'`
     platform blocks) **and** establishment closures — **no source, no platform name, no guest
     info**. `blockedRanges` is the same data collapsed into ranges for convenient rendering.
+  - `nextAvailableDate` *(added 2026-10-19, additive — UI/UX review 2026-10-18, decision 2)*: the
+    first **bookable arrival** on or after `max(from, today)`, looked up to 365 days past that start
+    even beyond `to`; `null` when there is none. Bookable = a free night from which some stay of free
+    nights (up to 62) passes the property's stay rules as the pricing engine reads them: per-night
+    minimum and maximum stay (`calculateBaseStayPrice`) and arrival/departure weekdays
+    (`utils/changeover.js`). An isolated free night under a 2-night minimum, or a Tuesday when
+    arrivals are on Saturdays, is not one. The site uses it to offer « Prochaine
+    disponibilité » when the two months it shows are all closed
+    ([wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rule 30). Computed by
+    `plugins/website-booking/nextAvailability.js`; the extra lookup runs only when the requested
+    window holds no free night.
 - **Errors:** `404 PROPERTY_NOT_FOUND`, `422 VALIDATION_FAILED` (bad/oversized range), `401`.
 
 ##### POST `/public/v1/quote`
@@ -478,6 +492,19 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     confirmation receipt, not a quote dump (it can re-quote if it needs the breakdown).
 - **Errors:** `409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 OVER_CAPACITY`,
   `422 VALIDATION_FAILED`, `404 PROPERTY_NOT_FOUND`, `429 TOO_MANY_REQUESTS`, `401`.
+  - Refused contact fields *(2026-10-19, additive — UI/UX review 2026-10-18, decision 3)*: each
+    `details[]` entry for `guest.firstName` / `guest.lastName` / `guest.email` / `guest.phone` keeps
+    its `field` and `issue`, and gains `reason` (`required` | `emailInvalid`) and `message`, the
+    sentence the site prints under that field, in the request's language (FR « Champ requis. »,
+    « Adresse e-mail incomplète. »; EN « Required. », « Incomplete email address. »). The top-level
+    `message` reads « Coordonnées incomplètes ou invalides. » (EN « Contact details incomplete or
+    invalid. »), no longer « Coordonnées du client invalides. »
+    ([wordpress-plugin.md](wordpress-plugin.md) rule 28).
+    ```json
+    { "error": { "code": "VALIDATION_FAILED", "message": "Coordonnées incomplètes ou invalides.",
+      "details": [ { "field": "guest.email", "issue": "must be a valid email", "reason": "emailInvalid",
+                     "message": "Adresse e-mail incomplète." } ] } }
+    ```
   - `OVER_CAPACITY` fires when `adults + children + teens > maxGuests` **or** `babies > maxBabies`
     (server/src/utils/capacity.js — the same rule as the back-office, minus the force override).
     The age MIX never matters on its own: before 2026-08-14 a property with `maxChildren: 0` refused

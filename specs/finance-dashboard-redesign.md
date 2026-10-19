@@ -12,7 +12,9 @@ Validation summary with the interactive mock-up: `docs/specs/2026-09-29-finance-
 (version 3). The earlier three-direction exploration is in
 `docs/specs/2026-09-29-finance-page-redesign-proposals.html`. The visual finish after the first
 release (rules 30-32: radii, ink banner, calendar graduations) is in
-`docs/specs/2026-09-29-finance-dashboard-polish.html`.
+`docs/specs/2026-09-29-finance-dashboard-polish.html`. The UI/UX review of 2026-10-18
+(`docs/rapports/2026-10-18-ui-ux-review.html`, rules 43-46) and its departures from that review's mock
+are in `docs/specs/2026-10-19-finance-charts-phone-and-early-exercise.html`.
 
 Supersedes the UI of `specs/finance-exercise-overview-charts.md` (the « vue de l'exercice » block is
 replaced by this page) and the layout sections of `finance-overview-rework.md`,
@@ -84,6 +86,8 @@ without losing anything today's page shows.
     - **late payments**: count and amount overdue, or « Aucun paiement en retard ».
     > 2026-10-18: late payments include the platforms' payouts (rule 34), a fourth insight names the
     > stays without an amount (rule 35), and the savings line is reworded (rule 36).
+    > 2026-10-19: the best month is chosen among the months over only, and the cards no longer cut
+    > their text (rule 43).
 
 ### 3.4 Logements strip
 
@@ -275,6 +279,50 @@ without losing anything today's page shows.
     card. *Why:* the second pass of the final review (minor 4) found such a row listed at 0 € and
     counted as a stay.
 
+### 3.14 UI/UX review (2026-10-18), decisions of 2026-10-19
+
+43. **Faits marquants: never cut, and a best month is a month over** (UI/UX review 2026-10-18,
+    proposal 8). The cards sit in a grid of as many 210 px columns as fit (`auto-fit`,
+    `minmax(min(100%, 210px), 1fr)`: four at 1280 px, two at 900 px, one on a phone), their text
+    column may shrink below its longest word and wraps, never clipped (at 900 px with four insights the
+    text was cut mid-word: « Commiss / évitées pa »). The server picks the **best month among the
+    months already over**: « Octobre, meilleur mois terminé » while months remain, « Août, meilleur
+    mois de l'exercice » once every month is over. While no month over carries revenue, the month
+    leading the bookings is named **as such**, never as a best month: « Août, en tête des réservations :
+    805 € » — « Mois à venir. » (or « Mois en cours, pas encore terminé. »), without last year's figure.
+    Two months at the same amount: **the earliest wins**. A month over whose total is zero or negative
+    (refunds only) is never a best month.
+    *Why:* on 18 October the page called August, entirely « à venir », the best month of the exercise.
+44. **« Revenu par mois » reads without hover** (proposal 9). Each month's total is written above its
+    column in compact French (« 8,2 k », « 805 »), on the top segment of the stack; a total under 6 %
+    of the tallest column is left to the tooltip (its label would collide). The server makes those
+    choices (`revenueMonths[].totalLabel`, '' when not written, and `labelOn`: `upcoming` | `past` |
+    null); the client only draws them. The current month
+    (`revenueMonths[].isCurrent`, server) is bold sapin and underlined. Months are abbreviated from `sm`
+    up (`short`: « janv. », « févr. » — no more two J, two M, two A), initials on a phone. « Pas encore
+    d'an dernier à comparer » moves under the chart. The focus ring shows on keyboard focus only
+    (`:focus-visible`, sapin), no longer as an orange rectangle after a tap. Last year's column is sand
+    with a 1 px `#8E8470` edge; « à venir » is separated from « encaissé » by a 1 px white gap.
+45. **One chart palette, in the theme, contrast-checked** (proposal 9). `theme.palette.chart` holds every
+    chart colour, kept apart from the semantic palette: this year sapin, **à venir miel profond
+    `#B07F2E`** (3.6:1, the old `#C99038` was 2.8:1), last year sand `#D9CFBA` always outlined by
+    `#8E8470` (3.7:1, also the dashed ghost), grid, ticks in `text.secondary` (5.4:1, the occupancy ticks
+    were `#A39E92`, 2.7:1), the « aujourd'hui » marker, the ink banner's accents and **the logement
+    series** (sapin, miel profond, bleu `#2F6690`, brique, prune `#6A4F86`, olive `#71792B`: each ≥ 3:1,
+    adjacent pairs told apart under the three colour-vision deficiencies). The six colours cycle: a 7th
+    logement reuses sapin (each small chart carries its name, so identity never rests on colour alone).
+    The server no longer sends a hex colour: each logement carries `colorIndex`, its **rank by id** among
+    the logements, that the client paints from the palette, so the colour lives in one place; deleting a
+    logement shifts the colours of the ones after it. A series colour is a mark colour (3:1), never a
+    text one: a small chart writes its logement's name in ink, only the dot before it wears the colour. A Vitest suite checks every information-carrying token
+    against WCAG (3:1 for a mark, 4.5:1 for a tick or a written value).
+46. **Before the first month of the exercise is over, the curve stays, shorter** (decision 10 — departs
+    from the review's recommendation, which replaced it by a summary line). On the *Exercice* window,
+    while the exercise's first month is not over (`hero.curveCompact`, server), the cumulative curve is
+    drawn 56 px high instead of 120, on the same calendar graduations; no placeholder or summary line
+    replaces it. From the 1st of the second month, and on any past exercise or month window, it takes
+    its 120 px again. An exercise entirely to come (its first month not begun) is compact too. Rendering: `docs/specs/2026-10-19-finance-charts-phone-and-early-exercise.html` §2.
+
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
 - Empty window → hero 0 €, figures 0 / « — », tables in their empty state, charts keep their axes.
@@ -298,7 +346,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 |---|---|---|---|
 | `routes/` | `finance.js` | T | `GET /dashboard`, `GET /dashboard/detail/:tile`, `GET /goal-context`; `/summary`, `/breakdown`, `/projection`, `/operational` removed with the old page |
 | `controllers/` | `financeController.js` | T | Pass the query through, map `{ ok:false, status, error }` to the response |
-| `models/` | `financeDashboardModel.js` | C | 2026-10-18 `stays` rows carry `amountMissing`, the `unpriced` total counts the insight's nights (rule 39). Resolves window / exercise / logement, composes financeModel, adds occupancy, year-over-year, insights, the payments ledger and the per-channel commission; returns ready-to-render payloads |
+| `models/` | `financeDashboardModel.js` | C | 2026-10-19 `bestMonthOf` (months over only, rule 43), `revenueMonths[].isCurrent` / `short` (rule 44), `colorIndex` instead of a hex colour (rule 45), `hero.curveCompact` (rule 46). 2026-10-18 `stays` rows carry `amountMissing`, the `unpriced` total counts the insight's nights (rule 39). Resolves window / exercise / logement, composes financeModel, adds occupancy, year-over-year, insights, the payments ledger and the per-channel commission; returns ready-to-render payloads |
 | `models/` | `financeModel.js` | T | 2026-10-18: `getOperational().overdue` follows rule 34 (`isDirectChannel`, late platform payouts, `overdueItems`, `payouts`), `todayIso` reads `utils/localDate` (rule 37); each `overdueItems` element names its `paidField` (rule 38). `getSummary`, `getOperational`, `getProjection` gain `propertyId`; `getSummary` gains `knownAt` (rule 21) and returns `exerciseMonths` (the 3.6.0 overview reduced to its months); `getGoalContext()`; `getBreakdown` removed; shared helpers exported |
 | `models/` | `settingsModel.js` | T | `revenueGoals` column whitelisted |
 | `controllers/` | `settingsController.js` | T | Validates and merges `accounting.revenueGoals`, one error per exercise (rule 27) |
@@ -309,8 +357,9 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | `plugins/` | `hourly-resources/schedulingModel.js`, `school-holidays/localDay.js` (C), `school-holidays/sync.js`, `school-holidays/educationGouvClient.js` | T | 2026-10-18 — the local day instead of the UTC one (rule 37 note) |
 | `utils/` | `bookingPace.js` | T | 2026-10-18 — pace nights distinct per logement (rule 35); `paceStartOf` reused as the tracking start (rule 33) |
 | `utils/` | `yearOverYear.js` | C | Pure: coverage start, comparable months, comparable range, change (rules 17-21); 2026-10-18 `lastYearSnapshotKnown`, `isMonthOver`, `clampToMonthsOver` (rule 33) |
-| `utils/` | `financeInsights.js` | C | Pure: the French insight lines (rule 11; payouts, stays without amount and wording, rules 34-36) |
-| `utils/` | `exerciseOverview.js` | T | Reduced to `exerciseMonths` |
+| `utils/` | `financeInsights.js` | C | Pure: the French insight lines (rule 11; payouts, stays without amount and wording, rules 34-36); 2026-10-19 best month over / leading month wording (rule 43) |
+| `utils/` | `financeChartLabels.js` | C | 2026-10-19 pure: which month totals are written on « Revenu par mois », on which segment, in compact French (rule 44) |
+| `utils/` | `exerciseOverview.js` | T | Reduced to `exerciseMonths`; 2026-10-19 each month carries its abbreviation `short` (rule 44) |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT` |
 
 ### 4.2 Client side (`client/src/`)
@@ -318,14 +367,18 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `FinancePage.jsx` | T (rewrite) | URL state, loads `/dashboard`, lays out strip → hero → insights → tiles + detail → charts; 2026-10-18 `handleSettleOverdue` sends the late row's `paidField`s only (rule 38) |
-| `components/` | `FinanceHero.jsx` | C | Ink banner: revenue, badge, goal bar, 4 figures in a grid, cumulative curve (Recharts `AreaChart`, numeric axis on `hero.axis`) |
+| `components/` | `FinanceHero.jsx` | C | Ink banner: revenue, badge, goal bar, 4 figures in a grid, cumulative curve (Recharts `AreaChart`, numeric axis on `hero.axis`); 2026-10-19 56 px curve while `hero.curveCompact` (rule 46), ink colours from `palette.chart.onInk` |
 | `components/` | `PeriodSelector.jsx` | C | Generic: segmented *Exercice / Mois / Personnalisée* + month select / date pair with its refusal message |
 | `components/` | `ChoiceCardStrip.jsx` | C | Generic: horizontally scrollable selectable cards (label, value, caption, colour dot) |
-| `components/` | `InsightCard.jsx` | C | Generic: icon + bold line + caption, tone (success / warning / error / info); optional text action (`actionLabel` / `onAction`, rule 35) |
+| `components/` | `InsightCard.jsx` | C | Generic: icon + bold line + caption, tone (success / warning / error / info); optional text action (`actionLabel` / `onAction`, rule 35); 2026-10-19 text column `min-width: 0`, wraps anywhere (rule 43) |
 | `components/` | `SelectableTile.jsx` | C | Generic: KPI tile with pressed state and the pointer toward its open panel |
 | `components/` | `YearOverYearBadge.jsx` | C | Generic: « ▲ +12 % vs N-1 · sur 6 mois comparables » from server figures |
 | `components/` | `SmallMultiplesLineChart.jsx` | C | Generic: one small line chart per series, solid current / dashed previous, per-chart tooltip |
-| `components/` | `MonthlyRevenueChart.jsx` | C | Finance-specific: stacked current column + last year's column, window highlight |
+| `components/` | `MonthlyRevenueChart.jsx` | C | Finance-specific: stacked current column + last year's column, window highlight; 2026-10-19 totals above the columns (`TotalLabel`), `MonthTick` with the current month marked, abbreviations from `sm` (rule 44) |
+| `pages/` | `FinancePage.jsx` | T | 2026-10-19 insights in an `auto-fit` 240 px grid (rule 43); logement colours from `seriesColor(colorIndex)` (rule 45) |
+| `theme.js` | `theme.js` | T | 2026-10-19 `palette.chart` — the chart tokens (rule 45) |
+| `utils/` | `chartColors.js` | C | 2026-10-19 the chart palette read from the theme and `seriesColor(index)` (rule 45) |
+| `components/` | `SmallMultiplesLineChart.jsx`, `PickupCurveChart.jsx`, `FinanceDetailPanel.jsx` | T | 2026-10-19 colours from the chart tokens / `seriesColor` (rule 45) |
 | `components/` | `FinanceDetailPanel.jsx` | C | Finance-specific: the six tables of rule 13, each with its `xs` card layout; 2026-10-18 « En retard » renders `overdueItems`, « Réservations » gains « Sans montant », « Encaissable d'ici le » (rules 34-36); « Marquer payé » calls `onSettleOverdue`, a 0 € stay shows « Montant à saisir » (rules 38-39) |
 | `components/` | `OperationalPaymentsTable.jsx` | T | Reused as is for « À encaisser » |
 | `components/` | `ChannelBreakdownCard.jsx` | Removed | Its table is rebuilt inside `FinanceDetailPanel` (« Canaux »), with the commission / net columns and the website sub-rows |
@@ -358,12 +411,13 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
     "yoy": { "current": 40120, "previous": 39700, "change": 1.1, "months": 9, "totalMonths": 12 } | null,
     "goal": { "amount": 85000, "ratio": 0.72, "remaining": 23547 } | null,
     "cumulative": [ { "day": "2026-01-01", "x": 0, "current": 812, "previous": null } ],   // x = days since the window's first day
-    "axis": [ { "x": 0, "label": "janv." }, { "x": 31, "label": "févr." } ]              // rule 30
+    "axis": [ { "x": 0, "label": "janv." }, { "x": 31, "label": "févr." } ],             // rule 30
+    "curveCompact": false                                                                 // rule 46
   },
   "insights": [ { "key": "bestMonth", "tone": "success", "title": "Juillet, meilleur mois de l'exercice", "text": "11 938 €, contre 12 257 € l'an dernier." },
                 { "key": "unpriced", "tone": "warning", "title": "13 séjours sans montant", "text": "…",
                   "action": { "label": "Voir les séjours", "tile": "stays", "scope": "unpriced" } } ],   // rule 35
-  "properties": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "revenue": 22104, "occupancy": 0.38, "revenuePerNight": 154 } ],
+  "properties": [ { "propertyId": 1, "name": "…", "colorIndex": 0, "revenue": 22104, "occupancy": 0.38, "revenuePerNight": 154 } ],
   "totalRevenue": 61453, "totalOccupancy": 0.36,                        // « Tous les logements » card (never filtered)
   "tiles": {
     "collected": { "amount": 52692, "shareOfRevenue": 0.86 },
@@ -373,10 +427,11 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
     "properties": { "count": 4, "leader": "Lodge" } | { "count": 1, "name": "…", "revenue": 22104, "revPar": 61 },
     "channels": { "commission": 6225 }
   },
-  "revenueMonths": [ { "month": "2026-01", "label": "janvier 2026", "initial": "J", "past": 3409, "upcoming": 0,
+  "revenueMonths": [ { "month": "2026-01", "label": "janvier 2026", "initial": "J", "short": "janv.", "isCurrent": false,
+                       "totalLabel": "3,4 k", "labelOn": "past", "past": 3409, "upcoming": 0,
                        "revenue": 3409, "revenueHt": 3099, "nights": 26, "previous": 3100 | null,
                        "previousLabel": "janvier 2025", "inWindow": true } ],
-  "occupancy": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "average": 0.38 | null,
+  "occupancy": [ { "propertyId": 1, "name": "…", "colorIndex": 0, "average": 0.38 | null,
                    "months": [ { "month": "2026-01", "label": "…", "initial": "J", "current": 0.22 | null, "previous": 0.18 | null } ] } ]
 }
 ```
@@ -396,8 +451,9 @@ Settings goal fields (rules 26 + 28).
 
 `PUT /api/settings` (existing) — `accounting.revenueGoals: { "2026": 85000, "2027": null }`.
 
-Logement colours come from a fixed server-side palette in `properties` order (sapin, miel, bleu,
-brique, then the platform-neutral greys), so a logement keeps its colour across charts.
+Logement colours: the server gives each logement a stable slot `colorIndex` in `properties` order
+(also on the `properties` detail rows); the client paints it from `theme.palette.chart.series` (rule
+45), so a logement keeps its colour across charts. `insights[0]` (`bestMonth`) follows rule 43.
 
 ---
 
@@ -409,13 +465,18 @@ brique, then the platform-neutral greys), so a logement keeps its colour across 
 
 ## 6. UI / UX
 
-Order, top to bottom: `PageActionBar` (« Suivi financier », refresh; the title shows on `xs` too since 2026-10-18 — `titleOnXs`, the bar was an empty white strip on a phone) → toolbar (exercise + period
+Order, top to bottom: `PageActionBar` (« Suivi financier », refresh; the title shows on `xs` too since 2026-10-18 — `titleOnXs`, the bar was an empty white strip on a phone; since 2026-10-19 that title is the top bar's, `specs/shell-and-home-day-first.md` rule 15) → toolbar (exercise + period
 selector) → logements strip → ink hero → three insight cards → six tiles (+ open table) → « Revenu
 par mois » and « Taux d'occupation » side by side.
 
 - **lg / md**: hero on two columns (figure + goal | four figures), curve full width inside the hero;
   tiles 6 across on a wide screen (xl, ≥ 1536 px) and 3 across below, since the
   sidebar leaves too little room for six readable captions; charts side by side (lg), stacked (md).
+- **Insights** (rule 43): a grid of as many 210 px columns as fit — four across at 1280 px, two at
+  900 px with the sidebar, one on a phone; the text wraps, never cut.
+- **Revenu par mois** (rule 44): totals above the columns, current month marked; « janv. » from `sm`,
+  initials on `xs`.
+- **Hero** (rule 46): the curve is 56 px high until the exercise's first month is over, 120 px after.
 - **xs**: toolbar stacked; strip scrolls horizontally; hero single column; insights stacked; tiles
   2 across; open table as cards; charts stacked, small multiples one per row. No horizontal page
   scroll.
@@ -466,6 +527,11 @@ par mois » and « Taux d'occupation » side by side.
       the home dashboard card claims the same payout.
 - [x] `finance-overdue-zero-payout.unit.test.js` (2) — rule 42: commission = solde → out of « En
       retard » (tile 240 €, 1 stay); commission > solde → no home dashboard card.
+- [x] `finance-charts-readability.unit.test.js` (7) — rules 43-46 and booking-pace rules 14-15: best
+      month among the months over / leading month and their wording, ties to the earliest, a month in
+      the red never best, the written totals and their segment, month abbreviations, current month,
+      colour slots, short curve on the current and a future exercise only, pace current month and
+      `hasComparison`.
 - 2026-10-18 (rule 37 note): the « today » fixtures of `financeDashboardFixture.js`, `finance-model`,
   `finance-fiscal-year-summary`, `finance-per-property-revenue`, `clients-directory`,
   `sas-stay-payment`, `single-payment-at-check-in`, `arrival-payment-fiche-model`,
@@ -495,6 +561,15 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `SettingsFiscalYearSection.revenue-goals.test.jsx` (4) — refusals disable Enregistrer, hint.
 - [x] `FinanceDashboard.radii.test.jsx` (3) — rule 32: tile and banner at 14 px, logement card at
       10 px, as the browser computes them from the theme.
+- [x] `chartPalette.contrast.test.js` (2) — rule 45: the palette is `theme.palette.chart`, marks ≥ 3:1
+      (the sand bar's edge included), ticks and values ≥ 4.5:1, the sand bar never alone.
+- [x] `FinanceCharts.readability.test.jsx` (8) — rules 43-46 and booking-pace 14-15: abbreviation
+      vs initial and the current-month mark, the total above its column, the insight column wraps, the
+      pace tick (current month, écart row only with a comparison, focus ring, `aria-pressed`, label
+      with its unit, Enter opens the month), the scroll target centring the current month, a month's
+      lines without « à la même date » when not comparable, a logement name in ink, the hero curve at
+      56 px then 120 px.
+- 2026-10-19: `financePageFixtures.jsx` carries `colorIndex` instead of `color`.
 - Removed with their components: the `FinanceExerciseOverview`, `RankedBarList`,
   `FinanceBreakdownDialog`, `ChannelBreakdownCard` suites and `FinancePage.test.jsx`.
 
@@ -515,6 +590,14 @@ par mois » and « Taux d'occupation » side by side.
 ### Manual UI verification of rules 38-39 (2026-10-18, copy of the Solio database)
 - See the PR #702 follow-up: 390 and 1280 px, « Marquer payé » on a payout row, « Sans montant ».
 
+### Manual UI verification of rules 43-46 (2026-10-19, copy of the Solio database)
+- [x] 390 / 900 / 1280 px, current exercise 2026-2027 on 19 October: four insights, none cut (4 across
+      at 1280 px, 2 × 2 at 900 px, one column at 390 px, after the review of PR #719); « Août, en tête des réservations : 805 € · Mois à venir. »; no horizontal page scroll.
+- [x] Exercise 2025-2026: « Août, meilleur mois de l'exercice · 8 226 € »; totals 569 / 2,6 k / 3,5 k /
+      1,4 k / 5,3 k / 8,2 k / 1 k above the columns at 390 px without collision.
+- [x] Hero on 19 October: curve 56 px; on 2025-2026: 120 px.
+- [x] Server suite 5 570 / 5 570, client Vitest 1 811 / 1 811.
+
 ### Manual UI verification of rules 30-32 (2026-09-29, dev database)
 - [x] 1440 px: ink banner, figures centred in their grid, tiles and strip at 14 / 10 px; graduations
       oct. → sept. on the exercise, 1 / 8 / 15 / 22 / 29 août on a month, « 2025 … 2026 » on a
@@ -523,6 +606,13 @@ par mois » and « Taux d'occupation » side by side.
 - [x] Client Vitest (1407), server suite (4587), E2E suite (84 passed, 1 skipped).
 
 ## 8. Out of scope
+
+- **An occupancy heat band** (one coloured cell per month on a phone), proposed by the UI/UX review of
+  2026-10-18 as an alternative to the small multiples from three logements: **never** (decision 11,
+  2026-10-19). The small multiples stay on every breakpoint.
+- The other finance proposals of that review not retained on 2026-10-19 (occupancy ticks and labels,
+  detail tables on `md`, tourist-tax strip, one number formatter, accounting chips): not in this
+  change.
 
 - Occupancy and price « hébergement seul » (extras excluded) — revenue per night uses the page's basis.
 - Pace / pickup and booking lead time: `createdAt` of iCal stays is the import date.

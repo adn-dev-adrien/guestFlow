@@ -7,7 +7,11 @@
  *     by their label (rule 10), the full template behind « Modifier le modèle complet »;
  *   - beside it (below on mobile, « Voir l'email »), the email rendered by the server from the draft,
  *     FR/EN, on the next stay or « Exemple », with « M'envoyer un test » (rules 13–15);
- *   - one file out, one file in, and the English filled by the platform's translator (rules 16–20).
+ *   - one file out, one file in, and the English filled by the platform's translator (rules 16–20);
+ *   - one language at a time, FR | EN, with the server's « N à traduire » (rule 42);
+ *   - variables on demand and refusals under their field, with a one-tap fix (rule 41);
+ *   - a click on a sentence of the preview opens its field — beside it on a computer, in a sheet over
+ *     the email on a phone (rule 45).
  *
  * The page holds drafts only; the server renders, validates and saves. `?propertyId=` picks the
  * property whose own texts are shown, `#<section>` opens one email.
@@ -15,8 +19,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import {
-  Accordion, AccordionDetails, AccordionSummary, Box, Button, ButtonBase, FormControl, InputLabel, Link, MenuItem, Select, Stack,
-  Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
+  Accordion, AccordionDetails, AccordionSummary, Box, Button, ButtonBase, Drawer, FormControl, InputLabel, Link, MenuItem, Select, Stack,
+  Table, TableBody, TableCell, TableHead, TableRow, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -68,12 +72,17 @@ export default function EmailTextsSettingsPage() {
   const [mobilePreview, setMobilePreview] = useState(false);
   const [language, setLanguage] = useState('fr');
   const [reservationId, setReservationId] = useState(null);
-  const [preview, setPreview] = useState({ subject: '', body: '', reservations: [], loading: false, error: '', notice: null });
+  const [preview, setPreview] = useState({ subject: '', body: '', html: '', segments: null, reservations: [], loading: false, error: '', stale: '', notice: null, toTranslate: null });
   const [testMessage, setTestMessage] = useState('');
   const [fullTemplate, setFullTemplate] = useState(null);
   const [importPlan, setImportPlan] = useState(null);
   const [busy, setBusy] = useState(false);
   const [editingKey, setEditingKey] = useState(null);
+  // Rule 45 — the text whose sentence is highlighted in the preview, and the one opened in the phone's sheet.
+  const [activeKey, setActiveKey] = useState(null);
+  const [sheetKey, setSheetKey] = useState(null);
+  const [focusKey, setFocusKey] = useState(null);
+  const [unusedOpen, setUnusedOpen] = useState('');
   // Bumped on every load, so the preview re-renders what was just saved or imported.
   const [revision, setRevision] = useState(0);
 
@@ -101,6 +110,8 @@ export default function EmailTextsSettingsPage() {
   const section = data.sections.find((s) => s.id === open) || null;
   const templateId = section ? (templateBySection[section.id] || (section.templates[0] || {}).id) : null;
   const dirty = Object.keys(drafts).length > 0;
+  // Rule 42 — the server's count: of the saved texts, or of the draft while one is being typed.
+  const toTranslate = (dirty && preview.toTranslate != null ? preview.toTranslate : data.toTranslate) || 0;
 
   // Typed sentences are not lost on a link, the menu, « Retour » or a reload (rule 34).
   const { guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({ draft: drafts, saved: {}, navigate });
@@ -126,6 +137,8 @@ export default function EmailTextsSettingsPage() {
     setDrafts((prev) => ({ ...prev, [item.key]: { ...(prev[item.key] || {}), [lang]: value } }));
     if (errors[item.key]) setErrors((prev) => { const next = { ...prev }; delete next[item.key]; return next; });
   };
+  // A refusal as the field shows it: the message, the word typed and the server's suggestion (rule 41).
+  const refusalOf = (err) => ({ message: err.message, unknown: err.unknown, suggestion: err.suggestion });
 
   // ---- live preview (rule 13): debounced, the server renders the draft
   const previewBody = useMemo(() => ({
@@ -143,12 +156,18 @@ export default function EmailTextsSettingsPage() {
       try {
         const r = await api.previewEmailDraft(previewBody);
         setPreview({
-          subject: r.subject, body: r.body, reservations: r.reservations || [], loading: false, error: '',
-          notice: r.englishNotice, current: r.sample ? SAMPLE : r.reservationId,
+          subject: r.subject, body: r.body, html: r.html || '', segments: r.segments || null, subjectKey: r.subjectKey, reservations: r.reservations || [],
+          loading: false, error: '', stale: '', notice: r.englishNotice, current: r.sample ? SAMPLE : r.reservationId,
+          toTranslate: typeof r.toTranslate === 'number' ? r.toTranslate : null,
         });
       } catch (err) {
-        if (err.key) setErrors((prev) => ({ ...prev, [err.key]: { [err.field || 'fr']: err.message } }));
-        setPreview((p) => ({ ...p, loading: false, error: err.message || 'Aperçu impossible.' }));
+        // Rule 41 — a refused text is named under its field; the email stays as last rendered.
+        if (err.key) {
+          setErrors((prev) => ({ ...prev, [err.key]: { [err.field || 'fr']: refusalOf(err) } }));
+          setPreview((p) => ({ ...p, loading: false, stale: 'Texte à corriger : l’aperçu montre le dernier texte valide.' }));
+        } else {
+          setPreview((p) => ({ ...p, loading: false, error: err.message || 'Aperçu impossible.' }));
+        }
       }
     }, PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
@@ -175,7 +194,7 @@ export default function EmailTextsSettingsPage() {
       await load();
     } catch (err) {
       if (err.key) {
-        setErrors({ [err.key]: { [err.field || 'fr']: err.message } });
+        setErrors({ [err.key]: { [err.field || 'fr']: refusalOf(err) } });
         const owner = data.sections.find((s) => s.items.some((i) => i.key === err.key));
         if (owner) setOpen(owner.id);
       }
@@ -244,18 +263,58 @@ export default function EmailTextsSettingsPage() {
       showSuccess('Modèle enregistré.');
       await load();
     } catch (err) {
-      setFullTemplate((f) => ({ ...f, error: { field: err.field, message: err.message } }));
+      setFullTemplate((f) => ({ ...f, error: { field: err.field, ...refusalOf(err) } }));
     }
   }
+
+  // ---- rule 45: a sentence of the preview opens its field
+  const allItems = data.sections.flatMap((s) => s.items);
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // A text folded away (its section closed, or under « Phrases non utilisées ») is unfolded first, then
+  // reached once its field is shown.
+  function openText(key) {
+    const item = allItems.find((i) => i.key === key);
+    if (!item) return;
+    setActiveKey(key);
+    if (!desktop) { setSheetKey(key); return; }
+    const owner = data.sections.find((s) => s.items.some((i) => i.key === key));
+    if (owner && owner.id !== open) setOpen(owner.id);
+    if (owner && item.used === false) setUnusedOpen(owner.id);
+    setFocusKey({ key });
+  }
+  useEffect(() => {
+    if (!focusKey) return undefined;
+    let tries = 0;
+    let timer;
+    // Waits (up to ~0.6 s) for the unfolding to show the field.
+    const reach = () => {
+      const field = document.getElementById(`${focusKey.key}-${language}`);
+      tries += 1;
+      if (!field || (field.offsetParent === null && tries < 12)) {
+        if (tries < 12) timer = setTimeout(reach, 50);
+        return;
+      }
+      field.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
+      field.focus({ preventScroll: true });
+    };
+    timer = setTimeout(reach, 0);
+    return () => clearTimeout(timer);
+  }, [focusKey, language, reducedMotion]);
 
   const pane = (
     <EmailPreviewPane
       subject={preview.subject}
       body={preview.body}
+      html={preview.html}
+      segments={preview.segments}
+      subjectKey={preview.subjectKey}
+      activeKey={activeKey}
+      onSegmentClick={openText}
+      onTemplateClick={templateId ? openFullTemplate : undefined}
       loading={preview.loading}
       error={preview.error}
+      stale={preview.stale}
       language={language}
-      onLanguageChange={setLanguage}
       notice={preview.notice}
       reservations={preview.reservations}
       reservationId={reservationId || preview.current || SAMPLE}
@@ -267,8 +326,9 @@ export default function EmailTextsSettingsPage() {
 
   // On a phone a sentence is one line until tapped: the J-2 alone holds dozens of them. The row says
   // what needs attention (English missing, machine translation to read).
+  const englishMissing = (item) => Boolean(String(valueOf(item, 'fr')).trim()) && !String(valueOf(item, 'en')).trim();
   const compactOf = (item) => {
-    const englishMissing = Boolean(String(valueOf(item, 'fr')).trim()) && !String(valueOf(item, 'en')).trim();
+    const shownLanguage = language === 'en' && String(valueOf(item, 'en')).trim() ? 'en' : 'fr';
     const dict = buildDictionary(item.chips.variables, item.chips.conditions);
     // A property's own text left empty: the shared text is what the guest reads (rule 34).
     const inherited = !String(valueOf(item, 'fr')).trim() && item.placeholderFr ? toDisplay(item.placeholderFr, dict) : '';
@@ -281,7 +341,7 @@ export default function EmailTextsSettingsPage() {
       >
         <Box component="span" sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography component="span" variant="subtitle2">{item.label}</Typography>
-          {englishMissing && <StatusBadge status="warning" label="EN manquant" />}
+          {englishMissing(item) && <StatusBadge status="warning" label={language === 'en' ? 'À traduire' : 'EN manquant'} />}
           {item.autoTranslated && <StatusBadge status="info" label="À relire" />}
         </Box>
         {inherited ? (
@@ -290,19 +350,21 @@ export default function EmailTextsSettingsPage() {
             {inherited}
           </Typography>
         ) : (
-          <Typography component="span" variant="body2" color={valueOf(item, 'fr') ? 'text.secondary' : 'text.disabled'} sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {toDisplay(valueOf(item, 'fr'), dict) || 'Vide'}
+          <Typography component="span" variant="body2" color={valueOf(item, shownLanguage) ? 'text.secondary' : 'text.disabled'} sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {toDisplay(valueOf(item, shownLanguage), dict) || 'Vide'}
           </Typography>
         )}
       </ButtonBase>
     );
   };
   const fieldOf = (item) => (!desktop && editingKey !== item.key && !errors[item.key] ? compactOf(item) : editorOf(item));
-  const editorOf = (item) => (
+  const editorOf = (item, { inSheet = false } = {}) => (
     <TokenTextField
       key={item.key}
-      id={item.key}
+      id={inSheet ? `sheet-${item.key}` : item.key}
       label={item.label}
+      language={language}
+      onFocus={() => setActiveKey(item.key)}
       fr={valueOf(item, 'fr')}
       en={valueOf(item, 'en')}
       onChange={(lang, value) => edit(item, lang, value)}
@@ -314,8 +376,13 @@ export default function EmailTextsSettingsPage() {
       placeholderEn={item.placeholderEn || 'Vide : pas de phrase'}
       emptyHint={item.placeholderFr ? 'Vide : texte commun utilisé' : undefined}
       disabled={saving}
-      autoFocus={!desktop && editingKey === item.key}
-      badge={item.autoTranslated && <StatusBadge status="info" label="Traduit automatiquement, à relire" />}
+      autoFocus={inSheet || (!desktop && editingKey === item.key)}
+      badge={(
+        <>
+          {language === 'en' && englishMissing(item) && <StatusBadge status="warning" label="À traduire" />}
+          {item.autoTranslated && <StatusBadge status="info" label="Traduit automatiquement, à relire" />}
+        </>
+      )}
       helper={(
         <Stack direction="row" spacing={1}>
           {item.autoTranslated && <Button size="small" onClick={() => confirmTranslation(item)}>Relu</Button>}
@@ -343,7 +410,6 @@ export default function EmailTextsSettingsPage() {
         actionsBefore={tab === 'texts' ? [
           { icon: <DownloadIcon />, tooltip: 'Exporter les textes', onClick: exportFile, color: 'info' },
           { icon: <UploadIcon />, tooltip: 'Importer', onClick: () => fileInput.current && fileInput.current.click(), color: 'info', disabled: dirty || busy },
-          ...(data.canTranslate ? [{ icon: <TranslateIcon />, tooltip: 'Traduire les textes manquants', onClick: translate, color: 'info', disabled: dirty || busy }] : []),
         ] : []}
       />
       <input ref={fileInput} type="file" accept=".csv,text/csv" hidden onChange={readFile} data-testid="email-texts-file" />
@@ -371,7 +437,28 @@ export default function EmailTextsSettingsPage() {
                 </Select>
               </FormControl>
             )}
-            {data.sections.map((s, index) => (
+            <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={language}
+                onChange={(e, v) => v && setLanguage(v)}
+                aria-label="Langue des textes"
+              >
+                <ToggleButton value="fr" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>FR</ToggleButton>
+                <ToggleButton value="en" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>EN</ToggleButton>
+              </ToggleButtonGroup>
+              <StatusBadge
+                status={toTranslate ? 'warning' : 'success'}
+                label={toTranslate ? `${toTranslate} à traduire` : 'Anglais complet'}
+              />
+              {data.canTranslate && toTranslate > 0 && (
+                <Button size="small" startIcon={<TranslateIcon />} onClick={translate} disabled={dirty || busy} aria-label="Traduire les textes manquants" sx={{ minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>
+                  Traduire
+                </Button>
+              )}
+            </Stack>
+            {data.sections.map((s) => (
               <Accordion
                 key={s.id}
                 id={s.id}
@@ -381,7 +468,11 @@ export default function EmailTextsSettingsPage() {
                 variant="outlined"
               >
                 <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 48 }}>
-                  <Typography sx={{ fontWeight: 600 }}>{`${index + 1}. ${s.title}`}</Typography>
+                  {/* Rule 44 — one name per email, in stay order, with its « Quand ». */}
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 600 }}>{s.title}</Typography>
+                    {s.when && <Typography variant="body2" color="text.secondary">{s.when}</Typography>}
+                  </Box>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={2}>
@@ -401,7 +492,13 @@ export default function EmailTextsSettingsPage() {
                     {s.items.filter((i) => i.used !== false).map(fieldOf)}
                     {/* Rule 25 — sentences the stored template never places, out of the way. */}
                     {s.items.some((i) => i.used === false) && (
-                      <Accordion disableGutters variant="outlined" sx={{ bgcolor: 'background.default' }}>
+                      <Accordion
+                        disableGutters
+                        variant="outlined"
+                        expanded={unusedOpen === s.id}
+                        onChange={(e, expanded) => setUnusedOpen(expanded ? s.id : '')}
+                        sx={{ bgcolor: 'background.default' }}
+                      >
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                           <Typography variant="body2" color="text.secondary">
                             {`Phrases non utilisées par le modèle (${s.items.filter((i) => i.used === false).length})`}
@@ -439,6 +536,21 @@ export default function EmailTextsSettingsPage() {
         confirmColor="warning"
       />
 
+      {/* Rule 45 — on a phone, the sentence tapped in the email opens in a sheet over it. */}
+      <Drawer
+        anchor="bottom"
+        open={Boolean(sheetKey) && !desktop}
+        onClose={() => setSheetKey(null)}
+        slotProps={{ paper: { sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, p: 2, pb: 'max(16px, env(safe-area-inset-bottom))', maxHeight: '85vh' } } }}
+      >
+        {sheetKey && allItems.some((i) => i.key === sheetKey) && (
+          <Stack spacing={1.5}>
+            {editorOf(allItems.find((i) => i.key === sheetKey), { inSheet: true })}
+            <Button variant="contained" onClick={() => setSheetKey(null)} sx={{ minHeight: 44 }}>OK</Button>
+          </Stack>
+        )}
+      </Drawer>
+
       <FormDialog
         open={Boolean(fullTemplate)}
         onClose={() => setFullTemplate(null)}
@@ -449,19 +561,31 @@ export default function EmailTextsSettingsPage() {
       >
         {fullTemplate && (
           <Stack spacing={2} sx={{ pt: 1 }}>
-            {[['subject', 'subjectEn', 'Objet'], ['body', 'bodyEn', 'Corps']].map(([frField, enField, label]) => (
-              <TokenTextField
-                key={frField}
-                label={label}
-                fr={fullValue(frField)}
-                en={fullValue(enField)}
-                onChange={(lang, value) => editFull(lang === 'fr' ? frField : enField, value)}
-                tokens={frField === 'body' ? fullTemplate.chips.variables : []}
-                flags={frField === 'body' ? fullTemplate.chips.conditions : []}
-                errorFr={fullTemplate.error && fullTemplate.error.field === frField ? fullTemplate.error.message : undefined}
-                errorEn={fullTemplate.error && fullTemplate.error.field === enField ? fullTemplate.error.message : undefined}
-              />
-            ))}
+            <ToggleButtonGroup size="small" exclusive value={language} onChange={(e, v) => v && setLanguage(v)} aria-label="Langue du modèle" sx={{ alignSelf: 'flex-start' }}>
+              <ToggleButton value="fr" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>FR</ToggleButton>
+              <ToggleButton value="en" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>EN</ToggleButton>
+            </ToggleButtonGroup>
+            {[['subject', 'subjectEn', 'Objet'], ['body', 'bodyEn', 'Corps']].map(([frField, enField, label]) => {
+              // Rule 41 — one notation everywhere: the subject shows its variables by their label too.
+              const subjectChips = (allItems.find((i) => i.key === `subject:${fullTemplate.template.stableKey}`) || {}).chips;
+              const chips = frField === 'body' ? fullTemplate.chips : (subjectChips || { variables: fullTemplate.chips.variables, conditions: [] });
+              return (
+                <TokenTextField
+                  key={frField}
+                  id={`full-${frField}`}
+                  label={label}
+                  language={language}
+                  fr={fullValue(frField)}
+                  en={fullValue(enField)}
+                  onChange={(lang, value) => editFull(lang === 'fr' ? frField : enField, value)}
+                  tokens={chips.variables}
+                  flags={chips.conditions}
+                  minRows={frField === 'body' ? 8 : 1}
+                  errorFr={fullTemplate.error && fullTemplate.error.field === frField ? fullTemplate.error : undefined}
+                  errorEn={fullTemplate.error && fullTemplate.error.field === enField ? fullTemplate.error : undefined}
+                />
+              );
+            })}
           </Stack>
         )}
       </FormDialog>

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). |
+| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). v1.16.0 (2026-10-19, UI/UX review 2026-10-18): refusal field by field (rule 28) and one accent colour (rule 29); the calendar and the sticky bar are in [wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rules 29–33. |
 | **Branch** | `feature/wordpress-plugin` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
@@ -177,6 +177,53 @@ remaining the single source of truth for prices, availability, and validation.
     fields or the message: a corrected message or phone after a failed payment pays the same devis
     (which keeps the first request's message). Any change of the stay is a new request.
 
+> **Rules 28–29 added 2026-10-19** (UI/UX review 2026-10-18, decisions 3 and 16; plugin v1.16.0).
+
+28. **Refused on the field, in French** (UI/UX review 2026-10-18, decision 3). Every requirement of
+    the form refuses the same way, on click, never by greying the button: the insurance answer, each
+    contact field and the CGV box are all marked at once where they sit, and the first one in reading
+    order is scrolled to the centre and given the focus. A contact field gets a red edge,
+    `aria-invalid`, and its reason on a line under it (`aria-describedby`): « Champ requis. »,
+    « Adresse e-mail incomplète. ». The marks are re-checked live as the visitor types, but only
+    after a first refusal — no red while the guest is still typing. The local check is UX only
+    (presence, and the browser's own `type=email` validity); the server decides: a `422` whose
+    `details[]` names `guest.firstName|lastName|email|phone` is printed under that field with the
+    server's `details[].message` (in the page language — public-api.md, booking-requests), the
+    plugin's two strings serving as the fallback for an older GuestFlow. A mapped refusal is not
+    repeated under the button. The generic line « Merci de renseigner tous les champs
+    obligatoires. » is gone. Inputs carry `autocomplete`, `inputmode` (`email`, `tel`) and
+    `enterkeyhint`, and are at least 16 px (iOS zooms into anything smaller).
+    *Review of PR #722 (2026-10-19):* each error line is named by `aria-describedby` and reached with
+    the focus — no live region per field, which read every refusal at once. Before revealing, the
+    engine dispatches a bubbling, cancelable `gf:refused` event on the refused requirement's box, with
+    `detail: { field, element }` (`field` ∈ `insurance`, `firstName`, `lastName`, `email`, `phone`,
+    `terms`, `feedback`). A host that re-homes the engine's children — the Solio drawer, whose two
+    screens can hide the refused field — shows the right screen and calls `preventDefault()`, then
+    scrolls and focuses the field itself ([site-booking-drawer.md](site-booking-drawer.md) rule 17);
+    otherwise the engine scrolls it to the centre and focuses it.
+29. **One accent drives every colour of the engine; Maison fir green by default** (UI/UX review
+    2026-10-18, decision 16). `assets/style.css` declares private tokens (`--gfb-*`) derived with
+    `color-mix()` from one accent and one neutral ink — tint 8 %, range 15 %, hover 24 %, focus ring
+    40 % — with hex fallbacks under `@supports`. The accent is the
+    site's `--gf-accent`, else the theme's `--wp--preset--color--primary`, else Maison fir `#2F5D46`
+    (it was MUI blue `#1976d2`). Notes and offers keep one semantic pair each, all at least 4.5 : 1
+    (warning `#73551A` on `#F6EDD7`, success `#356B48` on `#E6EFE7`, error `#A8433A` on white and on
+    `#F7E8E5`); the Tailwind amber/green/sky and slate surfaces, and the calendar block's always-blue
+    free days, are gone. Where the accent carries white text or is itself text (chosen days, buttons,
+    links, hints) the engine uses `--gfb-fill`: the accent itself when dark enough, else darkened to
+    reach 4.5 : 1 on white — `oklch(from accent min(l, .54) c h)` where relative colours exist (fir
+    green stays itself), the accent mixed 74 % with black otherwise (Solio ocre, 3.6 : 1 raw, reaches
+    5.8 : 1). The tokens are declared on `.gf-block` and on every direct child of the engine form,
+    which view.js marks `.gf-engine` — never site-wide, and no default is set on `--gf-accent`
+    itself: the Solio drawer moves the engine's children out of the block and re-declares
+    `--gf-accent` on its panel ([site-booking-drawer.md](site-booking-drawer.md) rule 12), so each
+    child must recompute from the accent it actually inherits.
+    *Review of PR #722 (2026-10-19):* the stylesheet never styles a class the site may own on its
+    own: `.gf-btn` is reached as `.gf-block .gf-btn` or `.gf-btn.gf-engine` (Solio's `.gf-btn`,
+    `.gf-btn-ghost`, `.gf-btn-forest` were repainted fir green), `.gf-section` likewise, the
+    out-of-flow button is `.gfb-cta` (Solio's header has a `.gf-cta`), and the tap-highlight reset
+    applies to engine buttons only. A test reads the stylesheet for each of these.
+
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
   page shows a prominent "clé API non configurée" notice; proxy routes return `503` with a generic
@@ -219,7 +266,9 @@ This is a standalone PHP/JS codebase, not part of GuestFlow's Node app. Layout:
 | `blocks/booking/` | C | Same set — quote→request wizard (the core block). |
 | `blocks/properties/` | C | Same set — property list. |
 | `assets/runtime.js` | C | Shared helpers; since 2026-10-18 `GF.weekdays()` (rule 19), `GF.dayLabel()` and `GF.uid()` (rule 15), string-error → « unavailable » (rule 18). |
-| `assets/style.css` | C | Shared styles; scoped `box-sizing` (rule 17), container query for narrow blocks (rule 23). |
+| `assets/style.css` | C | Shared styles; scoped `box-sizing` (rule 17), container query for narrow blocks (rule 23). Since 2026-10-19: the colour tokens (rule 29), field errors (rule 28), hover gated to fine pointers, day states, sticky bar and wide summary card (widget spec rules 29–33). |
+| `blocks/booking/view.js` | T (2026-10-19) | `refuseMissing()` / `refuseFromServer()` / `contactField()` (rule 28); calendar states, next availability, sticky bar, summary card (widget spec rules 29–33). |
+| `includes/class-gf-blocks.php` + `languages/guestflow-booking-en_GB.po/.mo` | T (2026-10-19) | 9 strings added (`legendFree`, `legendTaken`, `nextAvailable`, `nextAvailableGo`, `fieldRequired`, `emailInvalid`, `barPickDates`, `barContinue`, `taxIncluded`), `requiredFields` removed. |
 | `bin/make-zip.sh` | C | Zips the plugin folder into `guestflow-booking.zip` (no build; excludes VCS/OS cruft). |
 | `.gitignore` | C | Ignores `*.zip` + OS cruft. |
 
@@ -244,6 +293,8 @@ public-api spec + code (and this spec references it), never patched around in th
 | server | `plugins/website-booking/controllers/pluginUpdateController.js` | T | `TESTED_WP` kept current (rule 24). |
 | server | `plugins/website-booking/publicProjections.js` + `publicQuoteController.js` | T | `payment.onlineReady` on the quote (specs/public-online-payment.md rule 12). |
 | server + client | `siteConnectionController.js`, `SettingsWebsiteSection.jsx` | C | The URL and key the operator pastes (specs/plugins-phase-2-hosts.md rules 30–31). |
+| server | `plugins/website-booking/publicInputValidation.js`, `controllers/publicBookingRequestController.js`, `utils/publicLabels.js` | T (2026-10-19) | Each refused contact field gets `reason` + `message` in the request's language (rule 28; additive, public-api.md). Plugin manifest 1.2.0. |
+| server | `plugins/website-booking/nextAvailability.js`, `controllers/publicCatalogController.js`, `publicProjections.js` | C/T (2026-10-19) | `nextAvailableDate` on the availability payload (widget spec rule 30; additive). |
 
 ### 4.3 API contract (plugin REST proxy)
 
@@ -326,8 +377,12 @@ respects its container width.
 - Step 3 — contact + message: first/last name, email, phone, free-text message, hidden honeypot `_hp`,
   submit button. On success → confirmation panel showing the booking reference
   (`BookingRequestReceipt.reference`) and a "nous vous recontactons" message. On `409`/`422` → inline
-  error mapped to French.
-- Mobile: vertical stepper, full-width inputs, sticky summary/total at the bottom.
+  error mapped to French. Since 2026-10-19 (rule 28) a refused contact field shows its reason under
+  itself, red edge and focus on the first one; nothing about the refusal sits under the button.
+- Colours (rule 29): one accent (site → theme primary → Maison fir), tints derived from it.
+- Mobile: vertical stepper, full-width inputs, 16 px fields, phone/e-mail keyboards; below 900 px of
+  block width the total and the button sit in a translucent bar pinned to the bottom of the block
+  (widget spec rule 32), above 900 px the summary is a sticky card in a right column (rule 33).
 
 **`guestflow/properties`** — attributes: `columns` (2–4, default 3), `bookingPageUrl`.
 - Renders bookable properties (name, capacity = `maxGuests`, **never** a sum of the capacity fields —
@@ -365,6 +420,23 @@ respects its container width.
       fixed-lodging block is never detected) and `client/src/__tests__/wordpress-booking-view.payment-retry.test.js`
       (+2: a corrected message keeps the devis, the return address names the lodging; the « stay
       changed » case now changes the guests). Behaviour checked on WordPress 7.1 in Docker.
+- [x] Rules 28–29 (2026-10-19): `server/src/plugins/website-booking/tests/public-guest-field-errors.unit.test.js`
+      (5: reasons, FR/EN sentences, the 422 through the controller), `client/src/__tests__/wordpress-booking-view.field-refusal.test.js`
+      (5: all marked at once + focus, no red before a refusal then live clearing, server message under
+      its field, older server fallback, keyboards), `server/src/tests/wordpress-plugin-engine-colours.unit.test.js`
+      (5: accent chain and fir default, no colour outside the tokens, tokens on every engine element,
+      hover gated, edge above hover). Browser check at 390 / 900 / 1280 on a local harness (real
+      `style.css`, `runtime.js`, `view.js`) against a GuestFlow on a neutralised copy of the Solio
+      database: refusals in FR and EN, Solio ocre, theme primary and default fir accents, and a
+      simulated Solio drawer (children moved out of the block: tokens resolve to the panel's ocre,
+      no second bar, no summary button).
+- [x] Review of PR #722 (2026-10-19): `field-refusal` +3 (`gf:refused` with the first field, a host's
+      `preventDefault` keeps the reveal to itself, no live region per error line);
+      `wordpress-plugin-engine-colours` +5 (tokens never site-wide, no bare `.gf-btn` / `.gf-section`
+      / `.gf-cta`, default tokens ≥ 4.5 : 1, ocre darkened under white text, legacy-hover
+      specificity, phone-only bar). Browser re-check with the real Solio CSS (`gf-site-style.php`,
+      the drawer of `gf-seo-reservation.php`, the legacy `gf-booking.php`) injected into the harness,
+      Chromium and WebKit, 390 touch / 900 / 1280.
 
 ### Manual verification
 - [ ] Install the built `.zip` on a WordPress test site; configure base URL + key; "Test connection" =

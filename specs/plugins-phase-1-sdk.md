@@ -191,7 +191,11 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
       - it deletes its `plugin:<id>:*` ledger rows, so a reinstall starts clean;
       - it runs any extra clean-up the plugin needs (rule 20).
 
-_Added 2026-10-19 (SDK 1.3.0)_ — **Setup state** — `ctx.setupStatus(() => null | '<what is missing>')`:
+> 2026-10-19 (SDK 1.4.0, `specs/shell-and-home-day-first.md` rule 9): `ctx.attention({ key, rank,
+> handler, summarize })` declares a subject of the home's « À traiter »; the client SDK exports
+> `AttentionCard`, and a `dashboard.alerts(.urgent)` contribution receives the server's `attention`.
+
+_Added 2026-10-19 (SDK 1.5.0)_ — **Setup state** — `ctx.setupStatus(() => null | '<what is missing>')`:
 the plugin says, from its own settings and without any remote call, what it still lacks; the Plugins
 page shows « Actif · <what> » and « Configurer » (`specs/plugins-phase-0-foundation.md` rule 25).
 Optional: a plugin that declares nothing reads « Actif ».
@@ -236,6 +240,13 @@ Optional: a plugin that declares nothing reads « Actif ».
     `SummaryItem`, `MaskedTextField`, `SecretRevealField`, `SasKeypadCode`) and `displayDate`. The HTTP
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
+
+> 2026-10-19 — `dashboard.alerts` / `dashboard.alerts.urgent` since SDK 1.4.0
+> (`specs/shell-and-home-day-first.md` rules 9, 22): the home no longer drops these slots in place.
+> A contribution whose `key` the plugin also declared server-side with `ctx.attention` is drawn as a
+> pinned card or an « À traiter » row and receives the server's `attention`; a contribution whose key
+> the server did not declare — a package built for SDK < 1.4.0, which knows nothing of
+> `ctx.attention` — is rendered as before, in card mode under the pinned subjects, with no prop.
 
 ### 3.D Behaviour changes that come with the move
 

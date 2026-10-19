@@ -32,7 +32,7 @@ const fileOf = (text) => ({ name: 'textes.csv', arrayBuffer: () => Promise.resol
 test('rule 16: « Exporter les textes » downloads the file', async () => {
   api.downloadEmailTexts.mockResolvedValue('textes-emails.csv');
   renderAt(EmailTextsSettingsPage);
-  await screen.findByText('1. Confirmation');
+  await screen.findByText('Préparation du séjour');
   fireEvent.click(screen.getByRole('button', { name: 'Exporter les textes' }));
   expect(api.downloadEmailTexts).toHaveBeenCalled();
 });
@@ -45,7 +45,7 @@ test('rule 17: the summary first, a refused row with its line; the confirmation 
   });
   api.importEmailTexts.mockResolvedValueOnce({ applied: true });
   renderAt(EmailTextsSettingsPage);
-  await screen.findByText('1. Confirmation');
+  await screen.findByText('Préparation du séjour');
   fireEvent.change(screen.getByTestId('email-texts-file'), { target: { files: [fileOf('csv')] } });
   expect(await screen.findByText('1 texte modifié, 1 refusé')).toBeInTheDocument();
   expect(screen.getByText('Variable inconnue : {{prenon}}')).toBeInTheDocument();
@@ -60,7 +60,7 @@ test('rule 17: the summary first, a refused row with its line; the confirmation 
 
 test('rule 20: no platform key, no translate button; with it, the button translates', async () => {
   const { unmount } = renderAt(EmailTextsSettingsPage);
-  await screen.findByText('1. Confirmation');
+  await screen.findByText('Préparation du séjour');
   expect(screen.queryByRole('button', { name: 'Traduire les textes manquants' })).toBeNull();
   unmount();
   api.getEmailTexts.mockResolvedValue({ ...TEXTS, canTranslate: true });

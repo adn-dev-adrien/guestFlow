@@ -8,7 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
-Validation summary with the interactive mock-up: `docs/specs/2026-09-30-booking-pace.html`.
+Validation summary with the interactive mock-up: `docs/specs/2026-09-30-booking-pace.html`. The phone
+rendering of rules 14-15 (UI/UX review 2026-10-18, decision 9): `docs/specs/2026-10-19-finance-charts-phone-and-early-exercise.html`.
 
 ---
 
@@ -133,6 +134,34 @@ behind.
   not capacity.
 - A logement created this year has no last year: its months are not comparable (rule 9).
 
+### 3.7 UI/UX review (2026-10-18), decisions of 2026-10-19
+
+14. **On a phone the chart stays a chart, scrolling, set on the current month** (UI/UX review
+    2026-10-18, decision 9 — departs from the review's mock and its proposal 18, which turned the chart
+    into a list of months). The twelve columns keep their 56 px and scroll inside the card; the value
+    axis is drawn apart and **stays fixed** on the left; a faded edge on either side says more months
+    are there. The server marks the current month (`months[].isCurrent`); the scroll is set on it on
+    arrival and every time a payload comes in (metric, logement, refresh), centred in the visible width
+    as far as the edges allow; the column width is measured, not assumed (`scrollTargetFor`). The current month's label is
+    bold sapin and underlined, as on « Revenu par mois ». Today the current month is always the first
+    column (rule 5), so the scroll starts at the left edge; the rule holds if the window ever starts
+    earlier.
+15. **One tap, one click** opens a month's pickup curve (rule 13), on every breakpoint: the month is read
+    from where the pointer lands on the plot, not from the tooltip's hover state (a click without a
+    prior hover opened nothing; a phone needed two taps). **A phone has no tooltip** — the scroll box
+    clipped it to a few pixels —: the open month's « Montée en charge » header prints the same lines
+    (« À date », « l'an dernier au final », « Déjà N % … »). A wide screen keeps the tooltip. The month
+    labels are the keyboard path: each is focusable with a visible 2 px sapin ring, names its value
+    with its unit (« Octobre 2026 : 5 réservations »), says whether it is the open one
+    (`aria-pressed`); Enter or Space opens it. The chart itself takes no tab stop (Recharts'
+    accessibility layer off on both charts, the fixed axis being `aria-hidden`), and a tap leaves no
+    browser focus ring. The « l'an dernier à la même date » line of a month (tooltip or header) shows
+    only when that month is comparable — never « inconnu ». The écart row under the months is drawn only once a month is comparable
+    (`hasComparison`, server) — before, every month carried « — » for months on end; the « l'an
+    dernier à la même date » legend entry follows it. Bars use the chart tokens
+    (`finance-dashboard-redesign.md` rule 45): the same-date sand bar is outlined, the ghost dashes in
+    `#8E8470`, the « aujourd'hui » marker in miel profond.
+
 ---
 
 ## 4. Architecture
@@ -149,7 +178,7 @@ behind.
 | `models/` | `bookingPaceModel.js` | C | Reads the stays (live rows + pace ledger), their « total de séjour » through `financeModel`'s helper, calls the pure utils, returns the payload |
 | `models/` | `financeModel.js` | T | `getPaceStays({ propertyId })`: live + manually cancelled stays with their « total de séjour » (same refund / commission columns as `getSummary`), so pace never re-derives a stay's amount |
 | `models/` | `icalCancellationModel.js` | T | Before the `DELETE`, write the stay to the pace ledger (§5) |
-| `utils/` | `bookingPace.js` | C | Pure: on-the-books at a date, night split per month, revenue spread, comparability, écart, reste à prendre, pickup windows, pickup curve |
+| `utils/` | `bookingPace.js` | C | Pure: on-the-books at a date, night split per month, revenue spread, comparability, écart, reste à prendre, pickup windows, pickup curve; 2026-10-19 `months[].isCurrent`, `hasComparison` (rules 14-15) |
 | `database.js` | `database.js` | T | Table `booking_pace_cancellations` + index on `reservations(createdAt)` |
 
 ### 4.2 Client side (`client/src/`)
@@ -157,8 +186,8 @@ behind.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `FinancePage.jsx` | T | Places the card full width under « Revenu par mois » / « Taux d'occupation », passes the logement filter and bumps its `refreshKey` on « Actualiser » |
-| `components/` | `BookingPaceCard.jsx` | C | Finance-specific: loads `/finance/pace` (and the curve) itself, since its metric is local to the card; summary line + badge, metric toggle, pickup chips, month chart, the month's curve below it |
-| `components/` | `PaceMonthChart.jsx` | C | Finance-specific: Recharts bars per month — last year final as a dashed ghost on a hidden second axis, last year same date, this year; the month tick carries the écart coloured by the server's `tone`; `PaceTooltip` and `deltaText` as named exports |
+| `components/` | `BookingPaceCard.jsx` | C | 2026-10-19: legend from the chart tokens, same-date entry only with a comparison, passes `hasComparison` (rule 15). Finance-specific: loads `/finance/pace` (and the curve) itself, since its metric is local to the card; summary line + badge, metric toggle, pickup chips, month chart, the month's curve below it |
+| `components/` | `PaceMonthChart.jsx` | C | Finance-specific: Recharts bars per month — last year final as a dashed ghost on a hidden second axis, last year same date, this year; the month tick carries the écart coloured by the server's `tone`; `PaceTooltip` and `deltaText` as named exports. 2026-10-19 (rules 14-15): fixed value axis beside the scroll on `xs`, faded edges, scroll set on `isCurrent`, click read from the plot geometry, focusable `MonthTick`, écart row only with `hasComparison` |
 | `components/` | `PickupCurveChart.jsx` | C | Finance-specific: cumulative curve by days before the month, today marker; `CurvePointTooltip` as a named export |
 | `api.js` | `api.js` | T | `getFinancePace(params)`, `getFinancePaceMonth(month, params)` |
 
@@ -184,7 +213,8 @@ behind.
   "summary": { "current": 142, "sameTimeLastYear": 118, "delta": 24, "deltaPct": 0.2034, "change": 20.3,
                "comparableMonths": 12, "tone": "success", "text": "…", "notice": null },
   "pickup": { "last7": { "current": 3, "lastYear": 1 }, "last30": { "current": 11, "lastYear": 9 } },
-  "months": [ { "month": "2026-10", "label": "octobre 2026", "lastYearLabel": "octobre 2025", "tick": "oct.",
+  "hasComparison": true,
+  "months": [ { "month": "2026-10", "label": "octobre 2026", "lastYearLabel": "octobre 2025", "tick": "oct.", "isCurrent": true,
                 "tone": "success", "current": 18, "sameTimeLastYear": 14, "lastYearFinal": 21,
                 "comparable": true, "delta": 4, "deltaPct": 0.2857, "remaining": 3,
                 "reachedPct": 0.8571 } ]
@@ -225,7 +255,11 @@ See the interactive mock-up. One card, full width, under « Revenu par mois » /
   is already full width on a phone). Clicking the same month closes it.
 - Not comparable: last year's same-date bar is absent, the month label carries « — », rule 10 line.
 - **xs**: the metric toggle goes under the title, the chart scrolls horizontally inside its card
-  (12 months × 56 px) with the écart kept under each month, chips stacked, curve below.
+  (12 months × 56 px) with the écart kept under each month, chips stacked, curve below. 2026-10-19
+  (rule 14): the value axis stays fixed while the columns scroll, a faded edge shows on the side that
+  has more months, the scroll is set on the current month (bold sapin, underlined); one tap opens a
+  month (rule 15). It stays a chart: no list of months.
+- The écart row and the « à la même date » legend appear only once a month is comparable (rule 15).
   **md / lg**: full width, chips side by side, curve below the chart.
 
 ## 7. Test plan
@@ -246,6 +280,17 @@ See the interactive mock-up. One card, full width, under « Revenu par mois » /
 
 The server's sentence, badge and pickup; the notice replacing the badge; the metric toggle calling the
 API again; the error; the tooltip lines; a non-comparable month reading « inconnu » / « — ».
+
+2026-10-19 (rules 14-15): `server/src/tests/finance-charts-readability.unit.test.js` (current month,
+`hasComparison`) and `client/src/components/__tests__/FinanceCharts.readability.test.jsx` (current-month
+tick, écart row only with a comparison, focus ring, `aria-pressed`, Enter opens a month; scroll target;
+month lines without « à la même date » when not comparable), the updated rule 9 case of
+`BookingPaceCard.test.jsx`, and the E2E
+`e2e/specs/finance/pace-chart-phone.spec.js` (2: fixed axis, scroll on the current month and back to it
+after a metric change, one tap at 390 px opens the month with its figures in the header and no
+tooltip, the chart takes no tab stop; one click at 1280 px). Manual check at 390 px on a copy of the
+Solio database: the axis stays while the columns scroll, the scroll starts on « oct. 26 », one tap on
+November opens its curve; 900 / 1280 px: one click opens it, no scroll.
 
 Suites on 2026-09-30: server 4 599 / 4 599, client 1 413 / 1 413, E2E 84 passed (1 skipped).
 

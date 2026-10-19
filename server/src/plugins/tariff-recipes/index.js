@@ -67,6 +67,7 @@ function register(ctx) {
   router.delete('/journal/:eventId', controller.deleteJournalEntry);
   router.get('/:id', controller.getOne);
   ctx.mount('/api/tariff-recipes', router);
+  ctx.attention({ key: 'recipe-runs', rank: 50, handler: controller.listRuns, summarize: require('./attention').summarize });
 
   ctx.route('get', '/api/properties/:id/tariff-recipe/preview', controller.previewForProperty);
   ctx.route('post', '/api/properties/:id/tariff-recipe/apply', controller.applyToProperty);

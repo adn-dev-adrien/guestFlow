@@ -106,6 +106,26 @@ n'ont aucun test ?** » — et empêcher qu'une règle **nouvelle** soit livrée
     jamais la barrière. Ajouté le 2026-10-01 : la synchronisation de `master` dans `inte/plugins`
     (#649) apportait `finance-exercise-overview-charts.md`, remplacée sur `master` avec ses tests, et
     la barrière la lisait comme 14 règles neuves sans test.
+14. **Une spec pas encore livrée diffère ses règles ; sa livraison les exige toutes.** « Pas encore
+    livrée » = ligne **Status** qui commence par « Draft » ou « Approved » (le flux de CLAUDE.md §3 :
+    la spec est écrite, puis approuvée, puis implémentée). Ajouté le 2026-10-19 : la règle « spec
+    d'abord, puis implémentation » (revue UI/UX du 18/10, arbitrage 8) produit des PR de spec seule,
+    que la règle 8 rendait impossibles à passer au vert sans tests décoratifs ni « Sans test »
+    mensongers. Quatre verrous empêchent que l'exemption devienne un contournement :
+    - **Exemptée** seulement si la spec est Draft/Approved **après** la PR **et**, au merge-base,
+      absente ou Draft. Une spec déjà « Approved » au merge-base reste contrôlée comme avant ; une spec
+      livrée qu'on repasse en Draft n'est jamais exemptée.
+    - **Livrée** (Draft/Approved au merge-base, autre statut après) : **toutes** ses règles doivent
+      être citées par un test ou déclarées « Sans test », qu'elle touche ou non leurs lignes.
+    - **Renommage** : la spec est lue au merge-base sous son ancien chemin
+      (`git diff --name-status -M`), un `git mv` ne cache pas la transition.
+    - **Du code ne part pas contre une spec exemptée** : une ligne ajoutée par la PR hors `specs/` et
+      `docs/` qui cite `specs/<x>.md` d'une spec exemptée fait échouer le contrôle.
+
+    La référence est le **merge-base** de la PR, jamais la pointe de la branche de base.
+    Au 2026-10-19, 15 specs d’`inte/plugins` (dont 13 avec des règles) sont « Approved » alors que leur code est livré
+    (statut jamais mis à jour). Elles restent contrôlées comme avant tant qu'elles restent Approved ;
+    la PR qui les passera en « Implemented » devra couvrir ou déclarer toutes leurs règles.
 
 **Edge cases :**
 
@@ -131,6 +151,7 @@ n'ont aucun test ?** » — et empêcher qu'une règle **nouvelle** soit livrée
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `tests/` | `spec-rule-coverage.unit.test.js` | C | Épingle les fonctions pures du script : extraction des règles, lecture des citations, plages et suffixes, exemptions, rattachement à la spec la plus proche, et le verdict de la barrière. |
+| `tests/` | `spec-rule-coverage-draft.unit.test.js` | C | Règle 14 : statuts non livrés, transitions (exemptée / livrée / rétrogradée), renommage, merge-base, code qui cite une spec exemptée — fonctions pures et la CLI sur un dépôt jetable. |
 
 Rien d'autre : le serveur applicatif n'est pas concerné.
 

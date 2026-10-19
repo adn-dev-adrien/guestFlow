@@ -61,7 +61,7 @@ export default function SettingsHomePage() {
 
   return (
     <Box>
-      <PageActionBar title="Paramètres" titleOnXs />
+      <PageActionBar title="Paramètres" />
       <Box sx={{ maxWidth: 1080, mx: 'auto', p: { xs: 1.5, sm: 3 } }}>
         <TextField
           type="search"

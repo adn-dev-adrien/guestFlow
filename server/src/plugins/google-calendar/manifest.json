@@ -8,8 +8,8 @@
     "Intégrations › Google Agenda"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^1.3.0",
+  "guestflow": ">=3.10.0 <4.0.0",
+  "sdk": "^1.5.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."

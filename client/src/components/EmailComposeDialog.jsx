@@ -87,7 +87,7 @@ export default function EmailComposeDialog({ open, onClose, onQueued }) {
       if (res && res.alreadySent) {
         const proceed = await confirm({
           title: 'Email déjà envoyé',
-          message: `Ce mail (« ${selectedTemplate?.name || 'modèle'} ») a déjà été envoyé le ${displayDateShort(res.lastSentAt)} pour cette réservation. Le recréer quand même ?`,
+          message: `Ce mail (« ${selectedTemplate?.displayName || selectedTemplate?.name || 'modèle'} ») a déjà été envoyé le ${displayDateShort(res.lastSentAt)} pour cette réservation. Le recréer quand même ?`,
           confirmLabel: 'Recréer',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
@@ -130,14 +130,14 @@ export default function EmailComposeDialog({ open, onClose, onQueued }) {
               <Select label="Modèle" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
                 {templates.map((t) => (
                   <MenuItem key={t.id} value={t.id}>
-                    {t.name} ({offsetLabel(t.dayOffset)})
+                    {t.displayName || t.name} ({t.whenLabel || offsetLabel(t.dayOffset)})
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
 
             {error ? (
-              <Box sx={{ p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
+              <Box sx={{ p: 1.5, bgcolor: 'error.soft', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
                 <Typography variant="body2" color="error.main">{error}</Typography>
               </Box>
             ) : null}

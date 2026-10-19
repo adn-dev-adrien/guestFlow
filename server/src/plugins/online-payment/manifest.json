@@ -9,8 +9,8 @@
     "Les boutons « Envoyer la demande de paiement / de solde »"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^1.3.0",
+  "guestflow": ">=3.10.0 <4.0.0",
+  "sdk": "^1.5.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -24,6 +24,9 @@
     "1.0.3": [
       "Titre « Paiements en ligne » visible sur téléphone.",
       "Aide de la connexion Qonto sans nom d’en-tête technique."
+    ],
+    "1.0.4": [
+      "Sur téléphone, le titre de la page s’affiche dans la barre du haut."
     ],
     "1.1.0": [
       "La carte du plugin dit si la connexion Qonto manque, et « Configurer » ouvre Paiements en ligne."

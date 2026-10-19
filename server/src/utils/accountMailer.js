@@ -9,7 +9,7 @@
  */
 
 const { createEmailService } = require('./emailService');
-const { outboxDir, writeToOutbox } = require('./mailOutbox');
+const { outboxDir, writeMessageToOutbox } = require('./mailOutbox');
 
 function createAccountMailer({ settingsModel, env = process.env, buildEmailService = createEmailService, now = () => new Date() }) {
   return {
@@ -24,10 +24,12 @@ function createAccountMailer({ settingsModel, env = process.env, buildEmailServi
       return url.replace(/\/+$/, '');
     },
 
-    async send({ to, subject, text }) {
+    // `html` only for the test of a guest email (specs/guest-email-texts-made-simple.md rule 37); the
+    // account emails themselves stay plain text.
+    async send({ to, subject, text, html }) {
       const dir = outboxDir(env);
-      if (dir) return { outbox: writeToOutbox(dir, { to, subject, text }, now()) };
-      return buildEmailService(settingsModel.decryptedSmtpSettings()).send({ to, subject, text });
+      if (dir) return { outbox: await writeMessageToOutbox(dir, { to, subject, text, html }, now()) };
+      return buildEmailService(settingsModel.decryptedSmtpSettings()).send({ to, subject, text, ...(html ? { html } : {}) });
     },
   };
 }

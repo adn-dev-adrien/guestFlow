@@ -21,7 +21,7 @@ function renderBar(props = {}) {
 }
 
 test('rule 19 — the title ends in an ellipsis on every width and keeps its full text in a tooltip', () => {
-  renderBar({ titleOnXs: true });
+  renderBar();
   const title = screen.getByRole('heading', { name: 'Système et mises à jour' });
   const style = getComputedStyle(title);
   expect(style.textOverflow).toBe('ellipsis');

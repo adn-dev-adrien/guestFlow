@@ -7,7 +7,7 @@ import { COARSE_POINTER, TOUCH_TARGET, touchHitArea } from './utils/touchHitArea
  *
  * Single source of design tokens: hospitality identity — fir-green primary, honey accent, warm paper
  * background, humanist-serif titles, radius 14, warm shadows. Semantic colors carry a `soft` background
- * used by status chips (soft bg + dark text — never filled semantic Chips).
+ * used by status chips (soft bg + its `text` colour — never filled semantic Chips).
  *
  * Typography roles (custom variants — use these, not raw h4/h6, for the roles they name):
  *   pageTitle     serif 600 — the one page title (rendered by PageActionBar / PageHeader)
@@ -21,6 +21,29 @@ const SANS = "'Inter', sans-serif";
 // Shared by the palette and by the component overrides below (which run before the theme exists).
 const FIR = '#2F5D46';
 const INK_MUTED = '#6E6A5E';
+// Chart palette (specs/finance-dashboard-redesign.md rule 45): every chart colour of the app, kept
+// apart from the semantic palette. Contrast on white, WCAG 1.4.11 (3:1 for a mark), 1.4.3 (4.5:1 for
+// a tick): checked by components/__tests__/chartPalette.contrast.test.js.
+const CHART = {
+  current: FIR,              // this year, encaissé ou passé — 7.6:1
+  upcoming: '#B07F2E',       // miel profond, à venir — 3.6:1
+  lastYear: '#D9CFBA',       // sable, last year's bar (fill only, always with its edge)
+  lastYearEdge: '#8E8470',   // its 1 px outline and the dashed « au final » ghost — 3.7:1
+  ghostFill: 'rgba(217, 207, 186, 0.22)',
+  today: '#B07F2E',          // the « aujourd'hui » marker of a curve
+  grid: '#EFEBE3',           // decoration, never information
+  tick: INK_MUTED,           // axis labels — 5.4:1
+  value: '#27251F',          // a value written on a mark — 15:1
+  band: '#F3EFE6',           // the window's months behind « Revenu par mois »
+  selected: '#F6EDD7',       // the open month behind the pace chart
+  cursor: 'rgba(60, 54, 36, 0.05)',
+  tooltip: '#27251F',
+  // One per logement, in the server's slot order; each ≥ 3:1 and told apart under the three
+  // colour-vision deficiencies (dataviz validator, adjacent pairs).
+  series: [FIR, '#B07F2E', '#2F6690', '#A8433A', '#6A4F86', '#71792B'],
+  // The ink banner (rule 31).
+  onInk: { surface: '#27251F', accent: '#E3B566', muted: 'rgba(255, 255, 255, 0.8)', hairline: 'rgba(255, 255, 255, 0.12)', previous: 'rgba(255, 255, 255, 0.7)' },
+};
 // Every icon button except those sitting in a text field's adornment.
 const IN_FIELD_EXCLUDED = '&:not(:is(.MuiInputAdornment-root, .MuiAutocomplete-endAdornment) *)';
 
@@ -30,11 +53,14 @@ const theme = createTheme({
     secondary: { main: '#C99038' },
     background: { default: '#F8F5EF', paper: '#ffffff' },
     text: { primary: '#27251F', secondary: INK_MUTED },
-    success: { main: '#3E7D54', soft: '#E6EFE7' },
-    warning: { main: '#8F6A1D', soft: '#F6EDD7' },
-    error: { main: '#A8433A', soft: '#F7E8E5' },
-    info: { main: '#31556E', soft: '#E4EDF3' },
+    // `text` — the colour of text written on `soft`, every one ≥ 4.5:1 there
+    // (specs/shell-and-home-day-first.md rule 14): `main` itself is 4.2:1 on soft for success/warning.
+    success: { main: '#3E7D54', soft: '#E6EFE7', text: '#2F6A43' },
+    warning: { main: '#8F6A1D', soft: '#F6EDD7', text: '#6F5112' },
+    error: { main: '#A8433A', soft: '#F7E8E5', text: '#A8433A' },
+    info: { main: '#31556E', soft: '#E4EDF3', text: '#31556E' },
     divider: 'rgba(60, 54, 36, 0.1)',
+    chart: CHART,
   },
   typography: {
     fontFamily: SANS,

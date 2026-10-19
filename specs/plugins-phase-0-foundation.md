@@ -173,7 +173,7 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     19; amends rule 22 for active plugins). The server computes, per plugin, `setup: { needed, label,
     path, action }`:
     - the plugin says what it still lacks through `ctx.setupStatus(() => null | '<what>')` (SDK
-      1.3.0, specs/plugins-phase-1-sdk.md §3.B) — a cheap, synchronous look at its own settings:
+      1.5.0, specs/plugins-phase-1-sdk.md §3.B) — a cheap, synchronous look at its own settings:
       Google Agenda « à connecter » then « agenda à choisir », Neat « identifiants manquants »,
       Paiement en ligne « à connecter », Vigilance Météo-France « clé manquante »; a check that
       throws counts as nothing missing;
@@ -194,7 +194,7 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 
 **Edge cases:**
 - (rule 25) A plugin out of the plan never counts as « à configurer ».
-- (rule 25) A plugin packaged for SDK < 1.3.0 declares no check: it reads « Actif » with « Réglages ».
+- (rule 25) A plugin packaged for SDK < 1.5.0 declares no check: it reads « Actif » with « Réglages ».
 - Two admins toggle at the same time → the last write wins; each page reloads the list after its action.
 - A session open when an admin deactivates a plugin → its menu updates at its next `/me` (page load or
   navigation refresh); its API calls to the plugin get 404 and it shows the generic error.
@@ -225,8 +225,8 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 |---|---|---|---|
 | `constants/` | `plugins.js` | C | The 12-plugin catalogue (rule 2) and the id constants; `PLUGIN_SETTINGS_PLACES` (rule 25) |
 | `controllers/` | `pluginsController.js` | T | Rule 25: `setup` in each view, `toConfigure` in the status, `views()` for the core's readers |
-| `plugins/` | `sdk/createContext.js`, `sdk/registry.js`, `sdk/version.js` | T | Rule 25: `ctx.setupStatus(fn)`; SDK 1.3.0 |
-| `plugins/` | `google-calendar`, `neat`, `online-payment`, `weather-alerts` (`index.js`, `manifest.json`) | T | Rule 25: each declares its check; 1.1.0, `sdk ^1.3.0`, a French changelog line |
+| `plugins/` | `sdk/createContext.js`, `sdk/registry.js`, `sdk/version.js` | T | Rule 25: `ctx.setupStatus(fn)`; SDK 1.5.0 |
+| `plugins/` | `google-calendar`, `neat`, `online-payment`, `weather-alerts` (`index.js`, `manifest.json`) | T | Rule 25: each declares its check; 1.1.0, `sdk ^1.5.0` and `guestflow >=3.10.0`, a French changelog line |
 | `models/` | `pluginsModel.js` | C | Reads/writes the `plugins` table; `isActive(id)`, `listActiveIds()` read the table each time (no cache: a write by another process, e.g. the E2E seed, is seen at once); blocker counts |
 | `controllers/` | `pluginsController.js` | C | List with states and blockers; install / activate / deactivate / uninstall; refusal rules (rule 8) |
 | `routes/` | `plugins.js` | C | `GET /api/plugins`, `POST /:id/install`, `POST /:id/activate`, `POST /:id/deactivate`, `DELETE /:id` |
@@ -369,7 +369,7 @@ dialog: the uninstall confirmation is inline.
 ### Rule 25 (2026-10-19)
 - Server `plugins-setup-state.unit.test.js` (10): every plugin has a settings place; « Actif · à
   connecter » + « Configurer » then « Réglages »; inactive / no place; a throwing check; the
-  `toConfigure` count; `ctx.setupStatus` takes a function (SDK 1.3.0); the checks of Google Agenda,
+  `toConfigure` count; `ctx.setupStatus` takes a function (SDK 1.5.0); the checks of Google Agenda,
   Neat, Météo-France and Paiement en ligne.
 - Client `PluginCard.setup.test.jsx` (4), `PluginsPage.to-configure.test.jsx` (2); updated
   `PluginCard.erasure` (the refusal in the ⋯ menu) and `PluginsPage` (deactivate through ⋯ and its

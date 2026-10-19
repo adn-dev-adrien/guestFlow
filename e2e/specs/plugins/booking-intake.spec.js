@@ -91,6 +91,8 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
 
   // Rules 21–22 — the fiche waits on the dashboard, with a link into the extranet list.
   await page.goto('/');
+  // The subject waits in « À traiter » (specs/shell-and-home-day-first.md rule 10): unfold its row.
+  await page.getByRole('button', { name: /Réservations Booking à compléter/ }).first().click({ timeout: 10_000 });
   const line = page.getByText(/E2E booking-intake Granja · .* → /);
   await expect(line).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole('link', { name: 'Ouvrir dans Booking' }).first()).toHaveAttribute('href', new RegExp(`hotel_id=${HOTEL_ID}&date_type=arrival&date_from=${START}`));

@@ -112,7 +112,7 @@ export default function EmailHistoryPage() {
               <Select label="Modèle" value={templateFilter} onChange={(e) => { setTemplateFilter(e.target.value); setPage(0); }}>
                 <MenuItem value="">Tous</MenuItem>
                 {templates.map((t) => (
-                  <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
+                  <MenuItem key={t.id} value={t.id}>{t.displayName || t.name}</MenuItem>
                 ))}
               </Select>
             </FormControl>

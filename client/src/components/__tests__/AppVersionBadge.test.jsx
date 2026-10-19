@@ -1,5 +1,6 @@
 /**
- * AppVersionBadge — the installed version in the top bar, and its update affordance.
+ * AppVersionBadge — the update affordance of the top bar, and AppVersionFooter — the installed
+ * version at the foot of the drawer since 2026-10-19 (specs/shell-and-home-day-first.md rule 16).
  * specs/self-update-and-releases.md §3.C rules 17-20b + §6.5.
  */
 
@@ -24,7 +25,7 @@ vi.mock('../../hooks/useAuth', () => ({
 }));
 
 import api from '../../api';
-import AppVersionBadge from '../AppVersionBadge';
+import AppVersionBadge, { AppVersionFooter } from '../AppVersionBadge';
 
 const UPDATE_BUTTON = /est disponible/;
 
@@ -52,22 +53,23 @@ beforeEach(() => {
   api.startUpdate.mockReset();
 });
 
-test('shows the installed version, not a build identifier', async () => {
+test('specs/shell-and-home-day-first.md rule 16: the drawer foot shows the installed version, not a build identifier', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false, latest: '1.0.0' }));
-  render(<AppVersionBadge />);
-  expect(await screen.findByText('v1.0.0')).toBeInTheDocument();
+  render(<AppVersionFooter />);
+  expect(await screen.findByText('GuestFlow v1.0.0')).toBeInTheDocument();
 });
 
-test('up to date: the version stands alone, with nothing to click', async () => {
+test('specs/shell-and-home-day-first.md rule 16: up to date, the top bar shows nothing — the version left it', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false, latest: '1.0.0' }));
-  render(<AppVersionBadge />);
-  await screen.findByText('v1.0.0');
-  expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  const { container } = render(<AppVersionBadge />);
+  await waitFor(() => expect(api.getSystemVersion).toHaveBeenCalled());
+  expect(container.firstChild).toBeNull();
+  expect(screen.queryByText(/v1\.0\.0/)).not.toBeInTheDocument();
 });
 
 test('stays silent for a non-admin — and never even calls the admin endpoint', async () => {
   currentUser = { id: 2, roles: ['reception'] };
-  const { container } = render(<AppVersionBadge />);
+  const { container } = render(<><AppVersionBadge /><AppVersionFooter /></>);
   await waitFor(() => expect(container.firstChild).toBeNull());
   expect(api.getSystemVersion).not.toHaveBeenCalled();
 });
@@ -105,7 +107,7 @@ test('postponing the dashboard alert does not take the way back with it', async 
 
 test('an update already running hides the pill — the overlay owns the screen', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateInProgress: true }));
-  render(<AppVersionBadge />);
-  await screen.findByText('v1.0.0');
+  render(<><AppVersionBadge /><AppVersionFooter /></>);
+  await screen.findByText('GuestFlow v1.0.0');
   expect(screen.queryByRole('button', { name: UPDATE_BUTTON })).not.toBeInTheDocument();
 });

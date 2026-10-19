@@ -1,19 +1,14 @@
 /**
- * EmailPendingAlert — dashboard widget that surfaces the manual-email queue count.
- * Clicking it navigates to the Emails page. See specs/email-automation.md §6.2 + §6.10.
+ * EmailPendingAlert — the manual-email queue as a subject of the home (specs/email-automation.md §6.2
+ * + §6.10). Its count and « N messages à envoyer · M clients sans adresse » are the server's
+ * (specs/shell-and-home-day-first.md rule 6, tested server-side); the card draws them and leads to
+ * the Emails page.
  */
 
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-
-vi.mock('../../api', () => ({
-  __esModule: true,
-  default: {
-    getPendingEmails: vi.fn(),
-  },
-}));
 
 const navigate = vi.fn();
 vi.mock('react-router', () => ({
@@ -21,53 +16,27 @@ vi.mock('react-router', () => ({
   useNavigate: () => navigate,
 }));
 
-import api from '../../api';
 import EmailPendingAlert from '../EmailPendingAlert';
 
-beforeEach(() => {
-  api.getPendingEmails.mockReset();
-  navigate.mockReset();
-});
+const attention = { key: 'email-pending', severity: 'info', count: 2, title: 'Emails à vérifier', detail: '2 messages à envoyer · 1 client sans adresse' };
 
-test('renders nothing while the API call is pending', () => {
-  api.getPendingEmails.mockReturnValue(new Promise(() => {})); // never resolves
-  const { container } = render(<EmailPendingAlert />);
+beforeEach(() => navigate.mockReset());
+
+test('renders nothing without a subject (the queue is empty)', () => {
+  const { container } = render(<EmailPendingAlert attention={null} />);
   expect(container.firstChild).toBeNull();
 });
 
-test('renders nothing when the pending list is empty', async () => {
-  api.getPendingEmails.mockResolvedValue([]);
-  const { container } = render(<EmailPendingAlert />);
-  await waitFor(() => expect(api.getPendingEmails).toHaveBeenCalled());
-  expect(container.firstChild).toBeNull();
+test('renders the server count and detail, clients without an address included', () => {
+  render(<EmailPendingAlert attention={attention} />);
+  expect(screen.getByText('Emails à vérifier')).toBeInTheDocument();
+  expect(screen.getByTestId('attention-count')).toHaveTextContent('2');
+  expect(screen.getByText('2 messages à envoyer · 1 client sans adresse')).toBeInTheDocument();
 });
 
-test('renders the alert card with the pending count when > 0', async () => {
-  api.getPendingEmails.mockResolvedValue([
-    { templateId: 1, reservationId: 100, templateName: 'J-7', clientFullName: 'Jane S.', clientEmail: 'jane@s.com', propertyName: 'Villa A', startDate: '2026-06-17' },
-    { templateId: 1, reservationId: 101, templateName: 'J-7', clientFullName: 'Marc P.', clientEmail: 'marc@p.fr', propertyName: 'Le Gîte', startDate: '2026-06-18' },
-  ]);
-  render(<EmailPendingAlert />);
-  expect(await screen.findByText('Emails à vérifier (2)')).toBeInTheDocument();
-  expect(screen.getByText(/2 messages? en attente/i)).toBeInTheDocument();
-});
-
-test('mentions the number of clients without an email address', async () => {
-  api.getPendingEmails.mockResolvedValue([
-    { templateId: 1, reservationId: 100, templateName: 'J-7', clientFullName: 'Jane', clientEmail: 'jane@s.com', propertyName: 'A', startDate: '2026-06-17' },
-    { templateId: 1, reservationId: 101, templateName: 'J-7', clientFullName: 'Marc', clientEmail: '',           propertyName: 'B', startDate: '2026-06-18' },
-  ]);
-  render(<EmailPendingAlert />);
-  expect(await screen.findByText(/1 client sans adresse email/i)).toBeInTheDocument();
-});
-
-test('clicking the card navigates to the Emails page', async () => {
+test('« Voir et envoyer » navigates to the Emails page', async () => {
   const user = userEvent.setup();
-  api.getPendingEmails.mockResolvedValue([
-    { templateId: 1, reservationId: 100, templateName: 'J-7', clientFullName: 'Jane', clientEmail: 'jane@s.com', propertyName: 'A', startDate: '2026-06-17' },
-  ]);
-  render(<EmailPendingAlert />);
-  await screen.findByText('Emails à vérifier (1)');
-  await user.click(screen.getByText('Voir et envoyer'));
+  render(<EmailPendingAlert attention={attention} />);
+  await user.click(screen.getByRole('button', { name: 'Voir et envoyer' }));
   expect(navigate).toHaveBeenCalledWith('/emails');
 });

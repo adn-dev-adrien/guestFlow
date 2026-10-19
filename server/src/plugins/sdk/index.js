@@ -45,6 +45,7 @@ const CORE_MODULES = Object.freeze({
   reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
   capacity: '../../utils/capacity', // guest capacity of a property
   blockedDates: '../../utils/blockedDates', // availability, shared with the public payment
+  changeover: '../../utils/changeover', // arrival/departure weekdays, for the site's next bookable night (SDK 1.3.0)
   mealPortions: '../../utils/mealPortions', // per-person card options and their caps
   quotePostProcessors: '../../utils/quotePostProcessors', // the insurance price a plugin sets on a quote (phase 3b rule 2)
   insuranceOffer: '../../utils/insuranceOffer', // no insurance on the site while no plugin offers it (phase 3b rule 6)

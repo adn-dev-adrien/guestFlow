@@ -3,6 +3,9 @@
 
 const { MONTH_NAMES } = require('./financeWindow');
 
+// French abbreviations, unambiguous where the initials are not (J J, M M, A A) — rule 44.
+const MONTH_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
 function exerciseMonths(from, to) {
   const out = [];
   let year = Number(String(from).slice(0, 4));
@@ -12,11 +15,11 @@ function exerciseMonths(from, to) {
     const key = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
     if (key > endKey) break;
     const name = MONTH_NAMES[month - 1];
-    out.push({ month: key, label: `${name} ${year}`, initial: name[0].toUpperCase() });
+    out.push({ month: key, label: `${name} ${year}`, initial: name[0].toUpperCase(), short: MONTH_SHORT[month - 1] });
     month += 1;
     if (month > 12) { month = 1; year += 1; }
   }
   return out;
 }
 
-module.exports = { exerciseMonths };
+module.exports = { exerciseMonths, MONTH_SHORT };

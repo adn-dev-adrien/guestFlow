@@ -82,6 +82,7 @@ versioned reference doc that keeps it that way. Migration proceeds block by bloc
 | `palette.error.main` | `#A8433A` | Soft bg `#F7E8E5`. |
 | `palette.info.main` | `#31556E` | Soft bg `#E4EDF3`. |
 | `palette.divider` | `rgba(60,54,36,0.1)` | Warm hairline. |
+| `palette.chart.*` | see `theme.js` | 2026-10-19 — every chart colour (this year, à venir `#B07F2E`, last year sand + `#8E8470` edge, ghost, grid, ticks, today, logement series, ink-banner accents), contrast-checked on white by a test. Owned by `finance-dashboard-redesign.md` rule 45; charts read it through `utils/chartColors.js`. |
 | `shape.borderRadius` | `14` | Was 12. |
 | Card/Paper shadow | `0 3px 16px rgba(60,54,36,0.09)` | Warm, soft. |
 | Spacing scale | `0.5, 1, 1.5, 2, 3` only | Blessed `Stack`/`gap`/padding multipliers. |

@@ -739,6 +739,25 @@ CSS;
 
 	precedent.addEventListener( 'click', function () { aller( etape - 1 ); } );
 
+	// Un refus du moteur (assurance, coordonnees, CGV) peut viser l'autre ecran : le moteur le dit
+	// par l'evenement `gf:refused` (specs/site-booking-drawer.md regle 17). On montre l'ecran qui
+	// porte le champ, puis on l'amene au centre et on lui donne le curseur, une fois la piste arrivee.
+	racine.addEventListener( 'gf:refused', function ( ev ) {
+		var champ = ev.detail && ev.detail.element;
+		if ( ! champ ) { return; }
+		var cible = ecrans[0].contains( champ ) ? 1 : ( ecrans[1].contains( champ ) ? 2 : 0 );
+		if ( ! cible ) { return; }
+		ev.preventDefault();
+		var attente = cible === etape ? 0 : 360;
+		if ( cible !== etape ) { aller( cible ); }
+		window.setTimeout( function () {
+			var ecran = ecrans[ cible - 1 ];
+			var haut = champ.getBoundingClientRect().top - ecran.getBoundingClientRect().top + ecran.scrollTop;
+			ecran.scrollTo( { top: Math.max( 0, haut - ecran.clientHeight / 3 ), behavior: 'smooth' } );
+			if ( champ.focus ) { champ.focus( { preventScroll: true } ); }
+		}, attente );
+	} );
+
 	// Les dates completes activent « Suivant » : voyageurs et options partagent l'ecran 1,
 	// il n'y a plus de glissement automatique.
 	function verifierDates() {

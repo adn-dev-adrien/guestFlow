@@ -2,19 +2,20 @@
  * IntakeAlert — Dashboard line for the Gîtes de France booking mails that need the operator
  * (specs/gites-de-france-mail-intake.md rule 14): a mail that could not be read or applied, a booking
  * still without a fiche a day after its mail, or a fiche whose rent is still to choose (amended
- * 2026-10-18). Renders nothing when there is none.
+ * 2026-10-18). Renders nothing when there is none; title and count are the
+ * server's (specs/shell-and-home-day-first.md rule 6).
  */
 import React, { useEffect, useState } from 'react';
-import { Alert, AlertTitle, Stack, Typography, Link } from '@mui/material';
+import { Stack, Typography, Link } from '@mui/material';
 import { useNavigate } from 'react-router';
-import { api, displayDate } from '../sdk';
+import { api, displayDate, AttentionCard } from '../sdk';
 
 const STATUS_TEXT = {
   pending: 'aucune fiche sur ces dates',
   needs_rent: 'loyer à choisir sur la fiche',
 };
 
-export default function IntakeAlert() {
+export default function IntakeAlert({ attention }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
 
@@ -25,8 +26,7 @@ export default function IntakeAlert() {
   if (items.length === 0) return null;
 
   return (
-    <Alert severity="warning" variant="outlined" sx={{ mb: 3, bgcolor: 'background.paper' }}>
-      <AlertTitle>Mails Gîtes de France à vérifier</AlertTitle>
+    <AttentionCard attention={attention}>
       <Stack spacing={0.5}>
         {items.map((item) => (
           <Typography key={item.id} variant="body2">
@@ -43,6 +43,6 @@ export default function IntakeAlert() {
           </Typography>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

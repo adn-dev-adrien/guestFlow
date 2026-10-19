@@ -37,16 +37,16 @@ test('rule 6: nothing when complete, or the done label when asked', () => {
   expect(screen.getByText('Emails prêts')).toBeInTheDocument();
 });
 
-test('rule 7: « Emails incomplets » on the dashboard only while a stay within 14 days is concerned', async () => {
-  api.getEmailReadiness.mockResolvedValueOnce({ items: ITEMS, soonCount: 2 });
-  const { unmount } = render(<MemoryRouter><EmailReadinessAlert /></MemoryRouter>);
-  expect(await screen.findByText('Emails incomplets')).toBeInTheDocument();
-  expect(screen.getByText('2 points à compléter avant les prochaines arrivées.')).toBeInTheDocument();
-  fireEvent.click(screen.getByText('Emails incomplets'));
+test('rule 7: « Emails incomplets » on the dashboard only while a stay within 14 days is concerned', () => {
+  // The 14-day count is the server's (soonCount → the home's subject, specs/shell-and-home-day-first.md
+  // rule 6); the card draws what it is given and leads to « Textes des emails ».
+  const attention = { key: 'email-readiness', severity: 'todo', count: 2, title: 'Emails incomplets', detail: '2 points à compléter avant les prochaines arrivées' };
+  const { unmount } = render(<MemoryRouter><EmailReadinessAlert attention={attention} /></MemoryRouter>);
+  expect(screen.getByText('Emails incomplets')).toBeInTheDocument();
+  expect(screen.getByText('2 points à compléter avant les prochaines arrivées')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Compléter' }));
   expect(navigate).toHaveBeenCalledWith('/settings/emails/textes');
   unmount();
-  api.getEmailReadiness.mockResolvedValueOnce({ items: ITEMS, soonCount: 0 });
-  const { container } = render(<MemoryRouter><EmailReadinessAlert /></MemoryRouter>);
-  await new Promise((r) => setTimeout(r, 0));
+  const { container } = render(<MemoryRouter><EmailReadinessAlert attention={null} /></MemoryRouter>);
   expect(container).toBeEmptyDOMElement();
 });

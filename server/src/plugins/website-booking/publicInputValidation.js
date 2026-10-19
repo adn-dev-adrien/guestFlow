@@ -154,6 +154,11 @@ function validateStayInput(body = {}) {
 /**
  * Validate the guest contact block + message for a booking request. Honeypot (`_hp`) is checked
  * by the controller (it intentionally returns a fake success), not here.
+ *
+ * Each error carries a `reason` (`required` | `emailInvalid`) next to its unchanged `issue`: the
+ * reason picks the visitor-facing sentence (`fieldErrors` in publicLabels), so an empty address
+ * reads « Champ requis. » and `jo@` reads « Adresse e-mail incomplète. »
+ * (specs/wordpress-plugin.md rule 28).
  */
 function validateGuest(guest = {}) {
   const errors = [];
@@ -161,12 +166,23 @@ function validateGuest(guest = {}) {
   const lastName = String(guest.lastName || '').trim();
   const email = String(guest.email || '').trim();
   const phone = String(guest.phone || '').trim();
-  if (!firstName) errors.push({ field: 'guest.firstName', issue: 'required' });
-  if (!lastName) errors.push({ field: 'guest.lastName', issue: 'required' });
-  if (!EMAIL.test(email)) errors.push({ field: 'guest.email', issue: 'must be a valid email' });
-  if (!phone) errors.push({ field: 'guest.phone', issue: 'required' });
+  if (!firstName) errors.push({ field: 'guest.firstName', issue: 'required', reason: 'required' });
+  if (!lastName) errors.push({ field: 'guest.lastName', issue: 'required', reason: 'required' });
+  if (!EMAIL.test(email)) {
+    errors.push({ field: 'guest.email', issue: 'must be a valid email', reason: email ? 'emailInvalid' : 'required' });
+  }
+  if (!phone) errors.push({ field: 'guest.phone', issue: 'required', reason: 'required' });
   if (errors.length) return { ok: false, errors };
   return { ok: true, value: { firstName, lastName, email, phone } };
+}
+
+/**
+ * The guest errors with their sentence in the visitor's language, added as `message`
+ * (specs/wordpress-plugin.md rule 28). `messages` is `labels(lang).fieldErrors`; the language is
+ * resolved by the caller so this stays pure.
+ */
+function withFieldMessages(errors, messages) {
+  return (errors || []).map((e) => (e.reason && messages[e.reason] ? { ...e, message: messages[e.reason] } : e));
 }
 
 const ATTRIBUTION_MAX = 200;
@@ -204,4 +220,5 @@ module.exports = {
   validateAvailabilityQuery,
   validateStayInput,
   validateGuest,
+  withFieldMessages,
 };

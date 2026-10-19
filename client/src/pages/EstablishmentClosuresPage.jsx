@@ -145,7 +145,6 @@ export default function EstablishmentClosuresPage({ barTabs }) {
       <PageActionBar
         tabs={barTabs}
         title={phone ? 'Fermetures' : "Fermetures de l'établissement"}
-        titleOnXs
         actionsBefore={[{
           node: (
             <Button key="add-closure" variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>

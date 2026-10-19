@@ -7,19 +7,26 @@ import { vi } from 'vitest';
 import { PENDING } from './intakeFixtures';
 
 const api = vi.hoisted(() => ({ getBookingIntakePending: vi.fn(), dismissBookingIntakePending: vi.fn() }));
-vi.mock('../../sdk', () => ({ api, displayDate: (iso) => iso.split('-').reverse().join('/') }));
+vi.mock('../../sdk', async () => ({
+  api,
+  displayDate: (iso) => iso.split('-').reverse().join('/'),
+  AttentionCard: (await vi.importActual('../../../components/AttentionCard')).default,
+}));
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock('react-router', async (orig) => ({ ...(await orig()), useNavigate: () => navigate }));
 
 import PendingAlert from '../PendingAlert';
 import UrgentPendingAlert from '../UrgentPendingAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'booking-intake', severity: 'todo', count: 1, title: 'Réservations Booking à compléter', detail: '1 fiche à compléter' };
+
 const renderIn = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 afterEach(() => vi.clearAllMocks());
 
 test('specs/booking-extranet-intake.md rule 22: one line per stay with the property and the dates, and the three actions', async () => {
   api.getBookingIntakePending.mockResolvedValue(PENDING);
-  renderIn(<PendingAlert />);
+  renderIn(<PendingAlert attention={ATTENTION} />);
   expect(await screen.findByText('La Granja · 01/12/2026 → 03/12/2026')).toBeInTheDocument();
   const link = screen.getByRole('link', { name: 'Ouvrir dans Booking' });
   expect(link).toHaveAttribute('href', PENDING[1].extranetUrl);
@@ -31,7 +38,7 @@ test('specs/booking-extranet-intake.md rule 22: one line per stay with the prope
 test('specs/booking-extranet-intake.md rule 23: « Pas une réservation Booking » dismisses the line and reloads the list', async () => {
   api.getBookingIntakePending.mockResolvedValueOnce([PENDING[1]]).mockResolvedValue([]);
   api.dismissBookingIntakePending.mockResolvedValue({ ok: true });
-  renderIn(<PendingAlert />);
+  renderIn(<PendingAlert attention={ATTENTION} />);
   await userEvent.click(await screen.findByRole('button', { name: 'Pas une réservation Booking' }));
   expect(api.dismissBookingIntakePending).toHaveBeenCalledWith(22310);
   await waitFor(() => expect(screen.queryByText(/La Granja/)).not.toBeInTheDocument());
@@ -39,16 +46,16 @@ test('specs/booking-extranet-intake.md rule 23: « Pas une réservation Booking 
 
 test('specs/booking-extranet-intake.md rule 24: the urgent instance shows the stays arriving within a week, the other one the rest', async () => {
   api.getBookingIntakePending.mockResolvedValue(PENDING);
-  renderIn(<UrgentPendingAlert />);
-  const alert = await screen.findByRole('alert');
-  expect(within(alert).getByText(/La Granja · 19\/10\/2026 → 21\/10\/2026 · arrivée dans 3 jours/)).toBeInTheDocument();
-  expect(within(alert).queryByText(/01\/12\/2026/)).not.toBeInTheDocument();
-  expect(within(alert).getByText('Réservations Booking à compléter, arrivée proche')).toBeInTheDocument();
+  renderIn(<UrgentPendingAlert attention={{ ...ATTENTION, key: 'booking-intake-urgent', severity: 'urgent', title: 'Réservations Booking à compléter, arrivée proche' }} />);
+  const card = await screen.findByTestId('attention-card-booking-intake-urgent');
+  expect(within(card).getByText(/La Granja · 19\/10\/2026 → 21\/10\/2026 · arrivée dans 3 jours/)).toBeInTheDocument();
+  expect(within(card).queryByText(/01\/12\/2026/)).not.toBeInTheDocument();
+  expect(within(card).getByText('Réservations Booking à compléter, arrivée proche')).toBeInTheDocument();
 });
 
 test('specs/booking-extranet-intake.md rule 22: nothing to fill, nothing rendered', async () => {
   api.getBookingIntakePending.mockResolvedValue([]);
-  const { container } = renderIn(<PendingAlert />);
+  const { container } = renderIn(<PendingAlert attention={ATTENTION} />);
   await waitFor(() => expect(api.getBookingIntakePending).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();
 });

@@ -1,7 +1,7 @@
 // @ts-check
 // specs/hosting-h2-account-security.md §7 E2E — the forgotten password through the dev mail
 // catcher (rules 1-4), turning on the authenticator app and logging in with a computed code
-// (rules 6-7), and the support flow with a locally signed link (rules 12-16).
+// (rules 6-7, 32-33), and the support flow with a locally signed link (rules 12-16).
 import { test, expect } from '@playwright/test';
 import fixtures from '../../fixtures/accountSecurity.js';
 
@@ -63,8 +63,13 @@ test('rules 6-7 — turn on the authenticator app, then log in with a computed c
   await expect(page.getByLabel('Code de secours')).toHaveAttribute('inputmode', 'text');
   await page.getByRole('button', { name: 'Utiliser le code de l’application' }).click();
   // Rule 24: the enrolment code is spent, so the login takes the next 30 s step's code.
+  await expect(page.getByRole('heading', { name: 'Vérification' })).toBeVisible();
+  // Rule 33: a wrong code is said under the cells and the digits stay.
+  await page.getByLabel('Code à 6 chiffres').fill('000000');
+  await expect(page.getByRole('alert').filter({ hasText: 'Code incorrect.' })).toBeVisible();
+  await expect(page.getByLabel('Code à 6 chiffres')).toHaveValue('000000');
+  // Rule 32: the code is sent at its 6th digit, with no « Valider ».
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret, new Date(Date.now() + 30_000)));
-  await page.getByRole('button', { name: 'Valider' }).click();
   await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
 });
 

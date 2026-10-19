@@ -345,6 +345,7 @@
     "addDaysToIsoDate",
     "buildDefaultProgressiveTiers",
     "buildProgressivePreview",
+    "calculateBaseStayPrice",
     "calculateProgressiveParticipantOptionTotal",
     "calculateReservationQuote",
     "computeExtraGuestSurcharge",
@@ -376,6 +377,11 @@
   "blockedDates": [
     "computeBlockedDates",
     "rangeHasBlockedNight"
+  ],
+  "changeover": [
+    "FRENCH_DAYS",
+    "checkChangeover",
+    "resolveChangeover"
   ],
   "mealPortions": [
     "clampPortions",

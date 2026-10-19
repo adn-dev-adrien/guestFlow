@@ -23,7 +23,9 @@ const { templateAutoSends } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { todayIso } = require('../utils/localDate');
 const { PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
-const { templateWhenLabel } = require('../utils/templateWhen');
+const { templateWhenLabel, templateWhen, describeWhen } = require('../utils/templateWhen');
+const { displayNameOf, timeline } = require('../utils/emailTimeline');
+const { weekdayLabel } = require('../utils/dateFr');
 const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
 
 // specs/guest-email-texts-made-simple.md rule 11 — a template refuses an unknown variable with the
@@ -98,11 +100,67 @@ function buildController(model, settingsModel, deps = {}) {
 
   // `textsSection`: the section of « Textes des emails » that writes this template's sentences
   // (specs/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
-  // `whenLabel`: the « Quand » column (specs/email-automation.md rule 16).
-  const withSection = (row) => ({ ...row, textsSection: sectionOfStableKey(row.stableKey), whenLabel: templateWhenLabel(row) });
+  // `whenLabel` / `when`: the « Quand » (specs/email-automation.md rule 16; specs/guest-email-texts-made-simple.md
+  // rule 43). `displayName`: the one name of the email on every page (rule 44).
+  const withSection = (row) => ({
+    ...row,
+    textsSection: sectionOfStableKey(row.stableKey),
+    whenLabel: templateWhenLabel(row),
+    when: templateWhen(row),
+    displayName: displayNameOf(row),
+    shipped: Boolean(row.stableKey),
+  });
 
+  // `?view=timeline` — Emails › Modèles in stay order, grouped by moment (rule 44).
   function list(req, res) {
-    return res.json(model.list().filter(sendable).map(withSection));
+    const rows = model.list().filter(sendable).map(withSection);
+    if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows) });
+    return res.json(rows);
+  }
+
+  /**
+   * « Envoyé [n] jours [avant|après|le jour même de] … » read against a template's own moment (rule 43):
+   * the signed offset and the sentence, or a refusal `{ field, message }`. A moment the scheduler
+   * does not count from the offset (the sequence, an action) is not set here.
+   */
+  function readWhen(template, when) {
+    const row = template || { stableKey: null, anchor: 'start', dayOffset: 0 };
+    const current = templateWhen(row);
+    if (!current.editable) return { ok: false, field: 'when', message: 'Moment fixé par l’application : il ne se règle pas ici.' };
+    return describeWhen({ days: when && when.days, direction: when && when.direction, anchor: current.anchor });
+  }
+
+  // POST /api/email-templates/when — the sentence read live, with the day it would leave for the next
+  // stay it still reaches (rule 43).
+  function when(req, res) {
+    const body = req.body || {};
+    const template = body.templateId ? model.findById(body.templateId) : null;
+    if (body.templateId && !template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    const result = readWhen(template, body);
+    if (!result.ok) return res.status(422).json({ field: result.field, message: result.message });
+    let example = null;
+    const anchor = template ? String(template.anchor || 'start') : 'start';
+    const day = today();
+    const stay = anchor === 'start' && typeof model.nextStay === 'function' ? model.nextStay(day, result.offsetDays) : null;
+    if (stay && stay.startDate) {
+      const year = Number(day.slice(0, 4));
+      const start = String(stay.startDate).slice(0, 10);
+      const [y, m, d] = start.split('-').map(Number);
+      const send = new Date(Date.UTC(y, m - 1, d + result.offsetDays)).toISOString().slice(0, 10);
+      const stayLabel = `${weekdayLabel(start, year)} au ${weekdayLabel(String(stay.endDate || '').slice(0, 10), year)}`;
+      example = `Prochain séjour (${[stay.propertyName, stayLabel].filter(Boolean).join(', ')}) : envoyé le ${weekdayLabel(send, year)}.`;
+    }
+    return res.json({ offsetDays: result.offsetDays, sentence: result.sentence, example });
+  }
+
+  // A `when` in a write is read by the server (rule 43): the offset stored is the one it answers, never
+  // one a page computed or kept from an earlier reading.
+  function withWhen(template, body) {
+    if (!body || body.when === undefined) return { ok: true, body };
+    const result = readWhen(template, body.when);
+    if (!result.ok) return result;
+    const { when: ignored, ...rest } = body;
+    return { ok: true, body: { ...rest, dayOffset: result.offsetDays } };
   }
 
   // GET /api/email-templates/plugin-variables — the live plugins' variables and conditions.
@@ -126,6 +184,9 @@ function buildController(model, settingsModel, deps = {}) {
   }
 
   function create(req, res) {
+    const read = withWhen(null, req.body);
+    if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
+    req.body = read.body;
     const errors = validateForCreate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
     const unknown = templateTokenError(req.body);
@@ -148,6 +209,9 @@ function buildController(model, settingsModel, deps = {}) {
   function update(req, res) {
     const existing = model.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    const read = withWhen(existing, req.body);
+    if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
+    req.body = read.body;
     const errors = validateForUpdate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
     const unknown = templateTokenError(req.body);
@@ -166,14 +230,19 @@ function buildController(model, settingsModel, deps = {}) {
     return res.json(row);
   }
 
+  // A shipped email is switched off, never deleted (rule 44): the seed would put it back anyway.
   function remove(req, res) {
+    const existing = model.findById(req.params.id);
+    if (existing && existing.stableKey) {
+      return res.status(409).json({ error: 'SHIPPED_TEMPLATE', message: 'Email livré : il se coupe, il ne se supprime pas.' });
+    }
     const ok = model.remove(req.params.id);
     if (!ok) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     afterWrite(null);
     return res.json({ ok: true });
   }
 
-  return { list, pluginVariables, variables, getOne, create, update, remove };
+  return { list, when, pluginVariables, variables, getOne, create, update, remove };
 }
 
 const defaultController = (() => {

@@ -62,7 +62,6 @@ export default function CompensationsPage() {
     <Box>
       <PageActionBar
         title="Indemnités"
-        titleOnXs
         center={monthNav}
         actionsBefore={canEdit ? [{
           icon: <AddIcon />,

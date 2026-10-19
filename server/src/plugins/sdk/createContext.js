@@ -120,6 +120,18 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (key !== id) throw new Error(`${prefix} a reservation block is keyed by the plugin id ("${id}"), not "${key}"`);
       record.reservationBlocks.push({ key, build });
     },
+    // A subject of the home's « À traiter » (specs/shell-and-home-day-first.md rule 9): `handler` is the
+    // plugin's own handler of the card's list, `summarize(payload)` → { count, title, detail, severity }
+    // or null. The key is the one of its client contribution to `dashboard.alerts(.urgent)`.
+    attention({ key, rank, handler, summarize } = {}) {
+      if (!key || typeof key !== 'string') throw new Error(`${prefix} an attention subject needs a key`);
+      if (typeof handler !== 'function' || typeof summarize !== 'function') {
+        throw new Error(`${prefix} attention subject "${key}" needs a handler and a summarize function`);
+      }
+      const other = registry.all().find((r) => (r.attention || []).some((s) => s.key === key));
+      if (other) throw new Error(`${prefix} the attention subject "${key}" is already declared by ${other.id}`);
+      record.attention.push({ key, rank, handler, summarize });
+    },
     // () → null when the plugin has what it needs, else a short French label of what it lacks
     // (« à connecter », « identifiants manquants »). The Plugins page prints « Actif · <label> » and
     // offers « Configurer » (specs/plugins-phase-0-foundation.md rule 25). Read on every list: keep it

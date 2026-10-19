@@ -412,9 +412,20 @@ merge changed are bumped in the merge PR: `gate-access` 1.1.0 (« Partager » on
 (`specs/plugins-phase-3a-online-payment.md` rule 22) raise the SDK to **1.2.0** (minor); every plugin is
 bumped for its new range, and `booking-intake`, `gate-access` and `online-payment` ask for `sdk ^1.2.0`.
 
+2026-10-19 — UI/UX review of the WordPress booking engine (`feature/ui-wp-booking-engine`): the core
+module `changeover` (`resolveChangeover`, `checkChangeover`, `FRENCH_DAYS`) and `pricing`'s
+`calculateBaseStayPrice` are exposed so the public availability can name the first *bookable* arrival
+with the engine's own minimum stay and arrival days (`specs/wp-booking-widget-redesign.md` rule 30).
+Two additions: the SDK goes to **1.3.0** (rule 3, minor); `website-booking` 1.2.0 asks for `sdk ^1.3.0`.
+
+2026-10-19 — the home's « À traiter » (`specs/shell-and-home-day-first.md` rule 9): `ctx.attention`
+and the client SDK's `AttentionCard` raise the SDK to **1.4.0** (minor); `booking-intake`,
+`gate-access`, `gites-de-france-intake`, `linen`, `tariff-recipes` and `website-booking` 1.3.0 ask for
+`sdk ^1.4.0` and `guestflow >=3.10.0`.
+
 2026-10-19 — UI/UX review, proposal 19 (`specs/plugins-phase-0-foundation.md` rule 25): `ctx.setupStatus`
-raises the SDK to **1.3.0** (minor). The four plugins that declare it are bumped to 1.1.0 and ask for
-`sdk ^1.3.0`: `google-calendar`, `neat`, `online-payment`, `weather-alerts`.
+raises the SDK to **1.5.0** (minor). The four plugins that declare it ask for `sdk ^1.5.0` and
+`guestflow >=3.10.0`: `google-calendar` 1.1.0, `neat` 1.1.0, `online-payment` 1.1.0, `weather-alerts` 1.1.0.
 
 | Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|

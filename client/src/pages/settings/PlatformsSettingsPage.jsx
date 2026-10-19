@@ -186,7 +186,6 @@ export default function PlatformsSettingsPage() {
     <Box>
       <PageActionBar
         title="Plateformes"
-        titleOnXs
         onSave={handleSave}
         saveDisabled={!isDirty || saving || !draft}
         saveBusy={saving}

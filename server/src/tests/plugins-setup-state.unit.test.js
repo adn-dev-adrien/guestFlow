@@ -1,7 +1,7 @@
 // specs/plugins-phase-0-foundation.md rule 25 — a plugin card tells its real state: an active plugin
 // that lacks something reads « Actif · <what> » and offers « Configurer » at its settings place; the
 // others offer « Réglages » where they have one; the Plugins page counts those to configure.
-// The plugin says what it lacks through `ctx.setupStatus` (SDK 1.3.0).
+// The plugin says what it lacks through `ctx.setupStatus` (SDK 1.5.0).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -84,8 +84,8 @@ test('rule 25: the status counts the active plugins to configure', () => {
   assert.equal(capture(ctrl.status).toConfigure, 1);
 });
 
-test('rule 25: ctx.setupStatus is an SDK 1.3.0 entry point and takes a function only', () => {
-  assert.equal(SDK_VERSION, '1.3.0');
+test('rule 25: ctx.setupStatus is an SDK 1.5.0 entry point and takes a function only', () => {
+  assert.equal(SDK_VERSION, '1.5.0');
   const ctx = createContext('setup-probe', { settingsModel: () => ({}) });
   assert.throws(() => ctx.setupStatus('nope'), /setupStatus needs a function/);
   ctx.setupStatus(() => 'à connecter');
