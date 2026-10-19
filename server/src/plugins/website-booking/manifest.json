@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -32,6 +32,10 @@
     ],
     "1.1.2": [
       "Le texte de connexion à WordPress précise que les champs portent le même nom."
+    ],
+    "1.2.0": [
+      "Site : un champ de coordonnées refusé l’est avec sa propre phrase, dans la langue de la page, que le site affiche sous ce champ.",
+      "Site : le calendrier de disponibilités reçoit la prochaine nuit libre quand la période demandée est entièrement prise."
     ]
   }
 }

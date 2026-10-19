@@ -1,14 +1,68 @@
 /* GuestFlow Booking — shared styles for the three blocks. Theme-agnostic, responsive. */
 
-.gf-block { --gf-accent: #1976d2; --gf-muted: #6b7280; --gf-border: #e2e5ea; --gf-blocked: #f3f4f6; max-width: 100%; }
+/* ── Colour tokens (specs/wordpress-plugin.md rule 29) ───────────────────────────────────────────
+   ONE accent drives every colour of the engine; the rest is one neutral ink and three semantic
+   pairs. A site sets `--gf-accent` (and may set `--gf-muted`, `--gf-border`, `--gf-blocked`); a
+   theme that exposes `--wp--preset--color--primary` is used next; Maison fir green otherwise.
+
+   The private `--gfb-*` tokens are declared on EVERY engine element, not only on `.gf-block`: the
+   Solio drawer moves the engine's children out of the block that would have declared them
+   (specs/site-booking-drawer.md rule 12), and a token only inherited from `.gf-block` would then
+   resolve to nothing. Declared per element, each one recomputes from the `--gf-accent` it inherits —
+   the block's, or the drawer panel's. `:where()` keeps the specificity at zero. */
+:where(.gf-block, [class*="gf-"]) {
+  --gfb-accent: var(--gf-accent, var(--wp--preset--color--primary, #2F5D46));
+  --gfb-on-accent: #fff;
+  --gfb-ink: #27251F;
+  --gfb-muted: var(--gf-muted, #6E6A5E);
+  --gfb-border: var(--gf-border, #E4E0D6);
+  --gfb-blocked: var(--gf-blocked, #F1EFEA);
+  /* Hex fallbacks first; the @supports block below derives them from the accent. */
+  --gfb-surface: #F6F5F2;
+  --gfb-faint: #B9B5AA;
+  --gfb-hatch: #E6E3DC;
+  --gfb-tint: #F1F4F2;
+  --gfb-range: #DCE5DF;
+  --gfb-hover: #CBD8D0;
+  --gfb-focus: #97AEA2;
+  --gfb-accent-strong: #26493A;
+  --gfb-error: #A8433A;
+  --gfb-error-soft: #F7E8E5;
+  --gfb-warn: #8F6A1D;
+  --gfb-warn-soft: #F6EDD7;
+  --gfb-ok: #3E7D54;
+  --gfb-ok-soft: #E6EFE7;
+}
+@supports (color: color-mix(in srgb, red 50%, white)) {
+  :where(.gf-block, [class*="gf-"]) {
+    --gfb-surface: color-mix(in srgb, var(--gfb-ink) 4%, #fff);
+    --gfb-faint: color-mix(in srgb, var(--gfb-ink) 32%, #fff);
+    --gfb-hatch: color-mix(in srgb, var(--gfb-ink) 10%, #fff);
+    --gfb-tint: color-mix(in srgb, var(--gfb-accent) 8%, #fff);
+    --gfb-range: color-mix(in srgb, var(--gfb-accent) 15%, #fff);
+    --gfb-hover: color-mix(in srgb, var(--gfb-accent) 24%, #fff);
+    --gfb-focus: color-mix(in srgb, var(--gfb-accent) 40%, transparent);
+    --gfb-accent-strong: color-mix(in srgb, var(--gfb-accent) 82%, #000);
+  }
+}
+
+.gf-block { max-width: 100%; }
 /* Padding inside the declared width, whatever the theme sets (specs/wordpress-plugin.md rule 17):
    with the browser's content-box, `width: 100%` plus padding overflowed the card on a stock theme.
    Scoped to the blocks, so the theme's own elements are never touched. */
 .gf-block, .gf-block *, .gf-block *::before, .gf-block *::after { box-sizing: border-box; }
 /* Two equal columns per form row, on any width: the booking block sizes against its own box. */
 .gf-booking { container-type: inline-size; }
-.gf-loading, .gf-error, .gf-empty { padding: 1rem; color: var(--gf-muted); font-style: italic; }
-.gf-error { color: #b3261e; font-style: normal; }
+/* The block's wrapper is the container the sticky bar and the two-column layout read
+   (specs/wp-booking-widget-redesign.md rules 32-33): a container query cannot style its own box. */
+.gf-booking-block { container: gf-host / inline-size; }
+.gf-loading, .gf-error, .gf-empty { padding: 1rem; color: var(--gfb-muted); font-style: italic; }
+.gf-error { color: var(--gfb-error); font-style: normal; }
+
+/* Every control of the engine answers on press and never flashes the browser's tap highlight
+   (specs/wp-booking-widget-redesign.md rule 29). Hover styles live in the `(hover: hover)` block at the end: a touch screen keeps
+   `:hover` on the last cell tapped, which is how the chosen departure went unreadable. */
+.gf-block button, [class*="gf-"] button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 /* Calendar (shared by the standalone calendar block and the booking widget) */
 .gf-cal-wrap { display: flex; flex-wrap: wrap; gap: 1.25rem; }
@@ -16,111 +70,217 @@
 .gf-cal-head, .gf-cal-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; font-weight: 600; }
 .gf-cal-topbar strong { font-size: 1.05rem; }
 .gf-cal-title { text-align: center; font-weight: 600; margin-bottom: .35rem; text-transform: capitalize; }
-.gf-cal-nav { background: none; border: 1px solid var(--gf-border); border-radius: 8px; padding: .25rem .6rem; cursor: pointer; min-width: 44px; min-height: 44px; font-size: 1.1rem; }
-.gf-cal-nav:hover { background: #f5f6f4; }
+.gf-cal-nav { background: none; border: 1px solid var(--gfb-border); border-radius: 8px; padding: .25rem .6rem; cursor: pointer; min-width: 44px; min-height: 44px; font-size: 1.1rem; color: inherit; transition: transform .1s ease-out; }
+.gf-cal-nav:active:not(:disabled) { transform: scale(.96); }
+.gf-cal-nav:disabled { opacity: .35; cursor: default; }
 .gf-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-.gf-cal-dow { text-align: center; font-size: .72rem; color: var(--gf-muted); padding: .25rem 0; text-transform: uppercase; }
+.gf-cal-dow { text-align: center; font-size: .72rem; color: var(--gfb-muted); padding: .25rem 0; text-transform: uppercase; }
 .gf-cal-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: .9rem; border-radius: 8px; }
 .gf-cal-day.gf-empty-cell { background: transparent; }
-.gf-cal-day.gf-free { background: #eef6ff; color: #0b3d66; }
-.gf-cal-day.gf-blocked { background: var(--gf-blocked); color: #b0b4bb; text-decoration: line-through; }
+/* Four states that never look alike (specs/wp-booking-widget-redesign.md rule 31): free (accent tint), taken (struck through on a
+   hatch — information), past (a muted figure — noise), and the stay itself (filled accent). */
+.gf-cal-day.gf-free { background: var(--gfb-tint); }
+.gf-cal-day.gf-blocked, button.gf-cal-day.gf-taken {
+  background: repeating-linear-gradient(135deg, var(--gfb-blocked) 0 4px, var(--gfb-hatch) 4px 8px);
+  color: var(--gfb-muted); text-decoration: line-through;
+}
+.gf-cal-day.gf-past, button.gf-cal-day.gf-past { background: transparent; color: var(--gfb-faint); text-decoration: none; }
 /* Selectable days (booking widget: buttons) */
-button.gf-cal-day { border: 0; background: #f3f5ef; color: inherit; cursor: pointer; padding: 0; font: inherit; font-size: .9rem; }
-button.gf-cal-day:hover:not(:disabled) { background: #e6eae0; background: color-mix(in srgb, var(--gf-accent) 18%, #fff); }
-button.gf-cal-day:disabled { background: transparent; color: #c9cdc4; cursor: not-allowed; text-decoration: line-through; }
-button.gf-cal-day.gf-range { background: #e6eae0; background: color-mix(in srgb, var(--gf-accent) 18%, #fff); border-radius: 0; }
-button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weight: 700; }
-.gf-cal-box { border: 1px solid var(--gf-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; background: #fff; }
-.gf-cal-hint { text-align: center; font-weight: 600; color: var(--gf-accent); margin-top: .6rem; min-height: 1.2em; }
-.gf-cal-hint-error { color: #b3261e; }
+button.gf-cal-day { border: 0; background: var(--gfb-tint); color: inherit; cursor: pointer; padding: 0; font: inherit; font-size: .9rem;
+  user-select: none; -webkit-user-select: none; transition: transform .12s cubic-bezier(.2, .8, .2, 1), background-color .15s ease; }
+button.gf-cal-day:active:not(:disabled) { transform: scale(.94); }
+button.gf-cal-day:disabled { cursor: not-allowed; }
+button.gf-cal-day.gf-past:disabled { cursor: default; }
+button.gf-cal-day.gf-range { background: var(--gfb-range); border-radius: 0; }
+button.gf-cal-day.gf-edge, button.gf-cal-day.gf-edge:disabled { background: var(--gfb-accent); color: var(--gfb-on-accent); font-weight: 700; text-decoration: none; }
+button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); outline-offset: 2px; }
+.gf-cal-box { border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; background: #fff; }
+.gf-cal-hint { text-align: center; font-weight: 600; color: var(--gfb-accent); margin-top: .6rem; min-height: 1.2em; }
+.gf-cal-hint-error { color: var(--gfb-error); }
+.gf-cal-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem 1rem; margin-top: .6rem; font-size: .78rem; color: var(--gfb-muted); }
+.gf-cal-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.gf-cal-legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; }
+.gf-cal-legend .gf-sw-free { background: var(--gfb-tint); box-shadow: inset 0 0 0 1px var(--gfb-border); }
+.gf-cal-legend .gf-sw-taken { background: repeating-linear-gradient(135deg, var(--gfb-blocked) 0 3px, var(--gfb-hatch) 3px 6px); box-shadow: inset 0 0 0 1px var(--gfb-border); }
+.gf-cal-legend .gf-sw-stay { background: var(--gfb-accent); }
+/* « Prochaine disponibilité » — the way out of a window with nothing to pick (widget spec rule 30). */
+.gf-cal-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem .75rem; margin: 0 0 .9rem; padding: .65rem .75rem;
+  border-radius: 10px; background: var(--gfb-tint); font-weight: 600; text-align: center; }
+.gf-cal-next:empty { display: none; }
+.gf-cal-next-go { border: 0; border-radius: 8px; background: var(--gfb-accent); color: var(--gfb-on-accent); font: inherit; font-weight: 700;
+  min-height: 44px; padding: .5rem 1rem; cursor: pointer; transition: transform .1s ease-out; }
+.gf-cal-next-go:active { transform: scale(.97); }
+/* The month strip moves the way the arrow points; a cross-fade only under reduced motion. */
+.gf-cal-wrap.gf-slide-next { animation: gf-slide-next .22s cubic-bezier(.2, .8, .2, 1); }
+.gf-cal-wrap.gf-slide-prev { animation: gf-slide-prev .22s cubic-bezier(.2, .8, .2, 1); }
+@keyframes gf-slide-next { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes gf-slide-prev { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@keyframes gf-fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* Booking wizard */
-.gf-booking { border: 1px solid var(--gf-border); border-radius: 12px; padding: 1.25rem 1.4rem; }
+.gf-booking { border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1.25rem 1.4rem; }
 .gf-booking-name { margin-top: 0; }
 .gf-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: .9rem; }
 .gf-field { display: flex; flex-direction: column; flex: 1 1 160px; gap: .25rem; min-width: 0; }
-.gf-field-time { flex: 0 1 130px; }
-.gf-field label { font-size: .8rem; color: var(--gf-muted); }
-.gf-field input, .gf-field select, .gf-field textarea { padding: .55rem; border: 1px solid var(--gf-border); border-radius: 8px; font: inherit; width: 100%; }
-.gf-field input.gf-ro { background: #f5f6f4; color: #333; font-weight: 600; pointer-events: none; }
+.gf-field-time { flex: 1 1 130px; }
+.gf-field label { font-size: .8rem; color: var(--gfb-muted); }
+/* 16 px at least: iOS zooms into any smaller field and never zooms back out. */
+.gf-field input, .gf-field select, .gf-field textarea { padding: .55rem; border: 1px solid var(--gfb-border); border-radius: 8px; font: inherit; font-size: max(16px, 1em); width: 100%; background: #fff; color: inherit; }
+.gf-field input:focus, .gf-field select:focus, .gf-field textarea:focus { outline: none; border-color: var(--gfb-accent); box-shadow: 0 0 0 3px var(--gfb-focus); }
+.gf-field input.gf-ro { background: var(--gfb-surface); color: inherit; font-weight: 600; pointer-events: none; }
+/* Refused on the field (specs/wordpress-plugin.md rule 28): a red edge, and the reason right under it. */
+.gf-field.is-invalid input, .gf-field.is-invalid textarea { border-color: var(--gfb-error); background: #FFFBFA; }
+.gf-field.is-invalid input:focus { box-shadow: 0 0 0 3px var(--gfb-error-soft); }
+.gf-field-error { font-size: .82rem; color: var(--gfb-error); }
+.gf-field-error:empty { display: none; }
 /* « Effacer les dates » — beside the date recap, bottom-aligned with the read-only inputs. */
 .gf-field-clear { flex: 0 0 auto; align-self: flex-end; }
 .gf-dates-clear { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-height: 44px;
-  padding: .55rem .85rem; border: 1px solid var(--gf-border); border-radius: 8px; background: #fff; color: inherit;
+  padding: .55rem .85rem; border: 1px solid var(--gfb-border); border-radius: 8px; background: #fff; color: inherit;
   font: inherit; font-size: .9rem; cursor: pointer; white-space: nowrap; }
 .gf-dates-clear:disabled { opacity: .4; cursor: not-allowed; }
-.gf-dates-clear:not(:disabled):hover { border-color: #b3261e; color: #b3261e; background: #fdf4f3; }
 
 /* Sections (Voyageurs / Options & suppléments) */
 .gf-section { margin: 1.1rem 0; }
 .gf-section-title { font-weight: 700; font-size: 1.05rem; margin-bottom: .3rem; }
 .gf-lines { display: flex; flex-direction: column; }
-.gf-line { border-bottom: 1px solid #f0f1ec; padding: .55rem 0; }
+.gf-line { border-bottom: 1px solid var(--gfb-border); padding: .55rem 0; }
 .gf-line:last-child { border-bottom: 0; }
 .gf-line-head { display: flex; align-items: center; gap: .75rem; }
 .gf-line-main { flex: 1; min-width: 0; }
 .gf-line-title { font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: .2rem; flex-wrap: wrap; }
-.gf-line-sub { font-size: .82rem; color: var(--gf-muted); font-style: italic; }
-.gf-line-price { font-style: italic; color: var(--gf-muted); font-size: .95rem; white-space: nowrap; }
-.gf-line-note { font-size: .82rem; color: #92400e; background: #fffbeb; border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
+.gf-line-sub { font-size: .82rem; color: var(--gfb-muted); font-style: italic; }
+.gf-line-price { font-style: italic; color: var(--gfb-muted); font-size: .95rem; white-space: nowrap; }
+.gf-line-note { font-size: .82rem; color: var(--gfb-warn); background: var(--gfb-warn-soft); border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
 /* What the stay gets for free on this line — green, so it never reads as a warning like gf-line-note. */
-.gf-line-free { font-size: .82rem; font-weight: 600; color: #166534; background: #f0fdf4; border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
-.gf-line-desc { font-size: .85rem; color: #475569; margin-top: .3rem; }
-.gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gf-accent); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
+.gf-line-free { font-size: .82rem; font-weight: 600; color: var(--gfb-ok); background: var(--gfb-ok-soft); border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
+.gf-line-desc { font-size: .85rem; color: var(--gfb-muted); margin-top: .3rem; }
+.gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gfb-accent); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
 
 /* Cancellation insurance (specs/cancellation-insurance.md §6.3). Its own framed block just before
    the price summary, with a mandatory Oui/Non choice — nothing is preselected, and the submit
    button stays inert until the visitor answers. */
-.gf-insurance { border: 1px solid var(--gf-border); border-radius: 10px; padding: .9rem 1rem; background: #fbfcfa; }
+.gf-insurance { border: 1px solid var(--gfb-border); border-radius: 10px; padding: .9rem 1rem; background: var(--gfb-surface); }
 .gf-insurance .gf-line-sub { font-style: normal; margin-top: .2rem; }
 .gf-insurance-price { margin: .5rem 0 .1rem; font-size: 1.15rem; }
 .gf-insurance-price .gf-line-price { font-style: normal; color: inherit; font-weight: 700; white-space: normal; }
 .gf-choices { display: flex; gap: .6rem; margin-top: .6rem; }
-.gf-choice { flex: 1 1 0; min-height: 44px; padding: .6rem .9rem; border: 1px solid var(--gf-border); border-radius: 8px; background: #fff; font: inherit; cursor: pointer; }
-.gf-choice:hover { background: #f5f6f4; background: color-mix(in srgb, var(--gf-accent) 8%, #fff); }
-.gf-choice-on { border-color: var(--gf-accent); background: color-mix(in srgb, var(--gf-accent) 12%, #fff); font-weight: 700; }
+.gf-choice { flex: 1 1 0; min-height: 44px; padding: .6rem .9rem; border: 1px solid var(--gfb-border); border-radius: 8px; background: #fff; color: inherit; font: inherit; cursor: pointer; transition: transform .1s ease-out; }
+.gf-choice:active { transform: scale(.98); }
+.gf-choice-on { border-color: var(--gfb-accent); background: var(--gfb-range); font-weight: 700; }
 
 /* Collapsible option categories (specs/option-categories.md §6.3). Collapsed by default; the
    options the visitor already picked render above the fold and stay visible when closed. */
-.gf-group { border-top: 1px solid var(--gf-border); margin-top: .5rem; }
+.gf-group { border-top: 1px solid var(--gfb-border); margin-top: .5rem; }
 .gf-group-head { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 44px; padding: .55rem .25rem; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; color: inherit; border-radius: 8px; }
-.gf-group-head:hover { background: #f7f8f4; background: color-mix(in srgb, var(--gf-accent) 6%, #fff); }
 .gf-group-title { flex: 1; min-width: 0; font-weight: 700; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gf-group-count:not(:empty) { flex: 0 0 auto; min-width: 22px; height: 22px; padding: 0 .4rem; border-radius: 11px; background: #e6efe7; color: #3e7d54; font-size: .8rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
-.gf-group-chevron { flex: 0 0 auto; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--gf-muted); transition: transform .2s ease; }
+.gf-group-count:not(:empty) { flex: 0 0 auto; min-width: 22px; height: 22px; padding: 0 .4rem; border-radius: 11px; background: var(--gfb-ok-soft); color: var(--gfb-ok); font-size: .8rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.gf-group-chevron { flex: 0 0 auto; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--gfb-muted); transition: transform .2s ease; }
 .gf-group-head[aria-expanded="true"] .gf-group-chevron { transform: rotate(180deg); }
 /* Folded body: max-height keeps the transition cheap; 4000px is far above any realistic category. */
 .gf-group-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
 .gf-group-body.is-open { max-height: 4000px; }
-.gf-group-toggle { border: 0; background: none; cursor: pointer; padding: .35rem .25rem; font: inherit; font-size: .9rem; color: var(--gf-accent); }
-.gf-group-toggle:hover { text-decoration: underline; }
+.gf-group-toggle { border: 0; background: none; cursor: pointer; padding: .35rem .25rem; font: inherit; font-size: .9rem; color: var(--gfb-accent); }
 
 /* Stepper (− n +) — the single quantity control */
-.gf-step { display: inline-flex; align-items: center; border: 1px solid var(--gf-border); border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
-.gf-step-btn { width: 44px; height: 44px; border: 0; background: #f3f5ef; cursor: pointer; font-size: 1.2rem; line-height: 1; color: inherit; }
-.gf-step-btn:hover { background: #e6eae0; background: color-mix(in srgb, var(--gf-accent) 15%, #fff); }
-.gf-step-val { min-width: 40px; text-align: center; font-weight: 700; font-size: 1rem; }
-.gf-inline-info { font-size: .85rem; color: #075985; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
-.gf-summary { background: #f8fafc; border-radius: 8px; padding: .75rem 1rem; margin-top: .75rem; }
-.gf-summary-line { display: flex; justify-content: space-between; padding: .15rem 0; }
-.gf-summary-total { font-weight: 700; border-top: 1px solid var(--gf-border); margin-top: .35rem; padding-top: .35rem; }
-.gf-inline-warn { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
-.gf-success { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 1rem; }
-.gf-btn { background: var(--gf-accent); color: #fff; border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; cursor: pointer; min-height: 44px; }
-.gf-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.gf-step { display: inline-flex; align-items: center; border: 1px solid var(--gfb-border); border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
+.gf-step-btn { width: 44px; height: 44px; border: 0; background: var(--gfb-surface); cursor: pointer; font-size: 1.2rem; line-height: 1; color: inherit; user-select: none; -webkit-user-select: none; }
+.gf-step-btn:active:not(:disabled) { background: var(--gfb-range); }
+.gf-step-btn:disabled { opacity: .35; cursor: not-allowed; }
+.gf-step-val { min-width: 40px; text-align: center; font-weight: 700; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.gf-inline-info { font-size: .85rem; color: inherit; background: var(--gfb-tint); border: 1px solid var(--gfb-range); border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
+.gf-summary { background: var(--gfb-surface); border-radius: 8px; padding: .75rem 1rem; margin-top: .75rem; font-variant-numeric: tabular-nums; }
+.gf-summary-line { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; }
+.gf-summary-line > span:last-child { white-space: nowrap; }
+.gf-summary-total { font-weight: 700; border-top: 1px solid var(--gfb-border); margin-top: .35rem; padding-top: .35rem; }
+.gf-inline-warn { color: var(--gfb-warn); background: var(--gfb-warn-soft); border: 1px solid var(--gfb-warn-soft); border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
+.gf-success { color: var(--gfb-ok); background: var(--gfb-ok-soft); border: 1px solid var(--gfb-ok-soft); border-radius: 8px; padding: 1rem; }
+/* The primary action. `.gf-cta` is the same button outside the flow (sticky bar, summary card); it
+   never carries `.gf-btn`, which the Solio drawer reads as « the engine's submit ». */
+.gf-btn, .gf-cta { background: var(--gfb-accent); color: var(--gfb-on-accent); border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; transition: transform .1s ease-out, background-color .15s ease; user-select: none; -webkit-user-select: none; }
+.gf-btn:active:not([disabled]), .gf-cta:active:not([disabled]) { transform: scale(.98); }
+.gf-btn[disabled], .gf-cta[disabled] { opacity: .5; cursor: not-allowed; }
 /* CGV acceptance (specs/terms-acceptance-record.md rule 10): the whole line is the hit area. */
 .gf-cgv-accept { display: flex; gap: .6rem; align-items: flex-start; margin: .9rem 0 .4rem; cursor: pointer; line-height: 1.45; }
-.gf-cgv-accept input { width: 20px; height: 20px; margin: .1rem 0 0; flex: 0 0 auto; }
-.gf-cgv-accept a { text-decoration: underline; }
+.gf-cgv-accept input { width: 20px; height: 20px; margin: .1rem 0 0; flex: 0 0 auto; accent-color: var(--gfb-accent); }
+.gf-cgv-accept a, .gf-cgv-accept a.gf-link { color: var(--gfb-accent); text-decoration: underline; }
 .gf-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* Total and button within thumb's reach (widget spec rule 32). Hidden by default: it shows only as a DIRECT
+   child of `.gf-booking`, so the Solio drawer — which re-homes the engine's children in its own
+   two screens with its own bar — never shows a second one. */
+.gf-bar, .gf-summary-head, .gf-summary-dates, .gf-summary-cta { display: none; }
+.gf-bar-amt { flex: 1 1 auto; min-width: 0; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.gf-bar-amt b { display: block; font-size: 1.15rem; transition: opacity .18s ease; }
+.gf-bar-amt b:empty { display: none; }
+.gf-bar-amt b.is-changing { opacity: .35; }
+.gf-bar-amt small { display: block; color: var(--gfb-muted); font-size: .8rem; }
+.gf-bar .gf-cta { flex: 0 0 auto; white-space: nowrap; padding-inline: 1rem; }
+.gf-summary-head { font-weight: 700; font-size: 1.05rem; margin-bottom: .1rem; }
+.gf-summary-dates { color: var(--gfb-muted); font-size: .9rem; margin-bottom: .5rem; }
+.gf-summary-cta { width: 100%; margin-top: .9rem; }
+
+@container gf-host (max-width: 899.98px) {
+  .gf-booking > .gf-bar {
+    display: flex; align-items: center; gap: .75rem;
+    position: sticky; bottom: 0; z-index: 3;
+    margin: 1rem -1.4rem -1.25rem; padding: .7rem 1.4rem calc(.7rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--gfb-border); border-radius: 0 0 12px 12px;
+    background: rgba(255, 255, 255, .82);
+    -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+  }
+  /* The bar carries the button; the one in the flow would only repeat it under the thumb. */
+  .gf-booking > .gf-btn { display: none; }
+}
+@container gf-host (max-width: 600px) {
+  .gf-booking { padding: 1rem; }
+  .gf-booking > .gf-bar { margin: 1rem -1rem -1rem; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom, 0px)); }
+}
+/* Wide block: the summary becomes a card that follows the scroll in a right-hand column, with the
+   button inside it — the bar's role on a large screen (widget spec rule 33). The children stay flat: the
+   drawer reads them one by one. `--gf-rows` (set by view.js) is how many rows the left column has. */
+@container gf-host (min-width: 900px) {
+  .gf-booking { display: grid; grid-template-columns: minmax(0, 1fr) 340px; column-gap: 2rem; align-items: start; }
+  .gf-booking > * { grid-column: 1; }
+  .gf-booking > .gf-summary {
+    grid-column: 2; grid-row: 1 / span var(--gf-rows, 12); align-self: start;
+    position: sticky; top: var(--gf-sticky-top, 1rem);
+    margin-top: 0; background: #fff; border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1rem 1.1rem;
+  }
+  .gf-booking > .gf-summary .gf-summary-head, .gf-booking > .gf-summary .gf-summary-dates, .gf-booking > .gf-summary .gf-summary-cta { display: block; }
+  .gf-booking > .gf-btn { display: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .gf-bar { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: #fff !important; }
+}
 
 /* Properties */
 .gf-props { display: grid; grid-template-columns: repeat(var(--gf-cols, 3), 1fr); gap: 1rem; }
-.gf-prop-card { border: 1px solid var(--gf-border); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: .4rem; }
+.gf-prop-card { border: 1px solid var(--gfb-border); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: .4rem; }
 .gf-prop-name { font-weight: 700; font-size: 1.05rem; }
-.gf-prop-meta { color: var(--gf-muted); font-size: .85rem; }
-.gf-prop-price { color: var(--gf-accent); font-weight: 600; }
+.gf-prop-meta { color: var(--gfb-muted); font-size: .85rem; }
+.gf-prop-price { color: var(--gfb-accent); font-weight: 600; }
 .gf-prop-card .gf-btn { margin-top: auto; text-align: center; text-decoration: none; display: inline-block; }
+
+/* Pointer hover, only where a pointer can hover: a touch screen keeps `:hover` on the last element
+   tapped, and a tapped departure stayed painted with the hover tint instead of the accent (widget spec rule 29). */
+@media (hover: hover) and (pointer: fine) {
+  .gf-cal-nav:hover:not(:disabled) { background: var(--gfb-surface); }
+  button.gf-cal-day:not(:disabled):not(.gf-edge):hover { background: var(--gfb-hover); }
+  .gf-dates-clear:not(:disabled):hover { border-color: var(--gfb-error); color: var(--gfb-error); background: var(--gfb-error-soft); }
+  .gf-choice:hover:not(.gf-choice-on) { background: var(--gfb-tint); }
+  .gf-group-head:hover { background: var(--gfb-tint); }
+  .gf-group-toggle:hover { text-decoration: underline; }
+  .gf-step-btn:hover:not(:disabled) { background: var(--gfb-range); }
+  .gf-btn:hover:not([disabled]), .gf-cta:hover:not([disabled]), .gf-cal-next-go:hover { background: var(--gfb-accent-strong); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-cal-wrap.gf-slide-next, .gf-cal-wrap.gf-slide-prev { animation: gf-fade .2s ease; }
+  button.gf-cal-day, .gf-btn, .gf-cta, .gf-choice, .gf-cal-nav, .gf-cal-next-go { transition: background-color .15s ease; }
+  button.gf-cal-day:active:not(:disabled), .gf-btn:active, .gf-cta:active, .gf-choice:active, .gf-cal-nav:active, .gf-cal-next-go:active { transform: none; }
+  .gf-bar-amt b { transition: none; }
+}
 
 /* A narrow booking block (a sidebar, a drawer, a phone) gives the e-mail a row of its own: an address
    cut in half cannot be checked by the visitor who typed it (rule 23). */

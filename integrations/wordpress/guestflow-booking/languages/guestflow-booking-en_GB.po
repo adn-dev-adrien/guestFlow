@@ -232,10 +232,6 @@ msgstr "Read the version in force"
 msgid "Lit(s) bébé souhaité(s) ?"
 msgstr "Cot(s) required?"
 
-#: includes/class-gf-blocks.php:120
-msgid "Merci de renseigner tous les champs obligatoires."
-msgstr "Please fill in every required field."
-
 #: includes/class-gf-blocks.php:171
 msgid "Merci d’indiquer si vous souhaitez l’assurance annulation."
 msgstr "Please tell us whether you would like cancellation insurance."
@@ -605,3 +601,39 @@ msgstr "Create the page"
 #: includes/class-gf-settings.php
 msgid "Conditions générales"
 msgstr "Terms and conditions"
+
+#: includes/class-gf-blocks.php
+msgid "Libre"
+msgstr "Free"
+
+#: includes/class-gf-blocks.php
+msgid "Pris"
+msgstr "Taken"
+
+#: includes/class-gf-blocks.php
+msgid "Prochaine disponibilité : %s"
+msgstr "Next availability: %s"
+
+#: includes/class-gf-blocks.php
+msgid "Voir"
+msgstr "Show"
+
+#: includes/class-gf-blocks.php
+msgid "Champ requis."
+msgstr "Required."
+
+#: includes/class-gf-blocks.php
+msgid "Adresse e-mail incomplète."
+msgstr "Incomplete email address."
+
+#: includes/class-gf-blocks.php
+msgid "Choisir les dates"
+msgstr "Choose dates"
+
+#: includes/class-gf-blocks.php
+msgid "Continuer"
+msgstr "Continue"
+
+#: includes/class-gf-blocks.php
+msgid "taxe de séjour incluse"
+msgstr "tourist tax included"

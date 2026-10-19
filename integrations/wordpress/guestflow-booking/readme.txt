@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.15.0
+Stable tag: 1.16.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,12 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.16.0 =
+* Calendrier : le séjour choisi reste lisible au toucher (le survol ne vaut que pour une souris), les jours passés, les nuits prises et les nuits libres ne se ressemblent plus, et une légende dit ce que chaque couleur veut dire. Quand les deux mois affichés n'ont aucune nuit libre, « Prochaine disponibilité : jeudi 3 avril 2027 » propose d’y aller d’un clic (GuestFlow à jour requis).
+* Coordonnées : chaque champ manquant ou mal rempli est signalé sous le champ lui-même (« Champ requis. », « Adresse e-mail incomplète. »), le premier reçoit le curseur ; les refus de GuestFlow arrivent au même endroit, dans la langue de la page. Claviers adaptés sur téléphone et saisie à 16 px, qui ne fait plus zoomer iOS.
+* Sur téléphone et dans un bloc étroit, le total et le bouton restent dans une barre en bas de l'écran ; le bouton suit l'étape (« Choisir les dates », « Continuer », puis l'envoi). Dans un bloc large, le récapitulatif suit le défilement dans une colonne à droite, avec le bouton. Les heures d'arrivée et de départ ont leur propre ligne.
+* Couleurs : une seule couleur d'accent règle tout le moteur (`--gf-accent`) ; sans réglage, la couleur principale du thème, puis le vert sapin. Plus de bleu par défaut ni de jours bleus dans le calendrier de disponibilités.
 
 = 1.15.0 =
 * Réglages : le logement par défaut se choisit dans la liste des logements de GuestFlow ; la page de réservation et celle des conditions générales sont trouvées d'elles-mêmes (la page qui contient le bloc, celle qui contient `[guestflow_cgv]`) ou créées en un clic ; une page dont le bloc fixe un logement n'est jamais retenue comme page de réservation. Un reverse proxy du réseau local est reconnu sans réglage. Le test de connexion se lance à l'ouverture de la page et signale un module « Réservation depuis le site » inactif dans GuestFlow.

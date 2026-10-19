@@ -14,6 +14,7 @@ const resourcesModel = sdk.coreModule('resourcesModel');
 const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { computeBlockedDates, rangeHasBlockedNight } = sdk.coreModule('blockedDates');
 const { validateAvailabilityQuery } = require('../publicInputValidation');
+const { findNextAvailableDate } = require('../nextAvailability');
 const {
   toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
   toPublicCancellationInsurance,
@@ -119,7 +120,15 @@ function getAvailability(req, res) {
   const v = validateAvailabilityQuery({ from: req.query.from, to: req.query.to, todayIso: todayIso() });
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'periodInvalid', v.errors);
   const blockedDates = computeBlockedDates(propertyId, v.value.from, v.value.to);
-  return ok(res, toPublicAvailability({ propertyId, from: v.value.from, to: v.value.to, blockedDates }));
+  // Where the calendar can jump when its window is all closed (specs/public-api.md, additive field).
+  const nextAvailableDate = findNextAvailableDate({
+    from: v.value.from,
+    to: v.value.to,
+    todayIso: todayIso(),
+    blockedDates,
+    loadBlocked: (a, b) => computeBlockedDates(propertyId, a, b),
+  });
+  return ok(res, toPublicAvailability({ propertyId, from: v.value.from, to: v.value.to, blockedDates, nextAvailableDate }));
 }
 
 module.exports = {

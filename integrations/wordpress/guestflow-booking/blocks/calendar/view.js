@@ -33,12 +33,16 @@
       var lead = (firstDay.getDay() + 6) % 7; // Monday-based
       for (var i = 0; i < lead; i++) grid.appendChild(GF.el('div', { class: 'gf-cal-day gf-empty-cell' }));
       var days = new Date(year, month + 1, 0).getDate();
+      var today = isoOf(new Date());
       for (var d = 1; d <= days; d++) {
         var iso = isoOf(new Date(year, month, d));
-        var isBlocked = !!blocked[iso];
+        // A past day is neither free nor taken: a muted figure, never struck through
+        // (specs/wp-booking-widget-redesign.md rule 31).
+        var isPast = iso < today;
+        var isBlocked = !isPast && !!blocked[iso];
         grid.appendChild(GF.el('div', {
-          class: 'gf-cal-day ' + (isBlocked ? 'gf-blocked' : 'gf-free'),
-          title: isBlocked ? GF.t('blocked') : GF.t('available'),
+          class: 'gf-cal-day ' + (isPast ? 'gf-past' : (isBlocked ? 'gf-blocked' : 'gf-free')),
+          title: isPast ? null : (isBlocked ? GF.t('blocked') : GF.t('available')),
           role: 'img',
           'aria-label': GF.dayLabel(year, month, d, isBlocked),
         }, String(d)));
