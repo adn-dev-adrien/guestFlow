@@ -379,6 +379,36 @@ email shown beside the text. The whole wording can also go out and come back as 
     not. « À compléter » lists a template still printing the link while there is none (« Lien des
     conditions générales vide — … »). Whether a platform guest accepted the CGV is out of this rule.
 
+
+### 3.J Guest emails in HTML (UI/UX review 2026-10-18, proposal 25, decision 15)
+
+The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email-automation.md` §8).
+
+37. **A guest email leaves as text and HTML.** Every email sent to a guest — the sequence (automatic
+    or « Envoyer »), the manual send, the confirmation, the automatic pass of the other templates, and
+    the « M'envoyer un test » of rule 15 — leaves as `multipart/alternative`: the `text/plain` part is
+    the rendered text, unchanged byte for byte (what the history records), and a `text/html` part is
+    derived by the server from that same rendered text (`utils/guestEmailHtml.js`). The text stays the
+    one thing the operator writes; there is no second template, so the two parts cannot say different
+    things. The account emails (reset link, login codes) and the internal notifications stay plain
+    text. The preview answers both parts and shows either one (« Texte | HTML », text first; the HTML
+    in a sandboxed frame). The dev mail catcher (rule 26) keeps the HTML part and the raw message
+    (`mime`), so the multipart can be read without sending anything.
+38. **The HTML says what the text says, and nothing more.** A blank line is a paragraph, a line break
+    stays a line break; a run of « - » / « • » lines is a list, and a two-column recap when every line
+    of it reads « Libellé : valeur » (« Votre séjour : » and its lines). A web address, an email address
+    and a French phone number are plain links showing their own text (`https://…`, `mailto:`, `tel:`);
+    no other scheme is ever linked, no link is rewritten. An amount keeps its « € » on the same line, a
+    phone number is not cut. Everything else is escaped: a `<`, `&` or quote in a name or a text is
+    printed, never interpreted. *Departs from the review's mock (decision 15):* no « Payer
+    l'acompte » button — the payment link is a plain link, like every other.
+39. **The HTML is sober and self-contained.** The sender's name (as the email signs, rule 12 of
+    settings-rationalization) heads it in the Maison serif; the body is the system sans at 16 px,
+    1.55 line height, in a column of 600 px at most. Nothing is loaded: no image, no remote stylesheet
+    or font, no tracking pixel, no script. The colours are Maison's (ink on paper, fir-green links), with
+    a dark variant (`prefers-color-scheme: dark`, `color-scheme: light dark`); a client that ignores both
+    (Outlook desktop) shows the light version at full width.
+
 ---
 
 ## 4. Architecture
@@ -397,6 +427,11 @@ email shown beside the text. The whole wording can also go out and come back as 
 | `utils/` | `propertyFacts.js` | C | The facts left unsaid by the assistant and their answers (rule 28, 2026-10-18) |
 | `utils/` | `propertyArticle.js` | C | The article derived from the name, its contraction, the chips worth offering (rule 30, 2026-10-18) |
 | `utils/` | `migrateCgvLinkCondition.js` | C | One-shot wrap of a hand-written CGV sentence in its condition (rule 36, 2026-10-18) |
+| `utils/` | `guestEmailHtml.js` | C | The HTML part derived from the rendered text, `guestEmailMessage` (rules 37–39, 2026-10-19) |
+| `utils/` | `emailService.js` | T | Sends `html` beside `text` when given (rule 37) |
+| `utils/` | `mailOutbox.js`, `accountMailer.js` | T | The catcher keeps `html` and the raw `mime`; the test send carries the HTML (rule 37) |
+| `utils/` | `guestEmailSequenceRunner.js`, `reservationEmailSender.js`, `emailAutoSendRunner.js` | T | Send through `guestEmailMessage` (rule 37) |
+| `controllers/` | `emailsController.js`, `utils/emailDraftPreview.js` | T | Preview answers `html`; manual and test sends carry it (rule 37) |
 | `controllers/` | `onboardingController.js` | T | Step 2 edits its own property; « Vos emails » saves the deposit, cleaning, towels and code (rules 28–32, 2026-10-18) |
 | `controllers/` | `emailReadinessController.js` | T | Lists broken texts, unsaid facts and an empty CGV link (rules 27, 28, 36, 2026-10-18) |
 | `utils/` | `emailTextsCsv.js` | C | Export/import on top of `translationCsv.js` (rules 16–18) |
@@ -448,6 +483,8 @@ email shown beside the text. The whole wording can also go out and come back as 
 | `components/` | `OnboardingEmailsStep.jsx` | T | Deposit, cleaning and towels with no answer chosen; key-box code field (rules 28, 30, 32) |
 | `pages/` | `OnboardingPage.jsx` | T | Step 2 resumes its property or lists the existing ones (rule 29) |
 | `components/` | `EmailMentionsPanel.jsx` | T | A proposal reads « ⟦Prix⟧ », as in its editor |
+| `components/` | `EmailPreviewPane.jsx` | T | Optional `html` prop: « Texte \| HTML » switch, the HTML in a sandboxed frame (rule 37) |
+| `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | Passes the preview's `html` to the pane (rule 37) |
 
 **Component reuse:**
 - Reused: `MaskedTextField`, `HelpedTextField`, `PageActionBar`, `StatusBadge`, `EmptyState`,
@@ -465,7 +502,7 @@ email shown beside the text. The whole wording can also go out and come back as 
 | POST | `/api/email-texts/import[?confirm=true]` | raw CSV → `{ changed, refused, unchanged, applied }` |
 | POST | `/api/email-texts/translate` | `{ translated }`; 404 without the key, 502 on failure |
 | GET | `/api/email-readiness` | `{ items: [{ id, check, label, section, propertyId, target, soon }], soonCount }` |
-| POST | `/api/emails/preview` | `{ templateId \| stableKey, draft, reservationId? \| 'sample', language, propertyId? }` → `{ subject, body, lang, reservationId, sample, reservations, englishNotice }` |
+| POST | `/api/emails/preview` | `{ templateId \| stableKey, draft, reservationId? \| 'sample', language, propertyId? }` → `{ subject, body, html, lang, reservationId, sample, reservations, englishNotice }` (`html` since 2026-10-19, rule 37; `GET /api/emails/preview` answers it too) |
 | POST | `/api/emails/test` | same body → `{ ok, to }`; 409 `EMAIL_NOT_CONFIGURED` |
 | GET | `/api/email-templates/:id/variables` | `{ variables: [{ name, label }], conditions }`; `new` for a template not created yet |
 | GET / PUT | `/api/properties/:id/arrival-facts` | the facts, secrets as `hasAccessCode` / `hasWifiPassword` |
@@ -518,6 +555,12 @@ See the summary page.
   « Code de la boîte à clés », « Caution (€) », and the two yes/no chip pairs (rules 28, 32).
 - *2026-10-18 bis:* « Linge de lit » joins the Séjour tab and « Vos emails » (rule 28); the property
   page's article menu lists « au Fournil »… from the server and shows empty while unconfirmed (rule 30).
+- *2026-10-19 (rules 37–39):* the preview pane of « Textes des emails » gains « Texte | HTML » beside
+  FR | EN (text first). On a phone the switch wraps under the language toggle; the HTML frame is
+  520 px high (640 px from `md`), and the email itself, 600 px at most, fills the 390 px width with a
+  20 px margin. The start assistant's preview stays text only. Interactive mock (the real renderer,
+  editable text, 390 / 1280, light / dark):
+  [`docs/specs/2026-10-19-otp-field-and-guest-email-html.html`](../docs/specs/2026-10-19-otp-field-and-guest-email-html.html).
 
 ## 7. Test plan
 
@@ -548,6 +591,13 @@ rules 28–33), `email-texts-csv-secrets` (3, rule 32), `property-pool-season` (
 rules 28, 34, 35), `OnboardingPage.facts-and-resume` (4, rules 28–30, 32), `PropertyArrivalFacts` (4,
 rewritten for the controlled block).
 
+*2026-10-19 (rules 37–39):* server `guest-email-html` (10: escaping, links and only them, paragraphs /
+lists / recap, a self-contained document, **golden: Solio's six sequence emails FR/EN keep their text
+byte for byte and print no variable in HTML**, the heading, the sequence sending both parts with the
+recorded text, the transport, the mail catcher's `multipart/alternative`, preview and test send);
+client `EmailPreviewPane.html-part` (2); E2E `email-texts` reads the HTML part and the multipart from
+the catcher and switches the preview to HTML.
+
 *2026-10-18 bis (review of PR #705):* server `onboarding-reopen-keeps-seasons` (3, rule 29),
 `property-update-keeps-unsent-facts` (4, rules 28, 30), `property-article-ambiguous-initial` (3,
 rule 30), `bed-linen-pending-fact` (4, rule 28), `template-single-brace` (3, rule 27); client
@@ -556,7 +606,9 @@ The `previewWithArticle` helper tests are gone with the helper.
 
 ## 8. Out of scope
 
-- A rich-text (WYSIWYG) editor.
+- A rich-text (WYSIWYG) editor. The HTML part (rule 37) is derived, never edited.
+- A payment button or any other markup in the HTML part (decision 15: plain links).
+- HTML for the account emails and the internal notifications.
 - A library of alternative tones.
 - `.docx` import (formatting runs split tokens; research 2026-10-08).
 - Per-channel templates.
@@ -596,3 +648,9 @@ the dev database: no console error, no horizontal scroll.
 every reservation × FR/EN rendered before and after through the real preview path: 1,560 renderings
 (780 of the six sequence emails), 0 differences — measured again after the review of 2026-10-17, with
 the readiness list empty and no dashboard alert on that copy (70 texts, 7 folded as unused).
+
+**UI/UX review, 2026-10-19 (`feature/ui-otp-html-emails`, target `inte/plugins`), rules 37–39:** every
+guest send goes through `guestEmailMessage` (text unchanged, HTML derived); the preview answers `html`
+and shows « Texte | HTML »; the dev mail catcher keeps `html` and `mime`. Server `guest-email-html` (10),
+client `EmailPreviewPane.html-part` (2), E2E `email-texts` extended. Checked in a browser: the preview at
+390 and 1280 px, the HTML part alone at 390 and 1280 px in light and dark, no horizontal scroll.
