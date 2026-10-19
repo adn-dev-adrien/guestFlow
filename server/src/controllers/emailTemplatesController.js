@@ -23,7 +23,9 @@ const { templateAutoSends } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { todayIso } = require('../utils/localDate');
 const { PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
-const { templateWhenLabel } = require('../utils/templateWhen');
+const { templateWhenLabel, templateWhen, describeWhen } = require('../utils/templateWhen');
+const { displayNameOf, timeline } = require('../utils/emailTimeline');
+const { weekdayLabel } = require('../utils/dateFr');
 const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
 
 // specs/guest-email-texts-made-simple.md rule 11 — a template refuses an unknown variable with the
@@ -98,11 +100,41 @@ function buildController(model, settingsModel, deps = {}) {
 
   // `textsSection`: the section of « Textes des emails » that writes this template's sentences
   // (specs/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
-  // `whenLabel`: the « Quand » column (specs/email-automation.md rule 16).
-  const withSection = (row) => ({ ...row, textsSection: sectionOfStableKey(row.stableKey), whenLabel: templateWhenLabel(row) });
+  // `whenLabel` / `when`: the « Quand » (specs/email-automation.md rule 16; specs/guest-email-texts-made-simple.md
+  // rule 39). `displayName`: the one name of the email on every page (rule 40).
+  const withSection = (row) => ({
+    ...row,
+    textsSection: sectionOfStableKey(row.stableKey),
+    whenLabel: templateWhenLabel(row),
+    when: templateWhen(row),
+    displayName: displayNameOf(row),
+    shipped: Boolean(row.stableKey),
+  });
 
+  // `?view=timeline` — Emails › Modèles in stay order, grouped by moment (rule 40).
   function list(req, res) {
-    return res.json(model.list().filter(sendable).map(withSection));
+    const rows = model.list().filter(sendable).map(withSection);
+    if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows) });
+    return res.json(rows);
+  }
+
+  // POST /api/email-templates/when — « Envoyé [n] jours [avant|après|le jour même de] <ancre> » read
+  // live (rule 39): the signed offset, the sentence, and the day it would leave for the next stay.
+  function when(req, res) {
+    const body = req.body || {};
+    const template = body.templateId ? model.findById(body.templateId) : null;
+    const anchor = template ? String(template.anchor || 'start') : 'start';
+    const result = describeWhen({ days: body.days, direction: body.direction, anchor });
+    if (!result.ok) return res.status(422).json({ field: result.field, message: result.message });
+    let example = null;
+    const stay = anchor === 'start' && typeof model.nextStay === 'function' ? model.nextStay(today()) : null;
+    if (stay && stay.startDate) {
+      const start = String(stay.startDate).slice(0, 10);
+      const [y, m, d] = start.split('-').map(Number);
+      const send = new Date(Date.UTC(y, m - 1, d + result.offsetDays)).toISOString().slice(0, 10);
+      example = `Prochain séjour (${[stay.propertyName, `${weekdayLabel(start)} au ${weekdayLabel(String(stay.endDate || '').slice(0, 10))}`].filter(Boolean).join(', ')}) : envoyé le ${weekdayLabel(send)}.`;
+    }
+    return res.json({ offsetDays: result.offsetDays, sentence: result.sentence, example });
   }
 
   // GET /api/email-templates/plugin-variables — the live plugins' variables and conditions.
@@ -166,14 +198,19 @@ function buildController(model, settingsModel, deps = {}) {
     return res.json(row);
   }
 
+  // A shipped email is switched off, never deleted (rule 40): the seed would put it back anyway.
   function remove(req, res) {
+    const existing = model.findById(req.params.id);
+    if (existing && existing.stableKey) {
+      return res.status(409).json({ error: 'SHIPPED_TEMPLATE', message: 'Email livré : il se coupe, il ne se supprime pas.' });
+    }
     const ok = model.remove(req.params.id);
     if (!ok) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     afterWrite(null);
     return res.json({ ok: true });
   }
 
-  return { list, pluginVariables, variables, getOne, create, update, remove };
+  return { list, when, pluginVariables, variables, getOne, create, update, remove };
 }
 
 const defaultController = (() => {

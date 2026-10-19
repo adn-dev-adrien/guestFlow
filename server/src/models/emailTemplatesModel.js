@@ -13,6 +13,7 @@
  *   insert(payload)       → created row (stableKey NOT writable from outside the seed)
  *   update(id, payload)   → updated row; missing keys preserve existing values
  *   remove(id)            → boolean (true when a row was deleted)
+ *   nextStay(today)       → { startDate, endDate, propertyName } | null — the « Quand ? » example
  */
 
 function buildModel(database) {
@@ -129,7 +130,25 @@ function buildModel(database) {
     return info.changes > 0;
   }
 
+  /**
+   * The next stay arriving on or after `today`, for the « Quand ? » example
+   * (specs/guest-email-texts-made-simple.md rule 39): `{ startDate, endDate, propertyName }` or null.
+   */
+  function nextStay(today) {
+    try {
+      return database.prepare(`
+        SELECT r.startDate, r.endDate, p.name AS propertyName
+          FROM reservations r LEFT JOIN properties p ON p.id = r.propertyId
+         WHERE r.cancelledAt IS NULL AND COALESCE(r.kind, 'reservation') = 'reservation' AND date(r.startDate) >= date(?)
+         ORDER BY r.startDate ASC LIMIT 1
+      `).get(today) || null;
+    } catch {
+      return null;
+    }
+  }
+
   return {
+    nextStay,
     list,
     findById,
     findByStableKey,

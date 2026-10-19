@@ -3,8 +3,8 @@
 // Verifies the two-card layout, the template row-click → edit dialog wiring, and the
 // "Voir l'historique" navigation. The « Emails à envoyer » queue interactions (row → send,
 // client-name → reservation) are covered by the component suite; here we pin the page-level
-// routing + the seeded J-7 template surfacing end-to-end (renamed « Séquence — J-7 préparation » by
-// specs/guest-email-sequence.md).
+// routing + the seeded J-7 template surfacing end-to-end, under its one name « Préparation du séjour »
+// (specs/guest-email-texts-made-simple.md rule 40).
 import { test, expect } from '@playwright/test';
 
 test('Emails page shows the two cards and the seeded J-7 template', async ({ page }) => {
@@ -19,15 +19,21 @@ test('Emails page shows the two cards and the seeded J-7 template', async ({ pag
   await expect(page.getByRole('heading', { name: "Modèles d'emails" })).toBeVisible();
 
   // The default registry template seeded on boot.
-  await expect(page.getByText('Séquence — J-7 préparation')).toBeVisible();
+  await expect(page.getByText('Préparation du séjour', { exact: true })).toBeVisible();
+  await expect(page.getByText('7 jours avant l’arrivée', { exact: true })).toBeVisible();
 
   expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([]);
 });
 
-test('clicking a template row opens its edit dialog', async ({ page }) => {
+test('a shipped email opens its texts; « ⋯ » opens its template', async ({ page }) => {
   await page.goto('/emails');
-  await page.getByText('Séquence — J-7 préparation').click();
-  await expect(page.getByRole('heading', { name: 'Modifier le modèle' })).toBeVisible();
+  await page.getByRole('button', { name: 'Plus d’actions : Préparation du séjour' }).click();
+  await page.getByRole('menuitem', { name: 'Modifier le modèle' }).click();
+  await expect(page.getByRole('heading', { name: 'Préparation du séjour' })).toBeVisible();
+  await expect(page.getByText('Envoyé 7 jours avant l’arrivée')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Modifier les textes : Préparation du séjour' }).click();
+  await expect(page).toHaveURL(/\/settings\/emails\/textes#j7$/);
 });
 
 test('"Voir l\'historique" navigates to the history page', async ({ page }) => {

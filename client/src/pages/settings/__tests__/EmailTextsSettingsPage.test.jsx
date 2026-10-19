@@ -37,16 +37,16 @@ beforeEach(() => {
 
 test('rule 9: one section per email, in send order; the J-2 opens by default', async () => {
   renderAt(EmailTextsSettingsPage);
-  const titles = await screen.findAllByText(/^\d\. /);
-  expect(titles.map((t) => t.textContent)).toEqual(['1. Confirmation', '2. J-7', '3. J-2']);
-  expect(screen.getByRole('button', { name: '3. J-2' })).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.getByRole('button', { name: '2. J-7' })).toHaveAttribute('aria-expanded', 'false');
+  const titles = await screen.findAllByText(/^(Confirmation|Préparation du séjour|Accès et arrivée)$/);
+  expect(titles.map((t) => t.textContent)).toEqual(['Confirmation', 'Préparation du séjour', 'Accès et arrivée']);
+  expect(screen.getByRole('button', { name: /Accès et arrivée/ })).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('button', { name: /Préparation du séjour/ })).toHaveAttribute('aria-expanded', 'false');
   expect(screen.getByRole('button', { name: 'Modifier le modèle complet' })).toBeInTheDocument();
 });
 
 test('rule 9: `#j7` opens that email', async () => {
   renderAt(EmailTextsSettingsPage, '/settings/emails/textes#j7');
-  expect(await screen.findByRole('button', { name: '2. J-7' })).toHaveAttribute('aria-expanded', 'true');
+  expect(await screen.findByRole('button', { name: /Préparation du séjour/ })).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('rule 10: a variable shows as its label, and is saved as its token', async () => {
@@ -66,13 +66,13 @@ test('rule 11: the server refusal lands under its field', async () => {
   const field = await screen.findByDisplayValue('Café offert.');
   fireEvent.change(field, { target: { value: 'Café {{prix}}' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  expect(await screen.findByText('Variable inconnue : ⟦prix⟧', { selector: 'p' })).toBeInTheDocument();
+  expect(await screen.findByText('Variable inconnue : ⟦prix⟧')).toBeInTheDocument();
 });
 
 test('mentions by section; the confirmation order moves on its own', async () => {
   api.saveConfirmationOrder.mockResolvedValue({ confirmationOrder: ['towels', 'babyBed', 'mention:1', 'mention:2'] });
   renderAt(EmailTextsSettingsPage);
-  await screen.findByText('1. Confirmation');
+  await screen.findByText('Préparation du séjour');
   fireEvent.click(screen.getByRole('tab', { name: 'Options citées' }));
   // The list reads the variable by its label, as its editor does.
   expect(await screen.findByText('le cidre (⟦Prix⟧)')).toBeInTheDocument();

@@ -1,16 +1,20 @@
 /**
  * EmailTemplatesPage — CRUD UI for the email templates library.
  * See specs/email-automation.md §6.1.
+ *
+ * The library reads in the order of the stay (specs/guest-email-texts-made-simple.md rule 40 — UI/UX
+ * review 2026-10-18, decision 12): one name per email, grouped by moment, its « Quand » under it; the
+ * mode shows only when it is « Auto »; a shipped email is switched off, never deleted; a shipped email
+ * opens its texts. « Quand ? » is one sentence read by the server (rule 39, decision 11).
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Box, Card, TableRow, TableCell,
-  IconButton, Chip, Typography, Switch, Button, Stack, FormControl, InputLabel,
-  Select, MenuItem, TextField, Tooltip, FormHelperText, Link,
+  Box, ButtonBase, Card, Chip, Divider, IconButton, ListItemText, Menu, Typography, Switch, Button, Stack, FormControl, InputLabel,
+  Select, MenuItem, TextField, FormHelperText, Link, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import HistoryIcon from '@mui/icons-material/History';
 import { useNavigate } from 'react-router';
 import FormDialog from '../components/FormDialog';
@@ -24,9 +28,9 @@ import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PageActionBar from '../components/PageActionBar';
 import ErrorAlert from '../components/ErrorAlert';
 import LoadingState from '../components/LoadingState';
-import ResponsiveTable from '../components/ResponsiveTable';
 import TokenTextField from '../components/TokenTextField';
-import { displayError, buildDictionary } from '../utils/tokenDisplay';
+import RelativeDayField from '../components/RelativeDayField';
+import StatusBadge from '../components/StatusBadge';
 import { isValidEmail } from '../utils/validation';
 
 const EMPTY_CLIENT = {
@@ -50,23 +54,8 @@ const emptyTemplate = {
 // A template's own mode is the only switch for automatic sending (specs/settings-rationalization.md
 // rule 17b): « Automatique » leaves by itself at 08:00, « Manuel » waits in « Emails à envoyer ».
 
-
-function sendModeChip(row) {
-  if (row.sendMode !== 'auto') {
-    return <Chip label="Manuel" size="small" color="info" variant="outlined" />;
-  }
-  return <Chip label="Automatique" size="small" color="success" variant="outlined" />;
-}
-
-function describeOffset(n) {
-  const num = Number(n);
-  if (num === 0) return 'Jour J';
-  if (num < 0) return `J${num}`;
-  return `J+${num}`;
-}
-
-// The « Quand » column: the server's label by anchor (specs/email-automation.md rule 16).
-const whenOf = (row) => row.whenLabel || describeOffset(row.dayOffset);
+const WHEN_DELAY_MS = 300;
+const NEW_TEMPLATE_WHEN = { editable: true, anchorLabel: 'l’arrivée', days: 7, direction: 'before', sentence: 'Envoyé 7 jours avant l’arrivée' };
 
 export default function EmailTemplatesPage() {
   // The chips of the template being edited, labelled by the server (specs/guest-email-texts-made-simple.md
@@ -74,7 +63,12 @@ export default function EmailTemplatesPage() {
   const [chips, setChips] = useState({ variables: [], conditions: [] });
   const { confirm, alert } = useAppDialogs();
   const navigate = useNavigate();
-  const [items, setItems] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [menu, setMenu] = useState(null); // { anchorEl, row }
+  // « Quand ? » as typed, and the server's reading of it (rule 39).
+  const [when, setWhen] = useState({ days: '7', direction: 'before', error: '', example: '' });
+  const [language, setLanguage] = useState('fr');
+  const whenTimer = useRef(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const { showError } = useToast();
@@ -94,8 +88,8 @@ export default function EmailTemplatesPage() {
     setLoading(true);
     setLoadError(false);
     try {
-      const rows = await api.getEmailTemplates();
-      setItems(rows);
+      const timeline = await api.getEmailTemplatesTimeline();
+      setGroups(timeline.groups || []);
     } catch {
       // Silent before this sweep — a failed load rendered as an innocent empty list.
       setLoadError(true);
@@ -208,15 +202,36 @@ export default function EmailTemplatesPage() {
         enabled: row.enabled !== 0,
         stableKey: row.stableKey,
         textsSection: row.textsSection,
+        when: row.when,
+        displayName: row.displayName,
       });
+      setWhen({ days: String(row.when ? row.when.days : Math.abs(Number(row.dayOffset || 0))), direction: row.when ? row.when.direction : 'before', error: '', example: '' });
     } else {
-      setForm(emptyTemplate);
+      setForm({ ...emptyTemplate, when: NEW_TEMPLATE_WHEN });
+      setWhen({ days: '7', direction: 'before', error: '', example: '' });
     }
     api.getEmailTemplateVariables(row ? row.id : null).then(setChips).catch(() => setChips({ variables: [], conditions: [] }));
     setOpen(true);
   };
 
   const handleClose = () => { setOpen(false); setFieldError(null); };
+
+  // Rule 39 — the server reads « Envoyé [n] jours [avant|après] … », answers the offset, or refuses
+  // under the number; the save waits for a valid reading.
+  const changeWhen = (next) => {
+    setWhen((w) => ({ ...w, ...next }));
+    clearTimeout(whenTimer.current);
+    whenTimer.current = setTimeout(async () => {
+      try {
+        const r = await api.describeTemplateWhen({ templateId: form.id || undefined, days: next.days, direction: next.direction });
+        setForm((f) => ({ ...f, dayOffset: r.offsetDays }));
+        setWhen((w) => ({ ...w, error: '', example: r.example || r.sentence }));
+      } catch (e) {
+        setWhen((w) => ({ ...w, error: e.message || 'Moment invalide.', example: '' }));
+      }
+    }, WHEN_DELAY_MS);
+  };
+  useEffect(() => () => clearTimeout(whenTimer.current), []);
 
   const handleSave = async () => {
     const payload = {
@@ -240,10 +255,10 @@ export default function EmailTemplatesPage() {
       // its rendered content → refresh both the library and the « Emails à envoyer » list.
       await Promise.all([reload(), reloadPending()]);
     } catch (e) {
-      // specs/guest-email-texts-made-simple.md rule 27 — a broken variable or condition is refused
-      // by the server and named under its field, in the labels the field shows.
+      // specs/guest-email-texts-made-simple.md rules 27, 37 — a broken variable or condition is refused
+      // by the server and named under its field, with the closest variable as a fix.
       if (e?.field && ['subject', 'body', 'subjectEn', 'bodyEn'].includes(e.field)) {
-        setFieldError({ field: e.field, message: displayError(e.message, buildDictionary(chips.variables, chips.conditions)) });
+        setFieldError({ field: e.field, message: e.message, unknown: e.unknown, suggestion: e.suggestion });
         return;
       }
       await alert({ title: 'Erreur', message: e?.message || 'Impossible d\'enregistrer le modèle.' });
@@ -253,7 +268,7 @@ export default function EmailTemplatesPage() {
   const handleDelete = async (row) => {
     const ok = await confirm({
       title: 'Supprimer le modèle',
-      message: `Confirmer la suppression de « ${row.name} » ?${row.stableKey ? '\nCe modèle est livré avec l\'application : il sera ré-inséré au prochain démarrage du serveur.' : ''}`,
+      message: `Supprimer « ${row.displayName || row.name} » ? Les envois prévus ne partiront pas.`,
       confirmLabel: 'Supprimer',
       confirmColor: 'error',
     });
@@ -275,6 +290,48 @@ export default function EmailTemplatesPage() {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible de modifier le modèle.' });
     }
   };
+
+  const handleToggleMode = async (row) => {
+    try {
+      await api.updateEmailTemplate(row.id, { sendMode: row.sendMode === 'auto' ? 'manual' : 'auto' });
+      await Promise.all([reload(), reloadPending()]);
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e?.message || 'Impossible de modifier le mode d’envoi.' });
+    }
+  };
+
+  // A shipped email opens its texts; a template of the operator's own opens its editor (rule 40).
+  const openRow = (row) => {
+    if (row.textsSection) navigate(`/settings/emails/textes#${row.textsSection}`);
+    else handleOpen(row);
+  };
+
+  const rowOf = (row) => (
+    <Stack key={row.id} direction="row" spacing={1} sx={{ alignItems: 'center', px: 2, py: 0.5, opacity: row.enabled ? 1 : 0.6, borderTop: 1, borderColor: 'divider' }}>
+      <ButtonBase
+        onClick={() => openRow(row)}
+        aria-label={`${row.textsSection ? 'Modifier les textes' : 'Modifier'} : ${row.displayName}`}
+        sx={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', py: 1, minHeight: 44, borderRadius: 1 }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{row.displayName}</Typography>
+            {!row.shipped && <Chip label="personnalisé" size="small" variant="outlined" />}
+            {row.sendMode === 'auto' && <StatusBadge status="success" label="Auto" />}
+          </Stack>
+          <Typography variant="body2" color="text.secondary">{row.when ? row.when.label : row.whenLabel}</Typography>
+        </Box>
+      </ButtonBase>
+      <Switch
+        checked={Boolean(row.enabled)}
+        onChange={(e) => handleToggleEnabled(row, e.target.checked)}
+        slotProps={{ input: { 'aria-label': `Envoyer ${row.displayName}` } }}
+      />
+      <IconButton aria-label={`Plus d’actions : ${row.displayName}`} aria-haspopup="menu" onClick={(e) => setMenu({ anchorEl: e.currentTarget, row })} sx={{ minWidth: 44, minHeight: 44 }}>
+        <MoreHorizIcon />
+      </IconButton>
+    </Stack>
+  );
 
   return (
     <Box>
@@ -328,70 +385,35 @@ export default function EmailTemplatesPage() {
         {loading ? (
           <Box sx={{ px: 2, pb: 2 }}><LoadingState variant="skeleton" rows={4} /></Box>
         ) : (
-          <ResponsiveTable
-            items={items}
-            getKey={(row) => row.id}
-            minWidth={860}
-            emptyText="Aucun modèle d'email"
-            head={(
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Quand</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Mode</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Activé</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
-              </TableRow>
-            )}
-            renderRow={(row) => (
-              <TableRow
-                key={row.id}
-                hover
-                onClick={() => handleOpen(row)}
-                sx={{ cursor: 'pointer' }}
-              >
-                <TableCell>
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                    <Typography>{row.name}</Typography>
-                    {row.stableKey ? <Chip label="Modèle livré" size="small" variant="outlined" /> : null}
-                  </Stack>
-                </TableCell>
-                <TableCell>{whenOf(row)}</TableCell>
-                <TableCell>{sendModeChip(row)}</TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={Boolean(row.enabled)}
-                    onChange={(e) => handleToggleEnabled(row, e.target.checked)}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                  <Tooltip title="Supprimer">
-                    <IconButton onClick={() => handleDelete(row)} size="small" color="error" aria-label="Supprimer"><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
-            )}
-            renderMobileCard={(row) => (
-              <Stack onClick={() => handleOpen(row)} sx={{ cursor: 'pointer', gap: 0.5 }}>
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>
-                  {sendModeChip(row)}
-                </Stack>
-                <Typography variant="caption" color="text.secondary">{whenOf(row)}</Typography>
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={Boolean(row.enabled)}
-                    onChange={(e) => handleToggleEnabled(row, e.target.checked)}
-                    size="small"
-                  />
-                  <Tooltip title="Supprimer">
-                    <IconButton onClick={() => handleDelete(row)} size="small" color="error" aria-label="Supprimer"><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                </Stack>
-              </Stack>
-            )}
-          />
+          <Box sx={{ pb: 1 }}>
+            {groups.length === 0 && <Typography color="text.secondary" sx={{ px: 2, pb: 2 }}>Aucun modèle d'email</Typography>}
+            {groups.map((g) => (
+              <Box key={g.id} component="section" aria-label={g.label}>
+                <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 2, pt: 1.5 }}>{g.label}</Typography>
+                {g.templates.map(rowOf)}
+              </Box>
+            ))}
+          </Box>
         )}
+        <Menu anchorEl={menu ? menu.anchorEl : null} open={Boolean(menu)} onClose={() => setMenu(null)}>
+          {menu && [
+            <MenuItem key="mode" onClick={() => { const { row } = menu; setMenu(null); handleToggleMode(row); }}>
+              {menu.row.sendMode === 'auto' ? 'Revenir à l’envoi manuel' : 'Envoi automatique'}
+            </MenuItem>,
+            <MenuItem key="edit" onClick={() => { const { row } = menu; setMenu(null); handleOpen(row); }}>Modifier le modèle</MenuItem>,
+            menu.row.textsSection && (
+              <MenuItem key="texts" onClick={() => { const { row } = menu; setMenu(null); navigate(`/settings/emails/textes#${row.textsSection}`); }}>Modifier les textes</MenuItem>
+            ),
+            <Divider key="d" />,
+            menu.row.shipped ? (
+              <MenuItem key="del" disabled>
+                <ListItemText primary="Supprimer" secondary="Email livré : il se coupe seulement" />
+              </MenuItem>
+            ) : (
+              <MenuItem key="del" onClick={() => { const { row } = menu; setMenu(null); handleDelete(row); }} sx={{ color: 'error.main' }}>Supprimer</MenuItem>
+            ),
+          ]}
+        </Menu>
       </Card>
 
       <EmailManualSendDialog
@@ -434,29 +456,40 @@ export default function EmailTemplatesPage() {
       <FormDialog
         open={open}
         onClose={handleClose}
-        title={form.id ? 'Modifier le modèle' : 'Nouveau modèle'}
+        title={form.id ? (form.displayName || 'Modifier le modèle') : 'Nouveau modèle'}
         onSubmit={handleSave}
-        submitDisabled={!form.name || !form.subject || !form.body}
+        submitDisabled={!form.name || !form.subject || !form.body || Boolean(when.error)}
         maxWidth="md"
       >
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField
-            label="Nom du modèle"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            fullWidth
-            required
-          />
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          {/* Rule 40 — a shipped email is named by the server; only the operator's own has a name to type. */}
+          {!form.stableKey && (
             <TextField
-              label="Décalage en jours"
-              type="number"
-              value={form.dayOffset}
-              onChange={(e) => setForm({ ...form, dayOffset: e.target.value })}
-              helperText="Négatif = avant le séjour ; 0 = jour J ; positif = après. Plage [-90, +90]."
-              slotProps={{ htmlInput: { min: -90, max: 90 } }}
-              sx={{ flex: 1 }}
+              label="Nom du modèle"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              fullWidth
+              required
             />
+          )}
+          {/* Rule 39 — « Quand ? » is one sentence; a moment the scheduler does not count from the day
+              offset (the sequence, an action) reads as a fixed sentence. */}
+          {form.when && !form.when.editable ? (
+            <Box>
+              <Typography variant="subtitle2">Quand</Typography>
+              <Typography>{form.when.sentence}</Typography>
+            </Box>
+          ) : (
+            <RelativeDayField
+              days={when.days}
+              direction={when.direction}
+              anchorLabel={(form.when && form.when.anchorLabel) || 'l’arrivée'}
+              onChange={changeWhen}
+              error={when.error}
+              example={when.example}
+            />
+          )}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <FormControl sx={{ flex: 1 }}>
               <InputLabel>Mode d'envoi</InputLabel>
               <Select
@@ -469,7 +502,7 @@ export default function EmailTemplatesPage() {
               </Select>
               {form.sendMode === 'auto' ? (
                 <FormHelperText>
-                  Cet email partira sans votre validation, à sa date.
+                  Part sans validation, à sa date.
                 </FormHelperText>
               ) : null}
             </FormControl>
@@ -478,27 +511,33 @@ export default function EmailTemplatesPage() {
           {/* specs/email-automation.md rule 17 — the same view as « Textes des emails »: each variable
               by its French label, the chips insert it at the cursor; the English side is optional
               (empty: the email leaves in French). */}
+          <ToggleButtonGroup size="small" exclusive value={language} onChange={(e, v) => v && setLanguage(v)} aria-label="Langue du modèle" sx={{ alignSelf: 'flex-start' }}>
+            <ToggleButton value="fr" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>FR</ToggleButton>
+            <ToggleButton value="en" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>EN</ToggleButton>
+          </ToggleButtonGroup>
           <TokenTextField
             id="template-subject"
             label="Sujet"
+            language={language}
             fr={form.subject}
             en={form.subjectEn || ''}
             onChange={(lang, value) => { setFieldError(null); setForm((f) => ({ ...f, [lang === 'fr' ? 'subject' : 'subjectEn']: value })); }}
             tokens={chips.variables}
-            errorFr={fieldError?.field === 'subject' ? fieldError.message : undefined}
-            errorEn={fieldError?.field === 'subjectEn' ? fieldError.message : undefined}
+            errorFr={fieldError?.field === 'subject' ? fieldError : undefined}
+            errorEn={fieldError?.field === 'subjectEn' ? fieldError : undefined}
           />
           <TokenTextField
             id="template-body"
             label="Corps du message"
+            language={language}
             fr={form.body}
             en={form.bodyEn || ''}
             onChange={(lang, value) => { setFieldError(null); setForm((f) => ({ ...f, [lang === 'fr' ? 'body' : 'bodyEn']: value })); }}
             tokens={chips.variables}
             flags={chips.conditions}
             minRows={10}
-            errorFr={fieldError?.field === 'body' ? fieldError.message : undefined}
-            errorEn={fieldError?.field === 'bodyEn' ? fieldError.message : undefined}
+            errorFr={fieldError?.field === 'body' ? fieldError : undefined}
+            errorEn={fieldError?.field === 'bodyEn' ? fieldError : undefined}
             helper={(
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                 Anglais vide : l'email part en français. Une seule condition à la fois.
@@ -526,7 +565,7 @@ export default function EmailTemplatesPage() {
 
           {form.stableKey ? (
             <Typography variant="caption" color="text.secondary">
-              Ce modèle est livré avec l'application (clé technique : <code>{form.stableKey}</code>). Vos modifications sont conservées au prochain démarrage.
+              Email livré avec l'application : les modifications sont conservées au prochain démarrage.
             </Typography>
           ) : null}
         </Stack>

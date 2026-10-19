@@ -27,6 +27,7 @@ const {
   SECTIONS, SECTION_OF_MAIL, sectionOfStableKey, templateAllowed, chipsForSubject, chipsForText, tokenError,
   namesUsedBy, variableOfStayText,
 } = require('../utils/templateTokens');
+const { displayNameOf } = require('../utils/emailTimeline');
 const stayTextsModel = require('./stayTextsModel');
 const emailMentionsModel = require('./emailMentionsModel');
 const arrivalFactsModel = require('./propertyArrivalFactsModel');
@@ -36,6 +37,13 @@ const SECTION_ORDER = SECTIONS.map((s) => s.id);
 const MENTION_SECTION = { local: 'Produits locaux', extras: 'À prévoir', kids: 'Enfants' };
 
 const str = (v) => (v == null ? '' : String(v));
+
+/**
+ * « 3 à traduire » (specs/guest-email-texts-made-simple.md rule 38): the texts an email places whose
+ * French is written and whose English is empty.
+ */
+const needsEnglish = (item) => item.used !== false && str(item.fr).trim() !== '' && str(item.en).trim() === '';
+const countToTranslate = (items) => (items || []).filter(needsEnglish).length;
 
 function isLive(pluginId) {
   try { return require('../plugins/sdk/registry').isLive(pluginId); } catch { return false; }
@@ -69,8 +77,10 @@ function buildModel(database) {
       key: `subject:${t.stableKey}`,
       kind: 'subject',
       section: sectionOfStableKey(t.stableKey),
-      label: 'Objet',
-      description: `Objet — ${t.name}`,
+      // One name per email (rule 40): a section of several emails names the subject's own.
+      label: (SECTIONS.find((sec) => sec.id === sectionOfStableKey(t.stableKey)) || { stableKeys: [] }).stableKeys.length > 1
+        ? `Objet — ${displayNameOf(t)}` : 'Objet',
+      description: `Objet — ${displayNameOf(t)}`,
       templateId: t.id,
       fr: str(t.subject),
       en: str(t.subjectEn),
@@ -371,4 +381,4 @@ function buildModel(database) {
   return { list, all, find, validate, apply, confirm };
 }
 
-module.exports = { buildModel, HOOK_MAX_LENGTH };
+module.exports = { buildModel, HOOK_MAX_LENGTH, needsEnglish, countToTranslate };

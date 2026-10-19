@@ -18,6 +18,7 @@ const emailTextsCsv = require('../utils/emailTextsCsv');
 const { badlyEncoded, ENCODING_MESSAGE } = require('../utils/translationCsv');
 const textTranslator = require('../utils/textTranslator');
 const { SECTIONS } = require('../utils/templateTokens');
+const { displayNameOf } = require('../utils/emailTimeline');
 
 const publicItem = ({ allowed, ...item }) => item;
 
@@ -33,11 +34,16 @@ function buildController({ database, translator = textTranslator }) {
     const sections = SECTIONS.map((s) => ({
       id: s.id,
       title: s.title,
+      when: s.when,
       templates: s.stableKeys.map((k) => templates.find((t) => t.stableKey === k)).filter(Boolean)
-        .filter((t) => items.some((i) => i.key === `subject:${t.stableKey}`)),
+        .filter((t) => items.some((i) => i.key === `subject:${t.stableKey}`))
+        .map((t) => ({ ...t, name: displayNameOf(t) })),
       items: items.filter((i) => i.section === s.id).map(publicItem),
     })).filter((s) => s.items.length);
-    return res.json({ sections, properties, propertyId, canTranslate: translator.isAvailable() });
+    // Rule 38 — the FR | EN switch's « N à traduire », counted on the texts of the page.
+    return res.json({
+      sections, properties, propertyId, canTranslate: translator.isAvailable(), toTranslate: emailTextsModel.countToTranslate(items),
+    });
   }
 
   function save(req, res) {
@@ -48,7 +54,10 @@ function buildController({ database, translator = textTranslator }) {
       en: v && v.en !== undefined ? String(v.en) : undefined,
     }));
     const result = model().apply(changes);
-    if (!result.ok) return res.status(422).json({ key: result.key, field: result.field, message: result.message });
+    if (!result.ok) {
+      const { ok, ...refusal } = result;
+      return res.status(422).json(refusal);
+    }
     return res.json({ applied: result.applied });
   }
 

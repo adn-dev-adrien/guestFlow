@@ -1,56 +1,78 @@
 /**
- * TokenTextField — a French/English text pair with its variable chips
- * (specs/plugins-phase-p-productisation.md §6, specs/guest-email-texts-made-simple.md rule 10).
+ * TokenTextField — a French/English text with its variables
+ * (specs/plugins-phase-p-productisation.md §6, specs/guest-email-texts-made-simple.md rules 10, 27, 37, 38).
  * Generic: any text the server fills with `{{token}}` and `{{#if flag}}…{{/if}}`.
  *
  * The field shows each variable by its French label (« ⟦Prénom du voyageur⟧ ») and hands the raw
- * `{{token}}` text to `onChange`; the labels and the chips come from the server.
+ * `{{token}}` text to `onChange`; the labels come from the server.
+ *
+ * Variables are offered on demand (rule 37, UI/UX review 2026-10-18 decision 5): « + Variable », or the
+ * `[` key in a field, opens the `VariablePicker` at the field; no chip wall. A refusal shows under the
+ * field it concerns, with the server's suggestion as a one-tap « Remplacer ».
  *
  * Props:
- *   label                  string — the text's name, above the pair
+ *   label                  string — the text's name, above the field(s)
  *   fr, en                 strings — the two raw values
  *   onChange               (lang: 'fr' | 'en', rawValue: string) => void
- *   tokens                 [{ name, label }] (or names) — chips inserting a variable at the cursor
- *   flags                  [{ name, label }] (or names) — chips inserting a condition
- *   errorFr, errorEn       server refusals, shown under their field
- *   placeholderFr/En       shown in an empty field (e.g. the global text a property overrides); the
- *                          label stays above the field so the placeholder is seen without focus
+ *   tokens                 [{ name, label }] (or names) — the variables the picker offers
+ *   flags                  [{ name, label }] (or names) — the conditions the picker offers
+ *   language               'fr' | 'en' — one language at a time (rule 38): only that field; in English the
+ *                          French reads above it as a reference. Omitted: both, side by side from `md`.
+ *   errorFr, errorEn       server refusals under their field: a string, or `{ message, unknown, suggestion }`
+ *   placeholderFr/En       shown in an empty field (e.g. the global text a property overrides)
  *   emptyHint              under an empty field without error (e.g. « Vide : texte commun utilisé »)
- *   helper                 ReactNode — under the pair (e.g. « Rétablir »)
+ *   helper                 ReactNode — under the field(s) (e.g. « Rétablir »)
  *   badge                  ReactNode — beside the label (e.g. « à relire »)
+ *   onFocus                (lang) => void — a field took the focus (the page highlights its sentence)
  *   disabled, id
- *   autoFocus              focus the French field on mount (an editor opened from a compact row)
+ *   autoFocus              focus the field on mount (an editor opened from a compact row or the preview)
  *   minRows                rows of each field (1 by default; a template body asks more)
  *
- * A variable is one unit (specs/guest-email-texts-made-simple.md rule 27): the caret never stops
- * inside ⟦…⟧ (it selects the whole of it), and Backspace or Delete next to it removes it whole, so
- * no half-variable can be left for the guest to read.
- *
- * French and English sit side by side from `md`, stacked below. The chips insert into the field that
- * last had the focus (French by default).
+ * A variable is one unit (rule 27): the caret never stops inside ⟦…⟧ (it selects the whole of it), and
+ * Backspace or Delete next to it removes it whole, so no half-variable can be left for the guest to read.
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { Box, Chip, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Stack, TextField, Typography } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import VariablePicker from './VariablePicker';
 import {
-  buildDictionary, toDisplay, toRaw, chipSnippet, chipLabel, displayError, selectionAround, deletion,
+  buildDictionary, toDisplay, toRaw, chipSnippet, displayError, selectionAround, deletion, replaceVariable,
 } from '../utils/tokenDisplay';
 
+const asEntry = (t) => (typeof t === 'string' ? { name: t, label: t } : t);
+
 export default function TokenTextField({
-  label, fr = '', en = '', onChange, tokens = [], flags = [], errorFr, errorEn,
-  placeholderFr, placeholderEn, helper, badge, disabled = false, id, autoFocus = false, minRows = 1, emptyHint,
+  label, fr = '', en = '', onChange, tokens = [], flags = [], errorFr, errorEn, language,
+  placeholderFr, placeholderEn, helper, badge, disabled = false, id, autoFocus = false, minRows = 1, emptyHint, onFocus,
 }) {
   const refs = { fr: useRef(null), en: useRef(null) };
-  const [focused, setFocused] = useState('fr');
+  const [focused, setFocused] = useState(language || 'fr');
+  const [picker, setPicker] = useState(null); // { lang, start, end }
   const dict = useMemo(() => buildDictionary(tokens, flags), [tokens, flags]);
   const shown = { fr: toDisplay(fr, dict), en: toDisplay(en, dict) };
+  const raw = { fr, en };
+  const languages = language ? [language] : ['fr', 'en'];
+  const hasVariables = tokens.length > 0 || flags.length > 0;
+
+  const openPicker = (lang) => {
+    const field = refs[lang].current;
+    const start = field?.selectionStart ?? shown[lang].length;
+    setPicker({ lang, start, end: field?.selectionEnd ?? start });
+  };
+
+  const closePicker = () => {
+    const lang = picker && picker.lang;
+    setPicker(null);
+    requestAnimationFrame(() => refs[lang]?.current?.focus());
+  };
 
   const insert = (entry, kind) => {
-    const field = refs[focused].current;
-    const current = shown[focused] || '';
-    const start = field?.selectionStart ?? current.length;
-    const end = field?.selectionEnd ?? start;
+    const { lang, start, end } = picker;
+    const field = refs[lang].current;
+    const current = shown[lang] || '';
     const { snippet, caret } = chipSnippet(entry, kind, dict);
-    onChange(focused, toRaw(current.slice(0, start) + snippet + current.slice(end), dict));
+    onChange(lang, toRaw(current.slice(0, start) + snippet + current.slice(end), dict));
+    setPicker(null);
     requestAnimationFrame(() => {
       if (!field) return;
       field.focus();
@@ -67,6 +89,11 @@ export default function TokenTextField({
   };
 
   const handleKeyDown = (lang) => (e) => {
+    if (e.key === '[' && hasVariables && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      openPicker(lang);
+      return;
+    }
     if (e.key !== 'Backspace' && e.key !== 'Delete') return;
     const field = e.target;
     if (field.selectionStart !== field.selectionEnd) return;
@@ -77,54 +104,115 @@ export default function TokenTextField({
     requestAnimationFrame(() => field.setSelectionRange(next.caret, next.caret));
   };
 
-  const input = (lang, error, placeholder) => (
+  // A refusal, in the brackets the field shows, with the closest variable as a one-tap fix (rule 37).
+  const refusalOf = (lang, error) => {
+    const { message, unknown, suggestion } = typeof error === 'string' ? { message: error } : error;
+    const fix = suggestion && unknown ? suggestion : null;
+    return (
+      <Box component="span" sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 1 }}>
+        <span>{displayError(message, dict)}</span>
+        {fix && (
+          <>
+            <span>{`${fix.label} ?`}</span>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              sx={{ minHeight: 32, py: 0, '@media (pointer: coarse)': { minHeight: 44 } }}
+              onClick={() => onChange(lang, replaceVariable(raw[lang], unknown, fix.name))}
+            >
+              Remplacer
+            </Button>
+          </>
+        )}
+      </Box>
+    );
+  };
+
+  const errors = { fr: errorFr, en: errorEn };
+  const placeholders = { fr: placeholderFr, en: placeholderEn };
+  const helperOf = (lang) => {
+    if (errors[lang]) return refusalOf(lang, errors[lang]);
+    if (emptyHint && !String(shown[lang]).trim()) return emptyHint;
+    return language ? undefined : ' ';
+  };
+
+  const input = (lang) => (
     <TextField
+      key={lang}
       id={id ? `${id}-${lang}` : undefined}
-      label={lang === 'fr' ? 'Français' : 'Anglais'}
+      label={language ? undefined : (lang === 'fr' ? 'Français' : 'Anglais')}
       value={shown[lang]}
       onChange={(e) => onChange(lang, toRaw(e.target.value, dict))}
-      onFocus={() => setFocused(lang)}
+      onFocus={() => { setFocused(lang); if (onFocus) onFocus(lang); }}
       onSelect={handleSelect(lang)}
       onKeyDown={handleKeyDown(lang)}
       inputRef={refs[lang]}
-      error={Boolean(error)}
-      helperText={error ? displayError(error, dict) : ((emptyHint && !String(shown[lang]).trim()) ? emptyHint : ' ')}
-      placeholder={placeholder ? toDisplay(placeholder, dict) : undefined}
-      slotProps={placeholder ? { inputLabel: { shrink: true } } : undefined}
+      error={Boolean(errors[lang])}
+      helperText={helperOf(lang)}
+      placeholder={placeholders[lang] ? toDisplay(placeholders[lang], dict) : undefined}
+      slotProps={{
+        ...(placeholders[lang] && !language ? { inputLabel: { shrink: true } } : {}),
+        htmlInput: language
+          ? { 'aria-label': `${label || 'Texte'} — ${lang === 'fr' ? 'français' : 'anglais'}`, lang }
+          : { lang },
+        formHelperText: { component: 'div' },
+      }}
       multiline
       minRows={minRows}
       fullWidth
       size="small"
       disabled={disabled}
-      autoFocus={autoFocus && lang === 'fr'}
+      autoFocus={autoFocus && lang === languages[0]}
     />
   );
 
   return (
     <Box>
-      {(label || badge) && (
-        <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          {label && <Typography variant="subtitle2">{label}</Typography>}
-          {badge}
+      {(label || badge || hasVariables) && (
+        <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center', minHeight: 32 }}>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+            {label && <Typography variant="subtitle2">{label}</Typography>}
+            {badge}
+          </Stack>
+          {hasVariables && (
+            <Button
+              size="small"
+              startIcon={<AddIcon fontSize="small" />}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => openPicker(language || focused)}
+              disabled={disabled}
+              aria-haspopup="listbox"
+              sx={{ flexShrink: 0, minHeight: 32, '@media (pointer: coarse)': { minHeight: 44 } }}
+            >
+              Variable
+            </Button>
+          )}
         </Stack>
       )}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, columnGap: 2 }}>
-        {input('fr', errorFr, placeholderFr)}
-        {input('en', errorEn, placeholderEn)}
+      {language === 'en' && (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          lang="fr"
+          data-testid="french-reference"
+          sx={{ mb: 1, pl: 1.5, borderLeft: 2, borderColor: 'divider', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+        >
+          {shown.fr || (placeholderFr ? toDisplay(placeholderFr, dict) : 'Pas de texte français')}
+        </Typography>
+      )}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: language ? '1fr' : '1fr 1fr' }, columnGap: 2 }}>
+        {languages.map((lang) => input(lang))}
       </Box>
-      {(tokens.length > 0 || flags.length > 0) && (
-        <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mb: helper ? 1 : 0 }}>
-          {tokens.map((t) => (
-            <Chip key={`t-${t.name || t}`} size="small" color="info" variant="outlined" label={chipLabel(t, 'var', dict)}
-              onMouseDown={(e) => e.preventDefault()} onClick={() => insert(t, 'var')} disabled={disabled} />
-          ))}
-          {flags.map((f) => (
-            <Chip key={`f-${f.name || f}`} size="small" variant="outlined" label={chipLabel(f, 'cond', dict)}
-              onMouseDown={(e) => e.preventDefault()} onClick={() => insert(f, 'cond')} disabled={disabled} />
-          ))}
-        </Stack>
-      )}
       {helper}
+      <VariablePicker
+        open={Boolean(picker)}
+        anchorEl={picker ? refs[picker.lang].current : null}
+        variables={tokens.map(asEntry)}
+        conditions={flags.map(asEntry)}
+        onPick={insert}
+        onClose={closePicker}
+      />
     </Box>
   );
 }

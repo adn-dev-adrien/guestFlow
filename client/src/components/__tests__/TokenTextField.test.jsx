@@ -22,18 +22,20 @@ function Harness(props) {
   );
 }
 
-test('rule 10: a chip inserts its label at the cursor; the raw text keeps {{token}}', () => {
+test('rule 37: « + Variable » inserts the chosen label at the cursor; the raw text keeps {{token}}', () => {
   render(<Harness />);
   const fr = screen.getByLabelText('Français');
   fr.focus();
   fr.setSelectionRange(7, 7);
   fireEvent.focus(fr);
-  fireEvent.click(screen.getByRole('button', { name: 'Prix' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Variable' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Prix' }));
   expect(fr).toHaveValue('Prix : ⟦Prix⟧');
   expect(last.fr).toBe('Prix : {{price}}');
   const en = screen.getByLabelText('Anglais');
   fireEvent.focus(en);
-  fireEvent.click(screen.getByRole('button', { name: 'Si prix' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Variable' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Seulement si : prix' }));
   expect(en).toHaveValue('⟦Si prix⟧⟦fin si⟧');
   expect(last.en).toBe('{{#if hasPrice}}{{/if}}');
 });
