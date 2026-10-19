@@ -62,14 +62,14 @@ test('rule 15: the send endpoint answers the French reason, and the history word
 
 test('rule 16: « Quand » follows the anchor, not only the day offset', () => {
   assert.equal(templateWhenLabel({ stableKey: 'reservation_confirmation', dayOffset: 0 }), 'À la réservation');
-  assert.equal(templateWhenLabel({ stableKey: 'season_gift_vouchers', dayOffset: 0 }), '15 nov.');
-  assert.equal(templateWhenLabel({ stableKey: 'season_new_year', dayOffset: 0 }), '6 janv.');
+  assert.equal(templateWhenLabel({ stableKey: 'season_gift_vouchers', dayOffset: 0 }), 'Le 15 novembre');
+  assert.equal(templateWhenLabel({ stableKey: 'season_new_year', dayOffset: 0 }), 'Le 6 janvier');
   assert.equal(templateWhenLabel({ stableKey: 'cancellation_notice', dayOffset: 0 }), 'À l’annulation');
   assert.equal(templateWhenLabel({ stableKey: 'balance_request', dayOffset: 0 }), 'À la demande');
-  assert.equal(templateWhenLabel({ stableKey: 'arrival_reminder_7d', dayOffset: -7 }), 'J-7');
-  assert.equal(templateWhenLabel({ stableKey: null, dayOffset: 0, anchor: 'start' }), 'Jour J');
-  assert.equal(templateWhenLabel({ stableKey: null, dayOffset: 1, anchor: 'end' }), 'Lendemain du départ');
-  assert.equal(templateWhenLabel({ stableKey: null, dayOffset: 3 }), 'J+3');
+  assert.equal(templateWhenLabel({ stableKey: 'arrival_reminder_7d', dayOffset: -7 }), '7 jours avant l’arrivée');
+  assert.equal(templateWhenLabel({ stableKey: null, dayOffset: 0, anchor: 'start' }), 'Le jour de l’arrivée');
+  assert.equal(templateWhenLabel({ stableKey: null, dayOffset: 1, anchor: 'end' }), 'Le lendemain du départ');
+  assert.equal(templateWhenLabel({ stableKey: null, dayOffset: 3 }), '3 jours après l’arrivée');
 });
 
 test('rule 16: the templates list carries the label', async () => {
@@ -78,7 +78,7 @@ test('rule 16: the templates list carries the label', async () => {
   const res = await call(buildController(emailTemplatesModel.buildModel(db), { read: () => ({}) }).list, {});
   const byKey = Object.fromEntries(res.body.map((t) => [t.stableKey, t.whenLabel]));
   assert.equal(byKey.reservation_confirmation, 'À la réservation');
-  assert.equal(byKey.arrival_reminder_1d, 'J-2');
+  assert.equal(byKey.arrival_reminder_1d, '2 jours avant l’arrivée');
 });
 
 test('specs/email-history-rolling-window.md rule 8: a SQLite UTC time reads in Paris', () => {

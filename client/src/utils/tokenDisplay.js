@@ -60,7 +60,14 @@ export function chipSnippet(entry, kind, dict) {
   return { snippet, caret: snippet.length };
 }
 
-export const chipLabel = (entry, kind, dict) => (kind === 'cond' ? dict.toLabel.cond.get(asEntry(entry).name) : dict.toLabel.var.get(asEntry(entry).name));
+/**
+ * The server's suggested fix applied to a raw text (specs/guest-email-texts-made-simple.md rule 41):
+ * every `{{unknown}}` (spaces allowed inside the braces) becomes `{{name}}`.
+ */
+export function replaceVariable(raw, unknown, name) {
+  const escaped = String(unknown).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(raw || '').replace(new RegExp(`\\{\\{\\s*${escaped}\\s*\\}\\}`, 'g'), `{{${name}}}`);
+}
 
 /**
  * A server message as the field shows its text (specs/guest-email-texts-made-simple.md rule 27):
