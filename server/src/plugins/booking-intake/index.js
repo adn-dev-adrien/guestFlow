@@ -75,6 +75,12 @@ function register(ctx) {
     today: todayIso(),
   });
 
+  // The home's « À traiter » (specs/shell-and-home-day-first.md rule 9): the same list as the cards.
+  const listPendingHandler = (req, res) => res.json(pending());
+  const { summarizeUrgent, summarizeLater } = require('./attention');
+  ctx.attention({ key: 'booking-intake-urgent', rank: 40, handler: listPendingHandler, summarize: summarizeUrgent });
+  ctx.attention({ key: 'booking-intake', rank: 70, handler: listPendingHandler, summarize: summarizeLater });
+
   ctx.mount('/public/booking-intake', publicRouter({
     secret,
     handlePage: (page) => service().handlePage(page),

@@ -37,7 +37,6 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
     <Box>
       <PageActionBar
         title={title}
-        titleOnXs
         subtitle={subtitle}
         onSave={onSave || (() => form.save())}
         saveDisabled={!isDirty || busy || saveBlocked}

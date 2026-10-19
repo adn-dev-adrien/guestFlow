@@ -131,7 +131,6 @@ export default function ReservationsUpcomingPage() {
     <Box>
       <PageActionBar
         title="Réservations à venir"
-        titleOnXs
         subtitle={(
           <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
             Toutes les arrivées à partir d'aujourd'hui

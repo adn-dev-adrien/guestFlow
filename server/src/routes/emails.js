@@ -37,3 +37,6 @@ router.get('/eligible-reservations', controller.eligibleReservations);
 router.post('/queue', controller.queue);
 
 module.exports = router;
+// The home's « À traiter » counts the pending list through this very handler
+// (specs/shell-and-home-day-first.md rule 7).
+module.exports.controller = controller;

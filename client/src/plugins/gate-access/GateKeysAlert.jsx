@@ -8,15 +8,16 @@
  * or when Sowel reads again.
  *
  * Renders nothing when there is nothing to say, or on fetch error (a dashboard card must never
- * break the page). Mirrors the TariffRecipeRunsAlert pattern.
+ * break the page). Pinned above the day on the home, title and count from the server
+ * (specs/shell-and-home-day-first.md rules 3, 6), drawn by `AttentionCard`.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, AlertTitle, Box, Divider, Stack, Typography,
+  Box, Divider, Stack, Typography,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useNavigate } from 'react-router';
-import { api } from '../sdk';
+import { api, AttentionCard } from '../sdk';
 
 function formatDateTime(iso) {
   if (!iso) return '';
@@ -34,7 +35,7 @@ const rowSx = {
   borderRadius: 1, px: 1, py: 1, mx: -1, minHeight: 44,
 };
 
-export default function GateKeysAlert() {
+export default function GateKeysAlert({ attention }) {
   const navigate = useNavigate();
   const [failures, setFailures] = useState([]);
   const [stale, setStale] = useState(null);
@@ -57,14 +58,8 @@ export default function GateKeysAlert() {
   const open = (failure) => navigate(`/reservations/${failure.reservationId}`);
 
   return (
-    <Alert
-      severity="warning"
-      variant="outlined"
-      sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper', '& .MuiAlert-message': { width: '100%' } }}
-      icon={false}
-    >
-      <AlertTitle sx={{ fontWeight: 700 }}>Clés portail</AlertTitle>
-      <Stack divider={<Divider flexItem />} spacing={0.5} sx={{ mt: 1 }}>
+    <AttentionCard attention={attention}>
+      <Stack divider={<Divider flexItem />} spacing={0.5}>
         {stale ? (
           <Box sx={rowSx}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -103,6 +98,6 @@ export default function GateKeysAlert() {
           </Box>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

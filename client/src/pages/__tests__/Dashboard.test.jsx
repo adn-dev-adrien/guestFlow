@@ -1,7 +1,8 @@
 import { vi } from 'vitest';
 /**
  * Dashboard — DS phase-5 sweep (specs/ds-sweep-planning.md §7):
- *  - KPI tiles render through the « Maison » kpiLabel/kpiValue role variants;
+ *  - (the KPI tiles left the home on 2026-10-19 — specs/shell-and-home-day-first.md rule 2, covered
+ *    by Dashboard.day-first.test.jsx);
  *  - a rejected loader surfaces the retryable ErrorAlert (the page used to swallow fetch errors
  *    with `loading` stuck on a bare LinearProgress);
  *  - the initial load shows the shared LoadingState.
@@ -18,8 +19,8 @@ import DialogProvider from '../../components/DialogProvider';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getProperties: vi.fn(),
     getReservations: vi.fn(),
+    getAttention: vi.fn(),
     getReservation: vi.fn(),
     markPayment: vi.fn(),
   },
@@ -37,14 +38,7 @@ vi.mock('react-router', async (importOriginal) => {
   return { ...actual, useNavigate: () => navigateSpy };
 });
 
-// Self-contained dashboard widgets (each self-fetches; covered by their own suites).
-vi.mock('../../plugins/linen/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/IcalCancellationAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/NewReservationsAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/EmailPendingAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/EmailReadinessAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/TwoFactorNudgeCard', () => ({ __esModule: true, default: () => null }));
+// The cumulative calendar has its own suite.
 vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, default: () => <div>CUMULATIVE_CALENDAR</div> }));
 
 import api from '../../api';
@@ -64,38 +58,27 @@ function renderPage() {
 beforeEach(() => {
   mockAuth.user = { roles: ['admin'] };
   navigateSpy.mockReset();
-  api.getProperties.mockReset().mockResolvedValue([{ id: 1, name: 'Gîte' }, { id: 2, name: 'Lodge' }]);
   api.getReservations.mockReset().mockResolvedValue([]);
+  api.getAttention.mockReset().mockResolvedValue({ pinned: [], items: [], total: 0 });
   api.getReservation.mockReset().mockResolvedValue(null);
 });
 
-test('KPI tiles use the kpiLabel/kpiValue role variants (Logements count from the API)', async () => {
-  renderPage();
-  const label = await screen.findByText('Logements');
-  // kpiLabel/kpiValue map to <p> (variantMapping) — NOT headings like the legacy h4 tiles.
-  expect(label.tagName).toBe('P');
-  const value = screen.getAllByText('2')[0];
-  expect(value.tagName).toBe('P');
-  expect(screen.getByText('Réservations (30j)')).toBeInTheDocument();
-  expect(screen.getByText('Arrivées (date sélectionnée)')).toBeInTheDocument();
-});
-
 test('a rejected loader shows the retryable ErrorAlert instead of a stuck page', async () => {
-  api.getProperties.mockRejectedValue(new Error('boom'));
+  api.getReservations.mockRejectedValue(new Error('boom'));
   renderPage();
   expect(await screen.findByText('Impossible de charger le tableau de bord.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
-  // The KPI section is not rendered in the error state.
-  expect(screen.queryByText('Logements')).not.toBeInTheDocument();
+  // The day lists are not rendered in the error state.
+  expect(screen.queryByText(/^Départs — /)).not.toBeInTheDocument();
 });
 
 test('the initial load shows the shared LoadingState (aria-busy)', async () => {
-  let resolveProps;
-  api.getProperties.mockReturnValue(new Promise((resolve) => { resolveProps = resolve; }));
+  let resolveList;
+  api.getReservations.mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
   renderPage();
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-  resolveProps([]);
-  await screen.findByText('Logements');
+  resolveList([]);
+  await screen.findByText(/^Départs — /);
 });
 
 // specs/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
@@ -110,9 +93,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
   };
 
   function mountArrival(operationalCollection) {
-    api.getReservations.mockReset()
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([base]);
+    api.getReservations.mockReset().mockResolvedValue([base]);
     api.getReservation.mockReset().mockResolvedValue({ ...base, operationalCollection });
     return renderPage();
   }
@@ -146,9 +127,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
 
   // specs/ds-components.md rule 25 — « Lit bébé ×1 », accent and multiplication sign included.
   test('a baby bed reads « Lit bébé ×1 »', async () => {
-    api.getReservations.mockReset()
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ ...base, babyBeds: 1 }]);
+    api.getReservations.mockReset().mockResolvedValue([{ ...base, babyBeds: 1 }]);
     api.getReservation.mockReset().mockResolvedValue({ ...base, babyBeds: 1 });
     renderPage();
     expect((await screen.findAllByText(/Lit bébé ×1/)).length).toBeGreaterThan(0);
@@ -179,19 +158,18 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
 
   beforeEach(() => {
     mockAuth.user = { roles: ['reception'], enabledPlugins: ['sas'] };
-    api.getReservations.mockReset()
-      .mockResolvedValueOnce([])          // 30-day window (KPI count — unused for reception)
-      .mockResolvedValueOnce([arrival]);  // upcoming (drives arrivals/departures)
+    api.getReservations.mockReset().mockResolvedValue([arrival]); // upcoming (drives arrivals/departures)
     api.getReservation.mockReset().mockResolvedValue(arrival);
   });
 
-  test('shows the arrivals list but drops KPI tiles, the Paiements column and the month calendar', async () => {
+  test('shows the arrivals list but drops the attention subjects, the Paiements column and the month calendar', async () => {
     renderPage();
     await screen.findByText('Marie Durand');
     // Caution column stays (door money the reception collects).
     expect(screen.getByText('Caution')).toBeInTheDocument();
-    // Finance + admin chrome are gone.
-    expect(screen.queryByText('Logements')).not.toBeInTheDocument();
+    // Finance + admin chrome are gone — no « À traiter », not even a call for it.
+    expect(screen.queryByText('À traiter')).not.toBeInTheDocument();
+    expect(api.getAttention).not.toHaveBeenCalled();
     expect(screen.queryByText('Paiements')).not.toBeInTheDocument();
     expect(screen.queryByText('CUMULATIVE_CALENDAR')).not.toBeInTheDocument();
   });

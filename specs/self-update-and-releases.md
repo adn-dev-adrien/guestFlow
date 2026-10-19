@@ -632,6 +632,10 @@ Below, a collapsible **Historique des mises à jour** (last 5).
 
 ### 6.5 Barre du haut — `AppVersionBadge` + `HeaderPill`
 
+> 2026-10-19 (`specs/shell-and-home-day-first.md` rule 16, decision 3 of the UI/UX review): the
+> installed version moved to the foot of the drawer (« GuestFlow vX.Y.Z », `AppVersionFooter`); the
+> top bar keeps only the update pill. The dashboard alert is now the home subject `update-available`.
+
 Right end of the application's `AppBar`, on every page, admin only:
 
 > `v2.1.0`  ( ⬆ 1 )

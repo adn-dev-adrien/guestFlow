@@ -101,7 +101,8 @@ function register(ctx) {
   });
 
   const router = express.Router();
-  router.get('/', (req, res) => res.json({ items: service().attention() }));
+  const listAttention = (req, res) => res.json({ items: service().attention() });
+  router.get('/', listAttention);
   router.post('/run', async (req, res) => {
     try { res.json(await runPass()); } catch (err) { res.status(502).json({ error: err.message }); }
   });
@@ -118,6 +119,7 @@ function register(ctx) {
   });
   router.post('/:intakeId/dismiss', (req, res) => { service().dismiss(Number(req.params.intakeId)); res.json({ ok: true }); });
   ctx.mount('/api/gdf-intake', router);
+  ctx.attention({ key: 'gdf-intake', rank: 60, handler: listAttention, summarize: require('./attention').summarize });
 
   ctx.data({
     tables: ['gdf_intakes'],

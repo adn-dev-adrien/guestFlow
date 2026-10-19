@@ -14,7 +14,7 @@ function renderBar(props = {}) {
   render(
     <MemoryRouter>
       <ThemeProvider theme={theme}>
-        <PageActionBar title="Planning ressources" titleOnXs actionsBefore={[{ icon: <span>+</span>, tooltip: 'Nouvelle réservation', onClick: () => {} }]} {...props} />
+        <PageActionBar title="Planning ressources" actionsBefore={[{ icon: <span>+</span>, tooltip: 'Nouvelle réservation', onClick: () => {} }]} {...props} />
       </ThemeProvider>
     </MemoryRouter>,
   );

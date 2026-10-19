@@ -107,6 +107,9 @@ a key could not be made or when Sowel stopped asking.
 
 ### 3.3 The alerts
 
+> 2026-10-19 (`specs/shell-and-home-day-first.md` rules 3, 9): the alert is pinned unfolded above
+> the day on the home, declared with `ctx.attention({ key: 'gate-keys' })`, drawn by `AttentionCard`.
+
 13. **A failed result is a dashboard alert** — number, first name and reason — until a success
     replaces it or the stay ends.
 14. **A failed result is a Web Push to every active admin**, with no preference to opt in: these are

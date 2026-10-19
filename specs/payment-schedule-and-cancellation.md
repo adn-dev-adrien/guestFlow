@@ -144,6 +144,10 @@ acompte is kept as an indemnity, and the books say so correctly.
 
 ### 3.4 Dashboard alert
 
+> 2026-10-19 (`specs/shell-and-home-day-first.md` rules 3, 6): the card is one of the two subjects
+> pinned unfolded above the day; its title, count, « N en retard · M à demander » and severity are
+> built by `GET /api/dashboard/attention`, and it is drawn by `AttentionCard`.
+
 14. A new dashboard card, « **Échéances de paiement** », lists every direct reservation with a payment
     to ask for or a missed deadline. Each row is **entirely computed server-side** (state, amounts,
     days late, whether the guest was already asked, available actions); the client only renders it.

@@ -191,6 +191,10 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
       - it deletes its `plugin:<id>:*` ledger rows, so a reinstall starts clean;
       - it runs any extra clean-up the plugin needs (rule 20).
 
+> 2026-10-19 (SDK 1.3.0, `specs/shell-and-home-day-first.md` rule 9): `ctx.attention({ key, rank,
+> handler, summarize })` declares a subject of the home's « À traiter »; the client SDK exports
+> `AttentionCard`, and a `dashboard.alerts(.urgent)` contribution receives the server's `attention`.
+
 ### 3.C What `contributes` offers — client extension points
 
 13. A client module contributes to **named slots**. The core renders `<Slot name="…" />` where the

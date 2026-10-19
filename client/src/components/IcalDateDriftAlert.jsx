@@ -3,7 +3,7 @@
  * platform has proposed new dates (specs/ical-sync-override-locked-dates.md §6.1).
  *
  * Self-contained: fetches its own list on mount + on every route change, then renders one
- * orange `<Alert>` listing every pending drift. Each card offers three actions:
+ * `AttentionCard` listing every pending drift. Each card offers three actions:
  *   - "Approuver" (color="success") → applies the narrow date override on the reservation.
  *   - "Voir la fiche"               → opens the reservation page without acknowledging.
  *   - ✕ (top-right)                 → ignores the proposal (rejects).
@@ -14,13 +14,14 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, AlertTitle, Box, Typography, Button, IconButton, Tooltip, Divider, Stack,
+  Box, Typography, Button, IconButton, Tooltip, Divider, Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router';
 import api from '../api';
+import AttentionCard from './AttentionCard';
 import { displayDateShort } from '../utils/formatters';
 
 // Relative-time formatting is purely presentational (no business rules), so it lives client-side
@@ -41,7 +42,7 @@ function relativeFromNow(iso) {
   return `il y a ${days} j`;
 }
 
-export default function IcalDateDriftAlert() {
+export default function IcalDateDriftAlert({ attention }) {
   const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
   const [busyId, setBusyId] = useState(null);
@@ -87,16 +88,8 @@ export default function IcalDateDriftAlert() {
   if (alerts.length === 0) return null;
 
   return (
-    <Alert
-      severity="warning"
-      variant="outlined"
-      sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}
-      icon={false}
-    >
-      <AlertTitle sx={{ fontWeight: 700 }}>
-        Modifications de dates iCal — {alerts.length} changement{alerts.length > 1 ? 's' : ''} à valider
-      </AlertTitle>
-      <Stack divider={<Divider flexItem />} spacing={1.5} sx={{ mt: 1 }}>
+    <AttentionCard attention={attention}>
+      <Stack divider={<Divider flexItem />} spacing={1.5}>
         {alerts.map((alert) => (
           <Box key={alert.id} sx={{ position: 'relative', pr: 5 }}>
             <Tooltip title="Ignorer cette modification">
@@ -154,6 +147,6 @@ export default function IcalDateDriftAlert() {
           </Box>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

@@ -76,13 +76,14 @@ test('specs/plugins-phase-2-hosts.md rule 25 — without website-booking the CGV
 
 test('specs/plugins-phase-2-hosts.md rule 25 — « Demandes du site » is a dashboard.alerts contribution, gone with the plugin', async () => {
   mockAuth.user.enabledPlugins = ['website-booking'];
-  const { unmount } = render(<MemoryRouter><Slot name="dashboard.alerts" /></MemoryRouter>);
-  expect(await screen.findByText('Demandes de devis depuis le site (2)')).toBeInTheDocument();
+  // The count and words are the server's (specs/shell-and-home-day-first.md rule 6); the slot passes them.
+  const attention = { key: 'site-requests', severity: 'info', count: 2, title: 'Demandes de devis depuis le site', detail: '2 devis en attente' };
+  const { unmount } = render(<MemoryRouter><Slot name="dashboard.alerts" attention={attention} /></MemoryRouter>);
+  expect(await screen.findByText('Demandes de devis depuis le site')).toBeInTheDocument();
+  expect(screen.getByText('2 devis en attente')).toBeInTheDocument();
   unmount();
 
   mockAuth.user.enabledPlugins = [];
-  api.getPendingPublicDevis.mockClear();
-  const { container } = render(<MemoryRouter><Slot name="dashboard.alerts" /></MemoryRouter>);
+  const { container } = render(<MemoryRouter><Slot name="dashboard.alerts" attention={attention} /></MemoryRouter>);
   await waitFor(() => expect(container).toBeEmptyDOMElement());
-  expect(api.getPendingPublicDevis).not.toHaveBeenCalled();
 });

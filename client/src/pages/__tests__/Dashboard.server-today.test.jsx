@@ -1,6 +1,6 @@
-// specs/ds-sweep-planning.md rule 28 — the Dashboard's « today » is the server's date, and the 30-day
-// window is counted on the calendar whatever the browser's time zone; the email readiness alert is
-// only loaded for an admin (an accountant would get a 403 from GET /api/email-readiness).
+// specs/ds-sweep-planning.md rule 28 — the Dashboard's « today » is the server's date (the 30-day KPI
+// window left with the tiles, specs/shell-and-home-day-first.md rule 2); the attention subjects —
+// email readiness included — are only loaded for an admin (an accountant would get a 403).
 // specs/upcoming-reservations-cards.md rule 7 — never the UTC date, which still read yesterday between
 // midnight and 2 a.m. in Paris (review #8, n-1: « 17/10/2026 » shown at 01:54 on the 18th).
 import React from 'react';
@@ -15,8 +15,8 @@ import DialogProvider from '../../components/DialogProvider';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getProperties: vi.fn(),
     getReservations: vi.fn(),
+    getAttention: vi.fn(),
     getReservation: vi.fn(),
     markPayment: vi.fn(),
     getToday: vi.fn(),
@@ -35,7 +35,6 @@ vi.mock('../../components/CancellationCompensationsPendingAlert', () => ({ __esM
 vi.mock('../../components/PaymentDeadlinesAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/UpdateAvailableAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../plugins/sdk/Slot', () => ({ __esModule: true, default: () => null }));
 
 import api from '../../api';
 import Dashboard from '../Dashboard';
@@ -48,17 +47,19 @@ const renderPage = () => render(
 
 beforeEach(() => {
   mockAuth.user = { roles: ['admin'] };
-  api.getProperties.mockReset().mockResolvedValue([]);
   api.getReservations.mockReset().mockResolvedValue([]);
+  api.getAttention.mockReset().mockResolvedValue({
+    pinned: [], total: 2, items: [{ key: 'email-readiness', severity: 'todo', count: 2, title: 'Emails incomplets', detail: '' }],
+  });
   api.getReservation.mockReset().mockResolvedValue(null);
   api.getToday.mockReset().mockResolvedValue({ today: '2026-10-25' });
 });
 afterEach(() => { vi.useRealTimers(); });
 
-test('specs/ds-sweep-planning.md rule 28: the Dashboard loads from the server date, 30 calendar days ahead', async () => {
+test('specs/ds-sweep-planning.md rule 28: the Dashboard loads from the server date', async () => {
   renderPage();
-  await waitFor(() => expect(api.getReservations).toHaveBeenCalledWith({ from: '2026-10-25', to: '2026-11-24' }));
-  expect(api.getReservations).toHaveBeenCalledWith({ from: '2026-10-25' });
+  await waitFor(() => expect(api.getReservations).toHaveBeenCalledWith({ from: '2026-10-25' }));
+  expect(api.getReservations).toHaveBeenCalledTimes(1);
   expect(screen.getAllByLabelText('Date affichée')[0]).toHaveValue('2026-10-25');
 });
 
@@ -69,17 +70,19 @@ test('specs/ds-sweep-planning.md rule 28: nothing loads before the server date i
   await new Promise((r) => setTimeout(r, 20));
   expect(api.getReservations).not.toHaveBeenCalled();
   answer({ today: '2026-03-29' });
-  await waitFor(() => expect(api.getReservations).toHaveBeenCalledWith({ from: '2026-03-29', to: '2026-04-28' }));
+  await waitFor(() => expect(api.getReservations).toHaveBeenCalledWith({ from: '2026-03-29' }));
 });
 
 test('specs/guest-email-texts-made-simple.md rule 7: the email readiness alert is an admin read — not loaded for an accountant', async () => {
   const admin = renderPage();
-  expect(await screen.findByText('EMAIL_READINESS')).toBeInTheDocument();
+  expect(await screen.findByText('Emails incomplets')).toBeInTheDocument();
   admin.unmount();
+  api.getAttention.mockClear();
   mockAuth.user = { roles: ['accountant'] };
   renderPage();
   await waitFor(() => expect(api.getReservations).toHaveBeenCalled());
-  expect(screen.queryByText('EMAIL_READINESS')).not.toBeInTheDocument();
+  expect(api.getAttention).not.toHaveBeenCalled();
+  expect(screen.queryByText('Emails incomplets')).not.toBeInTheDocument();
 });
 
 test('specs/upcoming-reservations-cards.md rule 7: at 01:54 in Paris, when the server cannot answer, the day is the 18th, not UTC\'s 17th', async () => {

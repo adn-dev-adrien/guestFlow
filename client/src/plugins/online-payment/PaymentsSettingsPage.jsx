@@ -217,7 +217,7 @@ export default function PaymentsSettingsPage() {
   if (!qonto || !credentials) {
     return (
       <Box>
-        <PageActionBar title="Paiements en ligne" titleOnXs />
+        <PageActionBar title="Paiements en ligne" />
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}><CircularProgress /></Box>
       </Box>
     );
@@ -240,7 +240,6 @@ export default function PaymentsSettingsPage() {
     <Box>
       <PageActionBar
         title="Paiements en ligne"
-        titleOnXs
         onSave={handleSave}
         saveDisabled={!isDirty}
         saveBusy={saving}

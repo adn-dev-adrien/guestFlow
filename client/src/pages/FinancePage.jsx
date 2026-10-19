@@ -148,7 +148,6 @@ export default function FinancePage() {
     <Box>
       <PageActionBar
         title="Suivi financier"
-        titleOnXs
         actionsBefore={[{ icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' }]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>

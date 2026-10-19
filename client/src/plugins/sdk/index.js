@@ -12,6 +12,8 @@ export { default as LoadingState } from '../../components/LoadingState';
 export { default as ErrorAlert } from '../../components/ErrorAlert';
 export { default as EmptyState } from '../../components/EmptyState';
 export { default as StatusBadge } from '../../components/StatusBadge';
+// One subject of the home's attention (specs/shell-and-home-day-first.md rules 9, 13) — SDK 1.3.0.
+export { default as AttentionCard } from '../../components/AttentionCard';
 export { default as SummaryItem } from '../../components/SummaryItem';
 export { default as MaskedTextField } from '../../components/MaskedTextField';
 export { default as SecretRevealField } from '../../components/SecretRevealField';

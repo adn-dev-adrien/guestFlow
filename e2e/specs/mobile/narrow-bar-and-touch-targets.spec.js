@@ -36,7 +36,8 @@ test.describe('phone (390 px, touch)', () => {
   test('rule 21 — no tap target under 44 px on the dashboard, the planning and the finance page', async ({ page }) => {
     for (const url of ['/', '/planning', '/finance']) {
       await page.goto(url);
-      await expect(page.locator('main .MuiTypography-pageTitle').first()).toBeAttached({ timeout: 10_000 });
+      // On a phone the title is the top bar's (specs/shell-and-home-day-first.md rule 15); wait for the page.
+      await expect(page.locator('header h1, main .MuiTypography-pageTitle, main .MuiTypography-sectionHeader').first()).toBeAttached({ timeout: 10_000 });
       await page.waitForLoadState('networkidle');
       expect([url, await smallTargets(page)]).toEqual([url, []]);
     }

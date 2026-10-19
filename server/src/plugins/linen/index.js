@@ -81,6 +81,7 @@ function register(ctx) {
   ctx.route('get', '/api/planning/linen-inventory', handler('planning', 'linenInventory'));
   // Gap 1 — the shortage alert answered while the plugin was off.
   ctx.route('get', '/api/dashboard/linen-shortage', handler('shortage', 'linenShortage'));
+  ctx.attention({ key: 'linen-shortage', rank: 30, handler: handler('shortage', 'linenShortage'), summarize: require('./attention').summarize });
 
   // The reception runs the laundry from the planning; extra trips stay admin-only to write
   // (specs/laundry-extra-trip.md §3.4 rule 16). The planning reads are core entries.

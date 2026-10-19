@@ -6,9 +6,8 @@
  * ReservationPage.js sticky bar post "Improve sticky banner" commit.
  *
  * Props:
- *   title?       string         (page title, hidden on xs by default)
- *   titleOnXs?   boolean        (show the title on xs too — for pages whose bar would
- *                                otherwise be empty on mobile; ellipsized when tight)
+ *   title?       string         (page title; on xs it is shown by the TOP bar instead — the page bar
+ *                                publishes it, specs/shell-and-home-day-first.md rule 15)
  *   backTo?      string         (router path; shows a back IconButton on the left)
  *   onBack?      () => void      (back handler; takes precedence over backTo for computed navigation)
  *   subtitle?    ReactNode      (rendered beside the title — e.g. a Chip or caption)
@@ -17,8 +16,7 @@
  *                                bar is crowded at tablet width raises it — specs/review-2026-10-18-
  *                                reservations.md rule 6)
  *   tabs?        ReactNode      (a <PageTabs> node — CENTERED in the bar on sm+, and folded onto a
- *                                SECOND ROW of the same sticky block on xs. Implies titleOnXs, so a
- *                                page with tabs always shows its title. Mutually exclusive with
+ *                                SECOND ROW of the same sticky block on xs. Mutually exclusive with
  *                                `center`; see specs/ds-tabs.md rules 2-3.)
  *
  *   onSave?      () => void     (omit → no Save button)
@@ -45,6 +43,8 @@
  *  - Save renders with a filled primary background (the only "filled" button).
  *  - Layout: [Back Title Subtitle] … [center | tabs] … [actionsBefore Save Cancel actionsAfter]
  *    (with `center`, the two side sections take equal flex so the centre is truly centred).
+ *  - On xs the title lives in the top bar; a bar left with no back button, subtitle, tabs nor action
+ *    is not drawn at all (specs/shell-and-home-day-first.md rule 15).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
  *  - Narrow bar (specs/ds-components.md rules 19-20): the title keeps a readable width and ends
@@ -63,6 +63,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate } from 'react-router';
+import { usePublishPageTitle } from '../hooks/usePageTitle';
 
 // Every bar button is a 44 × 44 touch target, whatever its border (specs/ds-components.md rule 20).
 const BUTTON_SIZE = { width: 44, height: 44 };
@@ -111,7 +112,6 @@ function renderCustomAction(action, key) {
 
 export default function PageActionBar({
   title,
-  titleOnXs = false,
   backTo,
   onBack,
   subtitle,
@@ -136,6 +136,7 @@ export default function PageActionBar({
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [menuAnchor, setMenuAnchor] = useState(null);
+  usePublishPageTitle(title);
 
   // Only icon actions collapse into the mobile overflow menu; custom-node items always stay inline.
   const iconExtras = [...actionsBefore, ...actionsAfter].filter((a) => !a.node);
@@ -146,7 +147,9 @@ export default function PageActionBar({
   // The tabs exist ONCE in the DOM: centred in the bar on sm+, on a second row on xs.
   const tabsOnSecondRow = Boolean(tabs) && isMobile;
   const centerNode = tabsOnSecondRow ? null : (tabs || center);
-  const showTitleOnXs = titleOnXs || Boolean(tabs);
+  // On a phone the title is the top bar's; `center` is hidden there. Nothing else → no empty band.
+  const hasActions = Boolean(onSave || onCancel || useOverflow || visibleBefore.length || visibleAfter.length);
+  if (isMobile && !(onBack || backTo) && !subtitle && !tabs && !hasActions) return null;
 
   return (
     <Box
@@ -186,10 +189,7 @@ export default function PageActionBar({
             rowGap: 0.25,
             flex: '1 1 0',
             // Only a visible title claims that width: a bar showing just « Retour » gives it to the actions.
-            minWidth: {
-              xs: title && showTitleOnXs ? 'min(100%, 9rem)' : 0,
-              sm: title ? 'min(100%, 14rem)' : 0,
-            },
+            minWidth: { xs: 0, sm: title ? 'min(100%, 14rem)' : 0 },
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, maxWidth: '100%' }}>
@@ -205,7 +205,7 @@ export default function PageActionBar({
                 variant="pageTitle"
                 title={title}
                 sx={{
-                  display: { xs: showTitleOnXs ? 'block' : 'none', sm: 'block' },
+                  display: { xs: 'none', sm: 'block' },
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',

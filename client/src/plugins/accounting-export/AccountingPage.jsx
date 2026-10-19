@@ -128,7 +128,6 @@ export default function AccountingPage() {
     <Box>
       <PageActionBar
         title="Comptabilité"
-        titleOnXs
         actionsBefore={[
           {
             icon: <DescriptionIcon />,

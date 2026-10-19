@@ -7,7 +7,7 @@ import { COARSE_POINTER, TOUCH_TARGET, touchHitArea } from './utils/touchHitArea
  *
  * Single source of design tokens: hospitality identity — fir-green primary, honey accent, warm paper
  * background, humanist-serif titles, radius 14, warm shadows. Semantic colors carry a `soft` background
- * used by status chips (soft bg + dark text — never filled semantic Chips).
+ * used by status chips (soft bg + its `text` colour — never filled semantic Chips).
  *
  * Typography roles (custom variants — use these, not raw h4/h6, for the roles they name):
  *   pageTitle     serif 600 — the one page title (rendered by PageActionBar / PageHeader)
@@ -30,10 +30,12 @@ const theme = createTheme({
     secondary: { main: '#C99038' },
     background: { default: '#F8F5EF', paper: '#ffffff' },
     text: { primary: '#27251F', secondary: INK_MUTED },
-    success: { main: '#3E7D54', soft: '#E6EFE7' },
-    warning: { main: '#8F6A1D', soft: '#F6EDD7' },
-    error: { main: '#A8433A', soft: '#F7E8E5' },
-    info: { main: '#31556E', soft: '#E4EDF3' },
+    // `text` — the colour of text written on `soft`, every one ≥ 4.5:1 there
+    // (specs/shell-and-home-day-first.md rule 14): `main` itself is 4.2:1 on soft for success/warning.
+    success: { main: '#3E7D54', soft: '#E6EFE7', text: '#2F6A43' },
+    warning: { main: '#8F6A1D', soft: '#F6EDD7', text: '#6F5112' },
+    error: { main: '#A8433A', soft: '#F7E8E5', text: '#A8433A' },
+    info: { main: '#31556E', soft: '#E4EDF3', text: '#31556E' },
     divider: 'rgba(60, 54, 36, 0.1)',
   },
   typography: {

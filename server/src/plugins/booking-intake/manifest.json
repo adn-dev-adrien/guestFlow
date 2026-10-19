@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.2.0",
+  "sdk": "^1.3.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet : un script du navigateur envoie la page de la réservation ouverte dans l’extranet Booking, et la fiche iCal se remplit.",
@@ -28,6 +28,9 @@
     ],
     "1.1.1": [
       "Le script attend que la page Booking ait fini de s’afficher avant de l’envoyer : la saisie n’est plus refusée « Sous-total introuvable ». Réinstaller le script (version 2)."
+    ],
+    "1.2.0": [
+      "Accueil : les fiches Booking à compléter rejoignent « À traiter », comptées par le serveur, avec le même dessin que les autres alertes."
     ]
   }
 }

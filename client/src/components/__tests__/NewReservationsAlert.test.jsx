@@ -25,6 +25,9 @@ vi.mock('react-router', () => ({
 import api from '../../api';
 import NewReservationsAlert from '../NewReservationsAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'new-reservations', severity: 'info', count: 2, title: 'Nouvelles réservations', detail: 'Sur les dernières 24 h' };
+
 beforeEach(() => {
   api.getNewReservations.mockReset();
   navigate.mockReset();
@@ -38,28 +41,29 @@ const row = (over = {}) => ({
 
 test('renders nothing while the API call is pending', () => {
   api.getNewReservations.mockReturnValue(new Promise(() => {}));
-  const { container } = render(<NewReservationsAlert />);
+  const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
   expect(container.firstChild).toBeNull();
 });
 
 test('renders nothing when no reservation arrived in the last 24 hours', async () => {
   api.getNewReservations.mockResolvedValue({ alerts: [] });
-  const { container } = render(<NewReservationsAlert />);
+  const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
   await waitFor(() => expect(api.getNewReservations).toHaveBeenCalled());
   expect(container.firstChild).toBeNull();
 });
 
 test('renders nothing on API error (never breaks the dashboard)', async () => {
   api.getNewReservations.mockRejectedValue(new Error('boom'));
-  const { container } = render(<NewReservationsAlert />);
+  const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
   await waitFor(() => expect(api.getNewReservations).toHaveBeenCalled());
   expect(container.firstChild).toBeNull();
 });
 
 test('renders the card with the count + a row per reservation', async () => {
   api.getNewReservations.mockResolvedValue({ alerts: [row(), row({ reservationId: 12088, clientName: 'Marie Durand', platformLabel: 'Booking' })] });
-  render(<NewReservationsAlert />);
-  expect(await screen.findByText(/Nouvelles réservations — 2 sur les dernières 24 h/)).toBeInTheDocument();
+  render(<NewReservationsAlert attention={ATTENTION} />);
+  expect(await screen.findByText('Nouvelles réservations')).toBeInTheDocument();
+  expect(screen.getByText('Sur les dernières 24 h')).toBeInTheDocument();
   expect(screen.getAllByText(/^Arrivée /)).toHaveLength(2);
   expect(screen.getByText(/Jean Dupont · Gite/)).toBeInTheDocument();
   expect(screen.getByText(/Marie Durand/)).toBeInTheDocument();
@@ -68,7 +72,7 @@ test('renders the card with the count + a row per reservation', async () => {
 test('clicking a row navigates to the reservation page', async () => {
   const user = userEvent.setup();
   api.getNewReservations.mockResolvedValue({ alerts: [row()] });
-  render(<NewReservationsAlert />);
+  render(<NewReservationsAlert attention={ATTENTION} />);
   await screen.findByText(/Jean Dupont · Gite/);
   await user.click(screen.getByText(/Jean Dupont · Gite/));
   expect(navigate).toHaveBeenCalledWith('/reservations/12087');
@@ -78,7 +82,7 @@ test('rule 10 — refetches every 5 minutes so the list follows the 24-hour wind
   vi.useFakeTimers();
   try {
     api.getNewReservations.mockResolvedValueOnce({ alerts: [row()] }).mockResolvedValueOnce({ alerts: [] });
-    const { container } = render(<NewReservationsAlert />);
+    const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByText(/Jean Dupont · Gite/)).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60 * 1000); });

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accueil, la journée d'abord</title>
+<style>
+:root{--fir:#2F5D46;--paper:#F8F5EF;--card:#fff;--ink:#27251F;--muted:#6E6A5E;--line:rgba(60,54,36,.1);
+--err:#A8433A;--err-s:#F7E8E5;--warn:#8F6A1D;--warn-s:#F6EDD7;--warn-t:#6F5112;--info:#31556E;--info-s:#E4EDF3;
+--serif:'Iowan Old Style',Charter,Georgia,serif;--sans:-apple-system,'Inter',system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
+.page{max-width:1080px;margin:0 auto;padding:24px 16px 64px}
+h1{font:600 1.6rem/1.2 var(--serif);letter-spacing:-.01em;margin:0 0 6px}
+h2{font:600 1.15rem/1.3 var(--serif);margin:32px 0 8px}
+p{margin:0 0 10px;max-width:70ch}.muted{color:var(--muted)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:700px){.cols{grid-template-columns:1fr}}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:12px 0}
+.ctl label{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:4px}
+.ctl select,.ctl input{font:16px var(--sans);padding:8px 10px;border:1px solid #cfc8b8;border-radius:12px;background:#fff;min-height:44px}
+.ctl input[aria-invalid=true]{border-color:var(--err);background:var(--err-s)}
+.btn{font:500 .95rem var(--sans);min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.btn.on{background:var(--fir);color:#fff;border-color:var(--fir)}
+.refuse{color:var(--err);font-size:.9rem;min-height:1.4em;flex-basis:100%}
+/* device */
+.stage{display:flex;justify-content:center;margin-top:12px}
+.dev{background:var(--paper);border:1px solid #d8d1c2;border-radius:18px;overflow:hidden;box-shadow:0 10px 40px rgba(60,54,36,.12)}
+.dev.w390{width:390px}.dev.w1280{width:100%;max-width:1040px}
+.scr{height:640px;overflow:auto;position:relative}
+.top{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:6px;height:56px;padding:0 8px;background:#fff;border-bottom:1px solid var(--line)}
+.word{font:700 1.15rem var(--serif);color:var(--fir)}
+.ptitle{font:600 1.1rem var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ib{width:44px;height:44px;border:0;background:transparent;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;flex:none}
+.ib:focus-visible,.row:focus-visible,.chev:focus-visible,.btn:focus-visible{outline:2px solid var(--fir);outline-offset:2px}
+.search{flex:1;max-width:380px;margin-left:20px;height:38px;border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;padding:0 10px;color:var(--muted);font-size:.9rem}
+.pill{display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 10px;border-radius:999px;background:rgba(47,93,70,.1);color:var(--fir);font-weight:600;font-size:.85rem}
+.body{display:flex}
+.drawer{width:256px;flex:none;background:var(--paper);border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;min-height:584px}
+.nav{display:flex;align-items:center}
+.nav a{flex:1;display:flex;gap:12px;align-items:center;min-height:44px;padding:6px 10px;border-radius:12px;color:var(--ink);text-decoration:none;overflow-wrap:anywhere}
+.nav a.sel{background:rgba(47,93,70,.1);color:var(--fir);font-weight:600}
+.dot{width:20px;height:20px;border-radius:6px;background:#d9d2c3;flex:none}
+.kid a{padding-left:42px;font-size:.875rem;min-height:40px}
+.chev{width:44px;height:44px;border:0;background:transparent;border-radius:12px;cursor:pointer;color:var(--muted)}
+.foot{margin-top:auto;border-top:1px solid var(--line);padding:10px;font-size:.8rem;color:var(--muted)}
+.main{flex:1;min-width:0;padding:12px}
+.bar{background:#fff;border:1px solid var(--line);border-radius:14px;display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:12px;min-height:56px}
+.bar .t{font:600 1.25rem var(--serif)}
+.date{display:flex;align-items:center;gap:4px;justify-content:center}
+.date span{font:500 .95rem var(--sans);padding:6px 10px;border:1px solid #cfc8b8;border-radius:12px;background:#fff;font-variant-numeric:tabular-nums}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.card.urgent{border-color:var(--err)}
+.hd{display:flex;gap:10px;align-items:flex-start}
+.glyph{width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex:none;font-weight:800}
+.ttl{font-weight:600}
+.chip{display:inline-flex;min-width:24px;height:22px;padding:0 8px;border-radius:999px;align-items:center;justify-content:center;font:600 .8rem var(--sans);font-variant-numeric:tabular-nums}
+.acts{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;margin-top:8px}
+.tb{min-height:44px;border:0;background:transparent;color:var(--fir);font:600 .9rem var(--sans);padding:0 10px;border-radius:10px;cursor:pointer}
+.tb.primary{background:var(--fir);color:#fff}
+.sec{font:600 1.05rem var(--serif);margin:16px 0 6px}
+.mv{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.mv:first-of-type{border-top:0}
+.row{width:100%;display:flex;gap:10px;align-items:center;min-height:48px;border:0;background:transparent;font:inherit;color:inherit;text-align:left;padding:6px 0;cursor:pointer;border-top:1px solid var(--line)}
+.row .ttl{flex:1;min-width:0;overflow-wrap:anywhere}
+.row svg{transition:transform .2s}
+.row[aria-expanded=true] svg{transform:rotate(180deg)}
+.unf{padding:0 0 10px 42px}
+@media (prefers-reduced-motion:reduce){.row svg{transition:none}}
+.w390 .main{padding:8px}
+.cal{height:120px;border:1px dashed #d8d1c2;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.ruler{position:sticky;bottom:0;background:var(--ink);color:#fff;font-size:.8rem;padding:6px 10px;text-align:center}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Accueil : la journée d'abord</h1>
+<p class="muted">Rendu de <code>specs/shell-and-home-day-first.md</code> avant le code. Décisions du 19/10 : les chiffres clés quittent l'accueil (1), clés de portail <b>et</b> paiements en retard restent dépliés hors de « À traiter » (2, écart avec la maquette du CR), version au pied du menu (3), menu à 256 px avec retour à la ligne (4).</p>
+
+<div class="box">
+  <div class="ctl">
+    <label>Largeur<select id="w"><option value="1280">1280 px</option><option value="390">390 px</option></select></label>
+    <label>Page<select id="pg"><option value="home">Tableau de bord</option><option value="devis">Devis</option><option value="cgv">Conditions générales de vente et de réservation</option></select></label>
+    <label>Nombre de « Emails à vérifier » (0 à 99, Entrée)<input id="n" inputmode="numeric" value="2" style="width:120px"></label>
+    <button class="btn" id="reset" type="button">Tout remettre</button>
+    <div class="refuse" id="refuse" role="alert"></div>
+  </div>
+  <p class="muted" style="font-size:.9rem">À essayer : déplier une ligne de « À traiter » (clavier compris), « Reporter » un paiement (le compteur et la ligne suivent), passer le nombre d'emails à 0 (la ligne disparaît) ou à 120 (refusé). En 390, la barre du haut porte le titre de la page, le mot GuestFlow reste sur l'accueil.</p>
+  <div class="stage"><div class="dev" id="dev"><div class="scr" id="scr"></div></div></div>
+</div>
+
+<h2>Ce qu'on ne fait pas ici</h2>
+<p>Le menu piloté par les données (un seul groupe ouvert), le matériau translucide de la barre, l'interlettrage des titres et la journée vide en une phrase : propositions non retenues dans ce lot.</p>
+</div>
+<script>
+(function(){
+  var SEV={urgent:['var(--err-s)','var(--err)','!'],todo:['var(--warn-s)','var(--warn-t)','•'],info:['var(--info-s)','var(--info)','i']};
+  var CHEV='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>';
+  var S;
+  function init(){S={w:1280,pg:'home',open:{},pay:[{n:'Luc Thomas · Gite',d:'Solde 140,97 € · 25 j de retard'},{n:'Françoise Dausque · Aventura lodge',d:'Acompte 706,00 € · 10 j de retard'}],mail:2,navOpen:'set'};}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function subjects(){
+    var all=[
+      {k:'gate',sev:'urgent',t:'Clés portail',n:1,d:'Sowel ne lit plus les clés depuis 26 h',pinned:true,body:'<div class="mv"><span>R-2026-041 · Marie</span><span class="muted">arrivée ven. 23 oct.</span></div>'},
+      {k:'pay',sev:'urgent',t:'Échéances de paiement',n:S.pay.length,d:S.pay.length+' en retard',pinned:true},
+      {k:'ical',sev:'todo',t:'Annulations iCal à valider',n:1,d:'1 réservation annulée sur la plateforme',act:'Voir la fiche'},
+      {k:'comp',sev:'todo',t:'Indemnités d’annulation en attente',n:1,d:'1 versement attendu',act:'Encaisser',primary:true},
+      {k:'quote',sev:'info',t:'Demandes de devis depuis le site',n:5,d:'5 devis en attente',act:'Voir les devis'},
+      {k:'mail',sev:'info',t:'Emails à vérifier',n:S.mail,d:S.mail+' message'+(S.mail>1?'s':'')+' à envoyer · 1 client sans adresse',act:'Voir et envoyer'},
+      {k:'2fa',sev:'info',t:'Second code de connexion',n:1,d:'Protéger le compte par un second code',act:'Activer'}
+    ];
+    return all.filter(function(s){return s.n>0;});
+  }
+  function glyph(sev){var k=SEV[sev];return '<span class="glyph" aria-hidden="true" style="background:'+k[0]+';color:'+k[1]+'">'+k[2]+'</span>';}
+  function chip(sev,n){var k=SEV[sev];return '<span class="chip" style="background:'+k[0]+';color:'+k[1]+'">'+n+'</span>';}
+  function pinned(s){
+    var body=s.k==='pay'?S.pay.map(function(p,i){return '<div class="mv" style="flex-wrap:wrap"><div style="min-width:0;flex:1 1 200px"><b>'+esc(p.n)+'</b><div class="muted">'+esc(p.d)+'</div></div><div class="acts" style="margin:0"><button class="tb" type="button">Relancer</button><button class="tb" type="button" data-act="snooze" data-i="'+i+'">Reporter</button></div></div>';}).join(''):s.body;
+    return '<section class="card'+(s.sev==='urgent'?' urgent':'')+'"><div class="hd">'+glyph(s.sev)+'<div style="flex:1;min-width:0"><span class="ttl">'+esc(s.t)+'</span> '+chip(s.sev,s.n)+'<div class="muted">'+esc(s.d)+'</div></div></div>'+body+'</section>';
+  }
+  function inbox(list){
+    var total=list.reduce(function(t,s){return t+s.n;},0);
+    var rows=list.map(function(s){var o=!!S.open[s.k];
+      return '<button type="button" class="row" data-act="tog" data-k="'+s.k+'" aria-expanded="'+o+'">'+glyph(s.sev)+'<span class="ttl">'+esc(s.t)+'</span>'+chip(s.sev,s.n)+CHEV+'</button>'+
+      (o?'<div class="unf"><div class="muted">'+esc(s.d)+'</div><div class="acts" style="justify-content:flex-start"><button class="tb'+(s.primary?' primary':'')+'" type="button">'+esc(s.act)+'</button></div></div>':'');}).join('');
+    return '<section class="card"><div style="display:flex;gap:8px;align-items:baseline"><span class="sec" style="margin:0">À traiter</span><span class="muted" style="font-variant-numeric:tabular-nums">'+total+'</span></div>'+(rows||'<div class="muted" style="padding:10px 0">Rien à traiter.</div>')+'</section>';
+  }
+  function home(narrow){
+    var subs=subjects();
+    var date='<div class="date"><button class="ib" aria-label="Jour précédent">‹</button><span>19/10/2026</span><button class="ib" aria-label="Jour suivant">›</button></div>';
+    var bar=narrow?'<div style="margin:4px 0 12px">'+date+'</div>':'<div class="bar"><span class="t">Tableau de bord</span><span style="flex:1"></span>'+date+'<span style="flex:1"></span></div>';
+    var dep='<div class="sec" data-anchor="dep">Départs</div><div class="card"><div class="mv"><span><b>10:00 · Gite</b><br>Carole Tournade</span><span class="muted">Parti ☐</span></div></div>';
+    var arr='<div class="sec">Arrivées</div><div class="card"><div class="mv"><span><b>16:00 · Aventura lodge</b><br>Aleksandra Wiśniewska-Kowalczyk</span><span class="muted">Prêt ☐ Arrivé ☐</span></div><div class="mv"><span><b>17:30 · Gite</b><br>Luc Thomas</span><span class="muted">Prêt ☑ Arrivé ☐</span></div></div>';
+    return bar+subs.filter(function(s){return s.pinned;}).map(pinned).join('')+dep+arr+inbox(subs.filter(function(s){return !s.pinned;}))+'<div class="cal">Calendrier du mois</div>';
+  }
+  function other(narrow){
+    var t=S.pg==='devis'?'Devis':'Conditions générales de vente et de réservation';
+    var acts='<button class="btn on" type="button">'+(S.pg==='devis'?'Nouveau devis':'Enregistrer')+'</button>';
+    var bar=narrow?'<div class="bar" style="justify-content:flex-end">'+acts+'</div>':'<div class="bar"><span class="t">'+esc(t)+'</span><span style="flex:1"></span>'+acts+'</div>';
+    return bar+'<div class="card muted">Contenu de la page</div>';
+  }
+  function drawer(){
+    var G=[['Tableau de bord'],['Planning'],['Calendrier',['Ressources','Gite','Aventura lodge']],['Suivi financier',['Vue générale','Taxe de séjour','Indemnités d’annulation']],['Devis'],['Emails',['Modèles','Historique']],['Clients'],['Paramètres',['Établissement','Logements','Conditions générales de vente','Options & ressources','Vacances & fermetures','Paiements en ligne']]];
+    var sel=S.pg==='home'?'Tableau de bord':S.pg==='devis'?'Devis':'Conditions générales de vente';
+    var h=G.map(function(g){var k=g[0];var o=S.navOpen===k;
+      var r='<div class="nav"><a href="#" class="'+(sel===k?'sel':'')+'"><span class="dot"></span>'+esc(k)+'</a>'+(g[1]?'<button type="button" class="chev" data-act="grp" data-k="'+esc(k)+'" aria-expanded="'+o+'" aria-label="'+(o?'Replier ':'Déplier ')+esc(k)+'">'+CHEV+'</button>':'')+'</div>';
+      if(g[1]&&o)r+=g[1].map(function(c){return '<div class="nav kid"><a href="#" class="'+(sel===c?'sel':'')+'">'+esc(c)+'</a></div>';}).join('');return r;}).join('');
+    return '<nav class="drawer" aria-label="Menu">'+h+'<div class="foot">GuestFlow v3.10.0</div></nav>';
+  }
+  function render(){
+    var narrow=S.w===390;
+    var dev=document.getElementById('dev');dev.className='dev w'+S.w;
+    var titles={home:'Tableau de bord',devis:'Devis',cgv:'Conditions générales de vente et de réservation'};
+    var top=narrow
+      ?'<div class="top"><button class="ib" aria-label="Ouvrir le menu">☰</button>'+(S.pg==='home'?'<span class="word">GuestFlow</span>':'<span class="ptitle" title="'+esc(titles[S.pg])+'">'+esc(titles[S.pg])+'</span>')+'<span style="flex:1"></span><button class="ib" aria-label="Rechercher une réservation">⌕</button><span class="pill">⬆ 1</span></div>'
+      :'<div class="top"><span class="word">GuestFlow</span><span class="search">Rechercher une réservation (n°, nom…)</span><span style="flex:1"></span><span class="pill">⬆ 1</span></div>';
+    var main=S.pg==='home'?home(narrow):other(narrow);
+    document.getElementById('scr').innerHTML=top+'<div class="body">'+(narrow?'':drawer())+'<div class="main">'+main+'</div></div>'+(S.pg==='home'?'<div class="ruler" id="ruler"></div>':'');
+    ruler();
+  }
+  function ruler(){var r=document.getElementById('ruler');var scr=document.getElementById('scr');var d=scr.querySelector('[data-anchor=dep]');if(!r||!d)return;
+    var vis=d.offsetTop-scr.scrollTop<scr.clientHeight-60;r.textContent=vis?'Départs visibles sans défiler':'Départs à '+Math.round(d.offsetTop-scr.clientHeight+60)+' px';}
+  document.getElementById('scr').addEventListener('scroll',ruler);
+  document.getElementById('scr').addEventListener('click',function(e){var t=e.target.closest('[data-act]');if(!t)return;e.preventDefault();
+    var a=t.dataset.act;
+    if(a==='tog'){S.open[t.dataset.k]=!S.open[t.dataset.k];render();var b=document.querySelector('[data-act=tog][data-k="'+t.dataset.k+'"]');if(b)b.focus();}
+    if(a==='snooze'){S.pay.splice(Number(t.dataset.i),1);render();}
+    if(a==='grp'){S.navOpen=S.navOpen===t.dataset.k?null:t.dataset.k;render();var c=document.querySelector('[data-act=grp][data-k="'+t.dataset.k+'"]');if(c)c.focus();}
+  });
+  document.getElementById('w').onchange=function(e){S.w=Number(e.target.value);render();};
+  document.getElementById('pg').onchange=function(e){S.pg=e.target.value;render();};
+  var n=document.getElementById('n'),ref=document.getElementById('refuse');
+  n.addEventListener('keydown',function(e){if(e.key!=='Enter')return;var v=n.value.trim();
+    if(!/^\d{1,2}$/.test(v)){n.setAttribute('aria-invalid','true');ref.textContent='Refusé : « '+v+' » n’est pas un nombre entier entre 0 et 99.';return;}
+    n.removeAttribute('aria-invalid');ref.textContent='';S.mail=Number(v);render();});
+  document.getElementById('reset').onclick=function(){init();n.value='2';n.removeAttribute('aria-invalid');ref.textContent='';document.getElementById('w').value='1280';document.getElementById('pg').value='home';render();};
+  init();render();
+})();
+</script>
+</body>
+</html>

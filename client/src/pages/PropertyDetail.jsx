@@ -536,7 +536,6 @@ export default function PropertyDetail() {
     <Box>
       <PageActionBar
         title={isNew ? 'Nouveau logement' : (property.name || 'Logement')}
-        titleOnXs
         tabs={<PageTabs value={tab} onChange={selectTab} items={tabItems} ariaLabel="Onglets du logement" />}
         {...(showSaveCancel ? {
           onSave: handleSaveProperty,

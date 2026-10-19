@@ -6,16 +6,17 @@
  * the Dashboard refreshes the projection (cheap fetch, server is bounded). Renders nothing
  * when there's no shortage in the horizon.
  *
- * UX: one red `<Alert>` at the top of the Dashboard, body grouped by linen type. Each type
+ * UX: one `AttentionCard` (title, count and « N types en rupture à partir du … » from the server,
+ * specs/shell-and-home-day-first.md rule 6), body grouped by linen type. Each type
  * shows: first shortage date, max missing quantity, clickable reservation chips that navigate
  * to the reservation page on click.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, AlertTitle, Box, Typography, Stack, Chip } from '@mui/material';
+import { Box, Typography, Stack, Chip } from '@mui/material';
 import { useNavigate } from 'react-router';
-import { api, displayDateLong } from '../sdk';
+import { api, displayDateLong, AttentionCard } from '../sdk';
 
-export default function LinenShortageAlert() {
+export default function LinenShortageAlert({ attention }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
 
@@ -36,22 +37,9 @@ export default function LinenShortageAlert() {
     return null;
   }
 
-  const totalShortages = data.shortagesByType.length;
-  // Lead with the EARLIEST first-shortage date — the actionable date for the operator. The
-  // projection horizon (last reservation's checkout) is a meaningless upper bound here (a single
-  // far-future booking would push it months out), so it's no longer used in the title.
-  const earliestShortageDate = data.shortagesByType
-    .map((e) => e.firstShortageDate)
-    .filter(Boolean)
-    .sort()[0];
-
   return (
-    <Alert severity="error" variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}>
-      <AlertTitle sx={{ fontWeight: 700 }}>
-        Stock blanchisserie insuffisant — {totalShortages} type{totalShortages > 1 ? 's' : ''} de linge en rupture
-        {earliestShortageDate ? <> à partir du {displayDateLong(earliestShortageDate)}</> : null}
-      </AlertTitle>
-      <Stack spacing={2} sx={{ mt: 1 }}>
+    <AttentionCard attention={attention}>
+      <Stack spacing={2}>
         {data.shortagesByType.map((entry) => (
           <Box key={entry.type}>
             <Typography variant="body2" color="text.secondary">
@@ -81,6 +69,6 @@ export default function LinenShortageAlert() {
           </Box>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

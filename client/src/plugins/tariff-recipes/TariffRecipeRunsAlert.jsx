@@ -10,18 +10,19 @@
  * then it is precisely the reminder the mechanism exists for.
  *
  * Renders nothing when there is nothing to say, or on fetch error (a dashboard card must never
- * break the page). Mirrors the NewReservationsAlert pattern.
+ * break the page). Title, count and severity are the server's (specs/shell-and-home-day-first.md
+ * rule 6), drawn by `AttentionCard`.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, AlertTitle, Box, Typography, Divider, Stack, IconButton, Tooltip,
+  Box, Typography, Divider, Stack, IconButton, Tooltip,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate } from 'react-router';
-import { api } from '../sdk';
+import { api, AttentionCard } from '../sdk';
 
-export default function TariffRecipeRunsAlert() {
+export default function TariffRecipeRunsAlert({ attention }) {
   const navigate = useNavigate();
   const [runs, setRuns] = useState([]);
   const [missingEvents, setMissingEvents] = useState([]);
@@ -41,7 +42,6 @@ export default function TariffRecipeRunsAlert() {
 
   if (runs.length === 0 && missingEvents.length === 0) return null;
 
-  const hasBlocking = runs.some((run) => Number(run.blocking) === 1) || missingEvents.length > 0;
   const open = (run) => navigate(`/properties/${run.propertyId}/pricing-seasons`);
   const dismiss = async (event, run) => {
     event.stopPropagation();
@@ -50,14 +50,8 @@ export default function TariffRecipeRunsAlert() {
   };
 
   return (
-    <Alert
-      severity={hasBlocking ? 'warning' : 'info'}
-      variant="outlined"
-      sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}
-      icon={false}
-    >
-      <AlertTitle sx={{ fontWeight: 700 }}>Calendrier saisonnier</AlertTitle>
-      <Stack divider={<Divider flexItem />} spacing={0.5} sx={{ mt: 1 }}>
+    <AttentionCard attention={attention}>
+      <Stack divider={<Divider flexItem />} spacing={0.5}>
         {runs.map((run) => (
           <Box
             key={run.id}
@@ -114,6 +108,6 @@ export default function TariffRecipeRunsAlert() {
           </Box>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

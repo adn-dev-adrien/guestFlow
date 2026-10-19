@@ -158,7 +158,7 @@ export default function EmailManualSendDialog({
               display: 'flex',
               gap: 1.5,
               p: 1.5,
-              bgcolor: 'info.lighter',
+              bgcolor: 'info.soft',
               border: '1px solid',
               borderColor: 'info.light',
               borderRadius: 1,

@@ -1,6 +1,7 @@
 // @ts-check
 // DS phase-5 mobile smoke (specs/ds-sweep-planning.md §7). /planning at 390px:
-//   - the sticky PageActionBar is visible on arrival (title shown on xs via titleOnXs);
+//   - the page title is visible on arrival (on xs it is the top bar's heading,
+//     specs/shell-and-home-day-first.md rule 15);
 //   - the date cluster renders as the compact strip under the bar (bar `center` is hidden on xs);
 //   - no page-level horizontal scroll;
 //   - the page scrolls through the WINDOW (no own scroll container — rule 6), so the bar
@@ -12,7 +13,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 test('Planning on xs: sticky bar + date strip, no horizontal scroll, window scroll keeps the bar', async ({ page }) => {
   await page.goto('/planning');
 
-  // Bar title visible on xs (titleOnXs) — pins « bandeau visible à l'ouverture ».
+  // Title visible on xs (the top bar's heading) — pins « bandeau visible à l'ouverture ».
   await expect(page.getByRole('heading', { name: 'Planning' })).toBeVisible({ timeout: 10_000 });
 
   // The xs date strip renders the date input + nav arrows below the bar. The bar `center`

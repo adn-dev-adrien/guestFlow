@@ -1,13 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Box, Typography, Card, CardContent, Grid, Checkbox,
-  Alert, Button, Divider, TextField, Tooltip, IconButton, Stack, TableRow, TableCell,
+  Box, Typography, Checkbox,
+  Alert, Button, TextField, Tooltip, IconButton, Stack, TableRow, TableCell,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import EventIcon from '@mui/icons-material/Event';
-import TodayIcon from '@mui/icons-material/Today';
-import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageActionBar from '../components/PageActionBar';
@@ -15,17 +12,8 @@ import ResponsiveTable from '../components/ResponsiveTable';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
-import PaymentDeadlinesAlert from '../components/PaymentDeadlinesAlert';
-import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
-import IcalCancellationAlert from '../components/IcalCancellationAlert';
-import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
-import NewReservationsAlert from '../components/NewReservationsAlert';
-import RepairedReservationNumbersAlert from '../components/RepairedReservationNumbersAlert';
-import EmailPendingAlert from '../components/EmailPendingAlert';
-import EmailReadinessAlert from '../components/EmailReadinessAlert';
-import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
-import TwoFactorNudgeCard from '../components/TwoFactorNudgeCard';
-import Slot from '../plugins/sdk/Slot';
+import AttentionInbox, { AttentionPinned } from '../components/AttentionInbox';
+import useAttention from '../hooks/useAttention';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -62,19 +50,19 @@ export default function Dashboard() {
   const { showError } = useToast();
   const { user } = useAuth();
   // specs/reception-role-checkin-only.md §3.3 — a reception-only user gets a reduced, finance-free
-  // home: arrivals/departures lists only (no Paiements column, no KPI tiles, no admin alert banners,
-  // no month calendar). A row tap opens the SAS on the Planning via the deep-link.
+  // home: arrivals/departures lists only (no Paiements column, no attention subjects, no month
+  // calendar). A row tap opens the SAS on the Planning via the deep-link.
   const receptionMode = isReceptionOnly(user);
-  // The email readiness is an admin read (`GET /api/email-readiness`): an accountant would get a 403.
-  const isAdmin = userHasRole(user, ADMIN);
+  // What asks for the operator, counted and ordered by the server (specs/shell-and-home-day-first.md §3.B).
+  // An admin read: any other role makes no call (it would collect a 403).
+  const showAttention = userHasRole(user, ADMIN) && !receptionMode;
+  const attention = useAttention({ enabled: showAttention });
   // A reception account only acts through the SAS: without it (outside the plan, failed) a row leads
   // nowhere, so it is not offered as a link.
   const sasOn = usePlugin(SAS);
-  const [properties, setProperties] = useState([]);
-  const [reservations, setReservations] = useState([]);
   // The server's date (specs/ds-sweep-planning.md rule 28); nothing loads before it is known.
   const todayStr = useServerToday();
-  const [pickedDate, setSelectedDate] = useState(null);
+  const [pickedDate, setPickedDate] = useState(null);
   const selectedDate = pickedDate || todayStr;
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
@@ -114,17 +102,11 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     const seq = ++loadSeq.current;
     const isCurrent = () => seq === loadSeq.current;
-    const from = todayStr;
-    const to = addDays(todayStr, 30);
     // Fetch reservations starting from selectedDate if it's in the past
     const fetchFrom = selectedDate < todayStr ? selectedDate : todayStr;
 
     try {
-      const [props, resv, allUpcoming] = await Promise.all([
-        api.getProperties(),
-        api.getReservations({ from, to }),
-        api.getReservations({ from: fetchFrom }),
-      ]);
+      const allUpcoming = await api.getReservations({ from: fetchFrom });
 
       const arrivalsBase = allUpcoming
         .filter((r) => r.startDate === selectedDate)
@@ -138,8 +120,6 @@ export default function Dashboard() {
         Promise.all(departuresBase.map((r) => api.getReservation(r.id))),
       ]);
       if (!isCurrent()) return;
-      setProperties(props);
-      setReservations(resv);
       setArrivalsToday(arrivalsDetailed);
       setDeparturesToday(departuresDetailed);
       setLoadError(false);
@@ -169,18 +149,18 @@ export default function Dashboard() {
   // (PageActionBar hides `center` on xs). specs/ds-sweep-planning.md rule 1.
   const renderDateNav = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-      <IconButton size="small" onClick={() => setSelectedDate(addDays(selectedDate, -1))} disabled={!selectedDate} aria-label="Jour précédent">
+      <IconButton size="small" onClick={() => setPickedDate(addDays(selectedDate, -1))} disabled={!selectedDate} aria-label="Jour précédent">
         <NavigateBeforeIcon />
       </IconButton>
       <TextField
         type="date"
         size="small"
         value={selectedDate || ''}
-        onChange={(e) => setSelectedDate(e.target.value)}
+        onChange={(e) => setPickedDate(e.target.value)}
         sx={{ width: 165 }}
         slotProps={{ htmlInput: { style: { padding: '6px 10px' }, 'aria-label': 'Date affichée' } }}
       />
-      <IconButton size="small" onClick={() => setSelectedDate(addDays(selectedDate, 1))} disabled={!selectedDate} aria-label="Jour suivant">
+      <IconButton size="small" onClick={() => setPickedDate(addDays(selectedDate, 1))} disabled={!selectedDate} aria-label="Jour suivant">
         <NavigateNextIcon />
       </IconButton>
       {selectedDate !== todayStr && (
@@ -190,13 +170,6 @@ export default function Dashboard() {
       )}
     </Box>
   );
-
-  // KPI tiles — neutral « Maison » (phase-4 precedent; specs/ds-sweep-planning.md rule 18).
-  const kpiCards = [
-    { label: 'Logements', value: properties.length, icon: HomeWorkIcon, accent: 'primary.main', to: '/properties' },
-    { label: 'Réservations (30j)', value: reservations.length, icon: EventIcon, accent: 'secondary.main', to: '/reservations/upcoming' },
-    { label: 'Arrivées (date sélectionnée)', value: arrivalsToday.length, icon: TodayIcon, accent: 'warning.main', to: '/planning' },
-  ];
 
   const checkboxCell = (title, checked, onChange, checkboxSx, disabled = false) => (
     <Tooltip title={title}>
@@ -361,57 +334,16 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <PageActionBar title="Tableau de bord" titleOnXs center={renderDateNav()} />
+      <PageActionBar title="Tableau de bord" center={renderDateNav()} />
       {/* xs fallback for the bar's hidden `center` — same date cluster, compact strip. */}
       <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
         {renderDateNav()}
       </Box>
 
-      {/* Admin operational banners — hidden for the reception role (they drive admin-only workflows
-          like iCal approvals, the manual email queue, and website booking requests). */}
-      {!receptionMode && (
-        <>
-          {/* New GuestFlow version published (specs/self-update-and-releases.md §6.1). Admin-only,
-              self-contained: renders nothing when up to date, postponed, or already updating. */}
-          <UpdateAvailableAlert />
-          {/* An admin without a second step (specs/hosting-h2-account-security.md rule 10). Renders
-              nothing once it is on, or for 30 days after « Plus tard ». */}
-          <TwoFactorNudgeCard />
-          {/* Échéances de paiement dépassées (specs/payment-schedule-and-cancellation.md §3.4).
-              Sits high: it is the only surface that says an acompte or un solde is late, and the
-              only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}
-          <PaymentDeadlinesAlert />
-          {/* Urgent plugin alerts — e.g. gate keys Sowel could not make, or a Sowel that stopped
-              reading the list (specs/gate-access-sowel-connector.md §3.3): a guest at a closed gate
-              is the cost of missing it, hence high (specs/plugins-phase-1-sdk.md rule 13). */}
-          <Slot name="dashboard.alerts.urgent" />
-          {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
-              Self-contained: renders nothing when no pending drift exists. */}
-          <IcalDateDriftAlert />
-          {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
-              contained: renders nothing when no pending cancellation exists. */}
-          <IcalCancellationAlert />
-          {/* Indemnités d'annulation en attente de versement (specs/cancellation-compensation.md
-              §3.4). Sits right under the cancellations that create them; renders nothing when no
-              compensation is pending. */}
-          <CancellationCompensationsPendingAlert />
-          {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
-              notification; renders nothing when nothing was imported today. */}
-          <NewReservationsAlert />
-          {/* Stays left without a number and numbered at boot (specs/reservation-number-and-search.md
-              rule 15): possibly ghosts still blocking their dates. Renders nothing once all are checked. */}
-          <RepairedReservationNumbersAlert />
-          {/* The other plugin alerts, e.g. the linen shortage, the tariff-recipe runs to review and the
-              website requests still pending (specs/plugins-phase-2-hosts.md rules 15, 25). */}
-          <Slot name="dashboard.alerts" />
-          {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
-              nothing when no manual email is pending. */}
-          <EmailPendingAlert />
-          {/* Emails that would leave incomplete before an arrival (specs/guest-email-texts-made-simple.md
-              rule 7). Renders nothing when nothing concerns a stay within 14 days. */}
-          {isAdmin && <EmailReadinessAlert />}
-        </>
-      )}
+      {/* The day first (specs/shell-and-home-day-first.md rules 1–3): the gate keys and the payment
+          deadlines stay unfolded above it; everything else waits in « À traiter » below it. The KPI
+          tiles left the home (decision 1) — their figures live in Suivi financier. */}
+      {showAttention && <AttentionPinned subjects={attention.pinned} />}
 
       {loadError ? (
         <ErrorAlert message="Impossible de charger le tableau de bord." onRetry={() => setReloadNonce((n) => n + 1)} sx={{ mb: 3 }} />
@@ -419,38 +351,6 @@ export default function Dashboard() {
         <LoadingState label="Chargement du tableau de bord…" />
       ) : (
         <>
-          {/* Summary cards — neutral « Maison » KPI tiles (admin only; reception sees just the lists) */}
-          {!receptionMode && (
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            {kpiCards.map((c) => {
-              const Icon = c.icon;
-              return (
-                <Grid key={c.label} size={{ xs: 12, sm: 4 }}>
-                  <Card
-                    onClick={() => navigate(c.to)}
-                    sx={{
-                      height: '100%',
-                      cursor: 'pointer',
-                      borderLeft: '3px solid',
-                      borderColor: c.accent,
-                      transition: 'transform .1s, box-shadow .1s',
-                      '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 },
-                    }}
-                  >
-                    <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Icon sx={{ fontSize: 40, color: c.accent }} />
-                      <Box>
-                        <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>{c.label}</Typography>
-                        <Typography variant="kpiValue">{c.value}</Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
-          )}
-
           {/* Daily departures / arrivals — DEPARTURES FIRST (issue #427,
               specs/reception-role-checkin-only.md §6): the day runs in that order, the departures are
               handled in the morning and the arrivals in the afternoon, so the first list is the one
@@ -488,16 +388,15 @@ export default function Dashboard() {
             </Box>
           </Stack>
 
+          {showAttention && <AttentionInbox items={attention.items} total={attention.total} />}
+
           {/* Cumulative month calendar — the SAME component as the Calendrier page (no duplication).
               Hidden for reception (finance-free home is arrivals/departures only, §3.3). */}
           {!receptionMode && (
-            <>
-              <Divider sx={{ my: 3 }} />
-              <CumulativeMonthCalendar
-                onReservationClick={(id) => navigate(withFrom(`/reservations/${id}`, '/'))}
-                onCreateReservation={(startDate) => navigate(withFrom(`/reservations/new?startDate=${startDate}`, '/'))}
-              />
-            </>
+            <CumulativeMonthCalendar
+              onReservationClick={(id) => navigate(withFrom(`/reservations/${id}`, '/'))}
+              onCreateReservation={(startDate) => navigate(withFrom(`/reservations/new?startDate=${startDate}`, '/'))}
+            />
           )}
         </>
       )}
