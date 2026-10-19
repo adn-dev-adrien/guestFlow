@@ -91,6 +91,7 @@ test('rule 12 — the caution follows the order of events', () => {
   assert.deepEqual([row.cautionReceived, row.cautionReturned, row.cautionReturnedDate], [1, 1, '2026-08-21']);
 });
 
+// specs/single-payment-from-the-fiche.md rule 11bis — extended to the caution columns.
 test('rule 13 — the save never writes a payment state: forged caution columns are ignored', async () => {
   const id = createStay();
   const res = await save(id, { cautionReceived: true, cautionReceivedDate: '2026-08-01', cautionReturned: true, cautionReturnedDate: '2026-08-02' });
@@ -164,6 +165,7 @@ test('rule 32 — a zero bucket is never marked: no action on the row, and the s
   assert.deepEqual(res.body, { error: 'Rien à percevoir sur cette échéance.', code: 'NOTHING_TO_COLLECT', field: 'depositPaid' });
   assert.equal(rowOf(id).depositPaid, 0);
   assert.equal(mark(id, { complementPaid: true, complementPaidDate: TODAY }).statusCode, 409, 'no complement either');
+  assert.equal(mark(id, { complementPaidCash: true }).statusCode, 409, 'nor through the caisse interne');
 });
 
 test('rule 32 — a 0 € acompte already stored as perceived is shown with a warning', async () => {

@@ -1700,8 +1700,11 @@ function paymentMarkRefusal(row, body, today) {
       complementPaid: [deferredZero ? Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0) : row.complementAmount, row.complementPaid],
       endOfStayComplementPaid: [row.endOfStayComplementAmount, row.endOfStayComplementPaid],
     };
+    const cashOf = { complementPaid: 'complementPaidCash', endOfStayComplementPaid: 'endOfStayComplementPaidCash' };
+    const marks = (field) => body[field] === true || body[field] === 1
+      || (cashOf[field] && (body[cashOf[field]] === true || body[cashOf[field]] === 1));
     for (const [field, [amount, already]] of Object.entries(amountOf)) {
-      if ((body[field] === true || body[field] === 1) && Number(already || 0) !== 1 && !(round2(amount) > 0)) {
+      if (marks(field) && Number(already || 0) !== 1 && !(round2(amount) > 0)) {
         return { status: 409, body: { error: 'Rien à percevoir sur cette échéance.', code: 'NOTHING_TO_COLLECT', field } };
       }
     }

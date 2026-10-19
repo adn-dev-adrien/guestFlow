@@ -2,6 +2,8 @@
 // does to them (rules 28-31; §9 Q3 decided 2026-10-19: retire at save, « Renvoyer la demande » on the
 // still-due row, a late payment of the old link still recorded at its real amount). A fake provider
 // stands in for Qonto: nothing leaves the process.
+//
+// The same behaviour, from the online-payment side: specs/plugins-phase-3a-online-payment.md rule 26.
 
 process.env.DB_PATH = ':memory:';
 

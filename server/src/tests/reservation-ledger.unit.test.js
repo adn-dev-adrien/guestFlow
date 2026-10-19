@@ -257,3 +257,13 @@ test('rule 12 — caution states: « Après réception » until received, then �
   assert.equal(rowOf(received, 'cautionReturned').action.label, 'Restituer');
   assert.equal(rowOf(received, 'cautionReturned').action.after, '2027-07-22');
 });
+
+// specs/adjustable-complement-amounts.md rule 9 — a complement adjusted down to 0 € keeps its row,
+// otherwise the operator could no longer clear the adjustment.
+test('adjustable-complement rule 9 — a complement adjusted to 0 € keeps its row', () => {
+  const ledger = buildLedger({ row: directRow({ complementAmountOverride: 0 }), quote: directQuote({ complementAmount: 0 }), today: TODAY });
+  const row = rowOf(ledger, 'complement');
+  assert.ok(row);
+  assert.equal(row.amount, 0);
+  assert.equal(row.action, null, 'nothing to mark at 0 €');
+});
