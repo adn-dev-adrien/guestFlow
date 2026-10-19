@@ -537,6 +537,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Moved 2026-10-08 with H2 (specs/hosting-h2-account-security.md rule 11): the TOTP and
       backup-code helpers live in `server/src/utils/totp.js`, shared with the instance's own second
       step; the console requires them through `utils/gf.js`. Behaviour unchanged.
+    - The code field (2026-10-19, UI/UX review proposal 23): the instance's `OneTimeCodeField`
+      (specs/hosting-h2-account-security.md rules 32–34) — six cells, sent at the 6th digit or at a
+      whole backup code, no « Valider », the refusal under the cells. A 5-digit code is no longer sent.
 32. **The console's Qonto connection** (added 2026-09-30 with C2b, §9 Q12, Q14).
     - The console invoices from the Qonto organisation that sells GuestFlow, **ADN Dev**, never from
       a customer's or Solio's.
