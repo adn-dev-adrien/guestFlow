@@ -12,7 +12,7 @@ import ResponsiveTable from '../components/ResponsiveTable';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
-import AttentionInbox, { AttentionPinned } from '../components/AttentionInbox';
+import AttentionInbox, { AttentionPinned, LegacyPluginAlerts } from '../components/AttentionInbox';
 import useAttention from '../hooks/useAttention';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
@@ -344,6 +344,8 @@ export default function Dashboard() {
           deadlines stay unfolded above it; everything else waits in « À traiter » below it. The KPI
           tiles left the home (decision 1) — their figures live in Suivi financier. */}
       {showAttention && <AttentionPinned subjects={attention.pinned} />}
+      {/* Plugin packages older than SDK 1.3.0 keep their own alert (rule 22). */}
+      {showAttention && attention.loaded && <LegacyPluginAlerts declared={attention.declared} />}
 
       {loadError ? (
         <ErrorAlert message="Impossible de charger le tableau de bord." onRetry={() => setReloadNonce((n) => n + 1)} sx={{ mb: 3 }} />
@@ -388,7 +390,7 @@ export default function Dashboard() {
             </Box>
           </Stack>
 
-          {showAttention && <AttentionInbox items={attention.items} total={attention.total} />}
+          {showAttention && <AttentionInbox items={attention.items} total={attention.total} unavailableLabel={attention.unavailableLabel} />}
 
           {/* Cumulative month calendar — the SAME component as the Calendrier page (no duplication).
               Hidden for reception (finance-free home is arrivals/departures only, §3.3). */}

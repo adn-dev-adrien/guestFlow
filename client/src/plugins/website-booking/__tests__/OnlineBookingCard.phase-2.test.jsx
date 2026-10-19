@@ -60,7 +60,7 @@ const renderPage = () => render(<MemoryRouter><TermsSettingsPage /></MemoryRoute
 test('specs/plugins-phase-2-hosts.md rule 25 — the CGV page shows the plugin card and its alert while website-booking is active', async () => {
   mockAuth.user.enabledPlugins = ['website-booking'];
   renderPage();
-  expect(await screen.findByText('Réservation en ligne')).toBeInTheDocument();
+  expect(await screen.findByText('Réservation en ligne', {}, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.getByText(/réservation en ligne fermée/)).toBeInTheDocument();
   expect(api.getOnlineBooking).toHaveBeenCalledTimes(1);
 });
@@ -68,7 +68,7 @@ test('specs/plugins-phase-2-hosts.md rule 25 — the CGV page shows the plugin c
 test('specs/plugins-phase-2-hosts.md rule 25 — without website-booking the CGV page has neither card nor alert', async () => {
   mockAuth.user.enabledPlugins = [];
   renderPage();
-  expect(await screen.findByText('Brouillon')).toBeInTheDocument();
+  expect(await screen.findByText('Brouillon', {}, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.queryByText('Réservation en ligne')).not.toBeInTheDocument();
   expect(screen.queryByText(/réservation en ligne fermée/)).not.toBeInTheDocument();
   expect(api.getOnlineBooking).not.toHaveBeenCalled();
@@ -79,7 +79,7 @@ test('specs/plugins-phase-2-hosts.md rule 25 — « Demandes du site » is a das
   // The count and words are the server's (specs/shell-and-home-day-first.md rule 6); the slot passes them.
   const attention = { key: 'site-requests', severity: 'info', count: 2, title: 'Demandes de devis depuis le site', detail: '2 devis en attente' };
   const { unmount } = render(<MemoryRouter><Slot name="dashboard.alerts" attention={attention} /></MemoryRouter>);
-  expect(await screen.findByText('Demandes de devis depuis le site')).toBeInTheDocument();
+  expect(await screen.findByText('Demandes de devis depuis le site', {}, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.getByText('2 devis en attente')).toBeInTheDocument();
   unmount();
 

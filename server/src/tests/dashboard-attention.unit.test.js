@@ -6,7 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { payloadOf } = require('../utils/handlerPayload');
-const { CORE_SUMMARIES, buildAttention, PINNED_KEYS } = require('../utils/dashboardAttention');
+const { CORE_SUMMARIES, buildAttention, PINNABLE_KEYS } = require('../utils/dashboardAttention');
 const { buildController, livePluginSources } = require('../controllers/dashboardAttentionController');
 const registry = require('../plugins/sdk/registry');
 const { createContext } = require('../plugins/sdk/createContext');
@@ -27,31 +27,46 @@ const fakeRes = () => {
 
 test('rule 7: payloadOf returns the JSON a handler answers, sync or async, with the caller session', async () => {
   const req = { session: { user: { id: 3 } }, query: { a: '1' } };
-  assert.deepEqual(await payloadOf((r, res) => res.json({ who: r.session.user.id }), req), { who: 3 });
-  assert.deepEqual(await payloadOf(async (r, res) => { await null; res.json({ q: r.query }); }, req, { query: { b: '2' } }), { q: { a: '1', b: '2' } });
+  assert.deepEqual(await payloadOf((r, res) => res.json({ who: r.session.user.id }), req), { ok: true, body: { who: 3 } });
+  assert.deepEqual(await payloadOf(async (r, res) => { await null; res.json({ q: r.query }); }, req, { query: { b: '2' } }), { ok: true, body: { q: { a: '1', b: '2' } } });
   assert.deepEqual(req.query, { a: '1' }, 'the caller request is left untouched');
 });
 
-test('rule 4: payloadOf resolves null on an error status, a throw, next() or no answer', async () => {
-  assert.equal(await payloadOf((r, res) => res.status(500).json({ error: 'x' }), {}), null);
-  assert.equal(await payloadOf(() => { throw new Error('boom'); }, {}), null);
-  assert.equal(await payloadOf(async () => { throw new Error('boom'); }, {}), null);
-  assert.equal(await payloadOf((r, res, next) => next(new Error('x')), {}), null);
-  assert.equal(await payloadOf(() => {}, {}), null);
+test('rule 20: payloadOf reports a failure — error status, throw, next() or no answer — with its reason', async () => {
+  assert.deepEqual(await payloadOf((r, res) => res.status(500).json({ error: 'DB_DOWN' }), {}), { ok: false, reason: 'HTTP 500 DB_DOWN' });
+  assert.deepEqual(await payloadOf(() => { throw new Error('boom'); }, {}), { ok: false, reason: 'boom' });
+  assert.deepEqual(await payloadOf(async () => { throw new Error('late boom'); }, {}), { ok: false, reason: 'late boom' });
+  assert.deepEqual(await payloadOf((r, res, next) => next(new Error('x')), {}), { ok: false, reason: 'x' });
+  assert.deepEqual(await payloadOf(() => {}, {}), { ok: false, reason: 'no answer' });
 });
 
 test('rule 6: payment deadlines — count, « N en retard · M à demander », worst row severity', () => {
   const rows = [
-    { state: 'deposit_late', severity: 'warning' },
-    { state: 'balance_late', severity: 'error' },
+    { state: 'deposit_overdue', severity: 'warning' },
+    { state: 'cancel_due', severity: 'error' },
     { state: 'deposit_to_request', severity: 'info' },
   ];
   assert.deepEqual(CORE_SUMMARIES['payment-deadlines']({ rows }), {
-    count: 3, title: 'Échéances de paiement', detail: '2 en retard · 1 à demander', severity: 'urgent',
+    count: 3, title: 'Échéances de paiement', detail: '2 en retard · 1 à demander', severity: 'urgent', pinned: true,
   });
   assert.equal(CORE_SUMMARIES['payment-deadlines']({ rows: [{ state: 'balance_to_request', severity: 'info' }] }).detail, '1 à demander');
   assert.equal(CORE_SUMMARIES['payment-deadlines']({ rows: [{ state: 'balance_to_request', severity: 'info' }] }).severity, 'info');
   assert.equal(CORE_SUMMARIES['payment-deadlines']({ rows: [] }), null);
+});
+
+test('rule 21: payment deadlines are pinned only while a line is truly late; a missing amount is not « en retard »', () => {
+  const pay = CORE_SUMMARIES['payment-deadlines'];
+  ['deposit_overdue', 'balance_overdue', 'cancel_due', 'unpaid_at_arrival', 'platform_payout_overdue'].forEach((state) => {
+    assert.equal(pay({ rows: [{ state, severity: 'warning' }] }).pinned, true, state);
+  });
+  const todo = pay({ rows: [{ state: 'deposit_to_request', severity: 'info' }, { state: 'platform_amount_missing', severity: 'warning' }] });
+  assert.equal(todo.pinned, false);
+  assert.equal(todo.detail, '1 à demander · 1 montant à saisir');
+  const out = buildAttention([{ key: 'payment-deadlines', rank: 20, summary: todo }]);
+  assert.deepEqual(out.pinned, []);
+  assert.deepEqual(out.items.map((x) => x.key), ['payment-deadlines']);
+  assert.equal(out.total, 2);
+  assert.equal(pay({ rows: [{ state: 'platform_amount_missing', severity: 'warning' }, { state: 'platform_amount_missing', severity: 'warning' }] }).detail, '2 montants à saisir');
 });
 
 test('rule 6: core subjects — titles, plurals and severities come from the server', () => {
@@ -96,11 +111,16 @@ test('rules 3, 5: order by severity then rank; gate keys and payments pinned; to
   assert.deepEqual(out.items.map((x) => x.key), ['linen-shortage', 'ical-date-drift', 'ical-cancellation', 'new-reservations', 'email-pending']);
   assert.equal(out.total, 4 + 3 + 1 + 1 + 2);
   assert.deepEqual(Object.keys(out.items[0]).sort(), ['count', 'detail', 'key', 'severity', 'title']);
-  assert.ok(PINNED_KEYS.has('gate-keys') && PINNED_KEYS.has('payment-deadlines'));
+  assert.deepEqual([...PINNABLE_KEYS].sort(), ['gate-keys', 'payment-deadlines']);
+  assert.deepEqual(out.unavailable, []);
+  // A key that may not be pinned stays in the box even when its summary asks.
+  assert.deepEqual(buildAttention([{ key: 'linen-shortage', rank: 1, summary: { ...s(1, 'urgent'), pinned: true } }]).pinned, []);
 });
 
-test('rule 4: the controller reads every source; a failing source is absent, the others stay', async () => {
+test('rules 4, 20: the controller reads every source; a failing one is logged and named, the others stay', async () => {
+  const warnings = [];
   const controller = buildController({
+    logger: { warn: (line) => warnings.push(line) },
     coreSources: () => [
       { key: 'ical-date-drift', rank: 10, handler: (req, res) => res.json({ alerts: [{}, {}] }) },
       { key: 'ical-cancellation', rank: 20, handler: () => { throw new Error('db down'); } },
@@ -115,16 +135,34 @@ test('rule 4: the controller reads every source; a failing source is absent, the
     ],
     pluginSources: () => [
       { key: 'site-requests', rank: 20, handler: (req, res) => res.json({ alerts: [{}] }), summarize: site.summarize },
+      { key: 'gate-keys', rank: 10, handler: (req, res) => res.status(503).json({ error: 'SOWEL' }), summarize: gate.summarize },
     ],
   });
   const res = fakeRes();
   await controller.attention({ session: { user: { id: 1, isSupport: false } }, query: {} }, res);
   assert.deepEqual(res.body.items.map((x) => x.key), ['ical-date-drift', 'cancellation-compensations', 'site-requests', 'two-factor']);
   assert.equal(res.body.total, 5);
+  assert.deepEqual(res.body.unavailable.sort(), ['ical-cancellation', 'new-reservations']);
+  assert.equal(res.body.unavailableLabel, '2 sujets indisponibles');
+  // The gate keys cannot be read: still pinned, urgent, and saying so.
+  assert.deepEqual(res.body.pinned, [{ key: 'gate-keys', severity: 'urgent', count: 1, title: 'Clés portail', detail: 'Lecture des clés impossible' }]);
+  assert.deepEqual(res.body.declared.sort(), ['cancellation-compensations', 'gate-keys', 'ical-cancellation', 'ical-date-drift', 'new-reservations', 'site-requests', 'two-factor']);
+  assert.deepEqual(warnings.sort(), [
+    '[attention] source gate-keys failed: HTTP 503 SOWEL',
+    '[attention] source ical-cancellation failed: db down',
+    '[attention] source new-reservations failed: HTTP 500',
+  ]);
 
   const support = fakeRes();
   await controller.attention({ session: { user: { id: 1, isSupport: true } }, query: {} }, support);
   assert.ok(!support.body.items.some((x) => x.key === 'two-factor'), 'a support session gets no 2FA nudge');
+});
+
+test('rule 20: one unavailable subject reads « 1 sujet indisponible »', () => {
+  const out = buildAttention([{ key: 'email-pending', rank: 30, failed: true, summary: null }]);
+  assert.deepEqual(out.unavailable, ['email-pending']);
+  assert.equal(out.unavailableLabel, '1 sujet indisponible');
+  assert.equal(buildAttention([]).unavailableLabel, '');
 });
 
 test('rule 9: ctx.attention declares a plugin subject; only live plugins contribute', () => {
@@ -143,8 +181,11 @@ test('rule 6: plugin subjects — gate keys, linen, recipes, Gîtes de France, B
   assert.deepEqual(gate.summarize({ failures: [{}, {}], stale: true }),
     { count: 3, title: 'Clés portail', detail: 'Sowel ne lit plus les clés · 2 clés en échec', severity: 'urgent' });
   assert.equal(gate.summarize({ failures: [], stale: false }), null);
-  assert.equal(linen.summarize({ shortagesByType: [{ firstShortageDate: '2026-10-23' }, { firstShortageDate: '2026-10-21' }] }).detail,
+  const now = new Date('2026-10-19T10:00:00Z');
+  assert.equal(linen.summarize({ shortagesByType: [{ firstShortageDate: '2026-10-23' }, { firstShortageDate: '2026-10-21' }] }, now).detail,
     '2 types en rupture à partir du 21 octobre');
+  assert.equal(linen.summarize({ shortagesByType: [{ firstShortageDate: '2027-01-04' }] }, now).detail,
+    '1 type en rupture à partir du 4 janvier 2027');
   assert.equal(linen.summarize({ shortagesByType: [] }), null);
   assert.equal(recipes.summarize({ runs: [{ blocking: 0 }], missingEvents: [] }).severity, 'info');
   assert.equal(recipes.summarize({ runs: [{ blocking: 1 }], missingEvents: [] }).severity, 'todo');

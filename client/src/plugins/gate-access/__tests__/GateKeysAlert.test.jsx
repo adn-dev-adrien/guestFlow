@@ -44,11 +44,12 @@ test('renders nothing when no key failed and Sowel reads', async () => {
   expect(container).toBeEmptyDOMElement();
 });
 
-test('renders nothing either when the server does not answer', async () => {
-  api.getGateKeysAlerts.mockRejectedValue(new Error('403'));
-  const { container } = render(<GateKeysAlert attention={ATTENTION} />);
-  await waitFor(() => expect(api.getGateKeysAlerts).toHaveBeenCalled());
-  expect(container).toBeEmptyDOMElement();
+// specs/shell-and-home-day-first.md rule 20 — an unreadable list is said, not hidden.
+test('when the list cannot be read, the pinned card says so with the server words', async () => {
+  api.getGateKeysAlerts.mockRejectedValue(new Error('503'));
+  render(<GateKeysAlert attention={{ ...ATTENTION, detail: 'Lecture des clés impossible' }} />);
+  expect(await screen.findByText('Lecture des clés impossible')).toBeInTheDocument();
+  expect(screen.getByText('Clés portail')).toBeInTheDocument();
 });
 
 // specs/gate-access-sowel-connector.md §3.3 rule 13

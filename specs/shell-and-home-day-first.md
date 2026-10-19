@@ -53,14 +53,15 @@ the top bar says which page is open.
    The home no longer loads the property list nor the 30-day reservation list for them.
 3. **Pinned subjects** (decision 2): the gate keys (`gate-keys`, plugin `gate-access`) and the payment
    deadlines (`payment-deadlines`) render unfolded, as cards, above « Départs », whatever their
-   severity. Every other subject is a row of « À traiter ».
+   severity. Every other subject is a row of « À traiter ». *(Amended 2026-10-19 by rule 21: the
+   payment deadlines are pinned only while a line is truly late.)*
 
 ### 3.B The attention payload — counts and order from the server
 
 4. `GET /api/dashboard/attention` returns `{ pinned, items, total }`. Each entry is
    `{ key, severity, count, title, detail }` — `severity` ∈ `urgent | todo | info`, `count` ≥ 1, `title`
-   and `detail` French, ready to render. A subject whose count is 0, or whose read fails, is absent: a
-   broken source never breaks the home.
+   and `detail` French, ready to render. A subject whose count is 0 is absent; a broken source never
+   breaks the home. *(Amended 2026-10-19 by rule 20: a source that fails is no longer silently absent.)*
 5. **Order**: `urgent` before `todo` before `info`; inside a severity, the subject's declared rank. Both
    lists follow it. `total` is the sum of the `items` counts — the « n » of « À traiter (n) »; pinned
    subjects are not in it.
@@ -69,8 +70,8 @@ the top bar says which page is open.
    | Key | Title | Detail | Severity | Rank |
    |---|---|---|---|---|
    | `gate-keys` (plugin, pinned) | Clés portail | « Sowel ne lit plus les clés » when stale, else « N clé(s) en échec » | urgent | 10 |
-   | `payment-deadlines` (pinned) | Échéances de paiement | « N en retard · M à demander » | worst row: error → urgent, warning → todo, info → info | 20 |
-   | `linen-shortage` (plugin) | Stock de linge insuffisant | « N type(s) en rupture à partir du <date> » | urgent | 30 |
+   | `payment-deadlines` (pinned while late, rule 21) | Échéances de paiement | « N en retard · M à demander · K montant(s) à saisir » | worst row: error → urgent, warning → todo, info → info | 20 |
+   | `linen-shortage` (plugin) | Stock de linge insuffisant | « N type(s) en rupture à partir du <date> » (the year when not this year) | urgent | 30 |
    | `booking-intake-urgent` (plugin) | Réservations Booking à compléter, arrivée proche | « N fiche(s) à compléter » | urgent | 40 |
    | `ical-date-drift` | Dates iCal à valider | « N changement(s) de dates » | todo | 10 |
    | `ical-cancellation` | Annulations iCal à valider | « N réservation(s) annulée(s) sur la plateforme » | todo | 20 |
@@ -124,7 +125,8 @@ the top bar says which page is open.
 ### 3.E Page title in the top bar on phones (proposal 14)
 
 15. On `xs` the top bar shows the open page's title, published by its `PageActionBar`, on one line with
-    an ellipsis — it is the page's heading (`h1`) there; the home shows the « GuestFlow » wordmark instead. `PageActionBar` never draws its
+    an ellipsis — it is the page's heading (`h1`) there; the home shows the « GuestFlow » wordmark instead,
+    as the home's `h1`. `PageActionBar` never draws its
     title on `xs` (the `titleOnXs` prop is removed), and on `xs` a bar with neither back button, actions
     nor tabs is not drawn at all. From `sm` up nothing changes.
 
@@ -135,12 +137,29 @@ the top bar says which page is open.
 17. The drawer is **256 px** wide and its labels wrap instead of being cut (decision 4).
 18. Each group's chevron is its own button, reachable with the keyboard, with `aria-expanded` and the
     name « Déplier <groupe> » / « Replier <groupe> »; the menu button of the phone bar is named
-    « Ouvrir le menu ».
+    « Ouvrir le menu » and carries `aria-expanded`.
 
 ### 3.G Fix found on the way
 
 19. The « Aujourd'hui » button of the home's date navigation brings the date back to today (it threw:
     it called a setter that did not exist).
+
+### 3.H Review of PR #725 (2026-10-19)
+
+20. **A source that cannot be read is said, never dropped in silence.** The server logs
+    `[attention] source <key> failed: <reason>` and lists the key in `unavailable`; « À traiter » ends
+    with « N sujet(s) indisponible(s) » (`unavailableLabel`, server-made). The gate keys are the
+    exception: unreadable, they stay pinned, `urgent`, detail « Lecture des clés impossible ».
+21. **The payment deadlines are pinned only while a line is truly late** — `deposit_overdue`,
+    `balance_overdue`, `cancel_due`, `unpaid_at_arrival`, `platform_payout_overdue`. With only lines to
+    request (`*_to_request`) or amounts to type (`platform_amount_missing`), the subject is a row of
+    « À traiter ». A missing platform amount is not counted « en retard »: it reads « N montant(s) à
+    saisir ».
+22. **A plugin package built for SDK < 1.3.0 keeps its home alert.** The payload lists every key it
+    asked (`declared`); a `dashboard.alerts(.urgent)` contribution whose key is not among them is
+    rendered as before, in card mode under the pinned subjects (`specs/plugins-phase-1-sdk.md` §3.C,
+    note of 2026-10-19). The SDK 1.3.0 plugins state `guestflow >=3.10.0`, the convention of the 1.2.0
+    bump (the core version of the branch that ships the SDK).
 
 **Edge cases:**
 - No subject at all → no pinned card, « À traiter » with « Rien à traiter. »
@@ -160,18 +179,18 @@ the top bar says which page is open.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `routes/` | `dashboard.js` | T | `GET /attention` |
+| `routes/` | `dashboard.js` | T | `GET /attention`; wires the core sources (`coreAttentionSources`, exported for the key check) |
+| `routes/` | `emails.js`, `emailReadiness.js` | T | Export their controller so the attention read calls the same handler |
 | `controllers/` | `dashboardAttentionController.js` | C | Reads every core subject and every live plugin subject through their own handlers, builds the payload |
-| `controllers/` | `dashboardController.js` | T | Exposes the payment-deadline rows to the attention controller (same builder as the card) |
 | `utils/` | `dashboardAttention.js` | C | Pure: severities, core subject summaries (titles, details, plurals), filter/sort/split/total |
-| `utils/` | `handlerPayload.js` | C | Runs an Express handler in-process and returns its JSON body (null on error status or throw) |
+| `utils/` | `handlerPayload.js` | C | Runs an Express handler in-process: `{ ok, body }` or `{ ok: false, reason }` (rule 20) |
 | `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | `ctx.attention(...)`, record field `attention`, SDK 1.3.0 |
-| `plugins/gate-access/` | `index.js`, `manifest.json` | T | Subject `gate-keys` (pinned) |
-| `plugins/linen/` | `index.js`, `manifest.json` | T | Subject `linen-shortage` |
-| `plugins/tariff-recipes/` | `index.js`, `manifest.json` | T | Subject `recipe-runs` |
-| `plugins/gites-de-france-intake/` | `index.js`, `manifest.json` | T | Subject `gdf-intake` |
-| `plugins/booking-intake/` | `index.js`, `routes.js`, `manifest.json` | T | Subjects `booking-intake`, `booking-intake-urgent` |
-| `plugins/website-booking/` | `index.js`, `manifest.json` | T | Subject `site-requests` |
+| `plugins/gate-access/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `gate-keys` (pinned) |
+| `plugins/linen/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `linen-shortage` |
+| `plugins/tariff-recipes/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `recipe-runs` |
+| `plugins/gites-de-france-intake/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `gdf-intake` |
+| `plugins/booking-intake/` | `index.js`, `attention.js`, `manifest.json` | T | Subjects `booking-intake`, `booking-intake-urgent` |
+| `plugins/website-booking/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `site-requests` |
 | `plugins/hourly-resources/`, `online-payment/`, `accounting-export/` | `manifest.json` | T | Version bump only (their client pages drop `titleOnXs`) |
 
 ### 4.2 Client side (`client/src/`)
@@ -180,7 +199,7 @@ the top bar says which page is open.
 |---|---|---|---|
 | `pages/` | `Dashboard.jsx` | T | New order, no KPI tiles, pinned + box, « Aujourd'hui » fix |
 | `components/` | `AttentionCard.jsx` | C | Generic: one dashboard subject, card or embedded |
-| `components/` | `AttentionInbox.jsx` | C | Generic: the « À traiter » box (rows, unfold in place) and the pinned cards |
+| `components/` | `AttentionInbox.jsx` | C | Generic: the « À traiter » box (rows, unfold in place, unavailable line), the pinned cards, and `LegacyPluginAlerts` for SDK < 1.3.0 packages |
 | `components/` | `attentionSubjects.js` | C | Key → component of each core subject, plus the plugin contributions by key |
 | `components/` | the ten core `*Alert.jsx` / `TwoFactorNudgeCard.jsx` | T | Render through `AttentionCard` with the server's `attention` |
 | `components/` | `PageActionBar.jsx` | T | Publishes its title; no title on `xs`; empty bar not drawn on `xs`; `titleOnXs` removed |
@@ -208,7 +227,7 @@ the top bar says which page is open.
 
 | Method | Endpoint | Response | Notes |
 |---|---|---|---|
-| GET | `/api/dashboard/attention` | `{ pinned: Subject[], items: Subject[], total: number }`, `Subject = { key, severity, count, title, detail }` | Admin only. Never fails because of one subject. |
+| GET | `/api/dashboard/attention` | `{ pinned: Subject[], items: Subject[], total: number, unavailable: string[], unavailableLabel: string, declared: string[] }`, `Subject = { key, severity, count, title, detail }` | Admin only. Never fails because of one subject; a failing one is named (rule 20). |
 
 ## 5. Data model
 
@@ -233,12 +252,14 @@ None.
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `tests/dashboard-attention.unit.test.js` — rules 4–9 (summaries, order, split, total, failing
-  source, plugin subjects through `ctx.attention`).
+- [x] `tests/dashboard-attention.unit.test.js` — rules 4–9, 20–21 (summaries, order, split, total,
+  failing source named and logged, conditional pinning, plugin subjects through `ctx.attention`).
+- [x] `tests/dashboard-attention-routes.unit.test.js` — rules 6, 8 (403 for reception and accountant,
+  support session without the 2FA nudge, every core key has a summary and a client component).
 
 ### Client tests (Vitest)
 - [x] `components/__tests__/AttentionCard.render.test.jsx` — rules 13, 14.
-- [x] `components/__tests__/AttentionInbox.render.test.jsx` — rules 3, 5, 10, 11.
+- [x] `components/__tests__/AttentionInbox.render.test.jsx` — rules 3, 5, 10, 11, 20, 22.
 - [x] `pages/__tests__/Dashboard.day-first.test.jsx` — rules 1, 2, 19.
 - [x] `components/__tests__/PageActionBar.mobile-title.test.jsx` — rule 15.
 - [x] `__tests__/App.drawer.test.jsx` — rules 16–18.

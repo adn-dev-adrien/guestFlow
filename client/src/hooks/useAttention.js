@@ -1,6 +1,6 @@
 /**
- * The home's attention payload (specs/shell-and-home-day-first.md §3.B): `{ pinned, items, total }`,
- * counted and ordered by the server. Read on mount and again after every write the app makes
+ * The home's attention payload (specs/shell-and-home-day-first.md §3.B): `{ pinned, items, total,
+ * unavailable, unavailableLabel, declared, loaded }`, counted and ordered by the server. Read on mount and again after every write the app makes
  * (rule 11), so a subject whose last item was handled leaves the box. `enabled: false` (reception)
  * makes no call at all.
  */
@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { DATA_CHANGED_EVENT } from '../constants/appEvents';
 
-const EMPTY = { pinned: [], items: [], total: 0 };
+const EMPTY = { pinned: [], items: [], total: 0, unavailable: [], unavailableLabel: '', declared: [], loaded: false };
 // Several writes in a row (« Tout solder », a check box then another) read the counts once.
 const SETTLE_MS = 250;
 
@@ -26,6 +26,10 @@ export default function useAttention({ enabled = true } = {}) {
         pinned: Array.isArray(payload?.pinned) ? payload.pinned : [],
         items: Array.isArray(payload?.items) ? payload.items : [],
         total: Number(payload?.total) || 0,
+        unavailable: Array.isArray(payload?.unavailable) ? payload.unavailable : [],
+        unavailableLabel: payload?.unavailableLabel || '',
+        declared: Array.isArray(payload?.declared) ? payload.declared : [],
+        loaded: true,
       });
     } catch {
       // The home keeps what it showed: a failed read never empties it nor breaks the page.

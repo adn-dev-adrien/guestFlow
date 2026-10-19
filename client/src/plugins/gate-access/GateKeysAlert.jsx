@@ -39,20 +39,26 @@ export default function GateKeysAlert({ attention }) {
   const navigate = useNavigate();
   const [failures, setFailures] = useState([]);
   const [stale, setStale] = useState(null);
+  // The list could not be read: the server says so in the pinned card (« Lecture des clés
+  // impossible », specs/shell-and-home-day-first.md rule 20) — draw that card rather than nothing.
+  const [unreadable, setUnreadable] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       const payload = await api.getGateKeysAlerts();
       setFailures(Array.isArray(payload?.failures) ? payload.failures : []);
       setStale(payload?.stale ? { lastReadAt: payload.lastReadAt || null } : null);
+      setUnreadable(false);
     } catch {
       setFailures([]);
       setStale(null);
+      setUnreadable(true);
     }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  if (unreadable) return <AttentionCard attention={attention} />;
   if (failures.length === 0 && !stale) return null;
 
   const open = (failure) => navigate(`/reservations/${failure.reservationId}`);

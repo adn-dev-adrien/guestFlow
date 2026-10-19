@@ -2,9 +2,12 @@
  * AttentionInbox — the home's « À traiter (n) » box, and `AttentionPinned`, the subjects that stay
  * unfolded above the day (specs/shell-and-home-day-first.md rules 3, 10–12).
  *
- * Props (both): the server's subjects, already counted and ordered (GET /api/dashboard/attention).
- *   AttentionInbox   { items: Subject[], total: number }
- *   AttentionPinned  { subjects: Subject[] }
+ * Props: the server's subjects, already counted and ordered (GET /api/dashboard/attention).
+ *   AttentionInbox        { items: Subject[], total: number, unavailableLabel?: string }
+ *   AttentionPinned       { subjects: Subject[] }
+ *   LegacyPluginAlerts    { declared: string[] } — the `dashboard.alerts(.urgent)` contributions whose
+ *                         key the server did not declare: a plugin package built for SDK < 1.3.0,
+ *                         which knows nothing of `ctx.attention`, keeps its alert as before (rule 22)
  *   Subject = { key, severity, count, title, detail }
  *
  * A subject's content is the component registered for its key — a core one (`attentionSubjects.js`)
@@ -37,6 +40,23 @@ function SubjectContent({ subject, components }) {
     <Suspense fallback={null}>
       <Component attention={subject} />
     </Suspense>
+  );
+}
+
+export function LegacyPluginAlerts({ declared }) {
+  const urgent = useSlot('dashboard.alerts.urgent');
+  const others = useSlot('dashboard.alerts');
+  const known = new Set(declared || []);
+  const legacy = [...urgent, ...others].filter(({ key }) => !known.has(key));
+  if (legacy.length === 0) return null;
+  return (
+    <Box data-testid="attention-legacy">
+      {legacy.map(({ key, pluginId, Component }) => (
+        <Suspense key={`${pluginId}:${key}`} fallback={null}>
+          <Component />
+        </Suspense>
+      ))}
+    </Box>
   );
 }
 
@@ -91,7 +111,7 @@ function InboxRow({ subject, open, onToggle, first, components, reducedMotion })
   );
 }
 
-export default function AttentionInbox({ items, total }) {
+export default function AttentionInbox({ items, total, unavailableLabel }) {
   const components = useSubjectComponents();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const headingId = useId();
@@ -110,7 +130,7 @@ export default function AttentionInbox({ items, total }) {
           {total || 0}
         </Typography>
       </Box>
-      {list.length === 0 ? (
+      {list.length === 0 && !unavailableLabel ? (
         <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>Rien à traiter.</Typography>
       ) : list.map((subject, index) => (
         <InboxRow
@@ -123,6 +143,17 @@ export default function AttentionInbox({ items, total }) {
           reducedMotion={reducedMotion}
         />
       ))}
+      {/* A source the server could not read is said, never dropped in silence (rule 20). */}
+      {unavailableLabel ? (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          data-testid="attention-unavailable"
+          sx={{ pt: 1, mt: list.length ? 0.5 : 0, borderTop: list.length ? '1px solid' : 0, borderColor: 'divider' }}
+        >
+          {unavailableLabel}
+        </Typography>
+      ) : null}
     </Box>
   );
 }

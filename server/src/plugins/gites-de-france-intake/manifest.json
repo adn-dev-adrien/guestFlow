@@ -10,7 +10,7 @@
     "Une alerte du tableau de bord"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0 <4.0.0",
+  "guestflow": ">=3.10.0 <4.0.0",
   "sdk": "^1.3.0",
   "changelog": {
     "1.0.0": [

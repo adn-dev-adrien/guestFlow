@@ -596,7 +596,7 @@ function AppShell() {
       <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Toolbar sx={{ gap: 1 }}>
           {isMobile && (
-            <IconButton edge="start" aria-label="Ouvrir le menu" onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
+            <IconButton edge="start" aria-label="Ouvrir le menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
               <MenuIcon />
             </IconButton>
           )}
@@ -627,8 +627,9 @@ function AppShell() {
                 </Typography>
               ) : (
                 // Wordmark in the « Maison » serif (specs/ds-sweep-planning.md rule 25) — same face
-                // as the page titles, keeps the primary green and the h6 size.
-                <Typography variant="h6" sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, color: 'primary.main' }}>
+                // as the page titles, keeps the primary green and the h6 size. On a phone's home it
+                // is the page's heading: the home's page bar is not drawn there (rule 15).
+                <Typography variant="h6" component={isPhone && location.pathname === '/' ? 'h1' : 'p'} sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, color: 'primary.main' }}>
                   GuestFlow
                 </Typography>
               )}

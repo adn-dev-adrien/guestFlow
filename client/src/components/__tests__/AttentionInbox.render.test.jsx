@@ -9,6 +9,16 @@ import { vi } from 'vitest';
 import theme from '../../theme';
 
 const { mockAuth } = vi.hoisted(() => ({ mockAuth: { user: { roles: ['admin'], enabledPlugins: [] } } }));
+// Two plugin contributions to the dashboard slots: one key the server declares (SDK ≥ 1.3.0), one it
+// does not (a package built for an older SDK).
+vi.mock('../../plugins/sdk/useSlot', () => ({
+  useSlot: (name) => (name === 'dashboard.alerts'
+    ? [
+      { key: 'site-requests', pluginId: 'website-booking', Component: () => <div>NEW_SDK_ALERT</div> },
+      { key: 'old-alert', pluginId: 'old-plugin', Component: () => <div>OLD_SDK_ALERT</div> },
+    ]
+    : []),
+}));
 vi.mock('../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => mockAuth }));
 // The core subjects' contents have their own suites; here each one only says it was mounted.
 vi.mock('../attentionSubjects', async () => {
@@ -25,7 +35,7 @@ vi.mock('../attentionSubjects', async () => {
   };
 });
 
-import AttentionInbox, { AttentionPinned } from '../AttentionInbox';
+import AttentionInbox, { AttentionPinned, LegacyPluginAlerts } from '../AttentionInbox';
 
 const S = (key, severity, count, title) => ({ key, severity, count, title, detail: `détail ${key}` });
 const ITEMS = [S('ical-cancellation', 'todo', 1, 'Annulations iCal à valider'), S('email-pending', 'info', 2, 'Emails à vérifier'), S('unknown-subject', 'info', 1, 'Sujet inconnu')];
@@ -87,5 +97,23 @@ test('rule 3: pinned subjects are drawn unfolded, as cards, with their content',
 
 test('rule 3: no pinned subject, nothing drawn', () => {
   const { container } = wrap(<AttentionPinned subjects={[]} />);
+  expect(container).toBeEmptyDOMElement();
+});
+
+test('rule 20: a source the server could not read is said under the rows', () => {
+  wrap(<AttentionInbox items={ITEMS.slice(0, 1)} total={1} unavailableLabel="1 sujet indisponible" />);
+  expect(screen.getByTestId('attention-unavailable')).toHaveTextContent('1 sujet indisponible');
+  wrap(<AttentionInbox items={[]} total={0} unavailableLabel="2 sujets indisponibles" />);
+  expect(screen.queryByText('Rien à traiter.')).not.toBeInTheDocument();
+});
+
+test('rule 22: a plugin contribution whose key the server did not declare (SDK < 1.3.0) renders as before', () => {
+  wrap(<LegacyPluginAlerts declared={['site-requests', 'payment-deadlines']} />);
+  expect(screen.getByText('OLD_SDK_ALERT')).toBeInTheDocument();
+  expect(screen.queryByText('NEW_SDK_ALERT')).not.toBeInTheDocument();
+});
+
+test('rule 22: every contribution declared → nothing extra', () => {
+  const { container } = wrap(<LegacyPluginAlerts declared={['site-requests', 'old-alert']} />);
   expect(container).toBeEmptyDOMElement();
 });

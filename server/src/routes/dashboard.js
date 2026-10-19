@@ -32,35 +32,36 @@ router.post('/payment-deadlines/:id/remind', controller.remindPaymentDeadline);
 
 // « À traiter » and the pinned cards of the home (specs/shell-and-home-day-first.md §3.B). Each core
 // subject is read through the handler of its own card; the plugins add theirs with ctx.attention.
-const attention = require('../controllers/dashboardAttentionController').buildController({
-  coreSources: () => {
-    const today = new Date();
-    return [
-      { key: 'payment-deadlines', rank: 20, handler: controller.paymentDeadlines },
-      { key: 'ical-date-drift', rank: 10, handler: controller.icalDateDrift },
-      { key: 'ical-cancellation', rank: 20, handler: controller.icalCancellation },
-      {
-        key: 'cancellation-compensations',
-        rank: 30,
-        handler: require('../controllers/cancellationCompensationsController').list,
-        // The pending list is global; the endpoint only needs a month for the received ones.
-        query: () => ({ month: String(today.getMonth() + 1), year: String(today.getFullYear()) }),
-      },
-      { key: 'repaired-reservation-numbers', rank: 40, handler: controller.repairedReservationNumbers },
-      { key: 'email-readiness', rank: 80, handler: require('./emailReadiness').controller.get },
-      { key: 'new-reservations', rank: 10, handler: controller.newReservations },
-      { key: 'email-pending', rank: 30, handler: require('./emails').controller.pending },
-      { key: 'update-available', rank: 40, handler: require('../controllers/systemController').getVersion },
-      {
-        key: 'two-factor',
-        rank: 50,
-        handler: require('../controllers/authController').twoFactorStatus,
-        // A support session never sees the nudge (specs/hosting-h2-account-security.md rule 10).
-        skip: (req) => Boolean(req.session && req.session.user && req.session.user.isSupport),
-      },
-    ];
-  },
-});
+function coreAttentionSources() {
+  const today = new Date();
+  return [
+    { key: 'payment-deadlines', rank: 20, handler: controller.paymentDeadlines },
+    { key: 'ical-date-drift', rank: 10, handler: controller.icalDateDrift },
+    { key: 'ical-cancellation', rank: 20, handler: controller.icalCancellation },
+    {
+      key: 'cancellation-compensations',
+      rank: 30,
+      handler: require('../controllers/cancellationCompensationsController').list,
+      // The pending list is global; the endpoint only needs a month for the received ones.
+      query: () => ({ month: String(today.getMonth() + 1), year: String(today.getFullYear()) }),
+    },
+    { key: 'repaired-reservation-numbers', rank: 40, handler: controller.repairedReservationNumbers },
+    { key: 'email-readiness', rank: 80, handler: require('./emailReadiness').controller.get },
+    { key: 'new-reservations', rank: 10, handler: controller.newReservations },
+    { key: 'email-pending', rank: 30, handler: require('./emails').controller.pending },
+    { key: 'update-available', rank: 40, handler: require('../controllers/systemController').getVersion },
+    {
+      key: 'two-factor',
+      rank: 50,
+      handler: require('../controllers/authController').twoFactorStatus,
+      // A support session never sees the nudge (specs/hosting-h2-account-security.md rule 10).
+      skip: (req) => Boolean(req.session && req.session.user && req.session.user.isSupport),
+    },
+  ];
+}
+const attention = require('../controllers/dashboardAttentionController').buildController({ coreSources: coreAttentionSources });
 router.get('/attention', attention.attention);
 
 module.exports = router;
+// Every core key must have a server summary and a client component (dashboard-attention-routes test).
+module.exports.coreAttentionSources = coreAttentionSources;

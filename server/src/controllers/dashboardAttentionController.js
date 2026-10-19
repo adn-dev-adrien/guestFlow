@@ -3,7 +3,7 @@
  * (specs/shell-and-home-day-first.md §3.B).
  *
  * Every subject is read through the handler its own card calls (rule 7), so the box and the card can
- * never disagree; a source that fails is simply absent (rule 4). Core sources are wired by the route;
+ * never disagree; a source that fails is logged and named in `unavailable` (rule 20). Core sources are wired by the route;
  * plugin sources come from `ctx.attention(...)` of the live plugins (rule 9).
  */
 
@@ -18,14 +18,20 @@ function livePluginSources(registry = pluginRegistry) {
     .flatMap((record) => record.attention);
 }
 
-async function readSource(source, req) {
+/** → { summary, failed }. A failure is logged with its reason, never swallowed (rule 20). */
+async function readSource(source, req, logger) {
+  const fail = (reason) => {
+    logger.warn(`[attention] source ${source.key} failed: ${reason}`);
+    return { summary: null, failed: true };
+  };
+  const result = await payloadOf(source.handler, req, { query: source.query ? source.query() : undefined });
+  if (!result.ok) return fail(result.reason);
+  const summarize = source.summarize || CORE_SUMMARIES[source.key];
+  if (!summarize) return fail('no summary');
   try {
-    const payload = await payloadOf(source.handler, req, { query: source.query ? source.query() : undefined });
-    if (payload === null) return null;
-    const summarize = source.summarize || CORE_SUMMARIES[source.key];
-    return summarize ? summarize(payload) : null;
-  } catch {
-    return null;
+    return { summary: summarize(result.body), failed: false };
+  } catch (err) {
+    return fail((err && err.message) || String(err));
   }
 }
 
@@ -33,13 +39,14 @@ async function readSource(source, req) {
  * coreSources   () → [{ key, rank, handler, query?, skip?(req) }] — resolved per request, so the
  *               heavy controllers load only when the home asks
  * pluginSources () → the plugin subjects (default: the live plugins' declarations)
+ * logger        where a failed source is reported (default: console)
  */
-function buildController({ coreSources = () => [], pluginSources = () => livePluginSources() } = {}) {
+function buildController({ coreSources = () => [], pluginSources = () => livePluginSources(), logger = console } = {}) {
   return {
     async attention(req, res) {
       const sources = [...coreSources(), ...pluginSources()].filter((source) => !(source.skip && source.skip(req)));
-      const summaries = await Promise.all(sources.map((source) => readSource(source, req)));
-      return res.json(buildAttention(sources.map((source, i) => ({ key: source.key, rank: source.rank, summary: summaries[i] }))));
+      const reads = await Promise.all(sources.map((source) => readSource(source, req, logger)));
+      return res.json(buildAttention(sources.map((source, i) => ({ key: source.key, rank: source.rank, ...reads[i] }))));
     },
   };
 }

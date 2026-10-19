@@ -70,14 +70,18 @@ test('rules 15, 18: on a phone the menu button is named and the top bar carries 
   emulate(true);
   window.history.pushState({}, '', '/clients');
   render(<App />);
-  expect(await screen.findByRole('button', { name: 'Ouvrir le menu' })).toBeInTheDocument();
+  const menu = await screen.findByRole('button', { name: 'Ouvrir le menu' });
+  expect(menu).toHaveAttribute('aria-expanded', 'false');
   await waitFor(() => expect(screen.getByTestId('appbar-page-title')).toHaveTextContent('Clients'));
+  expect(within(document.querySelector('header')).getByRole('heading', { level: 1, name: 'Clients' })).toBeInTheDocument();
+  await userEvent.click(menu);
+  expect(menu).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('rule 15: on a phone the home keeps the wordmark', async () => {
+test('rule 15: on a phone the home keeps the wordmark, as its heading', async () => {
   emulate(true);
   render(<App />);
   await screen.findByRole('button', { name: 'Ouvrir le menu' });
-  expect(within(document.querySelector('header')).getByText('GuestFlow')).toBeInTheDocument();
+  expect(within(document.querySelector('header')).getByRole('heading', { level: 1, name: 'GuestFlow' })).toBeInTheDocument();
   expect(screen.queryByTestId('appbar-page-title')).not.toBeInTheDocument();
 });
