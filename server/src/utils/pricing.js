@@ -2778,6 +2778,7 @@ function calculateReservationQuote({
 
 module.exports = {
   roundMoney,
+  calculateBaseStayPrice,
   grossFromNet,
   computeExtraGuestSurcharge,
   parseJsonArray,
