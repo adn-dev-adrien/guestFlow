@@ -143,7 +143,7 @@ export default function EmailTextsSettingsPage() {
       try {
         const r = await api.previewEmailDraft(previewBody);
         setPreview({
-          subject: r.subject, body: r.body, reservations: r.reservations || [], loading: false, error: '',
+          subject: r.subject, body: r.body, html: r.html || '', reservations: r.reservations || [], loading: false, error: '',
           notice: r.englishNotice, current: r.sample ? SAMPLE : r.reservationId,
         });
       } catch (err) {
@@ -252,6 +252,7 @@ export default function EmailTextsSettingsPage() {
     <EmailPreviewPane
       subject={preview.subject}
       body={preview.body}
+      html={preview.html}
       loading={preview.loading}
       error={preview.error}
       language={language}

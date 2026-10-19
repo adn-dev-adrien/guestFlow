@@ -23,6 +23,7 @@ const { registerDirectChannelSql } = require('./platformNameFormat');
 const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
 const { todayIso } = require('./localDate');
+const { guestEmailMessage } = require('./guestEmailHtml');
 
 /**
  * @param {{ database, templatesModel, logModel, settingsModel, emailServiceFactory,
@@ -204,7 +205,7 @@ async function performAutoEmailPass(deps) {
 
       try {
         const svc = getService();
-        await svc.send({ to, subject, text: body });
+        await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
         const row = logModel.insert({
           templateId:      template.id,
           reservationId:   reservation.id,

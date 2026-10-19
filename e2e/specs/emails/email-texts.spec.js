@@ -1,7 +1,7 @@
 // @ts-check
 // specs/guest-email-texts-made-simple.md §7 E2E — fill a property's arrival facts and see them in the
 // J-2 preview, export the texts then re-import them (one changed row, one refused row), and run a
-// test send that lands in the dev mail catcher.
+// test send that lands in the dev mail catcher, with its HTML part (rule 37).
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
@@ -52,6 +52,16 @@ test.describe('Textes des emails', () => {
     const sent = mails.find((m) => m.to === COMPANY_EMAIL);
     expect(sent.subject).toMatch(/^\[Test\] /);
     expect(sent.text).toContain('12 chemin des Prés E2E');
+    // Rule 37: the test leaves as multipart/alternative, its HTML part derived from the same text.
+    expect(sent.html).toContain('12 chemin des Prés E2E');
+    expect(sent.mime).toMatch(/Content-Type: multipart\/alternative;/);
+
+    // « Texte | HTML »: the HTML part shows in a sandboxed frame.
+    await page.getByRole('button', { name: 'HTML', exact: true }).click();
+    const frame = page.frameLocator('iframe[title="Email en HTML"]');
+    await expect(frame.getByText('Bonjour Textes,')).toBeVisible();
+    await page.getByRole('button', { name: 'Texte', exact: true }).click();
+    await expect(preview).toContainText('Bonjour Textes,');
   });
 
   test('rules 16–17: export, then re-import with one changed row and one refused row', async ({ page }, testInfo) => {

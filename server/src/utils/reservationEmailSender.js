@@ -16,6 +16,7 @@ const { stableKeyAutoSends } = require('./autoSendPolicy');
 const { MAIL, planStayMails } = require('./guestEmailSequence');
 const { sendSequenceMail } = require('./guestEmailSequenceRunner');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
+const { guestEmailMessage } = require('./guestEmailHtml');
 
 async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
   const template = templatesModel.findByStableKey(stableKey);
@@ -69,7 +70,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
 
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());
-    await svc.send({ to, subject, text: body });
+    await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
     const row = logModel.insert({
       templateId: template.id, reservationId: reservation.id, status: 'sent', channel: 'smtp',
       errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to,

@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Second code et emails HTML</title>
+<style>
+:root{--ink:#27251F;--muted:#6E6A5E;--paper:#F8F5EF;--card:#fff;--rule:#E4DFD3;--fir:#2F5D46;--err:#A8433A;--ok:#3E7D54;--serif:'Iowan Old Style','Source Serif 4',Charter,Georgia,serif;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#ECE8DF;--muted:#B9B3A6;--paper:#1E1D1A;--card:#272622;--rule:#3B3934;--fir:#9CC7AE;--err:#E2938A;--ok:#8FC7A1}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+main{max-width:980px;margin:0 auto;padding:32px 16px 64px}
+h1{font:600 1.7rem/1.2 var(--serif);margin:0 0 6px;letter-spacing:-.01em}
+h2{font:600 1.25rem/1.3 var(--serif);margin:40px 0 10px}
+h3{font-size:1rem;margin:22px 0 6px}
+p,li{max-width:70ch}
+.lead{color:var(--muted);margin:0 0 24px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;margin:16px 0}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:0 8px 8px 0}
+.seg button{border:0;background:transparent;color:var(--ink);font:500 .9rem var(--sans);padding:0 14px;min-height:40px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--fir);color:var(--card)}
+.stage{overflow-x:auto;background:var(--paper);border-radius:12px;padding:12px 0}
+.frame{margin:0 auto;border:1px solid var(--rule);border-radius:18px;overflow:hidden;background:#fff;max-width:100%}
+.frame iframe{display:block;border:0;width:100%;height:640px}
+.mailhead{padding:10px 14px;border-bottom:1px solid #ddd;background:#fafafa;color:#111;font-size:13px}
+.mailhead b{display:block;font-size:15px}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;margin:0;font:15px/1.45 var(--sans);color:#111;background:#fff;height:640px;overflow:auto}
+textarea{width:100%;min-height:200px;font:14px/1.45 ui-monospace,Menlo,monospace;border:1px solid var(--rule);border-radius:10px;padding:10px;background:var(--card);color:var(--ink)}
+code{font-size:.9em}
+.tag{display:inline-block;font-size:.8rem;border:1px solid var(--rule);border-radius:99px;padding:1px 10px;color:var(--muted)}
+/* OTP */
+.auth{max-width:400px;margin:0 auto;background:#fff;color:#27251F;border-radius:14px;padding:24px;box-shadow:0 2px 10px rgba(60,54,36,.12)}
+.auth h4{font:600 1.3rem var(--serif);margin:0 0 6px}
+.auth p{color:#6E6A5E;font-size:.92rem;margin:0 0 16px}
+.otp{position:relative;height:58px}
+.otp input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0;caret-color:transparent}
+.cells{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;height:100%;pointer-events:none}
+.cells span{display:grid;place-items:center;border:1px solid #C8C3B6;border-radius:12px;font:600 1.4rem ui-monospace,Menlo,monospace;background:#fff;transition:border-color .12s,background .12s}
+.cells span.cur{border:2px solid #2F5D46}
+.cells span.sel{background:#E3EAE5}
+.otp.bad .cells span{border-color:#A8433A}
+.otp.backup .cells{grid-template-columns:1fr}
+.otp.shake{animation:shake .32s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+@media (prefers-reduced-motion:reduce){.otp.shake{animation:none}}
+.err{min-height:1.4em;font-size:.85rem;color:#A8433A;margin:6px 2px 4px}
+.lnk{background:none;border:0;color:#2F5D46;font:600 .9rem var(--sans);min-height:44px;cursor:pointer;padding:0}
+.chk{display:flex;gap:10px;align-items:center;min-height:44px;font-size:.92rem}
+</style></head>
+<body><main>
+<h1>Second code et emails voyageurs en HTML</h1>
+<p class="lead">Lot G de la revue UI/UX du 18/10/2026 · propositions 23 et 25, arbitrage 15 · <span class="tag">specs/hosting-h2-account-security.md règles 32–34</span> <span class="tag">specs/guest-email-texts-made-simple.md règles 37–39</span></p>
+
+<h2>Le constat</h2>
+<ul>
+<li>Après un mauvais second code, le champ se vide, « Valider » se grise et l'erreur s'affiche en haut de la carte, loin du champ. La console accepte et envoie un code à 5 chiffres. Aucun des deux écrans ne valide au 6e chiffre, alors que l'autoremplissage iOS/Android colle les six d'un coup.</li>
+<li>Les emails voyageurs partent en texte brut seul. Le lien de paiement Qonto, la seule action de l'email d'acompte, est une URL de trois lignes noyée dans la prose ; le récapitulatif est une colonne de « - ».</li>
+</ul>
+
+<h2>Ce qu'on propose</h2>
+<h3>1. Un champ qui ressemble à six cases</h3>
+<p>Un seul <code>&lt;input autocomplete="one-time-code" inputmode="numeric"&gt;</code>, transparent, posé sur six cases dessinées : l'autoremplissage et le collage marchent comme sur un champ normal. Validation automatique au 6e chiffre (ou au code de secours complet <code>xxxxx-xxxxx</code>), sans bouton « Valider ». Un refus secoue les cases (simple changement de couleur si le mouvement est réduit), garde les chiffres sélectionnés pour que la frappe suivante les remplace, et écrit « Code incorrect. » sous les cases. Titre « Vérification », case « Se souvenir de cet appareil (30 jours) ». Le même composant sert à la console. Bon code de la maquette : <code>246810</code>, code de secours : <code>k7m2p-x9q4r</code>.</p>
+<div class="card">
+  <form class="auth" id="otp-demo" novalidate>
+    <h4>Vérification</h4>
+    <p>Code à 6 chiffres de l'appli d'authentification.</p>
+    <div class="otp" id="otp-box"><input id="otp-in" inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" aria-label="Code à 6 chiffres" aria-describedby="otp-err"><div class="cells" aria-hidden="true"></div></div>
+    <div class="err" id="otp-err" aria-live="assertive"></div>
+    <button type="button" class="lnk" id="otp-mode">Utiliser un code de secours</button>
+    <label class="chk"><input type="checkbox">Se souvenir de cet appareil (30 jours)</label>
+    <div style="display:flex;justify-content:space-between"><button type="button" class="lnk">Retour</button></div>
+  </form>
+</div>
+
+<h3>2. Emails voyageurs : une partie HTML sobre à côté du texte</h3>
+<p>Le texte reste la seule source : on l'écrit comme aujourd'hui, il part tel quel en <code>text/plain</code>. Le serveur en dérive une partie <code>text/html</code> (<code>multipart/alternative</code>) : paragraphes, listes, récapitulatif « Libellé : valeur » en deux colonnes, adresses web, emails et téléphones en liens simples, nom de l'établissement en titre serif. Aucune image, aucune ressource distante, aucun pixel de suivi, couleurs prévues pour le mode sombre, colonne de 600 px au plus. Ci-dessous, le vrai moteur du serveur, recopié tel quel : modifier le texte met l'email à jour.</p>
+<div class="card">
+  <div>
+    <span class="seg" data-role="sample"></span>
+  </div>
+  <div>
+    <span class="seg" data-role="part"><button data-v="html" aria-pressed="true">HTML</button><button data-v="text" aria-pressed="false">Texte</button></span>
+    <span class="seg" data-role="width"><button data-v="390" aria-pressed="true">390</button><button data-v="1280" aria-pressed="false">1280</button></span>
+    <span class="seg" data-role="theme"><button data-v="light" aria-pressed="true">Clair</button><button data-v="dark" aria-pressed="false">Sombre</button></span>
+  </div>
+  <div class="stage"><div class="frame" id="frame"></div></div>
+  <h3>Le texte (modifiable)</h3>
+  <textarea id="src" aria-label="Texte de l'email"></textarea>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+<li>Pas de bouton « Payer l'acompte » : la maquette de la revue en montrait un ; l'arbitrage retient des liens simples, dérivés du texte, sans balisage à apprendre.</li>
+<li>Pas d'éditeur riche, pas de mise en forme saisie par l'opérateur : le texte reste du texte.</li>
+<li>Les emails de compte (lien de mot de passe, codes) et les notifications internes restent en texte seul.</li>
+<li>Le champ de confirmation à l'activation du second code (« Mon compte ») prend le même aspect mais garde son bouton « Confirmer ».</li>
+</ul>
+
+<h2>Le risque</h2>
+<ul>
+<li>Délivrabilité : un email multipart pèse un peu plus et DKIM n'est toujours pas actif sur domainesolio.com. Le texte reste identique, octet pour octet (test « golden » sur les six emails de la séquence de Solio).</li>
+<li>Rendu : Outlook bureau ignore la largeur maximale (colonne pleine largeur, lisible). Gmail ignore le bloc mode sombre et applique son propre mode, d'où des couleurs à contraste suffisant dans les deux sens.</li>
+<li>Validation automatique : un second envoi pendant la vérification est bloqué.</li>
+</ul>
+
+<h2>Arbitrages en attente</h2>
+<p>Aucun : la proposition retenue est celle de la revue, aux liens simples près (arbitrage 15).</p>
+</main>
+<script>
+/**
+ * The HTML part of a guest email (specs/guest-email-texts-made-simple.md rules 37–39, UI/UX review
+ * 2026-10-18, decision 15). The text the operator writes stays the one source: it is rendered as
+ * today, sent unchanged as the `text/plain` part, and this module derives a sober `text/html`
+ * alternative from that same rendered text — never from the template, so the two parts cannot say
+ * different things.
+ *
+ * What the derivation does, and nothing more:
+ * - a blank line separates paragraphs, a single line break stays a line break;
+ * - a run of « - » / « • » lines is a list; when every line of it reads « Libellé : valeur », it is a
+ *   two-column recap;
+ * - a web address, an email address or a French phone number is a plain link (its own text, no button,
+ *   no tracking, no rewriting);
+ * - the sender's name heads the email in the Maison serif.
+ * Everything else is escaped. No image, no remote stylesheet or font, nothing loaded from anywhere:
+ * the colours carry a dark-mode variant and the column stays under 600 px.
+ */
+
+const resolveEmailIdentity = (s) => ({ fromName: s.fromName || "" }); const DEFAULT_SENDER_NAME = "GuestFlow";
+
+const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const FONT_SERIF = "'Iowan Old Style', 'Source Serif 4', Charter, Georgia, 'Times New Roman', serif";
+const INK = '#27251F';
+const MUTED = '#6E6A5E';
+const PAPER = '#F8F5EF';
+const RULE = '#E4DFD3';
+const FIR = '#2F5D46';
+
+// One pass over a line finds every link: a web address, an email address (an apostrophe may sit in
+// its local part, « jean.o'brien@… »), a French phone number. A number glued to a letter, a slash or a
+// dash (« HA-0123456789 », « 2026-0412345678 ») is a reference, never a phone.
+const PHONE = '(?:(?:\\+33[\\s.]?[1-9]|0[1-9])(?:[\\s.]\\d{2}){4}|\\+33[1-9]\\d{8}|0[1-9]\\d{8})';
+const LINK_RE = new RegExp(
+  '(https?:\\/\\/[^\\s<>"]+)'
+  + "|([A-Za-z0-9._%+-][A-Za-z0-9._%+'’-]*@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,})"
+  + `|((?<![\\w/+-])${PHONE}(?![\\w/-]))`,
+  'g',
+);
+// Ten digits in a row are a phone only after a word that says so (« appelez-nous au 0612345678 »):
+// alone they may be a Wi-Fi code or a key-box code.
+const CALL_CONTEXT_RE = /(?:(?:appel|t[ée]l[ée]phon|\bt[ée]l\b|\bphone\b|\bcall\b|joindre)[^\n]{0,24}|\bau\s+)$/i;
+// Punctuation that ends a sentence, not the address it follows.
+const URL_TRAIL_CHARS = '.,;:!?)]»’\'"';
+const BULLET_RE = /^\s*[-•–]\s+(.*\S)\s*$/;
+const RECAP_RE = /^([^:]{1,40}?)\s*:\s+(\S.*)$/;
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function link(href, label, { keepTogether = false } = {}) {
+  const wrap = keepTogether ? 'white-space:nowrap' : 'overflow-wrap:anywhere;word-break:break-word';
+  return `<a href="${escapeHtml(href)}" style="color:${FIR};text-decoration:underline;${wrap}">${escapeHtml(label)}</a>`;
+}
+
+// Escaped prose, where an amount never leaves its « € » alone on the next line.
+function prose(value) {
+  return escapeHtml(value).replace(/(\d) €/g, '$1&nbsp;€');
+}
+
+/** One line of text → escaped HTML with its links. */
+function inline(line) {
+  let out = '';
+  let last = 0;
+  for (const m of String(line).matchAll(LINK_RE)) {
+    let [match] = m;
+    let tail = '';
+    if (m[1]) {
+      // A closing parenthesis stays when it closes one opened inside the address (Wikipedia-style).
+      const count = (str, ch) => str.split(ch).length - 1;
+      while (match && URL_TRAIL_CHARS.includes(match[match.length - 1])) {
+        const last = match[match.length - 1];
+        if (last === ')' && count(match, '(') >= count(match, ')')) break;
+        tail = last + tail;
+        match = match.slice(0, -1);
+      }
+    }
+    if (m[3] && /^0\d{9}$/.test(match) && !CALL_CONTEXT_RE.test(line.slice(0, m.index))) continue;
+    out += prose(line.slice(last, m.index));
+    if (m[1]) out += link(match, match);
+    else if (m[2]) out += link(`mailto:${match}`, match);
+    else out += link(`tel:${match.replace(/[\s.]/g, '')}`, match, { keepTogether: true });
+    out += prose(tail);
+    last = m.index + m[0].length;
+  }
+  return out + prose(line.slice(last));
+}
+
+// A paragraph that introduces the list under it (« Récapitulatif de votre séjour : ») sits close to it.
+function paragraph(lines, leadsList = false) {
+  return `<p style="margin:0 0 ${leadsList ? 8 : 16}px">${lines.map((l) => inline(l.trim())).join('<br>')}</p>`;
+}
+
+function list(items) {
+  const recap = items.map((item) => RECAP_RE.exec(item));
+  if (recap.every((m) => m && !/https?:/.test(m[1]))) {
+    const cell = 'padding:8px 0;vertical-align:top;border-top:1px solid ' + RULE;
+    const rows = recap.map(([, label, value]) => '<tr>'
+      + `<td class="gf-muted gf-rule" style="${cell};padding-right:12px;width:40%;color:${MUTED}">${inline(label.trim())}</td>`
+      + `<td class="gf-rule" style="${cell}">${inline(value.trim())}</td>`
+      + '</tr>').join('');
+    return `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin:0 0 16px;font-size:15px">${rows}</table>`;
+  }
+  return `<ul style="margin:0 0 16px;padding-left:20px">${items.map((i) => `<li style="margin:0 0 4px">${inline(i)}</li>`).join('')}</ul>`;
+}
+
+/** A block between blank lines → its paragraphs and lists, in order. */
+function block(lines) {
+  const out = [];
+  let run = [];
+  let bullets = null;
+  const flush = (next = false) => {
+    if (!run.length) return;
+    out.push(bullets ? list(run) : paragraph(run, next));
+    run = [];
+  };
+  for (const line of lines) {
+    const bullet = BULLET_RE.exec(line);
+    if (Boolean(bullet) !== bullets) {
+      flush(Boolean(bullet));
+      bullets = Boolean(bullet);
+    }
+    run.push(bullet ? bullet[1] : line);
+  }
+  flush();
+  return out.join('');
+}
+
+/** The rendered text of an email → its HTML body (no document around it). */
+function textToHtmlBody(text) {
+  const blocks = String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .split(/\n[ \t]*\n/)
+    .map((b) => b.split('\n').filter((l) => l.trim() !== ''))
+    .filter((b) => b.length);
+  return blocks.map(block).join('\n');
+}
+
+/**
+ * The full HTML document of a guest email.
+ * @param {{ text: string, subject?: string, heading?: string, lang?: string }} input
+ */
+function renderGuestEmailHtml({ text, subject = '', heading = '', lang = 'fr' }) {
+  const language = lang === 'en' ? 'en' : 'fr';
+  const title = String(heading || '').trim();
+  return '<!doctype html>\n'
+    + `<html lang="${language}"><head><meta charset="utf-8">`
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">'
+    + `<title>${escapeHtml(subject)}</title>`
+    + '<style>'
+    + 'body{margin:0;padding:0;-webkit-text-size-adjust:100%}'
+    + '@media (prefers-color-scheme: dark){'
+    + '.gf-body{background:#1E1D1A !important;color:#ECE8DF !important}'
+    + '.gf-muted{color:#B9B3A6 !important}'
+    + '.gf-rule{border-color:#3B3934 !important}'
+    + '.gf-body a{color:#9CC7AE !important}'
+    + '}'
+    + '</style></head>'
+    + `<body class="gf-body" style="margin:0;padding:0;background:${PAPER};color:${INK}">`
+    + `<div class="gf-body" role="article" aria-roledescription="email" lang="${language}" style="max-width:600px;margin:0 auto;padding:28px 20px 32px;background:${PAPER};color:${INK};font-family:${FONT_SANS};font-size:16px;line-height:1.55">`
+    + (title ? `<h1 class="gf-rule" style="margin:0 0 24px;padding:0 0 14px;border-bottom:1px solid ${RULE};font-family:${FONT_SERIF};font-size:22px;line-height:1.25;font-weight:600;letter-spacing:-0.01em">${escapeHtml(title)}</h1>\n` : '')
+    + textToHtmlBody(text)
+    + '</div></body></html>\n';
+}
+
+/**
+ * The message a guest email sends: the rendered text untouched, plus its HTML alternative.
+ * @param {{ to?: string, subject: string, text: string, settings?: object, lang?: string }} input
+ */
+function guestEmailMessage({ to, subject, text, settings = {}, lang = 'fr' }) {
+  const { fromName } = resolveEmailIdentity(settings || {});
+  // No name of its own (the « GuestFlow » fallback): no heading rather than the software's name.
+  const heading = fromName === DEFAULT_SENDER_NAME ? '' : fromName;
+  return {
+    ...(to !== undefined ? { to } : {}),
+    subject,
+    text,
+    html: renderGuestEmailHtml({ text, subject, heading, lang }),
+  };
+}
+
+
+
+const SAMPLES = {"confirmation":{"label":"Confirmation","subject":"Votre séjour à La Granja est confirmé","text":"Bonjour Camille,\n\nMerci pour votre confiance. Votre séjour à La Granja est confirmé : nous vous attendons le samedi 10 juillet 2027, et nous nous réjouissons déjà de vous accueillir au domaine.\n\nVotre séjour :\n- N° de réservation : GF-2027-101\n- Logement : La Granja\n- Voyageurs : 2 adultes, 2 enfants et 1 bébé\n- Arrivée : le samedi 10 juillet 2027 à partir de 16 h\n- Départ : le samedi 17 juillet 2027 avant 10 h\n- Montant du séjour : 1240,00 €\n\nCe qui vous attend sur place :\n- 1 h 30 de bain nordique privatif\n- Les 13 hectares du domaine, le sentier de balade et les animaux, en toute liberté\n- La piscine, partagée avec l'autre hébergement du domaine\n\nUne question d'ici là ? Répondez simplement à ce mail, ou appelez-nous au 06 00 00 00 00.\n\nÀ très bientôt,\nAdrien et Sophie"},"acompte":{"label":"Acompte","subject":"Réglez l’acompte pour confirmer votre séjour au Gîte","text":"Bonjour Test,\n\nPour confirmer votre séjour au Gîte, il vous suffit de régler l’acompte en ligne.\n\nRécapitulatif de votre séjour :\n- Logement : Gîte\n- Arrivée : le 8 février 2027 à partir de 16 h\n- Départ : le 11 février 2027 avant 10 h\n- Option : Petit déjeuner\n- Montant total du séjour : 396,00 €\n\nAcompte à régler maintenant : 118,80 €\n\nPayer l’acompte en ligne : https://pay.qonto.com/payment-links/c2b9f1d6-41e7-4a3c-9a52-0e7d3f6b8c11?resource_id=7f3e9a20-55b1-4c0e-b1d2\n\nLe règlement de l’acompte bloque vos dates. Tant qu’il n’est pas payé, elles restent disponibles pour d’autres voyageurs.\n\nUne question ? Répondez simplement à ce mail, ou appelez-nous au 06 15 73 93 37.\n\nÀ très bientôt,\nDomaine Solio"},"j7":{"label":"J-7","subject":"Plus qu'une semaine avant La Granja","text":"Bonjour Camille,\n\nPlus qu'une semaine, et vous serez à La Granja. Chaque matin, le soleil s'y lève sur la vallée.\n\nVoici quelques mots pour vous aider à préparer vos valises tranquillement.\n\nLes lits seront installés ainsi : 1 lit double et 2 lits simples. Le linge de lit n'étant pas compris, pensez à prendre draps et taies d'oreiller, ou laissez-nous les préparer si vous préférez voyager plus léger (12 € par personne).\n\nPour le plus petit, nous pouvons installer un lit bébé avec son linge (5 € pour le séjour) : de quoi laisser le lit parapluie à la maison et gagner un peu de place dans le coffre.\n\nDans vos bagages :\n- Maillots de bain et serviettes pour le bain nordique, et pour la piscine\n- Des chaussures fermées pour les sentiers du domaine\n- Vos serviettes de toilette. Si vous préférez voyager plus léger, et ne pas rentrer avec une machine à lancer, nous pouvons aussi les préparer pour vous (8 € par personne).\n\nPour alléger les courses, nous travaillons avec des producteurs locaux : les jus du Pressoir du Pilat (5 € le litre) et les bières de la Brasserie du Pilat (6,50 € la bouteille). Nous vous les proposons à leur prix de vente en magasin, et ils peuvent vous attendre au frais à votre arrivée. De la même façon, nous pouvons prévoir une planche du terroir pour le premier apéritif (à partir de 17 €) et le petit-déjeuner, à retirer chaque matin au bâtiment d'accueil (12 € par personne et par jour). Il suffit de nous le dire d'ici le mercredi 7 juillet 2027.\n\nVous fêtez un événement, vous aimeriez un coup de main pour les préparatifs, ou simplement vous alléger de l'intendance ? N'hésitez pas à nous en parler : nous avons plusieurs formules à vous proposer.\n\nPour commencer à rêver votre séjour, nous avons rassemblé nos adresses préférées autour du domaine : balades, baignades, marchés, villages, visites. Tout est sur https://map.domainesolio.com\nEt si vos enfants aiment les animaux, il y a aussi quelques beaux moments à partager avec ceux du domaine : nous vous en parlerons sur place.\n\nNous préparons tout pour vous accueillir. Une question ? Répondez simplement à ce mail, ou appelez-nous au 06 00 00 00 00.\n\nÀ la semaine prochaine,\nAdrien et Sophie"},"piege":{"label":"Texte piégé","subject":"\u003cscript>alert(1)\u003c/script>","text":"Bonjour \u003cb>Léa\u003c/b> & \"Tom\",\n\n- Code : \u003cimg src=x onerror=alert(1)>\n- Lien : https://exemple.fr/?a=1&b=\u003c2>\n\nUne ligne seule {{texte}} reste du texte."}};
+(function(){
+  var st = { sample: 'acompte', part: 'html', width: '390', theme: 'light' };
+  var src = document.getElementById('src'), frame = document.getElementById('frame');
+  var sampleSeg = document.querySelector('[data-role="sample"]');
+  Object.keys(SAMPLES).forEach(function(k){ var b=document.createElement('button'); b.dataset.v=k; b.textContent=SAMPLES[k].label; b.setAttribute('aria-pressed', String(k===st.sample)); sampleSeg.appendChild(b); });
+  src.value = SAMPLES[st.sample].text;
+  function draw(){
+    var s = SAMPLES[st.sample];
+    frame.style.width = st.width + 'px';
+    var head = '<div class="mailhead"><span>Domaine Solio &lt;contact@exemple.fr&gt;</span><b></b></div>';
+    frame.innerHTML = head;
+    frame.querySelector('b').textContent = s.subject;
+    if (st.part === 'text') { var pre=document.createElement('pre'); pre.className='txt'; pre.textContent=src.value; frame.appendChild(pre); return; }
+    var html = renderGuestEmailHtml({ text: src.value, subject: s.subject, heading: 'Domaine Solio', lang: 'fr' });
+    if (st.theme === 'dark') html = html.replace('@media (prefers-color-scheme: dark){', '@media all{');
+    var f = document.createElement('iframe'); f.setAttribute('sandbox', ''); f.title = 'Partie HTML'; f.srcdoc = html; frame.appendChild(f);
+  }
+  document.querySelectorAll('.seg').forEach(function(seg){ seg.addEventListener('click', function(e){ var b=e.target.closest('button'); if(!b) return; var role=seg.dataset.role; st[role]=b.dataset.v; seg.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed', String(x===b));}); if(role==='sample') src.value=SAMPLES[st.sample].text; draw(); }); });
+  src.addEventListener('input', draw);
+  draw();
+})();
+(function(){
+  var GOOD='246810', BACKUP='k7m2p-x9q4r';
+  var box=document.getElementById('otp-box'), inp=document.getElementById('otp-in'), cells=box.querySelector('.cells'), err=document.getElementById('otp-err'), mode=document.getElementById('otp-mode');
+  var backup=false, busy=false, sel=false;
+  function paint(){ var v=inp.value; cells.innerHTML='';
+    if(backup){ var c=document.createElement('span'); c.textContent=v||'xxxxx-xxxxx'; c.className='cur'+(sel?' sel':''); c.style.fontSize='1.15rem'; if(!v) c.style.color='#A8A59C'; cells.appendChild(c); return; }
+    for(var i=0;i<6;i++){ var s=document.createElement('span'); s.textContent=v[i]||''; if(sel&&v[i]) s.className='sel'; else if(document.activeElement===inp&&i===Math.min(v.length,5)) s.className='cur'; cells.appendChild(s); } }
+  function submit(){ if(busy) return; busy=true; err.style.color='#6E6A5E'; err.textContent='Vérification…';
+    setTimeout(function(){ busy=false; var ok= backup? inp.value===BACKUP : inp.value===GOOD;
+      if(ok){ err.style.color='#3E7D54'; err.textContent='Code accepté (maquette).'; return; }
+      err.style.color=''; err.textContent='Code incorrect.'; box.classList.add('bad'); box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake'); sel=true; inp.select(); paint(); }, 300); }
+  inp.addEventListener('input', function(){ sel=false; box.classList.remove('bad'); err.textContent='';
+    var raw=inp.value; if(!backup && /[a-z]/i.test(raw)){ backup=true; box.classList.add('backup'); mode.textContent='Utiliser le code de l’application'; inp.setAttribute('inputmode','text'); }
+    inp.value = backup ? raw.toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,11) : raw.replace(/\D/g,'').slice(0,6); paint();
+    if((!backup&&inp.value.length===6)||(backup&&/^[a-z0-9]{5}-[a-z0-9]{5}$/.test(inp.value))) submit(); });
+  inp.addEventListener('focus', paint); inp.addEventListener('blur', paint);
+  mode.addEventListener('click', function(){ backup=!backup; box.classList.toggle('backup',backup); inp.value=''; sel=false; inp.setAttribute('inputmode', backup?'text':'numeric'); mode.textContent= backup?'Utiliser le code de l’application':'Utiliser un code de secours'; err.textContent=''; inp.focus(); paint(); });
+  document.getElementById('otp-demo').addEventListener('submit', function(e){ e.preventDefault(); });
+  paint();
+})();
+</script>
+</body></html>

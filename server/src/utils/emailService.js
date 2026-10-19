@@ -16,7 +16,7 @@
 const nodemailer = require('nodemailer');
 const { testEmailBody } = require('./emailTemplates');
 const platformMail = require('./platformMail');
-const { outboxDir, writeToOutbox } = require('./mailOutbox');
+const { outboxDir, writeMessageToOutbox } = require('./mailOutbox');
 
 function createEmailService(settings, {
   transportFactory = nodemailer.createTransport,
@@ -42,7 +42,7 @@ function createEmailService(settings, {
 
   function getTransport() {
     if (outbox && isConfigured) {
-      if (!transport) transport = { sendMail: async (message) => ({ messageId: writeToOutbox(outbox, message, now()), outbox: true }) };
+      if (!transport) transport = { sendMail: async (message) => ({ messageId: await writeMessageToOutbox(outbox, message, now()), outbox: true }) };
       return transport;
     }
     if (platform) {
@@ -78,15 +78,19 @@ function createEmailService(settings, {
     return `"${fromName.replace(/"/g, '\\"')}" <${fromEmail}>`;
   }
 
-  async function send({ to, subject, text }) {
+  // `html` is the optional HTML alternative of a guest email (utils/guestEmailHtml.js): given, the
+  // message leaves as multipart/alternative with `text` unchanged; absent, as plain text as before.
+  async function send({ to, subject, text, html }) {
     if (!to) throw new Error('EMAIL_RECIPIENT_REQUIRED');
     const tx = getTransport();
+    const alternative = html ? { html } : {};
     if (!platform) {
       return tx.sendMail({
         from: fromHeader(),
         to,
         subject,
         text,
+        ...alternative,
       });
     }
     // Rule 20: the shared sender's reputation is protected by a daily quota per instance.
@@ -98,7 +102,7 @@ function createEmailService(settings, {
     platformMail.writeCount({ file, count: sentToday + 1, now: now() });
     try {
       const { from, replyTo } = platformMail.headers({ cfg: platform, fromName, replyTo: fromEmail });
-      return await tx.sendMail({ from, replyTo, to, subject, text });
+      return await tx.sendMail({ from, replyTo, to, subject, text, ...alternative });
     } catch (err) {
       const current = platformMail.readCount({ file, now: now() });
       if (current > 0) platformMail.writeCount({ file, count: current - 1, now: now() });
