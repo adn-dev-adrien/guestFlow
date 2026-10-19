@@ -1,0 +1,518 @@
+/**
+ * The payments ledger of a reservation (specs/reservation-payment-ledger.md §3.1, §3.4, §3.5).
+ *
+ * One row per money movement, in the order money moves, each with its amount, its state in words, at
+ * most one action and whether (and why not) its amount can be edited. The fiche renders the rows as
+ * they come: it computes none of it (CLAUDE.md §6.0).
+ *
+ * Pure — no DB access. The controller hands it the stored row (paid flags, dates, caution, single
+ * payment group), the live quote when the fiche is being edited (the unpaid amounts follow it, rule 7),
+ * the payment links, the refund register and today.
+ *
+ * « Reste à percevoir » is `reservationSettlement.remainingToPay` (rule 5): the ledger adds no
+ * arithmetic of its own.
+ */
+
+const { remainingToPay, round2 } = require('./reservationSettlement');
+const { parseGroup } = require('./arrivalPaymentGroup');
+const { isDirectChannel } = require('./platformNameFormat');
+const { platformDisplay } = require('./platformDisplay');
+
+const NBSP = ' ';
+
+/** « 1 234,56 € » — non-breaking, so an amount never wraps. */
+function formatEuros(amount) {
+  const n = round2(amount);
+  const sign = n < 0 ? '−' : '';
+  const [int, dec] = Math.abs(n).toFixed(2).split('.');
+  return `${sign}${int.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)},${dec}${NBSP}€`;
+}
+
+const isoDay = (v) => {
+  const s = String(v == null ? '' : v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+};
+
+/** « 23/08 », or « 23/08/2027 » when the year differs from the stay's (rule 4). */
+function shortDate(iso, stayYear) {
+  const d = isoDay(iso);
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return stayYear && y !== stayYear ? `${day}/${m}/${y}` : `${day}/${m}`;
+}
+
+const cents = (n) => Math.round(round2(n) * 100);
+const flag = (v) => Number(v || 0) === 1 || v === true;
+
+// Edge case « Devis » — the devis does not store an acompte override yet: an edit would be lost.
+const DEVIS_LOCK = Object.freeze({
+  editable: false, mode: 'locked', min: null, max: null,
+  reason: 'Sur un devis, l\'acompte suit le pourcentage du logement : le prix se règle par « Prix hébergement ajusté ».',
+});
+
+const METHOD_LABELS = { transfer: 'virement', cash: 'espèces', internal: 'caisse interne' };
+
+const LINK_TYPES_BY_ROW = { deposit: ['deposit'], balance: ['balance', 'full'], complement: ['complement'] };
+
+/**
+ * The link shown on a row (rule 28): the open one when there is one, else the latest.
+ */
+function pickLink(links, rowKey) {
+  const types = LINK_TYPES_BY_ROW[rowKey];
+  if (!types) return null;
+  const mine = (links || []).filter((l) => types.includes(String(l.type)));
+  if (mine.length === 0) return null;
+  const byNewest = [...mine].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+  return byNewest.find((l) => l.status === 'open') || byNewest[0];
+}
+
+function linkDetail(link, { stayYear, due, canRequest }) {
+  if (!link) return null;
+  const created = shortDate(link.createdAt, stayYear);
+  const paidOn = shortDate(link.paidAt, stayYear);
+  const amount = formatEuros(Number(link.amountCents || 0) / 100);
+  let label;
+  if (link.status === 'open') label = `Lien envoyé le ${created} · ${amount}`;
+  else if (link.status === 'paid') {
+    label = link.cancelReason === 'amount-changed'
+      ? `Payé par lien le ${paidOn} (ancien montant)`
+      : `Payé par lien le ${paidOn}`;
+  } else if (link.status === 'cancelled' && link.cancelReason === 'amount-changed') label = 'Lien retiré · montant modifié';
+  else if (link.status === 'cancelled' && link.cancelReason === 'settled') label = 'Lien retiré · perçu autrement';
+  else if (link.status === 'expired') label = 'Lien expiré';
+  else label = 'Lien retiré';
+  // « Renvoyer la demande » only while the row is still due, and only once the previous link is gone
+  // (rule 28): an open link is still the request, a paid one settled it.
+  const resendable = due && canRequest && link.status !== 'open' && link.status !== 'paid'
+    && ['deposit', 'balance', 'full'].includes(String(link.type));
+  return {
+    status: link.status,
+    label,
+    ...(resendable ? { resend: { type: String(link.type), label: 'Renvoyer la demande' } } : {}),
+  };
+}
+
+/** Rule 4 — the due state of a row with a deadline. */
+function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
+  const d = isoDay(deadline);
+  if (!d) return { state: 'due', tone: 'due', stateLabel: 'À percevoir' };
+  if (today && d < today) return { state: 'late', tone: 'late', stateLabel: `En retard depuis le ${shortDate(d, stayYear)}` };
+  return {
+    state: 'due',
+    tone: 'due',
+    stateLabel: platformPayout ? `Attendu le ${shortDate(d, stayYear)}` : `À percevoir avant le ${shortDate(d, stayYear)}`,
+  };
+}
+
+/**
+ * @param {object} p
+ * @param {object|null} p.row       the stored reservation row (null for a fiche not saved yet)
+ * @param {object|null} p.quote     the live quote (calculate-price), or null to read the stored amounts
+ * @param {object} [p.live]         the live form values the quote does not echo: platform,
+ *                                  depositDisabled, platformPayoutAmount, depositAmountOverride, kind
+ * @param {object[]} [p.links]      payment_links rows of the reservation
+ * @param {object[]} [p.refunds]    reservation_refunds rows (with their lines)
+ * @param {object} [p.overpayment]  `{ ttc, lines }` — the live trop-perçu (reservation-refunds rule 34)
+ * @param {object[]} [p.midStayNotes] the settled mid-stay notes
+ * @param {number} [p.cautionAmount] the effective caution (live from the property until received)
+ * @param {boolean} [p.canRequest]  a payment provider is ready (« Renvoyer la demande »)
+ * @param {string} p.today          `YYYY-MM-DD`
+ * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
+ */
+function buildLedger({
+  row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
+  midStayNotes = [], cautionAmount = 0, canRequest = false, today,
+} = {}) {
+  const r = row || {};
+  const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
+  const platform = has('platform') ? live.platform : (r.platform || 'direct');
+  const kind = has('kind') ? live.kind : (r.kind || 'reservation');
+  const isDevis = kind === 'devis';
+  const cancelled = kind === 'cancelled';
+  const stored = Boolean(row && row.id);
+  const canAct = stored && !isDevis && !cancelled;
+  const stayYear = isoDay(r.startDate || (quote && quote.startDate) || live.startDate)?.slice(0, 4) || null;
+  // Rule 24 — the engine's own split: anything but 'direct' is settled by a platform.
+  const isPlatform = String(platform || 'direct').trim().toLowerCase() !== 'direct';
+  const ota = isPlatform && !isDirectChannel(platform);
+  const platformName = platformDisplay(platform);
+  const depositDisabled = flag(has('depositDisabled') ? live.depositDisabled : r.depositDisabled);
+  const group = parseGroup(r.arrivalPaymentGroup);
+  const inGroup = (bucket) => Boolean(group && group.buckets.includes(bucket));
+
+  const paid = {
+    deposit: !depositDisabled && (flag(r.depositPaid) || flag(r.depositPaidCash)),
+    balance: flag(r.balancePaid) || flag(r.balancePaidCash),
+    complement: flag(r.complementPaid) || flag(r.complementPaidCash),
+    endOfStay: flag(r.endOfStayComplementPaid) || flag(r.endOfStayComplementPaidCash),
+  };
+  // Rule 7 — unpaid rows follow the live quote, paid rows keep what the stored row collected.
+  const amountOf = (bucket, quoteField, rowField) => {
+    if (paid[bucket] || !quote || quote[quoteField] == null) return round2(r[rowField]);
+    return round2(quote[quoteField]);
+  };
+  const depositAmount = depositDisabled ? 0 : amountOf('deposit', 'depositAmount', 'depositAmount');
+  const balanceAmount = amountOf('balance', 'balanceAmount', 'balanceAmount');
+  const complementAmount = amountOf('complement', 'complementAmount', 'complementAmount');
+  const endOfStayAmount = amountOf('endOfStay', 'endOfStayComplementTotal', 'endOfStayComplementAmount');
+  const fromQuote = (field, rowField = field) => (quote && quote[field] != null ? quote[field] : r[rowField]);
+  // The engine zeroes the commissions of a direct stay; a stored row is read as stored (rule 5 parity).
+  const commissionOf = (field) => round2(quote ? (isPlatform ? quote[field] : 0) : r[field]);
+  const acompteCommission = commissionOf('acompteCommissionAmount');
+  const soldeCommission = commissionOf('platformCommissionAmount');
+  const depositDueDate = fromQuote('depositDueDate');
+  const balanceDueDate = fromQuote('balanceDueDate');
+  const preArrival = quote && quote.preArrivalAmount != null ? round2(quote.preArrivalAmount) : round2(depositAmount + balanceAmount);
+  const accommodation = quote && quote.accommodationPreArrival != null ? round2(quote.accommodationPreArrival) : null;
+  const touristTaxOnSolde = accommodation == null ? null : round2(preArrival - accommodation);
+  const platformTakesDeposit = quote && quote.platformTakesDeposit != null ? Boolean(quote.platformTakesDeposit) : depositAmount > 0;
+  const overrideRaw = has('depositAmountOverride') ? live.depositAmountOverride : r.depositAmountOverride;
+  const override = overrideRaw === '' || overrideRaw == null || !Number.isFinite(Number(overrideRaw)) ? null : round2(overrideRaw);
+
+  const rows = [];
+  const warn = (label) => ({ tone: 'warning', label });
+  const futureWarning = (date) => (isoDay(date) && today && isoDay(date) > today ? [warn('Date future enregistrée')] : []);
+
+  const paidLabel = (verb, date, origin) => `${verb} le ${shortDate(date, stayYear)}${origin ? ` · ${origin}` : ''}`;
+  const undo = (confirm, label = 'Annuler') => (canAct ? { kind: 'undo', label, confirm } : null);
+  const groupNote = (bucket) => (inGroup(bucket) ? ` Le paiement unique du ${shortDate(group.at, stayYear)} est dissous.` : '');
+
+  const originOf = (bucket, cashFlag) => {
+    if (inGroup(bucket)) return 'paiement unique';
+    if (flag(cashFlag)) return 'caisse interne';
+    const link = pickLink(links, bucket === 'endOfStay' ? null : bucket);
+    if (link && link.status === 'paid') return 'lien de paiement';
+    if (ota && (bucket === 'deposit' || bucket === 'balance')) return platformName;
+    return '';
+  };
+
+  // ── Acompte (rules 4, 6, 15-17, 20) ───────────────────────────────────────
+  {
+    let notApplicable = null;
+    if (isPlatform && !platformTakesDeposit) notApplicable = `Sans objet · ${platformName} encaisse en une fois`;
+    else if (depositDisabled) notApplicable = 'Sans objet · acompte désactivé';
+    else if (!paid.deposit && depositAmount === 0 && override == null) notApplicable = 'Sans objet · paiement en une fois';
+    if (notApplicable && !paid.deposit) {
+      rows.push({
+        key: 'deposit', label: 'Acompte', amount: null, state: 'na', tone: 'muted', stateLabel: notApplicable,
+        action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null }, detail: null,
+      });
+    } else {
+      const link = linkDetail(pickLink(links, 'deposit'), { stayYear, due: !paid.deposit, canRequest });
+      const detail = { warnings: [] };
+      if (link) detail.link = link;
+      if (isPlatform && acompteCommission > 0) {
+        detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(depositAmount - acompteCommission)}`;
+      }
+      let base;
+      if (paid.deposit) {
+        const origin = originOf('deposit', r.depositPaidCash);
+        const verb = cancelled ? null : 'Perçu';
+        base = {
+          state: inGroup('deposit') ? 'paid-group' : 'paid',
+          tone: 'done',
+          stateLabel: cancelled ? 'Conservé · indemnité d\'annulation' : paidLabel(verb, r.depositPaidDate, origin),
+          action: undo(`Annuler la perception de l'acompte du ${shortDate(r.depositPaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('deposit')}`),
+          amountEdit: {
+            editable: false, mode: 'paid', min: null, max: null,
+            reason: `Acompte perçu le ${shortDate(r.depositPaidDate, stayYear)} : annuler la perception pour corriger le montant.`,
+          },
+        };
+        detail.warnings.push(...futureWarning(r.depositPaidDate));
+        // Rule 32 — stored before the guard: a 0 € acompte ticked as perceived.
+        if (!(depositAmount > 0)) detail.warnings.push(warn(`Acompte de ${formatEuros(0)} marqué perçu`));
+      } else {
+        const due = depositAmount > 0
+          ? dueState(depositDueDate, today, stayYear)
+          : { state: 'none', tone: 'muted', stateLabel: 'Aucun acompte' };
+        let amountEdit;
+        if (cancelled) amountEdit = { editable: false, mode: 'none', min: null, max: null, reason: null };
+        else if (isDevis) amountEdit = DEVIS_LOCK;
+        else if (paid.balance) {
+          amountEdit = { editable: false, mode: 'locked', min: null, max: null, reason: 'Solde déjà perçu : l\'acompte ne peut plus changer.' };
+        } else {
+          amountEdit = {
+            editable: true, mode: 'amount', min: 0, max: accommodation, reason: null,
+            help: accommodation == null ? null : `Entre 0 et ${formatEuros(accommodation)}.`,
+            ...(override != null ? { reset: { label: 'Calcul automatique', patch: { depositAmountOverride: '' } } } : {}),
+          };
+        }
+        base = {
+          ...due,
+          action: canAct && depositAmount > 0 ? { kind: 'mark', label: 'Marquer perçu' } : null,
+          amountEdit,
+        };
+        if (override != null && quote && quote.autoDepositAmount != null) {
+          detail.hint = `Montant fixé · calcul auto ${formatEuros(quote.autoDepositAmount)}`;
+        }
+        // Rule 17 — a later price drop brought the accommodation under the frozen acompte: the engine
+        // clamped it, the row says so.
+        if (override != null && accommodation != null && override > accommodation + 0.004) {
+          detail.warnings.push(warn(`Acompte ramené à ${formatEuros(depositAmount)} : l'hébergement a baissé`));
+        }
+      }
+      rows.push({ key: 'deposit', label: 'Acompte', amount: depositAmount, ...base, detail: tidyDetail(detail) });
+    }
+  }
+
+  // ── Solde / Versement de la plateforme (rules 4, 15, 17-19, 24-26) ───────
+  {
+    const label = ota ? `Versement ${platformName}` : 'Solde';
+    const link = linkDetail(pickLink(links, 'balance'), { stayYear, due: !paid.balance, canRequest });
+    const detail = { warnings: [] };
+    if (link) detail.link = link;
+    const depositRow = rows[0];
+    const depositApplies = depositRow.state !== 'na';
+    let base;
+    if (isPlatform) {
+      if (soldeCommission > 0) {
+        detail.commission = `Commission ${formatEuros(soldeCommission)} · net ${formatEuros(balanceAmount - soldeCommission)}`;
+      }
+      const payoutRaw = has('platformPayoutAmount') ? live.platformPayoutAmount : r.platformPayoutAmount;
+      const payout = payoutRaw === '' || payoutRaw == null || !Number.isFinite(Number(payoutRaw)) ? null : round2(payoutRaw);
+      // Rule 26 — the reconciliation chip, on the row: the whole net the platform settles against the
+      // transfer the operator typed (the same « Net perçu » the statement block used to print).
+      const expectedNet = quote && quote.platformNetReceivedAmount != null
+        ? round2(quote.platformNetReceivedAmount)
+        : round2(preArrival - acompteCommission - soldeCommission);
+      if (payout != null) {
+        const gap = round2(expectedNet - payout);
+        detail.reconciliation = Math.abs(gap) < 0.005
+          ? { tone: 'done', label: '✓ cohérent avec le virement' }
+          : { tone: 'warning', label: `écart : ${formatEuros(gap)}` };
+      }
+      if (paid.balance) {
+        base = {
+          state: 'paid', tone: 'done',
+          stateLabel: paidLabel(ota ? 'Reçu' : 'Perçu', r.balancePaidDate, ota ? platformName : originOf('balance', r.balancePaidCash)),
+          action: undo(`Annuler la réception du versement du ${shortDate(r.balancePaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('balance')}`),
+          amountEdit: {
+            editable: false, mode: 'locked', min: null, max: null,
+            reason: `Versement reçu le ${shortDate(r.balancePaidDate, stayYear)} : annuler la réception pour corriger les montants.`,
+          },
+        };
+        detail.warnings.push(...futureWarning(r.balancePaidDate));
+      } else {
+        base = {
+          ...dueState(balanceDueDate, today, stayYear, { platformPayout: ota }),
+          action: canAct && balanceAmount > 0
+            ? { kind: 'mark', label: ota ? 'Marquer reçu' : 'Marquer perçu', payout: { expected: round2(balanceAmount - soldeCommission) } }
+            : null,
+          amountEdit: cancelled
+            ? { editable: false, mode: 'none', min: null, max: null, reason: null }
+            : { editable: true, mode: 'statement', min: null, max: null, reason: null },
+        };
+      }
+    } else if (paid.balance) {
+      base = {
+        state: inGroup('balance') ? 'paid-group' : 'paid',
+        tone: 'done',
+        stateLabel: paidLabel('Perçu', r.balancePaidDate, originOf('balance', r.balancePaidCash)),
+        action: undo(`Annuler la perception du solde du ${shortDate(r.balancePaidDate, stayYear)} ? L'écriture comptable correspondante disparaît.${groupNote('balance')}`),
+        amountEdit: {
+          editable: false, mode: 'paid', min: null, max: null,
+          reason: `Solde perçu le ${shortDate(r.balancePaidDate, stayYear)} : montant figé.`,
+        },
+      };
+      detail.warnings.push(...futureWarning(r.balancePaidDate));
+    } else {
+      const split = depositApplies && !paid.deposit;
+      const due = balanceAmount > 0
+        ? dueState(balanceDueDate, today, stayYear)
+        : { state: 'none', tone: 'muted', stateLabel: 'Rien à percevoir' };
+      let amountEdit;
+      if (cancelled) amountEdit = { editable: false, mode: 'none', min: null, max: null, reason: null };
+      else if (isDevis) amountEdit = DEVIS_LOCK;
+      else if (split) {
+        amountEdit = {
+          editable: true, mode: 'split', min: touristTaxOnSolde, max: preArrival, reason: null,
+          help: touristTaxOnSolde == null ? null : `Entre ${formatEuros(touristTaxOnSolde)} et ${formatEuros(preArrival)} ; l'acompte prend le reste.`,
+        };
+      } else {
+        amountEdit = { editable: true, mode: 'price', min: null, max: null, reason: null, help: 'Un autre solde change le prix de l\'hébergement.' };
+      }
+      if (paid.deposit) detail.hint = 'Acompte perçu : modifier le solde change le prix';
+      base = { ...due, action: canAct && balanceAmount > 0 ? { kind: 'mark', label: 'Marquer perçu' } : null, amountEdit };
+    }
+    rows.push({ key: 'balance', label, amount: balanceAmount, ...base, detail: tidyDetail(detail) });
+  }
+
+  // ── Compléments + notes en séjour (rules 2, 22, Q5) ──────────────────────
+  const deferred = flag(has('complementDeferredToCheckout') ? live.complementDeferredToCheckout : r.complementDeferredToCheckout);
+  const arrivalAdjusted = r.complementAmountOverride != null && r.complementAmountOverride !== '';
+  const endAdjusted = r.endOfStayComplementAmountOverride != null && r.endOfStayComplementAmountOverride !== '';
+  const complementRow = ({ key, label, amount, bucket, paidFlag, cashFlag, dateField, dueLabel, slot }) => {
+    const isPaid = paid[bucket];
+    const detail = { warnings: [], slot };
+    const link = bucket === 'complement' ? pickLink(links, 'complement') : null;
+    if (link) {
+      detail.link = linkDetail(link, { stayYear, due: !isPaid, canRequest: false });
+      // Rule 31 — a retired link paid at its old amount: the operator settles the gap.
+      if (link.status === 'paid' && link.cancelReason === 'amount-changed' && cents(amount) !== Number(link.amountCents || 0)) {
+        detail.warnings.push(warn(`Payé ${formatEuros(Number(link.amountCents) / 100)} par un lien retiré, ${formatEuros(amount)} attendus`));
+      }
+    }
+    let base;
+    if (isPaid) {
+      const name = key === 'complement' ? 'du complément d\'arrivée' : 'du complément de fin de séjour';
+      const cash = flag(cashFlag);
+      base = {
+        state: inGroup(bucket === 'endOfStay' ? 'endOfStayComplement' : bucket) ? 'paid-group' : 'paid',
+        tone: 'done',
+        stateLabel: paidLabel('Perçu', r[dateField], originOf(bucket === 'endOfStay' ? 'endOfStayComplement' : bucket, cashFlag)),
+        action: undo(cash
+          ? `Annuler la perception ${name} du ${shortDate(r[dateField], stayYear)} (caisse interne) ?`
+          : `Annuler la perception ${name} du ${shortDate(r[dateField], stayYear)} ? L'écriture comptable correspondante disparaît.`),
+      };
+      detail.warnings.push(...futureWarning(r[dateField]));
+    } else {
+      base = {
+        state: 'due', tone: amount > 0 ? 'due' : 'muted', stateLabel: amount > 0 ? dueLabel : 'Rien à percevoir',
+        action: canAct && amount > 0 ? { kind: 'mark', label: 'Marquer perçu', cash: true } : null,
+      };
+    }
+    return {
+      key, label, amount, ...base, bucket: paidFlag,
+      amountEdit: cancelled
+        ? { editable: false, mode: 'none', min: null, max: null, reason: null }
+        : { editable: true, mode: 'complement', min: null, max: null, reason: null },
+      detail: tidyDetail(detail),
+    };
+  };
+  const mergedAmount = round2(complementAmount + endOfStayAmount);
+  if (deferred && mergedAmount > 0) {
+    rows.push(complementRow({
+      key: 'checkoutComplement', label: 'Complément de fin de séjour', amount: mergedAmount, bucket: 'complement',
+      paidFlag: 'complementPaid', cashFlag: r.complementPaidCash, dateField: 'complementPaidDate',
+      dueLabel: 'À percevoir au départ', slot: 'checkoutComplement',
+    }));
+  } else {
+    if (complementAmount > 0 || arrivalAdjusted) {
+      rows.push(complementRow({
+        key: 'complement', label: 'Complément d\'arrivée', amount: complementAmount, bucket: 'complement',
+        paidFlag: 'complementPaid', cashFlag: r.complementPaidCash, dateField: 'complementPaidDate',
+        dueLabel: 'À percevoir à l\'arrivée', slot: 'complement',
+      }));
+    }
+  }
+  const notes = Array.isArray(midStayNotes) ? midStayNotes : [];
+  if (notes.length > 0) {
+    const total = round2(notes.reduce((s, n) => s + (Number(n.total) || 0), 0));
+    rows.push({
+      key: 'midStayNotes', label: 'Notes en séjour', amount: total, state: 'paid', tone: 'done',
+      stateLabel: notes.length > 1 ? `${notes.length} notes perçues` : '1 note perçue',
+      action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      detail: { slot: 'midStayNotes' },
+    });
+  }
+  if (!deferred && (endOfStayAmount > 0 || endAdjusted)) {
+    rows.push(complementRow({
+      key: 'endOfStayComplement', label: 'Complément de fin de séjour', amount: endOfStayAmount, bucket: 'endOfStay',
+      paidFlag: 'endOfStayComplementPaid', cashFlag: r.endOfStayComplementPaidCash, dateField: 'endOfStayComplementPaidDate',
+      dueLabel: 'À percevoir au départ', slot: 'endOfStayComplement',
+    }));
+  }
+
+  // ── Remboursements + trop-perçu ───────────────────────────────────────────
+  if (overpayment && round2(overpayment.ttc) > 0) {
+    rows.push({
+      key: 'overpayment', label: 'Trop-perçu', amount: round2(overpayment.ttc), state: 'due', tone: 'warning',
+      stateLabel: 'À rembourser',
+      action: canAct ? { kind: 'refund', label: 'Rembourser' } : null,
+      amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      detail: {
+        lines: (overpayment.lines || []).filter((l) => Number(l.collectedTtc) > 0)
+          .map((l) => `${l.label} : ${formatEuros(l.collectedTtc)} encaissés, ${formatEuros(l.dueTtc)} dus`),
+      },
+    });
+  }
+  for (const refund of refunds || []) {
+    const method = METHOD_LABELS[refund.method] || refund.method || '';
+    rows.push({
+      key: `refund-${refund.id}`, label: 'Remboursement', amount: -round2(refund.totalTtc), state: 'refunded', tone: 'info',
+      stateLabel: `Rendu le ${shortDate(refund.refundDate, stayYear)}${method ? ` · ${method}` : ''}`,
+      action: canAct ? { kind: 'deleteRefund', label: 'Supprimer', refundId: refund.id, confirm: 'Supprimer ce remboursement ? L\'avoir correspondant sera supprimé.' } : null,
+      amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      detail: {
+        lines: (refund.lines || []).map((l) => `${l.label} : − ${formatEuros(l.amountTtc)}`),
+        ...(refund.reason ? { note: `« ${refund.reason} »` } : {}),
+      },
+    });
+  }
+
+  // ── Caution (rules 6, 12) ─────────────────────────────────────────────────
+  if (!isDevis) {
+    const received = flag(r.cautionReceived);
+    const returned = flag(r.cautionReturned);
+    const caution = round2(cautionAmount);
+    const none = { editable: false, mode: 'none', min: null, max: null, reason: null };
+    if (caution <= 0 && !received && !returned) {
+      rows.push({ key: 'caution', label: 'Caution', amount: null, state: 'na', tone: 'muted', stateLabel: 'Sans objet', action: null, amountEdit: none, detail: null });
+    } else {
+      const recvDetail = { warnings: futureWarning(r.cautionReceivedDate) };
+      rows.push(received
+        ? {
+          key: 'cautionReceived', label: 'Caution reçue', amount: caution, state: 'paid', tone: 'done',
+          stateLabel: `Reçue le ${shortDate(r.cautionReceivedDate, stayYear)}`,
+          action: undo(`Annuler la réception de la caution du ${shortDate(r.cautionReceivedDate, stayYear)} ?${returned ? ' La restitution est annulée aussi.' : ''}`),
+          amountEdit: none, detail: tidyDetail(recvDetail),
+        }
+        : {
+          key: 'cautionReceived', label: 'Caution reçue', amount: caution, state: 'due', tone: 'due',
+          stateLabel: 'À recevoir à l\'arrivée',
+          action: canAct ? { kind: 'mark', label: 'Recevoir' } : null,
+          amountEdit: none, detail: null,
+        });
+      const retDetail = { warnings: futureWarning(r.cautionReturnedDate) };
+      if (returned && !received) retDetail.warnings.push(warn('Restituée sans réception enregistrée'));
+      if (returned) {
+        rows.push({
+          key: 'cautionReturned', label: 'Caution restituée', amount: caution, state: 'paid', tone: 'done',
+          stateLabel: `Rendue le ${shortDate(r.cautionReturnedDate, stayYear)}`,
+          action: undo(`Annuler la restitution de la caution du ${shortDate(r.cautionReturnedDate, stayYear)} ?`),
+          amountEdit: none, detail: tidyDetail(retDetail),
+        });
+      } else if (!received) {
+        rows.push({
+          key: 'cautionReturned', label: 'Caution restituée', amount: caution, state: 'waiting', tone: 'muted',
+          stateLabel: 'Après réception', action: null, amountEdit: none, detail: null,
+        });
+      } else {
+        rows.push({
+          key: 'cautionReturned', label: 'Caution restituée', amount: caution, state: 'due', tone: 'due',
+          stateLabel: 'À rendre au départ',
+          action: canAct ? { kind: 'mark', label: 'Restituer', after: isoDay(r.cautionReceivedDate) } : null,
+          amountEdit: none, detail: null,
+        });
+      }
+    }
+  }
+
+  // ── Reste à percevoir (rule 5) ────────────────────────────────────────────
+  const remaining = remainingToPay({
+    ...r,
+    depositDisabled: depositDisabled ? 1 : 0,
+    depositAmount,
+    balanceAmount,
+    complementAmount,
+    endOfStayComplementAmount: endOfStayAmount,
+    acompteCommissionAmount: acompteCommission,
+    platformCommissionAmount: soldeCommission,
+  });
+  return {
+    rows,
+    remaining,
+    remainingLabel: remaining === 0 ? 'Tout est perçu' : `Reste à percevoir ${formatEuros(remaining)}`,
+    closing: remaining === 0 ? { label: 'Tout est perçu', amount: null } : { label: 'Reste à percevoir', amount: remaining },
+    settled: remaining === 0,
+  };
+}
+
+function tidyDetail(detail) {
+  if (!detail) return null;
+  const out = { ...detail };
+  if (Array.isArray(out.warnings) && out.warnings.length === 0) delete out.warnings;
+  return Object.keys(out).length === 0 ? null : out;
+}
+
+module.exports = { buildLedger, formatEuros, shortDate, pickLink };

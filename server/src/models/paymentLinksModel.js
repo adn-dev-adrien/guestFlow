@@ -14,7 +14,10 @@
  *   retireExpired({ now })                  → flips open links past a known expiresAt to 'expired'; returns them
  *   retireSettled()                         → cancels the open links whose bucket the stay already settled; returns them
  *   settledBucketDateOf(link)               → the day the stay recorded that link's bucket as paid, or null
- *   markRetiredLinkPaid(id, { providerPaymentId, paidAt }) → a link retired by retireSettled was the payment: cancelled→paid
+ *   markRetiredLinkPaid(id, { providerPaymentId, paidAt, reason? }) → a link retired by retireSettled (or, with
+ *                                           reason 'amount-changed', by retireForAmountChange) was paid: cancelled→paid
+ *   retireForAmountChange(reservationId, type, newAmountCents) → cancels the open links of that type whose amount
+ *                                           the fiche changed (specs/reservation-payment-ledger.md rule 29)
  *   listPollable({ now, force, cadence })   → the open links due for a provider check (the polling worklist)
  *   touchPolled(id, at?)                    → stamps lastPolledAt (every provider call made for a link)
  *   hasKnownExpiry(link)                    → whether the link carries a real expiry date
@@ -194,16 +197,38 @@ function buildModel(database) {
 
   // Rule 24 — a link retired by rule 23 that the guest had paid IS the payment that settled the bucket:
   // it becomes `paid` with the provider's payment, and its deactivation is no longer owed.
-  function markRetiredLinkPaid(id, { providerPaymentId = null, paidAt = null } = {}) {
+  function markRetiredLinkPaid(id, { providerPaymentId = null, paidAt = null, reason = 'settled' } = {}) {
     const info = database.prepare(`
       UPDATE payment_links
          SET status = 'paid',
              remoteCancelPendingAt = NULL,
              providerPaymentId = COALESCE(?, providerPaymentId),
              paidAt = COALESCE(?, paidAt, datetime('now'))
-       WHERE id = ? AND status = 'cancelled' AND cancelReason = 'settled'
-    `).run(providerPaymentId == null ? null : String(providerPaymentId), paidAt == null ? null : String(paidAt), Number(id));
+       WHERE id = ? AND status = 'cancelled' AND cancelReason = ?
+    `).run(providerPaymentId == null ? null : String(providerPaymentId), paidAt == null ? null : String(paidAt), Number(id), String(reason));
     return { flipped: Number(info.changes) > 0, row: findById(id) };
+  }
+
+  // specs/reservation-payment-ledger.md rule 29 (§9 Q3) — the fiche changed the amount an open link
+  // bills: the link is abandoned at once, with the remote-deactivation marker so the poll deactivates
+  // it at the provider (rule 8) and books it if the guest paid it anyway (rule 31).
+  function retireForAmountChange(reservationId, type, newAmountCents) {
+    const open = database.prepare(
+      `SELECT ${SELECT_COLS} FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'open' ORDER BY id`
+    ).all(Number(reservationId), String(type));
+    const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'amount-changed' WHERE id = ? AND status = 'open'");
+    const at = new Date().toISOString();
+    const retired = [];
+    database.transaction(() => {
+      for (const link of open) {
+        if (Number(link.amountCents) === Math.round(Number(newAmountCents))) continue;
+        const pending = link.providerLinkId ? at : null;
+        if (Number(retire.run(pending, link.id).changes) > 0) {
+          retired.push({ ...link, status: 'cancelled', remoteCancelPendingAt: pending, cancelReason: 'amount-changed' });
+        }
+      }
+    })();
+    return retired;
   }
 
   function listPollable({ now = new Date(), force = false, cadence = resolvePollCadence() } = {}) {
@@ -298,6 +323,7 @@ function buildModel(database) {
     retireSettled,
     settledBucketDateOf,
     markRetiredLinkPaid,
+    retireForAmountChange,
     listPollable,
     touchPolled,
     hasKnownExpiry,

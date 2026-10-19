@@ -2661,6 +2661,9 @@ function calculateReservationQuote({
     engineFinalPrice,
     priceOverridden,
     depositAmount: resolvedDepositAmount,
+    // specs/reservation-payment-ledger.md rule 16 — the percentage acompte, so the ledger can say
+    // « Montant fixé · calcul auto X » under a frozen one without computing it.
+    autoDepositAmount,
     balanceAmount: resolvedBalanceAmount,
     complementAmount: resolvedComplementAmount,
     overCollectedTtc,
