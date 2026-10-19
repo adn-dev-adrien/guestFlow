@@ -434,6 +434,7 @@ function NavContent({ onItemClick }) {
                           onClick={(e) => onItemClick && onItemClick(e, `${SETTINGS_HOME_PATH}#${group.id}`)}
                           selected={location.pathname === SETTINGS_HOME_PATH && unfolded}
                           aria-expanded={unfolded}
+                          aria-controls={unfolded ? `settings-group-${group.id}` : undefined}
                           sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                         >
                           <ListItemIcon sx={{ minWidth: 34 }}><group.Icon fontSize="small" /></ListItemIcon>
@@ -442,7 +443,9 @@ function NavContent({ onItemClick }) {
                           }} />
                           {unfolded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                         </ListItemButton>
-                        {unfolded && group.entries.map((entry) => {
+                        {unfolded && (
+                        <List disablePadding role="group" id={`settings-group-${group.id}`} aria-label={group.label}>
+                        {group.entries.map((entry) => {
                     const isProperties = entry.path === PROPERTIES_PATH;
                     return (
                       <Box key={entry.path}>
@@ -498,6 +501,8 @@ function NavContent({ onItemClick }) {
                       </Box>
                     );
                         })}
+                        </List>
+                        )}
                       </Box>
                     );
                   })}

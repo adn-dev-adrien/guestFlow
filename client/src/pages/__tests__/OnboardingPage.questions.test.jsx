@@ -24,9 +24,9 @@ const QUESTIONS = [
   { id: 'payment', label: 'Encaisser en ligne, par lien de paiement ?', answer: false, allowed: true, plan: null, hint: 'Active : Paiement en ligne (Qonto).' },
 ];
 
-async function openStep3() {
+async function openStep3(questions = QUESTIONS) {
   api.getOnboarding.mockResolvedValue({
-    open: true, company: { name: 'Les Cabanes', email: 'c@x.fr' }, property: { id: 1, existing: 1, draft: null }, plugins: [], questions: QUESTIONS,
+    open: true, company: { name: 'Les Cabanes', email: 'c@x.fr' }, property: { id: 1, existing: 1, draft: null }, plugins: [], questions,
   });
   api.saveOnboardingCompany.mockResolvedValue({});
   api.saveOnboardingPlugins.mockResolvedValue({ results: [], pluginsSummary: '4 plugins actifs' });
@@ -56,4 +56,17 @@ test('rule 43: the answers as given go to the server', async () => {
   fireEvent.click(screen.getByRole('switch', { name: /Un site internet/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
   await vi.waitFor(() => expect(api.saveOnboardingPlugins).toHaveBeenCalledWith({ options: true, website: false, payment: true }));
+});
+
+test('rule 43: a settled question is shown on, disabled, says where it changes, and is not sent', async () => {
+  const settled = QUESTIONS.map((q) => (q.id === 'options'
+    ? { ...q, answer: true, settled: true, hint: 'Déjà en partie actif ; le reste se règle dans Paramètres › Plugins.' }
+    : q));
+  await openStep3(settled);
+  const sw = screen.getByRole('switch', { name: /options payantes/ });
+  expect(sw).toBeChecked();
+  expect(sw).toBeDisabled();
+  expect(screen.getByText('Déjà en partie actif ; le reste se règle dans Paramètres › Plugins.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
+  await vi.waitFor(() => expect(api.saveOnboardingPlugins).toHaveBeenCalledWith({ website: true, payment: false }));
 });

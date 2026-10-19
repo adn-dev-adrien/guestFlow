@@ -73,6 +73,8 @@ module.exports = defineConfig({
         // and the TEST-ONLY public key the support links are signed for, with the slug they name.
         + ` GUESTFLOW_MAIL_OUTBOX="${OUTBOX}" GUESTFLOW_PUBLIC_URL="${CLIENT_URL}"`
         + ` GUESTFLOW_LICENCE_PUBLIC_KEY="${SUPPORT_PUBLIC_KEY}" GUESTFLOW_SLUG=e2e`
+        // specs/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
+        + ' GUESTFLOW_SMTP_DETECT=off'
         + ' node src/index.js',
       url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a

@@ -72,7 +72,7 @@ test('step 2: the capacity follows the beds until typed; step 3 (rule 43): the a
   expect(screen.getByText('Forfait Premium')).toBeInTheDocument();
   next();
   expect(await screen.findByText('Non activé : Réservation depuis le site')).toBeInTheDocument();
-  expect(api.saveOnboardingPlugins).toHaveBeenCalledWith({ options: true, website: true, payment: false });
+  expect(api.saveOnboardingPlugins).toHaveBeenCalledWith({ options: true, website: true });
   expect(screen.getByText('Étape 3 sur 5')).toBeInTheDocument();
 });
 

@@ -66,11 +66,26 @@ test('rule 43: three questions, each naming the plugins its « oui » turns on',
   db.close();
 });
 
-test('rule 43: a question answers « oui » when one of its plugins is already active', async () => {
+test('rule 43: a question whose plugins are active is settled — on, disabled, and says where it changes', async () => {
   const states = fresh();
   states['online-payment'] = 'active';
+  states.sas = 'active';
   const { db, controller } = setup(states);
-  assert.equal((await call(controller.get, {})).body.questions.find((q) => q.id === 'payment').answer, true);
+  const { questions } = (await call(controller.get, {})).body;
+  const payment = questions.find((q) => q.id === 'payment');
+  assert.deepEqual([payment.answer, payment.settled, payment.hint], [true, true, 'Déjà actif ; se désactive dans Paramètres › Plugins.']);
+  const options = questions.find((q) => q.id === 'options');
+  assert.deepEqual([options.settled, options.hint], [true, 'Déjà en partie actif ; le reste se règle dans Paramètres › Plugins.']);
+  assert.equal(questions.find((q) => q.id === 'website').settled, false);
+  db.close();
+});
+
+test('rule 43: a « oui » to a settled question installs nothing (a SAS-only instance gets no hourly resources nor linen)', async () => {
+  const states = fresh();
+  states.sas = 'active';
+  const { db, controller, calls } = setup(states);
+  await call(controller.savePlugins, { body: { answers: { options: true, website: false, payment: false } } });
+  assert.deepEqual(calls, []);
   db.close();
 });
 
@@ -93,10 +108,13 @@ test('rule 43: each « oui » installs its plugins in order; a « non » switche
   db.close();
 });
 
-test('rule 43: no answer, or anything but true, installs nothing', async () => {
+test('rule 43: anything but true installs nothing; a body without answers is refused', async () => {
   const { db, controller, calls } = setup(fresh());
   await call(controller.savePlugins, { body: { answers: { options: 'yes', website: 1 } } });
-  await call(controller.savePlugins, { body: { ids: ['neat'] } });
+  assert.deepEqual(calls, []);
+  const refused = await call(controller.savePlugins, { body: { ids: ['neat'] } });
+  assert.deepEqual([refused.status, refused.body.error], [400, 'ONBOARDING_ANSWERS_REQUIRED']);
+  assert.equal((await call(controller.savePlugins, { body: { answers: [] } })).status, 400);
   assert.deepEqual(calls, []);
   db.close();
 });

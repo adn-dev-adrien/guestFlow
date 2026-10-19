@@ -101,9 +101,10 @@ test('preview lists created / removed seasons and closures, and applies only on 
   render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.0.0" onApplied={onApplied} />);
   await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
 
-  fireEvent.click(screen.getByText('Appliquer la recette…'));
+  // The answers arrive after the calls: wait for what they render, not for the calls alone.
+  fireEvent.click(await screen.findByText('Appliquer la recette…'));
   await waitFor(() => expect(api.previewTariffRecipe).toHaveBeenCalledWith(1, 'aventura-lodge-2026'));
-  expect(screen.getByText('Aperçu des modifications')).toBeInTheDocument();
+  expect(await screen.findByText('Aperçu des modifications')).toBeInTheDocument();
   expect(screen.getByText('sera créée')).toBeInTheDocument();
   expect(screen.getByText('sera supprimée')).toBeInTheDocument();
   expect(screen.queryByText('inchangée')).not.toBeInTheDocument(); // unchanged rows are hidden

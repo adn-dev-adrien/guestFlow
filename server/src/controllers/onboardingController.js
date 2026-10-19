@@ -103,21 +103,36 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
 
   /**
    * Rule 43 (UI/UX review 2026-10-18, proposal 13) — the plugin step asks three yes/no questions.
-   * A question answers « oui » when one of its plugins is already active, else when it is
-   * recommended. Its line names what « oui » turns on; a question none of whose plugins the plan
-   * includes is shown off, with the plan that does.
+   * A question one of whose plugins is already active is settled: shown on and disabled, with where
+   * it changes (its « oui » would turn on the others — a SAS-only instance would silently get the
+   * hourly resources and the linen). Otherwise it answers as recommended; its line names what « oui »
+   * turns on. A question none of whose plugins the plan includes is shown off, with the plan.
    */
   function questionsOf(list) {
     const byId = new Map(list.map((p) => [p.id, p]));
     return ONBOARDING_QUESTIONS.map((q) => {
       const plugins = q.plugins.map((id) => byId.get(id)).filter(Boolean);
       const allowed = plugins.filter((p) => p.allowed);
-      const anyActive = plugins.some((p) => p.state === 'active');
+      const active = plugins.filter((p) => p.state === 'active');
+      if (active.length) {
+        return {
+          id: q.id,
+          label: q.label,
+          answer: true,
+          allowed: true,
+          settled: true,
+          plan: null,
+          hint: active.length === plugins.length
+            ? 'Déjà actif ; se désactive dans Paramètres › Plugins.'
+            : 'Déjà en partie actif ; le reste se règle dans Paramètres › Plugins.',
+        };
+      }
       return {
         id: q.id,
         label: q.label,
-        answer: allowed.length > 0 && (anyActive || q.recommended),
+        answer: allowed.length > 0 && q.recommended,
         allowed: allowed.length > 0,
+        settled: false,
         plan: allowed.length ? null : (plugins[0] || {}).plan || null,
         hint: allowed.length ? `Active : ${allowed.map((p) => p.label).join(', ')}.` : null,
       };
@@ -360,12 +375,17 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
   }
 
   async function savePlugins(req, res) {
-    const answers = (req.body && typeof req.body.answers === 'object' && req.body.answers) || {};
+    const answers = req.body && req.body.answers;
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+      return res.status(400).json({ error: 'ONBOARDING_ANSWERS_REQUIRED', message: 'Réponses manquantes.' });
+    }
     const list = await pluginList();
     const known = new Map(list.map((p) => [p.id, p]));
-    // Rule 43 — the plugins of every « oui », those the plan includes; a « non » leaves all as they are.
+    const settled = new Set(questionsOf(list).filter((q) => q.settled).map((q) => q.id));
+    // Rule 43 — the plugins of every « oui » to a question not settled yet, those the plan includes;
+    // a settled question and a « non » leave everything as it is.
     const ids = [...new Set(ONBOARDING_QUESTIONS
-      .filter((q) => answers[q.id] === true)
+      .filter((q) => answers[q.id] === true && !settled.has(q.id))
       .flatMap((q) => q.plugins)
       .filter((id) => known.has(id) && known.get(id).allowed))];
     const results = [];

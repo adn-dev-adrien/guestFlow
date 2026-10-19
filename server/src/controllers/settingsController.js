@@ -120,20 +120,17 @@ function getSettings(req, res) {
 }
 
 /**
- * Rule 28 — the server, not the operator, fills an empty sending server: once a password is there
- * (the operator's own server, never the platform's — specs/hosting-h1-fleet-runtime.md rules 18–19),
- * the provider found from the sending address gives the host and the security. A host already
- * saved or typed always wins; a provider not found leaves the host empty, to be typed.
+ * Rule 28 — the server, not the operator, fills an empty sending server, and only on the save that
+ * brings a password (the operator's own server, never the platform's —
+ * specs/hosting-h1-fleet-runtime.md rules 18–19): the provider found from the sending address gives
+ * the host and the security. A host saved, typed or explicitly emptied (`host` in the payload) is
+ * the operator's choice and always wins; a provider not found leaves the host empty, to be typed.
  */
 function needsDetectedServer(stored, payload, smtp) {
-  if (!smtp) return '';
-  const next = { ...stored, ...payload };
-  if (String(next.smtpHost || '').trim()) return '';
-  const hasPassword = Object.prototype.hasOwnProperty.call(payload, 'smtpPasswordEncrypted')
-    ? payload.smtpPasswordEncrypted !== ''
-    : Boolean(stored.smtpPasswordSet);
-  if (!hasPassword) return '';
-  return resolveEmailIdentity(next).fromEmail;
+  if (!smtp || Object.prototype.hasOwnProperty.call(smtp, 'host')) return '';
+  if (String(stored.smtpHost || '').trim()) return '';
+  if (!payload.smtpPasswordEncrypted) return '';
+  return resolveEmailIdentity({ ...stored, ...payload }).fromEmail;
 }
 
 async function updateSettings(req, res) {
@@ -213,7 +210,12 @@ async function updateSettings(req, res) {
     return res.status(400).json({ code: 'SETTINGS_INVALID', errors });
   }
 
-  const address = needsDetectedServer(settingsModel.read(), payload, smtp);
+  const stored = settingsModel.read();
+  // Rule 28 — host and password both emptied: back to no server of its own, security included.
+  if (payload.smtpHost === '' && (payload.smtpPasswordEncrypted === '' || (!stored.smtpPasswordSet && payload.smtpPasswordEncrypted === undefined))) {
+    payload.smtpSecure = 0;
+  }
+  const address = needsDetectedServer(stored, payload, smtp);
   if (address) {
     const found = await smtpDetector.detect(address);
     if (found.status === 'found') {
@@ -289,6 +291,7 @@ async function detectSmtp(req, res) {
   const result = await smtpDetector.detect(address);
   return res.json({
     address,
+    status: result.status,
     found: result.status === 'found',
     provider: result.status === 'found' ? result.provider : null,
     message: detectionMessage(result),

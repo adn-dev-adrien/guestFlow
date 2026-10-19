@@ -405,13 +405,19 @@ Decisions taken on 2026-10-06:
     | « Encaisser en ligne, par lien de paiement ? » | Paiement en ligne (Qonto) | non |
 
     Each question is a switch with one line naming what « oui » turns on (« Active : … », from the
-    server). It answers « oui » when one of its plugins is already active, else as in the table. A
-    question none of whose plugins the plan includes is off and disabled, with the plan chip; the
-    plugins of a partly included question go through for those included. `PUT /api/onboarding/plugins
-    { answers: { options, website, payment } }` installs or activates the plugins of every `true`, one
-    after the other (rule 37), and a failure is still named (rule 37); **a « non » never switches a
-    plugin off** and anything but `true` counts as « non ». Under the questions: « Le reste se règle
-    plus tard dans Paramètres › Plugins. » The other plugins (Neat, Google Agenda, Sowel, the intakes,
+    server), answered as in the table. **A question one of whose plugins is already active is
+    settled**: shown on and disabled, with « Déjà actif ; se désactive dans Paramètres › Plugins. »
+    (all active) or « Déjà en partie actif ; le reste se règle dans Paramètres › Plugins. » — its
+    « oui » would otherwise turn on the others (a SAS-only instance would silently get the hourly
+    resources and the linen). A question none of whose plugins the plan includes is off and
+    disabled, with the plan chip; the plugins of a partly included question go through for those
+    included. The step sends only the questions still open (allowed, not settled):
+    `PUT /api/onboarding/plugins { answers: { options?, website?, payment? } }` installs or activates
+    the plugins of every `true` to a question that is not settled — the server checks it again and
+    ignores the others —, one after the other (rule 37), and a failure is still named (rule 37);
+    **a « non » never switches a plugin off** and anything but `true` counts as « non ». A body
+    without an `answers` object is refused: 400 `ONBOARDING_ANSWERS_REQUIRED`. Under the questions:
+    « Le reste se règle plus tard dans Paramètres › Plugins. » The other plugins (Neat, Google Agenda, Sowel, the intakes,
     the export…) are left to the Plugins page.
 
 ## 4. Architecture
@@ -499,7 +505,7 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 | POST | `/api/email-mentions/preview` | `{ propertyId, children, startDate }` → `{ fr, en }`: the J-7 offers paragraph and the J-2 confirmations, rendered by the server |
 | GET | `/api/onboarding` | `{ open, company, plugins: [{ id, label, description, allowed, plan, state, recommended }] }` |
 | PUT | `/api/onboarding/company`, `/api/onboarding/property` | Validated writes; 422 `{ errors }` per field; 402 when the plan's unit quota is reached |
-| PUT | `/api/onboarding/plugins` | `{ answers: { options, website, payment } }` (rule 43; was `{ ids }`) → `{ results: [{ id, ok, error, reason }], pluginsSummary, reload }` (`reload`: rule 42), each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
+| PUT | `/api/onboarding/plugins` | `{ answers: { options?, website?, payment? } }` (rule 43; was `{ ids }`; 400 `ONBOARDING_ANSWERS_REQUIRED` without it; `GET` questions carry `settled`) → `{ results: [{ id, ok, error, reason }], pluginsSummary, reload }` (`reload`: rule 42), each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
 | GET | `/api/plugins/page?path=` | `{ plugins: [{ id, name, state }], message }`; `{ plugins: [], message: null }` for a core or unknown page, or once one of the page's plugins is active (rules 40, 42) |
 | GET | `/api/auth/me` | gains `onboardingOpen` (admins only) |
 | GET / PUT | `/api/platforms/settings` | each row gains `countsAsDirect` |
@@ -612,9 +618,10 @@ Review of the sweep, 2026-10-18 (rule 42): server `plugin-page-owner` (+2) and
 `plugins/online-payment.spec.js` (« Plugin inactif » at `/parametres/paiements` once switched off)
 and `auth/not-found.spec.js` (+1, `/comptabilite/zzz` with the plugin active).
 
-UI/UX review 2026-10-19 (rule 43): server `onboarding-questions` (5), `onboarding` and
+UI/UX review 2026-10-19 (rule 43): server `onboarding-questions` (6: settled questions, a « oui »
+to a settled one installs nothing, 400 without answers), `onboarding` and
 `onboarding-plugins-sequential` updated to the answers; `onboarding-plugins-fold` removed (rule 36
-superseded); client `OnboardingPage.questions` (2), `OnboardingPage` updated, `OnboardingPage.plugins-fold`
+superseded); client `OnboardingPage.questions` (3, a settled question disabled and not sent), `OnboardingPage` updated, `OnboardingPage.plugins-fold`
 removed.
 
 ### E2E

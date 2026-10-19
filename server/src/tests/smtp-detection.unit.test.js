@@ -36,6 +36,50 @@ test('rule 28: a company domain is recognised by its MX, the most preferred reco
   assert.deepEqual([ovh.provider.host, ovh.provider.port], ['ssl0.ovh.net', 465]);
   const ms = await createSmtpDetector({ resolveMx: mx('gite-fr.mail.protection.outlook.com') }).detect('a@gite.fr');
   assert.deepEqual([ms.provider.host, ms.provider.secure, ms.provider.port], ['smtp.office365.com', false, 587]);
+  assert.match(ms.provider.hint, /autorisé pour elle dans Microsoft 365/);
+});
+
+test('rule 28: Outlook / Hotmail / Live — no password preset, the card says modern authentication is required', async () => {
+  const found = await createSmtpDetector().detect('gite@hotmail.fr');
+  assert.equal(found.status, 'unsupported');
+  assert.equal(found.provider.name, 'Outlook.com');
+  assert.equal(found.provider.host, undefined);
+  assert.match(detectionMessage(found), /authentification moderne/);
+});
+
+test('rule 28: OVH redirection-only MX holds no mailbox and is not OVH mail', async () => {
+  const redirect = await createSmtpDetector({ resolveMx: mx('redirect.ovh.net') }).detect('a@gite.fr');
+  assert.equal(redirect.status, 'unknown');
+});
+
+test('rule 28: Zoho — a personal address uses smtp.zoho.*, a company domain on Zoho uses smtppro.zoho.*', async () => {
+  assert.equal((await createSmtpDetector().detect('a@zohomail.eu')).provider.host, 'smtp.zoho.eu');
+  assert.equal((await createSmtpDetector().detect('a@zoho.com')).provider.host, 'smtp.zoho.com');
+  assert.equal((await createSmtpDetector({ resolveMx: mx('mx.zoho.com') }).detect('a@gite.fr')).provider.host, 'smtppro.zoho.com');
+});
+
+test('rule 28: GUESTFLOW_SMTP_DETECT=off makes no lookup and says nothing; a known mailbox domain still answers', async () => {
+  let calls = 0;
+  const detector = createSmtpDetector({ env: { GUESTFLOW_SMTP_DETECT: 'off' }, resolveMx: async () => { calls += 1; return []; } });
+  const off = await detector.detect('a@gite.fr');
+  assert.equal(off.status, 'off');
+  assert.equal(detectionMessage(off), '');
+  assert.equal((await detector.detect('a@gmail.com')).status, 'found');
+  assert.equal(calls, 0);
+});
+
+test('rule 28: the cache is bounded (oldest out) and an over-long domain is refused', async () => {
+  let calls = 0;
+  const detector = createSmtpDetector({ maxEntries: 2, resolveMx: async () => { calls += 1; return [{ exchange: 'mx.example.net', priority: 1 }]; } });
+  await detector.detect('a@one.fr');
+  await detector.detect('a@two.fr');
+  await detector.detect('a@three.fr');
+  await detector.detect('a@two.fr');
+  assert.equal(calls, 3, 'two.fr still cached');
+  await detector.detect('a@one.fr');
+  assert.equal(calls, 4, 'one.fr was evicted');
+  const long = `a@${'x'.repeat(260)}.fr`;
+  assert.equal((await detector.detect(long)).status, 'invalid');
 });
 
 test('rule 28: a lookalike host does not count (suffix match on a label boundary)', async () => {
@@ -67,7 +111,7 @@ test('rule 28: an answer is remembered for an hour, a failure is not', async () 
   });
   await detector.detect('a@gite.fr');
   fail = false;
-  assert.equal((await detector.detect('a@gite.fr')).provider.id, 'zoho');
+  assert.equal((await detector.detect('a@gite.fr')).provider.host, 'smtppro.zoho.eu');
   await detector.detect('b@gite.fr');
   assert.equal(calls, 2);
   clock = 61 * 60 * 1000;
@@ -132,10 +176,28 @@ test('rule 28: no password, nothing deduced — the platform keeps sending', asy
   assert.equal(lookups.length, before);
 });
 
-test('rule 28: a saved password and a new address → the server looks the new domain up', async () => {
+test('rule 28: only the save that brings a password deduces — another field of the group does not', async () => {
+  const before = lookups.length;
   const { upserted: pl } = await save({ smtp: { fromEmail: 'resa@chalet.fr' } }, { companyEmail: 'a@gite.fr', smtpPasswordEncrypted: 'blob' });
-  assert.equal(pl.smtpHost, 'ssl0.ovh.net');
+  assert.equal(pl.smtpHost, undefined);
+  assert.equal(lookups.length, before);
+  const typed = await save({ smtp: { fromEmail: 'resa@chalet.fr', password: 'secret' } }, { companyEmail: 'a@gite.fr', smtpPasswordEncrypted: 'blob' });
+  assert.equal(typed.upserted.smtpHost, 'ssl0.ovh.net');
   assert.ok(lookups.includes('chalet.fr'));
+});
+
+test('rule 28: a host emptied on purpose stays empty, even with a stored or typed password', async () => {
+  const emptied = await save({ smtp: { host: '' } }, { companyEmail: 'a@gite.fr', smtpHost: 'ssl0.ovh.net', smtpPasswordEncrypted: 'blob' });
+  assert.equal(emptied.upserted.smtpHost, '');
+  const withPassword = await save({ smtp: { host: '', password: 'secret' } }, { companyEmail: 'a@gite.fr', smtpHost: 'ssl0.ovh.net' });
+  assert.equal(withPassword.upserted.smtpHost, '');
+});
+
+test('rule 28: host and password both emptied — back to no server of its own, security reset', async () => {
+  const { upserted: pl } = await save({ smtp: { host: '', password: '' } }, { companyEmail: 'a@gite.fr', smtpHost: 'ssl0.ovh.net', smtpSecure: 1, smtpPasswordEncrypted: 'blob' });
+  assert.deepEqual([pl.smtpHost, pl.smtpPasswordEncrypted, pl.smtpSecure], ['', '', 0]);
+  const kept = await save({ smtp: { host: '' } }, { companyEmail: 'a@gite.fr', smtpHost: 'x', smtpSecure: 1, smtpPasswordEncrypted: 'blob' });
+  assert.equal(kept.upserted.smtpSecure, undefined, 'a stored password keeps the security');
 });
 
 test('rule 28: POST /smtp-detect proposes without writing, for the typed or the saved address', async () => {

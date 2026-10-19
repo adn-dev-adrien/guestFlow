@@ -76,6 +76,8 @@ function startServer() {
       GUESTFLOW_PLUGINS_DIST: DIST,
       GUESTFLOW_CLIENT_DIR: path.join(ROOT, 'client', 'dist'),
       GUESTFLOW_SUPERVISED: '1',
+      // specs/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
+      GUESTFLOW_SMTP_DETECT: 'off',
       GUESTFLOW_REGISTRY_URL: `http://127.0.0.1:${REGISTRY_PORT}/registry/v1`,
       GUESTFLOW_REGISTRY_PUBLIC_KEY: publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
       GUESTFLOW_SESSION_SECRET: 'e2e-prod-fixed-session-secret-not-for-prod-32b',

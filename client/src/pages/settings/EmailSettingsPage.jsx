@@ -26,12 +26,16 @@ export default function EmailSettingsPage() {
   const disabled = form.loading || form.saving;
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
-  // specs/settings-rationalization.md rule 28 — the server proposes the sending server while none is saved.
+  // specs/settings-rationalization.md rule 28 — the server proposes the sending server while none is
+  // saved, for an own server only: never on a managed instance sending through the platform, until
+  // a password is stored or typed there (specs/hosting-h1-fleet-runtime.md rules 18–19).
   const smtpDraft = form.draft.smtp || {};
   const savedHost = String((form.saved && form.saved.smtp && form.saved.smtp.host) || '').trim();
+  const ownServer = !(smtpDraft.platform && smtpDraft.platform.available)
+    || Boolean(smtpDraft.passwordSet) || String(smtpDraft.passwordDraft || '').trim() !== '';
   const detection = useSmtpDetection(
     String(smtpDraft.fromEmail || '').trim() || String((smtpDraft.derived || {}).fromEmail || '').trim(),
-    !form.loading && !savedHost,
+    !form.loading && !savedHost && ownServer,
   );
 
   const handleSmtpTest = async () => {

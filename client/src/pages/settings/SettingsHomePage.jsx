@@ -1,6 +1,6 @@
 /**
  * SettingsHomePage — `/settings`, the summary of Paramètres (specs/settings-rationalization.md rules
- * 31–34; UI/UX review 2026-10-18, proposal 20 and decision 12).
+ * 24–27; UI/UX review 2026-10-18, proposal 20 and decision 12).
  *
  * The four groups of constants/settingsMenu.js, each page on one row with its state line computed by
  * the server (GET /api/settings/summary), and a search that understands the owner's words (wifi,

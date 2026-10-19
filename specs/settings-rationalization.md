@@ -269,7 +269,8 @@ one place.
     Plugins). « Intégrations » moves from the third family to the fourth, next to Plugins, whose
     settings it mostly holds. Under « Paramètres » the sidebar shows the four group rows; the group of
     the open page (or of the summary's `#group`) unfolds its pages beneath it, the others stay folded:
-    at most 9 rows instead of 15. A group row opens the summary on that group. A plugin entry belongs
+    at most 9 rows instead of 15. A group row opens the summary on that group; it carries
+    `aria-expanded` and, unfolded, `aria-controls` to its pages' list (`role="group"`). A plugin entry belongs
     to the group of the entry it is placed next to (`after` / `before`), so no plugin changes; a
     group with no visible page is left out.
 27. **The summary has a search** that understands the owner's words: each page declares keywords
@@ -281,24 +282,36 @@ one place.
     14). The operator types the address (or keeps the derived one, rule 12) and the password. The
     server recognises the provider — by the address's own domain (gmail.com, orange.fr, outlook.fr…),
     else by the domain's MX records looked up from the server (DNS only, 3 s timeout, answers kept one
-    hour) — among Gmail / Google Workspace, Microsoft 365 / Outlook, OVHcloud, IONOS, Infomaniak,
-    Gandi, Zoho, iCloud, Yahoo, Orange, Free, SFR, La Poste, and proposes its host and security (the
-    port follows, rule 11). The Envoi card says « Serveur trouvé : Gmail (smtp.gmail.com). Retenu à
-    l'enregistrement. » with the provider's own password hint; at save **the server** writes that host
-    and security when no host is saved or typed and a password is (stored or typed). **A configured
-    host always wins.** Not found or DNS failure → « Fournisseur non reconnu pour gite.fr : saisir le
-    serveur. » and « Réglages avancés » opens on the manual fields (server, login, security, now folded
-    there). Without a password nothing is deduced, so a managed instance keeps « Envoi par la
-    plateforme » (specs/hosting-h1-fleet-runtime.md rules 18–19). The disabled test button says what it
-    waits for: « Adresse d'envoi manquante. », « Mot de passe manquant. », « Serveur d'envoi
-    manquant. », « À enregistrer d'abord. ».
+    hour, at most 500 domains — the oldest goes —, a domain over 253 characters refused) — among Gmail
+    / Google Workspace, Microsoft 365, OVHcloud (not its redirection-only `redirect.ovh.net` MX),
+    IONOS, Infomaniak, Gandi, Zoho (an address @zohomail.* → `smtp.zoho.*`; a company domain whose MX
+    is Zoho's → `smtppro.zoho.*`, the organisation server), iCloud, Yahoo, Orange, Free, SFR, La Poste,
+    and proposes its host and security (the port follows, rule 11). Outlook.com / Hotmail / Live
+    accept no password over SMTP any more: they are recognised and the card says « Outlook, Hotmail et
+    Live demandent l'authentification moderne : l'envoi par mot de passe n'est pas pris en charge. »,
+    nothing is proposed. Microsoft 365 is proposed with the hint that authenticated SMTP must be
+    allowed for the mailbox. o2switch (MX on the customer's own domain) and other cPanel hosts are not
+    recognised: their server is typed. The Envoi card says « Serveur trouvé : Gmail
+    (smtp.gmail.com). Retenu à l'enregistrement. » with the provider's own password hint. **The server
+    deduces only on the save that brings a password and does not carry `host`**, when no host is
+    stored: it then writes the host and security found. **A configured host always wins**, and a host
+    the operator empties on purpose stays empty; emptying host and password together also puts the
+    security back to its default. Not found or DNS failure → « Fournisseur non reconnu pour gite.fr :
+    saisir le serveur. » and « Réglages avancés » opens on the manual fields (server, login, security,
+    now folded there). The card asks the server only for an own server: never on a managed instance
+    sending through the platform until a password is stored or typed there
+    (specs/hosting-h1-fleet-runtime.md rules 18–19); a refused request (a read-only instance) says
+    nothing. `GUESTFLOW_SMTP_DETECT=off` turns the lookup off — the E2E suites set it, so no test
+    resolves a real domain. The disabled test button says what it waits for: « Adresse d'envoi
+    manquante. », « Mot de passe manquant. », « Serveur d'envoi manquant. », « À enregistrer
+    d'abord. ».
 
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
 - (rule 28) The address changes to another provider after a host was saved → the saved host wins;
-  empty « Serveur d'envoi » in « Réglages avancés » and save with the password to deduce it again.
-- (rule 28) An existing instance with a password but no host and nothing to save → nothing is
-  deduced until a save that carries the password.
+  empty « Serveur d'envoi » and save, then type the password again and save: that save deduces it.
+- (rule 28) An existing instance with a password but no host → nothing is deduced until a save that
+  carries the password (another field of the group, e.g. the sender name, deduces nothing).
 - (rule 27) A plugin page whose plugin is off is neither in the submenu nor in the summary.
 - An override email emptied → falls back to the derived value, shown as the placeholder.
 - A production row whose `smtpUsername` differs from `smtpFromEmail` → the migration keeps it as an
@@ -387,8 +400,8 @@ one place.
 | POST/PUT | `/api/properties(/:id)` | 400 `{ error: 'PROPERTY_INVALID', errors: { field: message } }` (rule 23a) |
 | GET | `/api/options?view=catalogue` | Leaves out `early_check_in` / `late_check_out` |
 | GET | `/api/settings/summary` | **New** (admin, rule 25): `{ lines: { '<page path>': { text, tone: 'neutral' \| 'warning' } } }` |
-| POST | `/api/settings/smtp-detect` | **New** (admin, rule 28): `{ address? }` → `{ address, found, provider: { id, name, host, secure, port, hint } \| null, message }`; never writes |
-| PUT | `/api/settings` | Rule 28 — an `smtp` group saved with no host and a password present gets the deduced `smtpHost` / `smtpSecure` |
+| POST | `/api/settings/smtp-detect` | **New** (admin, rule 28): `{ address? }` → `{ address, status, found, provider: { id, name, host, secure, port, hint } \| null, message }` (`status`: found, unsupported, unknown, dns-failed, off, invalid; `message` empty when off); never writes |
+| PUT | `/api/settings` | Rule 28 — an `smtp` group that brings a password and no `host`, with no host stored, gets the deduced `smtpHost` / `smtpSecure`; `host` and `password` both `''` also reset `smtpSecure` |
 
 ## 5. Data model
 
@@ -449,10 +462,16 @@ Delivered: 26 tests in the feature file; server suite 4194 tests green.
 ### Rules 24–28 (2026-10-19)
 - [x] Server `settings-summary.unit.test.js` (5): counts and states, warning tone, the three sender
       lines, plugins to configure on Plugins / Intégrations / their page, a failing line left out
-- [x] Server `smtp-detection.unit.test.js` (10): domain without DNS, MX by preference, lookalike
-      refused, unknown / DNS failure / timeout / invalid, one-hour cache without failures; the
-      controller fills host + security with a password, keeps a configured host, deduces nothing
-      without a password, follows a new address, `smtp-detect` never writes
+- [x] Server `smtp-detection.unit.test.js` (17): domain without DNS, MX by preference (Microsoft 365
+      hint), lookalike refused, Outlook.com unsupported, OVH redirect excluded, Zoho personal /
+      organisation, `GUESTFLOW_SMTP_DETECT=off`, bounded cache and over-long domain, unknown / DNS
+      failure / timeout / invalid, one-hour cache without failures; the controller fills host +
+      security with a typed password, keeps a configured host, deduces nothing without a password nor
+      on another field's save, keeps an emptied host empty, resets the security when host and password
+      are emptied, `smtp-detect` never writes. `settings-controller-smtp-password` and
+      `-header-injection` await the now asynchronous save
+- [x] Client `useSmtpDetection.test.jsx` (5): found, a sentence, off and refused say nothing, no
+      request when not enabled
 - [x] Client `SettingsHomePage.test.jsx` (4), `settingsMenu.groups.test.js` (5),
       `settingsSearch.test.js` (3), `SettingsSmtpSection.detected-server.test.jsx` (4); updated
       `SettingsSmtpSection.plain-words` and `.platform`

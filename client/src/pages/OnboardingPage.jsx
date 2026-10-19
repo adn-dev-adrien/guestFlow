@@ -153,7 +153,9 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       }
       if (step === 2 && !existingProperties) await api.saveOnboardingProperty(property);
       if (step === 3) {
-        const saved = await api.saveOnboardingPlugins(answers);
+        // Rule 43 — only the questions still open to an answer: a settled one changes nothing.
+        const open = questions.filter((q) => q.allowed && !q.settled);
+        const saved = await api.saveOnboardingPlugins(Object.fromEntries(open.map((q) => [q.id, Boolean(answers[q.id])])));
         setPluginsSummary(saved.pluginsSummary || '');
         if (saved.reload) setNeedsLoad(true);
         // Rule 37 — each plugin left out is named with the server's reason.
@@ -264,7 +266,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
                 component="label"
                 sx={{
                   display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1, minHeight: 56,
-                  borderTop: i ? 1 : 0, borderColor: 'divider', cursor: q.allowed ? 'pointer' : 'default',
+                  borderTop: i ? 1 : 0, borderColor: 'divider', cursor: q.allowed && !q.settled ? 'pointer' : 'default',
                 }}
               >
                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -274,7 +276,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
                 </Box>
                 <Switch
                   checked={Boolean(answers[q.id]) && q.allowed}
-                  disabled={!q.allowed}
+                  disabled={!q.allowed || Boolean(q.settled)}
                   onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.checked }))}
                   slotProps={{ input: { 'aria-label': q.label } }}
                 />
