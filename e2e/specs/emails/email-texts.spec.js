@@ -1,8 +1,8 @@
 // @ts-check
 // specs/guest-email-texts-made-simple.md §7 E2E — fill a property's arrival facts and see them in the
 // « Accès et arrivée » preview, export the texts then re-import them (one changed row, one refused
-// row), run a test send that lands in the dev mail catcher, and open a text from a sentence of the
-// preview (rule 41).
+// row), run a test send that lands in the dev mail catcher with its HTML part (rule 37), and open a
+// text from a sentence of the preview (rule 45).
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
@@ -53,6 +53,16 @@ test.describe('Textes des emails', () => {
     const sent = mails.find((m) => m.to === COMPANY_EMAIL);
     expect(sent.subject).toMatch(/^\[Test\] /);
     expect(sent.text).toContain('12 chemin des Prés E2E');
+    // Rule 37: the test leaves as multipart/alternative, its HTML part derived from the same text.
+    expect(sent.html).toContain('12 chemin des Prés E2E');
+    expect(sent.mime).toMatch(/Content-Type: multipart\/alternative;/);
+
+    // « Texte | HTML »: the HTML part shows in a sandboxed frame.
+    await page.getByRole('button', { name: 'HTML', exact: true }).click();
+    const frame = page.frameLocator('iframe[title="Email en HTML"]');
+    await expect(frame.getByText('Bonjour Textes,')).toBeVisible();
+    await page.getByRole('button', { name: 'Texte', exact: true }).click();
+    await expect(preview).toContainText('Bonjour Textes,');
   });
 
   test('rules 16–17: export, then re-import with one changed row and one refused row', async ({ page }, testInfo) => {
@@ -68,7 +78,7 @@ test.describe('Textes des emails', () => {
     expect(csv.startsWith('﻿email;clé;description;français;english;texte par défaut (FR)')).toBe(true);
 
     const lines = csv.split('\r\n');
-    // Rule 40 — the email column names the email by its purpose.
+    // Rule 44 — the email column names the email by its purpose.
     const house = lines.findIndex((l) => l.startsWith('Accès et arrivée;text:house;'));
     const cleaning = lines.findIndex((l) => l.startsWith('Accès et arrivée;text:cleaning.included;'));
     lines[house] = 'Accès et arrivée;text:house;Dans le logement;Thé offert E2E.;;';
@@ -87,7 +97,7 @@ test.describe('Textes des emails', () => {
     await expect(page.getByTestId('email-preview')).toContainText('Thé offert E2E.');
   });
 
-  test('rule 41: a click on a sentence of the email opens its field; the email sent carries no tag', async ({ page }) => {
+  test('rule 45: a click on a sentence of the email opens its field; the email sent carries no tag', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`/settings/emails/textes?propertyId=${property.id}#j2`);
     const preview = page.getByTestId('email-preview');

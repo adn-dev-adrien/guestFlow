@@ -40,7 +40,7 @@ function buildController({ database, translator = textTranslator }) {
         .map((t) => ({ ...t, name: displayNameOf(t) })),
       items: items.filter((i) => i.section === s.id).map(publicItem),
     })).filter((s) => s.items.length);
-    // Rule 38 — the FR | EN switch's « N à traduire », counted on the texts of the page.
+    // Rule 42 — the FR | EN switch's « N à traduire », counted on the texts of the page.
     return res.json({
       sections, properties, propertyId, canTranslate: translator.isAvailable(), toTranslate: emailTextsModel.countToTranslate(items),
     });

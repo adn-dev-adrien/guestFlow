@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 37 (UI/UX review 2026-10-18, decision 5) — a mistyped
+// specs/guest-email-texts-made-simple.md rule 41 (UI/UX review 2026-10-18, decision 5) — a mistyped
 // variable is refused where it was typed, with the closest variable this text may use as the fix.
 
 const test = require('node:test');
@@ -8,7 +8,7 @@ const { setup, call } = require('./emailTextsFixture');
 const { closestVariable, templateAllowed, tokenError } = require('../utils/templateTokens');
 const { buildController } = require('../controllers/emailTextsController');
 
-test('rule 37: the closest variable, by name or by label, within a few letters', () => {
+test('rule 41: the closest variable, by name or by label, within a few letters', () => {
   const allowed = templateAllowed();
   assert.deepEqual(closestVariable('prenon', allowed), { name: 'clientFirstName', label: 'Prénom du voyageur' });
   assert.deepEqual(closestVariable('distnce', { tokens: ['distance', 'price'] }), { name: 'distance', label: 'Distance (m)' });
@@ -16,14 +16,14 @@ test('rule 37: the closest variable, by name or by label, within a few letters',
   assert.equal(closestVariable('', allowed), null);
 });
 
-test('rule 37: the refusal names the typed word and carries the suggestion', () => {
+test('rule 41: the refusal names the typed word and carries the suggestion', () => {
   const refusal = tokenError('fr', 'Bonjour {{prenon}}', templateAllowed());
   assert.equal(refusal.message, 'Variable inconnue : {{prenon}}');
   assert.equal(refusal.unknown, 'prenon');
   assert.deepEqual(refusal.suggestion, { name: 'clientFirstName', label: 'Prénom du voyageur' });
 });
 
-test('rule 37: a save and a preview answer the suggestion in their 422', async () => {
+test('rule 41: a save and a preview answer the suggestion in their 422', async () => {
   const { db, emails, templateId } = setup();
   const texts = buildController({ database: db, translator: { isAvailable: () => false } });
   const saved = await call(texts.save, { body: { changes: { 'text:parkingLine': { fr: 'À {{distnce}} m.' } } } });

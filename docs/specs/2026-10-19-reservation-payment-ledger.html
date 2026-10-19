@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registre des paiements</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6a665b; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --ok:#356f49; --ok-bg:#e6efe7; --err:#9c3d34; --err-bg:#f7e8e5; --warn:#8f6a1d; --warn-bg:#f6edd7;
+  --stage:#ede8de;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --err:#e08b82; --err-bg:#341f1c; --warn:#e2c17a; --warn-bg:#33291a;
+    --stage:#232a26;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --err:#e08b82; --err-bg:#341f1c; --warn:#e2c17a; --warn-bg:#33291a;
+  --stage:#232a26;
+}
+*{box-sizing:border-box}
+::selection{background:var(--sapin);color:var(--card)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:28px 16px 64px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;text-wrap:balance}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px;color:var(--sapin);letter-spacing:-.01em}
+h2{font-size:20px;margin:40px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px;color:var(--sapin)}
+h3{font-size:16px;margin:22px 0 6px}
+p,li{max-width:74ch}
+.sub{color:var(--muted);margin:0 0 20px}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--hover);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+a{color:var(--sapin)}
+ul{padding-left:20px}
+.callout{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:14px 0}
+.callout b{color:var(--sapin)}
+.arb{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:12px 0}
+.arb p{margin:4px 0}
+.arb .rec{display:inline-block;background:var(--ok-bg);color:var(--ok);font-size:12px;font-weight:600;border-radius:99px;padding:1px 8px;margin-left:4px}
+table.t{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}
+table.t th,table.t td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.tw{overflow-x:auto}
+
+/* controls */
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 12px}
+.seg{display:inline-flex;background:var(--stage);border-radius:10px;padding:3px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:7px 12px;min-height:40px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button:focus-visible,.plain:focus-visible{outline:2px solid var(--sapin);outline-offset:1px}
+.plain{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:7px 14px;min-height:40px;cursor:pointer}
+.try{font-size:13px;color:var(--muted);margin:0 0 8px}
+.stage{background:var(--stage);border-radius:14px;padding:14px;overflow:hidden}
+.fit{position:relative;margin:0 auto}
+.fit>.frame{transform-origin:top left;position:absolute;top:0;left:0}
+
+/* ======== the mock: GuestFlow « Maison » (always light — it depicts the light app) ======== */
+.frame{--p:#2F5D46;--paperm:#F8F5EF;--inkm:#27251F;--mutedm:#6E6A5E;--div:rgba(60,54,36,.12);
+  --okm:#3E7D54;--okbg:#E6EFE7;--wm:#8F6A1D;--wbg:#F6EDD7;--em:#A8433A;--ebg:#F7E8E5;--im:#31556E;--ibg:#E4EDF3;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,serif;
+  background:var(--paperm);color:var(--inkm);border-radius:18px;box-shadow:0 10px 40px rgba(40,30,10,.18);overflow:hidden;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.appbar{display:flex;align-items:center;gap:10px;height:52px;padding:0 14px;background:#fff;border-bottom:1px solid var(--div)}
+.logo{font:700 17px var(--serif);color:var(--p)}
+.appbar .ttl{font:600 15px var(--serif);color:var(--inkm);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shell{display:grid;grid-template-columns:1fr}
+.nav{display:none;background:#F1EDE5;padding:16px 12px;font-size:14px}
+.nav div{padding:9px 10px;border-radius:10px}
+.nav div.on{background:#E3DDD1;font-weight:600}
+.content{padding:14px;display:grid;gap:14px;align-content:start;min-width:0}
+.frame.w1280 .shell{grid-template-columns:220px minmax(0,1fr)}
+.frame.w1280 .nav{display:block}
+.frame.w1280 .content{grid-template-columns:minmax(0,1fr) 300px;padding:20px 24px;align-items:start}
+.panel{background:#fff;border-radius:14px;box-shadow:0 3px 16px rgba(60,54,36,.09);padding:14px;min-width:0}
+.ph{font:600 17px var(--serif);margin:0 0 4px}
+.psub{font-size:12.5px;color:var(--mutedm);margin:0 0 8px}
+.sum .k{font-size:11px;font-weight:600;color:var(--mutedm);text-transform:uppercase;letter-spacing:.06em}
+.sum .hero{font:700 28px/1.1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin:2px 0 8px}
+.sum .ln{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0;color:var(--mutedm)}
+.sum .ln b{color:var(--inkm);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+
+.led{container-type:inline-size;container-name:led}
+.row{border-top:1px solid var(--div);padding:11px 0}
+.row:first-child{border-top:0}
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"l a" "s x";gap:6px 10px;align-items:center}
+.lab{grid-area:l;font-weight:600;min-width:0;overflow-wrap:anywhere}
+.amt{grid-area:a;justify-self:end}
+.st{grid-area:s;min-width:0;display:flex;flex-wrap:wrap;gap:4px}
+.act{grid-area:x;justify-self:end}
+@container led (min-width:600px){
+  .top{grid-template-columns:minmax(0,1fr) 120px minmax(0,230px) 150px;grid-template-areas:"l a s x"}
+  .act{justify-self:end}
+}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.amtbtn{font:inherit;font-weight:600;color:var(--inkm);background:transparent;border:0;border-bottom:1px dashed #A9A291;padding:6px 2px 2px;min-height:40px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.amtbtn svg{width:13px;height:13px;color:var(--mutedm);flex:none}
+.amtbtn.lock{border-bottom-style:dotted;border-color:#CFC9BB}
+.amtplain{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;max-width:100%;white-space:normal;line-height:1.35}
+.chip.done{background:var(--okbg);color:var(--okm)}
+.chip.due{background:var(--wbg);color:var(--wm)}
+.chip.late{background:var(--ebg);color:var(--em)}
+.chip.info{background:var(--ibg);color:var(--im)}
+.chip.muted{background:#EFECE5;color:var(--mutedm)}
+.btn{font:inherit;font-weight:500;border-radius:999px;border:1px solid var(--p);color:var(--p);background:#fff;padding:8px 14px;min-height:44px;cursor:pointer;white-space:nowrap;transition:transform .1s ease-out}
+.btn.fill{background:var(--p);color:#fff}
+.btn.text{border-color:transparent;background:transparent;padding:8px 8px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn:active:not([disabled]),.amtbtn:active{transform:scale(.97)}
+.btn:focus-visible,.amtbtn:focus-visible,.inp:focus-visible,.sw:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+@media (hover:hover) and (pointer:fine){.btn:not([disabled]):hover{filter:brightness(.96)}}
+.det{font-size:12.5px;color:var(--mutedm);margin-top:5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.row.muted .lab,.row.muted .amtplain{color:var(--mutedm);font-weight:500}
+.form{margin-top:10px;background:#FAF8F3;border-radius:12px;padding:10px;display:grid;gap:8px;grid-template-columns:1fr}
+.form.anim{animation:open .2s ease-out}
+@keyframes open{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@container led (min-width:600px){.form{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:end}.form .full{grid-column:1/-1}}
+.fld{display:flex;flex-direction:column;gap:3px;min-width:0}
+.fld label{font-size:12px;color:var(--mutedm)}
+.inp{font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;border:1px solid #C9C3B5;border-radius:10px;padding:9px 11px;background:#fff;color:var(--inkm);width:100%;min-height:44px;font-variant-numeric:tabular-nums}
+.inp:focus{outline:2px solid var(--p);outline-offset:-1px;border-color:transparent}
+.inp.bad{border-color:var(--em);background:var(--ebg)}
+.msg{font-size:12.5px;min-height:0}
+.msg.bad{color:var(--em);font-weight:600}
+.msg.eff{color:var(--inkm)}
+.msg.eff b{font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.swl{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;cursor:pointer}
+.sw{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:99px;background:#CFC9BB;position:relative;cursor:pointer;flex:none;transition:background .15s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.sw:checked{background:var(--p)}
+.sw:checked::after{transform:translateX(16px)}
+.foot{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-top:2px solid var(--div);margin-top:2px;padding-top:11px;font-weight:600}
+.foot .num{font-size:17px}
+.foot.ok{color:var(--okm)}
+.confirm{margin-top:10px;background:var(--ebg);border-radius:12px;padding:10px;font-size:13px;animation:open .2s ease-out}
+.confirm p{margin:0 0 8px}
+.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){.form.anim,.confirm{animation:fade .15s}.shake{animation:none}@keyframes fade{from{opacity:0}to{opacity:1}}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<main>
+<h1>Paiements : un registre d'états</h1>
+<p class="sub">Résumé de la spec <code>specs/reservation-payment-ledger.md</code> (statut : Draft) · revue UI/UX du 18/10/2026, proposition 5, arbitrage 8 : « Spec d'abord, puis implémentation », avec la condition « il faut quand même pouvoir setter les montants notamment pour la partie solde et acompte ».</p>
+
+<h2>Le constat</h2>
+<ul>
+  <li><b>L'état n'est jamais affiché comme un état.</b> Acompte, solde et caution sont des boutons à bascule (« Marquer solde payé » → « Solde payé ») : seule la couleur du bouton dit si c'est payé. Aucun « en retard », « payé par lien » ou « payé à l'arrivée ».</li>
+  <li><b>Des champs vides toujours visibles</b> : les dates de caution en <code>mm/dd/yyyy</code> avant toute réception, et les échéances en champs modifiables alors que le serveur les calcule.</li>
+  <li><b>Rien ne garde l'ordre des choses.</b> On peut restituer une caution jamais reçue — par le bouton comme par « Enregistrer », qui écrit les champs de caution tels que le navigateur les envoie — et dater un paiement dans le futur (seul le paiement unique à l'arrivée vérifie sa date).</li>
+  <li><b>Un paiement peut être enregistré au mauvais montant.</b> Modifier l'acompte puis cliquer « Marquer acompte payé » sans enregistrer : le serveur enregistre le paiement à l'ancien montant.</li>
+  <li><b>Seul l'acompte est réglable</b>, et un acompte trop grand est rogné sans rien dire (900 tapés, 840 retenus). Le solde est toujours déduit.</li>
+  <li><b>Les liens de paiement dérivent.</b> Un lien Qonto ouvert reste payable à l'ancien montant tant que personne ne renvoie la demande ; payé entre-temps, il marque l'échéance payée au nouveau montant. La fiche n'affiche jamais l'état d'un lien.</li>
+  <li><b>Quatre styles de bouton</b> pour un seul rôle, et le navigateur déduit lui-même les états à partir des drapeaux (contraire à la règle « serveur épais »).</li>
+</ul>
+
+<h2>À manipuler</h2>
+<p class="try">Trois séjours, deux largeurs. Essayer : taper l'acompte à 900 ou à −5 (refusé), le solde à 10 (refusé : il porte la taxe de séjour), puis marquer l'acompte perçu avec une date future (refusé) avant de le valider à la date du jour. Une fois l'acompte perçu, modifier le solde montre la conséquence sur le prix. Solde perçu puis montant plus bas : la fiche propose le remboursement. Le complément se marque avec ou sans « Caisse interne ». Caution : « Restituer » n'apparaît qu'après la réception. Sur Booking.com, taper un virement différent du net pour voir l'écart.</p>
+<div class="bar">
+  <div class="seg" role="group" aria-label="Séjour" data-k="sc">
+    <button data-v="direct" aria-pressed="true">Direct</button>
+    <button data-v="paid" aria-pressed="false">Direct · acompte perçu</button>
+    <button data-v="booking" aria-pressed="false">Booking.com</button>
+  </div>
+  <div class="seg" role="group" aria-label="Largeur" data-k="w">
+    <button data-v="390" aria-pressed="true">390</button>
+    <button data-v="1280" aria-pressed="false">1280</button>
+  </div>
+  <button class="plain" id="reset" type="button">Recommencer</button>
+</div>
+<div class="stage"><div class="fit" id="fit"><div class="frame" id="frame"></div></div></div>
+<p class="sr" aria-live="polite" id="live"></p>
+
+<h2>Ce qu'on propose</h2>
+<ul>
+  <li><b>Une ligne par mouvement d'argent</b>, dans l'ordre où l'argent circule : acompte, solde (ou versement de la plateforme), compléments, notes en séjour, remboursements, caution reçue, caution restituée. Chaque ligne : libellé · montant · état en mots · <b>une seule action</b>. Fin du registre : « Reste à percevoir » ou « Tout est perçu », calculé par la <b>même fonction serveur</b> que le suivi opérationnel des Finances (net de commission, compléments compris) : un seul « reste dû » dans l'application.</li>
+  <li><b>Le serveur construit le registre</b> : lignes, ordre, libellés, états, action, et pour chaque montant s'il est modifiable, entre quelles bornes, et sinon pourquoi. Le navigateur affiche et ne calcule rien.</li>
+  <li><b>Les montants restent réglables (condition de l'arbitrage 8).</b>
+    <ul>
+      <li>Acompte non perçu : entre 0 et l'hébergement. Au-delà, refusé avec la raison, plus rogné en silence. Le solde absorbe, comme aujourd'hui.</li>
+      <li>Solde, acompte non perçu : entre la taxe de séjour qu'il porte et le total avant arrivée. Taper le solde règle la répartition, pas le prix (l'acompte devient le reste).</li>
+      <li>Solde, acompte déjà perçu (ou sans acompte) : un autre solde est un autre prix. Le serveur relance tout le moteur (taxe de séjour, assurance annulation au pourcentage…) pour trouver le prix d'hébergement, propose le solde atteignable le plus proche quand le centime exact n'existe pas, refuse de descendre l'hébergement sous l'acompte déjà reçu, et montre la conséquence avant « Valider » (arbitrage Q1).</li>
+      <li>Après un solde tapé, c'est l'acompte qui reste fixe ; si le prix baisse ensuite sous l'acompte, la ligne le signale.</li>
+      <li>Ligne déjà perçue : montant figé. Plus bas, la fiche propose le remboursement ; plus haut, annuler la perception puis la refaire.</li>
+      <li>Saisie : « 12,5 », « 12.5 » et « 100+20 » acceptés, arrondi au centime, refus sous le champ, valeur tapée conservée.</li>
+    </ul>
+  </li>
+  <li><b>Marquer perçu</b> ouvre un petit formulaire sous la ligne (date du jour ; « Caisse interne » sur les compléments, comme aujourd'hui — sur l'acompte et le solde elle reste une origine en lecture seule, posée par le SAS). La date est vérifiée par le serveur : pas dans le futur. Une date antérieure à la création de la fiche reste acceptée (saisies après coup, imports). Le marquage <b>enregistre la fiche d'abord</b>, et porte le montant vu au centime : s'il a changé dans un autre onglet, refus.</li>
+  <li><b>Caution dans l'ordre</b> : « Restituer » n'existe qu'après la réception, et pas à une date antérieure. « Enregistrer » n'écrit plus jamais l'état de la caution : seul le marquage le fait, avec ses contrôles.</li>
+  <li><b>Plateforme</b> : la ligne « Versement Booking.com » remplace le solde, avec commission et net. « Modifier » ouvre les champs du relevé (total facturé, taxe retenue, commission), inchangés. « Marquer reçu » demande le virement et montre l'écart, avec le calcul de commission en un bouton.</li>
+  <li><b>Liens de paiement</b> (acompte, solde, paiement intégral, complément) visibles sur leur ligne. Changer un montant retire le lien ouvert (après avoir vérifié qu'il n'a pas été payé) ; « Renvoyer la demande » n'apparaît que sur une ligne encore due. Si le voyageur paie quand même l'ancien lien, l'argent est enregistré sur la fiche à son montant réel, et l'écart suit les règles existantes (le solde absorbe, ou complément, ou trop-perçu).</li>
+  <li><b>Aucune migration</b> : le registre est une vue sur les colonnes existantes.</li>
+</ul>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Les paiements partiels (plusieurs versements sur un même acompte) et la correction automatique d'un lien payé à un ancien montant.</li>
+  <li>Une colonne « moyen de paiement » (virement, CB, chèque…) : arbitrage Q2. Pas d'interrupteur « Caisse interne » sur l'acompte et le solde depuis la fiche.</li>
+  <li>Supprimer l'ancienne fonction <code>computePaymentStatus</code>, qui ne sert plus qu'à son test : nettoyage à part.</li>
+  <li>Déplacer « Envoyer la demande d'acompte / de solde » hors des actions de page.</li>
+  <li>Le résumé tarifaire (proposition 6) et la barre de total collante (arbitrage 6) : autres lots.</li>
+  <li>Le montant de la caution (figé depuis le logement à la réception) et les écrans SAS.</li>
+</ul>
+
+<h2>Specs modifiées à l'implémentation</h2>
+<ul>
+  <li><code>editable-deposit-amount.md</code> : règle 4 (l'acompte trop grand est refusé, plus rogné) et §8 (le solde devient réglable).</li>
+  <li><code>single-payment-from-the-fiche.md</code> : règle 11bis étendue aux quatre champs de caution.</li>
+  <li><code>plugins-phase-3a-online-payment.md</code> : nouveau motif de retrait « montant modifié » et enregistrement d'un paiement tardif.</li>
+  <li>« Lien de paiement visible et renouvelable » : résumé Draft du 25/09, présent seulement dans la copie de travail principale ; à réconcilier quand il arrivera, pas recopié ici.</li>
+</ul>
+
+<h2>Risque</h2>
+<p><b>Moyen : c'est la surface de l'argent.</b> Le registre doit reproduire exactement la logique payé / non payé d'aujourd'hui. Garde-fou prévu : un test de parité sur une copie neutralisée de la base Solio (état de chaque échéance, reste dû par la fonction partagée, export comptable identique octet pour octet avant et après). Les nouveaux refus ne s'appliquent qu'aux nouvelles écritures ; une caution déjà restituée sans réception s'affiche telle quelle, avec un avertissement. La traduction d'un solde en prix (Q1) passe par le moteur existant : la taxe de séjour suit l'hébergement, donc le serveur recalcule jusqu'au centime et montre le résultat avant d'appliquer.</p>
+
+<h2>Arbitrages en attente</h2>
+<div class="arb"><p><b>Q1. Solde tapé alors que l'acompte est déjà perçu (ou sans acompte)</b></p>
+  <p>(a) Accepté comme un changement de prix : le serveur ajuste l'hébergement et montre « Hébergement 840,00 € → 790,00 € » avant « Valider ». <span class="rec">recommandé</span></p>
+  <p>(b) Refusé, avec un renvoi vers « Prix hébergement ajusté ».</p></div>
+<div class="arb"><p><b>Q2. Moyen de paiement</b></p>
+  <p>(a) Pas de nouvelle colonne : la ligne dit l'origine déjà connue (lien, caisse interne, plateforme, paiement unique). <span class="rec">recommandé</span></p>
+  <p>(b) Une colonne « moyen » (virement, CB, chèque, espèces, ANCV) demandée au marquage.</p></div>
+<div class="arb"><p><b>Q3. Lien de paiement ouvert quand son montant change</b></p>
+  <p>(a) Retiré et désactivé à l'enregistrement ; la ligne, encore due, propose « Renvoyer la demande » ; un paiement tardif de l'ancien lien est quand même enregistré. <span class="rec">recommandé</span></p>
+  <p>(b) Changement de montant refusé tant qu'un lien est ouvert.</p></div>
+<div class="arb"><p><b>Q4. Annuler un paiement enregistré</b></p>
+  <p>(a) Confirmation qui nomme la date et l'écriture comptable. <span class="rec">recommandé</span></p>
+  <p>(b) Annulation immédiate, avec « Rétablir » pendant quelques secondes.</p></div>
+<div class="arb"><p><b>Q5. Les compléments dans le registre</b></p>
+  <p>(a) Ils deviennent des lignes ; lignes, ajustement et « Percevoir en fin de séjour » sous « Détail ». <span class="rec">recommandé</span></p>
+  <p>(b) Première version limitée à acompte, solde, caution et remboursements ; les cartes de complément restent dessous.</p></div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var TODAY = '2026-10-19';
+  var frame = document.getElementById('frame');
+  var fitEl = document.getElementById('fit');
+  var live = document.getElementById('live');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var PENCIL = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M11.7 1.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4L5.4 13.6l-3.4.8.8-3.4z"/></svg>';
+  var LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2h.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1.5 0h4V5a2 2 0 0 0-4 0z"/></svg>';
+
+  var fmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+  function eur(c) { return fmt.format(c / 100); }
+  function fr(d) { var p = d.split('-'); return p[2] + '/' + p[1]; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // « 12,5 », « 12.5 », « 100+20 » → cents (null when unreadable). Same contract as ArithmeticTextField.
+  function parseAmount(raw) {
+    var s = String(raw || '').replace(/\s| |€/g, '').replace(/,/g, '.');
+    if (!s) return null;
+    if (!/^[-+*/().0-9]+$/.test(s)) return null;
+    var i = 0;
+    function num() {
+      if (s[i] === '(') { i++; var v = expr(); if (s[i] !== ')') throw 0; i++; return v; }
+      var m = /^[0-9]*\.?[0-9]+|^[0-9]+\.?/.exec(s.slice(i)); if (!m) throw 0; i += m[0].length; return parseFloat(m[0]);
+    }
+    function unary() { if (s[i] === '-') { i++; return -unary(); } if (s[i] === '+') { i++; return unary(); } return num(); }
+    function term() { var v = unary(); while (s[i] === '*' || s[i] === '/') { var o = s[i++]; var r = unary(); v = o === '*' ? v * r : v / r; } return v; }
+    function expr() { var v = term(); while (s[i] === '+' || s[i] === '-') { var o = s[i++]; var r = term(); v = o === '+' ? v + r : v - r; } return v; }
+    try { var v = expr(); if (i !== s.length || !isFinite(v)) return null; return Math.round(v * 100); } catch (e) { return null; }
+  }
+
+  // ---------- the stays ----------
+  var TAX_RATE = 2640 / 84000; // the tax base follows the accommodation (specs/tourist-tax-base-accommodation-only.md)
+  function taxOf(h) { return Math.round(h * TAX_RATE); }
+  function initial(kind) {
+    if (kind === 'booking') {
+      return { kind: 'booking', platform: 'Booking.com', gross: 98739, commission: 15797, payoutDue: '2026-10-22',
+        bal: { paid: false }, payout: null, cRecv: { paid: false }, cRet: { paid: false }, refunds: [], open: null, edit: null, err: '', confirm: null };
+    }
+    var s = { kind: 'direct', H: 84000, depOverride: null, pct: 30, depDue: '2026-10-26', balDue: '2027-06-22',
+      dep: { paid: false }, bal: { paid: false }, comp: { paid: false }, cRecv: { paid: false }, cRet: { paid: false },
+      link: { type: 'dep', amount: 25200, at: '2026-10-15', status: 'open' }, refunds: [], open: null, edit: null, err: '', confirm: null };
+    if (kind === 'paid') { s.dep = { paid: true, date: '2026-10-12', amount: 25200, origin: 'lien de paiement' }; s.link = { type: 'dep', amount: 25200, at: '2026-10-05', status: 'paid', paidAt: '2026-10-12' }; }
+    return s;
+  }
+  // Server-side arithmetic of the mock (what the ledger shaper would send).
+  function T(s) { return taxOf(s.H); }
+  function P(s) { return s.H + T(s); }
+  function A(s) { return s.dep.paid ? s.dep.amount : (s.depOverride != null ? s.depOverride : Math.round(s.H * s.pct / 100)); }
+  function S(s) { return s.bal.paid ? s.bal.amount : P(s) - A(s); }
+
+  var state = { sc: 'direct', w: 390 };
+  var animNext = false;
+  var stays = { direct: initial('direct'), paid: initial('paid'), booking: initial('booking') };
+  function cur() { return stays[state.sc]; }
+
+  // ---------- validation (rules 13-19, 24) ----------
+  function checkEdit(s, row, raw) {
+    var v = parseAmount(raw);
+    if (v === null) return { ok: false, reason: 'Montant illisible : chiffres, virgule, + et − seulement.' };
+    if (v < 0) return { ok: false, reason: 'Un montant ne peut pas être négatif.' };
+    if (row === 'dep') {
+      if (s.dep.paid) return { ok: false, reason: 'Acompte perçu le ' + fr(s.dep.date) + ' : annuler la perception pour corriger le montant.' };
+      if (s.bal.paid) return { ok: false, reason: 'Solde déjà perçu : l\'acompte ne peut plus changer.' };
+      if (v > s.H) return { ok: false, reason: 'L\'acompte ne dépasse pas l\'hébergement (' + eur(s.H) + ') : la taxe de séjour reste sur le solde.' };
+      return { ok: true, v: v, eff: 'Solde : <b>' + eur(S(s)) + '</b> → <b>' + eur(P(s) - v) + '</b>', apply: function () { s.depOverride = v; } };
+    }
+    if (row === 'bal') {
+      if (s.bal.paid) {
+        if (v < s.bal.amount) return { ok: false, refund: s.bal.amount - v, reason: 'Déjà perçu : ' + eur(s.bal.amount) + '. Pour rendre ' + eur(s.bal.amount - v) + ', créer un remboursement.' };
+        if (v > s.bal.amount) return { ok: false, reason: 'Déjà perçu : ' + eur(s.bal.amount) + '. Pour un autre montant, annuler la perception puis la refaire.' };
+        return { ok: false, reason: 'Montant inchangé.' };
+      }
+      if (!s.dep.paid) {
+        if (v < T(s)) return { ok: false, reason: 'Le solde porte la taxe de séjour (' + eur(T(s)) + ') : pas en dessous.' };
+        if (v > P(s)) return { ok: false, reason: 'Au-delà du séjour (' + eur(P(s)) + ') : modifier le prix de l\'hébergement.' };
+        return { ok: true, v: v, eff: 'Acompte : <b>' + eur(A(s)) + '</b> → <b>' + eur(P(s) - v) + '</b> · total inchangé', apply: function () { s.depOverride = P(s) - v; } };
+      }
+      // Acompte perçu : a different solde is a different price. Solve H' so that H' − A + tax(H') = v.
+      var a = s.dep.amount, floor = taxOf(a);
+      if (v < floor) return { ok: false, reason: 'Pas en dessous de ' + eur(floor) + ' : l\'acompte perçu (' + eur(a) + ') couvre déjà l\'hébergement.' };
+      var h = Math.round((v + a) / (1 + TAX_RATE));
+      for (var k = 0; k < 4; k++) { var got = h - a + taxOf(h); if (got === v) break; h += v - got; }
+      var reached = h - a + taxOf(h);
+      var eff = 'Hébergement : <b>' + eur(s.H) + '</b> → <b>' + eur(h) + '</b> · taxe de séjour <b>' + eur(T(s)) + '</b> → <b>' + eur(taxOf(h)) + '</b>';
+      if (reached !== v) eff += '<br>Solde obtenu : <b>' + eur(reached) + '</b> (au centime près, la taxe suit l\'hébergement)';
+      return { ok: true, v: reached, eff: eff, apply: function () { s.H = h; } };
+    }
+    if (row === 'plat') return { ok: true };
+    return { ok: false, reason: '' };
+  }
+  function checkDate(d, after) {
+    if (!d) return 'Date requise.';
+    if (d > TODAY) return 'Un encaissement ne peut pas être daté dans le futur.';
+    if (after && d < after) return 'Restitution avant la réception (' + fr(after) + ').';
+    return '';
+  }
+
+  // ---------- rows (what GET /reservations/:id → ledger would carry) ----------
+  function rows(s) {
+    var r = [];
+    if (s.kind === 'booking') {
+      r.push({ key: 'dep', label: 'Acompte', muted: true, amountText: '—', chips: [['muted', 'Sans objet · Booking.com encaisse en une fois']] });
+      var net = s.gross - s.commission;
+      var pr = { key: 'plat', label: 'Versement ' + s.platform, amount: s.gross, editable: true, detail: 'Commission ' + eur(s.commission) + ' · net ' + eur(net) };
+      if (s.bal.paid) {
+        pr.chips = [['done', 'Reçu le ' + fr(s.bal.date) + ' · ' + s.platform]];
+        var gap = s.payout - net;
+        pr.chips.push(gap === 0 ? ['done', '✓ cohérent avec le virement'] : ['due', 'écart : ' + eur(gap)]);
+        pr.action = { kind: 'undo', label: 'Annuler' }; pr.editable = false; pr.lockReason = 'Versement reçu le ' + fr(s.bal.date) + ' : annuler la réception pour corriger les montants.';
+      } else {
+        pr.chips = [[s.payoutDue < TODAY ? 'late' : 'due', (s.payoutDue < TODAY ? 'En retard depuis le ' : 'Attendu le ') + fr(s.payoutDue)]];
+        pr.action = { kind: 'mark', label: 'Marquer reçu' };
+      }
+      r.push(pr);
+    } else {
+      var dr = { key: 'dep', label: 'Acompte', amount: A(s) };
+      if (s.dep.paid) { dr.chips = [['done', 'Perçu le ' + fr(s.dep.date) + (s.dep.origin ? ' · ' + s.dep.origin : '')]]; dr.action = { kind: 'undo', label: 'Annuler' }; dr.editable = false; dr.lockReason = 'Acompte perçu le ' + fr(s.dep.date) + ' : annuler la perception pour corriger le montant.'; }
+      else { dr.chips = [['due', 'À percevoir avant le ' + fr(s.depDue)]]; dr.action = { kind: 'mark', label: 'Marquer perçu' }; dr.editable = !s.bal.paid; dr.lockReason = 'Solde déjà perçu : l\'acompte ne peut plus changer.'; }
+      if (!s.dep.paid && s.depOverride != null) dr.hint = 'Montant fixé · calcul auto ' + eur(Math.round(s.H * s.pct / 100));
+      if (s.link) {
+        if (s.link.status === 'open') dr.detail = 'Lien envoyé le ' + fr(s.link.at) + ' · ' + eur(s.link.amount);
+        else if (s.link.status === 'paid') dr.detail = 'Payé par lien le ' + fr(s.link.paidAt);
+        else if (s.link.status === 'retired') { dr.detail = 'Lien retiré · montant modifié'; dr.resend = !s.dep.paid; }
+        else if (s.link.status === 'retired-settled') dr.detail = 'Lien retiré · perçu autrement';
+      }
+      r.push(dr);
+      var br = { key: 'bal', label: 'Solde', amount: S(s), editable: true };
+      if (s.bal.paid) { br.chips = [['done', 'Perçu le ' + fr(s.bal.date)]]; br.action = { kind: 'undo', label: 'Annuler' }; br.lockedPaid = true; }
+      else { br.chips = [['due', 'À percevoir avant le ' + fr(s.balDue)]]; br.action = { kind: 'mark', label: 'Marquer perçu' }; }
+      if (!s.bal.paid && s.dep.paid) br.hint = 'Acompte perçu : modifier le solde change le prix';
+      r.push(br);
+      r.push(s.comp.paid
+        ? { key: 'comp', label: 'Complément d\'arrivée', amount: 2400, chips: [['done', 'Perçu le ' + fr(s.comp.date) + (s.comp.cash ? ' · caisse interne' : '')]], detail: 'Linge de lit · 2 × 12,00 €', action: { kind: 'undo', label: 'Annuler' } }
+        : { key: 'comp', label: 'Complément d\'arrivée', amount: 2400, chips: [['due', 'À percevoir à l\'arrivée']], detail: 'Linge de lit · 2 × 12,00 €', info: 'Montant ajusté comme aujourd\'hui', action: { kind: 'mark', label: 'Marquer perçu' } });
+    }
+    s.refunds.forEach(function (f, i) { r.push({ key: 'ref' + i, label: 'Remboursement', amount: -f.amount, chips: [['info', 'Rendu le ' + fr(f.date) + ' · virement']], action: null }); });
+    var cr = { key: 'cRecv', label: 'Caution reçue', amount: 40000 };
+    if (s.cRecv.paid) { cr.chips = [['done', 'Reçue le ' + fr(s.cRecv.date)]]; cr.action = { kind: 'undo', label: 'Annuler' }; }
+    else { cr.chips = [['due', 'À recevoir à l\'arrivée']]; cr.action = { kind: 'mark', label: 'Recevoir' }; }
+    r.push(cr);
+    var rr = { key: 'cRet', label: 'Caution restituée', amount: 40000 };
+    if (!s.cRecv.paid) { rr.chips = [['muted', 'Après réception']]; rr.action = null; rr.muted = true; }
+    else if (s.cRet.paid) { rr.chips = [['done', 'Rendue le ' + fr(s.cRet.date)]]; rr.action = { kind: 'undo', label: 'Annuler' }; }
+    else { rr.chips = [['due', 'À rendre au départ']]; rr.action = { kind: 'mark', label: 'Restituer' }; }
+    r.push(rr);
+    return r;
+  }
+  function remaining(s) {
+    if (s.kind === 'booking') return s.bal.paid ? 0 : s.gross - s.commission;
+    return (s.dep.paid ? 0 : A(s)) + (s.bal.paid ? 0 : S(s)) + (s.comp.paid ? 0 : 2400);
+  }
+
+  // ---------- render ----------
+  function chipsHtml(c) { return c.map(function (x) { return '<span class="chip ' + x[0] + '">' + esc(x[1]) + '</span>'; }).join(''); }
+  function rowHtml(s, r) {
+    var h = '<div class="row' + (r.muted ? ' muted' : '') + '" data-row="' + r.key + '"><div class="top"><span class="lab">' + esc(r.label) + '</span><span class="amt">';
+    if (r.amountText) h += '<span class="amtplain">' + r.amountText + '</span>';
+    else if (r.editable || r.lockedPaid || r.lockReason) {
+      var locked = !r.editable && !r.lockedPaid;
+      h += '<button type="button" class="amtbtn' + (locked || r.lockedPaid ? ' lock' : '') + '" data-edit="' + r.key + '" aria-label="Modifier le montant : ' + esc(r.label) + ', ' + eur(r.amount) + '">' + eur(r.amount) + (locked || r.lockedPaid ? LOCK : PENCIL) + '</button>';
+    } else h += '<span class="amtplain">' + eur(r.amount) + '</span>';
+    h += '</span><span class="st">' + chipsHtml(r.chips || []) + '</span><span class="act">';
+    if (r.action && s.open !== r.key && s.edit !== r.key) h += '<button type="button" class="btn' + (r.action.kind === 'undo' ? ' text' : '') + '" data-act="' + r.action.kind + '" data-k="' + r.key + '">' + esc(r.action.label) + '</button>';
+    h += '</span></div>';
+    var det = [];
+    if (r.detail) det.push(esc(r.detail));
+    if (r.hint) det.push(esc(r.hint));
+    if (r.info) det.push(esc(r.info));
+    if (det.length || r.resend) h += '<div class="det">' + det.join(' · ') + (r.resend ? ' <button type="button" class="btn text" data-act="resend" data-k="dep">Renvoyer la demande</button>' : '') + '</div>';
+    if (s.edit === r.key) h += editHtml(s, r);
+    if (s.open === r.key) h += markHtml(s, r);
+    if (s.confirm === r.key) h += '<div class="confirm" role="alertdialog" aria-label="Confirmer"><p>' + esc(confirmText(s, r.key)) + '</p><div class="btns"><button type="button" class="btn fill" data-act="undo-ok" data-k="' + r.key + '">Annuler la perception</button><button type="button" class="btn text" data-act="undo-no">Garder</button></div></div>';
+    return h + '</div>';
+  }
+  function confirmText(s, k) {
+    if (k === 'cRecv') return 'Annuler la réception de la caution du ' + fr(s.cRecv.date) + ' ?' + (s.cRet.paid ? ' La restitution est annulée aussi.' : '');
+    if (k === 'cRet') return 'Annuler la restitution de la caution du ' + fr(s.cRet.date) + ' ?';
+    var d = k === 'dep' ? s.dep.date : k === 'comp' ? s.comp.date : s.bal.date;
+    var n = k === 'dep' ? 'de l\'acompte' : k === 'plat' ? 'du versement' : k === 'comp' ? 'du complément' : 'du solde';
+    return 'Annuler la perception ' + n + ' du ' + fr(d) + ' ? L\'écriture comptable correspondante disparaît.';
+  }
+  function editHtml(s, r) {
+    if (r.key === 'plat' && !s.bal.paid) {
+      return '<div class="form' + (animNext ? ' anim' : '') + '" data-form="plat"><div class="fld"><label for="f-gross">Total facturé par la plateforme</label><input class="inp" id="f-gross" inputmode="decimal" value="' + (s.gross / 100).toFixed(2).replace('.', ',') + '"></div>' +
+        '<div class="fld"><label for="f-com">Commission solde (€)</label><input class="inp" id="f-com" inputmode="decimal" value="' + (s.commission / 100).toFixed(2).replace('.', ',') + '"></div>' +
+        '<div class="msg full" id="f-msg" aria-live="polite"></div><div class="btns full"><button type="button" class="btn fill" data-act="plat-ok">Valider</button><button type="button" class="btn text" data-act="close">Annuler</button></div></div>';
+    }
+    if (!r.editable && !r.lockedPaid) {
+      return '<div class="form' + (animNext ? ' anim' : '') + '"><div class="msg bad full" role="alert">' + esc(r.lockReason) + '</div><div class="btns full"><button type="button" class="btn text" data-act="close">Fermer</button></div></div>';
+    }
+    var draft = s.draft != null ? s.draft : (r.amount / 100).toFixed(2).replace('.', ',');
+    var chk = s.draft != null ? checkEdit(s, r.key, s.draft) : null;
+    var msg = '';
+    if (chk && !chk.ok) msg = '<div class="msg bad full" id="e-msg" role="alert">' + esc(chk.reason) + (chk.refund ? ' <button type="button" class="btn" data-act="refund" data-amt="' + chk.refund + '">Créer le remboursement de ' + eur(chk.refund) + '</button>' : '') + '</div>';
+    else if (chk && chk.ok) msg = '<div class="msg eff full" id="e-msg" aria-live="polite">' + chk.eff + '</div>';
+    else msg = '<div class="msg full" id="e-msg" aria-live="polite">' + esc(r.key === 'dep' ? 'Entre 0 et ' + eur(s.H) + '.' : (s.bal.paid ? 'Solde perçu : montant figé.' : !s.dep.paid ? 'Entre ' + eur(T(s)) + ' et ' + eur(P(s)) + ' ; l\'acompte prend le reste.' : 'Un autre solde change le prix de l\'hébergement.')) + '</div>';
+    var auto = r.key === 'dep' && s.depOverride != null ? '<button type="button" class="btn text" data-act="auto">Calcul auto (' + s.pct + ' %)</button>' : '';
+    return '<div class="form' + (animNext ? ' anim' : '') + '" data-form="' + r.key + '"><div class="fld"><label for="e-amt">Montant ' + (r.key === 'dep' ? 'de l\'acompte' : 'du solde') + ' (€)</label><input class="inp' + (chk && !chk.ok ? ' bad' : '') + '" id="e-amt" inputmode="decimal" autocomplete="off" value="' + esc(draft) + '" aria-describedby="e-msg"></div>' + msg +
+      '<div class="btns full"><button type="button" class="btn fill" data-act="edit-ok"' + (chk && chk.ok ? '' : ' disabled') + '>Valider</button><button type="button" class="btn text" data-act="close">Annuler</button>' + auto + '</div></div>';
+  }
+  function markHtml(s, r) {
+    var cash = r.key === 'comp';
+    var h = '<div class="form' + (animNext ? ' anim' : '') + '" data-form="mark"><div class="fld"><label for="m-date">' + (r.key === 'cRet' ? 'Rendue le' : r.key === 'cRecv' ? 'Reçue le' : r.key === 'plat' ? 'Reçu le' : 'Perçu le') + '</label><input class="inp' + (s.err ? ' bad' : '') + '" id="m-date" type="date" value="' + esc(s.mDate || TODAY) + '" aria-describedby="m-msg"></div>';
+    if (r.key === 'plat') {
+      var net = s.gross - s.commission;
+      var pv = s.mPayout != null ? s.mPayout : (net / 100).toFixed(2).replace('.', ',');
+      var pc = parseAmount(pv);
+      h += '<div class="fld"><label for="m-pay">Virement reçu (€)</label><input class="inp" id="m-pay" inputmode="decimal" value="' + esc(pv) + '"></div>';
+      if (pc != null && pc !== net && pc > 0) {
+        var newCom = s.gross - pc;
+        h += '<div class="msg eff full">Écart : <b>' + eur(net - pc) + '</b> avec le net attendu (' + eur(net) + '). <button type="button" class="btn" data-act="calc" data-com="' + newCom + '">Commission solde → ' + eur(newCom) + '</button></div>';
+      }
+    }
+    if (cash) h += '<label class="swl"><input type="checkbox" class="sw" id="m-cash"' + (s.mCash ? ' checked' : '') + '> Caisse interne</label>';
+    h += '<div class="msg bad full" id="m-msg" role="alert">' + esc(s.err || '') + '</div>';
+    return h + '<div class="btns full"><button type="button" class="btn fill" data-act="mark-ok" data-k="' + r.key + '">Valider</button><button type="button" class="btn text" data-act="close">Annuler</button></div></div>';
+  }
+  function render(focusSel) {
+    var s = cur();
+    frame.className = 'frame w' + state.w;
+    frame.style.width = state.w + 'px';
+    var rs = rows(s);
+    var ledger = rs.map(function (r) { return rowHtml(s, r); }).join('');
+    var rem = remaining(s);
+    var sum;
+    if (s.kind === 'booking') {
+      sum = '<div class="panel sum"><div class="k">Vous percevez</div><div class="hero">' + eur(s.gross - s.commission) + '</div><div class="ln">Total du séjour <b>' + eur(s.gross) + '</b></div><div class="ln">Commission Booking.com <b>− ' + eur(s.commission) + '</b></div></div>';
+    } else {
+      sum = '<div class="panel sum"><div class="k">Total du séjour</div><div class="hero">' + eur(P(s) + 2400) + '</div><div class="ln">Hébergement <b>' + eur(s.H) + '</b></div><div class="ln">Linge de lit <b>' + eur(2400) + '</b></div><div class="ln">Taxe de séjour <b>' + eur(T(s)) + '</b></div></div>';
+    }
+    var title = s.kind === 'booking' ? 'Réservation 22270 · Booking.com' : 'Réservation 22311 · Direct';
+    frame.innerHTML = '<div class="appbar"><span class="logo">GuestFlow</span><span class="ttl">' + title + '</span></div><div class="shell"><nav class="nav" aria-hidden="true"><div>Accueil</div><div>Planning</div><div class="on">Réservations</div><div>Devis</div><div>Finance</div><div>Paramètres</div></nav>' +
+      '<div class="content"><section class="panel" aria-label="Paiements"><h3 class="ph">Paiements</h3><p class="psub">' + (s.kind === 'booking' ? 'Séjour du 05/10 au 12/10/2026' : 'Séjour du 22/07 au 29/07/2027 · réservé le 02/09/2026') + '</p><div class="led">' + ledger +
+      '<div class="foot' + (rem === 0 ? ' ok' : '') + '"><span>' + (rem === 0 ? 'Tout est perçu' : 'Reste à percevoir') + '</span>' + (rem === 0 ? '' : '<span class="num">' + eur(rem) + '</span>') + '</div></div></section>' + sum + '</div></div>';
+    animNext = false;
+    fit();
+    if (focusSel) { var el = frame.querySelector(focusSel); if (el) { el.focus(); if (el.select && focusSel === '#e-amt' && state.selectAll) { el.select(); state.selectAll = false; } } }
+  }
+  function fit() {
+    var avail = fitEl.parentElement.clientWidth - 28;
+    var scale = Math.min(1, avail / state.w);
+    frame.style.transform = scale < 1 ? 'scale(' + scale + ')' : 'none';
+    fitEl.style.width = (state.w * scale) + 'px';
+    fitEl.style.height = (frame.offsetHeight * scale) + 'px';
+  }
+  function shake(sel) { if (reduce) return; var el = frame.querySelector(sel); if (!el) return; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+  function say(t) { live.textContent = t; }
+  function closeAll(s) { s.open = null; s.edit = null; s.err = ''; s.draft = null; s.mDate = null; s.mCash = false; s.mPayout = null; s.confirm = null; }
+
+  // ---------- interactions ----------
+  frame.addEventListener('click', function (e) {
+    var s = cur();
+    var t = e.target.closest('button,[data-edit]');
+    if (!t) return;
+    if (t.dataset.edit) {
+      var k = t.dataset.edit;
+      closeAll(s); s.edit = k; state.selectAll = true; animNext = true; render(k === 'plat' ? '#f-gross' : '#e-amt'); return;
+    }
+    var act = t.dataset.act, key = t.dataset.k;
+    if (act === 'mark') { closeAll(s); s.open = key; animNext = true; render('#m-date'); return; }
+    if (act === 'close' || act === 'undo-no') { closeAll(s); render(); return; }
+    if (act === 'undo') { closeAll(s); s.confirm = key; render('[data-act="undo-ok"]'); return; }
+    if (act === 'undo-ok') {
+      if (key === 'dep') s.dep = { paid: false };
+      if (key === 'bal' || key === 'plat') { s.bal = { paid: false }; s.payout = null; }
+      if (key === 'cRecv') { s.cRecv = { paid: false }; s.cRet = { paid: false }; }
+      if (key === 'cRet') s.cRet = { paid: false };
+      if (key === 'comp') s.comp = { paid: false };
+      closeAll(s); render(); say('Perception annulée.'); return;
+    }
+    if (act === 'auto') { s.depOverride = null; retireLink(s); closeAll(s); render(); say('Acompte revenu au calcul automatique.'); return; }
+    if (act === 'resend') { s.link = { type: 'dep', amount: A(s), at: TODAY, status: 'open' }; render(); say('Demande renvoyée.'); return; }
+    if (act === 'edit-ok') {
+      var row = s.edit, chk = checkEdit(s, row, s.draft);
+      if (!chk.ok) { render('#e-amt'); shake('#e-amt'); return; }
+      chk.apply(); retireLink(s); closeAll(s); render(); say('Montant enregistré dans la fiche.'); return;
+    }
+    if (act === 'refund') {
+      var amt = Number(t.dataset.amt);
+      s.refunds.push({ amount: amt, date: TODAY }); closeAll(s); render(); say('Remboursement créé.'); return;
+    }
+    if (act === 'plat-ok') {
+      var g = parseAmount(frame.querySelector('#f-gross').value), c = parseAmount(frame.querySelector('#f-com').value), m = frame.querySelector('#f-msg');
+      var why = g == null || c == null ? 'Montant illisible.' : g < 0 || c < 0 ? 'Un montant ne peut pas être négatif.' : c >= g ? 'La commission dépasse le total facturé.' : '';
+      if (why) { m.className = 'msg bad full'; m.textContent = why; shake(c == null || c < 0 || c >= g ? '#f-com' : '#f-gross'); return; }
+      s.gross = g; s.commission = c; closeAll(s); render(); return;
+    }
+    if (act === 'calc') { s.commission = Number(t.dataset.com); s.mPayout = frame.querySelector('#m-pay').value; render('#m-pay'); return; }
+    if (act === 'mark-ok') {
+      var d = frame.querySelector('#m-date').value;
+      var after = key === 'cRet' ? s.cRecv.date : null;
+      var err = checkDate(d, after);
+      if (key === 'plat' && !err) { var pv = parseAmount(frame.querySelector('#m-pay').value); if (pv == null || pv <= 0) err = 'Virement reçu : montant requis.'; else s.payout = pv; }
+      if (err) { s.err = err; s.mDate = d; render('#m-date'); shake('#m-date'); return; }
+      var cash = frame.querySelector('#m-cash'); cash = cash ? cash.checked : false;
+      if (key === 'dep') s.dep = { paid: true, date: d, amount: A(s), origin: '' };
+      if (key === 'bal') s.bal = { paid: true, date: d, amount: S(s) };
+      if (key === 'comp') s.comp = { paid: true, date: d, cash: cash };
+      if (key === 'plat') s.bal = { paid: true, date: d };
+      if (key === 'cRecv') s.cRecv = { paid: true, date: d };
+      if (key === 'cRet') s.cRet = { paid: true, date: d };
+      if ((key === 'dep') && s.link && s.link.status === 'open') s.link.status = 'retired-settled';
+      closeAll(s); render(); say('Enregistré.'); return;
+    }
+  });
+  function retireLink(s) {
+    if (s.link && s.link.status === 'open' && s.link.amount !== A(s)) s.link.status = 'retired';
+  }
+  frame.addEventListener('input', function (e) {
+    var s = cur();
+    if (e.target.id === 'e-amt') {
+      s.draft = e.target.value;
+      var pos = e.target.selectionStart;
+      render('#e-amt');
+      var el = frame.querySelector('#e-amt'); if (el && pos != null) el.setSelectionRange(pos, pos);
+    } else if (e.target.id === 'm-pay') {
+      s.mPayout = e.target.value; s.mDate = frame.querySelector('#m-date').value;
+      var p = e.target.selectionStart; render('#m-pay'); var el2 = frame.querySelector('#m-pay'); if (el2 && p != null) el2.setSelectionRange(p, p);
+    } else if (e.target.id === 'm-date') { s.mDate = e.target.value; if (s.err) { s.err = ''; } }
+    else if (e.target.id === 'm-cash') { s.mCash = e.target.checked; }
+  });
+  frame.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeAll(cur()); render(); }
+    if (e.key === 'Enter' && e.target.id === 'e-amt') { e.preventDefault(); var b = frame.querySelector('[data-act="edit-ok"]'); if (b && !b.disabled) b.click(); else shake('#e-amt'); }
+  });
+  document.querySelectorAll('.seg').forEach(function (g) {
+    g.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      g.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      if (g.dataset.k === 'sc') state.sc = b.dataset.v; else state.w = Number(b.dataset.v);
+      render();
+    });
+  });
+  document.getElementById('reset').addEventListener('click', function () { stays[state.sc] = initial(state.sc); render(); });
+  window.addEventListener('resize', fit);
+  render();
+})();
+</script>
+</body>
+</html>

@@ -55,7 +55,7 @@ import EmailTemplatesPage from '../EmailTemplatesPage';
 
 const dialogs = useAppDialogs();
 
-// The server's shapes (specs/guest-email-texts-made-simple.md rules 39–40): one name, the « Quand ».
+// The server's shapes (specs/guest-email-texts-made-simple.md rules 43–44): one name, the « Quand ».
 const REGISTRY_ROW = {
   id: 1, stableKey: 'arrival_reminder_7d', textsSection: 'j7', shipped: true,
   name: 'Rappel arrivée — J-7', displayName: 'Préparation du séjour', subject: 'S', body: 'B',
@@ -101,7 +101,7 @@ function renderPage() {
   );
 }
 
-test('rule 40: the emails read in stay order, by name, with « personnalisé » only on the operator’s own', async () => {
+test('rule 44: the emails read in stay order, by name, with « personnalisé » only on the operator’s own', async () => {
   renderPage();
   expect(await screen.findByText('Préparation du séjour')).toBeInTheDocument();
   expect(screen.getByText('Bienvenue')).toBeInTheDocument();
@@ -111,7 +111,7 @@ test('rule 40: the emails read in stay order, by name, with « personnalisé » 
   expect(moments).toEqual(['Avant l’arrivée', 'Pendant le séjour']);
 });
 
-test('rule 40: the « Quand » under each name; the mode only when it is « Auto »', async () => {
+test('rule 44: the « Quand » under each name; the mode only when it is « Auto »', async () => {
   renderPage();
   expect(await screen.findByText('7 jours avant l’arrivée')).toBeInTheDocument();
   expect(screen.queryByText('Manuel')).not.toBeInTheDocument();
@@ -157,7 +157,7 @@ test('the "Emails à envoyer" card shows the queue when non-empty', async () => 
   expect(screen.getByText('Villa A')).toBeInTheDocument();
 });
 
-test('rule 40: the operator’s own row opens its editor; a shipped row opens its texts', async () => {
+test('rule 44: the operator’s own row opens its editor; a shipped row opens its texts', async () => {
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Modifier les textes : Préparation du séjour' }));
@@ -166,7 +166,7 @@ test('rule 40: the operator’s own row opens its editor; a shipped row opens it
   expect(await screen.findByRole('heading', { name: 'Bienvenue' })).toBeInTheDocument();
 });
 
-test('rule 40: « Supprimer » sits in « ⋯ »; a shipped email cannot be deleted, only switched off', async () => {
+test('rule 44: « Supprimer » sits in « ⋯ »; a shipped email cannot be deleted, only switched off', async () => {
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
@@ -178,7 +178,7 @@ test('rule 40: « Supprimer » sits in « ⋯ »; a shipped email cannot be dele
   expect(screen.queryByRole('heading', { name: 'Bienvenue' })).not.toBeInTheDocument();
 });
 
-test('rule 40: « Envoi automatique… » from « ⋯ », after its confirmation, never as the first item', async () => {
+test('rule 44: « Envoi automatique… » from « ⋯ », after its confirmation, never as the first item', async () => {
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
@@ -189,7 +189,7 @@ test('rule 40: « Envoi automatique… » from « ⋯ », after its confirmation
   await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(1, { sendMode: 'auto' }));
 });
 
-test('rule 40: a refused confirmation keeps the email manual', async () => {
+test('rule 44: a refused confirmation keeps the email manual', async () => {
   const user = userEvent.setup();
   dialogs.confirm.mockResolvedValueOnce(false);
   renderPage();

@@ -6,7 +6,7 @@
  * The field shows each variable by its French label (« ⟦Prénom du voyageur⟧ ») and hands the raw
  * `{{token}}` text to `onChange`; the labels come from the server.
  *
- * Variables are offered on demand (rule 37, UI/UX review 2026-10-18 decision 5): « + Variable », or a
+ * Variables are offered on demand (rule 41, UI/UX review 2026-10-18 decision 5): « + Variable », or a
  * `[` typed in a field, opens the `VariablePicker` at the field; no chip wall. The typed `[` stays in
  * the text: picking a variable replaces it, Échap keeps it. A refusal shows under the field it
  * concerns, with the server's suggestion as a one-tap « Remplacer ».
@@ -17,7 +17,7 @@
  *   onChange               (lang: 'fr' | 'en', rawValue: string) => void
  *   tokens                 [{ name, label }] (or names) — the variables the picker offers
  *   flags                  [{ name, label }] (or names) — the conditions the picker offers
- *   language               'fr' | 'en' — one language at a time (rule 38): only that field; in English the
+ *   language               'fr' | 'en' — one language at a time (rule 42): only that field; in English the
  *                          French reads above it as a reference. Omitted: both, side by side from `md`.
  *   errorFr, errorEn       server refusals under their field: a string, or `{ message, unknown, suggestion }`
  *   placeholderFr/En       shown in an empty field (e.g. the global text a property overrides)
@@ -76,7 +76,7 @@ export default function TokenTextField({
   };
 
   // A `[` typed in the field stays in the text and opens the list there: picking a variable replaces
-  // it, Échap keeps it (rule 37). Read on the change, not the key, so it works whatever the keyboard
+  // it, Échap keeps it (rule 41). Read on the change, not the key, so it works whatever the keyboard
   // layout (« ⌥⇧( » on a French Mac) and never while an input method is composing.
   const handleChange = (lang) => (e) => {
     const next = e.target.value;
@@ -122,7 +122,7 @@ export default function TokenTextField({
     requestAnimationFrame(() => field.setSelectionRange(next.caret, next.caret));
   };
 
-  // A refusal, in the brackets the field shows, with the closest variable as a one-tap fix (rule 37).
+  // A refusal, in the brackets the field shows, with the closest variable as a one-tap fix (rule 41).
   const refusalOf = (lang, error) => {
     const { message, unknown, suggestion } = typeof error === 'string' ? { message: error } : error;
     const fix = suggestion && unknown ? suggestion : null;

@@ -25,7 +25,7 @@ test('the price of one option can be chosen only among the cited options', () =>
 
 test('the proposal offers {{price}}, the confirmation no token; a refusal lands on its field', () => {
   render(<Harness initial={BASE} error={{ field: 'bookedFr', message: 'Variable inconnue : {{price}}' }} />);
-  // specs/guest-email-texts-made-simple.md rule 37 — variables on demand: only the proposal has some.
+  // specs/guest-email-texts-made-simple.md rule 41 — variables on demand: only the proposal has some.
   expect(screen.getAllByRole('button', { name: 'Variable' })).toHaveLength(1);
   // The confirmation field has no variables: the refusal names it in the field's brackets.
   expect(screen.getByText('Variable inconnue : ⟦price⟧')).toBeInTheDocument();

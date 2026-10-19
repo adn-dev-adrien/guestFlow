@@ -1,5 +1,5 @@
 /**
- * The tags of the « Textes des emails » preview (specs/guest-email-texts-made-simple.md rule 41 —
+ * The tags of the « Textes des emails » preview (specs/guest-email-texts-made-simple.md rule 45 —
  * UI/UX review 2026-10-18, decision 13). Pure.
  *
  * The preview lets the operator click a sentence of the rendered email to edit it, so the server says

@@ -4,7 +4,7 @@
 // "Voir l'historique" navigation. The « Emails à envoyer » queue interactions (row → send,
 // client-name → reservation) are covered by the component suite; here we pin the page-level
 // routing + the seeded J-7 template surfacing end-to-end, under its one name « Préparation du séjour »
-// (specs/guest-email-texts-made-simple.md rule 40).
+// (specs/guest-email-texts-made-simple.md rule 44).
 import { test, expect } from '@playwright/test';
 
 test('Emails page shows the two cards and the seeded J-7 template', async ({ page }) => {

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 37 and 41 (UI/UX review 2026-10-18, decisions 5 and 13) —
+// specs/guest-email-texts-made-simple.md rules 41 and 45 (UI/UX review 2026-10-18, decisions 5 and 13) —
 // a sentence of the email opens its field (beside it on a computer, in a sheet on a phone); a refused
 // variable leaves the last email in place and says where to fix it.
 import { vi } from 'vitest';
@@ -73,7 +73,7 @@ test('the subject is a sentence too', async () => {
   await waitFor(() => expect(document.getElementById('subject:arrival_reminder_1d-fr')).toHaveFocus());
 });
 
-test('rule 37: a refused variable is said under its field with the fix; the email stays', async () => {
+test('rule 41: a refused variable is said under its field with the fix; the email stays', async () => {
   asDesktop(true);
   renderAt(EmailTextsSettingsPage);
   await screen.findByRole('button', { name: 'Modifier : Café offert.' }, SLOW);
@@ -102,4 +102,15 @@ test('review of PR #723 (L5): a sentence whose field is folded away unfolds it f
   fireEvent.click(await screen.findByRole('button', { name: 'Modifier : Portail vert.' }, SLOW));
   await waitFor(() => expect(screen.getByRole('button', { name: /Phrases non utilisées/ })).toHaveAttribute('aria-expanded', 'true'));
   await waitFor(() => expect(document.getElementById('access:1-fr')).toHaveFocus());
+});
+
+test('rule 45 with rule 37: the sentences are clickable in « Texte » only, never in the HTML frame', async () => {
+  asDesktop(true);
+  api.previewEmailDraft.mockResolvedValue({ ...TAGGED, html: '<!doctype html><p>Café offert.</p>' });
+  renderAt(EmailTextsSettingsPage);
+  await screen.findByRole('button', { name: 'Modifier : Café offert.' }, SLOW);
+  fireEvent.click(screen.getByRole('button', { name: 'HTML' }));
+  expect(await screen.findByTitle('Email en HTML')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Modifier : Café offert.' })).toBeNull();
+  expect(screen.queryByText('Cliquer une phrase pour la modifier.')).toBeNull();
 });

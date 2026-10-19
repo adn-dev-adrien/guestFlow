@@ -8,10 +8,10 @@
  *   - beside it (below on mobile, « Voir l'email »), the email rendered by the server from the draft,
  *     FR/EN, on the next stay or « Exemple », with « M'envoyer un test » (rules 13–15);
  *   - one file out, one file in, and the English filled by the platform's translator (rules 16–20);
- *   - one language at a time, FR | EN, with the server's « N à traduire » (rule 38);
- *   - variables on demand and refusals under their field, with a one-tap fix (rule 37);
+ *   - one language at a time, FR | EN, with the server's « N à traduire » (rule 42);
+ *   - variables on demand and refusals under their field, with a one-tap fix (rule 41);
  *   - a click on a sentence of the preview opens its field — beside it on a computer, in a sheet over
- *     the email on a phone (rule 41).
+ *     the email on a phone (rule 45).
  *
  * The page holds drafts only; the server renders, validates and saves. `?propertyId=` picks the
  * property whose own texts are shown, `#<section>` opens one email.
@@ -72,13 +72,13 @@ export default function EmailTextsSettingsPage() {
   const [mobilePreview, setMobilePreview] = useState(false);
   const [language, setLanguage] = useState('fr');
   const [reservationId, setReservationId] = useState(null);
-  const [preview, setPreview] = useState({ subject: '', body: '', segments: null, reservations: [], loading: false, error: '', stale: '', notice: null, toTranslate: null });
+  const [preview, setPreview] = useState({ subject: '', body: '', html: '', segments: null, reservations: [], loading: false, error: '', stale: '', notice: null, toTranslate: null });
   const [testMessage, setTestMessage] = useState('');
   const [fullTemplate, setFullTemplate] = useState(null);
   const [importPlan, setImportPlan] = useState(null);
   const [busy, setBusy] = useState(false);
   const [editingKey, setEditingKey] = useState(null);
-  // Rule 41 — the text whose sentence is highlighted in the preview, and the one opened in the phone's sheet.
+  // Rule 45 — the text whose sentence is highlighted in the preview, and the one opened in the phone's sheet.
   const [activeKey, setActiveKey] = useState(null);
   const [sheetKey, setSheetKey] = useState(null);
   const [focusKey, setFocusKey] = useState(null);
@@ -110,7 +110,7 @@ export default function EmailTextsSettingsPage() {
   const section = data.sections.find((s) => s.id === open) || null;
   const templateId = section ? (templateBySection[section.id] || (section.templates[0] || {}).id) : null;
   const dirty = Object.keys(drafts).length > 0;
-  // Rule 38 — the server's count: of the saved texts, or of the draft while one is being typed.
+  // Rule 42 — the server's count: of the saved texts, or of the draft while one is being typed.
   const toTranslate = (dirty && preview.toTranslate != null ? preview.toTranslate : data.toTranslate) || 0;
 
   // Typed sentences are not lost on a link, the menu, « Retour » or a reload (rule 34).
@@ -137,7 +137,7 @@ export default function EmailTextsSettingsPage() {
     setDrafts((prev) => ({ ...prev, [item.key]: { ...(prev[item.key] || {}), [lang]: value } }));
     if (errors[item.key]) setErrors((prev) => { const next = { ...prev }; delete next[item.key]; return next; });
   };
-  // A refusal as the field shows it: the message, the word typed and the server's suggestion (rule 37).
+  // A refusal as the field shows it: the message, the word typed and the server's suggestion (rule 41).
   const refusalOf = (err) => ({ message: err.message, unknown: err.unknown, suggestion: err.suggestion });
 
   // ---- live preview (rule 13): debounced, the server renders the draft
@@ -156,12 +156,12 @@ export default function EmailTextsSettingsPage() {
       try {
         const r = await api.previewEmailDraft(previewBody);
         setPreview({
-          subject: r.subject, body: r.body, segments: r.segments || null, subjectKey: r.subjectKey, reservations: r.reservations || [],
+          subject: r.subject, body: r.body, html: r.html || '', segments: r.segments || null, subjectKey: r.subjectKey, reservations: r.reservations || [],
           loading: false, error: '', stale: '', notice: r.englishNotice, current: r.sample ? SAMPLE : r.reservationId,
           toTranslate: typeof r.toTranslate === 'number' ? r.toTranslate : null,
         });
       } catch (err) {
-        // Rule 37 — a refused text is named under its field; the email stays as last rendered.
+        // Rule 41 — a refused text is named under its field; the email stays as last rendered.
         if (err.key) {
           setErrors((prev) => ({ ...prev, [err.key]: { [err.field || 'fr']: refusalOf(err) } }));
           setPreview((p) => ({ ...p, loading: false, stale: 'Texte à corriger : l’aperçu montre le dernier texte valide.' }));
@@ -267,7 +267,7 @@ export default function EmailTextsSettingsPage() {
     }
   }
 
-  // ---- rule 41: a sentence of the preview opens its field
+  // ---- rule 45: a sentence of the preview opens its field
   const allItems = data.sections.flatMap((s) => s.items);
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // A text folded away (its section closed, or under « Phrases non utilisées ») is unfolded first, then
@@ -305,6 +305,7 @@ export default function EmailTextsSettingsPage() {
     <EmailPreviewPane
       subject={preview.subject}
       body={preview.body}
+      html={preview.html}
       segments={preview.segments}
       subjectKey={preview.subjectKey}
       activeKey={activeKey}
@@ -467,7 +468,7 @@ export default function EmailTextsSettingsPage() {
                 variant="outlined"
               >
                 <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 48 }}>
-                  {/* Rule 40 — one name per email, in stay order, with its « Quand ». */}
+                  {/* Rule 44 — one name per email, in stay order, with its « Quand ». */}
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 600 }}>{s.title}</Typography>
                     {s.when && <Typography variant="body2" color="text.secondary">{s.when}</Typography>}
@@ -535,7 +536,7 @@ export default function EmailTextsSettingsPage() {
         confirmColor="warning"
       />
 
-      {/* Rule 41 — on a phone, the sentence tapped in the email opens in a sheet over it. */}
+      {/* Rule 45 — on a phone, the sentence tapped in the email opens in a sheet over it. */}
       <Drawer
         anchor="bottom"
         open={Boolean(sheetKey) && !desktop}
@@ -565,7 +566,7 @@ export default function EmailTextsSettingsPage() {
               <ToggleButton value="en" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>EN</ToggleButton>
             </ToggleButtonGroup>
             {[['subject', 'subjectEn', 'Objet'], ['body', 'bodyEn', 'Corps']].map(([frField, enField, label]) => {
-              // Rule 37 — one notation everywhere: the subject shows its variables by their label too.
+              // Rule 41 — one notation everywhere: the subject shows its variables by their label too.
               const subjectChips = (allItems.find((i) => i.key === `subject:${fullTemplate.template.stableKey}`) || {}).chips;
               const chips = frField === 'body' ? fullTemplate.chips : (subjectChips || { variables: fullTemplate.chips.variables, conditions: [] });
               return (

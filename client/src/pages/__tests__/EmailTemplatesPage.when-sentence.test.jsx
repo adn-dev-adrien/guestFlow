@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 39 (UI/UX review 2026-10-18, decision 11) — « Quand ? » is
+// specs/guest-email-texts-made-simple.md rule 43 (UI/UX review 2026-10-18, decision 11) — « Quand ? » is
 // one sentence the server reads live: the refusal under the number, the day it would leave, the
 // signed offset it answers saved as it is; a moment counted elsewhere reads as a fixed sentence.
 import React from 'react';

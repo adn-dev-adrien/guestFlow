@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 40 (UI/UX review 2026-10-18, decision 12) — one name per
+// specs/guest-email-texts-made-simple.md rule 44 (UI/UX review 2026-10-18, decision 12) — one name per
 // email, everywhere, and Emails › Modèles in the order of the stay; a shipped email is switched off,
 // never deleted.
 
@@ -11,12 +11,12 @@ const emailTemplatesModel = require('../models/emailTemplatesModel');
 const { buildController } = require('../controllers/emailTemplatesController');
 const { buildController: buildTexts } = require('../controllers/emailTextsController');
 
-test('rule 40: a shipped email is named by its purpose; the operator’s own keeps its name', () => {
+test('rule 44: a shipped email is named by its purpose; the operator’s own keeps its name', () => {
   assert.equal(displayNameOf({ stableKey: 'arrival_reminder_1d', name: 'Séquence — J-2 arrivée' }), 'Accès et arrivée');
   assert.equal(displayNameOf({ stableKey: null, name: ' Promo printemps ' }), 'Promo printemps');
 });
 
-test('rule 40: the timeline follows the stay', () => {
+test('rule 44: the timeline follows the stay', () => {
   const groups = timeline([
     { id: 9, stableKey: null, name: 'Promo', dayOffset: 0, anchor: 'start' },
     { id: 1, stableKey: 'season_new_year', anchor: 'season', dayOffset: 0 },
@@ -36,7 +36,7 @@ test('rule 40: the timeline follows the stay', () => {
   ]);
 });
 
-test('rule 40: the list answers the name and the moment, the timeline view groups it, the texts page reuses the names', async () => {
+test('rule 44: the list answers the name and the moment, the timeline view groups it, the texts page reuses the names', async () => {
   const { db } = setup();
   const controller = buildController(emailTemplatesModel.buildModel(db), { read: () => ({}) });
   const list = await call(controller.list, { query: {} });
@@ -55,7 +55,7 @@ test('rule 40: the list answers the name and the moment, the timeline view group
   assert.equal(section.templates[0].name, 'Accès et arrivée');
 });
 
-test('rule 40: a shipped email cannot be deleted; the operator’s own can', async () => {
+test('rule 44: a shipped email cannot be deleted; the operator’s own can', async () => {
   const { db, templateId } = setup();
   const model = emailTemplatesModel.buildModel(db);
   const controller = buildController(model, { read: () => ({}) });

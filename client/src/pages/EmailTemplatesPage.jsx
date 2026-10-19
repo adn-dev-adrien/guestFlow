@@ -2,10 +2,10 @@
  * EmailTemplatesPage — CRUD UI for the email templates library.
  * See specs/email-automation.md §6.1.
  *
- * The library reads in the order of the stay (specs/guest-email-texts-made-simple.md rule 40 — UI/UX
+ * The library reads in the order of the stay (specs/guest-email-texts-made-simple.md rule 44 — UI/UX
  * review 2026-10-18, decision 12): one name per email, grouped by moment, its « Quand » under it; the
  * mode shows only when it is « Auto »; a shipped email is switched off, never deleted; a shipped email
- * opens its texts. « Quand ? » is one sentence read by the server (rule 39, decision 11).
+ * opens its texts. « Quand ? » is one sentence read by the server (rule 43, decision 11).
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -65,11 +65,11 @@ export default function EmailTemplatesPage() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState([]);
   const [menu, setMenu] = useState(null); // { anchorEl, row }
-  // « Quand ? » as typed, and the server's reading of it (rule 39).
+  // « Quand ? » as typed, and the server's reading of it (rule 43).
   const [when, setWhen] = useState({ days: '7', direction: 'before', error: '', example: '' });
   const [language, setLanguage] = useState('fr');
   const whenTimer = useRef(null);
-  // Only the last reading counts: an earlier answer arriving late is dropped (rule 39).
+  // Only the last reading counts: an earlier answer arriving late is dropped (rule 43).
   const whenSeq = useRef(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -220,7 +220,7 @@ export default function EmailTemplatesPage() {
 
   const handleClose = () => { setOpen(false); setFieldError(null); };
 
-  // Rule 39 — the server reads « Envoyé [n] jours [avant|après] … », answers the example or refuses
+  // Rule 43 — the server reads « Envoyé [n] jours [avant|après] … », answers the example or refuses
   // under the number. « Enregistrer » waits for the reading, and the save sends the sentence itself
   // (`when`): the server stores the offset it reads, never one kept from an earlier answer.
   const changeWhen = (next) => {
@@ -326,7 +326,7 @@ export default function EmailTemplatesPage() {
     }
   };
 
-  // A shipped email opens its texts; a template of the operator's own opens its editor (rule 40).
+  // A shipped email opens its texts; a template of the operator's own opens its editor (rule 44).
   const openRow = (row) => {
     if (row.textsSection) navigate(`/settings/emails/textes#${row.textsSection}`);
     else handleOpen(row);
@@ -488,7 +488,7 @@ export default function EmailTemplatesPage() {
         maxWidth="md"
       >
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {/* Rule 40 — a shipped email is named by the server; only the operator's own has a name to type. */}
+          {/* Rule 44 — a shipped email is named by the server; only the operator's own has a name to type. */}
           {!form.stableKey && (
             <TextField
               label="Nom du modèle"
@@ -498,7 +498,7 @@ export default function EmailTemplatesPage() {
               required
             />
           )}
-          {/* Rule 39 — « Quand ? » is one sentence; a moment the scheduler does not count from the day
+          {/* Rule 43 — « Quand ? » is one sentence; a moment the scheduler does not count from the day
               offset (the sequence, an action) reads as a fixed sentence. */}
           {form.when && !form.when.editable ? (
             <Box>

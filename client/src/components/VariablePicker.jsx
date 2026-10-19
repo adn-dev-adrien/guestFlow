@@ -1,6 +1,6 @@
 /**
  * VariablePicker — the list of variables and conditions a text may use, opened on demand
- * (specs/guest-email-texts-made-simple.md rule 37 — UI/UX review 2026-10-18, decision 5). Generic:
+ * (specs/guest-email-texts-made-simple.md rule 41 — UI/UX review 2026-10-18, decision 5). Generic:
  * any editor that inserts `{{token}}` from the server's labelled list (texts, templates, mentions).
  *
  * It replaces the wall of chips under every field: « + Variable », or the `[` key, opens it at the

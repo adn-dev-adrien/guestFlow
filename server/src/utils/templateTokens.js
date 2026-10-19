@@ -15,7 +15,7 @@ const { unknownToken, structureError, STRUCTURE_MESSAGES } = require('./emailTem
 
 /**
  * The emails of the single page, in send order (rule 9), and the stored templates of each. Each is
- * named by what it is for, with its « Quand » (rule 40, UI/UX review 2026-10-18 decision 12).
+ * named by what it is for, with its « Quand » (rule 44, UI/UX review 2026-10-18 decision 12).
  */
 const SECTIONS = Object.freeze([
   { id: 'confirmation', title: 'Confirmation', when: 'Envoyé à la réservation', stableKeys: ['reservation_confirmation'] },
@@ -316,7 +316,7 @@ const TAG_CHARACTER_MESSAGE = 'Caractère invisible collé dans le texte : le re
  */
 function tokenError(field, text, allowed) {
   // Rule 26 — a broken variable or condition first: the renderer would print it as it is.
-  // Rule 41 — the preview's private tag characters never enter a stored text, so none can be sent.
+  // Rule 45 — the preview's private tag characters never enter a stored text, so none can be sent.
   if (/[\uE000-\uE002]/.test(String(text || ''))) return { field, message: TAG_CHARACTER_MESSAGE };
   const broken = structureError(text) || (singleBraced(text, allowed) ? 'brace' : null);
   if (broken) return { field, message: STRUCTURE_MESSAGES[broken] };
@@ -326,7 +326,7 @@ function tokenError(field, text, allowed) {
   const known = VARIABLES.find((v) => v.name === name) || FLAGS.find((f) => f.name === name);
   const label = known ? known.label : STAY_TOKEN_LABELS[name];
   const message = label ? `Variable non disponible ici : ${label}` : `Variable inconnue : {{${name}}}`;
-  // Rule 37 — the closest variable this text may use, offered as a one-tap fix under the field.
+  // Rule 41 — the closest variable this text may use, offered as a one-tap fix under the field.
   const suggestion = closestVariable(name, allowed);
   return suggestion ? { field, message, unknown: name, suggestion } : { field, message, unknown: name };
 }
@@ -353,7 +353,7 @@ const labelOfName = (name) => {
 };
 
 /**
- * The variable a mistyped name most likely meant, among those the text may use (rule 37), or null.
+ * The variable a mistyped name most likely meant, among those the text may use (rule 41), or null.
  * « prenon » → clientFirstName (« Prénom du voyageur »): a name or a label starting with what was
  * typed wins, else the smallest edit distance on the name or the start of the label, within a third
  * of the typed length (two edits at least).

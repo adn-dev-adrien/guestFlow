@@ -22,7 +22,7 @@ function Harness(props) {
   );
 }
 
-test('rule 37: « + Variable » inserts the chosen label at the cursor; the raw text keeps {{token}}', () => {
+test('rule 41: « + Variable » inserts the chosen label at the cursor; the raw text keeps {{token}}', () => {
   render(<Harness />);
   const fr = screen.getByLabelText('Français');
   fr.focus();

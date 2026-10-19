@@ -1,6 +1,6 @@
 /**
  * When a template leaves, as one sentence (specs/email-automation.md rule 16,
- * specs/guest-email-texts-made-simple.md rule 39 — UI/UX review 2026-10-18, decision 11). Pure.
+ * specs/guest-email-texts-made-simple.md rule 43 — UI/UX review 2026-10-18, decision 11). Pure.
  *
  *   templateWhenLabel(t)  « 2 jours avant l’arrivée », « À la réservation »… — the « Quand » of a list
  *   templateWhen(t)       { editable, anchor, anchorLabel, days, direction, label, sentence }

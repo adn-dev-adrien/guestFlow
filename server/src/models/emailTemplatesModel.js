@@ -132,7 +132,7 @@ function buildModel(database) {
 
   /**
    * The next stay this offset would still reach — its send day (arrival + `offsetDays`) today or
-   * later — for the « Quand ? » example (specs/guest-email-texts-made-simple.md rule 39):
+   * later — for the « Quand ? » example (specs/guest-email-texts-made-simple.md rule 43):
    * `{ startDate, endDate, propertyName }` or null.
    */
   function nextStay(today, offsetDays = 0) {

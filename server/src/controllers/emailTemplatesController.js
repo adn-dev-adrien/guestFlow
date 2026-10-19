@@ -101,7 +101,7 @@ function buildController(model, settingsModel, deps = {}) {
   // `textsSection`: the section of « Textes des emails » that writes this template's sentences
   // (specs/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
   // `whenLabel` / `when`: the « Quand » (specs/email-automation.md rule 16; specs/guest-email-texts-made-simple.md
-  // rule 39). `displayName`: the one name of the email on every page (rule 40).
+  // rule 43). `displayName`: the one name of the email on every page (rule 44).
   const withSection = (row) => ({
     ...row,
     textsSection: sectionOfStableKey(row.stableKey),
@@ -111,7 +111,7 @@ function buildController(model, settingsModel, deps = {}) {
     shipped: Boolean(row.stableKey),
   });
 
-  // `?view=timeline` — Emails › Modèles in stay order, grouped by moment (rule 40).
+  // `?view=timeline` — Emails › Modèles in stay order, grouped by moment (rule 44).
   function list(req, res) {
     const rows = model.list().filter(sendable).map(withSection);
     if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows) });
@@ -119,7 +119,7 @@ function buildController(model, settingsModel, deps = {}) {
   }
 
   /**
-   * « Envoyé [n] jours [avant|après|le jour même de] … » read against a template's own moment (rule 39):
+   * « Envoyé [n] jours [avant|après|le jour même de] … » read against a template's own moment (rule 43):
    * the signed offset and the sentence, or a refusal `{ field, message }`. A moment the scheduler
    * does not count from the offset (the sequence, an action) is not set here.
    */
@@ -131,7 +131,7 @@ function buildController(model, settingsModel, deps = {}) {
   }
 
   // POST /api/email-templates/when — the sentence read live, with the day it would leave for the next
-  // stay it still reaches (rule 39).
+  // stay it still reaches (rule 43).
   function when(req, res) {
     const body = req.body || {};
     const template = body.templateId ? model.findById(body.templateId) : null;
@@ -153,7 +153,7 @@ function buildController(model, settingsModel, deps = {}) {
     return res.json({ offsetDays: result.offsetDays, sentence: result.sentence, example });
   }
 
-  // A `when` in a write is read by the server (rule 39): the offset stored is the one it answers, never
+  // A `when` in a write is read by the server (rule 43): the offset stored is the one it answers, never
   // one a page computed or kept from an earlier reading.
   function withWhen(template, body) {
     if (!body || body.when === undefined) return { ok: true, body };
@@ -230,7 +230,7 @@ function buildController(model, settingsModel, deps = {}) {
     return res.json(row);
   }
 
-  // A shipped email is switched off, never deleted (rule 40): the seed would put it back anyway.
+  // A shipped email is switched off, never deleted (rule 44): the seed would put it back anyway.
   function remove(req, res) {
     const existing = model.findById(req.params.id);
     if (existing && existing.stableKey) {

@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rules 37–38 (UI/UX review 2026-10-18, decisions 5 and 10) —
+// specs/guest-email-texts-made-simple.md rules 41–42 (UI/UX review 2026-10-18, decisions 5 and 10) —
 // variables on demand (« + Variable » or the [ key), a refusal with its one-tap fix under the field, and
 // one language at a time with the French as a reference above the English.
 import React, { useState } from 'react';

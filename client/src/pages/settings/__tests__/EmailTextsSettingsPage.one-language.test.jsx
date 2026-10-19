@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 38 (UI/UX review 2026-10-18, decision 10) — one language at
+// specs/guest-email-texts-made-simple.md rule 42 (UI/UX review 2026-10-18, decision 10) — one language at
 // a time: FR | EN at the top of the texts, the server's « N à traduire », the French as a reference
 // above each English field, the count following what is typed.
 import { vi } from 'vitest';

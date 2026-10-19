@@ -162,7 +162,7 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
   }
 
   /**
-   * Rule 41 (UI/UX review 2026-10-18, decision 13) — every stored text tagged with its key, inside the
+   * Rule 45 (UI/UX review 2026-10-18, decision 13) — every stored text tagged with its key, inside the
    * rolled-back transaction only, so the rendered email says which text each sentence comes from.
    * An empty text stays empty: a property's own text left blank still lets the shared one speak.
    */
@@ -231,13 +231,13 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
         if (refusal) { outcome = { error: 'INVALID_TEXT', status: 422, body: refusal }; throw new Rollback(); }
         const id = reservationId || insertSample(propertyId, lang);
         const stayProperty = (database.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(id) || {}).propertyId;
-        // Rule 38 — the count follows what is typed: it is read on the draft, before the tags.
+        // Rule 42 — the count follows what is typed: it is read on the draft, before the tags.
         const toTranslate = emailTextsModel.countToTranslate(emailTextsModel.buildModel(database).list({ propertyId: propertyId || stayProperty }));
         const notice = lang === 'en' ? englishNotice(template, stayProperty) : null;
         // The email as it is sent, rendered before any tag: what `body` carries, always.
         const preview = buildPreview(id, template.id, {}, lang, { settings });
         if (preview.error) { outcome = { error: preview.error, status: preview.status }; throw new Rollback(); }
-        // Rule 41 — the same email with every text tagged; its segments are kept only when they read
+        // Rule 45 — the same email with every text tagged; its segments are kept only when they read
         // exactly as the email sent, else the email is shown whole, not clickable.
         tagStoredTexts();
         const tagged = split(buildPreview(id, template.id, {}, lang, { settings }).body || '');
@@ -248,6 +248,9 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
             body: preview.body,
             segments,
             subjectKey: template.stableKey ? `subject:${template.stableKey}` : null,
+            // The HTML of the email rendered before any tag (`preview`, above): built from the plain
+            // text, never from the tagged rendering, which only gives the segments.
+            html: preview.html,
             lang,
             reservationId: reservationId || null,
             sample: !reservationId,

@@ -28,6 +28,7 @@ import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import YearOverYearBadge from './YearOverYearBadge';
 import { displayDate, formatCurrency, formatCurrencyRounded } from '../utils/formatters';
+import { seriesColor } from '../utils/chartColors';
 
 const TAB = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
@@ -230,7 +231,7 @@ function PropertiesTable({ data, onSelectProperty }) {
         )}
         renderRow={(r) => (
           <TableRow key={r.propertyId} hover sx={{ cursor: 'pointer' }} onClick={() => onSelectProperty(r.propertyId)}>
-            <TableCell><Box component="span" sx={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', bgcolor: r.color, mr: 1 }} />{r.name}</TableCell>
+            <TableCell><Box component="span" sx={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', bgcolor: seriesColor(r.colorIndex), mr: 1 }} />{r.name}</TableCell>
             <TableCell align="right" sx={TAB}>{r.nights}</TableCell>
             <TableCell align="right" sx={TAB}>{pct(r.occupancy)}</TableCell>
             <TableCell align="right" sx={TAB}>{money(r.revenuePerNight)}</TableCell>

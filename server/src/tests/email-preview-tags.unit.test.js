@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 41 (UI/UX review 2026-10-18, decision 13) — the preview
+// specs/guest-email-texts-made-simple.md rule 45 (UI/UX review 2026-10-18, decision 13) — the preview
 // says which text each sentence comes from, so a click on the email opens its field; the tags live in
 // the preview's rolled-back transaction only, and no tag ever leaves in an email.
 
@@ -11,7 +11,7 @@ const { tokenError, templateAllowed } = require('../utils/templateTokens');
 
 const TAG = /[\uE000-\uE002]/;
 
-test('rule 41: a tagged text renders the same words; the conditions and the spaces stay outside the tags', () => {
+test('rule 45: a tagged text renders the same words; the conditions and the spaces stay outside the tags', () => {
   const tagged = tagText('  Café offert.{{#if hasPrice}} Pour {{price}}.{{/if}}\n', 'text:house');
   assert.equal(strip(tagged), '  Café offert.{{#if hasPrice}} Pour {{price}}.{{/if}}\n');
   assert.ok(tagged.startsWith('  \uE000text:house\uE001Café offert.\uE002{{#if hasPrice}} \uE000'));
@@ -20,7 +20,7 @@ test('rule 41: a tagged text renders the same words; the conditions and the spac
   assert.equal(hasTag(tagged), true);
 });
 
-test('rule 41: split gives the plain email and its segments; a value inside a sentence belongs to it', () => {
+test('rule 45: split gives the plain email and its segments; a value inside a sentence belongs to it', () => {
   const body = `Bonjour,\n\n${tagText('Garez-vous à', 'text:parkingLine')} 400 ${tagText('mètres.', 'text:parkingLine')}\n\nÀ bientôt`;
   const { plain, segments } = split(body);
   assert.equal(plain, 'Bonjour,\n\nGarez-vous à 400 mètres.\n\nÀ bientôt');
@@ -32,7 +32,7 @@ test('rule 41: split gives the plain email and its segments; a value inside a se
   assert.equal(segments.map((s) => s.text).join(''), plain);
 });
 
-test('rule 41: the draft preview answers segments keyed by the page’s text keys, and the email reads as sent', async () => {
+test('rule 45: the draft preview answers segments keyed by the page’s text keys, and the email reads as sent', async () => {
   const { db, emails, reservationId, templateId } = setup();
   db.prepare("UPDATE properties SET emailHook = 'Le poêle est prêt.', parkingDistanceMeters = 300 WHERE id = 1").run();
   db.prepare("INSERT INTO property_arrival_facts (propertyId, address, accessFr, accessEn) VALUES (1, '12 chemin des Prés', 'Portail vert.', '')").run();
@@ -49,6 +49,10 @@ test('rule 41: the draft preview answers segments keyed by the page’s text key
       assert.equal(res.body.subject, sent.subject);
       assert.equal(res.body.segments.map((s) => s.text).join(''), res.body.body);
       assert.equal(TAG.test(JSON.stringify(res.body)), false, 'no tag in the answer');
+      // Rule 37 (PR #720) — the HTML part is built from the email rendered before any tag.
+      assert.ok(res.body.html, 'the preview answers the HTML part');
+      assert.equal(TAG.test(res.body.html), false, 'no tag in the HTML part');
+      assert.equal(res.body.html, sent.html, 'the HTML previewed is the HTML sent');
       assert.equal(res.body.subjectKey, `subject:${stableKey}`);
     }
   }
@@ -67,7 +71,7 @@ test('rule 41: the draft preview answers segments keyed by the page’s text key
   assert.equal(db.prepare('SELECT accessFr FROM property_arrival_facts WHERE propertyId = 1').get().accessFr, 'Portail vert.');
 });
 
-test('rule 41: the test send and the real send carry no tag', async () => {
+test('rule 45: the test send and the real send carry no tag', async () => {
   const { db, emails, mail, reservationId, templateId } = setup();
   db.prepare("UPDATE properties SET emailHook = 'Le poêle est prêt.' WHERE id = 1").run();
   const draft = { templateId: templateId('arrival_reminder_1d'), draft: { texts: { 'text:house': { fr: 'Café et thé.' } } } };
@@ -78,22 +82,23 @@ test('rule 41: the test send and the real send carry no tag', async () => {
   assert.equal(sent.status, 200);
   assert.ok(mail.sent.length >= 2);
   for (const message of mail.sent) {
-    assert.equal(TAG.test(`${message.subject}${message.text}${message.html || ''}`), false);
+    assert.ok(message.html, 'the test and the real send carry their HTML part');
+    assert.equal(TAG.test(`${message.subject}${message.text}${message.html}`), false);
   }
 });
 
-test('rule 41: the tag characters are refused in anything typed', () => {
+test('rule 45: the tag characters are refused in anything typed', () => {
   const refusal = tokenError('fr', 'Bonjour \uE000text:x\uE001', templateAllowed());
   assert.equal(refusal.message, 'Caractère invisible collé dans le texte : le retirer.');
 });
 
-test('rule 41: a lone tag character a value carried stays text', () => {
+test('rule 45: a lone tag character a value carried stays text', () => {
   const { plain, segments } = split(`Nom bizarre et  fin ${tagText('Phrase.', 'text:house')}`);
   assert.equal(plain, 'Nom bizarre et  fin Phrase.');
   assert.deepEqual(segments.map((s) => s.key), [null, 'text:house']);
 });
 
-test('rule 41: an empty first name before punctuation reads « Bonjour, » in the preview as in the send', async () => {
+test('rule 45: an empty first name before punctuation reads « Bonjour, » in the preview as in the send', async () => {
   const { db, emails, reservationId, templateId } = setup();
   db.prepare("UPDATE clients SET firstName = '' WHERE id = 1").run();
   for (const stableKey of ['arrival_reminder_1d', 'arrival_reminder_7d']) {

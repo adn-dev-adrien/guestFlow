@@ -1,5 +1,5 @@
 /**
- * One name per email, and its place in the stay (specs/guest-email-texts-made-simple.md rule 40 —
+ * One name per email, and its place in the stay (specs/guest-email-texts-made-simple.md rule 44 —
  * UI/UX review 2026-10-18, decision 12). Pure.
  *
  * A shipped email is named by what it is for (« Accès et arrivée »), never by an internal code

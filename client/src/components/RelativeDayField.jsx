@@ -1,6 +1,6 @@
 /**
  * RelativeDayField — « Envoyé [2] jours [avant ▾] l'arrivée » as one sentence
- * (specs/guest-email-texts-made-simple.md rule 39 — UI/UX review 2026-10-18, decision 11). Generic: any
+ * (specs/guest-email-texts-made-simple.md rule 43 — UI/UX review 2026-10-18, decision 11). Generic: any
  * moment counted in days from an anchor the server names.
  *
  * It holds no rule: what was typed goes to `onChange` as it is, and the server answers the signed

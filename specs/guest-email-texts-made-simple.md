@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (2026-10-08; rules 37–41 on 2026-10-19) |
+| **Status** | Implemented (2026-10-08; rules 41–45 on 2026-10-19) |
 | **Branch** | `feature/email-texts-made-simple` (from `inte/plugins`) |
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
@@ -379,12 +379,51 @@ email shown beside the text. The whole wording can also go out and come back as 
     not. « À compléter » lists a template still printing the link while there is none (« Lien des
     conditions générales vide — … »). Whether a platform guest accepted the CGV is out of this rule.
 
-### 3.J UI/UX review of 2026-10-18 (decisions 5, 10, 11, 12, 13)
+
+### 3.J Guest emails in HTML (UI/UX review 2026-10-18, proposal 25, decision 15)
+
+The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email-automation.md` §8).
+
+37. **A guest email leaves as text and HTML.** Every email sent to a guest — the sequence (automatic
+    or « Envoyer »), the manual send, the confirmation, the automatic pass of the other templates, and
+    the « M'envoyer un test » of rule 15 — leaves as `multipart/alternative`: the `text/plain` part is
+    the rendered text, unchanged byte for byte (what the history records), and a `text/html` part is
+    derived by the server from that same rendered text (`utils/guestEmailHtml.js`). The text stays the
+    one thing the operator writes; there is no second template, so the two parts cannot say different
+    things. The account emails (reset link, login codes) and the internal notifications stay plain
+    text. The preview answers both parts and shows either one (« Texte | HTML », text first; the HTML
+    in a sandboxed frame). The dev mail catcher (rule 26) keeps the HTML part and the raw message
+    (`mime`), so the multipart can be read without sending anything.
+38. **The HTML says what the text says, and nothing more.** A blank line is a paragraph, a line break
+    stays a line break; a run of « - » / « • » lines is a list, and a two-column recap when every line
+    of it reads « Libellé : valeur » (« Votre séjour : » and its lines). A web address, an email address
+    and a French phone number are plain links showing their own text (`https://…`, `mailto:`, `tel:`);
+    no other scheme is ever linked, no link is rewritten. An amount keeps its « € » on the same line, a
+    phone number is not cut. Everything else is escaped: a `<`, `&` or quote in a name or a text is
+    printed, never interpreted. *Departs from the review's mock (decision 15):* no « Payer
+    l'acompte » button — the payment link is a plain link, like every other.
+39. **The HTML is sober and self-contained.** The sender's name (as the email signs, rule 12 of
+    settings-rationalization) heads it in the Maison serif; the body is the system sans at 16 px,
+    1.55 line height, in a column of 600 px at most. Nothing is loaded: no image, no remote stylesheet
+    or font, no tracking pixel, no script. The colours are Maison's (ink on paper, fir-green links), with
+    a dark variant (`prefers-color-scheme: dark`, `color-scheme: light dark`); a client that ignores both
+    (Outlook desktop) shows the light version at full width.
+40. **Links only where they are meant** (added 2026-10-19, review of PR #720).
+    - A number glued to a letter, a slash or a dash is a reference, never a phone (« HA-0123456789 »,
+      « 2026-0412345678 »). Ten digits in a row (« 0612345678 ») are a phone only right after a word
+      that announces one (« appelez-nous », « téléphone », « tél. », « call », « au ») — alone they may
+      be a Wi-Fi or key-box code. A grouped number (« 06 12 34 56 78 ») and « +33 … » always link.
+    - A web address keeps a closing parenthesis it opened (« …/Gîte_(hébergement) »); one that closes
+      the sentence's own parenthesis stays outside the link.
+    - An apostrophe in an email's local part stays in it (« jean.o'brien@… »).
+    - No heading when the instance has no name of its own (the sender falls back to « GuestFlow »):
+      the software's name never heads a guest's email.
+### 3.K UI/UX review of 2026-10-18 (decisions 5, 10, 11, 12, 13)
 
 Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.html`, settings mocks
 1–4 and 8). Each rule cites its decision.
 
-37. **Variables on demand, refused where they are typed** (decision 5). No chip wall under a field: one
+41. **Variables on demand, refused where they are typed** (decision 5). No chip wall under a field: one
     « + Variable » button beside its name, and the `[` key in the field, open one filterable list at the
     field (`VariablePicker`): typing filters by the label (« pré » → « Prénom du voyageur »), ↑ ↓ choose,
     Entrée inserts, Échap closes without inserting. Conditions follow the variables as « Seulement si :
@@ -396,7 +435,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     preview keeps the last email it rendered, dimmed, with « Texte à corriger : l'aperçu montre le
     dernier texte valide. » — it no longer replaces the email by the error. The subject of « Modèle
     complet » shows its variables by their label too (one notation). The three private characters of
-    rule 41 are refused in any typed text (« Variable incomplète … »).
+    rule 45 are refused in any typed text (« Variable incomplète … »).
     *2026-10-19 bis (review of PR #723):* a typed `[` stays in the text and opens the list there:
     picking a variable replaces that `[`, Échap keeps it. It is read on the change, not the key, so it
     works whatever the layout (« ⌥⇧( » on a French Mac) and never while an input method composes; where
@@ -404,7 +443,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     the template dialog, « Modèle complet » or the phone's sheet around the field stays open. Tab or
     leaving the list closes it. A tag character is refused with its own message: « Caractère
     invisible collé dans le texte : le retirer. »
-38. **One language at a time** (decision 10). FR | EN at the top of the texts (and in « Modèle complet »
+42. **One language at a time** (decision 10). FR | EN at the top of the texts (and in « Modèle complet »
     and the template dialog) shows one field per text, full width. In EN, each English field has the
     French above it as a grey reference line. Beside the switch, the server's count: « N à traduire »
     (a text a stored template places, French written, English empty — `toTranslate`), « Anglais
@@ -413,7 +452,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     transaction). « Traduire » (rule 19) moves next to the count and shows only while something is to
     translate. The preview follows the same switch; its own FR/EN toggle is gone from this page
     (« Aperçu · EN »). On a phone the rows show the language chosen, « À traduire » in EN.
-39. **« Quand ? » is one sentence** (decision 11). The server says when an email leaves:
+43. **« Quand ? » is one sentence** (decision 11). The server says when an email leaves:
     « Envoyé 2 jours avant l'arrivée », « Envoyé le jour de l'arrivée », « Envoyé 3 jours après
     l'échéance du solde », « Envoyé à la réservation », « Envoyé le 15 novembre »
     (`utils/templateWhen.js`, `when` on each template; `whenLabel` is the same without « Envoyé »).
@@ -438,7 +477,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     sequence, an action) is refused, read or written: `422` « Moment fixé par l'application : il ne se
     règle pas ici. ». The example names the next stay the offset still reaches (its send day today or
     later), with its year when it is not the current one.
-40. **One name per email, in stay order** (decision 12). The server names every shipped email by its
+44. **One name per email, in stay order** (decision 12). The server names every shipped email by its
     purpose (`utils/emailTimeline.js`): Confirmation, Demande d'acompte, Rappel d'acompte, Demande de
     paiement, Demande de solde, Rappel de solde, Préparation du séjour, Accès et arrivée, Merci et avis,
     Bons cadeaux, Vœux et dates, Avis d'annulation; a template of the operator's own keeps its name.
@@ -461,7 +500,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     modèle » and « Modifier les textes ») and asks first, « Cet email partira sans validation, à sa
     date. »; so does saving a template switched to « Automatique » in its dialog. Back to manual needs
     no confirmation.
-41. **The rendered email is the map** (decision 13). The preview (rule 13) answers the email cut into
+45. **The rendered email is the map** (decision 13). The preview (rule 13) answers the email cut into
     `segments: [{ text, key }]`, `key` being the text key of §4.3 the words come from (`text:house@1`,
     `mention:4:booked`, `hook:1`, `access:1`, `resource:9`…) or null for the template's own words, and
     `subjectKey`. On the page each sentence is a button: hover marks it, a click (or Entrée) opens its
@@ -475,7 +514,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     untagged. The rendering is then split into the segments and the plain text, which is what `body`
     carries, what « M'envoyer un test » sends, and character for character what a real send renders
     (tested on every sequence email, FR and EN). Nothing persists (rolled back), the send path
-    (`emailsController.buildPreview`, the scheduler, and the HTML version of guest emails of decision 15)
+    (`emailsController.buildPreview`, the scheduler, and the HTML part of rule 37)
     never tags, and the shared validator refuses the three characters in anything typed.
     *2026-10-19 bis (review of PR #723):* `body` and `subject` are the email rendered before any tag;
     the tagged rendering only cuts it into segments, and is kept only when its text is exactly that
@@ -483,6 +522,10 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     a value carrying one of the characters). A tag character a value carried, alone, is text. A
     sentence whose field is folded away (its section closed, or « Phrases non utilisées ») unfolds it,
     then the field is reached.
+    *2026-10-19 ter (merge of PR #720):* the preview's HTML part (rule 37) is built from that same
+    email rendered before any tag — the plain text — never from the tagged rendering; so is the HTML
+    of « M'envoyer un test ». The sentences are clickable in the « Texte » view only; the « HTML »
+    frame is a plain rendering.
 
 ---
 
@@ -502,6 +545,11 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `utils/` | `propertyFacts.js` | C | The facts left unsaid by the assistant and their answers (rule 28, 2026-10-18) |
 | `utils/` | `propertyArticle.js` | C | The article derived from the name, its contraction, the chips worth offering (rule 30, 2026-10-18) |
 | `utils/` | `migrateCgvLinkCondition.js` | C | One-shot wrap of a hand-written CGV sentence in its condition (rule 36, 2026-10-18) |
+| `utils/` | `guestEmailHtml.js` | C | The HTML part derived from the rendered text, `guestEmailMessage` (rules 37–39, 2026-10-19) |
+| `utils/` | `emailService.js` | T | Sends `html` beside `text` when given (rule 37) |
+| `utils/` | `mailOutbox.js`, `accountMailer.js` | T | The catcher keeps `html` and the raw `mime`; the test send carries the HTML (rule 37) |
+| `utils/` | `guestEmailSequenceRunner.js`, `reservationEmailSender.js`, `emailAutoSendRunner.js` | T | Send through `guestEmailMessage` (rule 37) |
+| `controllers/` | `emailsController.js`, `utils/emailDraftPreview.js` | T | Preview answers `html`; manual and test sends carry it (rule 37) |
 | `controllers/` | `onboardingController.js` | T | Step 2 edits its own property; « Vos emails » saves the deposit, cleaning, towels and code (rules 28–32, 2026-10-18) |
 | `controllers/` | `emailReadinessController.js` | T | Lists broken texts, unsaid facts and an empty CGV link (rules 27, 28, 36, 2026-10-18) |
 | `utils/` | `emailTextsCsv.js` | C | Export/import on top of `translationCsv.js` (rules 16–18) |
@@ -523,16 +571,16 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `controllers/` | `emailTemplatesController.js` | T | Shared validation (rule 11), `GET /:id/variables`, `textsSection` (rule 12) |
 | `controllers/` | `onboardingController.js` | T | `emails` block and `PUT /api/onboarding/emails` (rule 21) |
 | `routes/` | `emailReadiness.js`, `onboarding.js`, `emailTemplates.js` | C/T | Thin |
-| `utils/` | `templateTokens.js` | T | `closestVariable`: the suggestion of a refusal (rule 37); sections named by purpose with their « Quand » (rule 40); the private tag characters refused (rule 41) |
-| `utils/` | `previewTags.js` | C | Tags a stored text with its key, splits a tagged rendering into segments and plain text (rule 41) |
-| `utils/` | `emailDraftPreview.js` | T | Tags every stored text inside the rolled-back transaction; answers `segments`, `subjectKey`, `toTranslate` (rules 38, 41) |
-| `utils/` | `templateWhen.js` | T | The « Quand » sentence, whether its number is editable, and the reading of a typed sentence (rule 39) |
-| `utils/` | `emailTimeline.js` | C | One name per email and its moment; the timeline in stay order (rule 40) |
-| `utils/` | `dateFr.js` | T | `weekdayLabel` — « mercredi 21 octobre » (rule 39) |
-| `models/` | `emailTextsModel.js` | T | `countToTranslate` (rule 38); subjects described by the email's name (rule 40) |
-| `models/` | `emailTemplatesModel.js` | T | `nextStay` — the stay of the « Quand ? » example (rule 39) |
-| `controllers/` | `emailTemplatesController.js` | T | `displayName`, `when`, `shipped`, `?view=timeline`, `POST /when`, `409 SHIPPED_TEMPLATE` (rules 39–40) |
-| `controllers/` | `emailTextsController.js` | T | `toTranslate`, section `when`, template names; the 422 carries `unknown` and `suggestion` (rules 37, 38, 40) |
+| `utils/` | `templateTokens.js` | T | `closestVariable`: the suggestion of a refusal (rule 41); sections named by purpose with their « Quand » (rule 44); the private tag characters refused (rule 45) |
+| `utils/` | `previewTags.js` | C | Tags a stored text with its key, splits a tagged rendering into segments and plain text (rule 45) |
+| `utils/` | `emailDraftPreview.js` | T | Tags every stored text inside the rolled-back transaction; answers `segments`, `subjectKey`, `toTranslate` (rules 42, 45) |
+| `utils/` | `templateWhen.js` | T | The « Quand » sentence, whether its number is editable, and the reading of a typed sentence (rule 43) |
+| `utils/` | `emailTimeline.js` | C | One name per email and its moment; the timeline in stay order (rule 44) |
+| `utils/` | `dateFr.js` | T | `weekdayLabel` — « mercredi 21 octobre » (rule 43) |
+| `models/` | `emailTextsModel.js` | T | `countToTranslate` (rule 42); subjects described by the email's name (rule 44) |
+| `models/` | `emailTemplatesModel.js` | T | `nextStay` — the stay of the « Quand ? » example (rule 43) |
+| `controllers/` | `emailTemplatesController.js` | T | `displayName`, `when`, `shipped`, `?view=timeline`, `POST /when`, `409 SHIPPED_TEMPLATE` (rules 43–44) |
+| `controllers/` | `emailTextsController.js` | T | `toTranslate`, section `when`, template names; the 422 carries `unknown` and `suggestion` (rules 41, 42, 44) |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -563,14 +611,16 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `components/` | `OnboardingEmailsStep.jsx` | T | Deposit, cleaning and towels with no answer chosen; key-box code field (rules 28, 30, 32) |
 | `pages/` | `OnboardingPage.jsx` | T | Step 2 resumes its property or lists the existing ones (rule 29) |
 | `components/` | `EmailMentionsPanel.jsx` | T | A proposal reads « ⟦Prix⟧ », as in its editor |
-| `components/` | `VariablePicker.jsx` | C | Generic: the filterable list of variables and conditions opened by « + Variable » or `[` (rule 37) |
-| `components/` | `TokenTextField.jsx` | T | No chip wall; « + Variable » / `[`; refusal with « Remplacer »; `language` (one field, French reference in EN) (rules 37–38) |
-| `components/` | `EmailPreviewPane.jsx` | T | `segments` as buttons, `activeKey`, `stale`, « Aperçu · FR » without its own toggle (rules 37, 41) |
-| `components/` | `RelativeDayField.jsx` | C | Generic: « Envoyé [n] jours [avant ▾] <ancre> », refusal and example from the server (rule 39) |
-| `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | FR | EN and the count; sections by name and « Quand »; a sentence of the preview opens its field or the phone's sheet (rules 38, 40, 41) |
-| `pages/` | `EmailTemplatesPage.jsx` | T | The timeline with « ⋯ »; the « Quand ? » sentence; FR | EN (rules 38–40) |
-| `components/` | `EmailManualSendDialog.jsx`, `EmailComposeDialog.jsx`, `pages/EmailHistoryPage.jsx`, `OnboardingEmailsStep.jsx` | T | The email's one name (rule 40) |
-| `utils/` | `tokenDisplay.js` | T | `replaceVariable` — the suggested fix (rule 37); `chipLabel` gone with the chips |
+| `components/` | `EmailPreviewPane.jsx` | T | Optional `html` prop: « Texte \| HTML » switch, the HTML in a sandboxed frame (rule 37) |
+| `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | Passes the preview's `html` to the pane (rule 37) |
+| `components/` | `VariablePicker.jsx` | C | Generic: the filterable list of variables and conditions opened by « + Variable » or `[` (rule 41) |
+| `components/` | `TokenTextField.jsx` | T | No chip wall; « + Variable » / `[`; refusal with « Remplacer »; `language` (one field, French reference in EN) (rules 41–42) |
+| `components/` | `EmailPreviewPane.jsx` | T | `segments` as buttons, `activeKey`, `stale`, « Aperçu · FR » without its own toggle (rules 41, 45) |
+| `components/` | `RelativeDayField.jsx` | C | Generic: « Envoyé [n] jours [avant ▾] <ancre> », refusal and example from the server (rule 43) |
+| `pages/settings/` | `EmailTextsSettingsPage.jsx` | T | FR | EN and the count; sections by name and « Quand »; a sentence of the preview opens its field or the phone's sheet (rules 42, 44, 45) |
+| `pages/` | `EmailTemplatesPage.jsx` | T | The timeline with « ⋯ »; the « Quand ? » sentence; FR | EN (rules 42–44) |
+| `components/` | `EmailManualSendDialog.jsx`, `EmailComposeDialog.jsx`, `pages/EmailHistoryPage.jsx`, `OnboardingEmailsStep.jsx` | T | The email's one name (rule 44) |
+| `utils/` | `tokenDisplay.js` | T | `replaceVariable` — the suggested fix (rule 41); `chipLabel` gone with the chips |
 
 **Component reuse:**
 - Reused: `MaskedTextField`, `HelpedTextField`, `PageActionBar`, `StatusBadge`, `EmptyState`,
@@ -591,7 +641,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | POST | `/api/email-texts/import[?confirm=true]` | raw CSV → `{ changed, refused, unchanged, applied }` |
 | POST | `/api/email-texts/translate` | `{ translated }`; 404 without the key, 502 on failure |
 | GET | `/api/email-readiness` | `{ items: [{ id, check, label, section, propertyId, target, soon }], soonCount }` |
-| POST | `/api/emails/preview` | `{ templateId \| stableKey, draft, reservationId? \| 'sample', language, propertyId? }` → `{ subject, body, lang, reservationId, sample, reservations, englishNotice }` |
+| POST | `/api/emails/preview` | `{ templateId \| stableKey, draft, reservationId? \| 'sample', language, propertyId? }` → `{ subject, body, html, lang, reservationId, sample, reservations, englishNotice }` (`html` since 2026-10-19, rule 37; `GET /api/emails/preview` answers it too) |
 | POST | `/api/emails/test` | same body → `{ ok, to }`; 409 `EMAIL_NOT_CONFIGURED` |
 | GET | `/api/email-templates/:id/variables` | `{ variables: [{ name, label }], conditions }`; `new` for a template not created yet |
 | GET / PUT | `/api/properties/:id/arrival-facts` | the facts, secrets as `hasAccessCode` / `hasWifiPassword` |
@@ -600,7 +650,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | PUT | `/api/onboarding/property` | edits the assistant's own property; 409 `PROPERTIES_EXIST` on an instance it did not equip (rule 29, 2026-10-18) |
 | GET | `/api/properties/article-labels?name=` | `{ labels: [{ value, label }] }` — the five articles as the emails write them (rule 30, 2026-10-18 bis) |
 
-*2026-10-19 (rules 37–41):*
+*2026-10-19 (rules 41–45):*
 
 | Method | Path | Body / answer |
 |---|---|---|
@@ -657,7 +707,7 @@ See the summary page.
   « Code de la boîte à clés », « Caution (€) », and the two yes/no chip pairs (rules 28, 32).
 - *2026-10-18 bis:* « Linge de lit » joins the Séjour tab and « Vos emails » (rule 28); the property
   page's article menu lists « au Fournil »… from the server and shows empty while unconfirmed (rule 30).
-- *2026-10-19 (rules 37–41, the review's settings mocks 1–4 and 8):*
+- *2026-10-19 (rules 41–45, the review's settings mocks 1–4 and 8):*
   - **Desktop (≥ 900 px):** above the sections, FR | EN and « N à traduire » (« Traduire » beside it
     when the platform key exists). One field per text, full width of the column; « + Variable » at the
     right of each text's name. The preview (« Aperçu · FR ») says « Cliquer une phrase pour la
@@ -672,6 +722,12 @@ See the summary page.
   - **Emails › Modèles:** one list for every width — moment headers, rows of 44 px at least, the
     switch and « ⋯ » at the right; no table, no horizontal scroll at 390 px. The template dialog reads
     « Envoyé [2] jours [avant ▾] l'arrivée », the example day under it, the refusal under the number.
+- *2026-10-19 (rules 37–39):* the preview pane of « Textes des emails » gains « Texte | HTML » beside
+  FR | EN (text first). On a phone the switch wraps under the language toggle; the HTML frame is
+  520 px high (640 px from `md`), and the email itself, 600 px at most, fills the 390 px width with a
+  20 px margin. The start assistant's preview stays text only. Interactive mock (the real renderer,
+  editable text, 390 / 1280, light / dark):
+  [`docs/specs/2026-10-19-otp-field-and-guest-email-html.html`](../docs/specs/2026-10-19-otp-field-and-guest-email-html.html).
 
 ## 7. Test plan
 
@@ -702,21 +758,31 @@ rules 28–33), `email-texts-csv-secrets` (3, rule 32), `property-pool-season` (
 rules 28, 34, 35), `OnboardingPage.facts-and-resume` (4, rules 28–30, 32), `PropertyArrivalFacts` (4,
 rewritten for the controlled block).
 
+*Review of PR #720 (rule 40):* `guest-email-html` +3 (references and announced phones, parentheses and
+apostrophe, no heading for the fallback name).
+
+*2026-10-19 (rules 37–39):* server `guest-email-html` (10: escaping, links and only them, paragraphs /
+lists / recap, a self-contained document, **golden: Solio's six sequence emails FR/EN keep their text
+byte for byte and print no variable in HTML**, the heading, the sequence sending both parts with the
+recorded text, the transport, the mail catcher's `multipart/alternative`, preview and test send);
+client `EmailPreviewPane.html-part` (2); E2E `email-texts` reads the HTML part and the multipart from
+the catcher and switches the preview to HTML.
+
 *2026-10-18 bis (review of PR #705):* server `onboarding-reopen-keeps-seasons` (3, rule 29),
 `property-update-keeps-unsent-facts` (4, rules 28, 30), `property-article-ambiguous-initial` (3,
 rule 30), `bed-linen-pending-fact` (4, rule 28), `template-single-brace` (3, rule 27); client
 `PropertyDetail.article-and-deposit` (4, rules 28, 30), `OnboardingPage.facts-and-resume` (+1, rule 28).
 The `previewWithArticle` helper tests are gone with the helper.
 
-*2026-10-19 (rules 37–41):* server `email-preview-tags` (5, rule 41: tagging keeps the words, split,
+*2026-10-19 (rules 41–45):* server `email-preview-tags` (5, rule 45: tagging keeps the words, split,
 segments keyed by the page's keys, the preview equal to the real send on four emails × FR/EN, nothing
 persisted, the test send and a real send carry no tag, the characters refused), `email-texts-variable-suggestion`
-(3, rule 37), `email-texts-translate-count` (2, rule 38), `email-template-when-sentence` (3, rule 39),
-`email-templates-timeline` (4, rule 40); `email-texts-page`, `email-texts-csv`, `email-texts-tokens`,
+(3, rule 41), `email-texts-translate-count` (2, rule 42), `email-template-when-sentence` (3, rule 43),
+`email-templates-timeline` (4, rule 44); `email-texts-page`, `email-texts-csv`, `email-texts-tokens`,
 `email-send-failure-and-when`, `email-mentions`, `stay-texts` follow the new names and the refusal's
-`unknown`. Client `TokenTextField.variables-on-demand` (5, rules 37–38), `EmailTextsSettingsPage.one-language`
-(3, rule 38), `EmailTextsSettingsPage.click-preview` (4, rules 37, 41), `EmailTemplatesPage.when-sentence`
-(3, rule 39); `EmailTemplatesPage` rewritten for the timeline (rule 40), `TokenTextField`,
+`unknown`. Client `TokenTextField.variables-on-demand` (5, rules 41–42), `EmailTextsSettingsPage.one-language`
+(3, rule 42), `EmailTextsSettingsPage.click-preview` (4, rules 41, 45), `EmailTemplatesPage.when-sentence`
+(3, rule 43); `EmailTemplatesPage` rewritten for the timeline (rule 44), `TokenTextField`,
 `MentionEditor`, `EmailTemplatesPage.texts-link`, `EmailTemplatesPage.token-view` and the page fixtures
 follow the picker and the names. E2E `email-texts.spec.js` and `emails-page.spec.js` follow the names;
 `email-texts.spec.js` adds a click on a sentence of the J-2 preview.
@@ -729,9 +795,16 @@ method), `EmailTemplatesPage.when-sentence` +1 (pending and late answers), `Emai
 (confirmation before « Envoi automatique », its place), `EmailTextsSettingsPage.click-preview` +1
 (a folded field unfolds).
 
+*2026-10-19 ter (merge of PR #720; rules 37–40 are its HTML part, this section's rules became
+41–45):* `email-preview-tags` asserts the preview's `html` equals the HTML sent and carries no tag,
+and that the test send and a real send carry their HTML part, tag-free; client
+`EmailTextsSettingsPage.click-preview` +1 (no clickable sentence in the HTML view).
+
 ## 8. Out of scope
 
-- A rich-text (WYSIWYG) editor.
+- A rich-text (WYSIWYG) editor. The HTML part (rule 37) is derived, never edited.
+- A payment button or any other markup in the HTML part (decision 15: plain links).
+- HTML for the account emails and the internal notifications.
 - A library of alternative tones.
 - `.docx` import (formatting runs split tokens; research 2026-10-08).
 - Per-channel templates.
@@ -767,10 +840,16 @@ read back from the dev mail catcher; export, then re-import with one changed and
 the property « Arrivée » block and the assistant's « Vos emails » at 390, 900 and 1280 px, on a copy of
 the dev database: no console error, no horizontal scroll.
 
-**2026-10-19 (rules 37–41):** see the Test plan note of the same date; measured on a copy of Solio's
+**2026-10-19 (rules 41–45):** see the Test plan note of the same date; measured on a copy of Solio's
 database below.
 
 **Solio, measured on a copy of the dev database (65 reservations, 12 templates):** every template ×
 every reservation × FR/EN rendered before and after through the real preview path: 1,560 renderings
 (780 of the six sequence emails), 0 differences — measured again after the review of 2026-10-17, with
 the readiness list empty and no dashboard alert on that copy (70 texts, 7 folded as unused).
+
+**UI/UX review, 2026-10-19 (`feature/ui-otp-html-emails`, target `inte/plugins`), rules 37–39:** every
+guest send goes through `guestEmailMessage` (text unchanged, HTML derived); the preview answers `html`
+and shows « Texte | HTML »; the dev mail catcher keeps `html` and `mime`. Server `guest-email-html` (10),
+client `EmailPreviewPane.html-part` (2), E2E `email-texts` extended. Checked in a browser: the preview at
+390 and 1280 px, the HTML part alone at 390 and 1280 px in light and dark, no horizontal scroll.

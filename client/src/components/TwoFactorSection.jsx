@@ -73,7 +73,6 @@ export default function TwoFactorSection({ account }) {
     } catch (err) {
       setError(errorText(err, 'Code incorrect.'));
       if (err && err.error === 'TOO_MANY_CODES') setEnrolment(null);
-      setCode('');
     } finally {
       setBusy(false);
     }
@@ -111,7 +110,7 @@ export default function TwoFactorSection({ account }) {
           </Stack>
           {loadError && <ErrorAlert message={loadError} onRetry={load} />}
           {!status && !loadError && <LoadingState />}
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && !enrolment && <Alert severity="error">{error}</Alert>}
 
           {status && status.enabled && (
             <>
@@ -167,7 +166,7 @@ export default function TwoFactorSection({ account }) {
               ) : (
                 <Alert severity="info">{`Code envoyé à ${enrolment.sentTo}.`}</Alert>
               )}
-              <OneTimeCodeField value={code} onChange={setCode} autoFocus />
+              <OneTimeCodeField value={code} onChange={(v) => { setCode(v); setError(''); }} error={error} autoFocus />
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Button variant="contained" onClick={confirm} disabled={busy || code.length !== 6}>Confirmer</Button>
                 <Button onClick={() => { setEnrolment(null); setError(''); }}>Annuler</Button>

@@ -61,7 +61,7 @@ export function chipSnippet(entry, kind, dict) {
 }
 
 /**
- * The server's suggested fix applied to a raw text (specs/guest-email-texts-made-simple.md rule 37):
+ * The server's suggested fix applied to a raw text (specs/guest-email-texts-made-simple.md rule 41):
  * every `{{unknown}}` (spaces allowed inside the braces) becomes `{{name}}`.
  */
 export function replaceVariable(raw, unknown, name) {

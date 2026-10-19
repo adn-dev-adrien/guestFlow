@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 38 (UI/UX review 2026-10-18, decision 10) — one language at
+// specs/guest-email-texts-made-simple.md rule 42 (UI/UX review 2026-10-18, decision 10) — one language at
 // a time, and the server counts the texts still « à traduire », on the saved texts and on the draft.
 
 const test = require('node:test');
@@ -8,7 +8,7 @@ const { setup, call } = require('./emailTextsFixture');
 const { buildController } = require('../controllers/emailTextsController');
 const { countToTranslate } = require('../models/emailTextsModel');
 
-test('rule 38: only a placed text with French and no English counts', () => {
+test('rule 42: only a placed text with French and no English counts', () => {
   assert.equal(countToTranslate([
     { fr: 'Bonjour', en: '' },
     { fr: 'Bonjour', en: 'Hello' },
@@ -17,7 +17,7 @@ test('rule 38: only a placed text with French and no English counts', () => {
   ]), 1);
 });
 
-test('rule 38: the page and the preview answer the count; the preview follows the draft', async () => {
+test('rule 42: the page and the preview answer the count; the preview follows the draft', async () => {
   const { db, emails, templateId } = setup();
   const texts = buildController({ database: db, translator: { isAvailable: () => false } });
   const page = (await call(texts.list, { query: {} })).body;

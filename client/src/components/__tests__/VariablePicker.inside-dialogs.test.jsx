@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 37 (review of PR #723, B2) — Échap and Entrée in the
+// specs/guest-email-texts-made-simple.md rule 41 (review of PR #723, B2) — Échap and Entrée in the
 // variable list stop there: the dialog or the sheet around the field stays open, with what was typed.
 import React, { useState } from 'react';
 import { vi } from 'vitest';

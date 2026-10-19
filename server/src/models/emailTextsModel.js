@@ -39,7 +39,7 @@ const MENTION_SECTION = { local: 'Produits locaux', extras: 'À prévoir', kids:
 const str = (v) => (v == null ? '' : String(v));
 
 /**
- * « 3 à traduire » (specs/guest-email-texts-made-simple.md rule 38): the texts an email places whose
+ * « 3 à traduire » (specs/guest-email-texts-made-simple.md rule 42): the texts an email places whose
  * French is written and whose English is empty.
  */
 const needsEnglish = (item) => item.used !== false && str(item.fr).trim() !== '' && str(item.en).trim() === '';
@@ -77,7 +77,7 @@ function buildModel(database) {
       key: `subject:${t.stableKey}`,
       kind: 'subject',
       section: sectionOfStableKey(t.stableKey),
-      // One name per email (rule 40): a section of several emails names the subject's own.
+      // One name per email (rule 44): a section of several emails names the subject's own.
       label: (SECTIONS.find((sec) => sec.id === sectionOfStableKey(t.stableKey)) || { stableKeys: [] }).stableKeys.length > 1
         ? `Objet — ${displayNameOf(t)}` : 'Objet',
       description: `Objet — ${displayNameOf(t)}`,

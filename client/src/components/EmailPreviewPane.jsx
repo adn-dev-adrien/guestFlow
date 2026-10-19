@@ -2,7 +2,7 @@
  * EmailPreviewPane — a rendered email as the guest reads it (specs/guest-email-texts-made-simple.md
  * rules 13–15, 41). Generic: it renders what the server rendered and owns no rule.
  *
- * With `segments` (rule 41, UI/UX review 2026-10-18 decision 13), each sentence the server tagged with
+ * With `segments` (rule 45, UI/UX review 2026-10-18 decision 13), each sentence the server tagged with
  * its text is a button: hover marks it, a click (or Entrée) hands its key to `onSegmentClick`. The
  * template's own words call `onTemplateClick`.
  *
@@ -13,6 +13,9 @@
  *   activeKey              the key of the text being edited, highlighted
  *   onSegmentClick         (key) => void
  *   onTemplateClick        () => void — a click on the template's own words
+ *   html                   string — the HTML part the server derives from `body` (rule 37); given, a
+ *                          « Texte | HTML » switch shows either part, the HTML in a sandboxed frame;
+ *                          the sentences are clickable in « Texte » only (rule 45)
  *   loading                boolean — a new rendering is on its way
  *   error                  string — shown instead of the email
  *   stale                  string — shown above the email, kept as last rendered (a refused draft)
@@ -24,7 +27,7 @@
  *   testMessage            ReactNode — the result of the last test
  *   sx
  */
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Alert, Box, Button, Card, CardContent, CircularProgress, FormControl, InputLabel, MenuItem, Select,
   Stack, ToggleButton, ToggleButtonGroup, Typography,
@@ -67,9 +70,11 @@ const excerpt = (text) => text.trim().replace(/\s+/g, ' ').slice(0, 60);
 export default function EmailPreviewPane({
   subject = '', body = '', segments, subjectKey, activeKey, onSegmentClick, onTemplateClick,
   loading = false, error = '', stale = '', language = 'fr', onLanguageChange, notice,
-  reservations = [], reservationId = SAMPLE, onReservationChange, onSendTest, testMessage, sx,
+  reservations = [], reservationId = SAMPLE, onReservationChange, onSendTest, testMessage, sx, html = '',
 }) {
-  const clickable = Boolean(onSegmentClick && segments);
+  const [part, setPart] = useState('text');
+  const showHtml = Boolean(html) && part === 'html';
+  const clickable = Boolean(onSegmentClick && segments) && !showHtml;
   const piece = (s, i) => {
     if (s.key) {
       return <Sentence key={i} text={s.text} active={activeKey === s.key} label={`Modifier : ${excerpt(s.text)}`} onOpen={() => onSegmentClick(s.key)} />;
@@ -100,6 +105,12 @@ export default function EmailPreviewPane({
               </Select>
             </FormControl>
           )}
+          {html && (
+            <ToggleButtonGroup size="small" exclusive value={part} onChange={(e, v) => v && setPart(v)} aria-label="Partie de l’email">
+              <ToggleButton value="text" sx={{ minWidth: 44, textTransform: 'none' }}>Texte</ToggleButton>
+              <ToggleButton value="html" sx={{ minWidth: 44, textTransform: 'none' }}>HTML</ToggleButton>
+            </ToggleButtonGroup>
+          )}
           {loading && <CircularProgress size={18} aria-label="Aperçu en cours" />}
         </Stack>
         {notice && <Alert severity="warning" sx={{ mb: 1.5 }}>{notice}</Alert>}
@@ -116,9 +127,19 @@ export default function EmailPreviewPane({
                 ? <Sentence text={subject} active={activeKey === subjectKey} label="Modifier : objet" onOpen={() => onSegmentClick(subjectKey)} />
                 : subject}
             </Typography>
-            <Typography variant="body2" component="div" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'Georgia, serif' }}>
-              {clickable ? segments.map(piece) : body}
-            </Typography>
+            {showHtml ? (
+              <Box
+                component="iframe"
+                title="Email en HTML"
+                sandbox=""
+                srcDoc={html}
+                sx={{ display: 'block', width: '100%', height: { xs: 520, md: 640 }, border: 0, borderRadius: 1, bgcolor: 'background.paper' }}
+              />
+            ) : (
+              <Typography variant="body2" component="div" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'Georgia, serif' }}>
+                {clickable ? segments.map(piece) : body}
+              </Typography>
+            )}
           </Box>
         )}
         {onSendTest && (

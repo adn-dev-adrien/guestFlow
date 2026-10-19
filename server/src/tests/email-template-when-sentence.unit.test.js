@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 39 (UI/UX review 2026-10-18, decision 11) — « Quand ? » is
+// specs/guest-email-texts-made-simple.md rule 43 (UI/UX review 2026-10-18, decision 11) — « Quand ? » is
 // one sentence, « Envoyé 2 jours avant l'arrivée », read live by the server with the day it would leave.
 
 const test = require('node:test');
@@ -10,7 +10,7 @@ const { templateWhen, describeWhen } = require('../utils/templateWhen');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const { buildController } = require('../controllers/emailTemplatesController');
 
-test('rule 39: the sentence and whether its number can change', () => {
+test('rule 43: the sentence and whether its number can change', () => {
   assert.deepEqual(
     (({ editable, sentence, days, direction }) => ({ editable, sentence, days, direction }))(templateWhen({ stableKey: null, dayOffset: -2, anchor: 'start' })),
     { editable: true, sentence: 'Envoyé 2 jours avant l’arrivée', days: 2, direction: 'before' },
@@ -24,7 +24,7 @@ test('rule 39: the sentence and whether its number can change', () => {
   assert.equal(templateWhen({ stableKey: 'deposit_request', dayOffset: 0 }).editable, false);
 });
 
-test('rule 39: what is typed is refused in words, under the number', () => {
+test('rule 43: what is typed is refused in words, under the number', () => {
   assert.deepEqual(describeWhen({ days: '2', direction: 'before' }), { ok: true, offsetDays: -2, sentence: 'Envoyé 2 jours avant l’arrivée' });
   assert.deepEqual(describeWhen({ days: '', direction: 'same' }), { ok: true, offsetDays: 0, sentence: 'Envoyé le jour de l’arrivée' });
   assert.equal(describeWhen({ days: '120', direction: 'after' }).message, '90 jours au plus.');
@@ -34,7 +34,7 @@ test('rule 39: what is typed is refused in words, under the number', () => {
   assert.equal(describeWhen({ days: '', direction: 'before' }).field, 'days');
 });
 
-test('rule 39: POST /when answers the offset, the sentence and the day for the next stay', async () => {
+test('rule 43: POST /when answers the offset, the sentence and the day for the next stay', async () => {
   const { db } = setup();
   const controller = buildController(emailTemplatesModel.buildModel(db), { read: () => ({}) });
   const ok = await call(controller.when, { body: { days: '2', direction: 'before' } });
@@ -47,7 +47,7 @@ test('rule 39: POST /when answers the offset, the sentence and the day for the n
   assert.deepEqual(refused.body, { field: 'days', message: '90 jours au plus.' });
 });
 
-test('rule 39: a write carrying « when » stores the offset the server reads, never one the page sent', async () => {
+test('rule 43: a write carrying « when » stores the offset the server reads, never one the page sent', async () => {
   const { db } = setup();
   const model = emailTemplatesModel.buildModel(db);
   const controller = buildController(model, { read: () => ({}) });
@@ -63,7 +63,7 @@ test('rule 39: a write carrying « when » stores the offset the server reads, n
   assert.equal(created.body.dayOffset, 0);
 });
 
-test('rule 39: a moment the application fixes is refused, read and written alike', async () => {
+test('rule 43: a moment the application fixes is refused, read and written alike', async () => {
   const { db, templateId } = setup();
   const controller = buildController(emailTemplatesModel.buildModel(db), { read: () => ({}) });
   const thanks = templateId('guest_thanks_j1');
@@ -79,7 +79,7 @@ test('rule 39: a moment the application fixes is refused, read and written alike
   }
 });
 
-test('rule 39: the example names a stay the offset still reaches, its year when it is not this one', async () => {
+test('rule 43: the example names a stay the offset still reaches, its year when it is not this one', async () => {
   const { db } = setup({ withStay: false });
   const iso = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   seedReservation(db, { startDate: iso(3), endDate: iso(5) });
