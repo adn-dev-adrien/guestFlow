@@ -96,3 +96,12 @@ test('rule 7 — a pending login that expired goes back to the password', async 
   fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '123456' } });
   await waitFor(() => expect(onCancel).toHaveBeenCalledWith('Reconnexion nécessaire.'));
 });
+
+test('rule 35 — Enter on an incomplete code says why under the field, nothing is sent', async () => {
+  render(<SecondFactorForm step={TOTP_STEP} onCancel={() => {}} />);
+  const field = screen.getByLabelText('Code à 6 chiffres');
+  fireEvent.change(field, { target: { value: '1234' } });
+  fireEvent.submit(field.closest('form'));
+  expect((await screen.findByRole('alert')).textContent).toBe('Code incomplet : 6 chiffres.');
+  expect(completeSecondFactor).not.toHaveBeenCalled();
+});

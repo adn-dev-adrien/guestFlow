@@ -270,7 +270,21 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 34. **The console's operator login uses the same field** (`@gf/components/OneTimeCodeField`), with the
     same sending at the 6th digit and refusal under the cells: it no longer accepts and sends a 5-digit
     code. « Renvoyer le code » (email method) and « Changer d'email » stay. The enrolment of
-    « Mon compte » (rule 6) draws the same cells but keeps its « Confirmer » button.
+    « Mon compte » (rule 6) draws the same cells but keeps its « Confirmer » button; its wrong code is
+    said under the cells like at login (rule 33), not in an alert at the top of the card (review of
+    PR #720).
+35. **No input leaves the user stuck** (added 2026-10-19, review of PR #720). Since there is no
+    « Valider », whatever is typed or pasted must either send or say why:
+    - the field takes the code out of what arrives: « Votre code : 123 456 » or « 123-456 » is the
+      6-digit code (six cells, sent); a backup code typed or pasted without its dash, or with a space,
+      gets its dash back (`xxxxx-xxxxx`, sent); digits beyond the 6th are dropped. The input has no
+      length cap, so a pasted sentence is never cut before the code is found;
+    - Enter on an incomplete value says why under the cells: « Code incomplet : 6 chiffres. » or
+      « Code de secours incomplet : 10 caractères (xxxxx-xxxxx). »; nothing is sent;
+    - the server reads the code the same way (`totp.normalizeCode`, shared with the console): spaces,
+      dots and dashes out of a 6-digit code, the dash back into a 10-character backup code;
+    - the input is transparent ink over the cells, never `opacity: 0`, which password managers take
+      for a hidden field (selection and autofill colours transparent too).
 
 ---
 
@@ -420,6 +434,11 @@ most); at 390 px each cell is about 45 px wide. Interactive mock:
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).
+Review of PR #720 (rules 34–35): `OneTimeCodeField.extract` (6: backup code without its dash, pasted
+« 123-456 », a 7th digit, « Votre code : 123 456 », no length cap and no `opacity: 0`, the incomplete
+messages), `SecondFactorForm.second-step` (+1: Enter on an incomplete code), console
+`LoginPage.second-factor` (+1), `TwoFactorSection.enrol-error` (1); server
+`hosting-h2-code-normalize` (3), console `operator-code-normalize` (1).
 2026-10-19 (rules 32–34): `OneTimeCodeField.autosubmit` (4: one input mirrored by six cells, sent once
 at the 6th digit, paste and backup code, the refusal under the cells with the digits selected),
 `SecondFactorForm.second-step` (6, rewritten: no « Valider », trust box sent, no second send while

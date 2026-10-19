@@ -81,3 +81,14 @@ it('rules 32–33 — a wrong code is said under the cells and the digits stay',
   expect(field).toHaveValue('000000');
   expect(screen.queryByRole('button', { name: 'Se connecter' })).not.toBeInTheDocument();
 });
+
+it('rule 35 — Enter on an incomplete code says why under the field, nothing is sent', async () => {
+  api.login.mockResolvedValue({ step: 'second-factor', method: 'totp', message: 'Saisissez le code.' });
+  show();
+  signIn();
+  const field = await screen.findByLabelText('Code à 6 chiffres');
+  fireEvent.change(field, { target: { value: '12345' } });
+  fireEvent.submit(field.closest('form'));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Code incomplet : 6 chiffres.');
+  expect(api.verify).not.toHaveBeenCalled();
+});

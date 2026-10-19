@@ -169,3 +169,25 @@ test('rule 37: the preview answers the HTML part beside the text, and the test s
   assert.equal(caught.length, 1);
   assert.ok(caught[0].html.includes(textToHtmlBody(caught[0].text)));
 });
+
+test('rule 40: a reference or a code is never a phone link; a phone is, grouped or announced', () => {
+  const plain = (text) => textToHtmlBody(text).replace(/ style="[^"]*"/g, '');
+  for (const ref of ['Réservation HA-0123456789', 'Booking 2026-0412345678', 'Code wifi : 0612345678', 'Boîte à clés : 0612345678', 'Dossier 12/0612345678']) {
+    assert.doesNotMatch(plain(ref), /<a /, ref);
+  }
+  assert.match(plain('Appelez-nous au 0612345678.'), /<a href="tel:0612345678">0612345678<\/a>\./);
+  assert.match(plain('Tél. : 0612345678'), /<a href="tel:0612345678">/);
+  assert.match(plain('Code wifi : 06 12 34 56 78'), /<a href="tel:0612345678">06 12 34 56 78<\/a>/);
+  assert.match(plain('+33 6 12 34 56 78 ou +33612345678'), /^<p><a href="tel:\+33612345678">\+33 6 12 34 56 78<\/a> ou <a href="tel:\+33612345678">\+33612345678<\/a><\/p>$/);
+});
+
+test('rule 40: a closing parenthesis stays in an address that opened one; an apostrophe stays in an email', () => {
+  const plain = (text) => textToHtmlBody(text).replace(/ style="[^"]*"/g, '');
+  assert.match(plain('Voir https://fr.wikipedia.org/wiki/Gîte_(hébergement).'), /href="https:\/\/fr\.wikipedia\.org\/wiki\/Gîte_\(hébergement\)">[^<]+<\/a>\.<\/p>/);
+  assert.match(plain('(https://x.fr/a).'), /^<p>\(<a href="https:\/\/x\.fr\/a">https:\/\/x\.fr\/a<\/a>\)\.<\/p>$/);
+  assert.match(plain("Écrire à jean.o'brien@ex.com."), /<a href="mailto:jean\.o&#39;brien@ex\.com">jean\.o&#39;brien@ex\.com<\/a>\./);
+});
+
+test('rule 40: no heading when the instance has no name of its own (the « GuestFlow » fallback)', () => {
+  assert.doesNotMatch(guestEmailMessage({ subject: 's', text: 't', settings: {} }).html, /<h1/);
+});

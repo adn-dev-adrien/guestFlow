@@ -106,7 +106,7 @@ function createAuthController(ctx) {
     const op = operators.byId(operatorId);
     if (!op) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnectez-vous.');
     assertNotLocked(op);
-    const value = String(code || '').trim().toLowerCase();
+    const value = totp.normalizeCode(code);
     let ok = false;
     let usedBackup = false;
     if (totp.isBackupCodeShape(value)) ok = usedBackup = useBackupCode(op, value);

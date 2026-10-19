@@ -16,7 +16,7 @@
  * the colours carry a dark-mode variant and the column stays under 600 px.
  */
 
-const { resolveEmailIdentity } = require('./emailIdentity');
+const { resolveEmailIdentity, DEFAULT_SENDER_NAME } = require('./emailIdentity');
 
 const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 const FONT_SERIF = "'Iowan Old Style', 'Source Serif 4', Charter, Georgia, 'Times New Roman', serif";
@@ -26,10 +26,21 @@ const PAPER = '#F8F5EF';
 const RULE = '#E4DFD3';
 const FIR = '#2F5D46';
 
-// One pass over a line finds every link: a web address, an email address, a French phone number.
-const LINK_RE = /(https?:\/\/[^\s<>"]+)|([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})|((?:\+33[\s.]?|\b0)[1-9](?:[\s.]?\d{2}){4}\b)/g;
+// One pass over a line finds every link: a web address, an email address (an apostrophe may sit in
+// its local part, « jean.o'brien@… »), a French phone number. A number glued to a letter, a slash or a
+// dash (« HA-0123456789 », « 2026-0412345678 ») is a reference, never a phone.
+const PHONE = '(?:(?:\\+33[\\s.]?[1-9]|0[1-9])(?:[\\s.]\\d{2}){4}|\\+33[1-9]\\d{8}|0[1-9]\\d{8})';
+const LINK_RE = new RegExp(
+  '(https?:\\/\\/[^\\s<>"]+)'
+  + "|([A-Za-z0-9._%+-][A-Za-z0-9._%+'’-]*@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,})"
+  + `|((?<![\\w/+-])${PHONE}(?![\\w/-]))`,
+  'g',
+);
+// Ten digits in a row are a phone only after a word that says so (« appelez-nous au 0612345678 »):
+// alone they may be a Wi-Fi code or a key-box code.
+const CALL_CONTEXT_RE = /(?:(?:appel|t[ée]l[ée]phon|\bt[ée]l\b|\bphone\b|\bcall\b|joindre)[^\n]{0,24}|\bau\s+)$/i;
 // Punctuation that ends a sentence, not the address it follows.
-const URL_TRAIL_RE = /[.,;:!?)\]»’'"]+$/;
+const URL_TRAIL_CHARS = '.,;:!?)]»’\'"';
 const BULLET_RE = /^\s*[-•–]\s+(.*\S)\s*$/;
 const RECAP_RE = /^([^:]{1,40}?)\s*:\s+(\S.*)$/;
 
@@ -60,12 +71,16 @@ function inline(line) {
     let [match] = m;
     let tail = '';
     if (m[1]) {
-      const trail = URL_TRAIL_RE.exec(match);
-      if (trail) {
-        tail = trail[0];
-        match = match.slice(0, -tail.length);
+      // A closing parenthesis stays when it closes one opened inside the address (Wikipedia-style).
+      const count = (str, ch) => str.split(ch).length - 1;
+      while (match && URL_TRAIL_CHARS.includes(match[match.length - 1])) {
+        const last = match[match.length - 1];
+        if (last === ')' && count(match, '(') >= count(match, ')')) break;
+        tail = last + tail;
+        match = match.slice(0, -1);
       }
     }
+    if (m[3] && /^0\d{9}$/.test(match) && !CALL_CONTEXT_RE.test(line.slice(0, m.index))) continue;
     out += prose(line.slice(last, m.index));
     if (m[1]) out += link(match, match);
     else if (m[2]) out += link(`mailto:${match}`, match);
@@ -159,7 +174,9 @@ function renderGuestEmailHtml({ text, subject = '', heading = '', lang = 'fr' })
  * @param {{ to?: string, subject: string, text: string, settings?: object, lang?: string }} input
  */
 function guestEmailMessage({ to, subject, text, settings = {}, lang = 'fr' }) {
-  const heading = resolveEmailIdentity(settings || {}).fromName;
+  const { fromName } = resolveEmailIdentity(settings || {});
+  // No name of its own (the « GuestFlow » fallback): no heading rather than the software's name.
+  const heading = fromName === DEFAULT_SENDER_NAME ? '' : fromName;
   return {
     ...(to !== undefined ? { to } : {}),
     subject,

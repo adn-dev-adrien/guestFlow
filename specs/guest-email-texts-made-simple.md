@@ -408,6 +408,16 @@ The « text only » rule is lifted (decision 15, 2026-10-19; it was `specs/email
     or font, no tracking pixel, no script. The colours are Maison's (ink on paper, fir-green links), with
     a dark variant (`prefers-color-scheme: dark`, `color-scheme: light dark`); a client that ignores both
     (Outlook desktop) shows the light version at full width.
+40. **Links only where they are meant** (added 2026-10-19, review of PR #720).
+    - A number glued to a letter, a slash or a dash is a reference, never a phone (« HA-0123456789 »,
+      « 2026-0412345678 »). Ten digits in a row (« 0612345678 ») are a phone only right after a word
+      that announces one (« appelez-nous », « téléphone », « tél. », « call », « au ») — alone they may
+      be a Wi-Fi or key-box code. A grouped number (« 06 12 34 56 78 ») and « +33 … » always link.
+    - A web address keeps a closing parenthesis it opened (« …/Gîte_(hébergement) »); one that closes
+      the sentence's own parenthesis stays outside the link.
+    - An apostrophe in an email's local part stays in it (« jean.o'brien@… »).
+    - No heading when the instance has no name of its own (the sender falls back to « GuestFlow »):
+      the software's name never heads a guest's email.
 
 ---
 
@@ -590,6 +600,9 @@ rules 28–33), `email-texts-csv-secrets` (3, rule 32), `property-pool-season` (
 `EmailTextsSettingsPage.unsaved-and-inherited` (4, rule 35), `PropertyDetail.arrival-and-facts` (4,
 rules 28, 34, 35), `OnboardingPage.facts-and-resume` (4, rules 28–30, 32), `PropertyArrivalFacts` (4,
 rewritten for the controlled block).
+
+*Review of PR #720 (rule 40):* `guest-email-html` +3 (references and announced phones, parentheses and
+apostrophe, no heading for the fallback name).
 
 *2026-10-19 (rules 37–39):* server `guest-email-html` (10: escaping, links and only them, paragraphs /
 lists / recap, a self-contained document, **golden: Solio's six sequence emails FR/EN keep their text

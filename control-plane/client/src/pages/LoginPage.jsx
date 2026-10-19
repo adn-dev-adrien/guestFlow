@@ -6,7 +6,7 @@
  */
 import React, { useRef, useState } from 'react';
 import { Box, Button, Card, CardContent, Link, Stack, TextField, Typography } from '@mui/material';
-import OneTimeCodeField, { isCompleteCode } from '@gf/components/OneTimeCodeField';
+import OneTimeCodeField, { incompleteCodeMessage, isCompleteCode } from '@gf/components/OneTimeCodeField';
 import api from '../api';
 
 export default function LoginPage({ onSignedIn }) {
@@ -49,6 +49,7 @@ export default function LoginPage({ onSignedIn }) {
   const submitCode = (e) => {
     e.preventDefault();
     if (isCompleteCode(code, true)) verify(code);
+    else setError(incompleteCodeMessage(code));
   };
   const changeCode = (value) => {
     setCode(value);

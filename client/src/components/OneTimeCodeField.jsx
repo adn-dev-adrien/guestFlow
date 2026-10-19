@@ -16,6 +16,9 @@
  * message sits under the cells, the cells shake (colour only under reduced motion) and the digits stay
  * selected, so the next keystroke replaces them. The caller clears `error` when the value changes.
  *
+ * The code is taken out of whatever arrives (rule 35, `extractCode`): « Votre code : 123 456 », a
+ * backup code without its dash. `incompleteCodeMessage(value)` says why a value cannot be sent yet.
+ *
  * Props: value, onChange(value: string), onComplete(code), label ('Code à 6 chiffres', the input's
  *        accessible name), allowBackup (false), primaryLinkLabel ('Utiliser le code de l’application'),
  *        error (string — the refusal, shown under the cells), helperText (shown when there is no error),
@@ -33,6 +36,36 @@ const BACKUP_RE = /^[a-z0-9]{5}-[a-z0-9]{5}$/;
 export function isCompleteCode(value, allowBackup = false) {
   const v = String(value || '');
   return /^\d{6}$/.test(v) || (allowBackup && BACKUP_RE.test(v));
+}
+
+const SIX_DIGITS_RE = /(?<![\p{L}\p{N}])(\d{3})[\s.-]?(\d{3})(?![\p{L}\p{N}])/u;
+const BACKUP_IN_TEXT_RE = /(?<![a-z0-9])([a-z0-9]{5})[\s-]?([a-z0-9]{5})(?![a-z0-9])/;
+
+/**
+ * The code inside what was typed or pasted (rule 35): « Votre code : 123 456 » → « 123456 »,
+ * « 123-456 » → « 123456 », a backup code with or without its dash → « xxxxx-xxxxx », digits beyond
+ * the 6th dropped. While a backup code is being typed, its dash is put back after the 5th character.
+ */
+export function extractCode(raw, { allowBackup = false, backup = false } = {}) {
+  const text = String(raw || '').toLowerCase();
+  const six = SIX_DIGITS_RE.exec(text);
+  if (six && !backup) return six[1] + six[2];
+  if (allowBackup) {
+    const whole = BACKUP_IN_TEXT_RE.exec(text);
+    if (whole && (backup || /[a-z-]/.test(whole[0]))) return `${whole[1]}-${whole[2]}`;
+    if (backup || /[a-z]/.test(text)) {
+      const compact = text.replace(/[^a-z0-9]/g, '').slice(0, 10);
+      return compact.length > 5 ? `${compact.slice(0, 5)}-${compact.slice(5)}` : compact;
+    }
+  }
+  return text.replace(/\D/g, '').slice(0, CODE_LENGTH);
+}
+
+/** Why a value cannot be sent yet — said under the field when Enter is pressed (rule 35). */
+export function incompleteCodeMessage(value) {
+  return /[a-z-]/i.test(String(value || ''))
+    ? 'Code de secours incomplet : 10 caractères (xxxxx-xxxxx).'
+    : 'Code incomplet : 6 chiffres.';
 }
 
 export default function OneTimeCodeField({
@@ -57,12 +90,10 @@ export default function OneTimeCodeField({
   const inputId = id || `otp-${autoId}`;
   const messageId = `${inputId}-message`;
 
-  const hasLetters = /[a-z-]/i.test(value);
+  const hasLetters = /[a-z]/i.test(value);
   const textMode = allowBackup && (backupMode || hasLetters);
   const shownLabel = allowBackup && backupMode ? BACKUP_LABEL : label;
-  const clean = (raw) => (allowBackup
-    ? String(raw).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 11)
-    : String(raw).replace(/\D/g, '').slice(0, CODE_LENGTH));
+  const clean = (raw) => extractCode(raw, { allowBackup, backup: allowBackup && backupMode });
 
   // A refusal: shake once, and select the digits so the next keystroke replaces them.
   useEffect(() => {
@@ -129,7 +160,7 @@ export default function OneTimeCodeField({
   const message = error || helperText;
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: 420 }}>
       <Box
         sx={{
           position: 'relative',
@@ -173,7 +204,6 @@ export default function OneTimeCodeField({
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          maxLength={allowBackup ? 11 : CODE_LENGTH}
           aria-label={shownLabel}
           aria-invalid={error ? 'true' : undefined}
           aria-describedby={message ? messageId : undefined}
@@ -187,11 +217,18 @@ export default function OneTimeCodeField({
             border: 0,
             outline: 'none',
             bgcolor: 'transparent',
+            // Transparent ink rather than `opacity: 0`, which password managers read as a hidden field.
             color: 'transparent',
+            WebkitTextFillColor: 'transparent',
             caretColor: 'transparent',
             fontSize: 16,
-            opacity: 0,
             cursor: disabled ? 'default' : 'text',
+            '&::selection': { background: 'transparent', color: 'transparent' },
+            '&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus': {
+              WebkitTextFillColor: 'transparent',
+              WebkitBoxShadow: '0 0 0 1000px transparent inset',
+              transition: 'background-color 600000s 0s',
+            },
           }}
         />
       </Box>

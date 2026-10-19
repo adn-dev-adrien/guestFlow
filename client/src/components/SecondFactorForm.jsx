@@ -9,7 +9,7 @@
  */
 import React, { useRef, useState } from 'react';
 import { Box, Button, Checkbox, FormControlLabel, Stack, Typography } from '@mui/material';
-import OneTimeCodeField, { isCompleteCode } from './OneTimeCodeField';
+import OneTimeCodeField, { incompleteCodeMessage, isCompleteCode } from './OneTimeCodeField';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
 
@@ -47,6 +47,7 @@ export default function SecondFactorForm({ step, onCancel }) {
   const submit = (e) => {
     e.preventDefault();
     if (isCompleteCode(code, true)) verify(code);
+    else setError(incompleteCodeMessage(code));
   };
 
   const change = (value) => {
