@@ -369,3 +369,72 @@ test('rule 26 — with the commission unknown, the typed transfer proposes the c
   assert.equal(res.body.commission, 106);
   assert.match(res.body.commissionLabel, /^Commission solde → 106,00/);
 });
+
+// Third review of #727 (N1-bis) — every capture path shares the stored-amount fallback: the single
+// payment from the fiche, its adjustment, and the SAS stay payment (production stay 22224's cause).
+function assertNoTaxOnlyEntry(month) {
+  assert.equal(month.totals.allBalanced, true);
+  assert.deepEqual(month.totals.taxOnlyEntries, [], JSON.stringify(month.totals.taxOnlyEntries));
+}
+function driftedStayWithCapturedAcompte(extra = {}) {
+  const id = createStay(extra);
+  mark(id, { depositPaid: true, depositPaidDate: TODAY, expectedAmountCents: Math.round(rowOf(id).depositAmount * 100) });
+  db.prepare('UPDATE reservations SET balanceAmount = round(balanceAmount + 30, 2), finalPrice = round(finalPrice + 30, 2), clientGrossAmount = NULL WHERE id = ?').run(id);
+  return id;
+}
+
+test('rule 42 — « Encaisser en une fois » on drifted amounts: the solde gets the stored-amount split', () => {
+  const id = driftedStayWithCapturedAcompte();
+  db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(id);
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  require('../controllers/reservationsController').settleArrivalPayment({ params: { id: String(id) }, body: { mode: 'card', date: TODAY }, user: { role: 'admin' } }, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(rowOf(id).balancePaid, 1);
+  assert.ok(rowOf(id).accommodationSoldeContribTtc > 0);
+  assertNoTaxOnlyEntry(exportMonth(TODAY));
+  // …and its adjustment (a réduction accordée) keeps the journal sound.
+  const adjust = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  require('../controllers/reservationsController').settleArrivalPayment({ params: { id: String(id) }, body: { mode: 'adjust', total: 250 }, user: { role: 'admin' } }, adjust);
+  assert.equal(adjust.statusCode, 200, JSON.stringify(adjust.body));
+  assertNoTaxOnlyEntry(exportMonth(TODAY));
+});
+
+test('rule 42 — the SAS stay payment on drifted amounts: the stored-amount split, never all on 46710000', () => {
+  const id = driftedStayWithCapturedAcompte();
+  require('../models/reservationsModel').commitArrivalSas(id, { stayPaid: true, stayPaidCash: false });
+  assert.equal(rowOf(id).balancePaid, 1);
+  assert.ok(rowOf(id).accommodationSoldeContribTtc > 0);
+  assertNoTaxOnlyEntry(exportMonth(TODAY));
+});
+
+test('rule 42 — the shared capture never throws: with no possible split it logs and leaves NULL', () => {
+  const { captureBucketSplit } = require('../utils/forceItemContribsCapture');
+  const logged = [];
+  const outcome = captureBucketSplit({ db, reservation: null, bucket: 'balance', log: { error: (m) => logged.push(m) } });
+  assert.equal(outcome, 'none');
+  assert.equal(logged.length, 1);
+});
+
+test('rule 43 — the export announces an entry whose credits are all on the tourist-tax account', () => {
+  const { __test } = require('../plugins/accounting-export/controller');
+  const entries = [
+    { direction: 'sale', reservationId: 1, kind: 'balance', libelle: 'A', paidDate: '2026-06-19', encaissementTtc: 67.13,
+      lines: [{ compte: 'CA', debit: 67.13 }, { compte: '46710000', credit: 67.13 }] },
+    { direction: 'sale', reservationId: 2, kind: 'balance', libelle: 'B', encaissementTtc: 100,
+      lines: [{ compte: 'CB', debit: 100 }, { compte: '70600000', credit: 90.91 }, { compte: '44571100', credit: 9.09 }] },
+  ];
+  assert.deepEqual(__test.taxOnlyEntries(entries), [{ reservationId: 1, kind: 'balance', libelle: 'A', paidDate: '2026-06-19', amount: 67.13 }]);
+});
+
+// Third review of #727 — the pricing summary's money figures, stored, for the rule-39 switch.
+test('rule 44 — the fiche carries the stored money figures of the pricing summary', () => {
+  const id = createStay({ platform: 'Booking' });
+  db.prepare('UPDATE reservations SET platformCommissionAmount = 46.08, touristTaxTotal = 0 WHERE id = ?').run(id);
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  require('../controllers/reservationsController').getById({ params: { id: String(id) }, user: { role: 'admin' } }, res);
+  const row = rowOf(id);
+  const summary = res.body.storedSummary;
+  assert.equal(summary.finalPrice, row.finalPrice);
+  assert.equal(summary.platformNetReceivedAmount, Math.round((row.balanceAmount - 46.08) * 100) / 100);
+  assert.equal(summary.sejourNetTotal, res.body.storedHeadline.amount, 'the summary and the bar say the same net');
+});

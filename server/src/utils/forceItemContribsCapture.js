@@ -357,12 +357,38 @@ function captureStoredSplit({ db, reservation, bucket }) {
   }
 }
 
+/**
+ * The ONE capture of a schedule bucket for every path that records money — a mark on the fiche, an
+ * online payment, the single payment at the door, the SAS stay payment (specs/reservation-payment-
+ * ledger.md rule 42). The engine-replayed split first; when its conservation invariant fails (stored
+ * amounts that drifted from today's engine), the stored-amount split; and only if that fails too, no
+ * split at all — logged, never thrown: money received is never lost to its accounting split.
+ * Each attempt runs in its own savepoint, so a failure leaves nothing half-written.
+ *
+ * @returns {'captured'|'stored'|'none'}
+ */
+function captureBucketSplit({ db, reservation, bucket, log = console }) {
+  try {
+    db.transaction(() => captureContribsOnFlip({ db, reservation, bucket }))();
+    return 'captured';
+  } catch (err) {
+    try {
+      db.transaction(() => captureStoredSplit({ db, reservation, bucket }))();
+      return 'stored';
+    } catch (err2) {
+      log.error(`[payments] reservation ${reservation && reservation.id}: no split captured on ${bucket} — ${err.message} / ${err2.message}`);
+      return 'none';
+    }
+  }
+}
+
 // Stub used only by the (preArrivalAmount === 0) edge case above; the real write happens through
 // applyDepositContribsToDb. Kept inline-named so the empty-stay branch is explicit.
 function writeDepositContribs() { /* no-op: 0-eur stays never persist contribs */ }
 
 module.exports = {
   captureStoredSplit,
+  captureBucketSplit,
   captureContribsOnFlip,
   clearContribsOnUnflip,
   CONSERVATION_TOLERANCE_EUR,

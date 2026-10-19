@@ -705,6 +705,35 @@ function storedHeadlineOf(row) {
   }, { isPlatform: !isDirectChannel(row.platform) });
 }
 
+function storedSummaryOf(row) {
+  if (!row) return null;
+  const headline = storedHeadlineOf(row);
+  const isPlatform = String(row.platform || 'direct').trim().toLowerCase() !== 'direct';
+  const acompteCommission = isPlatform ? round2(row.acompteCommissionAmount) : 0;
+  const soldeCommission = isPlatform ? round2(row.platformCommissionAmount) : 0;
+  const totalCommission = round2(acompteCommission + soldeCommission);
+  const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
+  const tax = round2(row.touristTaxTotal);
+  return {
+    finalPrice: round2(row.finalPrice),
+    touristTaxTotal: tax,
+    touristTaxOriginalTotal: tax,
+    platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : round2(row.platformTouristTaxAmount),
+    depositAmount: round2(row.depositAmount),
+    balanceAmount: round2(row.balanceAmount),
+    complementAmount: round2(row.complementAmount),
+    endOfStayComplementTotal: round2(row.endOfStayComplementAmount),
+    preArrivalAmount: preArrival,
+    totalStayPrice: round2(Number(row.finalPrice || 0) + tax),
+    sejourNetTotal: headline ? (headline.label === 'Vous percevez' ? headline.amount : (headline.secondary ? headline.secondary.amount : headline.amount)) : null,
+    acompteCommissionAmount: acompteCommission,
+    platformCommissionAmount: soldeCommission,
+    totalPlatformCommission: totalCommission,
+    platformNetReceivedAmount: totalCommission > 0 ? round2(preArrival - totalCommission) : null,
+    headline,
+  };
+}
+
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -726,6 +755,8 @@ function getById(req, res) {
     // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
     // shows the stored ledger (rule 7), so the two never disagree.
     storedHeadline: storedHeadlineOf(model.getRow(reservation.id)),
+    // Rule 44 — the money figures of the pricing summary, stored, for the same switch.
+    storedSummary: storedSummaryOf(model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the
     // subscription chip and its actions), keyed by block, each shaped for display.
     pluginBlocks: reservationBlocks(reservation),

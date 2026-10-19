@@ -35,7 +35,7 @@ const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
 const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
-const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
+const { clearContribsOnUnflip, captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
 const bookingLinesModel = require('./bookingLinesModel');
@@ -2656,26 +2656,22 @@ function createReservationsModel(database) {
     },
 
     /**
-     * Per-bucket contribution snapshot for a stay settled at the door
-     * (specs/collect-stay-payment-at-check-in.md §3.3 rule 13, revised 2026-08-30).
+     * Per-bucket contribution snapshot for a stay settled at the door — the SAS stay payment and
+     * « Encaisser en une fois » (specs/collect-stay-payment-at-check-in.md §3.3 rule 13, revised
+     * 2026-08-30; specs/reservation-payment-ledger.md rule 42).
      *
-     * BEST EFFORT on purpose. The capture replays the pricing engine and asserts that the line
-     * contributions sum to the stored échéance; on a booking whose stored solde is the platform's
-     * figure — most OTA stays — the two legitimately disagree and it throws. Letting that abort the
-     * commit would cost the whole check-in (caution, upsells, planning flags) for something the
-     * operator cannot fix at the door, so the failure is logged and the money is recorded with NULL
-     * contribs: the accounting then derives the attribution the legacy way, which is exactly what a
-     * full fiche save has always done with these same reservations.
+     * Never aborts the commit: on a booking whose stored solde no longer matches today's engine — most
+     * OTA stays, a stay priced under an earlier rule — the engine split fails its conservation check,
+     * and the bucket then gets the stored-amount split, the fallback every capture path shares. (Leaving
+     * it with no split, as before, was NOT the legacy attribution once the acompte had captured: the
+     * export takes the per-line path for the whole reservation and booked such a solde entirely on the
+     * tourist-tax account — production stay 22224, June 2026.)
      */
     captureStayContribs(reservationId, bucket) {
-      try {
-        captureContribsOnFlip({ db: database, reservation: model.getRow(reservationId), bucket });
-        return true;
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn(`[sas-stay-payment] contribs not captured on ${bucket} of reservation ${reservationId}: ${err.message}`);
-        return false;
-      }
+      const outcome = captureBucketSplit({ db: database, reservation: model.getRow(reservationId), bucket });
+      // eslint-disable-next-line no-console
+      if (outcome !== 'captured') console.warn(`[sas-stay-payment] ${bucket} of reservation ${reservationId}: ${outcome === 'stored' ? 'split on the stored amounts' : 'no split'}`);
+      return outcome === 'captured';
     },
 
     commitArrivalSas(reservationId, {

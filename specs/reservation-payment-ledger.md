@@ -389,6 +389,24 @@ decimals is rounded and shown rounded.
     the mark form proposes that date instead of today, and says so when the chosen date changes the
     accounting month (« Le mois comptable change : 03/2026 → 10/2026. »).
 
+42. **Every path that records money shares one capture.** A mark on the fiche, an online payment, «
+    Encaisser en une fois » (and its adjustment) and the SAS stay payment all capture a bucket through
+    `captureBucketSplit`: the engine-replayed split, else the stored-amount split (rule 37), else — if
+    even that fails — no split, logged and never thrown, so money received is never lost to its
+    accounting split. Each attempt runs in its own savepoint. Before, the single payment and the SAS left
+    a failed capture with no split, which, once the acompte had captured, booked the whole solde on
+    46710000 (the cause of production stay 22224, June 2026, third review of #727). Already exported
+    rows are not rewritten.
+43. **The export announces a sale booked only on the tourist tax.** The journal (`salesJson`) lists in
+    `totals.taxOnlyEntries` every sale entry whose credits are all on 46710000 — no revenue, no VAT — and
+    the Comptabilité page shows them above the journal (« À vérifier avant l'envoi au cabinet »). The
+    CSV itself is unchanged.
+44. **The pricing summary follows the same switch.** `GET /api/reservations/:id` carries
+    `storedSummary`, the money figures of the stored row (price, tourist tax, échéances, commissions,
+    net, total); while the fiche shows the stored ledger (rule 7) the summary — desktop panel and phone
+    sheet — reads them over the quote, whose lines (nights, options) stay as computed. The ledger, the
+    sticky bar and the summary never show two different totals.
+
 **Edge cases:**
 
 - Acompte override set, then the platform switched from direct → the engine ignores it as today; the

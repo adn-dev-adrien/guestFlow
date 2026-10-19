@@ -380,6 +380,7 @@ export default function ReservationPage() {
   // re-reading it never makes the fiche « modified ».
   const [storedLedger, setStoredLedger] = useState(null);
   const [storedHeadline, setStoredHeadline] = useState(null);
+  const [storedSummary, setStoredSummary] = useState(null);
   const ledgerEditMarkerRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -924,6 +925,7 @@ export default function ReservationPage() {
           setOnlinePayment(res.onlinePayment || null);
           setStoredLedger(res.ledger || null);
           setStoredHeadline(res.storedHeadline || null);
+          setStoredSummary(res.storedSummary || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
           setIsIcalSource(res.sourceType === 'ical');
@@ -2456,7 +2458,7 @@ export default function ReservationPage() {
         setInitialSnapshot(formSnapshot);
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
@@ -2687,6 +2689,7 @@ export default function ReservationPage() {
     const res = await api.getReservation(editingReservationId);
     setStoredLedger(res.ledger || null);
     setStoredHeadline(res.storedHeadline || null);
+    setStoredSummary(res.storedSummary || null);
     const serverWritten = {
       // L'état d'encaissement du complément d'arrivée est écrit par le serveur (les boutons de la
       // carte le PATCHent immédiatement) : le relire ici évite que le formulaire et la base ne
@@ -3075,6 +3078,9 @@ export default function ReservationPage() {
   // operator changes the fiche, never the live one on a locked fiche.
   const showLiveMoney = !storedLedger || (isDirty && !isReservationLocked);
   const headline = showLiveMoney ? pricingQuote?.headline : (storedHeadline || pricingQuote?.headline);
+  // Rule 44 — the pricing summary (desktop panel and phone sheet) reads the stored money figures with
+  // the same switch; its lines (nights, options) stay those of the quote.
+  const summaryQuote = (!showLiveMoney && pricingQuote && storedSummary) ? { ...pricingQuote, ...storedSummary } : pricingQuote;
   const todayIso = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
   // A new reservation dated in the past can only be recorded by an admin who unlocks it.
   const pastNewReservation = Boolean(!reservationId && !isDevisMode && form.startDate && form.startDate < todayIso);
@@ -3373,7 +3379,7 @@ export default function ReservationPage() {
 
   const pricingSummary = (
     <PricingSummary
-      quote={pricingQuote}
+      quote={summaryQuote}
       form={form}
       nightlyBreakdown={nightlyBreakdown}
       offeredOptionIds={offeredOptionIds}

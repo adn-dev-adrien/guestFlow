@@ -14,7 +14,7 @@
  * never vanish from the stay.
  */
 
-const { captureContribsOnFlip, captureStoredSplit } = require('./forceItemContribsCapture');
+const { captureContribsOnFlip, captureBucketSplit } = require('./forceItemContribsCapture');
 
 const BUCKETS = { deposit: ['deposit'], balance: ['balance'], full: ['deposit', 'balance'] };
 const COLUMNS = {
@@ -58,20 +58,20 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
       const row = reservationsModel.getRow(id);
       if (!row) throw new Error(`Reservation ${id} not found`);
       if (Number(row[COLUMNS[b].flag] || 0) === 1) return;
-      try {
-        // A savepoint: a failed capture leaves no half-written contribs behind.
+      if (!keepPaymentOnCaptureFailure) {
+        // A tick by hand without the shared fallback: a failed capture refuses the tick (savepoint).
         db.transaction(() => captureContribsOnFlip({ db, reservation: row, bucket: b }))();
-      } catch (err) {
-        if (!keepPaymentOnCaptureFailure) throw err;
-        // eslint-disable-next-line no-console
-        console.error(`[payments] reservation ${id}: ${b} received but its contribs capture failed — ${err.message}`);
-        captureFailed.push(b);
-        // specs/reservation-payment-ledger.md rule 37 — the split falls back to the stored amounts, so
-        // the export never books the whole entry on the tourist-tax account. Said on the stay, by origin.
-        db.transaction(() => captureStoredSplit({ db, reservation: row, bucket: b }))();
-        const label = origin === 'fiche' ? `Encaissement (${BUCKET_LABELS[b]})` : `Paiement en ligne (${BUCKET_LABELS[b]})`;
-        db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'payment_capture_failed', ?)")
-          .run(id, JSON.stringify([{ field: b, label, from: null, to: 'reçu, répartition comptable sur les montants enregistrés' }]));
+      } else {
+        // Money already received (rule 37 / 42): the shared capture never throws — engine split, else
+        // the stored-amount split, else none (logged). Said on the stay when the engine split failed.
+        const outcome = captureBucketSplit({ db, reservation: row, bucket: b });
+        if (outcome !== 'captured') {
+          captureFailed.push(b);
+          const label = origin === 'fiche' ? `Encaissement (${BUCKET_LABELS[b]})` : `Paiement en ligne (${BUCKET_LABELS[b]})`;
+          const to = outcome === 'stored' ? 'reçu, répartition comptable sur les montants enregistrés' : 'reçu, répartition comptable non enregistrée';
+          db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'payment_capture_failed', ?)")
+            .run(id, JSON.stringify([{ field: b, label, from: null, to }]));
+        }
       }
       db.prepare(`UPDATE reservations SET ${COLUMNS[b].flag} = 1, ${COLUMNS[b].date} = ?, updatedAt = datetime('now') WHERE id = ?`)
         .run(date, id);

@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -39,6 +39,9 @@
     ],
     "1.0.7": [
       "Sur téléphone, le titre de la page s’affiche dans la barre du haut."
+    ],
+    "1.0.8": [
+      "Une écriture qui porte tout son montant sur la taxe de séjour, sans chiffre d’affaires ni TVA, est signalée au-dessus du journal."
     ]
   }
 }
