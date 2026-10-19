@@ -46,7 +46,7 @@ test('rule 16 — at 390 px the calendar filter takes the full width', async ({ 
   await page.goto('/calendar');
   const filter = page.getByLabel('Logement').filter({ visible: true }).first();
   await expect(filter).toBeVisible({ timeout: 15_000 });
-  const box = await filter.boundingBox();
-  expect(box && box.width).toBeGreaterThan(300);
+  // The control is replaced once the logements arrive (segments ↔ select): measure until it settles.
+  await expect.poll(async () => ((await filter.boundingBox()) || { width: 0 }).width, { timeout: 10_000 }).toBeGreaterThan(300);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
