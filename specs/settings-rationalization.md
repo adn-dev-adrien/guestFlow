@@ -276,7 +276,8 @@ one place.
 27. **The summary has a search** that understands the owner's words: each page declares keywords
     (`SETTINGS_KEYWORDS`: Wi-Fi, IBAN, SMTP, 2FA, caution, Qonto…). Every word typed must be found in
     the name, the state line or a keyword; accents, case and punctuation are ignored (« wifi » finds
-    « Wi-Fi »). A row found through a keyword says it: « Contient : Wi-Fi ». Nothing found →
+    « Wi-Fi »), and a word is what is typed between spaces (« j-2 » finds « J-2 », not every row with
+    a 2). A row found through a keyword says it: « Contient : Wi-Fi ». Nothing found →
     « Aucun réglage pour « zzz » » with suggestions.
 28. **The sending server is deduced from the sending address** (UI/UX review 2026-10-18, decision
     14). The operator types the address (or keeps the derived one, rule 12) and the password. The

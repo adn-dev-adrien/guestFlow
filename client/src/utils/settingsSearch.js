@@ -1,8 +1,8 @@
 /**
  * The search of the Paramètres summary (specs/settings-rationalization.md rule 27): every word typed
  * must be found in the row's name, its state line or one of its keywords (constants/settingsMenu.js
- * SETTINGS_KEYWORDS). Accents, case and punctuation are ignored, so « wifi » finds « Wi-Fi » and
- * « 2fa » finds « 2FA ». A row found through a keyword says which one.
+ * SETTINGS_KEYWORDS). Accents, case and punctuation are ignored, so « wifi » finds « Wi-Fi », « 2fa »
+ * finds « 2FA », and « j-2 » stays one word: it finds « J-2 », not every row with a 2. A row found through a keyword says which one.
  */
 
 export function normalize(text) {
@@ -12,7 +12,7 @@ export function normalize(text) {
 }
 
 const compact = (text) => normalize(text).replace(/ /g, '');
-const has = (text, word) => normalize(text).includes(word) || compact(text).includes(word);
+const has = (text, word) => compact(text).includes(word);
 
 /**
  * @param {{ label: string, line?: string, keywords?: string[] }} row
@@ -20,7 +20,8 @@ const has = (text, word) => normalize(text).includes(word) || compact(text).incl
  * @returns {null | { keyword: string | null }}  null when the row does not match
  */
 export function matchSettingsRow(row, query) {
-  const words = normalize(query).split(' ').filter(Boolean);
+  // A word is what the owner typed between spaces, punctuation dropped: « j-2 » is one word, « j2 ».
+  const words = String(query || '').split(/\s+/).map((w) => normalize(w).replace(/ /g, '')).filter(Boolean);
   if (!words.length) return { keyword: null };
   const keywords = row.keywords || [];
   const own = (word) => has(row.label, word) || has(row.line, word);

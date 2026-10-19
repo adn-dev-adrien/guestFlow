@@ -28,3 +28,9 @@ test('rule 27: every word must match; an empty query matches all; nonsense match
   expect(matchSettingsRow(compte, 'zzz')).toBeNull();
   expect(normalize('Wi-Fi  Côte')).toBe('wi fi cote');
 });
+
+test('rule 27: a hyphenated word stays one word — « j-2 » finds J-2, not every row with a 2', () => {
+  const textes = { label: 'Textes des emails', line: '', keywords: ['J-2', 'J-7'] };
+  expect(matchSettingsRow(textes, 'j-2')).toEqual({ keyword: 'J-2' });
+  expect(matchSettingsRow(logements, 'j-2')).toBeNull();
+});
