@@ -54,6 +54,27 @@ const PLUGIN_PAGES = Object.freeze({
   '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE],
 });
 
+// specs/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
+// « Configurer » / « Réglages » opens. A section of Intégrations is reached by its anchor
+// (`#plugin-<id>`, IntegrationsSettingsPage). `null`: nothing to set up (the card has no such button).
+const INTEGRATIONS = '/settings/integrations';
+const PLUGIN_SETTINGS_PLACES = Object.freeze({
+  [HOURLY_RESOURCES]: '/parametres/options-ressources',
+  [LINEN]: '/parametres/stock-blanchisserie',
+  [WEBSITE_BOOKING]: `${INTEGRATIONS}#plugin-${WEBSITE_BOOKING}`,
+  [GATE_ACCESS]: `${INTEGRATIONS}#plugin-${GATE_ACCESS}`,
+  [NEAT]: `${INTEGRATIONS}#plugin-${NEAT}`,
+  [ONLINE_PAYMENT]: '/parametres/paiements',
+  [GOOGLE_CALENDAR]: `${INTEGRATIONS}#plugin-${GOOGLE_CALENDAR}`,
+  [ACCOUNTING_EXPORT]: '/comptabilite/plateformes',
+  [SAS]: null,
+  [TARIFF_RECIPES]: '/parametres/recettes',
+  [SCHOOL_HOLIDAYS]: '/parametres/vacances-fermetures',
+  [WEATHER_ALERTS]: `${INTEGRATIONS}#plugin-${WEATHER_ALERTS}`,
+  [GITES_DE_FRANCE_INTAKE]: `${INTEGRATIONS}#plugin-${GITES_DE_FRANCE_INTAKE}`,
+  [BOOKING_INTAKE]: `${INTEGRATIONS}#plugin-${BOOKING_INTAKE}`,
+});
+
 /** → the ids of the plugins a page belongs to, or [] for a core page or an unknown address. */
 function pluginsOfPage(path) {
   const clean = String(path || '').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
@@ -83,5 +104,6 @@ module.exports = {
   SEEDED_ON_EXISTING_IDS,
   findPlugin,
   PLUGIN_PAGES,
+  PLUGIN_SETTINGS_PLACES,
   pluginsOfPage,
 };

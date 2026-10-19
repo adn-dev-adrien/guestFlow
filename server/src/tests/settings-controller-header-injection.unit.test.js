@@ -36,15 +36,15 @@ function fakeRes() {
   };
 }
 
-function call(body) {
+async function call(body) {
   upserted = null;
   const res = fakeRes();
-  updateSettings({ body }, res);
+  await updateSettings({ body }, res);
   return { upserted, res };
 }
 
-test('a CRLF in the SMTP display name is rejected, and nothing is written', () => {
-  const { upserted: pl, res } = call({
+test('a CRLF in the SMTP display name is rejected, and nothing is written', async () => {
+  const { upserted: pl, res } = await call({
     smtp: { fromName: 'Domaine Solio\r\nBcc: pirate@evil.com' },
   });
   assert.equal(res.statusCode, 400);
@@ -53,8 +53,8 @@ test('a CRLF in the SMTP display name is rejected, and nothing is written', () =
   assert.equal(pl, null);
 });
 
-test('a CRLF in the sender address is rejected under its own error key', () => {
-  const { upserted: pl, res } = call({
+test('a CRLF in the sender address is rejected under its own error key', async () => {
+  const { upserted: pl, res } = await call({
     smtp: { fromEmail: 'contact@domainesolio.com\r\nBcc: pirate@evil.com' },
   });
   assert.equal(res.statusCode, 400);
@@ -62,8 +62,8 @@ test('a CRLF in the sender address is rejected under its own error key', () => {
   assert.equal(pl, null);
 });
 
-test('a CRLF in the notification recipient is rejected too — it becomes a To: header', () => {
-  const { upserted: pl, res } = call({
+test('a CRLF in the notification recipient is rejected too — it becomes a To: header', async () => {
+  const { upserted: pl, res } = await call({
     notifications: { recipientEmail: 'adrien@example.com\r\nBcc: pirate@evil.com' },
   });
   assert.equal(res.statusCode, 400);
@@ -71,15 +71,15 @@ test('a CRLF in the notification recipient is rejected too — it becomes a To: 
   assert.equal(pl, null);
 });
 
-test('a NUL or DEL smuggled into the display name is rejected as well', () => {
-  const nul = call({ smtp: { fromName: `Domaine${String.fromCharCode(0)}Solio` } });
+test('a NUL or DEL smuggled into the display name is rejected as well', async () => {
+  const nul = await call({ smtp: { fromName: `Domaine${String.fromCharCode(0)}Solio` } });
   assert.equal(nul.res.statusCode, 400);
-  const del = call({ smtp: { fromName: `Domaine${String.fromCharCode(127)}Solio` } });
+  const del = await call({ smtp: { fromName: `Domaine${String.fromCharCode(127)}Solio` } });
   assert.equal(del.res.statusCode, 400);
 });
 
-test('a value pasted with a trailing newline is accepted and stored trimmed', () => {
-  const { upserted: pl, res } = call({
+test('a value pasted with a trailing newline is accepted and stored trimmed', async () => {
+  const { upserted: pl, res } = await call({
     smtp: { fromName: '  Domaine Solio\r\n', fromEmail: ' contact@domainesolio.com \n' },
   });
   assert.equal(res.statusCode, 200);
@@ -87,19 +87,19 @@ test('a value pasted with a trailing newline is accepted and stored trimmed', ()
   assert.equal(pl.smtpFromEmail, 'contact@domainesolio.com');
 });
 
-test('the notification recipient is trimmed on the way in', () => {
-  const { upserted: pl } = call({ notifications: { recipientEmail: '  adrien@example.com\n' } });
+test('the notification recipient is trimmed on the way in', async () => {
+  const { upserted: pl } = await call({ notifications: { recipientEmail: '  adrien@example.com\n' } });
   assert.equal(pl.notificationRecipientEmail, 'adrien@example.com');
 });
 
-test('an ordinary accented display name is stored unchanged', () => {
-  const { upserted: pl, res } = call({ smtp: { fromName: 'Gîte Solio — été' } });
+test('an ordinary accented display name is stored unchanged', async () => {
+  const { upserted: pl, res } = await call({ smtp: { fromName: 'Gîte Solio — été' } });
   assert.equal(res.statusCode, 200);
   assert.equal(pl.smtpFromName, 'Gîte Solio — été');
 });
 
-test('clearing the display name still works (empty string is valid)', () => {
-  const { upserted: pl, res } = call({ smtp: { fromName: '' } });
+test('clearing the display name still works (empty string is valid)', async () => {
+  const { upserted: pl, res } = await call({ smtp: { fromName: '' } });
   assert.equal(res.statusCode, 200);
   assert.equal(pl.smtpFromName, '');
 });

@@ -10,7 +10,9 @@
 const defaultModel = require('../models/pluginsModel');
 const registry = require('../plugins/sdk/registry');
 const { forgetPluginMigrations } = require('../plugins/sdk/pluginMigrations');
-const { PLUGIN_CATALOG, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT } = require('../constants/plugins');
+const {
+  PLUGIN_CATALOG, PLUGIN_SETTINGS_PLACES, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT,
+} = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
 const { compare } = require('../utils/semverRange');
 const {
@@ -202,6 +204,28 @@ function createController(model = defaultModel, deps = {}) {
     };
   }
 
+  /**
+   * specs/plugins-phase-0-foundation.md rule 25 — the state a card tells and the action it offers:
+   * an active plugin that still lacks something reads « Actif · à connecter » and offers
+   * « Configurer », the others « Réglages » when they have a place to be set up. The plugin says what
+   * it lacks (`ctx.setupStatus`); a check that throws counts as nothing missing.
+   */
+  function setupView(id, state) {
+    const path = PLUGIN_SETTINGS_PLACES[id] || null;
+    if (state !== 'active') return { needed: false, label: null, path, action: null };
+    const record = reg.get(id);
+    let missing = null;
+    if (record && record.setupStatus) {
+      try {
+        missing = record.setupStatus() || null;
+      } catch {
+        missing = null;
+      }
+    }
+    if (missing && path) return { needed: true, label: `Actif · ${missing}`, path, action: 'Configurer' };
+    return { needed: false, label: 'Actif', path, action: path ? 'Réglages' : null };
+  }
+
   function view(entry) {
     const row = model.get(entry.id);
     const record = reg.get(entry.id);
@@ -226,6 +250,7 @@ function createController(model = defaultModel, deps = {}) {
       source: row ? row.source : null,
       state,
       blocker: state === 'available' ? null : blockerFor(entry.id, model),
+      setup: setupView(entry.id, state),
       hasModule: Boolean(record) || Boolean(copy),
       erasable: erasable(entry.id),
       data: row && erasable(entry.id) ? dataLines(entry.id) : [],
@@ -246,11 +271,15 @@ function createController(model = defaultModel, deps = {}) {
   }
 
   function statusView() {
-    const updates = PLUGIN_CATALOG.map(view).filter((p) => p.update && !p.update.refusal && !p.outOfPlan);
+    const views = PLUGIN_CATALOG.map(view);
+    const updates = views.filter((p) => p.update && !p.update.refusal && !p.outOfPlan);
     const n = updates.length;
     const regStatus = packages() ? host().registryClient().status() : { configured: false };
+    const toConfigure = views.filter((p) => p.setup.needed && !p.outOfPlan).length;
     return {
       mode: host().mode(),
+      // Rule 25 — the « À configurer (n) » filter of the Plugins page.
+      toConfigure,
       registry: { ...regStatus, label: registryLine(regStatus) },
       updates: n,
       banner: n ? `${n} mise${n > 1 ? 's' : ''} à jour disponible${n > 1 ? 's' : ''}` : null,
@@ -460,6 +489,11 @@ function createController(model = defaultModel, deps = {}) {
     // GET /api/plugins
     list(req, res) {
       return res.json(PLUGIN_CATALOG.map(view));
+    },
+
+    /** The same views, for the core's own readers (the Paramètres summary, rule 25). */
+    views() {
+      return PLUGIN_CATALOG.map(view);
     },
 
     // POST /api/plugins/:id/install — rule 4: installed and active in one step. A module's tables are

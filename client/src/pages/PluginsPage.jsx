@@ -12,11 +12,16 @@
  * restarts the instance: the page says « Redémarrage en cours » and reloads once the server answers
  * again. An install in a release reloads the page, so the browser loads the new plugin's bundle.
  *
+ * specs/plugins-phase-0-foundation.md rule 25: each installed card tells its real state (« Actif ·
+ * à connecter ») and opens its settings place; « À configurer (n) » keeps only those that lack
+ * something (the count is the server's `toConfigure`).
+ *
  * Props (tests only): onReload — what « reload » means (default: window.location.reload);
  * pollMs — the restart poll interval; restartTimeoutMs — how long before the wait says it is long.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Backdrop, Box, Button, CircularProgress, Grid, TextField, Typography } from '@mui/material';
+import { useNavigate } from 'react-router';
+import { Alert, Backdrop, Box, Button, Chip, CircularProgress, Grid, TextField, Typography } from '@mui/material';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import SyncIcon from '@mui/icons-material/Sync';
 import PageActionBar from '../components/PageActionBar';
@@ -47,6 +52,8 @@ const startTime = () => api.getRuntimeVersion().then((v) => v.startedAt).catch((
 
 export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_POLL_MS, restartTimeoutMs = RESTART_TIMEOUT_MS }) {
   const { refresh } = useAuth();
+  const navigate = useNavigate();
+  const [toConfigureOnly, setToConfigureOnly] = useState(false);
   const [plugins, setPlugins] = useState(null);
   const [status, setStatus] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -184,7 +191,10 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
   }
 
   const q = query.trim().toLowerCase();
+  const toConfigure = (status && status.toConfigure) || 0;
+  const onlyToConfigure = toConfigureOnly && tab !== 'available' && toConfigure > 0;
   const shown = (tab === 'available' ? available : installed)
+    .filter((p) => !onlyToConfigure || (p.setup && p.setup.needed))
     .filter((p) => !q || `${p.name} ${p.description}`.toLowerCase().includes(q));
 
   let empty = null;
@@ -196,7 +206,7 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
 
   return (
     <Box>
-      <PageActionBar title="Plugins" tabs={tabs} actionsBefore={actionsBefore} />
+      <PageActionBar title="Plugins" backTo="/settings" tabs={tabs} actionsBefore={actionsBefore} />
       <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
         {status && status.banner && (
           <Alert
@@ -223,6 +233,16 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
             slotProps={{ htmlInput: { 'aria-label': 'Chercher un plugin' } }}
             sx={{ maxWidth: { md: 420 } }}
           />
+          {tab !== 'available' && toConfigure > 0 && (
+            <Chip
+              label={`À configurer (${toConfigure})`}
+              color={onlyToConfigure ? 'primary' : 'default'}
+              variant={onlyToConfigure ? 'filled' : 'outlined'}
+              onClick={() => setToConfigureOnly((v) => !v)}
+              aria-pressed={onlyToConfigure}
+              sx={{ minHeight: 36, alignSelf: { xs: 'flex-start', md: 'center' }, fontWeight: 600 }}
+            />
+          )}
           {status && status.registry && status.registry.label && (
             <Typography variant="caption" color="text.secondary">{status.registry.label}</Typography>
           )}
@@ -240,6 +260,7 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
                   bundleFailed={BUNDLE_FAILURES.has(plugin.id)}
                   onAction={(action, options) => handleAction(plugin, action, options)}
                   onOpenUpdate={() => { setDialogError(null); setDialogId(plugin.id); }}
+                  onOpenSettings={(path) => navigate(path)}
                 />
               </Grid>
             ))}

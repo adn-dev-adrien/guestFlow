@@ -46,6 +46,8 @@ function emptyRecord(id) {
     sasCommits: [],
     // specs/shell-and-home-day-first.md rule 9 — subjects of the home's « À traiter ».
     attention: [],
+    // specs/plugins-phase-0-foundation.md rule 25 — () → null | what the plugin still lacks.
+    setupStatus: null,
   };
 }
 

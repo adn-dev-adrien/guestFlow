@@ -423,6 +423,10 @@ and the client SDK's `AttentionCard` raise the SDK to **1.4.0** (minor); `bookin
 `gate-access`, `gites-de-france-intake`, `linen`, `tariff-recipes` and `website-booking` 1.3.0 ask for
 `sdk ^1.4.0` and `guestflow >=3.10.0`.
 
+2026-10-19 — UI/UX review, proposal 19 (`specs/plugins-phase-0-foundation.md` rule 25): `ctx.setupStatus`
+raises the SDK to **1.5.0** (minor). The four plugins that declare it ask for `sdk ^1.5.0` and
+`guestflow >=3.10.0`: `google-calendar` 1.1.0, `neat` 1.1.0, `online-payment` 1.1.0, `weather-alerts` 1.1.0.
+
 | Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|
 | Server (`node --test`) | 5 136 / 5 136 — of which `plugins-phase-4-registry.unit.test.js` 54, `plugin-packages-release.unit.test.js` 15 |

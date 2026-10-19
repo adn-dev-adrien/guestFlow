@@ -64,7 +64,10 @@ test('a valid sentence shows the day it would leave and saves the server’s off
   fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Avant ou après' }));
   fireEvent.click(await screen.findByRole('option', { name: 'après' }));
   expect(await screen.findByText(/envoyé le lundi 26 octobre/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  // « Enregistrer » waits for the last reading (the direction's): click once it is enabled.
+  const save = screen.getByRole('button', { name: 'Enregistrer' });
+  await waitFor(() => expect(save).not.toBeDisabled());
+  fireEvent.click(save);
   // The sentence itself is saved; the server reads it (no offset kept from an earlier answer).
   await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(2, expect.objectContaining({ when: { days: '3', direction: 'after' } })));
   expect(api.updateEmailTemplate.mock.calls[0][1]).not.toHaveProperty('dayOffset');

@@ -169,8 +169,32 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 23. A refusal (rule 8) shows under the card, in red, with the way out.
 24. Empty states: « Aucun plugin installé. Tout ce qui est facultatif est dans Disponibles. » and « Tous
     les plugins sont installés. »
+25. **A card tells the real state and offers the useful action** (UI/UX review 2026-10-18, proposal
+    19; amends rule 22 for active plugins). The server computes, per plugin, `setup: { needed, label,
+    path, action }`:
+    - the plugin says what it still lacks through `ctx.setupStatus(() => null | '<what>')` (SDK
+      1.5.0, specs/plugins-phase-1-sdk.md §3.B) — a cheap, synchronous look at its own settings:
+      Google Agenda « à connecter » then « agenda à choisir », Neat « identifiants manquants »,
+      Paiement en ligne « à connecter », Vigilance Météo-France « clé manquante »; a check that
+      throws counts as nothing missing;
+    - the core holds where each plugin is set up (`PLUGIN_SETTINGS_PLACES`, next to `PLUGIN_PAGES`):
+      its own page (Linge, Paiements en ligne, Recettes, Vacances & fermetures, Options & ressources
+      for the hourly resources, Plan comptable for the export) or its section of Intégrations,
+      reached by the anchor `#plugin-<id>`; `null` for a plugin with nothing to set up (SAS).
+
+    An active plugin that lacks something reads **« Actif · à connecter »** (warning badge) and its
+    main button is **« Configurer »** (contained); set up, it reads « Actif » and offers
+    **« Réglages »** (outlined) when it has a place; with none, no button. Both open the place in the
+    app. **« Désactiver » moves into a ⋯ menu** and asks first: « Désactiver Google Agenda ? — Ce
+    qu'il ajoute s'arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en
+    place. » [Désactiver] [Garder]. A refusal of rule 8 disables that menu item and says why under
+    it (it is no longer printed in the card). Above the installed list, a chip **« À configurer
+    (n) »** (n = `toConfigure` of `GET /api/plugins/status`) keeps only those cards; it is not shown
+    when n = 0. Inactive and available plugins keep « Activer » / « Installer » (rule 22).
 
 **Edge cases:**
+- (rule 25) A plugin out of the plan never counts as « à configurer ».
+- (rule 25) A plugin packaged for SDK < 1.5.0 declares no check: it reads « Actif » with « Réglages ».
 - Two admins toggle at the same time → the last write wins; each page reloads the list after its action.
 - A session open when an admin deactivates a plugin → its menu updates at its next `/me` (page load or
   navigation refresh); its API calls to the plugin get 404 and it shows the generic error.
@@ -199,7 +223,10 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `constants/` | `plugins.js` | C | The 12-plugin catalogue (rule 2) and the id constants |
+| `constants/` | `plugins.js` | C | The 12-plugin catalogue (rule 2) and the id constants; `PLUGIN_SETTINGS_PLACES` (rule 25) |
+| `controllers/` | `pluginsController.js` | T | Rule 25: `setup` in each view, `toConfigure` in the status, `views()` for the core's readers |
+| `plugins/` | `sdk/createContext.js`, `sdk/registry.js`, `sdk/version.js` | T | Rule 25: `ctx.setupStatus(fn)`; SDK 1.5.0 |
+| `plugins/` | `google-calendar`, `neat`, `online-payment`, `weather-alerts` (`index.js`, `manifest.json`) | T | Rule 25: each declares its check; 1.1.0, `sdk ^1.5.0` and `guestflow >=3.10.0`, a French changelog line |
 | `models/` | `pluginsModel.js` | C | Reads/writes the `plugins` table; `isActive(id)`, `listActiveIds()` read the table each time (no cache: a write by another process, e.g. the E2E seed, is seen at once); blocker counts |
 | `controllers/` | `pluginsController.js` | C | List with states and blockers; install / activate / deactivate / uninstall; refusal rules (rule 8) |
 | `routes/` | `plugins.js` | C | `GET /api/plugins`, `POST /:id/install`, `POST /:id/activate`, `POST /:id/deactivate`, `DELETE /:id` |
@@ -226,7 +253,9 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 | `hooks/` | `usePlugins.js` | C | `usePlugin(id)` → boolean, from `useAuth().user.enabledPlugins` |
 | `components/` | `PluginGate.jsx` | C | Renders its children only when the plugin is active |
 | `components/` | `PluginCard.jsx` | C | One plugin card (status, action, detail, two-click uninstall, refusal) |
-| `pages/` | `PluginsPage.jsx` | C | The page (rules 21–24) |
+| `pages/` | `PluginsPage.jsx` | C | The page (rules 21–24); rule 25: « À configurer (n) » filter, navigation to a card's settings place, back arrow to the Paramètres summary |
+| `components/` | `PluginCard.jsx` | T | Rule 25: the server's state label, « Configurer » / « Réglages », « Désactiver » in ⋯ with a confirmation |
+| `pages/` | `settings/IntegrationsSettingsPage.jsx` | T | Rule 25: each plugin's first section carries `#plugin-<id>`, scrolled to below the sticky bars once it has loaded |
 | `pages/` | `Dashboard.jsx`, `ReservationPage.jsx` (Neat block passed as null to the form context), `DevisPage.jsx`, `PlanningPage.jsx` (plugin fetches skipped), `CalendarPage.jsx` (holidays fetch and legend), `OptionsResourcesPage.jsx`, `ResourcesPage.jsx`, `SeasonsClosuresPage.jsx`, `PropertyPricingSeasonsPage.jsx`, `settings/IntegrationsSettingsPage.jsx` | T | Wrap each surface of rule 16 in `PluginGate` or `usePlugin` |
 | `components/` | `sas/ReservationSasDialog.jsx`, `reservation/ExtrasSection.jsx`, `property/PropertyTariffTab.jsx`, `SettingsCompanySection.jsx`, `AccountFormDialog.jsx`, `PricedItemsPage.jsx` (`retired` price types) | T | Same, for the embedded surfaces (SAS steps; per-hour resources and sessions picker; recipe column; portal code; role options; « Par heure ») |
 | `App.jsx` | `App.jsx` | T | Route `/parametres/plugins`; the settings submenu through `visibleSettingsMenu`; a route guard sends a hidden plugin page home (rule 19); hand-written sub-items use `can()` which now includes the plugin check |
@@ -246,7 +275,8 @@ All under the admin guard except `/me` and `/login`.
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/plugins` | — | `[{ id, name, description, icon, category, surfaces: [string], state: 'available'\|'active'\|'inactive', blocker: null \| { code, message } }]` | `blocker` = why deactivate/uninstall would be refused now |
+| GET | `/api/plugins` | — | `[{ id, name, description, icon, category, surfaces: [string], state: 'available'\|'active'\|'inactive', blocker: null \| { code, message }, setup: { needed, label, path, action } }]` | `blocker` = why deactivate/uninstall would be refused now; `setup` (rule 25) |
+| GET | `/api/plugins/status` | — | `{ …, toConfigure }` | Rule 25: active plugins that lack something |
 | POST | `/api/plugins/:id/install` | — | the plugin | 409 `ALREADY_INSTALLED` |
 | POST | `/api/plugins/:id/activate` | — | the plugin | 409 `NOT_INSTALLED` |
 | POST | `/api/plugins/:id/deactivate` | — | the plugin | 409 `{ error: 'PLUGIN_BLOCKED', code, message }` (rule 8) |
@@ -292,6 +322,11 @@ The interactive mock-up is in the summary page. Copy:
 - Status: `StatusBadge` « Actif » (success) / « Inactif » (neutral).
 - Refusals: rule 8 wording, in red under the card.
 - `PageActionBar title="Plugins"` without Save/Cancel: each action is immediate.
+- Rule 25 (2026-10-19): the validated rendering is mock 7 of the UI/UX review
+  (`docs/rapports/2026-10-18-ui-ux-review.html#settings-m7`). Badge « Actif · à connecter » (warning),
+  « Configurer » / « Réglages », ⋯ (44 × 44, bordered) holding « Désactiver… », chip « À configurer
+  (n) » beside the search. On `xs` the action row spans the card: « Configurer » grows, ⋯ at the end.
+  « Configurer » opens the page in the app (no inline setup form: the settings stay where they live).
 
 **Responsive:** `xs` — one card per row, action button full width under the name (44 px), detail expands
 in place, the tabs fold onto the second row of the action bar; `md`+ — two-column grid of cards. No
@@ -330,6 +365,16 @@ dialog: the uninstall confirmation is inline.
   plugin a per-hour resource is not offered, one already sold stays listed without the sessions picker.
 - The 31 existing suites that render a gated component mock `usePlugin` to « every plugin active » —
   the Solio configuration they describe; `roles.test.js` gives its users the full list.
+
+### Rule 25 (2026-10-19)
+- Server `plugins-setup-state.unit.test.js` (10): every plugin has a settings place; « Actif · à
+  connecter » + « Configurer » then « Réglages »; inactive / no place; a throwing check; the
+  `toConfigure` count; `ctx.setupStatus` takes a function (SDK 1.5.0); the checks of Google Agenda,
+  Neat, Météo-France and Paiement en ligne.
+- Client `PluginCard.setup.test.jsx` (4), `PluginsPage.to-configure.test.jsx` (2); updated
+  `PluginCard.erasure` (the refusal in the ⋯ menu) and `PluginsPage` (deactivate through ⋯ and its
+  confirmation).
+- E2E `plugins-page.spec.js` deactivates through ⋯ and the confirmation.
 
 ### E2E — `e2e/specs/plugins/plugins-page.spec.js` (5 tests)
 - `seed-e2e.js` installs the 12 plugins active, so every existing spec keeps the Solio configuration.

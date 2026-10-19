@@ -22,6 +22,8 @@ function register(ctx) {
   }]);
 
   ctx.settings.declare([{ key: 'apiKey', secret: true }]);
+  // specs/plugins-phase-0-foundation.md rule 25 — no alert is read without the Météo-France key.
+  ctx.setupStatus(() => (ctx.settings.raw('apiKey') ? null : 'clé manquante'));
 
   let cache = null;
   const controller = createController({

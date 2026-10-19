@@ -25,8 +25,15 @@ async function setActive(page, active) {
   await page.goto('/parametres/plugins');
   const card = bookingCard(page);
   await expect(card.getByText(/^(Actif|Inactif)$/)).toBeVisible({ timeout: 10_000 });
-  const button = card.getByRole('button', { name: active ? 'Activer' : 'Désactiver' });
-  if (await button.count()) await button.click();
+  if (active) {
+    const button = card.getByRole('button', { name: 'Activer' });
+    if (await button.count()) await button.click();
+  } else if (await card.getByText('Actif', { exact: true }).count()) {
+    // specs/plugins-phase-0-foundation.md rule 25 — « Désactiver » sits in ⋯, behind a confirmation.
+    await card.getByRole('button', { name: /Plus d’actions/ }).click();
+    await page.getByRole('menuitem', { name: /Désactiver/ }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Désactiver' }).click();
+  }
   await expect(card.getByText(active ? 'Actif' : 'Inactif', { exact: true })).toBeVisible({ timeout: 10_000 });
 }
 

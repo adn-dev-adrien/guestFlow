@@ -18,9 +18,16 @@
  *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall'|'update'|'rollback',
  *             options?: { purge, withRequirements, version }) => void
  *   onOpenUpdate () => void  the « Mise à jour x.y.z » chip: opens the update dialog (rule 20)
+ *   onOpenSettings (path) => void  the « Configurer » / « Réglages » button: opens the place the
+ *             server names in `plugin.setup` ({ needed, label, path, action }) —
+ *             specs/plugins-phase-0-foundation.md rule 25. « Désactiver » lives in the ⋯ menu, with
+ *             a confirmation; when the server refuses it (`blocker`) the menu item says why.
  */
 import React, { useState } from 'react';
-import { Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, Stack, Typography } from '@mui/material';
+import {
+  Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, IconButton, ListItemText, Menu, MenuItem, Stack, Typography,
+} from '@mui/material';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
@@ -58,8 +65,12 @@ const ICONS = {
   bookmark: BookmarkIcon,
 };
 
-export default function PluginCard({ plugin, busy = false, error = null, bundleFailed = false, onAction, onOpenUpdate }) {
+export default function PluginCard({
+  plugin, busy = false, error = null, bundleFailed = false, onAction, onOpenUpdate, onOpenSettings = () => {},
+}) {
   const [open, setOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [confirmOff, setConfirmOff] = useState(false);
   const [armed, setArmed] = useState(false);
   const [erase, setErase] = useState(false);
   const [confirmRequirements, setConfirmRequirements] = useState(false);
@@ -80,11 +91,12 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
 
   // Rule 8: a refusal is said before the click, and the buttons it would refuse are disabled.
   const blocked = Boolean(plugin.blocker);
-  const primary = failed || incompatible ? null : plugin.state === 'available'
+  const active = plugin.state === 'active' && !failed && !incompatible;
+  const setup = plugin.setup || {};
+  // Rule 25 — an active plugin's useful action is its settings; switching it off waits in ⋯.
+  const primary = failed || incompatible || plugin.state === 'active' ? null : plugin.state === 'available'
     ? { action: 'install', label: 'Installer', variant: 'contained' }
-    : plugin.state === 'active'
-      ? { action: 'deactivate', label: 'Désactiver', variant: 'outlined' }
-      : { action: 'activate', label: 'Activer', variant: 'contained' };
+    : { action: 'activate', label: 'Activer', variant: 'contained' };
 
   const act = (action, options) => {
     setArmed(false);
@@ -122,8 +134,8 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
             {installed && !outOfPlan && (
               <Box sx={{ mt: 0.5 }}>
                 <StatusBadge
-                  status={failed || incompatible ? 'error' : plugin.state === 'active' ? 'success' : 'neutral'}
-                  label={incompatible ? 'Incompatible avec cette version' : failed ? 'Erreur' : plugin.state === 'active' ? 'Actif' : 'Inactif'}
+                  status={failed || incompatible ? 'error' : active ? (setup.needed ? 'warning' : 'success') : 'neutral'}
+                  label={incompatible ? 'Incompatible avec cette version' : failed ? 'Erreur' : active ? setup.label || 'Actif' : 'Inactif'}
                 />
               </Box>
             )}
@@ -149,9 +161,6 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
             {!installed && outOfPlan && plugin.planHint && (
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{plugin.planHint}</Typography>
             )}
-            {installed && blocked && (
-              <Typography variant="body2" color="warning.dark" sx={{ mt: 0.5 }}>{plugin.blocker.message}</Typography>
-            )}
           </Box>
         </CardActionArea>
         {!installed && outOfPlan && (
@@ -166,6 +175,42 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
           >
             {`Installer la version ${plugin.incompatible.compatibleVersion}`}
           </Button>
+        )}
+        {!outOfPlan && active && (
+          <Stack direction="row" spacing={1} sx={{ flex: 'none', alignItems: 'center', justifyContent: 'flex-end', width: { xs: '100%', sm: 'auto' } }}>
+            {setup.action && setup.path && (
+              <Button
+                variant={setup.needed ? 'contained' : 'outlined'}
+                onClick={() => onOpenSettings(setup.path)}
+                sx={{ minHeight: 44, flex: { xs: 1, sm: 'none' } }}
+              >
+                {setup.action}
+              </Button>
+            )}
+            <IconButton
+              aria-label={`Plus d’actions : ${plugin.name}`}
+              aria-haspopup="menu"
+              aria-expanded={Boolean(menuAnchor)}
+              onClick={(e) => setMenuAnchor(e.currentTarget)}
+              disabled={busy}
+              sx={{ minWidth: 44, minHeight: 44, border: 1, borderColor: 'divider' }}
+            >
+              <MoreHorizIcon />
+            </IconButton>
+            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+              <MenuItem
+                disabled={blocked}
+                onClick={() => { setMenuAnchor(null); setConfirmOff(true); }}
+                sx={{ minHeight: 44, color: 'error.main', whiteSpace: 'normal', maxWidth: 320 }}
+              >
+                <ListItemText
+                  primary="Désactiver…"
+                  secondary={blocked ? plugin.blocker.message : null}
+                  slotProps={{ secondary: { sx: { color: 'warning.dark', opacity: 1 } } }}
+                />
+              </MenuItem>
+            </Menu>
+          </Stack>
         )}
         {!outOfPlan && primary && (
           <Button
@@ -190,6 +235,16 @@ export default function PluginCard({ plugin, busy = false, error = null, bundleF
           />
         </Box>
       )}
+      <ConfirmDialog
+        open={confirmOff}
+        onClose={() => setConfirmOff(false)}
+        onConfirm={() => { setConfirmOff(false); act('deactivate'); }}
+        title={`Désactiver ${plugin.name} ?`}
+        message="Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place."
+        confirmLabel="Désactiver"
+        cancelLabel="Garder"
+        confirmColor="error"
+      />
       {plugin.rollback && (
         <ConfirmDialog
           open={confirmRollback}

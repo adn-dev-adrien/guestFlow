@@ -195,6 +195,11 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
 > handler, summarize })` declares a subject of the home's « À traiter »; the client SDK exports
 > `AttentionCard`, and a `dashboard.alerts(.urgent)` contribution receives the server's `attention`.
 
+_Added 2026-10-19 (SDK 1.5.0)_ — **Setup state** — `ctx.setupStatus(() => null | '<what is missing>')`:
+the plugin says, from its own settings and without any remote call, what it still lacks; the Plugins
+page shows « Actif · <what> » and « Configurer » (`specs/plugins-phase-0-foundation.md` rule 25).
+Optional: a plugin that declares nothing reads « Actif ».
+
 ### 3.C What `contributes` offers — client extension points
 
 13. A client module contributes to **named slots**. The core renders `<Slot name="…" />` where the

@@ -9,7 +9,7 @@ dayjs.locale('fr');
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon,
-  ListItemText, Box, IconButton, useMediaQuery, Collapse, Divider,
+  ListItemText, Box, IconButton, useMediaQuery, Collapse,
   CircularProgress
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -50,7 +50,10 @@ import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
 import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
-import { visibleSettingsMenu, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected } from './constants/settingsMenu';
+import {
+  visibleSettingsGroups, settingsGroupOf, SETTINGS_HOME_PATH, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected,
+} from './constants/settingsMenu';
+import SettingsHomePage from './pages/settings/SettingsHomePage';
 import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
 import { isRouteEnabled } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
@@ -398,10 +401,30 @@ function NavContent({ onItemClick }) {
             {item.path === '/settings' && (
               <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                  {/* specs/settings-rationalization.md rules 1-2 — entries by family, a thin divider
-                      between families; the list lives in constants/settingsMenu.js. */}
-                  {visibleSettingsMenu(can, (id) => (user?.enabledPlugins || []).includes(id)).map((entry, index) => {
-                    if (!entry) return <Divider key={`settings-divider-${index}`} sx={{ mx: 2, my: 0.5 }} />;
+                  {/* specs/settings-rationalization.md rule 26 — the four groups; the one of the open
+                      page (or of the summary's #group) unfolds its pages. constants/settingsMenu.js. */}
+                  {visibleSettingsGroups(can, (id) => (user?.enabledPlugins || []).includes(id)).map((group) => {
+                    const unfolded = group.id === settingsGroupOf(location.pathname, location.hash);
+                    return (
+                      <Box key={group.id}>
+                        <ListItemButton
+                          component={Link}
+                          to={`${SETTINGS_HOME_PATH}#${group.id}`}
+                          onClick={(e) => onItemClick && onItemClick(e, `${SETTINGS_HOME_PATH}#${group.id}`)}
+                          selected={location.pathname === SETTINGS_HOME_PATH && unfolded}
+                          aria-expanded={unfolded}
+                          aria-controls={unfolded ? `settings-group-${group.id}` : undefined}
+                          sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 34 }}><group.Icon fontSize="small" /></ListItemIcon>
+                          <ListItemText primary={group.label} slotProps={{
+                            primary: { variant: 'body2', sx: { ...WRAP, fontWeight: 600 } }
+                          }} />
+                          {unfolded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                        </ListItemButton>
+                        {unfolded && (
+                        <List disablePadding role="group" id={`settings-group-${group.id}`} aria-label={group.label}>
+                        {group.entries.map((entry) => {
                     const isProperties = entry.path === PROPERTIES_PATH;
                     return (
                       <Box key={entry.path}>
@@ -414,7 +437,7 @@ function NavContent({ onItemClick }) {
                               if (onItemClick) onItemClick(e, entry.path);
                             }}
                             selected={isEntrySelected(entry, location.pathname)}
-                            sx={{ flex: 1, minWidth: 0, pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                            sx={{ flex: 1, minWidth: 0, pl: 7, py: 0.75, borderRadius: 2, mb: 0.25 }}
                           >
                             <ListItemIcon sx={{ minWidth: 34 }}><entry.Icon fontSize="small" /></ListItemIcon>
                             <ListItemText primary={entry.label} slotProps={{
@@ -449,6 +472,11 @@ function NavContent({ onItemClick }) {
                               ))}
                             </List>
                           </Collapse>
+                        )}
+                      </Box>
+                    );
+                        })}
+                        </List>
                         )}
                       </Box>
                     );
@@ -719,7 +747,8 @@ function AppShell() {
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           {/* Paramètres (specs/settings-rationalization.md rule 2). */}
-          <Route path="/settings" element={<Navigate to="/settings/etablissement" replace />} />
+          {/* Rule 24 — the summary page, with its search. */}
+          <Route path="/settings" element={<SettingsHomePage />} />
           <Route path="/settings/etablissement" element={<EstablishmentSettingsPage />} />
           <Route path="/settings/plateformes" element={<PlatformsSettingsPage />} />
           <Route path="/settings/tva-exercice" element={<VatFiscalSettingsPage />} />

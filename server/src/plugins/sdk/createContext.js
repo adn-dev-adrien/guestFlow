@@ -132,6 +132,14 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} the attention subject "${key}" is already declared by ${other.id}`);
       record.attention.push({ key, rank, handler, summarize });
     },
+    // () → null when the plugin has what it needs, else a short French label of what it lacks
+    // (« à connecter », « identifiants manquants »). The Plugins page prints « Actif · <label> » and
+    // offers « Configurer » (specs/plugins-phase-0-foundation.md rule 25). Read on every list: keep it
+    // a cheap, synchronous look at the plugin's own settings — never a call to a remote service.
+    setupStatus(check) {
+      if (typeof check !== 'function') throw new Error(`${prefix} setupStatus needs a function`);
+      record.setupStatus = check;
+    },
     migrations(list) { record.migrations.push(...list); },
     settings,
     jobs: {

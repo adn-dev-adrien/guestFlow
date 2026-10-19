@@ -221,6 +221,8 @@ Decisions taken on 2026-10-06:
          are ticked by default; labels and descriptions are the catalogue's (`constants/plugins.js`);
        - the ticked ones are installed and activated through the existing plugin endpoints;
        - a failure names the plugin and lets the others go through.
+
+       _Since 2026-10-19 the step asks three questions instead of listing plugins (rule 43)._
     4. **C'est prêt**: three links (Réglages › Emails, Tarifs, Plugins), and « Ouvrir le tableau de
        bord », which records `onboardingCompletedAt`.
 22. **« Plus tard »**, on every step, records `onboardingCompletedAt` and leaves; what was saved stays
@@ -323,6 +325,8 @@ Decisions taken on 2026-10-06:
     those already active are listed; every other one (Neat, Sowel, the platform intake…) is folded
     under « Pour aller plus loin (N) », closed at first. The server marks them (`more` on each plugin
     of `GET /api/onboarding`); nothing is ticked or unticked by the fold.
+    > **Sans test** — superseded on 2026-10-19 by rule 43: the step no longer lists plugins, so there
+    > is nothing left to fold; the `more` flag is gone.
 
 37. **Step « Plugins » activates the ticked plugins one after the other** (final display sweep of
     2026-10-18, N-1). On a fresh install the two recommended plugins failed on the first click: the
@@ -390,6 +394,32 @@ Decisions taken on 2026-10-06:
       (`PUT /api/onboarding/plugins` → `reload: true`), and leaving the assistant then loads the app
       again at the chosen page, so the new plugin's pages are in the bundle.
 
+43. **Step « Plugins » asks three yes/no questions** (UI/UX review 2026-10-18, proposal 13; replaces
+    the list of rule 21 step 3 and the fold of rule 36). The owner says what the business does; the
+    server maps each « oui » to plugins (`constants/onboardingQuestions.js`):
+
+    | Question | « Oui » turns on | On a fresh instance |
+    |---|---|---|
+    | « Des options payantes à l'arrivée : repas, linge, bain nordique ? » | Ressources à l'heure, Linge et blanchisserie, Arrivée et départ guidés (the SAS is where options are sold and paid) | oui |
+    | « Un site internet qui prend des réservations ? » | Réservation depuis le site | oui |
+    | « Encaisser en ligne, par lien de paiement ? » | Paiement en ligne (Qonto) | non |
+
+    Each question is a switch with one line naming what « oui » turns on (« Active : … », from the
+    server), answered as in the table. **A question one of whose plugins is already active is
+    settled**: shown on and disabled, with « Déjà actif ; se désactive dans Paramètres › Plugins. »
+    (all active) or « Déjà en partie actif ; le reste se règle dans Paramètres › Plugins. » — its
+    « oui » would otherwise turn on the others (a SAS-only instance would silently get the hourly
+    resources and the linen). A question none of whose plugins the plan includes is off and
+    disabled, with the plan chip; the plugins of a partly included question go through for those
+    included. The step sends only the questions still open (allowed, not settled):
+    `PUT /api/onboarding/plugins { answers: { options?, website?, payment? } }` installs or activates
+    the plugins of every `true` to a question that is not settled — the server checks it again and
+    ignores the others —, one after the other (rule 37), and a failure is still named (rule 37);
+    **a « non » never switches a plugin off** and anything but `true` counts as « non ». A body
+    without an `answers` object is refused: 400 `ONBOARDING_ANSWERS_REQUIRED`. Under the questions:
+    « Le reste se règle plus tard dans Paramètres › Plugins. » The other plugins (Neat, Google Agenda, Sowel, the intakes,
+    the export…) are left to the Plugins page.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -420,6 +450,8 @@ Decisions taken on 2026-10-06:
 | `constants/` | `plugins.js` | T | `PLUGIN_PAGES` / `pluginsOfPage(path)`: which plugin owns which page (rule 40) |
 | `controllers/` | `pluginsController.js` (`pageOwner`), `routes/plugins.js` | T | `GET /api/plugins/page` (rule 40); names nobody once one of the page's plugins is active (rule 42) |
 | `controllers/` | `onboardingController.js` (`savePlugins`) | T | Installs one after the other (rule 37); passes on an install's `reload` (rule 42) |
+| `constants/` | `onboardingQuestions.js` | C | Rule 43 — the three questions, the plugins each « oui » turns on, the fresh-instance answer |
+| `controllers/` | `onboardingController.js` | T | Rule 43 — `questions` in `GET /api/onboarding`; `savePlugins` maps the answers to plugins; the `more` flag of rule 36 removed |
 | `controllers/public/` | `emailPreferencesController.js` | T | Company name, neutral copy (rule 17) |
 | `routes/` | `stayTexts.js`, `emailMentions.js`, `onboarding.js` | C | Thin |
 | `database.js`, `schema.sql` | — | T | New tables and columns; empty pool defaults; the migration call; catering seed and extinguisher rows removed |
@@ -450,6 +482,7 @@ Decisions taken on 2026-10-06:
 | `plugins/sas/` | settings + `ReservationSasDialog.jsx` | T | Rule 16 |
 | `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20); a page whose plugin is off renders `NotFoundPage` for an administrator instead of sending home (rule 42) |
 | `pages/` | `OnboardingPage.jsx` | T | Leaving after an install that asked for `reload` loads the app again (rule 42) |
+| `pages/` | `OnboardingPage.jsx` | T | Rule 43 — step 3 is three switches (MUI `Switch` rows in one bordered list) with their « Active : … » line |
 | `components/` | `NotFoundPage.jsx` | C | **Generic**: the app's 404, or « Plugin inactif » for a plugin's page (rule 40) |
 | `components/` | `AdvancedDetails.jsx` | C | **Generic**: a folded « Avancé » block for the technical names a setting needs (rule 41) |
 | `utils/` | `touchHitArea.js` + `theme.js` | C/T | The 44 px hit area of a small control; link-buttons and toggles in the theme (rule 39) |
@@ -472,7 +505,7 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 | POST | `/api/email-mentions/preview` | `{ propertyId, children, startDate }` → `{ fr, en }`: the J-7 offers paragraph and the J-2 confirmations, rendered by the server |
 | GET | `/api/onboarding` | `{ open, company, plugins: [{ id, label, description, allowed, plan, state, recommended }] }` |
 | PUT | `/api/onboarding/company`, `/api/onboarding/property` | Validated writes; 422 `{ errors }` per field; 402 when the plan's unit quota is reached |
-| PUT | `/api/onboarding/plugins` | `{ ids }` → `{ results: [{ id, ok, error, reason }], pluginsSummary, reload }` (`reload`: rule 42), each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
+| PUT | `/api/onboarding/plugins` | `{ answers: { options?, website?, payment? } }` (rule 43; was `{ ids }`; 400 `ONBOARDING_ANSWERS_REQUIRED` without it; `GET` questions carry `settled`) → `{ results: [{ id, ok, error, reason }], pluginsSummary, reload }` (`reload`: rule 42), each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
 | GET | `/api/plugins/page?path=` | `{ plugins: [{ id, name, state }], message }`; `{ plugins: [], message: null }` for a core or unknown page, or once one of the page's plugins is active (rules 40, 42) |
 | GET | `/api/auth/me` | gains `onboardingOpen` (admins only) |
 | GET / PUT | `/api/platforms/settings` | each row gains `countsAsDirect` |
@@ -505,6 +538,10 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 
 ## 6. UI / UX
 
+- **Assistant, step « Plugins » (rule 43)** — the validated rendering is mock 5 of the UI/UX review
+  (`docs/rapports/2026-10-18-ui-ux-review.html#settings-m5`, the « Ce qui sera proposé » card): three
+  rows in one bordered list, question in bold, « Active : … » below in caption, the switch at the
+  right (whole row is the label, ≥ 56 px tall). Same on mobile, the question wrapping on two lines.
 - **Réglages › Emails & notifications** gains « Textes des mails », with three tabs:
   - **Par mail**: the stay texts grouped by email, French and English side by side on `md+` and
     stacked on `xs`, with token chips and « Rétablir »;
@@ -580,6 +617,12 @@ Review of the sweep, 2026-10-18 (rule 42): server `plugin-page-owner` (+2) and
 `onboarding-plugins-sequential` (+1); client `OnboardingPage.plugins-reload` (2); E2E
 `plugins/online-payment.spec.js` (« Plugin inactif » at `/parametres/paiements` once switched off)
 and `auth/not-found.spec.js` (+1, `/comptabilite/zzz` with the plugin active).
+
+UI/UX review 2026-10-19 (rule 43): server `onboarding-questions` (6: settled questions, a « oui »
+to a settled one installs nothing, 400 without answers), `onboarding` and
+`onboarding-plugins-sequential` updated to the answers; `onboarding-plugins-fold` removed (rule 36
+superseded); client `OnboardingPage.questions` (3, a settled question disabled and not sent), `OnboardingPage` updated, `OnboardingPage.plugins-fold`
+removed.
 
 ### E2E
 

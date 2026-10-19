@@ -87,7 +87,10 @@ describe('PluginsPage', () => {
     api.getPlugins.mockResolvedValue([plugin('neat', 'Assurance annulation Neat', 'active')]);
     api.deactivatePlugin.mockResolvedValue({});
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Désactiver' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Plus d’actions/ }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Désactiver/ }));
+    expect(api.deactivatePlugin).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Désactiver' }));
     expect(api.deactivatePlugin).toHaveBeenCalledWith('neat');
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
   });
@@ -97,7 +100,9 @@ describe('PluginsPage', () => {
     const refusal = Object.assign(new Error('1 lien de paiement est en attente. Attends leur paiement ou annule-les avant de désactiver.'), { status: 409, error: 'PLUGIN_BLOCKED' });
     api.deactivatePlugin.mockRejectedValue(refusal);
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Désactiver' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Plus d’actions/ }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Désactiver/ }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Désactiver' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('1 lien de paiement est en attente');
     expect(refresh).not.toHaveBeenCalled();
   });

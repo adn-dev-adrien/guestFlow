@@ -22,6 +22,11 @@ const validation = require('../utils/settingsValidation');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
+const { resolveEmailIdentity } = require('../utils/emailIdentity');
+const { createSmtpDetector, detectionMessage } = require('../utils/smtpPresets');
+
+// specs/settings-rationalization.md rule 28 — DNS from the server; replaced by a stub in the suites.
+let smtpDetector = createSmtpDetector();
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
@@ -114,7 +119,21 @@ function getSettings(req, res) {
   return res.json(shapeResponse(row));
 }
 
-function updateSettings(req, res) {
+/**
+ * Rule 28 — the server, not the operator, fills an empty sending server, and only on the save that
+ * brings a password (the operator's own server, never the platform's —
+ * specs/hosting-h1-fleet-runtime.md rules 18–19): the provider found from the sending address gives
+ * the host and the security. A host saved, typed or explicitly emptied (`host` in the payload) is
+ * the operator's choice and always wins; a provider not found leaves the host empty, to be typed.
+ */
+function needsDetectedServer(stored, payload, smtp) {
+  if (!smtp || Object.prototype.hasOwnProperty.call(smtp, 'host')) return '';
+  if (String(stored.smtpHost || '').trim()) return '';
+  if (!payload.smtpPasswordEncrypted) return '';
+  return resolveEmailIdentity({ ...stored, ...payload }).fromEmail;
+}
+
+async function updateSettings(req, res) {
   const body = req.body || {};
   const company = pickGroup(body, 'company');
   const quote = pickGroup(body, 'quote');
@@ -191,6 +210,20 @@ function updateSettings(req, res) {
     return res.status(400).json({ code: 'SETTINGS_INVALID', errors });
   }
 
+  const stored = settingsModel.read();
+  // Rule 28 — host and password both emptied: back to no server of its own, security included.
+  if (payload.smtpHost === '' && (payload.smtpPasswordEncrypted === '' || (!stored.smtpPasswordSet && payload.smtpPasswordEncrypted === undefined))) {
+    payload.smtpSecure = 0;
+  }
+  const address = needsDetectedServer(stored, payload, smtp);
+  if (address) {
+    const found = await smtpDetector.detect(address);
+    if (found.status === 'found') {
+      payload.smtpHost = found.provider.host;
+      payload.smtpSecure = found.provider.secure ? 1 : 0;
+    }
+  }
+
   settingsModel.upsert(payload);
 
   const row = settingsModel.read();
@@ -247,12 +280,34 @@ async function sendSmtpTest(req, res) {
   }
 }
 
+/**
+ * POST /api/settings/smtp-detect { address? } — rule 28: what the Envoi card proposes for an address
+ * (the typed one, else the sending address as saved). Never writes.
+ *   → { address, found, provider: { id, name, host, secure, port, hint } | null, message }
+ */
+async function detectSmtp(req, res) {
+  const typed = req.body && typeof req.body.address === 'string' ? req.body.address.trim() : '';
+  const address = typed || resolveEmailIdentity(settingsModel.read()).fromEmail;
+  const result = await smtpDetector.detect(address);
+  return res.json({
+    address,
+    status: result.status,
+    found: result.status === 'found',
+    provider: result.status === 'found' ? result.provider : null,
+    message: detectionMessage(result),
+  });
+}
+
 module.exports = {
+  detectSmtp,
   getSettings,
   updateSettings,
   uploadLogo,
   deleteLogo,
   sendSmtpTest,
   // exported for tests
-  __test: { SMTP_FIELDS },
+  __test: {
+    SMTP_FIELDS,
+    setSmtpDetector(detector) { smtpDetector = detector; },
+  },
 };

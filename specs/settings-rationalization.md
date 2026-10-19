@@ -8,6 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Decision page** | [settings-rationalization/avant-apres.html](settings-rationalization/avant-apres.html) — interactive before/after, the page Adrien opens to decide |
+| **Amended** | 2026-10-19 — summary page, four groups, search, sending server from the address (rules 24–28; UI/UX review 2026-10-18, proposal 20, decisions 12 and 14) — [summary and mock](../docs/specs/2026-10-19-settings-summary-shortcut-menu.html) |
 | **Supersedes (UI layout only)** | [settings-submenu-reorg.md](settings-submenu-reorg.md) §5, [ds-sweep-settings.md](ds-sweep-settings.md) §3.2 |
 
 ---
@@ -87,6 +88,8 @@ one place.
    today, with the property sub-list under « Logements ». No second navigation column, no settings
    home page. Clicking « Paramètres » opens « Établissement ». On `xs` the submenu lives in the drawer,
    as today.
+   _Amended 2026-10-19 by rules 24 and 26: « Paramètres » opens the summary page, and the submenu
+   shows the four groups, the open page's group unfolded._
 2. **Its entries are reordered into families**, separated by a thin divider (no family label). In
    order:
 
@@ -108,6 +111,7 @@ one place.
 
    13 entries (10 today): more, but each is one short page, where « Générale » used to hold 13 cards.
 3. **No settings search** (dropped 2026-09-21 with the second column it lived in).
+   _Superseded 2026-10-19 by rule 27: the summary page has a search._
 4. **Each page owns its Save.** The single 13-card save disappears; a page saves only its own fields,
    through the existing `PUT /api/settings` (partial payload, already supported).
 5. **« Clients » leaves « Paramètres»** and becomes a top-level sidebar entry.
@@ -115,7 +119,7 @@ one place.
    the sidebar, above « Se déconnecter ». « Utilisateurs » keeps only the admin table.
 7. **Roles are unchanged**: every settings page is admin-only; « Plan comptable » stays under « Suivi
    financier » for the accountant; « Mon compte » stays reachable by every role.
-8. Old URLs redirect: `/settings` → Établissement; `/parametres/tarifs` → Options & ressources, tab
+8. Old URLs redirect: `/settings` → Établissement (_since rule 24, `/settings` is the summary page_); `/parametres/tarifs` → Options & ressources, tab
    Facturables (`?tab=sas`); `/account`, `/comptes` and `/settings/password` → `/mon-compte` for every
    role (the old page mixed « my account » with the admin table; « Mon compte » is the part every role
    was looking for).
@@ -238,8 +242,78 @@ one place.
 
 23. The bugs of §1 (all but the withdrawn n°4) are fixed. Rule 23 has no UI of its own; each fix is listed in §7.
 
+### 3.F Summary, groups and search — UI/UX review 2026-10-18
+
+24. **`/settings` is the summary of Paramètres** (UI/UX review 2026-10-18, proposal 20). Clicking
+    « Paramètres » opens it. It lists every page of the submenu in its group (rule 26), one row per
+    page — icon, name, the state line of rule 25, a chevron — plus two rows the submenu does not hold:
+    « Textes des emails » (after « Emails & notifications ») and « Mon compte ». A row opens its page.
+    `/settings#<group>` scrolls to that group and marks its card for a moment. The pages of
+    `SettingsFormPage` and Plugins get a back arrow to the summary. Two columns of groups from `md`,
+    one column below.
+25. **Each row carries one line of state, computed by the server** (`GET /api/settings/summary`):
+    « 2 logements », « Version 2 en vigueur », « 37 options · 2 ressources », « 1 fermeture à venir »,
+    « TVA 10 % · exercice clos fin septembre », « Envoi par ssl0.ovh.net » / « Envoi par la
+    plateforme » / « Envoi non configuré », « 4 comptes actifs », « Version 3.10.0 », « 12 actifs · 2 à
+    configurer », « Second code activé ». What is missing has the warning tone (« IBAN à saisir »,
+    « Aucun logement », « Envoi non configuré », « Envoi incomplet », « n à configurer »). A plugin's
+    own settings page reads « À configurer » while its plugin lacks something
+    (specs/plugins-phase-0-foundation.md rule 25). A line the server cannot compute is left out; the
+    row keeps its name.
+26. **The submenu becomes a shortcut menu in four groups** (UI/UX review 2026-10-18, decision 12 —
+    « Sommaire + menu raccourci en 4 groupes », not the recommended « summary only »). The groups are
+    the four families of rule 2, now named: **Établissement** (Établissement, Logements, Plateformes,
+    Conditions générales), **Séjours** (Options & ressources, Recettes tarifaires, Fermetures or
+    Vacances & fermetures, Linge), **Paiements et emails** (Paiements en ligne, TVA & exercice, Emails
+    & notifications), **Compte et système** (Utilisateurs, Accès du support, Intégrations, Système,
+    Plugins). « Intégrations » moves from the third family to the fourth, next to Plugins, whose
+    settings it mostly holds. Under « Paramètres » the sidebar shows the four group rows; the group of
+    the open page (or of the summary's `#group`) unfolds its pages beneath it, the others stay folded:
+    at most 9 rows instead of 15. A group row opens the summary on that group; it carries
+    `aria-expanded` and, unfolded, `aria-controls` to its pages' list (`role="group"`). A plugin entry belongs
+    to the group of the entry it is placed next to (`after` / `before`), so no plugin changes; a
+    group with no visible page is left out.
+27. **The summary has a search** that understands the owner's words: each page declares keywords
+    (`SETTINGS_KEYWORDS`: Wi-Fi, IBAN, SMTP, 2FA, caution, Qonto…). Every word typed must be found in
+    the name, the state line or a keyword; accents, case and punctuation are ignored (« wifi » finds
+    « Wi-Fi »), and a word is what is typed between spaces (« j-2 » finds « J-2 », not every row with
+    a 2). A row found through a keyword says it: « Contient : Wi-Fi ». Nothing found →
+    « Aucun réglage pour « zzz » » with suggestions.
+28. **The sending server is deduced from the sending address** (UI/UX review 2026-10-18, decision
+    14). The operator types the address (or keeps the derived one, rule 12) and the password. The
+    server recognises the provider — by the address's own domain (gmail.com, orange.fr, outlook.fr…),
+    else by the domain's MX records looked up from the server (DNS only, 3 s timeout, answers kept one
+    hour, at most 500 domains — the oldest goes —, a domain over 253 characters refused) — among Gmail
+    / Google Workspace, Microsoft 365, OVHcloud (not its redirection-only `redirect.ovh.net` MX),
+    IONOS, Infomaniak, Gandi, Zoho (an address @zohomail.* → `smtp.zoho.*`; a company domain whose MX
+    is Zoho's → `smtppro.zoho.*`, the organisation server), iCloud, Yahoo, Orange, Free, SFR, La Poste,
+    and proposes its host and security (the port follows, rule 11). Outlook.com / Hotmail / Live
+    accept no password over SMTP any more: they are recognised and the card says « Outlook, Hotmail et
+    Live demandent l'authentification moderne : l'envoi par mot de passe n'est pas pris en charge. »,
+    nothing is proposed. Microsoft 365 is proposed with the hint that authenticated SMTP must be
+    allowed for the mailbox. o2switch (MX on the customer's own domain) and other cPanel hosts are not
+    recognised: their server is typed. The Envoi card says « Serveur trouvé : Gmail
+    (smtp.gmail.com). Retenu à l'enregistrement. » with the provider's own password hint. **The server
+    deduces only on the save that brings a password and does not carry `host`**, when no host is
+    stored: it then writes the host and security found. **A configured host always wins**, and a host
+    the operator empties on purpose stays empty; emptying host and password together also puts the
+    security back to its default. Not found or DNS failure → « Fournisseur non reconnu pour gite.fr :
+    saisir le serveur. » and « Réglages avancés » opens on the manual fields (server, login, security,
+    now folded there). The card asks the server only for an own server: never on a managed instance
+    sending through the platform until a password is stored or typed there
+    (specs/hosting-h1-fleet-runtime.md rules 18–19); a refused request (a read-only instance) says
+    nothing. `GUESTFLOW_SMTP_DETECT=off` turns the lookup off — the E2E suites set it, so no test
+    resolves a real domain. The disabled test button says what it waits for: « Adresse d'envoi
+    manquante. », « Mot de passe manquant. », « Serveur d'envoi manquant. », « À enregistrer
+    d'abord. ».
+
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
+- (rule 28) The address changes to another provider after a host was saved → the saved host wins;
+  empty « Serveur d'envoi » and save, then type the password again and save: that save deduces it.
+- (rule 28) An existing instance with a password but no host → nothing is deduced until a save that
+  carries the password (another field of the group, e.g. the sender name, deduces nothing).
+- (rule 27) A plugin page whose plugin is off is neither in the submenu nor in the summary.
 - An override email emptied → falls back to the derived value, shown as the placeholder.
 - A production row whose `smtpUsername` differs from `smtpFromEmail` → the migration keeps it as an
   explicit override; equal values become « derived » (stored `''`).
@@ -270,6 +344,9 @@ one place.
 | `services/` | `emailService.js`, `notificationService.js`, `emailContextBuilder.js`, `usersController.js` | T | Read the identity through `emailIdentity` |
 | `scheduledTasks.js` | | T | Constants for the school-holiday sync |
 | `routes/` | `schoolHolidays.js` | T | Remove `sync-settings` |
+| `controllers/` | `settingsSummaryController.js` | C | Rule 25 — one state line per page, from the database, the settings row and the plugin views |
+| `utils/` | `smtpPresets.js` | C | Rule 28 — providers, domain → provider, MX lookup with an injected resolver, timeout and cache, the French messages |
+| `controllers/` + `routes/` | `settingsController.js`, `routes/settings.js` | T | Rule 28 — `updateSettings` (now async) fills an empty host from the provider; `POST /smtp-detect`; `GET /summary` |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -293,6 +370,12 @@ one place.
 | `components/` | `SettingsSmtpSection.jsx`, `SettingsVatSection.jsx`, `SettingsCompanySection.jsx`, `SchoolHolidaysSyncSettingsDialog.jsx`, `SettingsReservationLockSection.jsx` | T/D | Fields removed or moved; the dialog and the lock card are deleted |
 | `constants/` | `settingsMenu.js` | C | The ordered submenu entries and their family breaks, read by the sidebar |
 | routing | `App.jsx`, `constants/roles.js` | T | Settings routes, redirects, reordered submenu with dividers, Clients + Mon compte entries; favicon read fixed |
+| `pages/` | `settings/SettingsHomePage.jsx` | C | Rules 24–27 — the summary: groups, rows with state lines, search, `#group` |
+| `constants/` | `settingsMenu.js` | T | Rules 26–27 — `SETTINGS_GROUPS`, `visibleSettingsGroups`, `settingsGroupOf`, `SETTINGS_KEYWORDS`, summary-only rows |
+| `utils/` | `settingsSearch.js` | C | Rule 27 — accent-insensitive word match, the keyword that matched |
+| `hooks/` | `useSmtpDetection.js` | C | Rule 28 — asks the server what it proposes for the address, debounced, while no host is saved |
+| `components/` | `SettingsSmtpSection.jsx`, `SettingsFormPage.jsx` | T | Rule 28 — address + password first, the found server said, manual fields under « Réglages avancés », test button reasons; back arrow to the summary (rule 24) |
+| routing | `App.jsx` | T | Rules 24, 26 — `/settings` renders the summary; the submenu renders the groups |
 
 **Component reuse declaration**
 
@@ -301,6 +384,7 @@ one place.
 | Consumed | `PageActionBar`, `StatusCard`, `StatusBadge`, `SummaryItem`, `MaskedTextField`, `HelpedTextField`, `ConfirmDialog`, `DataPageScaffold` | |
 | Created (generic) | `DerivedValueField` | For any setting that defaults to another (« = email de contact » + « Utiliser une autre adresse ») |
 | Specific | the seven `settings/*Page.jsx` | Thin compositions of existing cards |
+| Consumed (rules 24–28) | `PageActionBar`, `EmptyState`, `AdvancedDetails`, `DerivedValueField`, `MaskedTextField` | The summary rows are MUI `ListItemButton`s in a `Card`: one page uses them, so no new generic component |
 
 ### 4.3 API contract
 
@@ -316,6 +400,9 @@ one place.
 | GET/PUT | `/api/properties/email-hooks` | **New** (admin): `[{ propertyId, name, emailHook, emailHookEn }]`; PUT writes only those two columns |
 | POST/PUT | `/api/properties(/:id)` | 400 `{ error: 'PROPERTY_INVALID', errors: { field: message } }` (rule 23a) |
 | GET | `/api/options?view=catalogue` | Leaves out `early_check_in` / `late_check_out` |
+| GET | `/api/settings/summary` | **New** (admin, rule 25): `{ lines: { '<page path>': { text, tone: 'neutral' \| 'warning' } } }` |
+| POST | `/api/settings/smtp-detect` | **New** (admin, rule 28): `{ address? }` → `{ address, status, found, provider: { id, name, host, secure, port, hint } \| null, message }` (`status`: found, unsupported, unknown, dns-failed, off, invalid; `message` empty when off); never writes |
+| PUT | `/api/settings` | Rule 28 — an `smtp` group that brings a password and no `host`, with no host stored, gets the deduced `smtpHost` / `smtpSecure`; `host` and `password` both `''` also reset `smtpSecure` |
 
 ## 5. Data model
 
@@ -345,6 +432,16 @@ The interactive before/after is the reference:
 - **Action bar**: every page has `<PageActionBar title=… onSave onCancel />`; pages without a form
   (Intégrations, Système, Recettes) have no Save. The title is the page name, never « Générale ».
 - Copy: see the decision page for each label.
+- **Summary (rules 24–27)** — the interactive mock is
+  [2026-10-19-settings-summary-shortcut-menu.html](../docs/specs/2026-10-19-settings-summary-shortcut-menu.html).
+  Desktop: the search (max 520 px) above two columns of group cards, the sidebar shows the four
+  groups with the open one unfolded. Tablet (`md`, 900 px): same two columns. Mobile (`xs`): one
+  column, the search full width at 16 px (no zoom on focus); the groups live in the drawer, and a
+  group row closes the drawer on the summary scrolled to that group.
+- **Envoi (rule 28)** — order: Adresse d'envoi, Mot de passe de l'adresse d'envoi (helper = the
+  provider's hint), the server line (status role), Nom affiché, « Réglages avancés » (Serveur d'envoi,
+  Identifiant du serveur, Sécurité), the test button and its reason. Same on mobile, full-width
+  fields.
 
 ## 7. Test plan
 
@@ -362,6 +459,25 @@ The interactive before/after is the reference:
 - [x] Sequence start date set on the first sequence template switched to `auto`, never moved afterwards (rule 17b)
 
 Delivered: 26 tests in the feature file; server suite 4194 tests green.
+
+### Rules 24–28 (2026-10-19)
+- [x] Server `settings-summary.unit.test.js` (5): counts and states, warning tone, the three sender
+      lines, plugins to configure on Plugins / Intégrations / their page, a failing line left out
+- [x] Server `smtp-detection.unit.test.js` (17): domain without DNS, MX by preference (Microsoft 365
+      hint), lookalike refused, Outlook.com unsupported, OVH redirect excluded, Zoho personal /
+      organisation, `GUESTFLOW_SMTP_DETECT=off`, bounded cache and over-long domain, unknown / DNS
+      failure / timeout / invalid, one-hour cache without failures; the controller fills host +
+      security with a typed password, keeps a configured host, deduces nothing without a password nor
+      on another field's save, keeps an emptied host empty, resets the security when host and password
+      are emptied, `smtp-detect` never writes. `settings-controller-smtp-password` and
+      `-header-injection` await the now asynchronous save
+- [x] Client `useSmtpDetection.test.jsx` (5): found, a sentence, off and refused say nothing, no
+      request when not enabled
+- [x] Client `SettingsHomePage.test.jsx` (4), `settingsMenu.groups.test.js` (5),
+      `settingsSearch.test.js` (3), `SettingsSmtpSection.detected-server.test.jsx` (4); updated
+      `SettingsSmtpSection.plain-words` and `.platform`
+- [x] E2E `e2e/specs/settings/settings-summary.spec.js`: the summary, the search, a group of the
+      sidebar unfolding
 
 ### Client (Vitest) + E2E
 - [x] Property tabs: dirty / invalid dots, deposit fields shown only when on, recipe hides extra-guest fields
@@ -395,6 +511,11 @@ All resolved by Adrien on 2026-09-21:
 - Q2: VAT on commissions / indemnities → **moved to Plan comptable** (rule 14).
 - Q3: « Acompte » per platform → **kept, on the Plateformes page** (rule 17).
 - Q4: Property page → **tabs** (rule 21).
+
+Resolved by Adrien on 2026-10-19 (UI/UX review arbitration):
+- Paramètres → **summary + shortcut menu in four groups** (decision 12, against the recommended
+  « summary only »): rules 24–27. The four groups are the existing families, named (rule 26).
+- SMTP from the sending address with an MX lookup from the server → **agreed** (decision 14): rule 28.
 
 ## 10. Delivery — one PR (decided 2026-09-21)
 

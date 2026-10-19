@@ -170,11 +170,12 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // 1.1.0 since the Booking intake added `ctx.core.reservations.platformCommission`,
 // `ctx.core.clients.update` and the `planningDateRange` core module; 1.2.0 since `ctx.secretRoutes`,
 // the `qonto` core module (2026-10-18 code review) and `secrets.rotate`, for the website key's
-// « Régénérer ». Both minor bumps. 1.3.0 since the core modules `changeover` and
+// « Régénérer ». 1.3.0 since the core modules `changeover` and
 // `pricing.calculateBaseStayPrice` (specs/wp-booking-widget-redesign.md rule 30); 1.4.0 since
-// `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9).
+// `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9); 1.5.0
+// since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). All minor bumps.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
-  assert.equal(SDK_VERSION, '1.4.0');
+  assert.equal(SDK_VERSION, '1.5.0');
   assert.equal(satisfies(SDK_VERSION, '^1.0.0'), true);
   assert.equal(satisfies(SDK_VERSION, '^2.0.0'), false);
 });

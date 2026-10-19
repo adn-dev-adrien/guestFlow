@@ -1,7 +1,7 @@
 // specs/plugins-phase-1-sdk.md rules 4 and 21-22 — uninstalling a plugin module can erase its data;
 // the other plugins always keep theirs; a module that failed to start says so.
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
@@ -58,8 +58,10 @@ test('rule 4: a module that failed to start shows « Erreur », and offers no «
   expect(screen.queryByRole('button', { name: 'Désactiver' })).toBeNull();
 });
 
-test('phase 0 rule 8: the refusal is said before the click, and « Désactiver » is disabled', () => {
+test('phase 0 rule 8 (rule 25: in the ⋯ menu): the refusal is said before the click, and « Désactiver » is disabled', () => {
   renderCard(plugin({ state: 'active', blocker: { code: 'OPEN_PAYMENT_LINKS', message: '1 lien de paiement en attente : à payer ou annuler d’abord.' } }));
-  expect(screen.getByText('1 lien de paiement en attente : à payer ou annuler d’abord.')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Désactiver' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: /Plus d’actions/ }));
+  const item = screen.getByRole('menuitem', { name: /Désactiver/ });
+  expect(item).toHaveAttribute('aria-disabled', 'true');
+  expect(item).toHaveTextContent('1 lien de paiement en attente : à payer ou annuler d’abord.');
 });

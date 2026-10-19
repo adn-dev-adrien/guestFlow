@@ -63,6 +63,8 @@ function register(ctx) {
   bind(store);
   const provider = createQontoProvider({ settings: store });
   ctx.paymentProvider(provider);
+  // specs/plugins-phase-0-foundation.md rule 25 — the Plugins card says the connection is missing.
+  ctx.setupStatus(() => (store.qontoConnected() ? null : 'à connecter'));
 
   // Rule 11 — the settings page endpoints, at the URLs the Paiements page and Qonto (OAuth redirect)
   // already know.
