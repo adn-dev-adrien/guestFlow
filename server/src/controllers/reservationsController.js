@@ -3,6 +3,7 @@
  * engine → occupancy/capacity checks → model writes → response shaping. Holds the flow that used to
  * live inline in routes/reservations.js; all SQL is in reservationsModel, all rules in utils.
  */
+const { platformDisplay } = require('../utils/platformDisplay');
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
@@ -445,7 +446,9 @@ function platformCommission(req, res) {
 
 function list(req, res) {
   const { propertyId, clientId, from, to } = req.query;
-  const rows = model.list({ propertyId, clientId, from, to });
+  // specs/ui-review-2026-10-19-operations.md rule 15 — the display name the calendar prints.
+  const rows = model.list({ propertyId, clientId, from, to })
+    .map((row) => ({ ...row, platformDisplay: platformDisplay(row.platform) }));
   res.json(isReceptionOnly(req.user) ? toReceptionReservationList(rows) : rows);
 }
 

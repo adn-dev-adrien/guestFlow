@@ -24,6 +24,9 @@ import LanguageBadge from '../components/LanguageBadge';
 import ReservationConflictBadge from '../components/ReservationConflictBadge';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
+import StickyTotalBar from '../components/StickyTotalBar';
+import DevisValidityChip from '../components/reservation/DevisValidityChip';
+import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import { ReservationFormProvider } from '../components/reservation/ReservationFormContext';
@@ -157,7 +160,7 @@ export default function ReservationPage() {
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
   // Pure-info confirmations toast instead of modaling (specs/ds-components.md §3.2).
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
   const from = getFromParam(searchParams);
   
   // Check if in devis mode
@@ -345,7 +348,7 @@ export default function ReservationPage() {
 
   // Validity state of the devis being edited, straight from the server (`validUntil` + `expired`).
   // Drives the action-bar chip and the price lock — the fiche decides nothing here.
-  const [devisValidity, setDevisValidity] = useState({ validUntil: null, expired: false });
+  const [devisValidity, setDevisValidity] = useState({ validUntil: null, expired: false, extendable: false, converted: false });
 
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -1017,7 +1020,12 @@ export default function ReservationPage() {
           setUseCurrentPricing(false);
           // The server replays the quoted prices while the devis is valid; the fiche mirrors that by
           // pinning the same unit prices in its live preview (§3 rule 13).
-          setDevisValidity({ validUntil: devis.validUntil || null, expired: Boolean(devis.expired) });
+          setDevisValidity({
+            validUntil: devis.validUntil || null,
+            expired: Boolean(devis.expired),
+            extendable: Boolean(devis.extendable),
+            converted: devis.status === 'converted',
+          });
           frozenOptionUnitByQuantityRef.current = frozenUnitPrices(devis.options, 'optionId');
           frozenResourceUnitByQuantityRef.current = frozenUnitPrices(devis.resources, 'resourceId');
           initialPricingContextRef.current = {
@@ -3028,25 +3036,48 @@ export default function ReservationPage() {
   // Which promise this quote still carries (specs/devis-extras-parity-and-price-lock.md §3 rule 16).
   // Both the date and the expiry verdict come from the server; the fiche only picks the wording — a
   // terser one on xs, where the bar shares its row with the language toggle and the action buttons.
-  const devisValidityChip = (editingDevisId && devisValidity.validUntil)
-    ? (devisValidity.expired
-      ? (
-        <Chip
-          size="small"
-          color="warning"
-          variant="outlined"
-          label={downSm ? 'Périmé' : 'Devis périmé — tarifs actualisés'}
-        />
-      )
-      : (
-        <Chip
-          size="small"
-          color="info"
-          variant="outlined"
-          label={`${downSm ? 'Valide' : 'Valide jusqu\'au'} ${displayDate(devisValidity.validUntil)}`}
-        />
-      ))
-    : null;
+  // specs/ui-review-2026-10-19-operations.md rule 20 — « prolonger » announces the new price and the
+  // new schedule (the server's preview) before re-issuing the quote, then reloads the fiche from it.
+  const handleExtendDevis = async () => {
+    let preview;
+    try {
+      preview = await api.getDevisExtension(editingDevisId);
+    } catch (e) {
+      showError(e.message || 'Prolongation impossible.');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Prolonger le devis',
+      message: <DevisExtensionSummary preview={preview} unsavedChanges={isDirty} />,
+      confirmLabel: 'Prolonger',
+      confirmColor: 'primary',
+    });
+    if (!ok) return;
+    try {
+      const devis = await api.extendDevis(editingDevisId);
+      setDevisValidity({
+        validUntil: devis.validUntil || null,
+        expired: Boolean(devis.expired),
+        extendable: Boolean(devis.extendable),
+        converted: devis.status === 'converted',
+      });
+      setReloadToken((token) => token + 1);
+      showSuccess(`Devis prolongé jusqu'au ${displayDate(devis.validUntil)}.`);
+    } catch (e) {
+      showError(e.message || 'Prolongation impossible.');
+    }
+  };
+
+  const devisValidityChip = (editingDevisId && devisValidity.validUntil && !devisValidity.converted) ? (
+    <DevisValidityChip
+      validUntil={devisValidity.validUntil}
+      expired={devisValidity.expired}
+      extendable={devisValidity.extendable}
+      converted={devisValidity.converted}
+      compact={downSm}
+      onExtend={handleExtendDevis}
+    />
+  ) : null;
 
   // specs/mid-stay-notes.md §3.5 rule 17 — « Nouvelle note » en TÊTE de barre : c'est l'action la
   // plus fréquente d'un séjour en cours (le client prend une consommation au comptoir), et le bloc
@@ -3215,8 +3246,46 @@ export default function ReservationPage() {
     },
   };
 
+  // « Prénom Nom · N° 6646665983 · 07/08 → 13/08 » — the bar's identity line below lg (rule 12).
+  const stayIdentity = [
+    `${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim(),
+    form.reservationNumber ? `N° ${form.reservationNumber}` : '',
+    form.startDate && form.endDate ? `${displayDate(form.startDate).slice(0, 5)} → ${displayDate(form.endDate).slice(0, 5)}` : '',
+  ].filter(Boolean).join(' · ') || null;
+
+  const pricingSummary = (
+    <PricingSummary
+      quote={pricingQuote}
+      form={form}
+      nightlyBreakdown={nightlyBreakdown}
+      offeredOptionIds={offeredOptionIds}
+      propertyOptions={propertyOptions}
+      availableResources={[...availableResources, ...frozenResources]}
+      isIcalSource={isIcalSource}
+      selectedProperty={selectedProperty}
+      parsedTotalPrice={parsedTotalPrice}
+      accommodationDiscountedPriceDisplay={accommodationDiscountedPriceDisplay}
+      onToggleExtraGuestOffered={(next) => updateForm({ extraGuestSurchargeOffered: next })}
+      onToggleOptionOffered={(optionId, next) => {
+        const updated = new Set(offeredOptionIds);
+        if (next) updated.add(optionId);
+        else updated.delete(optionId);
+        setOfferedOptionIds(updated);
+      }}
+      onToggleCustomOptionOffered={(customKey, next) => updateCustomOption(customKey, { offered: next })}
+      onToggleResourceOffered={(resourceId, next) => setResourceOffered(resourceId, next)}
+      onToggleOptionInComplement={setOptionInComplementFromSummary}
+      onToggleCustomOptionInComplement={setCustomOptionInComplementFromSummary}
+      onToggleResourceInComplement={setResourceInComplement}
+      onToggleTouristTaxInComplement={(next) => setForm((prev) => ({ ...prev, touristTaxInComplement: Boolean(next) }))}
+      isTouristTaxFrozen={isTouristTaxFrozen}
+      onRefreshTouristTax={() => setTouristTaxRefreshRequested(true)}
+    />
+  );
+
   return (
-    <Box sx={{ pb: 4 }}>
+    // Below lg the sticky total bar closes the page, flush with the bottom of the screen.
+    <Box sx={{ pb: { xs: 0, lg: 4 } }}>
       <PageActionBar
         title={computedTitle}
         onBack={goBackToOrigin}
@@ -3235,6 +3304,9 @@ export default function ReservationPage() {
         // specs/review-2026-10-18-reservations.md rule 6 — at tablet width the centred client name
         // overlapped the title: it shows from lg only.
         centerFrom="lg"
+        // specs/ui-review-2026-10-19-operations.md rule 12 — below lg, whose reservation is open.
+        identity={stayIdentity}
+        identityBelow="lg"
         center={(selectedClient || form.reservationNumber) ? (
           <>
             <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2, maxWidth: 340, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -3461,33 +3533,7 @@ export default function ReservationPage() {
         </Box>
 
         {/* Panneau latéral droit : Résumé des prix */}
-        <PricingSummary
-          quote={pricingQuote}
-          form={form}
-          nightlyBreakdown={nightlyBreakdown}
-          offeredOptionIds={offeredOptionIds}
-          propertyOptions={propertyOptions}
-          availableResources={[...availableResources, ...frozenResources]}
-          isIcalSource={isIcalSource}
-          selectedProperty={selectedProperty}
-          parsedTotalPrice={parsedTotalPrice}
-          accommodationDiscountedPriceDisplay={accommodationDiscountedPriceDisplay}
-          onToggleExtraGuestOffered={(next) => updateForm({ extraGuestSurchargeOffered: next })}
-          onToggleOptionOffered={(optionId, next) => {
-            const updated = new Set(offeredOptionIds);
-            if (next) updated.add(optionId);
-            else updated.delete(optionId);
-            setOfferedOptionIds(updated);
-          }}
-          onToggleCustomOptionOffered={(customKey, next) => updateCustomOption(customKey, { offered: next })}
-          onToggleResourceOffered={(resourceId, next) => setResourceOffered(resourceId, next)}
-          onToggleOptionInComplement={setOptionInComplementFromSummary}
-          onToggleCustomOptionInComplement={setCustomOptionInComplementFromSummary}
-          onToggleResourceInComplement={setResourceInComplement}
-          onToggleTouristTaxInComplement={(next) => setForm((prev) => ({ ...prev, touristTaxInComplement: Boolean(next) }))}
-          isTouristTaxFrozen={isTouristTaxFrozen}
-          onRefreshTouristTax={() => setTouristTaxRefreshRequested(true)}
-        />
+        {pricingSummary}
 
         {editingReservationId && (
           <Box sx={{ gridColumn: { xs: '1 / -1', md: '1 / 2' } }}>
@@ -3500,6 +3546,23 @@ export default function ReservationPage() {
           </Box>
         )}
       </Box>
+
+      {/* specs/ui-review-2026-10-19-operations.md rules 10-11 — below lg the server's headline figure
+          stays on screen and opens the full summary in a sheet (decision 6: « Vous percevez » for a
+          platform stay). */}
+      {pricingQuote?.headline && (
+        <StickyTotalBar
+          label={pricingQuote.headline.label}
+          amount={pricingQuote.headline.amount}
+          secondary={pricingQuote.headline.secondary}
+          sheetTitle="Résumé tarifaire"
+          showBelow="lg"
+          // The page padding of the app's main area (App.jsx): flush with the screen's edges and bottom.
+          bleed={{ x: { xs: 1.5, sm: 2, md: 3 }, bottom: { xs: 2, md: 3 } }}
+        >
+          {pricingSummary}
+        </StickyTotalBar>
+      )}
 
       {/* Client create / edit dialog (shared fields, mode-driven) */}
       <FormDialog

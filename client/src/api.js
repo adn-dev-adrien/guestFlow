@@ -445,6 +445,9 @@ const api = {
   createDevis: (data) => request('/devis', { method: 'POST', body: data }),
   updateDevis: (id, data) => request(`/devis/${id}`, { method: 'PUT', body: data }),
   updateDevisStatus: (id, status) => request(`/devis/${id}/status`, { method: 'PATCH', body: { status } }),
+  // specs/ui-review-2026-10-19-operations.md rule 20 — what « prolonger » would change, then do it.
+  getDevisExtension: (id) => request(`/devis/${id}/extension`),
+  extendDevis: (id) => request(`/devis/${id}/extend`, { method: 'POST' }),
   deleteDevis: (id) => request(`/devis/${id}`, { method: 'DELETE' }),
   convertDevisToReservation: (id) => request(`/devis/${id}/convert-to-reservation`, { method: 'POST' }),
   createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),

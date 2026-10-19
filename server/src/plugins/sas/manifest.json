@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -24,6 +24,11 @@
     ],
     "1.0.3": [
       "Message des modifications non enregistrées sans « vous »."
+    ],
+    "1.0.4": [
+      "Réponse principale en bas de l’écran, sous le pouce ; « Reporter au départ » en bouton neutre.",
+      "Compteur « 3 sur 9 » qui ne grandit plus quand une prestation est ajoutée.",
+      "« Rien à percevoir » quand le récapitulatif n’a rien à encaisser."
     ]
   }
 }

@@ -15,6 +15,7 @@ const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
 const { isDirectChannel } = require('./platformNameFormat');
+const { quoteHeadline } = require('./quoteHeadline');
 const { portionCap, clampPortions } = require('./mealPortions');
 const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
@@ -2612,7 +2613,7 @@ function calculateReservationQuote({
   // min-nights fields and enforced by the controller with the same force-override pattern.
   const changeover = checkChangeover(rules, startDate, endDate);
 
-  return {
+  const quote = {
     property,
     nights,
     nightlyBreakdown,
@@ -2774,6 +2775,9 @@ function calculateReservationQuote({
     totalNetPrice,
     totalVatAmount,
   };
+  // specs/ui-review-2026-10-19-operations.md rule 10 — the figure the fiche's total bar leads with.
+  quote.headline = quoteHeadline(quote, { isPlatform: !isDirectChannel(platform) });
+  return quote;
 }
 
 module.exports = {

@@ -57,7 +57,7 @@ test('arrival recap: offering a linen element drops it from the total and rides 
   clickBtn('Offrir');
   // The line keeps its real price on screen (struck through); the total drops to 0.
   expect(screen.getByText(/Taie d'oreiller : 5,00 €/)).toBeInTheDocument();
-  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument();
+  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
   expect(screen.getByRole('button', { name: '✓ Offert' })).toBeInTheDocument();
 
   clickBtn('Valider et terminer');
@@ -82,7 +82,8 @@ test('arrival recap: offering a pre-existing extra sends its ref in offeredExtra
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByText(/Total : 20,00 €/)).toBeInTheDocument();
   clickBtn('Offrir');
-  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument();
+  // A stored complement was owed before this run: the server's flag keeps the badge away, the total reads 0.
+  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
   // Nothing left to collect → the settlement buttons disappear (§3.3 rule 11).
   expect(screen.queryByRole('button', { name: 'CB / Chèque' })).toBeNull();
 
@@ -111,7 +112,7 @@ test('arrival recap reopen: a line offered at the previous commit comes back « 
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByRole('button', { name: '✓ Offert' })).toBeInTheDocument();
   expect(screen.getByText(/Panier gourmand : 20,00 €/)).toBeInTheDocument(); // real price still shown
-  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument();
+  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
   // Undoing the gesture bills it again.
   clickBtn('✓ Offert');
   expect(screen.getByText(/Total : 20,00 €/)).toBeInTheDocument();

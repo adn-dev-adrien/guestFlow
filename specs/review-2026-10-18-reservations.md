@@ -53,6 +53,9 @@ The reservation screens say what they mean, on a phone, a tablet and a desktop.
    before, the lower engine price was struck above it and read as a discount.
 3. **The SAS counts steps without a total (F11).** The SAS header reads « Étape N ». An accepted upsell
    opens its own pages, so a total turned « 9/10 » into « 9/12 » and read as going backwards.
+   **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rule 3): the header reads « N sur M »
+   again, M counting the questions — a page an answer opens keeps its question's number, so M never
+   grows.
 4. **Impersonal texts (F12).** « Adresse en une ligne : n° rue CP ville » (client form), « Par défaut
    toute la tablée. » (served persons of a meal), « Identifiants Qonto manquants (Réglages ›
    Paiements). » (Qonto authorisation without credentials).

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opérations : SAS, devis, fiche</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6a665b; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --ok:#356f49; --ok-bg:#e6efe7; --warn:#80601a; --warn-bg:#f6edd7; --err:#a8433a; --tonal:#efece5;
+  --ochre:#8f6a1d; --shadow:0 1px 2px rgba(39,37,31,.06),0 8px 24px -12px rgba(39,37,31,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817; --err:#e08a80; --tonal:#2a322e;
+    --ochre:#a07a2a; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817; --err:#e08a80; --tonal:#2a322e;
+  --ochre:#a07a2a; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+::selection{background:var(--sapin);color:var(--card)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:960px;margin:0 auto;padding:28px 16px 72px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;text-wrap:balance}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px;color:var(--sapin);letter-spacing:-.01em}
+h2{font-size:20px;margin:40px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px;color:var(--sapin)}
+h3{font-size:16px;margin:0 0 6px}
+p,li{max-width:72ch}
+.sub{color:var(--muted);margin:0 0 20px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--hover);padding:1px 5px;border-radius:4px}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 8px 8px 0}
+.seg button{border:0;background:var(--card);color:var(--ink);padding:8px 12px;min-height:40px;font:inherit;font-size:13px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--card)}
+.stage{background:var(--hover);border-radius:14px;padding:16px;display:flex;justify-content:center;overflow:hidden}
+.phone{width:min(390px,100%);background:var(--card);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;position:relative}
+.wide{width:100%;background:var(--card);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.small{font-size:12.5px;color:var(--muted)}
+.ib{width:44px;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer;font-size:18px;display:inline-grid;place-items:center}
+.menu{position:absolute;right:8px;margin-top:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:210px;z-index:5;padding:4px 0}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);padding:11px 14px;font:inherit;cursor:pointer}
+.menu button:hover{background:var(--hover)}
+.menu .danger{color:var(--err)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:10px;border-top:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:13px}
+.chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;background:var(--hover);color:var(--ink)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+/* fiche */
+.fiche{height:520px;overflow:auto;position:relative}
+.fiche .bar{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);padding:8px 12px;z-index:2}
+.fiche .bar .row{display:flex;gap:8px;justify-content:flex-end}
+.fiche .bar .id{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:6px}
+.fiche .bar .id b{color:var(--ink)}
+.panel{margin:12px;padding:12px;border:1px solid var(--line);border-radius:12px}
+.opt{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.sw{width:46px;height:28px;border-radius:14px;border:0;background:var(--line);position:relative;cursor:pointer}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.sw[aria-checked="true"]{background:var(--sapin)}
+.sw[aria-checked="true"]::after{transform:translateX(18px)}
+.totbar{position:sticky;bottom:0;width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--card) 86%,transparent);-webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.kl{font-size:12px;color:var(--muted);display:block}
+.big{font-size:19px;font-weight:700}
+.fade{animation:fade .22s ease-out}
+@keyframes fade{from{opacity:.25}to{opacity:1}}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.18);padding:8px 16px 20px;z-index:6;transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.sheet.open{transform:none}
+.grab{display:block;margin:4px auto 10px;width:44px;height:5px;border-radius:3px;background:var(--line);border:0;cursor:pointer}
+.r{display:flex;justify-content:space-between;padding:4px 0}
+/* sas */
+.sas-head{background:var(--ochre);color:#fff;padding:12px 14px}
+.sas-head .t{font:600 15px Georgia,serif;letter-spacing:.04em;text-transform:uppercase}
+.prog{height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin-top:10px;overflow:hidden}
+.prog i{display:block;height:100%;background:#fff;transition:width .3s cubic-bezier(.2,.8,.2,1)}
+.sas-body{padding:22px 16px;min-height:170px}
+.sas-foot{padding:12px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.b{min-height:50px;border-radius:12px;border:0;font:600 16px -apple-system,sans-serif;cursor:pointer}
+.b.fill{background:var(--sapin);color:#fff}
+.b.tonal{background:var(--tonal);color:var(--ink)}
+.b.out{background:var(--card);color:var(--sapin);border:1px solid var(--sapin)}
+@media (prefers-reduced-motion: reduce){.fade{animation:none}.sheet,.prog i,.sw::after{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Opérations : SAS, devis, fiche, calendrier, PDF</h1>
+<p class="sub">Spec <code>specs/ui-review-2026-10-19-operations.md</code> · revue UI/UX du 18/10, arbitrée le 19/10 · propositions 6, 7, 17, 21, 22 et arbitrages 5, 6, 7.</p>
+
+<h2>En bref</h2>
+<div class="grid2">
+  <div class="box"><h3>Constat</h3>
+    <ul>
+      <li>SAS : « Reporté » rouge à texte noir (3,5:1), la réponse fréquente loin du pouce, « Étape 3 » sans total, « Total : 0,00 € ».</li>
+      <li>Devis : « 1 117,40 € » sur trois lignes, colonne Actions coupée, « Gite10/05/2027 ».</li>
+      <li>Fiche à 390 px : 6 100 px de haut, le total tout en bas, aucun nom dans la barre.</li>
+      <li>Calendrier : une fermeture prend une ligne par semaine, blanc sur jaune, « L… ».</li>
+      <li>PDF : bandeau marine, total en page 2, « (expiré) » envoyé au client.</li>
+    </ul></div>
+  <div class="box"><h3>Ce qu'on fait</h3>
+    <ul>
+      <li>Les maquettes validées de la revue, plus les trois points ci-dessous qui s'en écartent.</li>
+      <li>Chiffre de la barre, montant des devis, origine : fournis par le serveur.</li>
+      <li>PDF : vert sapin, serif embarquée, offerts regroupés, total en page 1.</li>
+    </ul></div>
+  <div class="box"><h3>Ce qu'on ne fait pas</h3>
+    <ul>
+      <li>Le registre d'états des paiements (arbitrage 8) : une autre spec.</li>
+      <li>« Reste à percevoir » dans la barre : il appartient à ce registre.</li>
+      <li>Le chiffre héros et la cascade du résumé tarifaire (non retenus).</li>
+    </ul></div>
+  <div class="box"><h3>Risque</h3>
+    <ul>
+      <li>L'ordre des boutons du SAS s'inverse : un temps d'habitude pour l'accueil, à dire dans la note de version.</li>
+      <li>Le PDF est un document contractuel : les montants ne bougent pas, des tests le prouvent.</li>
+    </ul></div>
+</div>
+
+<h2>Arbitrage 7 · le bouton PDF des devis</h2>
+<p>Visible à côté de « ⋯ » sur grand écran, rangé dans « ⋯ » sur téléphone. Essayer : changer de largeur, ouvrir « ⋯ », Supprimer.</p>
+<div class="seg" data-k="dw"><button data-v="390" aria-pressed="true">390</button><button data-v="1280" aria-pressed="false">1280</button></div>
+<div class="stage" id="devis"></div>
+
+<h2>Arbitrage 6 · la barre d'une réservation plateforme</h2>
+<p>Le serveur désigne le chiffre principal : « Vous percevez » pour une plateforme, « Total du séjour » en direct. Essayer : activer une option, toucher la barre, changer de canal.</p>
+<div class="seg" data-k="canal"><button data-v="plat" aria-pressed="true">Plateforme</button><button data-v="direct" aria-pressed="false">Direct</button></div>
+<div class="stage"><div class="phone" id="fiche"></div></div>
+
+<h2>« 3 sur 9 » qui ne recule jamais</h2>
+<p>Le total compte les questions. Une page ouverte par une réponse garde le numéro de sa question : accepter le petit déjeuner n'allonge pas le compte. L'action principale est en bas, reporter est neutre.</p>
+<div class="stage"><div class="phone" id="sas"></div></div>
+
+<h2>Arbitrages en attente</h2>
+<p>Aucun. Les détails non tranchés ont pris la recommandation de la revue.</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function eur(n) { return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var state = { dw: '390', canal: 'plat', menu: null, confirm: null, removed: {} };
+  document.querySelectorAll('.seg').forEach(function (seg) {
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      seg.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      state[seg.dataset.k] = b.dataset.v; state.menu = null; state.confirm = null;
+      renderDevis(); renderFiche();
+    });
+  });
+
+  // ---- devis
+  var ROWS = [
+    { n: '2026-09-007', s: 'Converti', c: 'Repro Breakfast', p: 'Gite', a: '10/05/2027', d: '13/05/2027', m: 355.2 },
+    { n: '2026-08-002', s: 'Brouillon', c: 'Aleksandra-Marie Wiśniewska-Kowalczyk de La Tour d\'Auvergne', p: 'Aventura lodge', a: '04/09/2026', d: '06/09/2026', m: 11117.4 },
+  ];
+  function menu(r, phone) {
+    var h = '<span style="position:relative;display:inline-flex;gap:8px">';
+    if (!phone) h += '<button class="ib" aria-label="Télécharger le PDF du devis ' + r.n + '" title="Télécharger le PDF">⤓</button>';
+    h += '<button class="ib" data-menu="' + r.n + '" aria-haspopup="menu" aria-expanded="' + (state.menu === r.n) + '" aria-label="Actions du devis ' + r.n + '">⋯</button>';
+    if (state.menu === r.n) {
+      h += '<div class="menu" role="menu" style="top:44px"><button role="menuitem">Modifier</button>' + (phone ? '<button role="menuitem">Télécharger le PDF</button>' : '') + (r.s !== 'Converti' ? '<button role="menuitem">Confirmer en réservation</button>' : '') + '<button role="menuitem" class="danger" data-del="' + r.n + '">Supprimer…</button></div>';
+    }
+    if (state.confirm === r.n) h += '<div class="menu" role="alertdialog" style="top:44px;padding:12px"><b>Supprimer le devis ' + r.n + ' ?</b><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="b tonal" style="min-height:40px;padding:0 12px" data-cancel="1">Annuler</button><button class="b out" style="min-height:40px;padding:0 12px;color:var(--err);border-color:var(--err)" data-ok="' + r.n + '">Supprimer</button></div></div>';
+    return h + '</span>';
+  }
+  function renderDevis() {
+    var host = document.getElementById('devis'); var phone = state.dw === '390';
+    var rows = ROWS.filter(function (r) { return !state.removed[r.n]; });
+    var h;
+    if (phone) {
+      h = '<div class="phone" style="padding:12px;display:grid;gap:10px">';
+      rows.forEach(function (r) { h += '<div class="box"><div style="display:flex;justify-content:space-between;gap:8px"><code>' + r.n + '</code><span class="chip">' + r.s + '</span></div><div style="font-weight:600;margin-top:6px;overflow-wrap:anywhere">' + esc(r.c) + '</div><div class="small">' + r.p + ' · ' + r.a + ' → ' + r.d + '</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><b class="num" style="font-size:17px">' + eur(r.m) + '</b>' + menu(r, true) + '</div></div>'; });
+      if (!rows.length) h += '<p class="small">Aucun devis trouvé.</p>';
+      h += '</div>';
+    } else {
+      h = '<div class="wide"><table><thead><tr><th>N° devis</th><th>Statut</th><th>Client</th><th>Séjour</th><th style="text-align:right">Montant TTC</th><th style="width:110px"></th></tr></thead><tbody>';
+      rows.forEach(function (r) { h += '<tr><td><code>' + r.n + '</code></td><td><span class="chip">' + r.s + '</span></td><td style="max-width:240px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.c) + '</div></td><td style="white-space:nowrap">' + r.p + '<br><span class="small">' + r.a + ' → ' + r.d + '</span></td><td class="num" style="text-align:right;font-weight:600">' + eur(r.m) + '</td><td style="text-align:right">' + menu(r, false) + '</td></tr>'; });
+      h += '</tbody></table></div>';
+    }
+    host.innerHTML = h;
+  }
+  document.getElementById('devis').addEventListener('click', function (e) {
+    var m = e.target.closest('[data-menu]'), d = e.target.closest('[data-del]'), ok = e.target.closest('[data-ok]'), c = e.target.closest('[data-cancel]');
+    if (m) { state.menu = state.menu === m.dataset.menu ? null : m.dataset.menu; state.confirm = null; }
+    else if (d) { state.confirm = d.dataset.del; state.menu = null; }
+    else if (ok) { state.removed[ok.dataset.ok] = true; state.confirm = null; }
+    else if (c) { state.confirm = null; }
+    else { state.menu = null; }
+    renderDevis();
+  });
+
+  // ---- fiche: the figures stand in for the server's `headline`
+  var OPTS = [{ id: 'linge', n: 'Linge de lit', v: 28, on: true }, { id: 'menage', n: 'Ménage', v: 30, on: false }, { id: 'pdj', n: 'Petit déjeuner', v: 240, on: false }];
+  var sheetOpen = false;
+  function headline() {
+    var opt = OPTS.reduce(function (s, o) { return s + (o.on ? o.v : 0); }, 0);
+    var gross = 959.39 + opt;
+    if (state.canal === 'plat') { var net = Math.round(gross * 0.84 * 100) / 100; return { label: 'Vous percevez', amount: net, secondary: { label: 'Total du séjour', amount: gross } }; }
+    return { label: 'Total du séjour', amount: gross, secondary: null };
+  }
+  function renderFiche() {
+    var host = document.getElementById('fiche'); var h = headline();
+    var html = '<div class="fiche"><div class="bar"><div class="row"><button class="ib" aria-label="Retour">←</button><span style="flex:1"></span><button class="ib" aria-label="Enregistrer" style="background:var(--sapin);color:#fff;border-color:var(--sapin)">✓</button><button class="ib" aria-label="Annuler">✕</button></div><div class="id"><b>Vittoria Guernier</b> · N° 6646665983 · 07/08 → 13/08</div></div>';
+    html += '<div class="panel"><h3>Options</h3>' + OPTS.map(function (o) { return '<div class="opt"><span>' + o.n + ' <span class="small num">' + eur(o.v) + '</span></span><button class="sw" role="switch" aria-checked="' + o.on + '" aria-label="' + o.n + '" data-opt="' + o.id + '"></button></div>'; }).join('') + '</div>';
+    html += '<div class="panel"><h3>Finance</h3><p class="small">Paiement plateforme, acompte, solde, caution…</p><div style="height:260px"></div></div>';
+    html += '<button class="totbar" data-open="1" aria-label="Ouvrir le résumé tarifaire"><span><span class="kl">' + h.label + '</span><b class="big num fade">' + eur(h.amount) + '</b></span>' + (h.secondary ? '<span style="text-align:right;font-size:13px;color:var(--muted)">' + h.secondary.label + '<br><b class="num" style="color:var(--ink)">' + eur(h.secondary.amount) + '</b> ›</span>' : '<span aria-hidden="true">›</span>') + '</button></div>';
+    html += '<div class="sheet' + (sheetOpen ? ' open' : '') + '" role="dialog" aria-label="Résumé tarifaire"><button class="grab" data-close="1" aria-label="Fermer le résumé"></button><h3>Résumé tarifaire</h3><div class="r"><span>Hébergement</span><span class="num">' + eur(959.39) + '</span></div>' + OPTS.filter(function (o) { return o.on; }).map(function (o) { return '<div class="r"><span>' + o.n + '</span><span class="num">' + eur(o.v) + '</span></div>'; }).join('') + '<div class="r" style="border-top:1px solid var(--line);font-weight:700"><span>' + h.label + '</span><span class="num">' + eur(h.amount) + '</span></div></div>';
+    host.innerHTML = html;
+  }
+  document.getElementById('fiche').addEventListener('click', function (e) {
+    var sw = e.target.closest('[data-opt]');
+    if (sw) { OPTS.forEach(function (o) { if (o.id === sw.dataset.opt) o.on = !o.on; }); }
+    else if (e.target.closest('[data-open]')) sheetOpen = true;
+    else if (e.target.closest('[data-close]')) sheetOpen = false;
+    else return;
+    var scroll = document.querySelector('#fiche .fiche'); var top = scroll ? scroll.scrollTop : 0;
+    renderFiche(); document.querySelector('#fiche .fiche').scrollTop = top;
+  });
+
+  // ---- sas: questions numbered, opened pages keep their question's number
+  var Q = ['Arrivée', 'Portail', 'Caution', 'Prestations', 'Ménage', 'Linge de toilette', 'Petit déjeuner', 'Restauration', 'Récapitulatif'];
+  var sas = { q: 6, sub: 0, pdj: null };
+  function renderSas() {
+    var host = document.getElementById('sas'); var total = Q.length; var n = sas.q + 1;
+    var title = sas.sub ? (sas.sub === 1 ? 'Petit déjeuner · matins' : 'Petit déjeuner · composition') : Q[sas.q];
+    var body, foot;
+    if (Q[sas.q] === 'Caution') { body = '<p style="font-size:17px">Caution à percevoir : <b class="num">500,00 €</b></p>'; foot = '<button class="b tonal" data-a="next">Reporter au départ</button><button class="b fill" data-a="next">Caution perçue</button>'; }
+    else if (Q[sas.q] === 'Petit déjeuner' && !sas.sub) { body = '<p style="font-size:17px;font-weight:600">Petit déjeuner</p><p class="num" style="font-size:20px;font-weight:700">8,00 € par matin</p><p class="small">Non réservé. À proposer.</p>'; foot = '<button class="b out" data-a="pdj">Ajouter le petit déjeuner</button><button class="b fill" data-a="next">Non merci</button>'; }
+    else if (sas.sub) { body = '<p style="font-size:16px">' + (sas.sub === 1 ? 'Quels matins ?' : 'Combien de cafés, thés, chocolats ?') + '</p>'; foot = '<button class="b fill" data-a="subnext">Suivant</button>'; }
+    else if (Q[sas.q] === 'Récapitulatif') { body = sas.pdj ? '<div class="r"><span>Petit déjeuner</span><span class="num">16,00 €</span></div><div class="r" style="font-weight:700;border-top:1px solid var(--line)"><span>Total</span><span class="num">16,00 €</span></div>' : '<span class="chip ok" style="font-size:14px">✓ Rien à percevoir</span>'; foot = '<button class="b fill" data-a="reset">Valider et terminer</button>'; }
+    else { body = '<p style="font-size:16px">' + Q[sas.q] + '</p>'; foot = '<button class="b fill" data-a="next">' + (sas.q === 0 ? 'Commencer' : 'Suivant') + '</button>'; }
+    host.innerHTML = '<div class="sas-head"><div style="display:flex;align-items:center;gap:8px">' + (sas.q > 0 || sas.sub ? '<button data-a="back" aria-label="Précédent" style="border:0;background:none;color:#fff;font-size:20px;width:40px;height:40px;cursor:pointer">←</button>' : '') + '<div style="flex:1"><div class="t">' + title + '</div><div style="font-size:12px;opacity:.9">Jo Ng · Gite</div></div></div><div class="prog"><i style="width:' + (n / total * 100) + '%"></i></div><div style="font-size:12.5px;margin-top:6px;font-weight:600">' + n + ' sur ' + total + '</div></div><div class="sas-body">' + body + '</div><div class="sas-foot">' + foot + '</div>';
+  }
+  document.getElementById('sas').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-a]'); if (!b) return; var a = b.dataset.a;
+    if (a === 'next') { sas.sub = 0; sas.q = Math.min(Q.length - 1, sas.q + 1); }
+    else if (a === 'pdj') { sas.pdj = true; sas.sub = 1; }
+    else if (a === 'subnext') { if (sas.sub === 1) sas.sub = 2; else { sas.sub = 0; sas.q += 1; } }
+    else if (a === 'back') { if (sas.sub) sas.sub -= 1; else sas.q = Math.max(0, sas.q - 1); }
+    else if (a === 'reset') { sas = { q: 0, sub: 0, pdj: null }; }
+    renderSas();
+  });
+  renderDevis(); renderFiche(); renderSas();
+  if (reduce) document.documentElement.classList.add('reduce');
+})();
+</script>
+</body>
+</html>

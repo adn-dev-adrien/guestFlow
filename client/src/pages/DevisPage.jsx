@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Stack, FormControl, InputLabel, Select, MenuItem,
-  IconButton, Tooltip, TableRow, TableCell,
+  Tooltip, TableRow, TableCell,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -12,6 +12,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import LanguageIcon from '@mui/icons-material/Language';
 import DataPageScaffold from '../components/DataPageScaffold';
 import OriginBadge from '../components/OriginBadge';
+import RowActionsMenu from '../components/RowActionsMenu';
 import StatusBadge from '../components/StatusBadge';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
@@ -34,12 +35,8 @@ const STATUS_BADGE = {
   converted: 'success',
 };
 
-const TABULAR = { fontVariantNumeric: 'tabular-nums' };
-
-// Devis total the guest owes = accommodation (finalPrice) + tourist tax, both server-computed.
-function devisTotalTtc(d) {
-  return Number(d.finalPrice || 0) + Number(d.touristTaxTotal || 0);
-}
+// specs/ui-review-2026-10-19-operations.md rule 5 — an amount never wraps, in tabular figures.
+const AMOUNT = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 
 export default function DevisPage() {
   const navigate = useNavigate();
@@ -118,6 +115,16 @@ export default function DevisPage() {
   };
 
   const handleOpenPdf = async (devis) => {
+    // specs/ui-review-2026-10-19-operations.md rule 21 — a stale quote's PDF carries a validity date
+    // already past: confirm before it leaves.
+    if (devis.expired) {
+      const ok = await confirm({
+        title: 'Devis périmé',
+        message: `Le devis ${devis.devisNumber} n'est plus valable : son PDF porte une date de validité passée. Le prolonger depuis sa fiche le re-date aux tarifs actuels.`,
+        confirmLabel: 'Télécharger quand même',
+      });
+      if (!ok) return;
+    }
     try {
       const blob = await api.getDevisPdfBlob(devis.id);
       const fileUrl = window.URL.createObjectURL(blob);
@@ -146,22 +153,26 @@ export default function DevisPage() {
     </Stack>
   );
 
+  // specs/ui-review-2026-10-19-operations.md rules 6-7 — one « ⋯ » menu; the PDF stays a visible icon
+  // from md (decision 7) and moves into the menu on a phone.
   const rowActions = (d) => (
-    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'center' }}>
-      <Tooltip title="Modifier">
-        <IconButton size="small" onClick={() => handleEditDevis(d)}><EditIcon fontSize="small" /></IconButton>
-      </Tooltip>
-      <Tooltip title="Télécharger le PDF">
-        <IconButton size="small" onClick={() => handleOpenPdf(d)}><DownloadIcon fontSize="small" /></IconButton>
-      </Tooltip>
-      {d.status !== 'converted' && (
-        <Tooltip title="Confirmer en réservation">
-          <IconButton size="small" onClick={() => handleConvert(d)}><CheckCircleIcon fontSize="small" /></IconButton>
-        </Tooltip>
-      )}
-      <Tooltip title="Supprimer">
-        <IconButton size="small" color="error" onClick={() => handleDelete(d)}><DeleteIcon fontSize="small" /></IconButton>
-      </Tooltip>
+    <RowActionsMenu
+      label={`Actions du devis ${d.devisNumber}`}
+      pinned={[{ label: 'Télécharger le PDF', icon: <DownloadIcon fontSize="small" />, onClick: () => handleOpenPdf(d) }]}
+      pinnedFrom="md"
+      items={[
+        { label: 'Modifier', icon: <EditIcon fontSize="small" />, onClick: () => handleEditDevis(d) },
+        { label: 'Confirmer en réservation', icon: <CheckCircleIcon fontSize="small" />, onClick: () => handleConvert(d), hidden: d.status === 'converted' },
+        { label: 'Supprimer…', icon: <DeleteIcon fontSize="small" />, onClick: () => handleDelete(d), danger: true },
+      ]}
+    />
+  );
+
+  // The quote's status, then « Périmé » when its validity has passed (rule 21 — from the server).
+  const statusCell = (d) => (
+    <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
+      <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
+      {d.expired && <StatusBadge status="warning" label="Périmé" />}
     </Stack>
   );
 
@@ -194,28 +205,29 @@ export default function DevisPage() {
       <TableCell sx={{ fontWeight: 700 }}>N° Devis</TableCell>
       <TableCell sx={{ fontWeight: 700 }}>Statut</TableCell>
       <TableCell sx={{ fontWeight: 700 }}>Client</TableCell>
-      <TableCell sx={{ fontWeight: 700 }}>Logement</TableCell>
-      <TableCell sx={{ fontWeight: 700 }}>Arrivée</TableCell>
-      <TableCell sx={{ fontWeight: 700 }}>Départ</TableCell>
-      <TableCell sx={{ fontWeight: 700 }} align="right">Montant TTC</TableCell>
-      <TableCell sx={{ fontWeight: 700 }} align="center">Actions</TableCell>
+      <TableCell sx={{ fontWeight: 700 }}>Séjour</TableCell>
+      <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} align="right">Montant TTC</TableCell>
+      <TableCell sx={{ width: 104, position: 'relative' }} align="right">
+        <Box component="span" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>Actions</Box>
+      </TableCell>
     </TableRow>
   );
 
   const renderRow = (d) => (
     <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleEditDevis(d)}>
       <TableCell>{devisNumberCell(d)}</TableCell>
-      <TableCell onClick={(e) => e.stopPropagation()}>
-        <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
+      <TableCell onClick={(e) => e.stopPropagation()}>{statusCell(d)}</TableCell>
+      <TableCell>
+        <Typography variant="body2" noWrap sx={{ maxWidth: { md: 180, lg: 220 } }} title={`${d.firstName || ''} ${d.lastName || ''}`.trim()}>{d.firstName} {d.lastName}</Typography>
       </TableCell>
-      <TableCell>{d.firstName} {d.lastName}</TableCell>
-      <TableCell>{d.propertyName || '—'}</TableCell>
-      <TableCell>{displayDate(d.startDate)}</TableCell>
-      <TableCell>{displayDate(d.endDate)}</TableCell>
-      <TableCell align="right" sx={TABULAR}>
-        <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(devisTotalTtc(d))}</Typography>
+      <TableCell>
+        <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>{d.propertyName || '—'}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={AMOUNT}>{displayDate(d.startDate)} → {displayDate(d.endDate)}</Typography>
       </TableCell>
-      <TableCell align="center" onClick={(e) => e.stopPropagation()}>{rowActions(d)}</TableCell>
+      <TableCell align="right" sx={AMOUNT}>
+        <Typography variant="body2" sx={{ fontWeight: 600, ...AMOUNT }}>{formatCurrency(d.totalTtc)}</Typography>
+      </TableCell>
+      <TableCell align="right" sx={{ py: 0.5, whiteSpace: 'nowrap' }}>{rowActions(d)}</TableCell>
     </TableRow>
   );
 
@@ -223,17 +235,17 @@ export default function DevisPage() {
     <Stack spacing={1}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
         <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer', minWidth: 0 }}>{devisNumberCell(d)}</Box>
-        <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
+        {statusCell(d)}
       </Stack>
-      <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer' }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{d.firstName} {d.lastName}</Typography>
-        <Typography variant="caption" color="text.secondary">{d.propertyName || '—'}</Typography>
+      <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer', minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{d.firstName} {d.lastName}</Typography>
+        {/* specs/ui-review-2026-10-19-operations.md rule 8 — one caption, a real separator. */}
         <Typography variant="caption" color="text.secondary" display="block">
-          {displayDate(d.startDate)} → {displayDate(d.endDate)}
+          {d.propertyName || '—'} · <Box component="span" sx={AMOUNT}>{displayDate(d.startDate)} → {displayDate(d.endDate)}</Box>
         </Typography>
       </Box>
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="body1" sx={{ fontWeight: 700, ...TABULAR }}>{formatCurrency(devisTotalTtc(d))}</Typography>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+        <Typography variant="body1" sx={{ fontWeight: 700, ...AMOUNT }}>{formatCurrency(d.totalTtc)}</Typography>
         {rowActions(d)}
       </Stack>
     </Stack>
@@ -249,7 +261,10 @@ export default function DevisPage() {
       loading={loading}
       error={loadError}
       onRetry={load}
-      minWidth={900}
+      minWidth={820}
+      // specs/ui-review-2026-10-19-operations.md rule 8 — at tablet width the table ran 289 px past
+      // its card: cards until lg.
+      cardsBelow="lg"
       head={head}
       emptyText="Aucun devis trouvé."
       items={devisList}

@@ -38,6 +38,10 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    start/end** (same look as reservations); they span `[startDate, endDate)`
    (the model's half-open interval → last occupied day = `endDate − 1`); a closure with no `propertyId`
    is **global** (« Tous les logements »).
+   **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rules 13-14): a closure is no longer
+   a bar — it hatches its days (a band along the bottom for one logement, the whole day for a global
+   one) with one label per week, and a stay bar is a 14 % tint of its platform colour with a 3 px stripe
+   and ink text.
 3. **Grouped by logement.** Within a week the lanes are organised **per logement** (a contiguous band of
    lanes per property: all of one logement's bars, then the next). Global closures take the **top** band.
    Within a band, bars are lane-packed by start (a same-day departure→arrival shares a lane thanks to the
@@ -64,6 +68,9 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    and clamped the scroll to the last month (the « date bizarre » bug, fixed 2026-06-23).
 7. **Legend**: the platforms present, with their colours, plus a grey « Fermeture » entry when closures
    are present. On mobile (agenda list) closures render as grey rows « Fermé — {logement} ».
+   **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rules 13, 15): the legend is folded
+   behind « Légende » and prints display names (« Gîtes de France »); a closure swatch is hatched, and
+   on mobile a closure is a hatched row « {logement} fermé ».
 8. **Today is framed**: today's day cell carries a 2 px primary border (in addition to the bold primary
    day number).
 8bis. **Past stays are greyed (visual only).** A reservation/closure whose last occupied day is before

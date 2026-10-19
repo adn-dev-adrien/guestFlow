@@ -25,7 +25,6 @@ const FR = Object.freeze({
   // ── Meta pills (date / valid until / property) ────────────────────────────
   date:            'Date du devis',
   validUntil:      'Valable jusqu\'au',
-  expiredSuffix:   ' (expiré)',
   property:        'Logement',
 
   // ── Stay block ────────────────────────────────────────────────────────────
@@ -67,6 +66,9 @@ const FR = Object.freeze({
   // ── Option suffixes ───────────────────────────────────────────────────────
   extraHoursSuffix: (label) => `${label} suppl.`,
   offered:          'OFFERT',
+  // specs/ui-review-2026-10-19-operations.md rule 18 — every offered line in one row.
+  offeredGroup:     'OFFERT AVEC LE SÉJOUR',
+  offeredValue:     (amount) => `valeur ${amount}`,
 
   // ── Bank block ────────────────────────────────────────────────────────────
   bankHeading:     'COORDONNÉES BANCAIRES',
@@ -82,6 +84,12 @@ const FR = Object.freeze({
     `${persons} pers. × ${nights} nuit${nights > 1 ? 's' : ''} × ${rate} / pers./nuit`
   ),
   grandTotal:      'TOTAL TTC',
+  // specs/ui-review-2026-10-19-operations.md rule 19 — the page-1 summary block.
+  summaryTotal:    'Total du séjour TTC',
+  summaryDeposit:  'Acompte',
+  summaryBalance:  'Solde',
+  summaryFull:     'Paiement intégral',
+  summaryBefore:   (date) => `avant le ${date}`,
 
   // ── Payment terms ─────────────────────────────────────────────────────────
   paymentHeading:  'MODALITÉS DE RÈGLEMENT',
@@ -117,7 +125,6 @@ const EN = Object.freeze({
   // ── Meta pills ────────────────────────────────────────────────────────────
   date:            'Quote date',
   validUntil:      'Valid until',
-  expiredSuffix:   ' (expired)',
   property:        'Property',
 
   // ── Stay block ────────────────────────────────────────────────────────────
@@ -158,6 +165,8 @@ const EN = Object.freeze({
   // ── Option suffixes ───────────────────────────────────────────────────────
   extraHoursSuffix: (label) => `${label} extra`,
   offered:          'INCLUDED',
+  offeredGroup:     'INCLUDED WITH THE STAY',
+  offeredValue:     (amount) => `worth ${amount}`,
 
   // ── Bank block ────────────────────────────────────────────────────────────
   bankHeading:     'BANK DETAILS',
@@ -173,6 +182,11 @@ const EN = Object.freeze({
     `${persons} guest${persons > 1 ? 's' : ''} × ${nights} night${nights > 1 ? 's' : ''} × ${rate} / guest / night`
   ),
   grandTotal:      'TOTAL incl. VAT',
+  summaryTotal:    'Total for the stay incl. VAT',
+  summaryDeposit:  'Deposit',
+  summaryBalance:  'Balance',
+  summaryFull:     'Full payment',
+  summaryBefore:   (date) => `due by ${date}`,
 
   // ── Payment terms ─────────────────────────────────────────────────────────
   paymentHeading:  'PAYMENT TERMS',

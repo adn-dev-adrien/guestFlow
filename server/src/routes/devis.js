@@ -5,6 +5,8 @@ router.get('/', controller.list);
 router.get('/:id', controller.getOne);
 router.patch('/:id/status', controller.updateStatus);
 router.get('/:id/history', controller.history);
+router.get('/:id/extension', controller.extensionPreview);
+router.post('/:id/extend', controller.extend);
 router.post('/', controller.create);
 router.put('/:id', controller.update);
 router.delete('/:id', controller.remove);
