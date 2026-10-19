@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
-| **Branch** | `docs/payments-ledger-spec` (spec) — implementation branch to be cut once approved |
+| **Status** | Implemented |
+| **Branch** | `docs/payments-ledger-spec` (spec, #718) · `feature/reservation-payment-ledger` (implementation) |
 | **Created** | 2026-10-19 |
 | **Author** | Adrien |
 | **Related PR** | #718 (spec) |
@@ -301,6 +301,17 @@ decimals is rounded and shown rounded.
     recorded, the admin is notified, the link keeps its `providerPaymentId` for the refund — the
     current behaviour.
 
+### 3.6 Nothing to collect
+
+32. **A bucket with nothing to collect is never marked.** An acompte (or a solde, a complement) at
+    0,00 € has no « Marquer perçu »: the acompte row reads « Aucun acompte » (muted, amount 0, no
+    action; still editable when the split allows it, edge case « Solde typed equal to P »). The payment
+    PATCH refuses to mark a bucket whose stored amount is zero and that is not already perceived: 409
+    `NOTHING_TO_COLLECT`, « Rien à percevoir sur cette échéance. », nothing written. A 0 € acompte
+    already stored as perceived (converted devis 22293 and 22296 on the Solio base, before this rule)
+    is displayed as it is, with the warning « Acompte de 0,00 € marqué perçu ». Integrated review of
+    2026-10-19 on the Solio copy.
+
 **Edge cases:**
 
 - Acompte override set, then the platform switched from direct → the engine ignores it as today; the
@@ -312,11 +323,19 @@ decimals is rounded and shown rounded.
 - Cancelled reservation → the ledger is read-only (`cancelledGuard`); the rows keep their states, the
   retained acompte reads « Conservé · indemnité d'annulation »
   ([cancellation-compensation.md](cancellation-compensation.md)).
-- Past reservation, locked → read-only until unlocked
-  ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)).
+- Past reservation, locked → the marks stay available, as the lock banner promises (« les statuts de
+  paiement/caution restent modifiables ») — a platform payout always arrives after the stay. A solde
+  typed while the acompte is perceived (rule 18) changes the accommodation price, which the lock
+  forbids: the editor refuses it (« Séjour commencé : déverrouiller la fiche pour changer le prix de
+  l'hébergement. ») until an admin unlocks the fiche
+  ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)). Decided at implementation
+  (2026-10-19): read-only would have blocked every payout.
 - Reception-only user → the ledger is not sent (finance-stripped view, unchanged).
-- Devis → the ledger shows the planned acompte / solde with their amounts editable (rules 16-18), no
-  « Marquer perçu », no caution rows.
+- Devis → the ledger shows the planned acompte / solde, no « Marquer perçu », no caution rows. The
+  amounts are not editable from the ledger yet: the devis model does not store `depositAmountOverride`
+  (editable-deposit-amount.md kept the devis out of scope), so an edit would be lost at save. The row
+  says why; the price of a devis still moves through « Prix hébergement ajusté ». Follow-up, decided at
+  implementation (2026-10-19).
 - Stored rows that already break the new guards (a caution returned without receipt, a future paid
   date) are displayed as they are, with a `warning` detail (« Restituée sans réception
   enregistrée »); the guards apply to new writes only.
@@ -336,21 +355,23 @@ decimals is rounded and shown rounded.
 | `utils/` | `reservationLedger.js` | C | Pure shaper: `(reservation or live quote, links, refund register, arrival group, today) → { rows, remaining }` (rules 1-7, 24, 28). `remaining` comes from `reservationSettlement.remainingToPay`. |
 | `utils/` | `reservationSettlement.js` | — | Reused as is: `bucketStates`, `remainingToPay` (rule 5). |
 | `utils/` | `ledgerAmountEdit.js` | C | Validates a typed acompte / solde against P, H, T and the paid flags; returns `{ ok, reason }` or `{ ok, effects, formPatch }` (rules 15-21). The solde-to-price solver takes the engine as an injected callback (rule 18). |
-| `utils/` | `arrivalPaymentDate.js` | T | Split the « not in the future » check from the « not before booking » one, so ledger marks use the first only (rule 9). |
-| `utils/` | `paymentRequestService.js` | T | Expose the stale-link retirement so the save can call it (rule 29). |
+| `utils/` | `arrivalPaymentDate.js` | T | `validateCollectionDate` — the « not in the future » half, used by every ledger mark (rule 9); the arrival payment keeps both halves. |
+| `utils/` | `moneyExpression.js` | C | Server twin of the client's arithmetic parser, so « 12,5 », « 100+20 » or « −5 » typed in a row editor are read by the server as typed (rule 21). |
+| `utils/` | `ledgerLinks.js` | C | Which open links an amount change makes stale, whether one was paid meanwhile (fake-provider testable), and the booking of a link paid after its retirement (rules 29-31). |
 | `utils/` | `paymentPollRunner.js` | T | `retryPendingCancellations` books a paid `'amount-changed'` link per rule 31 instead of only notifying. |
-| `utils/` | `pricing.js` | — | Unchanged: the override branches exist; the clamp stays as defence (rules 16-17). |
-| `controllers/` | `reservationsController.js` | T | `getById` adds `ledger`; `calculatePrice` adds `ledger` and answers `ledgerEdit`; `update` re-validates amounts, retires stale links (rules 21, 29-30) and drops the caution columns from the past-locked whitelist (rule 13); `updatePayment` validates dates, `expectedAmountCents`, caution order (rules 9, 11, 12). |
+| `utils/` | `pricing.js` | T | Echoes `autoDepositAmount` (« Montant fixé · calcul auto », rule 16); the override branches and the clamp stay as defence (rules 16-17). |
+| `controllers/` | `reservationsController.js` | T | `getById` adds `ledger`; `calculatePrice` adds `ledger`, feeds `depositDisabled` to the engine like the save does, and answers `ledgerEdit`; `update` (now async) plays the save in a rolled-back transaction when an open link exists, refuses a paid stale link (409), re-validates amounts (400), traces ledger edits, retires stale links (rules 21, 23, 29-30), re-reads the caution columns and drops them from the past-locked whitelist (rule 13); `updatePayment` validates dates, `expectedAmountCents`, caution order, zero buckets, and cascades the caution undo (rules 9, 11, 12, 14, 32); `platformCommission` words the transfer gap (rule 26). |
 | `controllers/` | `refundsController.js` | — | Unchanged; its register feeds the refund rows. |
-| `models/` | `reservationsModel.js` | T | `updateReservation` writes the stored caution columns back instead of the payload's (rule 13); history labels for ledger amount edits (rule 23). |
-| `models/` | `paymentLinksModel.js` | T | `retireForAmountChange(reservationId, type, newAmountCents)` (rule 29). |
+| `models/` | `reservationsModel.js` | — | Unchanged: the controller hands it the stored caution columns (rule 13); the ledger history entries are built by the controller (rule 23). |
+| `models/` | `paymentLinksModel.js` | T | `retireForAmountChange(reservationId, type, newAmountCents)` (rule 29); `markRetiredLinkPaid` accepts the `'amount-changed'` reason (rule 31). |
 | `routes/` | `reservations.js` | — | No new route. |
 | `database.js` | — | — | No schema change (§5). |
 | `tests/` | `reservation-ledger.unit.test.js` | C | Rows, order, states, labels, origins, remaining (rules 1-7, 24, 27-28). |
 | `tests/` | `reservation-ledger-amounts.unit.test.js` | C | Ranges, refusals, split vs price translation, solver, paid rows (rules 15-23). |
 | `tests/` | `reservation-ledger-marks.unit.test.js` | C | Dates, `AMOUNT_CHANGED`, caution order, PUT cannot write caution, undo (rules 8-14). |
 | `tests/` | `reservation-ledger-links.unit.test.js` | C | Link display, retirement on amount change, paid-after-retirement booking (rules 28-31). |
-| `tests/` | `reservation-ledger-parity.unit.test.js` | C | Parity on a neutralised copy of the Solio base (§7). |
+| `tests/` | `reservation-ledger-parity.unit.test.js` | C | Parity on a neutralised copy of the Solio base (§7), `LEDGER_PARITY_DB=<copy>`; a synthetic base otherwise (CI). |
+| `tests/` | `ledgerFixture.js` | C | Shared fixture: in-memory base, one property, the real controller driven like the fiche. |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -359,11 +380,13 @@ decimals is rounded and shown rounded.
 | `components/` | `LedgerList.jsx` | C | Generic: renders server rows (label · amount · status · one action), the inline form slot and the closing total. |
 | `components/` | `LedgerAmountEditor.jsx` | C | Generic: inline amount field (`ArithmeticTextField`) + server refusal or effects + Valider / Annuler. |
 | `components/` | `StatusBadge.jsx` | T | Tones `due`, `late`, `done`, `muted`, `warning` on the Maison soft-bg chips. |
-| `components/` | `reservation/FinanceSection.jsx` | T | Keeps the price block; replaces the Acompte / Solde / Caution / complements / refunds blocks with `LedgerList`; the platform statement fields move into the platform row's editor. |
-| `components/` | `reservation/RefundDialog.jsx` | T | Accepts a prefilled amount (rule 19). |
-| `pages/` | `ReservationPage.jsx` | T | Holds `ledger` from the fiche and the live quote; routes marks through `saveThenRun`; applies `formPatch`; stops sending the caution columns in the save payload. |
-| `api.js` | `api.js` | T | `markPayment` passes `expectedAmountCents`; `calculatePrice` passes `ledgerEdit`. |
-| `__tests__/` | `LedgerList.rendering.test.jsx`, `LedgerAmountEditor.refusals.test.jsx`, `FinanceSection.ledger.test.jsx` | C | One file per subject. |
+| `components/` | `reservation/FinanceSection.jsx` | T | Keeps the price block; replaces the Acompte / Solde / Caution / complements / refunds blocks with `LedgerList`; the complement adjustment, notes history and single-payment detail fold under « Détail »; « Sans acompte » and « Taxe de séjour en complément » sit under the ledger. |
+| `components/` | `reservation/PaymentMarkForm.jsx` | C | Specific: the inline mark form (date, « Caisse interne » on complements, « Virement reçu » + gap + commission button on a payout) (rules 8-9, 26). |
+| `components/` | `reservation/PlatformStatementEditor.jsx` | C | Specific: the statement fields of a payout row, a draft until « Valider » (rule 25). |
+| `components/` | `reservation/RefundDialog.jsx` | — | Unchanged: « Créer le remboursement » opens it in its trop-perçu mode on the gap (rule 19). |
+| `pages/` | `ReservationPage.jsx` | T | Holds `ledger` from the fiche and the live quote; `markFromLedger` saves first when the fiche is dirty or carries a transfer (rule 10); `checkLedgerEdit` re-sends the last quote body with `ledgerEdit`; `applyLedgerPatch` applies `formPatch` and remembers the edit for the history; stops sending the caution columns. |
+| `api.js` | `api.js` | T | `sendPaymentRequestOfType` (« Renvoyer la demande », rule 28); `markPayment` / `calculatePrice` carry `expectedAmountCents` / `ledgerEdit` in their bodies. |
+| `__tests__/` | `LedgerList.rendering.test.jsx`, `LedgerAmountEditor.refusals.test.jsx`, `FinanceSection.ledger.test.jsx` (+ `ledgerFixtures.jsx`) | C | One file per subject; the existing FinanceSection suites were moved onto the ledger rows. |
 
 **Component reuse declaration:**
 
@@ -437,6 +460,21 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
 - `lg` (≥ 1200 px): same as `md` inside the fiche column; the card no longer splits Acompte / Solde
   into two side-by-side columns.
 
+**As built (2026-10-19):**
+
+- « Encaisser en une fois » (single-payment-from-the-fiche) stays above the ledger: it spans rows. Once
+  recorded, the rows it covered read « · paiement unique » and its detail (lines, total, « Annuler ce
+  paiement ») folds under the first of them.
+- « Sans acompte » (disable-deposit-per-reservation) and « Taxe de séjour en complément »
+  (force-item-to-complement) sit under the ledger as two switches: they move money between rows, they
+  are not rows. « + Nouvelle note » and « + Nouveau remboursement » sit under the closing line.
+- The amount editor is a plain decimal field, not `ArithmeticTextField`: « −5 » and « 100+20 » reach
+  the server as typed, so a negative amount is refused in words instead of silently clamped
+  (`utils/moneyExpression.js` reads the arithmetic server-side).
+- The undo confirmation is the shared `ConfirmDialog` (« Annuler la perception » / « Garder »), with the
+  server's sentence as its message.
+- The past-locked fiche keeps its marks (see Edge cases).
+
 **`PageActionBar`:** unchanged. « Enregistrer » still saves the fiche; marks save first (rule 10).
 
 **Copy** — short and impersonal: « Marquer perçu », « Recevoir », « Restituer », « Marquer reçu »,
@@ -445,46 +483,47 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
 
 ## 7. Test plan
 
-### Server unit tests
-- [ ] `reservation-ledger.unit.test.js` — rules 1-7, 24, 27-28: direct with acompte, direct without
-  acompte, last-minute, platform without and with acompte, complement deferred, single arrival
-  payment, refunds and trop-perçu, caution states, cancelled stay; `remaining` equals
-  `remainingToPay` on each.
-- [ ] `reservation-ledger-amounts.unit.test.js` — rules 15-23: acompte 0 / H / H + 0,01 / −1; solde
-  T − 0,01 / T / P / P + 0,01 with acompte unpaid; clamp warning after a price drop (rule 17); solde
-  with acompte paid: exact solde reached, solde reached only to the nearest cent (tax rounding),
-  stay carrying a cancellation insurance (percentage option re-priced), floor `H' = A`; paid rows
-  lower / higher; « 12,5 » and « 100+20 »; three-decimal input rounded.
-- [ ] `reservation-ledger-marks.unit.test.js` — rules 8-14: future date refused, a date before
-  `createdAt` accepted, `expectedAmountCents` off by one cent → `AMOUNT_CHANGED`, caution order and
-  dates, PUT with forged caution columns leaves them unchanged (also on a past-locked fiche), undo
-  cascades.
-- [ ] `reservation-ledger-links.unit.test.js` — rules 28-31 with a fake provider, for `deposit`,
-  `balance`, `full`, `complement`: retire on change, provider down → remote-pending, paid before the
-  save → 409, paid after retirement → booked per rule 31, double payment → notified only.
-- [ ] `reservation-ledger-parity.unit.test.js` — on a neutralised copy of the Solio base, for every
-  stored reservation: each bucket's paid / unpaid state and amount in the ledger equals
-  `reservationSettlement.bucketStates`, the ledger's `remaining` equals `remainingToPay`, and the
-  accounting export of the copy is byte-identical before and after the change.
+### Server unit tests (59)
+- [x] `reservation-ledger.unit.test.js` (15) — rules 1-7, 12, 24, 27-28: direct with acompte, without
+  acompte, last-minute, platform without and with acompte, single arrival payment, refunds, caution
+  states, cancelled stay, devis, stored rows breaking the guards; `remaining` equals `remainingToPay`.
+- [x] `reservation-ledger-amounts.unit.test.js` (18) — rules 15-23 on the real engine: acompte 0 / H /
+  H + 0,01 / −1; solde T − 0,01 / T / P / P + 0,01; clamp warning after a price drop; solde with the
+  acompte perceived (exact, nearest cent with a percentage tax, a stay carrying a cancellation
+  insurance, floor `H' = A`, no acompte at all); paid rows lower / higher; « 12,5 », « 100+20 », three
+  decimals; PUT re-validation (400); history labels; the « Aucun acompte » 0 € row.
+- [x] `reservation-ledger-marks.unit.test.js` (15) — rules 8-14, 26, 32: future date refused, a date
+  before `createdAt` accepted, `expectedAmountCents` one cent off → 409, merged complement, caution
+  order and dates, forged caution columns ignored (also past-locked), undo confirmation and cascades,
+  single payment dissolved, zero buckets refused, the transfer gap.
+- [x] `reservation-ledger-links.unit.test.js` (10) — rules 28-31 with a fake provider: retire on change,
+  unchanged link kept, provider down → remote-pending, the four link types, paid before the save → 409
+  (dry run rolled back), paid after retirement → booked for `deposit`, `balance`, `complement`, double
+  payment → notified only.
+- [x] `reservation-ledger-parity.unit.test.js` (1) — rules 1, 4, 5. **Run 2026-10-19 on a neutralised
+  copy of the Solio base (56 reservations): every bucket state and amount matches `bucketStates`, every
+  `remaining` matches `remainingToPay`, the accounting export (17 months, 12 116 bytes) is
+  byte-identical before and after, and identical between `inte/plugins` and this branch (same
+  SHA-256).** CI runs it on a synthetic base (10 stays covering every bucket state).
 
 ### Client (Vitest)
-- [ ] `LedgerList.rendering.test.jsx` — renders server rows verbatim, one action per row, xs layout.
-- [ ] `LedgerAmountEditor.refusals.test.jsx` — shows the server refusal, keeps the typed value,
-  applies `formPatch` verbatim, shows `reached` when it differs from the typed amount.
-- [ ] `FinanceSection.ledger.test.jsx` — marks go through `saveThenRun`; caution « Restituer » absent
-  before receipt; no « Caisse interne » on acompte / solde; « Renvoyer la demande » absent on a
-  perceived row.
+- [x] `LedgerList.rendering.test.jsx` (8), `LedgerAmountEditor.refusals.test.jsx` (6),
+  `FinanceSection.ledger.test.jsx` (14).
+- [x] The FinanceSection suites of other specs moved onto the ledger rows (complement-adjust,
+  deferred-complement, caisse-interne, mid-stay-notes, platform-no-deposit, platform-tourist-tax,
+  refunds, single-arrival-payment, arrival-payment-detail, RefundDialog overpayment).
 
 ### E2E
-- [ ] Update the finance specs that click « Marquer acompte payé » / « Marquer solde payé » /
-  « Marquer caution reçue ».
-- [ ] New flow: set the solde with the acompte unpaid, mark the acompte perceived, try a future date
-  (refused), mark with today.
+- [x] `e2e/specs/reservations/payment-ledger.spec.js` (3): set the solde, refusal of an acompte above
+  the accommodation, future date refused then today, undo with confirmation, caution in order; a
+  Booking payout received with its transfer and gap; no sideways scroll at 390 px.
+- [x] `booking-intake.spec.js` anchors on « Paiements » (the « Paiement plateforme » heading is gone).
 
-### Manual UI verification
-- [ ] 390, 900 and 1280 px on a copy of the Solio base: a direct stay with acompte, a Booking stay, a
-  Gîtes de France stay with withheld tax, a stay with a single arrival payment, a cancelled stay.
-- [ ] Worst case: long platform name, five refunds, zero payment (devis), amounts ≥ 10 000 €.
+### Manual UI verification (2026-10-19, Solio copy, 390 / 900 / 1280)
+- [x] Direct stay without acompte (22290), Booking (22270), Gîtes de France with complement and
+  reconciliation gap (11), single arrival payment (22278), the 0 € acompte of a converted devis (22293):
+  no horizontal scroll at any width; solde edit with refusal and effects, future date refused, mark,
+  undo with confirmation, Booking transfer with gap and commission button.
 
 ## 8. Out of scope
 
@@ -516,25 +555,18 @@ When this spec is approved and implemented, the same PR updates:
 
 ## 9. Open questions
 
-- **Q1. Solde typed while the acompte is already perceived (or there is no acompte).** Rule 18.
-  - (a) **Recommended** — accepted as a price change: the server re-prices the accommodation
-    (whole engine, nearest reachable cent, floor = acompte received) and shows « Hébergement 840 € →
-    790 € » before « Valider ».
-  - (b) Refused, with a pointer to « Prix hébergement ajusté ».
-- **Q2. Means of payment.**
-  - (a) **Recommended** — no new column: the row shows the origin the data already knows (lien,
-    caisse interne set by the SAS, plateforme, paiement unique).
-  - (b) A `*PaidMethod` column (Virement, CB, Chèque, Espèces, ANCV) on acompte, solde and caution,
-    asked in the mark form.
-- **Q3. Open payment link when its amount changes.** Rule 29.
-  - (a) **Recommended** — retire and deactivate the old link at save; the row, still due, offers
-    « Renvoyer la demande »; a late payment of the old link is still booked (rule 31).
-  - (b) Refuse the amount change while a link is open.
-- **Q4. Undoing a recorded payment.** Rule 14.
-  - (a) **Recommended** — confirmation naming the date and the accounting entry.
-  - (b) Immediate undo with a « Rétablir » toast.
-- **Q5. Complements in the ledger.** Rule 22.
-  - (a) **Recommended** — they become ledger rows, their lines, adjustment and « Percevoir en fin de
-    séjour » under the row.
-  - (b) First version limited to acompte, solde, caution and refunds; complement cards stay as
-    they are below the ledger.
+None left. **Resolved 2026-10-19** — Adrien took the recommended option on all five:
+
+- **Q1. Solde typed while the acompte is already perceived (or there is no acompte)** → (a) accepted as
+  an accommodation price change: the server re-runs the whole engine (tourist tax, options priced on
+  the stay such as the cancellation insurance), proposes the nearest reachable cent, floors the
+  accommodation at the acompte received and shows the consequence before « Valider ». Rule 18.
+- **Q2. Means of payment** → (a) no new column: each row shows the origin the data already knows (lien,
+  caisse interne set by the SAS, plateforme, paiement unique). Rule 4.
+- **Q3. Open payment link whose amount changes** → (a) retired and deactivated at save; « Renvoyer la
+  demande » on the still-due row; a late payment of the old link is still recorded on the fiche at its
+  real amount. Rules 28-31.
+- **Q4. Undoing a recorded payment** → (a) a confirmation naming the date and the accounting entry.
+  Rule 14.
+- **Q5. Complements in the ledger** → (a) they are ledger rows; their lines, adjustment and « Percevoir
+  en fin de séjour » fold under the row's « Détail ». Rule 22.
