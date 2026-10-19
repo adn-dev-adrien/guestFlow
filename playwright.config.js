@@ -75,6 +75,10 @@ module.exports = defineConfig({
         + ` GUESTFLOW_LICENCE_PUBLIC_KEY="${SUPPORT_PUBLIC_KEY}" GUESTFLOW_SLUG=e2e`
         // specs/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
         + ' GUESTFLOW_SMTP_DETECT=off'
+        // The whole suite talks to one server from one address within the limiter's 15 minutes: past
+        // ~140 specs a slow CI runner crossed the default 3 000 API requests and got 429s. The limiter
+        // keeps its own unit tests; here it would only make the suite's size a failure.
+        + ' API_RATELIMIT_MAX=100000'
         + ' node src/index.js',
       url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a
