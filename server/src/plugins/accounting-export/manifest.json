@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -42,6 +42,9 @@
     ],
     "1.0.8": [
       "Une écriture qui porte tout son montant sur la taxe de séjour, sans chiffre d’affaires ni TVA, est signalée au-dessus du journal."
+    ],
+    "1.0.9": [
+      "Un séjour plateforme d’avant la commission saisie (prix payé par le client) dont le solde est coché aujourd’hui passe sa TVA au taux, et non plus la commission en TVA."
     ]
   }
 }
