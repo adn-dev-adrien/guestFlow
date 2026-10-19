@@ -780,7 +780,14 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   const contribsOverflow = Boolean(ttcByBucket)
     && round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc)
       > round2(encaissementTtc + CONTRIB_RESIDUE_TOLERANCE_TTC);
-  if (hasContribs && !contribsOverflow) {
+  // specs/accounting-books-the-money-collected.md rule 12 — contribs only describe an entry whose CA is
+  // the stored échéance (ratio 1, rule 10's premise). A historical shape grossed up to what the guest
+  // paid (the `clientGrossAmount` era, réservation #13) captures its contribs from the stored NET solde
+  // when it is ticked today: used as-is, the commission they leave out lands on the last credit, the
+  // VAT line (Gîtes de France 706 € net / 907,20 € brut → 44571100 C265,38 on 641,82 of revenue). Such
+  // an entry is booked on the stored-money path, which pro-rates the gross-up over its postes.
+  const contribsDescribeEntry = Math.abs(grossRatio - 1) < 1e-9;
+  if (hasContribs && !contribsOverflow && contribsDescribeEntry) {
     const totalBucketsTtc = round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc);
     // Nothing to credit (e.g. a complement whose lines all contributed 0) → drop the entry,
     // a debit-only card can never balance.

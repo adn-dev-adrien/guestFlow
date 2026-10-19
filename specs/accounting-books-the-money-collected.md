@@ -148,6 +148,28 @@ options and resources appear once, at their real amount, only when they were rea
     fit keep driving the entry as before. The money received beyond the new total is a trop-perçu, which
     the fiche reports (`specs/reservation-refunds.md` rule 34).
 
+### A gross-up entry that captured contribs (2026-10-19)
+
+> **Why this was added.** The review of 2026-10-19 ticked the solde of réservation #13 (Gîtes de
+> France, `clientGrossAmount` era: 706 € solde net, 907,20 € paid by the guest, no entered commission)
+> on a copy of the Solio base. The tick captured contribs from the stored solde — 706 € of
+> accommodation — and the contrib path used them as they were, while the entry's CA is grossed up to
+> 907,20 € (rule 4, `specs/accounting-encaissement-effective-percent.md` rule 1). The 201,20 € of
+> commission the contribs leave out fell on the last credit, the VAT line:
+> `CDAUSQU D706 | 622600 D201,20 | 70600000 C641,82 | 44571100 C265,38` — 41 % of VAT. Rule 10 of the
+> effective-percent spec assumed every contrib row was a current-model row (ratio 1); a legacy row
+> ticked today is not. The same row without contribs books `70600000 C824,73 | 44571100 C82,47`, which
+> is what its five paid siblings (#1-#4, #8) already book.
+
+12. **Contribs are used only on an entry that is not grossed up.** When the gross-up ratio of an entry
+    is not 1 (the `clientGrossAmount` era, or a « solde = net » schedule the boot repair left alone),
+    its contribs describe the stored net amount, not the CA the entry books. The entry is then booked
+    like one that never captured anything: the stored-money path, which pro-rates the gross-up over the
+    postes it collects (rules 5-7), so the VAT line is the sales rate applied to the revenue. Entries
+    with a ratio of 1 — every reservation written by the current engine — keep their contribs as before.
+    On the Solio base this changes réservation #13 only, and only once its solde is ticked: no month
+    already collected changes (the 36 months 2025-2027 export byte-identical before and after).
+
 ---
 
 ## 4. Architecture
@@ -165,6 +187,7 @@ options and resources appear once, at their real amount, only when they were rea
 | `constants/` | `accounting.js` | — | (none) — same chart of accounts (rule 9). |
 | `database.js` | — | — | (none) — no schema change, no migration. |
 | `tests/` | `accounting-books-the-money-collected.unit.test.js` | C | The five measured reservations as regressions: Carpier (ratio 1 + pure-accommodation solde + resource on 70601000), Foulon (cash complement stays out), Nicolet (drift → the bank amount), Parreton (legacy gross-up preserved), and a mid-stay-free control. |
+| `tests/` | `accounting-gross-up-ignores-contribs.unit.test.js` | C | Rule 12: #13's shape with and without contribs books the same entry at 10 % VAT; a ratio-1 entry keeps its contribs; end to end through the payment controller. |
 | `tests/` | `accounting-encaissement-effective-percent.unit.test.js` | T | The existing effective-percent expectations that encode the old ratio, realigned on rule 1. |
 
 ### 4.2 Client side (`client/src/`)
@@ -205,6 +228,9 @@ become the money that actually moved. No new string, no responsive impact, no ac
       identified line now credits them as a **prestation at their own amount**, where it used to credit
       the same money as a pro-rata slice of the *accommodation* (rule 10). Same total, right poste.
 - [x] Full server suite green: **3617 pass** (3608 before, +9).
+- [x] `accounting-gross-up-ignores-contribs.unit.test.js` (4, new, rule 12) — #13's shape books
+      `70600000 C824,73 | 44571100 C82,47` with its contribs, exactly as without them; a ratio-1 entry
+      still books its contribs; the solde ticked through the payment controller lands at 10 % VAT.
 
 ### Coherence audit (the tool that found this)
 - [x] Re-run over the whole base (7 months, 40 entries): 0 unbalanced entry, 0 negative line, 0 entry
@@ -223,7 +249,8 @@ become the money that actually moved. No new string, no responsive impact, no ac
 
 ## 8. Out of scope
 
-- The per-line **contribution** path (`hasContribs`): no reservation uses it; left exactly as is.
+- The per-line **contribution** path (`hasContribs`): no reservation used it in August; left as is,
+  except that it no longer applies to a grossed-up entry (rule 12, 2026-10-19).
 - Repairing the two drifted fiches (Nicolet #22226, Vanden wildenberg #22224). The books will now
   follow the money; *why* their schedule exceeds their total is a separate fiche-level investigation.
 - Merging the options and resources accounts (explicitly declined 2026-08-24, rule 9).
