@@ -64,11 +64,14 @@ test('rule 30: two closed months → « Prochaine disponibilité » with the ser
   expect(box.textContent).toBe(`Prochaine disponibilité : ${expected}`);
   // The pick-a-date prompt would contradict the box.
   expect(document.querySelector('.gf-cal-hint').textContent).toBe('');
-  expect(calls.some((c) => c.path.startsWith('/properties/1/availability?from='))).toBe(true);
+  // The answer that loaded the window already carried the date: no second request (review, minor 7).
+  expect(calls.filter((c) => c.path.startsWith('/properties/1/availability'))).toHaveLength(1);
 
   await userEvent.click(screen.getByRole('button', { name: 'Voir' }));
   await waitFor(() => expect(document.querySelector(`[data-gf-day="${next}"]`)).toBeTruthy());
   expect(document.querySelector(`[data-gf-day="${next}"]`).disabled).toBe(false);
+  // The grid was rebuilt under « Voir »: the focus lands on the announced day, not on the page.
+  await waitFor(() => expect(document.activeElement.dataset.gfDay).toBe(next));
   await waitFor(() => expect(document.querySelector('.gf-cal-next').textContent).toBe(''));
 });
 
@@ -80,6 +83,31 @@ test('rule 30: an older GuestFlow without the field shows no box, and the hint s
   loadBlock('blocks/booking/view.js', {
     routes: (method, p) => (p === '/properties/1/availability'
       ? { status: 200, body: { data: { blockedDates: closed } } }
+      : catalogueRoutes()(method, p)),
+  });
+  await screen.findByText('Sélectionnez votre date d’arrivée', { selector: '.gf-cal-hint' });
+  await new Promise((r) => setTimeout(r, 50));
+  expect(document.querySelector('.gf-cal-next').textContent).toBe('');
+});
+
+test('rule 30: free cells that the stay rules refuse still get the box — the date is the server\'s', async () => {
+  const today = todayIso();
+  const next = isoAdd(today, 100);
+  bookingContainer();
+  loadBlock('blocks/booking/view.js', {
+    routes: (method, p) => (p === '/properties/1/availability'
+      ? { status: 200, body: { data: { blockedDates: [isoAdd(today, 3)], nextAvailableDate: next } } }
+      : catalogueRoutes()(method, p)),
+  });
+  expect(await screen.findByText(/^Prochaine disponibilité : /)).toBeTruthy();
+});
+
+test('rule 30: a bookable arrival inside the window → no box', async () => {
+  const today = todayIso();
+  bookingContainer();
+  loadBlock('blocks/booking/view.js', {
+    routes: (method, p) => (p === '/properties/1/availability'
+      ? { status: 200, body: { data: { blockedDates: [], nextAvailableDate: today } } }
       : catalogueRoutes()(method, p)),
   });
   await screen.findByText('Sélectionnez votre date d’arrivée', { selector: '.gf-cal-hint' });

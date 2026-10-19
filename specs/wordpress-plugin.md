@@ -193,19 +193,36 @@ remaining the single source of truth for prices, availability, and validation.
     repeated under the button. The generic line « Merci de renseigner tous les champs
     obligatoires. » is gone. Inputs carry `autocomplete`, `inputmode` (`email`, `tel`) and
     `enterkeyhint`, and are at least 16 px (iOS zooms into anything smaller).
+    *Review of PR #722 (2026-10-19):* each error line is named by `aria-describedby` and reached with
+    the focus — no live region per field, which read every refusal at once. Before revealing, the
+    engine dispatches a bubbling, cancelable `gf:refused` event on the refused requirement's box, with
+    `detail: { field, element }` (`field` ∈ `insurance`, `firstName`, `lastName`, `email`, `phone`,
+    `terms`, `feedback`). A host that re-homes the engine's children — the Solio drawer, whose two
+    screens can hide the refused field — shows the right screen and calls `preventDefault()`, then
+    scrolls and focuses the field itself ([site-booking-drawer.md](site-booking-drawer.md) rule 17);
+    otherwise the engine scrolls it to the centre and focuses it.
 29. **One accent drives every colour of the engine; Maison fir green by default** (UI/UX review
     2026-10-18, decision 16). `assets/style.css` declares private tokens (`--gfb-*`) derived with
     `color-mix()` from one accent and one neutral ink — tint 8 %, range 15 %, hover 24 %, focus ring
-    40 %, a darker accent for hover/focus — with hex fallbacks under `@supports`. The accent is the
+    40 % — with hex fallbacks under `@supports`. The accent is the
     site's `--gf-accent`, else the theme's `--wp--preset--color--primary`, else Maison fir `#2F5D46`
-    (it was MUI blue `#1976d2`). Notes and offers keep one semantic pair each (warning `#8F6A1D` on
-    `#F6EDD7`, success `#3E7D54` on `#E6EFE7`, error `#A8433A`); the Tailwind amber/green/sky and
-    slate surfaces, and the calendar block's always-blue free days, are gone. Links (the CGV link)
-    take the accent. The tokens are declared on every engine element (`:where(.gf-block,
-    [class*="gf-"])`), never only on `.gf-block`, and no default is set on `--gf-accent` itself: the
-    Solio drawer moves the engine's children out of the block and re-declares `--gf-accent` on its
-    panel ([site-booking-drawer.md](site-booking-drawer.md) rule 12), so each element must recompute
-    from the accent it actually inherits.
+    (it was MUI blue `#1976d2`). Notes and offers keep one semantic pair each, all at least 4.5 : 1
+    (warning `#73551A` on `#F6EDD7`, success `#356B48` on `#E6EFE7`, error `#A8433A` on white and on
+    `#F7E8E5`); the Tailwind amber/green/sky and slate surfaces, and the calendar block's always-blue
+    free days, are gone. Where the accent carries white text or is itself text (chosen days, buttons,
+    links, hints) the engine uses `--gfb-fill`: the accent itself when dark enough, else darkened to
+    reach 4.5 : 1 on white — `oklch(from accent min(l, .54) c h)` where relative colours exist (fir
+    green stays itself), the accent mixed 74 % with black otherwise (Solio ocre, 3.6 : 1 raw, reaches
+    5.8 : 1). The tokens are declared on `.gf-block` and on every direct child of the engine form,
+    which view.js marks `.gf-engine` — never site-wide, and no default is set on `--gf-accent`
+    itself: the Solio drawer moves the engine's children out of the block and re-declares
+    `--gf-accent` on its panel ([site-booking-drawer.md](site-booking-drawer.md) rule 12), so each
+    child must recompute from the accent it actually inherits.
+    *Review of PR #722 (2026-10-19):* the stylesheet never styles a class the site may own on its
+    own: `.gf-btn` is reached as `.gf-block .gf-btn` or `.gf-btn.gf-engine` (Solio's `.gf-btn`,
+    `.gf-btn-ghost`, `.gf-btn-forest` were repainted fir green), `.gf-section` likewise, the
+    out-of-flow button is `.gfb-cta` (Solio's header has a `.gf-cta`), and the tap-highlight reset
+    applies to engine buttons only. A test reads the stylesheet for each of these.
 
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
@@ -413,6 +430,13 @@ respects its container width.
       database: refusals in FR and EN, Solio ocre, theme primary and default fir accents, and a
       simulated Solio drawer (children moved out of the block: tokens resolve to the panel's ocre,
       no second bar, no summary button).
+- [x] Review of PR #722 (2026-10-19): `field-refusal` +3 (`gf:refused` with the first field, a host's
+      `preventDefault` keeps the reveal to itself, no live region per error line);
+      `wordpress-plugin-engine-colours` +5 (tokens never site-wide, no bare `.gf-btn` / `.gf-section`
+      / `.gf-cta`, default tokens ≥ 4.5 : 1, ocre darkened under white text, legacy-hover
+      specificity, phone-only bar). Browser re-check with the real Solio CSS (`gf-site-style.php`,
+      the drawer of `gf-seo-reservation.php`, the legacy `gf-booking.php`) injected into the harness,
+      Chromium and WebKit, 390 touch / 900 / 1280.
 
 ### Manual verification
 - [ ] Install the built `.zip` on a WordPress test site; configure base URL + key; "Test connection" =

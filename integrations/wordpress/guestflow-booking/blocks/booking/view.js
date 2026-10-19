@@ -238,16 +238,30 @@
     function isBlocked(d) { return !!blocked[d]; }
     function rangeHasBlocked(a, b) { var c = a; while (c < b) { if (isBlocked(c)) return true; c = addDaysIso(c, 1); } return false; }
 
-    // The first free night on or after a window's start, as the server reports it
-    // (`nextAvailableDate`, specs/wp-booking-widget-redesign.md rule 30). A GuestFlow older than the
-    // field answers without it: the calendar then simply shows no way out, as before.
-    var nextFreeByStart = {};
+    // The first bookable arrival on or after each window the server was asked about
+    // (`nextAvailableDate`, specs/wp-booking-widget-redesign.md rule 30): [{ from, next }], `next`
+    // null when there is none within a year. A GuestFlow older than the field answers without it:
+    // nothing is recorded, and the calendar simply shows no way out, as before.
+    var nextReplies = [];
+    function recordNext(from, data) {
+      if (data && Object.prototype.hasOwnProperty.call(data, 'nextAvailableDate')) nextReplies.push({ from: from, next: data.nextAvailableDate || null });
+    }
+    // What the answers already received say about « the first bookable arrival on or after `day` »:
+    // an answer from an earlier day settles it unless its arrival lies before `day`. undefined = unknown.
+    function knownNextFrom(day) {
+      for (var i = 0; i < nextReplies.length; i++) {
+        var r = nextReplies[i];
+        if (r.from <= day && (r.next === null || r.next >= day)) return r.next;
+      }
+      return undefined;
+    }
     function nextFreeFrom(startIso, untilIso) {
-      if (startIso in nextFreeByStart) return Promise.resolve(nextFreeByStart[startIso]);
+      var known = knownNextFrom(startIso);
+      if (known !== undefined) return Promise.resolve(known);
       return GF.api('GET', '/properties/' + propertyId + '/availability?from=' + startIso + '&to=' + untilIso).then(function (res) {
-        var next = (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.nextAvailableDate) || null;
-        nextFreeByStart[startIso] = next;
-        return next;
+        var data = res.status >= 200 && res.status < 300 && res.body && res.body.data;
+        recordNext(startIso, data);
+        return (data && data.nextAvailableDate) || null;
       });
     }
 
@@ -257,6 +271,7 @@
       return GF.api('GET', '/properties/' + propertyId + '/availability?from=' + from + '&to=' + untilIso).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
           (res.body.data.blockedDates || []).forEach(function (x) { blocked[x] = true; });
+          recordNext(from, res.body.data);
           loadedTo = untilIso;
         }
       });
@@ -267,7 +282,7 @@
     var calMonths = GF.el('div', { class: 'gf-cal-wrap' });
     // Spoken as it changes: the hint is where a refused date explains itself (rule 15).
     var calHint = GF.el('div', { class: 'gf-cal-hint', role: 'status', 'aria-live': 'polite' });
-    // « Prochaine disponibilité » — shown only when the two visible months hold no free night (rule 30).
+    // « Prochaine disponibilité » — shown only when the two visible months hold no bookable arrival (rule 30).
     var calNext = GF.el('div', { class: 'gf-cal-next', 'aria-live': 'polite' });
     // What the day states mean (rule 31): free, taken, and the stay being chosen.
     var calLegend = GF.el('div', { class: 'gf-cal-legend', 'aria-hidden': 'true' },
@@ -294,10 +309,14 @@
       slideDir = dir;
       renderCal();
     }
+    // « Voir » rebuilds the grid under the button that held the focus: the focus moves to the day
+    // the box announced, so a keyboard or screen-reader user lands where the eye does.
+    var focusDay = null;
     function jumpTo(iso) {
       var target = firstOfMonth(new Date(iso + 'T00:00:00'));
       slideDir = target > calBase ? 1 : -1;
       calBase = target;
+      focusDay = iso;
       renderCal();
     }
 
@@ -313,7 +332,8 @@
       ensureAvailability(windowEnd).then(function () {
         if (seq !== renderSeq) return;
         // A re-render rebuilds every day: the one that held the focus gets it back.
-        var focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.gfDay : null;
+        var focused = focusDay || (document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.gfDay : null);
+        focusDay = null;
         calMonths.innerHTML = '';
         for (var i = 0; i < 2; i++) calMonths.appendChild(monthGrid(addMonths(calBase, i)));
         if (focused) {
@@ -333,13 +353,17 @@
       });
     }
 
-    // Nothing to pick in the two months on screen: say when the first free night is, and offer to
-    // go there. The date is the server's; the plugin only checks whether the visible cells hold one.
+    // Nothing to book in the two months on screen: say when the first bookable arrival is, and offer
+    // to go there. The date is the server's — it knows the minimum stay and the arrival days, which a
+    // free cell does not show. The answers already received are reused; a window with no free cell
+    // and no answer about it asks once more.
     function renderNextFree(seq, windowStart, windowEnd, hint) {
       calNext.innerHTML = '';
       var today = todayIso();
       var from = windowStart > today ? windowStart : today;
-      for (var d = from; d < windowEnd; d = addDaysIso(d, 1)) { if (!isBlocked(d)) return; }
+      if (knownNextFrom(from) === undefined) {
+        for (var d = from; d < windowEnd; d = addDaysIso(d, 1)) { if (!isBlocked(d)) return; }
+      }
       nextFreeFrom(from, windowEnd).then(function (next) {
         if (seq !== renderSeq || !next || next < windowEnd) return;
         var label = GF.date(new Date(next + 'T00:00:00'), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -792,7 +816,9 @@
     function contactField(key, labelText, extraClass) {
       var input = f[key];
       var errId = GF.uid('gf-err');
-      fieldError[key] = GF.el('div', { class: 'gf-field-error', id: errId, 'aria-live': 'polite' });
+      // Named by `aria-describedby` and reached with the focus: no live region per field, which
+      // would read every refusal of the form at once.
+      fieldError[key] = GF.el('div', { class: 'gf-field-error', id: errId });
       input.setAttribute('aria-required', 'true');
       input.setAttribute('aria-describedby', errId);
       // Live only once a submit was refused: no red while the visitor is still typing.
@@ -884,7 +910,7 @@
     // of the block (the Solio drawer has a bar of its own).
     var barAmount = GF.el('b', {});
     var barNote = GF.el('small', {}, GF.t('pickArrival'));
-    var barCta = GF.el('button', { type: 'button', class: 'gf-cta', onClick: onBarCta }, GF.t('barPickDates'));
+    var barCta = GF.el('button', { type: 'button', class: 'gfb-cta', onClick: onBarCta }, GF.t('barPickDates'));
     var bar = GF.el('div', { class: 'gf-bar' }, GF.el('div', { class: 'gf-bar-amt', 'aria-live': 'polite' }, barAmount, barNote), barCta);
     var contactInView = false;
     function barMode() {
@@ -921,14 +947,62 @@
       }, { threshold: 0.35 }).observe(contact);
     }
 
+    // Holds the bar's place in the flow while it floats (below).
+    var barAnchor = GF.el('div', { class: 'gf-bar-anchor', 'aria-hidden': 'true' });
     var form = GF.el('div', { class: 'gf-booking' },
       GF.el('h3', { class: 'gf-booking-name' }, detail.name || ''),
-      calBox, datesRow, timesRow, guestsBox, supplementsBox, insuranceBox, summary, warn, contact, cgvBox, f.submit, feedback, bar
+      calBox, datesRow, timesRow, guestsBox, supplementsBox, insuranceBox, summary, warn, contact, cgvBox, f.submit, feedback, barAnchor, bar
     );
+    // Every direct child is an engine element (specs/wordpress-plugin.md rule 29): it carries the
+    // colour tokens wherever the Solio drawer moves it, and the stylesheet never reaches the site's
+    // own `gf-*` elements.
+    Array.prototype.forEach.call(form.children, function (child) { child.classList.add('gf-engine'); });
     // How many rows the left column holds on a wide block, where the summary spans them all (rule 33).
     form.style.setProperty('--gf-rows', String(form.children.length - 1));
     container.innerHTML = '';
     container.appendChild(form);
+
+    // ---- The bar when `position: sticky` cannot work (rule 32) ----
+    // A theme ancestor with `overflow: hidden` (common: `overflow-x: hidden` on a page wrapper)
+    // becomes the bar's scroll box, and a sticky bar then never leaves the bottom of the block. In
+    // that case the bar is pinned to the viewport while the block is on screen and its own place
+    // in the flow is still below, and the anchor keeps that place so nothing jumps when it lands.
+    function stickyDefeated() {
+      var root = document.documentElement;
+      var rootClips = /(hidden|auto|scroll)/.test(getComputedStyle(root).overflowX + getComputedStyle(root).overflowY);
+      for (var n = form.parentElement; n && n !== root; n = n.parentElement) {
+        var cs = getComputedStyle(n);
+        if (!/(hidden|auto|scroll)/.test(cs.overflowX + cs.overflowY)) continue;
+        // The body's overflow belongs to the viewport unless the root clips too.
+        if (n === document.body && !rootClips) continue;
+        // A box that really scrolls is where sticky works, as intended.
+        if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 1) return false;
+        return true;
+      }
+      return false;
+    }
+    var floatMode = false;
+    var formOnScreen = false;
+    var anchorState = { below: true, whole: false };
+    function placeBar() {
+      var shown = getComputedStyle(bar).display !== 'none';
+      var float = floatMode && shown && formOnScreen && anchorState.below && !anchorState.whole;
+      if (float && !bar.classList.contains('is-floating')) barAnchor.style.height = bar.getBoundingClientRect().height + 'px';
+      if (!float) barAnchor.style.height = '';
+      bar.classList.toggle('is-floating', float);
+    }
+    if (window.IntersectionObserver) {
+      floatMode = stickyDefeated();
+      new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { formOnScreen = en.isIntersecting; });
+        placeBar();
+      }, { threshold: [0, 1] }).observe(form);
+      new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { anchorState = { below: en.boundingClientRect.top > 0, whole: en.isIntersecting && en.intersectionRatio >= 0.99 }; });
+        placeBar();
+      }, { threshold: [0, 0.99, 1] }).observe(barAnchor);
+      window.addEventListener('resize', function () { floatMode = stickyDefeated(); placeBar(); });
+    }
 
     function gatherStay() {
       var opts = [];
@@ -1067,7 +1141,7 @@
       var total = q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice;
       var nightsText = q.nights + ' ' + GF.t(q.nights === 1 ? 'night' : 'nights');
       setBarAmount(GF.euro(total), nightsText + (q.touristTax && q.touristTax.total ? ' · ' + GF.t('taxIncluded') : ''));
-      summaryCta = GF.el('button', { type: 'button', class: 'gf-cta gf-summary-cta', onClick: submit }, submitLabel());
+      summaryCta = GF.el('button', { type: 'button', class: 'gfb-cta gf-summary-cta', onClick: submit }, submitLabel());
       summary.appendChild(summaryCta);
 
       // The insurance amount is priced by the server for THIS stay, taken or not (spec §3.3
@@ -1089,9 +1163,24 @@
 
     // Bring a refused requirement into view and give it the focus — the page may be long, and the
     // visitor's eye is on the button they just pressed.
-    function reveal(node, focusTarget) {
+    //
+    // `gf:refused` (bubbling, cancelable, detail { field, element }) tells a host that re-homes the
+    // engine's children — the Solio drawer and its two screens — which requirement refused, so it
+    // can show the screen that holds it (specs/wordpress-plugin.md rule 28). `field` is `insurance`,
+    // `firstName` | `lastName` | `email` | `phone`, `terms` or `feedback`. A host that calls
+    // `preventDefault()` brings the field into view and focuses it itself; otherwise the engine does.
+    function reveal(node, focusTarget, field) {
+      if (node && node.dispatchEvent) {
+        var handled = false;
+        try {
+          handled = !node.dispatchEvent(new CustomEvent('gf:refused', {
+            bubbles: true, cancelable: true, detail: { field: field || '', element: focusTarget || node },
+          }));
+        } catch (e) { /* an old browser without CustomEvent: the engine still reveals the field */ }
+        if (handled) return;
+      }
       if (focusTarget && focusTarget.focus) focusTarget.focus({ preventScroll: true });
-      if (node && node.scrollIntoView) node.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+      if (node && node.scrollIntoView) node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
     }
 
     // Every requirement refuses the same way (specs/wordpress-plugin.md rule 28): marked where it
@@ -1103,21 +1192,21 @@
       insuranceNotice.innerHTML = '';
       if (insurance && state.insurance === null) {
         insuranceNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('insuranceRequired')));
-        firstProblem = { reason: 'insurance', node: insuranceBox, focus: insuranceYes };
+        firstProblem = { reason: 'insurance', field: 'insurance', node: insuranceBox, focus: insuranceYes };
       }
       CONTACT.forEach(function (key) {
         var msg = localFieldError(key);
         showFieldError(key, msg);
-        if (msg && !firstProblem) firstProblem = { reason: 'fields', node: fieldBox[key], focus: f[key] };
+        if (msg && !firstProblem) firstProblem = { reason: 'fields', field: key, node: fieldBox[key], focus: f[key] };
       });
       cgvNotice.innerHTML = '';
       if (terms && !f.cgv.checked) {
         cgvNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('cgvRequired')));
-        if (!firstProblem) firstProblem = { reason: 'terms', node: cgvBox, focus: f.cgv };
+        if (!firstProblem) firstProblem = { reason: 'terms', field: 'terms', node: cgvBox, focus: f.cgv };
       }
       if (!firstProblem) return false;
       refusedOnce = true;
-      reveal(firstProblem.node, firstProblem.focus);
+      reveal(firstProblem.node, firstProblem.focus, firstProblem.field);
       GF.track('booking-refused', { lodging: lodging, reason: firstProblem.reason });
       return true;
     }
@@ -1137,7 +1226,7 @@
       });
       if (!firstKey) return false;
       refusedOnce = true;
-      reveal(fieldBox[firstKey], f[firstKey]);
+      reveal(fieldBox[firstKey], f[firstKey], firstKey);
       return true;
     }
 
@@ -1189,12 +1278,12 @@
           terms = { version: err.details[0].currentVersion };
           paintCgv();
           cgvNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.errorMessage(res)));
-          reveal(cgvBox, f.cgv);
+          reveal(cgvBox, f.cgv, 'terms');
           return;
         }
         if (err && err.code === 'VALIDATION_FAILED' && refuseFromServer(err)) return;
         feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.errorMessage(res)));
-        reveal(feedback);
+        reveal(feedback, null, 'feedback');
       });
     }
 

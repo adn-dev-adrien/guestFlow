@@ -37,6 +37,7 @@ test('rule 32: a quoted stay puts the server total in the bar, and the button mo
   expect(barCta().textContent).toBe('Continuer');
   // Never the drawer's « engine submit »: the Solio drawer takes the first `.gf-btn` it finds.
   expect(barCta().classList.contains('gf-btn')).toBe(false);
+  expect(barCta().classList.contains('gfb-cta')).toBe(true);
   expect(document.querySelector('.gf-btn').parentElement.className).toBe('gf-booking');
 });
 
@@ -44,6 +45,8 @@ test('rule 32: the bar is the last child of the block, after the flow it summari
   await boot();
   const form = document.querySelector('.gf-booking');
   expect(form.lastElementChild).toBe(bar());
+  // wordpress-plugin rule 29: each child is an engine element, wherever a host moves it.
+  expect([...form.children].every((c) => c.classList.contains('gf-engine'))).toBe(true);
   // Rule 33's span: every child but the summary sits in the left column.
   expect(form.style.getPropertyValue('--gf-rows')).toBe(String(form.children.length - 1));
 });
@@ -71,4 +74,43 @@ test('rule 32: the two times sit on a row of their own', async () => {
   const times = document.querySelector('.gf-row-times');
   expect(times.querySelectorAll('.gf-field-time')).toHaveLength(2);
   expect(screen.getByLabelText('Départ').closest('.gf-row').contains(screen.getByLabelText('Heure de départ'))).toBe(false);
+});
+
+test('rule 32: under a theme wrapper with overflow hidden, the bar floats over the viewport until its place arrives', async () => {
+  const observers = [];
+  window.IntersectionObserver = class {
+    constructor(cb) { this.cb = cb; observers.push(this); }
+    observe(el) { this.el = el; }
+    disconnect() {}
+  };
+  document.body.innerHTML = '<div style="overflow-x: hidden"><div data-gf-booking data-property-id="1" data-show-options="1" data-pay-online="0"></div></div>';
+  loadBlock('blocks/booking/view.js', { routes: catalogueRoutes() });
+  await screen.findByRole('button', { name: days.a.label });
+  const fire = (el, entry) => observers.filter((o) => o.el === el).forEach((o) => o.cb([{ target: el, ...entry }]));
+  const form = document.querySelector('.gf-booking');
+  const anchor = document.querySelector('.gf-bar-anchor');
+
+  fire(form, { isIntersecting: true });
+  fire(anchor, { isIntersecting: false, intersectionRatio: 0, boundingClientRect: { top: 900 } });
+  expect(bar().classList.contains('is-floating')).toBe(true);
+
+  fire(anchor, { isIntersecting: true, intersectionRatio: 1, boundingClientRect: { top: 600 } });
+  expect(bar().classList.contains('is-floating')).toBe(false);
+  delete window.IntersectionObserver;
+});
+
+test('rule 32: without such a wrapper, sticky does the job and the bar never floats', async () => {
+  const observers = [];
+  window.IntersectionObserver = class {
+    constructor(cb) { this.cb = cb; observers.push(this); }
+    observe(el) { this.el = el; }
+    disconnect() {}
+  };
+  await boot();
+  const form = document.querySelector('.gf-booking');
+  const anchor = document.querySelector('.gf-bar-anchor');
+  observers.filter((o) => o.el === form).forEach((o) => o.cb([{ target: form, isIntersecting: true }]));
+  observers.filter((o) => o.el === anchor).forEach((o) => o.cb([{ target: anchor, isIntersecting: false, intersectionRatio: 0, boundingClientRect: { top: 900 } }]));
+  expect(bar().classList.contains('is-floating')).toBe(false);
+  delete window.IntersectionObserver;
 });

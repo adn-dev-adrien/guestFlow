@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^1.2.0",
+  "sdk": "^1.3.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -35,7 +35,7 @@
     ],
     "1.2.0": [
       "Site : un champ de coordonnées refusé l’est avec sa propre phrase, dans la langue de la page, que le site affiche sous ce champ.",
-      "Site : le calendrier de disponibilités reçoit la prochaine nuit libre quand la période demandée est entièrement prise."
+      "Site : le calendrier reçoit la prochaine arrivée possible (nuits libres, durée minimale, jours d’arrivée) quand la période affichée n’en offre aucune."
     ]
   }
 }

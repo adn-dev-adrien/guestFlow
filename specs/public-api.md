@@ -171,7 +171,7 @@ or **[CREATE]** (genuinely new logic).
 | `utils/` | `utils/publicProjections.js` | C | Pure functions: `toPublicProperty`, `toPublicPropertyDetail`, `toPublicOption`, `toPublicAvailability`, `toPublicQuote`. Unit-testable. |
 | `utils/` | `utils/publicInputValidation.js` | C | Pure validators for public query/body params (dates, counts, ids, email, phone). Unit-testable. |
 | `utils/` | `pricing.js` | REUSE | **Untouched.** Called by `publicQuoteController` and indirectly by the devis create path. |
-| `plugins/website-booking/` | `nextAvailability.js` | C (2026-10-19) | Pure `findNextAvailableDate` — the availability payload's `nextAvailableDate` (§4.3). Test: `public-next-availability.unit.test.js`. |
+| `plugins/website-booking/` | `nextAvailability.js` | C (2026-10-19) | Pure `findNextAvailableDate` + `stayRulesPredicate` (the engine's min/max stay and changeover days, through SDK 1.3.0 core modules `pricing` and `changeover`) — the availability payload's `nextAvailableDate` (§4.3). Test: `public-next-availability.unit.test.js`. |
 | `plugins/website-booking/` | `publicInputValidation.js` + `utils/publicLabels.js` | T (2026-10-19) | Guest errors carry `reason`; `withFieldMessages` adds `labels(lang).fieldErrors` as `message` (§4.3 booking-requests). Test: `public-guest-field-errors.unit.test.js`. |
 | `scheduledTasks.js` | `scheduledTasks.js` | T (only if hold enabled) | Releases expired holds (see §8). |
 | `database.js` | `database.js` | T | Idempotent migration: add `reservations.requestOrigin TEXT` (NULL); if hold enabled, add hold columns/table. |
@@ -355,8 +355,12 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     platform blocks) **and** establishment closures — **no source, no platform name, no guest
     info**. `blockedRanges` is the same data collapsed into ranges for convenient rendering.
   - `nextAvailableDate` *(added 2026-10-19, additive — UI/UX review 2026-10-18, decision 2)*: the
-    first night on or after `max(from, today)` that is not blocked, looked up to 365 days past that
-    start even beyond `to`; `null` when there is none. The site uses it to offer « Prochaine
+    first **bookable arrival** on or after `max(from, today)`, looked up to 365 days past that start
+    even beyond `to`; `null` when there is none. Bookable = a free night from which some stay of free
+    nights (up to 62) passes the property's stay rules as the pricing engine reads them: per-night
+    minimum and maximum stay (`calculateBaseStayPrice`) and arrival/departure weekdays
+    (`utils/changeover.js`). An isolated free night under a 2-night minimum, or a Tuesday when
+    arrivals are on Saturdays, is not one. The site uses it to offer « Prochaine
     disponibilité » when the two months it shows are all closed
     ([wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rule 30). Computed by
     `plugins/website-booking/nextAvailability.js`; the extra lookup runs only when the requested

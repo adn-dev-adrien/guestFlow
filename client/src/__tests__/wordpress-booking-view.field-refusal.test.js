@@ -1,6 +1,7 @@
 // specs/wordpress-plugin.md rule 28 (UI/UX review 2026-10-18, decision 3) — every requirement is
 // refused on its own field, in French: all marked at once, the first one focused, the reason under
-// it, cleared live once corrected. The server's `details[].message` lands under the field it names.
+// it, cleared live once corrected. The server's `details[].message` lands under the field it names,
+// and `gf:refused` tells a host that moved the engine's children which field refused.
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { bookingContainer, catalogueRoutes, loadBlock, nextMonthDays } from './wordpressBookingFixtures';
@@ -92,4 +93,35 @@ test('rule 28: phone and e-mail open the right keyboard and autofill', async () 
   expect(screen.getByLabelText('Téléphone *').getAttribute('inputmode')).toBe('tel');
   expect(screen.getByLabelText('E-mail *').getAttribute('autocomplete')).toBe('email');
   expect(screen.getByLabelText('Prénom *').getAttribute('autocomplete')).toBe('given-name');
+});
+
+test('rule 28: the refusal is announced as `gf:refused` with the first field, before the engine reveals it', async () => {
+  await boot();
+  const seen = [];
+  document.addEventListener('gf:refused', (ev) => seen.push(ev.detail));
+  await userEvent.type(screen.getByLabelText('Prénom *'), 'Jo');
+  await userEvent.click(document.querySelector('.gf-btn'));
+  expect(seen).toHaveLength(1);
+  expect(seen[0].field).toBe('lastName');
+  expect(seen[0].element).toBe(screen.getByLabelText('Nom *'));
+  expect(document.activeElement).toBe(screen.getByLabelText('Nom *'));
+});
+
+test('rule 28: a host that takes the refusal over (preventDefault) moves the focus itself', async () => {
+  await boot();
+  const host = (ev) => ev.preventDefault();
+  document.addEventListener('gf:refused', host);
+  await userEvent.click(document.querySelector('.gf-btn'));
+  document.removeEventListener('gf:refused', host);
+  // The focus stays on the button the visitor pressed: the field is the host's to reveal.
+  expect(document.activeElement).toBe(document.querySelector('.gf-btn'));
+  // The marks are still there: only the reveal is the host's.
+  expect(errorOf('Prénom *').text).toBe('Champ requis.');
+});
+
+test('rule 28: one error line is described by its field, not a live region of its own', async () => {
+  await boot();
+  await userEvent.click(document.querySelector('.gf-btn'));
+  const line = document.getElementById(screen.getByLabelText('Nom *').getAttribute('aria-describedby'));
+  expect(line.getAttribute('aria-live')).toBeNull();
 });

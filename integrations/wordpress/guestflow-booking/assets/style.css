@@ -5,12 +5,16 @@
    pairs. A site sets `--gf-accent` (and may set `--gf-muted`, `--gf-border`, `--gf-blocked`); a
    theme that exposes `--wp--preset--color--primary` is used next; Maison fir green otherwise.
 
-   The private `--gfb-*` tokens are declared on EVERY engine element, not only on `.gf-block`: the
-   Solio drawer moves the engine's children out of the block that would have declared them
-   (specs/site-booking-drawer.md rule 12), and a token only inherited from `.gf-block` would then
-   resolve to nothing. Declared per element, each one recomputes from the `--gf-accent` it inherits —
-   the block's, or the drawer panel's. `:where()` keeps the specificity at zero. */
-:where(.gf-block, [class*="gf-"]) {
+   The private `--gfb-*` tokens are declared on the block AND on every direct child of the engine
+   form (`.gf-engine`, set by view.js): the Solio drawer moves those children out of the block that
+   would have declared them (specs/site-booking-drawer.md rule 12), and a token only inherited from
+   `.gf-block` would then resolve to nothing. Declared there, each one recomputes from the
+   `--gf-accent` it inherits — the block's, or the drawer panel's. Never on a site's own `gf-*`
+   elements. `:where()` keeps the specificity at zero.
+
+   `--gfb-fill` is the accent as a FILL under white text and as text on white: the accent itself
+   when it is dark enough, darkened to reach 4.5 : 1 otherwise (Solio's ocre is 3.6 : 1 on white). */
+:where(.gf-block, .gf-engine) {
   --gfb-accent: var(--gf-accent, var(--wp--preset--color--primary, #2F5D46));
   --gfb-on-accent: #fff;
   --gfb-ink: #27251F;
@@ -25,16 +29,17 @@
   --gfb-range: #DCE5DF;
   --gfb-hover: #CBD8D0;
   --gfb-focus: #97AEA2;
-  --gfb-accent-strong: #26493A;
+  --gfb-fill: var(--gfb-accent);
+  --gfb-fill-strong: #26493A;
   --gfb-error: #A8433A;
   --gfb-error-soft: #F7E8E5;
-  --gfb-warn: #8F6A1D;
+  --gfb-warn: #73551A;
   --gfb-warn-soft: #F6EDD7;
-  --gfb-ok: #3E7D54;
+  --gfb-ok: #356B48;
   --gfb-ok-soft: #E6EFE7;
 }
 @supports (color: color-mix(in srgb, red 50%, white)) {
-  :where(.gf-block, [class*="gf-"]) {
+  :where(.gf-block, .gf-engine) {
     --gfb-surface: color-mix(in srgb, var(--gfb-ink) 4%, #fff);
     --gfb-faint: color-mix(in srgb, var(--gfb-ink) 32%, #fff);
     --gfb-hatch: color-mix(in srgb, var(--gfb-ink) 10%, #fff);
@@ -42,7 +47,15 @@
     --gfb-range: color-mix(in srgb, var(--gfb-accent) 15%, #fff);
     --gfb-hover: color-mix(in srgb, var(--gfb-accent) 24%, #fff);
     --gfb-focus: color-mix(in srgb, var(--gfb-accent) 40%, transparent);
-    --gfb-accent-strong: color-mix(in srgb, var(--gfb-accent) 82%, #000);
+    --gfb-fill: color-mix(in srgb, var(--gfb-accent) 74%, #000);
+    --gfb-fill-strong: color-mix(in srgb, var(--gfb-fill) 82%, #000);
+  }
+}
+/* Where relative colours exist, only an accent too light for white text is darkened: fir green
+   (oklch L ≈ .44) stays itself, ocre (L ≈ .63) is brought to .54. */
+@supports (color: oklch(from red min(l, 0.5) c h)) {
+  :where(.gf-block, .gf-engine) {
+    --gfb-fill: oklch(from var(--gfb-accent) min(l, 0.54) c h);
   }
 }
 
@@ -62,7 +75,7 @@
 /* Every control of the engine answers on press and never flashes the browser's tap highlight
    (specs/wp-booking-widget-redesign.md rule 29). Hover styles live in the `(hover: hover)` block at the end: a touch screen keeps
    `:hover` on the last cell tapped, which is how the chosen departure went unreadable. */
-.gf-block button, [class*="gf-"] button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.gf-block button, .gf-engine button, button.gf-engine { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 /* Calendar (shared by the standalone calendar block and the booking widget) */
 .gf-cal-wrap { display: flex; flex-wrap: wrap; gap: 1.25rem; }
@@ -91,23 +104,26 @@ button.gf-cal-day { border: 0; background: var(--gfb-tint); color: inherit; curs
 button.gf-cal-day:active:not(:disabled) { transform: scale(.94); }
 button.gf-cal-day:disabled { cursor: not-allowed; }
 button.gf-cal-day.gf-past:disabled { cursor: default; }
-button.gf-cal-day.gf-range { background: var(--gfb-range); border-radius: 0; }
-button.gf-cal-day.gf-edge, button.gf-cal-day.gf-edge:disabled { background: var(--gfb-accent); color: var(--gfb-on-accent); font-weight: 700; text-decoration: none; }
-button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); outline-offset: 2px; }
+/* The chosen stay outranks any hover — the plugin's own and the one the legacy `gf-booking.php`
+   mu-plugin still prints on the Solio Pi (`.gf-cal-day:hover:not(:disabled)`, specificity 0,3,0):
+   the class is doubled to reach 0,3,1 (specs/wp-booking-widget-redesign.md rule 29). */
+button.gf-cal-day.gf-range.gf-range { background: var(--gfb-range); border-radius: 0; }
+button.gf-cal-day.gf-edge.gf-edge, button.gf-cal-day.gf-edge.gf-edge:disabled { background: var(--gfb-fill); color: var(--gfb-on-accent); font-weight: 700; text-decoration: none; }
+button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-fill); outline-offset: 2px; }
 .gf-cal-box { border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; background: #fff; }
-.gf-cal-hint { text-align: center; font-weight: 600; color: var(--gfb-accent); margin-top: .6rem; min-height: 1.2em; }
+.gf-cal-hint { text-align: center; font-weight: 600; color: var(--gfb-fill); margin-top: .6rem; min-height: 1.2em; }
 .gf-cal-hint-error { color: var(--gfb-error); }
 .gf-cal-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem 1rem; margin-top: .6rem; font-size: .78rem; color: var(--gfb-muted); }
 .gf-cal-legend span { display: inline-flex; align-items: center; gap: .35rem; }
 .gf-cal-legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; }
 .gf-cal-legend .gf-sw-free { background: var(--gfb-tint); box-shadow: inset 0 0 0 1px var(--gfb-border); }
 .gf-cal-legend .gf-sw-taken { background: repeating-linear-gradient(135deg, var(--gfb-blocked) 0 3px, var(--gfb-hatch) 3px 6px); box-shadow: inset 0 0 0 1px var(--gfb-border); }
-.gf-cal-legend .gf-sw-stay { background: var(--gfb-accent); }
+.gf-cal-legend .gf-sw-stay { background: var(--gfb-fill); }
 /* « Prochaine disponibilité » — the way out of a window with nothing to pick (widget spec rule 30). */
 .gf-cal-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem .75rem; margin: 0 0 .9rem; padding: .65rem .75rem;
   border-radius: 10px; background: var(--gfb-tint); font-weight: 600; text-align: center; }
 .gf-cal-next:empty { display: none; }
-.gf-cal-next-go { border: 0; border-radius: 8px; background: var(--gfb-accent); color: var(--gfb-on-accent); font: inherit; font-weight: 700;
+.gf-cal-next-go { border: 0; border-radius: 8px; background: var(--gfb-fill); color: var(--gfb-on-accent); font: inherit; font-weight: 700;
   min-height: 44px; padding: .5rem 1rem; cursor: pointer; transition: transform .1s ease-out; }
 .gf-cal-next-go:active { transform: scale(.97); }
 /* The month strip moves the way the arrow points; a cross-fade only under reduced motion. */
@@ -126,7 +142,8 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
 .gf-field label { font-size: .8rem; color: var(--gfb-muted); }
 /* 16 px at least: iOS zooms into any smaller field and never zooms back out. */
 .gf-field input, .gf-field select, .gf-field textarea { padding: .55rem; border: 1px solid var(--gfb-border); border-radius: 8px; font: inherit; font-size: max(16px, 1em); width: 100%; background: #fff; color: inherit; }
-.gf-field input:focus, .gf-field select:focus, .gf-field textarea:focus { outline: none; border-color: var(--gfb-accent); box-shadow: 0 0 0 3px var(--gfb-focus); }
+/* A transparent outline under the ring: invisible normally, drawn by the system in forced colours. */
+.gf-field input:focus, .gf-field select:focus, .gf-field textarea:focus { outline: 2px solid transparent; outline-offset: 1px; border-color: var(--gfb-accent); box-shadow: 0 0 0 3px var(--gfb-focus); }
 .gf-field input.gf-ro { background: var(--gfb-surface); color: inherit; font-weight: 600; pointer-events: none; }
 /* Refused on the field (specs/wordpress-plugin.md rule 28): a red edge, and the reason right under it. */
 .gf-field.is-invalid input, .gf-field.is-invalid textarea { border-color: var(--gfb-error); background: #FFFBFA; }
@@ -141,7 +158,8 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
 .gf-dates-clear:disabled { opacity: .4; cursor: not-allowed; }
 
 /* Sections (Voyageurs / Options & suppléments) */
-.gf-section { margin: 1.1rem 0; }
+/* Scoped: the Solio site has a `.gf-section` of its own. */
+.gf-section.gf-engine, .gf-block .gf-section { margin: 1.1rem 0; }
 .gf-section-title { font-weight: 700; font-size: 1.05rem; margin-bottom: .3rem; }
 .gf-lines { display: flex; flex-direction: column; }
 .gf-line { border-bottom: 1px solid var(--gfb-border); padding: .55rem 0; }
@@ -155,7 +173,7 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
 /* What the stay gets for free on this line — green, so it never reads as a warning like gf-line-note. */
 .gf-line-free { font-size: .82rem; font-weight: 600; color: var(--gfb-ok); background: var(--gfb-ok-soft); border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
 .gf-line-desc { font-size: .85rem; color: var(--gfb-muted); margin-top: .3rem; }
-.gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gfb-accent); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
+.gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gfb-fill); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
 
 /* Cancellation insurance (specs/cancellation-insurance.md §6.3). Its own framed block just before
    the price summary, with a mandatory Oui/Non choice — nothing is preselected, and the submit
@@ -180,7 +198,7 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
 /* Folded body: max-height keeps the transition cheap; 4000px is far above any realistic category. */
 .gf-group-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
 .gf-group-body.is-open { max-height: 4000px; }
-.gf-group-toggle { border: 0; background: none; cursor: pointer; padding: .35rem .25rem; font: inherit; font-size: .9rem; color: var(--gfb-accent); }
+.gf-group-toggle { border: 0; background: none; cursor: pointer; padding: .35rem .25rem; font: inherit; font-size: .9rem; color: var(--gfb-fill); }
 
 /* Stepper (− n +) — the single quantity control */
 .gf-step { display: inline-flex; align-items: center; border: 1px solid var(--gfb-border); border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
@@ -195,15 +213,18 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
 .gf-summary-total { font-weight: 700; border-top: 1px solid var(--gfb-border); margin-top: .35rem; padding-top: .35rem; }
 .gf-inline-warn { color: var(--gfb-warn); background: var(--gfb-warn-soft); border: 1px solid var(--gfb-warn-soft); border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
 .gf-success { color: var(--gfb-ok); background: var(--gfb-ok-soft); border: 1px solid var(--gfb-ok-soft); border-radius: 8px; padding: 1rem; }
-/* The primary action. `.gf-cta` is the same button outside the flow (sticky bar, summary card); it
-   never carries `.gf-btn`, which the Solio drawer reads as « the engine's submit ». */
-.gf-btn, .gf-cta { background: var(--gfb-accent); color: var(--gfb-on-accent); border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; transition: transform .1s ease-out, background-color .15s ease; user-select: none; -webkit-user-select: none; }
-.gf-btn:active:not([disabled]), .gf-cta:active:not([disabled]) { transform: scale(.98); }
-.gf-btn[disabled], .gf-cta[disabled] { opacity: .5; cursor: not-allowed; }
+/* The primary action. `.gf-btn` is never styled bare: the Solio site has its own `.gf-btn`
+   buttons (gf-site-style.php), which a bare rule repainted (specs/wordpress-plugin.md rule 29). The
+   engine's submit is reached as a child of the block or as an engine child (`.gf-engine`, how the
+   drawer finds it); `.gfb-cta` is the same button outside the flow (sticky bar, summary card), and
+   never carries `.gf-btn`, which the drawer reads as « the engine's submit ». */
+.gf-block .gf-btn, .gf-btn.gf-engine, .gfb-cta { background: var(--gfb-fill); color: var(--gfb-on-accent); border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; transition: transform .1s ease-out, background-color .15s ease; user-select: none; -webkit-user-select: none; }
+.gf-block .gf-btn:active:not([disabled]), .gf-btn.gf-engine:active:not([disabled]), .gfb-cta:active:not([disabled]) { transform: scale(.98); }
+.gf-block .gf-btn[disabled], .gf-btn.gf-engine[disabled], .gfb-cta[disabled] { opacity: .5; cursor: not-allowed; }
 /* CGV acceptance (specs/terms-acceptance-record.md rule 10): the whole line is the hit area. */
 .gf-cgv-accept { display: flex; gap: .6rem; align-items: flex-start; margin: .9rem 0 .4rem; cursor: pointer; line-height: 1.45; }
 .gf-cgv-accept input { width: 20px; height: 20px; margin: .1rem 0 0; flex: 0 0 auto; accent-color: var(--gfb-accent); }
-.gf-cgv-accept a, .gf-cgv-accept a.gf-link { color: var(--gfb-accent); text-decoration: underline; }
+.gf-cgv-accept a, .gf-cgv-accept a.gf-link { color: var(--gfb-fill); text-decoration: underline; }
 .gf-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 /* Total and button within thumb's reach (widget spec rule 32). Hidden by default: it shows only as a DIRECT
@@ -215,26 +236,39 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
 .gf-bar-amt b:empty { display: none; }
 .gf-bar-amt b.is-changing { opacity: .35; }
 .gf-bar-amt small { display: block; color: var(--gfb-muted); font-size: .8rem; }
-.gf-bar .gf-cta { flex: 0 0 auto; white-space: nowrap; padding-inline: 1rem; }
+.gf-bar .gfb-cta { flex: 0 0 auto; white-space: nowrap; padding-inline: 1rem; }
 .gf-summary-head { font-weight: 700; font-size: 1.05rem; margin-bottom: .1rem; }
 .gf-summary-dates { color: var(--gfb-muted); font-size: .9rem; margin-bottom: .5rem; }
 .gf-summary-cta { width: 100%; margin-top: .9rem; }
 
-@container gf-host (max-width: 899.98px) {
-  .gf-booking > .gf-bar {
-    display: flex; align-items: center; gap: .75rem;
-    position: sticky; bottom: 0; z-index: 3;
-    margin: 1rem -1.4rem -1.25rem; padding: .7rem 1.4rem calc(.7rem + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid var(--gfb-border); border-radius: 0 0 12px 12px;
-    background: rgba(255, 255, 255, .82);
-    -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+/* Only on a phone (decision 4): a coarse pointer or a narrow viewport, AND a block under 900 px.
+   A narrow block on a desktop keeps its button in the flow. */
+@media (pointer: coarse), (max-width: 600px) {
+  @container gf-host (max-width: 899.98px) {
+    .gf-booking > .gf-bar {
+      display: flex; align-items: center; gap: .75rem;
+      position: sticky; bottom: 0; z-index: 3;
+      margin: 1rem -1.4rem -1.25rem; padding: .7rem 1.4rem calc(.7rem + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid var(--gfb-border); border-radius: 0 0 12px 12px;
+      background: rgba(255, 255, 255, .82);
+      -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+    }
+    /* The bar carries the button; the one in the flow would only repeat it under the thumb. */
+    .gf-booking > .gf-btn { display: none; }
+    /* A theme ancestor with `overflow: hidden` defeats `sticky`: view.js then pins the bar to the
+       viewport while the block is on screen, and holds its place in the flow with the anchor. */
+    .gf-booking > .gf-bar.is-floating {
+      position: fixed; left: 0; right: 0; bottom: 0; margin: 0; border-radius: 0; z-index: 9990;
+      padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    }
   }
-  /* The bar carries the button; the one in the flow would only repeat it under the thumb. */
-  .gf-booking > .gf-btn { display: none; }
+  @container gf-host (max-width: 600px) {
+    .gf-booking > .gf-bar { margin: 1rem -1rem -1rem; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom, 0px)); }
+  }
 }
+.gf-bar-anchor { height: 0; }
 @container gf-host (max-width: 600px) {
   .gf-booking { padding: 1rem; }
-  .gf-booking > .gf-bar { margin: 1rem -1rem -1rem; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom, 0px)); }
 }
 /* Wide block: the summary becomes a card that follows the scroll in a right-hand column, with the
    button inside it — the bar's role on a large screen (widget spec rule 33). The children stay flat: the
@@ -244,6 +278,7 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
   .gf-booking > * { grid-column: 1; }
   .gf-booking > .gf-summary {
     grid-column: 2; grid-row: 1 / span var(--gf-rows, 12); align-self: start;
+    /* A theme with a sticky header sets `--gf-sticky-top` to its height (readme, rule 33). */
     position: sticky; top: var(--gf-sticky-top, 1rem);
     margin-top: 0; background: #fff; border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1rem 1.1rem;
   }
@@ -259,7 +294,7 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
 .gf-prop-card { border: 1px solid var(--gfb-border); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: .4rem; }
 .gf-prop-name { font-weight: 700; font-size: 1.05rem; }
 .gf-prop-meta { color: var(--gfb-muted); font-size: .85rem; }
-.gf-prop-price { color: var(--gfb-accent); font-weight: 600; }
+.gf-prop-price { color: var(--gfb-fill); font-weight: 600; }
 .gf-prop-card .gf-btn { margin-top: auto; text-align: center; text-decoration: none; display: inline-block; }
 
 /* Pointer hover, only where a pointer can hover: a touch screen keeps `:hover` on the last element
@@ -272,13 +307,13 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-accent-strong); o
   .gf-group-head:hover { background: var(--gfb-tint); }
   .gf-group-toggle:hover { text-decoration: underline; }
   .gf-step-btn:hover:not(:disabled) { background: var(--gfb-range); }
-  .gf-btn:hover:not([disabled]), .gf-cta:hover:not([disabled]), .gf-cal-next-go:hover { background: var(--gfb-accent-strong); }
+  .gf-block .gf-btn:hover:not([disabled]), .gf-btn.gf-engine:hover:not([disabled]), .gfb-cta:hover:not([disabled]), .gf-cal-next-go:hover { background: var(--gfb-fill-strong); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .gf-cal-wrap.gf-slide-next, .gf-cal-wrap.gf-slide-prev { animation: gf-fade .2s ease; }
-  button.gf-cal-day, .gf-btn, .gf-cta, .gf-choice, .gf-cal-nav, .gf-cal-next-go { transition: background-color .15s ease; }
-  button.gf-cal-day:active:not(:disabled), .gf-btn:active, .gf-cta:active, .gf-choice:active, .gf-cal-nav:active, .gf-cal-next-go:active { transform: none; }
+  button.gf-cal-day, .gf-block .gf-btn, .gf-btn.gf-engine, .gfb-cta, .gf-choice, .gf-cal-nav, .gf-cal-next-go { transition: background-color .15s ease; }
+  button.gf-cal-day:active:not(:disabled), .gf-block .gf-btn:active, .gf-btn.gf-engine:active, .gfb-cta:active, .gf-choice:active, .gf-cal-nav:active, .gf-cal-next-go:active { transform: none; }
   .gf-bar-amt b { transition: none; }
 }
 

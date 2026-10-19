@@ -99,13 +99,23 @@ One single, professional booking widget on each lodging page: pick the dates on 
     buttons answer on press (`:active` scale .94–.98, 100–120 ms), with no browser tap highlight and
     `touch-action: manipulation`; the arrival and departure are filled with the accent, the nights
     between at 15 %. A re-render of the grid gives the focus back to the day that held it.
-30. **« Prochaine disponibilité »** (decision 2). When the two months on screen hold no free night
-    from today on, the calendar asks GuestFlow for that window and reads `nextAvailableDate`
-    (public-api.md, availability — the first free night on or after the window, up to a year ahead,
-    computed by the server). A box above the months says « Prochaine disponibilité : mercredi
+    *Review of PR #722 (2026-10-19):* the un-versioned `gf-booking.php` still on the Solio Pi prints
+    `.gf-cal-day:hover:not(:disabled)` (specificity 0,3,0), which beat the plugin's
+    `button.gf-cal-day.gf-edge` (0,2,1) under iOS's sticky hover — the exact defect of decision 2.
+    The plugin doubles the class (`button.gf-cal-day.gf-edge.gf-edge`, same for `.gf-range`,
+    0,3,1) so the stay wins whatever that file prints; no deployment needed. A test computes the
+    specificities from the stylesheet.
+30. **« Prochaine disponibilité »** (decision 2). When the two months on screen hold no bookable
+    arrival from today on, the calendar shows GuestFlow's `nextAvailableDate` (public-api.md,
+    availability — the first bookable arrival on or after the window, up to a year ahead, computed by
+    the server with the engine's minimum/maximum stay and arrival/departure days: a free night the
+    quote would refuse is not one). The date comes from the availability answers already received
+    (the one that loaded the window says it); only a window with no free cell and no answer about it
+    asks once more. A box above the months says « Prochaine disponibilité : mercredi
     31 mars 2027 » with « Voir », which moves the calendar to that month; the « Sélectionnez votre
     date d'arrivée » prompt is cleared meanwhile (nothing can be picked). A GuestFlow without the
-    field answers without it: no box, the calendar behaves as before. The month strip slides 18 px
+    field answers without it: no box, the calendar behaves as before. After « Voir » the focus lands
+    on the announced day (the button it was on is rebuilt away). The month strip slides 18 px
     the way the arrow points (220 ms, `cubic-bezier(.2,.8,.2,1)`), a cross-fade under
     `prefers-reduced-motion`. « ‹ » is disabled on the current month. The summary's placeholder
     follows the next click like the calendar hint (`defaultHint()`), instead of always asking for
@@ -115,8 +125,9 @@ One single, professional booking widget on each lodging page: pick the dates on 
     **past** day a muted figure with no background and no strike (it is noise, and is no longer read
     « indisponible »); the stay in the accent. A legend under the hint names « Libre », « Pris »,
     « Votre séjour ».
-32. **Total and button within thumb's reach** (decision 4). Below 900 px of block width (a container
-    query on the block wrapper `.gf-booking-block`, not the viewport), a translucent bar
+32. **Total and button within thumb's reach** (decision 4, « sur téléphone »). On a phone — a coarse
+    pointer or a viewport of 600 px at most — and below 900 px of block width (a container query on
+    the block wrapper `.gf-booking-block`), a translucent bar
     (`backdrop-filter`, solid under `prefers-reduced-transparency`, padded with
     `env(safe-area-inset-bottom)`) is pinned to the bottom of the block with `position: sticky` —
     scoped to the block, never `fixed`, so it cannot fight a theme's own sticky header or button. It
@@ -130,10 +141,19 @@ One single, professional booking widget on each lodging page: pick the dates on 
     ([site-booking-drawer.md](site-booking-drawer.md) rules 4–7), never shows a second one; its
     button is a `.gf-cta`, never a `.gf-btn`, which the drawer reads as « the engine's submit ». The
     arrival and departure times move to a row of their own (« Heure de départ » used to wrap alone).
+    A narrow block on a desktop (fine pointer, wide viewport) keeps its button in the flow and no bar.
+    *Review of PR #722 (2026-10-19):* a theme ancestor with `overflow: hidden` (often
+    `overflow-x: hidden` on a page wrapper) defeats `position: sticky`. The script detects such an
+    ancestor that does not itself scroll (the body counts only when the root clips too) and then
+    pins the bar to the viewport (`.is-floating`, `position: fixed`, safe-area padding) while the
+    block is on screen and the bar's own place, held by an empty `.gf-bar-anchor` of the same height,
+    is still below; when that place is fully in view the bar returns to it. Two IntersectionObservers
+    drive it; re-checked on resize.
 33. **On a wide block the summary is a card that follows the scroll** (decision 4, desktop). From
     900 px of block width the block becomes a two-column grid; the summary takes the right column
     (340 px), `position: sticky`, spanning every row of the left one (`--gf-rows`, set by the
-    script), with « Votre séjour », the dates, the lines, the total and its own button; the bar and
+    script), with « Votre séjour », the dates, the lines, the total and its own button; under a theme's
+    sticky header the card's offset is `--gf-sticky-top` (default 1 rem, set by the site); the bar and
     the in-flow button are hidden. The children stay flat (no wrapper), so the drawer's reading of
     them is unchanged; outside a `.gf-booking` the card's heading and button are hidden.
 
@@ -154,7 +174,7 @@ One single, professional booking widget on each lodging page: pick the dates on 
 | `tests/` | `public-resource-free-allowance.unit.test.js` | C | **2026-09-23** — the wording of the free allowance and its agreement (9 cases) |
 | routes/controllers | — | — | (none — `/resources`, `/quote`, `/booking-requests` already support resources) |
 | `plugins/website-booking/` | `nextAvailability.js`, `controllers/publicCatalogController.js`, `publicProjections.js` | C/T | **2026-10-19** — `nextAvailableDate` on the availability payload (rule 30) |
-| `plugins/website-booking/tests/` | `public-next-availability.unit.test.js` | C | **2026-10-19** — 6 cases (in window, from today, closed season, none within a year, past window, projection) |
+| `plugins/website-booking/tests/` | `public-next-availability.unit.test.js` | C | **2026-10-19** — 10 cases (in window, from today, closed season, none within a year, past window, projection; review: isolated night under a 2-night minimum, the covering season's minimum, Saturday arrivals, a departure-day rule met by a longer stay) |
 
 ### 4.2 WordPress plugin (`integrations/wordpress/guestflow-booking/`)
 
@@ -165,6 +185,7 @@ One single, professional booking widget on each lodging page: pick the dates on 
 | `blocks/booking/view.js` | T | Embedded availability calendar (range select, ported from the mu-plugin), read-only date displays, time selects, steppers, unified option+resource rows, resources in quote/booking payloads, `babyBeds`. **2026-09-23**: `frDate` in figures (rule 3), `renderCal(hint)` (rules 19-20), free-allowance rendering (rules 21-22). **2026-10-19**: day states + focus kept (rules 29, 31), `nextFreeFrom` / `renderNextFree` / `jumpTo` (rule 30), times row, `setSubmit` + bar (rule 32), summary card (rule 33) |
 | `assets/style.css` | T | Redesigned widget styles (calendar, steppers, rows, summary). **2026-09-23**: `.gf-line-free` (green, so an offer never reads as the amber warning of `.gf-line-note`). **2026-10-19**: hover gated, press feedback, `.gf-past` / `.gf-taken` / legend / `.gf-cal-next`, month slide, `.gf-bar`, wide grid + sticky summary card (rules 29–33) |
 | `blocks/calendar/view.js` | T | **2026-10-19**: `.gf-past` for past days (rule 31) |
+| `server/src/plugins/sdk/` | `index.js`, `coreModules.json`, `version.js` | T | **2026-10-19** (review of PR #722): core module `changeover` and `pricing.calculateBaseStayPrice` exposed, SDK 1.3.0 (rule 30) |
 | `readme.txt` / `guestflow-booking.php` | T | Version bump |
 
 ### 4.3 WordPress content (Pi, after plugin deploy)
@@ -209,6 +230,7 @@ No schema change.
 
 - **2026-10-19 — UI/UX review (rules 29–33)**:
   - `client/src/__tests__/wordpress-booking-view.calendar-states.test.js` (4: past vs taken + legend + « ‹ » disabled; edges pressed and focus kept; « Prochaine disponibilité » from the server date, « Voir » jumps there; older server → no box), `wordpress-booking-view.sticky-bar.test.js` (5: bar before dates, quoted bar total + « Continuer » + not a `.gf-btn`, bar last child + `--gf-rows`, summary card heading/dates/button refusing like the main one, times row), `server/src/tests/wordpress-plugin-engine-colours.unit.test.js` (rule 29: hover gated, edge above hover), `public-next-availability.unit.test.js` (rule 30).
+  - Review of PR #722: `calendar-states` +2 (refused free cells still get the box, a bookable arrival in the window gets none) and the first box test now checks the answer is reused and the focus lands on the announced day; `sticky-bar` +2 (floats under an `overflow-x: hidden` wrapper and returns to its place, never floats without one) and every child marked `.gf-engine`; `wordpress-plugin-engine-colours` (legacy-hover specificity, phone-only bar); `public-next-availability` +4.
   - Browser (Playwright, local harness with the real assets, GuestFlow on a neutralised Solio copy) at 390 / 900 / 1280: Aventura lodge in October shows « Prochaine disponibilité : mercredi 31 mars 2027 », « Voir » lands on March–April 2027; a tapped departure (touch emulation) and a clicked one under the mouse both read accent on white; the bar reads « 463,12 € · 4 nuits · taxe de séjour incluse · Continuer », then « Envoyer la demande » at the form; 1280 wide shows the sticky card; no horizontal scroll at 390 or 900. A simulated Solio drawer shows no engine bar.
 
 ## 8. Out of scope
