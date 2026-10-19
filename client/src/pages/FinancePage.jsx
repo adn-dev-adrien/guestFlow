@@ -18,6 +18,7 @@ import FinanceDetailPanel from '../components/FinanceDetailPanel';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
+import { seriesColor } from '../utils/chartColors';
 import { formatCurrencyRounded } from '../utils/formatters';
 import api from '../api';
 import { localIsoToday } from '../utils/isoDay';
@@ -183,7 +184,7 @@ export default function FinancePage() {
               items={[
                 { value: null, label: 'Tous les logements', figure: formatCurrencyRounded(d.totalRevenue), caption: `${percent(d.totalOccupancy)} occupé` },
                 ...d.properties.map((p) => ({
-                  value: p.propertyId, label: p.name, color: p.color, figure: formatCurrencyRounded(p.revenue),
+                  value: p.propertyId, label: p.name, color: seriesColor(p.colorIndex), figure: formatCurrencyRounded(p.revenue),
                   caption: `${percent(p.occupancy)} occupé · ${p.revenuePerNight == null ? '—' : formatCurrencyRounded(p.revenuePerNight)}/nuit`,
                 })),
               ]}
@@ -199,9 +200,10 @@ export default function FinancePage() {
             />
 
             {d.insights.length > 0 && (
-              <Grid container spacing={2} sx={{ mb: 2 }}>
+              // Rule 43 — as many columns as 240 px allow, never a text cut mid-word.
+              <Box data-testid="finance-insights" sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 2, mb: 2 }}>
                 {d.insights.map((i) => (
-                  <Grid key={i.key} size={{ xs: 12, md: 12 / d.insights.length }}>
+                  <Box key={i.key} sx={{ minWidth: 0 }}>
                     <InsightCard
                       tone={i.tone}
                       title={i.title}
@@ -209,9 +211,9 @@ export default function FinancePage() {
                       actionLabel={i.action ? i.action.label : undefined}
                       onAction={i.action ? () => { setStaysScope(i.action.scope); setDetail({ data: null, loading: false, error: false }); setTile(i.action.tile); } : undefined}
                     />
-                  </Grid>
+                  </Box>
                 ))}
-              </Grid>
+              </Box>
             )}
 
             {/* Rule 13 — six tiles; the open one shows its table just below the row. */}
@@ -292,7 +294,7 @@ export default function FinancePage() {
                       series={d.occupancy.map((o) => ({
                         key: String(o.propertyId),
                         title: o.name,
-                        color: o.color,
+                        color: seriesColor(o.colorIndex),
                         caption: o.average == null ? '—' : `moy. ${percent(o.average)}`,
                         points: o.months.map((m) => ({ key: m.month, tick: m.initial, label: m.label, current: m.current, previous: m.previous })),
                       }))}

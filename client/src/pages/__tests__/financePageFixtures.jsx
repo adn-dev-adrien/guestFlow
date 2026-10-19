@@ -23,8 +23,8 @@ export const DASHBOARD = {
   },
   insights: [{ key: 'late', tone: 'info', title: 'Aucun paiement en retard', text: 'Tout est à jour.' }],
   properties: [
-    { propertyId: 1, name: 'Gîte', color: '#2F5D46', revenue: 2400, occupancy: 0.3, revenuePerNight: 600 },
-    { propertyId: 2, name: 'Tente', color: '#C99038', revenue: 1200, occupancy: 0.1, revenuePerNight: 600 },
+    { propertyId: 1, name: 'Gîte', colorIndex: 0, revenue: 2400, occupancy: 0.3, revenuePerNight: 600 },
+    { propertyId: 2, name: 'Tente', colorIndex: 1, revenue: 1200, occupancy: 0.1, revenuePerNight: 600 },
   ],
   totalRevenue: 3600,
   totalOccupancy: 0.2,
@@ -38,7 +38,7 @@ export const DASHBOARD = {
   },
   revenueMonths: MONTHS,
   occupancy: [1, 2].map((id) => ({
-    propertyId: id, name: id === 1 ? 'Gîte' : 'Tente', color: '#2F5D46', average: 0.2,
+    propertyId: id, name: id === 1 ? 'Gîte' : 'Tente', colorIndex: id - 1, average: 0.2,
     months: MONTHS.map((m) => ({ month: m.month, label: m.label, initial: m.initial, current: 0.2, previous: null })),
   })),
 };

@@ -24,10 +24,25 @@ const { paceStartOf } = require('../utils/bookingPace');
 
 const H = financeModel.helpers;
 
-// One colour per logement, in id order, so a logement keeps its colour on every chart (§4.3).
-const PROPERTY_COLORS = ['#2F5D46', '#C99038', '#31556E', '#A8433A', '#6B8F76', '#8A6B3E', '#5C4B7D', '#757575'];
 const DETAIL_TILES = new Set(['collected', 'toCollect', 'late', 'stays', 'properties', 'channels']);
 const CUMULATIVE_DAILY_UP_TO = 62;
+
+/**
+ * Rule 43 — « meilleur mois » only among the months already over. While none of them carries revenue,
+ * the month leading the bookings is named instead, as such (`kind: 'leading'`), never as a best month.
+ * `kind`: 'exercise' (every month over), 'over' (some months still to come), 'leading'.
+ */
+function bestMonthOf(months, today) {
+  const top = (list) => list.reduce((b, m) => (m.past + m.upcoming > (b ? b.past + b.upcoming : -Infinity) ? m : b), null);
+  const over = months.filter((m) => yoy.isMonthOver(m.month, today));
+  const bestOver = top(over);
+  if (bestOver && bestOver.past + bestOver.upcoming > 0) {
+    return { month: bestOver.month, revenue: round2(bestOver.past + bestOver.upcoming), previous: bestOver.previous, kind: over.length === months.length ? 'exercise' : 'over' };
+  }
+  const leader = top(months.filter((m) => !yoy.isMonthOver(m.month, today)));
+  if (!leader || leader.past + leader.upcoming <= 0) return null;
+  return { month: leader.month, revenue: round2(leader.past + leader.upcoming), previous: null, kind: 'leading', timing: leader.month === today.slice(0, 7) ? 'current' : 'upcoming' };
+}
 
 const ratio = (a, b) => (b > 0 ? Math.round((a / b) * 10000) / 10000 : null);
 const addDays = occupancy.addDays;
@@ -55,7 +70,9 @@ function createDashboardModel(database, finance) {
   };
 
   const properties = () => database.prepare('SELECT id, name FROM properties ORDER BY id').all()
-    .map((p, i) => ({ id: p.id, name: p.name, color: PROPERTY_COLORS[i % PROPERTY_COLORS.length] }));
+    // One colour slot per logement, in id order, so a logement keeps its colour on every chart; the
+    // colour itself is a theme token (rule 45).
+    .map((p, i) => ({ id: p.id, name: p.name, colorIndex: i }));
 
   const closures = () => (hasTable('establishment_closures')
     ? database.prepare('SELECT propertyId, startDate, endDate FROM establishment_closures').all()
@@ -181,7 +198,7 @@ function createDashboardModel(database, finance) {
       const ownN1 = staysKnownN1.filter((s) => s.propertyId === p.id);
       const pCover = coverage(p.id);
       return {
-        propertyId: p.id, name: p.name, color: p.color,
+        propertyId: p.id, name: p.name, colorIndex: p.colorIndex,
         average: occupancy.occupancyOver([p], own, allClosures, exercise.from, exercise.to, { startOf }).rate,
         months: months.map((m) => {
           const from = `${m.month}-01`;
@@ -207,7 +224,8 @@ function createDashboardModel(database, finance) {
       final: anyComparable && !snapshotKnown ? prevMonthsOf(null) : [],
     };
     const revenueMonths = exerciseSummary.exerciseMonths.map((m, i) => ({
-      month: m.month, label: m.label, initial: m.initial,
+      month: m.month, label: m.label, initial: m.initial, short: m.short,
+      isCurrent: m.month === today.slice(0, 7),
       past: m.past, upcoming: m.upcoming, revenue: m.revenue, revenueHt: m.revenueHt, nights: m.nights,
       previous: yoy.isComparableMonth(m.month, cover) && previousReading(m.month) && prevMonths[previousReading(m.month)][i]
         ? prevMonths[previousReading(m.month)][i].revenue
@@ -241,7 +259,7 @@ function createDashboardModel(database, finance) {
     const goalAmount = win.kind === 'fy' && !propertyId ? goals[exercise.key] : null;
     const byId = new Map(everywhere.revenueByProperty.map((p) => [p.propertyId, p]));
     const commission = round2(summary.reservations.reduce((n, r) => n + commissionOf(r), 0));
-    const best = revenueMonths.reduce((b, m) => (m.past + m.upcoming > (b ? b.past + b.upcoming : -Infinity) ? m : b), null);
+    const bestMonth = bestMonthOf(revenueMonths, today);
     const scopeRevenue = propertyId ? byId.get(propertyId) : null;
     const leader = everywhere.revenueByProperty.find((p) => p.revenue > 0);
 
@@ -265,10 +283,11 @@ function createDashboardModel(database, finance) {
           } : null,
           goal: goalAmount ? { amount: goalAmount, ratio: ratio(revenue, goalAmount), remaining: round2(Math.max(0, goalAmount - revenue)) } : null,
           cumulative,
+          curveCompact: win.kind === 'fy' && !yoy.isMonthOver(win.from.slice(0, 7), today),
           axis: curveAxis(win.from, win.to, daily),
         },
         insights: buildInsights({
-          bestMonth: best ? { month: best.month, revenue: best.past + best.upcoming, previous: best.previous } : null,
+          bestMonth,
           direct: { revenue: direct, averagePlatformRate: averagePlatformRate(summary.reservations) },
           late: { count: operational.overdue.count, amount: operational.overdue.totalAmount, payouts: operational.overdue.payouts },
           unpriced: windowNights.unpriced,
@@ -277,7 +296,7 @@ function createDashboardModel(database, finance) {
           const agg = byId.get(p.id) || { revenue: 0 };
           const o = windowOcc.byProperty.get(p.id);
           const n = everywhereNights.byProperty.get(p.id);
-          return { propertyId: p.id, name: p.name, color: p.color, revenue: agg.revenue, occupancy: o ? o.rate : null, revenuePerNight: occupancy.revenuePerNight(agg.revenue, n ? n.pricedNights : 0) };
+          return { propertyId: p.id, name: p.name, colorIndex: p.colorIndex, revenue: agg.revenue, occupancy: o ? o.rate : null, revenuePerNight: occupancy.revenuePerNight(agg.revenue, n ? n.pricedNights : 0) };
         }),
         totalRevenue: everywhere.revenueTotal,
         totalOccupancy: windowOcc.rate,
@@ -383,7 +402,7 @@ function createDashboardModel(database, finance) {
         const prev = prevBy && prevBy.get(p.id);
         const n = nightsOf.byProperty.get(p.id) || { nights: 0, pricedNights: 0 };
         return {
-          propertyId: p.id, name: p.name, color: p.color, nights: n.nights,
+          propertyId: p.id, name: p.name, colorIndex: p.colorIndex, nights: n.nights,
           occupancy: o.rate, revenuePerNight: occupancy.revenuePerNight(agg.revenue, n.pricedNights), revPar: occupancy.revPar(agg.revenue, o.sellable),
           revenue: agg.revenue, revenueHt: agg.revenueHt,
           change: prev ? yoy.change((curBy.get(p.id) || { revenue: 0 }).revenue, prev.revenue) : null,
@@ -432,5 +451,6 @@ function createDashboardModel(database, finance) {
 
 const defaultModel = createDashboardModel(db, financeModel);
 defaultModel.buildModel = (database) => createDashboardModel(database, financeModel.buildModel(database));
+defaultModel.bestMonthOf = bestMonthOf;
 
 module.exports = defaultModel;

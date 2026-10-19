@@ -10,7 +10,8 @@ const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 /**
  * @param {{
- *   bestMonth: { month: 'YYYY-MM', revenue: number, previous: number|null } | null,
+ *   bestMonth: { month: 'YYYY-MM', revenue: number, previous: number|null,
+ *                kind?: 'exercise'|'over'|'leading', timing?: 'current'|'upcoming' } | null,
  *   direct: { revenue: number, averagePlatformRate: number|null },
  *   late: { count: number, amount: number, payouts?: { count: number, totalAmount: number } },
  *   unpriced?: { count: number, nights: number },
@@ -19,14 +20,22 @@ const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
  */
 function buildInsights({ bestMonth, direct, late, unpriced }) {
   const out = [];
+  // Rule 43 — a best month is a month over; before any, the leading month is named as such.
   if (bestMonth && bestMonth.revenue > 0) {
     const name = capitalise(MONTH_NAMES[Number(bestMonth.month.slice(5, 7)) - 1]);
-    out.push({
-      key: 'bestMonth',
-      tone: 'success',
-      title: `${name}, meilleur mois de l'exercice`,
-      text: `${eur(bestMonth.revenue)}${bestMonth.previous != null ? `, contre ${eur(bestMonth.previous)} l'an dernier` : ''}.`,
-    });
+    out.push(bestMonth.kind === 'leading'
+      ? {
+        key: 'bestMonth',
+        tone: 'success',
+        title: `${name}, en tête des réservations : ${eur(bestMonth.revenue)}`,
+        text: bestMonth.timing === 'current' ? 'Mois en cours, pas encore terminé.' : 'Mois à venir.',
+      }
+      : {
+        key: 'bestMonth',
+        tone: 'success',
+        title: `${name}, meilleur mois ${bestMonth.kind === 'over' ? 'terminé' : "de l'exercice"}`,
+        text: `${eur(bestMonth.revenue)}${bestMonth.previous != null ? `, contre ${eur(bestMonth.previous)} l'an dernier` : ''}.`,
+      });
   }
   // Hidden when no platform stay has a known commission: an invented rate would be a guess.
   if (direct && direct.revenue > 0 && direct.averagePlatformRate != null) {
