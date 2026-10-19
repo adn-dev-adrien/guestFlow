@@ -44,6 +44,8 @@ function emptyRecord(id) {
     // specs/plugins-phase-3c-hourly-resources.md rules 1, 6.
     priceLineContributor: null,
     sasCommits: [],
+    // specs/plugins-phase-0-foundation.md rule 25 — () → null | what the plugin still lacks.
+    setupStatus: null,
   };
 }
 

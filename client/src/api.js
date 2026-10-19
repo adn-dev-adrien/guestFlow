@@ -399,6 +399,8 @@ const api = {
 
   // App settings
   getSettings: () => request('/settings'),
+  // specs/settings-rationalization.md rule 25 — one line of state per Paramètres page.
+  getSettingsSummary: () => request('/settings/summary'),
   updateSettings: (payload) => request('/settings', { method: 'PUT', body: payload }),
 
   // PWA Web Push (specs/pwa-push-notifications.md §4.3). Per-user (the session cookie identifies the user).
@@ -618,6 +620,8 @@ const api = {
   // SMTP test (specs/admin-account-management.md M3) — sends "Email de test GuestFlow" to the
   // current admin so they can verify the SMTP block before inviting anyone.
   sendSmtpTest: () => request('/settings/smtp-test', { method: 'POST' }),
+  // specs/settings-rationalization.md rule 28 — the server found from the sending address.
+  detectSmtp: (address) => request('/settings/smtp-detect', { method: 'POST', body: { address } }),
 
   // Google Calendar sync (specs/google-calendar-oauth-rework.md §4.3). The OAuth authorize
   // redirect is a full-page navigation (window.location), not an XHR — no helper for it.
@@ -705,7 +709,8 @@ const api = {
   getOnboarding: () => request('/onboarding'),
   saveOnboardingCompany: (body) => request('/onboarding/company', { method: 'PUT', body }),
   saveOnboardingProperty: (body) => request('/onboarding/property', { method: 'PUT', body }),
-  saveOnboardingPlugins: (ids) => request('/onboarding/plugins', { method: 'PUT', body: { ids } }),
+  // specs/plugins-phase-p-productisation.md rule 43 — { options, website, payment } yes/no.
+  saveOnboardingPlugins: (answers) => request('/onboarding/plugins', { method: 'PUT', body: { answers } }),
   completeOnboarding: () => request('/onboarding/done', { method: 'POST' }),
   getEmailTemplate:         (id) => request(`/email-templates/${id}`),
   createEmailTemplate:      (data) => request('/email-templates', { method: 'POST', body: data }),

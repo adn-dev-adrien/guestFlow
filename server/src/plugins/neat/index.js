@@ -23,6 +23,11 @@ function register(ctx) {
   ctx.migrations(MIGRATIONS);
   ctx.settings.declare(DECLARED);
   const store = createSettingsStore({ settings: ctx.settings });
+  // specs/plugins-phase-0-foundation.md rule 25 — nothing is priced nor subscribed without the client credentials.
+  ctx.setupStatus(() => {
+    const cfg = store.neatConfig();
+    return cfg.clientId && cfg.clientSecret ? null : 'identifiants manquants';
+  });
 
   // Built on first use: the tables exist only once the plugin is installed, and a purge drops them.
   let model = null;

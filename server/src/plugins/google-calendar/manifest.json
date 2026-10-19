@@ -1,7 +1,7 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
@@ -9,7 +9,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^1.0.0",
+  "sdk": "^1.3.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -22,6 +22,9 @@
     ],
     "1.0.3": [
       "Textes de la connexion à Google Agenda sans « vous » ni « votre »."
+    ],
+    "1.1.0": [
+      "La carte du plugin dit s’il reste à se connecter à Google ou à choisir l’agenda."
     ]
   }
 }

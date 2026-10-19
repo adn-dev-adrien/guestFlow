@@ -1,6 +1,7 @@
 /**
  * OnboardingPage — `/demarrage`, the start assistant (specs/plugins-phase-p-productisation.md §3.D
- * rules 20–23). Five steps: Entreprise, Premier logement, Plugins, Emails
+ * rules 20–23). Five steps: Entreprise, Premier logement, Plugins (three yes/no questions the server
+ * maps to plugins — rule 43), Emails
  * (specs/guest-email-texts-made-simple.md rule 21), C'est prêt. Every step is
  * validated and saved by the server when « Suivant » is pressed; an error keeps the step open.
  * « Plus tard » closes the assistant and keeps what was saved.
@@ -11,7 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
-  Alert, Box, Button, Checkbox, Chip, Collapse, FormControlLabel, Link, Stack, TextField, Typography,
+  Alert, Box, Chip, Link, Stack, Switch, TextField, Typography,
 } from '@mui/material';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
@@ -26,6 +27,7 @@ const STEPS = TITLES.length;
 const EMAILS_STEP = 4;
 // A link of the last step: a full-height touch target, its text at the top-left.
 const LAST_STEP_LINK = { textAlign: 'left', minHeight: 44, display: 'flex', alignItems: 'center' };
+const ONBOARDING_PLUGINS_FOOTNOTE = 'Le reste se règle plus tard dans Paramètres › Plugins.';
 const EMPTY_PROPERTY = { name: '', doubleBeds: '1', singleBeds: '0', maxGuests: '2', checkIn: '16:00', checkOut: '10:00', pricePerNight: '' };
 
 const Brand = () => (
@@ -48,8 +50,8 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   const [property, setProperty] = useState(EMPTY_PROPERTY);
   const [capacityTouched, setCapacityTouched] = useState(false);
   const [plugins, setPlugins] = useState([]);
-  const [showMore, setShowMore] = useState(false);
-  const [picked, setPicked] = useState({});
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
   const [emails, setEmails] = useState(null);
   const [emailDraft, setEmailDraft] = useState({});
   const [readiness, setReadiness] = useState([]);
@@ -77,7 +79,8 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         }
         setPlugins(data.plugins || []);
         setPluginsSummary(data.pluginsSummary || '');
-        setPicked(Object.fromEntries((data.plugins || []).map((p) => [p.id, p.allowed && (p.recommended || p.state === 'active')])));
+        setQuestions(data.questions || []);
+        setAnswers(Object.fromEntries((data.questions || []).map((q) => [q.id, Boolean(q.answer)])));
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
@@ -150,8 +153,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       }
       if (step === 2 && !existingProperties) await api.saveOnboardingProperty(property);
       if (step === 3) {
-        const ids = Object.keys(picked).filter((id) => picked[id]);
-        const saved = await api.saveOnboardingPlugins(ids);
+        const saved = await api.saveOnboardingPlugins(answers);
         setPluginsSummary(saved.pluginsSummary || '');
         if (saved.reload) setNeedsLoad(true);
         // Rule 37 — each plugin left out is named with the server's reason.
@@ -198,21 +200,6 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
 
   if (loading) return <LoadingState />;
   if (loadError) return <Box sx={{ p: 3 }}><ErrorAlert message="Impossible de charger l’assistant." onRetry={() => window.location.reload()} /></Box>;
-
-  const renderPlugin = (p) => (
-    <Box key={p.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, py: 1, opacity: p.allowed ? 1 : 0.6 }}>
-      <FormControlLabel
-        control={<Checkbox checked={Boolean(picked[p.id]) && p.allowed} disabled={!p.allowed} onChange={(e) => setPicked((prev) => ({ ...prev, [p.id]: e.target.checked }))} />}
-        label={(
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.label}</Typography>
-            <Typography variant="caption" color="text.secondary">{p.description}</Typography>
-            {!p.allowed && p.plan && <Box><Chip size="small" label={p.plan} sx={{ mt: 0.5 }} /></Box>}
-          </Box>
-        )}
-      />
-    </Box>
-  );
 
   return (
     <StepperPage
@@ -269,23 +256,32 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       )}
 
       {step === 3 && (
-        <Stack spacing={1}>
-          {plugins.filter((p) => !p.more).map(renderPlugin)}
-          {plugins.some((p) => p.more) && (
-            <>
-              <Button
-                variant="text"
-                onClick={() => setShowMore((v) => !v)}
-                aria-expanded={showMore}
-                sx={{ alignSelf: 'flex-start', minHeight: 44 }}
+        <Stack spacing={1.5}>
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+            {questions.map((q, i) => (
+              <Box
+                key={q.id}
+                component="label"
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1, minHeight: 56,
+                  borderTop: i ? 1 : 0, borderColor: 'divider', cursor: q.allowed ? 'pointer' : 'default',
+                }}
               >
-                {`Pour aller plus loin (${plugins.filter((p) => p.more).length})`}
-              </Button>
-              <Collapse in={showMore} unmountOnExit>
-                <Stack spacing={1}>{plugins.filter((p) => p.more).map(renderPlugin)}</Stack>
-              </Collapse>
-            </>
-          )}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: q.allowed ? 'text.primary' : 'text.secondary' }}>{q.label}</Typography>
+                  {q.hint && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{q.hint}</Typography>}
+                  {!q.allowed && q.plan && <Chip size="small" label={q.plan} sx={{ mt: 0.5 }} />}
+                </Box>
+                <Switch
+                  checked={Boolean(answers[q.id]) && q.allowed}
+                  disabled={!q.allowed}
+                  onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.checked }))}
+                  slotProps={{ input: { 'aria-label': q.label } }}
+                />
+              </Box>
+            ))}
+          </Box>
+          <Typography variant="caption" color="text.secondary">{ONBOARDING_PLUGINS_FOOTNOTE}</Typography>
         </Stack>
       )}
 

@@ -12,6 +12,11 @@
  * plateforme » — the server's `platform` block — and the SMTP fields fold behind « Utiliser mon
  * propre serveur ». A saved host always wins: the card then says « Serveur personnel », unfolded.
  *
+ * specs/settings-rationalization.md rule 28 (UI/UX review 2026-10-18, decision 14): the operator
+ * types the address and the password; the server found from the address (`detection`) is said under
+ * the password, and the server writes it at save. The server field, the login and the security fold
+ * behind « Réglages avancés », opened when no provider was found. The test button says what it lacks.
+ *
  * Props:
  *   values:      { host, secure, username, passwordSet, fromEmail, fromName,
  *                  derived: { fromEmail, username, fromName }, passwordDraft?: string | undefined,
@@ -24,6 +29,8 @@
  *   testing:     boolean                — spinner on the test button
  *   testResult:  { severity, message, onClose } | null
  *   disabled:    boolean
+ *   detection:   { status: 'idle'|'loading'|'found'|'missing', provider: { name, host, hint } | null,
+ *                  message } — useSmtpDetection
  */
 import React from 'react';
 import {
@@ -45,6 +52,7 @@ export default function SettingsSmtpSection({
   testing = false,
   testResult,
   disabled = false,
+  detection = { status: 'idle', provider: null, message: '' },
 }) {
   const v = values || {};
   const derived = v.derived || {};
@@ -54,25 +62,24 @@ export default function SettingsSmtpSection({
   // password — saved (passwordSet) or typed in the draft.
   const hasPassword = v.passwordSet || (v.passwordDraft && v.passwordDraft.trim() !== '');
   const sendingAddress = String(v.fromEmail || '').trim() || String(derived.fromEmail || '').trim();
-  const canTest = !disabled && !testing
-    && String(v.host || '').trim() !== ''
-    && sendingAddress !== ''
-    && hasPassword;
+  const hostTyped = String(v.host || '').trim() !== '';
+  const canTest = !disabled && !testing && hostTyped && sendingAddress !== '' && hasPassword;
+  // What the disabled test button waits for, said next to it.
+  let testMissing = null;
+  if (!sendingAddress) testMissing = 'Adresse d’envoi manquante.';
+  else if (!hasPassword) testMissing = 'Mot de passe manquant.';
+  else if (!hostTyped) testMissing = detection.status === 'found' ? 'À enregistrer d’abord.' : 'Serveur d’envoi manquant.';
+  const found = !hostTyped && detection.status === 'found' && detection.provider;
+  const notFound = !hostTyped && detection.status === 'missing';
+  let serverLine = null;
+  if (hostTyped) serverLine = `Serveur d’envoi : ${String(v.host).trim()}.`;
+  else if (detection.status === 'loading') serverLine = 'Recherche du serveur d’envoi…';
+  else if (found) serverLine = `${detection.message} Retenu à l’enregistrement.`;
+  else if (notFound) serverLine = detection.message;
 
   const platform = v.platform || { available: false, active: false, replyTo: '' };
   const smtpFields = (
     <>
-      <TextField
-        label="Serveur d’envoi"
-        value={v.host || ''}
-        onChange={setEvt('host')}
-        disabled={disabled}
-        error={Boolean(errors.smtpHost)}
-        helperText={errors.smtpHost || 'Exemple : smtp.gmail.com'}
-        fullWidth
-        size="small"
-      />
-
       <DerivedValueField
         label="Adresse d'envoi"
         type="email"
@@ -86,23 +93,19 @@ export default function SettingsSmtpSection({
         disabled={disabled}
       />
 
-      <DerivedValueField
-        label="Identifiant du serveur"
-        value={v.username || ''}
-        derivedValue={derived.username}
-        derivedFrom="l'adresse d'envoi"
-        overrideLabel="Identifiant différent"
-        onChange={(val) => onChange('username', val)}
-        disabled={disabled}
-      />
-
       <MaskedTextField
-        label="Mot de passe du serveur"
+        label="Mot de passe de l’adresse d’envoi"
         hasValue={Boolean(v.passwordSet)}
         value={v.passwordDraft}
         onChange={onChangePassword}
-        helperText="Pour Gmail : un mot de passe d’application."
+        helperText={(found && detection.provider.hint) || 'Le mot de passe de la boîte mail ; pour Gmail, un mot de passe d’application.'}
       />
+
+      {serverLine && (
+        <Typography variant="body2" role="status" color={notFound ? 'warning.main' : 'text.secondary'} sx={{ mt: -1 }}>
+          {serverLine}
+        </Typography>
+      )}
 
       <DerivedValueField
         label="Nom affiché"
@@ -117,20 +120,44 @@ export default function SettingsSmtpSection({
       />
 
       {/* specs/plugins-phase-p-productisation.md rule 41 — the protocol names stay under « Avancé ». */}
-      <AdvancedDetails>
-        <TextField
-          label="Sécurité de la connexion"
-          select
-          value={v.secure ? 1 : 0}
-          onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
-          disabled={disabled}
-          size="small"
-          fullWidth
-          helperText={`Port utilisé : ${v.secure ? 465 : 587} (déduit).`}
-        >
-          <MenuItem value={0}>STARTTLS</MenuItem>
-          <MenuItem value={1}>TLS implicite</MenuItem>
-        </TextField>
+      <AdvancedDetails label="Réglages avancés" defaultOpen={notFound} key={notFound ? 'open' : 'folded'}>
+        <Stack spacing={2}>
+          <TextField
+            label="Serveur d’envoi"
+            value={v.host || ''}
+            onChange={setEvt('host')}
+            disabled={disabled}
+            error={Boolean(errors.smtpHost)}
+            helperText={errors.smtpHost || (found ? `Vide : ${detection.provider.host}, trouvé depuis l’adresse.` : 'Exemple : smtp.gmail.com')}
+            placeholder={found ? detection.provider.host : undefined}
+            fullWidth
+            size="small"
+          />
+          <DerivedValueField
+            label="Identifiant du serveur"
+            value={v.username || ''}
+            derivedValue={derived.username}
+            derivedFrom="l'adresse d'envoi"
+            overrideLabel="Identifiant différent"
+            onChange={(val) => onChange('username', val)}
+            disabled={disabled}
+          />
+          <TextField
+            label="Sécurité de la connexion"
+            select
+            value={v.secure ? 1 : 0}
+            onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
+            disabled={disabled}
+            size="small"
+            fullWidth
+            helperText={found
+              ? `Celle du serveur trouvé : ${detection.provider.secure ? 'TLS implicite, port 465' : 'STARTTLS, port 587'}.`
+              : `Port utilisé : ${v.secure ? 465 : 587} (déduit).`}
+          >
+            <MenuItem value={0}>STARTTLS</MenuItem>
+            <MenuItem value={1}>TLS implicite</MenuItem>
+          </TextField>
+        </Stack>
       </AdvancedDetails>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -145,7 +172,7 @@ export default function SettingsSmtpSection({
           Envoyer un mail de test
         </Button>
         <Typography variant="caption" color="text.secondary">
-          Envoie « Email de test GuestFlow » à l’adresse du compte connecté.
+          {canTest || !testMissing ? 'Envoie « Email de test GuestFlow » à l’adresse du compte connecté.' : testMissing}
         </Typography>
         {testResult && (
           <Alert severity={testResult.severity} onClose={testResult.onClose}>

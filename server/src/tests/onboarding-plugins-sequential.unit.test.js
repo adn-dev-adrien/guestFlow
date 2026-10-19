@@ -76,9 +76,9 @@ function setup(plugins) {
 test('rule 37: the two recommended plugins of a fresh install both go through on the first click', async () => {
   const plugins = lockedPlugins({ 'website-booking': 'available', sas: 'available', neat: 'available' });
   const { db, controller } = setup(plugins);
-  const { body } = await call(controller.savePlugins, { body: { ids: ['website-booking', 'sas'] } });
-  assert.deepEqual(body.results, [{ id: 'website-booking', ok: true }, { id: 'sas', ok: true }]);
-  assert.deepEqual(plugins.order, ['website-booking', 'sas']);
+  const { body } = await call(controller.savePlugins, { body: { answers: { options: true, website: true } } });
+  assert.deepEqual(body.results, [{ id: 'sas', ok: true }, { id: 'website-booking', ok: true }]);
+  assert.deepEqual(plugins.order, ['sas', 'website-booking']);
   assert.equal(plugins.lock.updating, false);
   assert.equal(body.pluginsSummary, '2 plugins actifs');
   db.close();
@@ -89,10 +89,10 @@ test('rule 37: a refusal carries its reason in words, and the others still go th
     refuse: { 'website-booking': { error: 'CORE_TOO_OLD', message: 'Nécessite GuestFlow 3.11 ou plus récent.' } },
   });
   const { db, controller } = setup(plugins);
-  const { body } = await call(controller.savePlugins, { body: { ids: ['website-booking', 'sas'] } });
+  const { body } = await call(controller.savePlugins, { body: { answers: { options: true, website: true } } });
   assert.deepEqual(body.results, [
-    { id: 'website-booking', ok: false, error: 'CORE_TOO_OLD', reason: 'nécessite GuestFlow 3.11 ou plus récent' },
     { id: 'sas', ok: true },
+    { id: 'website-booking', ok: false, error: 'CORE_TOO_OLD', reason: 'nécessite GuestFlow 3.11 ou plus récent' },
   ]);
   assert.equal(body.pluginsSummary, '1 plugin actif');
   db.close();
@@ -127,9 +127,9 @@ test('rule 38: an empty price is « Prix obligatoire », a negative one « Prix 
 // Rule 42 — an install that ships new pages asks for a page load; the step passes it on.
 test('rule 42: the step answers reload when an install asked for it, and not for an activation alone', async () => {
   const installed = setup(lockedPlugins({ sas: 'available' }));
-  assert.equal((await call(installed.controller.savePlugins, { body: { ids: ['sas'] } })).body.reload, true);
+  assert.equal((await call(installed.controller.savePlugins, { body: { answers: { options: true } } })).body.reload, true);
   installed.db.close();
   const activated = setup(lockedPlugins({ sas: 'inactive' }));
-  assert.equal((await call(activated.controller.savePlugins, { body: { ids: ['sas'] } })).body.reload, false);
+  assert.equal((await call(activated.controller.savePlugins, { body: { answers: { options: true } } })).body.reload, false);
   activated.db.close();
 });

@@ -2,12 +2,14 @@
  * Onboarding controller — the start assistant (specs/plugins-phase-p-productisation.md §3.D rules
  * 20–23, §4.3). Admin-only through the role guard.
  *
- *   GET  /api/onboarding            { open, company, property, plugins, emails, pluginsSummary }
+ *   GET  /api/onboarding            { open, company, property, plugins, questions, emails, pluginsSummary }
  *   PUT  /api/onboarding/company    { name, email, phone, address, siret } → 200 { company, loginEmail, loginChanged } | 422 { errors }
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
  *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 29)
- *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error, reason }], pluginsSummary }
+ *   PUT  /api/onboarding/plugins    { answers: { options, website, payment } } → { results: [{ id, ok, error,
+ *                                     reason }], pluginsSummary, reload } (rule 43: the server maps
+ *                                     each « oui » to its plugins; a « non » never switches one off)
  *   PUT  /api/onboarding/emails     { phone, senderName, properties: [{ id, nameArticle, address, access, accessCode,
  *                                     wifiName, wifiPassword, caution, cleaningIncluded, towelsProvided,
  *                                     bedLinenProvided }] }
@@ -30,7 +32,9 @@ const { DEFAULT_ADMIN_EMAIL } = require('../constants/authDefaults');
 // The articles a property name may take (models/propertiesModel.js).
 const NAME_ARTICLES = propertyArticle.ARTICLES;
 
-const RECOMMENDED = new Set(['website-booking', 'sas']);
+const { ONBOARDING_QUESTIONS } = require('../constants/onboardingQuestions');
+
+const RECOMMENDED = new Set(ONBOARDING_QUESTIONS.filter((q) => q.recommended).flatMap((q) => q.plugins));
 const MAX_CAPACITY = 50;
 
 /**
@@ -94,9 +98,30 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
       plan: p.planChip,
       state: p.state,
       recommended: RECOMMENDED.has(p.id),
-      // Neither recommended nor active: folded under « Pour aller plus loin » (rule 36).
-      more: !RECOMMENDED.has(p.id) && p.state !== 'active',
     }));
+  }
+
+  /**
+   * Rule 43 (UI/UX review 2026-10-18, proposal 13) — the plugin step asks three yes/no questions.
+   * A question answers « oui » when one of its plugins is already active, else when it is
+   * recommended. Its line names what « oui » turns on; a question none of whose plugins the plan
+   * includes is shown off, with the plan that does.
+   */
+  function questionsOf(list) {
+    const byId = new Map(list.map((p) => [p.id, p]));
+    return ONBOARDING_QUESTIONS.map((q) => {
+      const plugins = q.plugins.map((id) => byId.get(id)).filter(Boolean);
+      const allowed = plugins.filter((p) => p.allowed);
+      const anyActive = plugins.some((p) => p.state === 'active');
+      return {
+        id: q.id,
+        label: q.label,
+        answer: allowed.length > 0 && (anyActive || q.recommended),
+        allowed: allowed.length > 0,
+        plan: allowed.length ? null : (plugins[0] || {}).plan || null,
+        hint: allowed.length ? `Active : ${allowed.map((p) => p.label).join(', ')}.` : null,
+      };
+    });
   }
 
   // Step « Vos emails » (rule 21): what the J-2 needs, pre-filled from what is already known.
@@ -170,6 +195,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     const list = await pluginList();
     return res.json({
       open: model().isOpen(), company: companyOf(row), property: propertyStep(), emails: emailsOf(row), plugins: list,
+      questions: questionsOf(list),
       pluginsSummary: activeSummary(list.filter((p) => p.state === 'active').length),
     });
   }
@@ -334,8 +360,14 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
   }
 
   async function savePlugins(req, res) {
-    const ids = Array.isArray(req.body && req.body.ids) ? [...new Set(req.body.ids.map(String))] : [];
-    const known = new Map((await pluginList()).map((p) => [p.id, p]));
+    const answers = (req.body && typeof req.body.answers === 'object' && req.body.answers) || {};
+    const list = await pluginList();
+    const known = new Map(list.map((p) => [p.id, p]));
+    // Rule 43 — the plugins of every « oui », those the plan includes; a « non » leaves all as they are.
+    const ids = [...new Set(ONBOARDING_QUESTIONS
+      .filter((q) => answers[q.id] === true)
+      .flatMap((q) => q.plugins)
+      .filter((id) => known.has(id) && known.get(id).allowed))];
     const results = [];
     const fail = (id, code, message) => results.push({ id, ok: false, error: code, reason: failureReason(code, message) });
     let restarting = false;
@@ -374,4 +406,6 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
   return { get, saveCompany, saveProperty, savePlugins, saveEmails, done };
 }
 
-module.exports = { buildController, RECOMMENDED, activeSummary, failureReason };
+module.exports = {
+  buildController, RECOMMENDED, activeSummary, failureReason,
+};

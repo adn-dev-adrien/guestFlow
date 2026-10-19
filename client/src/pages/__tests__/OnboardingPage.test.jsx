@@ -24,9 +24,15 @@ const PLUGINS = [
   { id: 'neat', label: 'Assurance annulation Neat', description: 'Assurance.', allowed: false, plan: 'Forfait Premium', state: 'available', recommended: false },
 ];
 
+const QUESTIONS = [
+  { id: 'options', label: 'Des options payantes à l’arrivée : repas, linge, bain nordique ?', answer: true, allowed: true, plan: null, hint: 'Active : Arrivée et départ guidés.' },
+  { id: 'website', label: 'Un site internet qui prend des réservations ?', answer: true, allowed: true, plan: null, hint: 'Active : Réservation depuis le site.' },
+  { id: 'payment', label: 'Encaisser en ligne, par lien de paiement ?', answer: false, allowed: false, plan: 'Forfait Premium', hint: null },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
-  api.getOnboarding.mockResolvedValue({ open: true, company: { name: '', email: '' }, plugins: PLUGINS });
+  api.getOnboarding.mockResolvedValue({ open: true, company: { name: '', email: '' }, plugins: PLUGINS, questions: QUESTIONS });
   api.completeOnboarding.mockResolvedValue({ open: false });
 });
 
@@ -46,7 +52,7 @@ test('a refusal keeps the step open with its messages; a valid step moves on', a
   expect(await screen.findByText('Étape 2 sur 5')).toBeInTheDocument();
 });
 
-test('step 2: the capacity follows the beds until typed; step 3: the recommended plugins are ticked, a failure is named', async () => {
+test('step 2: the capacity follows the beds until typed; step 3 (rule 43): the answers go to the server, a failure is named', async () => {
   api.saveOnboardingCompany.mockResolvedValue({});
   api.saveOnboardingProperty.mockResolvedValue({ id: 1 });
   api.saveOnboardingPlugins.mockResolvedValue({ results: [{ id: 'website-booking', ok: false, error: 'PLUGIN_MIGRATION_FAILED' }, { id: 'sas', ok: true }] });
@@ -61,12 +67,12 @@ test('step 2: the capacity follows the beds until typed; step 3: the recommended
   next();
   await screen.findByText('Étape 3 sur 5');
   expect(api.saveOnboardingProperty.mock.calls[0][0]).toMatchObject({ doubleBeds: '2', singleBeds: '1', maxGuests: '5' });
-  expect(screen.getByRole('checkbox', { name: /Réservation depuis le site/ })).toBeChecked();
-  expect(screen.getByRole('checkbox', { name: /Assurance annulation Neat/ })).toBeDisabled();
+  expect(screen.getByRole('switch', { name: /Un site internet/ })).toBeChecked();
+  expect(screen.getByRole('switch', { name: /Encaisser en ligne/ })).toBeDisabled();
   expect(screen.getByText('Forfait Premium')).toBeInTheDocument();
   next();
   expect(await screen.findByText('Non activé : Réservation depuis le site')).toBeInTheDocument();
-  expect(api.saveOnboardingPlugins).toHaveBeenCalledWith(['website-booking', 'sas']);
+  expect(api.saveOnboardingPlugins).toHaveBeenCalledWith({ options: true, website: true, payment: false });
   expect(screen.getByText('Étape 3 sur 5')).toBeInTheDocument();
 });
 

@@ -29,11 +29,11 @@ function setup({ failing = [] } = {}) {
   const settingsModel = { read: () => row, upsert: (p) => { row = { ...row, ...p }; } };
   const created = [];
   const propertiesModel = { count: () => created.length, create: async (body) => { created.push(body); return { id: created.length }; } };
-  const states = { 'website-booking': 'available', sas: 'inactive', neat: 'available', weather: 'active' };
+  const states = { 'website-booking': 'available', sas: 'inactive', 'online-payment': 'available', weather: 'active' };
   const installed = [];
   const plugins = {
     list: (req, res) => res.json(Object.entries(states).map(([id, state]) => ({
-      id, name: id, description: `${id} en une ligne`, state, outOfPlan: id === 'neat', planChip: id === 'neat' ? 'Forfait Premium' : null,
+      id, name: id, description: `${id} en une ligne`, state, outOfPlan: id === 'online-payment', planChip: id === 'online-payment' ? 'Forfait Premium' : null,
     }))),
     install: (req, res) => {
       if (failing.includes(req.params.id)) return res.status(500).json({ error: 'PLUGIN_MIGRATION_FAILED' });
@@ -89,17 +89,15 @@ test('rule 21, step 2: beds cover the capacity, 1 to 50 guests, a price ≥ 0', 
   assert.equal(created[0].defaultCheckIn, '16:00');
 });
 
-test('rule 21, step 3: allowed plugins go through, others are refused, a failure is named', async () => {
+test('rule 21, step 3 (rule 43): the plan-allowed plugins of each « oui » go through, a failure is named', async () => {
   const { controller, installed } = setup({ failing: ['website-booking'] });
   const list = (await call(controller.get, {})).body.plugins;
   assert.deepEqual(list.filter((p) => p.recommended).map((p) => p.id).sort(), ['sas', 'website-booking']);
-  assert.equal(list.find((p) => p.id === 'neat').plan, 'Forfait Premium');
-  const { body } = await call(controller.savePlugins, { body: { ids: ['website-booking', 'sas', 'neat', 'weather'] } });
+  assert.equal(list.find((p) => p.id === 'online-payment').plan, 'Forfait Premium');
+  const { body } = await call(controller.savePlugins, { body: { answers: { options: true, website: true, payment: true } } });
   assert.deepEqual(body.results, [
-    { id: 'website-booking', ok: false, error: 'PLUGIN_MIGRATION_FAILED', reason: 'échec de l’activation' },
     { id: 'sas', ok: true },
-    { id: 'neat', ok: false, error: 'PLAN_REQUIRED', reason: 'non inclus dans la formule' },
-    { id: 'weather', ok: true },
+    { id: 'website-booking', ok: false, error: 'PLUGIN_MIGRATION_FAILED', reason: 'échec de l’activation' },
   ]);
   assert.deepEqual(installed, ['activate:sas']);
 });

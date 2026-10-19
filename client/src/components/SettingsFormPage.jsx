@@ -38,6 +38,7 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
       <PageActionBar
         title={title}
         titleOnXs
+        backTo="/settings"
         subtitle={subtitle}
         onSave={onSave || (() => form.save())}
         saveDisabled={!isDirty || busy || saveBlocked}

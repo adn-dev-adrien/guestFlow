@@ -27,6 +27,11 @@ function register(ctx) {
 
   const sync = syncEngine.create({ settings, model: lazyModel, pluginActive: ctx.isLive, log: ctx.log.error });
   const controller = buildController({ settings, sync });
+  // specs/plugins-phase-0-foundation.md rule 25 — connected to Google, then a calendar chosen.
+  ctx.setupStatus(() => {
+    if (!settings.googleConnected()) return 'à connecter';
+    return settings.googleCalendarSelection().calendarId ? null : 'agenda à choisir';
+  });
 
   const router = express.Router();
   router.get('/status', controller.status);

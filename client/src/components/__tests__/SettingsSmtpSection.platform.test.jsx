@@ -26,7 +26,7 @@ test('rule 19 — no SMTP of its own: « Envoi par la plateforme », replies to 
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await userEvent.click(toggle);
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.getByLabelText('Serveur d’envoi')).toBeVisible();
+  expect(screen.getByLabelText('Mot de passe de l’adresse d’envoi')).toBeVisible();
 });
 
 test('rule 19 — a saved SMTP of its own wins: « Serveur personnel », unfolded', () => {
@@ -39,6 +39,6 @@ test('rule 19 — a saved SMTP of its own wins: « Serveur personnel », unfolde
 test('rule 19 — without the platform the card is the SMTP form, as before', () => {
   draw({ ...base, platform: { available: false, active: false, replyTo: '' } });
   expect(screen.getByText('Le serveur qui envoie les emails de GuestFlow.')).toBeInTheDocument();
-  expect(screen.getByLabelText('Serveur d’envoi')).toBeVisible();
+  expect(screen.getByLabelText('Mot de passe de l’adresse d’envoi')).toBeVisible();
   expect(screen.queryByText('Utiliser mon propre serveur')).not.toBeInTheDocument();
 });

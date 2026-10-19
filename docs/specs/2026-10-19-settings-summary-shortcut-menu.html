@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sommaire des Paramètres</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6a665b; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --sapin-soft:#e3ece6; --warn:#8f6a1d; --warn-bg:#f6edd7; --ok:#356f49; --ok-bg:#e6efe7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --sapin-soft:#24342c; --warn:#e2bf73; --warn-bg:#3a3020; --ok:#86c79c; --ok-bg:#1f2e24;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --sapin-soft:#24342c; --warn:#e2bf73; --warn-bg:#3a3020; --ok:#86c79c; --ok-bg:#1f2e24;
+}
+*{box-sizing:border-box}
+::selection{background:var(--sapin);color:var(--card)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 16px 64px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;color:var(--sapin);text-wrap:balance}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px}
+h2{font-size:20px;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+p,li{max-width:72ch}
+.sub{color:var(--muted);margin:0 0 18px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;color:var(--ink);padding:8px 14px;min-height:40px;font:inherit;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--card)}
+button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.stage{border:1px solid var(--line);border-radius:14px;background:var(--hover);padding:14px;overflow:auto}
+.app{margin:0 auto;background:var(--paper);border:1px solid var(--line);border-radius:12px;display:flex;min-height:560px;position:relative;overflow:hidden}
+.app.phone{width:390px;max-width:100%}
+.app.desk{width:100%;min-width:900px}
+.top{display:none}
+.phone .top{display:flex;position:absolute;inset:0 0 auto 0;height:52px;align-items:center;gap:8px;padding:0 8px;background:var(--sapin);color:var(--card);z-index:2}
+.phone .top button{background:none;border:0;color:inherit;min-width:44px;min-height:44px;font-size:20px;cursor:pointer}
+.drawer{width:256px;flex:none;border-right:1px solid var(--line);background:var(--card);padding:10px 8px;overflow:auto}
+.phone .drawer{position:absolute;top:52px;bottom:0;left:0;z-index:3;box-shadow:0 8px 24px rgba(0,0,0,.18);transform:translateX(-105%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.phone.open .drawer{transform:none}
+@media (prefers-reduced-motion: reduce){.phone .drawer{transition:opacity .2s}}
+.nav{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;color:var(--ink);font:inherit;text-align:left;padding:9px 12px;border-radius:10px;min-height:40px;cursor:pointer}
+.nav:hover{background:var(--hover)}
+.nav.sel{background:var(--sapin-soft);color:var(--sapin);font-weight:600}
+.nav.group{padding-left:30px;font-size:14px}
+.nav.entry{padding-left:48px;font-size:14px;min-height:36px}
+.chev{margin-left:auto;color:var(--muted);font-size:12px}
+.content{flex:1;min-width:0;padding:16px;overflow:auto}
+.phone .content{padding-top:64px}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.bar h3{margin:0;font-size:19px}
+.back{border:1px solid var(--line);background:var(--card);border-radius:10px;min-width:44px;min-height:44px;cursor:pointer;color:var(--ink);font-size:18px}
+.search{width:100%;max-width:520px;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);margin-bottom:14px;min-height:44px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.phone .grid{grid-template-columns:1fr}
+.gt{font-family:Georgia,serif;font-weight:600;color:var(--sapin);margin:0 0 6px;font-size:16px}
+.list{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.list.flash{box-shadow:0 0 0 2px var(--sapin)}
+.row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer;min-height:52px}
+.row:first-child{border-top:0}
+.row:hover{background:var(--hover)}
+.row b{font-weight:600}
+.row .line{font-size:13px;color:var(--muted)}
+.row .line.warn{color:var(--warn)}
+.row .hit{font-size:12px;color:var(--sapin)}
+.grow{flex:1;min-width:0}
+.empty{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;text-align:center}
+.page{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;color:var(--muted)}
+.rule{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+td,th{border-top:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+</style>
+</head>
+<body>
+<main>
+<h1>Paramètres : un sommaire et un menu en 4 groupes</h1>
+<p class="sub">Revue UI/UX du 18/10/2026 — proposition 20 et arbitrage 12 (« Sommaire + menu raccourci en 4 groupes »). Le Markdown de référence est <code>specs/settings-rationalization.md</code>, règles 24 à 28.</p>
+
+<h2>Constat</h2>
+<p>Le sous-menu « Paramètres » compte jusqu'à 15 entrées. Sur un écran de 800 px, Système, Plugins et Mon compte passent sous la ligne de flottaison, trois libellés sont tronqués, et l'on cherche « le wifi », « l'IBAN » ou « le SMTP », pas un nom de page.</p>
+
+<h2>Ce qu'on propose</h2>
+<ul>
+  <li><b>Une page sommaire</b> (« Paramètres ») : chaque réglage sur une ligne, avec son état calculé par le serveur (« 2 logements », « Envoi non configuré »), rangé dans 4 groupes, et une recherche qui comprend les synonymes (wifi, iban, smtp, 2fa, caution…).</li>
+  <li><b>Un menu raccourci en 4 groupes</b> dans le menu latéral : sous « Paramètres », 4 lignes au lieu de 15. Le groupe de la page ouverte se déplie et montre ses pages ; les autres restent fermés. Cliquer un groupe ouvre le sommaire sur ce groupe.</li>
+</ul>
+
+<h2>Maquette</h2>
+<p class="sub">Essayer : cliquer « Séjours » dans le menu, puis une page ; chercher wifi, iban, smtp, 2fa, puis « zzz ». Passer en 390 et ouvrir le menu (☰).</p>
+<div class="controls">
+  <div class="seg" id="width"><button aria-pressed="false" data-w="phone">390</button><button aria-pressed="true" data-w="desk">Ordinateur</button></div>
+</div>
+<div class="stage">
+  <div class="app desk" id="app">
+    <div class="top"><button id="burger" aria-label="Ouvrir le menu">☰</button><span id="toptitle">Paramètres</span></div>
+    <nav class="drawer" id="drawer" aria-label="Menu"></nav>
+    <section class="content" id="content"></section>
+  </div>
+</div>
+
+<h2>La règle des groupes</h2>
+<div class="rule">
+<table>
+<tr><th>Groupe</th><th>Pages (sous-menu)</th><th>Au sommaire en plus</th></tr>
+<tr><td>Établissement</td><td>Établissement, Logements, Plateformes, Conditions générales</td><td>—</td></tr>
+<tr><td>Séjours</td><td>Options &amp; ressources, Recettes tarifaires*, Fermetures (ou Vacances &amp; fermetures*), Linge*</td><td>—</td></tr>
+<tr><td>Paiements et emails</td><td>Paiements en ligne*, TVA &amp; exercice, Emails &amp; notifications</td><td>Textes des emails</td></tr>
+<tr><td>Compte et système</td><td>Utilisateurs, Accès du support, Intégrations, Plugins, Système</td><td>Mon compte</td></tr>
+</table>
+<p class="sub" style="margin:8px 0 0">* page d'un plugin, présente seulement quand il est actif. Une entrée de plugin prend le groupe de l'entrée à côté de laquelle elle se place (<code>after</code> / <code>before</code>) : aucun plugin n'a à changer. Les groupes reprennent les 4 familles déjà séparées par un trait ; seule Intégrations passe de « Paiements et emails » à « Compte et système », à côté de Plugins dont elle porte les réglages.</p>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Pas de menu latéral redessiné : sa largeur, son pied et son retour à la ligne relèvent de l'autre lot (coque).</li>
+  <li>Pas de recherche dans le contenu des pages : l'index est une liste de mots par page, tenue à côté du menu.</li>
+</ul>
+
+<h2>Risque</h2>
+<p>Une page non rangée dans un groupe disparaîtrait du menu : un test vérifie que chaque entrée déclarée (plugins compris) appartient à un groupe.</p>
+</main>
+<script>
+(function(){
+  var G = [
+    { id:'etablissement', g:'Établissement', rows:[
+      ['Établissement','Domaine Solio','IBAN BIC banque SIRET logo adresse téléphone devis'],
+      ['Logements','2 logements','Wi-Fi adresse code boîte à clés caution ménage linge accès'],
+      ['Plateformes','7 plateformes','Airbnb Booking iCal commission taxe de séjour'],
+      ['Conditions générales','Version 2 en vigueur','CGV CGL'] ]},
+    { id:'sejours', g:'Séjours', rows:[
+      ['Options & ressources','14 options · 3 ressources','repas petit-déjeuner planche bain nordique sauna traductions'],
+      ['Recettes tarifaires','','tarif prix saison'],
+      ['Vacances & fermetures','1 fermeture à venir','vacances scolaires zone fermeture'],
+      ['Linge','','serviettes draps blanchisserie stock'] ]},
+    { id:'paiements-emails', g:'Paiements et emails', rows:[
+      ['Paiements en ligne','À configurer','Qonto lien de paiement carte'],
+      ['TVA & exercice','TVA 10 %','taux exercice comptable objectif chiffre d’affaires'],
+      ['Emails & notifications','Envoi non configuré','SMTP serveur d’envoi expéditeur mot de passe Gmail notifications push'],
+      ['Textes des emails','','texte J-2 confirmation phrase traduction anglais', true] ]},
+    { id:'compte-systeme', g:'Compte et système', rows:[
+      ['Utilisateurs','4 comptes','rôle comptable accueil administrateur'],
+      ['Accès du support','','support assistance'],
+      ['Intégrations','2 à configurer','Google Agenda Neat Météo-France Sowel WordPress clé API'],
+      ['Plugins','12 actifs · 2 à configurer','extension module activer désactiver'],
+      ['Système','Version 3.10.0','mise à jour URL publique adresse traductions'],
+      ['Mon compte','Second code non activé','mot de passe second code 2FA authentification', true] ]}
+  ];
+  var WARN = /non |À configurer|à configurer/;
+  var state = { page:null, group:null, q:'' };
+  var app = document.getElementById('app'), drawer = document.getElementById('drawer'), content = document.getElementById('content');
+  var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var norm = function(s){ return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,''); };
+  function groupOf(page){ var f=null; G.forEach(function(g){ g.rows.forEach(function(r){ if(r[0]===page) f=g.id; }); }); return f; }
+  function drawDrawer(){
+    var cur = state.page ? groupOf(state.page) : state.group;
+    var h = ['Tableau de bord','Planning','Calendrier','Suivi financier','Devis','Emails','Clients'].map(function(t){ return '<button class="nav">'+t+'</button>'; }).join('');
+    h += '<button class="nav'+(state.page===null?' sel':'')+'" data-home>Paramètres <span class="chev">▾</span></button>';
+    G.forEach(function(g){
+      h += '<button class="nav group'+(cur===g.id && state.page===null?' sel':'')+'" data-group="'+g.id+'" aria-expanded="'+(cur===g.id)+'">'+esc(g.g)+'<span class="chev">'+(cur===g.id?'▾':'▸')+'</span></button>';
+      if (cur===g.id) g.rows.forEach(function(r){ if(!r[3]) h += '<button class="nav entry'+(state.page===r[0]?' sel':'')+'" data-page="'+esc(r[0])+'">'+esc(r[0])+'</button>'; });
+    });
+    h += '<div style="border-top:1px solid var(--line);margin:8px 0"></div><button class="nav" data-page="Mon compte">Mon compte</button>';
+    drawer.innerHTML = h;
+  }
+  function drawContent(){
+    document.getElementById('toptitle').textContent = state.page || 'Paramètres';
+    if (state.page){
+      content.innerHTML = '<div class="bar"><button class="back" data-home aria-label="Retour au sommaire">←</button><h3>'+esc(state.page)+'</h3></div><div class="page">La page « '+esc(state.page)+' », inchangée. Le sous-menu montre les pages de son groupe ; la flèche ramène au sommaire.</div>';
+      return;
+    }
+    var n = norm(state.q.trim()), words = n.split(' ').filter(Boolean), any=false;
+    var html = '<div class="bar"><h3>Paramètres</h3></div><input class="search" id="q" type="search" placeholder="Chercher un réglage (wifi, iban, smtp…)" aria-label="Chercher un réglage" value="'+esc(state.q)+'"><div class="grid">';
+    G.forEach(function(g){
+      var rows = g.rows.filter(function(r){ var hay = norm(r[0]+' '+r[1]+' '+r[2]); return words.every(function(w){ return hay.indexOf(w)!==-1; }); });
+      if (!rows.length) return; any = true;
+      html += '<div id="g-'+g.id+'"><p class="gt">'+esc(g.g)+'</p><div class="list'+(state.group===g.id&&!n?' flash':'')+'">'+rows.map(function(r){
+        var viaKeyword = n && words.some(function(w){ return norm(r[0]+' '+r[1]).indexOf(w)===-1; });
+        var hit = viaKeyword ? r[2].split(' ').filter(function(k){ return words.some(function(w){ return norm(k).indexOf(w)!==-1; }); })[0] : '';
+        return '<div class="row" role="link" tabindex="0" data-page="'+esc(r[0])+'"><div class="grow"><b>'+esc(r[0])+'</b>'+(r[1]?'<div class="line'+(WARN.test(r[1])?' warn':'')+'">'+esc(r[1])+'</div>':'')+(hit?'<div class="hit">Contient : '+esc(hit)+'</div>':'')+'</div><span aria-hidden="true" style="color:var(--muted)">›</span></div>';
+      }).join('')+'</div></div>';
+    });
+    html += '</div>';
+    if (!any) html = html.replace('<div class="grid"></div>','') + '<div class="empty"><b>Aucun réglage pour « '+esc(state.q.trim())+' »</b><div class="sub" style="margin:4px 0 0">Essayer : wifi, iban, smtp, 2fa, caution.</div></div>';
+    var hadFocus = document.activeElement && document.activeElement.id==='q';
+    content.innerHTML = html;
+    var q = document.getElementById('q');
+    q.addEventListener('input', function(){ state.q = q.value; drawContent(); });
+    if (hadFocus){ q.focus(); q.setSelectionRange(q.value.length,q.value.length); }
+    if (state.group && !n){ var el = document.getElementById('g-'+state.group); if (el) el.scrollIntoView({block:'nearest'}); }
+  }
+  function draw(){ drawDrawer(); drawContent(); }
+  function go(e){
+    var t = e.target.closest('[data-home],[data-group],[data-page]'); if(!t) return;
+    if (t.hasAttribute('data-home')){ state.page=null; state.group=null; }
+    else if (t.dataset.group){ state.page=null; state.group=t.dataset.group; state.q=''; app.classList.remove('open'); }
+    else { state.page=t.dataset.page; state.group=null; app.classList.remove('open'); }
+    draw();
+  }
+  drawer.addEventListener('click', go); content.addEventListener('click', go);
+  content.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.matches('[data-page]')) go(e); });
+  document.getElementById('burger').addEventListener('click', function(){ app.classList.toggle('open'); });
+  document.querySelectorAll('#width button').forEach(function(b){ b.addEventListener('click', function(){
+    document.querySelectorAll('#width button').forEach(function(x){ x.setAttribute('aria-pressed', String(x===b)); });
+    app.className = 'app ' + b.dataset.w;
+  }); });
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -47,9 +47,12 @@ test('an admin goes through the five steps and lands on the dashboard', async ({
   await expect(page.getByLabel('Nom du logement')).toHaveCount(0);
   await page.getByRole('button', { name: 'Suivant' }).click();
 
-  // Step 3 — the recommended plugins are ticked.
+  // Step 3 — three questions (specs/plugins-phase-p-productisation.md rule 43); every plugin is
+  // active in the suite's database, so each answers « oui ».
   await expect(page.getByText('Étape 3 sur 5')).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: /Réservation depuis le site/ })).toBeChecked();
+  await expect(page.getByRole('switch')).toHaveCount(3);
+  await expect(page.getByRole('switch', { name: /Un site internet/ })).toBeChecked();
+  await expect(page.getByText('Active : Réservation depuis le site.')).toBeVisible();
   await page.getByRole('button', { name: 'Suivant' }).click();
 
   // Step 4 — the guest emails, pre-filled from the earlier steps.

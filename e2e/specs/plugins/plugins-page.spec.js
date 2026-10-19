@@ -8,6 +8,15 @@ import { test, expect } from '@playwright/test';
 
 const GOOGLE = 'Google Agenda';
 const googleCard = (page) => page.locator('.MuiCard-root').filter({ hasText: GOOGLE });
+// specs/plugins-phase-0-foundation.md rule 25 — the E2E database has no Google connection: the card
+// says what is missing, and « Désactiver » sits in ⋯ behind a confirmation.
+const GOOGLE_STATE = 'Actif · à connecter';
+
+async function deactivate(page, card) {
+  await card.getByRole('button', { name: /Plus d’actions/ }).click();
+  await page.getByRole('menuitem', { name: /Désactiver/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Désactiver' }).click();
+}
 
 test.describe.configure({ mode: 'serial' });
 
@@ -15,7 +24,7 @@ test('the seeded database has every catalogue plugin installed and active', asyn
   await page.goto('/parametres/plugins');
   await expect(page.getByRole('tab', { name: 'Installés (14)' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: 'Disponibles (0)' })).toBeVisible();
-  await expect(googleCard(page).getByText('Actif', { exact: true })).toBeVisible();
+  await expect(googleCard(page).getByText(GOOGLE_STATE, { exact: true })).toBeVisible();
 });
 
 test('deactivating Google Agenda removes its section and its API, activating brings them back', async ({ page, request }) => {
@@ -23,7 +32,7 @@ test('deactivating Google Agenda removes its section and its API, activating bri
   await expect(page.getByText('Synchronisation Google Agenda')).toBeVisible({ timeout: 10_000 });
 
   await page.goto('/parametres/plugins');
-  await googleCard(page).getByRole('button', { name: 'Désactiver' }).click();
+  await deactivate(page, googleCard(page));
   await expect(googleCard(page).getByText('Inactif', { exact: true })).toBeVisible();
 
   const off = await request.get('/api/google-calendar/status');
@@ -36,7 +45,7 @@ test('deactivating Google Agenda removes its section and its API, activating bri
 
   await page.goto('/parametres/plugins');
   await googleCard(page).getByRole('button', { name: 'Activer' }).click();
-  await expect(googleCard(page).getByText('Actif', { exact: true })).toBeVisible();
+  await expect(googleCard(page).getByText(GOOGLE_STATE, { exact: true })).toBeVisible();
   expect((await request.get('/api/google-calendar/status')).status()).toBe(200);
 });
 
@@ -52,16 +61,27 @@ test('uninstall takes two clicks, moves the plugin to « Disponibles », and it 
   await googleCard(page).getByRole('button', { name: 'Installer' }).click();
 
   await expect(page.getByRole('tab', { name: 'Installés (14)' })).toHaveAttribute('aria-selected', 'true');
-  await expect(googleCard(page).getByText('Actif', { exact: true })).toBeVisible();
+  await expect(googleCard(page).getByText(GOOGLE_STATE, { exact: true })).toBeVisible();
 });
 
 test('the SAS cannot be deactivated while a reception account is active', async ({ page }) => {
   await page.goto('/parametres/plugins');
   const sas = page.locator('.MuiCard-root').filter({ hasText: 'Arrivée et départ guidés' });
-  // The refusal is said before the click, and the button it would refuse is disabled.
-  await expect(sas.getByText('1 compte Accueil actif : changer son rôle dans Utilisateurs d’abord.')).toBeVisible();
-  await expect(sas.getByRole('button', { name: 'Désactiver' })).toBeDisabled();
+  // The refusal is said before the click, and the menu item it would refuse is disabled.
   await expect(sas.getByText('Actif', { exact: true })).toBeVisible();
+  await sas.getByRole('button', { name: /Plus d’actions/ }).click();
+  const item = page.getByRole('menuitem', { name: /Désactiver/ });
+  await expect(item).toHaveAttribute('aria-disabled', 'true');
+  await expect(item).toContainText('1 compte Accueil actif : changer son rôle dans Utilisateurs d’abord.');
+  await page.keyboard.press('Escape');
+});
+
+test('rule 25: « Configurer » on Google Agenda opens its section of Intégrations', async ({ page }) => {
+  await page.goto('/parametres/plugins');
+  await page.getByRole('button', { name: /^À configurer \(\d+\)$/ }).click();
+  await googleCard(page).getByRole('button', { name: 'Configurer' }).click();
+  await expect(page).toHaveURL(/\/settings\/integrations#plugin-google-calendar$/);
+  await expect(page.getByText('Synchronisation Google Agenda')).toBeInViewport({ timeout: 10_000 });
 });
 
 test('the Plugins entry sits in the Paramètres submenu', async ({ page }) => {

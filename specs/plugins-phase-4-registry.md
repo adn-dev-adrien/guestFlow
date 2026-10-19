@@ -412,6 +412,10 @@ merge changed are bumped in the merge PR: `gate-access` 1.1.0 (« Partager » on
 (`specs/plugins-phase-3a-online-payment.md` rule 22) raise the SDK to **1.2.0** (minor); every plugin is
 bumped for its new range, and `booking-intake`, `gate-access` and `online-payment` ask for `sdk ^1.2.0`.
 
+2026-10-19 — UI/UX review, proposal 19 (`specs/plugins-phase-0-foundation.md` rule 25): `ctx.setupStatus`
+raises the SDK to **1.3.0** (minor). The four plugins that declare it are bumped to 1.1.0 and ask for
+`sdk ^1.3.0`: `google-calendar`, `neat`, `online-payment`, `weather-alerts`.
+
 | Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|
 | Server (`node --test`) | 5 136 / 5 136 — of which `plugins-phase-4-registry.unit.test.js` 54, `plugin-packages-release.unit.test.js` 15 |
