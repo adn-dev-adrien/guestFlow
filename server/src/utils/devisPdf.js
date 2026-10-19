@@ -16,6 +16,34 @@ const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
 const { uploadsDir } = require("./instancePaths");
 
+// specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
+// fir green, ink, warm paper, honey and the success soft fill. No navy left.
+const PDF_PALETTE = Object.freeze({
+  brand: '#2F5D46',
+  ink: '#27251F',
+  muted: '#6E6A5E',
+  paper: '#F6F3EC',
+  rule: '#DDD6C8',
+  offered: '#3E7D54',
+  offeredSoft: '#E6EFE7',
+  honey: '#F6EDD7',
+});
+
+// The serif of the app (Source Serif 4, SIL Open Font License), embedded so the document reads in the
+// same voice on every machine. A missing file falls back to the PDF standard serif.
+const SERIF_FILE = path.join(__dirname, '..', 'assets', 'fonts', 'SourceSerif4-Semibold.woff');
+function registerSerif(doc) {
+  try {
+    if (fs.existsSync(SERIF_FILE)) {
+      doc.registerFont('MaisonSerif', SERIF_FILE);
+      return 'MaisonSerif';
+    }
+  } catch {
+    // fall through to the standard serif
+  }
+  return 'Times-Bold';
+}
+
 // specs/devis-pdf-total-parity.md §3.2 rules 6–10 — single source of truth for the tax + grand-total
 // numbers the PDF renders. Two principles, in order:
 //
@@ -124,11 +152,8 @@ function generateDevisPdf(full, settings, quote) {
   // Client phone (single column since the Clients bloc).
   const phones = client.phone ? [String(client.phone).trim()] : [];
 
-  const BRAND = '#1a3a5c';
-  const LIGHT_GRAY = '#f5f5f5';
-  const MID_GRAY = '#cccccc';
-  const TEXT_DARK = '#222222';
-  const TEXT_LIGHT = '#555555';
+  // specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » identity of the app.
+  const { brand: BRAND, paper: LIGHT_GRAY, rule: MID_GRAY, ink: TEXT_DARK, muted: TEXT_LIGHT, offered: OFFERED_GREEN } = PDF_PALETTE;
 
   // `full.__testCompress === false` keeps PDFKit's stream uncompressed so unit tests can grep
   // the raw bytes for English / French labels. Never set in production calls.
@@ -142,6 +167,8 @@ function generateDevisPdf(full, settings, quote) {
       Author: settings.companyName || 'GuestFlow',
     },
   });
+
+  const SERIF = registerSerif(doc);
 
   // Collect chunks in memory (required with bufferPages:true to support switchToPage)
   const chunks = [];
@@ -174,19 +201,17 @@ function generateDevisPdf(full, settings, quote) {
   const BAND_TOP = 40;
   const BAND_HEIGHT = 52;
 
-  // ── Header band ──────────────────────────────────────────────────────────
-  doc.rect(LEFT, BAND_TOP, PAGE_W, BAND_HEIGHT).fill(BRAND);
-
+  // ── Header: serif company name and « DEVIS » on paper, a fir-green rule under them (rule 17) ──
   if (settings.companyName) {
-    doc.fontSize(20).fillColor('#ffffff').font('Helvetica-Bold')
-      .text(settings.companyName, LEFT + 12, BAND_TOP + 10, { width: PAGE_W * 0.55 });
+    doc.fontSize(20).fillColor(TEXT_DARK).font(SERIF)
+      .text(settings.companyName, LEFT, BAND_TOP + 8, { width: PAGE_W * 0.55 });
   }
 
-  // Devis title top-right
-  doc.fontSize(18).fillColor('#ffffff').font('Helvetica-Bold')
-    .text(L.documentTitle, LEFT + PAGE_W * 0.6, BAND_TOP + 10, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
-  doc.fontSize(10).fillColor('#cce0ff').font('Helvetica')
+  doc.fontSize(22).fillColor(BRAND).font(SERIF)
+    .text(L.documentTitle, LEFT + PAGE_W * 0.6, BAND_TOP + 4, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right', characterSpacing: 1.5 });
+  doc.fontSize(10).fillColor(TEXT_LIGHT).font('Helvetica')
     .text(L.documentNumber(full.devisNumber), LEFT + PAGE_W * 0.6, BAND_TOP + 31, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
+  doc.moveTo(LEFT, BAND_TOP + BAND_HEIGHT).lineTo(LEFT + PAGE_W, BAND_TOP + BAND_HEIGHT).strokeColor(BRAND).lineWidth(1.5).stroke();
 
   // ── Company & client block ───────────────────────────────────────────────
   const INFO_TOP = BAND_TOP + 74;
@@ -278,7 +303,9 @@ function generateDevisPdf(full, settings, quote) {
   // Meta pills
   const metaItems = [
     { label: L.date,       value: fmtDate(createdAtIsoDate) },
-    { label: L.validUntil, value: `${fmtDate(validUntilIso)}${isPrintedExpired(full, validUntilIso, todayIsoDate) ? L.expiredSuffix : ''}` },
+    // specs/ui-review-2026-10-19-operations.md rule 20 — the date alone: « (expiré) » is for the operator,
+    // who is warned on the fiche, never for the guest.
+    { label: L.validUntil, value: fmtDate(validUntilIso) },
     { label: L.property,   value: property ? property.name : `#${full.propertyId}` },
   ];
 
@@ -292,8 +319,8 @@ function generateDevisPdf(full, settings, quote) {
 
   // ── Séjour section ────────────────────────────────────────────────────────
   const SEJ_TOP = META_TOP + 52;
-  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text(L.stayHeading, LEFT, SEJ_TOP);
-  doc.moveTo(LEFT, SEJ_TOP + 15).lineTo(LEFT + PAGE_W, SEJ_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
+  doc.fontSize(12).fillColor(BRAND).font(SERIF).text(L.stayHeading, LEFT, SEJ_TOP);
+  doc.moveTo(LEFT, SEJ_TOP + 17).lineTo(LEFT + PAGE_W, SEJ_TOP + 17).strokeColor(BRAND).lineWidth(1.5).stroke();
 
   const nights = diffDays(full.startDate, full.endDate);
 
@@ -330,30 +357,21 @@ function generateDevisPdf(full, settings, quote) {
   const sy = sy2;
 
   // ── Pricing table ─────────────────────────────────────────────────────────
-  const TABLE_TOP = sy + ROW_H + 6;
-  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text(L.pricingHeading, LEFT, TABLE_TOP);
-  doc.moveTo(LEFT, TABLE_TOP + 15).lineTo(LEFT + PAGE_W, TABLE_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
-
-  // Table header
-  const TH = TABLE_TOP + 20;
+  // The rows are collected first and drawn after the page-1 summary block, whose total is the one
+  // the table adds up to (specs/ui-review-2026-10-19-operations.md rule 19).
   const COL_DESC = LEFT;
   const COL_QTY = LEFT + PAGE_W * 0.5;
   const COL_HT = LEFT + PAGE_W * 0.6;
   const COL_VAT = LEFT + PAGE_W * 0.76;
   const COL_TOTAL = LEFT + PAGE_W * 0.86;
 
-  doc.rect(LEFT, TH, PAGE_W, 18).fill(BRAND);
-  doc.fontSize(8.5).fillColor('#ffffff').font('Helvetica-Bold');
-  doc.text(L.colDesignation, COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
-  doc.text(L.colQuantity,    COL_QTY,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text(L.colUnitPriceHt, COL_HT,       TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
-  doc.text(L.colVatRate,     COL_VAT,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text(L.colTotalTtc,    COL_TOTAL,    TH + 5, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
-
-  let rowY = TH + 18;
+  let rowY = 0;
   let rowIdx = 0;
   let subtotalHt = 0;
   let subtotalTtcFromRows = 0;
+  const pendingRows = [];
+  // Every line offered to the guest, printed once in one row (rule 18).
+  const offeredLines = [];
 
   // A row is exactly as tall as what it prints (specs/devis-pdf-row-layout.md §3): the designation is
   // measured, so a long option label simply wraps and the row grows with it.
@@ -361,14 +379,20 @@ function generateDevisPdf(full, settings, quote) {
 
   // A struck-through "was" amount, right-aligned in its column, on the label's line.
   function drawStruckAmount(text, colX, colW, y) {
-    doc.fontSize(7.5).fillColor('#8a8a8a').font('Helvetica')
+    doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica')
       .text(text, colX, y, { width: colW, align: 'right' });
     const w = doc.widthOfString(text);
     const x = colX + colW - w;
-    doc.moveTo(x, y + 4).lineTo(x + w, y + 4).strokeColor('#8a8a8a').lineWidth(0.6).stroke();
+    doc.moveTo(x, y + 4).lineTo(x + w, y + 4).strokeColor(TEXT_LIGHT).lineWidth(0.6).stroke();
   }
 
   function drawRow(desc, qty, totalTtc, vatRate, italic, meta = {}) {
+    subtotalHt += rowHt(totalTtc, vatRate);
+    subtotalTtcFromRows += Number(totalTtc || 0);
+    pendingRows.push([desc, qty, totalTtc, vatRate, italic, meta]);
+  }
+
+  function paintRow(desc, qty, totalTtc, vatRate, italic, meta = {}) {
     const originalTtc = Number(meta.originalTtc || 0);
     // The original is struck only when it's higher: a strike-through reads as a reduction, so a lower
     // « was » price above a higher billed one reads as a discount that is not there
@@ -393,13 +417,11 @@ function generateDevisPdf(full, settings, quote) {
     rowY = checkBreak(rowY, rowH);
     if (rowIdx % 2 === 0) doc.rect(LEFT, rowY, PAGE_W, rowH).fill(LIGHT_GRAY);
     const rate = Number(vatRate || 0);
-    const ht = rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));
-    subtotalHt += ht;
-    subtotalTtcFromRows += Number(totalTtc || 0);
+    const ht = rowHt(totalTtc, rate);
 
     // The badge owns the line above the label; every other column aligns with the label's first line.
     if (hasBadge) {
-      doc.fontSize(7.5).font('Helvetica-Bold').fillColor('#2e7d32')
+      doc.fontSize(7.5).font('Helvetica-Bold').fillColor(OFFERED_GREEN)
         .text(badgeText, COL_DESC + 4, rowY + badgeY, { width: DESC_W });
     }
     const lineY = rowY + lineOffsetY;
@@ -500,7 +522,9 @@ function generateDevisPdf(full, settings, quote) {
       optionsTtc: optionsTotalTtc,
       resourcesTtc: resourcesTotalTtc,
     });
-    if (supplementRow) {
+    if (supplementRow && supplementRow.offered) {
+      offeredLines.push({ name: L.extraGuestSupplement(supplementRow.count, null), real: supplementRow.originalTtc });
+    } else if (supplementRow) {
       const detail = language === 'fr' ? supplementRow.tiersLabel : null;
       drawRow(
         L.extraGuestSupplement(supplementRow.count, detail),
@@ -508,9 +532,7 @@ function generateDevisPdf(full, settings, quote) {
         supplementRow.totalTtc,
         vatAccommodation,
         false,
-        supplementRow.offered
-          ? { originalTtc: supplementRow.originalTtc, badgeText: L.offered }
-          : {},
+        {},
       );
     }
   }
@@ -535,20 +557,81 @@ function generateDevisPdf(full, settings, quote) {
       }
     }
     const { offered, billed, real } = lineAmounts(opt);
+    if (offered) {
+      offeredLines.push({ name: optionLabelText, real });
+      continue;
+    }
     drawRow(optionLabelText, opt.billedUnits || opt.quantity || 1, billed, vatOptions, false, {
-      originalTtc: offered ? real : billed,
-      badgeText: offered ? L.offered : '',
+      originalTtc: billed,
     });
   }
 
   // Resources
   for (const rsc of full.resources || []) {
     const { offered, billed, real } = lineAmounts(rsc);
+    if (offered) {
+      offeredLines.push({ name: resourceName(rsc), real });
+      continue;
+    }
     drawRow(resourceName(rsc), rsc.quantity || 1, billed, vatResources, false, {
-      originalTtc: offered ? real : billed,
-      badgeText: offered ? L.offered : '',
+      originalTtc: billed,
     });
   }
+
+  // Rule 18 — one row « Offert avec le séjour » naming every offered line, billed 0, valued once.
+  const offeredGroup = groupOffered(offeredLines);
+  if (offeredGroup) {
+    drawRow(offeredGroup.names, offeredGroup.count, 0, vatOptions, false, {
+      badgeText: `${L.offeredGroup} · ${L.offeredValue(formatCurrency(offeredGroup.value))}`,
+    });
+  }
+
+  // specs/devis-pdf-total-parity.md §3.2 — the tax and the grand total are resolved against the stay
+  // the table prints, so the totals can never contradict the lines. Resolved BEFORE drawing, so the
+  // page-1 summary and the totals block print the same figure.
+  const subtotalTtc = roundMoney(subtotalTtcFromRows);
+  const { liveTaxTotal, grandTotalTtc, quoteReconciles } = resolveLiveTaxTotals(full, quote, subtotalTtc);
+
+  // ── Page-1 summary: the total and when it is paid (rule 19) ───────────────
+  const SUMMARY_TOP = sy + ROW_H + 6;
+  const schedule = summarySchedule(full, L);
+  const SUMMARY_H = Math.max(56, 16 + schedule.length * 16 + 10);
+  doc.roundedRect(LEFT, SUMMARY_TOP, PAGE_W, SUMMARY_H, 6).fill(LIGHT_GRAY);
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(L.summaryTotal, LEFT + 14, SUMMARY_TOP + 10, { width: PAGE_W * 0.4 });
+  doc.fontSize(18).fillColor(TEXT_DARK).font('Helvetica-Bold')
+    .text(formatCurrency(grandTotalTtc), LEFT + 14, SUMMARY_TOP + 24, { width: PAGE_W * 0.4, lineBreak: false });
+  const SCHED_X = LEFT + PAGE_W * 0.44;
+  const SCHED_W = PAGE_W * 0.56 - 14;
+  schedule.forEach((line, i) => {
+    const ly = SUMMARY_TOP + 12 + i * 16;
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(line.label, SCHED_X, ly, { width: SCHED_W * 0.34, lineBreak: false });
+    doc.font('Helvetica-Bold').fillColor(TEXT_DARK)
+      .text(formatCurrency(line.amount), SCHED_X + SCHED_W * 0.34, ly, { width: SCHED_W * 0.26, align: 'right', lineBreak: false });
+    if (line.dueDate) {
+      doc.font('Helvetica').fillColor(TEXT_LIGHT)
+        .text(L.summaryBefore(fmtDate(line.dueDate)), SCHED_X + SCHED_W * 0.64, ly, { width: SCHED_W * 0.36, align: 'right', lineBreak: false });
+    }
+  });
+  if (typeof full.__trace === 'function') {
+    full.__trace({ event: 'summary', page: doc.bufferedPageRange().count, total: grandTotalTtc });
+  }
+
+  const TABLE_TOP = SUMMARY_TOP + SUMMARY_H + 14;
+  doc.fontSize(12).fillColor(BRAND).font(SERIF).text(L.pricingHeading, LEFT, TABLE_TOP);
+  doc.moveTo(LEFT, TABLE_TOP + 17).lineTo(LEFT + PAGE_W, TABLE_TOP + 17).strokeColor(BRAND).lineWidth(1.5).stroke();
+
+  // Table header — ink on paper under the fir rule.
+  const TH = TABLE_TOP + 22;
+  doc.rect(LEFT, TH, PAGE_W, 18).fill(LIGHT_GRAY);
+  doc.moveTo(LEFT, TH + 18).lineTo(LEFT + PAGE_W, TH + 18).strokeColor(MID_GRAY).lineWidth(0.8).stroke();
+  doc.fontSize(8.5).fillColor(TEXT_DARK).font('Helvetica-Bold');
+  doc.text(L.colDesignation, COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
+  doc.text(L.colQuantity,    COL_QTY,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
+  doc.text(L.colUnitPriceHt, COL_HT,       TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+  doc.text(L.colVatRate,     COL_VAT,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
+  doc.text(L.colTotalTtc,    COL_TOTAL,    TH + 5, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
+  rowY = TH + 18;
+  for (const args of pendingRows) paintRow(...args);
 
   // Table bottom border
   doc.moveTo(LEFT, rowY).lineTo(LEFT + PAGE_W, rowY).strokeColor(MID_GRAY).lineWidth(0.5).stroke();
@@ -564,8 +647,8 @@ function generateDevisPdf(full, settings, quote) {
   if (settings.companyIban || settings.companyBic || settings.companyBankName) {
     const bankTop = totY + BANK_BLOCK_Y_OFFSET;
     let bankY = bankTop;
-    doc.fontSize(10).fillColor(BRAND).font('Helvetica-Bold').text(L.bankHeading, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
-    bankY += 14;
+    doc.fontSize(10.5).fillColor(BRAND).font(SERIF).text(L.bankHeading, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+    bankY += 17;
     doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
     if (settings.companyBankName) {
       doc.text(`${L.bankAccount}${settings.companyBankName}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
@@ -584,7 +667,7 @@ function generateDevisPdf(full, settings, quote) {
     doc
       .roundedRect(LEFT - 4, bankTop - 4, LEFT_COL_W - 14, (bankY - bankTop) + 8, 3)
       .lineWidth(0.6)
-      .strokeColor('#d6d6d6')
+      .strokeColor(MID_GRAY)
       .stroke();
 
     bankBottomY = bankY + 2;
@@ -599,11 +682,7 @@ function generateDevisPdf(full, settings, quote) {
   }
 
   drawTotalLine(L.subtotalHt, subtotalHt, false);
-  const subtotalTtc = roundMoney(subtotalTtcFromRows);
   drawTotalLine(L.subtotalTtc, subtotalTtc, false);
-  // specs/devis-pdf-total-parity.md §3.2 — the tax and the grand total are resolved against the stay
-  // the table just printed, so the totals block can never contradict the lines above it.
-  const { liveTaxTotal, grandTotalTtc, quoteReconciles } = resolveLiveTaxTotals(full, quote, subtotalTtc);
   if (liveTaxTotal > 0) {
     drawTotalLine(L.touristTax, liveTaxTotal, false);
     // Rule 8 — the detail follows the amount it explains: the engine breakdown when the quote is what
@@ -639,10 +718,10 @@ function generateDevisPdf(full, settings, quote) {
   // ── Payment schedule ──────────────────────────────────────────────────────
   totY = checkBreak(totY, 60);
   const PAY_TOP = totY + 14;
-  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text(L.paymentHeading, LEFT, PAY_TOP);
-  doc.moveTo(LEFT, PAY_TOP + 15).lineTo(LEFT + PAGE_W, PAY_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
+  doc.fontSize(12).fillColor(BRAND).font(SERIF).text(L.paymentHeading, LEFT, PAY_TOP);
+  doc.moveTo(LEFT, PAY_TOP + 17).lineTo(LEFT + PAGE_W, PAY_TOP + 17).strokeColor(BRAND).lineWidth(1.5).stroke();
 
-  let py = PAY_TOP + 22;
+  let py = PAY_TOP + 24;
   const payTextColor = TEXT_DARK;
   const depositAmt = Number(full.depositAmount || 0);
   const balanceAmt = Number(full.balanceAmount || 0);
@@ -685,7 +764,7 @@ function generateDevisPdf(full, settings, quote) {
   if (depositAmt > 0) {
     drawScheduleRow({
       label: L.depositLabel, amount: depositAmt, dueDate: full.depositDueDate,
-      fill: '#fff8e1', boxH: 28, step: 34,
+      fill: PDF_PALETTE.honey, boxH: 28, step: 34,
       note: securesDates ? L.depositSecuresDates : null,
     });
   }
@@ -696,7 +775,7 @@ function generateDevisPdf(full, settings, quote) {
       label: isFullPayment ? L.fullPaymentLabel : L.balanceLabel,
       amount: balanceAmt,
       dueDate: full.balanceDueDate,
-      fill: isFullPayment ? '#fff8e1' : LIGHT_GRAY,
+      fill: isFullPayment ? PDF_PALETTE.honey : LIGHT_GRAY,
       boxH: isFullPayment ? 28 : 24,
       step: isFullPayment ? 34 : 30,
       note: isFullPayment ? L.fullPaymentSecuresDates : null,
@@ -708,8 +787,8 @@ function generateDevisPdf(full, settings, quote) {
   if (Number(full.cautionAmount || 0) > 0) {
     drawScheduleRow({
       label: L.cautionLabel, amount: full.cautionAmount, dueDate: null,
-      fill: '#e8f5e9', boxH: 24, step: 30,
-      amountSuffix: L.cautionOnArrival, labelColor: '#2e7d32',
+      fill: PDF_PALETTE.offeredSoft, boxH: 24, step: 30,
+      amountSuffix: L.cautionOnArrival, labelColor: OFFERED_GREEN,
     });
   }
 
@@ -744,16 +823,16 @@ function generateDevisPdf(full, settings, quote) {
     const ftY = fY + 6;
     // Left: company name
     if (settings.companyName) {
-      doc.fontSize(7.5).fillColor('#888888').font('Helvetica-Bold')
+      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica-Bold')
         .text(settings.companyName, LEFT, ftY, { width: PAGE_W * 0.25, ellipsis: true });
     }
     // Center: SIRET / TVA — wide column + no wrap so both stay on a single line.
     if (legalCenter) {
-      doc.fontSize(7.5).fillColor('#888888').font('Helvetica')
+      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica')
         .text(legalCenter, LEFT + PAGE_W * 0.25, ftY, { width: PAGE_W * 0.5, align: 'center', lineBreak: false });
     }
     // Right: page X / N
-    doc.fontSize(7.5).fillColor('#888888').font('Helvetica')
+    doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica')
       .text(L.pageNumber(i + 1, totalPages), LEFT + PAGE_W * 0.75, ftY, { width: PAGE_W * 0.25, align: 'right' });
   }
 
@@ -799,17 +878,44 @@ function __resolveFooterText(settings, language, defaultEn, defaultFr) {
   return lang === 'en' ? defaultEn : defaultFr;
 }
 
-// specs/devis-pdf-and-tourist-tax-fixes.md rule 21 — a devis printed after its validity says so
-// (« Valable jusqu'au 07/10/2026 (expiré) »); a converted one is a reservation, past its quote on purpose.
-function isPrintedExpired(full, validUntilIso, todayIsoDate) {
-  return Boolean(full && full.kind === 'devis' && full.devisStatus !== 'converted' && validUntilIso && validUntilIso < todayIsoDate);
+// specs/ui-review-2026-10-19-operations.md rule 18 — the offered lines, as the one row that names them.
+function groupOffered(lines) {
+  const list = (lines || []).filter((l) => l && String(l.name || '').trim());
+  if (list.length === 0) return null;
+  return {
+    names: list.map((l) => String(l.name).trim()).join(', '),
+    count: list.length,
+    value: roundMoney(list.reduce((sum, l) => sum + Number(l.real || 0), 0)),
+  };
+}
+
+// specs/ui-review-2026-10-19-operations.md rule 19 — the schedule of the page-1 summary: the acompte,
+// then the solde (or the single payment of a direct quote with no acompte, named as such).
+function summarySchedule(full, L) {
+  const deposit = Number(full?.depositAmount || 0);
+  const balance = Number(full?.balanceAmount || 0);
+  const { isFullPayment } = __resolvePaymentBlock({ platform: full?.platform, depositAmount: deposit, balanceAmount: balance });
+  const lines = [];
+  if (deposit > 0) lines.push({ label: L.summaryDeposit, amount: deposit, dueDate: full.depositDueDate || null });
+  if (balance > 0) {
+    lines.push({ label: isFullPayment ? L.summaryFull : L.summaryBalance, amount: balance, dueDate: full.balanceDueDate || null });
+  }
+  return lines;
+}
+
+// HT of one table row: its TTC net of the line's VAT, rounded like the column prints it.
+function rowHt(totalTtc, vatRate) {
+  const rate = Number(vatRate || 0);
+  return rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));
 }
 
 module.exports = {
   generateDevisPdf,
   __test: {
     showsStruckOriginal,
-    isPrintedExpired,
+    groupOffered,
+    summarySchedule,
+    PDF_PALETTE,
     resolveLiveTaxTotals,
     lineAmounts,
     resolveRowGeometry,

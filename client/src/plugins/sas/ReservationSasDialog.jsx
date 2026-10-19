@@ -44,14 +44,16 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PeopleIcon from '@mui/icons-material/People';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LockIcon from '@mui/icons-material/Lock';
+import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router';
 import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
-  sasLockTitle, sasLockMessage, Slot, useSlot, WheatIcon, BaguetteIcon,
+  sasLockTitle, sasLockMessage, Slot, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import placePluginSteps from './placePluginSteps';
+import stepNumbering from './sasStepNumbering';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 // The real price of a stored end-of-stay line: what it is billed at, or what it WOULD be billed at
@@ -139,13 +141,26 @@ function StepLayout({ Icon, color, children }) {
   );
 }
 
-// Yes/No answer buttons with the shared SAS colour code (specs/arrival-departure-sas.md §6):
-// the reassuring answer is white-on-blue and sits ON TOP, the problem answer is black-on-red below.
-// `bad` is rendered first so the mobile column-reverse footer lands it BENEATH `good`.
-function AnswerButtons({ goodLabel, onGood, badLabel, onBad }) {
+// The alternative answer of a yes/no page: a neutral tonal button, ink on a light warm fill — never red
+// (specs/ui-review-2026-10-19-operations.md rule 2).
+const neutralAnswerSx = (t) => ({
+  bgcolor: alpha(t.palette.text.primary, 0.07),
+  color: 'text.primary',
+  boxShadow: 'none',
+  '&:hover': { bgcolor: alpha(t.palette.text.primary, 0.12), boxShadow: 'none' },
+});
+
+// Yes/No answer buttons (specs/ui-review-2026-10-19-operations.md rules 1-2, decision 5 of the UI/UX
+// review): the footer stacks in reading order on a phone, so the alternative (`bad`, rendered first) sits
+// on top and the frequent, reassuring answer (`good`, filled) lands at the bottom, under the thumb — on
+// the right from `sm`. The alternative is neutral; `badTone="error"` is kept for « Dégât / litige » only,
+// as an outlined error button (AA), never black on red.
+function AnswerButtons({ goodLabel, onGood, badLabel, onBad, badTone = 'neutral' }) {
   return (
     <>
-      <Button variant="contained" color="error" sx={{ color: 'common.black' }} onClick={onBad}>{badLabel}</Button>
+      {badTone === 'error'
+        ? <Button variant="outlined" color="error" onClick={onBad}>{badLabel}</Button>
+        : <Button variant="contained" color="inherit" sx={neutralAnswerSx} onClick={onBad}>{badLabel}</Button>}
       <Button variant="contained" onClick={onGood}>{goodLabel}</Button>
     </>
   );
@@ -1636,10 +1651,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 />
               ))}
               <Divider />
-              {/* Amounts never render in serif → bold sans body, not sectionHeader. */}
-              <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>
-                {stayStep ? 'Total complément' : 'Total'} : {formatCurrency(total)}
-              </Typography>
+              {/* specs/ui-review-2026-10-19-operations.md rule 4 — nothing to collect reads as such, not
+                  as « Total : 0,00 € ». Amounts never render in serif → bold sans body. */}
+              {total <= 0 && stayDue <= 0 ? (
+                <Box><StatusBadge status="success" label="Rien à percevoir" icon={<CheckIcon sx={{ fontSize: 16 }} />} /></Box>
+              ) : (total > 0 || !stayStep) && (
+                <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums' }}>
+                  {stayStep ? 'Total complément' : 'Total'} : {formatCurrency(total)}
+                </Typography>
+              )}
               {/* Rule 23 — a reading aid only: each block still settles on its own buttons. */}
               {stayStep && stayDue > 0 && total > 0 && (
                 <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>
@@ -1714,7 +1734,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 Déjà réglé en séjour : {formatCurrency(midStayAlreadySettled)}
               </Typography>
             )}
-            {endOfStayLines.length === 0 && arrivalRecallLines.length === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
+            {/* specs/ui-review-2026-10-19-operations.md rule 4 — nothing to collect at the door. */}
+            {departureGrandTotal <= 0 && (
+              <Box><StatusBadge status="success" label="Rien à percevoir" icon={<CheckIcon sx={{ fontSize: 16 }} />} /></Box>
+            )}
             {/* Every check-out line is offerable (specs/sas-offer-complement-lines.md §3.2 rule 6). */}
             {endOfStayLines.map((l, i) => (
               <OfferableLine
@@ -1814,8 +1837,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'cautionReport':
         return <>{quit}
           <AnswerButtons
-            goodLabel="Fait" onGood={() => { setCaution('fait'); goNext(); }}
-            badLabel="Reporté" onBad={() => { setCaution('reporte'); goNext(); }}
+            goodLabel="Caution perçue" onGood={() => { setCaution('fait'); goNext(); }}
+            badLabel="Reporter au départ" onBad={() => { setCaution('reporte'); goNext(); }}
           />
         </>;
       case 'stayPayment': return <>{quit}{next()}</>;
@@ -1895,7 +1918,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return <>{quit}
           <AnswerButtons
             goodLabel="Rendue" onGood={() => { setCautionReturned(true); goNext(); }}
-            badLabel="Dégât / litige" onBad={() => { setCautionReturned(false); goNext(); }}
+            badLabel="Dégât / litige" badTone="error" onBad={() => { setCautionReturned(false); goNext(); }}
           />
         </>;
       case 'extinguisher':
@@ -1945,6 +1968,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const meta = metaFor(stepKey);
   const StepIcon = sasLock ? LockIcon : meta.Icon;
   const stepIdx = activeKeys.indexOf(stepKey);
+  const stepNumber = stepNumbering(activeKeys, stepKey);
   const bandTitle = sasLock ? lockedTitle : (meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ'));
   return (
     <>
@@ -1980,9 +2004,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Box sx={{ mt: 1 }}>
             <LinearProgress variant="determinate" value={((stepIdx + 1) / activeKeys.length) * 100}
               sx={(t) => ({ height: 6, borderRadius: 3, bgcolor: alpha(t.palette.common.white, 0.3), '& .MuiLinearProgress-bar': { bgcolor: 'common.white' } })} />
-            {/* No total: an accepted upsell opens its own pages, and « 9/10 » turning into « 9/12 » read as
-                going backwards (specs/review-2026-10-18-reservations.md rule 3). */}
-            <Typography variant="caption" sx={{ opacity: 0.9, mt: 0.5, display: 'block' }}>Étape {stepIdx + 1}</Typography>
+            {/* specs/ui-review-2026-10-19-operations.md rule 3 — « 3 sur 9 »: the total counts the
+                questions, so a page an answer opens never makes it grow. */}
+            {stepNumber && (
+              <Typography variant="caption" sx={{ opacity: 0.95, mt: 0.5, display: 'block', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                {stepNumber.number} sur {stepNumber.total}
+              </Typography>
+            )}
           </Box>
         )}
       </Box>
@@ -1990,7 +2018,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         {renderBody()}
         {error && data && <Typography color="error" variant="body2" sx={{ mt: 2 }}>{error}</Typography>}
       </DialogContent>
-      <DialogActions sx={{ p: { xs: 2, sm: 2 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
+      {/* Reading order on a phone: the primary action, rendered last, lands at the bottom under the
+          thumb (specs/ui-review-2026-10-19-operations.md rule 1); on the right from sm. */}
+      <DialogActions sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom, 0px))', sm: 2 }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
       </DialogActions>
     </Dialog>

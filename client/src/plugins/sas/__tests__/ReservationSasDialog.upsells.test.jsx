@@ -159,7 +159,7 @@ test('departure SAS: the ménage page is dropped when the cleaning is already so
 
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.getByText(/Ménage déjà réglé/)).toBeInTheDocument();
-  expect(screen.getByText(/Aucun complément de fin de séjour/)).toBeInTheDocument();
+  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));

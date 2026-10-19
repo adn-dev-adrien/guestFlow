@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { buildMonthLayout, normalizeItems, monthItems, frRange } from '../CumulativeMonthCalendar';
 
 vi.mock('../../api', () => ({ default: {
@@ -11,7 +11,8 @@ import api from '../../api';
 import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
 
 // specs/cumulative-month-calendar.md §3 — spanning bars split per week, lane-packed, GROUPED BY logement,
-// reservations half-day at arrival/departure, closures full-day.
+// reservations half-day at arrival/departure. Closures are no longer bars: see
+// CumulativeMonthCalendar.closures-and-bars.test.jsx (specs/ui-review-2026-10-19-operations.md rule 13).
 const RES = [
   { id: 1, startDate: '2026-07-15', endDate: '2026-07-17', platform: 'airbnb', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
   { id: 2, startDate: '2026-07-16', endDate: '2026-07-18', platform: 'booking', propertyName: 'Studio', firstName: 'Anne', lastName: 'Bernard' }, // overlaps id1, other property
@@ -50,15 +51,6 @@ describe('buildMonthLayout', () => {
     expect(b.rightEdge).toBe(b.endCol + 0.5);
   });
 
-  it('a closure is half-day at its start/end too (consistent with reservations)', () => {
-    const bars = allBars(layout).filter((b) => b.item.key === 'c10');
-    expect(bars.length).toBeGreaterThanOrEqual(1);
-    const b = bars[0];
-    expect(b.roundStart && b.roundEnd).toBe(true);
-    expect(b.leftEdge).toBe(b.startCol + 0.5);
-    expect(b.rightEdge).toBe(b.endCol + 0.5);
-  });
-
   it('a stay crossing a week boundary splits; only the true edges are half-day', () => {
     const bars = allBars(layout).filter((b) => b.item.reservationId === 3);
     expect(bars.length).toBeGreaterThanOrEqual(2);
@@ -76,12 +68,6 @@ describe('buildMonthLayout', () => {
     const laneS = week.bars.find((b) => b.item.reservationId === 2).lane;
     expect(laneG).not.toBe(laneS);
     expect(laneG).toBeLessThan(laneS); // « Gîte » sorts before « Studio »
-  });
-
-  it('a global closure sits in the top lane band (lane 0)', () => {
-    const bars = allBars(layout).filter((b) => b.item.key === 'c11');
-    expect(bars.length).toBeGreaterThanOrEqual(1);
-    expect(bars[0].lane).toBe(0);
   });
 
   it('flags exactly the today cell as isToday', () => {
@@ -154,6 +140,8 @@ describe('CumulativeMonthCalendar (infinite scroll)', () => {
     ]);
     api.getEstablishmentClosures.mockResolvedValue([]);
     render(<CumulativeMonthCalendar onReservationClick={() => {}} />);
+    // The legend is folded behind « Légende » (specs/ui-review-2026-10-19-operations.md rule 15).
+    fireEvent.click(await screen.findByRole('button', { name: 'Légende' }));
     await waitFor(() => expect(screen.getAllByText('Abracadaroom').length).toBeGreaterThan(0));
     // One legend swatch + one chip per reservation bar — never two differently-cased legend entries.
     expect(screen.queryByText('abracadaroom')).not.toBeInTheDocument();

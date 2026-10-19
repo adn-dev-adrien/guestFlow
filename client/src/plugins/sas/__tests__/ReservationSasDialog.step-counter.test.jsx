@@ -1,5 +1,6 @@
-// specs/review-2026-10-18-reservations.md rule 3 — the SAS shows « Étape N » with no total: an
-// accepted upsell opens its own pages, and « 9/10 » becoming « 9/12 » read as going backwards.
+// specs/review-2026-10-18-reservations.md rule 3, amended by specs/ui-review-2026-10-19-operations.md
+// rule 3 — the SAS reads « N sur M », and M never grows: a page an answer opens keeps the number of the
+// question that opened it.
 import { screen } from '@testing-library/react';
 import { vi } from 'vitest';
 
@@ -16,16 +17,21 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-test('rule 3 — the step counter names the step, never a total that can grow', async () => {
+test('rule 3 — « N sur M », and an opened page keeps its question\'s number', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
-    reservation: { cautionReceived: 1, adults: 2, children: 1 },
+    reservation: { cautionReceived: 1, bedLinenAlert: { type: 'missing' } },
     cleaning: { included: true, price: null },
-    bathLinen: { available: true, unitPrice: 4, priceType: 'per_person', persons: 3, nights: 2, amount: 12, label: 'Linge de toilette' },
   }));
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
+  // intro, linen, recap — the linen items page is opened by « Pas OK » only.
+  expect(screen.getByText('1 sur 3')).toBeInTheDocument();
   clickBtn('Commencer');
-  await screen.findByText(/n'a pas pris le linge de toilette/);
-  expect(screen.getByText(/^Étape \d+$/)).toBeInTheDocument();
-  expect(screen.queryByText(/^Étape \d+\/\d+$/)).toBeNull();
+  expect(await screen.findByText('2 sur 3')).toBeInTheDocument();
+  clickBtn('Pas OK');
+  // The linen items page: same number, same total.
+  expect(await screen.findByText('2 sur 3')).toBeInTheDocument();
+  expect(screen.queryByText(/sur 4/)).toBeNull();
+  clickBtn('Suivant');
+  expect(await screen.findByText('3 sur 3')).toBeInTheDocument();
 });

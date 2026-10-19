@@ -38,7 +38,7 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
 
   // caution page
   await screen.findByText(/Caution à percevoir/);
-  clickBtn('Fait');
+  clickBtn('Caution perçue');
 
   // options skipped (none) → linen page
   await screen.findByText(/n'a pas pris le linge de lit/);

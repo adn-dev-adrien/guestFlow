@@ -354,6 +354,11 @@ existing reservations needed.
     ménage) is **not** a yes/no safety question → kept **neutral** (Ajouter = primary blue, Non merci
     discreet). Buttons full-width + stacked on `xs`, side-by-side on `sm+`, touch targets ≥ 48 px;
     « Valider et terminer » keeps its commit spinner.
+    **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rules 1-2, decision 5 of the UI/UX
+    review): the footer now stacks in reading order, so the reassuring answer — filled — sits at the
+    **bottom**, under the thumb (right from `sm`); its counterpart is a **neutral** tonal button, never
+    black on red. « Dégât / litige » alone stays red, as an outlined error button. The caution reads
+    « Caution perçue » / « Reporter au départ », and the header « N sur M » (rule 3 of that spec).
   - **Extincteur** is now a yes/no page (**Oui** = plomb présent = blue / **Non** = manquant = red),
     replacing the former in-body Switch; clicking advances immediately. At departure the body keeps a static
     hint that an absent seal adds the configured amount to the end-of-stay (the charge lands in the recap).

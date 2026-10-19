@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router';
 import {
-  Box, Typography, Chip, Button, FormControl, InputLabel, Select, MenuItem,
+  Box, Typography, Chip,
   useMediaQuery, useTheme,
 } from '@mui/material';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
@@ -9,6 +9,7 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import TodayIcon from '@mui/icons-material/Today';
 import PageActionBar from '../components/PageActionBar';
 import ErrorAlert from '../components/ErrorAlert';
+import SegmentedSelect from '../components/SegmentedSelect';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
 import CalendarMonthGrid from '../components/CalendarMonthGrid';
 import CalendarWeekView from '../components/CalendarWeekView';
@@ -395,23 +396,18 @@ export default function CalendarPage() {
     />
   );
 
-  // Property picker cluster — bar `center` on sm+, compact strip under the bar on xs
-  // (specs/ds-sweep-planning.md rule 3; absorbs the former CalendarToolbar).
+  // Property filter — bar `center` on sm+, a full-width strip under the bar on xs (specs/ds-sweep-planning.md
+  // rule 3). « Tous » is the all-logements calendar; with three logements or fewer it is a segmented
+  // control, past that a select (specs/ui-review-2026-10-19-operations.md rule 16).
+  const ALL = 'all';
   const renderPropertyPicker = () => (
-    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', minWidth: 0, maxWidth: '100%' }}>
-      {/* A long property name ellipsises inside a bounded select (specs/review-2026-10-18-reservations.md rule 7). */}
-      <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 200 }, width: { xs: '100%', sm: 'auto' }, maxWidth: { xs: '100%', sm: 360 } }}>
-        <InputLabel>Logement</InputLabel>
-        {/* Until the property list lands, a URL-driven selectedProp has no matching option —
-            render '' meanwhile to avoid MUI's transient out-of-range warning on deep links. */}
-        <Select value={properties.length ? selectedProp : ''} label="Logement" onChange={(e) => handleSelectProperty(e.target.value)}>
-          {properties.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
-        </Select>
-      </FormControl>
-      {selectedProp && (
-        <Button variant="text" size="small" onClick={() => setSelectedProp('')}>Vue logements</Button>
-      )}
-    </Box>
+    <SegmentedSelect
+      label="Logement"
+      value={properties.length && selectedProp ? selectedProp : ALL}
+      options={[{ value: ALL, label: 'Tous' }, ...properties.map((p) => ({ value: p.id, label: p.name }))]}
+      maxSegments={4}
+      onChange={(next) => (next === ALL ? setSelectedProp('') : handleSelectProperty(next))}
+    />
   );
 
   return (
@@ -428,8 +424,8 @@ export default function CalendarPage() {
           { icon: <TodayIcon />, tooltip: "Aujourd'hui", onClick: scrollToToday, color: 'primary' },
         ]}
       />
-      {/* xs fallback for the bar's hidden `center` — same picker, compact strip. */}
-      <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
+      {/* xs fallback for the bar's hidden `center` — the same filter, full width. */}
+      <Box sx={{ display: { xs: 'block', sm: 'none' }, px: 1.5, mb: 2 }}>
         {renderPropertyPicker()}
       </Box>
 

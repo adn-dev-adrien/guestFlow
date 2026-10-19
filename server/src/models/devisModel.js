@@ -24,6 +24,7 @@ const bookingLinesModel = require('./bookingLinesModel');
 const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
+const { devisListRow } = require('../utils/devisListRow');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 // Helpers shared between create + convertFromReservation
@@ -546,7 +547,8 @@ function createModel(database) {
     if (requestOrigin === 'public') { sql += " AND d.requestOrigin = 'public'"; }
     else if (requestOrigin === 'internal') { sql += " AND (d.requestOrigin IS NULL OR d.requestOrigin != 'public')"; }
     sql += ' ORDER BY d.createdAt DESC';
-    return database.prepare(sql).all(...params).map((row) => ({ ...row, ...originDisplay(row) }));
+    // specs/ui-review-2026-10-19-operations.md rules 5, 9 — total and origin shaped for the list.
+    return database.prepare(sql).all(...params).map(devisListRow);
   }
 
   function findById(id) {
