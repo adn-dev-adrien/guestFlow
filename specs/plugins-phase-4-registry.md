@@ -412,6 +412,17 @@ merge changed are bumped in the merge PR: `gate-access` 1.1.0 (« Partager » on
 (`specs/plugins-phase-3a-online-payment.md` rule 22) raise the SDK to **1.2.0** (minor); every plugin is
 bumped for its new range, and `booking-intake`, `gate-access` and `online-payment` ask for `sdk ^1.2.0`.
 
+2026-10-19 — UI/UX review of the WordPress booking engine (`feature/ui-wp-booking-engine`): the core
+module `changeover` (`resolveChangeover`, `checkChangeover`, `FRENCH_DAYS`) and `pricing`'s
+`calculateBaseStayPrice` are exposed so the public availability can name the first *bookable* arrival
+with the engine's own minimum stay and arrival days (`specs/wp-booking-widget-redesign.md` rule 30).
+Two additions: the SDK goes to **1.3.0** (rule 3, minor); `website-booking` 1.2.0 asks for `sdk ^1.3.0`.
+
+2026-10-19 — the home's « À traiter » (`specs/shell-and-home-day-first.md` rule 9): `ctx.attention`
+and the client SDK's `AttentionCard` raise the SDK to **1.4.0** (minor); `booking-intake`,
+`gate-access`, `gites-de-france-intake`, `linen`, `tariff-recipes` and `website-booking` 1.3.0 ask for
+`sdk ^1.4.0` and `guestflow >=3.10.0`.
+
 | Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|
 | Server (`node --test`) | 5 136 / 5 136 — of which `plugins-phase-4-registry.unit.test.js` 54, `plugin-packages-release.unit.test.js` 15 |

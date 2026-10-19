@@ -83,7 +83,8 @@ test('rule 11: one refusal, word for word, in a template, a stay text and a ment
 
 test('rule 11: a name with a space or an accent is unknown too — it would reach the guest as braces', () => {
   const allowed = templateAllowed();
-  assert.deepEqual(tokenError('body', 'Bonjour {{Prénom du voyageur}}', allowed), { field: 'body', message: 'Variable inconnue : {{Prénom du voyageur}}' });
+  const refusal = tokenError('body', 'Bonjour {{Prénom du voyageur}}', allowed);
+  assert.deepEqual({ field: refusal.field, message: refusal.message }, { field: 'body', message: 'Variable inconnue : {{Prénom du voyageur}}' });
   assert.equal(tokenError('body', '{{#if hasCompanyPhone}}{{companyPhone}}{{else}}—{{/if}}', allowed), null);
   assert.match(tokenError('body', '{{#if companyPhonee}}x{{/if}}', allowed).message, /companyPhonee/);
 });

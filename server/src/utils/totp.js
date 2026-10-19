@@ -95,7 +95,15 @@ function generateBackupCodes(count = BACKUP_CODE_COUNT) {
   return Array.from({ length: count }, () => `${pick()}-${pick()}`);
 }
 
-const normalizeCode = (code) => String(code || '').trim().toLowerCase();
+// What a person types or pastes, as the checks expect it (specs/hosting-h2-account-security.md rule 35):
+// « 123 456 » / « 123-456 » → « 123456 », a backup code without its dash or with spaces → « xxxxx-xxxxx ».
+function normalizeCode(code) {
+  const value = String(code || '').trim().toLowerCase();
+  const compact = value.replace(/[\s.-]/g, '');
+  if (/^\d{6}$/.test(compact)) return compact;
+  if (/^[a-z0-9]{10}$/.test(compact)) return `${compact.slice(0, 5)}-${compact.slice(5)}`;
+  return value;
+}
 const isBackupCodeShape = (code) => BACKUP_CODE_RE.test(normalizeCode(code));
 const hashBackupCode = (code) => hashPassword(normalizeCode(code));
 

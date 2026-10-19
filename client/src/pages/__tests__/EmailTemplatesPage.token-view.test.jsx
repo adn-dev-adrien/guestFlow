@@ -11,7 +11,7 @@ vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getEmailTemplates: vi.fn(), getEmailTemplateVariables: vi.fn(), createEmailTemplate: vi.fn(),
+    getEmailTemplates: vi.fn(), getEmailTemplatesTimeline: vi.fn(), describeTemplateWhen: vi.fn(), getEmailTemplateVariables: vi.fn(), createEmailTemplate: vi.fn(),
     updateEmailTemplate: vi.fn(), deleteEmailTemplate: vi.fn(), getPendingEmails: vi.fn(),
     acknowledgePendingEmail: vi.fn(), previewEmail: vi.fn(), sendEmail: vi.fn(),
   },
@@ -29,9 +29,10 @@ import EmailTemplatesPage from '../EmailTemplatesPage';
 const J2 = {
   id: 1, stableKey: 'arrival_reminder_1d', name: 'Séquence — J-2', subject: 'À {{arrivalWeekday}}',
   body: 'Bonjour {{clientFirstName}},\n{{#if hasParkingLine}}{{parkingLine}}{{/if}}', subjectEn: '', bodyEn: '',
-  dayOffset: -2, sendMode: 'manual', enabled: 1, whenLabel: 'J-2',
+  dayOffset: -2, sendMode: 'manual', enabled: 1, whenLabel: '2 jours avant l’arrivée', textsSection: 'j2', shipped: true, displayName: 'Accès et arrivée',
+  when: { editable: false, label: '2 jours avant l’arrivée', sentence: 'Envoyé 2 jours avant l’arrivée' },
 };
-const CONFIRMATION = { id: 2, stableKey: 'reservation_confirmation', name: 'Confirmation', subject: 'S', body: 'B', dayOffset: 0, sendMode: 'manual', enabled: 1, whenLabel: 'À la réservation' };
+const CONFIRMATION = { id: 2, stableKey: 'reservation_confirmation', name: 'Confirmation', subject: 'S', body: 'B', dayOffset: 0, sendMode: 'manual', enabled: 1, whenLabel: 'À la réservation', textsSection: 'confirmation', shipped: true, displayName: 'Confirmation', when: { editable: false, label: 'À la réservation', sentence: 'Envoyé à la réservation' } };
 const CHIPS = {
   variables: [{ name: 'clientFirstName', label: 'Prénom du voyageur' }, { name: 'parkingLine', label: 'Ligne parking' }, { name: 'arrivalWeekday', label: 'Jour d’arrivée' }],
   conditions: [{ name: 'hasParkingLine', label: 'Si parking' }],
@@ -40,6 +41,7 @@ const CHIPS = {
 beforeEach(() => {
   vi.clearAllMocks();
   api.getEmailTemplates.mockResolvedValue([J2, CONFIRMATION]);
+  api.getEmailTemplatesTimeline.mockResolvedValue({ groups: [{ id: 'booking', label: 'À la réservation', templates: [CONFIRMATION] }, { id: 'before', label: 'Avant l’arrivée', templates: [J2] }] });
   api.getEmailTemplateVariables.mockResolvedValue(CHIPS);
   api.getPendingEmails.mockResolvedValue([]);
 });
@@ -55,7 +57,8 @@ test('rule 16: « Quand » reads the server label — « À la réservation », 
 test('rule 17: the body shows labels, no {{#if}}; a typed edit is saved as tokens', async () => {
   api.updateEmailTemplate.mockResolvedValue({});
   renderPage();
-  fireEvent.click((await screen.findAllByText('Séquence — J-2'))[0]);
+  fireEvent.click(await screen.findByRole('button', { name: 'Plus d’actions : Accès et arrivée' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Modifier le modèle' }));
   const body = await screen.findByDisplayValue((v) => v.startsWith('Bonjour ⟦Prénom du voyageur⟧'));
   expect(body.value).toBe('Bonjour ⟦Prénom du voyageur⟧,\n⟦Si parking⟧⟦Ligne parking⟧⟦fin si⟧');
   expect(document.body.textContent).not.toMatch(/\{\{#if/);
@@ -67,7 +70,8 @@ test('rule 17: the body shows labels, no {{#if}}; a typed edit is saved as token
 test('rule 17: a refusal lands under its field, in labels', async () => {
   api.updateEmailTemplate.mockRejectedValue(Object.assign(new Error('x'), { field: 'body', message: 'Variable inconnue : {{prenom}}' }));
   renderPage();
-  fireEvent.click((await screen.findAllByText('Séquence — J-2'))[0]);
+  fireEvent.click(await screen.findByRole('button', { name: 'Plus d’actions : Accès et arrivée' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Modifier le modèle' }));
   await screen.findByDisplayValue((v) => v.startsWith('Bonjour'));
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Variable inconnue : ⟦prenom⟧')).toBeInTheDocument();

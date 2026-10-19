@@ -15,6 +15,8 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getEmailTemplates: vi.fn(),
+    getEmailTemplatesTimeline: vi.fn(),
+    describeTemplateWhen: vi.fn(),
     getEmailTemplateVariables: vi.fn(),
     createEmailTemplate: vi.fn(),
     updateEmailTemplate: vi.fn(),
@@ -48,19 +50,30 @@ vi.mock('react-router', async (importOriginal) => {
 });
 
 import api from '../../api';
+import { useAppDialogs } from '../../components/DialogProvider';
 import EmailTemplatesPage from '../EmailTemplatesPage';
 
+const dialogs = useAppDialogs();
+
+// The server's shapes (specs/guest-email-texts-made-simple.md rules 43–44): one name, the « Quand ».
 const REGISTRY_ROW = {
-  id: 1, stableKey: 'arrival_reminder_7d',
-  name: 'Rappel arrivée — J-7', subject: 'S', body: 'B',
+  id: 1, stableKey: 'arrival_reminder_7d', textsSection: 'j7', shipped: true,
+  name: 'Rappel arrivée — J-7', displayName: 'Préparation du séjour', subject: 'S', body: 'B',
   dayOffset: -7, sendMode: 'manual', enabled: 1,
+  when: { editable: false, label: '7 jours avant l’arrivée', sentence: 'Envoyé 7 jours avant l’arrivée', days: 7, direction: 'before', anchorLabel: 'l’arrivée' },
 };
 
 const CUSTOM_ROW = {
-  id: 2, stableKey: null,
-  name: 'Bienvenue', subject: 'S2', body: 'B2',
+  id: 2, stableKey: null, textsSection: null, shipped: false,
+  name: 'Bienvenue', displayName: 'Bienvenue', subject: 'S2', body: 'B2',
   dayOffset: 0, sendMode: 'auto', enabled: 1,
+  when: { editable: true, label: 'Le jour de l’arrivée', sentence: 'Envoyé le jour de l’arrivée', days: 0, direction: 'same', anchorLabel: 'l’arrivée' },
 };
+
+const TIMELINE = { groups: [
+  { id: 'before', label: 'Avant l’arrivée', templates: [REGISTRY_ROW] },
+  { id: 'during', label: 'Pendant le séjour', templates: [CUSTOM_ROW] },
+] };
 
 const PENDING_ROW = {
   templateId: 1, reservationId: 100, templateName: 'Rappel arrivée — J-7',
@@ -69,8 +82,12 @@ const PENDING_ROW = {
 
 beforeEach(() => {
   Object.values(api).forEach((m) => m?.mockReset?.());
+  dialogs.confirm.mockClear();
+  dialogs.confirm.mockResolvedValue(true);
   navigate.mockReset();
+  api.getEmailTemplatesTimeline.mockResolvedValue(TIMELINE);
   api.getEmailTemplates.mockResolvedValue([REGISTRY_ROW, CUSTOM_ROW]);
+  api.describeTemplateWhen.mockResolvedValue({ offsetDays: -2, sentence: 'Envoyé 2 jours avant l’arrivée', example: 'Prochain séjour (Gite, vendredi 23 octobre au lundi 26 octobre) : envoyé le mercredi 21 octobre.' });
   api.getEmailTemplateVariables.mockResolvedValue({ variables: [{ name: 'clientFirstName', label: 'Prénom du voyageur' }, { name: 'propertyName', label: 'Logement' }], conditions: [{ name: 'hasBedLinenOption', label: 'Si linge de lit' }] });
   api.getPendingEmails.mockResolvedValue([]); // queue empty by default
   api.previewEmail.mockResolvedValue({ to: 'jane@s.com', subject: 'Sujet', body: 'Corps', missingVariables: [] });
@@ -84,48 +101,51 @@ function renderPage() {
   );
 }
 
-test('lists templates with the "Modèle livré" badge ONLY on registry-seeded rows', async () => {
+test('rule 44: the emails read in stay order, by name, with « personnalisé » only on the operator’s own', async () => {
   renderPage();
-  expect(await screen.findByText('Rappel arrivée — J-7')).toBeInTheDocument();
+  expect(await screen.findByText('Préparation du séjour')).toBeInTheDocument();
   expect(screen.getByText('Bienvenue')).toBeInTheDocument();
-  const badges = screen.getAllByText('Modèle livré');
-  expect(badges).toHaveLength(1);
+  expect(screen.getAllByText('personnalisé')).toHaveLength(1);
+  expect(screen.queryByText('Modèle livré')).not.toBeInTheDocument();
+  const moments = screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'));
+  expect(moments).toEqual(['Avant l’arrivée', 'Pendant le séjour']);
 });
 
-test('renders the J-7 / Manuel / Automatique cells correctly', async () => {
+test('rule 44: the « Quand » under each name; the mode only when it is « Auto »', async () => {
   renderPage();
-  expect(await screen.findByText('J-7')).toBeInTheDocument();
-  expect(screen.getByText('Manuel')).toBeInTheDocument();
-  expect(screen.getByText('Automatique')).toBeInTheDocument();
+  expect(await screen.findByText('7 jours avant l’arrivée')).toBeInTheDocument();
+  expect(screen.queryByText('Manuel')).not.toBeInTheDocument();
+  expect(screen.getAllByText('Auto')).toHaveLength(1);
 });
 
 test('opening the create dialog yields an empty form + disabled submit', async () => {
   const user = userEvent.setup();
   renderPage();
-  await screen.findByText('Rappel arrivée — J-7');
+  await screen.findByText('Préparation du séjour');
   await user.click(screen.getByRole('button', { name: 'Nouveau modèle' }));
   expect(await screen.findByRole('heading', { name: 'Nouveau modèle' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });
 
-// specs/guest-email-texts-made-simple.md rule 10 — the chips are the server's, labelled.
-test('the variable + condition chips for the picker are rendered in the dialog', async () => {
+// specs/guest-email-texts-made-simple.md rules 10, 37 — the variables are the server's, labelled,
+// behind « + Variable ».
+test('the variables and conditions of the server are offered by « + Variable » in the dialog', async () => {
   const user = userEvent.setup();
   renderPage();
-  await screen.findByText('Rappel arrivée — J-7');
+  await screen.findByText('Préparation du séjour');
   await user.click(screen.getByRole('button', { name: 'Nouveau modèle' }));
   await screen.findByRole('heading', { name: 'Nouveau modèle' });
   expect(api.getEmailTemplateVariables).toHaveBeenCalledWith(null);
-  // specs/email-automation.md rule 17 — the chips of « Textes des emails », under the subject and
-  // the body; a condition chip inserts its « fin si » with it.
-  expect((await screen.findAllByText('Prénom du voyageur')).length).toBeGreaterThan(0);
-  expect(screen.getAllByText('Logement').length).toBeGreaterThan(0);
-  expect(screen.getByText('Si linge de lit')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Variable' }).length).toBe(2));
+  await user.click(screen.getAllByRole('button', { name: 'Variable' })[1]);
+  expect(await screen.findByRole('option', { name: 'Prénom du voyageur' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Logement' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Seulement si : linge de lit' })).toBeInTheDocument();
 });
 
 test('the "Emails à envoyer" card is hidden when the queue is empty', async () => {
   renderPage();
-  await screen.findByText('Rappel arrivée — J-7');
+  await screen.findByText('Préparation du séjour');
   expect(screen.queryByText('Emails à envoyer')).not.toBeInTheDocument();
 });
 
@@ -137,37 +157,62 @@ test('the "Emails à envoyer" card shows the queue when non-empty', async () => 
   expect(screen.getByText('Villa A')).toBeInTheDocument();
 });
 
-test('clicking a template row opens its edit dialog', async () => {
+test('rule 44: the operator’s own row opens its editor; a shipped row opens its texts', async () => {
   const user = userEvent.setup();
   renderPage();
-  await user.click(await screen.findByText('Bienvenue'));
-  expect(await screen.findByRole('heading', { name: 'Modifier le modèle' })).toBeInTheDocument();
+  await user.click(await screen.findByRole('button', { name: 'Modifier les textes : Préparation du séjour' }));
+  expect(navigate).toHaveBeenCalledWith('/settings/emails/textes#j7');
+  await user.click(screen.getByRole('button', { name: 'Modifier : Bienvenue' }));
+  expect(await screen.findByRole('heading', { name: 'Bienvenue' })).toBeInTheDocument();
 });
 
-test('clicking the delete icon does NOT open the edit dialog', async () => {
+test('rule 44: « Supprimer » sits in « ⋯ »; a shipped email cannot be deleted, only switched off', async () => {
   const user = userEvent.setup();
   renderPage();
-  const row = (await screen.findByText('Bienvenue')).closest('tr');
-  await user.click(within(row).getByRole('button')); // the only button in the row is delete
+  await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
+  expect(screen.getByRole('menuitem', { name: /Supprimer/ })).toHaveAttribute('aria-disabled', 'true');
+  await user.keyboard('{Escape}');
+  await user.click(screen.getByRole('button', { name: 'Plus d’actions : Bienvenue' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Supprimer' }));
   await waitFor(() => expect(api.deleteEmailTemplate).toHaveBeenCalledWith(2));
-  expect(screen.queryByRole('heading', { name: 'Modifier le modèle' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Bienvenue' })).not.toBeInTheDocument();
+});
+
+test('rule 44: « Envoi automatique… » from « ⋯ », after its confirmation, never as the first item', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
+  const items = screen.getAllByRole('menuitem');
+  expect(items[0]).toHaveTextContent('Modifier le modèle');
+  await user.click(screen.getByRole('menuitem', { name: 'Envoi automatique…' }));
+  expect(dialogs.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: 'Cet email partira sans validation, à sa date.' }));
+  await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(1, { sendMode: 'auto' }));
+});
+
+test('rule 44: a refused confirmation keeps the email manual', async () => {
+  const user = userEvent.setup();
+  dialogs.confirm.mockResolvedValueOnce(false);
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Envoi automatique…' }));
+  await waitFor(() => expect(dialogs.confirm).toHaveBeenCalled());
+  expect(api.updateEmailTemplate).not.toHaveBeenCalled();
 });
 
 test('toggling the enabled switch does NOT open the edit dialog', async () => {
   const user = userEvent.setup();
   renderPage();
-  const row = (await screen.findByText('Bienvenue')).closest('tr');
-  await user.click(row.querySelector('input[type="checkbox"]'));
+  await user.click(await screen.findByRole('switch', { name: 'Envoyer Bienvenue' }));
   await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalled());
-  expect(screen.queryByRole('heading', { name: 'Modifier le modèle' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Bienvenue' })).not.toBeInTheDocument();
 });
 
 test('changing a template regenerates the pending queue (re-fetches it)', async () => {
   const user = userEvent.setup();
   renderPage();
-  const row = (await screen.findByText('Bienvenue')).closest('tr');
+  const toggle = await screen.findByRole('switch', { name: 'Envoyer Bienvenue' });
   await waitFor(() => expect(api.getPendingEmails).toHaveBeenCalledTimes(1)); // initial load
-  await user.click(row.querySelector('input[type="checkbox"]')); // toggle enabled
+  await user.click(toggle); // toggle enabled
   await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalled());
   // The queue is refreshed so it reflects the new template set.
   await waitFor(() => expect(api.getPendingEmails).toHaveBeenCalledTimes(2));
@@ -205,6 +250,6 @@ test('no global « automatic sending is off » banner exists any more', async ()
 test('the edit dialog says an « Automatique » template leaves without validation', async () => {
   const user = userEvent.setup();
   renderPage();
-  await user.click(await screen.findByText('Bienvenue'));
-  expect(await screen.findByText(/Cet email partira sans votre validation/)).toBeInTheDocument();
+  await user.click(await screen.findByRole('button', { name: 'Modifier : Bienvenue' }));
+  expect(await screen.findByText(/Part sans validation/)).toBeInTheDocument();
 });

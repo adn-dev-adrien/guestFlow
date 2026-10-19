@@ -19,7 +19,7 @@ const devisModel = sdk.coreModule('devisModel');
 const notificationService = sdk.coreModule('notificationService');
 const settings = require('../settings');
 const termsModel = sdk.coreModule('termsModel');
-const { validateStayInput, validateGuest, validateAttribution } = require('../publicInputValidation');
+const { validateStayInput, validateGuest, validateAttribution, withFieldMessages } = require('../publicInputValidation');
 const { classifyAttribution } = sdk.coreModule('attributionChannel');
 const { checkGuestCapacity } = sdk.coreModule('capacity');
 const { generateToken } = sdk.coreModule('publicDevisToken');
@@ -28,6 +28,7 @@ const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability }
 const optionsModel = sdk.coreModule('optionsModel');
 const { isPerPersonCardOption, portionCap, portionWording } = sdk.coreModule('mealPortions');
 const { ok, fail, failT, langOf, langStated } = sdk.coreModule('publicHttp');
+const { labels } = sdk.coreModule('publicLabels');
 
 /**
  * Per-person card options asked for beyond `persons × servings` (specs/site-meal-portions.md rule 3).
@@ -70,7 +71,11 @@ function create(req, res) {
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', v.errors);
 
   const g = validateGuest(req.body.guest);
-  if (!g.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'clientInvalid', g.errors);
+  // Each refused field carries its own sentence, so the site can print it under that field
+  // (specs/wordpress-plugin.md rule 28). `details` only gains keys: older plugins read `message`.
+  if (!g.ok) {
+    return failT(res, req, 422, 'VALIDATION_FAILED', 'clientInvalid', withFieldMessages(g.errors, labels(langOf(req)).fieldErrors));
+  }
 
   const terms = checkTermsAcceptance(req.body.termsVersion);
   if (terms.error) return fail(res, terms.status, terms.code, terms.message, terms.details);

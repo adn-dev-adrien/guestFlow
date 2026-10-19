@@ -85,7 +85,7 @@ export default function LoginPage() {
 
   if (step) {
     return (
-      <AuthCard title="Second code">
+      <AuthCard title="Vérification">
         <SecondFactorForm
           step={step}
           onCancel={(message) => { setStep(null); setPassword(''); setError(message || ''); }}

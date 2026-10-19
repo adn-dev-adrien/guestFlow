@@ -232,11 +232,18 @@ The operator can:
     « À la demande » (payment requests), « Échéance de l'acompte », the day offset for the arrival
     emails (« J-7 », « Jour J »), « Lendemain du départ » / « N j après le départ » for a template tied to
     the departure. The list, the mobile cards and the send dialog's template list read it.
+    *2026-10-19 (UI/UX review 2026-10-18, decision 11):* the label is the « Quand » sentence of
+    specs/guest-email-texts-made-simple.md rule 43 without its « Envoyé »: « 2 jours avant l'arrivée »,
+    « Le jour de l'arrivée », « Le 15 novembre », « Le lendemain du départ », « 3 jours après l'échéance
+    du solde ». The dialog edits it as that sentence, no longer as a signed « Décalage en jours ».
 17. **The full template editor shows labels, like « Textes des emails ».** Subject and body (FR/EN) are
     edited through the same token field: each variable and condition by its French label (« ⟦Prénom du
     voyageur⟧ », « ⟦Si parking⟧ … ⟦fin si⟧ »), chips under the field, the raw `{{token}}` saved; never
     a raw `{{#if}}` on screen. A refusal lands under its field, in labels (specs/guest-email-texts-made-simple.md
     rule 27).
+    *2026-10-19 (UI/UX review 2026-10-18, decisions 5 and 12):* the chips leave the field: « + Variable »
+    or a typed `[` opens the list (specs/guest-email-texts-made-simple.md rule 41); FR | EN shows one
+    language at a time (rule 42); the list of templates is the timeline of rule 44.
 18. **A pending email has its own « Envoyer » button.** The row still opens the send dialog; the button
     says so next to « Marquer comme envoyé » and « Ignorer ».
 19. **An iCal placeholder is greeted neutrally (2026-10-18).** When the reservation's client is an iCal
@@ -813,8 +820,9 @@ inline property form just above the capacity fields. The value is stored on
 
 - **Bilingual emails** (FR only). The body is plain text; the operator can hand-translate
   if needed.
-- **HTML bodies / inline images / PDF attachments.** Plain text only (matches the existing
-  `emailService.send` signature).
+- **Inline images / PDF attachments.** ~~HTML bodies — plain text only.~~ Lifted 2026-10-19 (UI/UX
+  review, decision 15): guest emails also carry an HTML part derived from the same text
+  (specs/guest-email-texts-made-simple.md rules 37–39).
 - **Cancellation handling.** GuestFlow doesn't carry a cancelled flag today; the cron
   doesn't skip cancelled stays.
 - **Email open / click tracking.** No tracking pixels, no link rewriting.

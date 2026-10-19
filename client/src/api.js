@@ -673,6 +673,8 @@ const api = {
 
   // Email automation (specs/email-automation.md)
   getEmailTemplates:        () => request('/email-templates'),
+  getEmailTemplatesTimeline: () => request('/email-templates?view=timeline'),
+  describeTemplateWhen:     (body) => request('/email-templates/when', { method: 'POST', body }),
   getEmailMentions: () => request('/email-mentions'),
   createEmailMention: (body) => request('/email-mentions', { method: 'POST', body }),
   updateEmailMention: (id, body) => request(`/email-mentions/${id}`, { method: 'PUT', body }),

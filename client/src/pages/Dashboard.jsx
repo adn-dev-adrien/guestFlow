@@ -344,7 +344,7 @@ export default function Dashboard() {
           deadlines stay unfolded above it; everything else waits in « À traiter » below it. The KPI
           tiles left the home (decision 1) — their figures live in Suivi financier. */}
       {showAttention && <AttentionPinned subjects={attention.pinned} />}
-      {/* Plugin packages older than SDK 1.3.0 keep their own alert (rule 22). */}
+      {/* Plugin packages older than SDK 1.4.0 keep their own alert (rule 22). */}
       {showAttention && attention.loaded && <LegacyPluginAlerts declared={attention.declared} />}
 
       {loadError ? (

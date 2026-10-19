@@ -9,7 +9,7 @@ import { vi } from 'vitest';
 import theme from '../../theme';
 
 const { mockAuth } = vi.hoisted(() => ({ mockAuth: { user: { roles: ['admin'], enabledPlugins: [] } } }));
-// Two plugin contributions to the dashboard slots: one key the server declares (SDK ≥ 1.3.0), one it
+// Two plugin contributions to the dashboard slots: one key the server declares (SDK ≥ 1.4.0), one it
 // does not (a package built for an older SDK).
 vi.mock('../../plugins/sdk/useSlot', () => ({
   useSlot: (name) => (name === 'dashboard.alerts'
@@ -107,7 +107,7 @@ test('rule 20: a source the server could not read is said under the rows', () =>
   expect(screen.queryByText('Rien à traiter.')).not.toBeInTheDocument();
 });
 
-test('rule 22: a plugin contribution whose key the server did not declare (SDK < 1.3.0) renders as before', () => {
+test('rule 22: a plugin contribution whose key the server did not declare (SDK < 1.4.0) renders as before', () => {
   wrap(<LegacyPluginAlerts declared={['site-requests', 'payment-deadlines']} />);
   expect(screen.getByText('OLD_SDK_ALERT')).toBeInTheDocument();
   expect(screen.queryByText('NEW_SDK_ALERT')).not.toBeInTheDocument();

@@ -1,10 +1,12 @@
 /**
  * The console's login (specs/control-plane-plans-and-access.md rule 31): email and password, then
  * the second factor the operator chose — the authenticator app's code or the code sent by email —
- * or one of their backup codes.
+ * or one of their backup codes. The code field is the instance's (specs/hosting-h2-account-security.md
+ * rules 32–34): six cells, sent at the 6th digit, the refusal under the cells.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Box, Button, Card, CardContent, Link, Stack, TextField, Typography } from '@mui/material';
+import OneTimeCodeField, { incompleteCodeMessage, isCompleteCode } from '@gf/components/OneTimeCodeField';
 import api from '../api';
 
 export default function LoginPage({ onSignedIn }) {
@@ -12,10 +14,10 @@ export default function LoginPage({ onSignedIn }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [backup, setBackup] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
+  const verifying = useRef(false);
 
   async function run(fn) {
     setBusy(true);
@@ -34,12 +36,24 @@ export default function LoginPage({ onSignedIn }) {
     e.preventDefault();
     run(async () => setStep(await api.login(email, password)));
   };
-  const submitCode = (e) => {
-    e.preventDefault();
-    run(async () => {
-      const res = await api.verify(code);
+  const verify = async (value) => {
+    if (verifying.current) return;
+    verifying.current = true;
+    setInfo('');
+    await run(async () => {
+      const res = await api.verify(value);
       onSignedIn(res.operator, res.notice);
     });
+    verifying.current = false;
+  };
+  const submitCode = (e) => {
+    e.preventDefault();
+    if (isCompleteCode(code, true)) verify(code);
+    else setError(incompleteCodeMessage(code));
+  };
+  const changeCode = (value) => {
+    setCode(value);
+    setError('');
   };
   const resend = () => run(async () => setInfo((await api.resend()).message));
 
@@ -58,32 +72,25 @@ export default function LoginPage({ onSignedIn }) {
               <Button type="submit" variant="contained" disabled={busy} sx={{ minHeight: 44 }}>Se connecter</Button>
             </Stack>
           ) : (
-            <Stack component="form" spacing={2} onSubmit={submitCode}>
-              <Typography variant="body2">
-                {backup ? 'Saisissez un de vos codes de secours (format xxxxx-xxxxx).' : step.message}
-              </Typography>
-              <TextField
-                label={backup ? 'Code de secours' : 'Code'}
+            <Stack component="form" spacing={1.5} onSubmit={submitCode} noValidate>
+              <Typography variant="body2" color="text.secondary">{step.message}</Typography>
+              <OneTimeCodeField
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={changeCode}
+                onComplete={verify}
+                allowBackup
+                primaryLinkLabel={step.method === 'email' ? 'Utiliser le code reçu par email' : 'Utiliser le code de l’application'}
+                error={error}
+                helperText={busy ? 'Vérification…' : info}
                 autoFocus
-                required
-                fullWidth
-                slotProps={{ htmlInput: { inputMode: backup ? 'text' : 'numeric', autoComplete: 'one-time-code' } }}
               />
-              {error && <Typography color="error" variant="body2" role="alert">{error}</Typography>}
-              {info && <Typography color="success.main" variant="body2">{info}</Typography>}
-              <Button type="submit" variant="contained" disabled={busy} sx={{ minHeight: 44 }}>Valider</Button>
-              <Stack direction="row" spacing={2} sx={{ justifyContent: 'center', flexWrap: 'wrap' }}>
-                {step.method === 'email' && !backup && (
-                  <Link component="button" type="button" onClick={resend} sx={{ minHeight: 44 }}>Renvoyer le code</Link>
-                )}
-                <Link component="button" type="button" onClick={() => { setBackup(!backup); setCode(''); }} sx={{ minHeight: 44 }}>
-                  {backup ? 'Revenir au code' : 'Utiliser un code de secours'}
-                </Link>
-                <Link component="button" type="button" onClick={() => { setStep(null); setCode(''); setBackup(false); setError(''); setInfo(''); }} sx={{ minHeight: 44 }}>
+              <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <Link component="button" type="button" onClick={() => { setStep(null); setCode(''); setError(''); setInfo(''); }} sx={{ minHeight: 44 }}>
                   Changer d’email
                 </Link>
+                {step.method === 'email' && (
+                  <Link component="button" type="button" onClick={resend} sx={{ minHeight: 44 }}>Renvoyer le code</Link>
+                )}
               </Stack>
             </Stack>
           )}

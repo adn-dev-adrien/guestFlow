@@ -17,7 +17,7 @@ test('rule 9: the sections follow the send order and hold only their own sentenc
   assert.equal(res.status, 200);
   assert.deepEqual(res.body.sections.map((s) => s.id), ['confirmation', 'payment', 'j7', 'j2', 'j1', 'season', 'cancellation']);
   assert.deepEqual(res.body.sections.map((s) => s.title), [
-    'Confirmation', 'Demande d’acompte / de solde', 'J-7', 'J-2', 'Lendemain du départ', 'Relances novembre / janvier', 'Annulation',
+    'Confirmation', 'Demandes de paiement', 'Préparation du séjour', 'Accès et arrivée', 'Merci et avis', 'Bons cadeaux, vœux et dates', 'Avis d’annulation',
   ]);
   const keysOf = (id) => res.body.sections.find((s) => s.id === id).items.map((i) => i.key);
   assert.equal(keysOf('j7')[0], 'subject:arrival_reminder_7d');
@@ -60,7 +60,7 @@ test('rule 9: one save writes every kind of text; one refusal and nothing is wri
     'text:beds.made': { fr: '{{prenon}}' },
   } } });
   assert.equal(refused.status, 422);
-  assert.deepEqual(refused.body, { key: 'text:beds.made', field: 'fr', message: 'Variable inconnue : {{prenon}}' });
+  assert.deepEqual(refused.body, { key: 'text:beds.made', field: 'fr', message: 'Variable inconnue : {{prenon}}', unknown: 'prenon' });
   assert.equal(db.prepare("SELECT fr FROM stay_texts WHERE key = 'house' AND propertyId = 0").get().fr, 'Café offert.');
 
   const emptySubject = await call(controller.save, { body: { changes: { 'subject:arrival_reminder_1d': { fr: ' ' } } } });
@@ -82,7 +82,7 @@ test('rule 24: a resource\'s sentence once booked is a text of the J-2, saved, e
   const refused = await call(controller.save, { body: { changes: { 'resource:9': { fr: '{{price}}' } } } });
   assert.equal(refused.body.message, 'Variable non disponible ici : Prix');
   const csv = await call(controller.exportCsv);
-  assert.match(csv.body, /\r\nJ-2;resource:9;Réservé — Bain nordique;Le bain sera chaud \{\{slots\}\}\.;/);
+  assert.match(csv.body, /\r\nAccès et arrivée;resource:9;Réservé — Bain nordique;Le bain sera chaud \{\{slots\}\}\.;/);
 });
 
 test('rule 25: a sentence the stored template of its email does not place is marked unused', async () => {

@@ -93,7 +93,7 @@ the top bar says which page is open.
    own state, `update-available` hides a postponed or running update, `email-readiness` counts what is
    due within 14 days (unchanged rules of their own specs).
 9. A plugin contributes a subject with **`ctx.attention({ key, rank, handler, summarize })`** (SDK
-   1.3.0): `handler` is its own Express handler of the card's list, `summarize(payload)` returns
+   1.4.0): `handler` is its own Express handler of the card's list, `summarize(payload)` returns
    `{ count, title, detail, severity } | null`. The `key` is the key of its client contribution to
    `dashboard.alerts` (or `dashboard.alerts.urgent`), which renders the unfolded content. A plugin that
    is not live contributes nothing.
@@ -155,10 +155,10 @@ the top bar says which page is open.
     request (`*_to_request`) or amounts to type (`platform_amount_missing`), the subject is a row of
     « À traiter ». A missing platform amount is not counted « en retard »: it reads « N montant(s) à
     saisir ».
-22. **A plugin package built for SDK < 1.3.0 keeps its home alert.** The payload lists every key it
+22. **A plugin package built for SDK < 1.4.0 keeps its home alert.** The payload lists every key it
     asked (`declared`); a `dashboard.alerts(.urgent)` contribution whose key is not among them is
     rendered as before, in card mode under the pinned subjects (`specs/plugins-phase-1-sdk.md` §3.C,
-    note of 2026-10-19). The SDK 1.3.0 plugins state `guestflow >=3.10.0`, the convention of the 1.2.0
+    note of 2026-10-19). The SDK 1.4.0 plugins state `guestflow >=3.10.0`, the convention of the 1.2.0
     bump (the core version of the branch that ships the SDK).
 
 **Edge cases:**
@@ -184,7 +184,7 @@ the top bar says which page is open.
 | `controllers/` | `dashboardAttentionController.js` | C | Reads every core subject and every live plugin subject through their own handlers, builds the payload |
 | `utils/` | `dashboardAttention.js` | C | Pure: severities, core subject summaries (titles, details, plurals), filter/sort/split/total |
 | `utils/` | `handlerPayload.js` | C | Runs an Express handler in-process: `{ ok, body }` or `{ ok: false, reason }` (rule 20) |
-| `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | `ctx.attention(...)`, record field `attention`, SDK 1.3.0 |
+| `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | `ctx.attention(...)`, record field `attention`, SDK 1.4.0 |
 | `plugins/gate-access/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `gate-keys` (pinned) |
 | `plugins/linen/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `linen-shortage` |
 | `plugins/tariff-recipes/` | `index.js`, `attention.js`, `manifest.json` | T | Subject `recipe-runs` |
@@ -199,7 +199,7 @@ the top bar says which page is open.
 |---|---|---|---|
 | `pages/` | `Dashboard.jsx` | T | New order, no KPI tiles, pinned + box, « Aujourd'hui » fix |
 | `components/` | `AttentionCard.jsx` | C | Generic: one dashboard subject, card or embedded |
-| `components/` | `AttentionInbox.jsx` | C | Generic: the « À traiter » box (rows, unfold in place, unavailable line), the pinned cards, and `LegacyPluginAlerts` for SDK < 1.3.0 packages |
+| `components/` | `AttentionInbox.jsx` | C | Generic: the « À traiter » box (rows, unfold in place, unavailable line), the pinned cards, and `LegacyPluginAlerts` for SDK < 1.4.0 packages |
 | `components/` | `attentionSubjects.js` | C | Key → component of each core subject, plus the plugin contributions by key |
 | `components/` | the ten core `*Alert.jsx` / `TwoFactorNudgeCard.jsx` | T | Render through `AttentionCard` with the server's `attention` |
 | `components/` | `PageActionBar.jsx` | T | Publishes its title; no title on `xs`; empty bar not drawn on `xs`; `titleOnXs` removed |

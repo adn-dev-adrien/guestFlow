@@ -249,6 +249,43 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     website's `PUBLIC_API_KEY` is never returned by any route » no longer holds since the website
     connection card (plugins-phase-2-hosts rules 30-31): that route is refused here.
 
+**UI/UX review of 2026-10-18 (proposal 23, decided 2026-10-19)**
+
+32. **The second code is one field that looks like six cells, sent at the 6th digit.** The code screen
+    has ONE native input (`autocomplete="one-time-code"`, `inputmode="numeric"`), transparent, laid
+    over six drawn cells that mirror its value: iOS/Android autofill and paste fill it as any field,
+    which six separate inputs would break. The code is sent as soon as it has 6 digits, or as soon as
+    a whole backup code (`xxxxx-xxxxx`) is typed; there is no « Valider » button (Enter still sends a
+    complete code). A code being checked shows « Vérification… » under the cells, and a second
+    complete code is not sent before the answer. The backup code switch of rule 7 stays: the field
+    then draws one wide cell (placeholder `xxxxx-xxxxx`) and opens the letter keyboard. The title of
+    the screen is « Vérification »; the trust box of rule 7 reads « Se souvenir de cet appareil
+    (30 jours) » and sits **above** the cells, since an autofilled code is sent at once (the review's
+    mock had it below; above is the only place it can still be ticked in time).
+33. **A refused code is said where it was typed.** The server's refusal (« Code incorrect. », the lock
+    of rule 8) is written under the cells (`role="alert"`, tied to the input by `aria-describedby`),
+    the cells turn red and shake once (no movement under `prefers-reduced-motion`: the colour only), and
+    the digits stay, selected, so the next keystroke replaces them. Typing again clears the message.
+    Before, the field emptied, « Valider » greyed out and the error sat at the top of the card.
+34. **The console's operator login uses the same field** (`@gf/components/OneTimeCodeField`), with the
+    same sending at the 6th digit and refusal under the cells: it no longer accepts and sends a 5-digit
+    code. « Renvoyer le code » (email method) and « Changer d'email » stay. The enrolment of
+    « Mon compte » (rule 6) draws the same cells but keeps its « Confirmer » button; its wrong code is
+    said under the cells like at login (rule 33), not in an alert at the top of the card (review of
+    PR #720).
+35. **No input leaves the user stuck** (added 2026-10-19, review of PR #720). Since there is no
+    « Valider », whatever is typed or pasted must either send or say why:
+    - the field takes the code out of what arrives: « Votre code : 123 456 » or « 123-456 » is the
+      6-digit code (six cells, sent); a backup code typed or pasted without its dash, or with a space,
+      gets its dash back (`xxxxx-xxxxx`, sent); digits beyond the 6th are dropped. The input has no
+      length cap, so a pasted sentence is never cut before the code is found;
+    - Enter on an incomplete value says why under the cells: « Code incomplet : 6 chiffres. » or
+      « Code de secours incomplet : 10 caractères (xxxxx-xxxxx). »; nothing is sent;
+    - the server reads the code the same way (`totp.normalizeCode`, shared with the console): spaces,
+      dots and dashes out of a 6-digit code, the dash back into a 10-character backup code;
+    - the input is transparent ink over the cells, never `opacity: 0`, which password managers take
+      for a hidden field (selection and autofill colours transparent too).
+
 ---
 
 ## 4. Architecture
@@ -298,8 +335,9 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
   - `SupportAccessBanner`;
   - `SupportSessionBar`;
   - `BackupCodesDialog`;
-  - `OneTimeCodeField` (generic, also usable by the console; « Utiliser un code de secours »
-    switch, rule 7);
+  - `OneTimeCodeField` (generic, used by the console too; « Utiliser un code de secours »
+    switch, rule 7; one input drawn as six cells, `onComplete` at the 6th digit, the refusal under the
+    cells, rules 32–34);
   - `SecondFactorForm` (the second step, shared by the login and the reset page);
   - `AuthCard` (generic: the centred card of the pre-session screens);
   - `TwoFactorSection` (« Mon compte »), `TwoFactorNudgeCard` (dashboard, rule 10).
@@ -358,6 +396,13 @@ See the summary page. Mobile:
 - the code field is numeric (`inputmode="numeric"`, `autocomplete="one-time-code"`);
 - the backup codes dialog is full screen.
 
+*2026-10-19 (rules 32–34):* the code screen is « Vérification »: the server's message, « Se souvenir de
+cet appareil (30 jours) », six cells (one wide cell for a backup code), the message line under them
+(« Vérification… », « Nouveau code envoyé… » or the refusal), « Utiliser un code de secours », then
+« Retour » / « Renvoyer le code ». Same layout on a phone and on a desktop (the card is 400 px at
+most); at 390 px each cell is about 45 px wide. Interactive mock:
+[`docs/specs/2026-10-19-otp-field-and-guest-email-html.html`](../docs/specs/2026-10-19-otp-field-and-guest-email-html.html).
+
 ## 7. Test plan
 
 **Server unit tests:**
@@ -389,10 +434,21 @@ See the summary page. Mobile:
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).
+Review of PR #720 (rules 34–35): `OneTimeCodeField.extract` (6: backup code without its dash, pasted
+« 123-456 », a 7th digit, « Votre code : 123 456 », no length cap and no `opacity: 0`, the incomplete
+messages), `SecondFactorForm.second-step` (+1: Enter on an incomplete code), console
+`LoginPage.second-factor` (+1), `TwoFactorSection.enrol-error` (1); server
+`hosting-h2-code-normalize` (3), console `operator-code-normalize` (1).
+2026-10-19 (rules 32–34): `OneTimeCodeField.autosubmit` (4: one input mirrored by six cells, sent once
+at the 6th digit, paste and backup code, the refusal under the cells with the digits selected),
+`SecondFactorForm.second-step` (6, rewritten: no « Valider », trust box sent, no second send while
+busy, refusal under the field), console `LoginPage.second-factor` (5: sent at the 6th digit, never at
+the 5th, refusal under the cells).
 
 **E2E:**
 - forgot password through the dev mail catcher;
-- enable TOTP and log in with a computed code;
+- enable TOTP and log in with a computed code (2026-10-19: a wrong code first, said under the cells,
+  then the right one sent at its 6th digit with no « Valider »);
 - the support flow with a locally signed link.
 
 **Mobile check:** the login with a code at 390px.
@@ -431,6 +487,12 @@ Implemented 2026-10-08 on `feature/hosting-h2-account-security` (target `inte/pl
   with a computed code, trusted device, backup code at login, lock after 5 codes, banner, support
   session with its red bar, reuse of a link refused, journal, revocation ending the support session,
   plain login of an account without a second step unchanged. No console error.
+
+**UI/UX review, 2026-10-19 (`feature/ui-otp-html-emails`, target `inte/plugins`):** rules 32–34 —
+`OneTimeCodeField` rewritten as one input drawn as six cells with `onComplete`; `SecondFactorForm`
+without « Valider », trust box above the cells; `LoginPage` / `ResetPasswordPage` titled
+« Vérification »; the console's `LoginPage` on the shared field. Checked in a browser at 390, 900 and
+1280 px.
 
 **Review fixes (2026-10-17, `fix/h2-review-findings`, target `inte/plugins`):** the guard judged on the
 routed path and doubled in the access controller (rule 15); the support account told by a flag and

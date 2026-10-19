@@ -6,7 +6,7 @@
  *   AttentionInbox        { items: Subject[], total: number, unavailableLabel?: string }
  *   AttentionPinned       { subjects: Subject[] }
  *   LegacyPluginAlerts    { declared: string[] } — the `dashboard.alerts(.urgent)` contributions whose
- *                         key the server did not declare: a plugin package built for SDK < 1.3.0,
+ *                         key the server did not declare: a plugin package built for SDK < 1.4.0,
  *                         which knows nothing of `ctx.attention`, keeps its alert as before (rule 22)
  *   Subject = { key, severity, count, title, detail }
  *

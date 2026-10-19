@@ -97,7 +97,7 @@ const FR = Object.freeze({
     alreadyConfirmed: 'Cette réservation est déjà confirmée.',
     datesUnavailable: 'Ces dates ne sont plus disponibles.',
     overCapacity: 'Le nombre de personnes dépasse la capacité du logement.',
-    clientInvalid: 'Coordonnées du client invalides.',
+    clientInvalid: 'Coordonnées incomplètes ou invalides.',
     requestInvalid: 'Données de demande invalides.',
     devisInvalid: 'Données de devis invalides.',
     optionUnavailable: 'Option non disponible pour ce logement.',
@@ -105,6 +105,14 @@ const FR = Object.freeze({
     resourceUnavailable: 'Ressource non disponible pour ce logement.',
     paymentProviderError: 'Erreur du fournisseur de paiement.',
     termsNotConfigured: 'Les conditions générales ne sont pas encore publiées.',
+  }),
+
+  // One short sentence per refused contact field, printed by the site UNDER that field
+  // (specs/wordpress-plugin.md rule 28): the site maps `details[].field` to its input and never
+  // writes a refusal of its own.
+  fieldErrors: Object.freeze({
+    required: 'Champ requis.',
+    emailInvalid: 'Adresse e-mail incomplète.',
   }),
 });
 
@@ -173,7 +181,7 @@ const EN = Object.freeze({
     alreadyConfirmed: 'This booking is already confirmed.',
     datesUnavailable: 'These dates are no longer available.',
     overCapacity: 'The number of guests exceeds the property capacity.',
-    clientInvalid: 'Invalid guest details.',
+    clientInvalid: 'Contact details incomplete or invalid.',
     requestInvalid: 'Invalid request data.',
     devisInvalid: 'Invalid quote data.',
     optionUnavailable: 'This option is not available for this property.',
@@ -181,6 +189,11 @@ const EN = Object.freeze({
     resourceUnavailable: 'This resource is not available for this property.',
     paymentProviderError: 'Payment provider error.',
     termsNotConfigured: 'The terms and conditions have not been published yet.',
+  }),
+
+  fieldErrors: Object.freeze({
+    required: 'Required.',
+    emailInvalid: 'Incomplete email address.',
   }),
 });
 
