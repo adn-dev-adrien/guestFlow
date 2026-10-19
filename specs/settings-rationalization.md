@@ -306,6 +306,22 @@ one place.
     resolves a real domain. The disabled test button says what it waits for: « Adresse d'envoi
     manquante. », « Mot de passe manquant. », « Serveur d'envoi manquant. », « À enregistrer
     d'abord. ».
+29. **The settings search knows the emails by their names** (integrated review of inte/plugins,
+    2026-10-19, L1). Since specs/guest-email-texts-made-simple.md rule 44 the emails are named by what
+    they are for; « J-2 » and « J-7 » are no longer keywords. « Textes des emails » carries every
+    shipped email's name (Confirmation, Demande d'acompte, Rappel de solde, Préparation du séjour,
+    Accès et arrivée, Merci et avis…), read from `constants/emailNames.js` — a client mirror of
+    `utils/emailTimeline.js`'s names that a server test keeps identical. « accès », « préparation »,
+    « merci », « rappel de solde » find it; the row says the whole name the words were found in
+    (« Contient : Rappel de solde », not « Rappel d'acompte »).
+30. **A settings group of the sidebar follows the shell's chevron pattern** (integrated review,
+    2026-10-19, L2 — specs/shell-and-home-day-first.md rule 18). The group row is a plain link to the
+    summary on that group, without `aria-expanded`; a separate chevron button « Déplier <groupe> » /
+    « Replier <groupe> » carries `aria-expanded` and `aria-controls` and folds or unfolds the group
+    without leaving the page. Opening another page brings back « the group of the open page » (rule 26).
+31. **The search's placeholder fits a phone** (integrated review, 2026-10-19, L7). « Chercher : wifi,
+    iban, smtp… » — the former « Chercher un réglage : … » was clipped at 390 px. The field's
+    accessible name stays « Chercher un réglage ».
 
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
@@ -404,6 +420,13 @@ one place.
 | POST | `/api/settings/smtp-detect` | **New** (admin, rule 28): `{ address? }` → `{ address, status, found, provider: { id, name, host, secure, port, hint } \| null, message }` (`status`: found, unsupported, unknown, dns-failed, off, invalid; `message` empty when off); never writes |
 | PUT | `/api/settings` | Rule 28 — an `smtp` group that brings a password and no `host`, with no host stored, gets the deduced `smtpHost` / `smtpSecure`; `host` and `password` both `''` also reset `smtpSecure` |
 
+**Integrated review of inte/plugins (2026-10-19)** — rules 29–31:
+- Client `constants/emailNames.js` (new): mirror of the shipped emails' names of
+  `server/src/utils/emailTimeline.js`; `constants/settingsMenu.js` reads it for the keywords of
+  « Textes des emails ». `utils/settingsSearch.js` names the keyword holding every word typed.
+- Client `App.jsx`: the settings group rows are links; a `NavChevron` (now with `controls`) folds them.
+- Client `pages/settings/SettingsHomePage.jsx`: the shorter placeholder.
+
 ## 5. Data model
 
 - `ALTER TABLE app_settings DROP COLUMN …` for the 12 dead columns (six timings, two orphans, two
@@ -494,6 +517,10 @@ Delivered: new suites `DerivedValueField`, `PlatformsSettingsPage`, `AccountPage
 - [x] Desktop / tablet / mobile of the settings area and of the property tabs
 - [ ] Send an SMTP test with no override; with a login override — not run locally (no SMTP server on the dev machine); the derived / override fields were exercised in the browser
 - [x] Change a platform's settings on « Plateformes », see them as read-only chips on the property page
+
+**Integrated review of inte/plugins (2026-10-19)** — rules 29–31: server `email-names-mirror.unit.test.js` (1: the mirror equals the server
+names); client `constants/__tests__/settingsMenu.email-names.test.js` (6), `__tests__/App.settings-groups.test.jsx`
+(1), `pages/settings/__tests__/SettingsHomePage.phone-placeholder.test.jsx` (1).
 
 ## 8. Out of scope
 

@@ -46,7 +46,7 @@ import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
 import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
-import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
+import { getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
 import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPrefill';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
@@ -649,12 +649,15 @@ export default function ReservationPage() {
 
   useEffect(() => {
     if (!isDirty) return;
+    const pageState = window.history.state;
 
     const onPopState = () => {
       pendingLeaveActionRef.current = () => navigate(-1);
       setUnsavedDialogOpen(true);
       // Keep user on the current page until they confirm.
-      window.history.pushState(null, '', window.location.href);
+      // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
+      // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
+      window.history.pushState(pageState, '', window.location.href);
     };
 
     window.addEventListener('popstate', onPopState);
@@ -2761,7 +2764,7 @@ export default function ReservationPage() {
   if (initError) {
     return (
       <Box>
-        <PageActionBar title="Réservation" onBack={() => navigate(-1)} />
+        <PageActionBar title="Réservation" onBack={() => navigateBack(navigate)} />
         <ErrorAlert message="Impossible de charger la réservation." onRetry={() => window.location.reload()} />
       </Box>
     );
@@ -2777,7 +2780,7 @@ export default function ReservationPage() {
 
   const goBackToOrigin = () => {
     if (isDevisMode) {
-      requestLeave(() => navigate(-1));
+      requestLeave(() => navigateBack(navigate, '/devis'));
       return;
     }
     requestLeave(() => navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus()));

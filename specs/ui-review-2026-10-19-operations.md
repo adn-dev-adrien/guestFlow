@@ -177,6 +177,27 @@ guessing; and the quote the guest receives looks like the house that sends it.
 21. **A stale quote says so in the list.** Each list row carries `expired` (never on a converted
     quote) and `extendable`. An expired quote shows a « Périmé » badge under its status, and
     downloading its PDF — whose validity date is past — asks first (« Télécharger quand même »).
+22. **Back from a page opened directly stays in the app** (integrated review of inte/plugins,
+    2026-10-19, P1). A reservation opened from a link in a new tab (no `from`, nothing of the app behind
+    it: React Router's `history.state.idx` is 0 or absent) used to `navigate(-1)` on save and leave the
+    app for about:blank. Saving, « Retour » and leaving go to the planning instead (a quote: the quotes
+    list), replacing the entry. With an app page behind, back is one step as before; a `from` wins.
+23. **The quotes list opens from the keyboard** (integrated review, 2026-10-19, P3). The quote number
+    of each row (table and phone card) is a link to what the row opens — the quote, or its reservation
+    once converted — named « Ouvrir le devis <n° > »: Tab reaches it, Entrée opens it. The rest of the
+    row stays clickable with the mouse.
+24. **The mini planning's arrows are named** (integrated review, 2026-10-19, P3). They move the strip by
+    one day: « Jour précédent » / « Jour suivant » (the review's « Mois précédent / suivant » would
+    have announced a jump they do not make).
+25. **A long logement name stays readable in the segmented filter** (integrated review, 2026-10-19,
+    L7). Under `sm` a segment takes the width its label needs and wraps on two lines (« Aventura /
+    lodge ») instead of ending in an ellipsis; from `sm` the segments keep one line (rule 16).
+26. **The way back survives the unsaved-changes guard; a logement and a phone finger too** (review of
+    PR #728). The guards that keep a dirty page on Back (`useDirtyFormGuard`, the reservation page,
+    the logement page) put the page's own router state back (`pushState(<page state>)`), never `null`:
+    a null entry lost `idx`, so after « Rester » the next « Retour » believed the page was opened
+    directly and went to the planning. A logement opened directly goes back to the logements list
+    (`/properties`), not the planning. On a phone the quote-number link of rule 23 is 44 px tall.
 
 **Edge cases:**
 - A SAS with only intro and recap → « 1 sur 2 », « 2 sur 2 ».
@@ -255,6 +276,16 @@ devis, options), `SegmentedSelect` (every short exclusive filter). Page-specific
 - `GET /api/reservations` rows: adds `platformDisplay`.
 - `GET /api/reservations/:id/sas`: adds `nothingToCollect`.
 
+**Integrated review of inte/plugins (2026-10-19)** — rules 22–25:
+- Client `utils/navigation.js`: `hasInAppHistory()`, `navigateBack(navigate, fallback)`,
+  `DEFAULT_BACK_PATH = '/planning'`; `navigateBackWithFrom` falls back instead of leaving the app.
+  `pages/ReservationPage.jsx` uses them (the quote mode falls back to `/devis`).
+- Client `pages/DevisPage.jsx`: the quote number is a `Link` to `editPathOf(devis)`.
+- Client `components/MiniPlanningStrip.jsx`: named arrows.
+- Client `components/SegmentedSelect.jsx`: segments wrap under `sm`.
+- Client `hooks/useDirtyFormGuard.js`, `pages/ReservationPage.jsx`, `pages/PropertyDetail.jsx`: the
+  Back guard re-pushes the page's state; `PropertyDetail` falls back to `/properties` (rule 26).
+
 ## 5. Data model
 
 None. One binary asset (the embedded serif).
@@ -303,6 +334,12 @@ step numbering are shown in `docs/specs/2026-10-19-ui-review-operations.html`.
   converted one (no chip), the arrival SAS walked through its 9 steps; no horizontal scroll at 390 px.
   The PDF of quote 22274 (six offered lines) checked with `qlmanage -t`: one « Offert avec le séjour »
   row, total on page 1, no « (expiré) ».
+
+**Integrated review of inte/plugins (2026-10-19)** — rules 22–26: `utils/__tests__/navigation.back-fallback.test.js` (3),
+`hooks/__tests__/useDirtyFormGuard.history-state.test.jsx` (1, rule 26),
+`pages/__tests__/DevisPage.keyboard.test.jsx` (5: the link at 1280 and 390 opens with Entrée, a
+converted quote links to its reservation, the mini planning arrows, the 44 px link on a phone),
+`components/__tests__/SegmentedSelect.phone-wrap.test.jsx` (2).
 
 ## 8. Out of scope
 

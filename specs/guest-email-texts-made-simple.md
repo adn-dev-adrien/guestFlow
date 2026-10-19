@@ -526,6 +526,11 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     email rendered before any tag — the plain text — never from the tagged rendering; so is the HTML
     of « M'envoyer un test ». The sentences are clickable in the « Texte » view only; the « HTML »
     frame is a plain rendering.
+46. **« + Variable » on a field never clicked adds at the end** (integrated review of inte/plugins,
+    2026-10-19, L6). A browser reports a caret at 0 for a field nobody has placed one in, so the
+    variable used to land before the first word, glued to it. Until the field has had a caret (a
+    click, a tap or a key in it), « + Variable » appends the variable at the end of the text, after a
+    space when the text does not already end in one; once it has, the variable lands at the caret.
 
 ---
 
@@ -667,6 +672,9 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 `bedLinenProvided`; `PUT /api/properties/:id` keeps the stored `nameArticle` and `defaultCautionAmount`
 when they are absent or empty (rules 28, 30).
 
+**Integrated review of inte/plugins (2026-10-19)** — rule 46: `components/TokenTextField.jsx` remembers whether
+each field has had a caret (pointer or key in it) and appends at the end otherwise.
+
 ## 5. Data model
 
 The new table `property_arrival_facts` holds:
@@ -799,6 +807,9 @@ method), `EmailTemplatesPage.when-sentence` +1 (pending and late answers), `Emai
 41–45):* `email-preview-tags` asserts the preview's `html` equals the HTML sent and carries no tag,
 and that the test send and a real send carry their HTML part, tag-free; client
 `EmailTextsSettingsPage.click-preview` +1 (no clickable sentence in the HTML view).
+
+**Integrated review of inte/plugins (2026-10-19)** — rule 46: `components/__tests__/TokenTextField.never-focused.test.jsx` (3: appended with a
+space, no double space / empty field, at the caret once placed).
 
 ## 8. Out of scope
 

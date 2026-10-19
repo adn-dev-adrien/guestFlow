@@ -27,6 +27,11 @@ export function matchSettingsRow(row, query) {
   const own = (word) => has(row.label, word) || has(row.line, word);
   const ok = words.every((word) => own(word) || keywords.some((k) => has(k, word)));
   if (!ok) return null;
-  const viaKeyword = words.find((word) => !own(word));
-  return { keyword: viaKeyword ? keywords.find((k) => has(k, viaKeyword)) : null };
+  const viaKeywords = words.filter((word) => !own(word));
+  if (!viaKeywords.length) return { keyword: null };
+  // The keyword holding every word typed is the one named (« rappel de solde » → « Rappel de solde »).
+  return {
+    keyword: keywords.find((k) => viaKeywords.every((word) => has(k, word)))
+      || keywords.find((k) => has(k, viaKeywords[0])),
+  };
 }

@@ -75,11 +75,14 @@ export default function useDirtyFormGuard({ draft, saved, navigate }) {
   // Browser back/forward guard.
   useEffect(() => {
     if (!isDirty) return undefined;
+    const pageState = window.history.state;
     const handler = () => {
       pendingNavRef.current = null;
       setGuardDialogOpen(true);
       // Keep the URL where it was.
-      window.history.pushState(null, '', window.location.href);
+      // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
+      // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
+      window.history.pushState(pageState, '', window.location.href);
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);

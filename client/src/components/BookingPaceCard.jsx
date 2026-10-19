@@ -134,7 +134,7 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
               <YearOverYearBadge change={pace.summary.change} />
             </Box>
             {pace.summary.notice && (
-              <Box sx={{ bgcolor: '#E4EDF3', color: 'info.main', borderRadius: '10px', px: 1.5, py: 1, fontSize: 13, mb: 1 }}>
+              <Box sx={{ bgcolor: 'info.soft', color: 'info.text', borderRadius: '10px', px: 1.5, py: 1, fontSize: 13, mb: 1 }}>
                 {pace.summary.notice}
               </Box>
             )}
