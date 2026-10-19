@@ -12,6 +12,7 @@ const { sasData: pluginSasData } = require('../sdk/eventBus');
 const registry = require('../sdk/registry');
 const { buildSasSnapshot, computeSasChanges } = require('./sasAudit');
 const { extinguisherCheckOn } = require('./settings');
+const { nothingToCollect } = require('./nothingToCollect');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -27,7 +28,7 @@ const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
 const { CATERING_CATEGORY } = sdk.coreModule('optionCategoriesMigration');
 const { isReceptionOnly } = sdk.coreModule('roles');
 const { sasLockReason } = sdk.coreModule('sasEditWindow');
-const { stayDueAtArrival } = sdk.coreModule('reservationSettlement');
+const { stayDueAtArrival, bucketStates } = sdk.coreModule('reservationSettlement');
 const { formatPlatformName, isDirectChannel } = sdk.coreModule('platformNameFormat');
 const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = sdk.coreModule('receptionView');
 
@@ -296,6 +297,9 @@ function getSas(req, res) {
     // specs/single-payment-at-check-in.md §3.1 — may the recap settle the stay AND the complement in
     // ONE gesture? The server answers, so the client never decides it from amounts it does not own.
     arrivalPayment: buildArrivalPayment(reservation, { isDeparture, receptionOnly: isReceptionOnly(req.user) }),
+    // specs/ui-review-2026-10-19-operations.md rule 4 — the recap's « Rien à percevoir » is the
+    // server's call: nothing owed on the stay or the stored complements before this run.
+    nothingToCollect: nothingToCollect(reservation, { isDeparture, bucketStates, isDirectChannel }),
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (amount + paid +
     // itemised detail) so the departure SAS can recall it when it was never settled.
     // `includeOffered` is the SAS flavour (specs/sas-offer-complement-lines.md §4.3): the already-offered

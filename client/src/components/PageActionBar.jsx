@@ -15,6 +15,10 @@
  *   centerFrom?  'sm'|'md'|'lg' (breakpoint from which `center` shows; default 'sm'. A page whose
  *                                bar is crowded at tablet width raises it — specs/review-2026-10-18-
  *                                reservations.md rule 6)
+ *   identity?    ReactNode      (one ellipsised line naming what the page shows — « Prénom Nom · N° … »
+ *                                — on a second row of the bar BELOW `identityBelow`, where `center` is
+ *                                hidden. specs/ui-review-2026-10-19-operations.md rule 12)
+ *   identityBelow? 'sm'|'md'|'lg' (default 'lg')
  *   tabs?        ReactNode      (a <PageTabs> node — CENTERED in the bar on sm+, and folded onto a
  *                                SECOND ROW of the same sticky block on xs. Mutually exclusive with
  *                                `center`; see specs/ds-tabs.md rules 2-3.)
@@ -120,6 +124,9 @@ export default function PageActionBar({
   // bar is too tight) — pass content that the page can afford to drop on small screens.
   center,
   centerFrom = 'sm',
+  // One line naming what the page shows, on a second row below `identityBelow`.
+  identity,
+  identityBelow = 'lg',
   // A <PageTabs> node: centred in the bar on sm+, second row of the same sticky block on xs.
   tabs,
   onSave,
@@ -134,6 +141,7 @@ export default function PageActionBar({
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const identityOnSecondRow = useMediaQuery(theme.breakpoints.down(identityBelow)) && Boolean(identity);
   const navigate = useNavigate();
   const [menuAnchor, setMenuAnchor] = useState(null);
   usePublishPageTitle(title);
@@ -320,6 +328,18 @@ export default function PageActionBar({
           {visibleAfter.map((action, i) => renderCustomAction(action, `after-${i}`))}
         </Box>
       </Box>
+
+      {identityOnSecondRow && (
+        <Typography
+          data-testid="page-action-bar-identity"
+          variant="body2"
+          color="text.secondary"
+          noWrap
+          sx={{ px: { xs: 1.5, sm: 2 }, pb: 1, mt: -0.25, fontVariantNumeric: 'tabular-nums' }}
+        >
+          {identity}
+        </Typography>
+      )}
 
       {/* xs: the centre slot is hidden, so the tabs take a second row of the SAME sticky block —
           never a detached strip above or below it (specs/ds-tabs.md rule 2). */}

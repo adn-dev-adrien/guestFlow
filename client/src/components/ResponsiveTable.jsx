@@ -12,6 +12,8 @@
  *   minWidth?:        number                      md+ table min width (scroll-contained)
  *   size?:            'small' | 'medium'          md+ table density (default 'small')
  *   onItemClick?:     (item) => void              row/card click (adds pointer cursor)
+ *   cardsBelow?:      'sm' | 'md' | 'lg'          breakpoint under which the cards replace the table
+ *                                                 (default 'sm'; a wide table raises it)
  */
 import React from 'react';
 import { Card, CardContent, Stack, TableBody, TableHead, useMediaQuery } from '@mui/material';
@@ -29,9 +31,10 @@ export default function ResponsiveTable({
   minWidth,
   size = 'small',
   onItemClick,
+  cardsBelow = 'sm',
 }) {
   const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.down('sm'));
+  const isXs = useMediaQuery(theme.breakpoints.down(cardsBelow));
 
   if (!items.length) return <EmptyState message={emptyText} py={4} />;
 

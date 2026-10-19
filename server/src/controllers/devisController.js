@@ -54,6 +54,16 @@ function createController(model, {
     });
   }
 
+  // specs/ui-review-2026-10-19-operations.md rule 20 — what « prolonger » would change, then the
+  // extension itself. Both refuse a quote that is not an expired open one (409).
+  function extensionPreview(req, res) {
+    return respond(res, model.previewExtension(req.params.id));
+  }
+
+  function extend(req, res) {
+    return respond(res, model.extend(req.params.id));
+  }
+
   function updateStatus(req, res) {
     return respond(res, model.updateStatus(req.params.id, req.body?.status));
   }
@@ -128,7 +138,7 @@ function createController(model, {
   }
 
   return {
-    list, getOne, updateStatus, history, create, update, remove,
+    list, getOne, updateStatus, history, create, update, remove, extensionPreview, extend,
     convertToReservation, convertFromReservation, pdf,
   };
 }

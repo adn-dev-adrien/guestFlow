@@ -57,6 +57,10 @@ export function sasPayload(over = {}) {
     // complement has a live total » before offering one settlement — so this default (an unpaid
     // complement, the ordinary case) changes nothing for a prepaid stay.
     arrivalPayment: over.arrivalPayment || { complementOpen: true, group: null },
+    // specs/ui-review-2026-10-19-operations.md rule 4 — the server's « nothing owed before this run »;
+    // derived here like the server does for the fixtures' direct, prepaid stays.
+    nothingToCollect: over.nothingToCollect ?? !(Number(over.reservation?.complementAmount || 0) > 0
+      && !Number(over.reservation?.complementPaid || 0)),
   };
 }
 

@@ -35,7 +35,8 @@ for (const width of [390, 900]) {
   test(`rule 7 — the calendar of a long-named property fits ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(`/calendar?propertyId=${propertyId}`);
-    await expect(page.getByText('Logement', { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15_000 });
+    // The filter is a segmented control or a select (specs/ui-review-2026-10-19-operations.md rule 16).
+    await expect(page.getByLabel('Logement').filter({ visible: true }).first()).toBeVisible({ timeout: 15_000 });
     expect(await pageWidth(page)).toBeLessThanOrEqual(width);
   });
 }

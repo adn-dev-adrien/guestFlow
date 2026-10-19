@@ -1,20 +1,23 @@
 /**
  * CumulativeMonthCalendar — one calendar cumulating EVERY logement
- * (specs/cumulative-month-calendar.md). Each reservation (and each property closure) is a continuous
- * bar spanning its days, split per week row. Bars are **grouped by logement**: within a week the lanes
- * are organised per property (all of one logement's bars, then the next), colours from the platform;
- * closures are grey. Months are stacked vertically with **infinite scroll**; a sticky month label tells
- * you where you are. Render-only.
+ * (specs/cumulative-month-calendar.md). Each reservation is a continuous bar spanning its days, split
+ * per week row. Bars are **grouped by logement**: within a week the lanes are organised per property
+ * (all of one logement's bars, then the next). A bar is a soft tint of its platform colour with a
+ * stripe of that colour and ink text. A closure is a TEXTURE, never a lane: a closure of every logement
+ * hatches the whole day, a closure of one logement hatches a band along the bottom of its days, with
+ * one label per week (specs/ui-review-2026-10-19-operations.md rules 13-15). Months are stacked
+ * vertically with **infinite scroll**; a sticky month label tells you where you are. Render-only.
  *
  * Props:
  *   onReservationClick(id)        — open the reservation fiche.
  *   onCreateReservation(dateStr)  — empty-day click → new reservation prefilled with that date.
  */
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { Box, Typography, Button, Stack, Tooltip, CircularProgress, Chip, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, Button, Stack, Tooltip, CircularProgress, Chip, Collapse, useMediaQuery, useTheme } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { alpha } from '@mui/material/styles';
 import api from '../api';
-import { getPlatformColor, formatPlatformLabel, mergePlatformVariants } from '../constants/platforms';
+import { getPlatformColor, formatPlatformLabel, mergePlatformVariants, normalizePlatformKey } from '../constants/platforms';
 import { formatDate, shiftDate, getDaysInMonth } from '../utils/calendarVisuals';
 import useInfiniteMonthScroll from '../hooks/useInfiniteMonthScroll';
 
@@ -22,8 +25,19 @@ const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const BAR_H = 22;      // px per lane
 const HEADER_H = 24;   // px for the day-number band
-// Closure bars/legend: theme grey (resolved via useTheme — bars are CSS strings, not sx tokens).
-const closureColor = (theme) => theme.palette.grey[500];
+const BAND_H = 20;     // px per closure band, along the bottom of the days (rule 13)
+// The closure texture: soft ink hatching (resolved via useTheme — it is a CSS string, not an sx token).
+export const closureHatch = (theme) => {
+  const soft = alpha(theme.palette.text.primary, 0.05);
+  const strong = alpha(theme.palette.text.primary, 0.13);
+  return `repeating-linear-gradient(135deg, ${soft} 0 6px, ${strong} 6px 12px)`;
+};
+// Stay bars: a 14 % tint of the platform colour, a 3 px stripe of it, ink text (rule 14).
+export const barTint = (color) => alpha(color, 0.14);
+// One label per week for a closure (rule 13).
+export function closureLabel(item) {
+  return item.global ? 'Tout fermé' : `${item.propertyName || 'Logement'} fermé`;
+}
 const GLOBAL_GROUP_KEY = '';            // global closures (all logements) → sort first (top band)
 const GLOBAL_LABEL = 'Tous les logements';
 
@@ -73,6 +87,8 @@ export function normalizeItems(reservations, closures) {
       groupKey: propertyName || `#${r.propertyId}`, propertyName,
       startDate: r.startDate, lastDay: r.endDate,
       platform: r.platform,
+      // The display name comes with the list (specs/ui-review-2026-10-19-operations.md rule 15).
+      platformDisplay: r.platformDisplay || formatPlatformLabel(r.platform),
       label: `${propertyName ? `${propertyName} · ` : ''}${resLabel(r)}`,
     });
   }
@@ -83,7 +99,7 @@ export function normalizeItems(reservations, closures) {
     const isGlobal = c.propertyId == null;
     const propertyName = isGlobal ? GLOBAL_LABEL : (c.propertyName || '');
     items.push({
-      key: `c${c.id}`, kind: 'closure',
+      key: `c${c.id}`, kind: 'closure', global: isGlobal,
       groupKey: isGlobal ? GLOBAL_GROUP_KEY : (c.propertyName || `#${c.propertyId}`), propertyName,
       startDate: c.startDate, lastDay,
       label: c.label || 'Fermé',
@@ -94,7 +110,10 @@ export function normalizeItems(reservations, closures) {
 
 /**
  * Build the month grid + per-week spanning bars, lane-packed and GROUPED BY LOGEMENT.
- * Returns { weeks: [{ days:[{date,inMonth,isToday}], bars:[{item,startCol,endCol,lane,roundStart,roundEnd}], laneCount }] }.
+ * Returns { weeks: [{ days:[{date,inMonth,isToday,closedAll}], bars:[{item,startCol,endCol,lane,roundStart,roundEnd}],
+ * laneCount, closures:[{item,startCol,endCol,band}], bandCount }] }. Bars are the reservations only;
+ * a closure never takes a lane (specs/ui-review-2026-10-19-operations.md rule 13): a global one marks
+ * its days `closedAll`, a logement's one gets a `band` index along the bottom of the week row.
  * Pure — exported for the unit test. `items` come from `normalizeItems`.
  */
 export function buildMonthLayout(year, month, items, todayStr) {
@@ -109,6 +128,8 @@ export function buildMonthLayout(year, month, items, todayStr) {
   for (let w = 0; w < weekCount; w += 1) {
     const weekStart = shiftDate(gridStart, w * 7);
     const weekEnd = shiftDate(weekStart, 6);
+    const inWeek = list.filter((it) => it.lastDay >= weekStart && it.startDate <= weekEnd);
+    const globalClosures = inWeek.filter((it) => it.kind === 'closure' && it.global);
     const days = [];
     for (let i = 0; i < 7; i += 1) {
       const date = shiftDate(weekStart, i);
@@ -116,11 +137,30 @@ export function buildMonthLayout(year, month, items, todayStr) {
         date,
         inMonth: new Date(`${date}T12:00:00`).getMonth() === month,
         isToday: date === todayStr,
+        closedAll: globalClosures.some((c) => c.startDate <= date && c.lastDay >= date),
       });
     }
 
-    const segments = list
-      .filter((it) => it.lastDay >= weekStart && it.startDate <= weekEnd)
+    // Closures: whole days (half-open interval already resolved to `lastDay`), one band per logement.
+    const bandKeys = [];
+    const closures = inWeek.filter((it) => it.kind === 'closure').map((it) => {
+      const segStart = it.startDate > weekStart ? it.startDate : weekStart;
+      const segEnd = it.lastDay < weekEnd ? it.lastDay : weekEnd;
+      let band = null;
+      if (!it.global) {
+        band = bandKeys.indexOf(it.groupKey);
+        if (band === -1) { band = bandKeys.length; bandKeys.push(it.groupKey); }
+      }
+      return {
+        item: it,
+        startCol: Math.max(0, Math.min(6, daysBetween(weekStart, segStart))),
+        endCol: Math.max(0, Math.min(6, daysBetween(weekStart, segEnd))),
+        band,
+      };
+    });
+
+    const segments = inWeek
+      .filter((it) => it.kind !== 'closure')
       .map((it) => {
         const segStart = it.startDate > weekStart ? it.startDate : weekStart;
         const segEnd = it.lastDay < weekEnd ? it.lastDay : weekEnd;
@@ -159,7 +199,7 @@ export function buildMonthLayout(year, month, items, todayStr) {
       }
       laneBase += laneEnds.length;
     }
-    weeks.push({ days, bars: segments, laneCount: laneBase });
+    weeks.push({ days, bars: segments, laneCount: laneBase, closures, bandCount: bandKeys.length });
   }
   return { weeks };
 }
@@ -178,7 +218,7 @@ export function monthItems(year, month, items) {
 
 function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick, onCreateReservation }) {
   const theme = useTheme();
-  const CLOSURE_COLOR = closureColor(theme);
+  const hatch = closureHatch(theme);
   const { weeks } = useMemo(
     () => (isMobile ? { weeks: [] } : buildMonthLayout(year, month, items, todayStr)),
     [year, month, items, todayStr, isMobile],
@@ -208,14 +248,17 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
         <Stack spacing={1} sx={{ mt: 1 }}>
           {list.map((it) => {
             const closure = it.kind === 'closure';
-            const color = closure ? CLOSURE_COLOR : getPlatformColor(it.platform);
+            const color = closure ? null : getPlatformColor(it.platform);
             return (
               <Box
                 key={it.key}
                 onClick={() => !closure && onReservationClick && onReservationClick(it.reservationId)}
                 sx={{
                   display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1,
-                  borderLeft: '5px solid', borderColor: color, bgcolor: 'background.paper', boxShadow: 1,
+                  // A closure reads as a hatched row (rule 13); a stay keeps its platform stripe.
+                  ...(closure
+                    ? { bgcolor: 'background.paper', backgroundImage: hatch, border: '1px solid', borderColor: 'divider' }
+                    : { borderLeft: '5px solid', borderColor: color, bgcolor: 'background.paper', boxShadow: 1 }),
                   cursor: closure ? 'default' : 'pointer', minHeight: 48, '&:active': closure ? undefined : { bgcolor: 'action.selected' },
                   // Past stays are greyed (purely visual) — same language as the per-property calendar
                   // (CalendarDayCell). `lastDay` is the inclusive last occupied day; past once today is after it.
@@ -224,7 +267,7 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
               >
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
-                    {closure ? `Fermé — ${it.propertyName}` : (it.propertyName || 'Logement')}
+                    {closure ? closureLabel(it) : (it.propertyName || 'Logement')}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
                     {closure ? it.label : it.label.replace(`${it.propertyName} · `, '')}
@@ -232,7 +275,7 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                 </Box>
                 <Stack spacing={0.25} sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
                   <Typography variant="caption" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{frRange(it.startDate, it.lastDay)}</Typography>
-                  {!closure && <Chip label={formatPlatformLabel(it.platform)} size="small" sx={{ height: 18, fontSize: 10, bgcolor: color, color: 'common.white' }} />}
+                  {!closure && <Chip label={it.platformDisplay} size="small" sx={{ height: 20, fontSize: 11, fontWeight: 600, bgcolor: barTint(color), color: 'text.primary', boxShadow: `inset 3px 0 0 ${color}` }} />}
                 </Stack>
               </Box>
             );
@@ -251,7 +294,9 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
         ))}
       </Box>
       {weeks.map((week, wi) => {
-        const rowHeight = HEADER_H + Math.max(1, week.laneCount) * BAR_H + 6;
+        // A week closed everywhere keeps one line for its label under the stays.
+        const globalLabelH = week.closures.some((c) => c.band == null) ? 16 : 0;
+        const rowHeight = HEADER_H + Math.max(1, week.laneCount) * BAR_H + globalLabelH + week.bandCount * BAND_H + 6;
         return (
           <Box key={wi} sx={{ position: 'relative', height: rowHeight, mb: 0.5 }}>
             <Box sx={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
@@ -264,7 +309,11 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                     border: day.isToday ? '2px solid' : '1px solid',
                     borderColor: day.isToday ? 'primary.main' : 'divider',
                     borderRadius: 1,
+                    position: 'relative',
+                    overflow: 'hidden',
                     bgcolor: day.inMonth ? 'background.paper' : 'action.hover',
+                    // A closure of every logement hatches the whole day (rule 13).
+                    ...(day.closedAll ? { backgroundImage: hatch } : {}),
                     cursor: onCreateReservation ? 'pointer' : 'default',
                     '&:hover': onCreateReservation ? { bgcolor: 'action.selected' } : undefined,
                   }}
@@ -279,34 +328,69 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                   >
                     {Number(day.date.slice(8, 10))}
                   </Typography>
+                  {/* A logement's closure: a hatched band along the bottom of the day (rule 13). */}
+                  {week.closures.filter((c) => c.band != null && week.days.indexOf(day) >= c.startCol && week.days.indexOf(day) <= c.endCol).map((c) => (
+                    <Box
+                      key={c.item.key}
+                      data-closure-band={c.item.key}
+                      sx={{ position: 'absolute', left: 0, right: 0, bottom: c.band * BAND_H, height: BAND_H - 2, backgroundImage: hatch }}
+                    />
+                  ))}
                 </Box>
               ))}
             </Box>
+            {/* One label per week, on the first closed day; the tooltip keeps the dates. */}
+            {week.closures.map((c) => (
+              <Tooltip key={`${c.item.key}-label`} title={`${c.item.label} (${frRange(c.item.startDate, c.item.lastDay)})`} arrow>
+                <Typography
+                  component="span"
+                  // Reachable from the keyboard: focus shows the tooltip with the dates (rule 13).
+                  tabIndex={0}
+                  aria-label={`${closureLabel(c.item)} — ${c.item.label}, ${frRange(c.item.startDate, c.item.lastDay)}`}
+                  sx={{
+                    '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1, borderRadius: 0.5 },
+                    position: 'absolute',
+                    left: `calc(${(c.startCol / 7) * 100}% + 6px)`,
+                    maxWidth: `calc(${((c.endCol - c.startCol + 1) / 7) * 100}% - 10px)`,
+                    bottom: c.band == null ? 3 + week.bandCount * BAND_H : 3 + c.band * BAND_H,
+                    zIndex: 1,
+                    fontSize: 11, fontWeight: 600, lineHeight: '14px', color: 'text.secondary',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}
+                >
+                  {closureLabel(c.item)}
+                </Typography>
+              </Tooltip>
+            ))}
             {week.bars.map((bar) => {
               const { item } = bar;
-              const closure = item.kind === 'closure';
-              const color = closure ? CLOSURE_COLOR : getPlatformColor(item.platform);
+              const color = getPlatformColor(item.platform);
               const left = `calc(${(bar.leftEdge / 7) * 100}% + 1px)`;
               const width = `calc(${((bar.rightEdge - bar.leftEdge) / 7) * 100}% - 2px)`;
               const top = HEADER_H + bar.lane * BAR_H;
               return (
                 <Tooltip key={`${item.key}-${bar.startCol}`} title={`${item.label} (${frRange(item.startDate, item.lastDay)})`} arrow>
                   <Box
-                    onClick={closure ? undefined : (e) => { e.stopPropagation(); onReservationClick && onReservationClick(item.reservationId); }}
+                    data-bar={item.key}
+                    onClick={(e) => { e.stopPropagation(); onReservationClick && onReservationClick(item.reservationId); }}
                     sx={{
                       position: 'absolute', left, width, top, height: BAR_H - 4,
-                      bgcolor: color, color: 'common.white', cursor: closure ? 'default' : 'pointer',
+                      // Tint + stripe + ink: AA on every platform colour, the yellow ones included (rule 14).
+                      bgcolor: barTint(color), color: 'text.primary', cursor: 'pointer',
+                      boxShadow: `inset 3px 0 0 ${color}`,
                       borderTopLeftRadius: bar.roundStart ? 6 : 0, borderBottomLeftRadius: bar.roundStart ? 6 : 0,
                       borderTopRightRadius: bar.roundEnd ? 6 : 0, borderBottomRightRadius: bar.roundEnd ? 6 : 0,
-                      px: 0.5, display: 'flex', alignItems: 'center', overflow: 'hidden',
-                      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                      boxShadow: 1, ...(closure ? { border: (t) => `1px dashed ${alpha(t.palette.common.black, 0.25)}` } : { '&:hover': { filter: 'brightness(0.92)' } }),
+                      pl: 1, pr: 0.5, display: 'flex', alignItems: 'center', overflow: 'hidden',
+                      fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                      transition: 'background-color 120ms ease-out',
+                      '&:hover': { bgcolor: alpha(color, 0.24) },
                       // Past stays greyed (visual only), consistent with the mobile agenda + per-property grid.
-                      opacity: todayStr > item.lastDay ? 0.5 : 1,
+                      // 0.65, not 0.5: ink on a tint keeps ≥ 3:1 once faded (rule 14).
+                      opacity: todayStr > item.lastDay ? 0.65 : 1,
                     }}
                   >
                     <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {closure ? `Fermé${item.propertyName ? ` — ${item.propertyName}` : ''}` : item.label}
+                      {item.label}
                     </Box>
                   </Box>
                 </Tooltip>
@@ -387,11 +471,19 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
 
   // The legend lists each platform ONCE: variants that differ only by case or punctuation
   // ('Abracadaroom' / 'abracadaroom') are the same platform and merge into one canonical entry.
-  const platformsInView = useMemo(
-    () => mergePlatformVariants(Object.values(reservationsById).map((r) => r.platform)),
-    [reservationsById],
-  );
+  const platformsInView = useMemo(() => {
+    // Each platform once, named as the server names it (rule 15).
+    const displayBySlug = new Map();
+    Object.values(reservationsById).forEach((r) => {
+      const slug = normalizePlatformKey(r.platform);
+      if (r.platformDisplay && !displayBySlug.has(slug)) displayBySlug.set(slug, r.platformDisplay);
+    });
+    return mergePlatformVariants(Object.values(reservationsById).map((r) => r.platform))
+      .map((p) => ({ ...p, label: displayBySlug.get(p.platform) || p.label }));
+  }, [reservationsById]);
   const hasClosures = Object.keys(closuresById).length > 0;
+  // The legend is folded behind « Légende » (rule 15): the colours are learnt once, the stays every day.
+  const [legendOpen, setLegendOpen] = useState(false);
 
   return (
     <Box>
@@ -401,21 +493,36 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
           <Typography variant="caption" color="text.secondary">Faites défiler pour changer de mois</Typography>
           {loading && <CircularProgress size={18} />}
         </Stack>
-        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+        {(platformsInView.length > 0 || hasClosures) && (
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => setLegendOpen((v) => !v)}
+            aria-expanded={legendOpen}
+            aria-controls="cumulative-calendar-legend"
+            endIcon={<ExpandMoreIcon sx={{ transition: 'transform 200ms ease-out', transform: legendOpen ? 'rotate(180deg)' : 'none', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }} />}
+            sx={{ alignSelf: { xs: 'flex-start', sm: 'center' }, minHeight: 44 }}
+          >
+            Légende
+          </Button>
+        )}
+      </Stack>
+      <Collapse in={legendOpen} unmountOnExit>
+        <Stack id="cumulative-calendar-legend" direction="row" sx={{ flexWrap: 'wrap', gap: 1.5, mb: 1.5 }}>
           {platformsInView.map(({ platform, label, color }) => (
-            <Stack key={platform} direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-              <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: color }} />
+            <Stack key={platform} direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+              <Box sx={{ width: 14, height: 12, borderRadius: 0.5, bgcolor: barTint(color), boxShadow: `inset 3px 0 0 ${color}` }} />
               <Typography variant="caption" color="text.secondary">{label}</Typography>
             </Stack>
           ))}
           {hasClosures && (
-            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-              <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: 'grey.500' }} />
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+              <Box sx={{ width: 14, height: 12, borderRadius: 0.5, backgroundImage: closureHatch(theme), border: '1px solid', borderColor: 'divider' }} />
               <Typography variant="caption" color="text.secondary">Fermeture</Typography>
             </Stack>
           )}
         </Stack>
-      </Stack>
+      </Collapse>
 
       <Box ref={scrollRef} onScroll={handleScroll} sx={{ overflowY: 'auto', overflowX: { xs: 'visible', sm: 'auto' }, maxHeight: { xs: '74vh', sm: 'calc(100vh - 240px)' }, pr: 0.5 }}>
         <Box sx={{ minWidth: { xs: 'auto', sm: 720 } }}>

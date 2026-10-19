@@ -5,9 +5,9 @@ const Database = require('better-sqlite3');
 // specs/deposit-blocks-the-dates.md rule 17 and specs/devis-pdf-and-tourist-tax-fixes.md rules 21-22 —
 // a devis re-issued by a save owes its single payment on its NEW validity date (the fiche said
 // « À payer avant : 08/10 » while the PDF said 02/11); a devis printed after its validity says
-// « (expiré) »; the HT column of the PDF holds the line total (mega review #5, m2 and m3).
+// « (expiré) » — amended 2026-10-19: never on the guest's document (specs/ui-review-2026-10-19-operations.md
+// rule 20); the HT column of the PDF holds the line total (mega review #5, m2 and m3).
 const devisModel = require('../models/devisModel');
-const { __test: { isPrintedExpired } } = require('../utils/devisPdf');
 const { FR, EN } = require('../utils/devisPdfLabels');
 
 const DDL = `
@@ -70,14 +70,10 @@ test('rule 17 — saving an expired devis re-issues it and its single payment fo
   assert.equal(row.balanceDueDate, row.validUntil, 'the fiche and the PDF read the same date');
 });
 
-// specs/devis-pdf-and-tourist-tax-fixes.md rule 21
-test('rule 21 — a devis printed after its validity reads « (expiré) », a converted one never', () => {
-  assert.equal(isPrintedExpired({ kind: 'devis', devisStatus: 'sent' }, '2026-10-07', '2026-10-18'), true);
-  assert.equal(isPrintedExpired({ kind: 'devis', devisStatus: 'sent' }, '2026-10-18', '2026-10-18'), false);
-  assert.equal(isPrintedExpired({ kind: 'devis', devisStatus: 'converted' }, '2026-10-07', '2026-10-18'), false);
-  assert.equal(isPrintedExpired({ kind: 'reservation' }, '2026-10-07', '2026-10-18'), false);
-  assert.equal(FR.expiredSuffix, ' (expiré)');
-  assert.equal(EN.expiredSuffix, ' (expired)');
+// specs/devis-pdf-and-tourist-tax-fixes.md rule 21 — amended 2026-10-19: the expiry is no longer printed.
+test('rule 21 — the expiry is no longer printed: the labels carry no « (expiré) » suffix', () => {
+  assert.equal(FR.expiredSuffix, undefined);
+  assert.equal(EN.expiredSuffix, undefined);
 });
 
 // specs/devis-pdf-and-tourist-tax-fixes.md rule 22

@@ -208,6 +208,10 @@ each of these lives on the server — no UI-side calculation.
 21. **A devis printed after its validity says so** (2026-10-18, mega review #5): « Valable jusqu'au
     07/10/2026 (expiré) » (« (expired) » in English). A converted devis and a reservation never carry
     it. *Why:* an expired devis printed on 18/10 read as a live offer.
+    **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rule 20, UI/UX review proposal 22):
+    the PDF prints the validity date alone — « (expiré) » on the guest's document read as a dead offer
+    sent anyway. The operator is warned on the fiche (« Périmé · prolonger »), and saving re-stamps the
+    validity.
 22. **The pricing table's HT column is named for what it holds**, the line total: « Total HT »
     (« Total excl. VAT »). *Why:* « Hébergement — Qté 3 — Prix HT 272,73 € » read as 3 × 272,73.
 
