@@ -120,7 +120,7 @@ test('wordpress-plugin rule 29: a light accent is darkened under white text — 
   assert.match(CSS, /--gfb-fill:\s*oklch\(from var\(--gfb-accent\) min\(l, 0\.5\d\) c h\)/);
 });
 
-test('wp-booking-widget-redesign rule 29: every :hover lives inside @media (hover: hover) and (pointer: fine)', () => {
+test('specs/wp-booking-widget-redesign.md rule 29: every :hover lives inside @media (hover: hover) and (pointer: fine)', () => {
   const stray = [];
   for (const [prelude, body] of blocks(CSS)) {
     if (/^@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)/.test(prelude)) continue;
@@ -129,7 +129,7 @@ test('wp-booking-widget-redesign rule 29: every :hover lives inside @media (hove
   assert.deepStrictEqual(stray, []);
 });
 
-test('wp-booking-widget-redesign rule 29: the chosen edge outranks the hover tint', () => {
+test('specs/wp-booking-widget-redesign.md rule 29: the chosen edge outranks the hover tint', () => {
   assert.match(CSS, /button\.gf-cal-day:not\(:disabled\):not\(\.gf-edge\):hover/);
 });
 
@@ -144,7 +144,7 @@ function specificity(sel) {
 }
 const beats = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 
-test('wp-booking-widget-redesign rule 29: the stay beats the legacy gf-booking.php hover still printed on the Solio Pi', () => {
+test('specs/wp-booking-widget-redesign.md rule 29: the stay beats the legacy gf-booking.php hover still printed on the Solio Pi', () => {
   const legacyHover = specificity('.gf-cal-day:hover:not(:disabled)');
   assert.deepStrictEqual(legacyHover, [0, 3, 0]);
   for (const cls of ['gf-edge', 'gf-range']) {
@@ -154,7 +154,7 @@ test('wp-booking-widget-redesign rule 29: the stay beats the legacy gf-booking.p
   }
 });
 
-test('wp-booking-widget-redesign rule 32: the bottom bar is for phones — coarse pointer or narrow viewport', () => {
+test('specs/wp-booking-widget-redesign.md rule 32: the bottom bar is for phones — coarse pointer or narrow viewport', () => {
   const phone = blocks(CSS).find(([prelude]) => /^@media\s*\(pointer:\s*coarse\),\s*\(max-width:\s*600px\)/.test(prelude));
   assert.ok(phone, 'no phone media block');
   assert.match(phone[1], /\.gf-booking > \.gf-bar\s*\{[^}]*display:\s*flex/);

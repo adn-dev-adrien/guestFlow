@@ -192,6 +192,15 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     (n) »** (n = `toConfigure` of `GET /api/plugins/status`) keeps only those cards; it is not shown
     when n = 0. Inactive and available plugins keep « Activer » / « Installer » (rule 22).
 
+26. **« Configurer » lands on its plugin, and stays there while the page loads** (integrated review of
+    inte/plugins, 2026-10-19, M1). The anchor `#plugin-<id>` (rule 25) is placed as soon as it exists,
+    and put back in place at every layout change for 1.5 s — the Intégrations sections load lazily and
+    grow as their own requests answer, which pushed it down after the first scroll — until the user
+    scrolls, touches, clicks or types: from then on the page is theirs. Its `scroll-margin-top` is the
+    measured bottom of the sticky bars (the app bar and the PageActionBar) plus 8 px, never a guessed
+    constant. Generic hook: `hooks/useAnchorScroll.js`. E2E: after « Configurer » on Neat and on
+    Vigilance Météo-France the anchor is in the viewport, below the bars, at 390 and 1280 px.
+
 **Edge cases:**
 - (rule 25) A plugin out of the plan never counts as « à configurer ».
 - (rule 25) A plugin packaged for SDK < 1.5.0 declares no check: it reads « Actif » with « Réglages ».
@@ -285,6 +294,12 @@ All under the admin guard except `/me` and `/login`.
 | any | a route of an inactive plugin | — | 404 `{ error: 'PLUGIN_INACTIVE', plugin }` | |
 
 Unknown id → 404 `UNKNOWN_PLUGIN`.
+
+**Integrated review of inte/plugins (2026-10-19)** — rule 26:
+- Client `hooks/useAnchorScroll.js` (new, generic): places the element a hash names below the measured
+  sticky bars and keeps it there while the page settles; stops at the first user scroll.
+- Client `pages/settings/IntegrationsSettingsPage.jsx`: uses it for `#plugin-<id>` (the fixed
+  `scroll-margin-top` is gone). `components/PageActionBar.jsx` marks itself `data-sticky-bar`.
 
 ---
 
@@ -394,6 +409,11 @@ dialog: the uninstall confirmation is inline.
   fermetures shows the closures without tabs.
 - Plugins page: installing Linge adds « Linge » to the menu without a reload; SAS deactivation refused.
 - Mobile 375 px: Plugins page without horizontal scroll, detail and two-click uninstall in place.
+
+**Integrated review of inte/plugins (2026-10-19)** — rule 26: `hooks/__tests__/useAnchorScroll.settle.test.jsx` (4: waits for the anchor, measured
+margin, put back on a layout change, left alone after a user scroll or the settle time);
+E2E `e2e/specs/settings/plugin-configure-anchor.spec.js` (« Configurer » on Neat and Vigilance
+Météo-France: the anchor is in the viewport below the bars, at 390 and 1280 px).
 
 ## 8. Out of scope
 

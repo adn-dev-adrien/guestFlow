@@ -243,7 +243,8 @@ The operator can:
     rule 27).
     *2026-10-19 (UI/UX review 2026-10-18, decisions 5 and 12):* the chips leave the field: « + Variable »
     or a typed `[` opens the list (specs/guest-email-texts-made-simple.md rule 41); FR | EN shows one
-    language at a time (rule 42); the list of templates is the timeline of rule 44.
+    language at a time (specs/guest-email-texts-made-simple.md rule 42); the list of templates is the
+    timeline of specs/guest-email-texts-made-simple.md rule 44.
 18. **A pending email has its own « Envoyer » button.** The row still opens the send dialog; the button
     says so next to « Marquer comme envoyé » and « Ignorer ».
 19. **An iCal placeholder is greeted neutrally (2026-10-18).** When the reservation's client is an iCal

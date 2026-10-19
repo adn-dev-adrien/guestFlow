@@ -22,7 +22,8 @@ import { visibleSettingsGroups, SETTINGS_KEYWORDS } from '../../constants/settin
 import { matchSettingsRow } from '../../utils/settingsSearch';
 import api from '../../api';
 
-const SEARCH_PLACEHOLDER = 'Chercher un réglage : wifi, iban, smtp…';
+// Short enough for a 390 px phone (specs/settings-rationalization.md rule 31).
+const SEARCH_PLACEHOLDER = 'Chercher : wifi, iban, smtp…';
 const SEARCH_HINT = 'Essayer : wifi, iban, smtp, 2fa, caution.';
 
 export default function SettingsHomePage() {

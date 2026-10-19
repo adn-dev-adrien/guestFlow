@@ -206,6 +206,7 @@ export default function MiniPlanningStrip({
           <IconButton
             size="small"
             onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, -1))}
+            aria-label="Jour précédent"
             disabled={isLocked}
             sx={{
               width: 26,
@@ -316,6 +317,7 @@ export default function MiniPlanningStrip({
           <IconButton
             size="small"
             onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, 1))}
+            aria-label="Jour suivant"
             disabled={isLocked}
             sx={{
               width: 26,

@@ -91,7 +91,7 @@ import EmailHistoryPage from './pages/EmailHistoryPage';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import AppVersionBadge, { AppVersionFooter } from './components/AppVersionBadge';
-import { PageTitleProvider, usePageTitle } from './hooks/usePageTitle';
+import { PageTitleProvider, TopBarActionSlot, usePageTitle } from './hooks/usePageTitle';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import NotFoundPage from './components/NotFoundPage';
 
@@ -121,10 +121,11 @@ const SETTINGS_CHILDREN  = ['/settings', ...SETTINGS_PATHS];
 
 // A group's chevron: its own button, beside the row, reachable with the keyboard and saying whether the
 // group is open (specs/shell-and-home-day-first.md rule 18).
-function NavChevron({ open, label, onToggle }) {
+function NavChevron({ open, label, onToggle, controls }) {
   return (
     <IconButton
       aria-expanded={open}
+      aria-controls={open ? controls : undefined}
       aria-label={`${open ? 'Replier' : 'Déplier'} ${label}`}
       onClick={onToggle}
       sx={{ width: 40, height: 40, flexShrink: 0, color: 'text.secondary' }}
@@ -158,6 +159,10 @@ function NavContent({ onItemClick }) {
   const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [settingsPropertiesMenuOpen, setSettingsPropertiesMenuOpen] = useState(false);
+  // A settings group's chevron folds or unfolds it without leaving the page (specs/settings-
+  // rationalization.md rule 30); the next page opened goes back to « the group of the open page ».
+  const [settingsGroupToggles, setSettingsGroupToggles] = useState({});
+  useEffect(() => { setSettingsGroupToggles({}); }, [location.pathname, location.hash]);
   const selectedCalendarPropertyId = new URLSearchParams(location.search).get('propertyId');
 
   useEffect(() => {
@@ -404,24 +409,31 @@ function NavContent({ onItemClick }) {
                   {/* specs/settings-rationalization.md rule 26 — the four groups; the one of the open
                       page (or of the summary's #group) unfolds its pages. constants/settingsMenu.js. */}
                   {visibleSettingsGroups(can, (id) => (user?.enabledPlugins || []).includes(id)).map((group) => {
-                    const unfolded = group.id === settingsGroupOf(location.pathname, location.hash);
+                    const ofPage = group.id === settingsGroupOf(location.pathname, location.hash);
+                    const unfolded = settingsGroupToggles[group.id] ?? ofPage;
                     return (
                       <Box key={group.id}>
-                        <ListItemButton
-                          component={Link}
-                          to={`${SETTINGS_HOME_PATH}#${group.id}`}
-                          onClick={(e) => onItemClick && onItemClick(e, `${SETTINGS_HOME_PATH}#${group.id}`)}
-                          selected={location.pathname === SETTINGS_HOME_PATH && unfolded}
-                          aria-expanded={unfolded}
-                          aria-controls={unfolded ? `settings-group-${group.id}` : undefined}
-                          sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                        >
-                          <ListItemIcon sx={{ minWidth: 34 }}><group.Icon fontSize="small" /></ListItemIcon>
-                          <ListItemText primary={group.label} slotProps={{
-                            primary: { variant: 'body2', sx: { ...WRAP, fontWeight: 600 } }
-                          }} />
-                          {unfolded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                        </ListItemButton>
+                        {/* Rule 30 — the row is a link only; its own chevron folds the group (shell rule 18). */}
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <ListItemButton
+                            component={Link}
+                            to={`${SETTINGS_HOME_PATH}#${group.id}`}
+                            onClick={(e) => onItemClick && onItemClick(e, `${SETTINGS_HOME_PATH}#${group.id}`)}
+                            selected={location.pathname === SETTINGS_HOME_PATH && ofPage}
+                            sx={{ flex: 1, minWidth: 0, pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                          >
+                            <ListItemIcon sx={{ minWidth: 34 }}><group.Icon fontSize="small" /></ListItemIcon>
+                            <ListItemText primary={group.label} slotProps={{
+                              primary: { variant: 'body2', sx: { ...WRAP, fontWeight: 600 } }
+                            }} />
+                          </ListItemButton>
+                          <NavChevron
+                            label={group.label}
+                            open={unfolded}
+                            controls={`settings-group-${group.id}`}
+                            onToggle={() => setSettingsGroupToggles((prev) => ({ ...prev, [group.id]: !unfolded }))}
+                          />
+                        </Box>
                         {unfolded && (
                         <List disablePadding role="group" id={`settings-group-${group.id}`} aria-label={group.label}>
                         {group.entries.map((entry) => {
@@ -668,6 +680,8 @@ function AppShell() {
                 </Box>
               )}
               <Box sx={{ flexGrow: 1 }} />
+              {/* A phone page's single action (specs/shell-and-home-day-first.md rule 23). */}
+              {isPhone && <TopBarActionSlot />}
               {isMobile && (
                 <IconButton onClick={() => setSearchOpen(true)} aria-label="Rechercher une réservation">
                   <SearchIcon />

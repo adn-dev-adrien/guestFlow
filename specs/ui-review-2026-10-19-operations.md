@@ -177,6 +177,21 @@ guessing; and the quote the guest receives looks like the house that sends it.
 21. **A stale quote says so in the list.** Each list row carries `expired` (never on a converted
     quote) and `extendable`. An expired quote shows a « Périmé » badge under its status, and
     downloading its PDF — whose validity date is past — asks first (« Télécharger quand même »).
+22. **Back from a page opened directly stays in the app** (integrated review of inte/plugins,
+    2026-10-19, P1). A reservation opened from a link in a new tab (no `from`, nothing of the app behind
+    it: React Router's `history.state.idx` is 0 or absent) used to `navigate(-1)` on save and leave the
+    app for about:blank. Saving, « Retour » and leaving go to the planning instead (a quote: the quotes
+    list), replacing the entry. With an app page behind, back is one step as before; a `from` wins.
+23. **The quotes list opens from the keyboard** (integrated review, 2026-10-19, P3). The quote number
+    of each row (table and phone card) is a link to what the row opens — the quote, or its reservation
+    once converted — named « Ouvrir le devis <n° > »: Tab reaches it, Entrée opens it. The rest of the
+    row stays clickable with the mouse.
+24. **The mini planning's arrows are named** (integrated review, 2026-10-19, P3). They move the strip by
+    one day: « Jour précédent » / « Jour suivant » (the review's « Mois précédent / suivant » would
+    have announced a jump they do not make).
+25. **A long logement name stays readable in the segmented filter** (integrated review, 2026-10-19,
+    L7). Under `sm` a segment takes the width its label needs and wraps on two lines (« Aventura /
+    lodge ») instead of ending in an ellipsis; from `sm` the segments keep one line (rule 16).
 
 **Edge cases:**
 - A SAS with only intro and recap → « 1 sur 2 », « 2 sur 2 ».
@@ -255,6 +270,14 @@ devis, options), `SegmentedSelect` (every short exclusive filter). Page-specific
 - `GET /api/reservations` rows: adds `platformDisplay`.
 - `GET /api/reservations/:id/sas`: adds `nothingToCollect`.
 
+**Integrated review of inte/plugins (2026-10-19)** — rules 22–25:
+- Client `utils/navigation.js`: `hasInAppHistory()`, `navigateBack(navigate, fallback)`,
+  `DEFAULT_BACK_PATH = '/planning'`; `navigateBackWithFrom` falls back instead of leaving the app.
+  `pages/ReservationPage.jsx` uses them (the quote mode falls back to `/devis`).
+- Client `pages/DevisPage.jsx`: the quote number is a `Link` to `editPathOf(devis)`.
+- Client `components/MiniPlanningStrip.jsx`: named arrows.
+- Client `components/SegmentedSelect.jsx`: segments wrap under `sm`.
+
 ## 5. Data model
 
 None. One binary asset (the embedded serif).
@@ -303,6 +326,11 @@ step numbering are shown in `docs/specs/2026-10-19-ui-review-operations.html`.
   converted one (no chip), the arrival SAS walked through its 9 steps; no horizontal scroll at 390 px.
   The PDF of quote 22274 (six offered lines) checked with `qlmanage -t`: one « Offert avec le séjour »
   row, total on page 1, no « (expiré) ».
+
+**Integrated review of inte/plugins (2026-10-19)** — rules 22–25: `utils/__tests__/navigation.back-fallback.test.js` (3),
+`pages/__tests__/DevisPage.keyboard.test.jsx` (4: the link at 1280 and 390 opens with Entrée, a
+converted quote links to its reservation, the mini planning arrows),
+`components/__tests__/SegmentedSelect.phone-wrap.test.jsx` (2).
 
 ## 8. Out of scope
 

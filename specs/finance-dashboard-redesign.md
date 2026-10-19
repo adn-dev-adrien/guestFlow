@@ -322,6 +322,12 @@ without losing anything today's page shows.
     drawn 56 px high instead of 120, on the same calendar graduations; no placeholder or summary line
     replaces it. From the 1st of the second month, and on any past exercise or month window, it takes
     its 120 px again. An exercise entirely to come (its first month not begun) is compact too. Rendering: `docs/specs/2026-10-19-finance-charts-phone-and-early-exercise.html` §2.
+47. **Soft backgrounds and their text come from the theme** (integrated review of inte/plugins,
+    2026-10-19, L3). The year-over-year badge, the pace card's notice and the insight icons read
+    `<semantic>.soft` for the background and `<semantic>.text` for what is written or drawn on it
+    (≥ 4.5 : 1, specs/shell-and-home-day-first.md rule 14) — never `main` on a pale background, never a
+    hex of their own. A « stable » badge is `neutral.soft` / `neutral.text`, a palette entry added for
+    it. The « Canaux » tile's dot is `chart.channels` in the chart palette (rule 45).
 
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
@@ -454,6 +460,10 @@ Settings goal fields (rules 26 + 28).
 Logement colours: the server gives each logement a stable slot `colorIndex` in `properties` order
 (also on the `properties` detail rows); the client paints it from `theme.palette.chart.series` (rule
 45), so a logement keeps its colour across charts. `insights[0]` (`bestMonth`) follows rule 43.
+
+**Integrated review of inte/plugins (2026-10-19)** — rule 47: `theme.js` gains `palette.neutral` (soft `#EEEBE4`,
+text = `text.secondary`) and `palette.chart.channels`; `YearOverYearBadge`, `BookingPaceCard`,
+`InsightCard` and `FinancePage` read tokens only.
 
 ---
 
@@ -604,6 +614,9 @@ par mois » and « Taux d'occupation » side by side.
       21-month custom window.
 - [x] 390 px: banner single column, graduations thinned without overlap, no horizontal scroll.
 - [x] Client Vitest (1407), server suite (4587), E2E suite (84 passed, 1 skipped).
+
+**Integrated review of inte/plugins (2026-10-19)** — rule 47: `components/__tests__/YearOverYearBadge.soft-tokens.test.jsx` (8: each badge tone,
+each insight tone, the channels token).
 
 ## 8. Out of scope
 

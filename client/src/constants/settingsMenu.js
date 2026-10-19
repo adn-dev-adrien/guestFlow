@@ -7,7 +7,7 @@
  * Rules 24–27 (UI/UX review 2026-10-18, proposal 20 and decision 12): the four families are the four
  * named groups of SETTINGS_GROUPS, in order — the sidebar shows the groups and unfolds the one of the
  * open page; the summary page (`/settings`) lists every group with its pages, and its search reads
- * SETTINGS_KEYWORDS. A plugin entry belongs to the group of the entry it is placed next to.
+ * SETTINGS_KEYWORDS (rule 29: the emails by their names, constants/emailNames.js). A plugin entry belongs to the group of the entry it is placed next to.
  *
  * Entry: { path, label, Icon, matches? } — `matches` lists the other paths that open the submenu on
  * this entry (legacy or detail routes).
@@ -31,6 +31,7 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import NotesIcon from '@mui/icons-material/Notes';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import PLUGIN_MODULES from '../plugins';
+import { EMAIL_DISPLAY_NAMES } from './emailNames';
 
 export const PROPERTIES_PATH = '/properties';
 // The summary page (rule 24). Its `#<group id>` opens the summary on that group.
@@ -121,7 +122,8 @@ export const SETTINGS_KEYWORDS = Object.freeze({
   '/parametres/paiements': ['Qonto', 'Lien de paiement', 'Carte bancaire', 'Paiement en ligne'],
   '/settings/tva-exercice': ['TVA', 'Taux', 'Exercice comptable', 'Clôture', 'Objectif de chiffre d’affaires'],
   '/settings/emails': ['SMTP', 'Serveur d’envoi', 'Mot de passe d’application', 'Gmail', 'Expéditeur', 'Adresse d’envoi', 'Notifications', 'Push', 'Mail de test'],
-  '/settings/emails/textes': ['J-2', 'J-7', 'Confirmation', 'Message', 'Phrase', 'Traduction', 'Anglais', 'Variables', 'Modèle'],
+  // Rule 29 — the emails by the names every page gives them (« Accès et arrivée », « Rappel de solde »).
+  '/settings/emails/textes': [...new Set([...Object.values(EMAIL_DISPLAY_NAMES), 'Message', 'Phrase', 'Traduction', 'Anglais', 'Variables', 'Modèle'])],
   '/settings/utilisateurs': ['Compte', 'Rôle', 'Comptable', 'Accueil', 'Administrateur', 'Invitation'],
   '/parametres/acces-support': ['Support', 'Assistance', 'Accès temporaire'],
   '/settings/integrations': ['Google Agenda', 'Neat', 'Assurance annulation', 'Météo-France', 'Sowel', 'Portail', 'WordPress', 'Site internet', 'Clé API'],

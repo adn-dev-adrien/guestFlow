@@ -160,6 +160,16 @@ the top bar says which page is open.
     rendered as before, in card mode under the pinned subjects (`specs/plugins-phase-1-sdk.md` §3.C,
     note of 2026-10-19). The SDK 1.4.0 plugins state `guestflow >=3.10.0`, the convention of the 1.2.0
     bump (the core version of the branch that ships the SDK).
+23. **A phone page bar with one button gives it to the top bar** (integrated review of inte/plugins,
+    2026-10-19, L7). Under `sm`, a `PageActionBar` with no back button, no subtitle, no tabs and no
+    identity line, and a single visible button (an action, or « Plus d'actions » holding several),
+    renders that button in the top bar, between the page title and the search — no band of its own,
+    which was a nearly empty 60 px white strip on Suivi financier and Calendrier. From `sm`, or with
+    anything else to show, the bar is drawn as before.
+24. **On a phone the bar's actions stay level with its back button** (integrated review, 2026-10-19,
+    L7). When a subtitle (« Dernière mise à jour : … ») wraps under the back button, Enregistrer and
+    Annuler align with the button's row, not with the middle of the two lines (Intégrations, Emails &
+    notifications at 390 px).
 
 **Edge cases:**
 - No subject at all → no pinned card, « À traiter » with « Rien à traiter. »
@@ -229,6 +239,13 @@ the top bar says which page is open.
 |---|---|---|---|
 | GET | `/api/dashboard/attention` | `{ pinned: Subject[], items: Subject[], total: number, unavailable: string[], unavailableLabel: string, declared: string[] }`, `Subject = { key, severity, count, title, detail }` | Admin only. Never fails because of one subject; a failing one is named (rule 20). |
 
+**Integrated review of inte/plugins (2026-10-19)** — rules 23–24:
+- Client `hooks/usePageTitle.jsx`: the provider also holds the top bar's action slot
+  (`TopBarActionSlot`, `useTopBarActionSlot`).
+- Client `App.jsx`: renders the slot on phones, before the search button.
+- Client `components/PageActionBar.jsx`: portals its single button into the slot (rule 23); row aligned
+  to the top on xs (rule 24).
+
 ## 5. Data model
 
 None.
@@ -271,6 +288,10 @@ None.
 ### Manual UI verification
 - [x] 390 / 900 / 1280 on a neutralised copy of the Solio base: day first, box unfolds, pinned cards,
   no horizontal scroll at 390, drawer labels wrap, title in the top bar on a phone.
+
+**Integrated review of inte/plugins (2026-10-19)** — rules 23–24: `components/__tests__/PageActionBar.top-bar-action.test.jsx` (4) with the shared
+`mediaRulesFixture.js` (jsdom applies no `@media`: the suite reads the declarations under each
+breakpoint).
 
 ## 8. Out of scope
 

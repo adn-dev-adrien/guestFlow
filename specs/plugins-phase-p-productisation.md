@@ -420,6 +420,13 @@ Decisions taken on 2026-10-06:
     « Le reste se règle plus tard dans Paramètres › Plugins. » The other plugins (Neat, Google Agenda, Sowel, the intakes,
     the export…) are left to the Plugins page.
 
+44. **On a phone the assistant's primary action sits at the bottom, under the thumb** (integrated review
+    of inte/plugins, 2026-10-19, L4 — the SAS rule of UI/UX review 2026-10-18, decision 5, now a
+    shared rule: specs/design-system-reference.md §9). Under `sm` the actions of `StepperPage` stack in
+    a bar kept at the bottom of the screen (safe area included): « Plus tard » and « Précédent » first,
+    neutral, then « Suivant » (or « Ouvrir le tableau de bord ») last, filled and full width. From `sm`
+    they stay on one row, right-aligned, the primary one last.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -511,6 +518,9 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 | GET / PUT | `/api/platforms/settings` | each row gains `countsAsDirect` |
 | GET / PUT | `/api/accounting/platform-accounts` | gains `plan: [{ key, value, default }]`; PUT takes `plan: { key: value }` |
 | POST | `/api/onboarding/done` | Records `onboardingCompletedAt` |
+
+**Integrated review of inte/plugins (2026-10-19)** — rule 44: `components/StepperPage.jsx` — the action stack
+is a bottom-sticky bar under `sm`, primary last.
 
 ## 5. Data model
 
@@ -639,6 +649,9 @@ rest of the suite, and `option-categories.spec.js` seeds the catering catalogue 
 - An empty database: the assistant end to end at 375 px and 1280 px, and a J-7 preview with neutral
   texts.
 - « Textes des mails »: an unknown token is refused, and an override shows up in the preview.
+
+**Integrated review of inte/plugins (2026-10-19)** — rule 44: `components/__tests__/StepperPage.phone-actions.test.jsx` (1: order and variants);
+the onboarding suites keep passing unchanged.
 
 ## 8. Out of scope
 
