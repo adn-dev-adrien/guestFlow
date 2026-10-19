@@ -90,3 +90,16 @@ test('rule 37: a refused variable is said under its field with the fix; the emai
   fireEvent.click(screen.getByRole('button', { name: 'Remplacer' }));
   await waitFor(() => expect(screen.getByLabelText('Dans le logement — français')).toHaveValue('Café {{clientFirstName}}'));
 });
+
+test('review of PR #723 (L5): a sentence whose field is folded away unfolds it first', async () => {
+  asDesktop(true);
+  const sections = TEXTS.sections.map((s) => (s.id !== 'j2' ? s : {
+    ...s, items: s.items.map((i) => (i.key === 'access:1' ? { ...i, fr: 'Portail vert.', used: false } : { ...i, used: true })),
+  }));
+  api.getEmailTexts.mockResolvedValue({ ...TEXTS, sections });
+  api.previewEmailDraft.mockResolvedValue({ ...TAGGED, segments: [...TAGGED.segments, { text: '\n\nPortail vert.', key: 'access:1' }] });
+  renderAt(EmailTextsSettingsPage);
+  fireEvent.click(await screen.findByRole('button', { name: 'Modifier : Portail vert.' }, SLOW));
+  await waitFor(() => expect(screen.getByRole('button', { name: /Phrases non utilisées/ })).toHaveAttribute('aria-expanded', 'true'));
+  await waitFor(() => expect(document.getElementById('access:1-fr')).toHaveFocus());
+});

@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { setup, call } = require('./emailTextsFixture');
+const { seedReservation } = require('./guestEmailSequenceFixtures');
 const { templateWhen, describeWhen } = require('../utils/templateWhen');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const { buildController } = require('../controllers/emailTemplatesController');
@@ -44,4 +45,50 @@ test('rule 39: POST /when answers the offset, the sentence and the day for the n
   const refused = await call(controller.when, { body: { days: '120', direction: 'before' } });
   assert.equal(refused.status, 422);
   assert.deepEqual(refused.body, { field: 'days', message: '90 jours au plus.' });
+});
+
+test('rule 39: a write carrying « when » stores the offset the server reads, never one the page sent', async () => {
+  const { db } = setup();
+  const model = emailTemplatesModel.buildModel(db);
+  const controller = buildController(model, { read: () => ({}) });
+  const own = model.insert({ name: 'Promo', subject: 'S', body: 'B', dayOffset: -3, sendMode: 'manual' });
+  const saved = await call(controller.update, { params: { id: own.id }, body: { dayOffset: -3, when: { days: '12', direction: 'before' } } });
+  assert.equal(saved.status, 200);
+  assert.equal(model.findById(own.id).dayOffset, -12);
+  const refused = await call(controller.update, { params: { id: own.id }, body: { when: { days: '120', direction: 'before' } } });
+  assert.equal(refused.status, 422);
+  assert.deepEqual(refused.body, { field: 'days', message: '90 jours au plus.' });
+  const created = await call(controller.create, { body: { name: 'N', subject: 'S', body: 'B', sendMode: 'manual', when: { days: '', direction: 'same' } } });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.dayOffset, 0);
+});
+
+test('rule 39: a moment the application fixes is refused, read and written alike', async () => {
+  const { db, templateId } = setup();
+  const controller = buildController(emailTemplatesModel.buildModel(db), { read: () => ({}) });
+  const thanks = templateId('guest_thanks_j1');
+  const read = await call(controller.when, { body: { templateId: thanks, days: '1', direction: 'after' } });
+  assert.equal(read.status, 422);
+  assert.equal(read.body.message, 'Moment fixé par l’application : il ne se règle pas ici.');
+  const write = await call(controller.update, { params: { id: thanks }, body: { when: { days: '3', direction: 'after' } } });
+  assert.equal(write.status, 422);
+  const reminder = db.prepare("SELECT id FROM email_templates WHERE stableKey = 'balance_reminder'").get();
+  if (reminder) {
+    const due = await call(controller.when, { body: { templateId: reminder.id, days: '4', direction: 'after' } });
+    assert.equal(due.body.sentence, 'Envoyé 4 jours après l’échéance du solde');
+  }
+});
+
+test('rule 39: the example names a stay the offset still reaches, its year when it is not this one', async () => {
+  const { db } = setup({ withStay: false });
+  const iso = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  seedReservation(db, { startDate: iso(3), endDate: iso(5) });
+  seedReservation(db, { startDate: iso(400), endDate: iso(402) });
+  const controller = buildController(emailTemplatesModel.buildModel(db), { read: () => ({}) });
+  const near = await call(controller.when, { body: { days: '2', direction: 'before' } });
+  assert.match(near.body.example, /^Prochain séjour \(Le Gîte, /);
+  assert.doesNotMatch(near.body.example, new RegExp(` ${new Date().getFullYear() + 1}\\b`));
+  // Seven days before an arrival in three days is already past: the next stay it reaches is next year's.
+  const far = await call(controller.when, { body: { days: '7', direction: 'before' } });
+  assert.match(far.body.example, new RegExp(`envoyé le \\w+ \\d+(er)? \\S+ ${iso(393).slice(0, 4)}\\.$`));
 });

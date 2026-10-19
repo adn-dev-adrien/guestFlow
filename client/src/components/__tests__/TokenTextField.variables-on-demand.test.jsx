@@ -28,12 +28,11 @@ test('no chip wall: the variables are behind « + Variable »', () => {
   expect(screen.getByRole('button', { name: 'Variable' })).toBeInTheDocument();
 });
 
-test('the [ key opens the list at the field; typing filters it, Entrée inserts', () => {
+test('a typed [ stays in the text and opens the list there; typing filters it, Entrée replaces the [', () => {
   render(<Harness language="fr" />);
   const field = screen.getByLabelText('Arrivée — français');
-  field.focus();
-  field.setSelectionRange(8, 8);
-  fireEvent.keyDown(field, { key: '[' });
+  fireEvent.change(field, { target: { value: 'Bonjour [' } });
+  expect(last.fr).toBe('Bonjour [');
   const search = screen.getByRole('combobox', { name: 'Chercher une variable' });
   fireEvent.change(search, { target: { value: 'pré' } });
   expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Prénom du voyageur']);
@@ -42,13 +41,22 @@ test('the [ key opens the list at the field; typing filters it, Entrée inserts'
   expect(screen.queryByRole('combobox')).toBeNull();
 });
 
-test('Échap closes the list without inserting anything', () => {
+test('Échap closes the list and keeps the typed [', () => {
   render(<Harness language="fr" />);
   const field = screen.getByLabelText('Arrivée — français');
-  fireEvent.keyDown(field, { key: '[' });
+  fireEvent.change(field, { target: { value: 'Bonjour [' } });
   fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' });
   expect(screen.queryByRole('combobox')).toBeNull();
-  expect(last.fr).toBe('Bonjour ');
+  expect(last.fr).toBe('Bonjour [');
+});
+
+test('a [ composed by an input method does not open the list', () => {
+  render(<Harness language="fr" />);
+  const field = screen.getByLabelText('Arrivée — français');
+  const event = new InputEvent('input', { bubbles: true, isComposing: true });
+  Object.defineProperty(event, 'target', { value: Object.assign(field, { value: 'Bonjour [' }) });
+  fireEvent(field, event);
+  expect(screen.queryByRole('combobox')).toBeNull();
 });
 
 test('a refusal shows under its field with the server’s suggestion; « Remplacer » fixes the text', () => {

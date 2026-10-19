@@ -65,7 +65,30 @@ test('a valid sentence shows the day it would leave and saves the server’s off
   fireEvent.click(await screen.findByRole('option', { name: 'après' }));
   expect(await screen.findByText(/envoyé le lundi 26 octobre/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(2, expect.objectContaining({ dayOffset: 3 })));
+  // The sentence itself is saved; the server reads it (no offset kept from an earlier answer).
+  await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(2, expect.objectContaining({ when: { days: '3', direction: 'after' } })));
+  expect(api.updateEmailTemplate.mock.calls[0][1]).not.toHaveProperty('dayOffset');
+});
+
+test('« Enregistrer » waits while a reading is on its way; a late answer to an earlier reading is dropped', async () => {
+  let resolveFirst;
+  api.describeTemplateWhen
+    .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
+    .mockResolvedValueOnce({ offsetDays: -12, sentence: 'Envoyé 12 jours avant l’arrivée', example: 'Douze.' });
+  renderPage();
+  fireEvent.click(await screen.findByRole('button', { name: 'Modifier : Promo' }));
+  const days = await screen.findByLabelText('Nombre de jours');
+  fireEvent.change(days, { target: { value: '3' } });
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+  await waitFor(() => expect(api.describeTemplateWhen).toHaveBeenCalledTimes(1));
+  fireEvent.change(days, { target: { value: '12' } });
+  expect(await screen.findByText('Douze.')).toBeInTheDocument();
+  resolveFirst({ offsetDays: -3, sentence: 'x', example: 'Trois.' });
+  await new Promise((r) => setTimeout(r, 50));
+  expect(screen.queryByText('Trois.')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).not.toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(2, expect.objectContaining({ when: { days: '12', direction: 'before' } })));
 });
 
 test('a shipped email counted by the sequence reads its moment as a fixed sentence', async () => {

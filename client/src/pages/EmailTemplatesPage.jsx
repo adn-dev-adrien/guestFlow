@@ -69,6 +69,8 @@ export default function EmailTemplatesPage() {
   const [when, setWhen] = useState({ days: '7', direction: 'before', error: '', example: '' });
   const [language, setLanguage] = useState('fr');
   const whenTimer = useRef(null);
+  // Only the last reading counts: an earlier answer arriving late is dropped (rule 39).
+  const whenSeq = useRef(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const { showError } = useToast();
@@ -189,6 +191,8 @@ export default function EmailTemplatesPage() {
   };
 
   const handleOpen = (row) => {
+    whenSeq.current += 1;
+    clearTimeout(whenTimer.current);
     if (row) {
       setForm({
         id: row.id,
@@ -216,31 +220,48 @@ export default function EmailTemplatesPage() {
 
   const handleClose = () => { setOpen(false); setFieldError(null); };
 
-  // Rule 39 — the server reads « Envoyé [n] jours [avant|après] … », answers the offset, or refuses
-  // under the number; the save waits for a valid reading.
+  // Rule 39 — the server reads « Envoyé [n] jours [avant|après] … », answers the example or refuses
+  // under the number. « Enregistrer » waits for the reading, and the save sends the sentence itself
+  // (`when`): the server stores the offset it reads, never one kept from an earlier answer.
   const changeWhen = (next) => {
-    setWhen((w) => ({ ...w, ...next }));
+    const seq = whenSeq.current + 1;
+    whenSeq.current = seq;
+    setWhen((w) => ({ ...w, ...next, pending: true, touched: true }));
     clearTimeout(whenTimer.current);
     whenTimer.current = setTimeout(async () => {
       try {
         const r = await api.describeTemplateWhen({ templateId: form.id || undefined, days: next.days, direction: next.direction });
-        setForm((f) => ({ ...f, dayOffset: r.offsetDays }));
-        setWhen((w) => ({ ...w, error: '', example: r.example || r.sentence }));
+        if (whenSeq.current !== seq) return;
+        setWhen((w) => ({ ...w, pending: false, error: '', example: r.example || r.sentence }));
       } catch (e) {
-        setWhen((w) => ({ ...w, error: e.message || 'Moment invalide.', example: '' }));
+        if (whenSeq.current !== seq) return;
+        setWhen((w) => ({ ...w, pending: false, error: e.message || 'Moment invalide.', example: '' }));
       }
     }, WHEN_DELAY_MS);
   };
   useEffect(() => () => clearTimeout(whenTimer.current), []);
 
+  // The owner's rule: no guest email leaves without validation unless it is said, once, explicitly.
+  const confirmAuto = () => confirm({
+    title: 'Envoi automatique',
+    message: 'Cet email partira sans validation, à sa date.',
+    confirmLabel: 'Envoyer automatiquement',
+    confirmColor: 'warning',
+  });
+
   const handleSave = async () => {
+    const wasAuto = Boolean(form.id) && (groups.flatMap((g) => g.templates).find((t) => t.id === form.id) || {}).sendMode === 'auto';
+    if (form.sendMode === 'auto' && !wasAuto && !(await confirmAuto())) return;
+    const editableWhen = !form.when || form.when.editable;
     const payload = {
       name: String(form.name || '').trim(),
       subject: String(form.subject || ''),
       body: String(form.body || ''),
       subjectEn: String(form.subjectEn || ''),
       bodyEn: String(form.bodyEn || ''),
-      dayOffset: Number(form.dayOffset || 0),
+      ...(editableWhen && (when.touched || !form.id)
+        ? { when: { days: when.days, direction: when.direction } }
+        : (form.id ? {} : { dayOffset: Number(form.dayOffset || 0) })),
       sendMode: form.sendMode || 'manual',
       enabled: !!form.enabled,
     };
@@ -257,6 +278,10 @@ export default function EmailTemplatesPage() {
     } catch (e) {
       // specs/guest-email-texts-made-simple.md rules 27, 37 — a broken variable or condition is refused
       // by the server and named under its field, with the closest variable as a fix.
+      if (e?.field === 'days' || e?.field === 'direction' || e?.field === 'when') {
+        setWhen((w) => ({ ...w, error: e.message, example: '' }));
+        return;
+      }
       if (e?.field && ['subject', 'body', 'subjectEn', 'bodyEn'].includes(e.field)) {
         setFieldError({ field: e.field, message: e.message, unknown: e.unknown, suggestion: e.suggestion });
         return;
@@ -292,6 +317,7 @@ export default function EmailTemplatesPage() {
   };
 
   const handleToggleMode = async (row) => {
+    if (row.sendMode !== 'auto' && !(await confirmAuto())) return;
     try {
       await api.updateEmailTemplate(row.id, { sendMode: row.sendMode === 'auto' ? 'manual' : 'auto' });
       await Promise.all([reload(), reloadPending()]);
@@ -397,13 +423,13 @@ export default function EmailTemplatesPage() {
         )}
         <Menu anchorEl={menu ? menu.anchorEl : null} open={Boolean(menu)} onClose={() => setMenu(null)}>
           {menu && [
-            <MenuItem key="mode" onClick={() => { const { row } = menu; setMenu(null); handleToggleMode(row); }}>
-              {menu.row.sendMode === 'auto' ? 'Revenir à l’envoi manuel' : 'Envoi automatique'}
-            </MenuItem>,
             <MenuItem key="edit" onClick={() => { const { row } = menu; setMenu(null); handleOpen(row); }}>Modifier le modèle</MenuItem>,
             menu.row.textsSection && (
               <MenuItem key="texts" onClick={() => { const { row } = menu; setMenu(null); navigate(`/settings/emails/textes#${row.textsSection}`); }}>Modifier les textes</MenuItem>
             ),
+            <MenuItem key="mode" onClick={() => { const { row } = menu; setMenu(null); handleToggleMode(row); }}>
+              {menu.row.sendMode === 'auto' ? 'Revenir à l’envoi manuel' : 'Envoi automatique…'}
+            </MenuItem>,
             <Divider key="d" />,
             menu.row.shipped ? (
               <MenuItem key="del" disabled>
@@ -458,7 +484,7 @@ export default function EmailTemplatesPage() {
         onClose={handleClose}
         title={form.id ? (form.displayName || 'Modifier le modèle') : 'Nouveau modèle'}
         onSubmit={handleSave}
-        submitDisabled={!form.name || !form.subject || !form.body || Boolean(when.error)}
+        submitDisabled={!form.name || !form.subject || !form.body || Boolean(when.error) || Boolean(when.pending)}
         maxWidth="md"
       >
         <Stack spacing={2} sx={{ pt: 1 }}>

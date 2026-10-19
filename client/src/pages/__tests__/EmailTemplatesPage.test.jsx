@@ -50,7 +50,10 @@ vi.mock('react-router', async (importOriginal) => {
 });
 
 import api from '../../api';
+import { useAppDialogs } from '../../components/DialogProvider';
 import EmailTemplatesPage from '../EmailTemplatesPage';
+
+const dialogs = useAppDialogs();
 
 // The server's shapes (specs/guest-email-texts-made-simple.md rules 39–40): one name, the « Quand ».
 const REGISTRY_ROW = {
@@ -79,6 +82,8 @@ const PENDING_ROW = {
 
 beforeEach(() => {
   Object.values(api).forEach((m) => m?.mockReset?.());
+  dialogs.confirm.mockClear();
+  dialogs.confirm.mockResolvedValue(true);
   navigate.mockReset();
   api.getEmailTemplatesTimeline.mockResolvedValue(TIMELINE);
   api.getEmailTemplates.mockResolvedValue([REGISTRY_ROW, CUSTOM_ROW]);
@@ -173,12 +178,25 @@ test('rule 40: « Supprimer » sits in « ⋯ »; a shipped email cannot be dele
   expect(screen.queryByRole('heading', { name: 'Bienvenue' })).not.toBeInTheDocument();
 });
 
-test('rule 40: « Envoi automatique » from « ⋯ »', async () => {
+test('rule 40: « Envoi automatique… » from « ⋯ », after its confirmation, never as the first item', async () => {
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
-  await user.click(screen.getByRole('menuitem', { name: 'Envoi automatique' }));
+  const items = screen.getAllByRole('menuitem');
+  expect(items[0]).toHaveTextContent('Modifier le modèle');
+  await user.click(screen.getByRole('menuitem', { name: 'Envoi automatique…' }));
+  expect(dialogs.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: 'Cet email partira sans validation, à sa date.' }));
   await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalledWith(1, { sendMode: 'auto' }));
+});
+
+test('rule 40: a refused confirmation keeps the email manual', async () => {
+  const user = userEvent.setup();
+  dialogs.confirm.mockResolvedValueOnce(false);
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Envoi automatique…' }));
+  await waitFor(() => expect(dialogs.confirm).toHaveBeenCalled());
+  expect(api.updateEmailTemplate).not.toHaveBeenCalled();
 });
 
 test('toggling the enabled switch does NOT open the edit dialog', async () => {

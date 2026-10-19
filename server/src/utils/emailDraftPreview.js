@@ -22,7 +22,7 @@ const { answeredFlag, withoutPending, FLAG_FACTS } = require('./propertyFacts');
 const { sectionOfStableKey, templateAllowed, tokenError } = require('./templateTokens');
 const { localIsoDate } = require('./localDate');
 const stayTextsModel = require('../models/stayTextsModel');
-const { tagText, split, strip } = require('./previewTags');
+const { tagText, split } = require('./previewTags');
 
 const SETTINGS_KEYS = ['companyName', 'companyPhone', 'smtpFromName'];
 const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
@@ -234,14 +234,18 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
         // Rule 38 — the count follows what is typed: it is read on the draft, before the tags.
         const toTranslate = emailTextsModel.countToTranslate(emailTextsModel.buildModel(database).list({ propertyId: propertyId || stayProperty }));
         const notice = lang === 'en' ? englishNotice(template, stayProperty) : null;
-        tagStoredTexts();
+        // The email as it is sent, rendered before any tag: what `body` carries, always.
         const preview = buildPreview(id, template.id, {}, lang, { settings });
         if (preview.error) { outcome = { error: preview.error, status: preview.status }; throw new Rollback(); }
-        const { plain, segments } = split(preview.body);
+        // Rule 41 — the same email with every text tagged; its segments are kept only when they read
+        // exactly as the email sent, else the email is shown whole, not clickable.
+        tagStoredTexts();
+        const tagged = split(buildPreview(id, template.id, {}, lang, { settings }).body || '');
+        const segments = tagged.plain === preview.body ? tagged.segments : [{ text: preview.body, key: null }];
         outcome = {
           payload: {
-            subject: strip(preview.subject),
-            body: plain,
+            subject: preview.subject,
+            body: preview.body,
             segments,
             subjectKey: template.stableKey ? `subject:${template.stableKey}` : null,
             lang,

@@ -9,12 +9,12 @@ const { setup, call } = require('./emailTextsFixture');
 const { tagText, split, strip, hasTag } = require('../utils/previewTags');
 const { tokenError, templateAllowed } = require('../utils/templateTokens');
 
-const TAG = /[-]/;
+const TAG = /[\uE000-\uE002]/;
 
 test('rule 41: a tagged text renders the same words; the conditions and the spaces stay outside the tags', () => {
   const tagged = tagText('  Café offert.{{#if hasPrice}} Pour {{price}}.{{/if}}\n', 'text:house');
   assert.equal(strip(tagged), '  Café offert.{{#if hasPrice}} Pour {{price}}.{{/if}}\n');
-  assert.ok(tagged.startsWith('  text:houseCafé offert.{{#if hasPrice}} '));
+  assert.ok(tagged.startsWith('  \uE000text:house\uE001Café offert.\uE002{{#if hasPrice}} \uE000'));
   assert.equal(tagText('', 'text:house'), '');
   assert.equal(tagText('{{#if hasPrice}}{{price}}{{/if}}', 'text:x'), '{{#if hasPrice}}{{price}}{{/if}}', 'no words, no tag');
   assert.equal(hasTag(tagged), true);
@@ -83,6 +83,25 @@ test('rule 41: the test send and the real send carry no tag', async () => {
 });
 
 test('rule 41: the tag characters are refused in anything typed', () => {
-  const refusal = tokenError('fr', 'Bonjour text:x', templateAllowed());
-  assert.equal(refusal.message, 'Variable incomplète : la remettre depuis les boutons.');
+  const refusal = tokenError('fr', 'Bonjour \uE000text:x\uE001', templateAllowed());
+  assert.equal(refusal.message, 'Caractère invisible collé dans le texte : le retirer.');
+});
+
+test('rule 41: a lone tag character a value carried stays text', () => {
+  const { plain, segments } = split(`Nom bizarre et  fin ${tagText('Phrase.', 'text:house')}`);
+  assert.equal(plain, 'Nom bizarre et  fin Phrase.');
+  assert.deepEqual(segments.map((s) => s.key), [null, 'text:house']);
+});
+
+test('rule 41: an empty first name before punctuation reads « Bonjour, » in the preview as in the send', async () => {
+  const { db, emails, reservationId, templateId } = setup();
+  db.prepare("UPDATE clients SET firstName = '' WHERE id = 1").run();
+  for (const stableKey of ['arrival_reminder_1d', 'arrival_reminder_7d']) {
+    const id = templateId(stableKey);
+    const res = await call(emails.previewDraft, { body: { templateId: id, reservationId } });
+    const sent = emails.buildPreview(reservationId, id, {}, 'fr');
+    assert.equal(res.body.body, sent.body);
+    assert.match(res.body.body, /^Bonjour,/);
+    assert.equal(res.body.segments.map((s) => s.text).join(''), res.body.body);
+  }
 });

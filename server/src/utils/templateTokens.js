@@ -308,6 +308,8 @@ function singleBraced(text, { tokens = [], flags = [] } = {}) {
   return false;
 }
 
+const TAG_CHARACTER_MESSAGE = 'Caractère invisible collé dans le texte : le retirer.';
+
 /**
  * Rule 11 — the one validation of the three editors: a broken variable or condition (rule 26), else
  * the first unknown name of a text, as the 422 body `{ field, message }`, or null.
@@ -315,7 +317,8 @@ function singleBraced(text, { tokens = [], flags = [] } = {}) {
 function tokenError(field, text, allowed) {
   // Rule 26 — a broken variable or condition first: the renderer would print it as it is.
   // Rule 41 — the preview's private tag characters never enter a stored text, so none can be sent.
-  const broken = structureError(text) || (singleBraced(text, allowed) || /[\uE000-\uE002]/.test(String(text || '')) ? 'brace' : null);
+  if (/[\uE000-\uE002]/.test(String(text || ''))) return { field, message: TAG_CHARACTER_MESSAGE };
+  const broken = structureError(text) || (singleBraced(text, allowed) ? 'brace' : null);
   if (broken) return { field, message: STRUCTURE_MESSAGES[broken] };
   const name = unknownToken(text, allowed);
   if (name == null) return null;

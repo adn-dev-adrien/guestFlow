@@ -81,6 +81,8 @@ export default function EmailTextsSettingsPage() {
   // Rule 41 — the text whose sentence is highlighted in the preview, and the one opened in the phone's sheet.
   const [activeKey, setActiveKey] = useState(null);
   const [sheetKey, setSheetKey] = useState(null);
+  const [focusKey, setFocusKey] = useState(null);
+  const [unusedOpen, setUnusedOpen] = useState('');
   // Bumped on every load, so the preview re-renders what was just saved or imported.
   const [revision, setRevision] = useState(0);
 
@@ -268,18 +270,36 @@ export default function EmailTextsSettingsPage() {
   // ---- rule 41: a sentence of the preview opens its field
   const allItems = data.sections.flatMap((s) => s.items);
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // A text folded away (its section closed, or under « Phrases non utilisées ») is unfolded first, then
+  // reached once its field is shown.
   function openText(key) {
     const item = allItems.find((i) => i.key === key);
     if (!item) return;
     setActiveKey(key);
     if (!desktop) { setSheetKey(key); return; }
-    requestAnimationFrame(() => {
-      const field = document.getElementById(`${key}-${language}`);
-      if (!field) return;
+    const owner = data.sections.find((s) => s.items.some((i) => i.key === key));
+    if (owner && owner.id !== open) setOpen(owner.id);
+    if (owner && item.used === false) setUnusedOpen(owner.id);
+    setFocusKey({ key });
+  }
+  useEffect(() => {
+    if (!focusKey) return undefined;
+    let tries = 0;
+    let timer;
+    // Waits (up to ~0.6 s) for the unfolding to show the field.
+    const reach = () => {
+      const field = document.getElementById(`${focusKey.key}-${language}`);
+      tries += 1;
+      if (!field || (field.offsetParent === null && tries < 12)) {
+        if (tries < 12) timer = setTimeout(reach, 50);
+        return;
+      }
       field.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
       field.focus({ preventScroll: true });
-    });
-  }
+    };
+    timer = setTimeout(reach, 0);
+    return () => clearTimeout(timer);
+  }, [focusKey, language, reducedMotion]);
 
   const pane = (
     <EmailPreviewPane
@@ -471,7 +491,13 @@ export default function EmailTextsSettingsPage() {
                     {s.items.filter((i) => i.used !== false).map(fieldOf)}
                     {/* Rule 25 — sentences the stored template never places, out of the way. */}
                     {s.items.some((i) => i.used === false) && (
-                      <Accordion disableGutters variant="outlined" sx={{ bgcolor: 'background.default' }}>
+                      <Accordion
+                        disableGutters
+                        variant="outlined"
+                        expanded={unusedOpen === s.id}
+                        onChange={(e, expanded) => setUnusedOpen(expanded ? s.id : '')}
+                        sx={{ bgcolor: 'background.default' }}
+                      >
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                           <Typography variant="body2" color="text.secondary">
                             {`Phrases non utilisées par le modèle (${s.items.filter((i) => i.used === false).length})`}

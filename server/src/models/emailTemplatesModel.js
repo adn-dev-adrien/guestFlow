@@ -13,7 +13,7 @@
  *   insert(payload)       → created row (stableKey NOT writable from outside the seed)
  *   update(id, payload)   → updated row; missing keys preserve existing values
  *   remove(id)            → boolean (true when a row was deleted)
- *   nextStay(today)       → { startDate, endDate, propertyName } | null — the « Quand ? » example
+ *   nextStay(today, offsetDays) → { startDate, endDate, propertyName } | null — the « Quand ? » example
  */
 
 function buildModel(database) {
@@ -131,17 +131,19 @@ function buildModel(database) {
   }
 
   /**
-   * The next stay arriving on or after `today`, for the « Quand ? » example
-   * (specs/guest-email-texts-made-simple.md rule 39): `{ startDate, endDate, propertyName }` or null.
+   * The next stay this offset would still reach — its send day (arrival + `offsetDays`) today or
+   * later — for the « Quand ? » example (specs/guest-email-texts-made-simple.md rule 39):
+   * `{ startDate, endDate, propertyName }` or null.
    */
-  function nextStay(today) {
+  function nextStay(today, offsetDays = 0) {
     try {
       return database.prepare(`
         SELECT r.startDate, r.endDate, p.name AS propertyName
           FROM reservations r LEFT JOIN properties p ON p.id = r.propertyId
-         WHERE r.cancelledAt IS NULL AND COALESCE(r.kind, 'reservation') = 'reservation' AND date(r.startDate) >= date(?)
+         WHERE r.cancelledAt IS NULL AND COALESCE(r.kind, 'reservation') = 'reservation'
+           AND date(r.startDate, ? || ' days') >= date(?)
          ORDER BY r.startDate ASC LIMIT 1
-      `).get(today) || null;
+      `).get(String(Number(offsetDays) || 0), today) || null;
     } catch {
       return null;
     }

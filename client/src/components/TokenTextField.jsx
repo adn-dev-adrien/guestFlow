@@ -6,9 +6,10 @@
  * The field shows each variable by its French label (« ⟦Prénom du voyageur⟧ ») and hands the raw
  * `{{token}}` text to `onChange`; the labels come from the server.
  *
- * Variables are offered on demand (rule 37, UI/UX review 2026-10-18 decision 5): « + Variable », or the
- * `[` key in a field, opens the `VariablePicker` at the field; no chip wall. A refusal shows under the
- * field it concerns, with the server's suggestion as a one-tap « Remplacer ».
+ * Variables are offered on demand (rule 37, UI/UX review 2026-10-18 decision 5): « + Variable », or a
+ * `[` typed in a field, opens the `VariablePicker` at the field; no chip wall. The typed `[` stays in
+ * the text: picking a variable replaces it, Échap keeps it. A refusal shows under the field it
+ * concerns, with the server's suggestion as a one-tap « Remplacer ».
  *
  * Props:
  *   label                  string — the text's name, above the field(s)
@@ -60,10 +61,32 @@ export default function TokenTextField({
     setPicker({ lang, start, end: field?.selectionEnd ?? start });
   };
 
-  const closePicker = () => {
-    const lang = picker && picker.lang;
+  // Échap or a click away gives the field back, the caret where it was (after a typed `[`, kept);
+  // Tab or a blur lets the focus go on.
+  const closePicker = (reason) => {
+    const { lang, end } = picker || {};
     setPicker(null);
-    requestAnimationFrame(() => refs[lang]?.current?.focus());
+    if (reason === 'tab' || reason === 'blur') return;
+    requestAnimationFrame(() => {
+      const field = refs[lang]?.current;
+      if (!field) return;
+      field.focus();
+      if (end != null) field.setSelectionRange(end, end);
+    });
+  };
+
+  // A `[` typed in the field stays in the text and opens the list there: picking a variable replaces
+  // it, Échap keeps it (rule 37). Read on the change, not the key, so it works whatever the keyboard
+  // layout (« ⌥⇧( » on a French Mac) and never while an input method is composing.
+  const handleChange = (lang) => (e) => {
+    const next = e.target.value;
+    const previous = shown[lang] || '';
+    const pos = e.target.selectionStart;
+    onChange(lang, toRaw(next, dict));
+    const composing = e.nativeEvent && e.nativeEvent.isComposing;
+    const typedBracket = hasVariables && !composing && pos > 0 && next.length === previous.length + 1
+      && next[pos - 1] === '[' && next.slice(0, pos - 1) + next.slice(pos) === previous;
+    if (typedBracket) setPicker({ lang, start: pos - 1, end: pos });
   };
 
   const insert = (entry, kind) => {
@@ -89,11 +112,6 @@ export default function TokenTextField({
   };
 
   const handleKeyDown = (lang) => (e) => {
-    if (e.key === '[' && hasVariables && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      openPicker(lang);
-      return;
-    }
     if (e.key !== 'Backspace' && e.key !== 'Delete') return;
     const field = e.target;
     if (field.selectionStart !== field.selectionEnd) return;
@@ -143,7 +161,7 @@ export default function TokenTextField({
       id={id ? `${id}-${lang}` : undefined}
       label={language ? undefined : (lang === 'fr' ? 'Français' : 'Anglais')}
       value={shown[lang]}
-      onChange={(e) => onChange(lang, toRaw(e.target.value, dict))}
+      onChange={handleChange(lang)}
       onFocus={() => { setFocused(lang); if (onFocus) onFocus(lang); }}
       onSelect={handleSelect(lang)}
       onKeyDown={handleKeyDown(lang)}

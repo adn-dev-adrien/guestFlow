@@ -10,19 +10,22 @@
  *
  * `tagText` wraps each piece of a stored text that holds words — the parts between its conditions —
  * leaving its spaces outside, so a condition left false, a trimmed paragraph or an empty text renders
- * exactly as it does untagged. `split` then turns a rendered email back into `{ text, plain }`: the
- * segments the page shows and the plain text, identical to what is sent.
+ * exactly as it does untagged. `split` then turns a rendered email back into `{ plain, segments }`.
+ * The preview sends the email rendered without tags, and keeps the segments only when their plain
+ * text is exactly that email (a value carrying one of the characters, any surprise: not clickable).
  *
  * Only utils/emailDraftPreview.js tags, inside its rolled-back transaction: a tagged text never
  * reaches the database, the send path or a guest. The shared validator refuses the three characters
  * in anything typed (utils/templateTokens.js), and tests pin both.
  */
 
-const OPEN = '';
-const SEP = '';
-const CLOSE = '';
-const TAG_CHARS = /[-]/;
-const TAG_CHARS_ALL = /[-]/g;
+const OPEN = '\uE000';
+const SEP = '\uE001';
+const CLOSE = '\uE002';
+const TAG_CHARS = /[\uE000-\uE002]/;
+const TAG_CHARS_ALL = /[\uE000-\uE002]/g;
+// A text key of the page (§4.3): `text:house@1`, `mention:4:booked`, `subject:arrival_reminder_1d`…
+const KEY_RE = /^[a-z]+:[^\s\uE000-\uE002]+$/;
 
 // A condition's own pieces: `{{#if x}}`, `{{else}}`, `{{/if}}`.
 const CONDITION_RE = /(\{\{\s*(?:#if\s+[A-Za-z0-9_]+|else|\/if)\s*\}\})/;
@@ -59,16 +62,17 @@ function split(tagged) {
   };
   for (let i = 0; i < source.length; i += 1) {
     const ch = source[i];
-    if (ch === OPEN) {
+    const end = ch === OPEN ? source.indexOf(SEP, i + 1) : -1;
+    const key = end > 0 ? source.slice(i + 1, end) : '';
+    if (ch === OPEN && KEY_RE.test(key)) {
       flush();
-      const end = source.indexOf(SEP, i + 1);
-      if (end < 0) break;
-      stack.push(source.slice(i + 1, end));
+      stack.push(key);
       i = end;
-    } else if (ch === CLOSE) {
+    } else if (ch === CLOSE && stack.length) {
       flush();
       stack.pop();
-    } else if (ch !== SEP) {
+    } else {
+      // A lone opener, closer or separator — one a value carried — is text like any other.
       buffer += ch;
     }
   }

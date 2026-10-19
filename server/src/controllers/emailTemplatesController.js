@@ -118,23 +118,49 @@ function buildController(model, settingsModel, deps = {}) {
     return res.json(rows);
   }
 
-  // POST /api/email-templates/when — « Envoyé [n] jours [avant|après|le jour même de] <ancre> » read
-  // live (rule 39): the signed offset, the sentence, and the day it would leave for the next stay.
+  /**
+   * « Envoyé [n] jours [avant|après|le jour même de] … » read against a template's own moment (rule 39):
+   * the signed offset and the sentence, or a refusal `{ field, message }`. A moment the scheduler
+   * does not count from the offset (the sequence, an action) is not set here.
+   */
+  function readWhen(template, when) {
+    const row = template || { stableKey: null, anchor: 'start', dayOffset: 0 };
+    const current = templateWhen(row);
+    if (!current.editable) return { ok: false, field: 'when', message: 'Moment fixé par l’application : il ne se règle pas ici.' };
+    return describeWhen({ days: when && when.days, direction: when && when.direction, anchor: current.anchor });
+  }
+
+  // POST /api/email-templates/when — the sentence read live, with the day it would leave for the next
+  // stay it still reaches (rule 39).
   function when(req, res) {
     const body = req.body || {};
     const template = body.templateId ? model.findById(body.templateId) : null;
-    const anchor = template ? String(template.anchor || 'start') : 'start';
-    const result = describeWhen({ days: body.days, direction: body.direction, anchor });
+    if (body.templateId && !template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    const result = readWhen(template, body);
     if (!result.ok) return res.status(422).json({ field: result.field, message: result.message });
     let example = null;
-    const stay = anchor === 'start' && typeof model.nextStay === 'function' ? model.nextStay(today()) : null;
+    const anchor = template ? String(template.anchor || 'start') : 'start';
+    const day = today();
+    const stay = anchor === 'start' && typeof model.nextStay === 'function' ? model.nextStay(day, result.offsetDays) : null;
     if (stay && stay.startDate) {
+      const year = Number(day.slice(0, 4));
       const start = String(stay.startDate).slice(0, 10);
       const [y, m, d] = start.split('-').map(Number);
       const send = new Date(Date.UTC(y, m - 1, d + result.offsetDays)).toISOString().slice(0, 10);
-      example = `Prochain séjour (${[stay.propertyName, `${weekdayLabel(start)} au ${weekdayLabel(String(stay.endDate || '').slice(0, 10))}`].filter(Boolean).join(', ')}) : envoyé le ${weekdayLabel(send)}.`;
+      const stayLabel = `${weekdayLabel(start, year)} au ${weekdayLabel(String(stay.endDate || '').slice(0, 10), year)}`;
+      example = `Prochain séjour (${[stay.propertyName, stayLabel].filter(Boolean).join(', ')}) : envoyé le ${weekdayLabel(send, year)}.`;
     }
     return res.json({ offsetDays: result.offsetDays, sentence: result.sentence, example });
+  }
+
+  // A `when` in a write is read by the server (rule 39): the offset stored is the one it answers, never
+  // one a page computed or kept from an earlier reading.
+  function withWhen(template, body) {
+    if (!body || body.when === undefined) return { ok: true, body };
+    const result = readWhen(template, body.when);
+    if (!result.ok) return result;
+    const { when: ignored, ...rest } = body;
+    return { ok: true, body: { ...rest, dayOffset: result.offsetDays } };
   }
 
   // GET /api/email-templates/plugin-variables — the live plugins' variables and conditions.
@@ -158,6 +184,9 @@ function buildController(model, settingsModel, deps = {}) {
   }
 
   function create(req, res) {
+    const read = withWhen(null, req.body);
+    if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
+    req.body = read.body;
     const errors = validateForCreate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
     const unknown = templateTokenError(req.body);
@@ -180,6 +209,9 @@ function buildController(model, settingsModel, deps = {}) {
   function update(req, res) {
     const existing = model.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    const read = withWhen(existing, req.body);
+    if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
+    req.body = read.body;
     const errors = validateForUpdate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
     const unknown = templateTokenError(req.body);
