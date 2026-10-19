@@ -301,8 +301,51 @@ export function rulesChangedInDiff(diff, specsNow) {
   };
 }
 
+// Règle 14 : une spec « Draft » n'est pas encore livrée — ses règles décrivent ce qu'on va
+// construire, pas ce qui existe. Elles ne bloquent pas tant que la spec est Draft ; la PR qui la
+// fait sortir de Draft doit les couvrir TOUTES, qu'elle touche ou non leurs lignes. Sans cette
+// seconde moitié, une spec écrite en Draft puis passée « Implemented » ne serait jamais vérifiée.
+export function isDraft(markdown) {
+  const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
+  return Boolean(status && /^\s*draft\b/i.test(status[1]));
+}
+
+/**
+ * Applique la règle 14 au résultat de `rulesChangedInDiff`. `drafts` : les specs Draft après le
+ * changement ; `promoted` : nom → règles des specs qui étaient Draft avant et ne le sont plus.
+ */
+export function applyDraftStatus({ addedRules = [], modifiedRules = [] } = {}, { drafts = new Set(), promoted = new Map() } = {}) {
+  const keep = (r) => !drafts.has(r.spec);
+  const added = addedRules.filter(keep);
+  for (const [spec, rules] of promoted) {
+    for (const rule of rules) {
+      if (!added.some((a) => a.spec === spec && a.rule === rule.id)) added.push({ spec, rule: rule.id, exempt: Boolean(rule.exempt) });
+    }
+  }
+  const promotedNames = new Set(promoted.keys());
+  return {
+    addedRules: added,
+    modifiedRules: modifiedRules.filter((r) => keep(r) && !promotedNames.has(r.spec)),
+  };
+}
+
 function changedRules(base) {
-  return rulesChangedInDiff(git(['diff', '--unified=0', `${base}...HEAD`, '--', 'specs/']), readSpecs());
+  const specsNow = readSpecs();
+  const changed = rulesChangedInDiff(git(['diff', '--unified=0', `${base}...HEAD`, '--', 'specs/']), specsNow);
+  const drafts = new Set();
+  const promoted = new Map();
+  const touched = git(['diff', '--name-only', `${base}...HEAD`, '--', 'specs/']).split('\n')
+    .map((f) => f.trim()).filter((f) => /^specs\/[^/]+\.md$/.test(f));
+  for (const f of touched) {
+    const name = path.basename(f, '.md').toLowerCase();
+    let now = '';
+    try { now = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { continue; }
+    if (isDraft(now)) { drafts.add(name); continue; }
+    let before = '';
+    try { before = git(['show', `${base}:${f}`]); } catch { before = ''; }
+    if (isDraft(before) && specsNow.has(name)) promoted.set(name, specsNow.get(name));
+  }
+  return applyDraftStatus(changed, { drafts, promoted });
 }
 
 function report({ specName }) {

@@ -106,6 +106,14 @@ n'ont aucun test ?** » — et empêcher qu'une règle **nouvelle** soit livrée
     jamais la barrière. Ajouté le 2026-10-01 : la synchronisation de `master` dans `inte/plugins`
     (#649) apportait `finance-exercise-overview-charts.md`, remplacée sur `master` avec ses tests, et
     la barrière la lisait comme 14 règles neuves sans test.
+14. **Une spec « Draft » n'est pas encore livrée, et la barrière attend sa sortie de Draft.** Tant que
+    la ligne **Status** commence par « Draft », les règles ajoutées ou modifiées de cette spec ne
+    bloquent pas : elles décrivent ce qu'on va construire. La PR qui fait passer la spec de Draft à un
+    autre statut doit en revanche **toutes** les couvrir, comme si elles venaient d'être écrites — même
+    celles dont elle ne touche pas la ligne. Ajouté le 2026-10-19 : la règle « spec d'abord, puis
+    implémentation » (revue UI/UX du 18/10, arbitrage 8) produit des PR de spec seule, que la règle 8
+    rendait impossibles à passer au vert sans tests décoratifs ou sans déclarer « Sans test » des
+    règles qui en auront un.
 
 **Edge cases :**
 
@@ -131,6 +139,7 @@ n'ont aucun test ?** » — et empêcher qu'une règle **nouvelle** soit livrée
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `tests/` | `spec-rule-coverage.unit.test.js` | C | Épingle les fonctions pures du script : extraction des règles, lecture des citations, plages et suffixes, exemptions, rattachement à la spec la plus proche, et le verdict de la barrière. |
+| `tests/` | `spec-rule-coverage-draft.unit.test.js` | C | Règle 14 : `isDraft`, les règles d'une spec Draft ne bloquent pas, sa sortie de Draft les exige toutes (`applyDraftStatus`). |
 
 Rien d'autre : le serveur applicatif n'est pas concerné.
 
