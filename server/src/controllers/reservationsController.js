@@ -714,7 +714,27 @@ function storedSummaryOf(row) {
   const totalCommission = round2(acompteCommission + soldeCommission);
   const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
   const tax = round2(row.touristTaxTotal);
+  // HT / TVA of the stored total, the live summary's rule (one rate, per poste, TTC → HT), on the
+  // stored lines: options and resources as stored, the accommodation the rest of the stored price.
+  const sumOf = (sql) => { try { return round2(db.prepare(sql).get(row.id).total); } catch { return 0; } };
+  const optionsTotal = round2(sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_options WHERE reservationId = ?')
+    + sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE amount END),0) AS total FROM reservation_custom_options WHERE reservationId = ?'));
+  const resourcesTotal = sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_resources WHERE reservationId = ?');
+  const accommodation = round2(Math.max(0, Number(row.finalPrice || 0) - optionsTotal - resourcesTotal));
+  const settings = settingsModel.read() || {};
+  const vatRate = settings.vatRate != null ? Number(settings.vatRate) : 10;
+  const vatOf = (ttc) => round2(ttc * (vatRate / (100 + vatRate)));
+  const totalVatAmount = round2(vatOf(accommodation) + vatOf(optionsTotal) + vatOf(resourcesTotal));
   return {
+    accommodation,
+    accommodationBase: row.totalPrice == null ? null : round2(row.totalPrice),
+    optionsTotal,
+    resourcesTotal,
+    vatRate,
+    totalVatAmount,
+    totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),
+    depositDueDate: row.depositDueDate || null,
+    balanceDueDate: row.balanceDueDate || null,
     finalPrice: round2(row.finalPrice),
     touristTaxTotal: tax,
     touristTaxOriginalTotal: tax,
@@ -959,6 +979,15 @@ async function calculatePrice(req, res) {
       startDate: req.body.startDate,
       ...(storedRow ? {} : { kind: devisId > 0 ? 'devis' : 'reservation' }),
     };
+    // Rule 45 — whether today's quote differs from the stored money (amounts or due dates): the fiche
+    // then shows the stored summary, never live lines next to stored totals.
+    if (storedRow && storedRow.kind !== 'devis') {
+      const c = (v) => Math.round(round2(v) * 100);
+      quote.storedDrift = ['finalPrice', 'touristTaxTotal', 'depositAmount', 'balanceAmount', 'complementAmount']
+        .some((f) => c(quote[f]) !== c(storedRow[f]))
+        || String(quote.depositDueDate || '') !== String(storedRow.depositDueDate || '')
+        || String(quote.balanceDueDate || '') !== String(storedRow.balanceDueDate || '');
+    }
     quote.ledger = ledgerFor({
       row: storedRow,
       quote,

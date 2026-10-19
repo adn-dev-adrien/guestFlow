@@ -438,3 +438,28 @@ test('rule 44 — the fiche carries the stored money figures of the pricing summ
   assert.equal(summary.platformNetReceivedAmount, Math.round((row.balanceAmount - 46.08) * 100) / 100);
   assert.equal(summary.sejourNetTotal, res.body.storedHeadline.amount, 'the summary and the bar say the same net');
 });
+
+// Final review of #727 — a drifted stay: the stored summary carries every money figure and date as
+// stored, and the live quote says it differs (so the fiche never mixes the two).
+test('rule 45 — on a drifted stay every figure and date of the stored summary is the stored one', async () => {
+  const id = createStay();
+  db.prepare("UPDATE reservations SET finalPrice = 330, balanceAmount = round(balanceAmount + 30, 2), balanceDueDate = '2027-01-15' WHERE id = ?").run(id);
+  const row = rowOf(id);
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  require('../controllers/reservationsController').getById({ params: { id: String(id) }, user: { role: 'admin' } }, res);
+  const s = res.body.storedSummary;
+  assert.equal(s.finalPrice, row.finalPrice);
+  assert.equal(s.accommodation, 330, 'no option on the stay: the whole stored price');
+  assert.equal(s.depositAmount, row.depositAmount);
+  assert.equal(s.balanceAmount, row.balanceAmount);
+  assert.equal(s.touristTaxTotal, row.touristTaxTotal);
+  assert.equal(s.totalStayPrice, Math.round((row.finalPrice + row.touristTaxTotal) * 100) / 100);
+  assert.equal(s.totalVatAmount, 30, '10 % of 330 TTC');
+  assert.equal(s.totalNetPrice, 300);
+  assert.equal(s.depositDueDate, row.depositDueDate);
+  assert.equal(s.balanceDueDate, '2027-01-15');
+  const live = await liveQuote(id);
+  assert.equal(live.storedDrift, true, 'today\'s quote differs: the fiche shows the stored summary whole');
+  const clean = createStay();
+  assert.equal((await liveQuote(clean)).storedDrift, false);
+});

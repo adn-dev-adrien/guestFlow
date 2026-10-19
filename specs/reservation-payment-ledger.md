@@ -402,10 +402,20 @@ decimals is rounded and shown rounded.
     the Comptabilité page shows them above the journal (« À vérifier avant l'envoi au cabinet »). The
     CSV itself is unchanged.
 44. **The pricing summary follows the same switch.** `GET /api/reservations/:id` carries
-    `storedSummary`, the money figures of the stored row (price, tourist tax, échéances, commissions,
-    net, total); while the fiche shows the stored ledger (rule 7) the summary — desktop panel and phone
-    sheet — reads them over the quote, whose lines (nights, options) stay as computed. The ledger, the
-    sticky bar and the summary never show two different totals.
+    `storedSummary`, the money figures and dates of the stored row (accommodation, options,
+    resources, tourist tax, HT / TVA computed on the stored total with the live summary's rule,
+    échéances and their due dates, commissions, net, total). The ledger, the sticky bar and the summary
+    never show two different totals (see rule 45).
+
+45. **Never live lines next to stored totals.** `calculate-price` answers `storedDrift` when today's
+    quote differs from the stored row (price, tourist tax, échéances or their due dates). While the
+    fiche shows the stored ledger and the quote has drifted, the « Résumé tarifaire » (desktop panel and
+    phone sheet) is the stored one, whole (`StoredPricingSummary`): stored figures and dates only, no
+    per-night or per-option detail (the quote's lines no longer add up to the stored total), and the
+    sentence « Montants enregistrés. Le calcul actuel du séjour diffère : il s'affiche dès que la fiche
+    est modifiée. » Without drift the live summary already says the same and stays. Final review of
+    #727 (fiche 11: Total HT 1 822,66 + TVA 182,26 = 2 004,92 and « À payer avant 03/09 » next to a
+    stored 1 954,52 and « En retard depuis le 10/08 »).
 
 **Edge cases:**
 

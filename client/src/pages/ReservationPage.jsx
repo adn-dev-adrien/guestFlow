@@ -25,6 +25,7 @@ import ReservationConflictBadge from '../components/ReservationConflictBadge';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import StickyTotalBar from '../components/StickyTotalBar';
+import StoredPricingSummary from '../components/reservation/StoredPricingSummary';
 import DevisValidityChip from '../components/reservation/DevisValidityChip';
 import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
@@ -3078,9 +3079,10 @@ export default function ReservationPage() {
   // operator changes the fiche, never the live one on a locked fiche.
   const showLiveMoney = !storedLedger || (isDirty && !isReservationLocked);
   const headline = showLiveMoney ? pricingQuote?.headline : (storedHeadline || pricingQuote?.headline);
-  // Rule 44 — the pricing summary (desktop panel and phone sheet) reads the stored money figures with
-  // the same switch; its lines (nights, options) stay those of the quote.
-  const summaryQuote = (!showLiveMoney && pricingQuote && storedSummary) ? { ...pricingQuote, ...storedSummary } : pricingQuote;
+  // Rules 44-45 — while the stored ledger shows and today's quote differs from the stored money, the
+  // pricing summary (desktop panel and phone sheet) is the stored one, whole: never live lines next to
+  // stored totals. Without a difference the live summary already says the same.
+  const showStoredSummary = !showLiveMoney && Boolean(storedSummary) && Boolean(pricingQuote?.storedDrift);
   const todayIso = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
   // A new reservation dated in the past can only be recorded by an admin who unlocks it.
   const pastNewReservation = Boolean(!reservationId && !isDevisMode && form.startDate && form.startDate < todayIso);
@@ -3338,7 +3340,9 @@ export default function ReservationPage() {
     setResourceSessions,
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
-    accommodationBasePriceDisplay, pricingQuote,
+    // Rule 45 — the brut card follows the stored summary when it shows.
+    accommodationBasePriceDisplay: showStoredSummary && storedSummary.accommodationBase != null ? storedSummary.accommodationBase : accommodationBasePriceDisplay,
+    pricingQuote,
     // specs/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload
     // through the page (it owns the pipeline); the block itself holds no reservation logic.
     saveThenRun, reloadReservationFinance,
@@ -3377,9 +3381,16 @@ export default function ReservationPage() {
     form.startDate && form.endDate ? `${displayDate(form.startDate).slice(0, 5)} → ${displayDate(form.endDate).slice(0, 5)}` : '',
   ].filter(Boolean).join(' · ') || null;
 
-  const pricingSummary = (
+  const pricingSummary = showStoredSummary ? (
+    <StoredPricingSummary
+      summary={storedSummary}
+      form={form}
+      propertyLabel={selectedProperty?.label || selectedProperty?.name || ''}
+      isPlatform={isPlatformReservation}
+    />
+  ) : (
     <PricingSummary
-      quote={summaryQuote}
+      quote={pricingQuote}
       form={form}
       nightlyBreakdown={nightlyBreakdown}
       offeredOptionIds={offeredOptionIds}
