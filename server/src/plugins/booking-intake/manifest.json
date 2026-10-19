@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -25,6 +25,9 @@
     "1.1.0": [
       "Le voyageur reçoit sa propre fiche client : remplir une réservation ne renomme plus les autres séjours Booking qui partageaient le même client provisoire.",
       "Les calendriers comptés comme Booking ne se règlent plus : le flux Booking toujours, le relais Lodgify seulement tant qu’il est actif."
+    ],
+    "1.1.1": [
+      "Le script attend que la page Booking ait fini de s’afficher avant de l’envoyer : la saisie n’est plus refusée « Sous-total introuvable ». Réinstaller le script (version 2)."
     ]
   }
 }

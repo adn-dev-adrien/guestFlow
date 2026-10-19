@@ -73,9 +73,13 @@ reconciled to the payout (✓). The operator only checks the fiche.
    > (rule 25); the two buttons above come once it is created.
 3. The script runs on `https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/booking.html*`
    only. Once the page shows « Numéro de réservation », it clicks « Afficher le numéro de téléphone »
-   when present, waits for the number (≤ 2 s), reads `document.body.innerText` and the `hotel_id` /
-   `res_id` parameters, and sends **one** request per page view (guard in `sessionStorage` on
-   `res_id` + text hash).
+   when present, waits for the number (≤ 2 s), then waits until the page text has stopped changing
+   for 1.5 s (≤ 15 s), reads `document.body.innerText` and the `hotel_id` / `res_id` parameters, and
+   sends **one** request per page view (guard in `sessionStorage` on `res_id` + text hash).
+   *Why the settle wait (2026-10-16):* Booking renders the price table (« Sous-total », « Taxe de
+   séjour ») about 0.7 s after « Numéro de réservation »; the first script (`@version 1`) sent the
+   page before it and every intake was refused « Sous-total introuvable ». The wait watches the text,
+   not a label, so rule 5 holds. `@version 2` — copies installed before must be reinstalled.
 4. The request is `POST <publicUrl>/public/booking-intake/page` with the secret in the header
    `X-Booking-Intake-Key`, sent with `GM_xmlhttpRequest` (no CORS, no page CSP involved). Body
    `{ v: 1, hotelId, resId, text }`, 128 kB max.
@@ -348,7 +352,8 @@ full-width on `xs`; banner buttons likewise; settings card follows `StatusCard`.
   - `public-route.unit.test.js` (rules 1, 7): wrong / missing secret → 401 before any read, valid →
     handled, rate limit, inactive plugin → 404, body > 128 kB refused, nothing of the body in logs.
   - `userscript.unit.test.js` (rules 2–5): embeds URL and secret, `@match` limited to the extranet
-    reservation page, one request per view guard, no parsing in the script.
+    reservation page, one request per view guard, reads the page only once its text has settled, no
+    parsing in the script.
   - `own-client.unit.test.js` (rule 27, 4 cases on a real SQLite): two stays sharing the placeholder
     filled in turn each keep their guest; a shared client already carrying another guest's e-mail counts
     as untouched; « Appliquer » relinks instead of renaming; a client found by e-mail that another stay
