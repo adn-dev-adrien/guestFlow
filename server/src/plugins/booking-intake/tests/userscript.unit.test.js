@@ -37,6 +37,11 @@ test('specs/booking-extranet-intake.md rule 3: it waits for « Numéro de réser
   assert.equal([...source.matchAll(/^\s+send\(text, guard, fingerprint\);/gm)].length, 1);
 });
 
+test('specs/booking-extranet-intake.md rule 3: it reads the page only once it stopped changing — Booking renders the price table after the reservation number', () => {
+  assert.match(source, /@version\s+2\b/);
+  assert.match(source, /return settled\(1500, 15000\);\n  \}\)\.then\(function \(\) \{\n    var text = document\.body\.innerText;/);
+});
+
 test('specs/booking-extranet-intake.md rule 3: a refused page is not remembered, so a reload after the iCal import retries', () => {
   assert.match(source, /if \(!failed\) \{ try \{ sessionStorage\.setItem/);
 });
