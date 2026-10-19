@@ -7,7 +7,7 @@
  * Props:
  *   rows:            [{ key, label, amount (number|null), stateLabel, tone, action?: { label, kind },
  *                      amountEdit?: { editable, mode, reason } }]   (required)
- *   closing:         { label, amount|null } — the closing line (« Reste à percevoir » 614,40 € /
+ *   closing:         { label, amount|null, tone? } — the closing line (« Reste à percevoir » 614,40 € /
  *                    « Tout est perçu », amount null)
  *   formatAmount:    (number) → string                                   (required)
  *   onAction:        (row) → void — the row's single action
@@ -147,7 +147,7 @@ export default function LedgerList({
           sx={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1.25,
             borderTop: '2px solid', borderColor: 'divider', pt: 1.25, mt: 0.25,
-            color: closing.amount == null ? 'success.text' : 'text.primary',
+            color: closing.tone === 'muted' ? 'text.secondary' : (closing.amount == null ? 'success.text' : 'text.primary'),
           }}
           data-testid="ledger-closing"
         >

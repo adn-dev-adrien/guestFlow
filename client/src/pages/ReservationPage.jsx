@@ -379,6 +379,7 @@ export default function ReservationPage() {
   // specs/reservation-payment-ledger.md rule 7 — the STORED ledger (GET), outside the form so that
   // re-reading it never makes the fiche « modified ».
   const [storedLedger, setStoredLedger] = useState(null);
+  const [storedHeadline, setStoredHeadline] = useState(null);
   const ledgerEditMarkerRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -919,6 +920,7 @@ export default function ReservationPage() {
           setCgvBlock(res.cgv || null);
           setOnlinePayment(res.onlinePayment || null);
           setStoredLedger(res.ledger || null);
+          setStoredHeadline(res.storedHeadline || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
           setIsIcalSource(res.sourceType === 'ical');
@@ -2451,7 +2453,7 @@ export default function ReservationPage() {
         setInitialSnapshot(formSnapshot);
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => setStoredLedger(r.ledger || null)).catch(() => {});
+        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
@@ -2681,6 +2683,7 @@ export default function ReservationPage() {
     if (!editingReservationId) return;
     const res = await api.getReservation(editingReservationId);
     setStoredLedger(res.ledger || null);
+    setStoredHeadline(res.storedHeadline || null);
     const serverWritten = {
       // L'état d'encaissement du complément d'arrivée est écrit par le serveur (les boutons de la
       // carte le PATCHent immédiatement) : le relire ici évite que le formulaire et la base ne
@@ -3065,6 +3068,10 @@ export default function ReservationPage() {
   const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
   const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
   const isReservationLocked = Boolean(reservationId && existingReservationLocked && !pastUnlocked);
+  // specs/reservation-payment-ledger.md rules 7, 39 — the stored money (ledger and headline) until the
+  // operator changes the fiche, never the live one on a locked fiche.
+  const showLiveMoney = !storedLedger || (isDirty && !isReservationLocked);
+  const headline = showLiveMoney ? pricingQuote?.headline : (storedHeadline || pricingQuote?.headline);
   const todayIso = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
   // A new reservation dated in the past can only be recorded by an admin who unlocks it.
   const pastNewReservation = Boolean(!reservationId && !isDevisMode && form.startDate && form.startDate < todayIso);
@@ -3343,7 +3350,7 @@ export default function ReservationPage() {
     // and its round-trips.
     // Rule 7 (review of #727) — the stored ledger by default, the live one only once the operator has
     // changed the fiche, never on a locked one; a fiche never saved has only the live one.
-    ledger: (!storedLedger || (isDirty && !isReservationLocked)) ? (pricingQuote?.ledger || storedLedger) : storedLedger,
+    ledger: showLiveMoney ? (pricingQuote?.ledger || storedLedger) : storedLedger,
     checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
@@ -3658,11 +3665,11 @@ export default function ReservationPage() {
       {/* specs/ui-review-2026-10-19-operations.md rules 10-11 — below lg the server's headline figure
           stays on screen and opens the full summary in a sheet (decision 6: « Vous percevez » for a
           platform stay). */}
-      {pricingQuote?.headline && (
+      {headline && (
         <StickyTotalBar
-          label={pricingQuote.headline.label}
-          amount={pricingQuote.headline.amount}
-          secondary={pricingQuote.headline.secondary}
+          label={headline.label}
+          amount={headline.amount}
+          secondary={headline.secondary}
           sheetTitle="Résumé tarifaire"
           showBelow="lg"
           // The page padding of the app's main area (App.jsx): flush with the screen's edges and bottom.

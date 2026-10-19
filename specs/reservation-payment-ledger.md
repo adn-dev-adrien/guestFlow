@@ -333,8 +333,12 @@ decimals is rounded and shown rounded.
     operator changes something, and the history then records that change).
 34. **A platform payout is received with its transfer, in one PATCH.** « Marquer reçu » sends
     `platformPayoutAmount` (and `platformCommissionAmount` when « Commission solde → … » was taken)
-    with `balancePaid`: the server validates them (money ≥ 0, only together with the reception,
-    400 otherwise), writes them with the mark and records them in the history. No full save of the
+    with `balancePaid`: the server validates them (money ≥ 0, a commission never above the billed
+    amount, only on the reception itself — unpaid → paid, rule 38 — of a stay settled by a platform;
+    400 otherwise), writes them with the mark and records them in the history. « Virement reçu » is
+    prefilled with the expected net only when the commission is known; otherwise it is typed, and the
+    commission it implies is proposed from the gross (a gross prefilled as the transfer read « cohérent »
+    with a zero commission, review of #727). No full save of the
     fiche, so a past or locked stay is never re-priced to record its payout. On a locked fiche with
     unsaved edits a mark is refused in the form (« Fiche modifiée : enregistrer ou annuler les
     modifications avant de marquer un paiement. ») instead of forcing a save. The commission button
@@ -359,10 +363,31 @@ decimals is rounded and shown rounded.
     today's engine by the tourist tax) cannot have its per-line accounting split captured — its
     conservation invariant fails. The fiche's mark used to refuse the payment (409
     `CONTRIB_CAPTURE_FAILED`); it now records it like an online payment does
-    (`keepPaymentOnCaptureFailure`): flag and date written, nothing re-priced, the history says the
-    split is missing, the export uses the stored amounts, and the answer carries a warning the fiche
-    shows (« Encaissement enregistré. Ses montants diffèrent du calcul actuel du séjour : la
+    (`keepPaymentOnCaptureFailure`): flag and date written, nothing re-priced, and the bucket gets a
+    **stored-amount split** (`captureStoredSplit`): the tourist tax the export puts on that entry, the
+    pre-arrival lines pro rata of what is left to collect on them, the accommodation the rest. Without
+    it a solde recorded after a captured acompte was booked whole on 46710000 (second review of #727,
+    N1); online payments whose capture fails now get the same split. The history names the origin
+    (« Encaissement (solde) » from the fiche, « Paiement en ligne (solde) » from a link), and the answer
+    carries a warning the fiche shows (« Encaissement enregistré. Ses montants diffèrent du calcul actuel du séjour : la
     répartition comptable reprend les montants enregistrés. »).
+
+38. **A bucket already perceived is never marked again.** Marking an acompte, a solde, a complement or
+    a caution step that is already recorded is refused (409 `ALREADY_PAID`, « Le solde est déjà perçu.
+    Relire la fiche. »): a second tab or a replayed request can neither re-date it — which would move
+    its accounting entry to another month — nor rewrite its transfer or commission. Changing the date
+    of a recorded payment is an undo then a redo (rules 14, 41).
+39. **The sticky total bar follows the ledger.** `GET /api/reservations/:id` carries `storedHeadline`,
+    built from the stored row (« Vous percevez » = Finance's net: what was collected plus what remains,
+    net of commissions and refunds); the bar shows it whenever the fiche shows the stored ledger (rule
+    7), the live quote's headline otherwise.
+40. **A due end-of-stay complement stays due while the fiche is edited.** When the live quote no
+    longer carries a mid-stay sale the stored end-of-stay complement still owes (its option line is gone
+    from the fiche — Solio 22278's 50 € meal), the row keeps the stored amount and warns « « Enregistrer
+    » retirerait 50,00 € encore dus : une prestation vendue en séjour n'est plus sur la fiche ».
+41. **Redoing an undone payment proposes its date.** Each paid row carries `paidDate`; after « Annuler »
+    the mark form proposes that date instead of today, and says so when the chosen date changes the
+    accounting month (« Le mois comptable change : 03/2026 → 10/2026. »).
 
 **Edge cases:**
 

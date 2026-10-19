@@ -16,18 +16,22 @@
  *   onCancel:    () → void
  *   checkPayout: async (payout) → { gapLabel, commissionLabel, commission } — rule 26
  *   formatAmountInput: (number) → « 829,42 »
+ *   previousDate: `YYYY-MM-DD` — the date of a payment just undone on this row, proposed again
  */
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
 import DateField from '../DateField';
 import { evaluateArithmetic } from '../../utils/arithmetic';
 
-export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCancel, checkPayout, formatAmountInput }) {
+export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCancel, checkPayout, formatAmountInput, previousDate = null }) {
   const action = row.action || {};
   const payoutMode = Boolean(action.payout);
-  const [date, setDate] = useState(today);
+  // A mark redone after an undo proposes the day it was first recorded (its accounting month).
+  const [date, setDate] = useState(previousDate || today);
   const [cash, setCash] = useState(false);
-  const [payout, setPayout] = useState(payoutMode ? formatAmountInput(action.payout.expected) : '');
+  // Prefilled only when the net is known (a commission was entered): otherwise the transfer is typed —
+  // a gross prefilled as the transfer would read « cohérent » with a zero commission.
+  const [payout, setPayout] = useState(payoutMode && action.payout.expected != null ? formatAmountInput(action.payout.expected) : '');
   const [gap, setGap] = useState(null);
   const [commission, setCommission] = useState(null);
   const [error, setError] = useState({ message: '', field: null });
@@ -103,6 +107,11 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
         helperText={dateError || ' '}
         slotProps={{ inputLabel: { shrink: true } }}
       />
+      {previousDate && date && date.slice(0, 7) !== previousDate.slice(0, 7) && (
+        <Typography variant="body2" color="warning.text" sx={{ gridColumn: '1 / -1' }}>
+          {`Le mois comptable change : ${previousDate.slice(5, 7)}/${previousDate.slice(0, 4)} → ${date.slice(5, 7)}/${date.slice(0, 4)}.`}
+        </Typography>
+      )}
       {payoutMode && (
         <TextField
           label="Virement reçu (€)"

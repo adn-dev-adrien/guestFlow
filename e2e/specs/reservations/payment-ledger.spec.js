@@ -81,7 +81,7 @@ test('direct stay: set the solde, refusal in place, mark the acompte (future ref
   await expect(returned.getByRole('button', { name: /^Restituer/ })).toBeVisible({ timeout: 10_000 });
 });
 
-test('platform stay: « Marquer reçu » asks for the transfer and shows the gap', async ({ page }) => {
+test('platform stay: « Marquer reçu » asks for the transfer, typed when the commission is unknown', async ({ page }) => {
   const property = await createProperty({ name: 'E2E ledger platform villa' });
   const client = await createClient({ firstName: 'Paul', lastName: 'Versement' });
   const reservation = await createReservation({
@@ -93,8 +93,9 @@ test('platform stay: « Marquer reçu » asks for the transfer and shows the gap
   const payout = page.locator('[data-row="balance"]');
   await expect(payout).toContainText('Versement Booking');
   await payout.getByRole('button', { name: /^Marquer reçu/ }).click();
+  // No commission entered: the transfer is not prefilled with the gross, it is typed (review of #727).
+  await expect(payout.getByLabel('Virement reçu (€)')).toHaveValue('');
   await payout.getByLabel('Virement reçu (€)').fill('100');
-  await expect(payout.getByText(/^Écart : .* avec le net attendu$/)).toBeVisible({ timeout: 10_000 });
   await payout.getByRole('button', { name: 'Valider' }).click();
   await expect(payout.getByText(/^Reçu le .* · Booking$/)).toBeVisible({ timeout: 10_000 });
   const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();

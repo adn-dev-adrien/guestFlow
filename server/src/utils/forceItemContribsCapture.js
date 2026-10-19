@@ -297,11 +297,72 @@ function applyBalanceContribsToDb(db, reservation, contribs) {
   `).run(contribs.accommodation, contribs.tax, reservation.id);
 }
 
+/**
+ * specs/reservation-payment-ledger.md rule 37 — the split of a bucket recorded although its capture
+ * failed (stored amounts that drifted from today's engine). The money is booked on the stored amounts:
+ * the tourist tax the export puts on this entry, the rest on the accommodation — never the whole
+ * entry on the tax account. Lines keep no per-line contrib (they read 0 on this entry).
+ */
+function captureStoredSplit({ db, reservation, bucket }) {
+  let routedToComplement = Boolean(Number(reservation.touristTaxInComplement || 0));
+  try {
+    const quote = calculateReservationQuote(buildReservationEngineInput(db, reservation));
+    routedToComplement = Boolean(quote.touristTaxCollectedOnArrival || quote.touristTaxInComplement);
+  } catch { /* the stored flag decides */ }
+  const isDeposit = bucket === 'deposit';
+  const field = isDeposit ? 'acompteContribTtc' : 'soldeContribTtc';
+  const amount = roundCents(isDeposit ? reservation.depositAmount : reservation.balanceAmount);
+  // Mirrors the export: the balance carries the whole tourist tax (capped by the entry); a tax share an
+  // older acompte captured is reclassed onto the acompte and taken off this accommodation by the export.
+  const tax = isDeposit || routedToComplement ? 0 : roundCents(Math.min(Number(reservation.touristTaxTotal || 0), amount));
+  const reclass = isDeposit || routedToComplement ? 0 : roundCents(reservation.touristTaxAcompteContribTtc);
+  // What is left to collect on each pre-arrival line (forced and offered lines are not on the schedule),
+  // the accommodation taking the rest — the same pro-rata the export's stored-money path uses.
+  const tables = [
+    ['reservation_options', 'optionId'],
+    ['reservation_custom_options', 'id'],
+    ['reservation_resources', 'resourceId'],
+  ];
+  const lines = [];
+  let linesTotal = 0;
+  for (const [table, key] of tables) {
+    const totalCol = table === 'reservation_custom_options'
+      ? 'CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END' : 'totalPrice';
+    for (const l of db.prepare(`SELECT ${key} AS k, ${totalCol} AS total, COALESCE(inComplement, 0) AS forced,
+      COALESCE(offered, 0) AS offered, acompteContribTtc FROM ${table} WHERE reservationId = ?`).all(reservation.id)) {
+      linesTotal += Number(l.total || 0);
+      if (Number(l.forced) === 1 || Number(l.offered) === 1) continue;
+      const left = Math.max(0, Number(l.total || 0) - (isDeposit ? 0 : Number(l.acompteContribTtc || 0)));
+      lines.push({ table, key, k: l.k, left });
+    }
+  }
+  const accommodationLeft = Math.max(0, Number(reservation.finalPrice || 0) - linesTotal
+    - (isDeposit ? 0 : Number(reservation.accommodationAcompteContribTtc || 0)));
+  const toShare = roundCents(amount - tax);
+  const base = lines.reduce((sum, l) => sum + l.left, 0) + accommodationLeft;
+  const ratio = base > 0 ? toShare / base : 0;
+  let shared = 0;
+  for (const l of lines) {
+    const value = roundCents(l.left * ratio);
+    shared += value;
+    db.prepare(`UPDATE ${l.table} SET ${field} = ? WHERE reservationId = ? AND ${l.key} = ?`).run(value, reservation.id, l.k);
+  }
+  const accommodation = roundCents(toShare - shared + reclass);
+  if (isDeposit) {
+    db.prepare('UPDATE reservations SET accommodationAcompteContribTtc = ?, touristTaxAcompteContribTtc = 0 WHERE id = ?')
+      .run(accommodation, reservation.id);
+  } else {
+    db.prepare('UPDATE reservations SET accommodationSoldeContribTtc = ?, touristTaxSoldeContribTtc = ? WHERE id = ?')
+      .run(accommodation, tax, reservation.id);
+  }
+}
+
 // Stub used only by the (preArrivalAmount === 0) edge case above; the real write happens through
 // applyDepositContribsToDb. Kept inline-named so the empty-stay branch is explicit.
 function writeDepositContribs() { /* no-op: 0-eur stays never persist contribs */ }
 
 module.exports = {
+  captureStoredSplit,
   captureContribsOnFlip,
   clearContribsOnUnflip,
   CONSERVATION_TOLERANCE_EUR,

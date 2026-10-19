@@ -3,6 +3,7 @@
 // (rule 12), undo with a confirmation naming the date (rule 14), amount editing through the server
 // (rules 15, 19, 21), the platform statement and transfer (rules 25-26), links (rule 28).
 import { screen, waitFor, within, fireEvent } from '@testing-library/react';
+import React from 'react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
@@ -253,4 +254,26 @@ test('the mark form takes its date label from the server', async () => {
   });
   await user.click(screen.getByRole('button', { name: 'Restituer : Caution restituée' }));
   expect(screen.getByLabelText('Rendue le')).toBeInTheDocument();
+});
+
+// Second review of #727 — undo then redo proposes the first date, and says when the month changes.
+test('rule 41 — redoing an undone mark proposes its date; another month is said', async () => {
+  const user = userEvent.setup();
+  const paid = paidRow('deposit', 'Acompte', 90, { paidDate: '2026-03-12', action: { kind: 'undo', label: 'Annuler', confirm: 'Annuler ?', confirmLabel: 'Annuler la perception' } });
+  const { ctx, rerender } = renderFinance({ editingReservationId: 7, ledger: ledgerOf([paid]) });
+  await user.click(screen.getByRole('button', { name: 'Annuler : Acompte' }));
+  await user.click(await screen.findByRole('button', { name: 'Annuler la perception' }));
+  await waitFor(() => expect(api.markPayment).toHaveBeenCalled());
+  const { ReservationFormProvider } = await import('../ReservationFormContext');
+  const DialogProvider = (await import('../../DialogProvider')).default;
+  const FinanceSection = (await import('../FinanceSection')).default;
+  rerender(
+    <DialogProvider><ReservationFormProvider value={{ ...ctx, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90, { action: { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' } })]) }}><FinanceSection /></ReservationFormProvider></DialogProvider>,
+  );
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await user.click(screen.getByRole('button', { name: 'Marquer perçu : Acompte' }));
+  const date = screen.getByLabelText('Perçu le');
+  expect(date).toHaveValue('2026-03-12');
+  fireEvent.change(date, { target: { value: '2026-10-19' } });
+  expect(screen.getByText('Le mois comptable change : 03/2026 → 10/2026.')).toBeInTheDocument();
 });

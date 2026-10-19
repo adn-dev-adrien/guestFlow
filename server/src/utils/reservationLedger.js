@@ -154,7 +154,13 @@ function buildLedger({
   const depositAmount = depositDisabled ? 0 : amountOf('deposit', 'depositAmount', 'depositAmount');
   const balanceAmount = amountOf('balance', 'balanceAmount', 'balanceAmount');
   const complementAmount = amountOf('complement', 'complementAmount', 'complementAmount');
-  const endOfStayAmount = amountOf('endOfStay', 'endOfStayComplementTotal', 'endOfStayComplementAmount');
+  const liveEndOfStay = amountOf('endOfStay', 'endOfStayComplementTotal', 'endOfStayComplementAmount');
+  // Rule 40 — while the fiche is edited, mid-stay sales the stored end-of-stay complement still owes but
+  // the live quote no longer carries (their option line is gone from the fiche) stay due: the row keeps
+  // the stored amount and says what « Enregistrer » would remove.
+  const storedEndOfStay = round2(r.endOfStayComplementAmount);
+  const droppedOnSave = Boolean(quote && stored && !paid.endOfStay && storedEndOfStay > liveEndOfStay + 0.004);
+  const endOfStayAmount = droppedOnSave ? storedEndOfStay : liveEndOfStay;
   const fromQuote = (field, rowField = field) => (quote && quote[field] != null ? quote[field] : r[rowField]);
   // The engine zeroes the commissions of a direct stay; a stored row is read as stored (rule 5 parity).
   const commissionOf = (field) => round2(quote ? (isPlatform ? quote[field] : 0) : r[field]);
@@ -302,7 +308,7 @@ function buildLedger({
         base = {
           ...(balanceAmount > 0 ? dueState(balanceDueDate, today, stayYear, { platformPayout: ota }) : nothingDue()),
           action: canAct && balanceAmount > 0
-            ? { kind: 'mark', label: ota ? 'Marquer reçu' : 'Marquer perçu', dateLabel: ota ? 'Reçu le' : 'Perçu le', payout: { expected: round2(balanceAmount - soldeCommission) } }
+            ? { kind: 'mark', label: ota ? 'Marquer reçu' : 'Marquer perçu', dateLabel: ota ? 'Reçu le' : 'Perçu le', payout: { expected: soldeCommission > 0 ? round2(balanceAmount - soldeCommission) : null } }
             : null,
           amountEdit: cancelled
             ? { editable: false, mode: 'none', min: null, max: null, reason: null }
@@ -492,6 +498,25 @@ function buildLedger({
     }
   }
 
+  if (droppedOnSave) {
+    const row = rows.find((x) => x.key === 'endOfStayComplement');
+    if (row) {
+      const lost = round2(storedEndOfStay - liveEndOfStay);
+      row.detail = { ...(row.detail || {}), warnings: [...((row.detail && row.detail.warnings) || []),
+        warn(`« Enregistrer » retirerait ${formatEuros(lost)} encore dus : une prestation vendue en séjour n'est plus sur la fiche`)] };
+    }
+  }
+
+  // Rule 41 — a paid row carries its date, so undoing then redoing it can propose the same day.
+  const PAID_DATES = {
+    deposit: r.depositPaidDate, balance: r.balancePaidDate, complement: r.complementPaidDate,
+    checkoutComplement: r.complementPaidDate, endOfStayComplement: r.endOfStayComplementPaidDate,
+    cautionReceived: r.cautionReceivedDate, cautionReturned: r.cautionReturnedDate,
+  };
+  for (const row of rows) {
+    if (String(row.state).startsWith('paid') && isoDay(PAID_DATES[row.key])) row.paidDate = isoDay(PAID_DATES[row.key]);
+  }
+
   // Rule 33 — while the fiche is edited (live quote), a row whose amount the save would change says
   // what is stored now: a mark is recorded against the stored amount, after the save.
   if (quote && stored) {
@@ -527,7 +552,11 @@ function buildLedger({
     rows,
     remaining,
     remainingLabel: remaining === 0 ? 'Tout est perçu' : `Reste à percevoir ${formatEuros(remaining)}`,
-    closing: remaining === 0 ? { label: 'Tout est perçu', amount: null } : { label: 'Reste à percevoir', amount: remaining },
+    closing: remaining === 0
+      ? (unpriced && !(quote && Number(quote.finalPrice) > 0)
+        ? { label: 'Prix à renseigner', amount: null, tone: 'muted' }
+        : { label: 'Tout est perçu', amount: null, tone: 'done' })
+      : { label: 'Reste à percevoir', amount: remaining, tone: 'due' },
     settled: remaining === 0,
   };
 }

@@ -276,6 +276,8 @@ export default function FinanceSection() {
   const [arrivalPayError, setArrivalPayError] = useState('');
   // The one open panel under a row: { key, kind: 'mark' | 'edit' | 'statement' | 'locked' }.
   const [panel, setPanel] = useState(null);
+  // Rule 41 — the date of a payment undone in this visit, proposed again when it is redone.
+  const [undoneDates, setUndoneDates] = useState({});
   const [folds, setFolds] = useState(() => new Set());
   const toggleFold = (key) => setFolds((prev) => {
     const next = new Set(prev);
@@ -455,6 +457,7 @@ export default function FinanceSection() {
       if (!fields) return;
       try {
         await api.markPayment(editingReservationId, { [fields.flag]: false, ...(fields.cash ? { [fields.cash]: false } : {}) });
+        if (row.paidDate) setUndoneDates((prev) => ({ ...prev, [row.key]: row.paidDate }));
         await reloadReservationFinance();
       } catch (err) {
         showError(err.message || 'Annulation impossible.');
@@ -593,6 +596,7 @@ export default function FinanceSection() {
           row={row}
           today={todayStr()}
           dateLabel={row.action?.dateLabel || 'Perçu le'}
+          previousDate={undoneDates[row.key] || null}
           onSubmit={(values) => submitMark(row, values)}
           onCancel={close}
           formatAmountInput={formatAmountInput}
@@ -602,6 +606,7 @@ export default function FinanceSection() {
             touristTax: form.platformTouristTaxAmount,
             acompteCommission: form.acompteCommissionAmount,
             expectedNet: row.action.payout.expected,
+            forMark: true,
             taxEstimate: pricingQuote?.touristTaxOriginalTotal ?? form.touristTaxTotal,
           })}
         />

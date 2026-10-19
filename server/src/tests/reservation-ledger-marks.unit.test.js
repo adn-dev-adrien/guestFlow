@@ -282,3 +282,90 @@ test('rule 37 — a payout on a stay whose stored amounts drifted is recorded, w
   const after = rowOf(id);
   assert.deepEqual([after.balancePaid, after.balanceAmount, after.finalPrice], [1, before.balanceAmount, before.finalPrice]);
 });
+
+// Second review of #727 (N1) — the solde recorded without its capture after a captured acompte: its
+// entry must carry revenue and VAT, never land whole on the tourist-tax account.
+function exportMonth(day) {
+  const { create: accountingModel } = require('../plugins/accounting-export/accountingModel');
+  const { create: accountingController } = require('../plugins/accounting-export/controller');
+  let json = null;
+  const res = { setHeader() {}, status() { return res; }, json(b) { json = b; return res; } };
+  accountingController(accountingModel(db)).salesJson({ query: { year: Number(day.slice(0, 4)), month: Number(day.slice(5, 7)) } }, res);
+  return json;
+}
+
+test('rule 37 — acompte captured, solde recorded on drifted amounts: revenue and VAT, never all on 46710000', () => {
+  const id = createStay();
+  mark(id, { depositPaid: true, depositPaidDate: TODAY, expectedAmountCents: Math.round(rowOf(id).depositAmount * 100) });
+  db.prepare('UPDATE reservations SET balanceAmount = round(balanceAmount + 30, 2), finalPrice = round(finalPrice + 30, 2) WHERE id = ?').run(id);
+  const res = mark(id, { balancePaid: true, balancePaidDate: TODAY, expectedAmountCents: Math.round(rowOf(id).balanceAmount * 100) });
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.body.warning);
+  const history = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND eventType = 'payment_capture_failed'").get(id);
+  assert.match(history.changedFields, /Encaissement \(solde\)/, 'worded by origin: a mark on the fiche, not an online payment');
+  const month = exportMonth(TODAY);
+  assert.equal(month.totals.allBalanced, true);
+  const balance = month.entries.find((e) => e.reservationId === id && e.kind === 'balance');
+  const credits = balance.lines.filter((l) => Number(l.credit) > 0);
+  assert.ok(credits.some((l) => l.compte !== '46710000'), JSON.stringify(balance.lines));
+  assert.ok(credits.some((l) => /^706/.test(l.compte)), 'revenue credited');
+  assert.ok(credits.some((l) => l.compte === '44571100'), 'VAT credited');
+});
+
+test('export invariant — no sale entry of the month has all its credits on the tourist-tax account', () => {
+  const month = exportMonth(TODAY);
+  for (const entry of month.entries.filter((e) => e.direction === 'sale' && e.kind !== 'tip')) {
+    const credits = entry.lines.filter((l) => Number(l.credit) > 0);
+    if (credits.length === 0) continue;
+    assert.ok(credits.some((l) => l.compte !== '46710000'), `entry ${entry.reservationId}/${entry.kind} credits only 46710000`);
+  }
+});
+
+// Second review of #727 (N2) — an already received bucket is never marked again.
+test('rule 38 — marking an already perceived bucket is refused (409 ALREADY_PAID), its date and figures untouched', () => {
+  const id = createStay({ platform: 'Booking' });
+  const cents = Math.round(rowOf(id).balanceAmount * 100);
+  assert.equal(mark(id, { balancePaid: true, balancePaidDate: '2026-07-24', expectedAmountCents: cents, platformPayoutAmount: 200 }).statusCode, 200);
+  // A second tab sends the same mark, with the same expected amount.
+  const again = mark(id, { balancePaid: true, balancePaidDate: TODAY, expectedAmountCents: cents, platformCommissionAmount: 999, platformPayoutAmount: 1 });
+  assert.equal(again.statusCode, 409);
+  assert.equal(again.body.code, 'ALREADY_PAID');
+  const row = rowOf(id);
+  assert.deepEqual([row.balancePaidDate, row.platformPayoutAmount, row.platformCommissionAmount ?? null], ['2026-07-24', 200, null]);
+  for (const field of ['cautionReceived']) {
+    mark(id, { [field]: true, [`${field}Date`]: TODAY });
+    assert.equal(mark(id, { [field]: true, [`${field}Date`]: TODAY }).body.code, 'ALREADY_PAID');
+  }
+});
+
+test('rule 34 — the transfer is refused on a direct stay, and a commission above the billed amount', () => {
+  const direct = createStay();
+  const d = mark(direct, { balancePaid: true, balancePaidDate: TODAY, platformCommissionAmount: 999 });
+  assert.equal(d.statusCode, 400);
+  assert.equal(d.body.code, 'PAYOUT_NOT_PLATFORM');
+  assert.equal(rowOf(direct).balancePaid, 0);
+  const booking = createStay({ platform: 'Booking' });
+  const big = mark(booking, { balancePaid: true, balancePaidDate: TODAY, platformCommissionAmount: 10000 });
+  assert.equal(big.statusCode, 400);
+  assert.match(big.body.error, /La commission dépasse le montant facturé/);
+});
+
+// Second review of #727 (H-b) — the headline of the sticky bar, from the stored row.
+test('rule 39 — the fiche carries a headline built from the stored row (« Vous percevez » = Finance net)', () => {
+  const id = createStay({ platform: 'Booking' });
+  db.prepare('UPDATE reservations SET platformCommissionAmount = 46.08 WHERE id = ?').run(id);
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  require('../controllers/reservationsController').getById({ params: { id: String(id) }, user: { role: 'admin' } }, res);
+  const row = rowOf(id);
+  assert.equal(res.body.storedHeadline.label, 'Vous percevez');
+  assert.equal(res.body.storedHeadline.amount, Math.round((row.balanceAmount - 46.08) * 100) / 100);
+});
+
+test('rule 26 — with the commission unknown, the typed transfer proposes the commission from the gross', () => {
+  const ctl = require('../controllers/reservationsController');
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  ctl.platformCommission({ body: { gross: 706, payout: 600, forMark: true } }, res);
+  assert.equal(res.body.gapLabel, null);
+  assert.equal(res.body.commission, 106);
+  assert.match(res.body.commissionLabel, /^Commission solde → 106,00/);
+});

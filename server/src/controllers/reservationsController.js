@@ -480,6 +480,19 @@ function platformCommission(req, res) {
   // specs/reservation-payment-ledger.md rule 26 — « Marquer reçu » asks for the transfer: the gap with
   // the expected net and the commission it implies are worded here, the form only prints them.
   const hasExpected = expectedNet !== undefined && expectedNet !== null && expectedNet !== '';
+  // Review of #727 (H-a) — without a known commission there is no expected net: the transfer is typed,
+  // and the commission it implies is proposed from the gross.
+  if (!hasExpected && req.body && req.body.forMark) {
+    const p = Number(payout);
+    if (payout === '' || payout == null || !Number.isFinite(p) || p <= 0) {
+      return res.status(400).json({ error: 'Virement reçu : montant requis.' });
+    }
+    const fmt = require('../utils/reservationLedger').formatEuros;
+    return res.json({
+      commission, gap: null, gapLabel: null,
+      commissionLabel: commission != null && commission > 0 ? `Commission solde → ${fmt(commission)}` : null,
+    });
+  }
   if (hasExpected) {
     const p = Number(payout);
     if (payout === '' || payout == null || !Number.isFinite(p) || p <= 0) {
@@ -674,6 +687,24 @@ function settleArrivalPayment(req, res) {
   return res.json({ arrivalPayment: buildArrivalPaymentView(detailed || after), reservation: after });
 }
 
+function storedHeadlineOf(row) {
+  if (!row) return null;
+  const { quoteHeadline } = require('../utils/quoteHeadline');
+  const { comptaCollected, remainingToPay } = require('../utils/reservationSettlement');
+  const { isDirectChannel } = require('../utils/platformNameFormat');
+  let refundsBookTtc = 0;
+  try { refundsBookTtc = Number(refundsModel.totalsByReservation(Number(row.id)).book || 0); } catch { refundsBookTtc = 0; }
+  const midStay = storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+  return quoteHeadline({
+    finalPrice: row.finalPrice,
+    touristTaxTotal: row.touristTaxTotal,
+    platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : row.platformTouristTaxAmount,
+    endOfStayComplementTotal: row.endOfStayComplementAmount,
+    midStayRemainingTotal: midStay,
+    sejourNetTotal: round2(comptaCollected({ ...row, refundsBookTtc }) + remainingToPay(row)),
+  }, { isPlatform: !isDirectChannel(row.platform) });
+}
+
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -692,6 +723,9 @@ function getById(req, res) {
     arrivalPayment: buildArrivalPaymentView(reservation),
     // specs/reservation-payment-ledger.md rule 1 — the payments ledger, ready to render.
     ledger: ledgerFor({ row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount } }),
+    // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
+    // shows the stored ledger (rule 7), so the two never disagree.
+    storedHeadline: storedHeadlineOf(model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the
     // subscription chip and its actions), keyed by block, each shaped for display.
     pluginBlocks: reservationBlocks(reservation),
@@ -1714,16 +1748,44 @@ function paymentMarkRefusal(row, body, today) {
       }
     }
   }
+  // Rule 38 — a bucket already perceived is never marked again: a second tab, a replayed request or a
+  // crafted one would re-date it (moving its accounting entry to another month) and rewrite its figures.
+  const alreadyOf = {
+    depositPaid: row.depositPaid, balancePaid: row.balancePaid, complementPaid: row.complementPaid,
+    endOfStayComplementPaid: row.endOfStayComplementPaid, cautionReceived: row.cautionReceived, cautionReturned: row.cautionReturned,
+  };
+  const ALREADY_LABELS = {
+    depositPaid: "L'acompte est déjà perçu.", balancePaid: 'Le solde est déjà perçu.',
+    complementPaid: 'Le complément est déjà perçu.', endOfStayComplementPaid: 'Le complément de fin de séjour est déjà perçu.',
+    cautionReceived: 'La caution est déjà reçue.', cautionReturned: 'La caution est déjà restituée.',
+  };
+  for (const [field, already] of Object.entries(alreadyOf)) {
+    if ((body[field] === true || body[field] === 1) && Number(already || 0) === 1) {
+      return { status: 409, body: { error: `${ALREADY_LABELS[field]} Relire la fiche.`, code: 'ALREADY_PAID', field } };
+    }
+  }
   // Rule 34 — a payout is received with its transfer (and the commission it implies): the two figures
   // ride the mark, under its guards, so a past or locked fiche never needs a full save to record it.
+  // Only on the reception itself (unpaid → paid) of a stay settled by a platform.
+  const isPlatformStay = String(row.platform || 'direct').trim().toLowerCase() !== 'direct';
   for (const field of ['platformPayoutAmount', 'platformCommissionAmount']) {
     if (body[field] === undefined) continue;
     if (!(body.balancePaid === true || body.balancePaid === 1)) {
       return { status: 400, body: { error: 'Le virement se saisit avec la réception du versement.', code: 'PAYOUT_WITHOUT_MARK', field } };
     }
+    if (!isPlatformStay) {
+      return { status: 400, body: { error: 'Pas de virement de plateforme sur une réservation directe.', code: 'PAYOUT_NOT_PLATFORM', field } };
+    }
     const n = Number(body[field]);
     if (body[field] === null || body[field] === '' || !Number.isFinite(n) || n < 0) {
       return { status: 400, body: { error: field === 'platformPayoutAmount' ? 'Virement reçu : montant requis.' : 'Commission invalide.', code: 'INVALID_AMOUNT', field } };
+    }
+    if (field === 'platformCommissionAmount') {
+      const gross = row.platformGrossAmount != null && row.platformGrossAmount !== ''
+        ? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
+      if (n > round2(gross) + 0.004) {
+        return { status: 400, body: { error: `La commission dépasse le montant facturé (${formatEurosFr(gross)}).`, code: 'INVALID_AMOUNT', field } };
+      }
     }
   }
   if (body.expectedAmountCents !== undefined && body.expectedAmountCents !== null) {
@@ -1819,7 +1881,7 @@ function updatePayment(req, res) {
         // specs/reservation-payment-ledger.md rule 37 — the money was received: a stay whose stored
         // amounts no longer match today's engine (priced under an earlier rule) keeps the payment, its
         // per-line split falls back to the stored amounts, and the operator is told.
-        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'deposit', paidDate: date, keepPaymentOnCaptureFailure: true });
+        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'deposit', paidDate: date, keepPaymentOnCaptureFailure: true, origin: 'fiche' });
         if (recorded && recorded.captureFailed && recorded.captureFailed.length) captureWarnings.push('deposit');
       } else db.transaction(() => {
         if (wasDepositPaid && !willBeDepositPaid) {
@@ -1866,7 +1928,7 @@ function updatePayment(req, res) {
         // specs/reservation-payment-ledger.md rule 37 — the money was received: a stay whose stored
         // amounts no longer match today's engine (priced under an earlier rule) keeps the payment, its
         // per-line split falls back to the stored amounts, and the operator is told.
-        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date, keepPaymentOnCaptureFailure: true });
+        const recorded = recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date, keepPaymentOnCaptureFailure: true, origin: 'fiche' });
         if (recorded && recorded.captureFailed && recorded.captureFailed.length) captureWarnings.push('balance');
       } else db.transaction(() => {
         if (wasBalancePaid && !willBeBalancePaid) {

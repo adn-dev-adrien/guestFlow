@@ -267,3 +267,36 @@ test('adjustable-complement rule 9 — a complement adjusted to 0 € keeps its 
   assert.equal(row.amount, 0);
   assert.equal(row.action, null, 'nothing to mark at 0 €');
 });
+
+// Second review of #727 (H-a) — without a commission the expected net is unknown: never prefill the
+// transfer with the gross (it would then read « cohérent » with a zero commission).
+test('rule 26 — the payout mark carries an expected net only when the commission is known', () => {
+  const base = directRow({ platform: 'Booking', depositAmount: 0, balanceAmount: 706, startDate: '2026-10-05' });
+  const unknown = buildLedger({ row: base, today: TODAY });
+  assert.equal(rowOf(unknown, 'balance').action.payout.expected, null);
+  const known = buildLedger({ row: { ...base, platformCommissionAmount: 100 }, today: TODAY });
+  assert.equal(rowOf(known, 'balance').action.payout.expected, 606);
+});
+
+// Second review of #727 — an unpriced stay closes on « Prix à renseigner », never a green « Tout est perçu ».
+test('rule 32 — a stay without a price closes on « Prix à renseigner »', () => {
+  const ledger = buildLedger({ row: directRow({ finalPrice: 0, depositAmount: 0, balanceAmount: 0 }), today: TODAY });
+  assert.deepEqual(ledger.closing, { label: 'Prix à renseigner', amount: null, tone: 'muted' });
+  const priced = buildLedger({ row: directRow({ finalPrice: 300, depositPaid: 1, depositPaidDate: '2026-10-01', balancePaid: 1, balancePaidDate: '2026-10-02' }), today: TODAY });
+  assert.deepEqual(priced.closing, { label: 'Tout est perçu', amount: null, tone: 'done' });
+});
+
+// Second review of #727 (22278) — a mid-stay sale the live quote no longer carries stays due.
+test('rule 40 — while edited, an end-of-stay complement the save would drop stays due, with a warning', () => {
+  const row = directRow({ finalPrice: 179, depositDisabled: 1, endOfStayComplementAmount: 50 });
+  const ledger = buildLedger({ row, quote: directQuote({ depositAmount: 0, endOfStayComplementTotal: 0 }), live: { depositDisabled: 1 }, today: TODAY });
+  const eos = rowOf(ledger, 'endOfStayComplement');
+  assert.equal(eos.amount, 50);
+  assert.match(eos.detail.warnings[0].label, /retirerait 50,00/);
+  assert.ok(ledger.remaining >= 50);
+});
+
+test('rule 41 — a paid row carries its date, to propose it again after an undo', () => {
+  const ledger = buildLedger({ row: directRow({ depositPaid: 1, depositPaidDate: '2026-03-12' }), quote: directQuote(), today: TODAY });
+  assert.equal(rowOf(ledger, 'deposit').paidDate, '2026-03-12');
+});

@@ -14,7 +14,7 @@
  * never vanish from the stay.
  */
 
-const { captureContribsOnFlip } = require('./forceItemContribsCapture');
+const { captureContribsOnFlip, captureStoredSplit } = require('./forceItemContribsCapture');
 
 const BUCKETS = { deposit: ['deposit'], balance: ['balance'], full: ['deposit', 'balance'] };
 const COLUMNS = {
@@ -45,7 +45,7 @@ const BUCKET_LABELS = { deposit: 'acompte', balance: 'solde' };
  * @returns {{ flipped: string[], captureFailed: string[] }} the buckets this call ticked, and those
  *   ticked without their capture
  */
-function recordStayPayment({ db, reservationsModel, emit }, { reservationId, bucket, paidDate, keepPaymentOnCaptureFailure = false }) {
+function recordStayPayment({ db, reservationsModel, emit }, { reservationId, bucket, paidDate, keepPaymentOnCaptureFailure = false, origin = 'online' }) {
   const buckets = BUCKETS[bucket];
   if (!buckets) throw new Error(`Unknown payment bucket: ${bucket}`);
   const id = Number(reservationId);
@@ -66,9 +66,12 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
         // eslint-disable-next-line no-console
         console.error(`[payments] reservation ${id}: ${b} received but its contribs capture failed — ${err.message}`);
         captureFailed.push(b);
-        // Said on the stay, where the operator looks: its accounting split is missing.
+        // specs/reservation-payment-ledger.md rule 37 — the split falls back to the stored amounts, so
+        // the export never books the whole entry on the tourist-tax account. Said on the stay, by origin.
+        db.transaction(() => captureStoredSplit({ db, reservation: row, bucket: b }))();
+        const label = origin === 'fiche' ? `Encaissement (${BUCKET_LABELS[b]})` : `Paiement en ligne (${BUCKET_LABELS[b]})`;
         db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'payment_capture_failed', ?)")
-          .run(id, JSON.stringify([{ field: b, label: `Paiement en ligne (${BUCKET_LABELS[b]})`, from: null, to: 'reçu, répartition comptable non enregistrée' }]));
+          .run(id, JSON.stringify([{ field: b, label, from: null, to: 'reçu, répartition comptable sur les montants enregistrés' }]));
       }
       db.prepare(`UPDATE reservations SET ${COLUMNS[b].flag} = 1, ${COLUMNS[b].date} = ?, updatedAt = datetime('now') WHERE id = ?`)
         .run(date, id);
