@@ -200,8 +200,8 @@ export default function FinancePage() {
             />
 
             {d.insights.length > 0 && (
-              // Rule 43 — as many columns as 240 px allow, never a text cut mid-word.
-              <Box data-testid="finance-insights" sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 2, mb: 2 }}>
+              // Rule 43 — as many columns as 210 px allow (4 / 2 / 1 at 1280 / 900 / 390), never a text cut.
+              <Box data-testid="finance-insights" sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 2, mb: 2 }}>
                 {d.insights.map((i) => (
                   <Box key={i.key} sx={{ minWidth: 0 }}>
                     <InsightCard

@@ -5,7 +5,6 @@
  */
 import theme from '../../theme';
 import { chart } from '../../utils/chartColors';
-import { formatAmountCompact } from '../../utils/formatters';
 
 const channel = (v) => {
   const x = v / 255;
@@ -30,14 +29,8 @@ test('rule 45 — marks reach 3:1 on white, ticks and values 4.5:1', () => {
   chart.series.forEach((hex) => expect(contrast(hex)).toBeGreaterThanOrEqual(3));
   expect(contrast(chart.tick)).toBeGreaterThanOrEqual(4.5);
   expect(contrast(chart.value)).toBeGreaterThanOrEqual(4.5);
-  // The sand bar alone is too light (1.5:1): it is always drawn with its edge, which holds 3:1 on it.
+  // The sand bar alone is too light (1.5:1): it is always drawn with its edge, which holds 3:1 on the
+  // white around it.
   expect(contrast(chart.lastYear)).toBeLessThan(3);
-  expect(contrast(chart.lastYearEdge, chart.lastYear)).toBeGreaterThan(2);
-});
-
-test('rule 44 — a value written on a column is compact, in French', () => {
-  expect(formatAmountCompact(8226)).toBe('8,2 k');
-  expect(formatAmountCompact(12000)).toBe('12 k');
-  expect(formatAmountCompact(805)).toBe('805');
-  expect(formatAmountCompact(null)).toBe('');
+  expect(contrast(chart.lastYearEdge)).toBeGreaterThanOrEqual(3);
 });

@@ -13,6 +13,7 @@ const yoy = require('../utils/yearOverYear');
 const { buildInsights } = require('../utils/financeInsights');
 const { readRevenueGoals } = require('../utils/revenueGoals');
 const { exerciseMonths } = require('../utils/exerciseOverview');
+const { labelRevenueMonths } = require('../utils/financeChartLabels');
 const { curveAxis, dayOffset } = require('../utils/financeCurveAxis');
 const { bookingChannelOf } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
@@ -223,7 +224,7 @@ function createDashboardModel(database, finance) {
       knownAt: anyComparable && snapshotKnown ? prevMonthsOf(knownN1) : [],
       final: anyComparable && !snapshotKnown ? prevMonthsOf(null) : [],
     };
-    const revenueMonths = exerciseSummary.exerciseMonths.map((m, i) => ({
+    const revenueMonths = labelRevenueMonths(exerciseSummary.exerciseMonths.map((m, i) => ({
       month: m.month, label: m.label, initial: m.initial, short: m.short,
       isCurrent: m.month === today.slice(0, 7),
       past: m.past, upcoming: m.upcoming, revenue: m.revenue, revenueHt: m.revenueHt, nights: m.nights,
@@ -232,7 +233,7 @@ function createDashboardModel(database, finance) {
         : null,
       previousLabel: monthLabel(yoy.shiftMonth(m.month, -1)),
       inWindow: m.month >= win.from.slice(0, 7) && m.month <= win.to.slice(0, 7),
-    }));
+    })));
 
     // Cumulative curve (rule 9) — last year only when the whole window is comparable.
     const daily = daysBetween(win.from, win.to) <= CUMULATIVE_DAILY_UP_TO;

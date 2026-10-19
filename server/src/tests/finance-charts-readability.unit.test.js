@@ -10,6 +10,7 @@ const dashboardModel = require('../models/financeDashboardModel');
 const { buildInsights } = require('../utils/financeInsights');
 const { exerciseMonths } = require('../utils/exerciseOverview');
 const pace = require('../utils/bookingPace');
+const { labelRevenueMonths, compactAmount } = require('../utils/financeChartLabels');
 
 const norm = (s) => s.replace(/\s/g, ' ');
 const late = { count: 0, amount: 0 };
@@ -30,6 +31,27 @@ test('rule 43 — a best month is a month over; the leading month is named as su
   // Months over without revenue do not make a best month; nothing at all → none.
   assert.equal(bestMonthOf([m('2026-10', 0), m('2026-11', 0, 90)], '2026-11-02').kind, 'leading');
   assert.equal(bestMonthOf([m('2026-10', 0), m('2026-11', 0)], '2026-10-02'), null);
+});
+
+test('rule 43 — a tie goes to the earliest month; a month over in the red (refunds) is no best month', () => {
+  const { bestMonthOf } = dashboardModel;
+  assert.equal(bestMonthOf([m('2026-10', 500), m('2026-11', 500), m('2026-12', 0)], '2027-01-05').month, '2026-10');
+  // Only a refund in October, over: not a best month, the leading upcoming month is named instead.
+  assert.deepEqual(bestMonthOf([m('2026-10', -120), m('2027-03', 0, 300)], '2026-11-02'), { month: '2027-03', revenue: 300, previous: null, kind: 'leading', timing: 'upcoming' });
+  // A negative month over beside a positive one: the positive one.
+  assert.equal(bestMonthOf([m('2026-10', -120), m('2026-11', 90), m('2027-03', 0, 300)], '2026-12-02').month, '2026-11');
+});
+
+test('rule 44 — the server says which totals are written, on which segment, in compact French', () => {
+  const out = labelRevenueMonths([
+    { month: '2026-10', revenue: 8226, upcoming: 0 },
+    { month: '2026-11', revenue: 805, upcoming: 805 },
+    { month: '2026-12', revenue: 400, upcoming: 0 },
+    { month: '2027-01', revenue: 0, upcoming: 0 },
+    { month: '2027-02', revenue: -50, upcoming: 0 },
+  ]);
+  assert.deepEqual(out.map((x) => [norm(x.totalLabel), x.labelOn]), [['8,2 k', 'past'], ['805', 'upcoming'], ['', null], ['', null], ['', null]]);
+  assert.equal(norm(compactAmount(12000)), '12 k');
 });
 
 test('rule 43 — wording of each kind', () => {
@@ -72,6 +94,9 @@ test('rules 44-46 — current month, colour slots and the short curve on the das
   // Last exercise: every month over → full height; a month window never compacts.
   assert.equal(dashboard.getDashboard({ fiscalYear: d.fiscalYear.key - 1 }).data.hero.curveCompact, false);
   assert.equal(dashboard.getDashboard({ period: 'month', month: TODAY.slice(0, 7) }).data.hero.curveCompact, false);
+  // An exercise entirely to come: its first month is not over either → compact.
+  assert.equal(dashboard.getDashboard({ fiscalYear: d.fiscalYear.key + 1 }).data.hero.curveCompact, true);
+  assert.ok(d.revenueMonths.every((x) => 'totalLabel' in x && 'labelOn' in x));
 });
 
 test('rules 14-15 — pace: the current month is marked, the écart row waits for a comparison', () => {

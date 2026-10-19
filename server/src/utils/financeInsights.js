@@ -6,6 +6,8 @@ const { MONTH_NAMES } = require('./financeWindow');
 const eur = (n) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round(Number(n) || 0))} €`;
 const pct = (x) => `${Math.round(x * 100)} %`;
 const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+// Guillemets held to their word by a narrow no-break space: « tuile « » never wraps after the «.
+const TILE_LATE = '«\u202FEn retard\u202F»';
 const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 /**
@@ -48,9 +50,9 @@ function buildInsights({ bestMonth, direct, late, unpriced }) {
   }
   // Rule 34 — the late payments cover the guests AND the platforms' payouts.
   const payouts = (late && late.payouts) || { count: 0, totalAmount: 0 };
-  let lateText = `${eur(late && late.amount)} à relancer : tuile « En retard ».`;
-  if (payouts.count > 0 && payouts.count === late.count) lateText = `${eur(late.amount)} de ${payouts.count > 1 ? 'versements' : 'versement'} plateforme attendu${payouts.count > 1 ? 's' : ''} : tuile « En retard ».`;
-  else if (payouts.count > 0) lateText = `${eur(late.amount)} à relancer, dont ${eur(payouts.totalAmount)} de versements plateforme : tuile « En retard ».`;
+  let lateText = `${eur(late && late.amount)} à relancer : tuile ${TILE_LATE}.`;
+  if (payouts.count > 0 && payouts.count === late.count) lateText = `${eur(late.amount)} de ${payouts.count > 1 ? 'versements' : 'versement'} plateforme attendu${payouts.count > 1 ? 's' : ''} : tuile ${TILE_LATE}.`;
+  else if (payouts.count > 0) lateText = `${eur(late.amount)} à relancer, dont ${eur(payouts.totalAmount)} de versements plateforme : tuile ${TILE_LATE}.`;
   out.push(late && late.count > 0
     ? { key: 'late', tone: 'error', title: `${plural(late.count, 'séjour')} en retard de paiement`, text: lateText }
     : { key: 'late', tone: 'info', title: 'Aucun paiement en retard', text: 'Tout est à jour.' });

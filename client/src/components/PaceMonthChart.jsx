@@ -7,7 +7,9 @@
  * On a phone the chart stays a chart (UI/UX review 2026-10-18, decision 9): twelve columns of 56 px
  * scroll inside the card, the value axis stays fixed on the left, a faded edge says there is more,
  * and the scroll is set on the server's current month (`isCurrent`) on arrival and whenever the
- * payload changes. One tap — or one click — on a column opens its month (rule 15).
+ * payload changes (centred when the edges allow, `scrollTargetFor`). One tap — or one click — on a
+ * column opens its month (rule 15); a phone has no tooltip, the open month's header gives its figures
+ * (`paceMonthLines`). Month labels are the keyboard path (focus ring, Enter / Space, `aria-pressed`).
  *
  * Props:
  *   months:        pace.months
@@ -19,7 +21,7 @@
  */
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Box, useMediaQuery } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceArea } from 'recharts';
 import { chart as c } from '../utils/chartColors';
 
@@ -28,20 +30,38 @@ const COLUMN_XS = 56;
 const AXIS_WIDTH = 38;
 const MARGIN = { top: 6, right: 4, bottom: 0, left: 0 };
 
+/**
+ * The figures of a month, one line each — the tooltip on a wide screen, the header of the open month
+ * on a phone (rule 15). Last year at the same date only when the month is comparable.
+ */
+export function paceMonthLines(m, formatValue) {
+  const lines = [`À date : ${formatValue(m.current)}`];
+  if (m.comparable) lines.push(`${capitalise(m.lastYearLabel)} à la même date : ${formatValue(m.sameTimeLastYear)}`);
+  if (m.lastYearFinal != null) lines.push(`${capitalise(m.lastYearLabel)} au final : ${formatValue(m.lastYearFinal)}`);
+  if (m.reachedPct != null) lines.push(`Déjà ${Math.round(m.reachedPct * 100)} % du final de l'an dernier${m.remaining > 0 ? ` · reste ${formatValue(m.remaining)}` : ''}`);
+  return lines;
+}
+
 export function PaceTooltip({ active, payload, formatValue }) {
   if (!active || !payload?.length) return null;
   const m = payload[0].payload;
   return (
     <Box sx={{ bgcolor: c.tooltip, color: '#fff', px: 1.25, py: 0.75, borderRadius: '6px', fontSize: 12, lineHeight: 1.6, fontVariantNumeric: 'tabular-nums' }}>
       <Box sx={{ fontWeight: 700 }}>{capitalise(m.label)}</Box>
-      <Box>À date : {formatValue(m.current)}</Box>
-      <Box>{capitalise(m.lastYearLabel)} à la même date : {m.sameTimeLastYear == null ? 'inconnu' : formatValue(m.sameTimeLastYear)}</Box>
-      {m.lastYearFinal != null && <Box>{capitalise(m.lastYearLabel)} au final : {formatValue(m.lastYearFinal)}</Box>}
-      {m.reachedPct != null && (
-        <Box>Déjà {Math.round(m.reachedPct * 100)} % du final de l'an dernier{m.remaining > 0 ? ` · reste ${formatValue(m.remaining)}` : ''}</Box>
-      )}
+      {paceMonthLines(m, formatValue).map((line) => <Box key={line}>{line}</Box>)}
     </Box>
   );
+}
+
+/**
+ * Rule 14 — where the scroll sits so the current month is centred in the visible width (or as close
+ * as the edges allow). `columnWidth` is measured (scrollWidth / months), not assumed.
+ */
+export function scrollTargetFor(months, columnWidth, viewportWidth) {
+  const index = months.findIndex((m) => m.isCurrent);
+  if (index < 0 || !(columnWidth > 0)) return 0;
+  const max = Math.max(0, columnWidth * months.length - viewportWidth);
+  return Math.min(max, Math.max(0, Math.round(index * columnWidth + columnWidth / 2 - viewportWidth / 2)));
 }
 
 // The écart as drawn under a month: « ▲ +4 », « ▼ −2 », « = 0 », or « — » when not comparable.
@@ -54,7 +74,7 @@ export function deltaText(m, formatShort) {
 
 // Month under its column (current month bold sapin, underlined), the écart below when a comparison
 // exists. Focusable: Enter or Space opens the month, like a tap.
-export function MonthTick({ x, y, payload, months, formatShort, hasComparison, onSelectMonth, theme }) {
+export function MonthTick({ x, y, payload, months, formatShort, formatValue, hasComparison, selected, onSelectMonth, theme }) {
   const m = months.find((mo) => mo.month === payload.value) || months[payload.index];
   if (!m) return null;
   const color = { success: theme.palette.success.main, error: theme.palette.error.main }[m.tone] || c.tick;
@@ -64,7 +84,8 @@ export function MonthTick({ x, y, payload, months, formatShort, hasComparison, o
     onSelectMonth(m.month);
   };
   return (
-    <g transform={`translate(${x},${y})`} tabIndex={0} role="button" aria-label={`${capitalise(m.label)} : ${m.current}`} onKeyDown={open} style={{ outline: 'none' }}>
+    <g transform={`translate(${x},${y})`} tabIndex={0} role="button" aria-pressed={selected === m.month} aria-label={`${capitalise(m.label)} : ${formatValue(m.current)}`} onKeyDown={open} className="pace-month">
+      <rect className="pace-month-ring" x={-25} y={-1} width={50} height={hasComparison ? 37 : 21} rx={6} fill="none" stroke={c.current} strokeWidth={2} />
       <text dy={12} textAnchor="middle" fontSize={11} fontWeight={m.isCurrent ? 700 : 600} fill={m.isCurrent ? c.current : c.value}>{m.tick}</text>
       {m.isCurrent && <rect x={-10} y={17} width={20} height={2} rx={1} fill={c.current} />}
       {hasComparison && <text dy={33} textAnchor="middle" fontSize={11} fontWeight={700} fill={color}>{deltaText(m, formatShort)}</text>}
@@ -104,8 +125,7 @@ export default function PaceMonthChart({ months, hasComparison, selected, onSele
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const index = Math.max(0, months.findIndex((m) => m.isCurrent));
-    el.scrollLeft = isXs ? index * COLUMN_XS : 0;
+    el.scrollLeft = isXs ? scrollTargetFor(months, el.scrollWidth / months.length, el.clientWidth) : 0;
     readEdges();
   }, [months, isXs, readEdges]);
 
@@ -122,7 +142,7 @@ export default function PaceMonthChart({ months, hasComparison, selected, onSele
   const fade = (side) => ({
     position: 'absolute', top: 0, bottom: axisHeight, width: 28, pointerEvents: 'none', zIndex: 1,
     [side]: side === 'left' ? AXIS_WIDTH : 0,
-    background: `linear-gradient(${side === 'left' ? 90 : 270}deg, #fff, rgba(255,255,255,0))`,
+    background: `linear-gradient(${side === 'left' ? 90 : 270}deg, ${theme.palette.background.paper}, ${alpha(theme.palette.background.paper, 0)})`,
     opacity: edges[side] ? 1 : 0, transition: 'opacity .2s',
     '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
   });
@@ -130,11 +150,20 @@ export default function PaceMonthChart({ months, hasComparison, selected, onSele
   const axis = <YAxis width={AXIS_WIDTH} tickLine={false} axisLine={false} allowDecimals={false} tickFormatter={formatShort} tick={{ fontSize: 11, fill: c.tick }} />;
 
   return (
-    <Box sx={{ display: 'flex', position: 'relative', '& .recharts-wrapper:focus, & .recharts-surface:focus': { outline: 'none' } }}>
+    <Box
+      sx={{
+        display: 'flex', position: 'relative',
+        // A tap must not leave the browser's focus ring behind; the keyboard keeps a visible one.
+        '& svg :focus:not(:focus-visible)': { outline: 'none' },
+        '& .pace-month': { outline: 'none' },
+        '& .pace-month-ring': { opacity: 0 },
+        '& .pace-month:focus-visible .pace-month-ring': { opacity: 1 },
+      }}
+    >
       {isXs && (
         <Box sx={{ flex: `0 0 ${AXIS_WIDTH}px` }} aria-hidden="true" data-testid="pace-fixed-axis">
           <ResponsiveContainer width={AXIS_WIDTH} height={height}>
-            <BarChart data={months} margin={{ ...MARGIN, right: 0 }}>
+            <BarChart data={months} margin={{ ...MARGIN, right: 0 }} accessibilityLayer={false}>
               <XAxis xAxisId="ghost" dataKey="month" hide height={0} />
               <XAxis xAxisId="main" dataKey="month" hide height={axisHeight} />
               {axis}
@@ -150,15 +179,18 @@ export default function PaceMonthChart({ months, hasComparison, selected, onSele
         data-testid="pace-scroller"
         sx={{ flex: '1 1 auto', minWidth: 0, overflowX: { xs: 'auto', sm: 'visible' }, overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch' }}
       >
-        <Box sx={{ minWidth: isXs ? months.length * COLUMN_XS : 0, cursor: 'pointer', '& g[role=button]:focus-visible text:first-of-type': { textDecoration: 'underline' } }} onClick={handleClick}>
+        <Box sx={{ minWidth: isXs ? months.length * COLUMN_XS : 0, cursor: 'pointer' }} onClick={handleClick}>
           <ResponsiveContainer width="100%" height={height}>
-            <BarChart data={months} margin={MARGIN} barGap={3} barCategoryGap={isXs ? '14%' : '22%'}>
+            {/* Month labels are the keyboard path: no second tab stop on the chart itself. */}
+            <BarChart data={months} margin={MARGIN} barGap={3} barCategoryGap={isXs ? '14%' : '22%'} accessibilityLayer={false}>
               <CartesianGrid vertical={false} stroke={c.grid} />
               {selected && <ReferenceArea x1={selected} x2={selected} xAxisId="main" fill={c.selected} fillOpacity={0.6} ifOverflow="extendDomain" />}
               <XAxis xAxisId="ghost" dataKey="month" hide height={0} />
-              <XAxis xAxisId="main" dataKey="month" interval={0} height={axisHeight} tickLine={false} axisLine={{ stroke: theme.palette.divider }} tick={<MonthTick months={months} formatShort={formatShort} hasComparison={hasComparison} onSelectMonth={onSelectMonth} theme={theme} />} />
+              <XAxis xAxisId="main" dataKey="month" interval={0} height={axisHeight} tickLine={false} axisLine={{ stroke: theme.palette.divider }} tick={<MonthTick months={months} formatShort={formatShort} formatValue={formatValue} hasComparison={hasComparison} selected={selected} onSelectMonth={onSelectMonth} theme={theme} />} />
               {isXs ? <YAxis hide width={0} /> : axis}
-              <Tooltip content={<PaceTooltip formatValue={formatValue} />} cursor={{ fill: c.cursor }} />
+              {/* Rule 15 — a phone gets no tooltip (the scroll box clips it): the open month's header
+                  prints the same lines. */}
+              {!isXs && <Tooltip content={<PaceTooltip formatValue={formatValue} />} cursor={{ fill: c.cursor }} />}
               {bars(true)}
             </BarChart>
           </ResponsiveContainer>

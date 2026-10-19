@@ -13,7 +13,7 @@ import { Box, Card, CardContent, ToggleButton, ToggleButtonGroup, Typography } f
 import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import YearOverYearBadge from './YearOverYearBadge';
-import PaceMonthChart from './PaceMonthChart';
+import PaceMonthChart, { paceMonthLines } from './PaceMonthChart';
 import PickupCurveChart from './PickupCurveChart';
 import { formatCurrencyRounded } from '../utils/formatters';
 import api from '../api';
@@ -97,6 +97,7 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
   useEffect(() => { loadCurve(); }, [loadCurve]);
 
   const { formatValue, formatShort } = paceFormatters(metric);
+  const openMonth = pace && selected ? pace.months.find((m) => m.month === selected) : null;
   const selectMonth = (month) => {
     setCurve({ data: null, error: false });
     setSelected((current) => (current === month ? null : month));
@@ -158,6 +159,11 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
                     <Typography variant="subtitle2" sx={{ textTransform: 'none' }}>
                       Montée en charge · {curve.data.label.charAt(0).toUpperCase() + curve.data.label.slice(1)}
                     </Typography>
+                    {openMonth && (
+                      <Box data-testid="pace-month-figures" sx={{ fontSize: 13, lineHeight: 1.6, my: 0.5, fontVariantNumeric: 'tabular-nums' }}>
+                        {paceMonthLines(openMonth, formatValue).map((line) => <Box key={line}>{line}</Box>)}
+                      </Box>
+                    )}
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                       Cumul réservé selon le nombre de jours avant le 1er du mois · aujourd'hui : J-{curve.data.todayDaysBefore}
                     </Typography>

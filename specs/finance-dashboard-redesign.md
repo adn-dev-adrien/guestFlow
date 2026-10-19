@@ -282,17 +282,22 @@ without losing anything today's page shows.
 ### 3.14 UI/UX review (2026-10-18), decisions of 2026-10-19
 
 43. **Faits marquants: never cut, and a best month is a month over** (UI/UX review 2026-10-18,
-    proposal 8). The cards sit in a grid of as many 240 px columns as fit (`auto-fit`), their text
+    proposal 8). The cards sit in a grid of as many 210 px columns as fit (`auto-fit`,
+    `minmax(min(100%, 210px), 1fr)`: four at 1280 px, two at 900 px, one on a phone), their text
     column may shrink below its longest word and wraps, never clipped (at 900 px with four insights the
     text was cut mid-word: « Commiss / évitées pa »). The server picks the **best month among the
     months already over**: « Octobre, meilleur mois terminé » while months remain, « Août, meilleur
     mois de l'exercice » once every month is over. While no month over carries revenue, the month
     leading the bookings is named **as such**, never as a best month: « Août, en tête des réservations :
     805 € » — « Mois à venir. » (or « Mois en cours, pas encore terminé. »), without last year's figure.
+    Two months at the same amount: **the earliest wins**. A month over whose total is zero or negative
+    (refunds only) is never a best month.
     *Why:* on 18 October the page called August, entirely « à venir », the best month of the exercise.
 44. **« Revenu par mois » reads without hover** (proposal 9). Each month's total is written above its
     column in compact French (« 8,2 k », « 805 »), on the top segment of the stack; a total under 6 %
-    of the tallest column is left to the tooltip (its label would collide). The current month
+    of the tallest column is left to the tooltip (its label would collide). The server makes those
+    choices (`revenueMonths[].totalLabel`, '' when not written, and `labelOn`: `upcoming` | `past` |
+    null); the client only draws them. The current month
     (`revenueMonths[].isCurrent`, server) is bold sapin and underlined. Months are abbreviated from `sm`
     up (`short`: « janv. », « févr. » — no more two J, two M, two A), initials on a phone. « Pas encore
     d'an dernier à comparer » moves under the chart. The focus ring shows on keyboard focus only
@@ -304,16 +309,19 @@ without losing anything today's page shows.
     `#8E8470` (3.7:1, also the dashed ghost), grid, ticks in `text.secondary` (5.4:1, the occupancy ticks
     were `#A39E92`, 2.7:1), the « aujourd'hui » marker, the ink banner's accents and **the logement
     series** (sapin, miel profond, bleu `#2F6690`, brique, prune `#6A4F86`, olive `#71792B`: each ≥ 3:1,
-    adjacent pairs told apart under the three colour-vision deficiencies). The server no longer sends a
-    hex colour: each logement carries a stable `colorIndex` (id order) that the client paints from the
-    palette, so the colour lives in one place. A Vitest suite checks every information-carrying token
+    adjacent pairs told apart under the three colour-vision deficiencies). The six colours cycle: a 7th
+    logement reuses sapin (each small chart carries its name, so identity never rests on colour alone).
+    The server no longer sends a hex colour: each logement carries `colorIndex`, its **rank by id** among
+    the logements, that the client paints from the palette, so the colour lives in one place; deleting a
+    logement shifts the colours of the ones after it. A series colour is a mark colour (3:1), never a
+    text one: a small chart writes its logement's name in ink, only the dot before it wears the colour. A Vitest suite checks every information-carrying token
     against WCAG (3:1 for a mark, 4.5:1 for a tick or a written value).
 46. **Before the first month of the exercise is over, the curve stays, shorter** (decision 10 — departs
     from the review's recommendation, which replaced it by a summary line). On the *Exercice* window,
     while the exercise's first month is not over (`hero.curveCompact`, server), the cumulative curve is
     drawn 56 px high instead of 120, on the same calendar graduations; no placeholder or summary line
     replaces it. From the 1st of the second month, and on any past exercise or month window, it takes
-    its 120 px again. Rendering: `docs/specs/2026-10-19-finance-charts-phone-and-early-exercise.html` §2.
+    its 120 px again. An exercise entirely to come (its first month not begun) is compact too. Rendering: `docs/specs/2026-10-19-finance-charts-phone-and-early-exercise.html` §2.
 
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
@@ -350,6 +358,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | `utils/` | `bookingPace.js` | T | 2026-10-18 — pace nights distinct per logement (rule 35); `paceStartOf` reused as the tracking start (rule 33) |
 | `utils/` | `yearOverYear.js` | C | Pure: coverage start, comparable months, comparable range, change (rules 17-21); 2026-10-18 `lastYearSnapshotKnown`, `isMonthOver`, `clampToMonthsOver` (rule 33) |
 | `utils/` | `financeInsights.js` | C | Pure: the French insight lines (rule 11; payouts, stays without amount and wording, rules 34-36); 2026-10-19 best month over / leading month wording (rule 43) |
+| `utils/` | `financeChartLabels.js` | C | 2026-10-19 pure: which month totals are written on « Revenu par mois », on which segment, in compact French (rule 44) |
 | `utils/` | `exerciseOverview.js` | T | Reduced to `exerciseMonths`; 2026-10-19 each month carries its abbreviation `short` (rule 44) |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT` |
 
@@ -369,7 +378,6 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | `pages/` | `FinancePage.jsx` | T | 2026-10-19 insights in an `auto-fit` 240 px grid (rule 43); logement colours from `seriesColor(colorIndex)` (rule 45) |
 | `theme.js` | `theme.js` | T | 2026-10-19 `palette.chart` — the chart tokens (rule 45) |
 | `utils/` | `chartColors.js` | C | 2026-10-19 the chart palette read from the theme and `seriesColor(index)` (rule 45) |
-| `utils/` | `formatters.js` | T | 2026-10-19 `formatAmountCompact` — « 8,2 k » on a chart mark (rule 44) |
 | `components/` | `SmallMultiplesLineChart.jsx`, `PickupCurveChart.jsx`, `FinanceDetailPanel.jsx` | T | 2026-10-19 colours from the chart tokens / `seriesColor` (rule 45) |
 | `components/` | `FinanceDetailPanel.jsx` | C | Finance-specific: the six tables of rule 13, each with its `xs` card layout; 2026-10-18 « En retard » renders `overdueItems`, « Réservations » gains « Sans montant », « Encaissable d'ici le » (rules 34-36); « Marquer payé » calls `onSettleOverdue`, a 0 € stay shows « Montant à saisir » (rules 38-39) |
 | `components/` | `OperationalPaymentsTable.jsx` | T | Reused as is for « À encaisser » |
@@ -419,7 +427,8 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
     "properties": { "count": 4, "leader": "Lodge" } | { "count": 1, "name": "…", "revenue": 22104, "revPar": 61 },
     "channels": { "commission": 6225 }
   },
-  "revenueMonths": [ { "month": "2026-01", "label": "janvier 2026", "initial": "J", "short": "janv.", "isCurrent": false, "past": 3409, "upcoming": 0,
+  "revenueMonths": [ { "month": "2026-01", "label": "janvier 2026", "initial": "J", "short": "janv.", "isCurrent": false,
+                       "totalLabel": "3,4 k", "labelOn": "past", "past": 3409, "upcoming": 0,
                        "revenue": 3409, "revenueHt": 3099, "nights": 26, "previous": 3100 | null,
                        "previousLabel": "janvier 2025", "inWindow": true } ],
   "occupancy": [ { "propertyId": 1, "name": "…", "colorIndex": 0, "average": 0.38 | null,
@@ -463,8 +472,8 @@ par mois » and « Taux d'occupation » side by side.
 - **lg / md**: hero on two columns (figure + goal | four figures), curve full width inside the hero;
   tiles 6 across on a wide screen (xl, ≥ 1536 px) and 3 across below, since the
   sidebar leaves too little room for six readable captions; charts side by side (lg), stacked (md).
-- **Insights** (rule 43): a grid of as many 240 px columns as fit — four across on a wide screen, two
-  at 900 px with the sidebar, one on a phone; the text wraps, never cut.
+- **Insights** (rule 43): a grid of as many 210 px columns as fit — four across at 1280 px, two at
+  900 px with the sidebar, one on a phone; the text wraps, never cut.
 - **Revenu par mois** (rule 44): totals above the columns, current month marked; « janv. » from `sm`,
   initials on `xs`.
 - **Hero** (rule 46): the curve is 56 px high until the exercise's first month is over, 120 px after.
@@ -518,9 +527,10 @@ par mois » and « Taux d'occupation » side by side.
       the home dashboard card claims the same payout.
 - [x] `finance-overdue-zero-payout.unit.test.js` (2) — rule 42: commission = solde → out of « En
       retard » (tile 240 €, 1 stay); commission > solde → no home dashboard card.
-- [x] `finance-charts-readability.unit.test.js` (5) — rules 43-46 and booking-pace rules 14-15: best
-      month among the months over / leading month and their wording, month abbreviations, current
-      month, colour slots, short curve on the current exercise only, pace current month and
+- [x] `finance-charts-readability.unit.test.js` (7) — rules 43-46 and booking-pace rules 14-15: best
+      month among the months over / leading month and their wording, ties to the earliest, a month in
+      the red never best, the written totals and their segment, month abbreviations, current month,
+      colour slots, short curve on the current and a future exercise only, pace current month and
       `hasComparison`.
 - 2026-10-18 (rule 37 note): the « today » fixtures of `financeDashboardFixture.js`, `finance-model`,
   `finance-fiscal-year-summary`, `finance-per-property-revenue`, `clients-directory`,
@@ -551,12 +561,14 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `SettingsFiscalYearSection.revenue-goals.test.jsx` (4) — refusals disable Enregistrer, hint.
 - [x] `FinanceDashboard.radii.test.jsx` (3) — rule 32: tile and banner at 14 px, logement card at
       10 px, as the browser computes them from the theme.
-- [x] `chartPalette.contrast.test.js` (3) — rule 45: the palette is `theme.palette.chart`, marks ≥ 3:1,
-      ticks and values ≥ 4.5:1, the sand bar never alone; `formatAmountCompact` (rule 44).
-- [x] `FinanceCharts.readability.test.jsx` (5) — rules 43, 44, 46 and booking-pace 14-15: abbreviation
+- [x] `chartPalette.contrast.test.js` (2) — rule 45: the palette is `theme.palette.chart`, marks ≥ 3:1
+      (the sand bar's edge included), ticks and values ≥ 4.5:1, the sand bar never alone.
+- [x] `FinanceCharts.readability.test.jsx` (8) — rules 43-46 and booking-pace 14-15: abbreviation
       vs initial and the current-month mark, the total above its column, the insight column wraps, the
-      pace tick (current month, écart row only with a comparison, Enter opens the month), the hero
-      curve at 56 px then 120 px.
+      pace tick (current month, écart row only with a comparison, focus ring, `aria-pressed`, label
+      with its unit, Enter opens the month), the scroll target centring the current month, a month's
+      lines without « à la même date » when not comparable, a logement name in ink, the hero curve at
+      56 px then 120 px.
 - 2026-10-19: `financePageFixtures.jsx` carries `colorIndex` instead of `color`.
 - Removed with their components: the `FinanceExerciseOverview`, `RankedBarList`,
   `FinanceBreakdownDialog`, `ChannelBreakdownCard` suites and `FinancePage.test.jsx`.
@@ -579,8 +591,8 @@ par mois » and « Taux d'occupation » side by side.
 - See the PR #702 follow-up: 390 and 1280 px, « Marquer payé » on a payout row, « Sans montant ».
 
 ### Manual UI verification of rules 43-46 (2026-10-19, copy of the Solio database)
-- [x] 390 / 900 / 1280 px, current exercise 2026-2027 on 19 October: four insights, none cut (2 × 2 at
-      900 px); « Août, en tête des réservations : 805 € · Mois à venir. »; no horizontal page scroll.
+- [x] 390 / 900 / 1280 px, current exercise 2026-2027 on 19 October: four insights, none cut (4 across
+      at 1280 px, 2 × 2 at 900 px, one column at 390 px, after the review of PR #719); « Août, en tête des réservations : 805 € · Mois à venir. »; no horizontal page scroll.
 - [x] Exercise 2025-2026: « Août, meilleur mois de l'exercice · 8 226 € »; totals 569 / 2,6 k / 3,5 k /
       1,4 k / 5,3 k / 8,2 k / 1 k above the columns at 390 px without collision.
 - [x] Hero on 19 October: curve 56 px; on 2025-2026: 120 px.

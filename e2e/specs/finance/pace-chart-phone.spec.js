@@ -18,10 +18,15 @@ test.describe('phone (390 px, touch)', () => {
     expect(geometry).toEqual({ left: 0, overflows: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 
+    // The month labels are the keyboard path: neither chart of the month view is a tab stop.
+    await expect(paceCard(page).locator('svg[tabindex]')).toHaveCount(0);
     await scroller.scrollIntoViewIfNeeded();
     const box = await scroller.boundingBox();
     await page.touchscreen.tap(box.x + 56 * 1.5, box.y + 100);
     await expect(paceCard(page).getByText(/^Montée en charge · /)).toBeVisible();
+    // No tooltip on a phone: the open month's header gives its figures; the chart takes no tab stop.
+    await expect(page.getByTestId('pace-month-figures')).toContainText('À date :');
+    await expect(paceCard(page).locator('[data-testid="pace-scroller"] .recharts-tooltip-wrapper')).toHaveCount(0);
 
     // A new payload (another metric) brings the scroll back to the current month.
     await scroller.evaluate((el) => { el.scrollLeft = 200; });

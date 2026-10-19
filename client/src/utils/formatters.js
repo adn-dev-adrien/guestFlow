@@ -4,7 +4,6 @@
  *
  *   formatCurrency         12,50 € / 1 234,50 €   — rows, totals, any exact amount
  *   formatCurrencyRounded  1 235 €                — KPI tiles & chart labels (overview style)
- *   formatAmountCompact    8,2 k / 805            — a value written on a chart mark (no unit: the chart names it)
  *   displayDate            10/07/2026             — plain date columns/fields
  *   displayDateShort       10 juil. 2026          — compact humanized (alert cards, dialogs)
  *   displayDateLong        10 juillet 2026        — prose-like contexts (SAS, notices)
@@ -41,14 +40,6 @@ export function formatCurrencyRounded(n) {
   const rounded = Math.round(num);
   const grouped = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return `${rounded < 0 ? '-' : ''}${grouped} €`;
-}
-
-export function formatAmountCompact(n) {
-  const num = Number(n);
-  if (n == null || n === '' || !Number.isFinite(num)) return '';
-  if (Math.abs(num) < 1000) return String(Math.round(num));
-  const k = Math.round(num / 100) / 10;
-  return `${String(k).replace('.', ',')} k`;
 }
 
 export function displayDate(d) {

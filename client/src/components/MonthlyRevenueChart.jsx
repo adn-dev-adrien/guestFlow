@@ -3,9 +3,9 @@
  * rules 22 and 44): each month of the exercise, this year's column stacked « encaissé ou passé »
  * (sapin) / « à venir » (miel profond), last year's column beside it (sable, outlined) on comparable
  * months; the window's months highlighted when the window is not the whole exercise. Readable without
- * hover: the month's total is written above its column, the current month is marked (bold sapin,
- * underlined), months are abbreviated from `sm` up (« janv. ») and initials on a phone. Colours are
- * the theme's chart tokens (rule 45). Feature-local: it renders `dashboard.revenueMonths` as is.
+ * hover: the month's total (`totalLabel`, chosen and written by the server) sits above its column,
+ * the current month is marked (bold sapin, underlined), months are abbreviated from `sm` up
+ * (« janv. ») and initials on a phone. Colours are the theme's chart tokens (rule 45). Feature-local: it renders `dashboard.revenueMonths` as is.
  *
  * Tooltip: one line per year — « Juillet 2026 : 11 938 € », then « Juillet 2025 : 12 257 € ».
  *
@@ -19,13 +19,9 @@ import React from 'react';
 import { Box, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceArea, CartesianGrid, LabelList } from 'recharts';
-import { formatAmountCompact } from '../utils/formatters';
 import { chart as c } from '../utils/chartColors';
 
 const capitalise = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-// A total smaller than this share of the tallest column is not written: its label would sit on the
-// axis, on top of its neighbours' (the tooltip still gives it).
-const LABEL_MIN_SHARE = 0.06;
 
 export function MonthTooltip({ active, payload, formatAmount }) {
   if (!active || !payload?.length) return null;
@@ -52,8 +48,8 @@ export function MonthTick({ x, y, payload, months, compact }) {
   );
 }
 
-// The total written above the whole stack: on « à venir » when the month has some, else on
-// « encaissé ou passé » — always on the top segment.
+// The total written above the whole stack. The server says which months carry one and on which
+// segment (`totalLabel`, `labelOn`: the top of the stack); this only draws it.
 export function TotalLabel({ x, y, width, value }) {
   if (!value) return null;
   return (
@@ -79,21 +75,16 @@ export default function MonthlyRevenueChart({ months, highlightWindow, previousY
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const hasPrevious = months.some((m) => m.previous != null);
-  const tallest = Math.max(0, ...months.map((m) => m.revenue));
   // A refund attributed to an otherwise empty month would draw below the axis: the column stays at
   // 0 and the tooltip keeps the real amount.
-  const data = months.map((m) => {
-    const total = m.revenue > 0 && m.revenue >= tallest * LABEL_MIN_SHARE ? formatAmountCompact(m.revenue) : '';
-    const onUpcoming = m.upcoming > 0;
-    return {
-      ...m,
-      pastBar: Math.max(0, m.past),
-      upcomingBar: Math.max(0, m.upcoming),
-      previousBar: m.previous == null ? null : Math.max(0, m.previous),
-      totalOnPast: onUpcoming ? '' : total,
-      totalOnUpcoming: onUpcoming ? total : '',
-    };
-  });
+  const data = months.map((m) => ({
+    ...m,
+    pastBar: Math.max(0, m.past),
+    upcomingBar: Math.max(0, m.upcoming),
+    previousBar: m.previous == null ? null : Math.max(0, m.previous),
+    totalOnPast: m.labelOn === 'past' ? m.totalLabel : '',
+    totalOnUpcoming: m.labelOn === 'upcoming' ? m.totalLabel : '',
+  }));
   const windowMonths = highlightWindow ? months.filter((m) => m.inWindow) : [];
   return (
     <Box>

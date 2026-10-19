@@ -42,7 +42,10 @@ export default function SmallMultiplesLineChart({ series, currentLabel, previous
         {series.map((s) => (
           <Box key={s.key} data-testid={`small-multiple-${s.key}`} sx={{ border: 1, borderColor: 'divider', borderRadius: '10px', px: 1.25, pt: 1, pb: 0.5, minWidth: 0 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, fontSize: 12.5, fontWeight: 600, mb: 0.5 }}>
-              <Box component="span" sx={{ color: s.color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>● {s.title}</Box>
+              {/* The name in ink (a series colour is a mark colour, 3:1, not a text one); the dot carries it. */}
+              <Box component="span" data-testid={`small-multiple-title-${s.key}`} sx={{ color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <Box component="span" aria-hidden="true" sx={{ color: s.color }}>●</Box> {s.title}
+              </Box>
               {s.caption && <Typography component="span" variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{s.caption}</Typography>}
             </Box>
             <ResponsiveContainer width="100%" height={height}>

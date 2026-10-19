@@ -141,14 +141,22 @@ behind.
     into a list of months). The twelve columns keep their 56 px and scroll inside the card; the value
     axis is drawn apart and **stays fixed** on the left; a faded edge on either side says more months
     are there. The server marks the current month (`months[].isCurrent`); the scroll is set on it on
-    arrival and every time a payload comes in (metric, logement, refresh). The current month's label is
+    arrival and every time a payload comes in (metric, logement, refresh), centred in the visible width
+    as far as the edges allow; the column width is measured, not assumed (`scrollTargetFor`). The current month's label is
     bold sapin and underlined, as on « Revenu par mois ». Today the current month is always the first
     column (rule 5), so the scroll starts at the left edge; the rule holds if the window ever starts
     earlier.
 15. **One tap, one click** opens a month's pickup curve (rule 13), on every breakpoint: the month is read
     from where the pointer lands on the plot, not from the tooltip's hover state (a click without a
-    prior hover opened nothing; a phone needed two taps). A month label is focusable; Enter or Space
-    opens it. The écart row under the months is drawn only once a month is comparable
+    prior hover opened nothing; a phone needed two taps). **A phone has no tooltip** — the scroll box
+    clipped it to a few pixels —: the open month's « Montée en charge » header prints the same lines
+    (« À date », « l'an dernier au final », « Déjà N % … »). A wide screen keeps the tooltip. The month
+    labels are the keyboard path: each is focusable with a visible 2 px sapin ring, names its value
+    with its unit (« Octobre 2026 : 5 réservations »), says whether it is the open one
+    (`aria-pressed`); Enter or Space opens it. The chart itself takes no tab stop (Recharts'
+    accessibility layer off on both charts, the fixed axis being `aria-hidden`), and a tap leaves no
+    browser focus ring. The « l'an dernier à la même date » line of a month (tooltip or header) shows
+    only when that month is comparable — never « inconnu ». The écart row under the months is drawn only once a month is comparable
     (`hasComparison`, server) — before, every month carried « — » for months on end; the « l'an
     dernier à la même date » legend entry follows it. Bars use the chart tokens
     (`finance-dashboard-redesign.md` rule 45): the same-date sand bar is outlined, the ghost dashes in
@@ -275,9 +283,12 @@ API again; the error; the tooltip lines; a non-comparable month reading « incon
 
 2026-10-19 (rules 14-15): `server/src/tests/finance-charts-readability.unit.test.js` (current month,
 `hasComparison`) and `client/src/components/__tests__/FinanceCharts.readability.test.jsx` (current-month
-tick, écart row only with a comparison, Enter opens a month), and the E2E
+tick, écart row only with a comparison, focus ring, `aria-pressed`, Enter opens a month; scroll target;
+month lines without « à la même date » when not comparable), the updated rule 9 case of
+`BookingPaceCard.test.jsx`, and the E2E
 `e2e/specs/finance/pace-chart-phone.spec.js` (2: fixed axis, scroll on the current month and back to it
-after a metric change, one tap at 390 px; one click at 1280 px). Manual check at 390 px on a copy of the
+after a metric change, one tap at 390 px opens the month with its figures in the header and no
+tooltip, the chart takes no tab stop; one click at 1280 px). Manual check at 390 px on a copy of the
 Solio database: the axis stays while the columns scroll, the scroll starts on « oct. 26 », one tap on
 November opens its curve; 900 / 1280 px: one click opens it, no scroll.
 
