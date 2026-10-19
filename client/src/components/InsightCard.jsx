@@ -1,6 +1,7 @@
 /**
  * InsightCard — one « fait marquant »: a toned icon, a bold line and a caption
- * (specs/finance-dashboard-redesign.md rule 11). Generic: the text comes ready-made from the server.
+ * (specs/finance-dashboard-redesign.md rules 11, 43). Generic: the text comes ready-made from the
+ * server; it wraps inside any column width, never clipped.
  *
  * Props:
  *   tone:   'success' | 'warning' | 'error' | 'info'
@@ -31,7 +32,8 @@ export default function InsightCard({ tone = 'info', title, text, icon, actionLa
         <Box sx={{ width: 36, height: 36, borderRadius: '8px', bgcolor: t.bg, color: t.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 36px' }}>
           {icon || t.icon}
         </Box>
-        <Box>
+        {/* Rule 43 — the text column may shrink below its longest word: it wraps, it is never cut. */}
+        <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
           <Typography variant="body2" sx={{ fontWeight: 700 }}>{title}</Typography>
           <Typography variant="body2" color="text.secondary">{text}</Typography>
           {actionLabel && onAction && (
