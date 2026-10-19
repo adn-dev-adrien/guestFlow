@@ -456,7 +456,9 @@ names a loaded recipe or is empty.
 
 ## 6. Production configuration
 
-`scripts/configure-aventura-lodge-2026.mjs`, run on the Pi after deployment. It handles only what a
+`scripts/configure-aventura-lodge-2026.mjs`, run on the Pi after deployment. *(Since 2026-10-19 the
+script lives in the deployment's private repository and runs against a GuestFlow checkout —
+[phase P](../plugins-phase-p-productisation.md) rule 30.)* It handles only what a
 recipe deliberately does **not** cover (spec rule 6): property fields (capacity, occupancy, check-in and
 check-out, deposit, extra-guest unit, welcome-pack cost), the platform commissions, the linen and
 cleaning options as property defaults marked offered, and the welcome-pack option.

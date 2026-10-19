@@ -160,7 +160,7 @@ site, WordPress widget) without a forced override.
 | `guestflow-booking/blocks/properties/view.js` | T | Card capacity = `maxGuests` (fallback `maxAdults` alias), babies shown separately. |
 | `guestflow-booking/blocks/booking/view.js` | T | Guest steppers capped: `adults + teens + children ≤ maxGuests`, `babies ≤ maxBabies`; capacity line under the "Voyageurs" section. |
 | `guestflow-booking/includes/class-gf-blocks.php` | T | New i18n strings (`guestsUnit`, `babiesUnit`) for the capacity hint. |
-| `solio-site/mu-plugins/gf-seo-facts.php` | **not touched** | That directory is not versioned in this repo (never committed, not ignored), so it cannot ship in this PR. It reads `maxAdults`, which the public API keeps as an alias of `maxGuests` (rule 11) — the SEO facts stay correct with **no redeploy needed**. Point it at `maxGuests` whenever the directory gets versioned. |
+| `solio-site/mu-plugins/gf-seo-facts.php` | **not touched** | That directory is not versioned in this repo (never committed, not ignored), so it cannot ship in this PR. It reads `maxAdults`, which the public API keeps as an alias of `maxGuests` (rule 11) — the SEO facts stay correct with **no redeploy needed**. Point it at `maxGuests` whenever the directory gets versioned. *(2026-10-19: the site's mu-plugins now live in the deployment's private repository, phase P rule 30.)* |
 
 ### 4.4 API contract
 

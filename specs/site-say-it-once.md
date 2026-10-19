@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-`integrations/wordpress/solio-site/README.md` states the site's own rule: *« un fait ne soit
+The site's README (`integrations/wordpress/solio-site/README.md` at the time, the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30)) states the site's own rule: *« un fait ne soit
 affiché qu'à un endroit par page »*. Measured against the live site on 2026-09-24, four blocks
 break it.
 
@@ -77,7 +77,7 @@ in the WordPress database.
 
 Untouched. No GuestFlow endpoint, model or task takes part.
 
-### 4.2 Site side (`integrations/wordpress/solio-site/`)
+### 4.2 Site side (the site's mu-plugins — the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30))
 
 | File | Change |
 |---|---|

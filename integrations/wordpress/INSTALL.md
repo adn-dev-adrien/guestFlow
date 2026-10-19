@@ -132,15 +132,3 @@ curl -k -H "Authorization: Bearer <PUBLIC_API_KEY>" https://<host>/public/v1/pro
 # From inside a Docker WordPress container:
 docker exec <wp_container> curl -sk -o /dev/null -w '%{http_code}\n' https://<host>/public/v1/properties
 ```
-
----
-
-## 7. This deployment (Domaine Solio)
-
-- WordPress runs on its own host; GuestFlow is published at `https://guestflow.domainesolio.com`
-  behind a reverse proxy with a valid certificate, so **Vérification SSL stays checked**.
-- Plugin config: the URL and key copied from Paramètres › Intégrations › Site internet, the key via
-  `GUESTFLOW_API_KEY` in `wp-config.php`. « Proxys de confiance » lists the edge proxy, as before;
-  « Proxys du réseau local » covers it too when its address is private.
-- GuestFlow updates are releases installed from Paramètres › Système; the WordPress plugin updates
-  itself from the GuestFlow manifest (`specs/wordpress-plugin-self-update.md`).

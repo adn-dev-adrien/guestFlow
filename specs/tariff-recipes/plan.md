@@ -224,6 +224,8 @@ comprises » caption are gone, and `tests/tourist-tax-included-in-rate.unit.test
 3. **Backup first:** `scripts/backup-from-pi.sh` before touching production data.
 4. `node scripts/configure-aventura-lodge-2026.mjs` (dry run) → read the diff.
 5. `node scripts/configure-aventura-lodge-2026.mjs --apply`.
+   *(Since 2026-10-19 the script lives in the deployment's private repository and runs against a
+   GuestFlow checkout — [phase P](../plugins-phase-p-productisation.md) rule 30.)*
 6. Spot-check in the app: the recipe card shows v1.0.0 applied; the calendar matches spec rule 44; the
    platform grid matches rule 34; one existing upcoming reservation is **unchanged** (locked snapshot);
    one fresh test reservation at each season boundary.
