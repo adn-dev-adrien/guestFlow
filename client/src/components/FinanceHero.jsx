@@ -1,7 +1,9 @@
 /**
  * FinanceHero — the ink banner at the top of the Suivi financier (specs/finance-dashboard-redesign.md
  * §3.2): the window's revenue, its comparison with last year, the goal bar, four figures no tile
- * repeats and the cumulative curve, graduated on the calendar by `hero.axis`. Feature-local: it renders `dashboard.hero` as is.
+ * repeats and the cumulative curve, graduated on the calendar by `hero.axis`. Until the first month of
+ * the exercise is over (`hero.curveCompact`, rule 46) the curve stays, 56 px high instead of 120: no
+ * summary line replaces it. Feature-local: it renders `dashboard.hero` as is.
  *
  * Props:
  *   hero:          dashboard.hero
@@ -15,12 +17,13 @@ import React from 'react';
 import { Box, LinearProgress, Typography } from '@mui/material';
 import { AreaChart, Area, CartesianGrid, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import YearOverYearBadge from './YearOverYearBadge';
+import { chart } from '../utils/chartColors';
 
 export function CurveTooltip({ active, payload, format }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <Box sx={{ bgcolor: '#27251F', color: '#fff', px: 1.25, py: 0.75, borderRadius: '6px', fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
+    <Box sx={{ bgcolor: chart.tooltip, color: '#fff', px: 1.25, py: 0.75, borderRadius: '6px', fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
       <Box sx={{ fontWeight: 700 }}>au {format.date(p.day)}</Box>
       <Box>{p.current == null ? '—' : format.amount(p.current)} cette année</Box>
       {p.previous != null && <Box>{format.amount(p.previous)} l'an dernier</Box>}
@@ -29,10 +32,9 @@ export function CurveTooltip({ active, payload, format }) {
 }
 
 // Ink banner (specs/finance-dashboard-redesign.md rule 31): opaque text, honey accents, no gradient.
-const INK = '#27251F';
-const HONEY = '#E3B566';
-const HAIRLINE = 'rgba(255,255,255,0.12)';
-const MUTED = 'rgba(255,255,255,0.8)';
+const { surface: INK, accent: HONEY, hairline: HAIRLINE, muted: MUTED, previous: PREVIOUS } = chart.onInk;
+const CURVE_HEIGHT = 120;
+const CURVE_HEIGHT_COMPACT = 56;
 
 function Figure({ value, label }) {
   return (
@@ -101,10 +103,10 @@ export default function FinanceHero({ hero, windowLabel, asOf, propertyName, fis
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', fontSize: 12, color: MUTED, my: 0.75 }}>
           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}><Box component="span" sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: HONEY }} />Cumulé</Box>
           {hasPrevious
-            ? <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}><Box component="span" sx={{ width: 16, borderTop: '2.5px dashed rgba(255,255,255,0.7)' }} />Même période, an dernier</Box>
+            ? <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}><Box component="span" sx={{ width: 16, borderTop: `2.5px dashed ${PREVIOUS}` }} />Même période, an dernier</Box>
             : hero.yoy && <span>Courbe de l'an dernier dès que toute la période aura un an d'historique ; en attendant, comparaison mois par mois plus bas.</span>}
         </Box>
-        <ResponsiveContainer width="100%" height={120}>
+        <ResponsiveContainer width="100%" height={hero.curveCompact ? CURVE_HEIGHT_COMPACT : CURVE_HEIGHT}>
           <AreaChart data={hero.cumulative} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
             <defs>
               <linearGradient id="heroFill" x1="0" x2="0" y1="0" y2="1">
@@ -120,7 +122,7 @@ export default function FinanceHero({ hero, windowLabel, asOf, propertyName, fis
             />
             <YAxis hide domain={[0, 'auto']} />
             <Tooltip content={<CurveTooltip format={format} />} cursor={{ stroke: 'rgba(255,255,255,0.35)' }} />
-            {hasPrevious && <Line dataKey="previous" stroke="rgba(255,255,255,0.7)" strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />}
+            {hasPrevious && <Line dataKey="previous" stroke={PREVIOUS} strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />}
             <Area dataKey="current" stroke={HONEY} strokeWidth={2.6} fill="url(#heroFill)" connectNulls={false} dot={false} isAnimationActive={false} />
           </AreaChart>
         </ResponsiveContainer>

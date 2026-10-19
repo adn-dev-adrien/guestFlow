@@ -4,6 +4,8 @@
  *
  * Props:
  *   subject, body          strings — the server's rendering (plain text, as sent)
+ *   html                   string — the HTML part the server derives from `body` (rule 37); given, a
+ *                          « Texte | HTML » switch shows either part, the HTML in a sandboxed frame
  *   loading                boolean — a new rendering is on its way
  *   error                  string — shown instead of the email
  *   language               'fr' | 'en';  onLanguageChange(lang)
@@ -14,7 +16,7 @@
  *   testMessage            ReactNode — the result of the last test
  *   sx
  */
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Alert, Box, Button, Card, CardContent, CircularProgress, FormControl, InputLabel, MenuItem, Select,
   Stack, ToggleButton, ToggleButtonGroup, Typography,
@@ -25,8 +27,10 @@ export const SAMPLE = 'sample';
 
 export default function EmailPreviewPane({
   subject = '', body = '', loading = false, error = '', language = 'fr', onLanguageChange, notice,
-  reservations = [], reservationId = SAMPLE, onReservationChange, onSendTest, testMessage, sx,
+  reservations = [], reservationId = SAMPLE, onReservationChange, onSendTest, testMessage, sx, html = '',
 }) {
+  const [part, setPart] = useState('text');
+  const showHtml = Boolean(html) && part === 'html';
   return (
     <Card variant="outlined" sx={sx}>
       <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
@@ -46,15 +50,31 @@ export default function EmailPreviewPane({
               </Select>
             </FormControl>
           )}
+          {html && (
+            <ToggleButtonGroup size="small" exclusive value={part} onChange={(e, v) => v && setPart(v)} aria-label="Partie de l’email">
+              <ToggleButton value="text" sx={{ minWidth: 44, textTransform: 'none' }}>Texte</ToggleButton>
+              <ToggleButton value="html" sx={{ minWidth: 44, textTransform: 'none' }}>HTML</ToggleButton>
+            </ToggleButtonGroup>
+          )}
           {loading && <CircularProgress size={18} aria-label="Aperçu en cours" />}
         </Stack>
         {notice && <Alert severity="warning" sx={{ mb: 1.5 }}>{notice}</Alert>}
         {error ? <Alert severity="error">{error}</Alert> : (
           <Box data-testid="email-preview" sx={{ bgcolor: 'background.default', borderRadius: 1, p: { xs: 1.5, sm: 2 }, opacity: loading ? 0.6 : 1 }}>
             <Typography variant="subtitle2" sx={{ mb: 1.5, overflowWrap: 'anywhere' }}>{subject}</Typography>
-            <Typography variant="body2" component="div" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'Georgia, serif' }}>
-              {body}
-            </Typography>
+            {showHtml ? (
+              <Box
+                component="iframe"
+                title="Email en HTML"
+                sandbox=""
+                srcDoc={html}
+                sx={{ display: 'block', width: '100%', height: { xs: 520, md: 640 }, border: 0, borderRadius: 1, bgcolor: 'background.paper' }}
+              />
+            ) : (
+              <Typography variant="body2" component="div" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'Georgia, serif' }}>
+                {body}
+              </Typography>
+            )}
           </Box>
         )}
         {onSendTest && (

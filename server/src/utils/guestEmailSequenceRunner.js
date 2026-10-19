@@ -139,6 +139,7 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   const { loadReservationGraph } = require('./reservationEmailGraph');
   const { sequenceContextFor } = require('./sequenceRenderContext');
   const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
+  const { guestEmailMessage } = require('./guestEmailHtml');
   const { database, ledger, templatesModel, logModel, settingsModel, emailServiceFactory, preferences } = deps;
   const template = templatesModel.findByStableKey(plan.stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
@@ -170,7 +171,7 @@ async function sendSequenceMail(deps, plan, opts = {}) {
 
   try {
     const service = emailServiceFactory(settingsModel.decryptedSmtpSettings());
-    await service.send({ to, subject, text: body });
+    await service.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
     const row = logModel.insert({
       templateId: template.id, reservationId: graph.reservation.id, status: 'sent', channel: 'smtp',
       errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to,

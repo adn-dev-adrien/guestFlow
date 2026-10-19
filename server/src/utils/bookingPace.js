@@ -182,6 +182,8 @@ function buildPace({ stays, today, metric, coverageMonth }) {
       label: monthLabel(month),
       lastYearLabel: monthLabel(lastYearMonth),
       tick: monthTick(month, i === 0),
+      // Rule 14 — the month a phone's scrolling chart is set on.
+      isCurrent: i === 0,
       current,
       sameTimeLastYear,
       lastYearFinal,
@@ -212,6 +214,8 @@ function buildPace({ stays, today, metric, coverageMonth }) {
     summary: summaryOf({ months, today, metric, comparableFrom, comparableAsOf }),
     pickup,
     months,
+    // Rule 15 — the écart row under the months waits for a first comparable month.
+    hasComparison: months.some((m) => m.comparable),
   };
 }
 

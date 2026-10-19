@@ -813,8 +813,9 @@ inline property form just above the capacity fields. The value is stored on
 
 - **Bilingual emails** (FR only). The body is plain text; the operator can hand-translate
   if needed.
-- **HTML bodies / inline images / PDF attachments.** Plain text only (matches the existing
-  `emailService.send` signature).
+- **Inline images / PDF attachments.** ~~HTML bodies — plain text only.~~ Lifted 2026-10-19 (UI/UX
+  review, decision 15): guest emails also carry an HTML part derived from the same text
+  (specs/guest-email-texts-made-simple.md rules 37–39).
 - **Cancellation handling.** GuestFlow doesn't carry a cancelled flag today; the cron
   doesn't skip cancelled stays.
 - **Email open / click tracking.** No tracking pixels, no link rewriting.

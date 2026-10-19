@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
 
   if (step) {
     return (
-      <AuthCard title="Second code">
+      <AuthCard title="Vérification">
         <Alert severity="success" sx={{ mb: 2 }}>Mot de passe enregistré.</Alert>
         <SecondFactorForm step={step} onCancel={() => window.location.assign('/login')} />
       </AuthCard>

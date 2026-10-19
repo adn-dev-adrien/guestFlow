@@ -201,6 +201,7 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
           payload: {
             subject: preview.subject,
             body: preview.body,
+            html: preview.html,
             lang,
             reservationId: reservationId || null,
             sample: !reservationId,
