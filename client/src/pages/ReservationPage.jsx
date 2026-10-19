@@ -371,6 +371,10 @@ export default function ReservationPage() {
   const frozenResourceUnitByQuantityRef = useRef({});
   const pendingLeaveActionRef = useRef(null);
   const pricingQuoteRequestRef = useRef(0);
+  // specs/reservation-payment-ledger.md — the body of the last live quote (the amount editors re-send
+  // it with `ledgerEdit`) and the ledger edit the next save carries for the history (rule 23).
+  const lastQuoteBodyRef = useRef(null);
+  const ledgerEditMarkerRef = useRef(null);
 
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
@@ -862,6 +866,8 @@ export default function ReservationPage() {
             // specs/single-payment-at-check-in.md §3.4 — the single payment made at the door, already
             // shaped by the server (amount, means, buckets covered). `null` when there was none.
             arrivalPayment: res.arrivalPayment || null,
+            // specs/reservation-payment-ledger.md rule 1 — the ledger as stored, until the live quote.
+            ledger: res.ledger || null,
             // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » at check-in:
             // the fiche then shows ONE complement, built server-side (amount + lines + paid state).
             complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
@@ -1250,7 +1256,7 @@ export default function ReservationPage() {
 
     const refreshBasePrice = async () => {
       try {
-        const calc = await api.calculatePrice({
+        const quoteBody = {
           propertyId: selectedProp,
           startDate: form.startDate,
           endDate: form.endDate,
@@ -1293,7 +1299,12 @@ export default function ReservationPage() {
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
-        });
+        // specs/reservation-payment-ledger.md rule 7 — the ledger follows the transfer typed on the fiche.
+        platformPayoutAmount: form.platformPayoutAmount,
+        };
+        // specs/reservation-payment-ledger.md rule 21 — the amount editors re-ask this same quote.
+        lastQuoteBodyRef.current = quoteBody;
+        const calc = await api.calculatePrice(quoteBody);
 
         if (requestId !== pricingQuoteRequestRef.current) return;
         setPricingQuote(calc);
@@ -2406,10 +2417,9 @@ export default function ReservationPage() {
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
           platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount,
           cautionAmount: form.cautionAmount,
-          cautionReceived: form.cautionReceived,
-          cautionReceivedDate: form.cautionReceivedDate,
-          cautionReturned: form.cautionReturned,
-          cautionReturnedDate: form.cautionReturnedDate,
+          // specs/reservation-payment-ledger.md rule 13 — the caution columns are not sent: only the
+          // payment PATCH changes them. Rule 23 — the ledger edit this save carries, for the history.
+          ledgerAmountEdit: ledgerEditMarkerRef.current || undefined,
           notes: form.notes,
           refreshPricingToCurrent: useCurrentPricing,
           forceMinNights,
@@ -2423,6 +2433,7 @@ export default function ReservationPage() {
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
+        ledgerEditMarkerRef.current = null;
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
@@ -2678,6 +2689,16 @@ export default function ReservationPage() {
       arrivalPayment: res.arrivalPayment || null,
       checkoutComplement: res.checkoutComplement || null,
       complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
+      // specs/reservation-payment-ledger.md — the caution is written by the PATCH only (rule 13), and
+      // the ledger as stored (rule 1).
+      cautionReceived: Boolean(res.cautionReceived),
+      cautionReceivedDate: res.cautionReceivedDate || '',
+      cautionReturned: Boolean(res.cautionReturned),
+      cautionReturnedDate: res.cautionReturnedDate || '',
+      cautionAmount: res.cautionAmount,
+      platformPayoutAmount: res.platformPayoutAmount == null ? '' : res.platformPayoutAmount,
+      platformCommissionAmount: res.platformCommissionAmount == null ? '' : res.platformCommissionAmount,
+      ledger: res.ledger || null,
       endOfStayComplementAmountOverride: res.endOfStayComplementAmountOverride == null ? '' : res.endOfStayComplementAmountOverride,
       endOfStayComplementAmountAuto: Number(res.endOfStayComplementAmountAuto || 0),
       complementAdjustment: res.complementAdjustment || null,
@@ -2688,6 +2709,62 @@ export default function ReservationPage() {
     // §3.3 rule 16).
     setRefundsVersion((v) => v + 1);
   }, [editingReservationId]);
+
+  // ── specs/reservation-payment-ledger.md — the ledger's round-trips ───────────────────────────────
+  // Rule 21 — the amount editor asks the live quote; the server answers the refusal or the effects.
+  const checkLedgerEdit = useCallback(async (row, amount) => {
+    if (!lastQuoteBodyRef.current) return { ok: false, reason: 'Calcul en cours : réessayer.' };
+    const quote = await api.calculatePrice({ ...lastQuoteBodyRef.current, ledgerEdit: { row, amount }, unlockPast: pastUnlocked });
+    return quote.ledgerEdit || { ok: false, reason: 'Calcul impossible.' };
+  }, [pastUnlocked]);
+  // « Valider » applies the server's form fields verbatim; the save traces it (rule 23).
+  const applyLedgerPatch = useCallback((patch) => {
+    const { ledgerAmountEdit, ...fields } = patch || {};
+    if (ledgerAmountEdit) ledgerEditMarkerRef.current = ledgerAmountEdit;
+    if (Object.keys(fields).length > 0) setForm((prev) => ({ ...prev, ...fields }));
+  }, []);
+
+  // Rule 10 — a mark saves the fiche first (when it has unsaved edits, or a form patch to carry), so it
+  // is never recorded against an amount the server has not stored. Resolves `{ ok, error, field }`.
+  const [queuedLedgerSave, setQueuedLedgerSave] = useState(null);
+  useEffect(() => {
+    if (!queuedLedgerSave) return;
+    const { action, resolve } = queuedLedgerSave;
+    setQueuedLedgerSave(null);
+    Promise.resolve(handleSaveReservation(action)).then((saved) => { if (saved === false) resolve({ ok: false }); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedLedgerSave]);
+  const markFromLedger = (body, formPatch = null) => new Promise((resolve) => {
+    const action = async () => {
+      try {
+        await api.markPayment(editingReservationId, body);
+        await reloadReservationFinance();
+        resolve({ ok: true });
+      } catch (err) {
+        if (err && err.code === 'AMOUNT_CHANGED') await reloadReservationFinance();
+        resolve({ ok: false, error: err?.message || 'Enregistrement impossible.', field: err?.field ? 'date' : null });
+      }
+    };
+    if (formPatch) {
+      setForm((prev) => ({ ...prev, ...formPatch }));
+      setQueuedLedgerSave({ action, resolve });
+    } else if (isDirty) {
+      Promise.resolve(handleSaveReservation(action)).then((saved) => { if (saved === false) resolve({ ok: false }); });
+    } else {
+      action();
+    }
+  });
+
+  // Rule 28 — « Renvoyer la demande » on a still-due row whose link was retired.
+  const resendPaymentRequest = async (type) => {
+    try {
+      const r = await api.sendPaymentRequestOfType(editingReservationId, type);
+      showSuccess(`Demande envoyée — lien de paiement de ${formatCurrency(Number(r.amountCents || 0) / 100)} envoyé à ${r.recipientEmail || 'le client'}.`);
+      await reloadReservationFinance();
+    } catch (e) {
+      showError(e.message || 'Envoi impossible.');
+    }
+  };
 
   // specs/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the
   // server's answer and bump `refundsVersion` so the quote (and thus the fiche's « total de séjour »)
@@ -3237,6 +3314,10 @@ export default function ReservationPage() {
     refundOverpaymentTtc: Number(pricingQuote?.overpaymentTtc || 0),
     refundOverpaymentLines: Array.isArray(pricingQuote?.overpaymentLines) ? pricingQuote.overpaymentLines : [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
+    // specs/reservation-payment-ledger.md — the ledger (live quote first, the stored one until then)
+    // and its round-trips.
+    ledger: pricingQuote?.ledger || form.ledger || null,
+    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,

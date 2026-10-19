@@ -1,187 +1,136 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
+import { renderFinance as renderLedger, dueRow, naRow, editable, ledgerOf } from './ledgerFixtures';
 
-import { ReservationFormProvider } from '../ReservationFormContext';
-import DialogProvider from '../../DialogProvider';
-import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
-
-// specs/accounting-platform-commission-and-no-deposit.md §3.8 rule 21 + §7.3.
-// The Acompte block is HIDDEN on non-direct platform reservations (replaced by a muted
-// caption "Pas d'acompte (réservation plateforme — virement unique)"). Direct bookings
-// keep the regular Acompte block.
+// specs/accounting-platform-commission-and-no-deposit.md §3.8 rule 21 + §7.3 — a platform without
+// acompte reads « Sans objet » on the acompte row (the server's words, specs/reservation-payment-ledger.md
+// rule 6); its statement fields (brut, per-échéance commissions — specs/platform-per-echeance-commission.md,
+// specs/platform-payment-entry.md) open from the payout row's amount (ledger rule 25).
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), computePlatformCommission: vi.fn() } }));
 import api from '../../../api';
 
-function renderFinance(overrides) {
-  const ctx = makeMockContext(overrides);
-  render(
-    <DialogProvider>
-        <ReservationFormProvider value={ctx}>
-          <FinanceSection />
-        </ReservationFormProvider>
-      </DialogProvider>
-  );
-  return ctx;
+const payoutRow = (label = 'Versement Gîtes de France', extra = {}) => dueRow('balance', label, 687, {
+  stateLabel: 'Attendu le 22/10', action: { kind: 'mark', label: 'Marquer reçu', payout: { expected: 626 } },
+  amountEdit: editable('statement'), ...extra,
+});
+const PLATFORM_LEDGER = ledgerOf([naRow('deposit', 'Acompte', 'Sans objet · Gîtes de France encaisse en une fois'), payoutRow()]);
+
+function renderFinance(overrides = {}) {
+  const platform = overrides.form && overrides.form.platform;
+  const direct = !platform || String(platform).toLowerCase() === 'direct';
+  return renderLedger({ ledger: direct ? ledgerOf([dueRow('deposit', 'Acompte', 90), dueRow('balance', 'Solde', 217.2)]) : PLATFORM_LEDGER, ...overrides }).ctx;
 }
 
-// specs/booking-extranet-intake.md §4.1 — the commission is computed by the server
-// (`POST /api/reservations/platform-commission`, rules in platform-commission.unit.test.js); the button
-// only sends the figures of the form and writes back what it answers.
+const openStatement = () => fireEvent.click(within(document.querySelector('[data-row="balance"]')).getByRole('button', { name: /Modifier le montant/ }));
+
+// specs/booking-extranet-intake.md §4.1 — the commission is computed by the server; the button only
+// sends the figures and writes back what it answers, applied with the statement on « Valider ».
 async function calculate(ctx) {
   api.computePlatformCommission.mockResolvedValueOnce({ commission: 123.45 });
+  openStatement();
   fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  await waitFor(() => expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 123.45 }));
-  expect(api.computePlatformCommission).toHaveBeenCalledWith({
+  await waitFor(() => expect(api.computePlatformCommission).toHaveBeenCalledWith({
     gross: ctx.form.platformGrossAmount,
     payout: ctx.form.platformPayoutAmount,
-    touristTax: ctx.form.platformTouristTaxAmount,
-    acompteCommission: ctx.form.acompteCommissionAmount,
-  });
+    touristTax: ctx.form.platformTouristTaxAmount ?? '',
+    acompteCommission: ctx.form.acompteCommissionAmount ?? '',
+  }));
+  await waitFor(() => expect(screen.getByLabelText('Commission solde (€)')).toHaveValue('123,45'));
+  fireEvent.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ platformCommissionAmount: 123.45 }));
 }
 
-test("direct reservation: the Acompte block is rendered as usual", () => {
+beforeEach(() => { vi.clearAllMocks(); });
+
+test('rule 21 — direct reservation: the acompte is a normal row', () => {
   renderFinance({ form: { platform: 'direct' } });
-  // The Acompte heading sits in its own Grid column — present on direct.
-  const acompteHeadings = screen.getAllByText('Acompte');
-  expect(acompteHeadings.length).toBeGreaterThan(0);
-  // The platform caption MUST NOT be present.
-  expect(screen.queryByText(/Pas d'acompte/i)).not.toBeInTheDocument();
+  expect(within(document.querySelector('[data-row="deposit"]')).getByText('Acompte')).toBeInTheDocument();
+  expect(screen.queryByText(/Sans objet/i)).not.toBeInTheDocument();
 });
 
-test("platform reservation (Airbnb): Acompte block is replaced by the no-deposit caption", () => {
-  renderFinance({ form: { platform: 'Airbnb' } });
-  // The caption is the user-facing signal that the platform has no deposit concept.
-  expect(screen.getByText(/Pas d'acompte \(réservation plateforme — virement unique\)/i)).toBeInTheDocument();
-});
-
-test("platform reservation: the regular Acompte fields (échéance, montant) are NOT mounted", () => {
-  renderFinance({ form: { platform: 'Gîtes de France' } });
-  // The "Échéance acompte" field belongs to the direct-mode Acompte block; on a platform
-  // reservation the whole block is gone so the input must not be in the DOM.
+test('rule 21 — platform reservation: the acompte row says « Sans objet », with no action and no input', () => {
+  renderFinance({ form: { platform: 'GitesDeFrance' } });
+  const row = document.querySelector('[data-row="deposit"]');
+  expect(within(row).getByText('Sans objet · Gîtes de France encaisse en une fois')).toBeInTheDocument();
+  expect(within(row).queryByRole('button')).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/Échéance acompte/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(/Marquer acompte payé/i)).not.toBeInTheDocument();
 });
 
-test("platform reservation: the Solde block stays rendered (it's the single encaissement on platforms)", () => {
-  renderFinance({ form: { platform: 'Booking', balanceAmount: 200 } });
-  // The Solde block is unaffected — it just absorbs the whole pre-arrival amount on platforms.
-  const soldeHeadings = screen.getAllByText('Solde');
-  expect(soldeHeadings.length).toBeGreaterThan(0);
+test('platform reservation: the payout row is the single encaissement, « Marquer reçu »', () => {
+  renderFinance({ form: { platform: 'GitesDeFrance' } });
+  expect(screen.getByText('Versement Gîtes de France')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Marquer reçu' })).toBeInTheDocument();
 });
 
-// specs/platform-deposit-toggle.md — a platform configured « Acompte = Oui » (the engine echoes
-// `platformTakesDeposit` in the quote) shows the normal Acompte block, NOT the no-deposit caption.
-test("platform « Acompte = Oui »: the Acompte block is shown (no no-deposit caption)", () => {
-  renderFinance({
-    form: { platform: 'Lodgify' },
-    pricingQuote: { platformTakesDeposit: true, finalPrice: 300, totalStayPrice: 300 },
-  });
-  expect(screen.queryByText(/Pas d'acompte/i)).not.toBeInTheDocument();
-  expect(screen.getByLabelText(/Échéance acompte/i)).toBeInTheDocument();
-  expect(screen.getByText(/Marquer acompte payé/i)).toBeInTheDocument();
+// specs/platform-deposit-toggle.md — « Acompte = Oui »: the commission of the acompte is a statement field.
+test('platform « Acompte = Oui »: the statement editor offers the acompte commission', () => {
+  renderFinance({ form: { platform: 'Lodgify' }, pricingQuote: { platformTakesDeposit: true } });
+  openStatement();
+  expect(screen.getByLabelText('Commission acompte (€)')).toBeInTheDocument();
 });
 
-test("platform « Acompte = Non » (default): the no-deposit caption stays", () => {
-  renderFinance({
-    form: { platform: 'Lodgify' },
-    pricingQuote: { platformTakesDeposit: false, finalPrice: 300, totalStayPrice: 300 },
-  });
-  expect(screen.getByText(/Pas d'acompte/i)).toBeInTheDocument();
+test('platform « Acompte = Non »: no acompte commission field', () => {
+  renderFinance({ form: { platform: 'Airbnb' }, pricingQuote: { platformTakesDeposit: false } });
+  openStatement();
+  expect(screen.queryByLabelText('Commission acompte (€)')).not.toBeInTheDocument();
 });
 
-test("case-insensitive Direct enum: 'Direct' / 'DIRECT' keep the regular Acompte block", () => {
-  // The code path uses `String(form.platform || 'direct').toLowerCase() !== 'direct'` so any
-  // casing variant of 'direct' should NOT trigger the platform caption.
-  for (const directVariant of ['direct', 'Direct', 'DIRECT']) {
-    const { unmount } = render(
-      <DialogProvider>
-        <ReservationFormProvider value={makeMockContext({ form: { platform: directVariant } })}>
-          <FinanceSection />
-        </ReservationFormProvider>
-      </DialogProvider>
-    );
-    expect(screen.queryByText(/Pas d'acompte/i)).not.toBeInTheDocument();
-    unmount();
-  }
-});
-
-// specs/platform-per-echeance-commission.md (2026-06-22) — commission is entered per échéance: a
-// « Commission solde (€) » field in the Solde block (= the former « Commission plateforme »). « Prix
-// payé par le client » stays retired.
-test('platform reservation: « Commission solde » is shown, « Prix payé par le client » is gone', () => {
+test('« Commission solde » is a statement field, « Prix payé par le client » is gone', () => {
   renderFinance({ form: { platform: 'Airbnb' } });
+  openStatement();
   expect(screen.getByLabelText('Commission solde (€)')).toBeInTheDocument();
   expect(screen.queryByLabelText('Prix payé par le client')).not.toBeInTheDocument();
 });
 
-test('direct reservation: no per-échéance commission fields', () => {
+test('direct reservation: no statement fields, « Prix ajusté » is shown', () => {
   renderFinance({ form: { platform: 'direct' } });
   expect(screen.queryByLabelText('Commission solde (€)')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('Commission acompte (€)')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Prix ajusté')).toBeInTheDocument();
 });
 
-// specs/platform-payment-entry.md + platform-per-echeance-commission.md — the « Paiement plateforme »
-// block now holds the brut + virement (the commission moved to the per-échéance Acompte/Solde blocks);
-// « Prix ajusté » stays hidden on platform.
-test('platform: the brut + virement fields render (commission moved out) + « Prix ajusté » is hidden', () => {
-  renderFinance({ form: { platform: 'Gîtes de France' } });
+test('platform: the brut is a statement field and « Prix ajusté » is hidden', () => {
+  renderFinance({ form: { platform: 'GitesDeFrance' } });
+  openStatement();
   expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
-  expect(screen.getByLabelText('Virement reçu (contrôle)')).toBeInTheDocument();
-  expect(screen.queryByLabelText('Commission plateforme')).not.toBeInTheDocument(); // moved to the Solde block
   expect(screen.queryByLabelText('Prix ajusté')).not.toBeInTheDocument();
 });
 
-test('direct: « Prix ajusté » is shown, no platform-payment block', () => {
-  renderFinance({ form: { platform: 'direct' } });
-  expect(screen.getByLabelText('Prix ajusté')).toBeInTheDocument();
-  expect(screen.queryByLabelText('Montant total payé par le client')).not.toBeInTheDocument();
+test('« Annuler » leaves the fiche as it was', () => {
+  const ctx = renderFinance({ form: { platform: 'GitesDeFrance' } });
+  openStatement();
+  fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+  expect(ctx.updateForm).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText('Commission solde (€)')).not.toBeInTheDocument();
 });
 
-test('platform: ✓ chip when the net perçu matches the virement', () => {
-  renderFinance({
-    form: { platform: 'Gîtes de France', platformPayoutAmount: 626 },
-    pricingQuote: { totalStayPrice: 687, finalPrice: 687, platformNetReceivedAmount: 626 },
+test('the reconciliation chip comes from the server, on the payout row', () => {
+  renderLedger({
+    form: { platform: 'GitesDeFrance' },
+    ledger: ledgerOf([payoutRow('Versement Gîtes de France', { detail: { reconciliation: { tone: 'warning', label: 'écart : 26,00 €' } } })]),
   });
-  expect(screen.getByText(/cohérent avec le virement/i)).toBeInTheDocument();
-  expect(screen.queryByText(/écart/i)).not.toBeInTheDocument();
+  expect(screen.getByText('écart : 26,00 €')).toBeInTheDocument();
 });
 
-test('platform: ✗ écart chip when the net perçu differs from the virement', () => {
-  renderFinance({
-    form: { platform: 'Gîtes de France', platformPayoutAmount: 600 },
-    pricingQuote: { totalStayPrice: 687, finalPrice: 687, platformNetReceivedAmount: 626 },
-  });
-  expect(screen.getByText(/écart : 26,00 €/i)).toBeInTheDocument();
-});
-
-// specs/platform-payment-calculer-button.md — « Calculer la commission » deduces the solde commission
-// from the entered amounts (montant client − virement − commission acompte). On-demand only; editable.
-test('« Calculer la commission »: disabled until both montant client + virement are filled', () => {
-  renderFinance({ form: { platform: 'Gîtes de France', platformGrossAmount: 600 } }); // virement missing
+// specs/platform-payment-calculer-button.md — « Calculer la commission » on demand, from the statement.
+test('« Calculer la commission »: disabled until the montant client is filled', () => {
+  renderFinance({ form: { platform: 'GitesDeFrance', platformPayoutAmount: 520 } });
+  openStatement();
   expect(screen.getByRole('button', { name: /Calculer la commission/i })).toBeDisabled();
 });
 
-test(`« Calculer la commission »: sends montant client and virement to the server`, async () => {
-  const ctx = renderFinance({ form: { platform: 'Gîtes de France', platformGrossAmount: 600, platformPayoutAmount: 520 } });
+test('« Calculer la commission »: sends montant client and virement to the server', async () => {
+  const ctx = renderFinance({ form: { platform: 'GitesDeFrance', platformGrossAmount: 600, platformPayoutAmount: 520 } });
   await calculate(ctx);
 });
 
-test(`« Calculer la commission »: sends an already-entered acompte commission`, async () => {
-  const ctx = renderFinance({ form: {
-    platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520, acompteCommissionAmount: 10,
-  } });
-  await calculate(ctx); // the acompte commission itself is left untouched.
+test('« Calculer la commission »: sends an already-entered acompte commission', async () => {
+  const ctx = renderFinance({ form: { platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520, acompteCommissionAmount: 10 } });
+  await calculate(ctx);
 });
 
-// specs/platform-brut-excludes-offered-tourist-tax.md rule 3 — the tourist tax is NEVER subtracted,
-// whatever the platform's tax mode. When the platform collects and remits it itself, the amount typed
-// above excludes the tax (it is the stay total the platform bills us) and so does the virement; when
-// the platform reverses the tax to us, both carry it. Deducting our own estimate under-stated every
-// Gîtes de France commission — the accountant's 2026-08-24 report.
-test(`« Calculer la commission »: the engine's tax estimate is never sent (platform collects and remits)`, async () => {
+// specs/platform-brut-excludes-offered-tourist-tax.md rule 3 — the engine's tax estimate is never sent.
+test('« Calculer la commission »: the engine\'s tax estimate is never sent (platform collects and remits)', async () => {
   const ctx = renderFinance({
     form: { platform: 'Airbnb', platformGrossAmount: 600, platformPayoutAmount: 520 },
     pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 12 },
@@ -189,15 +138,7 @@ test(`« Calculer la commission »: the engine's tax estimate is never sent (pla
   await calculate(ctx);
 });
 
-test(`« Calculer la commission »: same request when the tax is reversed to us`, async () => {
-  const ctx = renderFinance({
-    form: { platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520 },
-    pricingQuote: { touristTaxOfferedByPlatform: false, touristTaxOriginalTotal: 12 },
-  });
-  await calculate(ctx);
-});
-
-test(`the Grimaud case: 733 facturé and 668 viré go to the server`, async () => {
+test('the Grimaud case: 733 facturé and 668 viré go to the server', async () => {
   const ctx = renderFinance({
     form: { platform: 'GitesDeFrance', platformGrossAmount: 733, platformPayoutAmount: 668 },
     pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.4 },
@@ -205,29 +146,17 @@ test(`the Grimaud case: 733 facturé and 668 viré go to the server`, async () =
   await calculate(ctx);
 });
 
-// Rule 7 — which number to copy off the statement depends on the platform's tax mode, so the field says it.
+// Rule 7 — which number to copy off the statement depends on the platform's tax mode.
 test('brut field: the platform collects + remits the tax → « Total séjour facturé », hors taxe', () => {
   renderFinance({ form: { platform: 'GitesDeFrance' }, pricingQuote: { touristTaxOfferedByPlatform: true } });
+  openStatement();
   expect(screen.getByLabelText('Total séjour facturé par la plateforme')).toBeInTheDocument();
   expect(screen.getByText(/hors taxe de séjour et hors frais de dossier/i)).toBeInTheDocument();
 });
 
 test('brut field: the platform reverses the tax to us → « Montant total payé », taxe comprise', () => {
   renderFinance({ form: { platform: 'Lodgify' }, pricingQuote: { touristTaxReversedByPlatform: true } });
+  openStatement();
   expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
   expect(screen.getByText(/la plateforme la reverse avec le virement/i)).toBeInTheDocument();
-});
-
-test('owner-collect platform, no commission: the on-arrival tax is excluded → no écart (regression)', () => {
-  // specs/platform-payment-entry.md — for a platform that does NOT collect the tax (we charge it at
-  // check-in → complement), the platform only settles the pre-arrival. With no commission entered, the
-  // server returns platformNetReceivedAmount = null, so the client fallback must subtract the complement
-  // (the 4.80 tax) from the total. Operator received the 200 pre-arrival → écart 0, NOT 4.80.
-  renderFinance({
-    form: { platform: 'Gîtes de France', platformPayoutAmount: 200 },
-    pricingQuote: { totalStayPrice: 204.80, finalPrice: 200, complementAmount: 4.80, balanceAmount: 200, platformNetReceivedAmount: null },
-  });
-  expect(screen.getByText('200,00 €')).toBeInTheDocument();           // net perçu = pre-arrival, tax excluded
-  expect(screen.getByText(/cohérent avec le virement/i)).toBeInTheDocument();
-  expect(screen.queryByText(/écart/i)).not.toBeInTheDocument();
 });

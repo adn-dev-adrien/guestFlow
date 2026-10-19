@@ -108,6 +108,14 @@ function lockIcalReservation(reservationId) {
  * Force a reservation's stay dates directly (bypasses the API "no past dates" guard). Used to set up
  * a past stay for the email-history rolling-window spec without flipping the global admin escape hatch.
  */
+// specs/reservation-payment-ledger.md — a property that takes an acompte (30 %), so the ledger has
+// both an acompte and a solde row.
+function enablePropertyDeposit(propertyId, percent = 30) {
+  return withDb((db) => {
+    db.prepare('UPDATE properties SET depositEnabled = 1, depositPercent = ? WHERE id = ?').run(percent, propertyId);
+  });
+}
+
 function setReservationDates(reservationId, startDate, endDate) {
   return withDb((db) => {
     db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?')
@@ -220,6 +228,7 @@ function setPlatformPayout(reservationId, amount) {
 }
 
 module.exports = {
+  enablePropertyDeposit,
   setCompanySetting,
   seedCateringOptions,
   setPublicUrl,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ReservationFormProvider } from '../ReservationFormContext';
@@ -21,8 +21,18 @@ const OFFERED = { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14
 const REVERSED = { touristTaxOfferedByPlatform: false, touristTaxReversedByPlatform: true, touristTaxOriginalTotal: 14.40 };
 const OWNER = { touristTaxOfferedByPlatform: false, touristTaxReversedByPlatform: false, touristTaxOriginalTotal: 14.40 };
 
+const PAYOUT = {
+  key: 'balance', label: 'Versement', amount: 747.4, state: 'due', tone: 'due', stateLabel: 'Attendu le 22/10',
+  action: { kind: 'mark', label: 'Marquer reçu', payout: { expected: 668 } },
+  amountEdit: { editable: true, mode: 'statement', min: null, max: null, reason: null }, detail: null,
+};
+
+// Since specs/reservation-payment-ledger.md rule 25 the statement fields open from the payout row's
+// amount: a platform fiche is rendered with that editor open; a direct one has no payout row.
 function renderFinance(overrides) {
-  const ctx = makeMockContext(overrides);
+  const platform = overrides && overrides.form && overrides.form.platform;
+  const direct = !platform || String(platform).toLowerCase() === 'direct';
+  const ctx = makeMockContext({ ledger: { rows: direct ? [] : [PAYOUT], closing: null }, ...overrides });
   render(
     <DialogProvider>
       <ReservationFormProvider value={ctx}>
@@ -30,22 +40,25 @@ function renderFinance(overrides) {
       </ReservationFormProvider>
     </DialogProvider>,
   );
+  if (!direct) fireEvent.click(screen.getByRole('button', { name: /Modifier le montant/ }));
   return ctx;
 }
 
 // specs/booking-extranet-intake.md §4.1 — the commission is computed by the server
 // (`POST /api/reservations/platform-commission`, rules in platform-commission.unit.test.js); the button
-// only sends the figures of the form and writes back what it answers.
+// only sends the figures of the statement and writes back what it answers, applied on « Valider ».
 async function calculate(ctx) {
   api.computePlatformCommission.mockResolvedValueOnce({ commission: 123.45 });
   fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  await waitFor(() => expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 123.45 }));
-  expect(api.computePlatformCommission).toHaveBeenCalledWith({
+  await waitFor(() => expect(api.computePlatformCommission).toHaveBeenCalledWith({
     gross: ctx.form.platformGrossAmount,
     payout: ctx.form.platformPayoutAmount,
-    touristTax: ctx.form.platformTouristTaxAmount,
-    acompteCommission: ctx.form.acompteCommissionAmount,
-  });
+    touristTax: ctx.form.platformTouristTaxAmount ?? '',
+    acompteCommission: ctx.form.acompteCommissionAmount ?? '',
+  }));
+  await waitFor(() => expect(screen.getByLabelText('Commission solde (€)')).toHaveValue('123,45'));
+  fireEvent.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ platformCommissionAmount: 123.45 }));
 }
 
 const boxLabel = /Taxe de séjour retenue/i;
@@ -85,22 +98,18 @@ test('rule 5 — « Reprendre le calcul » writes the engine’s figure into the
   });
 
   fireEvent.click(screen.getByRole('button', { name: /Reprendre le calcul/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformTouristTaxAmount: 14.40 });
+  expect(screen.getByLabelText(boxLabel)).toHaveValue('14,40');
+  fireEvent.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ platformTouristTaxAmount: 14.40 }));
 });
 
 test('rule 14 — an empty box keeps the tax-excluded label; a filled one says « payé par le client »', () => {
-  const { unmount } = render(
-    <DialogProvider>
-      <ReservationFormProvider value={makeMockContext({
-        form: { platform: 'Gîtes de France', platformTouristTaxAmount: '' },
-        pricingQuote: OFFERED,
-      })}>
-        <FinanceSection />
-      </ReservationFormProvider>
-    </DialogProvider>,
-  );
+  renderFinance({
+    form: { platform: 'Gîtes de France', platformTouristTaxAmount: '' },
+    pricingQuote: OFFERED,
+  });
   expect(screen.getByLabelText(/Total séjour facturé par la plateforme/i)).toBeInTheDocument();
-  unmount();
+  cleanup();
 
   renderFinance({
     form: { platform: 'Gîtes de France', platformTouristTaxAmount: 14.40 },

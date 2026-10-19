@@ -121,7 +121,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   await page.getByRole('button', { name: /close/i }).first().click();
   await expect(page.getByText(/Rempli depuis l’extranet Booking/)).toHaveCount(0);
   await page.reload();
-  await expect(page.getByText('Paiement plateforme', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Paiements', { exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/Rempli depuis l’extranet Booking/)).toHaveCount(0);
 
   // Rule 17 — a second view is « déjà à jour »; a figure edited since becomes a proposal.

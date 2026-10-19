@@ -6,6 +6,7 @@ import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from '../mockReservationForm';
 import { vi } from 'vitest';
+import { dueRow, ledgerOf } from './ledgerFixtures';
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
 
@@ -45,22 +46,27 @@ test('"Actualiser tarifs" (edit mode) calls refreshToCurrentPricing', async () =
   expect(ctx.refreshToCurrentPricing).toHaveBeenCalled();
 });
 
-test('the deposit-paid toggle calls updateForm when the reservation is not locked', async () => {
+// specs/reservation-payment-ledger.md rule 8 — « Marquer perçu » opens the inline form (today's date)
+// and « Valider » hands the mark to the page's save-first pipeline.
+test('the acompte row marks through the inline form, with today\'s date', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance();
-  await user.click(screen.getByRole('button', { name: 'Marquer acompte payé' }));
-  // The toggle records today's date as `depositPaidDate` alongside the flip, so the accounting
-  // export has an encaissement date to pin against (see FinanceSection.js).
-  expect(ctx.updateForm).toHaveBeenCalledWith(
-    expect.objectContaining({ depositPaid: true, depositPaidDate: expect.any(String) }),
+  const ctx = renderFinance({ editingReservationId: 7, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90)]) });
+  await user.click(screen.getByRole('button', { name: 'Marquer perçu' }));
+  expect(screen.getByLabelText('Perçu le')).toHaveValue(new Date().toLocaleDateString('sv-SE'));
+  await user.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(
+    expect.objectContaining({ depositPaid: true, depositPaidDate: expect.any(String), expectedAmountCents: 9000 }),
+    null,
   );
 });
 
-test('the caution-received toggle calls updateForm with a reception date', async () => {
+test('the caution row « Recevoir » records a reception date', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance();
-  await user.click(screen.getByRole('button', { name: 'Marquer caution reçue' }));
-  expect(ctx.updateForm).toHaveBeenCalledWith(
-    expect.objectContaining({ cautionReceived: true })
-  );
+  const ctx = renderFinance({
+    editingReservationId: 7,
+    ledger: ledgerOf([dueRow('cautionReceived', 'Caution reçue', 400, { action: { kind: 'mark', label: 'Recevoir' } })]),
+  });
+  await user.click(screen.getByRole('button', { name: 'Recevoir' }));
+  await user.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ cautionReceived: true, cautionReceivedDate: expect.any(String) }), null);
 });

@@ -33,10 +33,14 @@ function renderFinance(overrides = {}) {
 }
 
 test('l’alerte montre la taxe encaissée et la taxe recalculée', async () => {
-  const ctx = renderFinance({ refundOverpaymentTtc: 14.4, refundOverpaymentLines: TAX_ONLY });
-  const alert = screen.getByRole('alert');
-  expect(within(alert).getByText(/Trop-perçu : 14,40/)).toBeInTheDocument();
-  expect(within(alert).getByText('Taxe de séjour : 21,60 € encaissés, 7,20 € dus')).toBeInTheDocument();
+  // specs/reservation-payment-ledger.md rule 2 — the trop-perçu is a ledger row; its lines are the
+  // server's « X encaissés, Y dus », printed as sent.
+  const ctx = renderFinance({ refundOverpaymentTtc: 14.4, refundOverpaymentLines: TAX_ONLY, ledger: { rows: [{ key: 'overpayment', label: 'Trop-perçu', amount: 14.4, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+    action: { kind: 'refund', label: 'Rembourser' }, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+    detail: { lines: ['Taxe de séjour : 21,60 € encaissés, 7,20 € dus'] } }], closing: null } });
+  const overpayment = document.querySelector('[data-row="overpayment"]');
+  expect(within(overpayment).getByText('Trop-perçu')).toBeInTheDocument();
+  expect(within(overpayment).getByText('Taxe de séjour : 21,60 € encaissés, 7,20 € dus')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Rembourser' }));
   expect(ctx.setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 14.4, overpaymentLines: TAX_ONLY });
 });
