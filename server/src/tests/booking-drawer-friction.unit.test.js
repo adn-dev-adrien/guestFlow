@@ -86,7 +86,7 @@ test('effectiveMinNightsForDate: range override, season default, unpriced night'
   assert.equal(effectiveMinNightsForDate(rules, '2026-10-25'), null);
 });
 
-test('arrival windows: a uniform 2-night minimum gives arrival + 2', () => {
+test('specs/booking-drawer-friction.md rule 10 — arrival windows: a uniform 2-night minimum gives arrival + 2', () => {
   const w = windows(seasonedDb(), '2026-11-20', '2026-11-22');
   assert.deepEqual(w, [
     { date: '2026-11-20', minNights: 2, earliestDeparture: '2026-11-22' },
@@ -126,7 +126,7 @@ test('arrival windows: a 3-night pont inside the season imposes 3 nights only to
   ]);
 });
 
-test('arrival windows agree with the quote: offered departure accepted, the night before refused', () => {
+test('rule 10 — arrival windows agree with the quote: offered departure accepted, the night before refused', () => {
   const db = seasonedDb();
   for (const a of windows(db, '2027-06-25', '2027-07-05')) {
     assert.equal(quote(db, a.date, a.earliestDeparture).minNightsBreached, false, `${a.date} → ${a.earliestDeparture}`);
@@ -135,14 +135,14 @@ test('arrival windows agree with the quote: offered departure accepted, the nigh
   }
 });
 
-test('night prices: the base nightly price of the rule covering each date', () => {
+test('rule 13 — night prices: the base nightly price of the rule covering each date', () => {
   const rules = rulesOf(seasonedDb());
   assert.deepEqual(getRuleNightBaseForDate(rules, '2026-11-20').nightlyBase, 319);
   assert.deepEqual(getRuleNightBaseForDate(rules, '2027-07-14').nightlyBase, 451);
   assert.equal(getRuleNightBaseForDate(rules, '2026-10-25').matchedRule, null);
 });
 
-test('perPersonPerNight: total with tax over paying guests and nights, rounded to the cent', () => {
+test('rule 8 — perPersonPerNight: total with tax over paying guests and nights, rounded to the cent', () => {
   assert.equal(perPersonPerNight(642.8, 2, 2), 160.7);
   assert.equal(perPersonPerNight(652.4, 8, 2), 40.78);
   assert.equal(perPersonPerNight(100, 3, 1), 33.33);
@@ -161,7 +161,7 @@ test('toPublicQuote carries perPersonPerNight from the engine persons (babies al
   assert.equal(empty.perPersonPerNight, null);
 });
 
-test('toPublicAvailability keeps its original fields and adds arrivals and nightPrices', () => {
+test('rules 10 + 13 — toPublicAvailability keeps its original fields and adds arrivals and nightPrices', () => {
   const a = toPublicAvailability({
     propertyId: 1, from: '2026-11-01', to: '2026-11-30', blockedDates: ['2026-11-07', '2026-11-06'],
     arrivals: [{ date: '2026-11-20', minNights: 2, earliestDeparture: '2026-11-22' }],

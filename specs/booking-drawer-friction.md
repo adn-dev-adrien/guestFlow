@@ -59,10 +59,12 @@ can either pay now or send a request without paying.
 3. « Envoyer une demande sans payer » posts the **same** `POST /booking-requests` as a request-only
    block, and lands on the same confirmation (« Demande envoyée ! Référence : … Nous vous recontactons
    rapidement. »). No payment link is created.
+> **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (devis créé sans lien de paiement).
 4. Above the two actions, one line sets the expectation: « Une question avant de vous engager ?
    Envoyez une demande : aucun paiement tant que nous n'avons pas répondu. »
 5. Both actions run the **same validation** (required fields, e-mail shape, CGV). A refusal says which
    field and why; the CGV refusal stays the engine's own (`site-booking-drawer.md` rule 7).
+> **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (champs, e-mail, CGV).
 6. Each action is tracked separately: `booking-requested` gains a `mode` property (`pay` | `request`),
    so the next report can tell the two apart. `booking-pay` keeps firing for the payment path only.
 
@@ -103,10 +105,13 @@ can either pay now or send a request without paying.
     from the lodging's own facts on the site (`prix_min_nuit`, `capacite_max`).
     *Why it no longer breaks rule 4's reason:* the 2026-09-23 bug was a sticky button with two jobs
     (scroll, then advance). This one has one job — go to screen 2 — and never scrolls.
+> **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (barre avant et après les dates, groupe de 8).
 15. « Suivant » stays disabled until the quote is valid, and the bar says why with the engine's own
     message (rule 6 of `site-booking-drawer.md`, unchanged in substance, moved into the bar).
+> **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (refus « 2 nuits minimum » dans la barre).
 16. Screen 2's sticky bar holds « Retour » and the primary action on one row, the secondary action on
     a second full-width row (rule 2). With only one action configured, it is unchanged.
+> **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (deux actions ; bloc sans le réglage inchangé).
 17. The step that is not shown is `inert`, so a keyboard or a screen reader cannot land in the
     off-screen screen.
 
@@ -123,6 +128,7 @@ can either pay now or send a request without paying.
 
     They live in the pages' `_gf_seo_title` / `_gf_seo_description` fields (WordPress content, not
     this repository). English pages are out of scope.
+> **Sans test** — contenu WordPress posé par `seo-2026-10-19/deploy-snippets.sh`, que lance Adrien ; le script refuse d'écrire si la description en place a changé.
 
 ### Found while verifying (added 2026-10-20)
 
@@ -130,6 +136,7 @@ can either pay now or send a request without paying.
     The engine writes « Demande envoyée ! » into its original container, which the drawer has emptied
     when it distributed the blocks: the confirmation landed below the still-filled form, with « Payer »
     and « Envoi… » still in the bar. The drawer now moves it into screen 2.
+> **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (confirmation seule à l'écran, barre masquée).
 20. **The engine's sections lose the site theme's `.gf-section` padding inside the drawer.** The theme
     names its page sections `.gf-section` too (`gf-site-style.php`: 64 px on top, 22 px on the sides);
     with the travellers first, that gap opened screen 1 on an empty band.
@@ -295,7 +302,10 @@ None open.
 
 - Server: `server/src/tests/booking-drawer-friction.unit.test.js`, **11 tests**. These include a
   parity test: every departure the calendar offers is accepted by the quote, and the night before it
-  is refused. Full suite **4 829 / 4 829**.
+  is refused. They are joined by `wordpress-plugin-booking-friction.unit.test.js`, **8 tests** on the
+  shape of the plugin and the drawer (rules 1, 2, 4, 6, 7, 9, 11-12, 17, 20). Full suite
+  **4 837 / 4 837**. The browser-only rules are marked « Sans test » and point to the verification
+  below.
 - Client Vitest **1 450 / 1 450**; Playwright E2E **88 passed, 1 skipped** (unchanged).
 - §7 manual checks, run with Playwright on an isolated clone of the local WordPress (port 4931),
   wired to this branch's GuestFlow on seeded data, iPhone 13 then 1280 px:
