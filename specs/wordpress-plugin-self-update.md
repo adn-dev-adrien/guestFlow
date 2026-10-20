@@ -127,8 +127,8 @@ responsive — it is WordPress's own admin.
   operator; we do not force it).
 - Publishing the plugin on wordpress.org.
 - Updating any other WordPress component (theme, mu-plugins under
-  [integrations/wordpress/solio-site](../integrations/wordpress/solio-site) — those stay a documented
-  manual deployment).
+  a deployment's mu-plugins — those stay a documented manual deployment, kept outside this repository
+  since 2026-10-19, phase P rule 30).
 
 ## 9. Open questions
 

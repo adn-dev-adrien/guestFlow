@@ -17,8 +17,8 @@
 
 A guest booking on domainesolio.com must tick « J'ai lu et j'accepte les conditions générales de
 location » before the « Réserver » button unlocks. That checkbox is **not part of the booking engine**:
-it is injected by the site mu-plugin `integrations/wordpress/solio-site/mu-plugins/gf-seo-reservation.php`
-(lines 403-411) and only toggles the button's `disabled` state (line 611). The click then forwards to
+it is injected by the site mu-plugin `gf-seo-reservation.php` (then under `integrations/wordpress/solio-site/`,
+the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30); lines 403-411) and only toggles the button's `disabled` state (line 611). The click then forwards to
 the GuestFlow plugin's own button, which posts `stay + guest + message + _hp` to
 `POST /public/v1/booking-requests`. Nothing about the terms travels:
 
@@ -278,7 +278,7 @@ exact version accepted.
 | `guestflow-booking/includes/class-gf-blocks.php`, `assets/style.css` | T | `cgvPageUrl` + i18n strings; checkbox style. |
 | `guestflow-booking/blocks/booking/view.js` | T | Checkbox, refusal on click, `termsVersion`, `TERMS_OUTDATED` handling. |
 | `guestflow-booking/guestflow-booking.php`, `readme.txt` | T | 1.8.0 + changelog. |
-| `solio-site/mu-plugins/gf-seo-reservation.php` | T | Removes its own checkbox and its gating of « Réserver »; dresses the plugin's checkbox in the site colours. |
+| site `mu-plugins/gf-seo-reservation.php` (private repository since 2026-10-19) | T | Removes its own checkbox and its gating of « Réserver »; dresses the plugin's checkbox in the site colours. |
 
 ### 4.4 API contract
 

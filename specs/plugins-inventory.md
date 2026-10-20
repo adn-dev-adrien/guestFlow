@@ -216,7 +216,7 @@ These must become generic whatever the plugin design, because they reach every i
 | "Piscine ouverte du/au", Instagram, Google review, "Cafetière familiale", extinguisher check | `SettingsEmailContentSection.jsx:37-63`, `PropertyStayTab.jsx:35,54`, `ReservationSasDialog.jsx:1525-1536` | configurable stay facts / checklist |
 | `Europe/Paris` hard-coded outside `serverTimezone` | 7 server files | one source |
 | EUR only, admin UI French only, French tourist-tax model | 38 server / 24 client files for "€" | **decided 2026-09-28: French market only.** Admin UI stays French, amounts stay EUR; English remains for guests (emails, website) |
-| `integrations/wordpress/solio-site/` (23 mu-plugins, LAN IPs, SSH user) in a public repo | whole folder | move out of the product repo |
+| `integrations/wordpress/solio-site/` (23 mu-plugins, LAN IPs, SSH user) in a public repo | whole folder | move out of the product repo — **done 2026-10-19** (phase P rule 30) |
 | No first-run onboarding: a new customer lands on an empty app with Solio seeds | — | setup wizard (company, first property, plugins) |
 
 ## 8. Plugins: downloadable, as in Sowel (D1)

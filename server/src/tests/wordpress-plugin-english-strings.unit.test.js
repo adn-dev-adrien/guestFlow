@@ -19,13 +19,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PLUGIN = path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'guestflow-booking');
-const MU = path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'solio-site', 'mu-plugins');
 
 const view = fs.readFileSync(path.join(PLUGIN, 'blocks', 'booking', 'view.js'), 'utf8');
 const blocks = fs.readFileSync(path.join(PLUGIN, 'includes', 'class-gf-blocks.php'), 'utf8');
 const settings = fs.readFileSync(path.join(PLUGIN, 'includes', 'class-gf-settings.php'), 'utf8');
 const po = fs.readFileSync(path.join(PLUGIN, 'languages', 'guestflow-booking-en_GB.po'), 'utf8');
-const siteStyle = fs.readFileSync(path.join(MU, 'gf-site-style.php'), 'utf8');
 
 /** The catalogue as { msgid: msgstr }, continuation lines folded back together. */
 function catalogue() {
@@ -121,16 +119,5 @@ test('the terms link follows the language of the page (rule 48)', () => {
   assert.ok(
     /pll_get_post\s*\(/.test(settings),
     'nothing asks Polylang for the translated page — url_to_postid alone does not translate',
-  );
-});
-
-test("the burger's screen-reader label follows the page too (rule 49)", () => {
-  assert.ok(
-    !/aria-label="Ouvrir le menu"/.test(siteStyle),
-    'the burger announces « Ouvrir le menu » on every page, English included',
-  );
-  assert.ok(
-    /gf_t\(\s*'nav_ouvrir_menu'\s*\)/.test(siteStyle),
-    'the burger label must come from the site dictionary, which rule 36 keeps in both languages',
   );
 });

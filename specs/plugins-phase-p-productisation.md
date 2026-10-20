@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (2026-10-07) — rule 30's repository move pending the private repository |
+| **Status** | Implemented (2026-10-07; rule 30's repository move 2026-10-19) |
 | **Branch** | `feature/plugins-phase-p-productisation` (from `inte/plugins` at 252edfbb) |
 | **Created** | 2026-10-06 |
 | **Author** | Adrien |
@@ -289,16 +289,25 @@ Decisions taken on 2026-10-06:
       created by Adrien;
     - `scripts/configure-aventura-lodge-2026.mjs` moves with it;
     - the Solio section of `integrations/wordpress/INSTALL.md` moves with it;
-    - the 6 server tests that read `solio-site/mu-plugins` (cited by `site-english-version.md`)
-      move with it;
+    - the server tests that read `solio-site/mu-plugins` (cited by `site-english-version.md` and
+      `site-booking-drawer.md`) move with it;
     - the README's DNS section is rewritten for `example.com`.
 
     The history keeps the old files: the purge is the separate `refs/pull` item of the inventory.
 
-    *2026-10-07:* the private repository does not exist yet, so the move ships in a follow-up PR once
-    Adrien has created it; the README and the WordPress plugin are done here.
+    *Resolved 2026-10-19:* the private repository exists and the move is done. The folder left with its
+    history (`git subtree split`), and the private repository also took the configure script (it now
+    loads the server from a GuestFlow checkout named by `GUESTFLOW_ROOT`), the INSTALL section as its
+    README's deployment notes, and the tests — seven server files, not six. Four read only the
+    mu-plugins and moved whole (`solio-booking-drawer-review`, `solio-english-page-structure`,
+    `solio-hero-under-header`, `solio-language-preference`). Three also read the public plugin and were
+    split: their site assertions moved, their plugin assertions stayed here —
+    `wordpress-plugin-english-strings` and `wordpress-plugin-proxy-language` keep their names, and the
+    calendar assertion of `solio-facts-bilingual` became `wordpress-plugin-calendar-locale`. The
+    private repository runs them with `node --test`, without dependencies. The site rules whose only
+    test left are marked « Sans test » in their specs, pointing at
+    the deployment's own repository.
 
-    > **Sans test** — moving files to another repository is checked by reading the tree, not by a test.
 31. **The WordPress plugin** names « GuestFlow » as its author, and its settings placeholder is
     `https://guestflow.example.com`.
 
@@ -603,6 +612,7 @@ is a bottom-sticky bar under `sm`, primary last.
 | `productisation-migration.unit.test.js` | 6 | 24–25 |
 | `plugins/accounting-export/tests/account-plan-settings.unit.test.js` | 5 | 27–29 |
 | `plugins/sas/tests/sas-extinguisher-setting.unit.test.js` | 3 | 16 |
+| `repository-no-deployment-material.unit.test.js` | 3 | 30 — the folder, the script and the INSTALL section are absent, and no server test reads `solio-site` |
 | `wordpress-plugin-neutral.unit.test.js` | 2 | 31 |
 
 Suites that checked Solio's wording read it from `tests/solioWordingFixture.js`, built from the same
@@ -673,7 +683,7 @@ All resolved; the recommended option was taken each time.
 - **P19** — Email phrases on the options: **decided 2026-10-06**. **P19 bis, decided 2026-10-07**: a
   mention may cover several options (rule 7), as Solio's single line for the four juices needs.
 - **P20** — **Decided 2026-10-07**: Solio's WordPress site moves to a private repository
-  `solio-site`, which Adrien creates.
+  `solio-site`, which Adrien creates. **Done 2026-10-19** (rule 30).
 - **P21** — **Decided 2026-10-07**: « Plus tard » is allowed at every step of the assistant.
 - **P22** — **Decided 2026-10-07**: neutral seeds keep linen, breakfast, cleaning, insurance and
   baby bed.

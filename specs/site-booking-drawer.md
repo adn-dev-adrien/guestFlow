@@ -118,11 +118,17 @@ button says why it is greyed, and the engine's own refinements never flicker on 
     block untouched when `gf_resa_page_concernee()` is false: outside the lodging pages neither the
     drawer's stylesheet nor its script is enqueued, and a « Réserver » or « Payer » page showed a bare
     button over an engine no click could reach.
+> **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+> public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 15. **The insurance notice link speaks the page's language** (`resa_notice_assurance` in `gf-i18n.php`,
     passed as `GF_RESA_T.notice`; EN « Read the insurance policy (PDF, in French) »), and the yes/no
     switch that replaces a stepper carries the option title as its `aria-label`.
+> **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+> public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 16. **On a phone the e-mail field takes its own row in the drawer**, and « Effacer » too below 600 px,
     instead of an address cut in half and a button falling into the times row.
+> **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+> public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 
 ### UI/UX review 2026-10-18 — engine plugin 1.16.0 (added 2026-10-19)
 
@@ -147,7 +153,7 @@ button says why it is greyed, and the engine's own refinements never flicker on 
 
 None.
 
-### 4.2 WordPress site (`integrations/wordpress/solio-site/mu-plugins/`)
+### 4.2 WordPress site (`mu-plugins/` of the site — the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30))
 
 | File | T/C | Responsibility |
 |---|---|---|
@@ -221,7 +227,7 @@ Added 2026-09-23 (rules 11-13), same method, at 420 px and 1200 px:
   same test session is specced in `specs/wp-booking-widget-redesign.md`.
 - The other `gf-seo-*` mu-plugins (facts, head, indexation, FAQ…).
 - Deploying to the WordPress host: these mu-plugins are copied by hand onto `.23`
-  (`integrations/wordpress/solio-site/` is the versioned copy, not a deployment).
+  (the versioned copy, not a deployment, lives in the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30)).
 
 ## 9. Open questions
 

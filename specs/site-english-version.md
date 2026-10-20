@@ -325,14 +325,20 @@ booking._
     never two files. A second English file would drift at the first price or opening-date correction
     made in a hurry, and a bilingual site that lies in only one of its languages is worse than a
     monolingual one.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 35. `gf_fait( $tableau, $clef )` is the only way those facts are read. It returns the English on an
     English page **when it exists and is non-empty**, and the French otherwise. A missing translation
     shows a French word, never a blank row: a holed table is a worse answer than a French one.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 36. **Labels and values are translated in different places, and that is deliberate.** A column
     heading ("Facilities", "Season") belongs to the interface and lives once in `gf-i18n.php`'s
     dictionary; "open all year round" is a fact and is corrected where the fact is written. The
     blocks reach the dictionary through `gf_seo_lbl()`, which falls back to the French string when
     `gf-i18n.php` is absent — a load-order change must not produce a mute page.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 37. Times follow the language: `16:00` reads `16h00` in French and `4pm` in English, on the hour,
     with `9.30am` when there are minutes. A French page is unchanged, byte for byte.
     > **Sans test** — fonction PHP d'un mu-plugin du site Solio, aucun exécuteur PHP dans ce dépôt ;
@@ -366,12 +372,16 @@ that only appeared once real English pages existed._
     `la-granja-gite` and `estiva` becomes `estiva-safari-tent` — the proper name is kept and simply
     qualified, which rule 9 allows and which reads better in English anyway. The map in
     `gf-i18n.php` is the list that decides.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 42. **The bilingual guard must ask Polylang for the other language explicitly.**
     `gf_pages_anglaises_existent()` queried with `suppress_filters => true`, which does **not**
     disarm Polylang — it filters through `pre_get_posts`. Measured: from a French page the query
     saw 7 of the 14 pages, all French, concluded English did not exist, and hid the switcher across
     the whole French site while the seven translations were published. `'lang' => 'en'` is the
     argument that works.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 43. **The booking drawer's calendar follows the page locale.** Every label in the plugin block's
     `view.js` already went through `GF.t()` and the runtime already published `GF.locale`, but the
     month and weekday names were still two frozen French arrays. They are now built from
@@ -401,6 +411,8 @@ that only appeared once real English pages existed._
     > a night » sur la page anglaise, français inchangé)
 47. A lodging's name keeps its proper noun and translates its descriptor: "L'Estiva — la tente
     safari" becomes "L'Estiva — the safari tent". Rule 9 protects the name, not the words around it.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 
 ### What the live English funnel taught us
 
@@ -427,11 +439,15 @@ below was already shipped and already wrong; none of it could have been seen fro
     French URL from a bookmark, a search result or a shared link. A cookie holding anything other
     than `fr` or `en` counts as *no choice*, never as French: normalising it would let a damaged
     cookie decide for the visitor.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 51. **The address that records the choice is never cached.** `?gf_set_lang=…` exists for its side
     effect, so its cleanup redirect is a `302` carrying `no-store`, never a `301`. A `301` with no
     cache header is kept by the browser indefinitely: the second click on the switcher never reached
     the server, the cookie was written once and never again, and the next page sent the visitor back
     to their browser's language. The symptom read "I pick English, I change page, I am French again".
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 
 52. **An English page keeps the structure of its French twin.** `gf_seo_pages()` is indexed on
     French slugs, so `gf_seo_current_config()` returns null for `/en/la-granja-gite/` — and
@@ -446,10 +462,14 @@ below was already shipped and already wrong; none of it could have been seen fro
     as rentable. A breadcrumb step names itself with `fil_en` and links through the translated-path
     table, since `home_url( '/la-granja/' )` on an English page would name an address that does not
     exist (rule 41).
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 53. **A pictogram is matched in both languages.** `gf_caps_icone_pour()` reads the badge's own words,
     so a table holding only French ones left the seven badges under the hero showing their text with
     no icon. Each rule lists the words of both languages. The whole word, never a fragment: `bed`
     alone would claim both the single and the double.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 
 54. **The hero slides under the transparent header, on every page.** `.gf-hero` carries
     `margin-top:-86px` so the bar floats over the image. WordPress's own block layout then posts
@@ -459,12 +479,16 @@ below was already shipped and already wrong; none of it could have been seen fro
     home page's image was pushed below the bar and cropped by as much. Restated with a selector that
     outranks WordPress's, and on `margin-block-start` as well as `margin-top`: a fix that relied on
     stylesheet order would break the next time a style is enqueued.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 55. **The switcher emits a token no cached redirect can match.** The cleanup answered a cacheable
     `301` for a few hours before rule 51 landed, and a browser keeps a `301` indefinitely: for those
     visitors `?gf_set_lang=` never reached the server again, the cookie was never rewritten, and the
     next page handed them back to their browser's language. No response header can purge what is
     already cached — only an address the browser has never seen escapes it. The switcher therefore
     emits `gf_pick_lang`, and `gf_set_lang` is still **accepted**, for links already shared.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 56. **A REST request has no page, so the browser has to state the language.** `GF.api` carries
     `lang` on every call to the plugin's proxy, and the proxy adopts it once, on
     `rest_pre_dispatch`, before any handler — one place, so a route added later cannot silently ask in
@@ -480,6 +504,8 @@ below was already shipped and already wrong; none of it could have been seen fro
     **title**, which stays French for as long as no English title is filled in — so the retouch fired
     on English pages too and produced « 30,00 € · per participant · tarif dégressif ». The suffixes now
     come from the dictionary, and the matching recognises the unit in both languages.
+    > **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+    > public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
 
 58. **Filling in an English title must not silently change what the drawer does.** The retouches of
     rule 57 are *triggered* by the title, and so is the yes/no switch that replaces the quantity
@@ -589,7 +615,7 @@ else reuses existing screens.
 | `languages/guestflow-booking-en_GB.po` | **C** | The English translation, reviewable in the diff |
 | `languages/guestflow-booking-en_GB.mo` | **C** | Its compiled form, loaded by `load_plugin_textdomain()` |
 
-### 4.4 Solio site (`integrations/wordpress/solio-site/mu-plugins/`)
+### 4.4 Solio site (`mu-plugins/` — in the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30))
 
 | File | T/C | Responsibility |
 |---|---|---|
