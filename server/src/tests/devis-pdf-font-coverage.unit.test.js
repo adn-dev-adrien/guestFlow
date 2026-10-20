@@ -114,3 +114,57 @@ test('rule 30 — a long text shrinks to its box, down to a floor, and a wrapped
   const wrapped = nextLineY(doc, 'Grzegorz Łukasz Çağrı Wójcik-Yılmaz Dvořák Nguyễn', 100, 120, 13);
   assert.ok(wrapped > 113, 'the wrapped name pushes the address down');
 });
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const pageCount = (buf) => (buf.toString('latin1').match(/\/Type \/Page[^s]/g) || []).length;
+
+test('rule 27 — an empty, truncated or non-font file falls back to the standard face; the quote still renders', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-fonts-'));
+  const empty = path.join(dir, 'empty.otf.woff2');
+  const truncated = path.join(dir, 'truncated.otf.woff2');
+  const random = path.join(dir, 'random.otf');
+  fs.writeFileSync(empty, Buffer.alloc(0));
+  fs.writeFileSync(truncated, fs.readFileSync(FACES.regular.file).subarray(0, 2048));
+  fs.writeFileSync(random, Buffer.from(Array.from({ length: 4096 }, (_, i) => (i * 7919) % 256)));
+  try {
+    const faces = {
+      serif: { ...FACES.serif, file: random },
+      regular: { ...FACES.regular, file: empty },
+      bold: { ...FACES.bold, file: truncated },
+      italic: FACES.italic,
+    };
+    const names = __test.registerFaces(new PDFDocument(), faces);
+    assert.deepEqual(names, { serif: 'Times-Bold', regular: 'Helvetica', bold: 'Helvetica-Bold', italic: 'MaisonSansItalic' });
+    const buf = await generateDevisPdf(devis({ __testCompress: false, __testFaces: faces }), SETTINGS, null);
+    assert.equal(buf.subarray(0, 4).toString(), '%PDF');
+    const fonts = baseFonts(buf);
+    for (const standard of ['Times-Bold', 'Helvetica', 'Helvetica-Bold']) assert.ok(fonts.includes(standard), `${standard} replaces the unreadable file`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('rule 28 — the runs use the serif the document registered, never a hard-coded standard face', () => {
+  assert.deepEqual(serifRuns('世 Solio', { serif: 'Times-Bold', bold: 'Helvetica-Bold' }), [{ font: 'Times-Bold', text: '世 Solio' }]);
+  // A standard bold is never borrowed for a glyph the serif lacks: only the embedded sans is.
+  assert.deepEqual(serifRuns('Ŧarik', { serif: 'MaisonSerif', bold: 'Helvetica-Bold' }), [{ font: 'MaisonSerif', text: 'Ŧarik' }]);
+});
+
+test('rule 30 — a very long company name: two header lines at most, one footer line, no spurious page', async () => {
+  const doc = new PDFDocument();
+  doc.registerFont(FACES.serif.name, FACES.serif.file);
+  doc.font(FACES.serif.name).fontSize(13);
+  const name = 'Société Civile Immobilière du Domaine de Łąka-Çiftlik et Nguyễn Phượng, Gîtes, Tentes Safari et Bains Nordiques de Haute-Corse';
+  const clamped = __test.clampToLines(doc, name, 280, 2);
+  assert.ok(clamped.endsWith('…') && clamped.length < name.length);
+  const line = doc.heightOfString('0', { width: 280 });
+  assert.ok(doc.heightOfString(clamped, { width: 280 }) <= line * 2 + 0.5, 'two lines at most');
+  assert.equal(__test.clampToLines(doc, 'Domaine', 280, 2), 'Domaine', 'a short name is untouched');
+
+  const short = await generateDevisPdf(devis({ __testCompress: false }), SETTINGS, null);
+  const long = await generateDevisPdf(devis({ __testCompress: false }), { ...SETTINGS, companyName: name }, null);
+  assert.equal(pageCount(long), pageCount(short), 'the footer name never pushes PDFKit onto a new page');
+});

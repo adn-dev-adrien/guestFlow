@@ -45,18 +45,23 @@ const FACES = Object.freeze({
   italic: { name: 'MaisonSansItalic', file: path.join(FONT_DIR, 'SourceSans3-It.otf.woff2'), standard: 'Helvetica-Oblique' },
 });
 
-// Registers the embedded faces on a document and answers the name to draw each role with.
-function registerFaces(doc) {
+// Registers the embedded faces on a document and answers the name to draw each role with. A file
+// that is missing, empty, truncated or not a font falls back to that role's standard face (rule 27):
+// `registerFont` only stores the path, so each face is opened here, where a bad file can still be
+// caught, rather than at its first use in the middle of the document. Leaves the body face current.
+function registerFaces(doc, faces = FACES) {
   const names = {};
-  for (const [role, face] of Object.entries(FACES)) {
+  for (const [role, face] of Object.entries(faces)) {
     try {
       if (!fs.existsSync(face.file)) throw new Error('missing font file');
       doc.registerFont(face.name, face.file);
+      doc.font(face.name);
       names[role] = face.name;
     } catch {
       names[role] = face.standard;
     }
   }
+  doc.font(names.regular || FACES.regular.standard);
   return names;
 }
 
@@ -82,19 +87,19 @@ function faceHasGlyph(role, codePoint) {
 }
 
 /**
- * A serif text cut into runs: the serif draws every glyph it has, the embedded sans bold the few it
+ * A serif text cut into runs, given the names the document registered for the serif and the sans
+ * bold (`registerFaces`): the serif draws every glyph it has, the embedded sans bold the few it
  * lacks (« Ŧ », « Ĳ », some Cyrillic of minority languages). A glyph neither face has (CJK, Arabic,
  * Hebrew, Thai, emoji) stays in the run it sits in and prints as that face's empty box — the rest of
  * the line is kept (rule 29). Whitespace stays with the run it sits in. Pure (reads the font files once).
  */
-function serifRuns(text) {
-  const faces = coverage();
-  const serif = faces.serif ? faces.serif.name : FACES.serif.standard;
+function serifRuns(text, { serif = FACES.serif.name, bold = FACES.bold.name } = {}) {
+  // Without coverage (fontkit unreadable) every glyph stays in the serif registered (rule 28).
   const faceOf = (ch) => {
     if (/\s/.test(ch)) return null;
     const cp = ch.codePointAt(0);
     if (faceHasGlyph('serif', cp)) return serif;
-    if (faceHasGlyph('bold', cp)) return faces.bold.name;
+    if (bold === FACES.bold.name && faceHasGlyph('bold', cp)) return bold;
     return null;
   };
   const runs = [];
@@ -124,13 +129,24 @@ function nextLineY(doc, text, y, width, step) {
   return y + step + Math.max(0, extra);
 }
 
+// `text` cut, with an ellipsis, to the words that fit `maxLines` lines of `width` in the document's
+// current font and size; unchanged when it already fits (rule 30).
+function clampToLines(doc, text, width, maxLines) {
+  const full = String(text || '');
+  const limit = doc.heightOfString('0', { width }) * maxLines + 0.5;
+  if (doc.heightOfString(full, { width }) <= limit) return full;
+  let cut = full;
+  while (cut.length > 1 && doc.heightOfString(`${cut}…`, { width }) > limit) cut = [...cut].slice(0, -1).join('').trimEnd();
+  return `${cut}…`;
+}
+
 // Draws a serif text run by run, so one name can mix the serif and the sans bold.
-function drawSerifText(doc, serif, text, x, y, options = {}) {
-  if (serif !== FACES.serif.name) {
-    doc.font(serif).text(text, x, y, options);
+function drawSerifText(doc, names, text, x, y, options = {}) {
+  if (names.serif !== FACES.serif.name) {
+    doc.font(names.serif).text(text, x, y, options);
     return;
   }
-  const runs = serifRuns(text);
+  const runs = serifRuns(text, names);
   runs.forEach((run, i) => {
     const last = i === runs.length - 1;
     doc.font(run.font);
@@ -252,6 +268,7 @@ function generateDevisPdf(full, settings, quote) {
 
   // `full.__testCompress === false` keeps PDFKit's stream uncompressed so unit tests can grep
   // the raw bytes for English / French labels. Never set in production calls.
+  // `full.__testFaces` swaps the font files the same way, to prove the fallback of an unreadable one.
   const doc = new PDFDocument({
     size: 'A4',
     margins: { top: 34, bottom: 34, left: 45, right: 45 },
@@ -263,7 +280,7 @@ function generateDevisPdf(full, settings, quote) {
     },
   });
 
-  const F = registerFaces(doc);
+  const F = registerFaces(doc, full.__testFaces || FACES);
   const SERIF = F.serif;
 
   // Collect chunks in memory (required with bufferPages:true to support switchToPage)
@@ -299,9 +316,11 @@ function generateDevisPdf(full, settings, quote) {
 
   // ── Header: serif company name and « DEVIS » on paper, a fir-green rule under them (rule 17) ──
   if (settings.companyName) {
-    // Rule 30: a long name shrinks to stay on its line above the rule, down to 13 pt, then wraps.
+    // Rule 30: a long name shrinks to stay on its line above the rule, down to 13 pt, then takes two
+    // lines at most and ends in an ellipsis.
     doc.fontSize(fitFontSize(doc, SERIF, settings.companyName, PAGE_W * 0.55, 20, 13)).fillColor(TEXT_DARK);
-    drawSerifText(doc, SERIF, settings.companyName, LEFT, BAND_TOP + 8, { width: PAGE_W * 0.55 });
+    const headerName = clampToLines(doc, settings.companyName, PAGE_W * 0.55, 2);
+    drawSerifText(doc, F, headerName, LEFT, BAND_TOP + 8, { width: PAGE_W * 0.55 });
   }
 
   doc.fontSize(22).fillColor(BRAND).font(SERIF)
@@ -929,8 +948,10 @@ function generateDevisPdf(full, settings, quote) {
     const ftY = fY + 6;
     // Left: company name
     if (settings.companyName) {
-      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font(F.bold)
-        .text(settings.companyName, LEFT, ftY, { width: PAGE_W * 0.25, ellipsis: true });
+      // Rule 30: one line, cut with an ellipsis — a wrapped name would run below the page and make
+      // PDFKit add pages.
+      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font(F.bold);
+      doc.text(clampToLines(doc, settings.companyName, PAGE_W * 0.25, 1), LEFT, ftY, { width: PAGE_W * 0.25, lineBreak: false });
     }
     // Center: SIRET / TVA — wide column + no wrap so both stay on a single line.
     if (legalCenter) {
@@ -1025,6 +1046,8 @@ module.exports = {
     faceHasGlyph,
     FACES,
     fitFontSize,
+    clampToLines,
+    registerFaces,
     nextLineY,
     PDF_PALETTE,
     resolveLiveTaxTotals,

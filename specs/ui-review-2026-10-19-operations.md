@@ -210,17 +210,23 @@ guessing; and the quote the guest receives looks like the house that sends it.
     Romanian comma-below letters, Vietnamese, modern Greek and Cyrillic; PDFKit embeds only the glyphs
     a document uses. « Łukasz Wójcik », « Çağrı Yılmaz », « Dvořák », « Nguyễn Thị Ánh »,
     « Γιώργος », « Анастасия » print as typed. The PDF standard fonts (WinAnsi only — they garbled
-    every one of those names) remain only as the fallback of a missing font file.
+    every one of those names) remain only as the fallback of a font file that is missing or unreadable
+    (empty, truncated, not a font): each face is opened when the document starts, so a bad file falls
+    back to its standard face for that role and the quote is still produced, never a 500.
 28. **A title borrows the sans for a glyph the serif lacks.** The serif misses a handful of letters
     the sans has (« Ŧ », « Ĳ », some Cyrillic of minority languages): a company name is still drawn run
-    by run, the serif first, then the embedded sans Semibold.
+    by run, the serif first, then the embedded sans Semibold. The runs use the faces the document
+    actually registered: with a standard serif (rule 27) or no coverage readable, the whole name stays
+    in that serif, and a standard bold is never borrowed.
 29. **Scripts no embedded face covers never break the document** (owner decision 2026-10-20). CJK,
     Arabic, Hebrew, Thai, emoji: the quote is still produced, every line is kept, and each uncovered
     character prints as an empty box in place, the rest of the text intact; right-to-left text is not
     reordered. No multi-megabyte CJK or Arabic font is embedded: the four faces add about 0.5 MB to the
     release archive. The operator sees the boxes on the PDF before sending it.
 30. **A long text stays inside its box.** The serif company name in the header shrinks from 20 pt down
-    to 13 pt to hold its line above the rule, then wraps; an issuer or client line that wraps (a long
+    to 13 pt to hold its line above the rule, then takes two lines at most and ends in an ellipsis; in
+    the footer it keeps one line, cut with an ellipsis (a wrapped footer ran below the page and made
+    PDFKit add empty pages); an issuer or client line that wraps (a long
     name, an address) pushes the following lines down instead of printing over them; the value of a
     meta pill shrinks from 10 pt down to 8 pt, then takes two lines at most and ends in an ellipsis.
 
@@ -315,7 +321,8 @@ devis, options), `SegmentedSelect` (every short exclusive filter). Page-specific
 
 ## 5. Data model
 
-None. One binary asset (the embedded serif).
+None. Binary assets: four embedded fonts (Source Serif 4 Semibold; Source Sans 3 Regular, Semibold,
+Italic) and their two OFL licence notices in `server/src/assets/fonts/` (rules 17, 27).
 
 ## 6. UI / UX
 
@@ -372,11 +379,14 @@ converted quote links to its reservation, the mini planning arrows, the 44 px li
 `components/__tests__/SegmentedSelect.phone-wrap.test.jsx` (2).
 
 **Every alphabet in the quote PDF (owner decision 2026-10-20)** — rules 27–30:
-`server/src/tests/devis-pdf-font-coverage.unit.test.js` (5: the font dictionary of a quote naming
+`server/src/tests/devis-pdf-font-coverage.unit.test.js` (8: the font dictionary of a quote naming
 guests in Polish, Turkish, Czech, Vietnamese, Greek and Cyrillic holds the four embedded faces and no
 standard font; each body face covers Latin Extended-A, Vietnamese, modern Greek and Cyrillic in full;
 every letter of the six names is drawable; CJK / Hebrew / Arabic / Thai / emoji render without throwing
-and keep their line; the fitted size and the wrapped-line advance). `ui-review-operations-devis-pdf`
+and keep their line; the fitted size and the wrapped-line advance; an empty / truncated / non-font
+file falls back to the standard face and the quote still renders; the runs follow the registered
+serif; a 130-character company name takes two header lines at most and adds no page through the
+footer). `ui-review-operations-devis-pdf`
 rewrites its rule-17 cases for the single serif file and the sans fallback (rule 28) and checks both
 licence notices. Manual: `qlmanage -t` page 1 and every page through PDFKit (Swift) of sample quotes
 before and after — Latin Extended, Vietnamese, Greek + Cyrillic, CJK + RTL, and a 30-line quote with a
