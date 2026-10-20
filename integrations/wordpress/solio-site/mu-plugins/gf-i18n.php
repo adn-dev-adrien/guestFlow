@@ -170,6 +170,8 @@ function gf_i18n_dictionnaire() {
             'resa_etapes'      => 'Étapes de la réservation',
             'resa_retour'      => 'Retour',
             'resa_suivant'     => 'Suivant',
+            'resa_barre_des'   => 'Dès %s € la nuit',
+            'resa_barre_capacite' => 'jusqu’à %d voyageurs',
         ),
         'en' => array(
             'nav_accueil'      => 'Home',
@@ -222,6 +224,8 @@ function gf_i18n_dictionnaire() {
             'resa_etapes'      => 'Booking steps',
             'resa_retour'      => 'Back',
             'resa_suivant'     => 'Next',
+            'resa_barre_des'   => 'From €%s a night',
+            'resa_barre_capacite' => 'up to %d guests',
         ),
     );
     return $d;

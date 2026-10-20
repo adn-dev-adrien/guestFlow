@@ -27,6 +27,16 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-cal-box { border: 1px solid var(--gf-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; background: #fff; }
 .gf-cal-hint { text-align: center; font-weight: 600; color: var(--gf-accent); margin-top: .6rem; min-height: 1.2em; }
 .gf-cal-hint-error { color: #b3261e; }
+/* specs/booking-drawer-friction.md rules 11-13 — the night's price under the day, and the departures
+   under the minimum stay: hatched, reachable by extending the stay, never struck like a taken night. */
+button.gf-cal-day { flex-direction: column; line-height: 1.1; }
+button.gf-cal-day .gf-cal-price { display: block; font-size: .6rem; font-weight: 400; color: var(--gf-muted); }
+button.gf-cal-day.gf-edge .gf-cal-price { color: inherit; opacity: .85; }
+button.gf-cal-day.gf-short { background: repeating-linear-gradient(135deg, #f6eedf 0 5px, #fbf6ec 5px 10px); color: #7a6c52; cursor: not-allowed; }
+button.gf-cal-day.gf-short .gf-cal-price { color: #7a6c52; }
+button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19, .97); }
+@keyframes gf-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { button.gf-cal-day.gf-shake { animation: none; } }
 
 /* Booking wizard */
 .gf-booking { border: 1px solid var(--gf-border); border-radius: 12px; padding: 1.25rem 1.4rem; }
@@ -102,6 +112,10 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-success { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 1rem; }
 .gf-btn { background: var(--gf-accent); color: #fff; border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; cursor: pointer; min-height: 44px; }
 .gf-btn[disabled] { opacity: .5; cursor: not-allowed; }
+/* Rules 2-4: the price per person under the total, and the request without paying beside the payment. */
+.gf-summary-pp { text-align: right; font-size: .82rem; color: var(--gf-muted); padding-top: .15rem; }
+.gf-request-hint { margin: .9rem 0 .6rem; padding: .6rem .8rem; border-radius: 8px; background: #eef3ea; border: 1px solid #d5e0cc; color: #2e3b2a; font-size: .9rem; }
+.gf-btn.gf-btn-alt { background: #fff; color: inherit; border: 1.5px solid currentColor; margin: .5rem 0 0 .5rem; }
 /* CGV acceptance (specs/terms-acceptance-record.md rule 10): the whole line is the hit area. */
 .gf-cgv-accept { display: flex; gap: .6rem; align-items: flex-start; margin: .9rem 0 .4rem; cursor: pointer; line-height: 1.45; }
 .gf-cgv-accept input { width: 20px; height: 20px; margin: .1rem 0 0; flex: 0 0 auto; }

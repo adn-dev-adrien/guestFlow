@@ -331,13 +331,26 @@ add_action(
 	margin-left: auto; border: 0; background: #B87B2A; color: #fff; min-width: 150px;
 }
 .gf-resa-valider:hover:not(:disabled) { background: #9A6318; }
-/* L'ecran 1 n'a rien a mettre dans la barre : son bouton est en bas de son contenu. */
 .gf-resa-nav[hidden] { display: none; }
+.gf-resa-nav { flex-wrap: wrap; }
+/* Le theme du site nomme aussi « .gf-section » ses grandes sections de page (gf-site-style.php :
+   64 px en haut, 22 px sur les cotes) : les blocs du moteur heritaient de ce vide, ce qui se voyait
+   des que les voyageurs sont passes en tete de l'ecran 1. */
+.gf-resa-panneau .gf-section { max-width: none; margin: 0 0 18px; padding: 0; }
 
-/* ---------- Pied de l'ecran 1 : « Suivant » au bout du contenu ---------- */
-/* Il est place la, et pas dans la barre collante, pour que l'atteindre suppose d'etre
-   descendu jusqu'aux options. */
-.gf-resa-pied { margin: 26px 0 4px; }
+/* ---------- Barre de l'ecran 1 : total, indication du calendrier, « Suivant » ---------- */
+/* specs/booking-drawer-friction.md regle 14 (amende les regles 4-5 de site-booking-drawer.md) :
+   la barre revient sur l'ecran 1 parce que son bouton n'a qu'un role, passer a l'ecran 2. */
+.gf-resa-barre1 { flex: 1 1 100%; display: grid; gap: 8px; }
+.gf-resa-barre1[hidden], .gf-resa-indice[hidden], .gf-resa-ligne-alt[hidden] { display: none; }
+.gf-resa-indice { margin: 0; font-size: .86rem; line-height: 1.4; color: #9A6318; }
+.gf-resa-indice.gf-resa-erreur { color: #A33A2A; background: #F8EAE6; border-radius: 8px; padding: 7px 10px; }
+.gf-resa-resume { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.gf-resa-total { font: 700 1.15rem/1.2 Karla, Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; color: #22271F; }
+.gf-resa-resume-detail { font-size: .8rem; line-height: 1.35; color: #5F6B52; text-align: right; }
+.gf-resa-ligne-alt { flex: 1 1 100%; }
+.gf-resa-nav .gf-resa-valider-alt { width: 100%; border: 1.5px solid #2E3B2A; background: #fff; color: #2E3B2A; }
+.gf-resa-nav .gf-resa-valider-alt:hover:not(:disabled) { background: #F4F6F0; }
 .gf-resa-suivant-bas {
 	width: 100%; border: 0; border-radius: 4px; background: #B87B2A; color: #fff;
 	font: 700 .85rem/1 Karla, Helvetica, Arial, sans-serif;
@@ -347,9 +360,6 @@ add_action(
 .gf-resa-suivant-bas:hover:not(:disabled) { background: #9A6318; }
 .gf-resa-suivant-bas:disabled { opacity: .45; cursor: not-allowed; }
 .gf-resa-suivant-bas:focus-visible { outline: 2px solid #2f3a26; outline-offset: 2px; }
-/* Un bouton grise ne dit pas pourquoi : cette ligne le dit a sa place. */
-.gf-resa-raison { margin: 9px 0 0; font-size: .88rem; line-height: 1.45; color: #9A6318; text-align: center; }
-.gf-resa-raison[hidden] { display: none; }
 .gf-resa-nav button:disabled { opacity: .45; cursor: not-allowed; }
 .gf-resa-nav button:focus-visible { outline: 2px solid #2f3a26; outline-offset: 2px; }
 
@@ -397,7 +407,14 @@ CSS;
 	var derniereCle  = '';
 	var pret         = false;
 	var suivantBas   = null;
-	var raisonBas    = null;
+	var boutonAlt    = null;
+	var validerAlt   = null;
+	var ligneAlt     = null;
+	var barre1       = null;
+	var indiceBas    = null;
+	var totalBas     = null;
+	var detailBas    = null;
+	var envoye       = false;
 
 	/* ---------- Repartition des blocs du moteur dans les deux ecrans ---------- */
 
@@ -415,23 +432,51 @@ CSS;
 		moteur.remove();
 
 		champsDates  = ecrans[0].querySelectorAll( '.gf-ro' );
-		boutonMoteur = ecrans[1].querySelector( '.gf-btn' );
+		boutonMoteur = ecrans[1].querySelector( '.gf-btn:not(.gf-btn-alt)' );
+		boutonAlt    = ecrans[1].querySelector( '.gf-btn-alt' );
 
-		// « Suivant » en fin d'ecran 1 : il est construit ici, une fois les blocs du moteur
-		// deplaces, pour rester le dernier element de l'ecran.
-		var pied = document.createElement( 'div' );
-		pied.className = 'gf-resa-pied';
+		// La barre de l'ecran 1 (regle 14) : l'indication du calendrier, le total et « Suivant ».
+		// Tout y est recopie du moteur — le tiroir ne calcule rien.
+		barre1 = document.createElement( 'div' );
+		barre1.className = 'gf-resa-barre1';
+		indiceBas = document.createElement( 'p' );
+		indiceBas.className = 'gf-resa-indice';
+		indiceBas.setAttribute( 'role', 'status' );
+		indiceBas.hidden = true;
+		var resume = document.createElement( 'div' );
+		resume.className = 'gf-resa-resume';
+		totalBas = document.createElement( 'span' );
+		totalBas.className = 'gf-resa-total';
+		detailBas = document.createElement( 'span' );
+		detailBas.className = 'gf-resa-resume-detail';
+		resume.appendChild( totalBas );
+		resume.appendChild( detailBas );
 		suivantBas = document.createElement( 'button' );
 		suivantBas.type = 'button';
 		suivantBas.className = 'gf-resa-suivant-bas';
 		suivantBas.innerHTML = ( T.suivant || 'Suivant' ) + ' <span aria-hidden="true">\u2192</span>';
-		raisonBas = document.createElement( 'p' );
-		raisonBas.className = 'gf-resa-raison';
-		raisonBas.hidden = true;
-		pied.appendChild( suivantBas );
-		pied.appendChild( raisonBas );
-		ecrans[0].appendChild( pied );
+		barre1.appendChild( indiceBas );
+		barre1.appendChild( resume );
+		barre1.appendChild( suivantBas );
+		nav.insertBefore( barre1, nav.firstChild );
 		suivantBas.addEventListener( 'click', function () { aller( 2 ); } );
+
+		// Regle 16 : le second bouton du moteur (« Envoyer une demande sans payer ») sur sa ligne.
+		if ( boutonAlt ) {
+			ligneAlt = document.createElement( 'div' );
+			ligneAlt.className = 'gf-resa-ligne-alt';
+			ligneAlt.hidden = true;
+			validerAlt = document.createElement( 'button' );
+			validerAlt.type = 'button';
+			validerAlt.className = 'gf-resa-valider-alt';
+			validerAlt.addEventListener( 'click', function () { boutonAlt.click(); } );
+			ligneAlt.appendChild( validerAlt );
+			nav.appendChild( ligneAlt );
+			new MutationObserver( majNav ).observe( boutonAlt, {
+				attributes: true, attributeFilter: [ 'disabled' ],
+				childList: true, characterData: true, subtree: true
+			} );
+		}
 
 		if ( boutonMoteur ) {
 			valider.textContent = boutonMoteur.textContent || T.reserver || 'Réserver';
@@ -477,6 +522,21 @@ CSS;
 			lien.className = 'gf-resa-notice-lien';
 			lien.innerHTML = '<a href="/wp-content/uploads/2026/09/notice-assurance-annulation-neat.pdf" target="_blank" rel="noopener">Consulter la notice d\u2019assurance (PDF)</a>';
 			assurance.appendChild( lien );
+		}
+
+		// Le moteur ecrit sa confirmation dans SON conteneur, reste vide dans le tiroir depuis que
+		// ses blocs ont ete repartis : on la ramene a la place du formulaire (regle 3).
+		var conteneur = corps.querySelector( '[data-gf-booking]' );
+		if ( conteneur ) {
+			new MutationObserver( function () {
+				var succes = conteneur.querySelector( '.gf-success' );
+				if ( ! succes || envoye ) { return; }
+				envoye = true;
+				ecrans[1].innerHTML = '';
+				ecrans[1].appendChild( succes );
+				ecrans[1].scrollTop = 0;
+				majNav();
+			} ).observe( conteneur, { childList: true } );
 		}
 
 		pret = true;
@@ -661,6 +721,22 @@ CSS;
 		return 'Choisissez vos dates d’arrivée et de départ dans le calendrier.';
 	}
 
+	function ecrire( noeud, texte ) {
+		if ( noeud && noeud.textContent !== texte ) { noeud.textContent = texte; }
+	}
+
+	// Ce que dit la barre de l'ecran 1 (regles 11 et 15) : le refus du calendrier en premier, puis
+	// son indication tant que le sejour n'est pas complet (« Départ à partir du… »). Une fois le
+	// sejour complet, le total parle seul.
+	function indicationBarre() {
+		var erreur = ecrans[0].querySelector( '.gf-cal-hint-error' );
+		var texte = erreur ? erreur.textContent.trim() : '';
+		if ( texte ) { return { texte: texte, erreur: true }; }
+		if ( datesCompletes() ) { return { texte: '', erreur: false }; }
+		var indication = ecrans[0].querySelector( '.gf-cal-hint' );
+		return { texte: indication ? indication.textContent.trim() : '', erreur: false };
+	}
+
 	function affiner() {
 		affinerOptions();
 		majNav();
@@ -670,25 +746,46 @@ CSS;
 		precedent.hidden = ( etape === 1 );
 
 		var derniere = ( etape === 2 );
-		// L'ecran 1 porte son bouton en bas de son contenu : la barre collante ne sert qu'au
-		// recapitulatif, et disparait plutot que de rester vide.
-		nav.hidden = ! derniere;
+		// La barre sert aux deux ecrans (regle 14) : total et « Suivant » sur le premier,
+		// « Retour » et les envois du moteur sur le second.
+		nav.hidden = false;
 		valider.hidden = ! derniere;
+		if ( barre1 ) { barre1.hidden = derniere; }
+		if ( ligneAlt ) { ligneAlt.hidden = ! derniere; }
 
 		if ( suivantBas ) {
 			var raison = raisonSuivant();
 			suivantBas.disabled = !! raison;
 			// Ecrire un texte identique compte quand meme comme une mutation : sans ce garde,
 			// l'observateur rappellerait majNav sans fin.
-			if ( raisonBas.textContent !== raison ) { raisonBas.textContent = raison; }
-			raisonBas.hidden = ! raison;
+			var indice = indicationBarre();
+			ecrire( indiceBas, indice.texte );
+			indiceBas.hidden = ! indice.texte;
+			indiceBas.classList.toggle( 'gf-resa-erreur', indice.erreur );
+			var total = ! raison ? ecrans[1].querySelector( '.gf-summary-total span:last-child' ) : null;
+			var parPersonne = ! raison ? ecrans[1].querySelector( '.gf-summary-pp' ) : null;
+			ecrire( totalBas, total ? total.textContent.trim() : ( T.desPrix || '' ) );
+			ecrire( detailBas, total ? ( parPersonne ? parPersonne.textContent.trim() : '' ) : ( T.capacite || '' ) );
 		}
 
-		if ( derniere && boutonMoteur ) {
+		// Une fois la demande envoyee, l'ecran 2 ne montre plus que sa confirmation : la barre n'a
+		// plus rien a relayer, et revenir aux dates n'aurait plus de sens.
+		if ( envoye ) {
+			nav.hidden = true;
+			precedent.hidden = true;
+			valider.hidden = true;
+			if ( ligneAlt ) { ligneAlt.hidden = true; }
+		}
+
+		if ( derniere && boutonMoteur && ! envoye ) {
 			// L'envoi exige le devis complet. La case des CGV appartient au moteur : c'est lui qui
 			// refuse au clic tant qu'elle n'est pas cochee, et qui dit pourquoi.
 			valider.disabled = boutonMoteur.disabled;
-			valider.textContent = boutonMoteur.textContent || T.reserver || 'Réserver';
+			ecrire( valider, boutonMoteur.textContent || T.reserver || 'Réserver' );
+		}
+		if ( derniere && boutonAlt && ! envoye ) {
+			validerAlt.disabled = boutonAlt.disabled;
+			ecrire( validerAlt, boutonAlt.textContent );
 		}
 
 		filItems.forEach( function ( li ) {
@@ -711,6 +808,8 @@ CSS;
 		etape = Math.min( 2, Math.max( 1, n ) );
 		racine.dataset.etape = etape;
 		piste.style.transform = 'translateX(-' + ( ( etape - 1 ) * ( 100 / 2 ) ) + '%)';
+		// Regle 17 : l'ecran hors champ sort du parcours au clavier et du lecteur d'ecran.
+		ecrans.forEach( function ( ecran, i ) { ecran.inert = ( i !== etape - 1 ); } );
 		ecrans[ etape - 1 ].scrollTop = 0;
 		majNav();
 	}
@@ -802,6 +901,16 @@ JS;
 			'degressif' => $lbl2( 'resa_tarif_degressif', 'tarif dégressif' ),
 			'parPersonne' => $lbl2( 'resa_par_personne', 'par personne' ),
 		);
+		// Ce que la barre de l'ecran 1 dit avant tout devis (regle 14), a partir des faits du logement.
+		$conf2 = function_exists( 'gf_seo_config_structure' ) ? gf_seo_config_structure() : null;
+		$l2    = ! empty( $conf2['lodging'] ) ? gf_seo_lodging( $conf2['lodging'] ) : null;
+		if ( $l2 && ! empty( $l2['prix_min_nuit'] ) ) {
+			$t['desPrix'] = sprintf( $lbl2( 'resa_barre_des', 'Dès %s € la nuit' ), $l2['prix_min_nuit'] );
+		}
+		$capacite = $l2 ? (int) ( ! empty( $l2['capacite_max'] ) ? $l2['capacite_max'] : ( $l2['capacite'] ?? 0 ) ) : 0;
+		if ( $capacite > 0 ) {
+			$t['capacite'] = sprintf( $lbl2( 'resa_barre_capacite', 'jusqu’à %d voyageurs' ), $capacite );
+		}
 		wp_add_inline_script( 'gf-resa', 'window.GF_RESA_T = ' . wp_json_encode( $t ) . ";\n" . $js );
 	},
 	20
