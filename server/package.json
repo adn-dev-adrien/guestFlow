@@ -19,6 +19,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.1",
     "express-session": "^1.19.0",
+    "fontkit": "^2.0.4",
     "googleapis": "^185.0.0",
     "helmet": "^8.3.0",
     "imapflow": "^1.7.8",

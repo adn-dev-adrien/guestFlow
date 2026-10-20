@@ -145,10 +145,10 @@ guessing; and the quote the guest receives looks like the house that sends it.
 
 17. **The Maison identity.** Fir green (`#2F5D46`) for the rules, the table header and the total band;
     ink (`#27251F`) for the text; the serif (Source Serif 4, embedded) for « DEVIS », the company name
-    and the section headings; figures in the sans with tabular widths. No navy anywhere. The serif ships
-    as its Latin and Latin Extended subsets, and a name is drawn run by run with the face that has its
-    glyphs (« Łódź Ağaç Čech », a future customer's company name); a glyph neither has falls back to
-    the standard bold. The fonts ship with their OFL notice (© Adobe).
+    and the section headings; figures in the sans with tabular widths. No navy anywhere. The serif and
+    the sans are embedded full-coverage files, a title drawn run by run with the face that has its
+    glyphs (rules 27-29, owner decision 2026-10-20, which replaced the Latin / Latin Extended serif
+    subsets and the standard Helvetica of the body). The fonts ship with their OFL notice (© Adobe).
 18. **Offered lines grouped.** Every line offered to the guest (options, resources, the extra-guest
     supplement) prints in ONE row « Offert avec le séjour » that names them, billed 0,00 € and showing
     their value once (« valeur 115,00 € »); its quantity cell stays empty. The table, the sub-totals and the grand total are unchanged
@@ -199,6 +199,37 @@ guessing; and the quote the guest receives looks like the house that sends it.
     directly and went to the planning. A logement opened directly goes back to the logements list
     (`/properties`), not the planning. On a phone the quote-number link of rule 23 is 44 px tall.
 
+### Quote PDF, every alphabet (owner decision 2026-10-20)
+
+27. **Every word of the quote is drawn by an embedded face** (owner decision 2026-10-20: « une police
+    qui prend tout en compte »). The body (names, addresses, lines, totals, schedule) is Source Sans 3
+    — Regular, Semibold where Helvetica-Bold was, Italic where Helvetica-Oblique was — the sister of
+    the Source Serif 4 Semibold of the titles, so the document keeps one voice. Each face is ONE
+    upstream release file (Adobe, SIL OFL 1.1, unmodified, CFF-flavoured WOFF2 — fontkit cannot
+    subset the TrueType flavour's composite glyphs) covering Latin, Latin Extended-A in full, the
+    Romanian comma-below letters, Vietnamese, modern Greek and Cyrillic; PDFKit embeds only the glyphs
+    a document uses. « Łukasz Wójcik », « Çağrı Yılmaz », « Dvořák », « Nguyễn Thị Ánh »,
+    « Γιώργος », « Анастасия » print as typed. The PDF standard fonts (WinAnsi only — they garbled
+    every one of those names) remain only as the fallback of a font file that is missing or unreadable
+    (empty, truncated, not a font): each face is opened when the document starts, so a bad file falls
+    back to its standard face for that role and the quote is still produced, never a 500.
+28. **A title borrows the sans for a glyph the serif lacks.** The serif misses a handful of letters
+    the sans has (« Ŧ », « Ĳ », some Cyrillic of minority languages): a company name is still drawn run
+    by run, the serif first, then the embedded sans Semibold. The runs use the faces the document
+    actually registered: with a standard serif (rule 27) or no coverage readable, the whole name stays
+    in that serif, and a standard bold is never borrowed.
+29. **Scripts no embedded face covers never break the document** (owner decision 2026-10-20). CJK,
+    Arabic, Hebrew, Thai, emoji: the quote is still produced, every line is kept, and each uncovered
+    character prints as an empty box in place, the rest of the text intact; right-to-left text is not
+    reordered. No multi-megabyte CJK or Arabic font is embedded: the four faces add about 0.5 MB to the
+    release archive. The operator sees the boxes on the PDF before sending it.
+30. **A long text stays inside its box.** The serif company name in the header shrinks from 20 pt down
+    to 13 pt to hold its line above the rule, then takes two lines at most and ends in an ellipsis; in
+    the footer it keeps one line, cut with an ellipsis (a wrapped footer ran below the page and made
+    PDFKit add empty pages); an issuer or client line that wraps (a long
+    name, an address) pushes the following lines down instead of printing over them; the value of a
+    meta pill shrinks from 10 pt down to 8 pt, then takes two lines at most and ends in an ellipsis.
+
 **Edge cases:**
 - A SAS with only intro and recap → « 1 sur 2 », « 2 sur 2 ».
 - A quote with no deposit and a platform channel → the page-1 block prints the solde alone.
@@ -231,9 +262,11 @@ guessing; and the quote the guest receives looks like the house that sends it.
 | `controllers/` | `reservationsController.js` | T | `list` rows carry `platformDisplay` (rule 15). |
 | `plugins/sas/` | `nothingToCollect.js` | C | Pure: was anything owed at the door before this run (rule 4). |
 | `plugins/sas/` | `controller.js` | T | The SAS payload carries `nothingToCollect` (rule 4). |
-| `utils/` | `devisPdf.js` | T | Maison palette + serif drawn run by run across its Latin / Latin Extended faces, rows built before drawing, offered lines grouped, page-1 summary, no expired suffix (rules 17-20). |
+| `utils/` | `devisPdf.js` | T | Maison palette + serif drawn run by run, rows built before drawing, offered lines grouped, page-1 summary, no expired suffix (rules 17-20). `FACES` / `registerFaces` embed the serif and the three sans faces for every text, the PDF standard fonts only for a missing file; `faceHasGlyph` reads coverage from the font files; `fitFontSize` / `nextLineY` keep long texts in their boxes (rules 27-30). |
 | `utils/` | `devisPdfLabels.js` | T | `offeredGroup`, `offeredValue`, `summaryHeading`; `expiredSuffix` removed (rules 18-20). |
-| `assets/fonts/` | `SourceSerif4-Semibold.woff`, `SourceSerif4-Semibold-LatinExt.woff`, `SourceSerif4-OFL.txt` | C | Embedded serif of the PDF and its licence notice (SIL OFL, © Adobe; from `@fontsource/source-serif-4`) (rule 17). |
+| `assets/fonts/` | `SourceSerif4-Semibold.otf.woff2`, `SourceSerif4-OFL.txt` | C | Embedded serif of the PDF and its licence notice (SIL OFL, © Adobe; upstream release `adobe-fonts/source-serif` 4.005R, unmodified). Replaces the two `@fontsource` subsets (rules 17, 27). |
+| `assets/fonts/` | `SourceSans3-Regular.otf.woff2`, `SourceSans3-Semibold.otf.woff2`, `SourceSans3-It.otf.woff2`, `SourceSans3-OFL.txt` | C | Embedded body of the PDF and its licence notice (SIL OFL, © Adobe; upstream release `adobe-fonts/source-sans` 3.052R, unmodified) (rule 27). |
+| — | `server/package.json` | T | `fontkit` declared (it was only reached through `pdfkit`): the coverage of rules 28-29 reads the font files with it. |
 | `plugins/sas/` | `manifest.json` | T | 1.0.4 + changelog line (rules 1-4). |
 
 ### 4.2 Client side (`client/src/`)
@@ -288,7 +321,8 @@ devis, options), `SegmentedSelect` (every short exclusive filter). Page-specific
 
 ## 5. Data model
 
-None. One binary asset (the embedded serif).
+None. Binary assets: four embedded fonts (Source Serif 4 Semibold; Source Sans 3 Regular, Semibold,
+Italic) and their two OFL licence notices in `server/src/assets/fonts/` (rules 17, 27).
 
 ## 6. UI / UX
 
@@ -305,6 +339,9 @@ None. One binary asset (the embedded serif).
 - **Calendar** — phone: full-width segmented filter, agenda rows with tinted chips, a hatched closure
   row. Desktop: hatched closed days, one label per week, tinted bars, « Légende » folded.
 - **PDF** — A4: fir-green rule under the company block, serif « DEVIS », the summary block on page 1.
+  Body in Source Sans 3; a guest's name in Polish, Turkish, Czech, Vietnamese, Greek or Cyrillic prints
+  as typed; a long company name shrinks on its line, a long client name pushes the address down
+  (rules 27-30).
 
 Validated rendering: the review's mocks; the two departures from them (decisions 6 and 7) and the
 step numbering are shown in `docs/specs/2026-10-19-ui-review-operations.html`.
@@ -340,6 +377,20 @@ step numbering are shown in `docs/specs/2026-10-19-ui-review-operations.html`.
 `pages/__tests__/DevisPage.keyboard.test.jsx` (5: the link at 1280 and 390 opens with Entrée, a
 converted quote links to its reservation, the mini planning arrows, the 44 px link on a phone),
 `components/__tests__/SegmentedSelect.phone-wrap.test.jsx` (2).
+
+**Every alphabet in the quote PDF (owner decision 2026-10-20)** — rules 27–30:
+`server/src/tests/devis-pdf-font-coverage.unit.test.js` (8: the font dictionary of a quote naming
+guests in Polish, Turkish, Czech, Vietnamese, Greek and Cyrillic holds the four embedded faces and no
+standard font; each body face covers Latin Extended-A, Vietnamese, modern Greek and Cyrillic in full;
+every letter of the six names is drawable; CJK / Hebrew / Arabic / Thai / emoji render without throwing
+and keep their line; the fitted size and the wrapped-line advance; an empty / truncated / non-font
+file falls back to the standard face and the quote still renders; the runs follow the registered
+serif; a 130-character company name takes two header lines at most and adds no page through the
+footer). `ui-review-operations-devis-pdf`
+rewrites its rule-17 cases for the single serif file and the sans fallback (rule 28) and checks both
+licence notices. Manual: `qlmanage -t` page 1 and every page through PDFKit (Swift) of sample quotes
+before and after — Latin Extended, Vietnamese, Greek + Cyrillic, CJK + RTL, and a 30-line quote with a
+long company and logement name.
 
 ## 8. Out of scope
 
