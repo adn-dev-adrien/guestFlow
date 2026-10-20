@@ -29,25 +29,35 @@ const PDF_PALETTE = Object.freeze({
   honey: '#F6EDD7',
 });
 
-// The serif of the app (Source Serif 4, SIL Open Font License), embedded so the document reads in the
-// same voice on every machine: its Latin subset, plus the Latin Extended one (Ł, ą, ğ, č…) for the
-// names of customers outside France. A missing file falls back to the PDF standard serif.
+// specs/ui-review-2026-10-19-operations.md rules 17, 27-29 — every word of the document is drawn by an
+// embedded face (SIL Open Font License, © Adobe, upstream release files unmodified): the serif of the
+// app (Source Serif 4 Semibold) for the titles, its sister Source Sans 3 for the body. Each is ONE
+// full file covering Latin, Latin Extended A/B, Vietnamese, Greek and Cyrillic, so « Łukasz Wójcik »,
+// « Çağrı Yılmaz », « Nguyễn » or « Анастасия » print as typed; PDFKit embeds only the glyphs used.
+// The PDF standard fonts (WinAnsi only) are the last resort of a missing file, never the norm.
+// CFF-flavoured (.otf) files on purpose: fontkit 2 cannot subset the composite glyphs of the TrueType
+// flavour (it throws when the document ends).
 const FONT_DIR = path.join(__dirname, '..', 'assets', 'fonts');
-const SERIF_FACES = [
-  { name: 'MaisonSerif', file: path.join(FONT_DIR, 'SourceSerif4-Semibold.woff') },
-  { name: 'MaisonSerifExt', file: path.join(FONT_DIR, 'SourceSerif4-Semibold-LatinExt.woff') },
-];
-const STANDARD_BOLD = 'Helvetica-Bold';
+const FACES = Object.freeze({
+  serif: { name: 'MaisonSerif', file: path.join(FONT_DIR, 'SourceSerif4-Semibold.otf.woff2'), standard: 'Times-Bold' },
+  regular: { name: 'MaisonSans', file: path.join(FONT_DIR, 'SourceSans3-Regular.otf.woff2'), standard: 'Helvetica' },
+  bold: { name: 'MaisonSansBold', file: path.join(FONT_DIR, 'SourceSans3-Semibold.otf.woff2'), standard: 'Helvetica-Bold' },
+  italic: { name: 'MaisonSansItalic', file: path.join(FONT_DIR, 'SourceSans3-It.otf.woff2'), standard: 'Helvetica-Oblique' },
+});
 
-function registerSerif(doc) {
-  try {
-    const present = SERIF_FACES.filter((f) => fs.existsSync(f.file));
-    if (present.length === 0) return 'Times-Bold';
-    present.forEach((f) => doc.registerFont(f.name, f.file));
-    return 'MaisonSerif';
-  } catch {
-    return 'Times-Bold';
+// Registers the embedded faces on a document and answers the name to draw each role with.
+function registerFaces(doc) {
+  const names = {};
+  for (const [role, face] of Object.entries(FACES)) {
+    try {
+      if (!fs.existsSync(face.file)) throw new Error('missing font file');
+      doc.registerFont(face.name, face.file);
+      names[role] = face.name;
+    } catch {
+      names[role] = face.standard;
+    }
   }
+  return names;
 }
 
 // Which glyphs each embedded face can draw, read once from the fonts themselves.
@@ -56,38 +66,67 @@ function coverage() {
   if (faceCoverage !== undefined) return faceCoverage;
   try {
     const fontkit = require('fontkit');
-    faceCoverage = SERIF_FACES.filter((f) => fs.existsSync(f.file)).map((f) => ({ name: f.name, font: fontkit.openSync(f.file) }));
+    faceCoverage = Object.fromEntries(Object.entries(FACES)
+      .filter(([, f]) => fs.existsSync(f.file))
+      .map(([role, f]) => [role, { name: f.name, font: fontkit.openSync(f.file) }]));
   } catch {
-    faceCoverage = [];
+    faceCoverage = {};
   }
   return faceCoverage;
 }
 
+// Whether a code point is drawable by the embedded face of `role` (rule 28).
+function faceHasGlyph(role, codePoint) {
+  const face = coverage()[role];
+  return Boolean(face && face.font.hasGlyphForCodePoint(codePoint));
+}
+
 /**
- * A text cut into runs, each drawn by the first serif face that has all its glyphs — the Latin one,
- * then the Latin Extended one — or by the standard bold of the rest of the document as a last resort
- * (rule 17). Whitespace stays with the run it sits in. Pure (reads the font files once).
+ * A serif text cut into runs: the serif draws every glyph it has, the embedded sans bold the few it
+ * lacks (« Ŧ », « Ĳ », some Cyrillic of minority languages). A glyph neither face has (CJK, Arabic,
+ * Hebrew, Thai, emoji) stays in the run it sits in and prints as that face's empty box — the rest of
+ * the line is kept (rule 29). Whitespace stays with the run it sits in. Pure (reads the font files once).
  */
 function serifRuns(text) {
   const faces = coverage();
+  const serif = faces.serif ? faces.serif.name : FACES.serif.standard;
   const faceOf = (ch) => {
     if (/\s/.test(ch)) return null;
-    const face = faces.find((f) => f.font.hasGlyphForCodePoint(ch.codePointAt(0)));
-    return face ? face.name : STANDARD_BOLD;
+    const cp = ch.codePointAt(0);
+    if (faceHasGlyph('serif', cp)) return serif;
+    if (faceHasGlyph('bold', cp)) return faces.bold.name;
+    return null;
   };
   const runs = [];
   for (const ch of String(text || '')) {
     const face = faceOf(ch);
     const last = runs[runs.length - 1];
     if (last && (face === null || face === last.font)) last.text += ch;
-    else runs.push({ font: face || (faces[0] ? faces[0].name : STANDARD_BOLD), text: ch });
+    else runs.push({ font: face || serif, text: ch });
   }
   return runs;
 }
 
-// Draws a serif text run by run, so one name can mix the Latin and Latin Extended faces.
+// The largest size, from `max` down to `min` by half points, at which `text` fits `width` on one line
+// in `font` (rule 30). Leaves the document set to that font and size.
+function fitFontSize(doc, font, text, width, max, min) {
+  doc.font(font);
+  let size = max;
+  while (size > min && doc.fontSize(size).widthOfString(String(text || '')) > width) size -= 0.5;
+  doc.fontSize(size);
+  return size;
+}
+
+// The y of the line after `text` drawn at `y` in `width` with the document's current font and size:
+// `step` below for one line, plus every extra line the text wraps onto (rule 30).
+function nextLineY(doc, text, y, width, step) {
+  const extra = doc.heightOfString(String(text || ''), { width }) - doc.heightOfString('0', { width });
+  return y + step + Math.max(0, extra);
+}
+
+// Draws a serif text run by run, so one name can mix the serif and the sans bold.
 function drawSerifText(doc, serif, text, x, y, options = {}) {
-  if (serif !== 'MaisonSerif') {
+  if (serif !== FACES.serif.name) {
     doc.font(serif).text(text, x, y, options);
     return;
   }
@@ -224,7 +263,8 @@ function generateDevisPdf(full, settings, quote) {
     },
   });
 
-  const SERIF = registerSerif(doc);
+  const F = registerFaces(doc);
+  const SERIF = F.serif;
 
   // Collect chunks in memory (required with bufferPages:true to support switchToPage)
   const chunks = [];
@@ -259,13 +299,14 @@ function generateDevisPdf(full, settings, quote) {
 
   // ── Header: serif company name and « DEVIS » on paper, a fir-green rule under them (rule 17) ──
   if (settings.companyName) {
-    doc.fontSize(20).fillColor(TEXT_DARK);
+    // Rule 30: a long name shrinks to stay on its line above the rule, down to 13 pt, then wraps.
+    doc.fontSize(fitFontSize(doc, SERIF, settings.companyName, PAGE_W * 0.55, 20, 13)).fillColor(TEXT_DARK);
     drawSerifText(doc, SERIF, settings.companyName, LEFT, BAND_TOP + 8, { width: PAGE_W * 0.55 });
   }
 
   doc.fontSize(22).fillColor(BRAND).font(SERIF)
     .text(L.documentTitle, LEFT + PAGE_W * 0.6, BAND_TOP + 4, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right', characterSpacing: 1.5 });
-  doc.fontSize(10).fillColor(TEXT_LIGHT).font('Helvetica')
+  doc.fontSize(10).fillColor(TEXT_LIGHT).font(F.regular)
     .text(L.documentNumber(full.devisNumber), LEFT + PAGE_W * 0.6, BAND_TOP + 31, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
   doc.moveTo(LEFT, BAND_TOP + BAND_HEIGHT).lineTo(LEFT + PAGE_W, BAND_TOP + BAND_HEIGHT).strokeColor(BRAND).lineWidth(1.5).stroke();
 
@@ -273,6 +314,14 @@ function generateDevisPdf(full, settings, quote) {
   const INFO_TOP = BAND_TOP + 74;
   // COL2 aligned with the start of the 3rd meta pill (Logement)
   const COL2 = LEFT + (PAGE_W * 2 / 3);
+  const CLIENT_W = LEFT + PAGE_W - COL2;
+
+  // Rule 30: one line of the issuer / client blocks, and the y of the next one — a name or an
+  // address that wraps pushes what follows down instead of printing over it.
+  function textLine(text, x, y, width, step) {
+    doc.text(text, x, y, { width });
+    return nextLineY(doc, text, y, width, step);
+  }
 
   // Logo à gauche de l'émetteur (si présent)
   const EMETTEUR_LEFT = HAS_LOGO ? LEFT + LOGO_W + 12 : LEFT;
@@ -284,47 +333,45 @@ function generateDevisPdf(full, settings, quote) {
   }
 
   // Company info (right of logo, or at LEFT if no logo)
-  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text(L.issuer, EMETTEUR_LEFT, INFO_TOP);
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.bold).text(L.issuer, EMETTEUR_LEFT, INFO_TOP);
   let cy = INFO_TOP + 14;
-  doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold');
+  doc.fontSize(10).fillColor(TEXT_DARK).font(F.bold);
   if (settings.companyName) {
-    doc.text(settings.companyName, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH }); cy += 14;
+    cy = textLine(settings.companyName, EMETTEUR_LEFT, cy, EMETTEUR_WIDTH, 14);
   }
-  doc.font('Helvetica').fontSize(9).fillColor(TEXT_LIGHT);
+  doc.font(F.regular).fontSize(9).fillColor(TEXT_LIGHT);
   if (settings.companyAddress) {
     const addrLines = settings.companyAddress.split('\n');
     for (const line of addrLines) {
-      doc.text(line, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH }); cy += 13;
+      cy = textLine(line, EMETTEUR_LEFT, cy, EMETTEUR_WIDTH, 13);
     }
   }
   if (settings.companyPhone) {
-    doc.text(`${L.phonePrefix}${settings.companyPhone}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
-    cy += 13;
+    cy = textLine(`${L.phonePrefix}${settings.companyPhone}`, EMETTEUR_LEFT, cy, EMETTEUR_WIDTH, 13);
   }
   if (settings.companyEmail) {
-    doc.text(`${L.emailPrefix}${settings.companyEmail}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
-    cy += 13;
+    cy = textLine(`${L.emailPrefix}${settings.companyEmail}`, EMETTEUR_LEFT, cy, EMETTEUR_WIDTH, 13);
   }
 
   // Client info (right)
-  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text(L.client, COL2, INFO_TOP);
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.bold).text(L.client, COL2, INFO_TOP);
   let ccy = INFO_TOP + 14;
-  doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold');
+  doc.fontSize(10).fillColor(TEXT_DARK).font(F.bold);
   const clientName = `${client.firstName || ''} ${client.lastName || ''}`.trim();
-  doc.text(clientName, COL2, ccy); ccy += 14;
-  doc.font('Helvetica').fontSize(9).fillColor(TEXT_LIGHT);
+  ccy = textLine(clientName, COL2, ccy, CLIENT_W, 14);
+  doc.font(F.regular).fontSize(9).fillColor(TEXT_LIGHT);
   const clientAddrParts = [
     [client.streetNumber, client.street].filter(Boolean).join(' '),
     [client.postalCode, client.city].filter(Boolean).join(' '),
   ].filter(Boolean);
   for (const part of clientAddrParts) {
-    doc.text(part, COL2, ccy); ccy += 13;
+    ccy = textLine(part, COL2, ccy, CLIENT_W, 13);
   }
   for (const phone of phones) {
-    if (phone) { doc.text(`${L.phonePrefix}${phone}`, COL2, ccy); ccy += 13; }
+    if (phone) ccy = textLine(`${L.phonePrefix}${phone}`, COL2, ccy, CLIENT_W, 13);
   }
   if (client.email) {
-    doc.text(`${L.emailPrefix}${client.email}`, COL2, ccy); ccy += 13;
+    ccy = textLine(`${L.emailPrefix}${client.email}`, COL2, ccy, CLIENT_W, 13);
   }
 
   // ── Devis meta ────────────────────────────────────────────────────────────
@@ -369,8 +416,11 @@ function generateDevisPdf(full, settings, quote) {
   metaItems.forEach((item, i) => {
     const px = LEFT + i * (pillW + 6);
     doc.rect(px, META_TOP, pillW, 40).fill(LIGHT_GRAY);
-    doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica').text(item.label, px + 8, META_TOP + 6);
-    doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold').text(item.value, px + 8, META_TOP + 18, { width: pillW - 16 });
+    doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.regular).text(item.label, px + 8, META_TOP + 6);
+    // Rule 30: the value stays inside its pill — down to 8 pt on one line, then two lines at most.
+    const valueSize = fitFontSize(doc, F.bold, item.value, pillW - 16, 10, 8);
+    doc.fontSize(valueSize).fillColor(TEXT_DARK).font(F.bold)
+      .text(item.value, px + 8, META_TOP + (valueSize < 10 ? 16 : 18), { width: pillW - 16, height: 22, ellipsis: true });
   });
 
   // ── Séjour section ────────────────────────────────────────────────────────
@@ -401,8 +451,8 @@ function generateDevisPdf(full, settings, quote) {
     const w = (PAGE_W - gap * (items.length - 1)) / items.length;
     items.forEach(([label, value], i) => {
       const sx = LEFT + i * (w + gap);
-      doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica').text(label, sx, sy);
-      doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold').text(value, sx, sy + 11, { width: w });
+      doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.regular).text(label, sx, sy);
+      doc.fontSize(10).fillColor(TEXT_DARK).font(F.bold).text(value, sx, sy + 11, { width: w });
     });
   }
 
@@ -435,7 +485,7 @@ function generateDevisPdf(full, settings, quote) {
 
   // A struck-through "was" amount, right-aligned in its column, on the label's line.
   function drawStruckAmount(text, colX, colW, y) {
-    doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica')
+    doc.fontSize(7.5).fillColor(TEXT_LIGHT).font(F.regular)
       .text(text, colX, y, { width: colW, align: 'right' });
     const w = doc.widthOfString(text);
     const x = colX + colW - w;
@@ -459,11 +509,11 @@ function generateDevisPdf(full, settings, quote) {
     const badgeText = hasBadge ? String(meta.badgeText) : '';
 
     // Measure everything before drawing anything, then let the geometry resolver place it.
-    doc.fontSize(9).font(italic ? 'Helvetica-Oblique' : 'Helvetica');
+    doc.fontSize(9).font(italic ? F.italic : F.regular);
     const descHeight = doc.heightOfString(descText, { width: DESC_W });
-    doc.font('Helvetica');
+    doc.font(F.regular);
     const moneyLineHeight = doc.heightOfString('0', { width: DESC_W });
-    doc.fontSize(7.5).font('Helvetica-Bold');
+    doc.fontSize(7.5).font(F.bold);
     const badgeHeight = hasBadge ? doc.heightOfString(badgeText, { width: DESC_W }) : 0;
     const struckLineHeight = doc.heightOfString('0', { width: DESC_W });
     const { rowH, badgeY, lineY: lineOffsetY, amountY: amountOffsetY } = resolveRowGeometry({
@@ -477,15 +527,15 @@ function generateDevisPdf(full, settings, quote) {
 
     // The badge owns the line above the label; every other column aligns with the label's first line.
     if (hasBadge) {
-      doc.fontSize(7.5).font('Helvetica-Bold').fillColor(OFFERED_GREEN)
+      doc.fontSize(7.5).font(F.bold).fillColor(OFFERED_GREEN)
         .text(badgeText, COL_DESC + 4, rowY + badgeY, { width: DESC_W });
     }
     const lineY = rowY + lineOffsetY;
 
     doc.fontSize(9).fillColor(TEXT_DARK);
-    if (italic) doc.font('Helvetica-Oblique'); else doc.font('Helvetica');
+    if (italic) doc.font(F.italic); else doc.font(F.regular);
     doc.text(descText, COL_DESC + 4, lineY, { width: DESC_W });
-    doc.font('Helvetica').text(String(qty), COL_QTY, lineY, { width: PAGE_W * 0.1, align: 'center' });
+    doc.font(F.regular).text(String(qty), COL_QTY, lineY, { width: PAGE_W * 0.1, align: 'center' });
     doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, lineY, { width: PAGE_W * 0.1, align: 'center' });
 
     if (showOriginal) {
@@ -496,9 +546,9 @@ function generateDevisPdf(full, settings, quote) {
       drawStruckAmount(formatCurrency(originalTtc), COL_TOTAL, PAGE_W * 0.14 - RIGHT_PAD, lineY);
     }
     const amountY = rowY + amountOffsetY;
-    doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica')
+    doc.fontSize(9).fillColor(TEXT_DARK).font(F.regular)
       .text(formatCurrency(ht), COL_HT, amountY, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
-    doc.font('Helvetica-Bold')
+    doc.font(F.bold)
       .text(formatCurrency(totalTtc), COL_TOTAL, amountY, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
     rowY += rowH;
     rowIdx++;
@@ -653,18 +703,18 @@ function generateDevisPdf(full, settings, quote) {
   const schedule = summarySchedule(full, L);
   const SUMMARY_H = Math.max(56, 16 + schedule.length * 16 + 10);
   doc.roundedRect(LEFT, SUMMARY_TOP, PAGE_W, SUMMARY_H, 6).fill(LIGHT_GRAY);
-  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(L.summaryTotal, LEFT + 14, SUMMARY_TOP + 10, { width: PAGE_W * 0.4 });
-  doc.fontSize(18).fillColor(TEXT_DARK).font('Helvetica-Bold')
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.regular).text(L.summaryTotal, LEFT + 14, SUMMARY_TOP + 10, { width: PAGE_W * 0.4 });
+  doc.fontSize(18).fillColor(TEXT_DARK).font(F.bold)
     .text(formatCurrency(grandTotalTtc), LEFT + 14, SUMMARY_TOP + 24, { width: PAGE_W * 0.4, lineBreak: false });
   const SCHED_X = LEFT + PAGE_W * 0.44;
   const SCHED_W = PAGE_W * 0.56 - 14;
   schedule.forEach((line, i) => {
     const ly = SUMMARY_TOP + 12 + i * 16;
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(line.label, SCHED_X, ly, { width: SCHED_W * 0.34, lineBreak: false });
-    doc.font('Helvetica-Bold').fillColor(TEXT_DARK)
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.regular).text(line.label, SCHED_X, ly, { width: SCHED_W * 0.34, lineBreak: false });
+    doc.font(F.bold).fillColor(TEXT_DARK)
       .text(formatCurrency(line.amount), SCHED_X + SCHED_W * 0.34, ly, { width: SCHED_W * 0.26, align: 'right', lineBreak: false });
     if (line.dueDate) {
-      doc.font('Helvetica').fillColor(TEXT_LIGHT)
+      doc.font(F.regular).fillColor(TEXT_LIGHT)
         .text(L.summaryBefore(fmtDate(line.dueDate)), SCHED_X + SCHED_W * 0.64, ly, { width: SCHED_W * 0.36, align: 'right', lineBreak: false });
     }
   });
@@ -680,7 +730,7 @@ function generateDevisPdf(full, settings, quote) {
   const TH = TABLE_TOP + 22;
   doc.rect(LEFT, TH, PAGE_W, 18).fill(LIGHT_GRAY);
   doc.moveTo(LEFT, TH + 18).lineTo(LEFT + PAGE_W, TH + 18).strokeColor(MID_GRAY).lineWidth(0.8).stroke();
-  doc.fontSize(8.5).fillColor(TEXT_DARK).font('Helvetica-Bold');
+  doc.fontSize(8.5).fillColor(TEXT_DARK).font(F.bold);
   doc.text(L.colDesignation, COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
   doc.text(L.colQuantity,    COL_QTY,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
   doc.text(L.colUnitPriceHt, COL_HT,       TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
@@ -705,7 +755,7 @@ function generateDevisPdf(full, settings, quote) {
     let bankY = bankTop;
     doc.fontSize(10.5).fillColor(BRAND).font(SERIF).text(L.bankHeading, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
     bankY += 17;
-    doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
+    doc.fontSize(9).fillColor(TEXT_DARK).font(F.regular);
     if (settings.companyBankName) {
       doc.text(`${L.bankAccount}${settings.companyBankName}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
       bankY += 13;
@@ -730,9 +780,9 @@ function generateDevisPdf(full, settings, quote) {
   }
 
   function drawTotalLine(label, amount, bold) {
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(label, TOTAL_RX, totY, { width: 120 });
-    if (bold) doc.font('Helvetica-Bold').fillColor(TEXT_DARK);
-    else doc.font('Helvetica').fillColor(TEXT_DARK);
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.regular).text(label, TOTAL_RX, totY, { width: 120 });
+    if (bold) doc.font(F.bold).fillColor(TEXT_DARK);
+    else doc.font(F.regular).fillColor(TEXT_DARK);
     doc.text(formatCurrency(amount), TOTAL_RX + 120, totY, { width: 80 - RIGHT_PAD, align: 'right' });
     totY += 16;
   }
@@ -757,7 +807,7 @@ function generateDevisPdf(full, settings, quote) {
         ? Number(quote.touristTaxUnitAmount || 0)
         : roundMoney(liveTaxTotal / (taxablePersons * taxNights));
       const taxDetail = L.touristTaxBreakdown(taxablePersons, taxNights, formatCurrency(taxUnitAmount));
-      doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
+      doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.italic)
         .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
     }
     totY += 10;
@@ -765,7 +815,7 @@ function generateDevisPdf(full, settings, quote) {
 
   // Total line
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
-  doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
+  doc.fontSize(11).fillColor('#ffffff').font(F.bold)
     .text(L.grandTotal, TOTAL_RX - 4, totY + 4, { width: 120 });
   doc.text(formatCurrency(grandTotalTtc), TOTAL_RX + 120, totY + 4, { width: 80 - RIGHT_PAD, align: 'right' });
   totY += 30;
@@ -793,24 +843,24 @@ function generateDevisPdf(full, settings, quote) {
   const drawScheduleRow = ({ label, amount, dueDate, fill, boxH, step, note = null, amountSuffix = '', labelColor = TEXT_LIGHT }) => {
     let noteH = 0;
     if (note) {
-      doc.fontSize(8).font('Helvetica-Oblique');
+      doc.fontSize(8).font(F.italic);
       noteH = doc.heightOfString(note, { width: PAGE_W - 16 }) + 6;
     }
     py = checkBreak(py, step + noteH);
 
     doc.rect(LEFT, py, PAGE_W, boxH).fill(fill);
-    doc.fontSize(9).font('Helvetica').fillColor(labelColor).text(label, LEFT + 8, py + 7);
+    doc.fontSize(9).font(F.regular).fillColor(labelColor).text(label, LEFT + 8, py + 7);
     const amountX = LEFT + 8 + Math.max(62, doc.widthOfString(label) + 8);
     const amountText = `${formatCurrency(amount)}${amountSuffix}`;
-    doc.font('Helvetica-Bold').fillColor(payTextColor).text(amountText, amountX, py + 7);
+    doc.font(F.bold).fillColor(payTextColor).text(amountText, amountX, py + 7);
     if (dueDate) {
       const dateX = Math.max(LEFT + 170, amountX + doc.widthOfString(amountText) + 12);
-      doc.font('Helvetica').fillColor(TEXT_LIGHT).text(`${L.payBefore}${fmtDate(dueDate)}`, dateX, py + 7);
+      doc.font(F.regular).fillColor(TEXT_LIGHT).text(`${L.payBefore}${fmtDate(dueDate)}`, dateX, py + 7);
     }
     py += step;
 
     if (note) {
-      doc.fontSize(8).font('Helvetica-Oblique').fillColor(TEXT_LIGHT)
+      doc.fontSize(8).font(F.italic).fillColor(TEXT_LIGHT)
         .text(note, LEFT + 8, py, { width: PAGE_W - 16 });
       py += noteH;
     }
@@ -859,7 +909,7 @@ function generateDevisPdf(full, settings, quote) {
     py = checkBreak(py + 14, footerH);
     doc.rect(LEFT, py, PAGE_W, 1).fill(MID_GRAY);
     py += 8;
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.italic)
       .text(footerText, LEFT, py, { width: PAGE_W, align: 'justify' });
     py += doc.heightOfString(footerText, { width: PAGE_W }) + 6;
   }
@@ -879,16 +929,16 @@ function generateDevisPdf(full, settings, quote) {
     const ftY = fY + 6;
     // Left: company name
     if (settings.companyName) {
-      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica-Bold')
+      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font(F.bold)
         .text(settings.companyName, LEFT, ftY, { width: PAGE_W * 0.25, ellipsis: true });
     }
     // Center: SIRET / TVA — wide column + no wrap so both stay on a single line.
     if (legalCenter) {
-      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica')
+      doc.fontSize(7.5).fillColor(TEXT_LIGHT).font(F.regular)
         .text(legalCenter, LEFT + PAGE_W * 0.25, ftY, { width: PAGE_W * 0.5, align: 'center', lineBreak: false });
     }
     // Right: page X / N
-    doc.fontSize(7.5).fillColor(TEXT_LIGHT).font('Helvetica')
+    doc.fontSize(7.5).fillColor(TEXT_LIGHT).font(F.regular)
       .text(L.pageNumber(i + 1, totalPages), LEFT + PAGE_W * 0.75, ftY, { width: PAGE_W * 0.25, align: 'right' });
   }
 
@@ -972,6 +1022,10 @@ module.exports = {
     groupOffered,
     summarySchedule,
     serifRuns,
+    faceHasGlyph,
+    FACES,
+    fitFontSize,
+    nextLineY,
     PDF_PALETTE,
     resolveLiveTaxTotals,
     lineAmounts,

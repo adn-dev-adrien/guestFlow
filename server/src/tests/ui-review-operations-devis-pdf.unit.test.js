@@ -32,7 +32,7 @@ test('rule 17 — the palette is the app\'s: fir green, ink, warm paper; no navy
   assert.ok(!Object.values(PDF_PALETTE).some((c) => c.toLowerCase() === '#1a3a5c'));
   const source = fs.readFileSync(path.join(__dirname, '..', 'utils', 'devisPdf.js'), 'utf8');
   assert.ok(!/1a3a5c/i.test(source), 'no navy left in the renderer');
-  assert.ok(fs.existsSync(path.join(__dirname, '..', 'assets', 'fonts', 'SourceSerif4-Semibold.woff')), 'the serif ships with the server');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'assets', 'fonts', 'SourceSerif4-Semibold.otf.woff2')), 'the serif ships with the server');
 });
 
 test('rule 17 — a quote renders with the embedded serif', async () => {
@@ -84,21 +84,24 @@ test('rule 20 — an expired quote prints its date alone: no « (expiré) » lab
   assert.equal(buf.subarray(0, 4).toString(), '%PDF');
 });
 
-test('rule 17 — a name outside Latin-1 is drawn by the Latin Extended serif, run by run', async () => {
+test('rules 17, 28 — a name outside Latin-1 stays in the serif; a glyph it lacks borrows the sans bold', async () => {
   const { serifRuns } = __test;
   assert.deepEqual(serifRuns('Domaine Solio'), [{ font: 'MaisonSerif', text: 'Domaine Solio' }]);
-  const runs = serifRuns('Łódź Ağaç Čech');
-  assert.equal(runs.map((r) => r.text).join(''), 'Łódź Ağaç Čech');
-  assert.ok(runs.every((r) => r.font === 'MaisonSerif' || r.font === 'MaisonSerifExt'), 'no glyph left to the standard font');
-  assert.deepEqual(runs.filter((r) => r.font === 'MaisonSerifExt').map((r) => r.text.trim()), ['Ł', 'ź', 'ğ', 'Č']);
-  // A glyph no embedded face has falls back to the standard bold.
-  assert.equal(serifRuns('世')[0].font, 'Helvetica-Bold');
+  assert.deepEqual(serifRuns('Łódź Ağaç Čech'), [{ font: 'MaisonSerif', text: 'Łódź Ağaç Čech' }]);
+  const runs = serifRuns('Ŧarik Ĳssel');
+  assert.equal(runs.map((r) => r.text).join(''), 'Ŧarik Ĳssel');
+  assert.deepEqual(runs.filter((r) => r.font === 'MaisonSansBold').map((r) => r.text.trim()), ['Ŧ', 'Ĳ']);
+  // A glyph no embedded face has stays in the serif run (rule 29): no standard font any more.
+  assert.deepEqual(serifRuns('世 Solio'), [{ font: 'MaisonSerif', text: '世 Solio' }]);
   const buf = await generateDevisPdf(devis(), { ...SETTINGS, companyName: 'Łódź Ağaç Čech' }, null);
   assert.equal(buf.subarray(0, 4).toString(), '%PDF');
 });
 
-test('rule 17 — the embedded font ships with its real licence notice', () => {
-  const notice = fs.readFileSync(path.join(__dirname, '..', 'assets', 'fonts', 'SourceSerif4-OFL.txt'), 'utf8');
-  assert.match(notice.split('\n')[0], /Adobe Systems Incorporated.*Reserved Font Name 'Source'/);
-  assert.ok(!/Google Inc/.test(notice.split('\n')[0]));
+test('rules 17, 27 — the embedded fonts ship with their real licence notices', () => {
+  for (const file of ['SourceSerif4-OFL.txt', 'SourceSans3-OFL.txt']) {
+    const notice = fs.readFileSync(path.join(__dirname, '..', 'assets', 'fonts', file), 'utf8');
+    assert.match(notice.split('\n')[0], /^Copyright .*Adobe .*Reserved Font Name .Source./);
+    assert.match(notice, /SIL OPEN FONT LICENSE Version 1\.1/);
+    assert.ok(!/Google Inc/.test(notice.split('\n')[0]));
+  }
 });
