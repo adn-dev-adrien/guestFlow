@@ -903,7 +903,7 @@
       summary.innerHTML = '';
       function sline(label, value, cls) { return GF.el('div', { class: 'gf-summary-line ' + (cls || '') }, GF.el('span', {}, label), GF.el('span', {}, value)); }
       summary.appendChild(sline(q.nights + ' ' + GF.t('nights'), GF.euro(q.accommodationTotal)));
-      // Billed by the engine since the beginning but never listed: the lines did not add up to the total.
+      // Without this row the listed lines do not add up to the total.
       if (q.extraGuests) {
         summary.appendChild(sline(GF.t('extraGuests', q.extraGuests.count), q.extraGuests.offered ? GF.t('offered') : GF.euro(q.extraGuests.total)));
       }

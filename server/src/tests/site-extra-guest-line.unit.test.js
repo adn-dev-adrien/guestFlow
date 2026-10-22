@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const Module = require('module');
 
 const { publicGuestCap } = require('../utils/capacity');
-const { toPublicQuote, toPublicProperty } = require('../utils/publicProjections');
+const { toPublicQuote, toPublicProperty, toPublicPropertyDetail } = require('../utils/publicProjections');
 
 // specs/site-extra-guest-line.md — the site shows the extra-guest supplement as its own line, and the
 // public path never accepts an uncapped party.
@@ -30,6 +30,10 @@ test('toPublicProperty advertises the effective cap, never 0 (maxAdults alias in
   assert.equal(p.maxGuests, 2);
   assert.equal(p.maxAdults, 2);
   assert.equal(toPublicProperty({ id: 1, name: 'x', maxGuests: 15 }).maxGuests, 15);
+});
+
+test('toPublicPropertyDetail advertises the same effective cap', () => {
+  assert.equal(toPublicPropertyDetail({ id: 1, name: 'x', maxGuests: 0, basePriceIncludedGuests: 4, pricingRules: [] }).maxGuests, 4);
 });
 
 // ── toPublicQuote extraGuests (rules 1-2) ──────────────────────────────────────────────────────────
@@ -59,6 +63,19 @@ test('an offered supplement is flagged and bills 0', () => {
     extraGuestSurcharge: 0, extraGuestSurchargeOriginal: 25, extraGuestSurchargeOffered: true, extraGuestCount: 1,
   }), { available: true });
   assert.deepEqual(q.extraGuests, { count: 1, total: 0, originalTotal: 25, offered: true });
+});
+
+test('a tiered multi-guest supplement carries the full billed amount and the guest count', () => {
+  const q = toPublicQuote(engineQuote({
+    extraGuestSurcharge: 69, extraGuestSurchargeOriginal: 69, extraGuestSurchargeOffered: false, extraGuestCount: 3,
+    extraGuestTiersLabel: '15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit',
+  }), { available: true });
+  assert.deepEqual(q.extraGuests, { count: 3, total: 69, originalTotal: 69, offered: false });
+});
+
+test('a sub-cent supplement is treated as none', () => {
+  const q = toPublicQuote(engineQuote({ extraGuestSurcharge: 0.004, extraGuestSurchargeOriginal: 0.004, extraGuestCount: 1 }), { available: true });
+  assert.equal(q.extraGuests, null);
 });
 
 test('no supplement → extraGuests is null', () => {
@@ -157,4 +174,26 @@ test('a configured maxGuests above the included guests lets extra guests book', 
   controller.create({ body: body({ adults: 6 }) }, res);
   assert.notEqual(res.statusCode, 409);
   assert.ok(captures.devisCreate);
+});
+
+test('children and teens count towards the cap; babies do not', () => {
+  const property = { maxGuests: 4, maxBabies: 1, basePriceIncludedGuests: 2 };
+  const refused = buildController(property, {});
+  const r1 = fakeRes();
+  refused.create({ body: body({ adults: 2, children: 2, teens: 1 }) }, r1);
+  assert.equal(r1.statusCode, 409);
+
+  const captures = {};
+  const accepted = buildController(property, captures);
+  const r2 = fakeRes();
+  accepted.create({ body: body({ adults: 2, children: 1, teens: 1, babies: 1 }) }, r2); // exactly the cap
+  assert.notEqual(r2.statusCode, 409);
+  assert.ok(captures.devisCreate);
+});
+
+test('maxBabies is still enforced on the fallback cap', () => {
+  const controller = buildController({ maxGuests: 0, maxBabies: 0, basePriceIncludedGuests: 2 }, {});
+  const res = fakeRes();
+  controller.create({ body: body({ adults: 2, babies: 1 }) }, res);
+  assert.equal(res.statusCode, 409);
 });

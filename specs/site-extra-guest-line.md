@@ -6,7 +6,7 @@
 | **Branch** | `feature/site-extra-guest-line` |
 | **Created** | 2026-10-22 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#745](https://github.com/adn-dev-adrien/guestFlow/pull/745) |
 
 ---
 
@@ -165,7 +165,7 @@ Total                                1 066,00 €
 ```
 
 **Responsive:** the note and the line use the existing summary/stepper markup, which already wraps
-on mobile; no layout change. Checked at 375px, ~900px, ≥1200px.
+on mobile; no layout change. Rendered at 375 / 900 / 1280px in headless Chromium (see §7).
 
 ## 6b. Rollout — production data
 
@@ -185,18 +185,19 @@ would run on every install, including test databases.
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `tests/site-extra-guest-line.unit.test.js` (10 tests) —
+- [x] `tests/site-extra-guest-line.unit.test.js` (15 tests) —
   `toPublicQuote` emits `extraGuests` (billed, offered, none) and keeps `extraGuestSurcharge`;
   `publicGuestCap` (configured cap, `0` → included guests, both `0` → 2); booking request over the fallback cap → 409.
 
-### Manual UI verification (WordPress test site or plugin harness)
-- [ ] 3 guests on a « 2 included » property: the supplement line appears and the lines add up to the total.
-- [ ] 2 guests: no supplement line.
-- [ ] Dates picked, then +1 / −1 guest: the summary re-quotes and the line appears / disappears with the right amount.
-- [ ] Per-night or tiered supplement in a season with an override: the line matches the back-office devis for the same stay.
-- [ ] English page: English labels.
-- [ ] Property with `maxGuests = 0`: steppers stop at the rule-6 cap; a forged request beyond it gets 409.
-- [ ] Mobile (375px): note and line wrap cleanly.
+### Manual UI verification
+Run 2026-10-22 in headless Chromium against the real plugin JS with a stubbed API (375 / 900 / 1280px) — not against a real WordPress install or the live server.
+- [x] 3 guests on a « 2 included » property: the supplement line appears and the lines add up to the total.
+- [x] 2 guests: no supplement line.
+- [x] Dates picked, then +1 guest: the summary re-quotes and the line appears with the right amount. (−1 not exercised.)
+- [ ] Per-night or tiered supplement in a season with an override: the line matches the back-office devis for the same stay (needs the real engine — to check on the test site).
+- [ ] English page: English labels (`.mo` decoded and compared to the `.po`; not rendered).
+- [ ] Property with `maxGuests = 0`: steppers stop at the rule-6 cap (unit-tested server side: forged request → 409; stepper not exercised).
+- [x] Mobile (375px): note and line wrap cleanly, no horizontal overflow.
 
 ## 8. Out of scope
 
@@ -204,6 +205,7 @@ would run on every install, including test databases.
   server today.
 - Changing how the supplement is computed.
 - Back-office capacity behaviour.
+- The property list block (`blocks/properties/view.js`) keeps reading `maxGuests || maxAdults || 0`: against an updated server the value is already the effective cap; only an older server can still send 0.
 
 ## 9. Open questions
 
