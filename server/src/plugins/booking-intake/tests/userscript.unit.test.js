@@ -38,8 +38,13 @@ test('specs/booking-extranet-intake.md rule 3: it waits for « Numéro de réser
 });
 
 test('specs/booking-extranet-intake.md rule 3: it reads the page only once it stopped changing — Booking renders the price table after the reservation number', () => {
-  assert.match(source, /@version\s+2\b/);
+  assert.match(source, /@version\s+3\b/);
   assert.match(source, /return settled\(1500, 15000\);\n  \}\)\.then\(function \(\) \{\n    var text = document\.body\.innerText;/);
+});
+
+test('specs/booking-extranet-intake.md rule 27: it opens every collapsed room accordion — the price table hides in it — before the page settles', () => {
+  assert.match(source, /querySelectorAll\('button\.bui-accordion__row-inner\[aria-expanded="false"\]'\)/);
+  assert.match(source, /row\.click\(\); \}\);\n    return settled\(1500, 15000\);/);
 });
 
 test('specs/booking-extranet-intake.md rule 3: a refused page is not remembered, so a reload after the iCal import retries', () => {

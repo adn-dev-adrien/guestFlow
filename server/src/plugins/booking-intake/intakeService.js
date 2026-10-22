@@ -17,7 +17,8 @@ const pad = (n) => String(n).padStart(2, '0');
 const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const isEmpty = (v) => v === null || v === undefined || v === '';
 const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
-const sameAmount = (a, b) => !isEmpty(a) && Math.abs(Number(a) - Number(b)) < 0.005;
+const sameAmount = (a, b) => (isEmpty(a) && isEmpty(b))
+  || (!isEmpty(a) && !isEmpty(b) && Math.abs(Number(a) - Number(b)) < 0.005);
 // 06 12 34 56 78 = +33 6 12 34 56 78 = 0033612345678
 const phoneKey = (p) => {
   const d = String(p || '').replace(/\D/g, '');
@@ -46,9 +47,17 @@ function createIntakeService(deps) {
     return existing && existing.trim() ? `${existing.trim()}\n\n${block}` : block;
   }
 
+  // Rule 29 — « Taxe de séjour retenue » is the tax Booking keeps to pay the commune itself. When Booking
+  // collects it and reverses it to us, the payout already holds it: nothing is withheld, and « Commission
+  // et frais » is the whole commission.
+  function withheldTouristTax(booking, reservation) {
+    return core.withholdsTouristTax(reservation.propertyId) ? booking.touristTax : null;
+  }
+
   function plan(booking, reservation) {
     const beds = core.suggestBeds(reservation.propertyId, { adults: booking.adults, children: booking.children, teens: booking.teens });
-    const commission = core.platformCommission({ gross: booking.total, payout: booking.payout, touristTax: booking.touristTax });
+    const withheldTax = withheldTouristTax(booking, reservation);
+    const commission = core.platformCommission({ gross: booking.total, payout: booking.payout, touristTax: withheldTax || 0 });
     const { guest } = booking;
     return {
       client: {
@@ -70,7 +79,7 @@ function createIntakeService(deps) {
         babyBeds: booking.babies,
         ...(booking.arrivalTime ? { checkInTime: booking.arrivalTime } : {}),
         platformGrossAmount: booking.total,
-        platformTouristTaxAmount: booking.touristTax,
+        platformTouristTaxAmount: withheldTax,
         platformPayoutAmount: booking.payout,
         platformCommissionAmount: commission,
         notes: notesWith(reservation.notes, booking),
@@ -96,7 +105,7 @@ function createIntakeService(deps) {
       add('checkInTime', 'Heure d’arrivée', reservation.checkInTime, booking.arrivalTime);
     }
     [['platformGrossAmount', 'Montant total payé par le client', booking.total],
-      ['platformTouristTaxAmount', 'Taxe de séjour retenue', booking.touristTax],
+      ['platformTouristTaxAmount', 'Taxe de séjour retenue', withheldTouristTax(booking, reservation)],
       ['platformPayoutAmount', 'Virement reçu', booking.payout]].forEach(([key, label, value]) => {
       if (!sameAmount(reservation[key], value)) add(key, label, reservation[key], value);
     });

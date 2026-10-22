@@ -16,6 +16,7 @@ const bedDistribution = lazy('../../utils/bedDistribution');
 const platformCommission = lazy('../../utils/platformCommission');
 const clients = lazy('../../models/clientsModel');
 const database = lazy('../../database');
+const pricing = lazy('../../utils/pricing');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
@@ -61,6 +62,10 @@ module.exports = Object.freeze({
     update: updateReservation,
     suggestBeds,
     platformCommission: (figures) => platformCommission().computePlatformCommission(figures),
+    // specs/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges
+    // the tax and remits it to the commune itself, so its payout leaves it out.
+    platformWithholdsTouristTax: (propertyId, platformKey) => pricing().isPlatformCollectingTouristTax(database(), propertyId, platformKey)
+      && !pricing().isTouristTaxRemittedByOwner(database(), propertyId, platformKey),
   }),
   clients: Object.freeze({
     findOrCreate: findOrCreateClient,
