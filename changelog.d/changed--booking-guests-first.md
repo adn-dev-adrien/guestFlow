@@ -1,2 +1,0 @@
-- **Travellers first in the booking widget**: the party is chosen before the dates, so the first price a visitor reads is the one for their group (the 21 quotes of 29/09 → 18/10 had all stayed at the default 2 guests).
-- **The Solio booking drawer gets a sticky bar on screen 1**: the calendar's hint or refusal, the live total with its per-person line, and « Suivant » (amends rules 4-5 of specs/site-booking-drawer.md). After a request is sent, screen 2 shows only its confirmation. The theme's `.gf-section` padding no longer leaks into the engine's blocks.

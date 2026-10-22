@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/adn-dev-adrien/guestFlow
  * Update URI:        false
  * Description:       Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique. Le site ne parle qu'au proxy PHP du plugin ; la clé d'API reste côté serveur.
- * Version:           1.14.0
+ * Version:           1.14.1
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            Adrien
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
     exit; // No direct access.
 }
 
-define('GF_BOOKING_VERSION', '1.14.0');
+define('GF_BOOKING_VERSION', '1.14.1');
 define('GF_BOOKING_FILE', __FILE__);
 define('GF_BOOKING_DIR', plugin_dir_path(__FILE__));
 define('GF_BOOKING_URL', plugin_dir_url(__FILE__));
