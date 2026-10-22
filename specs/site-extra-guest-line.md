@@ -52,6 +52,7 @@ property can host.
    the supplement is computed by the engine from the property's tariff policy (included guests,
    unit price, per-stay / per-night, per-season override, tiers). The plugin never computes it. This
    rule pins existing behaviour; the change is that the result becomes visible (rules 1–4).
+   > **Sans test** — pins behaviour that already existed (`scheduleQuote` in the plugin, the engine server-side); only its display is new.
 
 **Display of the supplement**
 
@@ -65,12 +66,15 @@ property can host.
 3. When `extraGuests` is present, the plugin summary shows one line between « N nuit(s) » and the
    options: « Personne(s) supplémentaire(s) ×N » → `total` (« Offert » when `offered`). The lines of
    the summary then add up to the total (tourist tax included as today).
+   > **Sans test** — plugin DOM rendering; the repository has no JS test harness for the WordPress plugin. Checked in headless Chromium on 2026-10-22 (§7).
 4. Under the guest steppers, when the property detail says `basePriceIncludedGuests > 0`, the plugin
    shows « Prix de base pour N voyageurs, supplément au-delà ». No amount is printed there: the price
    depends on season and tiers, and the live summary (rule 3) shows the real figure as soon as dates
    are picked.
+   > **Sans test** — plugin DOM rendering; same as rule 3.
 5. Both strings go through the plugin's i18n (`class-gf-blocks.php` strings + `en_GB.po`):
    EN « Extra guest(s) ×N » / « Base price for N guests, supplement beyond ».
+   > **Sans test** — plugin i18n strings; the `.mo` was decoded and compared to the `.po` at review time, no automated check exists.
 
 **Guest cap on the public path**
 
@@ -185,7 +189,7 @@ would run on every install, including test databases.
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `tests/site-extra-guest-line.unit.test.js` (15 tests) —
+- [x] `tests/site-extra-guest-line.unit.test.js` (16 tests) —
   `toPublicQuote` emits `extraGuests` (billed, offered, none) and keeps `extraGuestSurcharge`;
   `publicGuestCap` (configured cap, `0` → included guests, both `0` → 2); booking request over the fallback cap → 409.
 

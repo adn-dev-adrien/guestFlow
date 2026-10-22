@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('module');
 
-const { publicGuestCap } = require('../utils/capacity');
+const { publicGuestCap, checkGuestCapacity } = require('../utils/capacity');
 const { toPublicQuote, toPublicProperty, toPublicPropertyDetail } = require('../utils/publicProjections');
 
 // specs/site-extra-guest-line.md — the site shows the extra-guest supplement as its own line, and the
@@ -21,6 +21,12 @@ test('publicGuestCap: maxGuests 0 falls back to the included guests', () => {
 test('publicGuestCap: nothing configured falls back to 2, never to "no cap"', () => {
   assert.equal(publicGuestCap({ maxGuests: 0, basePriceIncludedGuests: 0 }), 2);
   assert.equal(publicGuestCap({}), 2);
+});
+
+// specs/site-extra-guest-line.md rule 8 — the back-office keeps « maxGuests = 0 → guard off »: only the
+// public path falls back to a cap.
+test('specs/site-extra-guest-line.md rule 8: checkGuestCapacity still tolerates an unconfigured cap', () => {
+  assert.equal(checkGuestCapacity({ maxGuests: 0, maxBabies: 0 }, { adults: 9 }), null);
 });
 
 // ── toPublicProperty (rule 7) ──────────────────────────────────────────────────────────────────────
