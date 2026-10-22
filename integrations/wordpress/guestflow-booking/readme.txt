@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.14.0
+Stable tag: 1.14.1
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,12 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.14.1 =
+* Demande sans paiement : le récapitulatif peut proposer « Envoyer une demande sans payer » à côté du paiement (réglage du bloc, désactivé par défaut).
+* Prix par personne et par nuit sous le total, calculé par GuestFlow ; les voyageurs se choisissent avant les dates.
+* Séjour minimum visible : le calendrier affiche le prix de chaque nuit, hachure les départs trop courts et nomme le premier départ possible.
+* Le plugin déclare « Update URI: false » : WordPress ne le remplacera jamais par un plugin homonyme de wordpress.org.
 
 = 1.14.0 =
 * Origine des demandes : le plugin note d'où vient la visite (site référent, paramètres utm_*, page d'arrivée) dans la mémoire de l'onglet, sans cookie ni identifiant, et l'envoie avec la demande de réservation. GuestFlow en déduit le canal (recherche, réseaux sociaux, campagne, assistant IA…). Un site peut couper la capture avec le filtre `guestflow_booking_capture_attribution`.
