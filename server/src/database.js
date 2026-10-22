@@ -2381,6 +2381,16 @@ db.exec(`
     );
 `);
 
+// specs/lodgify-decommission.md §3 rule 14 — the iCal source that owned an exported range, so a
+// Booking source never mistakes its own re-booked stay for an echo of its own tombstone. NULL (every
+// row written before this) covers every source, as before.
+for (const table of ['ical_export_ranges', 'ical_export_tombstones']) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes('sourceIcalSourceId')) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN sourceIcalSourceId INTEGER`);
+  }
+}
+
 // Data repair (specs/sas-bath-linen-ghost-line.md §3 rule 3): erase the billing lines the removed
 // « linge de toilette réglé en fin de séjour » flow left in the end-of-stay complement. Naturally
 // idempotent (a filter — once dropped, nothing matches), so it needs no `migrations` guard and keeps

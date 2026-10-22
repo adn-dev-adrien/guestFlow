@@ -534,7 +534,8 @@ function createPropertyIcalModel(database) {
               WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
             `).all(source.propertyId, source.id),
             ...closuresModel.list({ propertyId: source.propertyId }),
-            ...exportRanges.listActiveTombstones(source.propertyId),
+            // Rule 14 — its own cancelled stay's tombstone never hides that stay re-booked.
+            ...exportRanges.listActiveTombstones(source.propertyId, undefined, { excludeSourceId: source.id }),
           ];
         }
 
