@@ -13,7 +13,7 @@ function buildUserscript({ publicUrl, secret }) {
   return `// ==UserScript==
 // @name         GuestFlow – réservation Booking
 // @namespace    ${base}
-// @version      2
+// @version      3
 // @description  Envoie la réservation Booking ouverte à GuestFlow, qui remplit la fiche.
 // @match        ${MATCH}
 // @grant        GM_xmlhttpRequest
@@ -106,6 +106,9 @@ function buildUserscript({ publicUrl, secret }) {
     reveal.click();
     return wait(function () { return !/Afficher le numéro de téléphone/i.test(document.body.innerText); }, 2000);
   }).then(function () {
+    // Each room's details, its price table included, sit in a collapsed accordion: open them all.
+    var rows = document.querySelectorAll('button.bui-accordion__row-inner[aria-expanded="false"]');
+    Array.prototype.forEach.call(rows, function (row) { row.click(); });
     return settled(1500, 15000);
   }).then(function () {
     var text = document.body.innerText;

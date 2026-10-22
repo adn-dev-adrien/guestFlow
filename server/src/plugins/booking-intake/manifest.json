@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -31,6 +31,10 @@
     ],
     "1.2.0": [
       "Accueil : les fiches Booking à compléter rejoignent « À traiter », comptées par le serveur, avec le même dessin que les autres alertes."
+    ],
+    "1.2.1": [
+      "Lecture de la page Booking : les tarifs repliés sont ouverts avant la lecture (script à réinstaller, version 3), le téléphone en fin de phrase est lu.",
+      "Taxe de séjour « retenue » seulement quand Booking la garde ; reversée, la commission est « Commission et frais »."
     ]
   }
 }

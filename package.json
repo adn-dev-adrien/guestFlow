@@ -1,6 +1,6 @@
 {
   "name": "guestflow",
-  "version": "3.10.0",
+  "version": "3.12.0",
   "description": "Gestion d'accueils touristiques - Réservation et suivi financier",
   "private": true,
   "scripts": {
@@ -23,7 +23,7 @@
     "test:e2e:bare": "export GUESTFLOW_E2E_DB_PATH=${GUESTFLOW_E2E_DB_PATH:-/tmp/guestflow-e2e-bare.db} && node e2e/wipe-db.js && playwright test -c playwright.bare.config.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
+    "@playwright/test": "^1.64.1",
     "better-sqlite3": "^13.0.3",
     "concurrently": "^10.0.6"
   }

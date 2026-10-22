@@ -271,6 +271,21 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
       ...(offered ? { offered: 1, originalAmount: real } : {}),
     });
   }
+  // specs/platform-extra-guest-complement.md §3.5 — the guests added after the brut was entered.
+  const extraGuestsReal = round2(r.extraGuestComplementSurcharge || 0);
+  if (extraGuestsReal > 0) {
+    const offered = Number(r.extraGuestSurchargeOffered || 0) === 1;
+    if (!offered || includeOffered) {
+      const count = Number(r.extraGuestComplementCount || 1);
+      lines.push({
+        kind: 'extraGuests', label: 'Voyageurs ajoutés',
+        qty: count, unitPrice: round2(extraGuestsReal / count),
+        amount: offered ? 0 : extraGuestsReal,
+        ref: { kind: 'extraGuests', id: 0 },
+        ...(offered ? { offered: 1, originalAmount: extraGuestsReal } : {}),
+      });
+    }
+  }
   const tax = round2(r.touristTaxInComplementAmount || 0);
   if (tax > 0) lines.push({ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: tax, amount: tax });
   const amount = round2(r.complementAmount || 0);
@@ -289,6 +304,29 @@ function createReservationsModel(database) {
     try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'breakfastTime'); }
     catch { return false; }
   })();
+  // specs/platform-extra-guest-complement.md §5 — the paid base and the arrival part of the supplement,
+  // as the engine resolved them. A collected complement keeps what was collected (rule 12).
+  const HAS_EXTRA_GUEST_COMPLEMENT = (() => {
+    try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'extraGuestComplementSurcharge'); }
+    catch { return false; }
+  })();
+  function persistExtraGuestComplement(reservationId, quote, { complementPaid = false } = {}) {
+    if (!HAS_EXTRA_GUEST_COMPLEMENT || !quote) return;
+    if (complementPaid) {
+      database.prepare('UPDATE reservations SET platformPaidGuests = ? WHERE id = ?')
+        .run(quote.platformPaidGuests ?? null, reservationId);
+      return;
+    }
+    database.prepare(`
+      UPDATE reservations SET platformPaidGuests = ?, extraGuestComplementSurcharge = ?, extraGuestComplementCount = ?
+       WHERE id = ?
+    `).run(
+      quote.platformPaidGuests ?? null,
+      Number(quote.extraGuestComplementOriginal || 0),
+      Number(quote.extraGuestComplementCount || 0),
+      reservationId,
+    );
+  }
   function persistBreakfastTime(reservationId, payload) {
     if (!HAS_RESERVATION_BREAKFAST_TIME || !payload || payload.breakfastTime === undefined) return;
     const raw = String(payload.breakfastTime || '').trim();
@@ -608,6 +646,17 @@ function createReservationsModel(database) {
       const want = wanted.has(`custom:${Number(c.id)}`);
       if (!move(Number(c.offered) === 1, want, real)) continue;
       setCustom.run(want ? 1 : 0, c.id);
+    }
+
+    // specs/platform-extra-guest-complement.md rule 17 — the added guests are one line, offered through
+    // the reservation's own flag (the in-brut part is never touched: the engine masks the arrival part only).
+    if (HAS_EXTRA_GUEST_COMPLEMENT) {
+      const eg = database.prepare('SELECT extraGuestComplementSurcharge AS real, COALESCE(extraGuestSurchargeOffered, 0) AS offered FROM reservations WHERE id = ?').get(reservationId);
+      const real = round2(eg && eg.real);
+      if (real > 0 && move(Number(eg.offered) === 1, wanted.has('extraGuests:0'), real)) {
+        database.prepare('UPDATE reservations SET extraGuestSurchargeOffered = ? WHERE id = ?')
+          .run(Number(eg.offered) === 1 ? 0 : 1, reservationId);
+      }
     }
 
     if (delta === 0) return;
@@ -1521,6 +1570,7 @@ function createReservationsModel(database) {
         quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
+      persistExtraGuestComplement(result.lastInsertRowid, quote);
       persistReservationNumber(result.lastInsertRowid, payload);
       persistEmailLanguage(result.lastInsertRowid, payload);
       persistComplementOverrides(result.lastInsertRowid, { complementAmountOverride, endOfStayComplementAmountOverride });
@@ -1829,6 +1879,7 @@ function createReservationsModel(database) {
         reservationId,
       );
       persistBreakfastTime(reservationId, payload);
+      persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
       persistReservationNumber(reservationId, payload);
       persistEmailLanguage(reservationId, payload);
       persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });

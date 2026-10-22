@@ -51,6 +51,9 @@
     var propertyId = parseInt(container.dataset.propertyId, 10) || 0;
     var showOptions = container.dataset.showOptions !== '0';
     var payOnline = container.dataset.payOnline === '1';
+    // « Proposer aussi une demande sans paiement » (specs/booking-drawer-friction.md rule 1) only means
+    // something next to an online payment: a request-only block already sends nothing but a request.
+    var offerRequest = payOnline && container.dataset.offerRequest === '1';
 
     // Returning from the Qonto payment page → show the live confirmation status instead of the wizard.
     // The per-devis capability token travels in the return URL so the status poll can authorise itself.
@@ -91,7 +94,7 @@
         return;
       }
       var termsData = (r[3].status >= 200 && r[3].status < 300 && r[3].body && r[3].body.data) || null;
-      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || {}, (r[2].body && r[2].body.data) || [], payOnline, termsData);
+      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || {}, (r[2].body && r[2].body.data) || [], payOnline, termsData, offerRequest);
     });
   }
 
@@ -162,7 +165,7 @@
     poll();
   }
 
-  function build(container, propertyId, detail, options, resources, payOnline, termsData) {
+  function build(container, propertyId, detail, options, resources, payOnline, termsData, offerRequest) {
     var f = {}; // field refs
     var debounceTimer = null;
     var lastQuote = null;
@@ -235,7 +238,19 @@
     // ---- availability (blocked nights), loaded forward as the visitor navigates ----
     var blocked = {};
     var loadedTo = null; // ISO date up to which blockedDates are known
+    // Per bookable arrival, its minimum stay and earliest departure; per free night, its price — both
+    // computed by GuestFlow (specs/booking-drawer-friction.md rules 10 + 13). `hasWindows` stays false
+    // against a GuestFlow older than that: the calendar then behaves exactly as before.
+    var arrivals = {};
+    var nightPrices = {};
+    var hasWindows = false;
     function isBlocked(d) { return !!blocked[d]; }
+    function arrivalOf(d) { return hasWindows ? arrivals[d] || null : null; }
+    function isShortDeparture(d) {
+      var a = state.start && arrivalOf(state.start);
+      return !!(a && d > state.start && d < a.earliestDeparture);
+    }
+    function longDate(iso) { return GF.date(iso + 'T00:00:00', { day: 'numeric', month: 'long' }); }
     function rangeHasBlocked(a, b) { var c = a; while (c < b) { if (isBlocked(c)) return true; c = addDaysIso(c, 1); } return false; }
 
     // The first bookable arrival on or after each window the server was asked about
@@ -270,8 +285,14 @@
       var from = loadedTo || todayIso();
       return GF.api('GET', '/properties/' + propertyId + '/availability?from=' + from + '&to=' + untilIso).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
-          (res.body.data.blockedDates || []).forEach(function (x) { blocked[x] = true; });
-          recordNext(from, res.body.data);
+          var data = res.body.data;
+          (data.blockedDates || []).forEach(function (x) { blocked[x] = true; });
+          recordNext(from, data);
+          if (Array.isArray(data.arrivals)) {
+            hasWindows = true;
+            data.arrivals.forEach(function (a) { arrivals[a.date] = a; });
+            (data.nightPrices || []).forEach(function (n) { nightPrices[n.date] = n.price; });
+          }
           loadedTo = untilIso;
         }
       });
@@ -406,21 +427,32 @@
         // them killed half the calendar as soon as an arrival was picked.
         var past = ds < today;
         var taken = !past && isBlocked(ds);
+        // With the server's windows, a date that can neither start a stay nor end the current one
+        // is closed like a taken night (specs/booking-drawer-friction.md rule 10, first edge case).
+        var asDeparture = state.start && ds > state.start && !rangeHasBlocked(state.start, ds);
+        if (!past && !taken && hasWindows && !asDeparture && ds !== state.start && !arrivalOf(ds)) taken = true;
         var disabled = past || taken;
+        var short = !disabled && isShortDeparture(ds);
         // Past and taken never look alike (rule 31): a past day is noise, a taken night is news.
         var cls = 'gf-cal-day' + (past ? ' gf-past' : (taken ? ' gf-taken' : ''));
         if (state.start && ds === state.start) cls += ' gf-edge';
         if (state.end && ds === state.end) cls += ' gf-edge';
         if (state.start && state.end && ds > state.start && ds < state.end) cls += ' gf-range';
+        if (short) cls += ' gf-short';
+        // Under the day: the minimum a too-short departure misses, or the night's price (rules 11, 13).
+        var under = null;
+        if (short) under = GF.el('small', { class: 'gf-cal-price', 'aria-hidden': 'true' }, GF.t('minShort', arrivalOf(state.start).minNights));
+        else if (!disabled && nightPrices[ds] != null) under = GF.el('small', { class: 'gf-cal-price', 'aria-hidden': 'true' }, String(Math.round(nightPrices[ds])));
         // Read in full, with its state (rule 15): « vendredi 6 novembre 2026, indisponible ».
         var isEdge = (state.start && ds === state.start) || (state.end && ds === state.end);
         var btn = GF.el('button', {
           type: 'button', class: cls, disabled: disabled ? 'disabled' : null,
           'aria-label': GF.dayLabel(year, month, d, taken),
           'aria-pressed': isEdge ? 'true' : 'false',
+          'aria-disabled': short ? 'true' : null,
           'data-gf-day': ds,
-          onClick: (function (iso) { return function () { onPick(iso); }; })(ds),
-        }, String(d));
+          onClick: (function (iso) { return function (ev) { onPick(iso, ev && ev.currentTarget); }; })(ds),
+        }, String(d), under);
         grid.appendChild(btn);
       }
       var label = MONTHS[month] + ' ' + year;
@@ -430,12 +462,27 @@
     // The arrival anchors the selection (spec §3.4): once it is set, every later date is a
     // departure — whether one was already chosen or not — so a stay is lengthened or shortened in
     // one click. Clicking the arrival itself is the way out: it starts the choice over.
-    function onPick(ds) {
+    function onPick(ds, btn) {
       if (state.start && ds === state.start) { clearDates(); return; }
-      if (!state.start || ds < state.start) { state.start = ds; state.end = null; afterDatesChange(); return; }
+      // A departure under the minimum is refused where it is tapped, and the earliest valid one is
+      // named (specs/booking-drawer-friction.md rule 11) — the visitor no longer learns the rule from
+      // a refused quote.
+      if (isShortDeparture(ds)) {
+        if (btn) { btn.classList.remove('gf-shake'); void btn.offsetWidth; btn.classList.add('gf-shake'); }
+        setHint(GF.t('minNightsPick', arrivalOf(state.start).minNights, longDate(arrivalOf(state.start).earliestDeparture)), true);
+        GF.track('booking-unavailable', { lodging: lodging, reason: 'min-nights-tap' });
+        return;
+      }
+      if (!state.start || ds < state.start) { state.start = ds; state.end = null; afterDatesChange(arrivalHint(ds)); return; }
       if (rangeHasBlocked(state.start, ds)) { state.start = ds; state.end = null; afterDatesChange({ msg: GF.t('rangeBlocked'), isError: true }); return; }
       state.end = ds;
       afterDatesChange();
+    }
+
+    // Rule 12: right after the arrival, say how far the stay must go.
+    function arrivalHint(ds) {
+      var a = arrivalOf(ds);
+      return a && a.minNights > 1 ? { msg: GF.t('minNightsFrom', longDate(a.earliestDeparture), a.minNights) } : undefined;
     }
 
     function clearDates() {
@@ -835,7 +882,9 @@
     // UX only: presence, and the browser's own e-mail format check. The server decides.
     function localFieldError(key) {
       if (!f[key].value.trim()) return GF.t('fieldRequired');
-      if (key === 'email' && f.email.validity && !f.email.validity.valid) return GF.t('emailInvalid');
+      // The browser's check accepts « nom@domaine »; a domain without its extension is refused too.
+      if (key === 'email' && ((f.email.validity && !f.email.validity.valid)
+        || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.value.trim()))) return GF.t('emailInvalid');
       return '';
     }
 
@@ -886,12 +935,27 @@
     }
     function submitLabel() {
       if (!paysNow()) return GF.t('sendRequest');
-      return lastQuote && lastQuote.payment && lastQuote.payment.mode === 'deposit' ? GF.t('payDeposit') : GF.t('payOnline');
+      return payLabel(lastQuote);
+    }
+    // With two actions the primary says what is paid now (specs/booking-drawer-friction.md rule 2):
+    // « Payer 642,80 € », or the acompte.
+    function payLabel(q) {
+      var depositMode = q && q.payment && q.payment.mode === 'deposit' && q.deposit && q.deposit.amount;
+      if (!offerRequest) return depositMode ? GF.t('payDeposit') : GF.t('payOnline');
+      if (depositMode) return GF.t('payDepositAmount', GF.euro(q.deposit.amount));
+      if (!q) return GF.t('payOnline');
+      return GF.t('payAmount', GF.euro(q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice));
     }
     // The request a failed payment left behind (rule 16): retrying the same stay pays for that devis
     // instead of creating another one. { key, requestId, token, reference }
     var pendingRequest = null;
     f.submit = GF.el('button', { class: 'gf-btn', type: 'button', disabled: 'disabled', onClick: submit }, submitLabel());
+    // Rules 2-4: beside the payment, the same request without paying — no payment link is created. It
+    // keeps `gf-btn-alt`: the Solio drawer finds the engine's submit as `.gf-btn:not(.gf-btn-alt)`.
+    f.submitAlt = offerRequest
+      ? GF.el('button', { class: 'gf-btn gf-btn-alt', type: 'button', disabled: 'disabled', onClick: function () { submit('request'); } }, GF.t('sendRequestNoPay'))
+      : null;
+    var altHint = offerRequest ? GF.el('div', { class: 'gf-request-hint' }, GF.t('requestNoPayHint')) : null;
     var feedback = GF.el('div', { 'aria-live': 'polite' });
 
     // The submit button's state, in one place: the copies of it (the sticky bar, the summary card)
@@ -901,6 +965,13 @@
       f.submit.disabled = !!disabled;
       if (text != null) f.submit.textContent = text;
       if (summaryCta) { summaryCta.disabled = f.submit.disabled; summaryCta.textContent = f.submit.textContent; }
+      if (f.submitAlt) {
+        f.submitAlt.disabled = f.submit.disabled;
+        if (!disabled) f.submitAlt.textContent = GF.t('sendRequestNoPay');
+        // Without a payment possible right now the primary already sends a plain request.
+        f.submitAlt.hidden = !paysNow();
+        if (altHint) altHint.hidden = !paysNow();
+      }
       syncBar();
     }
 
@@ -951,7 +1022,9 @@
     var barAnchor = GF.el('div', { class: 'gf-bar-anchor', 'aria-hidden': 'true' });
     var form = GF.el('div', { class: 'gf-booking' },
       GF.el('h3', { class: 'gf-booking-name' }, detail.name || ''),
-      calBox, datesRow, timesRow, guestsBox, supplementsBox, insuranceBox, summary, warn, contact, cgvBox, f.submit, feedback, barAnchor, bar
+      // The party decides the price and the capacity, so it is asked before the dates
+      // (specs/booking-drawer-friction.md rule 7).
+      guestsBox, calBox, datesRow, timesRow, supplementsBox, insuranceBox, summary, warn, contact, cgvBox, altHint, f.submit, f.submitAlt, feedback, barAnchor, bar
     );
     // Every direct child is an engine element (specs/wordpress-plugin.md rule 29): it carries the
     // colour tokens wherever the Solio drawer moves it, and the stylesheet never reaches the site's
@@ -1128,6 +1201,10 @@
       // Headline total = totalStayPrice (tax-INCLUSIVE) — what the guest actually pays online.
       // finalPrice is tax-exclusive; showing it as "Total" under a tax line understated the charge.
       summary.appendChild(sline(GF.t('total'), GF.euro(q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice), 'gf-summary-total'));
+      // Indicative, computed by GuestFlow — absent against an older server (booking-drawer-friction rule 9).
+      if (q.perPersonPerNight != null) {
+        summary.appendChild(GF.el('div', { class: 'gf-summary-pp' }, GF.t('perPersonPerNight', GF.euro(q.perPersonPerNight))));
+      }
       // Deposit mode (server-decided): the site charges the acompte now, the solde is emailed later. The
       // server OMITS the deposit/balance blocks in full mode, so these lines only appear when relevant.
       var depositMode = q.payment && q.payment.mode === 'deposit';
@@ -1230,7 +1307,9 @@
       return true;
     }
 
-    function submit() {
+    // `mode` is 'request' from the « sans payer » button; any other call (the button, the bar, the
+    // summary card, which pass their click event) pays when a payment is possible.
+    function submit(mode) {
       feedback.innerHTML = '';
       if (!lastQuote) return;
       if (refuseMissing()) return;
@@ -1242,7 +1321,7 @@
         _hp: f.hp.value,
       });
       if (terms) body.termsVersion = terms.version;
-      var paying = paysNow();
+      var paying = mode !== 'request' && paysNow();
       // The stay alone decides a retry (rule 27): a corrected message or phone keeps the same devis.
       var requestKey = JSON.stringify(stay);
       if (paying && pendingRequest && pendingRequest.key === requestKey) {
@@ -1254,10 +1333,15 @@
       // request reads « Origine inconnue », it is never refused.
       var attribution = GF.attribution();
       if (attribution) body.attribution = attribution;
-      setSubmit(true, paying ? GF.t('preparingPayment') : GF.t('sending'));
+      if (mode === 'request' && f.submitAlt) {
+        setSubmit(true);
+        f.submitAlt.textContent = GF.t('sending');
+      } else {
+        setSubmit(true, paying ? GF.t('preparingPayment') : GF.t('sending'));
+      }
       GF.api('POST', '/booking-requests', body).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
-          GF.track('booking-requested', { lodging: lodging, nights: nightsOf(stay.startDate, stay.endDate), guests: persons() });
+          GF.track('booking-requested', { lodging: lodging, nights: nightsOf(stay.startDate, stay.endDate), guests: persons(), mode: paying ? 'pay' : 'request' });
           if (paying) {
             pendingRequest = {
               key: requestKey, requestId: res.body.data.requestId, token: res.body.data.publicToken, reference: res.body.data.reference || '',

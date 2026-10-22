@@ -94,7 +94,10 @@ function readGuest(lines) {
     if (!name) { name = line; continue; }
     if (!country && /^[a-z]{2}$/i.test(line)) { country = line.toLowerCase(); continue; }
     if (!email && /^\S+@\S+\.\S+$/.test(line)) { email = line.toLowerCase(); continue; }
-    if (!phone && /^\+\d[\d ]{7,}\d$/.test(line)) phone = line.replace(/ /g, '');
+    // Rule 28 — Booking prints the revealed number on its own line or at the end of « Un simple appel
+    // suffit : … ».
+    const number = !phone && line.match(/(?:^|\s)(\+\d[\d ]{7,}\d)$/);
+    if (number) phone = number[1].replace(/ /g, '');
   }
   return { ...splitName(name), country, email, phone };
 }

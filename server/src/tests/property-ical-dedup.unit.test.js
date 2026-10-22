@@ -23,8 +23,8 @@ const DDL = `
   );
   /* specs/lodgify-decommission.md — a Booking source now consults the export snapshot, its
      tombstones and the superseded UIDs of a retired relay. */
-  CREATE TABLE ical_export_ranges (propertyId INTEGER, startDate TEXT, endDate TEXT, PRIMARY KEY (propertyId, startDate, endDate));
-  CREATE TABLE ical_export_tombstones (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, startDate TEXT, endDate TEXT, removedAt TEXT NOT NULL DEFAULT (datetime('now')));
+  CREATE TABLE ical_export_ranges (propertyId INTEGER, startDate TEXT, endDate TEXT, sourceIcalSourceId INTEGER, PRIMARY KEY (propertyId, startDate, endDate));
+  CREATE TABLE ical_export_tombstones (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, startDate TEXT, endDate TEXT, removedAt TEXT NOT NULL DEFAULT (datetime('now')), sourceIcalSourceId INTEGER);
   CREATE TABLE ical_superseded_events (sourceId INTEGER, eventUid TEXT, reservationId INTEGER, supersededBySourceId INTEGER, createdAt TEXT DEFAULT (datetime('now')), PRIMARY KEY (sourceId, eventUid));
   CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, platformKey TEXT, platformLabel TEXT, emptyFeedStreak INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE ical_import_events (
