@@ -596,8 +596,9 @@ export default function PlanningPage() {
       {/* Day list — normally-flowing content scrolled by the window (rule 6): no page-owned
           scroll container, so the sticky bar stays visible and the page opens at the top. */}
       <Box>
+        {/* Names no plugin's cards: an instance without them reads it too (specs/plugins-phase-0-foundation.md rule 30). */}
         {!loading && !loadError && planningDays.length === 0 && (
-          <EmptyState message={`Aucune arrivée ni créneau ressource sur les ${DAYS_AHEAD} prochains jours.`} />
+          <EmptyState message={`Rien de prévu sur les ${DAYS_AHEAD} prochains jours.`} />
         )}
 
         {/* Merge reservation days + the dates the plugins' day cards

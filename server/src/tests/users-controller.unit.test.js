@@ -142,6 +142,8 @@ function buildSubject({ usersModel, settingsModel, emailService = makeFakeEmailS
     emailService,
     emailTemplates: fakeEmailTemplates,
     passwordGenerator,
+    // Every plugin live: the roles a plugin brings are covered by plugin-role-refusal.unit.test.js.
+    isPluginLive: () => true,
   });
 }
 

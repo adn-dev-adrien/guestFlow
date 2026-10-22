@@ -28,6 +28,7 @@ const { generateTemporaryPassword: defaultGenerateTemporaryPassword } = require(
 const { ROLES, ADMIN, isKnownRole } = require('../constants/roles');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
 const { quotaRefusal } = require('../utils/planQuota');
+const { ROLE_PLUGINS } = require('../constants/plugins');
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -48,6 +49,7 @@ function buildController({
   planQuota = quotaRefusal,
   twoFactor = null,
   sessionsModel = defaultSessionsModel,
+  isPluginLive = (id) => require('../plugins/sdk/registry').isLive(id),
 }) {
   // emailService can be passed in pre-built (test isolation). Otherwise we lazily build it from
   // the live SMTP settings on each call — that way settings changes are honoured without restart.
@@ -55,6 +57,14 @@ function buildController({
     if (emailService) return emailService;
     const smtp = settingsModel.decryptedSmtpSettings();
     return buildEmailService(smtp);
+  }
+
+  // The first role of `roles` the account does not already hold whose plugin is not live
+  // (specs/plugins-phase-0-foundation.md rule 29). A role already held stays: the plugin cannot have
+  // been switched off under it (rule 8).
+  function roleWithoutPlugin(roles, held = []) {
+    const role = roles.find((r) => ROLE_PLUGINS[r] && !held.includes(r) && !isPluginLive(ROLE_PLUGINS[r]));
+    return role ? { error: 'ROLE_PLUGIN_INACTIVE', field: 'roles', role, plugin: ROLE_PLUGINS[role] } : null;
   }
 
   function currentUserId(req) {
@@ -203,6 +213,8 @@ function buildController({
       for (const role of roles) {
         if (!isKnownRole(role)) return res.status(400).json({ error: 'UNKNOWN_ROLE', field: 'roles', role });
       }
+      const withoutPlugin = roleWithoutPlugin(roles);
+      if (withoutPlugin) return res.status(400).json(withoutPlugin);
       // Before the welcome email: a refused account must not receive one.
       const refusal = planQuota('users', () => usersModel.countActive());
       if (refusal) return res.status(402).json(refusal);
@@ -271,6 +283,8 @@ function buildController({
         for (const role of nextRoles) {
           if (!isKnownRole(role)) return res.status(400).json({ error: 'UNKNOWN_ROLE', field: 'roles', role });
         }
+        const withoutPlugin = roleWithoutPlugin(nextRoles, target.roles);
+        if (withoutPlugin) return res.status(400).json(withoutPlugin);
         // Self-protection: an admin cannot strip their own admin role.
         if (isSelf(req, id) && target.roles.includes(ADMIN) && !nextRoles.includes(ADMIN)) {
           return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Vous ne pouvez pas retirer votre propre rôle admin.' });

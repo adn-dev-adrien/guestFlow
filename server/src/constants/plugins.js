@@ -86,6 +86,10 @@ function findPlugin(id) {
   return PLUGIN_CATALOG.find((p) => p.id === id) || null;
 }
 
+// The roles a plugin brings: without it the role cannot be given (specs/plugins-phase-0-foundation.md
+// rule 29) — the client already hides it from the picker (rule 16), the server refuses it.
+const ROLE_PLUGINS = Object.freeze({ reception: SAS, accountant: ACCOUNTING_EXPORT });
+
 module.exports = {
   HOURLY_RESOURCES,
   LINEN,
@@ -106,4 +110,5 @@ module.exports = {
   PLUGIN_PAGES,
   PLUGIN_SETTINGS_PLACES,
   pluginsOfPage,
+  ROLE_PLUGINS,
 };
