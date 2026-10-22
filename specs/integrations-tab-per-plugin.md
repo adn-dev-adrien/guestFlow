@@ -139,9 +139,12 @@ fade of the panel, none under `prefers-reduced-motion`.
 - **Colours of the dots.** « modifié » is the primary (fir-green) dot shown on the summary page,
   « à configurer » the amber one, « refusé » red. On `PropertyDetail` « modifié » stays amber: that
   page has no « to set up » state to tell apart, and its look is unchanged by this spec.
-- **Width.** At 1400 px with seven tabs and the subtitle, `PageActionBar` moves Save / Cancel to a
-  row of their own (its existing rule when the actions do not fit); at 900 px the tabs take the
-  second row and scroll.
+- **Width.** The first version let `PageActionBar` push Save / Cancel onto a row of their own at
+  1400 px with seven tabs. Fixed generically (specs/ds-tabs.md rule 11, 2026-10-22): beside tabs the
+  bar's row does not wrap on `sm+`, the tab strip shrinks to the room left and scrolls with its
+  arrows, and the title side keeps room for a one-line « Dernière mise à jour ». Checked at 900 /
+  1200 / 1400 / 1600 px on every tabbed page; at 900 px (bar under 720 px) the tabs keep their second
+  row as before.
 - **Google return.** The page writes `?tab=google-calendar` next to `?google=…` before the Google
   section (lazy) reads and strips its parameter, so the tab survives the clean-up.
 

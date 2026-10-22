@@ -46,7 +46,8 @@
  *  - Each button is a bordered IconButton + Tooltip (icon-only, French tooltip).
  *  - Save renders with a filled primary background (the only "filled" button).
  *  - Layout: [Back Title Subtitle] … [center | tabs] … [actionsBefore Save Cancel actionsAfter]
- *    (with `center`, the two side sections take equal flex so the centre is truly centred).
+ *    (with `center`, the two side sections take equal flex so the centre is truly centred; with
+ *    `tabs`, the row does not wrap on sm+ and the tabs scroll in the room left — ds-tabs rule 11).
  *  - On xs the title lives in the top bar; a bar left with no back button, subtitle, tabs nor action
  *    is not drawn at all (specs/shell-and-home-day-first.md rule 15); one left with a single icon
  *    action (not Save/Cancel, not a node, not `error`, not the overflow menu) hands it to the top bar
@@ -276,7 +277,10 @@ export default function PageActionBar({
           px: { xs: 1.5, sm: 2 },
           py: { xs: 1, sm: 1.25 },
           display: 'flex',
-          flexWrap: 'wrap',
+          // Beside tabs the row never wraps on sm+: the tabs give way, never the actions
+          // (specs/ds-tabs.md rule 11). Under 720 px of bar they take a second row (below).
+          flexWrap: tabs ? { xs: 'wrap', sm: 'nowrap' } : 'wrap',
+          [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { flexWrap: 'wrap' },
           // A phone's subtitle wraps under the back button: the actions stay level with the button, not
           // with the middle of the two lines (specs/shell-and-home-day-first.md rule 24).
           alignItems: { xs: 'flex-start', sm: 'center' },
@@ -295,7 +299,9 @@ export default function PageActionBar({
             rowGap: 0.25,
             flex: '1 1 0',
             // Only a visible title claims that width: a bar showing just « Retour » gives it to the actions.
-            minWidth: { xs: 0, sm: title ? 'min(100%, 14rem)' : 0 },
+            // Beside tabs it keeps room for a one-line « Dernière mise à jour » under the title: the
+            // tabs give way first (specs/ds-tabs.md rule 11).
+            minWidth: { xs: 0, sm: title ? `min(100%, ${tabs ? 17 : 14}rem)` : 0 },
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, maxWidth: '100%' }}>
@@ -341,6 +347,9 @@ export default function PageActionBar({
               flex: '0 1 auto',
               minWidth: 0,
               px: 1,
+              // The tabs shrink to the room the title and the actions leave and scroll inside it
+              // (specs/ds-tabs.md rule 11).
+              ...(tabs ? { '& > .MuiTabs-root': { maxWidth: '100%' } } : {}),
               [`@container (max-width: ${CENTER_ROW_BELOW - 0.02}px)`]: { order: 3, flexBasis: '100%', px: 0 },
             }}
           >
