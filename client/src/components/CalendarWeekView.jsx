@@ -23,6 +23,7 @@ import TodayIcon from '@mui/icons-material/Today';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import { formatDate, shiftDate, getReservationColor, compactName, DAY_NAMES, MONTH_NAMES } from '../utils/calendarVisuals';
 import { getClosureForDate } from '../utils/closureCalendar';
+import { formatPlatformLabel } from '../constants/platforms';
 import { buildDaySummary, isEmptyDay, getMonday, weekDays } from '../utils/calendarDaySummary';
 
 const WEEKS_EACH_SIDE = 26;
@@ -155,7 +156,7 @@ export default function CalendarWeekView({
               color={getReservationColor(summary.departure.platform)}
               icon="↑"
               primary={`Départ — ${compactName(summary.departure.firstName, summary.departure.lastName)}`}
-              secondary={`${summary.departure.checkOutTime || '10:00'} · ${summary.departure.platform || ''}`}
+              secondary={`${summary.departure.checkOutTime || '10:00'} · ${formatPlatformLabel(summary.departure.platform)}`}
               onClick={() => onReservationClick(summary.departure.id)}
             />
           )}
@@ -164,7 +165,7 @@ export default function CalendarWeekView({
               color={getReservationColor(summary.arrival.platform)}
               icon="↓"
               primary={`Arrivée — ${compactName(summary.arrival.firstName, summary.arrival.lastName)}`}
-              secondary={`${summary.arrival.checkInTime || '15:00'} · ${summary.arrival.platform || ''}`}
+              secondary={`${summary.arrival.checkInTime || '15:00'} · ${formatPlatformLabel(summary.arrival.platform)}`}
               onClick={() => onReservationClick(summary.arrival.id)}
             />
           )}

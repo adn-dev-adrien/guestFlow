@@ -55,7 +55,7 @@ import {
 } from './constants/settingsMenu';
 import SettingsHomePage from './pages/settings/SettingsHomePage';
 import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
-import { isRouteEnabled } from './constants/plugins';
+import { isPluginEnabled, isRouteEnabled, SAS } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
 import { allContributions } from './plugins/sdk/registry';
 
@@ -816,7 +816,7 @@ function AppShell() {
           <Route path="/settings/integrations" element={pluginRoute('/settings/integrations', <IntegrationsSettingsPage />)} />
           <Route path="/settings/systeme" element={<SystemSettingsPage />} />
           <Route path="/settings/utilisateurs" element={<UserManagementPage />} />
-          <Route path="/parametres/tarifs" element={<Navigate to="/parametres/options-ressources?tab=sas" replace />} />
+          <Route path="/parametres/tarifs" element={<Navigate to={isPluginEnabled(user, SAS) ? '/parametres/options-ressources?tab=sas' : '/parametres/options-ressources'} replace />} />
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/conditions-generales" element={<TermsSettingsPage />} />

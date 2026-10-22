@@ -266,6 +266,10 @@ rules bring it back as its own focused run, and record what that run found.
 30. **An empty planning names no plugin's cards** (found by rule 28). It read « Aucune arrivée ni
     créneau ressource… », which speaks of `hourly-resources` on an instance without it; it now reads
     « Rien de prévu sur les 14 prochains jours. » whatever the plugins.
+31. **The old « Tarifs » address opens a tab that exists** (found by rule 28). `/parametres/tarifs`
+    redirects to `/parametres/options-ressources?tab=sas` only while the `sas` plugin is active (its
+    « Montants facturés » tab lives there); without it, to `/parametres/options-ressources` with no
+    tab, so the address never names a tab the page does not have.
 
 ## 4. Architecture
 

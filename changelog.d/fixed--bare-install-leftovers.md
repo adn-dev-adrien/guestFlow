@@ -1,0 +1,1 @@
+- Direct stays read « Direct » in the reservation fiche's « Plateforme » menu and on the calendar week view, and the old « Tarifs » address no longer opens a tab of an absent plugin.
