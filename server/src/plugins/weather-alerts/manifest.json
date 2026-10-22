@@ -1,7 +1,7 @@
 {
   "id": "weather-alerts",
   "name": "Vigilance Météo-France",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Prévient le voyageur d’une alerte météo à l’arrivée.",
   "icon": "thunderstorm",
   "surfaces": [
@@ -26,6 +26,9 @@
     ],
     "1.1.0": [
       "La carte du plugin dit si la clé Météo-France manque."
+    ],
+    "1.2.0": [
+      "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
     ]
   }
 }

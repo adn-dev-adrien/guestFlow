@@ -50,3 +50,14 @@ test('a bar without tabs is unchanged (no tablist)', () => {
   expect(screen.queryByRole('tablist')).toBeNull();
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
 });
+
+// specs/ds-tabs.md rule 11 — beside tabs the row does not wrap on sm+: the tabs shrink and scroll in
+// the room the title and the actions leave, so Save / Cancel never drop onto a row of their own; a
+// bar under 720 px still gives the tabs a second row.
+test('rule 11: beside tabs the row never wraps on sm+, and the tabs shrink to the room left', () => {
+  renderBar({ onSave: () => {}, tabs: <PageTabs value="options" onChange={() => {}} items={ITEMS} /> });
+  const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
+  expect(css).toMatch(/@media \(min-width: ?600px\)\s*\{[^}]*flex-wrap:\s*nowrap/);
+  expect(css).toMatch(/@container \(max-width: ?719\.98px\)\s*\{[^}]*flex-wrap:\s*wrap/);
+  expect(getComputedStyle(screen.getByRole('tablist').closest('.MuiTabs-root')).maxWidth).toBe('100%');
+});

@@ -5,7 +5,7 @@ export default {
   id: 'google-calendar',
   contributes: {
     'settings.integrations': [
-      { key: 'google', order: 10, Component: lazy(() => import('./SettingsGoogleCalendarSection')) },
+      { key: 'google', order: 10, tabLabel: 'Google Agenda', keywords: ['Google Agenda'], Component: lazy(() => import('./SettingsGoogleCalendarSection')) },
     ],
   },
 };

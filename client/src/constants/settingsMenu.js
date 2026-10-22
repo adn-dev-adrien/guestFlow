@@ -107,6 +107,12 @@ const SUMMARY_EXTRAS = Object.freeze([
 ]);
 
 /**
+ * The Intégrations page: its search words are those of the plugins it holds, each brought by the
+ * plugin's `settings.integrations` contribution (specs/integrations-tab-per-plugin.md rule 8).
+ */
+export const INTEGRATIONS_PATH = '/settings/integrations';
+
+/**
  * Rule 27 — what the summary's search also understands, page by page: the words an owner types
  * (« wifi », « iban », « smtp », « 2fa »), written as the row then shows them (« Contient : Wi-Fi »).
  */
@@ -126,7 +132,6 @@ export const SETTINGS_KEYWORDS = Object.freeze({
   '/settings/emails/textes': [...new Set([...Object.values(EMAIL_DISPLAY_NAMES), 'Message', 'Phrase', 'Traduction', 'Anglais', 'Variables', 'Modèle'])],
   '/settings/utilisateurs': ['Compte', 'Rôle', 'Comptable', 'Accueil', 'Administrateur', 'Invitation'],
   '/parametres/acces-support': ['Support', 'Assistance', 'Accès temporaire'],
-  '/settings/integrations': ['Google Agenda', 'Neat', 'Assurance annulation', 'Météo-France', 'Sowel', 'Portail', 'WordPress', 'Site internet', 'Clé API'],
   '/settings/systeme': ['Mise à jour', 'Version', 'URL publique', 'Adresse de l’application', 'Traductions', 'Sauvegarde'],
   '/parametres/plugins': ['Plugin', 'Extension', 'Module', 'Activer', 'Désactiver'],
   '/mon-compte': ['Mot de passe', 'Second code', '2FA', 'Double authentification', 'Code par email', 'Appli d’authentification', 'Prénom', 'Email de connexion'],

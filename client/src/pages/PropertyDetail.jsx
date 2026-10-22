@@ -9,6 +9,7 @@ import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigatio
 const PROPERTIES_LIST = '/properties';
 import PageActionBar from '../components/PageActionBar';
 import PageTabs from '../components/PageTabs';
+import TabDot from '../components/TabDot';
 import ConfirmDialog from '../components/ConfirmDialog';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import LoadingState from '../components/LoadingState';
@@ -531,7 +532,7 @@ export default function PropertyDetail() {
     return changed ? 'dirty' : '';
   };
   const tabDot = (state) => (state ? (
-    <Box component="span" aria-label={state === 'error' ? 'erreur' : 'modifié'} sx={{ width: 8, height: 8, borderRadius: '50%', ml: 0.75, bgcolor: state === 'error' ? 'error.main' : 'warning.main' }} />
+    <TabDot color={state === 'error' ? 'error' : 'warning'} label={state === 'error' ? 'erreur' : 'modifié'} />
   ) : null);
   const tabItems = PROPERTY_TABS
     .filter((t) => !isNew || ['general', 'tarifs', 'paiement', 'sejour'].includes(t.key))

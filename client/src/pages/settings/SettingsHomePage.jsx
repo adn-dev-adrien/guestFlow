@@ -5,7 +5,8 @@
  * The four groups of constants/settingsMenu.js, each page on one row with its state line computed by
  * the server (GET /api/settings/summary), and a search that understands the owner's words (wifi,
  * iban, smtp, 2fa…). `/settings#<group>` — what a group of the sidebar opens — scrolls to that group
- * and marks it for a moment.
+ * and marks it for a moment. The Intégrations row is searched with the words its plugins bring, and a
+ * word of one plugin opens that plugin's tab (specs/integrations-tab-per-plugin.md rule 8).
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
@@ -18,7 +19,8 @@ import PageActionBar from '../../components/PageActionBar';
 import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../hooks/useAuth';
 import { canSeeRoute } from '../../constants/roles';
-import { visibleSettingsGroups, SETTINGS_KEYWORDS } from '../../constants/settingsMenu';
+import { visibleSettingsGroups, SETTINGS_KEYWORDS, INTEGRATIONS_PATH } from '../../constants/settingsMenu';
+import { useSlot } from '../../plugins/sdk/useSlot';
 import { matchSettingsRow } from '../../utils/settingsSearch';
 import api from '../../api';
 
@@ -45,12 +47,21 @@ export default function SettingsHomePage() {
     [user],
   );
 
+  const integrationSections = useSlot('settings.integrations');
+  const integrationWords = useMemo(() => new Map(integrationSections
+    .flatMap((section) => (section.keywords || []).map((word) => [word, section.pluginId]))), [integrationSections]);
+  const keywordsOf = (path) => (path === INTEGRATIONS_PATH ? [...integrationWords.keys()] : SETTINGS_KEYWORDS[path]);
+  const targetOf = (path, keyword) => {
+    const owner = path === INTEGRATIONS_PATH && keyword ? integrationWords.get(keyword) : null;
+    return owner ? `${path}?tab=${owner}` : path;
+  };
+
   const shown = groups.map((group) => ({
     ...group,
     rows: group.entries.map((entry) => {
       const line = lines[entry.path] || null;
-      const hit = matchSettingsRow({ label: entry.label, line: line && line.text, keywords: SETTINGS_KEYWORDS[entry.path] }, query);
-      return hit ? { entry, line, keyword: hit.keyword } : null;
+      const hit = matchSettingsRow({ label: entry.label, line: line && line.text, keywords: keywordsOf(entry.path) }, query);
+      return hit ? { entry, line, keyword: hit.keyword, to: targetOf(entry.path, hit.keyword) } : null;
     }).filter(Boolean),
   })).filter((group) => group.rows.length > 0);
 
@@ -94,11 +105,11 @@ export default function SettingsHomePage() {
                   })}
                 >
                   <List disablePadding>
-                    {group.rows.map(({ entry, line, keyword }, i) => (
+                    {group.rows.map(({ entry, line, keyword, to }, i) => (
                       <ListItemButton
                         key={entry.path}
                         component={Link}
-                        to={entry.path}
+                        to={to}
                         divider={i < group.rows.length - 1}
                         sx={{ minHeight: 56, py: 1, gap: 0.5 }}
                       >

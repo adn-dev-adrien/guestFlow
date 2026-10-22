@@ -28,7 +28,7 @@ test('the seeded database has every catalogue plugin installed and active', asyn
 });
 
 test('deactivating Google Agenda removes its section and its API, activating brings them back', async ({ page, request }) => {
-  await page.goto('/settings/integrations');
+  await page.goto('/settings/integrations?tab=google-calendar');
   await expect(page.getByText('Synchronisation Google Agenda')).toBeVisible({ timeout: 10_000 });
 
   await page.goto('/parametres/plugins');
@@ -39,9 +39,10 @@ test('deactivating Google Agenda removes its section and its API, activating bri
   expect(off.status()).toBe(404);
   expect(await off.json()).toEqual({ error: 'PLUGIN_INACTIVE', plugin: 'google-calendar' });
 
-  await page.goto('/settings/integrations');
+  await page.goto('/settings/integrations?tab=google-calendar');
   await expect(page.getByRole('heading', { name: 'Intégrations' }).first()).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('Synchronisation Google Agenda')).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: /^Google Agenda/ })).toHaveCount(0);
 
   await page.goto('/parametres/plugins');
   await googleCard(page).getByRole('button', { name: 'Activer' }).click();
@@ -76,39 +77,49 @@ test('the SAS cannot be deactivated while a reception account is active', async 
   await page.keyboard.press('Escape');
 });
 
-test('rule 25: « Configurer » on Google Agenda opens its section of Intégrations', async ({ page }) => {
+test('rule 25: « Configurer » on Google Agenda opens its tab of Intégrations', async ({ page }) => {
   await page.goto('/parametres/plugins');
   await page.getByRole('button', { name: /^À configurer \(\d+\)$/ }).click();
   await googleCard(page).getByRole('button', { name: 'Configurer' }).click();
-  await expect(page).toHaveURL(/\/settings\/integrations#plugin-google-calendar$/);
+  await expect(page).toHaveURL(/\/settings\/integrations\?tab=google-calendar$/);
+  await expect(page.getByRole('tab', { name: /^Google Agenda/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Synchronisation Google Agenda')).toBeInViewport({ timeout: 10_000 });
 });
 
-// specs/plugins-phase-0-foundation.md rule 26 — « Configurer » lands on the plugin's section and it
-// stays there while the later sections load: in the viewport, below the sticky bars, phone and desktop.
+// specs/integrations-tab-per-plugin.md rules 2, 5 and 6 — « Configurer » lands on its plugin's tab, on a
+// phone and on a desktop; on a phone the tab strip scrolls inside the bar, never the page.
 for (const width of [390, 1280]) {
-  for (const [name, id] of [['Assurance annulation Neat', 'neat'], ['Vigilance Météo-France', 'weather-alerts']]) {
-    test(`rule 26: at ${width} px « Configurer » on ${name} lands on its section`, async ({ page }) => {
+  for (const [name, id, tab] of [['Assurance annulation Neat', 'neat', 'Neat'], ['Vigilance Météo-France', 'weather-alerts', 'Météo-France']]) {
+    test(`integrations-tab-per-plugin rules 2, 5: at ${width} px « Configurer » on ${name} opens its tab`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/parametres/plugins');
       const card = page.locator('.MuiCard-root').filter({ hasText: name });
       await card.getByRole('button', { name: 'Configurer' }).click();
-      await expect(page).toHaveURL(new RegExp(`/settings/integrations#plugin-${id}$`));
-      const anchor = page.locator(`#plugin-${id}`);
-      await expect(anchor).toBeInViewport({ timeout: 10_000 });
-      // Every section has loaded and the page has settled (rule 27: 800 ms after the last change).
-      await page.waitForTimeout(1_800);
-      await expect(anchor).toBeInViewport();
-      const { top, barsBottom } = await anchor.evaluate((el) => ({
-        top: el.getBoundingClientRect().top,
-        barsBottom: Math.max(...[...document.querySelectorAll('header, [data-sticky-bar]')]
-          .map((b) => b.getBoundingClientRect().bottom)),
-      }));
-      expect(top).toBeGreaterThanOrEqual(barsBottom - 1);
-      expect(top).toBeLessThan(barsBottom + 40);
+      await expect(page).toHaveURL(new RegExp(`/settings/integrations\\?tab=${id}$`));
+      const selected = page.getByRole('tab', { name: new RegExp(`^${tab}`) });
+      await expect(selected).toHaveAttribute('aria-selected', 'true');
+      await expect(selected).toBeInViewport();
+      await expect(page.getByRole('tabpanel', { name: tab })).toBeVisible({ timeout: 10_000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
     });
   }
 }
+
+test('integrations-tab-per-plugin rule 6: an old #plugin- link opens the tab and becomes ?tab=', async ({ page }) => {
+  await page.goto('/settings/integrations#plugin-neat');
+  await expect(page).toHaveURL(/\/settings\/integrations\?tab=neat$/);
+  await expect(page.getByRole('tab', { name: /^Neat/ })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('integrations-tab-per-plugin rule 2: on a phone the tab strip scrolls inside the bar', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/settings/integrations?tab=booking-intake');
+  const list = page.getByRole('tablist', { name: 'Intégrations' });
+  await expect(list.getByRole('tab', { name: /^Booking/ })).toBeInViewport({ timeout: 10_000 });
+  const scroller = list.locator('xpath=..');
+  expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
 
 test('the Plugins entry sits in the Paramètres submenu', async ({ page }) => {
   await page.goto('/parametres/plugins');

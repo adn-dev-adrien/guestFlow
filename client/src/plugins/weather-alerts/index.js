@@ -6,7 +6,7 @@ export default {
   id: 'weather-alerts',
   contributes: {
     'settings.integrations': [
-      { key: 'weather', order: 30, Component: lazy(() => import('./SettingsWeatherSection')) },
+      { key: 'weather', order: 30, tabLabel: 'Météo-France', keywords: ['Météo-France', 'Vigilance'], Component: lazy(() => import('./SettingsWeatherSection')) },
     ],
     // Arrival only, just before the recap, when an orange/red alert overlaps the stay.
     'sas.arrival.steps': [{

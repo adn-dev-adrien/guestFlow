@@ -6,6 +6,6 @@ export default {
   contributes: {
     'reservation.banners': [{ key: 'gdf-intake', order: 10, Component: lazy(() => import('./IntakeBanner')) }],
     'dashboard.alerts': [{ key: 'gdf-intake', order: 20, Component: lazy(() => import('./IntakeAlert')) }],
-    'settings.integrations': [{ key: 'gdf-intake', order: 40, Component: lazy(() => import('./SettingsSection')) }],
+    'settings.integrations': [{ key: 'gdf-intake', order: 40, tabLabel: 'Gîtes de France', keywords: ['Gîtes de France', 'ITEA'], Component: lazy(() => import('./SettingsSection')) }],
   },
 };

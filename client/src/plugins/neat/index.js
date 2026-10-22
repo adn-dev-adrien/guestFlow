@@ -6,7 +6,7 @@ export default {
   id: 'neat',
   contributes: {
     'settings.integrations': [
-      { key: 'neat', order: 20, Component: lazy(() => import('./SettingsNeatSection')) },
+      { key: 'neat', order: 20, tabLabel: 'Neat', keywords: ['Neat', 'Assurance annulation'], Component: lazy(() => import('./SettingsNeatSection')) },
     ],
     'reservation.optionLine': [{
       key: 'neat',

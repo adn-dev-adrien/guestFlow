@@ -55,24 +55,25 @@ const PLUGIN_PAGES = Object.freeze({
 });
 
 // specs/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
-// « Configurer » / « Réglages » opens. A section of Intégrations is reached by its anchor
-// (`#plugin-<id>`, IntegrationsSettingsPage). `null`: nothing to set up (the card has no such button).
+// « Configurer » / « Réglages » opens. A plugin of Intégrations is reached by its tab
+// (`?tab=<id>`, specs/integrations-tab-per-plugin.md rule 6). `null`: nothing to set up (the card has
+// no such button).
 const INTEGRATIONS = '/settings/integrations';
 const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [HOURLY_RESOURCES]: '/parametres/options-ressources',
   [LINEN]: '/parametres/stock-blanchisserie',
-  [WEBSITE_BOOKING]: `${INTEGRATIONS}#plugin-${WEBSITE_BOOKING}`,
-  [GATE_ACCESS]: `${INTEGRATIONS}#plugin-${GATE_ACCESS}`,
-  [NEAT]: `${INTEGRATIONS}#plugin-${NEAT}`,
+  [WEBSITE_BOOKING]: `${INTEGRATIONS}?tab=${WEBSITE_BOOKING}`,
+  [GATE_ACCESS]: `${INTEGRATIONS}?tab=${GATE_ACCESS}`,
+  [NEAT]: `${INTEGRATIONS}?tab=${NEAT}`,
   [ONLINE_PAYMENT]: '/parametres/paiements',
-  [GOOGLE_CALENDAR]: `${INTEGRATIONS}#plugin-${GOOGLE_CALENDAR}`,
+  [GOOGLE_CALENDAR]: `${INTEGRATIONS}?tab=${GOOGLE_CALENDAR}`,
   [ACCOUNTING_EXPORT]: '/comptabilite/plateformes',
   [SAS]: null,
   [TARIFF_RECIPES]: '/parametres/recettes',
   [SCHOOL_HOLIDAYS]: '/parametres/vacances-fermetures',
-  [WEATHER_ALERTS]: `${INTEGRATIONS}#plugin-${WEATHER_ALERTS}`,
-  [GITES_DE_FRANCE_INTAKE]: `${INTEGRATIONS}#plugin-${GITES_DE_FRANCE_INTAKE}`,
-  [BOOKING_INTAKE]: `${INTEGRATIONS}#plugin-${BOOKING_INTAKE}`,
+  [WEATHER_ALERTS]: `${INTEGRATIONS}?tab=${WEATHER_ALERTS}`,
+  [GITES_DE_FRANCE_INTAKE]: `${INTEGRATIONS}?tab=${GITES_DE_FRANCE_INTAKE}`,
+  [BOOKING_INTAKE]: `${INTEGRATIONS}?tab=${BOOKING_INTAKE}`,
 });
 
 /** → the ids of the plugins a page belongs to, or [] for a core page or an unknown address. */

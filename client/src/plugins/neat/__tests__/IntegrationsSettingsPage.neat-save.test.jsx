@@ -31,6 +31,7 @@ vi.mock('../../../api', () => ({
     updateNeatMapping: vi.fn(),
     getPluginSettings: vi.fn(),
     savePluginSettings: vi.fn(),
+    getPlugins: vi.fn(),
   },
 }));
 
@@ -73,12 +74,14 @@ beforeEach(() => {
   api.updateNeatSettings.mockResolvedValue(CONFIGURED_SETTINGS);
   api.getPluginSettings.mockResolvedValue({ apiKeySet: false });
   api.savePluginSettings.mockResolvedValue({ apiKeySet: true });
+  api.getPlugins.mockResolvedValue([]);
   delete window.__guestflowBeforeNavigate;
 });
 
+// The Neat card is under its own tab (specs/integrations-tab-per-plugin.md rule 5).
 function renderPage() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/settings/integrations?tab=neat']}>
       <IntegrationsSettingsPage />
     </MemoryRouter>,
   );
@@ -110,6 +113,8 @@ test('rule 1: one press writes the weather key and the Neat card together', asyn
   await screen.findByText('Connectée — staging');
 
   fireEvent.change(screen.getByLabelText('Marge sur la prime Neat (%)'), { target: { value: '18' } });
+  // The weather key is on the Météo-France tab; the Neat draft survives the switch (rule 10).
+  fireEvent.click(screen.getByRole('tab', { name: /^Météo-France/ }));
   fireEvent.change(await screen.findByLabelText('Clé Météo-France (Vigilance)'), { target: { value: 'k-123' } });
   await waitFor(() => expect(saveButton()).toBeEnabled());
 
