@@ -31,6 +31,12 @@
               label: __('Paiement en ligne (séjour réglé en totalité, dates bloquées au paiement)', 'guestflow-booking'),
               checked: !!a.payOnline,
               onChange: function (v) { props.setAttributes({ payOnline: !!v }); },
+            }),
+            // specs/booking-drawer-friction.md rule 1 — only meaningful beside an online payment.
+            a.payOnline && el(ToggleControl, {
+              label: __('Proposer aussi une demande sans paiement', 'guestflow-booking'),
+              checked: !!a.offerRequest,
+              onChange: function (v) { props.setAttributes({ offerRequest: !!v }); },
             })
           )
         ),

@@ -11,6 +11,53 @@ import { COMPLEMENT_LABELS, COMPLEMENT_BREAKDOWN_LABELS } from '../constants/com
 // toggle the user can click to flip the line in/out of Complément directly from the summary.
 // `active=false` renders a faded "+ compl." hint instead of the bold "compl." chip so the
 // user discovers the affordance without it being visually loud.
+/**
+ * One extra-guest supplement row: label + caption on the left, optional chip, « Offrir » toggle and the
+ * amount (struck through when offered) on the right. `onToggleOffered = null` → no toggle (a part the
+ * platform already billed can't be offered).
+ */
+function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip = null }) {
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, flexWrap: 'wrap' }}>
+        <Box sx={{ flex: 1, minWidth: 160 }}>
+          <Typography variant="body2" color="text.secondary">
+            {label}
+            {chip && <Box component="span" sx={{ ml: 1 }}>{chip}</Box>}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">{caption}</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {onToggleOffered && (
+            <Button
+              size="small"
+              variant={offered ? 'contained' : 'outlined'}
+              color={offered ? 'success' : 'inherit'}
+              onClick={onToggleOffered}
+              sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+            >
+              {offered ? '✓ Offert' : 'Offrir'}
+            </Button>
+          )}
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              textDecoration: offered ? 'line-through' : 'none',
+              opacity: offered ? 0.6 : 1,
+              color: offered ? 'text.secondary' : 'inherit',
+            }}
+          >
+            {formatCurrency(amount)}
+          </Typography>
+        </Box>
+      </Box>
+    </>
+  );
+}
+
 function ComplementChip({ active = true, onClick, readOnly = false }) {
   const clickable = Boolean(onClick) && !readOnly;
   return (
@@ -138,6 +185,15 @@ export default function PricingSummary({
   // Tiered supplement: the server phrases the rule (« 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit »)
   // because no single unit price describes it (specs/tariff-events-and-extra-guest-tiers §3.1).
   const extraGuestTiersLabel = quote?.extraGuestTiersLabel || null;
+  // specs/platform-extra-guest-complement.md §3.5 rule 16 — on a pinned brut the supplement splits in
+  // two: the part the platform billed (in the brut, never offered) and the guests added since (in the
+  // complement, offerable). `platformPaidGuests` is only set when a brut is pinned.
+  const platformPaidGuests = quote?.platformPaidGuests ?? null;
+  const brutPinned = platformPaidGuests != null;
+  const extraGuestComplementCount = Number(quote?.extraGuestComplementCount || 0);
+  const extraGuestComplementOriginal = Number(quote?.extraGuestComplementOriginal || 0);
+  const extraGuestInBrutCount = Number(quote?.extraGuestInBrutCount || 0);
+  const extraGuestInBrutAmount = Number(quote?.extraGuestInBrutSurcharge || 0);
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
@@ -273,52 +329,34 @@ export default function PricingSummary({
             </Box>
           )}
 
-          {hasExtraGuestSurcharge && (
-            <>
-              <Divider />
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Surcoût voyageurs
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {extraGuestTiersLabel ? (
-                      `${extraGuestCount} pers. au-delà de ${includedGuests} incluses — ${extraGuestTiersLabel}`
-                    ) : (
-                      <>
-                        {extraGuestCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
-                        {/* specs/tariff-recipes/spec.md §3.6 — per-night unit: the server sends the
-                            nights count (Σ of the discount ratios is applied to the amount, not shown). */}
-                        {extraGuestPerNight ? `/nuit × ${nights} nuit${nights > 1 ? 's' : ''}` : ''}
-                      </>
-                    )}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Button
-                    size="small"
-                    variant={extraGuestSurchargeOffered ? 'contained' : 'outlined'}
-                    color={extraGuestSurchargeOffered ? 'success' : 'inherit'}
-                    onClick={() => onToggleExtraGuestOffered(!extraGuestSurchargeOffered)}
-                    sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
-                  >
-                    {extraGuestSurchargeOffered ? '✓ Offert' : 'Offrir'}
-                  </Button>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                      textDecoration: extraGuestSurchargeOffered ? 'line-through' : 'none',
-                      opacity: extraGuestSurchargeOffered ? 0.6 : 1,
-                      color: extraGuestSurchargeOffered ? 'text.secondary' : 'inherit',
-                    }}
-                  >
-                    {formatCurrency(extraGuestSurchargeOriginal)}
-                  </Typography>
-                </Box>
-              </Box>
-            </>
+          {hasExtraGuestSurcharge && extraGuestInBrutCount > 0 && extraGuestInBrutAmount > 0 && (
+            <ExtraGuestRow
+              label="Surcoût voyageurs"
+              caption={extraGuestTiersLabel ? (
+                `${extraGuestInBrutCount} pers. au-delà de ${includedGuests} incluses — ${extraGuestTiersLabel}`
+              ) : (
+                <>
+                  {extraGuestInBrutCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
+                  {/* specs/tariff-recipes/spec.md §3.6 — per-night unit: the server sends the
+                      nights count (Σ of the discount ratios is applied to the amount, not shown). */}
+                  {extraGuestPerNight ? `/nuit × ${nights} nuit${nights > 1 ? 's' : ''}` : ''}
+                </>
+              )}
+              amount={extraGuestInBrutAmount}
+              offered={!brutPinned && extraGuestSurchargeOffered}
+              onToggleOffered={brutPinned ? null : () => onToggleExtraGuestOffered(!extraGuestSurchargeOffered)}
+            />
+          )}
+
+          {extraGuestComplementCount > 0 && extraGuestComplementOriginal > 0 && (
+            <ExtraGuestRow
+              label={`Voyageurs ajoutés · ${extraGuestComplementCount} pers.`}
+              caption={`Au-delà des ${Math.max(includedGuests, Number(platformPaidGuests))} personnes payées à la plateforme`}
+              amount={extraGuestComplementOriginal}
+              offered={extraGuestSurchargeOffered}
+              onToggleOffered={() => onToggleExtraGuestOffered(!extraGuestSurchargeOffered)}
+              chip={<ComplementChip active readOnly />}
+            />
           )}
 
           {/* Options */}

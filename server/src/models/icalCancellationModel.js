@@ -9,6 +9,8 @@
  *   - `resolveOnReappearance(pairs)` — batched delete of pending rows whose
  *     `(sourceId, eventUid)` matches an incoming feed event. Fires once at the top of
  *     every sync; if the platform un-cancels a booking the alert disappears silently.
+ *   - `resolveForReservation(reservationId, sourceId)` — same, for a stay the feed re-issued under
+ *     a new UID and that the sync re-claimed (specs/lodgify-decommission.md §3 rule 15).
  *
  * Write paths called from the Dashboard controller:
  *   - `approve(id, compensation)` — atomic transaction: snapshot the reservation → history
@@ -85,6 +87,14 @@ function buildModel(database) {
          AND (${placeholders})
     `).run(...params);
     return Number(result.changes || 0);
+  }
+
+  const resolveForReservationStmt = database.prepare(`
+    DELETE FROM ical_cancellation_alerts
+     WHERE acknowledgedAt IS NULL AND reservationId = ? AND sourceId = ?
+  `);
+  function resolveForReservation(reservationId, sourceId) {
+    return Number(resolveForReservationStmt.run(Number(reservationId), Number(sourceId)).changes || 0);
   }
 
   const listPendingStmt = database.prepare(`
@@ -253,7 +263,7 @@ function buildModel(database) {
     return { ok: true };
   }
 
-  return { recordPending, resolveOnReappearance, listPending, approve, reject };
+  return { recordPending, resolveOnReappearance, resolveForReservation, listPending, approve, reject };
 }
 
 const db = require('../database');

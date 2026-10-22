@@ -55,9 +55,15 @@ button says why it is greyed, and the engine's own refinements never flicker on 
    *(2026-09-23 — this replaces a sticky « Suivant » that first scrolled to the options and only
    advanced on a second press. When the engine rebuilt its rows — a new quote after a party change —
    the scroll target moved and the button kept re-scrolling instead of advancing.)*
+   **Superseded 2026-10-19 by `specs/booking-drawer-friction.md` rule 14:** « Suivant » moves into a
+   sticky bar on screen 1, with the live total and the calendar's hint. It keeps the one job this rule
+   protected — go to screen 2 — and never scrolls.
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 point 5 — une seule pression atteint l'écran 2.
 5. The sticky bottom bar therefore **belongs to screen 2 only** (« Retour » + the engine's submit
    button). On screen 1 it is hidden rather than left empty.
+   **Superseded 2026-10-19 by `specs/booking-drawer-friction.md` rules 14 and 16:** the bar serves both
+   screens; on screen 2 it relays both engine actions when the block offers the request without
+   paying.
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 points 1 et 5 — barre absente sur l'écran 1, présente sur l'écran 2.
 6. When « Suivant » is disabled, **a line under it says why**, and that reason is the engine's own
    (« Séjour trop court (minimum 2 nuits). », « Ces dates incluent une nuit indisponible. »), read from
@@ -66,6 +72,9 @@ button says why it is greyed, and the engine's own refinements never flicker on 
    A `title` attribute does not count: it never appears on a touch screen.
    *(2026-09-23 — amended by rule 13: the engine's error hint now decides on its own, before the state
    of the two date fields.)*
+   *(2026-10-19 — the reason now sits in the screen-1 sticky bar, above « Suivant »
+   (`specs/booking-drawer-friction.md` rule 15); while the stay is incomplete the bar also shows the
+   calendar's non-error hint, e.g. « Départ à partir du 22 novembre (2 nuits minimum). »)*
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 points 1 et 2 — le repli et la vraie raison du moteur.
 7. « Réserver » on screen 2 mirrors the engine's own submit button, label and disabled state included.
    The CGV checkbox belongs to the engine: it refuses on click and says why (never a greyed button).
@@ -168,6 +177,7 @@ Inside that file:
 | `construire()` (JS) | Distributes the blocks, builds screen 1's footer (button + reason), wires the engine's submit button |
 | `majNav()` / `raisonSuivant()` (JS) | Rules 4-7: which button is visible, enabled, and what the disabled one says |
 | `affiner()` / `affinerOptions()` (JS) | Rules 8-10: re-dressing the engine's rows, immediately |
+| `indicationBarre()`, `ecrire()` and the success observer (JS) | Added 2026-10-19 by `specs/booking-drawer-friction.md` rules 14-17 and 19-20: the screen-1 bar, the second action, `inert` on the hidden screen, the confirmation brought back into screen 2 |
 
 ### 4.3 API contract
 
@@ -184,6 +194,8 @@ No schema change.
   short is an instruction, not an error.
 - **Sticky bar**: hidden on screen 1 (`[hidden]` beats its `display: flex`), shown on screen 2 with
   « Retour » on the left and the submit button on the right.
+  *Amended 2026-10-19 (`specs/booking-drawer-friction.md` §6): shown on both screens — screen 1 carries
+  the hint, the total and « Suivant »; screen 2 puts the request without paying on a second row.*
 - **Mobile (≤600 px)**: the drawer takes the full width; the footer button is already full-width at
   every size, so nothing else changes. Verified at 420 px.
 - **Reduced motion**: the screen-to-screen transition is disabled, as before.

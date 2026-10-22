@@ -28,6 +28,8 @@ const POSTE_BY_KIND = {
   option: 'options',
   resource: 'resources',
   tax: 'tax',
+  // specs/platform-extra-guest-complement.md rule 10 — a supplement on the nights: stay revenue.
+  extraGuests: 'accommodation',
   remainder: 'accommodation',
 };
 

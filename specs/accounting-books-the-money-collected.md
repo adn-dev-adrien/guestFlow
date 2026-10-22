@@ -124,6 +124,30 @@ options and resources appear once, at their real amount, only when they were rea
     to attach it to) credits the options account rather than letting the residue land on the tourist-tax
     pass-through.
 
+### A gross-up entry that captured contribs (2026-10-19)
+
+> **Why this was added.** The review of 2026-10-19 ticked the solde of réservation #13 (Gîtes de
+> France, `clientGrossAmount` era: 706 € solde net, 907,20 € paid by the guest, no entered commission)
+> on a copy of the Solio base. The tick captured contribs from the stored solde — 706 € of
+> accommodation — and the contrib path used them as they were, while the entry's CA is grossed up to
+> 907,20 € (rule 4, `specs/accounting-encaissement-effective-percent.md` rule 1). The 201,20 € of
+> commission the contribs leave out fell on the last credit, the VAT line:
+> `CDAUSQU D706 | 622600 D201,20 | 70600000 C641,82 | 44571100 C265,38` — 41 % of VAT. Rule 10 of the
+> effective-percent spec assumed every contrib row was a current-model row (ratio 1); a legacy row
+> ticked today is not. The same row without contribs books `70600000 C824,73 | 44571100 C82,47`, which
+> is what its five paid siblings (#1-#4, #8) already book.
+
+12. **Contribs are used only on an entry that is not grossed up.** When the gross-up ratio of an entry
+    is not 1 (the `clientGrossAmount` era, or a « solde = net » schedule the boot repair left alone),
+    its contribs describe the stored net amount, not the CA the entry books. The entry is then booked
+    like one that never captured anything: the stored-money path, which pro-rates the gross-up over the
+    postes it collects (rules 5-7), so the VAT line is the sales rate applied to the revenue. Entries
+    with a ratio of 1 — every reservation written by the current engine — keep their contribs as before.
+    On the Solio base this changes réservation #13 only, and only once its solde is ticked: no month
+    already collected changes (the 36 months 2025-2027 export byte-identical before and after).
+    (Numbered 12 to keep the identity it has on `inte/plugins`, where rule 11 — contribs that overflow
+    a reduced entry — also lives; master has no rule 11.)
+
 **Edge cases:**
 - Pre-arrival revenue = 0 (everything in the complement) but an acompte was collected → the whole
   encaissement credits accommodation (defensive; cannot happen with a consistent fiche).

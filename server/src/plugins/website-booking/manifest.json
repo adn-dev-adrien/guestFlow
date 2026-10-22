@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -39,6 +39,10 @@
     ],
     "1.3.0": [
       "Accueil : les demandes de devis du site rejoignent « À traiter », comptées par le serveur."
+    ],
+    "1.4.0": [
+      "Calendrier du site : séjour minimum et premier départ possible par date d’arrivée, prix de chaque nuit.",
+      "Devis du site : prix indicatif par personne et par nuit, calculé par GuestFlow."
     ]
   }
 }

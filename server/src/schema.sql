@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS ical_export_ranges (
     propertyId INTEGER NOT NULL,
     startDate TEXT NOT NULL,
     endDate TEXT NOT NULL,
+    sourceIcalSourceId INTEGER,
     PRIMARY KEY (propertyId, startDate, endDate)
   );
 
@@ -166,7 +167,8 @@ CREATE TABLE IF NOT EXISTS ical_export_tombstones (
     propertyId INTEGER NOT NULL,
     startDate TEXT NOT NULL,
     endDate TEXT NOT NULL,
-    removedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    removedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    sourceIcalSourceId INTEGER
   );
 
 CREATE INDEX IF NOT EXISTS idx_ical_export_tombstones_property ON ical_export_tombstones(propertyId, removedAt);

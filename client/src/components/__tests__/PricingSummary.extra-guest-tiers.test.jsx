@@ -20,7 +20,7 @@ function renderSummary(extra) {
       quote={{
         finalPrice: 558.47, totalStayPrice: 558.47, nights: 3, touristTaxTotal: 0,
         touristTaxOriginalTotal: 0, optionLines: [], resourceLines: [],
-        includedGuests: 2, extraGuestCount: 2, extraGuestPriceUnit: 'per_night',
+        includedGuests: 2, extraGuestCount: 2, extraGuestInBrutCount: 2, extraGuestPriceUnit: 'per_night',
         ...extra,
       }}
       form={FORM}
@@ -41,6 +41,7 @@ test('the tier rule is shown verbatim instead of a single × price', () => {
     extraGuestUnitPrice: 0,
     extraGuestSurcharge: 62,
     extraGuestSurchargeOriginal: 62,
+    extraGuestInBrutSurcharge: 62,
     extraGuestTiersLabel: '15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit',
   });
   expect(screen.getByText(/2 pers. au-delà de 2 incluses — 15,00 € la 1ʳᵉ nuit, puis 8,00 €\/nuit/))
@@ -54,6 +55,7 @@ test('a tiered supplement shows even when the single unit price is 0', () => {
     extraGuestUnitPrice: 0,
     extraGuestSurcharge: 62,
     extraGuestSurchargeOriginal: 62,
+    extraGuestInBrutSurcharge: 62,
     extraGuestTiersLabel: '15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit',
   });
   expect(screen.getByText('Surcoût voyageurs')).toBeInTheDocument();
@@ -64,6 +66,7 @@ test('without tiers the historical « × price/nuit × N nuits » wording is unt
     extraGuestUnitPrice: 27,
     extraGuestSurcharge: 108.54,
     extraGuestSurchargeOriginal: 108.54,
+    extraGuestInBrutSurcharge: 108.54,
     extraGuestTiersLabel: null,
   });
   expect(screen.getByText(/2 pers. au-delà de 2 incluses × 27,00 €\/nuit × 3 nuits/)).toBeInTheDocument();

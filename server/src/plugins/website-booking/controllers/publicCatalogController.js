@@ -15,6 +15,8 @@ const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { computeBlockedDates, rangeHasBlockedNight } = sdk.coreModule('blockedDates');
 const { validateAvailabilityQuery } = require('../publicInputValidation');
 const { findNextAvailableDate, stayRulesPredicate } = require('../nextAvailability');
+const { computeArrivalWindows, addDays } = require('../publicArrivalWindows');
+const { effectiveMinNightsForDate, getRuleNightBaseForDate } = sdk.coreModule('pricing');
 const {
   toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
   toPublicCancellationInsurance,
@@ -119,21 +121,45 @@ function getAvailability(req, res) {
   if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
   const v = validateAvailabilityQuery({ from: req.query.from, to: req.query.to, todayIso: todayIso() });
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'periodInvalid', v.errors);
-  const blockedDates = computeBlockedDates(propertyId, v.value.from, v.value.to);
+  const { from, to } = v.value;
+  // Blocked nights are read a month past `to`, so an arrival near the end of the window still gets
+  // its true earliest departure (specs/booking-drawer-friction.md rule 10). Only [from, to) is returned.
+  const lookahead = computeBlockedDates(propertyId, from, addDays(to, ARRIVAL_LOOKAHEAD_NIGHTS));
+  const blockedDates = lookahead.filter((d) => d >= from && d < to);
+  const rules = propertiesModel.listPricingRules(propertyId);
   // Where the calendar can jump when its window holds no bookable arrival (specs/public-api.md, additive).
   const nextAvailableDate = findNextAvailableDate({
-    from: v.value.from,
-    to: v.value.to,
+    from,
+    to,
     todayIso: todayIso(),
     blockedDates,
     loadBlocked: (a, b) => computeBlockedDates(propertyId, a, b),
     // The seasons as the pricing engine reads them: a free night the quote would refuse (minimum
     // stay, arrival day) is not an availability.
-    isStayAllowed: stayRulesPredicate(
-      db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId),
-    ),
+    isStayAllowed: stayRulesPredicate(rules),
   });
-  return ok(res, toPublicAvailability({ propertyId, from: v.value.from, to: v.value.to, blockedDates, nextAvailableDate }));
+  const { arrivals, nightPrices } = calendarHints(rules, from, to, new Set(lookahead));
+  return ok(res, toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate, arrivals, nightPrices }));
+}
+
+const ARRIVAL_LOOKAHEAD_NIGHTS = 31;
+
+// Rules 10 + 13: per bookable arrival, the minimum and the earliest departure; per free night, its
+// base price. Both read the pricing rules exactly as the quote does (pricing.js first-match rule).
+function calendarHints(rules, from, to, blockedSet) {
+  const today = todayIso();
+  const arrivals = computeArrivalWindows({
+    from, to, todayIso: today, blockedSet,
+    minNightsFor: (date) => effectiveMinNightsForDate(rules, date),
+    maxNights: ARRIVAL_LOOKAHEAD_NIGHTS - 1,
+  });
+  const nightPrices = [];
+  for (let date = from < today ? today : from; date < to; date = addDays(date, 1)) {
+    if (blockedSet.has(date)) continue;
+    const { matchedRule, nightlyBase } = getRuleNightBaseForDate(rules, date);
+    if (matchedRule) nightPrices.push({ date, price: nightlyBase });
+  }
+  return { arrivals, nightPrices };
 }
 
 module.exports = {
