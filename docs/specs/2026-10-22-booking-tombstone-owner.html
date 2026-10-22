@@ -89,6 +89,8 @@ legend{font-size:13px;color:var(--muted);padding:0 4px}
   <li>Chaque plage exportée mémorise le flux d'où vient son séjour. La tombstone hérite de ce propriétaire.</li>
   <li>Quand un flux Booking filtre ses échos, il ignore les tombstones dont il est lui-même le propriétaire. C'est déjà ce qu'il fait pour les séjours encore actifs : ses propres réservations ne comptent pas comme couverture.</li>
   <li>Une plage tenue par une saisie directe, ou par plusieurs séjours d'origines différentes, n'a pas de propriétaire et couvre comme aujourd'hui.</li>
+  <li>Ajouté après relecture : le propriétaire suit une reprise Lodgify → Booking et une fusion de plateformes.</li>
+  <li>Ajouté après relecture (règle 15) : si la re-réservation revient avec un <em>nouvel</em> identifiant avant que l'alerte d'annulation soit traitée, la fiche est reprise et l'alerte disparaît. Sinon, la valider supprimerait un séjour bien vivant.</li>
   <li>Base : deux colonnes ajoutées, vides au départ, qui reproduisent le comportement actuel jusqu'au premier export servi. Rien n'est perdu ni réécrit.</li>
 </ul>
 
