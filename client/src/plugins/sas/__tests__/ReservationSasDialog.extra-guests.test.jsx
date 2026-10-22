@@ -7,6 +7,9 @@ import { vi } from 'vitest';
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
@@ -49,7 +52,8 @@ test('offering the added guests drops them from the total and sends their ref', 
 test('already offered on the fiche → reopens as « ✓ Offert », undoable', async () => {
   await openRecap({ ...ADDED_GUEST, complementAmount: 0, extraGuestSurchargeOffered: 1 });
   expect(screen.getByRole('button', { name: '✓ Offert' })).toBeInTheDocument();
-  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument();
+  // Nothing owed at the door reads as the « Rien à percevoir » badge (ui-review-2026-10-19-operations rule 4).
+  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument();
   clickBtn('✓ Offert');
   expect(screen.getByText(/Total : 40,00 €/)).toBeInTheDocument();
 });
