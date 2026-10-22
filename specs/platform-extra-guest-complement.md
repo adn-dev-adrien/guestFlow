@@ -188,14 +188,15 @@ Interactive summary: `docs/specs/2026-10-22-platform-extra-guest-complement.html
 
 ## 7. Test plan
 
-### Server unit tests — `server/src/tests/platform-extra-guest-complement.unit.test.js` (16 tests)
+### Server unit tests — `server/src/tests/platform-extra-guest-complement.unit.test.js` (21 tests)
 - [x] Rules 1–2: non-direct without brut → supplement 0; direct and Lodgify unchanged.
 - [x] Rules 4–6: capture on first brut (babies excluded), kept on a correction, cleared with the brut and on switch to direct, re-captured.
 - [x] Rules 7–8: split with included/paid combinations, per-stay and per-night (tiers rank nights, not guests: the split is linear).
 - [x] Rule 9–10: back-solve subtracts only the in-brut part; the added guests stay out of the pre-arrival split.
 - [x] Rule 11: composition up then down → line rises, falls, disappears.
 - [x] Rule 13: offered hides the complement part only, original preserved; direct unchanged.
-- [x] Rule 17: stored detail line with its ref; arrival commit offers and un-offers it.
+- [x] Rules 2bis, 3, 12, 14–15: Lodgify with a brut, body value ignored, collected complement frozen, offered flag survives a recount.
+- [x] Rules 17–19: stored detail line with its ref (SAS, J-2, checkout); arrival commit offers and un-offers it; departure recall offers it.
 - §5 backfill: an `UPDATE` inside the migration guard, totals unchanged by construction (`persons = paid`).
 
 ### Client (Vitest)

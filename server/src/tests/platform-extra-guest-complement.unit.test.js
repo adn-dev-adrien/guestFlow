@@ -68,6 +68,12 @@ test('rule 2: a Lodgify (own-site) reservation without brut keeps its supplement
   assert.equal(q.extraGuestSurcharge, 80);
 });
 
+test('rule 2bis: a Lodgify reservation with a brut splits like any pinned brut', () => {
+  const q = quote({ platform: 'Lodgify', adults: 5, platformGrossAmount: 680, platformPaidGuests: 4 });
+  assert.equal(q.extraGuestComplementCount, 1);
+  assert.equal(q.finalPrice, 720);
+});
+
 // ---- §3.3 — the split ----
 
 test('rule 7: the composition the platform billed stays inside the brut', () => {
@@ -140,6 +146,18 @@ test('rule 13: « Offrir » hides the added guests only, real price kept', () =>
   assert.equal(q.complementAmount, 0);
 });
 
+test('rule 14: an offered line keeps its real price; rule 15: the flag survives a change of composition', () => {
+  const q = quote({ platform: 'Booking', adults: 6, platformGrossAmount: 680, platformPaidGuests: 4, extraGuestSurchargeOffered: true });
+  assert.equal(q.extraGuestComplementOriginal, 80, 'two added guests, real price recomputed');
+  assert.equal(q.extraGuestComplementSurcharge, 0, 'still offered');
+  assert.equal(q.finalPrice, 680);
+});
+
+test('rule 12: a collected complement is not rewritten by a later change of composition', () => {
+  const q = quote({ platform: 'Booking', adults: 6, platformGrossAmount: 680, platformPaidGuests: 4, complementPaid: true, complementAmount: 40 });
+  assert.equal(q.complementAmount, 40, 'what was collected stays');
+});
+
 test('rule 13: on a direct reservation « Offrir » still hides the whole supplement', () => {
   const q = quote({ platform: 'direct', adults: 4, extraGuestSurchargeOffered: true });
   assert.equal(q.extraGuestSurcharge, 0);
@@ -164,6 +182,11 @@ test('rules 4-6: the paid base is captured with the brut, kept on a correction, 
   assert.equal(resolvePlatformPaidGuests(stored, { ...body({ platformGrossAmount: 600 }), platform: 'direct' }), null, 'direct clears it');
   const cleared = { platform: 'Booking', platformGrossAmount: null, platformPaidGuests: null };
   assert.equal(resolvePlatformPaidGuests(cleared, body({ platformGrossAmount: 620 })), 5, 're-entered → captured again');
+});
+
+test('rule 3: the paid base is server-owned — a value sent by the browser is ignored', () => {
+  const sent = { platform: 'Booking', adults: 4, teens: 0, children: 0, platformGrossAmount: 600, platformPaidGuests: 9 };
+  assert.equal(resolvePlatformPaidGuests(null, sent), 4);
 });
 
 // ---- §3.5 — the stored line: SAS recap and commit ----
@@ -230,7 +253,7 @@ function makeModelDb() {
   return db;
 }
 
-test('rule 17: the arrival complement detail itemises the added guests with an offer ref', () => {
+test('rule 17 + rule 19: the arrival complement detail (SAS, J-2 email, checkout) itemises the added guests with an offer ref', () => {
   const db = makeModelDb();
   const r = db.prepare('SELECT * FROM reservations WHERE id = 1').get();
   const { detail } = arrivalComplementDetailFromReservation({ ...r, options: [], resources: [] });
@@ -252,5 +275,14 @@ test('rule 17: offering the added guests from the arrival SAS zeroes them, undoi
   assert.equal(detail[0].originalAmount, 40);
   model.commitArrivalSas(1, { offeredExtras: [] });
   assert.deepEqual(row(), { complementAmount: 40, extraGuestSurchargeOffered: 0, extraGuestComplementSurcharge: 40 });
+  db.close();
+});
+
+test('rule 18: at check-out the unpaid added guests are recalled and can still be offered', () => {
+  const db = makeModelDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [], offeredArrivalExtras: [{ kind: 'extraGuests', id: 0 }] });
+  const row = db.prepare('SELECT complementAmount, extraGuestSurchargeOffered FROM reservations WHERE id = 1').get();
+  assert.deepEqual(row, { complementAmount: 0, extraGuestSurchargeOffered: 1 });
   db.close();
 });
