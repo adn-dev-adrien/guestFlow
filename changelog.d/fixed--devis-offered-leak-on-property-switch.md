@@ -1,0 +1,1 @@
+- Devis et réservations : changer de logement sur la fiche ne laisse plus « offerte » une option qui l'était par défaut sur le logement précédent. Un devis ouvert sur L'Estiva puis passé sur La Granja affichait le ménage « ✓ Offert » à 0 € au lieu de 80 €.
