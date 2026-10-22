@@ -122,6 +122,8 @@ test('rule 28 — the core runs a stay: reservation, quote PDF, planning, iCal f
   const fiche = await page.locator('main').first().innerText();
   expect(fiche.match(PLUGIN_WORDS), 'the fiche names a plugin').toBeNull();
   expect(fiche).not.toMatch(/conditions générales acceptées/i);
+  // specs/normalize-platform-names.md rule 21 — the channel menu shows the label, not the stored value.
+  await expect(page.getByRole('combobox', { name: 'Plateforme' })).toHaveText('Direct');
 
   // A quote, saved, and its PDF downloaded through the bar.
   await page.goto(`/reservations/new?mode=devis&propertyId=${property.id}`);
@@ -181,4 +183,9 @@ test('rule 29 — the API refuses a role whose plugin is not active', async ({ p
     expect(res.status(), role).toBe(400);
     expect(await res.json()).toEqual({ error: 'ROLE_PLUGIN_INACTIVE', field: 'roles', role, plugin });
   }
+});
+
+test('rule 31 — the old « Tarifs » address names no tab of an absent plugin', async ({ page }) => {
+  await page.goto('/parametres/tarifs');
+  await expect(page).toHaveURL(/\/parametres\/options-ressources$/, { timeout: 15_000 });
 });

@@ -425,6 +425,11 @@ Two structural holes made it survivable:
     `mergePlatformVariants(platforms)` groups raw values by slug and returns one
     `{ platform, label, color }` per platform, preferring the canonical mixed-case spelling and
     sorted by label so the legend does not reshuffle as more months load.
+21. **Every place that writes a platform name goes through `formatPlatformLabel`** (added 2026-10-22,
+    found by the bare-install run of `plugins-phase-0-foundation.md` rule 28). The reservation fiche's
+    « Plateforme » menu and the arrival / departure lines of the calendar's week view printed the stored
+    value, so a direct stay read « direct ». The menu keeps the stored value as its `value` and shows
+    the label; the week view writes the label after the time.
 
 ### Architecture — files touched
 

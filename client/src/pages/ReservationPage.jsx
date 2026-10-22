@@ -39,6 +39,7 @@ import Slot from '../plugins/sdk/Slot';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import TermsAcceptanceLine from '../components/reservation/TermsAcceptanceLine';
 import usePlatforms from '../hooks/usePlatforms';
+import { formatPlatformLabel } from '../constants/platforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PluginGate from '../components/PluginGate';
 import { WEBSITE_BOOKING } from '../constants/plugins';
@@ -3628,9 +3629,9 @@ export default function ReservationPage() {
             <CardContent sx={formSectionContentSx}>
               <Typography variant="sectionHeader" sx={{ mb: 2 }}>Canal</Typography>
               <FormControl fullWidth>
-                <InputLabel>Plateforme</InputLabel>
-                <Select value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>
-                  {platformOptions.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                <InputLabel id="reservation-platform-label">Plateforme</InputLabel>
+                <Select labelId="reservation-platform-label" value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>
+                  {platformOptions.map(p => <MenuItem key={p} value={p}>{formatPlatformLabel(p)}</MenuItem>)}
                 </Select>
               </FormControl>
             </CardContent>
