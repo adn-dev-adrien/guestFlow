@@ -45,6 +45,14 @@ property can host.
 
 ## 3. Functional rules
 
+**Live pricing in the funnel**
+
+0. The guest count is an input of the live quote: every change of a guest stepper re-quotes the
+   stay (debounced, as for dates and options — `scheduleQuote` in `view.js`, already in place) and
+   the supplement is computed by the engine from the property's tariff policy (included guests,
+   unit price, per-stay / per-night, per-season override, tiers). The plugin never computes it. This
+   rule pins existing behaviour; the change is that the result becomes visible (rules 1–4).
+
 **Display of the supplement**
 
 1. The public quote carries a ready-to-render `extraGuests` block built server-side from the engine
@@ -169,6 +177,8 @@ on mobile; no layout change. Checked at 375px, ~900px, ≥1200px.
 ### Manual UI verification (WordPress test site or plugin harness)
 - [ ] 3 guests on a « 2 included » property: the supplement line appears and the lines add up to the total.
 - [ ] 2 guests: no supplement line.
+- [ ] Dates picked, then +1 / −1 guest: the summary re-quotes and the line appears / disappears with the right amount.
+- [ ] Per-night or tiered supplement in a season with an override: the line matches the back-office devis for the same stay.
 - [ ] English page: English labels.
 - [ ] Property with `maxGuests = 0`: steppers stop at the rule-6 cap; a forged request beyond it gets 409.
 - [ ] Mobile (375px): note and line wrap cleanly.
