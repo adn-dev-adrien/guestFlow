@@ -49,6 +49,16 @@ test('specs/booking-extranet-intake.md rule 8: a phone that was never revealed i
   assert.equal(parse(text).booking.guest.phone, '');
 });
 
+test('specs/booking-extranet-intake.md rule 28: a phone printed at the end of Booking’s « Un simple appel suffit » sentence is read', () => {
+  const text = replaceOnce(PAGE_6392081711, 'Un simple appel suffit : \n+33 6 12 34 56 78\n', 'Un simple appel suffit : +33 6 12 34 56 78\n');
+  assert.equal(parse(text).booking.guest.phone, '+33612345678');
+});
+
+test('specs/booking-extranet-intake.md rule 28: a number inside the sentence that is not at its end is not taken for the phone', () => {
+  const text = replaceOnce(PAGE_6392081711, 'Un simple appel suffit : \n+33 6 12 34 56 78\n', 'Appelez le +33 6 12 34 56 78 pour plus d’infos.\n');
+  assert.equal(parse(text).booking.guest.phone, '');
+});
+
 test('specs/booking-extranet-intake.md rule 8: amounts and dates in the extranet’s notation', () => {
   assert.equal(parseAmount('€ 1 283,34'), 1283.34);
   assert.equal(parseAmount('1.283,34 €'), 1283.34);
