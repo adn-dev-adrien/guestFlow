@@ -496,6 +496,16 @@ function createPropertiesModel(database) {
       return property;
     },
 
+    /**
+     * Every pricing rule of a property, in the order the pricing engine reads them (first match wins).
+     * READ-ONLY — used by the public availability calendar (specs/booking-drawer-friction.md rule 10).
+     */
+    listPricingRules(id) {
+      return database
+        .prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate')
+        .all(Number(id));
+    },
+
     async create(body = {}, photoFile = null) {
       const photo = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const result = database.prepare(`

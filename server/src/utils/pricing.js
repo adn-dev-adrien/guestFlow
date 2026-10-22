@@ -1041,6 +1041,33 @@ function debugResourceLine(stage, payload) {
   }
 }
 
+// The rule (and the date range inside it) that prices one night: the first rule whose ranges cover
+// the date, or the first rule without ranges. No match → the engine's historical 100 € fallback.
+function matchNightRule(rules, dateStr) {
+  for (const rule of rules || []) {
+    const ranges = parseRuleDateRanges(rule);
+    if (!ranges.length) return { matchedRule: rule, matchedRange: null, nightlyBase: Number(rule.pricePerNight || 0) };
+    const hitRange = ranges.find((range) => dateStr >= range.startDate && dateStr <= range.endDate);
+    if (hitRange) return { matchedRule: rule, matchedRange: hitRange, nightlyBase: Number(rule.pricePerNight || 0) };
+  }
+  return { matchedRule: null, matchedRange: null, nightlyBase: 100 };
+}
+
+// A per-range override wins over the season default; both default to 1
+// (specs/pricing-min-nights-per-range.md rule 2).
+function effectiveMinNightsOf(rule, range) {
+  return Number(range?.minNights) >= 1
+    ? Number(range.minNights)
+    : Math.max(1, Number(rule.minNights || 1));
+}
+
+// The minimum a single night imposes on any stay that touches it, or null when no rule covers the
+// date (the public calendar does not offer an unpriced night — specs/booking-drawer-friction.md rule 10).
+function effectiveMinNightsForDate(rules, dateStr) {
+  const { matchedRule, matchedRange } = matchNightRule(rules, dateStr);
+  return matchedRule ? effectiveMinNightsOf(matchedRule, matchedRange) : null;
+}
+
 function calculateBaseStayPrice(rules, startDate, endDate) {
   const nights = diffIsoDatesInDays(startDate, endDate);
   if (nights <= 0) {
@@ -1070,32 +1097,11 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
 
   for (let nightIndex = 0; nightIndex < nights; nightIndex += 1) {
     const dateStr = currentDateStr;
-    let matchedRule = null;
-    let matchedRange = null;
-    let nightlyBase = 100;
-
-    for (const rule of rules) {
-      const ranges = parseRuleDateRanges(rule);
-      if (!ranges.length) {
-        matchedRule = rule;
-        nightlyBase = Number(rule.pricePerNight || 0);
-        break;
-      }
-      const hitRange = ranges.find((range) => dateStr >= range.startDate && dateStr <= range.endDate);
-      if (hitRange) {
-        matchedRule = rule;
-        matchedRange = hitRange;
-        nightlyBase = Number(rule.pricePerNight || 0);
-        break;
-      }
-    }
+    const { matchedRule, matchedRange, nightlyBase } = matchNightRule(rules, dateStr);
 
     if (matchedRule) {
       const label = String(matchedRule.label || 'Standard');
-      // A per-range override wins over the season default; both default to 1.
-      const effectiveMin = Number(matchedRange?.minNights) >= 1
-        ? Number(matchedRange.minNights)
-        : Math.max(1, Number(matchedRule.minNights || 1));
+      const effectiveMin = effectiveMinNightsOf(matchedRule, matchedRange);
       perNightMinNights.push(effectiveMin);
       minNightsByLabel.set(label, Math.max(minNightsByLabel.get(label) || 1, effectiveMin));
       // Maximum stay (specs/tariff-recipes/spec.md §3.4 rule 20bis), the mirror of the minimum:
@@ -2858,6 +2864,8 @@ module.exports = {
   getTypeMultiplier,
   computePercentOfStayAmount,
   resolveServedPersons,
+  effectiveMinNightsForDate,
+  getRuleNightBaseForDate,
 };
 
 module.exports.__test = {

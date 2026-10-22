@@ -21,6 +21,7 @@ if ($property_id <= 0) {
 }
 $show_options = !isset($attributes['showOptions']) || (bool) $attributes['showOptions'];
 $pay_online = !empty($attributes['payOnline']);
+$offer_request = $pay_online && !empty($attributes['offerRequest']);
 
 $wrapper = get_block_wrapper_attributes(['class' => 'gf-block gf-booking-block']);
 ?>
@@ -28,6 +29,7 @@ $wrapper = get_block_wrapper_attributes(['class' => 'gf-block gf-booking-block']
      data-gf-booking
      data-property-id="<?php echo esc_attr((string) $property_id); ?>"
      data-show-options="<?php echo $show_options ? '1' : '0'; ?>"
-     data-pay-online="<?php echo $pay_online ? '1' : '0'; ?>">
+     data-pay-online="<?php echo $pay_online ? '1' : '0'; ?>"
+     data-offer-request="<?php echo $offer_request ? '1' : '0'; ?>">
     <div class="gf-loading"><?php echo esc_html__('Chargement…', 'guestflow-booking'); ?></div>
 </div>

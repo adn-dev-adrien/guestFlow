@@ -529,3 +529,39 @@ msgstr "Next month"
 #: includes/class-gf-blocks.php:187
 msgid "Ne pas remplir"
 msgstr "Do not fill in"
+
+#: includes/class-gf-blocks.php:203
+msgid "min. %d"
+msgstr "min. %d"
+
+#: includes/class-gf-blocks.php:204
+msgid "Départ à partir du %s (%d nuits minimum)."
+msgstr "Departure from %s (%d nights minimum)."
+
+#: includes/class-gf-blocks.php:205
+msgid "%d nuits minimum : choisissez le %s ou plus tard."
+msgstr "%d nights minimum: choose %s or later."
+
+#: includes/class-gf-blocks.php:206
+msgid "soit %s par personne et par nuit"
+msgstr "that is %s per person per night"
+
+#: includes/class-gf-blocks.php:207
+msgid "Payer %s"
+msgstr "Pay %s"
+
+#: includes/class-gf-blocks.php:208
+msgid "Payer l’acompte %s"
+msgstr "Pay the deposit %s"
+
+#: includes/class-gf-blocks.php:209
+msgid "Envoyer une demande sans payer"
+msgstr "Send a request without paying"
+
+#: includes/class-gf-blocks.php:210
+msgid "Une question avant de vous engager ? Envoyez une demande : aucun paiement tant que nous n’avons pas répondu."
+msgstr "A question before you commit? Send a request: nothing to pay until we have replied."
+
+#: includes/class-gf-blocks.php:211
+msgid "Adresse e-mail invalide."
+msgstr "Invalid e-mail address."

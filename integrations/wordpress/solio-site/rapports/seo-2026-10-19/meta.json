@@ -1,0 +1,20 @@
+{
+  "accueil": {
+    "page": "front",
+    "avant_d": "Un gîte 3 étoiles pour 10 personnes et une tente safari, seuls sur 13 hectares de prairie et de forêt à Satillieu. Animaux, piscine, bain nordique.",
+    "t": "Domaine Solio, Satillieu : gîte pour 10 et lodge en Ardèche",
+    "d": "Un domaine de 13 ha rien que pour vous à Satillieu : gîte 3 étoiles pour 10, lodge safari, bain nordique offert, ânes et chèvres. Réservation en direct."
+  },
+  "le-domaine": {
+    "page": "le-domaine",
+    "avant_d": "13 hectares à Satillieu : ânes, chèvres et moutons que les enfants nourrissent eux-mêmes, une boucle de 2 km et un bain nordique privatif face aux prés.",
+    "t": "Bain nordique privatif en Ardèche, face aux prés | Solio",
+    "d": "Un bain nordique privatif face aux prés, une heure offerte à chaque séjour. Autour : 13 ha, ânes et chèvres, une boucle de 2 km à Satillieu."
+  },
+  "autour-de-nous": {
+    "page": "autour-de-nous",
+    "avant_d": "Le Safari de Peaugres à 25 minutes, le lac de Devesset, la Via Fluvia, Annonay à 15 km : nos idées de sorties testées autour du Domaine Solio.",
+    "t": "Que faire en Ardèche verte ? Nos sorties autour de Satillieu",
+    "d": "Safari de Peaugres à 25 min, lac de Devesset, Via Fluvia, Annonay à 15 km : nos sorties testées pour découvrir l’Ardèche verte depuis le Domaine Solio."
+  }
+}
