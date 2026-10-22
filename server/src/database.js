@@ -2235,6 +2235,19 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   if (!rcols.includes('attributionLabel')) db.exec('ALTER TABLE reservations ADD COLUMN attributionLabel TEXT');
   if (!rcols.includes('attribution')) db.exec('ALTER TABLE reservations ADD COLUMN attribution TEXT');
   if (!rcols.includes('attributionAt')) db.exec('ALTER TABLE reservations ADD COLUMN attributionAt TEXT');
+  // specs/platform-extra-guest-complement.md §5 — the persons the platform billed, and the part of the
+  // extra-guest supplement collected on arrival (real price, kept when offered). Reservations whose
+  // brut is already entered take their current composition as the paid base: their totals do not move.
+  if (!rcols.includes('platformPaidGuests')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN platformPaidGuests INTEGER');
+    db.prepare(`
+      UPDATE reservations
+         SET platformPaidGuests = COALESCE(adults, 1) + COALESCE(teens, 0) + COALESCE(children, 0)
+       WHERE platformGrossAmount IS NOT NULL AND LOWER(COALESCE(platform, 'direct')) <> 'direct'
+    `).run();
+  }
+  if (!rcols.includes('extraGuestComplementSurcharge')) db.exec('ALTER TABLE reservations ADD COLUMN extraGuestComplementSurcharge REAL NOT NULL DEFAULT 0');
+  if (!rcols.includes('extraGuestComplementCount')) db.exec('ALTER TABLE reservations ADD COLUMN extraGuestComplementCount INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_attribution_channel ON reservations(attributionChannel)');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.

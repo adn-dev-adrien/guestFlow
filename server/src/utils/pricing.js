@@ -3,6 +3,7 @@ const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
 const { isDirectChannel } = require('./platformNameFormat');
+const { isBrutPinned } = require('./platformPaidGuests');
 const { portionCap, clampPortions } = require('./mealPortions');
 const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
@@ -657,6 +658,16 @@ function getRuleNightBaseForDate(rules, dateStr) {
 //             prices drive the supplement too. A per-season `pricing_rules.extraGuestPrice`
 //             override wins over the property's unit price for the nights it covers; a fixed-mode
 //             season yields ratio 1 (a plain per-night fee).
+// specs/platform-extra-guest-complement.md §3.3 rule 7 — the extra guests above BOTH the free count and
+// what the platform billed are collected on arrival; the others stay inside the brut. No paid base
+// (direct, or a brut never entered) → nothing goes to the complement.
+function splitExtraGuestCount({ persons, includedGuests, paidGuests }) {
+  const extra = Math.max(0, Number(persons || 0) - Math.max(0, Number(includedGuests || 0)));
+  if (paidGuests == null) return { complementGuests: 0, inBrutGuests: extra };
+  const complementGuests = Math.max(0, Number(persons || 0) - Math.max(Number(includedGuests || 0), Number(paidGuests)));
+  return { complementGuests, inBrutGuests: extra - complementGuests };
+}
+
 function computeExtraGuestSurcharge({ unit, extraGuestCount, propertyUnitPrice, nightlyBreakdown, rules, lockedTiers }) {
   const count = Math.max(0, Number(extraGuestCount || 0));
   const baseUnit = Math.max(0, Number(propertyUnitPrice || 0));
@@ -1316,6 +1327,8 @@ function calculateReservationQuote({
   // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
   // the remainder (brut − options − resources − extra-guest). Empty / direct → normal pricing.
   platformGrossAmount: platformGrossAmountInput,
+  // specs/platform-extra-guest-complement.md — the persons the platform billed (server-owned).
+  platformPaidGuests = null,
   // specs/platform-tourist-tax-out-of-the-commission.md — the tourist tax the platform withheld from
   // its payout and remits to the commune itself, as the PLATFORM computed it (€, operator-entered).
   // Only read alongside a brut on a platform in mode « collecte ET reverse ». Empty → the brut is
@@ -1511,10 +1524,18 @@ function calculateReservationQuote({
   const extraGuestPriceUnit = (lockedTariff?.extraGuestPriceUnit ?? property.extraGuestPriceUnit) === 'per_night'
     ? 'per_night' : 'per_stay';
   const isExtraGuestSurchargeOffered = Boolean(extraGuestSurchargeOffered);
-  const extraGuestCount = Math.max(0, persons - includedGuests);
-  const extraGuestCalc = computeExtraGuestSurcharge({
+  // specs/platform-extra-guest-complement.md — a non-direct reservation counts no supplement until its
+  // brut is entered (rule 1); once it is, the guests above what the platform billed are collected on
+  // arrival (rules 7-10) and only they can be offered (rule 13).
+  const hasBrutPin = isBrutPinned(platform, platformGrossAmountInput);
+  const extraGuestCount = (!isDirectBooking && !hasBrutPin) ? 0 : Math.max(0, persons - includedGuests);
+  const resolvedPlatformPaidGuests = hasBrutPin && platformPaidGuests != null && Number.isFinite(Number(platformPaidGuests))
+    ? Math.max(0, Number(platformPaidGuests))
+    : null;
+  const extraGuestSplit = splitExtraGuestCount({ persons, includedGuests, paidGuests: resolvedPlatformPaidGuests });
+  const surchargeFor = (count) => computeExtraGuestSurcharge({
     unit: extraGuestPriceUnit,
-    extraGuestCount,
+    extraGuestCount: count,
     propertyUnitPrice: extraGuestUnitPrice,
     nightlyBreakdown,
     rules,
@@ -1523,8 +1544,18 @@ function calculateReservationQuote({
     // fallback (a test caught exactly that).
     lockedTiers: lockedTariff ? (lockedTariff.extraGuestTiers ?? []) : undefined,
   });
+  const extraGuestCalc = surchargeFor(extraGuestCount);
   const extraGuestSurchargeOriginal = extraGuestCalc.total;
-  const extraGuestSurcharge = isExtraGuestSurchargeOffered ? 0 : extraGuestSurchargeOriginal;
+  const extraGuestComplementCount = hasBrutPin ? extraGuestSplit.complementGuests : 0;
+  const extraGuestInBrutSurcharge = extraGuestComplementCount > 0
+    ? surchargeFor(extraGuestCount - extraGuestComplementCount).total
+    : extraGuestSurchargeOriginal;
+  const extraGuestComplementOriginal = roundMoney(extraGuestSurchargeOriginal - extraGuestInBrutSurcharge);
+  const extraGuestComplementSurcharge = isExtraGuestSurchargeOffered ? 0 : extraGuestComplementOriginal;
+  // On a pinned brut the in-brut part was paid on the platform: « Offrir » never reaches it.
+  const extraGuestSurcharge = hasBrutPin
+    ? roundMoney(extraGuestInBrutSurcharge + extraGuestComplementSurcharge)
+    : (isExtraGuestSurchargeOffered ? 0 : extraGuestSurchargeOriginal);
   const totalPrice = roundMoney(baseAccommodationPrice);
 
   // Price levers, normalised HERE rather than beside the totals below: a `percent_of_stay` option
@@ -2181,7 +2212,7 @@ function calculateReservationQuote({
     0,
     taxAccommodationPaid
       - touristTaxIncludedInRateDeduction
-      - (platformGrossPin != null ? extraGuestSurcharge : 0),
+      - (platformGrossPin != null ? extraGuestInBrutSurcharge : 0),
   ));
   // Rule 16 — a brut that does not even cover the extras billed alongside it is an inconsistent
   // entry, not a zero-euro stay. Floored above, surfaced on the fiche rather than swallowed.
@@ -2189,7 +2220,7 @@ function calculateReservationQuote({
   // is supposed to contain, so it counts in the threshold: a brut that covers the extras but not the
   // tax it claims to include is just as inconsistent.
   const touristTaxBrutInconsistent = platformGrossPin != null
-    && platformGrossPin < roundMoney(preArrivalOptionsResources + extraGuestSurcharge + withheldTouristTaxInBrut);
+    && platformGrossPin < roundMoney(preArrivalOptionsResources + extraGuestInBrutSurcharge + withheldTouristTaxInBrut);
 
   const touristTaxBreakdown = computeTouristTaxBreakdown({
     touristTaxMode: property.touristTaxMode,
@@ -2254,7 +2285,7 @@ function calculateReservationQuote({
   const pinnedAccommodation = platformGrossPin != null
     ? roundMoney(Math.max(
       0,
-      platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources
+      platformGrossPin - extraGuestInBrutSurcharge - preArrivalOptionsResources
         - reversedTouristTaxInBrut - withheldTouristTaxInBrut,
     ))
     : null;
@@ -2334,6 +2365,7 @@ function calculateReservationQuote({
       (sum, line) => sum + (Number(line.inComplement || 0) ? Number(line.totalPrice || 0) : 0),
       0,
     )
+    + extraGuestComplementSurcharge,
   );
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.3 — the mid-stay part leaves BOTH the
   // pre-arrival split (its unforced share) and the arrival complement (its forced share). Everything
@@ -2570,6 +2602,15 @@ function calculateReservationQuote({
         amount,
       });
     }
+    if (extraGuestComplementSurcharge > 0) {
+      complementDetailLines.push({
+        kind: 'extraGuests',
+        label: 'Voyageurs ajoutés',
+        qty: extraGuestComplementCount,
+        unitPrice: roundMoney(extraGuestComplementSurcharge / extraGuestComplementCount),
+        amount: extraGuestComplementSurcharge,
+      });
+    }
     if (taxInComplement > 0) {
       complementDetailLines.push({ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: roundMoney(taxInComplement), amount: roundMoney(taxInComplement) });
     }
@@ -2665,6 +2706,12 @@ function calculateReservationQuote({
     extraGuestSurchargeOffered: isExtraGuestSurchargeOffered,
     extraGuestSurchargeOriginal,
     extraGuestSurcharge,
+    extraGuestInBrutCount: extraGuestCount - extraGuestComplementCount,
+    extraGuestInBrutSurcharge,
+    extraGuestComplementCount,
+    extraGuestComplementOriginal,
+    extraGuestComplementSurcharge,
+    platformPaidGuests: resolvedPlatformPaidGuests,
     optionsTotal,
     resourcesTotal,
     subtotal,
@@ -2793,6 +2840,7 @@ module.exports = {
   roundMoney,
   grossFromNet,
   computeExtraGuestSurcharge,
+  splitExtraGuestCount,
   parseJsonArray,
   normalizeOptionProgressiveTiers,
   calculateProgressiveParticipantOptionTotal,

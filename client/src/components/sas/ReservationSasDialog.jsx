@@ -62,6 +62,7 @@ import { PRICE_TYPE_LABELS } from '../reservation/extrasLabels';
 import { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+const EXTRA_GUESTS_OFFER_KEY = 'extraGuests:0';
 // The real price of a stored end-of-stay line: what it is billed at, or what it WOULD be billed at
 // once offered. The server stores that total verbatim (`originalAmount`), so there is no price to
 // rebuild here — specs/sas-offer-complement-lines.md §3.1 rule 3.bis. The `qty × unitPrice` branch is
@@ -397,6 +398,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           }
           for (const rs of (res.resources || [])) {
             if (Number(rs.inComplement || 0) === 1 && Number(rs.offered || 0) === 1) seed.add(`resource:${rs.resourceId}`);
+          }
+          if (Number(res.extraGuestComplementSurcharge || 0) > 0 && Number(res.extraGuestSurchargeOffered || 0) === 1) {
+            seed.add(EXTRA_GUESTS_OFFER_KEY);
           }
         } else {
           // At check-out the recalled arrival lines arrive itemised with their `ref` — offered included.
@@ -778,6 +782,21 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     // arrival it's part of `complementAmount` but isn't an option/resource line; itemise it explicitly
     // (server-computed amount) so the detail reconciles with the « existing » total. Never offerable
     // (§3.2 rule 7): the tax is reversed to the commune, it can't be a geste commercial.
+    // specs/platform-extra-guest-complement.md §3.5 rule 17 — the guests added after the brut was
+    // entered: stored by the server with its real price, offerable like any in-complement extra.
+    const extraGuestsReal = round2(r?.extraGuestComplementSurcharge);
+    if (extraGuestsReal > 0) {
+      const count = Number(r?.extraGuestComplementCount || 1);
+      lines.push({
+        label: `Voyageurs ajoutés · ${count} pers.`,
+        qty: count,
+        unitPrice: round2(extraGuestsReal / count),
+        offerKey: EXTRA_GUESTS_OFFER_KEY,
+        storedOffered: Number(r?.extraGuestSurchargeOffered || 0) === 1,
+        real: extraGuestsReal,
+        amount: billed(EXTRA_GUESTS_OFFER_KEY, extraGuestsReal),
+      });
+    }
     const taxAmount = round2(r?.touristTaxInComplementAmount);
     if (taxAmount > 0) lines.push({ label: 'Taxe de séjour', qty: 1, unitPrice: taxAmount, amount: taxAmount, real: taxAmount });
     return lines;
@@ -976,7 +995,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const [kind, id] = l.offerKey.split(':');
       return { kind, id: Number(id) };
     })
-    .filter((ref) => ['option', 'resource', 'custom'].includes(ref.kind) && Number.isFinite(ref.id));
+    .filter((ref) => ['option', 'resource', 'custom', 'extraGuests'].includes(ref.kind) && Number.isFinite(ref.id));
   // A recap line as the server stores it: the REAL price plus the gesture, never the netted amount —
   // the server is what puts an offered line at 0 €.
   const toDetailLine = (l) => ({
