@@ -60,10 +60,10 @@ const DDL = `
     startDate TEXT NOT NULL, endDate TEXT NOT NULL,
     createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
   );
-  CREATE TABLE ical_export_ranges (propertyId INTEGER NOT NULL, startDate TEXT NOT NULL, endDate TEXT NOT NULL, PRIMARY KEY (propertyId, startDate, endDate));
+  CREATE TABLE ical_export_ranges (propertyId INTEGER NOT NULL, startDate TEXT NOT NULL, endDate TEXT NOT NULL, sourceIcalSourceId INTEGER, PRIMARY KEY (propertyId, startDate, endDate));
   CREATE TABLE ical_export_tombstones (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER NOT NULL, startDate TEXT NOT NULL, endDate TEXT NOT NULL,
-    removedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    removedAt TEXT NOT NULL DEFAULT (datetime('now')), sourceIcalSourceId INTEGER
   );
   CREATE TABLE ical_superseded_events (
     sourceId INTEGER NOT NULL, eventUid TEXT NOT NULL, reservationId INTEGER NOT NULL, supersededBySourceId INTEGER NOT NULL,

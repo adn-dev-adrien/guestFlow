@@ -80,6 +80,8 @@ reconciled to the payout (✓). The operator only checks the fiche.
    séjour ») about 0.7 s after « Numéro de réservation »; the first script (`@version 1`) sent the
    page before it and every intake was refused « Sous-total introuvable ». The wait watches the text,
    not a label, so rule 5 holds. `@version 2` — copies installed before must be reinstalled.
+   > **Amended 2026-10-22 (rule 29):** that diagnosis was wrong — the price table sits in a folded
+   > accordion the script now opens first (`@version 3`).
 4. The request is `POST <publicUrl>/public/booking-intake/page` with the secret in the header
    `X-Booking-Intake-Key`, sent with `GM_xmlhttpRequest` (no CORS, no page CSP involved). Body
    `{ v: 1, hotelId, resId, text }`, 128 kB max.
@@ -99,7 +101,7 @@ reconciled to the payout (✓). The operator only checks the fiche.
 8. The parser normalises ` `, ` `, `​` and reads, by label then next non-empty line:
    arrival / departure dates, « Durée de séjour », « Nombre de personnes » (adults + every child's
    age), « Montant total », guest name (« Identité vérifiée » stripped; Booking writes « Prénom Nom »),
-   2-letter country, relay e-mail, phone, « Langue préférée », « Numéro de réservation », « Montant
+   2-letter country, relay e-mail, phone (rule 30), « Langue préférée », « Numéro de réservation », « Montant
    soumis à commission », « Commission et frais », the nightly lines, « Sous-total », « Taxe de
    séjour », « Heure d'arrivée approximative », and the guest messages of « Conversation avec le
    client » and « Demandes des clients ».
@@ -143,6 +145,8 @@ reconciled to the payout (✓). The operator only checks the fiche.
       Taxe de séjour, `platformPayoutAmount` = Montant total − Commission et frais,
       `platformCommissionAmount` = brut − payout − tourist tax, rounded to the cent (server formula,
       same figure the fiche's « Calculer la commission » gives);
+      > **Amended 2026-10-22 (rule 31):** the tax is written and subtracted only when Booking's mode is
+      > `platform`; otherwise it stays empty and the commission is « Commission et frais ».
     - notes: the guest's requests **appended** under a line « Booking, 15/10 : », never replacing the
       operator's text, and not repeated when the same block is already there;
     - history entry « Rempli depuis l'extranet Booking (réservation <res_id>) ».
@@ -226,6 +230,37 @@ automatic e-mails of those stays then went to the wrong guest (review 2026-10-18
     names as the client's own (« à garder »). The others are « à vérifier ». The script opens the
     database read-only and changes nothing.
 
+### 3.7 The page as Booking really serves it (2026-10-22)
+
+Measured on the gîte's reservation 6669322709, the first intake ever applied in production (the eight
+attempts since 2026-10-16 were all refused « Sous-total introuvable »).
+
+29. **The script opens every collapsed room accordion before reading the page.** Booking shows the
+    room line (« Maison 4 Chambres (…) € 710 ») folded, and its price table — « Sous-total », « Taxe
+    de séjour » — is absent from `innerText` until it is opened. After revealing the phone, the script
+    clicks every `button.bui-accordion__row-inner[aria-expanded="false"]`, then waits for the text to
+    settle (rule 3) — it never waits on a price label, so rule 5 holds. `@version 3`: earlier copies
+    must be reinstalled.
+    *The 2026-10-16 diagnosis was wrong:* the table did not come late, it never came while folded. The
+    settle wait stays, it is what lets the opened accordion render.
+30. **The phone may close Booking's own sentence.** Once revealed, the number can sit on its own line
+    or end « Un simple appel suffit : +33 6 … ». The parser takes a `+`-prefixed number that ends a
+    line of the guest block (rule 8); a number in the middle of a sentence is not taken.
+31. **The tourist tax is « retenue » only when Booking keeps it.** « Commission et frais » on the page
+    is Booking's commission alone (16,44 % of the Sous-total, measured on three settled stays and on
+    6669322709: 113,44 € = 16,44 % × 690 €), so the payout (rule 15) still holds the tax. Whether that
+    tax is ours depends on the Booking platform's tourist-tax mode
+    (specs/per-platform-tourist-tax-three-way.md):
+    - `platform` (Booking collects **and** remits to the commune): `platformTouristTaxAmount` = Taxe de
+      séjour, and the commission = brut − payout − tax, as rule 15 says;
+    - `platform_reversed` (Booking collects and reverses it to us — the setting since 2026-10-16) or
+      `owner`: `platformTouristTaxAmount` stays **empty** and the commission = brut − payout, i.e.
+      « Commission et frais ». Writing the tax there made the fiche's reconciliation show an écart
+      equal to it (20,02 € on 6669322709).
+    A filled fiche carrying a withheld tax that the mode no longer explains gets a proposal to clear it
+    (rule 17); an empty tax on both sides is not a difference. The mode is read through
+    `ctx.core.reservations.platformWithholdsTouristTax(propertyId, 'booking')`.
+
 ---
 
 ## 4. Architecture
@@ -239,7 +274,7 @@ Targets **`master`**, on top of `specs/plugin-engine-backport.md`.
 |---|---|---|---|
 | `utils/` | `platformCommission.js` | C | Pure: `(gross, payout, touristTax, acompteCommission)` → commission, rounded to the cent (rule 15). |
 | `controllers/` | `reservationsController.js` | T | `POST /api/reservations/platform-commission` → the util; « Calculer la commission » calls it. |
-| `plugins/sdk/` | `coreServices.js` | T | `ctx.core.clients.update(id, patch)` (through `clientsModel`, same normalisation as the client dialog); `ctx.core.reservations.platformCommission(...)`. **Also cherry-picked identically onto `inte/plugins`**, so the same file does not diverge. |
+| `plugins/sdk/` | `coreServices.js` | T | `ctx.core.clients.update(id, patch)` (through `clientsModel`, same normalisation as the client dialog); `ctx.core.reservations.platformCommission(...)`; `ctx.core.reservations.platformWithholdsTouristTax(propertyId, platformKey)` (rule 31, through `pricing.isPlatformCollectingTouristTax` / `isTouristTaxRemittedByOwner`). **Also cherry-picked identically onto `inte/plugins`**, so the same file does not diverge. |
 | `client/src/components/reservation/` | `FinanceSection.jsx` | T | « Calculer la commission » calls the endpoint; `computeCommissionFromPayout` is deleted (CLAUDE.md §6.0). |
 | `client/src/` | `api.js` | T | `computePlatformCommission`. |
 | `server/scripts/` | `diagnose-shared-clients.js` | C | Rule 28: opens a database `readonly`, finds the clients shared by stays and carrying a guest's coordinates, prints the French report (`--json` for the raw result). Outside `src/` because it reads the plugin's table, which no core file names (rule 1). |
@@ -351,9 +386,14 @@ full-width on `xs`; banner buttons likewise; settings card follows `StatusCard`.
     refused, notes appended once, no e-mail sent, raw text never stored, refused intake logged.
   - `public-route.unit.test.js` (rules 1, 7): wrong / missing secret → 401 before any read, valid →
     handled, rate limit, inactive plugin → 404, body > 128 kB refused, nothing of the body in logs.
-  - `userscript.unit.test.js` (rules 2–5): embeds URL and secret, `@match` limited to the extranet
+  - `userscript.unit.test.js` (rules 2–5, 29): embeds URL and secret, `@match` limited to the extranet
     reservation page, one request per view guard, reads the page only once its text has settled, no
-    parsing in the script.
+    parsing in the script, opens every folded room accordion before the settle wait (`@version 3`).
+  - `page-parser.unit.test.js` also covers rule 30: the phone ending Booking's sentence is read, a
+    number in the middle of a sentence is not.
+  - `intake-service.unit.test.js` also covers rule 31 (3 cases): reversed mode → no withheld tax and the
+    commission is « Commission et frais »; a fiche carrying a withheld tax gets a proposal to clear it;
+    empty on both sides is the same.
   - `own-client.unit.test.js` (rule 27, 4 cases on a real SQLite): two stays sharing the placeholder
     filled in turn each keep their guest; a shared client already carrying another guest's e-mail counts
     as untouched; « Appliquer » relinks instead of renaming; a client found by e-mail that another stay
@@ -389,6 +429,13 @@ full-width on `xs`; banner buttons likewise; settings card follows `StatusCard`.
 ## 9. Open questions
 
 None.
+
+**Implementation notes (2026-10-22):** rules 29–31 from the first production intake (6669322709): the
+script v3 was tested by the operator in Safari before the change; the shadow run on a production copy
+is recorded in the PR.
+On `master` these rules are numbered 27–29 and the shared-client rules 25–26; `inte/plugins`
+already used 25–26 for the secret rules (review M1/M2), so the merge of 2026-10-22 kept the
+shared-client rules at 27–28 and appended these three as 29–31.
 
 **Implementation notes (2026-10-16):**
 

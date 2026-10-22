@@ -132,6 +132,17 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-fill); outline-of
 @keyframes gf-slide-next { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 @keyframes gf-slide-prev { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
 @keyframes gf-fade { from { opacity: 0; } to { opacity: 1; } }
+/* specs/booking-drawer-friction.md rules 11-13 — the night's price under the day, and the departures
+   under the minimum stay: hatched in a warm tone, reachable by extending the stay, never struck like a
+   taken night. */
+button.gf-cal-day { flex-direction: column; line-height: 1.1; }
+button.gf-cal-day .gf-cal-price { display: block; font-size: .6rem; font-weight: 400; color: var(--gfb-muted); }
+button.gf-cal-day.gf-edge .gf-cal-price { color: inherit; opacity: .85; }
+button.gf-cal-day.gf-short { background: repeating-linear-gradient(135deg, var(--gfb-warn-soft) 0 5px, var(--gfb-surface) 5px 10px); color: var(--gfb-warn); cursor: not-allowed; }
+button.gf-cal-day.gf-short .gf-cal-price { color: var(--gfb-warn); }
+button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19, .97); }
+@keyframes gf-shake { 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { button.gf-cal-day.gf-shake { animation: none; } }
 
 /* Booking wizard */
 .gf-booking { border: 1px solid var(--gfb-border); border-radius: 12px; padding: 1.25rem 1.4rem; }
@@ -221,6 +232,14 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-fill); outline-of
 .gf-block .gf-btn, .gf-btn.gf-engine, .gfb-cta { background: var(--gfb-fill); color: var(--gfb-on-accent); border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; transition: transform .1s ease-out, background-color .15s ease; user-select: none; -webkit-user-select: none; }
 .gf-block .gf-btn:active:not([disabled]), .gf-btn.gf-engine:active:not([disabled]), .gfb-cta:active:not([disabled]) { transform: scale(.98); }
 .gf-block .gf-btn[disabled], .gf-btn.gf-engine[disabled], .gfb-cta[disabled] { opacity: .5; cursor: not-allowed; }
+/* Rules 2-4 of specs/booking-drawer-friction.md: the price per person under the total, and the request
+   without paying beside the payment. The alternative stays in the flow when the primary moves to the
+   sticky bar or the summary card. */
+.gf-summary-pp { text-align: right; font-size: .82rem; color: var(--gfb-muted); padding-top: .15rem; }
+.gf-request-hint { margin: .9rem 0 .6rem; padding: .6rem .8rem; border-radius: 8px; background: var(--gfb-tint); border: 1px solid var(--gfb-range); font-size: .9rem; }
+.gf-block .gf-btn.gf-btn-alt, .gf-btn.gf-engine.gf-btn-alt { background: #fff; color: inherit; border: 1.5px solid currentColor; margin: .5rem 0 0 .5rem; }
+.gf-booking > .gf-btn.gf-btn-alt { display: inline-block; }
+.gf-booking > .gf-btn.gf-btn-alt[hidden], .gf-booking > .gf-request-hint[hidden] { display: none; }
 /* CGV acceptance (specs/terms-acceptance-record.md rule 10): the whole line is the hit area. */
 .gf-cgv-accept { display: flex; gap: .6rem; align-items: flex-start; margin: .9rem 0 .4rem; cursor: pointer; line-height: 1.45; }
 .gf-cgv-accept input { width: 20px; height: 20px; margin: .1rem 0 0; flex: 0 0 auto; accent-color: var(--gfb-accent); }
@@ -308,6 +327,7 @@ button.gf-cal-day:focus-visible { outline: 2px solid var(--gfb-fill); outline-of
   .gf-group-toggle:hover { text-decoration: underline; }
   .gf-step-btn:hover:not(:disabled) { background: var(--gfb-range); }
   .gf-block .gf-btn:hover:not([disabled]), .gf-btn.gf-engine:hover:not([disabled]), .gfb-cta:hover:not([disabled]), .gf-cal-next-go:hover { background: var(--gfb-fill-strong); }
+  .gf-block .gf-btn.gf-btn-alt:hover:not([disabled]), .gf-btn.gf-engine.gf-btn-alt:hover:not([disabled]) { background: var(--gfb-tint); }
 }
 
 @media (prefers-reduced-motion: reduce) {

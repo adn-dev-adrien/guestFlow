@@ -9,6 +9,7 @@ const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
+const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs } = require('../utils/financeValidation');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
@@ -932,6 +933,8 @@ async function calculatePrice(req, res) {
     // specs/platform-payment-entry.md — the brut pins the total séjour (finalPrice = brut, accommodation
     // back-solved). Forwarded so the live preview reflects it.
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-extra-guest-complement.md §3.2 — previewed exactly as the save will capture it.
+    platformPaidGuests: resolvePlatformPaidGuests(reservationId > 0 ? model.getRow(reservationId) : null, req.body),
     // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
     // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
     // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
@@ -1147,6 +1150,9 @@ function createStay(req, res) {
     // vs fiche 994/903).
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-extra-guest-complement.md §3.2 rule 4 — a brut entered at creation captures the
+    // composition sold by the platform.
+    platformPaidGuests: resolvePlatformPaidGuests(null, req.body),
     // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
     // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
     // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
@@ -1556,6 +1562,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // and the commission (reduces the solde to the net) to the engine on SAVE, not just the live preview.
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-extra-guest-complement.md §3.2 rules 4-6 — captured on the save that enters the
+    // brut, kept while it stays entered, cleared with it.
+    platformPaidGuests: resolvePlatformPaidGuests(storedPaymentForQuote, req.body),
     // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
     // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
     // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
@@ -1595,7 +1604,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
-      'extraGuestSurchargeOffered', 'depositAmount', 'balanceAmount', 'depositPaid', 'balancePaid',
+      'extraGuestSurchargeOffered', 'platformPaidGuests', 'depositAmount', 'balanceAmount', 'depositPaid', 'balancePaid',
       // The caution columns left this list with specs/reservation-payment-ledger.md rule 13: the save
       // carries the stored values back, only the payment PATCH changes them.
       // `depositDisabled` is allowed on past reservations too — an admin may realise after

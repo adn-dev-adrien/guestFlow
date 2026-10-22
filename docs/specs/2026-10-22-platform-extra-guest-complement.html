@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voyageurs ajoutés</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-soft:#E3ECE6; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E4DED2;
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root{--primary:#7FB596;--primary-soft:#22352B;--paper:#1B1A17;--card:#25231F;--ink:#EEEAE0;--muted:#A7A192;--line:#3A3730;
+    --success:#7FB596;--success-soft:#22352B;--warning:#D9B15E;--warning-soft:#3A3120;--error:#E08C82;--error-soft:#3D2522;--info:#8FB4CF;--info-soft:#22303A;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);-webkit-text-size-adjust:100%}
+main{max-width:1080px;margin:0 auto;padding:32px 16px 64px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0}
+h1{font-size:1.9rem}
+h2{font-size:1.25rem;margin:40px 0 12px}
+h3{font-size:1.05rem;margin-bottom:10px}
+p{margin:0 0 10px}
+.lead{color:var(--muted);max-width:68ch;margin-top:8px}
+.meta{font-size:.82rem;color:var(--muted);margin-bottom:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.grid3{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+ul{margin:0;padding-left:18px}
+li{margin:4px 0}
+.num{font-variant-numeric:tabular-nums}
+
+/* Démo */
+.demo{display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);align-items:start}
+@media (max-width:820px){.demo{grid-template-columns:1fr}}
+.scenarios{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chipbtn{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 12px;cursor:pointer;min-height:36px}
+.chipbtn:hover{border-color:var(--primary)}
+.chipbtn:active{transform:scale(.97)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row label{font-size:.92rem}
+.row small{display:block;color:var(--muted);font-size:.78rem}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
+.stepper button{font:inherit;width:44px;height:44px;border:0;background:transparent;color:var(--primary);font-size:1.2rem;cursor:pointer}
+.stepper button:disabled{color:var(--line);cursor:default}
+.stepper button:active:not(:disabled){background:var(--primary-soft)}
+.stepper input{width:52px;height:44px;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font:inherit;font-variant-numeric:tabular-nums;background:transparent;color:var(--ink)}
+.stepper input::placeholder{color:var(--muted)}
+.stepper.invalid{border-color:var(--error);box-shadow:0 0 0 3px var(--error-soft)}
+.err{color:var(--error);font-size:.8rem;margin-top:6px;min-height:1.2em}
+.blockhead{display:flex;align-items:center;gap:8px;margin:16px 0 4px;font-weight:600;font-size:.9rem}
+.blockhead:first-child{margin-top:0}
+.blockhead .dot{width:8px;height:8px;border-radius:50%;background:var(--info)}
+.prop{font-size:.8rem;color:var(--muted);background:var(--paper);border-radius:10px;padding:8px 10px;margin-top:12px}
+.prop select{font:inherit;font-size:.8rem;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 4px}
+
+.line{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:center}
+.line:last-child{border-bottom:0}
+.line .lbl{font-size:.92rem}
+.line .sub{grid-column:1/-1;font-size:.78rem;color:var(--muted);margin-top:-2px}
+.amt{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.amt s{color:var(--muted);margin-right:6px}
+.chip{display:inline-block;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--warning-soft);color:var(--warning);margin-left:6px;vertical-align:1px}
+.chip.brut{background:var(--info-soft);color:var(--info)}
+.offer{font:inherit;font-size:.78rem;border:1px solid var(--line);background:transparent;color:var(--primary);border-radius:8px;padding:4px 10px;cursor:pointer;min-height:32px;margin-left:8px}
+.offer[aria-pressed="true"]{background:var(--success-soft);border-color:var(--success);color:var(--success)}
+.total{display:flex;justify-content:space-between;font-weight:600;padding-top:12px;margin-top:4px;border-top:2px solid var(--ink)}
+.newline{animation:arrive .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes arrive{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.newline{animation:none}}
+.sas{border-top:4px solid var(--primary)}
+.sashead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.empty{color:var(--muted);font-size:.85rem;padding:10px 0}
+.note{font-size:.8rem;color:var(--muted);margin-top:10px}
+.decided{color:var(--success);font-weight:600}
+.open{color:var(--warning);font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+td,th{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+.tablewrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+  <div class="meta">Spec <code>specs/platform-extra-guest-complement.md</code> · brouillon du 22/10/2026</div>
+  <h1>Voyageurs ajoutés après une réservation plateforme</h1>
+  <p class="lead">Quand des personnes s'ajoutent à une réservation iCal au-delà de ce que la plateforme a facturé, le supplément passe automatiquement dans le complément d'arrivée, apparaît dans le sas, et reste offrable.</p>
+
+  <h2>Le constat</h2>
+  <div class="grid3">
+    <div class="card"><span class="tag">Aujourd'hui</span><p>Le supplément est calculé, mais <strong>pris dans le brut</strong> : ajouter un voyageur fait baisser la part hébergement, le total ne bouge pas.</p></div>
+    <div class="card"><span class="tag">Conséquence</span><p>Rien n'arrive dans le complément, rien dans le sas : le supplément n'est jamais encaissé.</p></div>
+    <div class="card"><span class="tag">Piège</span><p>Les flux Booking ne donnent pas le nombre de voyageurs (1 adulte par défaut). La saisie extranet corrige ensuite la composition avec des personnes <strong>déjà payées</strong>, en même temps que le brut.</p></div>
+  </div>
+
+  <h2>Ce qu'on propose — à manipuler</h2>
+  <p class="lead">Exemple : 3 nuits, 2 personnes gratuites, 20 € par personne et par nuit, brut plateforme 600 €. Aucun champ nouveau : la composition et le brut existent déjà.</p>
+  <div class="scenarios" role="group" aria-label="Scénarios">
+    <button class="chipbtn" data-s="import">1 · Import iCal (sans brut)</button>
+    <button class="chipbtn" data-s="intake">2 · Saisie extranet : 4 adultes + brut</button>
+    <button class="chipbtn" data-s="friend">3 · Un ami s'ajoute</button>
+    <button class="chipbtn" data-s="baby">4 · Un bébé s'ajoute</button>
+    <button class="chipbtn" data-s="fix">5 · Brut corrigé (610 €)</button>
+    <button class="chipbtn" data-s="clear">6 · Brut effacé</button>
+  </div>
+
+  <div class="demo">
+    <div class="card">
+      <h3>Fiche — réservation Booking</h3>
+      <div class="blockhead">Composition</div>
+      <div id="compo"></div>
+      <div class="blockhead"><span class="dot"></span>Paiement plateforme</div>
+      <div class="row">
+        <label for="brut">Montant brut<small>Champ existant · le saisir fige les personnes payées</small></label>
+        <div class="stepper" id="brutBox"><input id="brut" inputmode="decimal" placeholder="—" aria-describedby="brutErr" style="width:120px;border:0"></div>
+      </div>
+      <div class="err" id="brutErr" role="alert"></div>
+      <div class="prop">Gîte : capacité 6 · 2 personnes gratuites · supplément 20 €
+        <select id="unit" aria-label="Unité du supplément"><option value="night">par nuit</option><option value="stay">par séjour</option></select>
+      </div>
+    </div>
+
+    <div style="display:grid;gap:16px">
+      <div class="card">
+        <h3>Récapitulatif de prix (fiche)</h3>
+        <div id="summary"></div>
+      </div>
+      <div class="card sas">
+        <div class="sashead"><h3>Sas d'arrivée — à percevoir</h3><span class="meta" style="margin:0">lecture seule de la composition</span></div>
+        <div id="sas"></div>
+      </div>
+    </div>
+  </div>
+  <p class="note">Le calcul montré ici est une simulation pour la maquette ; dans l'application, il est fait par le serveur et la fiche n'affiche que le résultat.</p>
+
+  <h2>Les règles</h2>
+  <div class="card">
+    <ul>
+      <li><strong>Tant que le brut n'est pas saisi</strong>, aucun supplément n'est compté : la composition se corrige librement.</li>
+      <li><strong>À la saisie du brut</strong>, le serveur retient le nombre de personnes de ce moment (bébés exclus) comme personnes payées. Rien de plus à remplir.</li>
+      <li>Corriger le montant du brut ne change pas cette base ; effacer le brut la remet à zéro.</li>
+      <li><strong>Voyageurs en complément</strong> = personnes au-delà du plus grand des deux : nombre gratuit ou personnes payées.</li>
+      <li>Seule la part déjà payée reste dans le brut ; la part ajoutée va <strong>dans le complément d'arrivée</strong>, au taux de TVA de l'hébergement.</li>
+      <li>La ligne suit la composition : elle monte, descend, disparaît. Un complément déjà encaissé reste figé.</li>
+      <li>« Offrir » ne porte que sur la part ajoutée ; le prix reste visible barré.</li>
+      <li>Le sas affiche et offre la ligne, il ne modifie jamais la composition.</li>
+      <li>Réservations existantes avec brut : la base est reprise de leur composition actuelle, leur total ne bouge pas.</li>
+    </ul>
+  </div>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <div class="card"><ul>
+    <li>Modifier la composition depuis le sas.</li>
+    <li>Afficher ou modifier la base payée : un seul fonctionnement, la composition.</li>
+    <li>Prévenir le client automatiquement (aucun email sans validation).</li>
+    <li>Toucher la taxe de séjour : elle suit déjà la composition.</li>
+  </ul></div>
+
+  <h2>Le risque</h2>
+  <div class="card"><p>Une composition déjà gonflée au moment de la saisie du brut serait comptée comme payée : saisir la composition vendue par la plateforme <em>avant</em> ou <em>avec</em> le brut, ce que fait déjà la skill de saisie extranet. Autre effet : une réservation plateforme sans brut perd son supplément provisoire — il n'était de toute façon pas encaissable.</p></div>
+
+  <h2>Arbitrages</h2>
+  <div class="card tablewrap"><table>
+    <tr><th>Question</th><th>Choix</th><th>État</th></tr>
+    <tr><td>Base déjà payée</td><td>Pas de champ : la composition au moment où le brut est saisi</td><td class="decided">Tranché 22/10</td></tr>
+    <tr><td>Déclencheur</td><td>La fiche seulement ; le sas affiche et offre</td><td class="decided">Tranché 22/10</td></tr>
+    <tr><td>Personnes retirées</td><td>Ligne recalculée</td><td class="decided">Tranché 22/10</td></tr>
+    <tr><td>Brut corrigé après coup</td><td>La base ne bouge pas ; effacer le brut la remet à zéro</td><td class="decided">Tranché 22/10</td></tr>
+    <tr><td>Réservations existantes avec brut</td><td>Base reprise de la composition actuelle</td><td class="decided">Tranché 22/10</td></tr>
+  </table></div>
+</main>
+
+<script>
+const NIGHTS=3, FREE=2, PRICE=20, CAP=6;
+const st={adults:1,teens:0,children:0,babies:0,brut:null,paid:null,unit:'night',offered:false};
+const KIDS=[['adults','Adultes',1],['teens','Ados',0],['children','Enfants',0],['babies','Bébés',0]];
+const eur=n=>n.toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
+const per=()=>st.unit==='night'?PRICE*NIGHTS:PRICE;
+const persons=()=>st.adults+st.teens+st.children;
+let lastComp=0;
+
+function renderCompo(){
+  const box=document.getElementById('compo'); box.innerHTML='';
+  KIDS.forEach(([k,l,min])=>{
+    const r=document.createElement('div'); r.className='row';
+    r.innerHTML=`<label>${l}${k==='babies'?'<small>Jamais comptés dans le supplément</small>':''}</label>
+      <div class="stepper"><button type="button" aria-label="Retirer ${l}" ${st[k]<=min?'disabled':''}>−</button>
+      <input value="${st[k]}" readonly aria-label="${l}"><button type="button" aria-label="Ajouter ${l}" ${(k!=='babies'&&persons()>=CAP)?'disabled':''}>+</button></div>`;
+    const [m,,p]=r.querySelectorAll('button,input');
+    m.onclick=()=>{st[k]--;update()}; p.onclick=()=>{st[k]++;update()};
+    box.appendChild(r);
+  });
+}
+
+// Simulation of the server rule: the paid base is captured when the brut goes from empty to entered.
+function setBrut(v){
+  if(v==null){st.brut=null;st.paid=null;return}
+  if(st.brut==null)st.paid=persons();
+  st.brut=v;
+}
+
+function calc(){
+  const n=persons();
+  if(st.brut==null)return {n,none:true,extra:Math.max(0,n-FREE)};
+  const extra=Math.max(0,n-FREE);
+  const comp=Math.max(0,n-Math.max(FREE,st.paid));
+  const inBrut=extra-comp;
+  return {n,extra,comp,inBrut,inBrutAmt:inBrut*per(),compAmt:comp*per()};
+}
+
+function offerBtn(){return `<button class="offer" aria-pressed="${st.offered}" onclick="st.offered=!st.offered;update()">${st.offered?'✓ Offert':'Offrir'}</button>`}
+
+function render(){
+  const c=calc(), sum=document.getElementById('summary'), sas=document.getElementById('sas');
+  if(c.none){
+    sum.innerHTML=`<div class="line"><span class="lbl">Montant plateforme</span><span class="amt">à saisir</span>
+      <span class="sub">${c.extra?`${c.n} personnes, ${c.extra} au-delà des gratuites : aucun supplément tant que le brut n'est pas saisi`:'Aucun supplément tant que le brut n\'est pas saisi'}</span></div>`;
+    sas.innerHTML=`<div class="empty">Aucun voyageur ajouté à percevoir.</div><div class="total"><span>À percevoir à l'arrivée</span><span class="amt">${eur(0)}</span></div>`;
+    lastComp=0;return;
+  }
+  const lineCls=c.comp>0&&lastComp===0?'line newline':'line';
+  const compShown=st.offered?0:c.compAmt;
+  const amt=st.offered?`<s>${eur(c.compAmt)}</s>${eur(0)}`:eur(c.compAmt);
+  let h=`<div class="line"><span class="lbl">Hébergement<span class="chip brut">Brut</span></span><span class="amt">${eur(st.brut-c.inBrutAmt)}</span>
+    <span class="sub">Brut plateforme ${eur(st.brut)}${c.inBrut?' moins le supplément déjà payé':''}</span></div>`;
+  if(c.inBrut)h+=`<div class="line"><span class="lbl">Supplément personnes · ${c.inBrut} pers.<span class="chip brut">Brut</span></span><span class="amt">${eur(c.inBrutAmt)}</span><span class="sub">Payé sur la plateforme</span></div>`;
+  if(c.comp)h+=`<div class="${lineCls}"><span class="lbl">Voyageurs ajoutés · ${c.comp} pers.<span class="chip">Complément</span></span>
+    <span class="amt">${amt}${offerBtn()}</span><span class="sub">Au-delà des ${Math.max(FREE,st.paid)} personnes payées à la plateforme</span></div>`;
+  h+=`<div class="total"><span>Total séjour</span><span class="amt">${eur(st.brut+compShown)}</span></div>`;
+  sum.innerHTML=h;
+  sas.innerHTML=(c.comp?`<div class="${lineCls}"><span class="lbl">Voyageurs ajoutés · ${c.comp} pers.</span><span class="amt">${amt}${offerBtn()}</span></div>`
+    :`<div class="empty">Aucun voyageur ajouté à percevoir.</div>`)
+    +`<div class="total"><span>À percevoir à l'arrivée</span><span class="amt">${eur(compShown)}</span></div>`;
+  lastComp=c.comp;
+}
+
+const brutIn=document.getElementById('brut'), brutBox=document.getElementById('brutBox'), err=document.getElementById('brutErr');
+brutIn.addEventListener('change',()=>{
+  const v=brutIn.value.trim().replace(/\s/g,'').replace(',','.');
+  if(v===''){err.textContent='';brutBox.classList.remove('invalid');setBrut(null);update();return}
+  if(!/^\d+(\.\d{1,2})?$/.test(v)||+v<=0){err.textContent='Montant positif attendu, deux décimales au plus.';brutBox.classList.add('invalid');return}
+  err.textContent='';brutBox.classList.remove('invalid');setBrut(+v);update();
+});
+document.getElementById('unit').onchange=e=>{st.unit=e.target.value;update()};
+
+const S={
+  import:()=>{Object.assign(st,{adults:1,teens:0,children:0,babies:0});setBrut(null)},
+  intake:()=>{Object.assign(st,{adults:4,teens:0,children:0,babies:0});setBrut(null);setBrut(600)},
+  friend:()=>{if(st.brut==null){S.intake()}st.adults=Math.min(CAP,persons()+1)-st.teens-st.children},
+  baby:()=>{if(st.brut==null){S.intake()}st.babies++},
+  fix:()=>{if(st.brut==null){S.intake();st.adults=5}setBrut(610)},
+  clear:()=>setBrut(null),
+};
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{
+  S[b.dataset.s]();st.offered=false;err.textContent='';brutBox.classList.remove('invalid');update();
+});
+function update(){renderCompo();if(document.activeElement!==brutIn)brutIn.value=st.brut==null?'':String(st.brut).replace('.',',');render()}
+update();
+</script>
+</body>
+</html>
