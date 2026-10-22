@@ -297,11 +297,117 @@ function applyBalanceContribsToDb(db, reservation, contribs) {
   `).run(contribs.accommodation, contribs.tax, reservation.id);
 }
 
+/**
+ * The split of a bucket recorded although its engine capture failed (stored amounts that drifted
+ * from today's engine). The money is booked on the stored amounts: the tourist tax the export puts on
+ * this entry, the rest on the accommodation and the lines still owed, pro rata — never the whole entry
+ * on the tax account. Same arithmetic as captureStoredSplit on inte/plugins (#727).
+ */
+function captureStoredSplit({ db, reservation, bucket }) {
+  let routedToComplement = Boolean(Number(reservation.touristTaxInComplement || 0));
+  try {
+    const quote = calculateReservationQuote(buildReservationEngineInput(db, reservation));
+    routedToComplement = Boolean(quote.touristTaxCollectedOnArrival || quote.touristTaxInComplement);
+  } catch { /* the stored flag decides */ }
+  const isDeposit = bucket === 'deposit';
+  const field = isDeposit ? 'acompteContribTtc' : 'soldeContribTtc';
+  const amount = roundCents(isDeposit ? reservation.depositAmount : reservation.balanceAmount);
+  // Mirrors the export: the balance carries the whole tourist tax (capped by the entry); a tax share an
+  // older acompte captured is reclassed onto the acompte and taken off this accommodation by the export.
+  const tax = isDeposit || routedToComplement ? 0 : roundCents(Math.min(Number(reservation.touristTaxTotal || 0), amount));
+  const reclass = isDeposit || routedToComplement ? 0 : roundCents(reservation.touristTaxAcompteContribTtc);
+  // What is left to collect on each pre-arrival line (forced and offered lines are not on the schedule),
+  // the accommodation taking the rest — the same pro rata the export's stored-money path uses.
+  const tables = [
+    ['reservation_options', 'optionId'],
+    ['reservation_custom_options', 'id'],
+    ['reservation_resources', 'resourceId'],
+  ];
+  const lines = [];
+  let linesTotal = 0;
+  for (const [table, key] of tables) {
+    const totalCol = table === 'reservation_custom_options'
+      ? 'CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END' : 'totalPrice';
+    for (const l of db.prepare(`SELECT ${key} AS k, ${totalCol} AS total, COALESCE(inComplement, 0) AS forced,
+      COALESCE(offered, 0) AS offered, acompteContribTtc FROM ${table} WHERE reservationId = ?`).all(reservation.id)) {
+      linesTotal += Number(l.total || 0);
+      if (Number(l.forced) === 1 || Number(l.offered) === 1) continue;
+      const left = Math.max(0, Number(l.total || 0) - (isDeposit ? 0 : Number(l.acompteContribTtc || 0)));
+      lines.push({ table, key, k: l.k, left });
+    }
+  }
+  const accommodationLeft = Math.max(0, Number(reservation.finalPrice || 0) - linesTotal
+    - (isDeposit ? 0 : Number(reservation.accommodationAcompteContribTtc || 0)));
+  const toShare = roundCents(amount - tax);
+  const base = lines.reduce((sum, l) => sum + l.left, 0) + accommodationLeft;
+  const ratio = base > 0 ? toShare / base : 0;
+  let shared = 0;
+  for (const l of lines) {
+    const value = roundCents(l.left * ratio);
+    shared += value;
+    db.prepare(`UPDATE ${l.table} SET ${field} = ? WHERE reservationId = ? AND ${l.key} = ?`).run(value, reservation.id, l.k);
+  }
+  const accommodation = roundCents(toShare - shared + reclass);
+  if (isDeposit) {
+    db.prepare('UPDATE reservations SET accommodationAcompteContribTtc = ?, touristTaxAcompteContribTtc = 0 WHERE id = ?')
+      .run(accommodation, reservation.id);
+  } else {
+    db.prepare('UPDATE reservations SET accommodationSoldeContribTtc = ?, touristTaxSoldeContribTtc = ? WHERE id = ?')
+      .run(accommodation, tax, reservation.id);
+  }
+}
+
+/**
+ * Whether the reservation already carries a per-line contribution anywhere. The accounting export
+ * reads the WHOLE reservation through the per-line path as soon as one exists
+ * (accountingModel.buildPerLineData `hasContribs`), so this is what decides whether a bucket left
+ * without a split is safe (no contrib at all → the stored-money path books every bucket) or not.
+ */
+function hasAnyContrib(db, reservationId) {
+  const row = db.prepare(`SELECT accommodationAcompteContribTtc AS a, accommodationSoldeContribTtc AS b,
+    touristTaxAcompteContribTtc AS c, touristTaxSoldeContribTtc AS d FROM reservations WHERE id = ?`).get(reservationId);
+  if (row && [row.a, row.b, row.c, row.d].some((v) => v != null)) return true;
+  return ['reservation_options', 'reservation_custom_options', 'reservation_resources'].some((table) => Boolean(
+    db.prepare(`SELECT 1 FROM ${table} WHERE reservationId = ? AND (acompteContribTtc IS NOT NULL OR soldeContribTtc IS NOT NULL) LIMIT 1`)
+      .get(reservationId),
+  ));
+}
+
+/**
+ * The capture of a schedule bucket for the paths that record money at the door — the single arrival
+ * payment and the SAS stay payment (specs/collect-stay-payment-at-check-in.md rule 26). The
+ * engine-replayed split first. When its conservation invariant fails (stored amounts that drifted
+ * from today's engine) and the reservation is already on the export's per-line path (another bucket
+ * captured), the stored-amount split — leaving this bucket NULL there would book it entirely on the
+ * tourist-tax account. Otherwise no split: the export then reads the whole reservation from the stored
+ * money, consistently. Never throws: money received is never lost to its accounting split. Each
+ * attempt runs in its own savepoint, so a failure leaves nothing half-written.
+ *
+ * @returns {'captured'|'stored'|'none'}
+ */
+function captureBucketSplit({ db, reservation, bucket, log = console }) {
+  try {
+    db.transaction(() => captureContribsOnFlip({ db, reservation, bucket }))();
+    return 'captured';
+  } catch (err) {
+    try {
+      if (!hasAnyContrib(db, reservation.id)) return 'none';
+      db.transaction(() => captureStoredSplit({ db, reservation, bucket }))();
+      return 'stored';
+    } catch (err2) {
+      log.error(`[payments] reservation ${reservation && reservation.id}: no split captured on ${bucket} — ${err.message} / ${err2.message}`);
+      return 'none';
+    }
+  }
+}
+
 // Stub used only by the (preArrivalAmount === 0) edge case above; the real write happens through
 // applyDepositContribsToDb. Kept inline-named so the empty-stay branch is explicit.
 function writeDepositContribs() { /* no-op: 0-eur stays never persist contribs */ }
 
 module.exports = {
+  captureStoredSplit,
+  captureBucketSplit,
   captureContribsOnFlip,
   clearContribsOnUnflip,
   CONSERVATION_TOLERANCE_EUR,
