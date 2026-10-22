@@ -174,6 +174,9 @@ final class GF_Blocks
                 'babyBedsSub'     => __('Selon disponibilité', 'guestflow-booking'),
                 'babyBedsSubPriced' => __('%s par lit, pour le séjour', 'guestflow-booking'),
                 'offered'         => __('Offert', 'guestflow-booking'),
+                // specs/site-extra-guest-line.md rules 3-4
+                'extraGuests'     => __('Personne(s) supplémentaire(s) ×%d', 'guestflow-booking'),
+                'includedGuestsNote' => __('Prix de base pour %d voyageurs, supplément au-delà', 'guestflow-booking'),
                 'checkInTime'     => __('Heure d’arrivée', 'guestflow-booking'),
                 'checkOutTime'    => __('Heure de départ', 'guestflow-booking'),
                 'participantsMax' => __('Nombre de participants', 'guestflow-booking'),

@@ -3,6 +3,8 @@ const {
 } = require('./mealPortions');
 const { labels: rawLabels, normalisePublicLang } = require('./publicLabels');
 const { isBabyBedResource } = require('./babyBedResource');
+const { publicGuestCap } = require('./capacity');
+const { resolveExtraGuestPdfRow } = require('./devisHelpers');
 
 /**
  * Every projection normalises its own language instead of trusting the caller.
@@ -61,13 +63,13 @@ function toPublicProperty(row, lang = 'fr') {
     // "at La Granja" instead.
     name: row.name,
     nameArticle: normalisePublicLang(lang) === 'en' ? '' : (row.nameArticle || null),
-    maxGuests: Number(row.maxGuests || 0),
+    maxGuests: publicGuestCap(row),
     maxBabies: Number(row.maxBabies || 0),
     // Deprecated alias of maxGuests (specs/property-capacity-single-total.md §3 rule 11): the
     // manually-deployed gf-seo-* mu-plugins read `maxAdults` as the advertised « capacité ». Drop it
     // once they are redeployed. `maxChildren` is NOT aliased — it has no correct value under the
     // one-total model.
-    maxAdults: Number(row.maxGuests || 0),
+    maxAdults: publicGuestCap(row),
     singleBeds: Number(row.singleBeds || 0),
     doubleBeds: Number(row.doubleBeds || 0),
     basePriceIncludedGuests: Number(row.basePriceIncludedGuests || 0),
@@ -388,6 +390,15 @@ function toPublicOptionLimits({ options, persons, nights, checkInTime, checkOutT
   });
 }
 
+// The supplement as one ready-to-print row (specs/site-extra-guest-line.md rule 1) — same helper as
+// the devis PDF, so the site and the PDF can't disagree on what the extra guests cost.
+function toPublicExtraGuests(quote) {
+  if (quote.extraGuestSurchargeOriginal == null) return null;
+  const row = resolveExtraGuestPdfRow({ quote });
+  if (!row) return null;
+  return { count: row.count, total: row.totalTtc, originalTotal: row.originalTtc, offered: row.offered };
+}
+
 function toPublicQuote(quote, {
   available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null, optionLimits = [],
   lang = 'fr', translate = null,
@@ -409,6 +420,7 @@ function toPublicQuote(quote, {
     nightlyBreakdown: (quote.nightlyBreakdown || []).map((n) => ({ date: n.date, price: Number(n.price || 0) })),
     accommodationTotal: Number(quote.totalPrice || 0),
     extraGuestSurcharge: Number(quote.extraGuestSurcharge || 0),
+    extraGuests: toPublicExtraGuests(quote),
     // Rule 6: a quote asked for in English must not contain a French line. The engine carries the
     // English title beside the French one so this stays a pure projection.
     options: (quote.optionLines || []).map((o) => ({
