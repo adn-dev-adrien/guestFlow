@@ -167,6 +167,21 @@ Total                                1 066,00 €
 **Responsive:** the note and the line use the existing summary/stepper markup, which already wraps
 on mobile; no layout change. Checked at 375px, ~900px, ≥1200px.
 
+## 6b. Rollout — production data
+
+Rule 6's fallback is a safety net, not the intended setting: each bookable property must carry its
+real `maxGuests`. Set by the operator in the back-office (Logements → fiche → onglet Général →
+« Max voyageurs »), **before** installing the release that ships rule 6, so the site never caps a
+configured property at its included-guests count:
+
+| Property | `maxGuests` |
+|---|---|
+| La Granja | 15 |
+| L'Estiva | 5 |
+
+No migration writes these values: they are operator data, and a name-keyed UPDATE in `database.js`
+would run on every install, including test databases.
+
 ## 7. Test plan
 
 ### Server unit tests
