@@ -4,6 +4,29 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-10-22
+
+### Summary
+- Une réservation Booking annulée puis refaite sur les mêmes nuits n'est plus ignorée : elle réapparaît à la synchronisation suivante.
+- Une alerte d'annulation disparaît d'elle-même quand la plateforme renvoie le séjour sous un nouvel identifiant.
+- Créer une réservation ne plante plus après une annulation ; les séjours restés sans numéro sont numérotés et listés dans « À vérifier ».
+- Saisie Booking : compléter une fiche ne renomme plus les autres séjours Booking ; le script attend le tableau des prix (à réinstaller).
+- L'export iCal ne transmet plus aucune donnée client aux plateformes : chaque séjour s'y affiche « Réservé ».
+
+### Changed
+- **The iCal export carries no guest data** (specs/ical-export-guest-privacy.md, review 2026-10-18 M1). Every stay of a property's public feed now reads « Réservé », with no name, e-mail (`ATTENDEE`), platform or party (`DESCRIPTION`): every platform subscribed to the feed used to receive the guests of all the others. UIDs, dates and closures are unchanged, so the platforms keep blocking the same nights.
+
+### Fixed
+- **Booking intake no longer renames other guests' stays** (specs/booking-extranet-intake.md rules 25–26, review 2026-10-18 B1). The iCal import gives one placeholder client to every Booking stay (« Closed Not available ») and every Airbnb stay (« Reserved Ical »); filling one fiche from the extranet wrote the guest's name and e-mail onto that shared client, so every other stay sharing it — and the automatic e-mails sent for them — carried the wrong guest. The intake now finds the guest's client by e-mail or creates it, links it to the fiche, and never writes a client another reservation uses; a fiche whose client is shared still counts as untouched. `node server/scripts/diagnose-shared-clients.js <guestflow.db>` lists, read-only, the stays whose client was overwritten before this fix, so they can be relinked by hand.
+- **Booking intake script waits for the price table** — Booking renders « Sous-total » and « Taxe de séjour » after the reservation number, so the script sent the page too early and every intake was refused « Sous-total introuvable ». It now sends once the page text has settled. **Reinstall the script** from Réglages → Intégrations → Saisie Booking (`@version 2`).
+- **A Booking stay cancelled then re-booked on the same nights is no longer hidden as an echo** (specs/lodgify-decommission.md rule 14, incident 2026-10-22). Approving the cancellation of a Booking stay left a 72-hour export tombstone on its nights, and the Booking echo filter then skipped the guest's new booking on those nights — same UID or not — so it was missing from GuestFlow and its nights stayed open in the export to every other channel. A tombstone now remembers the iCal source that owned the stay, and a Booking feed never counts its own tombstones; tombstones left by other channels or by hand-entered stays cover Booking's echoes as before. +6 server tests.
+- **A Booking stay re-booked under a new UID no longer keeps a cancellation alert that would delete it** (specs/lodgify-decommission.md rule 15). When a cancelled stay came back under a new UID before the operator handled its alert, the sync re-claimed the fiche but left the alert pending; approving it deleted the live stay. The alert is now resolved as soon as the fiche is re-claimed. +3 server tests (takeover ownership, source merge, rule 15).
+- **Reservations — creation no longer fails after a cancellation** (spec `reservation-number-and-search.md` rules 13-14, 2026-10-18). A cancelled stay keeps its number, but the generator skipped it: once the latest number of the month belonged to a cancelled stay, every new reservation, devis conversion and iCal import failed with HTTP 500 until the month changed, and the failed fiche creation left a numberless stay blocking the dates and exported in the iCal feed. The generator now counts every numbered row (numeric max), and a creation writes its row and lines in one transaction. Each stay the boot repair numbers stays on the dashboard « À vérifier » card until the operator clicks « Vu » (rule 15). +12 server tests.
+
+### Migration
+- `ical_export_ranges` and `ical_export_tombstones` gain a nullable `sourceIcalSourceId` (specs/lodgify-decommission.md rule 14). Existing rows stay `NULL`, which behaves exactly as before; the export snapshot is rewritten with owners at the next feed served. No data rewritten or lost.
+- **One-shot repair of numberless reservations** (`reservation_number_repair_numberless_v1`, spec `reservation-number-and-search.md` rule 14). Every `kind = 'reservation'` row still without a number gets one in the month of its creation, with a history line, and is listed in the boot log (`[migration:reservation-number-repair]`) so the operator can check whether it is a real stay. Nothing is deleted. Idempotent. New column `reservations.numberRepairedAt` (rule 15), stamped by the repair: the dashboard card « À vérifier » lists each repaired stay until « Vu ».
+
 ## [3.10.0] - 2026-10-16
 
 ### Summary

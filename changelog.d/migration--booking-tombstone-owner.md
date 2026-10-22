@@ -1,1 +1,0 @@
-- `ical_export_ranges` and `ical_export_tombstones` gain a nullable `sourceIcalSourceId` (specs/lodgify-decommission.md rule 14). Existing rows stay `NULL`, which behaves exactly as before; the export snapshot is rewritten with owners at the next feed served. No data rewritten or lost.
