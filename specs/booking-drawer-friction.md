@@ -114,6 +114,7 @@ can either pay now or send a request without paying.
 > **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (deux actions ; bloc sans le réglage inchangé).
 17. The step that is not shown is `inert`, so a keyboard or a screen reader cannot land in the
     off-screen screen.
+> **Sans test** — le tiroir de Solio vit dans le dépôt privé `adn-dev-adrien/solio-site` depuis la fusion dans `inte/plugins` ; la règle y est tenue par `tests/booking-drawer-friction.test.js`.
 
 ### Search snippets (content, not code)
 
@@ -140,6 +141,7 @@ can either pay now or send a request without paying.
 20. **The engine's sections lose the site theme's `.gf-section` padding inside the drawer.** The theme
     names its page sections `.gf-section` too (`gf-site-style.php`: 64 px on top, 22 px on the sides);
     with the travellers first, that gap opened screen 1 on an empty band.
+> **Sans test** — le tiroir de Solio vit dans le dépôt privé `adn-dev-adrien/solio-site` depuis la fusion dans `inte/plugins` ; la règle y est tenue par `tests/booking-drawer-friction.test.js`.
 
 **Edge cases:**
 - Arrival whose minimum cannot be met before the next booked night (e.g. 2 free nights before a
@@ -176,6 +178,13 @@ can either pay now or send a request without paying.
 
 `getAvailability` reads blocked nights 31 days past `to`, so an arrival near the end of the window
 still gets its true earliest departure; only `[from, to)` is returned in `blockedDates`.
+
+> **On `inte/plugins` (merge of 2026-10-22):** the public API lives in the `website-booking` plugin.
+> `publicProjections.js` and `controllers/publicCatalogController.js` are under
+> `server/src/plugins/website-booking/`, `publicArrivalWindows.js` moved there with them, and the pricing
+> helpers are read through `sdk.coreModule('pricing')`. `toPublicAvailability` keeps the plugin's
+> `nextAvailableDate` beside `arrivals` and `nightPrices`. The tests moved to
+> `server/src/plugins/website-booking/tests/booking-drawer-friction.unit.test.js`.
 
 ### 4.2 WordPress plugin (`integrations/wordpress/guestflow-booking/`)
 
@@ -303,7 +312,9 @@ None open.
 - Server: `server/src/tests/booking-drawer-friction.unit.test.js`, **11 tests**. These include a
   parity test: every departure the calendar offers is accepted by the quote, and the night before it
   is refused. They are joined by `wordpress-plugin-booking-friction.unit.test.js`, **8 tests** on the
-  shape of the plugin and the drawer (rules 1, 2, 4, 6, 7, 9, 11-12, 17, 20). Full suite
+  shape of the plugin and the drawer (rules 1, 2, 4, 6, 7, 9, 11-12, 17, 20). On `inte/plugins` the two
+  drawer tests (rules 17, 20) live in the private solio-site repository, which carries the drawer:
+  6 tests here. Full suite
   **4 837 / 4 837**. The browser-only rules are marked « Sans test » and point to the verification
   below.
 - Client Vitest **1 450 / 1 450**; Playwright E2E **88 passed, 1 skipped** (unchanged).
