@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented (amendment rule 14, 2026-10-22) |
 | **Branch** | `feature/lodgify-decommission` _(Claude-managed)_ |
 | **Created** | 2026-09-21 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Decision page** | [docs/specs/2026-09-21-lodgify-decommission.html](../docs/specs/2026-09-21-lodgify-decommission.html) |
+| **Decision page** | [docs/specs/2026-09-21-lodgify-decommission.html](../docs/specs/2026-09-21-lodgify-decommission.html) — rule 14: [docs/specs/2026-10-22-booking-tombstone-owner.html](../docs/specs/2026-10-22-booking-tombstone-owner.html) |
 
 ---
 
@@ -166,6 +166,47 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     (Booking) and `N en conflit` next to the existing counters, and the counts are stored in
     `lastSyncCounts` (`takenOver`, `echoSkipped`, `conflicts`).
 
+14. **A tombstone never covers the source that owned the stay** _(amendment 2026-10-22)_. A
+    tombstone is the 72-hour afterlife of a range GuestFlow exported, so it obeys the same exclusion
+    as the live stay did: rule 6 already leaves a Booking source's **own** reservations out of the
+    cover, and a tombstone left by one of them is left out too. Concretely, the export snapshot
+    records, for each range, the `sourceIcalSourceId` of the stay that held it — `NULL` when the
+    range is held by a hand-entered stay or by several stays of different origins — and the
+    tombstone inherits it. When a Booking source runs the echo filter, tombstones whose owner is
+    **that same source** are not part of the cover; tombstones with another owner or `NULL` cover as
+    before.
+    **Why** (incident 2026-10-22, gîte, Booking 6669322709): a Booking guest whose card failed
+    cancelled and re-booked the same nights (6 → 8 November 2026). The first stay (fiche 22309,
+    Booking source #12) left the feed, the operator approved the cancellation alert, the fiche was
+    deleted and its range became a tombstone. The new booking then came back — with the **same
+    UID** — and every sync skipped it as an echo of the tombstone: the stay was invisible in
+    GuestFlow and its nights stayed open in the export to every other channel for 72 hours, which
+    is exactly the overbooking the echo filter exists to prevent. A Booking stay cannot be an echo
+    of itself: Booking only echoes what it **imports** from GuestFlow, and the import is set to
+    « Uniquement les dates réservées » on both properties (§9 Q3), so Booking's feed carries its own
+    reservations only (measured 2026-10-22: the gîte's three non-Booking ranges exported by
+    GuestFlow are absent from Booking's feed).
+    **Ownership stays current.** A takeover (rule 1) changes who owns a range; the sync refreshes the
+    snapshot right after it, so a stay cancelled before the export is next served still leaves its
+    tombstone under its new owner. Merging duplicate sources (`utils/platformMerge.js`) moves the
+    owners of ranges and tombstones to the surviving source, as it already does for reservations.
+    **Accepted residual risk:** if Booking ever re-exported the block of its own cancelled stay
+    within 72 hours, that block would now be created as a Booking reservation « Booking » instead of
+    being skipped. That error blocks nights rather than freeing them and is visible on the calendar;
+    once Booking drops the block it raises a cancellation alert for the operator, like any stay
+    leaving a feed. It rests on the assumption rule 6 already makes for every **live** Booking stay —
+    which GuestFlow exports to Booking and does not count as cover — that Booking does not re-export
+    what it imports: the residual risk is not new, rule 14 only extends it by 72 hours.
+
+15. **A stay re-claimed under a new UID drops its pending cancellation alert** _(amendment
+    2026-10-22, from the review of rule 14)_. When a stay leaves a feed, its mapping is dropped and a
+    cancellation alert waits for the operator (specs/ical-cancellation-approval.md). If the feed then
+    carries the same stay under a **new** UID and the sync re-claims the fiche (rule 4bis, or the
+    date + original-summary fallback, which on a Booking feed matches every « CLOSED » stay), the
+    alert left by the old UID is resolved in the same sync — exactly as an alert is resolved when the
+    old UID itself comes back. Without it, the operator approving that alert would delete a live
+    stay and free its nights until the next sync re-created it, without its notes or payments.
+
 ---
 
 ## 4. Architecture
@@ -177,14 +218,16 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `models/` | `propertyIcalModel.js` | T | `syncSource`: Booking keeps its `CLOSED` events, superseded-UID skip, takeover step, Booking UID re-claim, echo filter, conflict flag, new counters and message; conflict notification post-commit |
-| `models/` | `icalExportRangesModel.js` | C | Export snapshot diff → tombstones; active tombstones (72 h); purge (7 days) |
+| `models/` | `propertyIcalModel.js` | T | `syncSource`: Booking keeps its `CLOSED` events, superseded-UID skip, takeover step, Booking UID re-claim, echo filter, conflict flag, new counters and message; conflict notification post-commit. Rule 14: asks for the active tombstones **excluding its own source**, refreshes the snapshot after a takeover. Rule 15: a re-claim under a new UID resolves the stay's pending alert |
+| `models/` | `icalExportRangesModel.js` | C | Export snapshot diff → tombstones; active tombstones (72 h); purge (7 days). Rule 14: the snapshot and the tombstone carry the range's owner source, `listActiveTombstones(propertyId, hours, { excludeSourceId })` |
+| `models/` | `icalCancellationModel.js` | T | Rule 15: `resolveForReservation(reservationId, sourceId)` drops the pending alert of a re-claimed stay |
+| `utils/` | `platformMerge.js` | T | Rule 14: merging sources also moves the owners in `ical_export_ranges` / `ical_export_tombstones` |
 | `models/` | `icalModel.js` | T | `exportProperty` refreshes the snapshot each time a feed is served (never allowed to break the feed) |
 | `utils/` | `icalBookingEcho.js` | C | Pure function: event range + covering ranges → `echo` / `partial` / `free`, night by night |
 | `utils/` | `icalParser.js` | T | `parseIcsEvents(ics, { keepUnavailable })` — the caller decides from `platformKey` |
 | `utils/` | `notificationService.js` | T | `notifyBookingConflict(id, { origin: 'ical' })` — conflict copy for the Booking feed |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Purge tombstones older than 7 days in the existing iCal task |
-| `database.js` + `schema.sql` | both | T | Create `ical_export_ranges`, `ical_export_tombstones`, `ical_superseded_events` (idempotent) |
+| `database.js` + `schema.sql` | both | T | Create `ical_export_ranges`, `ical_export_tombstones`, `ical_superseded_events` (idempotent). Rule 14: `ADD COLUMN sourceIcalSourceId` on the first two |
 | `controllers/` / `routes/` | — | — | None: sources, toggles and sync endpoints already exist |
 
 ### 4.2 Client side (`client/src/`)
@@ -226,6 +269,14 @@ CREATE TABLE IF NOT EXISTS ical_superseded_events (  -- relayed UIDs taken over 
 The snapshot starts empty: the first time a feed is served after the upgrade it is filled, and no
 tombstone is written for anything removed before that.
 
+**Rule 14 (2026-10-22):** both `ical_export_ranges` and `ical_export_tombstones` gain a nullable
+`sourceIcalSourceId INTEGER` (idempotent `ADD COLUMN`). The snapshot keeps its primary key
+(`propertyId, startDate, endDate`): a range held by several stays stores the owner only when they
+all share it, `NULL` otherwise. Existing rows start `NULL`, which behaves exactly as today; the
+snapshot is rewritten in full at its next refresh, so every range has its owner from the first feed
+served after the upgrade. Tombstones written before the upgrade keep `NULL` and expire within 72 h.
+No data is lost or rewritten.
+
 **Data impact:** additive table, empty at start. Takeover rewrites `sourceIcalSourceId`,
 `sourceIcalEventUid` and the mapping rows of reservations it claims — logged in
 `reservation_history`, and a production DB backup is taken before the switch (§10 step 1).
@@ -255,6 +306,19 @@ Mobile behaviour unchanged (text wraps as today).
 - [x] Conflict e-mail copy names the Booking feed (rule 8).
 - [x] Recorded sync message and counts name the Booking echoes; zero counters stay silent (rule 13).
 
+### Server unit tests — `tests/booking-tombstone-owner.unit.test.js` (rules 14-15, 9 tests)
+- [x] Refresh records the owner on the snapshot and on the tombstone; shared range → `NULL`.
+- [x] The incident, replayed: Booking stay → leaves the feed → alert approved → same UID back on the
+  same dates → **created** as a Booking reservation, not counted as an echo.
+- [x] Same, with a **new** UID → created.
+- [x] Non-regression: a GreenGo stay cancelled < 72 h ago → the Booking event on its dates is still
+  an echo (owner is another source).
+- [x] Non-regression: a hand-entered stay deleted < 72 h ago (`NULL` owner) → still an echo.
+- [x] A tombstone written before the upgrade (`NULL`) keeps covering, as today.
+- [x] Takeover by Booking, then cancellation before the export is served → tombstone owned by Booking.
+- [x] Merging two sources moves the export owners to the survivor.
+- [x] Rule 15: cancelled then re-booked under a new UID before the alert is handled → same fiche, alert gone.
+
 `tests/property-ical-dedup.unit.test.js` — its schema gains `kind`, `bookingConflictAt` and the three
 tables, because its Booking source now goes through the Booking path.
 
@@ -262,6 +326,17 @@ tables, because its Booking source now goes through the Booking path.
 - [ ] On a prod copy (`DB_PATH`), point the Booking source at a recorded native feed fixture and run a sync: no duplicate, echoes counted.
 - [ ] Mobile: the longer sync message wraps without horizontal scroll on the sources screen.
 - [ ] E2E suite and client Vitest suite still green.
+- [x] **Rule 14 — replay of the 2026-10-22 incident on real data**, run twice — once on `master`,
+  once on the fix branch — so the difference is the fix and nothing else. On a copy of the production
+  database (`DB_PATH`), Booking source #12 pointed at a local fixture feed: (1) feed carries
+  `7ab42760…@booking.com` 6 → 8 Nov → sync creates the stay; (2) feed without it → sync raises the
+  cancellation alert; (3) approve it → fiche deleted, tombstone written; (4) feed carries the same
+  UID again → sync. Expected: `master` reports « 1 écho(s) ignoré(s) » and no fiche; the branch
+  creates the fiche, reports 0 écho, and the export serves 6 → 8 Nov again. Then the GreenGo
+  non-regression on the same copy. The output of both runs goes in the PR.
+- [ ] The live case cannot serve as the check: tombstone #3 was written without an owner and
+  expires on 2026-10-25 around 07:55 (Paris), before any release can be installed. After that time,
+  confirm in production that Booking 6669322709 did appear on its own, and complete its fiche.
 
 ## 8. Out of scope
 
@@ -463,6 +538,25 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
 
 - 2026-09-21 — server implementation, 19 unit tests, rehearsed on a production copy, spec synced (Implemented). No client code: the
   sync message is server-built text.
+- 2026-10-22 — **Incident: a re-booked Booking stay hidden as an echo** → rule 14 (Approved 2026-10-22). Measured
+  in production (read-only): cancellation alert #15 (fiche 22309, source #12, UID
+  `7ab42760238d8b7d27067025d1bb7933@booking.com`) detected 21/10 22:00 UTC and approved 22/10
+  06:54 UTC; tombstone #3 (gîte, 2026-11-06 → 2026-11-08) written 06:55 UTC; the same UID back in
+  Booking's feed afterwards, skipped by every hourly sync (« 1 écho(s) ignoré(s) » on source #12).
+  Production left untouched on purpose so the fix is checked by replay, not by a hand repair.
+  Implemented the same day: owner column on the snapshot and the tombstones, Booking cover excludes
+  its own tombstones, 6 tests (3 of them fail on `master`, all pass on the branch; full suite 4824/4824).
+  Replay on a fresh production copy (`VACUUM INTO`, notifications neutralised, tombstone #3 removed in
+  the copy only), same four steps on both codes — step 4, same UID back: `master` creates 0, skips
+  1 echo, no fiche, 6 → 8 Nov absent from the export; the branch creates the fiche (source #12),
+  0 echo, 6 → 8 Nov exported again. GreenGo non-regression: the echo is skipped on both.
+  Review by two agents (correctness, adversarial on the anti-overbooking contract): nothing blocking.
+  Fixed from it: owner left stale by a takeover until the next export, source merge not moving the
+  owners, a stay re-claimed under a new UID keeping a pending alert able to delete it (rule 15), and
+  the residual-risk wording. Shadow run (the app on a production copy, branch code, Booking source
+  pointed at a local feed): sync → alert approved from the Dashboard → same UID back → sync from the
+  property's « Plateformes & iCal » tab → « 1 créé(s) », fiche on 6 → 8 Nov, tombstone owned by #12,
+  dates back in the served export.
 - 2026-10-15 — **Booking switched over, both properties, with one production incident.**
   - *The cut itself is benign on Booking and the opposite of Airbnb.* Removing the connectivity
     provider (`.../channel-manager/deactivate.html?...&provider_id=689`, behind an SMS second

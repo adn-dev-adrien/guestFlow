@@ -534,7 +534,8 @@ function createPropertyIcalModel(database) {
               WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
             `).all(source.propertyId, source.id),
             ...closuresModel.list({ propertyId: source.propertyId }),
-            ...exportRanges.listActiveTombstones(source.propertyId),
+            // Rule 14 — its own cancelled stay's tombstone never hides that stay re-booked.
+            ...exportRanges.listActiveTombstones(source.propertyId, undefined, { excludeSourceId: source.id }),
           ];
         }
 
@@ -800,6 +801,9 @@ function createPropertyIcalModel(database) {
             }
             if (previousUid && previousUid !== event.uid) {
               deleteMapping.run(source.id, previousUid);
+              // specs/lodgify-decommission.md §3 rule 15 — the stay is back under a new UID: the alert its
+              // old UID raised must not be left to delete it.
+              cancellationModel.resolveForReservation(mapping.reservationId, source.id);
             }
 
             if (mapping.eventHash === eventHash) {
@@ -906,6 +910,9 @@ function createPropertyIcalModel(database) {
         });
 
         syncTx(events);
+        // Rule 14 — a takeover changed who owns these ranges: record it now, not at the next export,
+        // so a stay cancelled before then leaves a tombstone under its new owner.
+        if (takenOverCount > 0) icalExportRangesModel.create(database).refresh(source.propertyId);
 
         return {
           scannedEvents: events.length,

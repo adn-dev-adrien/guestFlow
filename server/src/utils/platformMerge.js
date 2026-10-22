@@ -44,6 +44,8 @@ function mergePlatformDuplicates(db, { slugs, targetName }) {
   //    Survivor = a row with a URL (a real feed) wins, else the most recent. Victims' imported
   //    reservations + import-events are re-pointed to the survivor before deletion (no orphans).
   const propIds = db.prepare('SELECT DISTINCT propertyId FROM ical_sources').all().map((r) => r.propertyId);
+  const exportOwnerTables = ['ical_export_ranges', 'ical_export_tombstones'].filter((table) => db
+    .prepare('SELECT name FROM pragma_table_info(?)').all(table).some((c) => c.name === 'sourceIcalSourceId'));
   for (const propertyId of propIds) {
     const rows = db.prepare('SELECT id, url, platformKey, platformLabel, name FROM ical_sources WHERE propertyId = ?')
       .all(propertyId)
@@ -58,6 +60,11 @@ function mergePlatformDuplicates(db, { slugs, targetName }) {
     const survivor = rows[0];
     for (const victim of rows.slice(1)) {
       db.prepare('UPDATE reservations SET sourceIcalSourceId = ? WHERE sourceIcalSourceId = ?').run(survivor.id, victim.id);
+      // specs/lodgify-decommission.md §3 rule 14 — the export owners follow, or the victim's tombstones
+      // would hide the survivor's own re-booked stays.
+      for (const table of exportOwnerTables) {
+        db.prepare(`UPDATE ${table} SET sourceIcalSourceId = ? WHERE sourceIcalSourceId = ?`).run(survivor.id, victim.id);
+      }
       db.prepare('UPDATE OR IGNORE ical_import_events SET sourceId = ? WHERE sourceId = ?').run(survivor.id, victim.id);
       db.prepare('DELETE FROM ical_import_events WHERE sourceId = ?').run(victim.id);
       db.prepare('DELETE FROM ical_sources WHERE id = ?').run(victim.id);
