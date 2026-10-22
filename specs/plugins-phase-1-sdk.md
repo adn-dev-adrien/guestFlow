@@ -210,7 +210,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     |---|---|---|
     | `routes` | `App.jsx` `<Routes>` | school-holidays (`/school-holidays`), tariff-recipes (`/parametres/recettes`) |
     | `settings.menu` | settings menu, after the entry named by `after` | tariff-recipes (Recettes tarifaires) |
-    | `settings.integrations` | Intégrations page sections, ordered around the Neat card | google-calendar, weather-alerts, gate-access |
+    | `settings.integrations` | Intégrations page sections, one tab per plugin (`tabLabel?`, `keywords?` — specs/integrations-tab-per-plugin.md rules 4, 8) | google-calendar, weather-alerts, gate-access |
     | `dashboard.alerts.urgent` | Dashboard alert stack, under the payment deadlines | gate-access (keys) |
     | `dashboard.alerts` | Dashboard alert stack, under the new iCal reservations | tariff-recipes (runs) |
     | `reservation.cards` | reservation page, after the finance section | gate-access |

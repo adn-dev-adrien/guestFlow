@@ -22,13 +22,13 @@ const card = (id, name, setup) => ({
 });
 
 function Where() {
-  const { pathname, hash } = useLocation();
-  return <p>{`Ouvert : ${pathname}${hash}`}</p>;
+  const { pathname, search, hash } = useLocation();
+  return <p>{`Ouvert : ${pathname}${search}${hash}`}</p>;
 }
 
 beforeEach(() => {
   api.getPlugins.mockResolvedValue([
-    card('google-calendar', 'Google Agenda', { needed: true, label: 'Actif · à connecter', path: '/settings/integrations#plugin-google-calendar', action: 'Configurer' }),
+    card('google-calendar', 'Google Agenda', { needed: true, label: 'Actif · à connecter', path: '/settings/integrations?tab=google-calendar', action: 'Configurer' }),
     card('linen', 'Linge et blanchisserie', { needed: false, label: 'Actif', path: '/parametres/stock-blanchisserie', action: 'Réglages' }),
   ]);
   api.getPluginsStatus.mockResolvedValue({ registry: { configured: false }, updates: 0, banner: null, toConfigure: 1 });
@@ -61,5 +61,5 @@ test('rule 25: the filter keeps the plugins to configure, and clears', async () 
 test('rule 25: « Configurer » opens the section of Intégrations', async () => {
   draw();
   await userEvent.click(await screen.findByRole('button', { name: 'Configurer' }));
-  expect(screen.getByText('Ouvert : /settings/integrations#plugin-google-calendar')).toBeInTheDocument();
+  expect(screen.getByText('Ouvert : /settings/integrations?tab=google-calendar')).toBeInTheDocument();
 });

@@ -62,13 +62,13 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   // Rule 1 — inactive: no card, no route.
   await setActive(page, false);
   expect((await page.request.get('/api/booking-intake/pending')).status()).toBe(404);
-  await page.goto('/settings/integrations');
+  await page.goto('/settings/integrations?tab=booking-intake');
   await expect(page.getByRole('heading', { name: 'Intégrations' }).first()).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('N° d’établissement Booking de chaque logement')).toHaveCount(0);
 
   // Rules 2, 12 — switched on, the card shows; the property is tied to the establishment id.
   await setActive(page, true);
-  await page.goto('/settings/integrations');
+  await page.goto('/settings/integrations?tab=booking-intake');
   await expect(page.getByText('N° d’établissement Booking de chaque logement')).toBeVisible({ timeout: 10_000 });
   // Rule 25 — the secret is created by an explicit action; until then the script is refused.
   const secretAction = page.getByRole('button', { name: /^(Créer|Régénérer) le secret$/ });
@@ -145,7 +145,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
 
 test('booking intake on a phone: the dashboard line and the settings card do not overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/settings/integrations');
+  await page.goto('/settings/integrations?tab=booking-intake');
   await expect(page.getByText('N° d’établissement Booking de chaque logement')).toBeVisible({ timeout: 10_000 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
   await page.goto('/');

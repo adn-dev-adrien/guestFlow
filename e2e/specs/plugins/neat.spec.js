@@ -9,7 +9,7 @@ test.describe.configure({ mode: 'serial' });
 const insuranceIn = (options) => options.find((o) => Number(o.isCancellationInsurance) === 1) || null;
 
 test('switched off, the insurance, the Neat card and its push toggle go; switched on, they come back', async ({ page, request }) => {
-  await page.goto('/settings/integrations');
+  await page.goto('/settings/integrations?tab=neat');
   await expect(page.getByText('Assurance annulation (Neat)')).toBeVisible({ timeout: 15_000 });
   const before = insuranceIn(await (await request.get('/api/options')).json());
   expect(before).not.toBeNull();
@@ -21,7 +21,7 @@ test('switched off, the insurance, the Neat card and its push toggle go; switche
     expect((await request.get(`/api/options/${before.id}`)).status()).toBe(404);
     expect((await (await request.get('/api/push/preferences')).json()).available).not.toContain('neat');
     expect((await request.get('/api/neat/settings')).status()).toBe(404);
-    await page.goto('/settings/integrations');
+    await page.goto('/settings/integrations?tab=neat');
     await expect(page.getByRole('heading', { name: 'Intégrations' }).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Assurance annulation (Neat)')).toHaveCount(0);
   } finally {

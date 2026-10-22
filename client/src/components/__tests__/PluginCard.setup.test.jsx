@@ -11,7 +11,7 @@ import PluginCard from '../PluginCard';
 const plugin = (over = {}) => ({
   id: 'google-calendar', name: 'Google Agenda', description: 'Copie les séjours dans un agenda Google.', icon: 'event',
   surfaces: ['Intégrations › Google Agenda'], requires: [], state: 'active', blocker: null, hasModule: true, erasable: false, data: [],
-  setup: { needed: true, label: 'Actif · à connecter', path: '/settings/integrations#plugin-google-calendar', action: 'Configurer' },
+  setup: { needed: true, label: 'Actif · à connecter', path: '/settings/integrations?tab=google-calendar', action: 'Configurer' },
   ...over,
 });
 
@@ -26,7 +26,7 @@ test('rule 25: « Actif · à connecter » and « Configurer » opening the plug
   const { onOpenSettings } = draw(plugin());
   expect(screen.getByText('Actif · à connecter')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Configurer' }));
-  expect(onOpenSettings).toHaveBeenCalledWith('/settings/integrations#plugin-google-calendar');
+  expect(onOpenSettings).toHaveBeenCalledWith('/settings/integrations?tab=google-calendar');
   expect(screen.queryByRole('button', { name: 'Désactiver' })).toBeNull();
 });
 
@@ -61,7 +61,7 @@ test('rule 25: « Désactiver » from ⋯ asks first, says what stops, and « Ga
 });
 
 test('rule 25: an inactive plugin keeps « Activer » as its action', () => {
-  draw(plugin({ state: 'inactive', setup: { needed: false, label: null, path: '/settings/integrations#plugin-google-calendar', action: null } }));
+  draw(plugin({ state: 'inactive', setup: { needed: false, label: null, path: '/settings/integrations?tab=google-calendar', action: null } }));
   expect(screen.getByText('Inactif')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Activer' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Configurer' })).toBeNull();

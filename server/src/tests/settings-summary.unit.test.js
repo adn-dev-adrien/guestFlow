@@ -58,7 +58,7 @@ test('rule 25: the sender line follows the platform, the own server, or its abse
 test('rule 25: plugins to configure show on Plugins, Intégrations and their own page', () => {
   const db = freshDb();
   const plugins = [
-    { id: 'neat', state: 'active', setup: { needed: true, path: '/settings/integrations#plugin-neat' } },
+    { id: 'neat', state: 'active', setup: { needed: true, path: '/settings/integrations?tab=neat' } },
     { id: 'online-payment', state: 'active', setup: { needed: true, path: '/parametres/paiements' } },
     { id: 'linen', state: 'active', setup: { needed: false, path: '/parametres/stock-blanchisserie' } },
     { id: 'sas', state: 'inactive', setup: { needed: false, path: null } },

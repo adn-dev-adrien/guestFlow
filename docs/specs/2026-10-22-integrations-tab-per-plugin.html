@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intégrations par onglets</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6a665b; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --sapin-soft:#e3ece6; --warn:#8f6a1d; --warn-bg:#f6edd7; --err:#a33a2b; --err-bg:#f7e4df; --ok:#356f49; --ok-bg:#e6efe7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --sapin-soft:#24342c; --warn:#e2bf73; --warn-bg:#3a3020; --err:#f0998a; --err-bg:#3a221e; --ok:#86c79c; --ok-bg:#1f2e24;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --sapin-soft:#24342c; --warn:#e2bf73; --warn-bg:#3a3020; --err:#f0998a; --err-bg:#3a221e; --ok:#86c79c; --ok-bg:#1f2e24;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 16px 64px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;color:var(--sapin);text-wrap:balance}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px}
+h2{font-size:20px;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+p,li{max-width:72ch}
+.sub{color:var(--muted);margin:0 0 18px}
+.controls{display:flex;flex-wrap:wrap;gap:10px 16px;margin:12px 0;align-items:center}
+.controls label.lbl{font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;color:var(--ink);padding:8px 12px;min-height:40px;font:inherit;font-size:14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--card)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 12px;min-height:34px;font:inherit;font-size:13px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--sapin-soft);border-color:var(--sapin);color:var(--sapin)}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.stage{border:1px solid var(--line);border-radius:14px;background:var(--hover);padding:14px;overflow:auto}
+.app{margin:0 auto;background:var(--paper);border:1px solid var(--line);border-radius:12px;min-height:560px;position:relative;overflow:hidden}
+.app.phone{width:390px;max-width:100%}
+.app.desk{width:100%;min-width:880px}
+.appbar{height:52px;background:var(--sapin);color:var(--card);display:flex;align-items:center;padding:0 16px;font-weight:600}
+.pab{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:6px 12px;min-height:56px;z-index:2}
+.phone .pab{grid-template-columns:1fr auto;grid-template-rows:auto auto;padding:6px 8px 0}
+.pab .title{font-family:Georgia,serif;font-weight:600;color:var(--sapin);font-size:18px;display:flex;align-items:center;gap:8px;min-width:0}
+.pab .acts{display:flex;justify-content:flex-end;gap:8px}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:18px;cursor:pointer;display:grid;place-items:center}
+.ib.save{background:var(--sapin);border-color:var(--sapin);color:var(--card)}
+.ib:disabled{opacity:.4;cursor:default}
+.tabs{display:flex;overflow-x:auto;scrollbar-width:none;min-width:0;justify-content:center}
+.phone .tabs{grid-column:1/-1;justify-content:flex-start;border-top:1px solid var(--line);margin:6px -8px 0;padding:0 8px}
+.tab{position:relative;border:0;background:none;color:var(--muted);font:inherit;font-size:14px;padding:0 14px;min-height:44px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;transition:color .15s ease}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--sapin);font-weight:600}
+.tab[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:2px;background:var(--sapin);border-radius:2px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--sapin);flex:none}
+.dot.warn{background:var(--warn)}
+.dot.err{background:var(--err)}
+.body{padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.card h3{margin:0 0 4px;font-size:17px}
+.card .meta{color:var(--muted);font-size:13px;margin:0 0 12px}
+.field{display:flex;flex-direction:column;gap:4px;margin:10px 0}
+.field span{font-size:13px;color:var(--muted)}
+.field input,.field select{font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);min-height:44px;max-width:460px}
+.field.bad input{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.field .help{font-size:12px;color:var(--muted)}
+.field.bad .help{color:var(--err)}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;border-radius:999px;padding:2px 10px}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.btn{border:1px solid var(--sapin);color:var(--sapin);background:none;border-radius:10px;padding:8px 14px;min-height:40px;font:inherit;font-size:14px;cursor:pointer}
+.toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-size:14px;transition:opacity .2s ease,transform .25s cubic-bezier(.2,.8,.2,1);pointer-events:none;max-width:90%}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--err)}
+.panel{animation:in .18s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.panel{animation:none}.toast{transition:opacity .2s}}
+.url{font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--muted);margin:8px 0 0;word-break:break-all}
+.log{font-size:13px;color:var(--muted);min-height:20px;margin-top:6px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.box h3{margin:0 0 6px;font-size:16px}
+.reco{font-size:12px;color:var(--ok);font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:14px}
+td,th{border-top:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+</style>
+</head>
+<body>
+<main>
+<h1>Intégrations : un onglet par plugin</h1>
+<p class="sub">Paramètres › Intégrations · spec <code>specs/integrations-tab-per-plugin.md</code> · 22/10/2026</p>
+
+<h2>Le constat</h2>
+<p>La page Intégrations empile les réglages de 7 plugins l'un sous l'autre : site, Google Agenda, Neat, Météo-France, portail Sowel, saisie Gîtes de France, saisie Booking. Sur Solio, il faut parfois faire défiler l'équivalent de 4 écrans pour atteindre Booking. Le bouton « Configurer » de la page Plugins y amène par une ancre, puis la page bouge pendant le chargement des sections.</p>
+
+<h2>Ce qu'on propose</h2>
+<ul>
+  <li><b>Un onglet par plugin actif</b>, centré dans la barre d'action, comme sur Clients ou Textes des emails. Sur téléphone, les onglets forment la 2e ligne de la barre et défilent horizontalement.</li>
+  <li>L'onglet ouvert se lit dans l'adresse (<code>?tab=google-calendar</code>), ce qui permet d'y revenir après un rechargement, avec le bouton Retour ou depuis un lien.</li>
+  <li>« Configurer » (page Plugins), le retour de connexion Google et la recherche des Paramètres ouvrent <b>directement le bon onglet</b>. Les anciens liens <code>#plugin-…</code> restent valables.</li>
+  <li>Un plugin installé plus tard ajoute son onglet. Un plugin coupé retire le sien. Rien n'est écrit en dur dans la page.</li>
+</ul>
+
+<h2>Maquette — à manipuler</h2>
+<div class="controls">
+  <span class="lbl">Écran</span>
+  <div class="seg" id="vp"><button aria-pressed="true" data-v="desk">Ordinateur</button><button aria-pressed="false" data-v="phone">Téléphone</button></div>
+  <span class="lbl">Arbitrage 1 — libellés</span>
+  <div class="seg" id="a1"><button aria-pressed="true" data-v="short">Courts</button><button aria-pressed="false" data-v="long">Nom du plugin</button></div>
+  <span class="lbl">Arbitrage 2 — changer d'onglet avec une saisie en cours</span>
+  <div class="seg" id="a2"><button aria-pressed="true" data-v="keep">Brouillon gardé</button><button aria-pressed="false" data-v="ask">Demander</button></div>
+  <span class="lbl">Arbitrage 3 — à configurer</span>
+  <div class="seg" id="a3"><button aria-pressed="true" data-v="dot">Point orange</button><button aria-pressed="false" data-v="none">Rien</button></div>
+</div>
+<div class="controls">
+  <span class="lbl">Plugins actifs (décocher pour voir le cas d'un seul plugin)</span>
+  <div class="chips" id="plugs"></div>
+</div>
+<div class="stage">
+  <div class="app desk" id="app">
+    <div class="appbar">GuestFlow</div>
+    <div class="pab">
+      <div class="title"><button class="ib" aria-label="Retour" title="Retour">←</button><span>Intégrations</span></div>
+      <div class="tabs" role="tablist" aria-label="Intégrations" id="tabs"></div>
+      <div class="acts"><button class="ib save" id="save" aria-label="Enregistrer" title="Enregistrer">✓</button><button class="ib" id="cancel" aria-label="Annuler" title="Annuler">↺</button></div>
+    </div>
+    <div class="body" id="body"></div>
+    <div class="toast" id="toast" role="status"></div>
+  </div>
+</div>
+<p class="url" id="url"></p>
+<p class="log">Essayer : modifier un champ puis changer d'onglet ; vider la clé Météo-France puis Enregistrer depuis un autre onglet ; mettre une adresse de site sans https.</p>
+
+<h2>Les arbitrages</h2>
+<div class="cols">
+  <div class="box"><h3>1. Libellés des onglets</h3>
+    <p><b>Courts</b> <span class="reco">recommandé</span> : Site, Google Agenda, Neat, Météo-France, Portail, Gîtes de France, Booking. Les 7 tiennent sur une ligne d'ordinateur. Chaque plugin déclare son libellé court dans son module, à côté de sa section.</p>
+    <p><b>Nom du plugin</b> : on reprend le nom du manifeste (« Assurance annulation Neat », « Accès au portail (Sowel) »…). Les onglets dépassent alors la largeur et la bande défile même sur ordinateur.</p></div>
+  <div class="box"><h3>2. Saisie en cours et changement d'onglet</h3>
+    <p><b>Brouillon gardé</b> <span class="reco">recommandé</span> : on change d'onglet sans rien perdre, et un point vert marque l'onglet modifié. Enregistrer enregistre tous les onglets modifiés, Annuler les remet tous à zéro (comme aujourd'hui). Les onglets s'enregistrent dans l'ordre. Si l'un refuse sa saisie, l'enregistrement s'arrête et la page s'ouvre sur lui, champ fautif en rouge. Les onglets passés avant lui restent enregistrés.</p>
+    <p><b>Demander</b> : une boîte « Enregistrer ou abandonner ? » s'affiche à chaque changement d'onglet. C'est plus sûr en apparence, mais ça casse l'élan dès qu'on navigue entre deux onglets pour comparer.</p></div>
+  <div class="box"><h3>3. Intégration à configurer</h3>
+    <p><b>Point orange</b> <span class="reco">recommandé</span> : l'onglet d'un plugin actif mais pas encore configuré (Google non connecté, clé Météo absente…) porte un point orange. C'est le même état que celui que la page Plugins affiche déjà, lu au même endroit côté serveur.</p>
+    <p><b>Rien</b> : les onglets ne montrent que le point vert des modifications.</p></div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Le contenu des sections ne change pas : mêmes cartes, mêmes champs, mêmes textes.</li>
+  <li>Pas d'onglet « Tout » ni de page de synthèse : la page Plugins joue déjà ce rôle.</li>
+  <li>Les autres pages de Paramètres ne sont pas touchées.</li>
+</ul>
+
+<h2>Comportements fixés</h2>
+<table>
+  <tr><th>Cas</th><th>Comportement</th></tr>
+  <tr><td>Un seul plugin actif</td><td>Pas de bande d'onglets : la page montre directement sa section, comme aujourd'hui.</td></tr>
+  <tr><td>Aucun <code>?tab=</code>, ou un onglet de plugin coupé</td><td>Premier onglet dans l'ordre des plugins (Site, puis Google…). L'adresse est corrigée sans ajouter d'entrée à l'historique.</td></tr>
+  <tr><td>Ancien lien <code>#plugin-neat</code></td><td>Ouvre l'onglet Neat et réécrit l'adresse en <code>?tab=neat</code>.</td></tr>
+  <tr><td>Retour de Google (<code>?google=connected</code>)</td><td>Ouvre l'onglet Google Agenda, et le message de connexion s'affiche comme aujourd'hui.</td></tr>
+  <tr><td>Recherche « Neat » dans Paramètres</td><td>Ouvre l'onglet Neat.</td></tr>
+  <tr><td>Changement d'onglet</td><td>Remplace l'entrée d'historique : Retour ramène à la page d'avant, pas à l'onglet d'avant (même règle que les autres pages à onglets).</td></tr>
+</table>
+
+<h2>Le risque</h2>
+<p>Il est faible : un plugin dont la section se dessine cachée pourrait mal mesurer sa largeur (graphique, carte). Pour l'éviter, une section ne se monte qu'à la première ouverture de son onglet et reste ensuite montée, ce qui garde aussi les brouillons. Sur le téléphone, la recette se fait sur Solio avec ses 7 plugins.</p>
+</main>
+
+<script>
+const PLUGINS = [
+  {id:'website-booking', short:'Site', long:'Réservation depuis le site', fields:[{k:'origin',label:'Adresse du site',v:'https://domainesolio.com',check:v=>/^https:\/\/[^\s]+\.[a-z]{2,}$/i.test(v)?null:'Une adresse complète en https:// est attendue.'},{k:'key',label:'Clé API',v:'gf_live_••••••••',ro:true}], title:'Réservation depuis le site', meta:'Le plugin WordPress lit les disponibilités et dépose les demandes.'},
+  {id:'google-calendar', short:'Google Agenda', long:'Google Agenda', todo:true, title:'Google Agenda', meta:'Les séjours apparaissent dans un agenda Google.', connect:true},
+  {id:'neat', short:'Neat', long:'Assurance annulation Neat', fields:[{k:'pct',label:'Taux de l’assurance (%)',v:'4,5',check:v=>/^\d+([,.]\d+)?$/.test(v)&&parseFloat(v.replace(',','.'))<=20?null:'Un pourcentage entre 0 et 20 est attendu.'}], title:'Assurance annulation Neat', meta:'Proposée au devis et sur le site.'},
+  {id:'weather-alerts', short:'Météo-France', long:'Vigilance Météo-France', fields:[{k:'key',label:'Clé API Météo-France',v:'mf_••••••••••',check:v=>v.trim()?null:'La clé est obligatoire tant que le plugin est actif.'},{k:'dept',label:'Département',v:'2A',check:v=>/^(\d{2}|2A|2B)$/i.test(v.trim())?null:'Un numéro de département est attendu (ex. 2A).'}], title:'Vigilance Météo-France', meta:'Alerte sur le tableau de bord la veille d’une arrivée.'},
+  {id:'gate-access', short:'Portail', long:'Accès au portail (Sowel)', fields:[{k:'url',label:'Adresse du connecteur Sowel',v:'https://sowel.local:8443',check:v=>/^https?:\/\//.test(v)?null:'Une adresse http(s):// est attendue.'}], title:'Accès au portail (Sowel)', meta:'Un code de portail par séjour.'},
+  {id:'gites-de-france-intake', short:'Gîtes de France', long:'Saisie Gîtes de France', fields:[{k:'num',label:'Numéro du gîte',v:'309700',check:v=>/^\d{4,8}$/.test(v)?null:'Le numéro ITEA du gîte (chiffres seulement).'}], title:'Saisie Gîtes de France', meta:'Complète une fiche depuis l’extranet ITEA.'},
+  {id:'booking-intake', short:'Booking', long:'Saisie Booking', fields:[{k:'hotel',label:'Identifiant de l’établissement',v:'6669322',check:v=>/^\d{5,10}$/.test(v)?null:'L’identifiant Booking (chiffres seulement).'}], title:'Saisie Booking', meta:'Complète une fiche depuis l’extranet Booking.'},
+];
+const S = {vp:'desk', a1:'short', a2:'keep', a3:'dot', on:new Set(PLUGINS.map(p=>p.id)), tab:null, saved:{}, draft:{}, errors:{}, mounted:new Set(), google:false};
+PLUGINS.forEach(p=>{S.saved[p.id]={};(p.fields||[]).forEach(f=>S.saved[p.id][f.k]=f.v)});
+S.draft=JSON.parse(JSON.stringify(S.saved));
+const $=id=>document.getElementById(id);
+const active=()=>PLUGINS.filter(p=>S.on.has(p.id));
+const dirty=id=>JSON.stringify(S.draft[id])!==JSON.stringify(S.saved[id]);
+const todo=p=>p.id==='google-calendar'?!S.google:(p.id==='weather-alerts'&&!S.saved[p.id].key.trim());
+function seg(id,key,after){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S[key]=b.dataset.v;[...$(id).children].forEach(x=>x.setAttribute('aria-pressed',x===b));after&&after();render();});}
+seg('vp','vp',()=>{$('app').className='app '+S.vp;});seg('a1','a1');seg('a2','a2');seg('a3','a3');
+function chips(){$('plugs').innerHTML='';PLUGINS.forEach(p=>{const b=document.createElement('button');b.className='chip';b.textContent=p.short;b.setAttribute('aria-pressed',S.on.has(p.id));b.onclick=()=>{if(S.on.has(p.id)){if(S.on.size===1)return toast('Au moins un plugin reste actif pour que la page existe.',true);S.on.delete(p.id);}else S.on.add(p.id);chips();render();};$('plugs').appendChild(b);});}
+let tt;function toast(m,err){const t=$('toast');t.textContent=m;t.className='toast on'+(err?' err':'');clearTimeout(tt);tt=setTimeout(()=>t.className='toast',2600);}
+function select(id){if(id===S.tab)return;const cur=S.tab;if(S.a2==='ask'&&cur&&dirty(cur)){if(!confirm('Des modifications ne sont pas enregistrées dans cet onglet. Les abandonner ?'))return;S.draft[cur]=JSON.parse(JSON.stringify(S.saved[cur]));S.errors[cur]={};}S.tab=id;render(true);}
+function render(anim){
+  const list=active();
+  if(!list.find(p=>p.id===S.tab))S.tab=list[0].id;
+  S.mounted.add(S.tab);
+  const tabs=$('tabs');tabs.innerHTML='';
+  tabs.style.display=list.length>1?'flex':'none';
+  list.forEach(p=>{const b=document.createElement('button');b.className='tab';b.setAttribute('role','tab');b.setAttribute('aria-selected',p.id===S.tab);b.tabIndex=p.id===S.tab?0:-1;
+    let label=S.a1==='short'?p.short:p.long;b.textContent=label;
+    const hasErr=Object.keys(S.errors[p.id]||{}).length;
+    if(hasErr){const d=document.createElement('span');d.className='dot err';d.title='Saisie refusée';b.appendChild(d);}
+    else if(dirty(p.id)){const d=document.createElement('span');d.className='dot';d.title='Modifié';b.appendChild(d);}
+    else if(S.a3==='dot'&&todo(p)){const d=document.createElement('span');d.className='dot warn';d.title='À configurer';b.appendChild(d);}
+    b.onclick=()=>select(p.id);tabs.appendChild(b);
+    if(p.id===S.tab)requestAnimationFrame(()=>b.scrollIntoView({block:'nearest',inline:'nearest'}));});
+  tabs.onkeydown=e=>{if(!['ArrowRight','ArrowLeft'].includes(e.key))return;const i=list.findIndex(p=>p.id===S.tab);const n=list[(i+(e.key==='ArrowRight'?1:-1)+list.length)%list.length];select(n.id);requestAnimationFrame(()=>tabs.querySelector('[aria-selected="true"]').focus());};
+  const p=PLUGINS.find(x=>x.id===S.tab);
+  const body=$('body');body.innerHTML='';
+  const card=document.createElement('div');card.className='card'+(anim?' panel':'');card.setAttribute('role','tabpanel');
+  card.innerHTML=`<h3>${p.title}</h3><p class="meta">${p.meta}</p>`;
+  if(p.connect){card.innerHTML+=S.google?'<span class="badge ok">● Connecté à agenda.solio@gmail.com</span>':'<span class="badge warn">● Pas encore connecté</span><p><button class="btn" id="gconnect">Connecter Google Agenda</button></p>';}
+  (p.fields||[]).forEach(f=>{const err=(S.errors[p.id]||{})[f.k];const w=document.createElement('label');w.className='field'+(err?' bad':'');
+    w.innerHTML=`<span>${f.label}</span><input ${f.ro?'readonly':''} value="${S.draft[p.id][f.k]}"><small class="help">${err||(f.ro?'Lecture seule ici.':'')}</small>`;
+    const inp=w.querySelector('input');inp.oninput=()=>{S.draft[p.id][f.k]=inp.value;if(S.errors[p.id])delete S.errors[p.id][f.k];refreshChrome();};card.appendChild(w);});
+  body.appendChild(card);
+  const g=$('gconnect');if(g)g.onclick=()=>{S.google=true;toast('Google Agenda connecté.');render();};
+  refreshChrome();
+}
+function refreshChrome(){
+  const any=active().some(p=>dirty(p.id));
+  $('save').disabled=!any;$('cancel').disabled=!any;
+  [...$('tabs').children].forEach((b,i)=>{const p=active()[i];[...b.querySelectorAll('.dot')].forEach(d=>d.remove());
+    const hasErr=Object.keys(S.errors[p.id]||{}).length;let cls=null,t='';
+    if(hasErr){cls='dot err';t='Saisie refusée';}else if(dirty(p.id)){cls='dot';t='Modifié';}else if(S.a3==='dot'&&todo(p)){cls='dot warn';t='À configurer';}
+    if(cls){const d=document.createElement('span');d.className=cls;d.title=t;b.appendChild(d);}});
+  const n=active().length;$('url').textContent='/settings/integrations'+(n>1?'?tab='+S.tab:'');
+}
+$('save').onclick=()=>{
+  let firstBad=null;const okIds=[];
+  for(const p of active()){if(!dirty(p.id))continue;S.errors[p.id]={};(p.fields||[]).forEach(f=>{if(f.check){const e=f.check(S.draft[p.id][f.k]);if(e)S.errors[p.id][f.k]=e;}});
+    if(Object.keys(S.errors[p.id]).length){firstBad=p;break;}S.saved[p.id]=JSON.parse(JSON.stringify(S.draft[p.id]));okIds.push(p.id);}
+  if(firstBad){S.tab=firstBad.id;render(true);toast(`${firstBad.short} : saisie refusée`+(okIds.length?` — ${okIds.length} autre${okIds.length>1?'s':''} onglet${okIds.length>1?'s':''} enregistré${okIds.length>1?'s':''}.`:'.'),true);requestAnimationFrame(()=>{const i=document.querySelector('.field.bad input');i&&i.focus();});}
+  else{toast('Enregistré.');render();}
+};
+$('cancel').onclick=()=>{S.draft=JSON.parse(JSON.stringify(S.saved));S.errors={};render();toast('Modifications annulées.');};
+chips();render();
+</script>
+</body>
+</html>

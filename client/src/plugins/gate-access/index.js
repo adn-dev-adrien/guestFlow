@@ -5,7 +5,7 @@ export default {
   id: 'gate-access',
   contributes: {
     'settings.integrations': [
-      { key: 'gate', order: 40, Component: lazy(() => import('./SettingsGateAccessSection')) },
+      { key: 'gate', order: 40, tabLabel: 'Portail', keywords: ['Sowel', 'Portail'], Component: lazy(() => import('./SettingsGateAccessSection')) },
     ],
     // High in the stack: a guest at a closed gate is the cost of missing it.
     'dashboard.alerts.urgent': [{ key: 'gate-keys', order: 10, Component: lazy(() => import('./GateKeysAlert')) }],

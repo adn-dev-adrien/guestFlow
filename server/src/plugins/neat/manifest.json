@@ -1,7 +1,7 @@
 {
   "id": "neat",
   "name": "Assurance annulation Neat",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Souscription automatique de l’assurance annulation.",
   "icon": "umbrella",
   "surfaces": [
@@ -23,6 +23,9 @@
     ],
     "1.1.0": [
       "La carte du plugin dit si les identifiants Neat manquent."
+    ],
+    "1.2.0": [
+      "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
     ]
   }
 }

@@ -179,8 +179,9 @@ what is installed and active. A new customer starts with none; Solio keeps all t
       throws counts as nothing missing;
     - the core holds where each plugin is set up (`PLUGIN_SETTINGS_PLACES`, next to `PLUGIN_PAGES`):
       its own page (Linge, Paiements en ligne, Recettes, Vacances & fermetures, Options & ressources
-      for the hourly resources, Plan comptable for the export) or its section of Intégrations,
-      reached by the anchor `#plugin-<id>`; `null` for a plugin with nothing to set up (SAS).
+      for the hourly resources, Plan comptable for the export) or its tab of Intégrations,
+      `/settings/integrations?tab=<id>` (the anchor `#plugin-<id>` until 2026-10-22, still read —
+      specs/integrations-tab-per-plugin.md rule 6); `null` for a plugin with nothing to set up (SAS).
 
     An active plugin that lacks something reads **« Actif · à connecter »** (warning badge) and its
     main button is **« Configurer »** (contained); set up, it reads « Actif » and offers
@@ -200,6 +201,10 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     measured bottom of the sticky bars (the app bar and the PageActionBar) plus 8 px, never a guessed
     constant. Generic hook: `hooks/useAnchorScroll.js`. E2E: after « Configurer » on Neat and on
     Vigilance Météo-France the anchor is in the viewport, below the bars, at 390 and 1280 px.
+
+    > **Sans test** — replaced on 2026-10-22: Intégrations has one tab per plugin and « Configurer »
+    > opens the tab (specs/integrations-tab-per-plugin.md rules 5, 6 and 9, tested there); there is no
+    > anchor to hold in place any more, and `hooks/useAnchorScroll.js` is removed.
 27. **The anchor lets go when the page has settled, and never breaks the page** (review of PR #728, M4
     and B2). The re-placing of rule 26 stops 800 ms after the LAST layout change (a slow section keeps
     it going), at 8 s at the latest, and at once on a wheel, a touch, a click, a key, or a scroll with
@@ -210,6 +215,10 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     clicked twice (same hash, new navigation)
     runs it again. A hash that does not decode (« #plugin-%E0%A4%A ») is looked up as typed instead
     of throwing into the error screen.
+
+    > **Sans test** — replaced on 2026-10-22 with rule 26: Intégrations has one tab per plugin and « Configurer »
+    > opens the tab (specs/integrations-tab-per-plugin.md rules 5, 6 and 9, tested there); there is no
+    > anchor to hold in place any more, and `hooks/useAnchorScroll.js` is removed.
 
 **Edge cases:**
 - (rule 25) A plugin out of the plan never counts as « à configurer ».
@@ -306,7 +315,7 @@ All under the admin guard except `/me` and `/login`.
 Unknown id → 404 `UNKNOWN_PLUGIN`.
 
 **Integrated review of inte/plugins (2026-10-19)** — rule 26:
-- Client `hooks/useAnchorScroll.js` (new, generic): places the element a hash names below the measured
+- Client `hooks/useAnchorScroll.js` (new, generic; removed on 2026-10-22 by specs/integrations-tab-per-plugin.md): places the element a hash names below the measured
   sticky bars and keeps it there while the page settles; stops at the first user scroll (rule 27:
   `quietMs`, `maxMs`, `navigationKey`, `anchorIdOf` for a malformed hash).
 - Client `pages/settings/IntegrationsSettingsPage.jsx`: uses it for `#plugin-<id>` (the fixed
