@@ -38,6 +38,7 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 == Changelog ==
 
 = 1.16.0 =
+* Reprend tout le contenu de la 1.14.1 (demande sans paiement, prix par personne, séjour minimum visible).
 * Calendrier : le séjour choisi reste lisible au toucher (le survol ne vaut que pour une souris, et l'emporte même sur l'ancien module `gf-booking.php`), les jours passés, les nuits prises et les nuits libres ne se ressemblent plus, et une légende dit ce que chaque couleur veut dire. Quand les deux mois affichés n'offrent aucune arrivée possible (nuits prises, durée minimale, jours d'arrivée), « Prochaine disponibilité : mercredi 31 mars 2027 » propose d'y aller d'un clic (GuestFlow à jour requis).
 * Coordonnées : chaque champ manquant ou mal rempli est signalé sous le champ lui-même (« Champ requis. », « Adresse e-mail incomplète. »), le premier reçoit le curseur ; les refus de GuestFlow arrivent au même endroit, dans la langue de la page. Le moteur émet l'événement `gf:refused` pour qu'un thème qui déplace ses blocs puisse montrer le champ refusé. Claviers adaptés sur téléphone et saisie à 16 px, qui ne fait plus zoomer iOS.
 * Sur téléphone, le total et le bouton restent dans une barre en bas de l'écran ; le bouton suit l'étape (« Choisir les dates », « Continuer », puis l'envoi). La barre tient aussi dans un thème qui coupe le débordement de la page. Dans un bloc large, le récapitulatif suit le défilement dans une colonne à droite, avec le bouton ; sous un en-tête collant, régler `--gf-sticky-top` à sa hauteur. Les heures d'arrivée et de départ ont leur propre ligne.
@@ -52,6 +53,11 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 * Calendrier de disponibilités : jours de la semaine dans la langue de la page. Récapitulatif : « 1 nuit », « 3 nuits ». Sélecteur de langue des CGV en texte (FR, EN).
 * Un module « Réservation depuis le site » éteint dans GuestFlow affiche « Réservation temporairement indisponible. » plutôt qu'une erreur générique.
 * En-tête `Update URI` : WordPress ne demande plus de mise à jour à wordpress.org pour ce plugin.
+= 1.14.1 =
+* Demande sans paiement : le récapitulatif peut proposer « Envoyer une demande sans payer » à côté du paiement (réglage du bloc, désactivé par défaut).
+* Prix par personne et par nuit sous le total, calculé par GuestFlow ; les voyageurs se choisissent avant les dates.
+* Séjour minimum visible : le calendrier affiche le prix de chaque nuit, hachure les départs trop courts et nomme le premier départ possible.
+* Le plugin déclare « Update URI: false » : WordPress ne le remplacera jamais par un plugin homonyme de wordpress.org.
 
 = 1.14.0 =
 * Origine des demandes : le plugin note d'où vient la visite (site référent, paramètres utm_*, page d'arrivée) dans la mémoire de l'onglet, sans cookie ni identifiant, et l'envoie avec la demande de réservation. GuestFlow en déduit le canal (recherche, réseaux sociaux, campagne, assistant IA…). Un site peut couper la capture avec le filtre `guestflow_booking_capture_attribution`.

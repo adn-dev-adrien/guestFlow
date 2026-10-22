@@ -4,6 +4,34 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-10-22
+
+### Summary
+- Saisie Booking : le script ouvre le tableau des prix, lit le téléphone et ne retient plus la taxe que Booking reverse (script à réinstaller).
+- Réservation plateforme : les voyageurs ajoutés après la réservation sont facturés à l'arrivée, dans le complément.
+- Une plateforme sans montant brut saisi n'affiche plus de supplément voyageurs provisoire ; les fiches déjà saisies ne bougent pas.
+- Site : demande de réservation sans paiement (à activer par bloc), prix par personne et par nuit, séjour minimum visible dans le calendrier.
+- Site : les voyageurs se choisissent avant les dates ; le plugin WordPress passe en 1.14.1, à mettre à jour depuis l'admin WordPress.
+- Comptabilité : un solde encaissé à l'arrivée et une écriture plateforme brute sont ventilés sur les bons comptes.
+
+### Added
+- **Booking without paying, and the price for your own group** (specs/booking-drawer-friction.md). The site's récapitulatif can now offer « Envoyer une demande sans payer » next to « Payer 652,40 € ». A new block setting enables it, off by default; Domaine Solio turns it on for both lodgings. The total is followed by « soit X € par personne et par nuit », computed by GuestFlow (`perPersonPerNight` on the public quote). `booking-requested` now carries `mode` (`pay` / `request`).
+- **The minimum stay is visible before choosing.** The public availability serves, for each bookable arrival, its minimum and its earliest valid departure (`arrivals`), plus each free night's price (`nightPrices`). Both are computed with the same rule the quote enforces. The calendar shows the price under each day, hatches the departures under the minimum (« min. 2 »), and refuses the tap by naming the earliest departure. An arrival that cannot reach its minimum before a booked night is no longer offered.
+- **Guests added after a platform booking are billed on arrival** (spec `platform-extra-guest-complement.md`, 2026-10-22). A platform reservation counts no extra-guest supplement until its brut is entered; the composition at that moment becomes the paid base (internal, no new field). Guests added afterwards beyond the free count land in the arrival complement as « Voyageurs ajoutés », shown on the fiche and in the arrival SAS recap, offerable in both. +21 server tests, +5 client tests.
+
+### Changed
+- **Travellers first in the booking widget**: the party is chosen before the dates, so the first price a visitor reads is the one for their group (the 21 quotes of 29/09 → 18/10 had all stayed at the default 2 guests).
+- **The Solio booking drawer gets a sticky bar on screen 1**: the calendar's hint or refusal, the live total with its per-person line, and « Suivant » (amends rules 4-5 of specs/site-booking-drawer.md). After a request is sent, screen 2 shows only its confirmation. The theme's `.gf-section` padding no longer leaks into the engine's blocks.
+
+### Fixed
+- **Booking intake works on the page Booking really serves** (specs/booking-extranet-intake.md rules 27–29, first production intake on 2026-10-22). The price table (« Sous-total », « Taxe de séjour ») sits in the room's folded accordion: the script now opens it before reading the page, which is what every « Sous-total introuvable » since 2026-10-16 was — **reinstall the script** from Réglages → Intégrations → Saisie Booking (`@version 3`). The guest's phone is read when Booking prints it at the end of its « Un simple appel suffit » sentence. And the tourist tax is filled as « retenue » and taken off the commission only when Booking keeps it to pay the commune; with Booking reversing it to us (the setting since 2026-10-16), the commission is « Commission et frais » and the fiche no longer shows an écart equal to the tax. +6 server tests.
+- **WordPress plugin never auto-updated from wordpress.org** — the `guestflow-booking` header now declares `Update URI: false`. Without it, WordPress (and the homelab's monthly plugin updater) would offer a same-slug plugin published later on wordpress.org as an « update » and install it in place of ours. Security audit 2026-10-08, HL-13b follow-up.
+- **A platform stay of the `clientGrossAmount` era no longer books its commission as VAT** (specs/accounting-books-the-money-collected.md rule 12). Ticking the solde of such a stay (Gîtes de France #13: 706 € net, 907,20 € paid by the guest) captured per-line contribs from the net solde; the export used them against a CA grossed up to 907,20 € and put the 201,20 € gap on the VAT line (`44571100 C265,38` on 641,82 € of revenue). A grossed-up entry now ignores its contribs and is pro-rated from the stored money: `70600000 C824,73 | 44571100 C82,47`. No month already collected changes on the Solio base.
+- **A solde collected at the door no longer lands entirely on the tourist-tax account** (specs/collect-stay-payment-at-check-in.md rule 26). When a direct stay's acompte had captured its accounting split and the solde's capture then failed (stored amounts that drifted from today's pricing), « Encaisser en une fois » and the SAS stay payment left the solde without a split, and the monthly export credited the whole solde to 46710000 — no revenue, no VAT (stay 22224, June 2026). The solde now gets a split on its stored amounts; a stay with no split anywhere keeps the stored-money accounting, and the payment is always recorded. Existing rows are not rewritten.
+
+### Migration
+- **`reservations.platformPaidGuests`, `extraGuestComplementSurcharge`, `extraGuestComplementCount`** (spec `platform-extra-guest-complement.md`). Non-direct reservations whose brut is already entered take their current composition as the paid base: their totals do not change. Non-direct reservations **without** a brut lose their provisional extra-guest supplement until the brut is entered.
+
 ## [3.11.0] - 2026-10-22
 
 ### Summary
