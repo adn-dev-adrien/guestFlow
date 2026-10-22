@@ -1,0 +1,1 @@
+- **Public guest cap never unconfigured** (spec `site-extra-guest-line.md`, 2026-10-22). On `/public/v1`, a property with `maxGuests = 0` now advertises and enforces its included guests (then 2) instead of accepting any party; the back-office tolerance is unchanged. Set `maxGuests` on each property (La Granja 15, L'Estiva 5) before installing.

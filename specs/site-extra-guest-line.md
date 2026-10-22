@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented |
 | **Branch** | `feature/site-extra-guest-line` |
 | **Created** | 2026-10-22 |
 | **Author** | Adrien |
@@ -185,7 +185,7 @@ would run on every install, including test databases.
 ## 7. Test plan
 
 ### Server unit tests
-- [ ] `tests/site-extra-guest-line.unit.test.js` —
+- [x] `tests/site-extra-guest-line.unit.test.js` (10 tests) —
   `toPublicQuote` emits `extraGuests` (billed, offered, none) and keeps `extraGuestSurcharge`;
   `publicGuestCap` (configured cap, `0` → included guests, both `0` → 2); booking request over the fallback cap → 409.
 

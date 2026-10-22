@@ -19,7 +19,7 @@ const settingsModel = require('../../models/settingsModel');
 const termsModel = require('../../models/termsModel');
 const { validateStayInput, validateGuest, validateAttribution } = require('../../utils/publicInputValidation');
 const { classifyAttribution } = require('../../utils/attributionChannel');
-const { checkGuestCapacity } = require('../../utils/capacity');
+const { checkGuestCapacity, publicGuestCap } = require('../../utils/capacity');
 const { generateToken } = require('../../utils/publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
@@ -79,11 +79,12 @@ function create(req, res) {
   const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
   if (resErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'resourceUnavailable', resErrors);
 
-  const property = db.prepare('SELECT maxGuests, maxBabies FROM properties WHERE id = ?').get(v.value.propertyId);
+  const property = db.prepare('SELECT maxGuests, maxBabies, basePriceIncludedGuests FROM properties WHERE id = ?').get(v.value.propertyId);
   if (!property) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
 
-  // Same rule as the back-office (utils/capacity.js), but with NO force override on the public path.
-  if (checkGuestCapacity(property, v.value)) {
+  // Same rule as the back-office (utils/capacity.js), but with NO force override on the public path
+  // and no « unconfigured = uncapped » tolerance (specs/site-extra-guest-line.md rule 6).
+  if (checkGuestCapacity({ ...property, maxGuests: publicGuestCap(property) }, v.value)) {
     return failT(res, req, 409, 'OVER_CAPACITY', 'overCapacity');
   }
 
