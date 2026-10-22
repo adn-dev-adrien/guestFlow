@@ -186,3 +186,4 @@ plugins-dist/
 server/plugins/
 server/plugin-data/
 playwright-report-prod/
+playwright-report-bare/

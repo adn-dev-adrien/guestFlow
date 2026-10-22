@@ -233,6 +233,31 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 - Every message of the Plugins page is impersonal and short (owner's rule, 2026-10-05).
 - Tests: `plugins-phase-0.unit.test.js` (messages), `PluginCard.erasure.test.jsx` (+1: the refusal before the click), `plugins-phase-1-sdk.unit.test.js` (a failed erasure leaves the plugin inactive).
 
+### 3.F The bare install (added 2026-10-22)
+
+The approved plan ran the E2E suite a second time with every plugin off; §7 dropped it (parallel local
+run, doubled CI time) and left the « nothing active » configuration to Vitest and a manual walk. These
+rules bring it back as its own focused run, and record what that run found.
+
+28. **A bare install is tested end to end, on every PR.** A second E2E configuration starts a new
+    customer with no plugin installed (rule 11), past the start assistant, on its own database
+    (`playwright.bare.config.js`, `npm run test:e2e:bare`, specs in `e2e/bare/`, CI job « bare install
+    (no plugin) » of `e2e.yml`). It proves that: no core page names a plugin's subject, links to a
+    plugin page or to Intégrations, or calls a plugin's API (rule 18); a plugin page typed by hand says
+    which plugin it needs (phase P rule 42); the Plugins page has nothing installed and offers every
+    plugin; the core runs a stay — property, client, reservation priced by the server, quote saved and
+    its PDF downloaded, the stay on the planning, the property's iCal export, finance and emails pages.
+    The seed (`E2E_SEED_PLUGINS=none`) creates no « Accueil » account, as a new customer has none.
+29. **A role a plugin brings cannot be given without it** (found by rule 28). `POST /api/users` and
+    `PUT /api/users/:id` answer `400 { error: 'ROLE_PLUGIN_INACTIVE', field: 'roles', role, plugin }`
+    when a role the account does not already hold belongs to a plugin that is not live: « Accueil »
+    (`reception`) ← `sas`, « Comptable » (`accountant`) ← `accounting-export` (`ROLE_PLUGINS` in
+    `constants/plugins.js`). The client already hid them (rule 16); the server is now the authority.
+    A role already held is kept: rule 8 keeps its plugin from being switched off under it.
+30. **An empty planning names no plugin's cards** (found by rule 28). It read « Aucune arrivée ni
+    créneau ressource… », which speaks of `hourly-resources` on an instance without it; it now reads
+    « Rien de prévu sur les 14 prochains jours. » whatever the plugins.
+
 ## 4. Architecture
 
 > Fat backend, thin frontend: the server owns the catalogue, the states, the refusal rules and the list
@@ -412,6 +437,13 @@ dialog: the uninstall confirmation is inline.
   suite runs in parallel locally, so a spec switching every plugin off would break the specs running
   beside it, and running everything twice doubles the CI time. The « nothing active » configuration is
   covered by the Vitest route/menu tests and by the manual walk below.
+
+### E2E — bare install, `e2e/bare/bare-install.spec.js` (5 tests, added 2026-10-22, rules 28–30)
+- Its own configuration (`playwright.bare.config.js`, database `/tmp/guestflow-e2e-bare.db`), seeded
+  with `E2E_SEED_PLUGINS=none`; one CI job beside the smoke suite. This restores the second run of the
+  approved plan without the two problems above: it runs in its own process and database, and only the
+  focused bare specs run, not the whole suite twice.
+- Server `plugin-role-refusal.unit.test.js` (5 tests, rule 29).
 
 ### Manual verification (done 2026-09-28)
 - New customer (fresh DB, no plugin): 23 core pages visited — no request answered `PLUGIN_INACTIVE`, no

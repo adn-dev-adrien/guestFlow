@@ -90,7 +90,9 @@ module.exports = async () => {
   await ctx.dispose();
 
   // (6) Same round-trip for the « Accueil » account → e2e/.auth/reception.json. Only the reception
-  // specs opt into it; every other spec keeps the admin session.
+  // specs opt into it; every other spec keeps the admin session. The bare-install suite has no such
+  // account (specs/plugins-phase-0-foundation.md rule 28).
+  if (process.env.E2E_SEED_PLUGINS === 'none') return;
   const receptionCtx = await request.newContext({ baseURL: FRONTEND_URL });
   const receptionLogin = await receptionCtx.post('/api/auth/login', {
     data: { email: E2E_RECEPTION_EMAIL, password: E2E_RECEPTION_PASSWORD },

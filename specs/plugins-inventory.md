@@ -411,7 +411,7 @@ named, so they are not lost.
 |---|---|
 | Arbitration | subscription price and billing unit; product name and domain availability; French-only admin and EUR-only confirmed as the target market |
 | Git | commit the study; delete the 453 stale local branches (owner's go needed); GitHub Support purge of `refs/pull/*` (owner) |
-| Phase 0 | E2E suite run on two configurations: every plugin active, none active |
+| Phase 0 | E2E suite run on two configurations: every plugin active, none active — **done 2026-10-22**: the bare-install run (`specs/plugins-phase-0-foundation.md` rule 28) |
 | Phase 1 | the gate-access feature merged in v3.4.0 (#623) and must now be extracted, not built as a plugin from scratch |
 | Hosting | per-customer monitoring and alerts (process down, late backup, disk, certificate) |
 | Control plane (owner's request, 2026-09-28) | a complete operator console for the fleet, specified before any hosting code. **Onboarding:** create a customer who has just bought GuestFlow, with the length of the subscription. **Fleet view:** every customer, state, plan, renewal date, version, installed plugins. **Deprovisioning:** one easy action (export, then stop, then archive or erase, respecting the GDPR reversibility of §9.5). **Expiry alerts:** subscriptions reaching their end date. **Payment reminders:** a reminder sent when the renewal is due, with the grace period and what happens to an unpaid instance (read-only, then suspended) |

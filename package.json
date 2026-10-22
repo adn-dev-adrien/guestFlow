@@ -19,7 +19,8 @@
     "test:e2e": "node e2e/wipe-db.js && playwright test",
     "test:e2e:headed": "node e2e/wipe-db.js && playwright test --headed",
     "test:e2e:report": "playwright show-report",
-    "test:e2e:prod": "playwright test -c playwright.prod.config.js"
+    "test:e2e:prod": "playwright test -c playwright.prod.config.js",
+    "test:e2e:bare": "export GUESTFLOW_E2E_DB_PATH=${GUESTFLOW_E2E_DB_PATH:-/tmp/guestflow-e2e-bare.db} && node e2e/wipe-db.js && playwright test -c playwright.bare.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
