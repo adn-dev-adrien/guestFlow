@@ -2,6 +2,7 @@
 /**
  * Plugin Name:       GuestFlow Booking
  * Plugin URI:        https://github.com/adn-dev-adrien/guestFlow
+ * Update URI:        false
  * Description:       Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique. Le site ne parle qu'au proxy PHP du plugin ; la clé d'API reste côté serveur.
  * Version:           1.14.0
  * Requires at least: 6.4

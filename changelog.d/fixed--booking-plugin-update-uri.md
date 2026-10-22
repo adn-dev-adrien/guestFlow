@@ -1,0 +1,1 @@
+- **WordPress plugin never auto-updated from wordpress.org** — the `guestflow-booking` header now declares `Update URI: false`. Without it, WordPress (and the homelab's monthly plugin updater) would offer a same-slug plugin published later on wordpress.org as an « update » and install it in place of ours. Security audit 2026-10-08, HL-13b follow-up.
