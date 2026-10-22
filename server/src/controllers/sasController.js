@@ -57,7 +57,7 @@ function snapshotSas(reservationId) {
 // specs/sas-offer-complement-lines.md §4.3 — the offered set sent by a recap, sanitised at the
 // boundary: `[{ kind, id }]` limited to the three addressable row kinds. `undefined` (the recap had no
 // offerable line, or an older client) means « leave every offered flag as it is ».
-const OFFERABLE_KINDS = new Set(['option', 'resource', 'custom']);
+const OFFERABLE_KINDS = new Set(['option', 'resource', 'custom', 'extraGuests']);
 function normaliseOfferedRefs(refs) {
   if (!Array.isArray(refs)) return undefined;
   return refs
