@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -29,6 +29,9 @@
       "Réponse principale en bas de l’écran, sous le pouce ; « Reporter au départ » en bouton neutre.",
       "Compteur « 3 sur 9 » qui ne grandit plus quand une prestation est ajoutée.",
       "« Rien à percevoir » quand le récapitulatif n’a rien à encaisser."
+    ],
+    "1.1.0": [
+      "Récapitulatif : « Voyageurs ajoutés » perçus à l’arrivée quand une réservation de plateforme gagne des voyageurs, offerts d’un geste comme les autres prestations."
     ]
   }
 }

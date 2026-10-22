@@ -220,6 +220,16 @@ final class GF_Blocks
                 'barPickDates'    => __('Choisir les dates', 'guestflow-booking'),
                 'barContinue'     => __('Continuer', 'guestflow-booking'),
                 'taxIncluded'     => __('taxe de séjour incluse', 'guestflow-booking'),
+                // specs/booking-drawer-friction.md — minimum stay before choosing (rules 11-12), the
+                // price per person (rule 9) and the request without paying (rules 2-4).
+                'minShort'        => __('min. %d', 'guestflow-booking'),
+                'minNightsFrom'   => __('Départ à partir du %s (%d nuits minimum).', 'guestflow-booking'),
+                'minNightsPick'   => __('%d nuits minimum : choisissez le %s ou plus tard.', 'guestflow-booking'),
+                'perPersonPerNight' => __('soit %s par personne et par nuit', 'guestflow-booking'),
+                'payAmount'       => __('Payer %s', 'guestflow-booking'),
+                'payDepositAmount' => __('Payer l’acompte %s', 'guestflow-booking'),
+                'sendRequestNoPay' => __('Envoyer une demande sans payer', 'guestflow-booking'),
+                'requestNoPayHint' => __('Une question avant de vous engager ? Envoyez une demande : aucun paiement tant que nous n’avons pas répondu.', 'guestflow-booking'),
             ],
         ];
     }

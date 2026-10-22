@@ -27,13 +27,13 @@ One single, professional booking widget on each lodging page: pick the dates on 
 
 ### Dates
 1. The widget embeds its own 2-month availability calendar (prev/next navigation). Arrival is picked first, then departure. *Amended 2026-09-23 (rule 24): a complete range is no longer thrown away by the next click — the arrival anchors the selection until it is clicked again or the dates are cleared.*
-2. Past dates and taken nights are disabled. A departure pick that would span a blocked night is refused client-side (`rangeHasBlocked`) — *amended 2026-09-23 (rule 25): refused, not hidden; the date stays clickable and lands a new arrival* — and the server quote remains authoritative: `available === false` or `minNightsBreached` keeps the submit button disabled. **No unavailable range can ever be submitted.**
+2. Past dates and taken nights are disabled. A departure pick that would span a blocked night is refused client-side (`rangeHasBlocked`) — *amended 2026-09-23 (rule 25): refused, not hidden; the date stays clickable and lands a new arrival* — and the server quote remains authoritative: `available === false` or `minNightsBreached` keeps the submit button disabled. **No unavailable range can ever be submitted.** *Amended 2026-10-19 (`specs/booking-drawer-friction.md` rule 10): against a GuestFlow that serves `arrivals`, a date that can neither start a stay nor end the current one is closed like a taken night.*
 3. The « Arrivée » and « Départ » fields are **read-only displays**, filled exclusively from the calendar. No manual typing. The date is written **in figures** (`28/09/2026`) — amended 2026-09-23: the two fields sit side by side in a 560 px drawer, where « 28 septembre 2026 » was clipped mid-word.
-4. Min-nights violations show the server's `minNights` message under the calendar. **That message must survive the calendar re-render** (rule 19). *Amended 2026-09-23 (rule 26): the refused period stays on screen instead of being cleared.*
+4. Min-nights violations show the server's `minNights` message under the calendar. **That message must survive the calendar re-render** (rule 19). *Amended 2026-09-23 (rule 26): the refused period stays on screen instead of being cleared.* *Amended 2026-10-19 (`specs/booking-drawer-friction.md` rules 11-12): the minimum is shown before it is breached — departures under it are hatched « min. N » and refuse the tap, and the hint names the earliest departure.*
 5. Arrival/departure **time** selects (defaults from the property's `defaultCheckIn`/`defaultCheckOut`) are kept, as in the current popup.
 
 ### Guests
-6. Adultes (min 1) / Ados (12–18) / Enfants (2–12) / Bébés (0–2) are configured with **stepper controls** (− value +), age range as a small subtitle. No free-text number inputs.
+6. Adultes (min 1) / Ados (12–18) / Enfants (2–12) / Bébés (0–2) are configured with **stepper controls** (− value +), age range as a small subtitle. No free-text number inputs. *Amended 2026-10-19 (`specs/booking-drawer-friction.md` rule 7): the travellers block comes first, above the calendar.*
 
 ### Options & supplements — one uniform list
 7. Options and resources render in **one visually uniform list**, every row with the same layout: **title left (with age/unit subtitle), price + unit label in italic to its right, stepper far right**. No mixed plain/framed rows.

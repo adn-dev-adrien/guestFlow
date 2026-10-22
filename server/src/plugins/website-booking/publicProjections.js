@@ -342,7 +342,9 @@ function collapseToRanges(sortedDates) {
   return ranges;
 }
 
-function toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate = null }) {
+// `arrivals` and `nightPrices` (specs/booking-drawer-friction.md rules 10 + 13) are computed by the
+// controller; the projection only shapes them, so an older caller still gets its original fields.
+function toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate = null, arrivals = [], nightPrices = [] }) {
   const sorted = Array.from(new Set(blockedDates || [])).filter(Boolean).sort();
   return {
     propertyId: Number(propertyId),
@@ -352,7 +354,20 @@ function toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailabl
     blockedRanges: collapseToRanges(sorted),
     // The first free night on or after max(from, today), looked up to a year ahead; null when none.
     nextAvailableDate: nextAvailableDate || null,
+    arrivals: (arrivals || []).map((a) => ({
+      date: a.date, minNights: Number(a.minNights), earliestDeparture: a.earliestDeparture,
+    })),
+    nightPrices: (nightPrices || []).map((n) => ({ date: n.date, price: Number(n.price) })),
   };
+}
+
+// Indicative price per paying guest and per night (rule 8): the stay total INCLUDING the tourist tax,
+// over the engine's `persons` (adults + teens + children — babies are not counted) and the nights.
+function perPersonPerNight(totalStayPrice, persons, nights) {
+  const p = Number(persons || 0);
+  const n = Number(nights || 0);
+  if (!(p > 0) || !(n > 0)) return null;
+  return Math.round((Number(totalStayPrice || 0) / p / n) * 100) / 100;
 }
 
 /**
@@ -433,6 +448,7 @@ function toPublicQuote(quote, {
     // Grand total of the stay INCLUDING the tourist tax (finalPrice is tax-exclusive). This is the
     // headline "Total du séjour" a public consumer should display.
     totalStayPrice: Number(quote.totalStayPrice || 0),
+    perPersonPerNight: perPersonPerNight(quote.totalStayPrice, quote.persons, quote.nights),
     // The SERVER-decided payment mode (specs/public-online-deposit.md). In 'full' mode the site charges
     // the whole stay at once, so the deposit/balance blocks are OMITTED — the site must not display
     // Acompte/Solde lines that don't reflect how the guest actually pays.
@@ -465,4 +481,5 @@ module.exports = {
   toPublicAvailability,
   toPublicQuote,
   collapseToRanges,
+  perPersonPerNight,
 };

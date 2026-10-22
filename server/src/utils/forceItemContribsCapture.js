@@ -300,8 +300,8 @@ function applyBalanceContribsToDb(db, reservation, contribs) {
 /**
  * specs/reservation-payment-ledger.md rule 37 — the split of a bucket recorded although its capture
  * failed (stored amounts that drifted from today's engine). The money is booked on the stored amounts:
- * the tourist tax the export puts on this entry, the rest on the accommodation — never the whole
- * entry on the tax account. Lines keep no per-line contrib (they read 0 on this entry).
+ * the tourist tax the export puts on this entry, the rest on the accommodation and the lines still
+ * owed, pro rata — never the whole entry on the tax account.
  */
 function captureStoredSplit({ db, reservation, bucket }) {
   let routedToComplement = Boolean(Number(reservation.touristTaxInComplement || 0));
@@ -358,16 +358,6 @@ function captureStoredSplit({ db, reservation, bucket }) {
 }
 
 /**
- * The ONE capture of a schedule bucket for every path that records money — a mark on the fiche, an
- * online payment, the single payment at the door, the SAS stay payment (specs/reservation-payment-
- * ledger.md rule 42). The engine-replayed split first; when its conservation invariant fails (stored
- * amounts that drifted from today's engine), the stored-amount split; and only if that fails too, no
- * split at all — logged, never thrown: money received is never lost to its accounting split.
- * Each attempt runs in its own savepoint, so a failure leaves nothing half-written.
- *
- * @returns {'captured'|'stored'|'legacy'|'none'}
- */
-/**
  * Whether any schedule bucket of the reservation already carries a per-line contribution. The export
  * picks its path per RESERVATION (accountingModel `hasContribs`): a first contribution flips every
  * entry of the stay onto the per-line path, where an older bucket recorded without one reads 0.
@@ -382,6 +372,16 @@ function hasAnyContrib(db, reservationId) {
   ));
 }
 
+/**
+ * The ONE capture of a schedule bucket for every path that records money — a mark on the fiche, an
+ * online payment, the single payment at the door, the SAS stay payment (specs/reservation-payment-
+ * ledger.md rule 42). The engine-replayed split first; when its conservation invariant fails (stored
+ * amounts that drifted from today's engine), the stored-amount split; and only if that fails too, no
+ * split at all — logged, never thrown: money received is never lost to its accounting split.
+ * Each attempt runs in its own savepoint, so a failure leaves nothing half-written.
+ *
+ * @returns {'captured'|'stored'|'legacy'|'none'}
+ */
 function captureBucketSplit({ db, reservation, bucket, log = console }) {
   try {
     db.transaction(() => captureContribsOnFlip({ db, reservation, bucket }))();

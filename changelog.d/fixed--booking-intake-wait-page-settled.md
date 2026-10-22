@@ -1,1 +1,0 @@
-- **Booking intake script waits for the price table** — Booking renders « Sous-total » and « Taxe de séjour » after the reservation number, so the script sent the page too early and every intake was refused « Sous-total introuvable ». It now sends once the page text has settled. **Reinstall the script** from Réglages → Intégrations → Saisie Booking (`@version 2`).
