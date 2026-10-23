@@ -9,7 +9,8 @@
  * Forbidden to a support session:
  * - deciding or revoking its own access, the account it borrows (password, second step, profile);
  * - rule 18: any write under `/api/users`, and the settings that hold credentials or secrets — the
- *   SMTP group, a plugin setting declared `secret`, the Google and Qonto OAuth connections (any
+ *   SMTP group (and the sender name the start assistant writes), the access code and the Wi-Fi
+ *   password of a property (start assistant or property page), a plugin setting declared `secret`, the Google and Qonto OAuth connections (any
  *   method), the Qonto and Neat credentials, and uninstalling or turning off a plugin;
  * - rule 23: every route a plugin declares with `ctx.secretRoutes` — it hands out, creates or rotates a
  *   secret (the Booking userscript and its key, the gate connector's keys, read in clear, the website
@@ -29,6 +30,7 @@ const under = (path, prefix) => path === prefix || path.startsWith(`${prefix}/`)
 const hasAnyKey = (obj, keys) => Boolean(obj && typeof obj === 'object' && keys.some((k) => Object.prototype.hasOwnProperty.call(obj, k)));
 
 const NEAT_CREDENTIAL_KEYS = ['clientId', 'clientSecret', 'environment'];
+const ARRIVAL_SECRET_KEYS = ['accessCode', 'wifiPassword'];
 
 function defaultIsSecretRoute(method, path) {
   // Express answers a HEAD with the GET handler.
@@ -54,6 +56,14 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   if (under(path, '/users') && !read) return 'credentials';
   // The whole SMTP group: the connection, where the account emails point, and who they come from.
   if (path === '/settings' && !read && body && body.smtp !== undefined) return 'credentials';
+  // The same sender name through the start assistant, and the arrival secrets a guest is given — the
+  // access code and the Wi-Fi password — whichever form writes them.
+  if (path === '/onboarding/emails' && !read && body && typeof body === 'object') {
+    if (body.senderName !== undefined) return 'credentials';
+    const list = Array.isArray(body.properties) ? body.properties : [];
+    if (list.some((p) => p && ARRIVAL_SECRET_KEYS.some((k) => p[k] !== undefined && p[k] !== null && p[k] !== ''))) return 'credentials';
+  }
+  if (/^\/properties\/[^/]+\/arrival-facts$/.test(path) && !read && hasAnyKey(body, ARRIVAL_SECRET_KEYS)) return 'credentials';
   const pluginSettings = /^\/plugins\/([^/]+)\/settings$/.exec(path);
   if (pluginSettings && !read && body && typeof body === 'object') {
     // Plugin ids are lower-case kebab: the lower-cased path names the same plugin.
