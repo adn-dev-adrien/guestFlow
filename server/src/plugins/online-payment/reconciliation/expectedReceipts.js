@@ -8,11 +8,7 @@
 
 const flag = (v) => Number(v || 0) === 1 || v === true;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
-const sdk = require('../../sdk');
 const { day } = require('./dates');
-
-// A platform marked « Compté comme vente directe » is a direct stay (rule 43): never compare to 'direct' by hand.
-const isDirectChannel = (platform) => sdk.coreModule('platformNameFormat').isDirectChannel(platform);
 
 // The ledger rows of the direct buckets, with the stored column of their cash flag and their date.
 const DIRECT_ROWS = {
@@ -48,7 +44,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, today }) {
   const ledger = buildLedger({ row, links, today });
   const brief = reservationBrief(row);
   const platform = String(row.platform || 'direct');
-  const isPlatform = !isDirectChannel(platform);
+  const isPlatform = platform.trim().toLowerCase() !== 'direct';
   const out = [];
   const isPaid = (r) => String(r.state).startsWith('paid');
 

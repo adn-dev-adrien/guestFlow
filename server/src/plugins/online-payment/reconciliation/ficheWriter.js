@@ -16,10 +16,7 @@ const BUCKET_FIELDS = {
   endOfStayComplement: { flag: 'endOfStayComplementPaid', date: 'endOfStayComplementPaidDate' },
 };
 
-const sdk = require('../../sdk');
 const { day } = require('./dates');
-
-const isDirectChannel = (platform) => sdk.coreModule('platformNameFormat').isDirectChannel(platform);
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
@@ -52,7 +49,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       const body = { [fields.flag]: true, [fields.date]: settled };
       let payout = null;
       let commission = null;
-      if (!isDirectChannel(before.platform) && receipt.ledgerKey === 'balance') {
+      if (String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
         payout = round2(got / 100);
         const gross = before.platformGrossAmount != null && before.platformGrossAmount !== ''
           ? Number(before.platformGrossAmount) : Number(before.depositAmount || 0) + Number(before.balanceAmount || 0);
