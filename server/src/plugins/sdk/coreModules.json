@@ -79,6 +79,7 @@
     "listSasArrivalCustomLines",
     "listSasArrivalOptionLines",
     "markCancelled",
+    "planArrivalSas",
     "readExtraLines",
     "releaseArrivalPaymentGroup",
     "releaseComplementBucket",
@@ -88,6 +89,7 @@
     "replaceNights",
     "replaceOptions",
     "resolveArrivalExtrasBaseline",
+    "resolveSasArrivalItems",
     "resolveSasOptionSales",
     "sasOriginCustomLabels",
     "search",
@@ -148,6 +150,13 @@
     "isCardOption",
     "isPerPerson",
     "priceOptionSale"
+  ],
+  "arrivalSasPlan": [
+    "arrivalComplementAfter",
+    "isUnifiable",
+    "round2",
+    "totalDiffered",
+    "upsellOutcome"
   ],
   "arrivalPaymentGroup": [
     "BUCKETS",

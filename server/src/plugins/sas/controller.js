@@ -13,6 +13,7 @@ const registry = require('../sdk/registry');
 const { buildSasSnapshot, computeSasChanges } = require('./sasAudit');
 const { extinguisherCheckOn } = require('./settings');
 const { nothingToCollect } = require('./nothingToCollect');
+const { shapeArrivalRecap } = require('./arrivalRecap');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -29,6 +30,7 @@ const { CATERING_CATEGORY } = sdk.coreModule('optionCategoriesMigration');
 const { isReceptionOnly } = sdk.coreModule('roles');
 const { sasLockReason } = sdk.coreModule('sasEditWindow');
 const { stayDueAtArrival, bucketStates } = sdk.coreModule('reservationSettlement');
+const { isUnifiable, totalDiffered, round2 } = sdk.coreModule('arrivalSasPlan');
 const { formatPlatformName, isDirectChannel } = sdk.coreModule('platformNameFormat');
 const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = sdk.coreModule('receptionView');
 
@@ -195,31 +197,92 @@ function withoutLinenAlert(reservation) {
 }
 
 // Rule 11 — without `linen`, the arrival commit ignores the bed-linen and towel decisions: the towel
-// upsell is left as it is, and the bed-linen lines already stored are sent back unchanged (the commit
-// replaces every SAS-origin line, so leaving them out would drop money a previous check-in recorded).
+// upsell is left as it is, no linen element is priced, and the bed-linen lines already stored are kept
+// at their stored amount (the commit replaces every SAS-origin line, so leaving them out would drop
+// money a previous check-in recorded). « Offrir » on such a line stays the operator's gesture.
 function withoutLinenDecisions(reservationId, body) {
   if (linenLive()) return body;
   const bedLabels = new Set(linenItemsModel.list()
     .filter((i) => i.category === 'bed').map((i) => String(i.label).trim()));
-  const isBedLine = (label) => bedLabels.has(String(label || '').trim());
-  const sent = Array.isArray(body.complementItems) ? body.complementItems : [];
-  // The amount is the stored one; « Offrir » on that line stays the operator's gesture.
-  const sentOffered = (label) => {
-    const line = sent.find((i) => i && String(i.label || '').trim() === String(label || '').trim());
-    return line ? Boolean(line.offered) : null;
-  };
-  const stored = (reservationsModel.listSasArrivalCustomLines(reservationId) || [])
-    .filter((l) => isBedLine(l.description))
-    .map((l) => {
-      const offered = sentOffered(l.description);
-      return { label: l.description, amount: l.amount, offered: offered === null ? Number(l.offered) === 1 : offered };
-    });
+  const storedBed = (reservationsModel.listSasArrivalCustomLines(reservationId) || [])
+    .filter((l) => bedLabels.has(String(l.description || '').trim()));
+  const storedIds = new Set(storedBed.map((l) => Number(l.id)));
+  const sent = Array.isArray(body.keptLines) ? body.keptLines : [];
+  const sentFor = (id) => sent.find((k) => k && Number(k.customOptionId) === id);
   return {
     ...body,
-    complementItems: [...sent.filter((i) => !isBedLine(i && i.label)), ...stored],
+    linenItems: [],
+    keptLines: [
+      ...sent.filter((k) => k && !storedIds.has(Number(k.customOptionId))),
+      ...storedBed.map((l) => {
+        const line = sentFor(Number(l.id));
+        return { customOptionId: Number(l.id), offered: line ? Boolean(line.offered) : Number(l.offered) === 1 };
+      }),
+    ],
     bathLinenAdded: undefined,
     bathLinenOffered: false,
   };
+}
+
+// What the check-in may still sell (specs/sas-breakfast-and-catering-upsell.md §3.1-§3.2).
+function saleOffersFor(reservation, { isDeparture }) {
+  if (isDeparture) return { persons: 0, nights: 0, breakfast: { available: false }, catering: { available: false, options: [] } };
+  return buildSasSaleOffers({
+    reservation,
+    options: optionsModel.listForProperty(reservation.propertyId),
+    cateringCategory: CATERING_CATEGORY,
+    // Ceiling of the « personnes servies » stepper: the capacity of the logement, so a friend
+    // invited to dinner can be served (specs/card-option-served-persons.md §3.1 rule 3).
+    maxPersons: reservation.propertyMaxGuests,
+  });
+}
+
+/**
+ * specs/sas-arrival-total-server-side.md rules 3-4 — the arrival draft, as the preview and the commit
+ * both read it: the reception strip, the linen gate, the plugin hooks (a refusal stops both), and the
+ * intents resolved to priced items. `input` is what `planArrivalSas` and `commitArrivalSas` take.
+ */
+function normaliseArrivalDraft(req, reservation) {
+  let body = req.body || {};
+  if (isReceptionOnly(req.user)) body = toReceptionSasCommit(body);
+  body = withoutLinenDecisions(Number(reservation.id), body);
+  const plugins = sasCommitHooks.prepare({ reservation, pluginSteps: body.pluginSteps || {} });
+  if (plugins.refusal) return { refusal: plugins.refusal };
+  const resolved = reservationsModel.resolveSasArrivalItems(Number(reservation.id), {
+    linenItems: body.linenItems, keptLines: body.keptLines,
+  });
+  return {
+    body,
+    plugins,
+    input: {
+      // A plugin's line rides in as an ordinary SAS complement line, so it inherits the
+      // replace-and-delta machinery for free: a re-committed SAS recomputes it instead of stacking it.
+      // A line a plugin bills that the dialog carries back is dropped (rule 7 of phase 3c).
+      complementItems: [
+        ...resolved.filter((i) => !plugins.labels.has(i.label)),
+        ...plugins.items,
+      ],
+      // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — intent only; tri-state.
+      cleaningAdded: body.cleaningAdded === undefined ? undefined : Boolean(body.cleaningAdded),
+      bathLinenAdded: body.bathLinenAdded === undefined ? undefined : Boolean(body.bathLinenAdded),
+      // specs/sas-breakfast-and-catering-upsell.md §3.3 — intent; `undefined` = the sale steps never ran.
+      soldOptions: Array.isArray(body.soldOptions) ? body.soldOptions : undefined,
+      // specs/sas-offer-complement-lines.md §3.2 rule 8 — the upsell stays activated, billed 0 €.
+      cleaningOffered: Boolean(body.cleaningOffered),
+      bathLinenOffered: Boolean(body.bathLinenOffered),
+      offeredExtras: normaliseOfferedRefs(body.offeredExtras),
+    },
+  };
+}
+
+function arrivalRecapFor(req, reservation, plan) {
+  const receptionOnly = isReceptionOnly(req.user);
+  return shapeArrivalRecap(plan, {
+    stayPayment: buildStayPayment(reservation, { isDeparture: false, receptionOnly }),
+    arrivalPayment: buildArrivalPayment(reservation, { isDeparture: false, receptionOnly }),
+    saleOffers: saleOffersFor(reservation, { isDeparture: false }),
+    nothingToCollect: nothingToCollect(reservation, { isDeparture: false, bucketStates, isDirectChannel }),
+  });
 }
 
 function linenPayload(build, { isDeparture }) {
@@ -316,17 +379,41 @@ function getSas(req, res) {
     // breakfast (its candidate mornings, bounded by the nights of the stay) and the « Restauration »
     // catalogue of the property, prices already resolved per property. Arrival only — nothing is sold
     // at check-out. An option the operator booked on the fiche is absent (its step is closed).
-    sasSales: isDeparture
-      ? { persons: 0, nights: 0, breakfast: { available: false }, catering: { available: false, options: [] } }
-      : buildSasSaleOffers({
-        reservation,
-        options: optionsModel.listForProperty(reservation.propertyId),
-        cateringCategory: CATERING_CATEGORY,
-        // Ceiling of the « personnes servies » stepper: the capacity of the logement, so a friend
-        // invited to dinner can be served (specs/card-option-served-persons.md §3.1 rule 3).
-        maxPersons: reservation.propertyMaxGuests,
-      }),
+    sasSales: saleOffersFor(reservation, { isDeparture }),
   });
+}
+
+/**
+ * specs/sas-arrival-total-server-side.md rule 3 — the arrival recap of a DRAFT: the very body the
+ * commit would receive, planned by the very function the commit runs, and nothing written. A plugin
+ * refusal answers exactly as the commit would (rule 12).
+ */
+function previewArrival(req, res) {
+  const reservation = reservationsModel.getByIdWithDetails(req.params.id);
+  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const arrivalLock = receptionSasLock(req, reservation, 'arrival');
+  if (arrivalLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: arrivalLock });
+  const draft = normaliseArrivalDraft(req, reservation);
+  if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
+  const plan = reservationsModel.planArrivalSas(Number(req.params.id), draft.input);
+  return res.json(arrivalRecapFor(req, reservation, plan));
+}
+
+// specs/sas-arrival-total-server-side.md rule 22bis — the history line that keeps what the guest was
+// told next to what was recorded.
+const formatEuro = (n) => `${round2(n).toFixed(2).replace('.', ',')} €`;
+function recordTotalDifference(reservationId, warning) {
+  try {
+    reservationsModel.addHistoryEntry(reservationId, 'sas_arrival', [{
+      field: 'arrivalRecapTotal',
+      label: 'Total du récapitulatif d’arrivée',
+      fromText: `affiché ${formatEuro(warning.displayed)}`,
+      toText: `enregistré ${formatEuro(warning.stored)}`,
+    }]);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`[sas-history] arrival total difference on reservation ${reservationId} not recorded: ${err.message}`);
+  }
 }
 
 function commitArrival(req, res) {
@@ -335,11 +422,16 @@ function commitArrival(req, res) {
   const arrivalLock = receptionSasLock(req, reservation, 'arrival');
   if (arrivalLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: arrivalLock });
   // specs/collect-stay-payment-at-check-in.md §3.6 rule 25 — fail-closed: a reception-only commit
-  // never settles the stay. The fields are dropped silently; the rest of the check-in goes through.
-  if (isReceptionOnly(req.user)) req.body = toReceptionSasCommit(req.body);
-  req.body = withoutLinenDecisions(Number(req.params.id), req.body || {});
+  // never settles the stay. The fields are dropped silently (inside `normaliseArrivalDraft`); the rest
+  // of the check-in goes through.
+  // The steps of other plugins (specs/plugins-phase-3c-hourly-resources.md rules 6–8): each checks
+  // its payload before anything is written — a refusal aborts the WHOLE commit, as the slot conflict
+  // of the scheduling step does — bills its own lines, recomputed on every commit, and writes inside
+  // the commit's transaction.
+  const draft = normaliseArrivalDraft(req, reservation);
+  if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
   const {
-    cautionReceived, complementItems = [],
+    cautionReceived,
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
@@ -349,9 +441,18 @@ function commitArrival(req, res) {
     // true means the operator chose « Régler séparément », and the four fields above are honoured
     // exactly as in v2.8.0.
     arrivalPaymentMode, arrivalPaymentSplit,
-    cleaningAdded, bathLinenAdded, pluginSteps, soldOptions,
-    offeredExtras, cleaningOffered, bathLinenOffered,
-  } = req.body || {};
+    displayedArrivalTotal,
+  } = draft.body;
+
+  // specs/sas-arrival-total-server-side.md rules 8-9 — whether ONE gesture may settle both sides is
+  // decided here, on the planned total, never by the dialog: it only says whether the operator chose
+  // « Régler séparément ».
+  const recap = arrivalRecapFor(req, reservation, reservationsModel.planArrivalSas(Number(req.params.id), draft.input));
+  const unifiable = isUnifiable({
+    complementOpen: recap.complementOpen,
+    stayApplicable: buildStayPayment(reservation, { isDeparture: false, receptionOnly: isReceptionOnly(req.user) }).applicable,
+    arrivalComplementTotal: recap.arrivalComplementTotal,
+  });
 
   // specs/single-payment-at-check-in.md §3.1 rule 2 — ONE mode drives both sides. This is a
   // translation, not a second settlement path: the model keeps the two tri-states it has always had,
@@ -362,9 +463,10 @@ function commitArrival(req, res) {
   //   'later' → neither settled, and each side keeps its own meaning of « later »: the stay stays
   //             due, the complement is recalled at the check-out.
   //
-  // « Régler séparément » (`arrivalPaymentSplit`) hands the decision back to the two v2.8.0 fields.
+  // « Régler séparément », or a plan that is not unifiable, hands the decision back to the two
+  // v2.8.0 fields.
   const mode = arrivalPaymentMode === 'defer' ? 'later' : arrivalPaymentMode;
-  const unifying = arrivalPaymentSplit !== true && (mode === 'card' || mode === 'cash' || mode === 'later');
+  const unifying = unifiable && arrivalPaymentSplit !== true && (mode === 'card' || mode === 'cash' || mode === 'later');
   const settles = unifying && mode !== 'later';
   const unified = unifying
     ? {
@@ -384,28 +486,12 @@ function commitArrival(req, res) {
       grouped: undefined,
     };
 
-  // The steps of other plugins (specs/plugins-phase-3c-hourly-resources.md rules 6–8): each checks
-  // its payload before anything is written — a refusal aborts the WHOLE commit, as the slot conflict
-  // of the scheduling step does — bills its own lines, recomputed on every commit, and writes inside
-  // the commit's transaction. A line a plugin billed that the dialog carries back is dropped.
-  const plugins = sasCommitHooks.prepare({ reservation, pluginSteps: pluginSteps || {} });
-  if (plugins.refusal) return res.status(plugins.refusal.status).json(plugins.refusal.body);
-
   const beforeSas = snapshotSas(Number(req.params.id));
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
-    // A plugin's line rides in as an ordinary SAS complement line, so it inherits the
-    // replace-and-delta machinery for free: a re-committed SAS recomputes it instead of stacking it.
-    // specs/sas-offer-complement-lines.md §3.2 — each item carries its own `offered` flag (a linen
-    // element noted but not billed). A plugin line is never offered: it is machine-computed.
-    complementItems: [
-      ...(Array.isArray(complementItems) ? complementItems : [])
-        .filter((i) => !plugins.labels.has(String((i && i.label) || '').trim()))
-        .map((i) => ({ label: i && i.label, amount: i && i.amount, offered: Boolean(i && i.offered) })),
-      ...plugins.items,
-    ],
+    ...draft.input,
     breakfastTime,
     breakfastCoffee,
     breakfastTea,
@@ -427,24 +513,22 @@ function commitArrival(req, res) {
     // specs/single-payment-at-check-in.md §3.2 — record the collection as ONE payment. The model
     // decides what the group may claim, from the buckets it really settled.
     groupArrivalPayment: unified.grouped,
-    // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — intent only; the model resolves the
-    // catalogue option and its price. Tri-state: undefined = step not shown → leave the option alone.
-    cleaningAdded: cleaningAdded === undefined ? undefined : Boolean(cleaningAdded),
-    bathLinenAdded: bathLinenAdded === undefined ? undefined : Boolean(bathLinenAdded),
-    // specs/sas-breakfast-and-catering-upsell.md §3.3 — intent only; the model resolves the option,
-    // its per-property price and the engine arithmetic. `undefined` = the sale steps never ran.
-    soldOptions: Array.isArray(soldOptions) ? soldOptions : undefined,
-    // specs/sas-offer-complement-lines.md §3.2 rule 8 — the upsell stays activated, billed 0 €.
-    cleaningOffered: Boolean(cleaningOffered),
-    bathLinenOffered: Boolean(bathLinenOffered),
-    offeredExtras: normaliseOfferedRefs(offeredExtras),
-    pluginWrites: plugins.writes,
+    pluginWrites: draft.plugins.writes,
   });
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
+  // specs/sas-arrival-total-server-side.md rules 22-22bis — the total the recap showed is compared,
+  // never used: the commit went through on its own plan, and a difference is said and kept.
+  const stored = round2(complementAmount);
+  const warning = totalDiffered(displayedArrivalTotal, stored)
+    ? { code: 'ARRIVAL_TOTAL_DIFFERED', displayed: round2(displayedArrivalTotal), stored }
+    : null;
+  if (warning) recordTotalDifference(Number(req.params.id), warning);
   return res.json({
     ok: true,
     complementAmount,
-    pluginLines: plugins.items.map(({ label, amount }) => ({ label, amount })),
+    recap,
+    warning,
+    pluginLines: draft.plugins.items.map(({ label, amount }) => ({ label, amount })),
   });
 }
 
@@ -480,7 +564,7 @@ function commitDeparture(req, res) {
   return res.json({ ok: true });
 }
 
-module.exports = { getSas, commitArrival, commitDeparture };
+module.exports = { getSas, previewArrival, commitArrival, commitDeparture };
 // Le repli d'historique de la règle 10 est de la logique pure sur une liste de changements : exposé
 // pour être épinglé sans monter tout le harnais du contrôleur.
 module.exports.__test = { foldGroupedPayment, buildStayPayment, withoutLinenDecisions };

@@ -175,9 +175,14 @@ function commitArrival(ctx, body, t) {
   t.mock.timers.enable({ apis: ['Date'], now: NOW });
   const writes = [];
   const reservation = { ...ctx.reservation, arrivalSasDoneAt: '2026-09-11 16:30:00' };
+  // The intents are resolved and planned by the real model on the fixture's database
+  // (specs/sas-arrival-total-server-side.md rules 1, 7).
+  const realModel = require('../../../models/reservationsModel').create(ctx.db);
   const reservationsModelMock = new Proxy({}, { get: (_, k) => {
     if (k === 'getByIdWithDetails') return () => reservation;
     if (k === 'commitArrivalSas') return (id, args) => { writes.push(args); return 0; };
+    if (k === 'resolveSasArrivalItems') return (id, draft) => realModel.resolveSasArrivalItems(Number(id), draft);
+    if (k === 'planArrivalSas') return (id, input) => realModel.planArrivalSas(Number(id), input, { withExistingLines: false });
     return () => null;
   } });
   const registry = require('../../sdk/registry');
@@ -213,36 +218,40 @@ function commitArrival(ctx, body, t) {
 const step = (ctx, blocks) => ({ resourceScheduling: { blocks: blocks.map((b) => ({ ...b, resourceId: ctx.resourceId })), resourceIds: [ctx.resourceId] } });
 const SUPPLEMENT = (ctx, amount) => ({ label: 'Bain nordique — supplément soirée', amount, sasLineKey: `hourly-resources:evening:${ctx.resourceId}` });
 
-const OLD_SUPPLEMENT = { label: 'Bain nordique — supplément soirée', amount: 20 };
-
 // What the previous commit stored: the supplement, tagged as this plugin's line (rule 7; the
-// migration tags the lines written before the phase).
+// migration tags the lines written before the phase), and a linen line of the SAS itself.
+// A stale dialog that names the plugin's row in `keptLines` (specs/sas-arrival-total-server-side.md
+// rule 7) gets nothing for it: only the SAS's own untagged rows can be kept.
 function seedReopened(ctx) {
-  ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin, sasLineKey)
-    VALUES (500, 'Bain nordique — supplément soirée', 20, 1, 1, ?)`).run(`hourly-resources:evening:${ctx.resourceId}`);
+  ctx.oldSupplementId = Number(ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin, sasLineKey)
+    VALUES (500, 'Bain nordique — supplément soirée', 20, 1, 1, ?)`).run(`hourly-resources:evening:${ctx.resourceId}`).lastInsertRowid);
+  ctx.drapId = Number(ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin)
+    VALUES (500, 'Drap housse', 15, 1, 1)`).run().lastInsertRowid);
   return ctx;
 }
+const OLD_SUPPLEMENT = (ctx) => ({ customOptionId: ctx.oldSupplementId });
+const DRAP = { label: 'Drap housse', qty: 1, unitPrice: 15, amount: 15, offered: false };
 
 test('rule 26: a re-opened SAS that sends the old supplement back bills it once', (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { res, items } = commitArrival(ctx, {
-    complementItems: [OLD_SUPPLEMENT, { label: 'Drap housse', amount: 15 }],
+    keptLines: [OLD_SUPPLEMENT(ctx), { customOptionId: ctx.drapId }],
     pluginSteps: step(ctx, DAY_AND_EVENING),
   }, t);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(items, [{ label: 'Drap housse', amount: 15, offered: false }, SUPPLEMENT(ctx, 20)]);
+  assert.deepEqual(items, [{ key: `kept:${ctx.drapId}`, ...DRAP }, SUPPLEMENT(ctx, 20)]);
 });
 
 test('rule 32: a commit without the step recomputes the supplement instead of keeping a copy', (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
-  const { items } = commitArrival(ctx, { complementItems: [OLD_SUPPLEMENT] }, t);
+  const { items } = commitArrival(ctx, { keptLines: [OLD_SUPPLEMENT(ctx)] }, t);
   assert.deepEqual(items, [SUPPLEMENT(ctx, 20)]);
 });
 
 test('rule 32: hours moved to the day band drop the supplement', (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { items } = commitArrival(ctx, {
-    complementItems: [OLD_SUPPLEMENT],
+    keptLines: [OLD_SUPPLEMENT(ctx)],
     pluginSteps: step(ctx, [{ date: '2026-09-12', start: '17:00', end: '19:00' }]),
   }, t);
   assert.deepEqual(items, []);
@@ -250,7 +259,7 @@ test('rule 32: hours moved to the day band drop the supplement', (t) => {
 
 test('rule 26: removing every block of a resource clears its sessions and its supplement', (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
-  const { items } = commitArrival(ctx, { complementItems: [OLD_SUPPLEMENT], pluginSteps: step(ctx, []) }, t);
+  const { items } = commitArrival(ctx, { keptLines: [OLD_SUPPLEMENT(ctx)], pluginSteps: step(ctx, []) }, t);
   assert.deepEqual(items, []);
 });
 

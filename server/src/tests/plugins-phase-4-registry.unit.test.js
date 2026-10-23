@@ -175,10 +175,12 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9); 1.6.0 since the core modules `reservationLedger`, `reservationPaymentMark` and `platformDisplay` (specs/qonto-bank-reconciliation.md); 1.7.0 since the core
 // rate limiter `paymentStartLimiter` (specs/public-online-payment.md rule 7); 1.5.0
 // since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). All minor bumps.
+// 2.0.0 since the client step contract lost `recapLines` (specs/sas-arrival-total-server-side.md
+// rules 13-14): a removal, hence the first major.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
-  assert.equal(SDK_VERSION, '1.7.0');
-  assert.equal(satisfies(SDK_VERSION, '^1.0.0'), true);
-  assert.equal(satisfies(SDK_VERSION, '^2.0.0'), false);
+  assert.equal(SDK_VERSION, '2.0.0');
+  assert.equal(satisfies(SDK_VERSION, '^2.0.0'), true);
+  assert.equal(satisfies(SDK_VERSION, '^1.0.0'), false, 'a plugin built against SDK 1 is refused');
 });
 
 test('rule 1: a package holds manifest.json, server/ and client/ only — no link, no absolute path, no ..', () => {

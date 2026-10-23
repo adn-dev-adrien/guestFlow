@@ -139,10 +139,12 @@ test('specs/plugins-phase-2-hosts.md rule 8 — the core declares no SAS route a
   useLive();
   bootRoutes();
   const entries = loader.roleMatchers('reception').filter((m) => m.pluginId === 'sas');
-  assert.deepEqual(entries.map((m) => m.method), ['GET', 'POST', 'POST']);
+  assert.deepEqual(entries.map((m) => m.method), ['GET', 'POST', 'POST', 'POST']);
   assert.ok(entries[0].re.test('/reservations/42/sas'));
   assert.ok(entries[1].re.test('/reservations/42/sas/arrival'));
   assert.ok(entries[2].re.test('/reservations/42/sas/departure'));
+  // specs/sas-arrival-total-server-side.md rule 23 — the arrival preview is door money too.
+  assert.ok(entries[3].re.test('/reservations/42/sas/arrival/preview'));
 });
 
 // ---------- rule 11, gap 5 ----------
@@ -152,8 +154,15 @@ const RESERVATION = {
   bedLinenAlert: { type: 'capacity', capacity: 2, required: 4 },
 };
 
-function buildController({ captures = [], storedLines = [] } = {}) {
+// The plan the mock model answers: nothing billed, enough for the recap to be shaped.
+const EMPTY_PLAN = {
+  lines: [], existingTotal: 0, addedTotal: 0, arrivalComplementTotal: 0, supplementOutsideComplement: 0, adjusted: null,
+};
+
+function buildController({ captures = [], storedLines = [], resolved = [] } = {}) {
   const reservationsModelMock = new Proxy({}, { get: (_, k) => {
+    if (k === 'resolveSasArrivalItems') return (id, draft) => { resolved.push(draft); return []; };
+    if (k === 'planArrivalSas') return () => EMPTY_PLAN;
     if (k === 'getByIdWithDetails') return () => RESERVATION;
     if (k === 'getRow') return () => ({ ...RESERVATION, endOfStayComplementDetail: '[]' });
     if (k === 'getSasUpsellOptions') return () => ({
@@ -212,11 +221,11 @@ test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the payload is
   assert.deepEqual(body.reservation.bedLinenAlert, RESERVATION.bedLinenAlert);
 });
 
+// specs/sas-arrival-total-server-side.md rules 6-7 — the dialog sends intent: linen elements by item,
+// lines kept from a previous run by their row.
 const ARRIVAL_BODY = {
-  complementItems: [
-    { label: 'Taie d’oreiller', amount: 10, offered: false },
-    { label: 'Supplément soirée', amount: 15, offered: false },
-  ],
+  linenItems: [{ itemId: 1, qty: 2, offered: false }],
+  keptLines: [{ customOptionId: 31, offered: false }],
   bathLinenAdded: true,
   bathLinenOffered: true,
   cleaningAdded: true,
@@ -225,37 +234,39 @@ const ARRIVAL_BODY = {
 function commitArrival({ storedLines = [], body = ARRIVAL_BODY } = {}) {
   registry.configure({ isActive: (id) => live.has(id), allows: () => true });
   const captures = [];
+  const resolved = [];
   const res = fakeRes();
-  buildController({ captures, storedLines })
+  buildController({ captures, storedLines, resolved })
     .commitArrival({ params: { id: '1' }, body: JSON.parse(JSON.stringify(body)), user: { roles: ['admin'] } }, res);
   assert.equal(res.statusCode, 200);
-  return captures[0];
+  return { ...captures[0], intents: resolved[0] };
 }
 
 test('specs/plugins-phase-2-hosts.md rule 11 — without linen, the arrival commit ignores the towel upsell and the bed-linen lines (gap 5)', () => {
   useLive('sas');
   const args = commitArrival({ storedLines: [
-    { description: 'Drap housse', amount: 12, offered: 1 },
-    { description: 'Supplément soirée', amount: 15, offered: 0 },
+    { id: 30, description: 'Drap housse', amount: 12, offered: 1 },
+    { id: 31, description: 'Supplément soirée', amount: 15, offered: 0 },
   ] });
   assert.equal(args.bathLinenAdded, undefined, 'the towel upsell is left as it is');
   assert.equal(args.bathLinenOffered, false);
   assert.equal(args.cleaningAdded, true, 'the other SAS decisions go through');
-  // The bed line sent is dropped; the one a previous check-in stored is kept as it was, so the
-  // replace-all commit neither adds nor removes linen money.
-  assert.deepEqual(args.complementItems, [
-    { label: 'Supplément soirée', amount: 15, offered: false },
-    { label: 'Drap housse', amount: 12, offered: true },
-  ]);
+  // The linen element sent is not priced; the bed line a previous check-in stored is kept as it was,
+  // so the replace-all commit neither adds nor removes linen money.
+  assert.deepEqual(args.intents, {
+    linenItems: [],
+    keptLines: [{ customOptionId: 31, offered: false }, { customOptionId: 30, offered: true }],
+  });
 });
 
 test('specs/plugins-phase-2-hosts.md rule 11 — without linen, « Offrir » on a stored bed-linen line is kept, at the stored amount', () => {
   useLive('sas');
   const args = commitArrival({
-    storedLines: [{ description: 'Drap housse', amount: 15, offered: 0 }],
-    body: { ...ARRIVAL_BODY, complementItems: [{ label: 'Drap housse', amount: 999, offered: true }] },
+    storedLines: [{ id: 30, description: 'Drap housse', amount: 15, offered: 0 }],
+    body: { ...ARRIVAL_BODY, keptLines: [{ customOptionId: 30, offered: true }] },
   });
-  assert.deepEqual(args.complementItems, [{ label: 'Drap housse', amount: 15, offered: true }]);
+  // Its amount is the stored one, read by the model from the row (never sent).
+  assert.deepEqual(args.intents.keptLines, [{ customOptionId: 30, offered: true }]);
 });
 
 test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the arrival commit receives the linen decisions as sent', () => {
@@ -263,7 +274,7 @@ test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the arrival co
   const args = commitArrival();
   assert.equal(args.bathLinenAdded, true);
   assert.equal(args.bathLinenOffered, true);
-  assert.deepEqual(args.complementItems, ARRIVAL_BODY.complementItems);
+  assert.deepEqual(args.intents, { linenItems: ARRIVAL_BODY.linenItems, keptLines: ARRIVAL_BODY.keptLines });
 });
 
 // ---------- rule 12, gap 6 ----------
