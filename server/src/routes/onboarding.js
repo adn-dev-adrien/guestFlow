@@ -12,6 +12,7 @@ const controller = buildController({
 });
 
 router.get('/', controller.get);
+router.get('/default-capacity', controller.defaultCapacity);
 router.put('/company', controller.saveCompany);
 router.put('/property', controller.saveProperty);
 router.put('/plugins', controller.savePlugins);

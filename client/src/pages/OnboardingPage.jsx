@@ -9,7 +9,7 @@
  * Props (tests only): onFullLoad(to) — what loading the app again at `to` means once a plugin was
  * installed from a package (rule 42; default: window.location.assign).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
   Alert, Box, Chip, Link, Stack, Switch, TextField, Typography,
@@ -28,6 +28,8 @@ const EMAILS_STEP = 4;
 // A link of the last step: a full-height touch target, its text at the top-left.
 const LAST_STEP_LINK = { textAlign: 'left', minHeight: 44, display: 'flex', alignItems: 'center' };
 const ONBOARDING_PLUGINS_FOOTNOTE = 'Le reste se règle plus tard dans Paramètres › Plugins.';
+// Rule 21 — the capacity is asked of the server once the beds stop changing for this long.
+const CAPACITY_DEBOUNCE_MS = 250;
 const EMPTY_PROPERTY = { name: '', doubleBeds: '1', singleBeds: '0', maxGuests: '2', checkIn: '16:00', checkOut: '10:00', pricePerNight: '' };
 
 const Brand = () => (
@@ -49,6 +51,9 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   const [company, setCompany] = useState({ name: '', email: '', phone: '', address: '', siret: '' });
   const [property, setProperty] = useState(EMPTY_PROPERTY);
   const [capacityTouched, setCapacityTouched] = useState(false);
+  // Rule 21 — the last capacity request asked; an older answer arriving late is dropped.
+  const capacityRequest = useRef(0);
+  const capacityTimer = useRef(null);
   const [plugins, setPlugins] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -65,6 +70,8 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   useEffect(() => {
     if (location.pathname !== '/demarrage') navigate('/demarrage', { replace: true });
   }, [location.pathname, navigate]);
+
+  useEffect(() => () => clearTimeout(capacityTimer.current), []);
 
   useEffect(() => {
     api.getOnboarding()
@@ -96,12 +103,32 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     helperText: errors[key] || ' ',
   });
 
-  // Capacity follows the sleeping places until it is typed by hand.
+  // Rule 21 — the capacity follows what the server proposes for the beds until it is typed by hand.
+  // A failed request leaves the field as it is: the server fills a missing capacity on save.
   const setBeds = (key) => (e) => {
     const next = { ...property, [key]: e.target.value };
-    if (!capacityTouched) next.maxGuests = String(2 * (Number(next.doubleBeds) || 0) + (Number(next.singleBeds) || 0));
     setProperty(next);
     setErrors({});
+    if (capacityTouched) return;
+    const asked = ++capacityRequest.current;
+    clearTimeout(capacityTimer.current);
+    capacityTimer.current = setTimeout(() => {
+      Promise.resolve()
+        .then(() => api.getOnboardingDefaultCapacity(next.doubleBeds, next.singleBeds))
+        .then(({ maxGuests }) => {
+          if (asked !== capacityRequest.current || maxGuests == null) return;
+          setProperty((p) => ({ ...p, maxGuests: String(maxGuests) }));
+        })
+        .catch(() => {});
+    }, CAPACITY_DEBOUNCE_MS);
+  };
+
+  const typeCapacity = (e) => {
+    capacityRequest.current += 1;
+    clearTimeout(capacityTimer.current);
+    setCapacityTouched(true);
+    setProperty((p) => ({ ...p, maxGuests: e.target.value }));
+    setErrors((prev) => ({ ...prev, maxGuests: undefined }));
   };
 
   // « Plus tard », « Ouvrir le tableau de bord » and the links of the last step all close it.
@@ -248,7 +275,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
               label="Capacité"
               type="number"
               {...field(property, setProperty, 'maxGuests')}
-              onChange={(e) => { setCapacityTouched(true); setProperty((p) => ({ ...p, maxGuests: e.target.value })); setErrors((prev) => ({ ...prev, maxGuests: undefined })); }}
+              onChange={typeCapacity}
             />
             <TextField label="Prix par nuit (€)" type="number" required {...field(property, setProperty, 'pricePerNight')} />
             <TextField label="Arrivée à partir de" type="time" {...field(property, setProperty, 'checkIn')} error={Boolean(errors.defaultCheckIn)} helperText={errors.defaultCheckIn || ' '} />
