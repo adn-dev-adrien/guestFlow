@@ -76,6 +76,11 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
    - Details (2026-10-08, at implementation): turning it on, turning it off and renewing the backup
      codes ask for the password again; 5 wrong codes while enrolling cancel the enrolment; a TOTP code
      is accepted once (its time step is remembered), as on the console.
+   - 2026-10-23 (inte/plugins review): the « Mon compte » second-step routes
+     (`/api/auth/2fa/status|start|confirm|disable|backup-codes|snooze`) apply the same gate as every
+     business route — a deleted or deactivated account is refused (401, its session ended), one
+     still on its default password gets 403 `PASSWORD_CHANGE_REQUIRED`; the user is re-read from the
+     database, never taken from the session copy.
 7. **Once it is on, the login asks for the code after the password.**
    - « Faire confiance à cet appareil 30 jours » skips the step on that browser.
    - The trust is stored in a signed cookie and revoked when the user changes their password or turns
@@ -145,6 +150,12 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       uninstalling or turning off a plugin (`DELETE /api/plugins/:id`, `POST …/deactivate`), which
       erases or strands its credentials — installing, activating and updating stay allowed; and the
       whole SMTP group, the sender name and address included.
+    - Widened 2026-10-23 (inte/plugins review): the sender name written by the start assistant
+      (`senderName` on `PUT /api/onboarding/emails`), and a property's access code and Wi-Fi
+      password, whether the start assistant (a non-empty `accessCode` / `wifiPassword` in
+      `properties[]`) or the property page (`accessCode` / `wifiPassword` present on
+      `PUT /api/properties/:id/arrival-facts`, clearing included) writes them. The other fields of
+      those two forms stay open.
 19. **The server logs what the support reads too** (added 2026-10-17, review). Every `GET` of a
     support session is written to `support_access_log`, once per path and per minute, besides the
     pages the client reports (rule 15). What the application polls by itself (`/api/auth/*`,
@@ -285,6 +296,13 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       dots and dashes out of a 6-digit code, the dash back into a 10-character backup code;
     - the input is transparent ink over the cells, never `opacity: 0`, which password managers take
       for a hidden field (selection and autofill colours transparent too).
+36. **A managed instance refuses the E2E suite's key** (added 2026-10-23, security review of
+    `inte/plugins`). The E2E suite signs its support links with a TEST-ONLY Ed25519 pair whose private
+    half is committed (`e2e/fixtures/accountSecurity.js`): anyone can sign a licence, a registry index
+    or a support link for its public half. With `GUESTFLOW_MANAGED=1`, an instance whose
+    `GUESTFLOW_LICENCE_PUBLIC_KEY` or `GUESTFLOW_REGISTRY_PUBLIC_KEY` is that key refuses to start
+    (`server/src/utils/testOnlyKeys.js`, checked first thing in `index.js`). Unmanaged installs, the
+    E2E server included, are unaffected.
 
 ---
 
@@ -431,6 +449,9 @@ most); at 390 px each cell is about 45 px wide. Interactive mock:
   refused, once the real `gate-access` / `website-booking` `register(ctx)` ran they are, any case and
   trailing slash (`hosting-h2-support-secret-routes.unit.test.js`, `hosting-h2-support-guard.unit.test.js`,
   website-booking's `site-connection.unit.test.js`).
+- 2026-10-23 (security review): rule 36 — a managed install with the test-only key as either
+  variable refuses to start, an unmanaged one or a managed one with another key starts
+  (`hosting-h2-test-only-key.unit.test.js`, 3).
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).

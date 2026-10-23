@@ -20,7 +20,10 @@ const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
 const { ADMIN, userHasRole } = require('../constants/roles');
 const { sendError } = require('../utils/httpError');
 const deviceTrust = require('../utils/deviceTrust');
-const { isOpenSupportSession } = require('../middleware/requireAuth');
+const requireAuthMiddleware = require('../middleware/requireAuth');
+
+const { isOpenSupportSession } = requireAuthMiddleware;
+const createRequireAuth = requireAuthMiddleware.create;
 
 // A password that was right waits this long for its second step.
 const PENDING_MS = 10 * 60 * 1000;
@@ -170,16 +173,17 @@ function createAuthController(users, {
   }
 
   // « Mon compte » — the user's own second step (rule 6), and the dashboard's « Plus tard » (rule 10).
-  const self = (fn) => async (req, res, next) => {
-    const user = req.session && req.session.user;
-    if (!user) return res.status(401).json({ error: 'UNAUTHENTICATED' });
+  // These routes sit outside requireAuth (the router is mounted before it), so they apply its gate
+  // themselves: a deleted or deactivated account, or one still on its default password, cannot
+  // toggle its second step or regenerate backup codes from a session that is still open.
+  const gate = createRequireAuth(users);
+  const self = (fn) => (req, res, next) => gate(req, res, async () => {
     try {
-      const fresh = users.findById(user.id) || user;
-      return res.json(await fn(fresh, req.body || {}));
+      return res.json(await fn(req.user, req.body || {}));
     } catch (err) {
       return sendError(res, err, next);
     }
-  };
+  });
 
   function logout(req, res) {
     if (req.session && typeof req.session.destroy === 'function') {

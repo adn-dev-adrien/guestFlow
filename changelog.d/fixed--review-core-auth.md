@@ -1,0 +1,3 @@
+- A deactivated or deleted account, or one still on its default password, can no longer read or change its second step, nor regenerate its backup codes, from a session left open.
+- A support session can no longer change the sender name from the start assistant, nor a property's access code or Wi-Fi password (start assistant or property page).
+- An instance upgraded from the release where an empty pool season meant 15 June → 31 August keeps that season on its properties, so the J-7 email still mentions the pool.

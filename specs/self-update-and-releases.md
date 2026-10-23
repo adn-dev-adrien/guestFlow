@@ -17,9 +17,9 @@
 
 A push on the `release` branch triggers [.github/workflows/deploy.yml](../.github/workflows/deploy.yml),
 which runs on a **self-hosted GitHub Actions runner installed on the production VM**
-(`guestflow`, 192.168.0.24, Proxmox). That single job, executing on the production host, does
+(`<prod-host>`, Proxmox). That single job, executing on the production host, does
 everything: build, archive, `pm2 stop`, DB backup, extraction over `~/guestflow/current`,
-`npm ci`, native rebuild, migrations, `pm2 start`, and even a `docker exec` into the `wp_app`
+`npm ci`, native rebuild, migrations, `pm2 start`, and even a `docker exec` into the `<container>`
 WordPress container.
 
 ### 1.2 Why this has to go
@@ -859,7 +859,7 @@ Still open, to settle during implementation:
   - A (2026-08-20): **yes** — `python3`, `make`, `g++` and `cc` are all present. The 2.0.0 install
     rebuilt `better-sqlite3` from source on the host and it loads (ABI 137, Node 24.19).
 - Q: Which system user owns `~/guestflow` and the PM2 daemon on the new Proxmox VM?
-  - A (2026-08-20): **`adrien`**, on hostname `guestflow` (192.168.0.24). The app, PM2 and the whole
+  - A (2026-08-20): **`<operator>`** (the operator's own login account), on host `<prod-host>`. The app, PM2 and the whole
     update path run as that user; no `sudo` anywhere in it.
 - Q: Does the release archive carry `scripts/`, which the README tells the operator to run from
   `~/guestflow/current/scripts/bootstrap-vm.sh`?

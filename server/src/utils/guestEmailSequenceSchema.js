@@ -4,6 +4,9 @@
  * fixtures on a fresh schema.sql database, so both always run the same DDL.
  */
 
+// The season the code applied to an empty bound before plugins-phase-p-productisation.md rule 14.
+const LEGACY_POOL_SEASON = { start: '06-15', end: '08-31' };
+
 function applyGuestEmailSequenceSchema(db) {
   // The ledger is NOT email_log: email_log is purged 3 days after arrival, the ledger never is, and
   // its UNIQUE dedupKey is what makes a second send impossible (rules 11-12).
@@ -141,11 +144,18 @@ function applyGuestEmailSequenceSchema(db) {
       ['poolSeasonStart', "TEXT NOT NULL DEFAULT ''"],
       ['poolSeasonEnd', "TEXT NOT NULL DEFAULT ''"],
     ]);
-    const appCols = db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name);
-    if (appCols.includes('poolSeasonStart') && appCols.includes('poolSeasonEnd')) {
-      const season = db.prepare('SELECT poolSeasonStart AS s, poolSeasonEnd AS e FROM app_settings ORDER BY id LIMIT 1').get();
-      if (season && season.s && season.e) {
-        db.prepare('UPDATE properties SET poolSeasonStart = ?, poolSeasonEnd = ?').run(season.s, season.e);
+    const appInfo = db.prepare('PRAGMA table_info(app_settings)').all();
+    const appCol = (name) => appInfo.find((c) => c.name === name);
+    if (appCol('poolSeasonStart') && appCol('poolSeasonEnd')) {
+      const season = db.prepare('SELECT poolSeasonStart AS s, poolSeasonEnd AS e FROM app_settings ORDER BY id LIMIT 1').get() || {};
+      // An instance upgraded from the release where empty still meant 06-15 → 08-31 (its columns
+      // were declared with those defaults) had a pool season even with a bound left empty: it keeps it.
+      const legacy = appCol('poolSeasonStart').dflt_value === `'${LEGACY_POOL_SEASON.start}'`
+        && appCol('poolSeasonEnd').dflt_value === `'${LEGACY_POOL_SEASON.end}'`;
+      const start = season.s || (legacy ? LEGACY_POOL_SEASON.start : '');
+      const end = season.e || (legacy ? LEGACY_POOL_SEASON.end : '');
+      if (start && end) {
+        db.prepare('UPDATE properties SET poolSeasonStart = ?, poolSeasonEnd = ?').run(start, end);
       }
     }
   }

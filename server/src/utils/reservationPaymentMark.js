@@ -3,8 +3,10 @@
  *
  * « Marquer perçu » of the fiche is `PATCH /reservations/:id/payment`; a plugin that records a payment
  * the operator confirmed must go through the very same code — every guard, the contribution capture, the
- * history entry — not through a copy of it. This adapter hands `updatePayment` a request-shaped object
- * and returns what it would have answered, so the fiche's behaviour is untouched.
+ * payout and commission written with the solde (and their history entry) — not through a copy of it.
+ * `updatePayment` writes no history entry for the acompte or solde mark itself: the paid flag and its
+ * date are the trace. This adapter hands `updatePayment` a request-shaped object and returns what it
+ * would have answered, so the fiche's behaviour is untouched.
  */
 
 const { computePlatformCommission } = require('./platformCommission');

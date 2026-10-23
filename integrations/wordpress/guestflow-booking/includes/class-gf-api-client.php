@@ -62,8 +62,9 @@ final class GF_Api_Client
                 return $hop;
             }
         }
-        // Every hop is local: the visitor is on the local network too.
-        return $hops[0] ?? $remote;
+        // Every hop is trusted: nothing in the header can be told apart from a forged hop (the
+        // left-most one is whatever the client sent), so fall back to the proxy that reached us.
+        return filter_var($remote, FILTER_VALIDATE_IP) !== false ? $remote : '';
     }
 
     /** A private (10/8, 172.16/12, 192.168/16, fc00::/7) or reserved (127/8, ::1, link-local…) address. */

@@ -80,10 +80,29 @@ function flagConflictIfAny({ database, checkConflict, reservationId }) {
   return conflict;
 }
 
+// specs/reservation-payment-ledger.md rule 47 — an OPEN link paid for an amount the reservation no
+// longer asks for. The HTTP save retires such a link (rule 29), but a stay re-priced through
+// `performUpdate` (plugins, SAS, arrival payment) keeps it open; ticking the bucket would then record
+// the new amount as received. The money is booked at the link's amount instead, exactly as for a
+// retired link (rule 31). Null when the amounts agree, for a devis, or when the bucket was already
+// perceived another way (the idempotent recorder below then records nothing, as before).
+function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
+  if (!database || !['deposit', 'balance', 'full'].includes(String(link.type))) return null;
+  const { linkAmountCents, bookPaidAfterAmountChange } = require('./ledgerLinks');
+  const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
+  if (!row || String(row.kind) !== 'reservation') return null;
+  const column = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' }[link.type];
+  if (row[column] == null) return null;
+  const expected = linkAmountCents(link.type, row);
+  if (expected == null || Number(link.amountCents) === expected) return null;
+  const booked = bookPaidAfterAmountChange({ database, recordPayment: recordPayment || recordOn(database) }, link, { paidDay: paidDate });
+  return booked.effect === 'double-payment' ? null : booked;
+}
+
 // A paid link confirms the stay (→ confirmation email) for the deposit (use case 1) and full-payment
 // (use case 2) flows; a balance payment is a later top-up, not the initial confirmation.
 const CONFIRMING_TYPES = new Set(['deposit', 'full']);
-const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-marked', 'balance-marked']);
+const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-marked', 'balance-marked', 'deposit-booked', 'balance-booked', 'full-booked']);
 
 // The shared effect of one PAID link: mark paid → apply the business effect → confirmation email +
 // conflict notification (both best-effort). Idempotent. Returns the per-link result object.
@@ -102,7 +121,8 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   }
   // The day the guest paid, as the provider says, in Paris time — not the day we noticed.
   const paidDate = require('./stayPaymentRecorder').paidDayOf(p.paidAt);
-  const effect = applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
+  const effect = bookIfAmountChanged({ database, link, paidDate, recordPayment })
+    || applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
   if (effect.effect === 'reservation-cancelled') {
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };

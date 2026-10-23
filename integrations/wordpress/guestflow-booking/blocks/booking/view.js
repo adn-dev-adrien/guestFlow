@@ -1375,12 +1375,19 @@
     // the hosted payment page. Qonto returns them to this same page with ?gf_payment=<id>&gf_token=<t>
     // (the status view above then polls until confirmed). Amount + availability are enforced
     // server-side; the per-devis token authorises both the pay call and the return-page status poll.
+    // Only an https page may receive the visitor: anything else (javascript:, data:, http:) is a
+    // payment error, never a navigation.
+    function isHttpsUrl(url) {
+      if (typeof url !== 'string' || url === '') return false;
+      try { return new URL(url).protocol === 'https:'; } catch (e) { return false; }
+    }
+
     function startPayment(devisId, token) {
       if (!devisId || !token) { paymentError(); return; }
       // `property` comes back too: a generic booking page knows the lodging only from the address.
       var returnPath = window.location.pathname + '?property=' + propertyId + '&gf_payment=' + devisId + '&gf_token=' + encodeURIComponent(token);
       GF.api('POST', '/booking-requests/' + devisId + '/pay', { returnPath: returnPath, token: token }).then(function (res) {
-        if (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.paymentUrl) {
+        if (res.status >= 200 && res.status < 300 && res.body && res.body.data && isHttpsUrl(res.body.data.paymentUrl)) {
           feedback.innerHTML = '';
           feedback.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('redirectingPayment')));
           GF.track('booking-pay', { lodging: lodging });

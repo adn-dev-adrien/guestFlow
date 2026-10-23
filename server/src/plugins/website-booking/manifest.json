@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.4.0",
+  "sdk": "^1.7.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -48,6 +48,9 @@
       "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
     ],
     "1.5.1": [
+      "Relancer un paiement depuis le site ne compte plus dans la limite des demandes envoyées : quelques essais de paiement après une demande ne sont plus refusés."
+    ],
+    "1.5.2": [
       "Devis et demandes du site refusés pour une arrivée passée, un séjour de plus de 365 nuits ou un départ à plus de 730 jours."
     ]
   }

@@ -283,6 +283,9 @@ a short list of the gaps to fix on the fiches.
     frozen at the deposit's value, as « Marquer perçu » does: it is not restored.
 42. A read that reaches the page cap (60 pages) fails with an error and leaves `lastReadAt` untouched,
     so the next read starts again instead of skipping the oldest credits.
+43. « Direct » is `isDirectChannel(platform)` (core module `platformNameFormat`), never a comparison with
+    the string `direct`: a platform the operator marked « Compté comme vente directe » (the booking engine
+    of the own website) has the guest's own échéances, no platform payout and no commission written.
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay
