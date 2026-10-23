@@ -76,6 +76,11 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
    - Details (2026-10-08, at implementation): turning it on, turning it off and renewing the backup
      codes ask for the password again; 5 wrong codes while enrolling cancel the enrolment; a TOTP code
      is accepted once (its time step is remembered), as on the console.
+   - 2026-10-23 (inte/plugins review): the « Mon compte » second-step routes
+     (`/api/auth/2fa/status|start|confirm|disable|backup-codes|snooze`) apply the same gate as every
+     business route — a deleted or deactivated account is refused (401, its session ended), one
+     still on its default password gets 403 `PASSWORD_CHANGE_REQUIRED`; the user is re-read from the
+     database, never taken from the session copy.
 7. **Once it is on, the login asks for the code after the password.**
    - « Faire confiance à cet appareil 30 jours » skips the step on that browser.
    - The trust is stored in a signed cookie and revoked when the user changes their password or turns
@@ -145,6 +150,12 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       uninstalling or turning off a plugin (`DELETE /api/plugins/:id`, `POST …/deactivate`), which
       erases or strands its credentials — installing, activating and updating stay allowed; and the
       whole SMTP group, the sender name and address included.
+    - Widened 2026-10-23 (inte/plugins review): the sender name written by the start assistant
+      (`senderName` on `PUT /api/onboarding/emails`), and a property's access code and Wi-Fi
+      password, whether the start assistant (a non-empty `accessCode` / `wifiPassword` in
+      `properties[]`) or the property page (`accessCode` / `wifiPassword` present on
+      `PUT /api/properties/:id/arrival-facts`, clearing included) writes them. The other fields of
+      those two forms stay open.
 19. **The server logs what the support reads too** (added 2026-10-17, review). Every `GET` of a
     support session is written to `support_access_log`, once per path and per minute, besides the
     pages the client reports (rule 15). What the application polls by itself (`/api/auth/*`,
