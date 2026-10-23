@@ -6,7 +6,7 @@
 | **Branch** | `feature/devis-list-mobile-card` _(user-managed)_ |
 | **Created** | 2026-10-22 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #748 |
 | **Mockup** | `docs/specs/2026-10-22-devis-list-mobile-card.html` |
 
 ---
@@ -46,13 +46,15 @@ logement and the dates on separate, legible lines, and the destructive action on
 3. **One origin marker.** A website request shows a single badge: the server's `originLabel` when the
    channel is known (« Réseaux sociaux · Instagram »), « Site internet » otherwise. « Origine inconnue »
    alone is never shown as a second badge. The tooltip keeps `originDetail`.
-4. **Actions.** The whole card opens the devis (unchanged destination: converted → reservation). Visible
+4. **Actions.** A tap anywhere on the card opens the devis (unchanged destination: converted → reservation); for keyboard and screen readers the identity lines (guest, logement, stay) form ONE button, and the PDF / « ⋯ » controls are siblings of it, never nested in a button. Visible
    on the card: « Télécharger le PDF ». « Confirmer en réservation » and « Supprimer » move to a « ⋯ »
    menu; « Supprimer » keeps its confirmation dialog.
 5. **Server-shaped fields.** `GET /api/devis` adds to every row `nights` (integer), `stayLabel` (French
    range, year printed once when both dates share it) and `totalTtc` (accommodation + tourist tax, rounded
    like the PDF). The client renders them and stops summing.
-6. **Desktop table unchanged** by this spec (see §8).
+6. **Desktop table layout unchanged** by this spec (see §8); it only reads `totalTtc` like the card.
+
+> **Sans test** — règle négative (rien n'est ajouté au tableau) : il n'y a pas de comportement à prouver, la lecture de `totalTtc` est couverte par la règle 5.
 
 ## 4. Architecture
 
@@ -69,7 +71,7 @@ logement and the dates on separate, legible lines, and the destructive action on
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `DevisPage.jsx` | T | New `renderMobileCard`; reads `stayLabel`, `totalTtc`; « ⋯ » menu |
-| `components/` | `OriginBadge.jsx` | — | Reused as the single origin marker |
+| `components/` | `StatusBadge.jsx` | — | Reused for the single origin marker (the desktop row keeps `OriginBadge`) |
 | `components/` | `RowActionsMenu.jsx` | C | Generic « ⋯ » icon button + menu of `{ label, icon, onClick, color }` — any list card needs it |
 
 ### 4.3 API contract
@@ -109,6 +111,6 @@ Resolved 2026-10-22, both with the proposed option:
 
 - Server: `utils/stayRangeLabel.js`, `devisModel.list()`; 8 tests in `devis-list-mobile-card.unit.test.js`.
 - Client: `RowActionsMenu.jsx` (generic), `DevisPage.jsx` card + `totalTtc` for the table too (the client
-  no longer sums); 3 tests in `DevisPage.mobile-card.test.jsx`.
+  no longer sums); 5 tests in `DevisPage.mobile-card.test.jsx`.
 - Checked in a real browser at 390 px (no horizontal scroll, menu opens, « Supprimer » only in the menu) and
   1280 px (table unchanged).

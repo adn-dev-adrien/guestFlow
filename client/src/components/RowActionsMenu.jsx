@@ -16,6 +16,8 @@ export default function RowActionsMenu({ items, label = "Plus d'actions" }) {
   const entries = (items || []).filter(Boolean);
   if (entries.length === 0) return null;
 
+  // React events bubble through the Menu's portal to this component's parents: stopped here so a tap
+  // inside the menu never also opens the card behind it.
   const stop = (e) => e.stopPropagation();
   const close = () => setAnchor(null);
 

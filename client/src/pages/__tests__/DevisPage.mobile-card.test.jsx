@@ -56,9 +56,15 @@ beforeEach(() => {
   api.getDevis.mockResolvedValue(DEVIS);
 });
 
+// The whole card is what the tests look into: the closest ancestor holding the footer actions.
+const cardOf = async (guest) => {
+  const pdf = (await screen.findByText(guest)).closest('[role="button"]').parentElement;
+  return pdf;
+};
+
 test('the logement and the stay are separate elements, the stay read from the server label', async () => {
   renderPage();
-  const first = await screen.findByRole('button', { name: 'Ouvrir le devis 2026-10-014' });
+  const first = await cardOf('Camille Martin');
   const logement = within(first).getByText('La Granja');
   const stay = within(first).getByText('10 → 13 mai 2027 · 3 nuits');
   expect(logement).not.toBe(stay);
@@ -69,18 +75,18 @@ test('the logement and the stay are separate elements, the stay read from the se
 
 test('a website request shows one origin marker: the known channel, else « Site internet »', async () => {
   renderPage();
-  const first = await screen.findByRole('button', { name: 'Ouvrir le devis 2026-10-014' });
+  const first = await cardOf('Camille Martin');
   expect(within(first).getByText('Réseaux sociaux · Instagram')).toBeInTheDocument();
   expect(within(first).queryByText('Site internet')).toBeNull();
 
-  const second = screen.getByRole('button', { name: 'Ouvrir le devis 2026-10-011' });
+  const second = await cardOf('Jean Repetto');
   expect(within(second).getByText('Site internet')).toBeInTheDocument();
   expect(within(second).queryByText('Origine inconnue')).toBeNull();
 });
 
 test('« Supprimer » is only reachable through the « ⋯ » menu, and still asks for confirmation', async () => {
   renderPage();
-  const first = await screen.findByRole('button', { name: 'Ouvrir le devis 2026-10-014' });
+  const first = await cardOf('Camille Martin');
   expect(within(first).queryByRole('button', { name: 'Supprimer' })).toBeNull();
   expect(within(first).getByRole('button', { name: 'Télécharger le PDF' })).toBeInTheDocument();
 
@@ -89,4 +95,20 @@ test('« Supprimer » is only reachable through the « ⋯ » menu, and still as
 
   expect(await screen.findByText(/Supprimer le devis 2026-10-014/)).toBeInTheDocument();
   expect(api.deleteDevis).not.toHaveBeenCalled();
+});
+
+test('the PDF and « ⋯ » controls are never nested inside the card\'s own button (no nested interactive)', async () => {
+  renderPage();
+  const guest = await screen.findByText('Camille Martin');
+  const cardButton = guest.closest('[role="button"]');
+  expect(within(cardButton).queryByRole('button', { name: 'Télécharger le PDF' })).toBeNull();
+  expect(within(cardButton).queryByRole('button', { name: "Plus d'actions" })).toBeNull();
+  expect(within(cardButton.parentElement).getByRole('button', { name: 'Télécharger le PDF' })).toBeInTheDocument();
+});
+
+test('the PDF button downloads without opening the devis behind it', async () => {
+  renderPage();
+  const first = await cardOf('Camille Martin');
+  await userEvent.click(within(first).getByRole('button', { name: 'Télécharger le PDF' }));
+  expect(api.getDevisPdfBlob).toHaveBeenCalledTimes(1);
 });

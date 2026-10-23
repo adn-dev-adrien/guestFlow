@@ -226,24 +226,26 @@ export default function DevisPage() {
     );
   };
 
+  // The card opens on any tap (mouse/touch convenience); keyboard and screen readers get ONE button
+  // around the identity lines — the PDF / « ⋯ » controls stay siblings, never nested in a button.
   const renderMobileCard = (d) => (
-    <Box
-      role="button"
-      tabIndex={0}
-      aria-label={`Ouvrir le devis ${d.devisNumber}`}
-      onClick={() => handleEditDevis(d)}
-      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleEditDevis(d); } }}
-      sx={{ cursor: 'pointer', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 4, borderRadius: 1 } }}
-    >
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-        <Typography noWrap sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}>{`${d.firstName || ''} ${d.lastName || ''}`.trim() || '—'}</Typography>
-        <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
-      </Stack>
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, mt: 0.5 }}>
-        <Typography variant="body2" noWrap sx={{ minWidth: 0, flex: 1 }}>{d.propertyName || '—'}</Typography>
-        {originMarker(d)}
-      </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ ...TABULAR, display: 'block' }}>{d.stayLabel || '—'}</Typography>
+    <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer' }}>
+      <Box
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEditDevis(d); } }}
+        sx={{ '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 4, borderRadius: 1 } }}
+      >
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+          <Typography noWrap sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}>{`${d.firstName || ''} ${d.lastName || ''}`.trim() || '—'}</Typography>
+          <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
+        </Stack>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, mt: 0.5 }}>
+          <Typography variant="body2" noWrap sx={{ minWidth: 0, flex: 1 }}>{d.propertyName || '—'}</Typography>
+          {originMarker(d)}
+        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ ...TABULAR, display: 'block' }}>{d.stayLabel || '—'}</Typography>
+      </Box>
       <Stack
         direction="row"
         sx={{ alignItems: 'center', gap: 1, mt: 1.5, pt: 1, borderTop: 1, borderColor: 'divider' }}
