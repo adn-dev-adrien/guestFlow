@@ -4,7 +4,7 @@
  *
  * With `segments` (rule 45, UI/UX review 2026-10-18 decision 13), each sentence the server tagged with
  * its text is a button: hover marks it, a click (or Entrée) hands its key to `onSegmentClick`. The
- * template's own words call `onTemplateClick`.
+ * template's own words are buttons too, and call `onTemplateClick`.
  *
  * Props:
  *   subject, body          strings — the server's rendering (plain text, as sent)
@@ -48,13 +48,14 @@ const sentenceSx = (active) => ({
   '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
 });
 
-function Sentence({ text, active, label, onOpen }) {
+function Sentence({ text, active, label, title, onOpen }) {
   return (
     <Box
       component="span"
       role="button"
       tabIndex={0}
       aria-label={label}
+      title={title}
       data-active={active ? 'true' : undefined}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
@@ -80,7 +81,7 @@ export default function EmailPreviewPane({
       return <Sentence key={i} text={s.text} active={activeKey === s.key} label={`Modifier : ${excerpt(s.text)}`} onOpen={() => onSegmentClick(s.key)} />;
     }
     if (onTemplateClick && s.text.trim()) {
-      return <Box key={i} component="span" title="Texte du modèle complet" onClick={onTemplateClick} sx={{ cursor: 'pointer' }}>{s.text}</Box>;
+      return <Sentence key={i} text={s.text} label={`Modèle complet : ${excerpt(s.text)}`} title="Texte du modèle complet" onOpen={onTemplateClick} />;
     }
     return <React.Fragment key={i}>{s.text}</React.Fragment>;
   };

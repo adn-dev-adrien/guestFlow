@@ -226,6 +226,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     whether the plugin is active, as phase 0 does for the seven other plugins. The core may ask that
     question; it never imports plugin code.
 
+    > **2026-10-23 (review of inte/plugins):** a contribution is identified by `pluginId:key`, never by
+    > `key` alone: two plugins contributing the same `key` to `calendar.dayMarkers` both draw their dots.
+
 14. A contribution is a lazily loaded React component (`React.lazy`). A plugin's code is only downloaded
     by the browser when one of its slots renders. The order inside a slot is declared by the
     contribution's `order`. A slot that needs data rather than markup takes a plain function:

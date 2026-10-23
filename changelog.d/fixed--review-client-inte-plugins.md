@@ -1,0 +1,6 @@
+- **Textes des emails**: the preview always shows the latest draft — a slower answer (or refusal) for an older draft no longer overwrites it.
+- **Paramètres › Intégrations › Site**: a connection that cannot be read shows an error with « Réessayer » instead of an empty tab.
+- **Paramètres › Intégrations**: a card of a plugin disabled during the session no longer keeps the page « modifié ».
+- **Plugins**: « Tout mettre à jour » reloads the page or the list as the server asks; a restart whose former start time could not be read no longer reloads on the old process's answer; the « À configurer » chip is a 44 px touch target.
+- **Aperçu d'email**: the template's own words are reachable from the keyboard like the other sentences.
+- **Calendriers**: two plugins contributing day markers with the same key both show their dots.
