@@ -49,6 +49,40 @@ const DECLARED = KEYS.map((key) => ({
   validate: () => 'Réglé depuis Paramètres › Paiements en ligne.',
 }));
 
+// The bank reconciliation's own settings (specs/qonto-bank-reconciliation.md rules 23, 5–7). The last
+// two are written by the reader only; the rest are typed on the settings card.
+const RECONCILIATION_DECLARED = [
+  { key: 'reconciliationBankAccountId', validate: (v) => (String(v).length > 120 ? 'Compte invalide.' : null) },
+  { key: 'reconciliationStartDate', validate: (v) => (v === '' || /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? null : 'Date de mise en service invalide.') },
+  {
+    key: 'reconciliationPlatformPatterns',
+    validate: (v) => {
+      if (v === '') return null;
+      try {
+        const parsed = JSON.parse(v);
+        const ok = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          && Object.values(parsed).every((list) => Array.isArray(list) && list.every((p) => typeof p === 'string' && p.length <= 80));
+        return ok ? null : 'Motifs de reconnaissance invalides.';
+      } catch { return 'Motifs de reconnaissance invalides.'; }
+    },
+  },
+  {
+    key: 'reconciliationAcquiringFee',
+    validate: (v) => {
+      if (v === '') return null;
+      try {
+        const f = JSON.parse(v);
+        return Number.isFinite(Number(f.percent)) && Number(f.percent) >= 0 && Number(f.percent) < 20
+          && Number.isInteger(Number(f.fixedCents)) && Number(f.fixedCents) >= 0 && Number(f.fixedCents) < 500
+          ? null : 'Frais du prestataire invalides.';
+      } catch { return 'Frais du prestataire invalides.'; }
+    },
+  },
+  { key: 'reconciliationCardFeePercent', validate: (v) => (v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 20) ? null : 'Frais de carte invalides.') },
+  { key: 'reconciliationLastReadAt', validate: () => 'Réglé par la lecture du compte.' },
+  { key: 'reconciliationLastError', validate: () => 'Réglé par la lecture du compte.' },
+];
+
 /**
  * @param {object} deps
  * @param {object} deps.settings   ctx.settings (get, set, raw)
@@ -176,4 +210,4 @@ const current = () => {
   return bound;
 };
 
-module.exports = { KEYS, SECRET_KEYS, DECLARED, createSettingsStore, bind, current };
+module.exports = { KEYS, SECRET_KEYS, DECLARED, RECONCILIATION_DECLARED, createSettingsStore, bind, current };

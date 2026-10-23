@@ -2689,6 +2689,8 @@ export default function ReservationPage() {
     if (!editingReservationId) return;
     const res = await api.getReservation(editingReservationId);
     setStoredLedger(res.ledger || null);
+    // specs/qonto-bank-reconciliation.md rule 39 — the plugins' blocks follow a write that moved the money.
+    if (res.pluginBlocks) setPluginBlocks((prev) => ({ ...prev, ...res.pluginBlocks }));
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
     const serverWritten = {
@@ -3647,6 +3649,9 @@ export default function ReservationPage() {
             reservationId={editingReservationId}
             cardSx={formSectionCardSx}
             contentSx={formSectionContentSx}
+            pluginBlocks={pluginBlocks}
+            reloadFinance={reloadReservationFinance}
+            formDirty={isDirty}
           />
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>

@@ -78,6 +78,10 @@ const CORE_MODULES = Object.freeze({
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money
   paymentEffectDeps: '../../utils/paymentEffectDeps', // confirmation email, conflict check, notifications
   qonto: '../../utils/qonto', // the Qonto library, shared with the control plane (phase 3a rule 22)
+  // online-payment, bank reconciliation — what the fiche expects, and the fiche's own payment mark (rule 34)
+  reservationLedger: '../../utils/reservationLedger', // the payments ledger the expected receipts are read from (rule 10)
+  reservationPaymentMark: '../../utils/reservationPaymentMark', // « Marquer perçu » without a request, same guards
+  platformDisplay: '../../utils/platformDisplay', // the platform's display name on a reconciliation line
   // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
   reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
   pushService: '../../utils/pushService', // « Souscriptions Neat » push

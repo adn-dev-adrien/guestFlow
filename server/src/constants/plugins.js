@@ -49,6 +49,7 @@ const PLUGIN_PAGES = Object.freeze({
   '/resource-planning': [HOURLY_RESOURCES],
   '/parametres/stock-blanchisserie': [LINEN],
   '/parametres/paiements': [ONLINE_PAYMENT],
+  '/finance/rapprochement': [ONLINE_PAYMENT],
   '/school-holidays': [SCHOOL_HOLIDAYS],
   '/parametres/recettes': [TARIFF_RECIPES],
   '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE],

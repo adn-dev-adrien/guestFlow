@@ -244,6 +244,41 @@ function buildQontoClient(config = {}) {
       return accounts.map((a) => ({ id: a.id, name: a.name || '', iban: a.iban || '', main: Boolean(a.main) }));
     },
 
+    // One page of the account's completed credits (specs/qonto-bank-reconciliation.md rules 3, 5), newest
+    // first. `settledFrom` / `updatedFrom` are ISO instants; the answer carries `nextPage` (null on the
+    // last page). Read-only: `organization.read` is enough.
+    async listTransactions({ accessToken, bankAccountId, settledFrom, updatedFrom, page = 1, perPage = 100 }) {
+      const query = new URLSearchParams();
+      query.set('bank_account_id', bankAccountId);
+      query.append('status[]', 'completed');
+      query.set('side', 'credit');
+      query.set('sort_by', 'settled_at:desc');
+      query.set('per_page', String(perPage));
+      query.set('current_page', String(page));
+      if (settledFrom) query.set('settled_at_from', settledFrom);
+      if (updatedFrom) query.set('updated_at_from', updatedFrom);
+      const json = await send(`${apiBase}/v2/transactions?${query.toString()}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'list transactions');
+      const meta = json.meta || {};
+      return {
+        transactions: (json.transactions || []).map((t) => ({
+          id: t.transaction_id || t.id,
+          amountCents: t.amount_cents != null ? Number(t.amount_cents) : Math.round(Number(t.amount) * 100),
+          currency: t.currency || 'EUR',
+          side: t.side || 'credit',
+          status: t.status || 'completed',
+          operationType: t.operation_type || '',
+          label: t.label || '',
+          counterpartyName: t.label || '',
+          reference: t.reference || '',
+          note: t.note || '',
+          settledAt: t.settled_at || null,
+          emittedAt: t.emitted_at || null,
+          updatedAt: t.updated_at || null,
+        })),
+        nextPage: meta.next_page || null,
+      };
+    },
+
     // One-time onboarding: connect the account to Qonto's payment-links provider. Returns the status
     // (`enabled`/`pending`/…) + `connectionLocation` — the onboarding/KYC URL the user must visit when
     // the connection is `pending`. After onboarding Qonto redirects to `partnerCallbackUrl`.
