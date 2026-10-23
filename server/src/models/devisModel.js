@@ -24,6 +24,7 @@ const bookingLinesModel = require('./bookingLinesModel');
 const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
+const { stayNights, stayLabel } = require('../utils/stayRangeLabel');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 // Helpers shared between create + convertFromReservation
@@ -536,7 +537,13 @@ function createModel(database) {
     if (requestOrigin === 'public') { sql += " AND d.requestOrigin = 'public'"; }
     else if (requestOrigin === 'internal') { sql += " AND (d.requestOrigin IS NULL OR d.requestOrigin != 'public')"; }
     sql += ' ORDER BY d.createdAt DESC';
-    return database.prepare(sql).all(...params).map((row) => ({ ...row, ...originDisplay(row) }));
+    return database.prepare(sql).all(...params).map((row) => ({
+      ...row,
+      ...originDisplay(row),
+      nights: stayNights(row.startDate, row.endDate),
+      stayLabel: stayLabel(row.startDate, row.endDate),
+      totalTtc: roundMoney(Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0)),
+    }));
   }
 
   function findById(id) {
