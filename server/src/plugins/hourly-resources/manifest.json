@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -39,6 +39,9 @@
     ],
     "1.0.6": [
       "Sur téléphone, le titre de la page s’affiche dans la barre du haut."
+    ],
+    "1.0.7": [
+      "L’avertissement avant effacement annonce aussi les temps de chauffe, de maintien en température, la soirée et les tarifs extérieurs que l’effacement remet à zéro."
     ]
   }
 }

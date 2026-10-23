@@ -280,8 +280,11 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
       resources (`isComplex`, the planning card, turnover, heat-up, evening and external rates).
     - The lines sold stay, at their price, **with their sessions**: they say when the hours sold are
       used. The resources keep their price type and their free minutes.
-    - The uninstall dialog lists, with counts, « N réservations hors séjour » and « les réglages de
-      créneaux des ressources ». The external bookings paid for an amount get a warning line apart:
+    - The uninstall dialog lists, with counts, « N réservations hors séjour » and « les réglages
+      horaires des ressources (créneaux, chauffe, maintien en température, soirée, tarifs
+      extérieurs) » — counted on **every** column the erasure resets, from the same list
+      (`HOURLY_COLUMN_RESETS`): a resource carrying only a heat-up time is announced too
+      (2026-10-23; it was reset unannounced before, `hourly-purge-announced.unit.test.js`). The external bookings paid for an amount get a warning line apart:
       « N réservations hors séjour, X € encaissés, absents de la compta ». The erase button stays
       available (P16: warn, then erase).
 

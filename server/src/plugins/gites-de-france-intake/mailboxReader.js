@@ -43,11 +43,15 @@ async function readPart(client, uid, part) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function readBookingMails({ host, port = 993, user, password, sender, sinceDays = 30, now = new Date() }) {
-  const client = new ImapFlow({ host, port: Number(port), secure: Number(port) === 993, auth: { user, pass: password }, logger: false });
-  await client.connect();
-  const lock = await client.getMailboxLock('INBOX', { readOnly: true });
+async function readBookingMails({
+  host, port = 993, user, password, sender, sinceDays = 30, now = new Date(), ImapClient = ImapFlow,
+}) {
+  const client = new ImapClient({ host, port: Number(port), secure: Number(port) === 993, auth: { user, pass: password }, logger: false });
+  let lock = null;
   try {
+    // Inside the try: a refused lock (or a connect that half-opened the socket) still logs out.
+    await client.connect();
+    lock = await client.getMailboxLock('INBOX', { readOnly: true });
     const since = new Date(now.getTime() - sinceDays * 24 * 3600 * 1000);
     const uids = await client.search({ from: sender, since }, { uid: true });
     const out = [];
@@ -66,7 +70,7 @@ async function readBookingMails({ host, port = 993, user, password, sender, sinc
     }
     return out;
   } finally {
-    lock.release();
+    if (lock) lock.release();
     await client.logout().catch(() => {});
   }
 }

@@ -3,6 +3,10 @@
 // instead of one generic line under the button. `field` and `issue` never move: additions only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+
+// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// fixtures' dates are fixed: today is pinned before all of them.
+require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Module = require('module');
 const { validateGuest, withFieldMessages } = require('../publicInputValidation');
 const { labels } = require('../../../utils/publicLabels');

@@ -187,7 +187,7 @@ test('Case 4ter-bis: stored solde is the FULL total (older résa, not re-saved a
   assert.equal(round2(sumCredits), 102.50);
 });
 
-test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW model, VAT 20% on commission', () => {
+test('Case 4quater: real Gîtes de France reservation (fictitious guest) — NEW model, VAT 20% on commission', () => {
   // Real prod résa #1415. Location 607 + options 80 = total séjour 687 ; commission 61 € TTC
   // (50,83 HT + 10,17 TVA 20 %, compte Gîtes de France 62260500) ; virement 626 €. This is the
   // accountant's verbatim example, but stored in the NEW shape: finalPrice = 687 (total séjour),
@@ -201,7 +201,7 @@ test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW m
     optionsTtc: 80, resourcesTtc: 0, accommodationTtcCurrent: 607,
   };
   const row = {
-    id: 1, firstName: 'Chloé', lastName: 'Le Lann', propertyName: 'Gite',
+    id: 1, firstName: 'Camille', lastName: 'Martin', propertyName: 'Gite',
     platform: 'Gîtes de France', finalPrice: 687, totalPrice: 687, touristTaxTotal: 0, touristTaxInComplement: 0,
     clientGrossAmount: null, platformCommissionAmount: 61,
     depositAmount: 0, depositPaid: 0, depositPaidDate: null,

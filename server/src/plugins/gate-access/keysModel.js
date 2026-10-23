@@ -25,6 +25,11 @@ function createGateKeysModel(db) {
   }
 
   return {
+    /** Runs `fn` in one database transaction: it commits whole, or rolls back whole on a throw. */
+    transaction(fn) {
+      return db.transaction(fn)();
+    },
+
     get(reservationId) {
       return db.prepare('SELECT * FROM gate_key_results WHERE reservationId = ?').get(Number(reservationId)) || null;
     },

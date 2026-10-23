@@ -36,8 +36,11 @@ function createNeatController({
   // specs/plugins-phase-0-foundation.md rule 15 — wired to the plugin state by the plugin; a factory
   // built by a test runs its passes.
   pluginActive = () => true,
+  // The single-pass lock. The plugin hands in one that outlives the controller: a purge rebuilds
+  // the controller while a pass may still be running, and a fresh lock would let a second pass
+  // subscribe the same jobs concurrently.
+  passLock = { held: false },
 } = {}) {
-  let passInProgress = false;
 
   // A partial settingsModel (test stub) reads as « unconfigured », never as a crash.
   const currentConfig = () => readNeatConfig(settingsModel) || EMPTY_CFG;
@@ -79,12 +82,12 @@ function createNeatController({
 
   async function runPass(reason) {
     if (!pluginActive()) return { skipped: 'plugin-inactive' };
-    if (passInProgress) return { skipped: 'in-progress' };
-    passInProgress = true;
+    if (passLock.held) return { skipped: 'in-progress' };
+    passLock.held = true;
     try {
       return await runNeatSubscriptionPass({ db, settingsModel, model, buildClient, pushService, now, logger }, reason);
     } finally {
-      passInProgress = false;
+      passLock.held = false;
     }
   }
 
