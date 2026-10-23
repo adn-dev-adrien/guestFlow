@@ -13,17 +13,20 @@ import { useSlot } from '../plugins/sdk/useSlot';
  *
  * A load that fails draws nothing: markers are a cosmetic overlay.
  */
+// Two plugins may use the same `key`: a contribution is named by both.
+const contributionId = (c) => `${c.pluginId}:${c.key}`;
+
 export default function useDayMarkers() {
   const contributions = useSlot('calendar.dayMarkers');
   const [loaded, setLoaded] = useState({});
-  const ids = contributions.map((c) => `${c.pluginId}:${c.key}`).join(',');
+  const ids = contributions.map(contributionId).join(',');
 
   useEffect(() => {
     let cancelled = false;
     setLoaded({});
     contributions.forEach((c) => {
       Promise.resolve(c.load())
-        .then((fn) => { if (!cancelled && typeof fn === 'function') setLoaded((prev) => ({ ...prev, [c.key]: fn })); })
+        .then((fn) => { if (!cancelled && typeof fn === 'function') setLoaded((prev) => ({ ...prev, [contributionId(c)]: fn })); })
         .catch(() => {});
     });
     return () => { cancelled = true; };
@@ -31,7 +34,7 @@ export default function useDayMarkers() {
   }, [ids]);
 
   const markersFor = useCallback(
-    (dateStr) => contributions.flatMap((c) => (loaded[c.key] ? loaded[c.key](dateStr) : [])),
+    (dateStr) => contributions.flatMap((c) => (loaded[contributionId(c)] ? loaded[contributionId(c)](dateStr) : [])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [loaded, ids],
   );

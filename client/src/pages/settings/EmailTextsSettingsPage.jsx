@@ -152,15 +152,19 @@ export default function EmailTextsSettingsPage() {
   useEffect(() => {
     if (!templateId || tab !== 'texts') return undefined;
     setPreview((p) => ({ ...p, loading: true }));
+    // A newer draft supersedes this request: its late answer (or refusal) must not overwrite the newer preview.
+    let superseded = false;
     const timer = setTimeout(async () => {
       try {
         const r = await api.previewEmailDraft(previewBody);
+        if (superseded) return;
         setPreview({
           subject: r.subject, body: r.body, html: r.html || '', segments: r.segments || null, subjectKey: r.subjectKey, reservations: r.reservations || [],
           loading: false, error: '', stale: '', notice: r.englishNotice, current: r.sample ? SAMPLE : r.reservationId,
           toTranslate: typeof r.toTranslate === 'number' ? r.toTranslate : null,
         });
       } catch (err) {
+        if (superseded) return;
         // Rule 41 — a refused text is named under its field; the email stays as last rendered.
         if (err.key) {
           setErrors((prev) => ({ ...prev, [err.key]: { [err.field || 'fr']: refusalOf(err) } }));
@@ -170,7 +174,7 @@ export default function EmailTextsSettingsPage() {
         }
       }
     }, PREVIEW_DELAY_MS);
-    return () => clearTimeout(timer);
+    return () => { superseded = true; clearTimeout(timer); };
   }, [previewBody, templateId, tab, revision]);
 
   async function sendTest() {

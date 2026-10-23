@@ -283,6 +283,10 @@ a short list of the gaps to fix on the fiches.
     frozen at the deposit's value, as « Marquer perçu » does: it is not restored.
 42. A read that reaches the page cap (60 pages) fails with an error and leaves `lastReadAt` untouched,
     so the next read starts again instead of skipping the oldest credits.
+43. « Platform » follows the payments ledger (`reservation-payment-ledger.md` rule 24): any platform other than
+    `direct` is settled by a platform payout, including the engine stays of a platform marked « Compté
+    comme vente directe » (Lodgify: Stripe batch, commission). The reconciliation never re-derives it
+    with `isDirectChannel`, which answers a different question (welcome pack, direct-sale wording).
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay

@@ -13,7 +13,7 @@
 
 ## 1. Context
 
-`domainesolio.com` has been served by our WordPress (VM 103, `192.168.0.23`) since 2026-09-15. It
+`domainesolio.com` has been served by our WordPress (VM 103, `<wp-host>`) since 2026-09-15. It
 measures nothing. Checked in production on 2026-09-28:
 
 - no tracker in the rendered pages (no `gtag`, Matomo, Plausible, Umami, Jetpack);

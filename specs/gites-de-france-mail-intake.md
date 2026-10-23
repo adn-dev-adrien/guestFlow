@@ -44,7 +44,7 @@ Gîte 309700 | Domaine Solio
 du 13/11/2026 à partir de 16h00      au 15/11/2026 avant 10h00 (2 nuits)
 Réservation effectuée par : ROUX Lucie
 8 adultes, 2 enfants et 2 bébés      Pas de chien, pas de chat
-lucie.roux@ymail.com                 0743338633
+lucie.roux@example.com                 0743338633
 Détail des suppléments    Forfait ménage ( 1 ) x 1    80.00 €
 Montant net de la location 454.00 €  Total des options 80.00 €   Total net : 534.00 €
 une taxe de séjour d'un montant de 19.20 € … Nous la reverserons directement à votre mairie
@@ -157,7 +157,14 @@ choice in one click.
 - Two Gîtes de France fiches on the same dates (impossible on one property) → no auto-apply, error.
 - IMAP down / wrong password → the failed pass is logged (`[plugin:gites-de-france-intake] mail
   intake failed`) and retried at the next period; « Tester la connexion » shows the server's answer;
-  the iCal flow is unaffected.
+  the iCal flow is unaffected. The mailbox is logged out whatever fails — the connect or the INBOX
+  lock included (2026-10-23).
+- One intake that throws while it is processed → recorded `error` (« Erreur inattendue : … ») and the
+  pass carries on with the next ones. Before 2026-10-23 it stayed `pending`, first in the open list,
+  and stopped every later pass there.
+- A stay that has already started (start date ≤ today) → `error` « Séjour commencé : fiche à saisir à
+  la main », refused **before** the guest's client record is created: the core would refuse the save
+  (rule 17) and leave an orphan client otherwise.
 
 16. **Nothing is read before a property is tied to a gîte number.** The first boot of the plugin
     system installs every catalogue plugin on an existing base (specs/plugins-phase-0-foundation.md

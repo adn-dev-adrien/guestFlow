@@ -72,6 +72,22 @@ const bookingRequestLimiter = rateLimit({
 });
 
 /**
+ * Payment-start limiter (POST /booking-requests/:id/pay). Kept apart from the booking-request
+ * anti-spam budget: a guest who sends a request and then retries a failed or abandoned payment a
+ * few times must not be refused for having sent the request. Each call still costs a payment-link
+ * creation at the provider, so it stays capped (default 20 / hour / visitor) and the per-devis
+ * capability token remains required.
+ */
+const paymentStartLimiter = rateLimit({
+  keyGenerator: publicVisitorKey,
+  windowMs: Number(process.env.PAYMENT_START_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+  max: Number(process.env.PAYMENT_START_RATELIMIT_MAX) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de tentatives de paiement, réessayez plus tard.' } },
+});
+
+/**
  * Payment-status poll limiter (specs/public-online-payment.md §7, resolves §9 Q3). GET /status is a
  * read that also drives external Qonto calls + a devis→reservation conversion when a link is paid, so
  * it must be capped tighter than the broad public limiter to prevent a Qonto-quota / cost DoS. A legit
@@ -87,4 +103,4 @@ const paymentStatusLimiter = rateLimit({
   message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
 });
 
-module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter, paymentStatusLimiter };
+module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter, paymentStartLimiter, paymentStatusLimiter };

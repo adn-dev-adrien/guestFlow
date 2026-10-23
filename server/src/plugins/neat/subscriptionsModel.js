@@ -55,14 +55,15 @@ function buildModel(database) {
       `).all(String(today), String(environment));
     },
 
-    // Pending jobs whose reservation no longer qualifies (insurance line removed, cancelled,
-    // un-paid, stay started) — the scan drops them (spec rule 16 + edge cases).
+    // Not-yet-active jobs (pending OR failed — listDue retries both) whose reservation no longer
+    // qualifies (insurance line removed, cancelled, un-paid, stay started) — the scan drops them
+    // (spec rule 16 + edge cases). Leaving a failed one out would let its retry issue a paid policy.
     listPendingDisqualified(environment, today) {
       return database.prepare(`
         SELECT ns.id, ns.reservationId
         FROM neat_subscriptions ns
         JOIN reservations r ON r.id = ns.reservationId
-        WHERE ns.environment = ? AND ns.status = 'pending'
+        WHERE ns.environment = ? AND ns.status IN ('pending', 'failed')
           AND (
             r.kind != 'reservation'
             OR r.startDate <= ?

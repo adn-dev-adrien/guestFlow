@@ -67,7 +67,7 @@ function create(req, res) {
     return ok(res, { status: 'pending' }, 201);
   }
 
-  const v = validateStayInput(req.body);
+  const v = validateStayInput(req.body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', v.errors);
 
   const g = validateGuest(req.body.guest);

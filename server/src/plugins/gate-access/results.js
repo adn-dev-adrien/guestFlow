@@ -29,6 +29,29 @@ async function pushToAdmins({ model, pushService, logger = console }, payload) {
   return reached;
 }
 
+const STATE = /^[a-z_]{1,32}$/;
+const MAX_CODE = 64;
+const MAX_URL = 2048;
+const MAX_ERROR = 64;
+const MAX_MESSAGE = 500;
+const INVALID = Symbol('invalid');
+
+// An optional string field: absent → null, a string within bounds → itself, anything else → INVALID.
+// The code and the link end up in the guest's e-mails: an object or a number is never coerced.
+function optionalText(value, max, accepts = () => true) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || value.length > max || /[\u0000-\u001f\u007f]/.test(value)) return INVALID;
+  return accepts(value) ? value : INVALID;
+}
+
+function isHttpsUrl(value) {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /** A wire result, validated. `null` when it cannot be filed (rule 11). */
 function parseResult(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -37,16 +60,23 @@ function parseResult(raw) {
   const action = String(raw.action || '');
   if (!ACTIONS.has(action)) return null;
   if (typeof raw.ok !== 'boolean') return null;
-  return {
-    reservationId,
-    action,
-    ok: raw.ok,
-    state: raw.ok ? raw.state : null,
-    code: raw.ok ? raw.code : null,
-    url: raw.ok ? raw.url : null,
-    error: raw.ok ? null : (raw.error ? String(raw.error) : 'unknown'),
-    message: raw.ok ? null : raw.message,
-  };
+  const fields = raw.ok
+    ? {
+      state: optionalText(raw.state, 32, (v) => STATE.test(v)),
+      code: optionalText(raw.code, MAX_CODE),
+      url: optionalText(raw.url, MAX_URL, isHttpsUrl),
+      error: null,
+      message: null,
+    }
+    : {
+      state: null,
+      code: null,
+      url: null,
+      error: optionalText(raw.error, MAX_ERROR) || 'unknown',
+      message: optionalText(raw.message, MAX_MESSAGE),
+    };
+  if (Object.values(fields).includes(INVALID)) return null;
+  return { reservationId, action, ok: raw.ok, ...fields };
 }
 
 /**
@@ -67,24 +97,27 @@ async function receiveResults({ model, pushService, logger = console, now = new 
   const toAlert = [];
   let stored = 0;
 
-  for (const raw of list) {
-    const result = parseResult(raw);
-    if (!result) continue;
-    const stay = model.stayFor(result.reservationId);
-    // The window the key was listed with — kept on the row so a later deletion can still revoke it.
-    const described = stay && stay.kind === 'reservation' ? describeStay(stay) : null;
-    const previous = model.get(result.reservationId);
-    model.upsertResult({ ...result, ...(described || {}), propertyId: described ? stay.propertyId : null, receivedAt });
-    stored += 1;
+  // All or nothing: a batch that throws half-way files none of its results and pushes no alert.
+  model.transaction(() => {
+    for (const raw of list) {
+      const result = parseResult(raw);
+      if (!result) continue;
+      const stay = model.stayFor(result.reservationId);
+      // The window the key was listed with — kept on the row so a later deletion can still revoke it.
+      const described = stay && stay.kind === 'reservation' ? describeStay(stay) : null;
+      const previous = model.get(result.reservationId);
+      model.upsertResult({ ...result, ...(described || {}), propertyId: described ? stay.propertyId : null, receivedAt });
+      stored += 1;
 
-    if (result.ok) {
-      if (previous && previous.alertedError) model.setAlertedError(result.reservationId, null);
-      continue;
+      if (result.ok) {
+        if (previous && previous.alertedError) model.setAlertedError(result.reservationId, null);
+        continue;
+      }
+      if (previous && previous.alertedError === result.error) continue;
+      model.setAlertedError(result.reservationId, result.error);
+      toAlert.push({ result, stay, row: model.get(result.reservationId) });
     }
-    if (previous && previous.alertedError === result.error) continue;
-    model.setAlertedError(result.reservationId, result.error);
-    toAlert.push({ result, stay, row: model.get(result.reservationId) });
-  }
+  });
 
   for (const { result, stay, row } of toAlert) {
     await pushToAdmins({ model, pushService, logger }, {

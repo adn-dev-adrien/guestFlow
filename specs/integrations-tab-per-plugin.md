@@ -63,6 +63,8 @@ own, from the page or from any link that points at that plugin.
     Save saves every dirty tab in tab order; Cancel resets them all. The first tab whose save is
     refused stops the run, becomes the open tab, and its own error shows as today; the tabs saved
     before it stay saved.
+    > **2026-10-23 (review of inte/plugins):** a plugin disabled during the session leaves the slot
+    > with its card's draft: the page is « modified » only by the cards still drawn.
 11. **Plugin to set up.** _(arbitration 3, 2026-10-22: amber dot)_ The tab of an active plugin whose
     setup state is « à configurer » (the `setup` view `GET /api/plugins` already returns for the
     Plugins page) carries an amber dot. A refused or modified tab shows its own dot instead (one dot

@@ -14,7 +14,7 @@
 
 The `guestflow-booking` WordPress plugin lives in this repository
 ([integrations/wordpress/guestflow-booking](../integrations/wordpress/guestflow-booking)) and runs
-inside the `wp_app` Docker container on the production host. It is currently deployed by the last
+inside the `<container>` Docker container on the production host. It is currently deployed by the last
 step of [.github/workflows/deploy.yml](../.github/workflows/deploy.yml), which `tar`-streams the
 plugin directory into the container through `docker exec` — from a job running on the self-hosted
 runner.
@@ -48,8 +48,11 @@ host.
 5. The plugin polls that manifest through WordPress's own update machinery
    (`pre_set_site_transient_update_plugins`), caching the answer in a transient for 12 h, and
    presents the details through `plugins_api` so the "Voir les détails" modal shows the changelog.
-6. The download URL served by the manifest is always the GitHub release asset over HTTPS, on the
-   `github.com` / `objects.githubusercontent.com` hosts. The plugin refuses any other host.
+6. The download URL served by the manifest is always the GitHub release asset over HTTPS:
+   `https://github.com/adn-dev-adrien/guestFlow/releases/download/vX.Y.Z/guestflow-booking-A.B.C.zip`
+   (the asset's `browser_download_url`). The plugin refuses any other host, any other repository and
+   any other path (amended 2026-10-23, plugin 1.16.1: a bare host check accepted any GitHub
+   repository, and the `*.githubusercontent.com` storage hosts name no repository at all).
 7. When GuestFlow is unreachable or the manifest is malformed, the plugin reports no update and
    logs nothing user-visible — a broken API must never break the site's admin.
 8. The manifest endpoint is public (it advertises nothing more than a published version number and

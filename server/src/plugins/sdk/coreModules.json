@@ -516,6 +516,7 @@
     "apiLimiter",
     "bookingRequestLimiter",
     "loginLimiter",
+    "paymentStartLimiter",
     "paymentStatusLimiter",
     "publicApiLimiter"
   ],

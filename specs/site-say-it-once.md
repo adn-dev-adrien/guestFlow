@@ -32,7 +32,7 @@ only the removed blocks carried is lost to a search engine or an assistant.
 
 1. The `#a-la-carte` section and `[solio_surdemande]` are removed from both lodging pages. Option
    prices then live **only** in the booking drawer.
-   > **Sans test** — contenu de pages WordPress, stocké dans le conteneur `wp_app` et hors de ce
+   > **Sans test** — contenu de pages WordPress, stocké dans le conteneur `<container>` et hors de ce
    >   dépôt ; vérifié par `curl … | grep -c 'gf-carte'` sur les deux pages en ligne (§7).
 
 2. Consequence accepted on 2026-09-24: option prices are no longer server-rendered, so a robot that
@@ -85,7 +85,7 @@ Untouched. No GuestFlow endpoint, model or task takes part.
 | `mu-plugins/gf-seo-redirects.php` | `/fr/options` and `/en/options` retargeted from `/la-granja/#a-la-carte` to `/la-granja/#reserver`. |
 | `README.md` | The « Où chaque information apparaît » table records the new single home of the option prices and of the geographic context; the shortcode inventory notes that `[solio_surdemande]` and `[solio_geo]` are no longer placed. |
 
-### 4.3 WordPress content (container `wp_app`, host `192.168.0.23`)
+### 4.3 WordPress content (container `<container>`, host `<wp-host>`)
 
 Not versioned — applied by script, each page's previous content written to `/tmp/bak-page-<ID>-<stamp>.txt`
 in the container first.
@@ -141,7 +141,7 @@ Run on 2026-09-24, once the container had actually received the change (see § D
 - [x] The booking drawer still opens on both lodging pages and still lists the options with their
       prices (bain nordique, petit-déjeuner, panier, ménage, linge, apéro — from 3,00 € to 80,00 €),
       driven by Playwright against the live site.
-- [x] `php -l` clean on `gf-seo-redirects.php` in the container, and `docker logs wp_app` carries no
+- [x] `php -l` clean on `gf-seo-redirects.php` in the container, and `docker logs <container>` carries no
       warning, error or fatal after the change.
 
 ## 7 bis. Deployment
@@ -149,9 +149,9 @@ Run on 2026-09-24, once the container had actually received the change (see § D
 The code half of this spec merged as PR #593, but **nothing had reached the site**: measured on
 2026-09-24, all four pages still carried their blocks and the redirect table still pointed at the
 dead anchor. Merging a spec that edits WordPress content deploys nothing by itself — the pages live
-only in the `wp_app` container, and the mu-plugins are copied there by hand.
+only in the `<container>` container, and the mu-plugins are copied there by hand.
 
-Applied to `192.168.0.23` on 2026-09-24, each target backed up first:
+Applied to `<wp-host>` on 2026-09-24, each target backed up first:
 
 | Target | Change | Backup |
 |---|---|---|

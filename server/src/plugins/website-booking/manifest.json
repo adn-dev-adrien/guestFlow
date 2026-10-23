@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.7.0",
+  "sdk": "^1.8.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -46,6 +46,15 @@
     ],
     "1.5.0": [
       "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
+    ],
+    "1.5.1": [
+      "Relancer un paiement depuis le site ne compte plus dans la limite des demandes envoyées : quelques essais de paiement après une demande ne sont plus refusés."
+    ],
+    "1.5.2": [
+      "Devis et demandes du site refusés pour une arrivée passée, un séjour de plus de 365 nuits ou un départ à plus de 730 jours."
+    ],
+    "1.5.3": [
+      "Paramètres › Intégrations › Site : une connexion illisible est signalée, avec « Réessayer », au lieu d’un onglet vide."
     ],
     "1.6.0": [
       "Personnes supplémentaires : le devis du site porte leur supplément sur sa propre ligne, calculé par GuestFlow, et la capacité publique du logement est toujours plafonnée."

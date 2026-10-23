@@ -6,8 +6,8 @@ const { create: createAccountingModel } = require('../accountingModel');
 
 // 2026-06-05 regression net.
 //
-// Live prod bug pinned via SSH read of `~/guestflow/data/guestflow.db` on the Pi: Chloé
-// Le Lann's reservation (#5, Gitedefrance, balancePaidDate 2026-05-07, all contribs NULL
+// Live prod bug pinned via SSH read of `~/guestflow/data/guestflow.db` on the Pi: a
+// guest's reservation (#5, Gitedefrance, balancePaidDate 2026-05-07, all contribs NULL
 // because the Solde was flipped BEFORE the force-item-to-complement feature shipped) was
 // exporting with:
 //
@@ -88,11 +88,11 @@ function createDb() {
   // Settings: VAT 10 %, commission VAT 20 %.
   db.prepare("INSERT INTO app_settings (id) VALUES (1)").run();
   // Property "Gite" with night price = 314.50 € (gives 629 € accommodation for 2 nights;
-  // matches Chloé's history "Prix hébergement: 0 → 629").
+  // matches the guest's history "Prix hébergement: 0 → 629").
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
   db.prepare("INSERT INTO pricing_rules (id, propertyId, pricePerNight) VALUES (1, 1, 314.5)").run();
   // Client.
-  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (4, 'Chloé', 'Le lann')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (4, 'Camille', 'Martin')").run();
   // Platform row with Gitedefrance compte commission (= what the Plan comptable page sets).
   db.prepare("INSERT INTO platforms (id, name, commissionAccountNumber, hasVatOnCommission) VALUES (1, 'Gitedefrance', '62260500', 1)").run();
   // Options catalog: option 2 = late checkout (auto-timed), option 3 = ménage (fixed 80 €).
@@ -102,8 +102,8 @@ function createDb() {
   return db;
 }
 
-function seedChloeReservation(db) {
-  // Mirror Chloé's exact DB state post-deploy + post-offer (verified live on the Pi
+function seedStaleQuoteReservation(db) {
+  // Mirror the guest's exact DB state post-deploy + post-offer (verified live on the Pi
   // 2026-06-05):
   //   - platform Gitedefrance, finalPrice 626, clientGrossAmount 687
   //   - depositDisabled (depositAmount = 0), Solde paid 2026-05-07
@@ -129,9 +129,9 @@ function seedChloeReservation(db) {
   `).run();
 }
 
-test('Chloé Le Lann scenario — legacy path with offered options + customPrice produces a clean entry (no phantom 70600010, no negative VAT)', () => {
+test('Stale-quote scenario — legacy path with offered options + customPrice produces a clean entry (no phantom 70600010, no negative VAT)', () => {
   const db = createDb();
-  seedChloeReservation(db);
+  seedStaleQuoteReservation(db);
 
   const model = createAccountingModel(db);
   const entries = model.encaissementsByMonth({ month: 5, year: 2026 });
@@ -176,7 +176,7 @@ test('Chloé Le Lann scenario — legacy path with offered options + customPrice
   // quote.accommodationNetPrice, quote.accommodationVatAmount, …) — the export multiplies by
   // `fraction` (= legacyFraction = encaissementTtc/totalStayTtc × grossRatio) before writing.
   //
-  // For Chloé:
+  // For this guest:
   //   - accommodation NET HT = customPrice / (1 + 10/100) = 626 / 1.10 = 569.09 €
   //   - accommodation NET VAT = 626 - 569.09 = 56.91 €
   //   - legacyFraction = (626/626) × (687/626) = 1.09744
@@ -213,13 +213,13 @@ test('Chloé Le Lann scenario — legacy path with offered options + customPrice
   );
 });
 
-test('Chloé scenario — end-to-end via entryToRows: the actual CSV rows produced match the accountant-correct shape', () => {
+test('Stale-quote scenario — end-to-end via entryToRows: the actual CSV rows produced match the accountant-correct shape', () => {
   // Drive the full chain: model → entryToRows. This validates that the absorption residue
   // on the last credit line stays within ±0,02 € (= clean rounding noise), NOT the -87 €
   // mismatch that the prod bug produced.
   const { entryToRows } = require('../accountingExport');
   const db = createDb();
-  seedChloeReservation(db);
+  seedStaleQuoteReservation(db);
   const model = createAccountingModel(db);
   const entries = model.encaissementsByMonth({ month: 5, year: 2026 });
   assert.equal(entries.length, 1);
@@ -311,7 +311,7 @@ test('positive control — a direct booking on the same shape (no offered option
   const model = createAccountingModel(db);
   const entries = model.encaissementsByMonth({ month: 5, year: 2026 });
 
-  // Find the direct one (Chloé's seeded data is absent here so we only have the direct).
+  // Find the direct one (the seeded guest's data is absent here so we only have the direct).
   assert.equal(entries.length, 1);
   const entry = entries[0];
   assert.equal(entry.platform, 'direct');

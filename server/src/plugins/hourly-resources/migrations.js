@@ -71,15 +71,29 @@ function tagEveningSupplements(db) {
 // Rule 17 — what an erasure empties besides the table: the slot settings of the resources and the
 // sessions of the stays. The free minutes stay (they are a price), and so do the sessions of a stay
 // whose line explains its amount by them — every line is kept, so every session is kept with it.
-function resetHourlyColumns(db) {
-  if (!hasTable(db, 'resources')) return;
+// One list for the reset and for the warning that announces it: nothing is erased unannounced.
+const HOURLY_COLUMN_RESETS = [
+  ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
+  ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['heatUpMinutes', '0'],
+  ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'],
+];
+
+function presentResets(db) {
+  if (!hasTable(db, 'resources')) return [];
   const columns = new Set(db.prepare('PRAGMA table_info(resources)').all().map((c) => c.name));
-  const sets = [
-    ['isComplex', '0'], ['showsPlanningCard', '0'], ['hourlyEveningStart', 'NULL'], ['hourlyEveningRate', '0'],
-    ['hourlyExternalDayRate', '0'], ['hourlyExternalEveningRate', '0'], ['heatUpMinutes', '0'],
-    ['heatRetentionMinutes', '0'], ['turnoverMinutes', '0'],
-  ].filter(([column]) => columns.has(column)).map(([column, value]) => `${column} = ${value}`);
+  return HOURLY_COLUMN_RESETS.filter(([column]) => columns.has(column));
+}
+
+function resetHourlyColumns(db) {
+  const sets = presentResets(db).map(([column, value]) => `${column} = ${value}`);
   if (sets.length > 0) db.exec(`UPDATE resources SET ${sets.join(', ')}`);
+}
+
+// The resources the reset would change: one setting at least away from its reset value.
+function countHourlySettings(db) {
+  const differs = presentResets(db).map(([column, value]) => (value === 'NULL' ? `${column} IS NOT NULL` : `COALESCE(${column}, ${value}) != ${value}`));
+  if (differs.length === 0) return 0;
+  return db.prepare(`SELECT COUNT(*) AS n FROM resources WHERE ${differs.join(' OR ')}`).get().n;
 }
 
 const MIGRATIONS = [
@@ -87,4 +101,6 @@ const MIGRATIONS = [
   { name: 'tag_evening_supplements_v1', up: tagEveningSupplements },
 ];
 
-module.exports = { MIGRATIONS, createTables, tagEveningSupplements, resetHourlyColumns, hasTable, SUPPLEMENT_SUFFIX };
+module.exports = {
+  MIGRATIONS, createTables, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+};

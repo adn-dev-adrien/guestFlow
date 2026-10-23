@@ -171,6 +171,9 @@ email shown beside the text. The whole wording can also go out and come back as 
     draft being typed: `POST /api/emails/preview` with `{ templateId, draft, reservationId?, language }`.
     The default reservation is the next upcoming stay that receives this email. A selector picks another
     one, or « Exemple » (a sample stay).
+    > **2026-10-23 (review of inte/plugins):** the preview always shows the latest draft. A request
+    > made for an older draft that answers after a newer one began — its rendering or its refusal
+    > (rule 41) — is dropped, never shown.
 14. Language FR/EN is a toggle on the preview. An empty EN text falls back to the FR text, and the
     preview says so (« Texte anglais manquant : le français sera envoyé »).
 15. « M'envoyer un test » sends the previewed email to the company address. The subject is prefixed
@@ -366,7 +369,11 @@ email shown beside the text. The whole wording can also go out and come back as 
 34. **The pool season belongs to the property.** « Piscine » (on/off) and its two dates, picked as a day
     and a month, sit on the property's Séjour tab; Réglages › Emails no longer holds them. Off, or no
     dates: no pool sentence. Both dates or none (« Les deux dates, ou aucune. »). The upgrade copies the
-    season the instance had onto every property once, so no email moves.
+    season the instance had onto every property once, so no email moves. An instance upgraded from
+    the release where an empty bound still meant `06-15` / `08-31` (its `app_settings` columns are
+    declared with those defaults) copies that default for an empty or NULL bound, as its emails
+    used it (2026-10-23, inte/plugins review); an instance born after
+    `plugins-phase-p-productisation.md` rule 14 reads empty as no pool.
 35. **Typed text is never lost.** « Textes des emails » and the property page ask before leaving with
     unsaved changes — through the menu, « Retour », a link inside the page, the browser's back or a
     reload. The property's « Arrivée » block is saved by the page's own Enregistrer / Annuler (no button
@@ -507,6 +514,8 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     field — on a computer the column scrolls to it and focuses it; on a phone a sheet opens over the
     email with the field and « OK ». The text being edited is highlighted in the email while typing.
     The template's own words open « Modèle complet ».
+    > **2026-10-23 (review of inte/plugins):** the template's own words are a button like a sentence
+    > (focusable, Entrée or Espace opens « Modèle complet »), named « Modèle complet : <first words> ».
     **No tag ever leaves.** The tagging happens only in `utils/emailDraftPreview.js`, inside its
     rolled-back transaction: every stored text is rewritten wrapped with three private-use characters
     (U+E000 key U+E001 … U+E002) around each piece holding words — never around a condition, never

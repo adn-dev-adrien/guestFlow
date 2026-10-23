@@ -195,9 +195,9 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   //
   // A previous iteration (PR #125) emitted a `console.warn` whenever the residue exceeded 1 €,
   // on the theory that "anything larger means the buckets don't actually account for the
-  // encaissement TTC" — that catches the 2026-06-05 Chloé bug (stale quote → -87,80 € residue
-  // → negative VAT). The warning was removed for prod (2026-06-05) because it fires on
-  // legitimate legacy entries too: reservation #12078 produced 75,61 € / 176,39 € residues on
+  // encaissement TTC" — that catches the 2026-06-05 stale-quote bug (stale quote → -87,80 €
+  // residue → negative VAT). The warning was removed for prod (2026-06-05) because it fires on
+  // legitimate legacy entries too: one legacy reservation produced 75,61 € / 176,39 € residues on
   // the deposit + balance pro-ratas, which are mathematically right under their own logic but
   // far outside the 1 € ceiling. The signal-to-noise didn't justify keeping the log.
   //

@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -45,6 +45,9 @@
     ],
     "1.0.9": [
       "Un séjour plateforme d’avant la commission saisie (prix payé par le client) dont le solde est coché aujourd’hui passe sa TVA au taux, et non plus la commission en TVA."
+    ],
+    "1.0.10": [
+      "Commentaire du code débarrassé du prénom d’un voyageur et d’un numéro de réservation ; l’export ne change pas."
     ]
   }
 }

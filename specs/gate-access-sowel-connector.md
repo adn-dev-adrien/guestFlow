@@ -102,6 +102,11 @@ a key could not be made or when Sowel stopped asking.
 11. The request carries at most **500** results: `400` without `results[]`, `413` above 500. An entry
     that cannot be filed (no positive `reservationId`, an `action` other than `create`/`revoke`, no
     boolean `ok`) is skipped; the answer is `{ stored: <n> }`, the entries actually filed.
+    Since 2026-10-23 the fields are typed too, and an entry that breaks a type is skipped the same
+    way: `state` a status word (`[a-z_]`, ≤ 32), `code` a string (≤ 64, no control character), `url`
+    an **https** URL (≤ 2048) — both end up in the guest's e-mails, so nothing is coerced —, `error`
+    a string (≤ 64, « unknown » when absent), `message` a string (≤ 500). The batch is filed in **one
+    transaction**: a failure half-way files nothing and pushes nothing.
 12. **Posting the same results again changes nothing** but their reception time, and sends no second
     push: Sowel posts a result for every key of the list at every read.
 

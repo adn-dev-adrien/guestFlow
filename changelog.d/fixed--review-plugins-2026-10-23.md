@@ -1,0 +1,7 @@
+- Neat: a failed subscription job whose stay stops qualifying (cancelled, insurance line removed, stay started, deposit no longer paid) is dropped instead of retried into a paid policy; one subscription pass at a time, even right after a data erasure.
+- Public booking API: `/quote` and `/booking-requests` refuse a stay starting in the past, longer than 365 nights or ending more than 730 days ahead — an `endDate` of 9999-12-31 used to block the server.
+- Gîtes de France intake: one intake that throws no longer stops every later pass; a started stay is refused before a client record is created; the mailbox is logged out even when the INBOX lock fails.
+- Booking intake: the package asks for SDK `^1.6.0`, the first one sure to carry `platformWithholdsTouristTax`.
+- Hourly resources: the erasure warning announces every resource setting the purge resets, heat-up and heat-retention times included.
+- Gate access: the results Sowel posts back are type-checked (https link, string code) and filed in one transaction.
+- Accounting export: a code comment no longer names a guest nor a reservation; its tests use a fictitious guest.

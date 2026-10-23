@@ -14,7 +14,7 @@ function buildOperatorsModel(db) {
   const resetFailStmt = db.prepare('UPDATE operators SET failedCount = 0, lockedUntil = NULL WHERE id = ?');
   const setPendingStmt = db.prepare('UPDATE operators SET pendingMethod = ?, pendingTotpSecret = ?, pendingFailures = 0 WHERE id = ?');
   const activateStmt = db.prepare(`UPDATE operators SET mfaMethod = pendingMethod, totpSecret = CASE WHEN pendingMethod = 'totp' THEN pendingTotpSecret ELSE NULL END,
-    pendingMethod = NULL, pendingTotpSecret = NULL, pendingFailures = 0, lastTotpStep = NULL, backupCodes = ? WHERE id = ?`);
+    pendingMethod = NULL, pendingTotpSecret = NULL, pendingFailures = 0, lastTotpStep = ?, backupCodes = ? WHERE id = ?`);
   const setBackupStmt = db.prepare('UPDATE operators SET backupCodes = ? WHERE id = ?');
   const totpStepStmt = db.prepare('UPDATE operators SET lastTotpStep = ? WHERE id = ? AND (lastTotpStep IS NULL OR lastTotpStep < ?)');
   const pendingFailStmt = db.prepare('UPDATE operators SET pendingFailures = pendingFailures + 1 WHERE id = ?');
@@ -35,7 +35,7 @@ function buildOperatorsModel(db) {
     lock: (id, until) => lockStmt.run(until, id),
     resetFailures: (id) => resetFailStmt.run(id),
     setPending: (id, method, totpSecret) => setPendingStmt.run(method, totpSecret || null, id),
-    activatePending: (id, backupCodesJson) => activateStmt.run(backupCodesJson, id),
+    activatePending: (id, backupCodesJson, totpStep = null) => activateStmt.run(totpStep, backupCodesJson, id),
     setBackupCodes: (id, json) => setBackupStmt.run(json, id),
     // false when that step (or a later one) was already accepted.
     useTotpStep: (id, step) => totpStepStmt.run(step, id, step).changes === 1,

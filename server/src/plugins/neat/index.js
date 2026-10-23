@@ -36,6 +36,8 @@ function register(ctx) {
     return model;
   };
   let built = null;
+  // Outlives `built`: a purge drops the controller, never the lock of a pass still running.
+  const passLock = { held: false };
   const controller = () => {
     if (!built) {
       built = createNeatController({
@@ -45,6 +47,7 @@ function register(ctx) {
         pushService: sdk.coreModule('pushService'),
         logger: { log: ctx.log.info, warn: ctx.log.warn, error: ctx.log.error },
         pluginActive: ctx.isLive,
+        passLock,
       });
     }
     return built;

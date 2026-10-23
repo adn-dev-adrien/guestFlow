@@ -17,8 +17,12 @@ const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(Str
 const round2 = (n) => Math.round(n * 100) / 100;
 const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
+const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 function createIntakeService(deps) {
   const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, now = () => new Date() } = deps;
+  // The accommodations' day: the process runs in their time zone (utils/localDate.js).
+  const today = deps.today || (() => localDay(now()));
 
   function propertyIdsForGite(giteNumber) {
     return Object.entries(settings.giteNumbers())
@@ -124,6 +128,13 @@ function createIntakeService(deps) {
     }
     const chosen = rent != null ? Number(rent) : (candidates.length === 1 ? candidates[0] : null);
     if (chosen != null && !candidates.includes(chosen)) return { status: 'error', error: 'Loyer hors des valeurs possibles' };
+    // The core refuses a started stay (PAST_RESERVATION); asking first keeps stayPatch from creating
+    // a client record that no fiche would ever point to.
+    if (String(booking.startDate) <= today()) {
+      const error = 'Séjour commencé : fiche à saisir à la main';
+      intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });
+      return { status: 'error', error };
+    }
 
     const { patch } = stayPatch(booking, reservation);
     const full = chosen != null ? { ...patch, ...paymentPatch(booking, chosen) } : patch;
@@ -187,7 +198,15 @@ function createIntakeService(deps) {
     }
     const outcome = {};
     for (const intake of intakes.listOpen()) {
-      const status = process(intake);
+      // One intake that throws is recorded and left behind: it stays `pending` otherwise, first in
+      // listOpen, and stops every later pass before the intakes behind it.
+      let status;
+      try {
+        status = process(intake);
+      } catch (err) {
+        intakes.setStatus(intake.id, { status: 'error', error: `Erreur inattendue : ${err.message}` });
+        status = 'error';
+      }
       outcome[status] = (outcome[status] || 0) + 1;
     }
     return { read, ...outcome };
