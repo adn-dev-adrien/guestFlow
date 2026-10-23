@@ -8,10 +8,13 @@
  *   CP_DOMAIN                customers live at <slug>.<CP_DOMAIN> (default guestflow.fr)
  *   CP_PUBLIC_URL            the console's own address, for the export links and Qonto's return
  *   CP_APP_HOST              the shared login page's host (default app.<CP_DOMAIN>; rule 24)
- *   CP_SESSION_SECRET        required in production
+ *   NODE_ENV                 `development` or `test` to run without the two secrets below; anything
+ *                            else (unset included) runs as production (rule 39)
+ *   CP_SESSION_SECRET        required outside development/test
  *   CP_SMTP_HOST/PORT/USER/PASS/FROM
  *   CP_PORT                  default 4100
- *   CP_PROXY_SECRET          the header Caddy adds; without it X-Forwarded-* are ignored (H1 rule 21)
+ *   CP_PROXY_SECRET          the header Caddy adds; without it X-Forwarded-* are ignored (H1 rule 21);
+ *                            required outside development/test
  *
  * Hosting (specs/hosting-h1-fleet-runtime.md; deploy/hosting/README.md lists the production values):
  *   CP_RELEASES_DIR          the shared releases, <dir>/<version> (default: <CP_INSTANCES_ROOT>/../releases)
@@ -32,11 +35,11 @@ const { createScheduler } = require('./tasks/scheduler');
 const { createMailer } = require('./utils/mailer');
 const { loadOrCreateKey, createSecrets } = require('./utils/secrets');
 const { loadPrivateKey } = require('./utils/licenceIssuer');
+const { readBootConfig } = require('./utils/bootConfig');
 const { createFirstAdminRunner } = require('./utils/firstAdmin');
 const clock = require('./utils/clock');
 
 const env = process.env;
-const production = env.NODE_ENV === 'production';
 
 function required(name) {
   if (!env[name]) {
@@ -49,7 +52,13 @@ function required(name) {
 const dataDir = path.resolve(env.CP_DATA_DIR || path.join(__dirname, '..', 'data'));
 const instancesRoot = path.resolve(required('CP_INSTANCES_ROOT'));
 const privateKey = loadPrivateKey(required('CP_LICENCE_PRIVATE_KEY'));
-const sessionSecret = production ? required('CP_SESSION_SECRET') : (env.CP_SESSION_SECRET || 'dev-only-console-secret');
+let boot;
+try {
+  boot = readBootConfig(env);
+} catch (err) {
+  console.error(`[console] ${err.message}`);
+  process.exit(1);
+}
 
 const db = openDatabase(path.join(dataDir, 'control-plane.db'));
 const ctx = createContext({
@@ -70,12 +79,12 @@ const ctx = createContext({
 });
 
 const app = createApp(ctx, {
-  sessionSecret,
+  sessionSecret: boot.sessionSecret,
   sessionStore: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
-  secureCookies: production,
+  secureCookies: boot.secureCookies,
   clientDist: path.join(__dirname, '..', '..', 'client', 'dist'),
   appHost: env.CP_APP_HOST || `app.${env.CP_DOMAIN || 'guestflow.fr'}`,
-  proxySecret: env.CP_PROXY_SECRET || null,
+  proxySecret: boot.proxySecret,
 });
 
 createScheduler(ctx).start();

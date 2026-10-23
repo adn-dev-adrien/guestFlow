@@ -285,6 +285,13 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       dots and dashes out of a 6-digit code, the dash back into a 10-character backup code;
     - the input is transparent ink over the cells, never `opacity: 0`, which password managers take
       for a hidden field (selection and autofill colours transparent too).
+36. **A managed instance refuses the E2E suite's key** (added 2026-10-23, security review of
+    `inte/plugins`). The E2E suite signs its support links with a TEST-ONLY Ed25519 pair whose private
+    half is committed (`e2e/fixtures/accountSecurity.js`): anyone can sign a licence, a registry index
+    or a support link for its public half. With `GUESTFLOW_MANAGED=1`, an instance whose
+    `GUESTFLOW_LICENCE_PUBLIC_KEY` or `GUESTFLOW_REGISTRY_PUBLIC_KEY` is that key refuses to start
+    (`server/src/utils/testOnlyKeys.js`, checked first thing in `index.js`). Unmanaged installs, the
+    E2E server included, are unaffected.
 
 ---
 
@@ -431,6 +438,9 @@ most); at 390 px each cell is about 45 px wide. Interactive mock:
   refused, once the real `gate-access` / `website-booking` `register(ctx)` ran they are, any case and
   trailing slash (`hosting-h2-support-secret-routes.unit.test.js`, `hosting-h2-support-guard.unit.test.js`,
   website-booking's `site-connection.unit.test.js`).
+- 2026-10-23 (security review): rule 36 — a managed install with the test-only key as either
+  variable refuses to start, an unmanaged one or a managed one with another key starts
+  (`hosting-h2-test-only-key.unit.test.js`, 3).
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).

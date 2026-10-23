@@ -120,3 +120,15 @@ test('rule 27 — the remembered-space page counts against the same limit as the
     await s.close();
   }
 });
+
+test('rule 27 — « /go » counts against the same limit: it cannot walk the slugs either', async () => {
+  const s = await start();
+  try {
+    for (let i = 0; i < 10; i += 1) assert.equal((await s.call('POST', '/go', { form: { slug: `slug-${i}` } })).status, 303);
+    const refused = await s.call('POST', '/go', { form: { slug: 'moulin', email: 'compta@lamy.fr' } });
+    assert.equal(refused.status, 429);
+    assert.equal(refused.location, undefined, 'no redirect to the space');
+  } finally {
+    await s.close();
+  }
+});
