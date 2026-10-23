@@ -47,8 +47,12 @@ class GF_Updater
         return plugin_basename(GF_BOOKING_FILE);
     }
 
+    /** Where GuestFlow's release workflow publishes the plugin archive (`browser_download_url`). */
+    private const PACKAGE_PREFIX = '/adn-dev-adrien/guestFlow/releases/download/';
+
     /**
-     * Only a GitHub release asset, only over HTTPS. Anything else is treated as no manifest at all.
+     * Only an asset of a GuestFlow release on github.com, only over HTTPS. Anything else — another
+     * repository, a raw CDN host that names no repository — is treated as no manifest at all.
      */
     private function is_allowed_package(string $url): bool
     {
@@ -56,8 +60,11 @@ class GF_Updater
         if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https') {
             return false;
         }
-        $allowed = ['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'];
-        return in_array(strtolower($parts['host'] ?? ''), $allowed, true);
+        if (strtolower($parts['host'] ?? '') !== 'github.com' || isset($parts['port']) || isset($parts['user'])) {
+            return false;
+        }
+        $path = (string) ($parts['path'] ?? '');
+        return preg_match('#^' . preg_quote(self::PACKAGE_PREFIX, '#') . 'v\d+\.\d+\.\d+[^/]*/guestflow-booking-\d+\.\d+\.\d+\.zip$#', $path) === 1;
     }
 
     /**

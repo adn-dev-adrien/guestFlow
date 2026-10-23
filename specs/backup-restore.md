@@ -155,7 +155,7 @@ None — no server business logic is added (CLAUDE.md §9 "Tests not required fo
 - Automatic scheduling (launchd / cron). Decided 2026-08-09: manual runs only for now. The script
   is schedulable as-is if that changes.
 - Off-site / cloud replication (the backup lives on the Mac; Time Machine covers the Mac).
-- Backing up the WordPress container (`wp_app`) that shares the Pi — separate concern, separate
+- Backing up the WordPress container (`<container>`) that shares the Pi — separate concern, separate
   tooling.
 - Encrypting the backup at rest on the Mac.
 - Backing up PM2's process list or the OS configuration — both are re-created by the deploy runbook.

@@ -209,7 +209,7 @@ function render(anim){
   const body=$('body');body.innerHTML='';
   const card=document.createElement('div');card.className='card'+(anim?' panel':'');card.setAttribute('role','tabpanel');
   card.innerHTML=`<h3>${p.title}</h3><p class="meta">${p.meta}</p>`;
-  if(p.connect){card.innerHTML+=S.google?'<span class="badge ok">● Connecté à agenda.solio@gmail.com</span>':'<span class="badge warn">● Pas encore connecté</span><p><button class="btn" id="gconnect">Connecter Google Agenda</button></p>';}
+  if(p.connect){card.innerHTML+=S.google?'<span class="badge ok">● Connecté à agenda@example.com</span>':'<span class="badge warn">● Pas encore connecté</span><p><button class="btn" id="gconnect">Connecter Google Agenda</button></p>';}
   (p.fields||[]).forEach(f=>{const err=(S.errors[p.id]||{})[f.k];const w=document.createElement('label');w.className='field'+(err?' bad':'');
     w.innerHTML=`<span>${f.label}</span><input ${f.ro?'readonly':''} value="${S.draft[p.id][f.k]}"><small class="help">${err||(f.ro?'Lecture seule ici.':'')}</small>`;
     const inp=w.querySelector('input');inp.oninput=()=>{S.draft[p.id][f.k]=inp.value;if(S.errors[p.id])delete S.errors[p.id][f.k];refreshChrome();};card.appendChild(w);});

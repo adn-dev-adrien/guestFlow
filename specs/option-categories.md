@@ -246,7 +246,7 @@ admin payload, the reservation payload and the public payload.
 
 No plugin version bump: cache-busting is `filemtime`-based
 ([class-gf-blocks.php:62-66](../integrations/wordpress/guestflow-booking/includes/class-gf-blocks.php#L62-L66)),
-and the CI syncs the plugin into `wp_app` on `release`
+and the CI syncs the plugin into `<container>` on `release`
 ([deploy.yml:402-431](../.github/workflows/deploy.yml#L402-L431)).
 
 ### 4.4 API contract
@@ -560,7 +560,7 @@ collapse behavior is the whole point of the feature and it depends on the server
 - [x] Regression: `Options personnalisées`, `Ressources`, the pricing side panel totals, the devis PDF
       option lines, and the SAS upsell flow
       ([sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md)) unaffected.
-- [x] WordPress widget — verified on the **real** WordPress (`wp_app` on the Pi, 2026-08-06, after
+- [x] WordPress widget — verified on the **real** WordPress (`<container>` on the Pi, 2026-08-06, after
       the release deploy): the three groups render collapsed after the flat list; « Petit déjeuner »
       is pinned under a collapsed « Restauration » without a count chip; picking a drink moves it
       into the pinned block immediately, keeps the « + » button focused, sets the chip to « 1 » and
