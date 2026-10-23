@@ -675,5 +675,18 @@
     "FR_MONTHS",
     "formatDateLong",
     "formatTimeShort"
+  ],
+  "reservationLedger": [
+    "buildLedger",
+    "formatEuros",
+    "pickLink",
+    "shortDate"
+  ],
+  "reservationPaymentMark": [
+    "applyPaymentMark",
+    "computePlatformCommission"
+  ],
+  "platformDisplay": [
+    "platformDisplay"
   ]
 }

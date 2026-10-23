@@ -38,6 +38,8 @@ export { withFrom } from '../../utils/navigation';
 // accounting-export
 export { default as MonthYearPicker } from '../../components/MonthYearPicker';
 export { default as PlatformChip } from '../../components/PlatformChip';
+export { default as TableCard } from '../../components/TableCard';
+export { default as PageTabs } from '../../components/PageTabs';
 export { ADMIN, userHasRole } from '../../constants/roles';
 // linen (specs/plugins-phase-2-hosts.md §3.D)
 export { default as DateField } from '../../components/DateField';

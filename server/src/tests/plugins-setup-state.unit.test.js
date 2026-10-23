@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const registry = require('../plugins/sdk/registry');
 const { createContext } = require('../plugins/sdk/createContext');
 const { SDK_VERSION } = require('../plugins/sdk/version');
+const { satisfies } = require('../utils/semverRange');
 const { PLUGIN_CATALOG, PLUGIN_SETTINGS_PLACES } = require('../constants/plugins');
 const { createController } = require('../controllers/pluginsController');
 
@@ -85,7 +86,7 @@ test('rule 25: the status counts the active plugins to configure', () => {
 });
 
 test('rule 25: ctx.setupStatus is an SDK 1.5.0 entry point and takes a function only', () => {
-  assert.equal(SDK_VERSION, '1.5.0');
+  assert.equal(satisfies(SDK_VERSION, '^1.5.0'), true);
   const ctx = createContext('setup-probe', { settingsModel: () => ({}) });
   assert.throws(() => ctx.setupStatus('nope'), /setupStatus needs a function/);
   ctx.setupStatus(() => 'à connecter');

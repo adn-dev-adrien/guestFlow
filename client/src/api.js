@@ -232,6 +232,17 @@ const api = {
   detachTariffRecipe: (propId) => request(`/properties/${propId}/tariff-recipe/detach`, { method: 'POST' }),
   getTariffRecipeRuns: () => request('/tariff-recipes/runs'),
   dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
+  // Rapprochement bancaire Qonto (specs/qonto-bank-reconciliation.md §4.3) + the generic plugin settings
+  getReconciliation: (view) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}`),
+  readReconciliation: (view) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}`, { method: 'POST' }),
+  confirmReconciliation: (payload) => request('/payments/reconciliation/links', { method: 'POST', body: payload }),
+  undoReconciliation: (transactionId) => request(`/payments/reconciliation/links/${encodeURIComponent(transactionId)}`, { method: 'DELETE' }),
+  discardReconciliation: (payload) => request('/payments/reconciliation/discards', { method: 'POST', body: payload }),
+  setReconciliationOutside: (transactionId, outside) => request(`/payments/reconciliation/transactions/${encodeURIComponent(transactionId)}/outside`, { method: outside ? 'POST' : 'DELETE' }),
+  getReconciliationCandidates: (q) => request(`/payments/reconciliation/candidates?q=${encodeURIComponent(q || '')}`),
+  getReconciliationBankAccounts: () => request('/payments/reconciliation/bank-accounts'),
+  getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
+  savePluginSettings: (id, payload) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: payload }),
   // Journal des changements tarifaires (specs/tariff-change-journal.md §4.3)
   getTariffChangeJournal: (propId) => request(`/tariff-recipes/journal${propId ? `?propertyId=${propId}` : ''}`),
   addTariffChangeEvent: (payload) => request('/tariff-recipes/journal', { method: 'POST', body: payload }),

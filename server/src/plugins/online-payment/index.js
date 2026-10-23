@@ -8,7 +8,8 @@
 
 const express = require('express');
 const sdk = require('../sdk');
-const { DECLARED, KEYS, createSettingsStore, bind } = require('./settingsStore');
+const { DECLARED, RECONCILIATION_DECLARED, KEYS, createSettingsStore, bind } = require('./settingsStore');
+const { mountReconciliation } = require('./reconciliation');
 const { createQontoProvider } = require('./provider');
 const { createWebhookController } = require('./webhookController');
 const { resolvePaymentPollTickMs } = require('./paymentPollSchedule');
@@ -51,6 +52,7 @@ function resetLegacyColumns(db) {
 
 function register(ctx) {
   ctx.settings.declare(DECLARED);
+  ctx.settings.declare(RECONCILIATION_DECLARED);
   ctx.migrations([{ name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings }]);
 
   // The core settings of the plugin's own database (the app's in production, a test's in a suite).
@@ -102,13 +104,20 @@ function register(ctx) {
     },
   });
 
-  // Rule 16 — only the connection is plugin data. Payment links, paid buckets and the request emails
-  // are the stays' records: they stay.
+  // specs/qonto-bank-reconciliation.md — the credits read from the account, the operator's decisions.
+  const reconciliation = mountReconciliation(ctx, { store });
+
+  // Rule 16 — the connection and the reconciliation's own tables are plugin data. Payment links, paid
+  // buckets and the request emails are the stays' records: they stay (so do the fiches the reconciliation
+  // marked — specs/qonto-bank-reconciliation.md rule 24).
   ctx.data({
-    tables: [],
-    describe: () => (store.qontoConnected() || store.qontoCredentials().clientId
-      ? [{ label: 'la connexion Qonto (identifiants, jetons, webhook)', count: 1 }]
-      : []),
+    tables: reconciliation.tables,
+    describe: () => [
+      ...(store.qontoConnected() || store.qontoCredentials().clientId
+        ? [{ label: 'la connexion Qonto (identifiants, jetons, webhook)', count: 1 }]
+        : []),
+      ...reconciliation.describe(),
+    ],
     purge: resetLegacyColumns,
   });
 }
