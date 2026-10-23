@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -51,6 +51,9 @@
       "Relancer un paiement depuis le site ne compte plus dans la limite des demandes envoyées : quelques essais de paiement après une demande ne sont plus refusés."
     ],
     "1.5.2": [
+      "Devis et demandes du site refusés pour une arrivée passée, un séjour de plus de 365 nuits ou un départ à plus de 730 jours."
+    ],
+    "1.5.3": [
       "Paramètres › Intégrations › Site : une connexion illisible est signalée, avec « Réessayer », au lieu d’un onglet vide."
     ]
   }

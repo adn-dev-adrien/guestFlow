@@ -221,6 +221,10 @@ arrives.
       only while the plugin is live (defect 3).
     - A stored preference is kept as it is when the plugin goes, and applies again when it comes back.
 14. **Uninstall (decision P12).**
+    - 2026-10-23: the single-pass lock lives in the plugin's `register` scope, not in the controller.
+      The erasure drops the controller while a pass may still run; the controller rebuilt for the
+      next kick shares the same lock, so two passes never subscribe the same jobs at once
+      (`neat-pass-lock.unit.test.js`).
     - Deactivating keeps everything. Unlike Qonto's open links, nothing blocks it: an active
       subscription lives at Neat on its own, and a pending job simply waits.
     - « Effacer aussi ses données » erases:

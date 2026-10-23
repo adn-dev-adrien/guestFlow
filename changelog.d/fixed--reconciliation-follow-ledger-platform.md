@@ -1,0 +1,1 @@
+- Bank reconciliation follows the payments ledger again: every platform other than « direct » is settled by a platform payout (reverts the previous change).
