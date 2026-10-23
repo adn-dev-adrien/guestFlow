@@ -338,7 +338,7 @@ test('the plugin mounts and routes are wired in the server', () => {
   assert.match(read('plugins/sas/index.js'), /ctx\.route\('get', '\/api\/reservations\/:id\/sas'/);
   assert.doesNotMatch(read('routes/planning.js'), /resource-cards/);
   assert.match(read('plugins/hourly-resources/index.js'), /ctx\.route\('get', '\/api\/planning\/resource-cards'/);
-  assert.match(read('plugins/website-booking/routes/bookingRequests.js'), /'\/:id\/pay', bookingRequestLimiter, requireOnlinePayment,/);
+  assert.match(read('plugins/website-booking/routes/bookingRequests.js'), /'\/:id\/pay', paymentStartLimiter, requireOnlinePayment,/);
 });
 
 // ---------- jobs and direct calls (rule 15) ----------

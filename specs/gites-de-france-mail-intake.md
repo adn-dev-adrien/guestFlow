@@ -44,7 +44,7 @@ Gîte 309700 | Domaine Solio
 du 13/11/2026 à partir de 16h00      au 15/11/2026 avant 10h00 (2 nuits)
 Réservation effectuée par : ROUX Lucie
 8 adultes, 2 enfants et 2 bébés      Pas de chien, pas de chat
-lucie.roux@ymail.com                 0743338633
+lucie.roux@example.com                 0743338633
 Détail des suppléments    Forfait ménage ( 1 ) x 1    80.00 €
 Montant net de la location 454.00 €  Total des options 80.00 €   Total net : 534.00 €
 une taxe de séjour d'un montant de 19.20 € … Nous la reverserons directement à votre mairie

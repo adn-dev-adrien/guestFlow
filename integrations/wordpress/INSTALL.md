@@ -127,8 +127,8 @@ block sidebar (or rely on the default property).
 Quick server-side checks (from the WordPress host):
 
 ```bash
-# Is the public API live and the key valid? (‑k accepts a self-signed cert)
-curl -k -H "Authorization: Bearer <PUBLIC_API_KEY>" https://<host>/public/v1/properties
+# Is the public API live and the key valid? (self-signed cert: add --cacert <guestflow-cert.pem>)
+curl -H "Authorization: Bearer <PUBLIC_API_KEY>" https://<host>/public/v1/properties
 # From inside a Docker WordPress container:
-docker exec <wp_container> curl -sk -o /dev/null -w '%{http_code}\n' https://<host>/public/v1/properties
+docker exec <wp_container> curl -s -o /dev/null -w '%{http_code}\n' https://<host>/public/v1/properties
 ```

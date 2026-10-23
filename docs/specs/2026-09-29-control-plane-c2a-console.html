@@ -338,9 +338,9 @@ const customers = [
   { slug: 'solio', co: 'Domaine Solio', mail: 'adrien@domainesolio.com', plan: 'premium', bill: 'yearly', start: '2026-01-01', end: '2027-01-01', trialEnd: null, addons: [], version: '3.6.0', plugins: 12, proc: 'en ligne', backup: '29/09 03:10', hist: [] },
   { slug: 'lestiva', co: 'L’Estiva', mail: 'contact@lestiva.fr', plan: 'pro', bill: 'monthly', start: '2026-08-15', end: '2026-10-15', trialEnd: null, addons: ['gate-access'], version: '3.6.0', plugins: 7, proc: 'en ligne', backup: '29/09 03:12', hist: [] },
   { slug: 'granja', co: 'La Granja', mail: 'hola@granja.es', plan: 'essentiel', bill: 'monthly', start: '2026-09-15', end: '2026-10-15', trialEnd: '2026-10-15', addons: [], version: '3.6.0', plugins: 3, proc: 'en ligne', backup: '29/09 03:14', hist: [] },
-  { slug: 'moulin', co: 'Le Moulin Bas', mail: 'moulin@orange.fr', plan: 'pro', bill: 'monthly', start: '2026-07-24', end: '2026-09-24', trialEnd: null, addons: [], version: '3.5.0', plugins: 6, proc: 'en ligne', backup: '29/09 03:15', hist: [] },
+  { slug: 'moulin', co: 'Le Moulin Bas', mail: 'moulin@example.com', plan: 'pro', bill: 'monthly', start: '2026-07-24', end: '2026-09-24', trialEnd: null, addons: [], version: '3.5.0', plugins: 6, proc: 'en ligne', backup: '29/09 03:15', hist: [] },
   { slug: 'fontaine', co: 'Gîte de la Fontaine', mail: 'gite@fontaine.fr', plan: 'essentiel', bill: 'monthly', start: '2026-07-01', end: '2026-09-01', trialEnd: null, addons: [], version: '3.5.0', plugins: 4, proc: 'en ligne', backup: '29/09 03:16', hist: [] },
-  { slug: 'pinede', co: 'La Pinède', mail: 'pinede@free.fr', plan: 'premium', bill: 'yearly', start: '2025-08-01', end: '2026-08-01', trialEnd: null, addons: [], version: '3.4.2', plugins: 10, proc: 'arrêté', backup: '28/08 03:10', hist: [] },
+  { slug: 'pinede', co: 'La Pinède', mail: 'pinede@example.com', plan: 'premium', bill: 'yearly', start: '2025-08-01', end: '2026-08-01', trialEnd: null, addons: [], version: '3.4.2', plugins: 10, proc: 'arrêté', backup: '28/08 03:10', hist: [] },
 ];
 customers.forEach((c) => c.hist.push(`${fr(c.start)} — client créé, forfait ${PLAN_NAMES[c.plan]}`));
 
