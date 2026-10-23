@@ -1,5 +1,7 @@
 // The « Planifier » page of the arrival SAS (specs/plugins-phase-3c-hourly-resources.md rule 12): the
-// picker over the step's value — the blocks placed and the supplement the server prices for them.
+// picker over the step's value — the blocks placed. What they owe is the server's to say: the arrival
+// preview bills it through this plugin's `sasCommit` hook (specs/sas-arrival-total-server-side.md
+// rule 10).
 import React from 'react';
 import SasResourceSchedulingPage from './SasResourceSchedulingPage';
 
@@ -12,8 +14,6 @@ export default function SasSchedulingStep({ reservationId, data, value, onChange
       scheduling={data}
       blocks={value?.blocks || []}
       onAdd={(block) => onChange((prev) => ({ ...prev, blocks: [...(prev?.blocks || []), block] }))}
-      onRemove={(idx, block) => onChange((prev) => ({ ...prev, blocks: (prev?.blocks || []).filter((b) => !sameBlock(b, block)) }))}
-      onSupplement={(resourceId, amount) => onChange((prev) => ({ ...prev, supplements: { ...(prev?.supplements || {}), [resourceId]: amount } }))}
-    />
+      onRemove={(idx, block) => onChange((prev) => ({ ...prev, blocks: (prev?.blocks || []).filter((b) => !sameBlock(b, block)) }))}    />
   );
 }

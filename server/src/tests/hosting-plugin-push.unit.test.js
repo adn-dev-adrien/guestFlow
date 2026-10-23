@@ -21,7 +21,7 @@ function makePackage(dir, id, version, extra = {}) {
   const src = fs.mkdtempSync(path.join(dir, 'pkg-'));
   const manifest = {
     id, name: `Plugin ${id}`, version, description: 'd', icon: 'extension', surfaces: ['Une page'],
-    requires: [], guestflow: '>=3.0.0', sdk: '^1.0.0', changelog: { [version]: [`Version ${version}.`] }, ...extra,
+    requires: [], guestflow: '>=3.0.0', sdk: '^2.0.0', changelog: { [version]: [`Version ${version}.`] }, ...extra,
   };
   fs.writeFileSync(path.join(src, 'manifest.json'), JSON.stringify(manifest));
   fs.mkdirSync(path.join(src, 'server'));
@@ -122,7 +122,7 @@ test('rules 11, 30 — an older or equal version is refused like on the instance
     }
     // The installed 1.0.1 asks for a core this release is not: going back to 1.0.0 is allowed (rule 14).
     const db = new Database(inst.dbPath);
-    db.prepare("UPDATE plugins SET manifest = ? WHERE id = 'linen'").run(JSON.stringify({ id: 'linen', version: '1.0.1', guestflow: '>=99.0.0', sdk: '^1.0.0', requires: [] }));
+    db.prepare("UPDATE plugins SET manifest = ? WHERE id = 'linen'").run(JSON.stringify({ id: 'linen', version: '1.0.1', guestflow: '>=99.0.0', sdk: '^2.0.0', requires: [] }));
     db.close();
     const older = makePackage(inst.dir, 'linen', '1.0.0');
     const out = runSwitch(inst.dbPath, ['--id', 'linen', '--version', '1.0.0', '--file', older.file, '--sha256', older.sha256]);

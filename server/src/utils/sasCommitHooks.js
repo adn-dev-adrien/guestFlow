@@ -8,6 +8,10 @@
  *   write(db, reservation, payload)       → void, inside the commit's transaction         (step ran)
  *
  * `payload` is `pluginSteps[step]` of the commit body; `undefined` when the step did not run.
+ *
+ * Since SDK 2.0.0 the arrival PREVIEW calls `prepare` too, on every gesture of the recap
+ * (specs/sas-arrival-total-server-side.md rules 10-12): `validate` and `complementItems` must be pure —
+ * read, never write, same answer for the same reservation and payload. The preview discards `writes`.
  */
 
 const registry = require('../plugins/sdk/registry');

@@ -1,7 +1,7 @@
 {
   "id": "weather-alerts",
   "name": "Vigilance Météo-France",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Prévient le voyageur d’une alerte météo à l’arrivée.",
   "icon": "thunderstorm",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.5.0",
+  "sdk": "^2.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -29,6 +29,9 @@
     ],
     "1.2.0": [
       "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
+    ],
+    "1.2.1": [
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

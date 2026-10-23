@@ -5,18 +5,24 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 0 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 const footerButtons = () => {
   const footer = document.querySelector('.MuiDialogActions-root');

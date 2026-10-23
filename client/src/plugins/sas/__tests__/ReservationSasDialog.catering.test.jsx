@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, BREAKFAST_OFFER, MEAL_OFFER, BOARD_OFFER, salesPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -15,6 +16,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -23,7 +25,11 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 // ── Prestations sold at check-in (specs/sas-breakfast-and-catering-upsell.md) ────────────────
 
@@ -46,7 +52,7 @@ test('arrival SAS: selling the breakfast — mornings pre-selected, count shown,
   // Mornings page: every morning pre-checked, quantity read like the fiche (2 × 2 pers.).
   await screen.findByText('Quels matins ?');
   expect(screen.getByText(/\(2 × 2 pers\. servies\)/)).toBeInTheDocument();
-  expect(screen.getByText(/4 petits déjeuners — 32,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/4 petits déjeuners — 32,00 €/)).toBeInTheDocument();
   clickBtn('Suivant');
 
   // Composition page, seeded with the defaults of a fresh check-in (2 viennoiseries, 1 baguette).
@@ -59,8 +65,8 @@ test('arrival SAS: selling the breakfast — mornings pre-selected, count shown,
   clickBtn('Continuer');
 
   await screen.findByText('Récapitulatif — complément à percevoir');
-  expect(screen.getByText(/Petit déjeuner : 4 × 8,00 € = 32,00 €/)).toBeInTheDocument();
-  expect(screen.getByText(/Total : 32,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Petit déjeuner : 4 × 8,00 € = 32,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total : 32,00 €/)).toBeInTheDocument();
   // findBy…: the confirm dialog that just closed leaves the wizard aria-hidden for a tick.
   fireEvent.click(await screen.findByRole('button', { name: 'Valider et terminer' }));
 
@@ -113,7 +119,7 @@ test('arrival SAS: unselecting every morning drops the sale, with a warning', as
 
   await screen.findByText('Quels matins ?');
   fireEvent.click(screen.getAllByText('09:00')[0]);   // uncheck the first morning
-  expect(screen.getByText(/2 petits déjeuners — 16,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/2 petits déjeuners — 16,00 €/)).toBeInTheDocument();
   fireEvent.click(screen.getAllByText('09:00')[1]);   // …and the second
   expect(screen.getByText(/Aucun matin sélectionné/)).toBeInTheDocument();
   clickBtn('Suivant');
@@ -152,7 +158,7 @@ test('arrival SAS re-open: a breakfast this SAS sold reopens on its own mornings
   clickBtn('Ajouter le petit déjeuner');
 
   await screen.findByText('Quels matins ?');
-  expect(screen.getByText(/2 petits déjeuners — 16,00 €/)).toBeInTheDocument();  // only the sold morning
+  expect(await screen.findByText(/2 petits déjeuners — 16,00 €/)).toBeInTheDocument();  // only the sold morning
   clickBtn('Suivant');
   await screen.findByText('Récapitulatif — complément à percevoir');
   clickBtn('Valider et terminer');
@@ -181,15 +187,15 @@ test('arrival SAS: the restauration page sells a meal by its moment and a board 
   // Card option: taken by its switch, then billed by the moment → 1 × 2 pers. × 25 €.
   fireEvent.click(screen.getByRole('switch', { name: 'Le repas des trappeurs' }));
   fireEvent.click(screen.getAllByText('19:30')[0]);
-  expect(screen.getByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
   // Plain option: the switch fills the quantity in (per_stay → 1).
   fireEvent.click(screen.getByRole('switch', { name: 'Planche S' }));
-  expect(screen.getByText(/Total restauration : 67,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total restauration : 67,00 €/)).toBeInTheDocument();
   clickBtn('Suivant');
 
   await screen.findByText('Récapitulatif — complément à percevoir');
-  expect(screen.getByText(/Le repas des trappeurs : 2 × 25,00 € = 50,00 €/)).toBeInTheDocument();
-  expect(screen.getByText(/Planche S : 17,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Le repas des trappeurs : 2 × 25,00 € = 50,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Planche S : 17,00 €/)).toBeInTheDocument();
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
@@ -273,18 +279,18 @@ test('arrival SAS: lowering the covers of a meal re-prices the preview and the i
   fireEvent.click(screen.getByRole('switch', { name: 'Le repas des trappeurs' }));
   fireEvent.click(screen.getAllByText('19:30')[0]);
   // The whole table by default: 1 moment × 4 pers. × 25 €.
-  expect(screen.getByText(/\(1 × 4 pers\. servies\) = 100,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(1 × 4 pers\. servies\) = 100,00 €/)).toBeInTheDocument();
 
   // Two children are not eating.
   const minus = screen.getAllByRole('button', { name: '−' });
   fireEvent.click(minus[minus.length - 1]);
   fireEvent.click(minus[minus.length - 1]);
-  expect(screen.getByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
-  expect(screen.getByText(/Total restauration : 50,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total restauration : 50,00 €/)).toBeInTheDocument();
   clickBtn('Suivant');
 
   await screen.findByText('Récapitulatif — complément à percevoir');
-  expect(screen.getByText(/Le repas des trappeurs : 2 × 25,00 € = 50,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Le repas des trappeurs : 2 × 25,00 € = 50,00 €/)).toBeInTheDocument();
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
@@ -314,7 +320,7 @@ test('arrival SAS: fewer breakfasts than guests → quantity, amount and composi
   const minus = screen.getAllByRole('button', { name: '−' });
   fireEvent.click(minus[minus.length - 1]);          // 3 breakfasts a morning
   expect(screen.getByText(/\(2 × 3 pers\. servies\)/)).toBeInTheDocument();
-  expect(screen.getByText(/6 petits déjeuners — 48,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/6 petits déjeuners — 48,00 €/)).toBeInTheDocument();
   clickBtn('Suivant');
 
   // Composition seeded from the covers sold, not from the party: 3 pastries, 1,5 baguette.
@@ -383,7 +389,7 @@ test('arrival SAS re-open: the covers this SAS sold are pre-filled', async () =>
   await screen.findByText('Le repas des trappeurs');
   // The switch reopens ON — the moments this SAS sold stay visible and undoable.
   expect(screen.getByRole('switch', { name: 'Le repas des trappeurs' })).toBeChecked();
-  expect(screen.getByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
 });
 
 // Reported 2026-08-30 from production: on the « Restauration » page the boards each carried a switch
@@ -413,15 +419,15 @@ test('arrival SAS: a card option is taken by its switch, which opens (and clears
   expect(screen.getAllByText('19:30').length).toBeGreaterThan(0);
   // Nothing is pre-selected — a meal is picked moment by moment, and the caption says so.
   expect(screen.getByText('Choisissez les moments servis')).toBeInTheDocument();
-  expect(screen.getByText(/Total restauration : 0,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total restauration : 0,00 €/)).toBeInTheDocument();
 
   fireEvent.click(screen.getAllByText('19:30')[0]);
-  expect(screen.getByText(/Total restauration : 50,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total restauration : 50,00 €/)).toBeInTheDocument();
 
   // Turning it back off drops the sale, moments included.
   fireEvent.click(mealSwitch);
   expect(screen.queryByText('19:30')).toBeNull();
-  expect(screen.getByText(/Total restauration : 0,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total restauration : 0,00 €/)).toBeInTheDocument();
   clickBtn('Suivant');
 
   await screen.findByText('Récapitulatif — complément à percevoir');

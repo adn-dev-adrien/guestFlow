@@ -32,8 +32,9 @@ async function request(path, options = {}) {
   }
   // Every write that succeeded tells the open pages their counts may have moved: the home re-reads
   // its « À traiter » (specs/shell-and-home-day-first.md rule 11).
+  // A POST that writes nothing (`readOnly`, e.g. the SAS arrival preview) moves no count.
   const method = String(options.method || 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD') window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT));
+  if (method !== 'GET' && method !== 'HEAD' && !options.readOnly) window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT));
   if (res.status === 204) return null;
   return res.json();
 }
@@ -574,6 +575,11 @@ const api = {
   getReservationSas: (id, mode) => request(
     `/reservations/${encodeURIComponent(id)}/sas${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
   ),
+  // specs/sas-arrival-total-server-side.md rule 3 — the recap of a draft (the commit body), priced by
+  // the server and written nowhere. `signal` lets a newer draft abort a stale request (rule 18).
+  previewArrivalSas: (id, body, { signal } = {}) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival/preview`, {
+    method: 'POST', body, signal, readOnly: true,
+  }),
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
   // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the

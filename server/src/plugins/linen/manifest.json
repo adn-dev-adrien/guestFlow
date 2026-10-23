@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -12,7 +12,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.4.0",
+  "sdk": "^2.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -37,6 +37,9 @@
     ],
     "1.1.0": [
       "Accueil : le manque de linge rejoint « À traiter », en tête de la boîte, avec le même dessin que les autres alertes."
+    ],
+    "1.1.1": [
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

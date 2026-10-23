@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -15,6 +16,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -23,7 +25,11 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 // ---- arrival bath-linen upsell (specs/sas-bath-linen-upsell.md) ----
 
@@ -57,9 +63,9 @@ test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds t
   // billing line, hence no `endOfStayBathLinen` in the payload at all.
   expect(arg).not.toHaveProperty('endOfStayBathLinen');
   // specs/sas-upsells-activate-catalogue-option.md §3.1 — the upsell is sent as INTENT; the server
-  // activates the catalogue option and prices it. `complementItems` keeps only the linen elements.
+  // activates the catalogue option and prices it. `linenItems` carries only the linen elements.
   expect(arg.bathLinenAdded).toBe(true);
-  expect(arg.complementItems).toEqual([]);
+  expect(arg.linenItems).toEqual([]); // specs/sas-arrival-total-server-side.md rule 6 — intent only
 });
 
 test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', async () => {
@@ -82,7 +88,7 @@ test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', asy
   const arg = api.commitArrivalSas.mock.calls[0][1];
   expect(arg).not.toHaveProperty('endOfStayBathLinen');
   expect(arg.bathLinenAdded).toBe(false);
-  expect(arg.complementItems).toEqual([]);
+  expect(arg.linenItems).toEqual([]); // specs/sas-arrival-total-server-side.md rule 6 — intent only
 });
 
 // specs/arrival-departure-sas.md rule 8
