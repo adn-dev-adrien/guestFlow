@@ -6,24 +6,33 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
-import { SecretRevealField, api, useAppDialogs } from '../sdk';
+import { ErrorAlert, SecretRevealField, api, useAppDialogs } from '../sdk';
 
 export default function SettingsWebsiteSection() {
   const { confirm } = useAppDialogs();
   const [connection, setConnection] = useState(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  // A failed read is said, never an empty card: this is where the WordPress API key lives.
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       setConnection(await api.getWebsiteConnection());
-    } catch {
+    } catch (err) {
       setConnection(null);
+      setLoadError(err.error === 'SUPPORT_FORBIDDEN'
+        ? { message: err.message, retry: false }
+        : { message: 'Site internet : connexion illisible.', retry: true });
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
+  if (loadError) {
+    return <ErrorAlert message={loadError.message} onRetry={loadError.retry ? load : undefined} sx={{ mb: 3 }} />;
+  }
   if (!connection) return null;
 
   const address = connection.address || { value: '', source: 'none' };

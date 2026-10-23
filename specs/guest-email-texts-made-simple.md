@@ -171,6 +171,9 @@ email shown beside the text. The whole wording can also go out and come back as 
     draft being typed: `POST /api/emails/preview` with `{ templateId, draft, reservationId?, language }`.
     The default reservation is the next upcoming stay that receives this email. A selector picks another
     one, or « Exemple » (a sample stay).
+    > **2026-10-23 (review of inte/plugins):** the preview always shows the latest draft. A request
+    > made for an older draft that answers after a newer one began — its rendering or its refusal
+    > (rule 41) — is dropped, never shown.
 14. Language FR/EN is a toggle on the preview. An empty EN text falls back to the FR text, and the
     preview says so (« Texte anglais manquant : le français sera envoyé »).
 15. « M'envoyer un test » sends the previewed email to the company address. The subject is prefixed
@@ -507,6 +510,8 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     field — on a computer the column scrolls to it and focuses it; on a phone a sheet opens over the
     email with the field and « OK ». The text being edited is highlighted in the email while typing.
     The template's own words open « Modèle complet ».
+    > **2026-10-23 (review of inte/plugins):** the template's own words are a button like a sentence
+    > (focusable, Entrée or Espace opens « Modèle complet »), named « Modèle complet : <first words> ».
     **No tag ever leaves.** The tagging happens only in `utils/emailDraftPreview.js`, inside its
     rolled-back transaction: every stored text is rewritten wrapped with three private-use characters
     (U+E000 key U+E001 … U+E002) around each piece holding words — never around a condition, never

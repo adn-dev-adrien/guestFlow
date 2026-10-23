@@ -174,6 +174,7 @@ below are the recommended ones; each is reversible in a later spec.
     and one button « Mettre à jour ». A banner « 3 mises à jour disponibles » offers « Tout mettre à
     jour ».
    > **2026-10-08 (implementation):** « Tout mettre à jour » downloads and verifies every package first; a refused one leaves every plugin as it was. Then it switches them all and restarts once.
+   > **2026-10-23 (review of inte/plugins):** « Tout mettre à jour » follows the server's answer as a single update does: `restarting` waits for the restart, `reload: true` reloads the page, anything else reads the list and the session again. The chip « À configurer (n) » is a 44 px touch target.
 21. The « Disponibles » tab lists plugins allowed by the licence and not installed, with their version;
     a plugin outside the licence keeps the « Hors forfait » state of control-plane rule 11.
 22. Refusals are shown in the dialog, in plain French, never as a raw error: version of GuestFlow too
@@ -253,6 +254,7 @@ below are the recommended ones; each is reversible in a later spec.
 32. **The waits ask and give up.** « Revenir à la version précédente » asks for confirmation; the
     « Redémarrage en cours » wait says « Le redémarrage est plus long que prévu. » after 90 s and
     offers « Réessayer ».
+   > **2026-10-23 (review of inte/plugins):** when the start time before the update could not be read, the old process may still be the one answering: the wait reloads only once the server has been seen unreachable and answers again. If it never was within the 90 s, « Réessayer » accepts the next answer.
 33. **A package says what it needs from the app, and the app's list only grows** (added 2026-10-18,
     second review). The package build records in each package's manifest the names it takes from the
     app (`hostImports`) and ships the app's own list with the release (`plugins-dist/hostModules.json`).

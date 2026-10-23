@@ -371,6 +371,9 @@ without the core knowing it.
     (`credentials`) — and the regenerate route of rule 31 too: the plugin declares both with
     `ctx.secretRoutes` (specs/hosting-h2-account-security.md rule 23), beside the core policy's own
     entry. No more SSH to read `.env.local`.
+    > **2026-10-23 (review of inte/plugins):** a connection that cannot be read is said in the card
+    > (« Site internet : connexion illisible. » with « Réessayer »), never an empty tab; a support
+    > session reads the server's refusal instead, without « Réessayer ».
 31. **« Régénérer la clé »** (confirmation first: the site stops answering until the new key is pasted
     into WordPress) calls `POST /api/settings/website-connection/regenerate`, which writes a new
     32-byte key into the instance's `.env.local` and `process.env` (SDK `secrets.rotate`, SDK 1.2.0) and

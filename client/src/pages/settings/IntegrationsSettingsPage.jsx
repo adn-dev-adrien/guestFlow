@@ -91,13 +91,21 @@ export default function IntegrationsSettingsPage() {
   const [dirtyCards, setDirtyCards] = useState({});
   const [refused, setRefused] = useState(null);
   const handleDirty = useCallback((key) => (dirty) => {
-    setDirtyCards((prev) => {
-      if (Boolean(prev[key]) === dirty) return prev;
-      const next = { ...prev, [key]: dirty };
-      setExternalDirty(Object.values(next).some(Boolean));
-      return next;
-    });
-  }, [setExternalDirty]);
+    setDirtyCards((prev) => (Boolean(prev[key]) === dirty ? prev : { ...prev, [key]: dirty }));
+  }, []);
+
+  // A card whose plugin left the slot (disabled during the session) takes its draft with it: the
+  // page is « modified » only by the cards still drawn.
+  const liveKeys = tabs.flatMap((t) => t.sections.map(({ key }) => `${t.pluginId}:${key}`)).join('\n');
+  useEffect(() => {
+    const live = new Set(liveKeys.split('\n'));
+    setDirtyCards((prev) => (Object.keys(prev).every((key) => live.has(key))
+      ? prev
+      : Object.fromEntries(Object.entries(prev).filter(([key]) => live.has(key)))));
+  }, [liveKeys]);
+  useEffect(() => {
+    setExternalDirty(Object.values(dirtyCards).some(Boolean));
+  }, [dirtyCards, setExternalDirty]);
 
   // Rule 10 — every dirty card, tab by tab; the first refusal stops the run and opens its tab.
   const handleSave = async () => {

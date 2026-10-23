@@ -83,16 +83,23 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
   useEffect(() => { load(); }, [load]);
 
   // Rule 13 — after an update the process restarts: wait until it answers with a new start time.
+  // When the start time before the update could not be read, the old process may still be the one
+  // answering: wait until the server has been seen down, or until the wait was retried (rule 32).
   // Rule 32 — past `restartTimeoutMs` the wait says so and offers to try again.
   useEffect(() => {
     if (!restarting || restartLate) return undefined;
     let stop = false;
+    let sawDown = false;
     const since = Date.now();
     const tick = async () => {
       if (stop) return;
       const now = await startTime();
       if (stop) return;
-      if (now && now !== restarting.startedAt) { onReload(); return; }
+      if (!now) sawDown = true;
+      const back = restarting.startedAt
+        ? Boolean(now) && now !== restarting.startedAt
+        : Boolean(now) && (sawDown || restarting.retried);
+      if (back) { onReload(); return; }
       if (Date.now() - since > restartTimeoutMs) { setRestartLate(true); return; }
       setTimeout(tick, pollMs);
     };
@@ -130,7 +137,9 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
     try {
       const startedAt = await startTime();
       const result = await api.updateAllPlugins();
-      if (result && result.restarting) setRestarting({ startedAt });
+      if (result && result.restarting) { setRestarting({ startedAt }); return; }
+      if (result && result.reload) { onReload(); return; }
+      await Promise.all([load(), refresh()]);
     } catch (e) {
       setBannerError(e.message || 'La mise à jour a échoué.');
     } finally {
@@ -240,7 +249,7 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
               variant={onlyToConfigure ? 'filled' : 'outlined'}
               onClick={() => setToConfigureOnly((v) => !v)}
               aria-pressed={onlyToConfigure}
-              sx={{ minHeight: 36, alignSelf: { xs: 'flex-start', md: 'center' }, fontWeight: 600 }}
+              sx={{ minHeight: 44, borderRadius: '22px', alignSelf: { xs: 'flex-start', md: 'center' }, fontWeight: 600 }}
             />
           )}
           {status && status.registry && status.registry.label && (
@@ -279,7 +288,7 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
         {restartLate ? (
           <>
             <Typography variant="h6" component="p">Le redémarrage est plus long que prévu.</Typography>
-            <Button variant="contained" onClick={() => setRestartLate(false)} sx={{ minHeight: 44 }}>Réessayer</Button>
+            <Button variant="contained" onClick={() => { setRestarting((r) => ({ ...r, retried: true })); setRestartLate(false); }} sx={{ minHeight: 44 }}>Réessayer</Button>
           </>
         ) : (
           <>
