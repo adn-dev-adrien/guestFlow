@@ -215,6 +215,19 @@ counted.
     19,20 € of tourist tax (8 × 2 × 1,20 €). Entered with an empty box, that fiche books the 19,20 €
     as revenue and hands it to the commission — the accountant's August report, reproduced.
 
+### 3.6 Every replay reads the withheld tax
+
+> **Amendment 2026-10-23** (Adrien could not mark réservation 202609003 paid: the button did nothing).
+
+25. **Every re-pricing of a stored booking carries `platformTouristTaxAmount`.** The fiche saves the
+    solde as « brut − taxe retenue » (rule 6), but `buildReservationEngineInput` — the replay used by
+    the payment contribution capture, the finance page and the Neat runner — never selected the
+    column. The capture therefore re-priced the solde with the tax back in it, found it larger than
+    the stored solde, and refused the flip on its conservation invariant (409). Measured on a copy of
+    production on 2026-10-23: 202609003 (Airbnb, 24,00 € withheld) and 11773 (Gîtes de France,
+    19,20 €) could not be marked paid from the fiche. The fiche now shows the refusal instead of
+    swallowing it, so a future drift is visible rather than silent.
+
 ---
 
 ## 4. Architecture
@@ -234,6 +247,7 @@ counted.
 | `utils/pricing.js` | [pricing.js:2058](../server/src/utils/pricing.js#L2058) | T | Accept `platformTouristTaxAmount`. Resolve `withheldTouristTaxInBrut` = the amount when the box is set **and** `platformGrossPin != null` **and** `isTouristTaxOfferedByPlatform`, else `0`; subtract it in `pinnedAccommodation` beside the existing `reversedTouristTaxInBrut`. Publish `platformTouristTaxWithheld` in the quote (rule 9); `touristTaxOriginalTotal` keeps its meaning. |
 | `models/reservationsModel.js` | [reservationsModel.js:1337](../server/src/models/reservationsModel.js#L1337) | T | Persist `platformTouristTaxAmount` on insert/update (`NULL` on direct, rule 18); expose it from the reservation detail mapping. |
 | `controllers/reservationsController.js` | [reservationsController.js:612](../server/src/controllers/reservationsController.js#L612) | T | Validate it as money; forward it to the engine in `calculatePrice` **and** `create`/`update`, so the live preview and the persisted books price identically (the defect [platform-payment-entry.md](platform-payment-entry.md) §4.1 had to fix for `platformGrossAmount`). |
+| `utils/reservationEngineInput.js` | [reservationEngineInput.js](../server/src/utils/reservationEngineInput.js) | T | Carry `platformTouristTaxAmount` into every replay of a stored booking (rule 25). |
 | `models/accountingModel.js` | — | — | (none — rule 8: mode `platform` books no tax.) |
 | `models/financeModel.js` | — | — | (none — rule 8: *Suivi taxe de séjour* excludes platforms that remit themselves.) |
 
@@ -386,6 +400,11 @@ cancel, PDF/sync/delete slots) untouched.
   still return `null`. Rule 24 rides `FinanceSection.platform-tourist-tax.test.jsx`, where the
   commission formula it measures already lives: the 22219 numbers give 188,87 with the box filled and
   208,07 with it empty.
+- [x] `server/src/tests/payment-capture-withheld-tax.unit.test.js` (**rule 25**) — the engine input
+  carries the withheld amount, the replayed solde is brut − tax, and the balance capture succeeds.
+- [x] `client/src/components/reservation/__tests__/FinanceSection.payment-refused.test.jsx`
+  (**rule 25**) — a refused « Marquer solde payé » shows « Paiement non enregistré » and leaves the
+  solde unpaid.
 
 ### Full suites
 
