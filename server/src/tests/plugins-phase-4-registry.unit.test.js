@@ -174,7 +174,7 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // `pricing.calculateBaseStayPrice` (specs/wp-booking-widget-redesign.md rule 30); 1.4.0 since
 // `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9); 1.6.0 since the core modules `reservationLedger`, `reservationPaymentMark` and `platformDisplay` (specs/qonto-bank-reconciliation.md); 1.7.0 since the core
 // rate limiter `paymentStartLimiter` (specs/public-online-payment.md rule 7); 1.5.0
-// since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). All minor bumps.
+// since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). 1.8.0 since the core module `devisHelpers` and `capacity.publicGuestCap` (specs/site-extra-guest-line.md). All minor bumps.
 // 2.0.0 since the client step contract lost `recapLines` (specs/sas-arrival-total-server-side.md
 // rules 13-14): a removal, hence the first major.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {

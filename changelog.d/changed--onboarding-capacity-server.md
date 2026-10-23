@@ -1,0 +1,1 @@
+- The start assistant's proposed capacity (two per double bed, one per single bed, 1–50) is now computed by the server (`GET /api/onboarding/default-capacity`); the field still follows the beds until typed by hand, and a property saved without a capacity takes the proposed one.

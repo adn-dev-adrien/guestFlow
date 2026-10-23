@@ -208,7 +208,12 @@ Decisions taken on 2026-10-06:
        - double beds and single beds;
        - capacity (1–50), pre-filled with the sleeping places (two per double bed, one per single
          bed); the existing property rule holds: the sleeping places must cover the capacity
-         (decided 2026-10-07);
+         (decided 2026-10-07). _Since 2026-10-23 the server owns that proposal_
+         (`utils/defaultCapacity.js`): the field asks `GET /api/onboarding/default-capacity` once the
+         beds stop changing for 250 ms, shows the answer while it is the latest one asked, and stops
+         following as soon as the capacity is typed by hand. A bed count that is not a whole number
+         ≥ 0 counts as no bed; the proposal stays within 1–50. A failed request leaves the field as
+         it is, and a property saved without a capacity takes the proposed one;
        - check-in and check-out times;
        - base price per night (≥ 0).
 
@@ -465,6 +470,8 @@ Decisions taken on 2026-10-06:
 | `scripts/` | `seed-e2e.js` | T | Closes the assistant on the E2E database |
 | `controllers/` | `stayTextsController.js` | C | List, save with token validation, reset to default |
 | `controllers/` | `emailMentionsController.js` | C | CRUD, both orders, preview |
+| `utils/` | `defaultCapacity.js` | C | Rule 21 (2026-10-23) — the capacity the beds propose, within 1–`MAX_CAPACITY` (50) |
+| `controllers/` | `onboardingController.js` (`defaultCapacity`, `saveProperty`) | T | Rule 21 (2026-10-23) — answers the proposal; fills a missing capacity on save |
 | `controllers/` | `onboardingController.js` | C | State, the 4 steps, « Plus tard »; the plugins one after the other with their reason and the active count (rules 37–38) |
 | `constants/` | `plugins.js` | T | `PLUGIN_PAGES` / `pluginsOfPage(path)`: which plugin owns which page (rule 40) |
 | `controllers/` | `pluginsController.js` (`pageOwner`), `routes/plugins.js` | T | `GET /api/plugins/page` (rule 40); names nobody once one of the page's plugins is active (rule 42) |
@@ -483,6 +490,7 @@ Decisions taken on 2026-10-06:
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `pages/` | `OnboardingPage.jsx` | C | The 4 steps; full screen on `xs` |
+| `pages/` | `OnboardingPage.jsx` | T | Rule 21 (2026-10-23) — the capacity comes from the server, debounced, a late answer dropped; no formula in React |
 | `pages/settings/` | `EmailTextsSettingsPage.jsx` | C | Réglages › Emails › « Textes des mails »: stay texts by email, mentions, live preview |
 | `components/` | `TokenTextField.jsx` | C | **Generic**: a FR/EN text field with its token chips, insertion at the cursor, the server's refusal shown inline. The email template editor can adopt it later |
 | `components/` | `MentionEditor.jsx` | C | Specific: one mention, its options and its price source |
@@ -523,7 +531,8 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 | PUT | `/api/email-mentions/confirmation-order` | `{ items }` of `mention:<id>`, `babyBed`, `towels` (rule 9) |
 | POST | `/api/email-mentions/preview` | `{ propertyId, children, startDate }` → `{ fr, en }`: the J-7 offers paragraph and the J-2 confirmations, rendered by the server |
 | GET | `/api/onboarding` | `{ open, company, plugins: [{ id, label, description, allowed, plan, state, recommended }] }` |
-| PUT | `/api/onboarding/company`, `/api/onboarding/property` | Validated writes; 422 `{ errors }` per field; 402 when the plan's unit quota is reached |
+| GET | `/api/onboarding/default-capacity?doubleBeds=&singleBeds=` | `{ maxGuests }` — rule 21 (2026-10-23); never refuses, any count it cannot read counts as no bed |
+| PUT | `/api/onboarding/company`, `/api/onboarding/property` | Validated writes; 422 `{ errors }` per field; 402 when the plan's unit quota is reached; a property without `maxGuests` takes the proposed capacity (rule 21, 2026-10-23) |
 | PUT | `/api/onboarding/plugins` | `{ answers: { options?, website?, payment? } }` (rule 43; was `{ ids }`; 400 `ONBOARDING_ANSWERS_REQUIRED` without it; `GET` questions carry `settled`) → `{ results: [{ id, ok, error, reason }], pluginsSummary, reload }` (`reload`: rule 42), each through the existing install or activate handler, one after the other (rule 37); `GET /api/onboarding` gains `pluginsSummary` (rule 38) |
 | GET | `/api/plugins/page?path=` | `{ plugins: [{ id, name, state }], message }`; `{ plugins: [], message: null }` for a core or unknown page, or once one of the page's plugins is active (rules 40, 42) |
 | GET | `/api/auth/me` | gains `onboardingOpen` (admins only) |
@@ -646,6 +655,13 @@ to a settled one installs nothing, 400 without answers), `onboarding` and
 `onboarding-plugins-sequential` updated to the answers; `onboarding-plugins-fold` removed (rule 36
 superseded); client `OnboardingPage.questions` (3, a settled question disabled and not sent), `OnboardingPage` updated, `OnboardingPage.plugins-fold`
 removed.
+
+Capacity proposed by the server, 2026-10-23 (rule 21): server `onboarding-default-capacity` (6:
+the formula on numbers and strings, empty/negative/decimal/text/array counts, the 1–50 bounds, the
+endpoint, a missing capacity filled on save, a typed one kept and validated); client
+`OnboardingPage.default-capacity` (4: the server value shown after the debounce, a late answer
+dropped, a failure leaves the field editable, typed by hand stops following) with
+`onboardingCapacityFixtures.jsx`; `OnboardingPage` updated to the server value.
 
 ### E2E
 

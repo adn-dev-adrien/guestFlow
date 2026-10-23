@@ -53,4 +53,13 @@ function checkGuestCapacity(property = {}, occupancy = {}) {
   };
 }
 
-module.exports = { checkGuestCapacity };
+/**
+ * Effective guest cap on the PUBLIC path (specs/site-extra-guest-line.md rule 6): `maxGuests = 0`
+ * turns the back-office guard off on purpose, but the site must never accept an uncapped party.
+ * Falls back to the guests the base price includes, then to the column default (2).
+ */
+function publicGuestCap(property = {}) {
+  return toCount(property.maxGuests) || toCount(property.basePriceIncludedGuests) || 2;
+}
+
+module.exports = { checkGuestCapacity, publicGuestCap };

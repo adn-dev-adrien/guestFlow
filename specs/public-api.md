@@ -260,6 +260,10 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     NOT count towards it. `maxAdults` is a **deprecated alias of `maxGuests`**, kept for consumers
     not yet redeployed (the `gf-seo-*` mu-plugins); `maxChildren` is **gone** — it has no correct
     value under the one-total model. Never sum these fields to get a capacity.
+  - **Never 0 on the public API** (specs/site-extra-guest-line.md rule 6, 2026-10-22): a property whose
+    `maxGuests` is not configured advertises — and `POST /booking-requests` enforces — its
+    `basePriceIncludedGuests`, then 2. The back-office keeps « 0 = guard off »; the site must never
+    accept an uncapped party.
 - **Errors:** `401`.
 
 ##### GET `/public/v1/properties/:id`
@@ -401,6 +405,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     "nightlyBreakdown": [ { "date": "2026-07-20", "price": 120 } ],
     "accommodationTotal": 840,
     "extraGuestSurcharge": 25,
+    "extraGuests": { "count": 1, "total": 25, "originalTotal": 25, "offered": false },
     "options": [
       { "optionId": 7, "title": "Petit-déjeuner", "quantity": 2, "unitPrice": 12, "total": 168 }
     ],
@@ -428,6 +433,10 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     amount is produced by the same engine helper as the billed line, so preview and invoice cannot
     diverge. `null` when no insurance is configured for the property. Taking it is a plain
     `options: [{ optionId, quantity: 1 }]` entry — no dedicated field on the request side.
+  - `extraGuests` (specs/site-extra-guest-line.md rule 1): the supplement as one ready-to-print row —
+    `count` guests beyond the included ones, `total` billed, `originalTotal` before an « offered »
+    flag. `null` when there is no supplement. Same helper as the devis PDF row
+    (`resolveExtraGuestPdfRow`); `extraGuestSurcharge` stays for older consumers.
   - Mapped from `calculateReservationQuote` fields (`nights`, `nightlyBreakdown`,
     `totalPrice`/`baseAccommodationPrice`, `extraGuestSurcharge`, `optionLines`, `optionsTotal`,
     `touristTaxTotal`/`touristTaxLabel`/`touristTaxCollectedOnArrival`, `finalPrice` (tax-EXCLUSIVE),

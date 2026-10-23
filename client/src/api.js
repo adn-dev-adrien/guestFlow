@@ -736,6 +736,9 @@ const api = {
   getOnboarding: () => request('/onboarding'),
   saveOnboardingCompany: (body) => request('/onboarding/company', { method: 'PUT', body }),
   saveOnboardingProperty: (body) => request('/onboarding/property', { method: 'PUT', body }),
+  // specs/plugins-phase-p-productisation.md rule 21 — the capacity the beds propose: { maxGuests }.
+  getOnboardingDefaultCapacity: (doubleBeds, singleBeds) =>
+    request(`/onboarding/default-capacity?${new URLSearchParams({ doubleBeds: String(doubleBeds ?? ''), singleBeds: String(singleBeds ?? '') })}`),
   // specs/plugins-phase-p-productisation.md rule 43 — { options, website, payment } yes/no.
   saveOnboardingPlugins: (answers) => request('/onboarding/plugins', { method: 'PUT', body: { answers } }),
   completeOnboarding: () => request('/onboarding/done', { method: 'POST' }),
