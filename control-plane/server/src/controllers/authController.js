@@ -3,9 +3,10 @@
  *
  * Login is two steps: the password opens a *pending* session; the second factor — a TOTP code, an
  * email code or a backup code — turns it into an operator session. Five wrong codes in a row lock
- * the account for 15 minutes. Only the second factor counts: a wrong password locks nothing, so
- * knowing an operator's email is not enough to lock them out (the per-IP limit slows guessing), and
- * an unknown email and a wrong password answer the same. Changing the method takes the password,
+ * the account for 15 minutes. At login only the second factor counts: a wrong password locks nothing,
+ * so knowing an operator's email is not enough to lock them out (the per-IP limit slows guessing),
+ * and an unknown email and a wrong password answer the same. Inside a session, a wrong password while
+ * changing the method does count toward the lock: there it is a stolen cookie guessing. Changing the method takes the password,
  * takes effect only once a code of the new method is typed, and issues 10 fresh backup codes, shown
  * once and stored with the password hash.
  */
@@ -154,7 +155,9 @@ function createAuthController(ctx) {
   // asked again: a stolen session cookie alone must not be enough to take the account over.
   async function startMethod(operatorId, { method, password }) {
     const op = operators.byId(operatorId);
+    assertNotLocked(op);
     if (!passwordHash.verifyPassword(String(password || ''), op.passwordHash)) {
+      fail(op);
       throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect.');
     }
     if (method === 'totp') {
@@ -178,10 +181,11 @@ function createAuthController(ctx) {
 
   function confirmMethod(operatorId, { code }) {
     const op = operators.byId(operatorId);
+    assertNotLocked(op);
     if (!op.pendingMethod) throw httpError(409, 'NO_PENDING_METHOD', 'Choisissez d’abord une méthode.');
-    const ok = op.pendingMethod === 'totp'
-      ? totp.verifyTotp(secrets.decrypt(op.pendingTotpSecret), code, now())
-      : checkEmailCode(op, code);
+    // The step that confirmed the app is recorded as used: it cannot open a session afterwards.
+    const step = op.pendingMethod === 'totp' ? totp.matchTotpStep(secrets.decrypt(op.pendingTotpSecret), code, now()) : null;
+    const ok = op.pendingMethod === 'totp' ? step !== null : checkEmailCode(op, code);
     if (!ok) {
       operators.recordPendingFailure(op.id);
       if (operators.byId(op.id).pendingFailures >= MAX_FAILURES) {
@@ -191,7 +195,7 @@ function createAuthController(ctx) {
       throw httpError(400, 'BAD_CODE', 'Code incorrect : la méthode actuelle reste en place.');
     }
     const codes = totp.generateBackupCodes();
-    operators.activatePending(op.id, JSON.stringify(codes.map(totp.hashBackupCode)));
+    operators.activatePending(op.id, JSON.stringify(codes.map(totp.hashBackupCode)), step);
     const fresh = operators.byId(op.id);
     return {
       operator: publicOperator(fresh),

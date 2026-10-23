@@ -48,6 +48,13 @@ function logErrorMarker(message) {
 
 logErrorMarker(`=== SERVER BOOT START === (timezone ${serverTimezone}, local time ${new Date().toString()})`);
 
+try {
+  require('./utils/testOnlyKeys').assertNoTestOnlyKey(process.env);
+} catch (err) {
+  logErrorMarker(`Boot failed: ${err.message}`);
+  process.exit(1);
+}
+
 const commitSha = String(
   process.env.APP_COMMIT_SHA
     || process.env.COMMIT_SHA
