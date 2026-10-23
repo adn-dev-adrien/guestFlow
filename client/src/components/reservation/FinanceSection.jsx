@@ -14,6 +14,9 @@ import { formatCurrency, displayDate } from '../../utils/formatters';
 import { COMPLEMENT_LABELS } from '../../constants/complements';
 import { complementDeferralAccess } from '../../utils/complementDeferralAccess';
 
+// specs/platform-tourist-tax-out-of-the-commission.md rule 25 — a refused flip must not look like a dead button.
+const PAYMENT_NOT_SAVED = 'Paiement non enregistré';
+
 // Means of refund, French labels for the history rows (specs/reservation-refunds.md §3.1 rule 4).
 const REFUND_METHOD_LABELS = {
   transfer: 'Virement',
@@ -981,7 +984,12 @@ export default function FinanceSection() {
                           // l'enregistrement d'ignorer ces drapeaux, et donc de ne plus pouvoir en
                           // effacer un par mégarde.
                           if (editingReservationId) {
-                            await api.markPayment(editingReservationId, { depositPaid: next, depositPaidDate: date || null });
+                            try {
+                              await api.markPayment(editingReservationId, { depositPaid: next, depositPaidDate: date || null });
+                            } catch {
+                              showError(PAYMENT_NOT_SAVED);
+                              return;
+                            }
                           }
                           updateForm({ depositPaid: next, depositPaidDate: date });
                           // …et le bloc du paiement unique reflète le serveur : le groupe a pu mourir ici.
@@ -1063,7 +1071,12 @@ export default function FinanceSection() {
                       const date = next ? (form.balancePaidDate || today) : '';
                       // rule 11bis — même règle que l'acompte : écriture immédiate, serveur maître.
                       if (editingReservationId) {
-                        await api.markPayment(editingReservationId, { balancePaid: next, balancePaidDate: date || null });
+                        try {
+                          await api.markPayment(editingReservationId, { balancePaid: next, balancePaidDate: date || null });
+                        } catch {
+                          showError(PAYMENT_NOT_SAVED);
+                          return;
+                        }
                       }
                       updateForm({ balancePaid: next, balancePaidDate: date });
                       if (editingReservationId) await reloadReservationFinance();
