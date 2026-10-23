@@ -369,7 +369,11 @@ email shown beside the text. The whole wording can also go out and come back as 
 34. **The pool season belongs to the property.** « Piscine » (on/off) and its two dates, picked as a day
     and a month, sit on the property's Séjour tab; Réglages › Emails no longer holds them. Off, or no
     dates: no pool sentence. Both dates or none (« Les deux dates, ou aucune. »). The upgrade copies the
-    season the instance had onto every property once, so no email moves.
+    season the instance had onto every property once, so no email moves. An instance upgraded from
+    the release where an empty bound still meant `06-15` / `08-31` (its `app_settings` columns are
+    declared with those defaults) copies that default for an empty or NULL bound, as its emails
+    used it (2026-10-23, inte/plugins review); an instance born after
+    `plugins-phase-p-productisation.md` rule 14 reads empty as no pool.
 35. **Typed text is never lost.** « Textes des emails » and the property page ask before leaving with
     unsaved changes — through the menu, « Retour », a link inside the page, the browser's back or a
     reload. The property's « Arrivée » block is saved by the page's own Enregistrer / Annuler (no button

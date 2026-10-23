@@ -37,7 +37,8 @@ function publicRoutes(ctx, { secureCookies = false } = {}) {
   };
 
   // Rule 27: a lookup reveals whether an email has a space, so ten a minute per address. A remembered
-  // space names a company too, so the page that reads the cookie counts against the same limit.
+  // space names a company too, so the page that reads the cookie and `/go` (a slug in, a space's
+  // name out) count against the same limit.
   const limited = rateLimit({
     windowMs: 60 * 1000,
     limit: 10,
@@ -61,7 +62,7 @@ function publicRoutes(ctx, { secureCookies = false } = {}) {
     return html(res, 200, formPage({ message: MESSAGES[found.kind], email }));
   });
 
-  router.post('/go', (req, res) => {
+  router.post('/go', limited, (req, res) => {
     const space = login.remembered(req.body && req.body.slug);
     if (!space) return res.redirect(303, '/');
     return go(res, space.slug, req.body.email);

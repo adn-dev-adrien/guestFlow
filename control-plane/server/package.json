@@ -5,7 +5,7 @@
   "description": "GuestFlow control plane — the operator console (specs/control-plane-plans-and-access.md)",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "dev": "NODE_ENV=development node --watch src/index.js",
     "create-operator": "node scripts/create-operator.js",
     "test": "node --test --test-concurrency=1 \"src/tests/**/*.test.js\""
   },

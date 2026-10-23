@@ -155,7 +155,8 @@ exact version accepted.
 
 23. The proxy determines the visitor IP: `REMOTE_ADDR`, unless it belongs to the plugin's new
     « Proxys de confiance » list (empty by default; set to the edge Caddy on Solio), in which case the
-    right-most `X-Forwarded-For` entry not in that list. It sends it on **every** proxied call as
+    right-most `X-Forwarded-For` entry not in that list (`REMOTE_ADDR` again when every entry is
+    trusted — the left-most one is client-controlled). It sends it on **every** proxied call as
     `X-GuestFlow-Visitor-IP`, and the User-Agent as `X-GuestFlow-Visitor-UA` (≤ 512 chars).
     > **Sans test** — visitor IP resolution in `class-gf-api-client.php`: the plugin and the site mu-plugins have no test harness (PHP / build-free JS). Verified by hand on a throwaway WordPress with plugin 1.8.0 on 2026-09-22 (§7).
 24. GuestFlow trusts those headers **only on an API-key-authenticated request**. `bookingRequestLimiter`

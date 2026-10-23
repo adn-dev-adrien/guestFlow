@@ -531,6 +531,13 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       second session (added 2026-10-04).
     - Changing the method asks for the password again; five wrong codes of the new method cancel
       the change, and the old method stays (added 2026-10-04).
+    - Hardened 2026-10-23 (security review of `inte/plugins`), against a stolen operator cookie:
+      inside a session, a wrong password while changing the method **does** count toward the
+      five-failure lock (it is the cookie guessing, not a stranger who knows an email); the lock ends
+      the session that hit it, and a locked account can neither start nor confirm a change.
+      `/mfa/start` and `/mfa/confirm` share the login's per-IP limit (30 per 15 minutes). The TOTP
+      code that confirmed the app is recorded as used, so it cannot open a session afterwards. A
+      password typed opens the second step for 10 minutes only (`PENDING_MS`, like the instances).
     - Backup codes are stored with the password hash (scrypt), not a fast hash; codes stored before
       2026-10-04 (SHA-256) keep working until used.
     - An operator session expires after 12 hours, or after 30 minutes without a request.
@@ -640,6 +647,15 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Toggle buttons are in sentence case (« Essentiel », « Mensuelle »), as in GuestFlow
       (specs/plugins-phase-p-productisation.md rule 39), and 44 px wide under a finger.
     - « Paiements en ligne » keeps its title on a phone.
+39. **The console fails closed at boot** (added 2026-10-23, security review of `inte/plugins`).
+    Unless `NODE_ENV` is exactly `development` or `test`, the console runs as production — an unset
+    `NODE_ENV` included: `CP_SESSION_SECRET` and `CP_PROXY_SECRET` are required (it refuses to start
+    without either, and with the public development session secret), and its cookies are `Secure`.
+    Before, a forgotten `NODE_ENV` signed sessions with a secret published in this repository over
+    non-Secure cookies, and without `CP_PROXY_SECRET` any process on the host's loopback could claim
+    any client address in `X-Forwarded-For` past the IP limiters (`trust proxy 1`). `npm run dev`
+    sets `NODE_ENV=development`. `utils/bootConfig.js` decides; `bootstrap-host.sh` already writes
+    both secrets.
 
 ## 4. Architecture
 
@@ -679,6 +695,8 @@ environment:
   refuses to start without it.
 - `CP_DATA_DIR`: its database, the key that encrypts the TOTP seeds, and the exports.
 - `CP_DOMAIN`, `CP_PUBLIC_URL`, `CP_SESSION_SECRET`, `CP_SMTP_*`, `CP_PORT`.
+- `NODE_ENV`, `CP_PROXY_SECRET` (rule 39): outside `development`/`test`, `CP_SESSION_SECRET` and
+  `CP_PROXY_SECRET` are required.
 - `CP_APP_HOST` (C3): the host of the shared login page, `app.<CP_DOMAIN>` by default
   (`app.localhost` in dev).
 - `CP_NOW` moves its clock, outside production only, to walk a customer through the lifecycle.
@@ -1125,6 +1143,16 @@ each plan. The C2a console screens have their own mock
 - **Final display sweep (2026-10-18):** server `customer-creation-fold.unit.test.js` (3, rule 37);
   client `ConsoleNav.phone-menu.test.jsx` (3, rule 36), `CustomerPage.creation-fold.test.jsx` (2,
   rule 37).
+- **Security review (2026-10-23): control plane 220 tests (+8).**
+  - `operator-session-hardening.unit.test.js` (7, rules 31, 39): five wrong passwords on « change
+    the method » lock the account and the right one no longer helps; the code that confirmed the app
+    cannot open a session; over HTTP the lock ends the session, `/mfa/*` share the login's limit
+    (the 31st request is `RATE_LIMITED`), the pending login lasts 10 minutes; the boot refuses to
+    run as production without both secrets or with the development one, development and test run
+    without them.
+  - `operator-auth.unit.test.js` (rule 31): the first login after switching to the app takes the
+    next step's code.
+  - `login-page.unit.test.js` (+1, rule 27): `/go` counts against the lookups' limit.
 
 ### Manual UI verification
 

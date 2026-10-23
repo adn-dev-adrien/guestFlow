@@ -436,13 +436,13 @@ tables, because its Booking source now goes through the Booking path.
 Order matters: a channel is never left without a sync path, and Lodgify is cancelled last.
 
 1. **Backup** the production database; screenshot each channel's calendar for the next 12 months.
-2. **Check Abritel first.** In the Abritel partner space, find out whether listing AB 2622643
+2. **Check Abritel first.** In the Abritel partner space, find out whether listing AB <abritel-listing>
    (property 123465737) is owned by the Lodgify integration. If disconnecting would deactivate it or
    drop its reviews, stop and ask Vrbo support for a transfer to a direct owner account before going
    further on this channel.
 
    **Checked 2026-10-16 — stop condition met.** Abritel carries **two** listings, not one: the gîte
-   (AB 2577203, property 118194015, 3 reviews) as well as the tent (AB 2622643, property
+   (AB 2577203, property 118194015, 3 reviews) as well as the tent (AB <abritel-listing>, property
    123465737). Both sit on the owner account and are mapped in Lodgify on full sync. Lodgify cannot
    disconnect Vrbo itself: the account is decommissioned **by Vrbo** on request, in a time Vrbo
    decides, which elsewhere has left listings unlisted for days. A written request to Abritel
@@ -775,7 +775,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
 
 - 2026-10-16 (afternoon) — **Abritel step A: stopped, as the runbook asks.**
   - *Two listings.* The partner space lists the **gîte** (AB 2577203, property 118194015, unit
-    326936714, 3 reviews) and the **tent** (AB 2622643, property 123465737, no review), both
+    326936714, 3 reviews) and the **tent** (AB <abritel-listing>, property 123465737, no review), both
     « Performance - 2 (15 % pour chaque réservation) », online on Abritel and Expedia. Every earlier
     note knew the tent only. Lodgify's Vrbo page maps both, full sync, « Synchronisé ».
   - *No self-service cut.* Lodgify's help centre: a Vrbo account is disconnected by asking Vrbo for a

@@ -172,10 +172,11 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // the `qonto` core module (2026-10-18 code review) and `secrets.rotate`, for the website key's
 // « Régénérer ». 1.3.0 since the core modules `changeover` and
 // `pricing.calculateBaseStayPrice` (specs/wp-booking-widget-redesign.md rule 30); 1.4.0 since
-// `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9); 1.6.0 since the core modules `reservationLedger`, `reservationPaymentMark` and `platformDisplay` (specs/qonto-bank-reconciliation.md); 1.5.0
+// `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9); 1.6.0 since the core modules `reservationLedger`, `reservationPaymentMark` and `platformDisplay` (specs/qonto-bank-reconciliation.md); 1.7.0 since the core
+// rate limiter `paymentStartLimiter` (specs/public-online-payment.md rule 7); 1.5.0
 // since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). All minor bumps.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
-  assert.equal(SDK_VERSION, '1.6.0');
+  assert.equal(SDK_VERSION, '1.7.0');
   assert.equal(satisfies(SDK_VERSION, '^1.0.0'), true);
   assert.equal(satisfies(SDK_VERSION, '^2.0.0'), false);
 });

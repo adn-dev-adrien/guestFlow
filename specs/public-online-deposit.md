@@ -170,7 +170,7 @@ When the mode is « paiement unique », the site no longer displays Acompte/Sold
 | `assets/runtime.js` | T | New FR strings (`payDeposit`, `balanceDueBefore`, `depositPaidBalanceDue`). |
 
 ⚠️ **Deploy reminder:** the plugin is NOT deployed by the `release` pipeline — copy the changed files
-into the `wp_app` container (see memory `wp-plugin-deploy-gap`, incident 2026-07-02).
+into the `<container>` container (see memory `wp-plugin-deploy-gap`, incident 2026-07-02).
 
 ### 4.3 API contract (`/public/v1`)
 

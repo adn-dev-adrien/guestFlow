@@ -115,7 +115,9 @@ remaining the single source of truth for prices, availability, and validation.
       or loopback address is trusted to pass the visitor's IP in `X-Forwarded-For` without being
       listed. **Proxys de confiance** stays, under « Réglages avancés », for a proxy with a public
       address; the screen names the one it sees (`REMOTE_ADDR` public + `X-Forwarded-For` present).
-      Without `X-Forwarded-For` the visitor IP is the connecting address, never empty.
+      Without `X-Forwarded-For` the visitor IP is the connecting address, never empty. When every
+      `X-Forwarded-For` hop is itself trusted, the visitor IP is the connecting address too — the
+      left-most hop is whatever the client wrote, so it is never relayed (plugin 1.16.1).
     - Once configured, the connection test runs on arrival; its result is a `role="status"` region.
 15. **The booking engine is usable with a screen reader.** Every input has an `id` and a `<label for>`;
     the contact fields carry `aria-required`. A stepper is a `role="group"` named after its line and

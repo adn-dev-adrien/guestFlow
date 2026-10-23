@@ -63,6 +63,8 @@ Let a website visitor **pay their full stay online** and have the reservation co
    - sets the Qonto **return URL** to the site success page (built from a **configured site origin** +
      a `returnPath` from the body — allowlisted to the configured origin to prevent open redirects).
    - returns `{ paymentUrl, amountCents, status:'open' }`.
+   The WordPress plugin sends the visitor to `paymentUrl` only when it is an `https:` URL; anything
+   else is shown as a payment error (plugin 1.16.1).
 3. **Guest pays on Qonto.** On success Qonto redirects to the site success URL (see §9 Open Q — verify
    Qonto supports a return URL; fall back to "no redirect, site polls" if not).
 4. **Confirmation is pushed by a Qonto webhook (primary), reconciled by the poll (fallback).** _(decided
@@ -98,7 +100,9 @@ Let a website visitor **pay their full stay online** and have the reservation co
    since `specs/payment-polling-fair-use.md` rule 11), the status endpoint triggers
    an **on-demand poll of that devis's open link** before answering (bounded, best-effort).
 7. **Security.** All three routes sit under `/public/v1` → shared API-key + `publicApiLimiter`; the `pay`
-   write adds the stricter `bookingRequestLimiter`. Amounts are engine-side; the return URL is allowlisted;
+   write adds its own `paymentStartLimiter` (default 20/hour/visitor) — distinct from the
+   `bookingRequestLimiter` budget, so a guest who sends a request then retries the payment a few times
+   is never refused (amended 2026-10-23, review of `inte/plugins`). Amounts are engine-side; the return URL is allowlisted;
    no PII beyond the booking the proxy already submitted is returned. Additional hardening _(2026-07-02
    security audit)_:
    - **Per-devis capability token.** The devis id is a sequential `INTEGER PRIMARY KEY` — guessable, and it
@@ -161,7 +165,7 @@ Let a website visitor **pay their full stay online** and have the reservation co
 
 | Layer | File | Responsibility |
 |---|---|---|
-| `routes/public/` | `bookingRequests.js` | `POST /:id/pay` (bookingRequestLimiter) + `GET /:id/status` (**`paymentStatusLimiter`**). Both token-gated. |
+| `routes/public/` | `bookingRequests.js` | `POST /:id/pay` (**`paymentStartLimiter`**) + `GET /:id/status` (**`paymentStatusLimiter`**). Both token-gated. |
 | `controllers/public/` | `publicPaymentController.js` _(new)_ | `pay` (validate devis state **+ token** → availability re-check → engine amount → create/reuse `full` link with return URL → `{ paymentUrl, amountCents }`) + `status` (**token-gated** on-demand poll → map link/devis state → `pending|paid|confirmed|conflict`). `loadPublicDevis(id, token)` guards numeric id + constant-time token. Reuses `paymentRequestService.ensurePaymentLink` + `processPaidLink`. |
 | `controllers/public/` | `publicBookingRequestController.js` | **Change:** mint the per-devis `publicToken` at create (same write as `requestOrigin='public'`) + return it in the create response. |
 | `utils/` | `publicDevisToken.js` _(new)_ | `generateToken()` (~192-bit base64url) + `tokensMatch(stored, provided)` (constant-time, never throws). |

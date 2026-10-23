@@ -73,6 +73,8 @@ test('rule 31 — switching to the app takes effect only once its code is typed,
 
   const step = await auth.login({ email: 'adrien@adn-dev.fr', password: 'correct horse battery' });
   assert.equal(step.payload.method, 'totp');
+  // The code that confirmed the app is spent (2026-10-23): the login takes the next step's.
+  now.set(new Date(now().getTime() + 30000));
   const code = totp.totp(totp.base32Decode(secret), now());
   assert.ok(auth.verify(id, { code }).operator);
   await auth.login({ email: 'adrien@adn-dev.fr', password: 'correct horse battery' });
