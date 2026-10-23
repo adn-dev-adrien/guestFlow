@@ -29,7 +29,7 @@
   .lede { color: var(--muted); margin: 0 0 24px; }
   .summary { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .summary section { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; }
-  .summary h3 { font: 600 0.95rem/1.3 var(--serif); margin: 0 0 6px; }
+  .summary h2 { margin-top: 0; font: 600 0.95rem/1.3 var(--serif); margin: 0 0 6px; }
   .summary ul { margin: 0; padding-left: 18px; color: var(--ink); }
   .summary li { margin: 2px 0; font-size: 14px; }
   code { font: 0.86em var(--mono); background: var(--neutral-soft); padding: 1px 5px; border-radius: 5px; }
@@ -50,7 +50,7 @@
   .appbar { height: 56px; flex: none; background: var(--card); display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }
   .appbar .logo { font: 700 1.1rem var(--serif); color: var(--fir); flex: 1; }
   .bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 4px; }
-  .bar h4 { margin: 0; font: 600 1.2rem var(--serif); }
+  .bar-title { margin: 0; font: 600 1.2rem var(--serif); }
   .newbtn { background: var(--fir); color: #fff; border: 0; border-radius: 999px; font: 500 13px var(--sans); padding: 8px 14px; min-height: 36px; }
   .scroll { flex: 1; overflow-y: auto; padding: 8px 12px 24px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
   .scroll::-webkit-scrollbar { width: 0; }
@@ -102,7 +102,7 @@
   .scrim { position: absolute; inset: 0; background: rgba(30,28,20,0.35); display: grid; place-items: center; z-index: 8; animation: fade 160ms ease-out; padding: 16px; }
   @keyframes fade { from { opacity: 0; } }
   .dialog { background: var(--card); border-radius: 18px; padding: 20px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.25); }
-  .dialog h5 { margin: 0 0 6px; font: 600 1.05rem var(--serif); }
+  .dlg-title { margin: 0 0 6px; font: 600 1.05rem var(--serif); }
   .dialog p { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
   .dialog .row { justify-content: flex-end; gap: 8px; }
   .btn { border: 0; border-radius: 10px; font: 600 14px var(--sans); padding: 10px 14px; min-height: 44px; cursor: pointer; }
@@ -129,7 +129,7 @@
 
   <div class="summary">
     <section>
-      <h3>Constat</h3>
+      <h2>Constat</h2>
       <ul>
         <li>Logement et dates collés : « Gite10/05/2027 ». <code>display="block"</code> n'a plus d'effet depuis MUI 9.</li>
         <li>Le n° de devis et deux badges d'origine passent avant le nom du client.</li>
@@ -137,7 +137,7 @@
       </ul>
     </section>
     <section>
-      <h3>Proposition</h3>
+      <h2>Proposition</h2>
       <ul>
         <li>Ordre : qui → logement → séjour (« 10 → 13 mai 2027 · 3 nuits ») → n° et montant.</li>
         <li>Un seul badge d'origine.</li>
@@ -146,12 +146,12 @@
       </ul>
     </section>
     <section>
-      <h3>Hors périmètre</h3>
+      <h2>Hors périmètre</h2>
       <ul>
         <li>Le tableau desktop (il déborde aussi à 1280 px, mais ce n'est pas ce qui a été signalé).</li>
         <li>Recherche et tri.</li>
       </ul>
-      <h3 style="margin-top:12px">Risque</h3>
+      <h2 style="margin-top:12px">Risque</h2>
       <ul><li>Faible : ajout de champs à <code>GET /api/devis</code>, rien de retiré.</li></ul>
     </section>
   </div>
@@ -230,7 +230,7 @@
 
   function chrome(phone) {
     phone.innerHTML = `<div class="appbar">${I.menu}<span class="logo">GuestFlow</span></div>
-      <div class="bar"><h4>Devis</h4><button class="newbtn" type="button">+ Nouveau devis</button></div>
+      <div class="bar"><div class="bar-title">Devis</div><button class="newbtn" type="button">+ Nouveau devis</button></div>
       <div class="scroll"></div><div class="toast" role="status"></div>`;
     return phone.querySelector('.scroll');
   }
@@ -294,7 +294,7 @@
   function askDelete(phone, r, card) {
     const s = document.createElement('div');
     s.className = 'scrim';
-    s.innerHTML = `<div class="dialog" role="dialog" aria-modal="true"><h5>Supprimer le devis</h5><p>Supprimer le devis ${r.n} ? Cette action est irréversible.</p>
+    s.innerHTML = `<div class="dialog" role="dialog" aria-modal="true"><div class="dlg-title">Supprimer le devis</div><p>Supprimer le devis ${r.n} ? Cette action est irréversible.</p>
       <div class="row"><button class="btn ghost" data-x="no">Annuler</button><button class="btn red" data-x="yes">Supprimer</button></div></div>`;
     phone.appendChild(s);
     s.addEventListener('click', (e) => {
