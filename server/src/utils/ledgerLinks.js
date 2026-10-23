@@ -63,9 +63,10 @@ async function findPaidStaleLink(stale, provider) {
 /**
  * Rule 31 — a link retired because its amount changed was paid anyway. Returns the effect.
  *
- * deps: { database, recordPayment({ reservationId, bucket, paidDate }) }
+ * deps: { database, recordPayment({ reservationId, bucket, paidDate }), reservationsModel? } —
+ * `reservationsModel` defaults to the model bound to `database`.
  */
-function bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay }) {
+function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel = null }, link, { paidDay }) {
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
   if (!row) return { effect: 'no-reservation' };
   if (String(row.kind) !== 'reservation') return { effect: 'not-a-reservation' };
@@ -76,10 +77,46 @@ function bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay 
     balance: Number(row.balancePaid || 0) === 1 || Number(row.balancePaidCash || 0) === 1,
     complement: Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1,
   };
-  const bucket = type === 'full' ? 'balance' : type;
+  let bucket = type === 'full' ? 'balance' : type;
   if (!(bucket in settled)) return { effect: 'noop' };
   // Perceived another way meanwhile: a double payment, refunded by hand (current behaviour).
   if (settled[bucket]) return { effect: 'double-payment' };
+
+  // The stay grew an acompte after a `full` link was minted (moved out of the last-minute window): the
+  // single payment covers the acompte first. Not even the acompte → it is booked as an acompte.
+  const fullOverDeposit = type === 'full' && !settled.deposit && Number(row.depositDisabled || 0) !== 1
+    && round2(row.depositAmount) > 0;
+  if (fullOverDeposit && paidAmount <= round2(row.depositAmount)) bucket = 'deposit';
+  else if (fullOverDeposit) {
+    // The solde gets the rest and both are recorded — the acompte is never claimed a second time.
+    // Short of the pre-arrival total, the rest is owed as the arrival complement; above it, the excess
+    // is the trop-perçu (specs/reservation-refunds.md rule 34).
+    const depositBefore = round2(row.depositAmount);
+    const balanceBefore = round2(row.balanceAmount);
+    const deposit = depositBefore;
+    const balance = round2(paidAmount - deposit);
+    const shortfall = round2(depositBefore + balanceBefore - paidAmount);
+    const complementOpen = Number(row.complementPaid || 0) !== 1 && Number(row.complementPaidCash || 0) !== 1;
+    database.transaction(() => {
+      database.prepare(`UPDATE reservations SET depositAmountOverride = ?, depositAmount = ?, balanceAmount = ?,
+        updatedAt = datetime('now') WHERE id = ?`)
+        .run(deposit, deposit, balance, row.id);
+      const changes = [
+        { field: 'ledgerDepositAmount', label: 'Acompte', from: fmt(depositBefore), to: `${fmt(deposit)} (payé par un lien retiré)` },
+        { field: 'ledgerBalanceAmount', label: 'Solde', from: fmt(balanceBefore), to: `${fmt(balance)} (payé par un lien retiré)` },
+      ];
+      if (shortfall > 0 && complementOpen) {
+        const complementBefore = round2(row.complementAmount);
+        database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?")
+          .run(round2(complementBefore + shortfall), row.id);
+        changes.push({ field: 'complementAmount', label: "Complément d'arrivée", from: fmt(complementBefore), to: `${fmt(complementBefore + shortfall)} (reste dû après le lien retiré)` });
+      }
+      database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+        .run(row.id, JSON.stringify(changes));
+      recordPayment({ reservationId: row.id, bucket: 'full', paidDate: paidDay });
+    })();
+    return { effect: 'full-booked', amount: paidAmount, shortfall: shortfall > 0 ? shortfall : 0, excess: shortfall < 0 ? -shortfall : 0 };
+  }
 
   if (bucket === 'deposit') {
     // The acompte is the link's amount; the solde absorbs the difference (pre-arrival unchanged).
@@ -118,8 +155,26 @@ function bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay 
     return { effect: 'balance-booked', amount: paidAmount, shortfall: shortfall > 0 ? shortfall : 0, excess: shortfall < 0 ? -shortfall : 0 };
   }
   // The complement keeps its amount: the ledger row warns « Payé X par un lien retiré, Y attendus ».
-  database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = ?, updatedAt = datetime('now') WHERE id = ?")
-    .run(paidDay, row.id);
+  // Recorded the way the fiche's « Marquer perçu » records it (reservationsController.updatePayment):
+  // same resolver, the single-payment group released, the arrival extras baseline pinned — and traced.
+  const { depsFor, paidDayOf } = require('./stayPaymentRecorder');
+  const { resolveComplementPayment } = require('./complementPayment');
+  const model = reservationsModel || depsFor(database).reservationsModel;
+  const { paid, cash, date } = resolveComplementPayment({
+    paidInput: true, dateInput: paidDay,
+    prevPaid: row.complementPaid, prevCash: row.complementPaidCash, prevDate: row.complementPaidDate,
+    today: paidDayOf(new Date().toISOString()),
+  });
+  database.transaction(() => {
+    database.prepare("UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
+      .run(paid, date, cash, row.id);
+    model.releaseComplementBucket(row.id);
+    model.captureArrivalExtrasBaseline(row.id);
+    model.addHistoryEntry(row.id, 'update', [{
+      field: 'complementPaid', label: "Complément d'arrivée", from: `${fmt(row.complementAmount)} à percevoir`,
+      to: `${fmt(paidAmount)} perçus (payé par un lien retiré)`,
+    }]);
+  })();
   return { effect: 'complement-booked', amount: paidAmount };
 }
 
