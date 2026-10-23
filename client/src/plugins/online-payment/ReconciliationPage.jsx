@@ -4,7 +4,9 @@
  * credits no fiche claims. Table on md+, cards on xs. Counters, states, wording and actions are the
  * server's (`GET /api/payments/reconciliation?view=`); this page draws them.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
 import {
   Box, Button, Stack, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from '@mui/material';
@@ -12,7 +14,7 @@ import { useTheme } from '@mui/material/styles';
 import SyncIcon from '@mui/icons-material/Sync';
 import { useNavigate } from 'react-router';
 import {
-  api, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip,
+  api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip,
 } from '../sdk';
 import ReconciliationLine from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
@@ -20,7 +22,7 @@ import useReconciliationActions from './useReconciliationActions';
 import { money, lastReadLabel, readFailureLabel } from './reconciliationShared';
 
 const TABS = [
-  { view: 'todo', label: 'À traiter', count: (c) => c.gaps + c.proposed + c.unmatched },
+  { view: 'todo', label: 'À traiter', count: (c) => c.todo },
   { view: 'done', label: 'Rapprochés', count: (c) => c.reconciled },
   { view: 'waiting', label: 'Attendus', count: (c) => c.waiting },
   { view: 'other', label: 'Autres crédits', count: (c) => c.other },
@@ -37,6 +39,8 @@ export default function ReconciliationPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const { showError } = useToast();
+  const latest = useRef(0);
   const [view, setView] = useState('todo');
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -46,18 +50,19 @@ export default function ReconciliationPage() {
   const [candidates, setCandidates] = useState([]);
 
   const load = useCallback(async (which) => {
+    latest.current += 1;
+    const ticket = latest.current;
     try {
-      setData(await api.getReconciliation(which));
-      setError(null);
+      const answer = await api.getReconciliation(which);
+      if (ticket === latest.current) { setData(answer); setError(null); }
     } catch (err) {
-      setData(null);
-      setError(err);
+      if (ticket === latest.current) { setData(null); setError(err); }
     } finally {
-      setLoading(false);
+      if (ticket === latest.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { setLoading(true); load(view); }, [view, load]);
+  useEffect(() => { setLoading(true); setData(null); load(view); }, [view, load]);
   const reload = useCallback(() => load(view), [load, view]);
   const actions = useReconciliationActions({ onChanged: reload });
 
@@ -74,7 +79,12 @@ export default function ReconciliationPage() {
   };
 
   const openLink = async (credit) => {
-    try { setCandidates((await api.getReconciliationCandidates('')).items || []); } catch { setCandidates([]); }
+    try {
+      setCandidates((await api.getReconciliationCandidates('')).items || []);
+    } catch (err) {
+      showError(err?.message || 'Échéances indisponibles.');
+      return;
+    }
     setLinkCredit(credit);
   };
   const receiptsForDialog = useMemo(() => candidates.map((c) => ({
@@ -174,7 +184,7 @@ export default function ReconciliationPage() {
                         {side ? (
                           <>
                             {!item.bank[0] && <Typography variant="caption" color="text.secondary">proposé · </Typography>}
-                            {side.dateLabel} · <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.bank[0] ? item.bank.reduce((s, b) => s + b.allocatedCents, 0) : side.amountCents)}</span>
+                            {side.dateLabel} · <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.bank[0] ? item.allocatedCents : side.amountCents)}</span>
                             <Typography variant="caption" color="text.secondary" component="div">{side.counterparty}</Typography>
                           </>
                         ) : '—'}

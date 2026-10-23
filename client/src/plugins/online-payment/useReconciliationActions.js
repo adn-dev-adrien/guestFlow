@@ -17,6 +17,8 @@ export default function useReconciliationActions({ onChanged }) {
       return true;
     } catch (err) {
       showError(err?.message || 'Action impossible.');
+      // The screen may be stale (another session consumed the proposal): show what the server holds now.
+      if (onChanged) { try { await onChanged(); } catch { /* the error is already shown */ } }
       return false;
     } finally {
       setBusy(null);

@@ -8,10 +8,7 @@
 
 const flag = (v) => Number(v || 0) === 1 || v === true;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
-const day = (v) => {
-  const s = String(v == null ? '' : v).slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-};
+const { day } = require('./dates');
 
 // The ledger rows of the direct buckets, with the stored column of their cash flag and their date.
 const DIRECT_ROWS = {

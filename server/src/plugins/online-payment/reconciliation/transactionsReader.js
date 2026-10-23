@@ -54,6 +54,8 @@ async function readTransactions({ withQonto, model, settings, now = () => new Da
         read += model.upsertMany(credits, { bankAccountId, source: 'qonto', now: startedAt });
         page = batch.nextPage;
       }
+      // Stopping at the cap would leave older credits unread while `lastReadAt` moves on: fail loudly instead.
+      if (page) throw new Error('Trop de transactions à lire : réduire la date de mise en service.');
       return { read, bankAccountId };
     });
     settings.set('reconciliationLastReadAt', startedAt.toISOString());

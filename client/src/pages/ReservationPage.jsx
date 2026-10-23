@@ -2690,7 +2690,7 @@ export default function ReservationPage() {
     const res = await api.getReservation(editingReservationId);
     setStoredLedger(res.ledger || null);
     // specs/qonto-bank-reconciliation.md rule 39 — the plugins' blocks follow a write that moved the money.
-    if (res.pluginBlocks) setPluginBlocks((prev) => ({ ...prev, ...res.pluginBlocks }));
+    setPluginBlocks(res.pluginBlocks || {});
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
     const serverWritten = {

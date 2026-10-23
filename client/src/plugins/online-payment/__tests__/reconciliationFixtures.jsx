@@ -36,7 +36,7 @@ export const done = (over = {}) => item({
   bank: [{ ...bankSide(), allocatedCents: 59658 }], receivedCents: 59658, canUndo: true, ...over,
 });
 
-export const COUNTS = { gaps: 1, proposed: 1, unmatched: 1, reconciled: 1, waiting: 1, other: 1 };
+export const COUNTS = { todo: 3, gaps: 1, proposed: 1, unmatched: 1, reconciled: 1, waiting: 1, other: 1 };
 
 export const credit = (over = {}) => ({
   transactionId: 'tx-9', amountCents: 21450, remainingCents: 21450, date: '2026-10-21', dateLabel: '21/10',

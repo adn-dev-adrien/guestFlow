@@ -7,10 +7,7 @@
 const GAP_STATES = Object.freeze(['amount_gap', 'received_not_recorded', 'recorded_not_received', 'late', 'date_gap']);
 const MS_DAY = 24 * 60 * 60 * 1000;
 
-const day = (v) => {
-  const s = String(v == null ? '' : v).slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-};
+const { day } = require('./dates');
 const daysUntil = (from, to) => Math.round((Date.parse(`${day(to)}T00:00:00Z`) - Date.parse(`${day(from)}T00:00:00Z`)) / MS_DAY);
 
 const NBSP = ' ';

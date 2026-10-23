@@ -271,6 +271,18 @@ a short list of the gaps to fix on the fiches.
 39. On the fiche, a confirmation with unsaved edits follows « Marquer perçu »: the fiche is saved
     first, or the action is refused on a locked fiche with « Enregistrer ou annuler les
     modifications avant de rapprocher ». After a write the fiche's finance section reloads.
+40. A credit's day is read on Paris time: Qonto settles at a UTC instant (`22:30Z` is the next day in
+    Paris), so `day()` of an instant is its Europe/Paris date; plain dates pass through. The matcher's
+    windows, the date written on the fiche and the date-gap check all use it.
+41. The matcher's ±1 cent tolerance applies to payment-link payouts only (net of the acquirer's
+    rounding); every other channel must match to the cent, as the fiche write does. Confirmation
+    refuses (`RECEIPT_ALREADY_COVERED`, 422) a link to an échéance other credits already cover. A
+    refused unmark during « Défaire » drops its stored fiche write, so a later « Défaire » never acts
+    on an unrelated state. The list payload carries `counts.todo` and each item's `allocatedCents`
+    (the page sums nothing). « Défaire » on a deposit leaves the core's `depositAmountOverride`
+    frozen at the deposit's value, as « Marquer perçu » does: it is not restored.
+42. A read that reaches the page cap (60 pages) fails with an error and leaves `lastReadAt` untouched,
+    so the next read starts again instead of skipping the oldest credits.
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay

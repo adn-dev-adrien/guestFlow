@@ -81,7 +81,7 @@ test('credits no fiche claims: « Hors réservation » marks the credit', async 
 });
 
 test('empty view and the disconnected state', async () => {
-  api.getReconciliation.mockResolvedValue(payload({ items: [], credits: [], counts: { ...COUNTS, gaps: 0, proposed: 0, unmatched: 0 } }));
+  api.getReconciliation.mockResolvedValue(payload({ items: [], credits: [], counts: { ...COUNTS, todo: 0, gaps: 0, proposed: 0, unmatched: 0 } }));
   const { unmount } = renderPage();
   expect(await screen.findByText(/Rien à traiter/)).toBeTruthy();
   unmount();

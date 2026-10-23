@@ -16,10 +16,7 @@ const BUCKET_FIELDS = {
   endOfStayComplement: { flag: 'endOfStayComplementPaid', date: 'endOfStayComplementPaidDate' },
 };
 
-const day = (v) => {
-  const s = String(v == null ? '' : v).slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-};
+const { day } = require('./dates');
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
@@ -101,6 +98,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
         const answer = applyPaymentMark({ reservationId: w.reservationId, body: { [fields.flag]: false }, user });
         if (answer.status >= 400) {
           untouched.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
+          model.deleteFicheWrite(w.id);
           return;
         }
         if (w.written.payout != null) {

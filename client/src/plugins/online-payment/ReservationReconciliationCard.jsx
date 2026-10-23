@@ -25,7 +25,7 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
   const reload = useCallback(async () => { if (reloadFinance) await reloadFinance(); }, [reloadFinance]);
   const actions = useReconciliationActions({ onChanged: reload });
 
-  const receipts = useMemo(() => (block ? block.lines.map((l) => ({
+  const receipts = useMemo(() => (block && block.lines ? block.lines.map((l) => ({
     key: l.key, reservationId: l.reservation.id, ledgerKey: l.ledgerKey, label: l.label, expectedCents: l.expectedCents,
   })) : []), [block]);
 

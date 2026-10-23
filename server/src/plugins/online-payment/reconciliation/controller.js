@@ -17,10 +17,7 @@ const CONFIDENCE_LABELS = { sur: 'sûr', probable: 'probable', verifier: 'à vé
 const DEFAULT_ACQUIRING_FEE = Object.freeze({ percent: 1.4, fixedCents: 25 });
 const DEFAULT_CARD_FEE_PERCENT = 2.8;
 
-const day = (v) => {
-  const s = String(v == null ? '' : v).slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-};
+const { day } = require('./dates');
 const frDate = (iso) => (day(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '');
 const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 const keyOf = (r) => `${r.reservationId}|${r.ledgerKey}`;
@@ -145,6 +142,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
         gapCents: st.gapCents, receivedCents: st.receivedCents,
         fixText: fixText({ ...st, receipt: r }),
         bank: lines.map((l) => ({ ...bankSide(txById.get(l.transactionId) || { id: l.transactionId, amountCents: l.amountCents, settledAt: l.settledAt }), allocatedCents: l.amountCents })),
+        allocatedCents: lines.reduce((sum, l) => sum + l.amountCents, 0),
         proposal: showProposal && proposalTx ? {
           id: primary.id, confidence: primary.confidence, confidenceLabel: CONFIDENCE_LABELS[primary.confidence], reason: primary.reason,
           source: primary.source, allocations: primary.allocations, amountCents: mine ? mine.amountCents : primary.allocations[0].amountCents,
@@ -186,6 +184,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
       waiting: items.filter((i) => i.state === 'waiting').length,
       other: credits.filter((c) => c.status === 'other' || c.status === 'outside').length,
     };
+    counts.todo = counts.gaps + counts.proposed + counts.unmatched;
     return { today, startDate, bankAccountId, items, credits, counts, txById, receipts, allocatedOf, linesByReceipt };
   }
 
@@ -259,6 +258,14 @@ function createReconciliationController({ db, settings, transactions, model, wri
           return row && day(row.endDate) < data.startDate
             ? { status: 422, body: { error: 'Cette réservation est hors du périmètre du rapprochement.', code: 'RESERVATION_OUT_OF_SCOPE' } }
             : { status: 422, body: { error: 'Échéance inconnue.', code: 'UNKNOWN_RECEIPT' } };
+        }
+      }
+      for (const a of list) {
+        const receipt = byKey.get(`${a.reservationId}|${a.ledgerKey}`);
+        const covered = model.linesOfReceipt(receipt.reservationId, receipt.ledgerKey).reduce((sum, l) => sum + l.amountCents, 0);
+        const payoutUnknown = receipt.channel.startsWith('platform:') && !receipt.payoutRecorded;
+        if (!payoutUnknown && receipt.expectedCents > 0 && covered >= receipt.expectedCents) {
+          return { status: 422, body: { error: 'Cette échéance est déjà couverte par un autre virement.', code: 'RECEIPT_ALREADY_COVERED' } };
         }
       }
       const cfg = matcherSettings();

@@ -27,14 +27,13 @@ const DEFAULT_BATCH_PLATFORMS = Object.freeze(['Lodgify']);
 
 const normalize = (s) => String(s == null ? '' : s)
   .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9.=+]+/g, ' ').trim();
-const day = (v) => {
-  const s = String(v == null ? '' : v).slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-};
+const { day } = require('./dates');
 const dayNumber = (iso) => (iso ? Math.floor(Date.parse(`${iso}T00:00:00Z`) / MS_DAY) : null);
 const daysBetween = (a, b) => (day(a) && day(b) ? dayNumber(day(b)) - dayNumber(day(a)) : null);
 
 const textOf = (tx) => normalize([tx.counterpartyName, tx.label, tx.reference, tx.note].join(' '));
+// A payment-link payout is net of the acquirer's rounding; every other channel must match to the cent.
+const toleranceOf = (r) => (r.channel === 'link' ? 1 : 0);
 const keyOf = (r) => `${r.reservationId}|${r.ledgerKey}`;
 
 /** `a+b` = both substrings; `ref=x` = the reference, normalised, equals x. */
@@ -122,7 +121,7 @@ function platformProposals(tx, platform, receipts, settings) {
     return out;
   }
 
-  const exact = recorded.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= 1);
+  const exact = recorded.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= toleranceOf(r));
   exact.forEach((r) => out.push(proposal(tx, [{ receipt: r, allocCents: tx.remainingCents }], exact.length === 1 ? 'sur' : 'verifier', 'platform',
     exact.length === 1 ? `Seul versement ${platform} de ce montant` : `Plusieurs séjours ${platform} au même montant`)));
   if (exact.length === 0) {
@@ -206,7 +205,7 @@ function directProposals(tx, receipts) {
   byReservation.forEach((list) => {
     const candidates = list.filter(near);
     const named = nameMatches(candidates[0] ? candidates[0].reservation.lastName : '', tx);
-    const single = candidates.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= 1);
+    const single = candidates.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= toleranceOf(r));
     single.forEach((r) => out.push(proposal(tx, [{ receipt: r, allocCents: tx.remainingCents }], named ? 'probable' : 'verifier', 'direct',
       named ? 'Montant exact et nom du client dans le virement' : 'Montant exact, nom différent')));
     if (single.length === 0 && named && candidates.length > 0) {
