@@ -606,25 +606,30 @@
     // Capacity — ONE total for everyone over 2, babies apart (GuestFlow
     // specs/property-capacity-single-total.md §3 rule 13). Capping the steppers here is what stops a
     // visitor composing an occupancy the API would reject with 409 OVER_CAPACITY at submit time.
-    // 0 = capacity not configured → no cap.
-    var maxGuests = Number(detail.maxGuests || detail.maxAdults || 0);
+    // The server never advertises 0 any more (it falls back to the included guests, then 2 —
+    // specs/site-extra-guest-line.md rule 6); `|| 2` only covers an older server, with the same floor.
+    var maxGuests = Number(detail.maxGuests || detail.maxAdults || 0) || 2;
     var maxBabies = Number(detail.maxBabies || 0);
     // The widget opens on 2 adults — a 1-guest property would start over capacity.
-    if (maxGuests && state.adults > maxGuests) state.adults = maxGuests;
+    if (state.adults > maxGuests) state.adults = maxGuests;
     function guestCap(get) {
       return function () {
-        if (!maxGuests) return 99;
         return get() + Math.max(0, maxGuests - persons());
       };
     }
-    var capacityNote = maxGuests
-      ? GF.t('capacity') + ' : ' + maxGuests + ' ' + GF.t('guestsUnit')
-        + (maxBabies ? ' · ' + maxBabies + ' ' + GF.t('babiesUnit') : '')
+    var capacityNote = GF.t('capacity') + ' : ' + maxGuests + ' ' + GF.t('guestsUnit')
+      + (maxBabies ? ' · ' + maxBabies + ' ' + GF.t('babiesUnit') : '');
+    // The base price covers a number of guests; every one beyond pays a supplement the live summary
+    // prices (specs/site-extra-guest-line.md rule 4). No amount here: it depends on season and tiers.
+    var includedGuests = Number(detail.basePriceIncludedGuests || 0);
+    var includedNote = (includedGuests > 0 && maxGuests > includedGuests)
+      ? GF.t('includedGuestsNote', includedGuests)
       : null;
 
     var guestsBox = GF.el('div', { class: 'gf-section' },
       GF.el('div', { class: 'gf-section-title' }, GF.t('travelers')),
-      capacityNote ? GF.el('div', { class: 'gf-line-sub' }, capacityNote) : null,
+      GF.el('div', { class: 'gf-line-sub' }, capacityNote),
+      includedNote ? GF.el('div', { class: 'gf-line-sub' }, includedNote) : null,
       GF.el('div', { class: 'gf-lines' },
         line(GF.t('adults'), null, null, stepper(function () { return state.adults; }, function (v) { state.adults = v; renderSupplements(); }, 1, guestCap(function () { return state.adults; }), GF.t('adults'))),
         line(GF.t('teens'), GF.t('teensAges'), null, stepper(function () { return state.teens; }, function (v) { state.teens = v; renderSupplements(); }, 0, guestCap(function () { return state.teens; }), GF.t('teens'))),
@@ -1188,6 +1193,10 @@
       summary.appendChild(GF.el('div', { class: 'gf-summary-head' }, GF.t('stayRecap')));
       summary.appendChild(GF.el('div', { class: 'gf-summary-dates' }, shortDate(state.start) + ' → ' + shortDate(state.end)));
       summary.appendChild(sline(q.nights + ' ' + GF.t(q.nights === 1 ? 'night' : 'nights'), GF.euro(q.accommodationTotal)));
+      // Without this row the listed lines do not add up to the total.
+      if (q.extraGuests) {
+        summary.appendChild(sline(GF.t('extraGuests', q.extraGuests.count), q.extraGuests.offered ? GF.t('offered') : GF.euro(q.extraGuests.total)));
+      }
       (q.options || []).forEach(function (o) {
         summary.appendChild(sline(o.title + ' ×' + o.quantity, o.offered ? GF.t('offered') : GF.euro(o.total)));
       });

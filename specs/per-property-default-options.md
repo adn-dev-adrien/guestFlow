@@ -70,6 +70,12 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
    booking**: its Switch renders checked + disabled with the « Inclus » caption, and a save that omits
    it is corrected server-side. Scoped to bookings that already carry it (an older reservation never
    gains one) and to `offered = 1` defaults: a *billed* default stays an ordinary, removable option.
+11. **Changing the logement drops the previous one's « offert » (2026-10-22).** Switching the Logement
+   select on the fiche already clears the option list; it now clears the offered set too, before the new
+   logement's defaults are applied. Reported on a devis: « Nouveau devis » opens on the first logement in
+   alphabetical order (L'Estiva, where the Ménage is an offered default); after switching to La Granja,
+   taking the Ménage showed it « ✓ Offert » at 0 € instead of 80 €, because its id was still in the
+   offered set. Covered by `e2e/specs/reservations/devis-property-switch-offered.spec.js`.
 
 **Edge cases:**
 - Removing a property from the option's applicable list (`propertyIds`) → its default row is cleared too

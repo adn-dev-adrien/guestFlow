@@ -670,3 +670,14 @@ msgstr "Send a request without paying"
 msgid "Une question avant de vous engager ? Envoyez une demande : aucun paiement tant que nous n’avons pas répondu."
 msgstr "A question before you commit? Send a request: nothing to pay until we have replied."
 
+#: includes/class-gf-blocks.php:211
+msgid "Adresse e-mail invalide."
+msgstr "Invalid e-mail address."
+
+#: includes/class-gf-blocks.php:177
+msgid "Personne(s) supplémentaire(s) ×%d"
+msgstr "Extra guest(s) ×%d"
+
+#: includes/class-gf-blocks.php:178
+msgid "Prix de base pour %d voyageurs, supplément au-delà"
+msgstr "Base price for %d guests, supplement beyond"

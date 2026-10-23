@@ -2020,6 +2020,9 @@ export default function ReservationPage() {
       checkInTime: prev.checkInTime || calc.defaultCheckIn || prop?.defaultCheckIn || '15:00',
       checkOutTime: prev.checkOutTime || calc.defaultCheckOut || prop?.defaultCheckOut || '10:00',
     }));
+    // specs/per-property-default-options.md rule 11 — the offered set belongs to the option list just
+    // cleared: kept, the previous logement's « offert » defaults would make the same option free here.
+    setOfferedOptionIds(new Set());
 
     await Promise.all([
       loadResourcesAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),

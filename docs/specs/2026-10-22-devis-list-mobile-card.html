@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Devis — carte mobile</title>
+<style>
+  :root {
+    --fir: #2F5D46; --fir-soft: #E3ECE6; --honey: #C99038;
+    --paper: #F8F5EF; --card: #FFFFFF; --ink: #27251F; --muted: #6E6A5E;
+    --line: rgba(60,54,36,0.1); --shadow: 0 3px 16px rgba(60,54,36,0.09);
+    --ok: #3E7D54; --ok-soft: #E6EFE7; --warn: #8F6A1D; --warn-soft: #F6EDD7;
+    --err: #A8433A; --err-soft: #F7E8E5; --info: #31556E; --info-soft: #E4EDF3;
+    --neutral-soft: #EFECE5;
+    --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+    --sans: Inter, -apple-system, "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --r: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); }
+  ::selection { background: var(--fir-soft); color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--fir); outline-offset: 2px; border-radius: 6px; }
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font: 600 1.6rem/1.2 var(--serif); letter-spacing: -0.01em; margin: 0 0 8px; }
+  h2 { font: 600 1.1rem/1.3 var(--serif); margin: 32px 0 8px; }
+  p, li { max-width: 68ch; }
+  .lede { color: var(--muted); margin: 0 0 24px; }
+  .summary { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .summary section { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; }
+  .summary h2 { margin-top: 0; font: 600 0.95rem/1.3 var(--serif); margin: 0 0 6px; }
+  .summary ul { margin: 0; padding-left: 18px; color: var(--ink); }
+  .summary li { margin: 2px 0; font-size: 14px; }
+  code { font: 0.86em var(--mono); background: var(--neutral-soft); padding: 1px 5px; border-radius: 5px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin: 24px 0 16px; }
+  .ctl { display: flex; flex-direction: column; gap: 4px; }
+  .ctl > span { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .seg { display: inline-flex; background: var(--neutral-soft); border-radius: 10px; padding: 3px; }
+  .seg button { border: 0; background: transparent; font: 500 13px var(--sans); color: var(--muted); padding: 6px 12px; border-radius: 8px; cursor: pointer; min-height: 32px; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(60,54,36,0.12); }
+
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .col > b { font: 600 0.95rem var(--serif); }
+  .col > b small { font: 400 12px var(--sans); color: var(--muted); margin-left: 6px; }
+  .phone { width: 390px; max-width: calc(100vw - 32px); height: 760px; border-radius: 36px; background: var(--paper);
+    border: 10px solid #1d1c19; box-shadow: 0 18px 50px rgba(30,28,20,0.22); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .appbar { height: 56px; flex: none; background: var(--card); display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .appbar .logo { font: 700 1.1rem var(--serif); color: var(--fir); flex: 1; }
+  .bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 4px; }
+  .bar-title { margin: 0; font: 600 1.2rem var(--serif); }
+  .newbtn { background: var(--fir); color: #fff; border: 0; border-radius: 999px; font: 500 13px var(--sans); padding: 8px 14px; min-height: 36px; }
+  .scroll { flex: 1; overflow-y: auto; padding: 8px 12px 24px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
+  .scroll::-webkit-scrollbar { width: 0; }
+
+  .card { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 14px 12px; position: relative;
+    transition: transform 120ms ease-out, opacity 220ms ease-out, max-height 260ms ease-out, margin 260ms ease-out, padding 260ms ease-out; }
+  .after .card { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .after .card:active { transform: scale(0.985); }
+  .card.leaving { opacity: 0; transform: translateX(24px); }
+  .card.gone { max-height: 0 !important; padding-top: 0; padding-bottom: 0; margin-top: -10px; overflow: hidden; }
+
+  .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .between { justify-content: space-between; }
+  .name { font-weight: 600; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .logement { margin-top: 6px; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stay { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .foot { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .num { font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
+  .amount { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .badge svg { width: 13px; height: 13px; flex: none; }
+  .b-neutral { background: var(--neutral-soft); color: var(--muted); }
+  .b-info { background: var(--info-soft); color: var(--info); }
+  .b-ok { background: var(--ok-soft); color: var(--ok); }
+  .origin { flex: 0 1 auto; min-width: 0; }
+  .origin span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+  .icons { display: flex; align-items: center; gap: 2px; flex: none; }
+  .ib { width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 50%; color: var(--muted); cursor: pointer; }
+  .ib:active { background: var(--neutral-soft); }
+  .ib svg { width: 20px; height: 20px; }
+  .ib.danger { color: var(--err); }
+
+  .menu { position: absolute; right: 8px; bottom: 50px; background: var(--card); border-radius: 12px; box-shadow: 0 10px 30px rgba(30,28,20,0.18), 0 0 0 1px var(--line);
+    padding: 6px; min-width: 220px; z-index: 5; transform-origin: bottom right; animation: pop 160ms cubic-bezier(.2,.9,.3,1); }
+  @keyframes pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+  .menu button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; font: 500 14px var(--sans); color: var(--ink); padding: 10px 12px; min-height: 44px; border-radius: 8px; text-align: left; cursor: pointer; }
+  .menu button:active, .menu button:hover { background: var(--neutral-soft); }
+  .menu button svg { width: 18px; height: 18px; color: var(--muted); }
+  .menu .danger, .menu .danger svg { color: var(--err); }
+
+  .old .card { cursor: default; }
+  .old .num { font: 600 12.5px var(--mono); color: var(--ink); letter-spacing: 0.04em; }
+  .old .cap { font-size: 12px; color: var(--muted); }
+
+  .toast { position: absolute; left: 50%; bottom: 20px; transform: translate(-50%, 20px); background: #27251F; color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 180ms ease-out, transform 220ms cubic-bezier(.2,.9,.3,1); max-width: 88%; text-align: center; z-index: 9; }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+  .scrim { position: absolute; inset: 0; background: rgba(30,28,20,0.35); display: grid; place-items: center; z-index: 8; animation: fade 160ms ease-out; padding: 16px; }
+  @keyframes fade { from { opacity: 0; } }
+  .dialog { background: var(--card); border-radius: 18px; padding: 20px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.25); }
+  .dlg-title { margin: 0 0 6px; font: 600 1.05rem var(--serif); }
+  .dialog p { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
+  .dialog .row { justify-content: flex-end; gap: 8px; }
+  .btn { border: 0; border-radius: 10px; font: 600 14px var(--sans); padding: 10px 14px; min-height: 44px; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.red { background: var(--err); color: #fff; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 12px; font-size: 14px; }
+
+  .arb { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; margin-top: 12px; }
+  .arb b { font-weight: 600; }
+  .note { font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 860px) { .stage { gap: 24px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .card, .toast, .menu, .scrim { transition: opacity 150ms ease !important; animation: none !important; }
+    .card.leaving { transform: none; }
+    .after .card:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Devis — carte mobile</h1>
+  <p class="lede">Liste des devis sur téléphone. Spec : <code>specs/devis-list-mobile-card.md</code> (Draft).</p>
+
+  <div class="summary">
+    <section>
+      <h2>Constat</h2>
+      <ul>
+        <li>Logement et dates collés : « Gite10/05/2027 ». <code>display="block"</code> n'a plus d'effet depuis MUI 9.</li>
+        <li>Le n° de devis et deux badges d'origine passent avant le nom du client.</li>
+        <li>« Supprimer » en rouge, au même niveau que « PDF ».</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Proposition</h2>
+      <ul>
+        <li>Ordre : qui → logement → séjour (« 10 → 13 mai 2027 · 3 nuits ») → n° et montant.</li>
+        <li>Un seul badge d'origine.</li>
+        <li>PDF visible, « Confirmer » et « Supprimer » dans « ⋯ ».</li>
+        <li>Nuits, libellé de séjour et total TTC calculés par le serveur.</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Hors périmètre</h2>
+      <ul>
+        <li>Le tableau desktop (il déborde aussi à 1280 px, mais ce n'est pas ce qui a été signalé).</li>
+        <li>Recherche et tri.</li>
+      </ul>
+      <h2 style="margin-top:12px">Risque</h2>
+      <ul><li>Faible : ajout de champs à <code>GET /api/devis</code>, rien de retiré.</li></ul>
+    </section>
+  </div>
+
+  <h2>Essayer</h2>
+  <p class="note">À droite, la carte proposée est vivante : toucher une carte, « PDF », « ⋯ », puis « Supprimer ».</p>
+  <div class="controls">
+    <div class="ctl"><span>Données</span>
+      <div class="seg" data-key="data"><button aria-pressed="true" data-v="real">Réelles</button><button aria-pressed="false" data-v="worst">Pire cas</button><button aria-pressed="false" data-v="none">Aucun devis</button></div>
+    </div>
+    <div class="ctl"><span>Arbitrage 1 — actions</span>
+      <div class="seg" data-key="actions"><button aria-pressed="true" data-v="menu">PDF + ⋯</button><button aria-pressed="false" data-v="icons">4 icônes</button></div>
+    </div>
+    <div class="ctl"><span>Arbitrage 2 — origine</span>
+      <div class="seg" data-key="origin"><button aria-pressed="true" data-v="one">1 badge</button><button aria-pressed="false" data-v="two">2 badges</button></div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="col"><b>Aujourd'hui<small>v3.12.0</small></b><div class="phone old" id="old"></div></div>
+    <div class="col"><b>Proposé</b><div class="phone after" id="new"></div></div>
+  </div>
+
+  <h2>Arbitrages en attente</h2>
+  <div class="arb">
+    <p><b>1. Actions sur la carte.</b> « PDF + ⋯ » (proposé) éloigne la suppression d'un geste et libère la ligne du montant. « 4 icônes » garde tout à portée d'un toucher.</p>
+    <p><b>2. Origine.</b> « 1 badge » (proposé) : « Réseaux sociaux · Instagram » quand le canal est connu, sinon « Site internet ». « 2 badges » garde l'affichage d'aujourd'hui.</p>
+  </div>
+</main>
+
+<script>
+(() => {
+  const I = {
+    globe: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-2.95a15.7 15.7 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.9 8ZM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96ZM4.26 14a8.2 8.2 0 0 1 0-4h3.38a16.5 16.5 0 0 0 0 4H4.26Zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56A7.99 7.99 0 0 1 5.08 16Zm2.95-8H5.08a7.99 7.99 0 0 1 4.33-3.56A15.7 15.7 0 0 0 8.03 8ZM12 19.96A14.1 14.1 0 0 1 10.09 16h3.82A14.1 14.1 0 0 1 12 19.96ZM14.34 14H9.66a14.7 14.7 0 0 1 0-4h4.68a14.7 14.7 0 0 1 0 4Zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56ZM16.36 14a16.5 16.5 0 0 0 0-4h3.38a8.2 8.2 0 0 1 0 4h-3.38Z"/></svg>',
+    pin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 2a5 5 0 0 1 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9a5 5 0 0 1 5-5Zm0 2.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"/></svg>',
+    pdf: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5v2ZM19 9h-4V3H9v6H5l7 7 7-7Z"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9Z"/></svg>',
+    del: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z"/></svg>',
+    more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+    menu: '<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M3 18h18v-2H3v2Zm0-5h18v-2H3v2Zm0-7v2h18V6H3Z"/></svg>',
+  };
+  const STATUS = { draft: ['Brouillon', 'b-neutral'], sent: ['Envoyé', 'b-info'], accepted: ['Accepté', 'b-ok'], converted: ['Converti', 'b-ok'] };
+  const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+  const REAL = [
+    { n: '2026-10-014', first: 'Camille', last: 'Martin', logement: 'La Granja', s: '2027-05-10', e: '2027-05-13', st: 'draft', site: true, originLabel: 'Réseaux sociaux · Instagram', ttc: 1254.4 },
+    { n: '2026-10-013', first: 'Hélène', last: 'Dubois-Lefèvre', logement: "L'Estiva", s: '2026-12-30', e: '2027-01-02', st: 'sent', site: false, ttc: 612 },
+    { n: '2026-10-011', first: 'Jean', last: 'Repetto', logement: 'La Granja', s: '2027-07-24', e: '2027-07-31', st: 'accepted', site: true, originLabel: 'Origine inconnue', ttc: 3480 },
+    { n: '2026-10-009', first: 'Lucas', last: 'Moreau', logement: "L'Estiva", s: '2027-06-28', e: '2027-07-02', st: 'converted', site: false, ttc: 798.2 },
+    { n: '2026-10-004', first: 'Sofia', last: 'Bernardi', logement: 'La Granja', s: '2027-04-17', e: '2027-04-19', st: 'draft', site: true, originLabel: 'Recherche Google', ttc: 734.6 },
+  ];
+  const WORST = [
+    { n: '2026-10-099', first: 'Marie-Charlotte', last: 'de La Rochefoucauld-Montbazon', logement: 'La Granja — gîte de groupe 15 personnes avec bain nordique', s: '2027-08-01', e: '2027-08-22', st: 'sent', site: true, originLabel: 'Campagne · lancement-printemps-2027-instagram-reels', ttc: 12840.55 },
+    { n: '2026-10-100', first: 'Ö', last: 'Li', logement: "L'Estiva", s: '2027-03-31', e: '2027-04-01', st: 'converted', site: false, ttc: 0 },
+    { n: '2026-10-101', first: '', last: 'Wolfeschlegelsteinhausenbergerdorff', logement: 'La Granja', s: '2026-12-31', e: '2027-01-01', st: 'accepted', site: true, originLabel: 'Origine inconnue', ttc: 405 },
+  ];
+
+  const state = { data: 'real', actions: 'menu', origin: 'one' };
+  let rows = [];
+  const eur = (v) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v);
+  const d = (iso) => { const [y, m, dd] = iso.split('-').map(Number); return { y, m, d: dd }; };
+  const fr = (iso) => iso.split('-').reverse().join('/');
+  const nights = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+  function stayLabel(a, b) {
+    const s = d(a), e = d(b), n = nights(a, b);
+    let range;
+    if (s.y !== e.y) range = `${s.d} ${MONTHS[s.m - 1]} ${s.y} → ${e.d} ${MONTHS[e.m - 1]} ${e.y}`;
+    else if (s.m !== e.m) range = `${s.d} ${MONTHS[s.m - 1]} → ${e.d} ${MONTHS[e.m - 1]} ${e.y}`;
+    else range = `${s.d} → ${e.d} ${MONTHS[e.m - 1]} ${e.y}`;
+    return `${range} · ${n} nuit${n > 1 ? 's' : ''}`;
+  }
+  const name = (r) => `${r.first} ${r.last}`.trim();
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const statusBadge = (r) => `<span class="badge ${STATUS[r.st][1]}">${STATUS[r.st][0]}</span>`;
+
+  function chrome(phone) {
+    phone.innerHTML = `<div class="appbar">${I.menu}<span class="logo">GuestFlow</span></div>
+      <div class="bar"><div class="bar-title">Devis</div><button class="newbtn" type="button">+ Nouveau devis</button></div>
+      <div class="scroll"></div><div class="toast" role="status"></div>`;
+    return phone.querySelector('.scroll');
+  }
+
+  function renderOld() {
+    const list = chrome(document.getElementById('old'));
+    if (!rows.length) { list.innerHTML = '<div class="empty">Aucun devis trouvé.</div>'; return; }
+    list.innerHTML = rows.map((r) => `
+      <div class="card">
+        <div class="row between" style="align-items:flex-start">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0">
+            <span class="num">${r.n}</span>
+            ${r.site ? `<span class="badge b-info">${I.globe}Site internet</span><span class="badge b-neutral origin">${I.pin}<span>${esc(r.originLabel)}</span></span>` : ''}
+          </div>${statusBadge(r)}
+        </div>
+        <div style="margin-top:8px;font-weight:600;font-size:14.5px;word-break:break-word">${esc(name(r))}</div>
+        <div class="cap">${esc(r.logement)}${fr(r.s)} → ${fr(r.e)}</div>
+        <div class="row between" style="margin-top:10px">
+          <span class="amount">${eur(r.ttc)}</span>
+          <span class="icons"><span class="ib">${I.edit}</span><span class="ib">${I.pdf}</span>${r.st !== 'converted' ? `<span class="ib">${I.check}</span>` : ''}<span class="ib danger">${I.del}</span></span>
+        </div>
+      </div>`).join('');
+  }
+
+  function originBadges(r) {
+    if (!r.site) return '';
+    if (state.origin === 'two') return `<span class="badge b-info">${I.globe}Site</span><span class="badge b-neutral origin">${I.pin}<span>${esc(r.originLabel)}</span></span>`;
+    const label = r.originLabel && r.originLabel !== 'Origine inconnue' ? r.originLabel : 'Site internet';
+    return `<span class="badge b-info origin" title="${esc(r.originLabel || '')}">${I.globe}<span>${esc(label)}</span></span>`;
+  }
+
+  function renderNew() {
+    const phone = document.getElementById('new');
+    const list = chrome(phone);
+    if (!rows.length) { list.innerHTML = '<div class="empty">Aucun devis trouvé.</div>'; return; }
+    list.innerHTML = rows.map((r, i) => {
+      const actions = state.actions === 'menu'
+        ? `<button class="ib" data-act="pdf" aria-label="Télécharger le PDF">${I.pdf}</button><button class="ib" data-act="more" aria-label="Plus d'actions" aria-haspopup="menu">${I.more}</button>`
+        : `<button class="ib" data-act="open" aria-label="Modifier">${I.edit}</button><button class="ib" data-act="pdf" aria-label="Télécharger le PDF">${I.pdf}</button>${r.st !== 'converted' ? `<button class="ib" data-act="convert" aria-label="Confirmer en réservation">${I.check}</button>` : ''}<button class="ib danger" data-act="delete" aria-label="Supprimer">${I.del}</button>`;
+      return `
+      <div class="card" data-i="${i}" tabindex="0" role="button" aria-label="Ouvrir le devis ${r.n}" style="max-height:400px">
+        <div class="row between"><span class="name">${esc(name(r))}</span>${statusBadge(r)}</div>
+        <div class="row between" style="margin-top:6px"><span class="logement" style="margin:0;flex:1;min-width:0">${esc(r.logement)}</span><span class="row" style="flex:0 1 auto;min-width:0;max-width:62%;justify-content:flex-end;gap:4px">${originBadges(r)}</span></div>
+        <div class="stay">${stayLabel(r.s, r.e)}</div>
+        <div class="row between foot">
+          <span class="num" style="flex:1">${r.n}</span>
+          <span class="amount">${eur(r.ttc)}</span>
+          ${state.actions === 'menu' ? `<span class="icons" style="margin:-8px -10px -8px 0">${actions}</span>` : ''}
+        </div>
+        ${state.actions === 'menu' ? '' : `<div class="row" style="justify-content:flex-end;margin:4px -8px -6px 0"><span class="icons">${actions}</span></div>`}
+      </div>`;
+    }).join('');
+  }
+
+  function toast(phone, msg) {
+    const t = phone.querySelector('.toast');
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1800);
+  }
+  function closeMenus(phone) { phone.querySelectorAll('.menu').forEach((m) => m.remove()); }
+  function askDelete(phone, r, card) {
+    const s = document.createElement('div');
+    s.className = 'scrim';
+    s.innerHTML = `<div class="dialog" role="dialog" aria-modal="true"><div class="dlg-title">Supprimer le devis</div><p>Supprimer le devis ${r.n} ? Cette action est irréversible.</p>
+      <div class="row"><button class="btn ghost" data-x="no">Annuler</button><button class="btn red" data-x="yes">Supprimer</button></div></div>`;
+    phone.appendChild(s);
+    s.addEventListener('click', (e) => {
+      const x = e.target.closest('[data-x]')?.dataset.x;
+      if (!x && e.target !== s) return;
+      s.remove();
+      if (x !== 'yes') return;
+      card.style.maxHeight = card.offsetHeight + 'px';
+      card.classList.add('leaving');
+      setTimeout(() => { card.classList.add('gone'); }, 180);
+      setTimeout(() => { rows.splice(rows.indexOf(r), 1); renderAll(); toast(document.getElementById('new'), 'Devis supprimé.'); }, 460);
+    });
+  }
+
+  document.getElementById('new').addEventListener('click', (e) => {
+    const phone = e.currentTarget;
+    if (e.target.closest('.scrim')) return;
+    const menuBtn = e.target.closest('.menu button');
+    if (menuBtn) {
+      const card = menuBtn.closest('.card'); const r = rows[card.dataset.i];
+      closeMenus(phone);
+      if (menuBtn.dataset.m === 'convert') toast(phone, `Devis ${r.n} → réservation (après confirmation).`);
+      if (menuBtn.dataset.m === 'delete') askDelete(phone, r, card);
+      return;
+    }
+    const btn = e.target.closest('[data-act]');
+    const card = e.target.closest('.card');
+    if (!card) { closeMenus(phone); return; }
+    const r = rows[card.dataset.i];
+    if (!btn) { closeMenus(phone); toast(phone, r.st === 'converted' ? `Ouvre la réservation issue de ${r.n}` : `Ouvre le devis ${r.n}`); return; }
+    e.stopPropagation();
+    const act = btn.dataset.act;
+    if (act === 'pdf') { closeMenus(phone); toast(phone, `devis-${r.n}.pdf téléchargé`); }
+    if (act === 'open') toast(phone, `Ouvre le devis ${r.n}`);
+    if (act === 'convert') toast(phone, `Devis ${r.n} → réservation (après confirmation).`);
+    if (act === 'delete') askDelete(phone, r, card);
+    if (act === 'more') {
+      const open = card.querySelector('.menu'); closeMenus(phone); if (open) return;
+      const m = document.createElement('div'); m.className = 'menu'; m.setAttribute('role', 'menu');
+      m.innerHTML = (r.st !== 'converted' ? `<button role="menuitem" data-m="convert">${I.check}Confirmer en réservation</button>` : '')
+        + `<button role="menuitem" class="danger" data-m="delete">${I.del}Supprimer</button>`;
+      card.appendChild(m);
+    }
+  });
+  document.getElementById('new').addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('card')) { e.preventDefault(); e.target.click(); }
+    if (e.key === 'Escape') closeMenus(e.currentTarget);
+  });
+
+  function load() { rows = state.data === 'real' ? REAL.map((r) => ({ ...r })) : state.data === 'worst' ? WORST.map((r) => ({ ...r })) : []; }
+  function renderAll() { renderOld(); renderNew(); }
+  document.querySelectorAll('.seg').forEach((seg) => seg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    state[seg.dataset.key] = b.dataset.v;
+    if (seg.dataset.key === 'data') load();
+    renderAll();
+  }));
+  load(); renderAll();
+})();
+</script>
+</body>
+</html>

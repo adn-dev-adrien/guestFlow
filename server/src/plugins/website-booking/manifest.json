@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.7.0",
+  "sdk": "^1.8.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -55,6 +55,9 @@
     ],
     "1.5.3": [
       "Paramètres › Intégrations › Site : une connexion illisible est signalée, avec « Réessayer », au lieu d’un onglet vide."
+    ],
+    "1.6.0": [
+      "Personnes supplémentaires : le devis du site porte leur supplément sur sa propre ligne, calculé par GuestFlow, et la capacité publique du logement est toujours plafonnée."
     ]
   }
 }

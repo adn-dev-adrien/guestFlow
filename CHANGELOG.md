@@ -4,6 +4,21 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-10-22
+
+### Summary
+- Avant d'installer : renseignez « Max voyageurs » sur chaque logement (Réglages des logements, onglet Général), par exemple La Granja 15 et L'Estiva 5.
+- Site : le récapitulatif de prix affiche enfin la ligne « Personne(s) supplémentaire(s) », et les lignes s'additionnent au total.
+- Site : le choix des voyageurs rappelle combien de personnes le prix de base couvre ; le supplément se recalcule dès qu'on change le nombre.
+- Site : on ne peut plus demander plus de voyageurs que la capacité ; sans capacité saisie, la limite est le nombre de personnes incluses.
+- Le plugin WordPress passe en 1.14.2, à mettre à jour depuis l'admin WordPress (Extensions → Mises à jour) après l'installation.
+
+### Added
+- **Site booking — extra-guest supplement shown** (spec `site-extra-guest-line.md`, 2026-10-22). The public quote carries a ready-to-print `extraGuests` row (`count`, `total`, `originalTotal`, `offered`), and WordPress plugin 1.14.2 lists it in the price summary so the lines add up to the total; the guest selector says how many guests the base price covers. +16 server tests.
+
+### Changed
+- **Public guest cap never unconfigured** (spec `site-extra-guest-line.md`, 2026-10-22). On `/public/v1`, a property with `maxGuests = 0` now advertises and enforces its included guests (then 2) instead of accepting any party; the back-office tolerance is unchanged. Set `maxGuests` on each property (La Granja 15, L'Estiva 5) before installing.
+
 ## [3.12.0] - 2026-10-22
 
 ### Summary

@@ -44,6 +44,7 @@ const CORE_MODULES = Object.freeze({
   pricing: '../../utils/pricing', // the quote engine
   reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
   capacity: '../../utils/capacity', // guest capacity of a property
+  devisHelpers: '../../utils/devisHelpers', // the extra-guest row of a quote, read from its pricing
   blockedDates: '../../utils/blockedDates', // availability, shared with the public payment
   changeover: '../../utils/changeover', // arrival/departure weekdays, for the site's next bookable night (SDK 1.3.0)
   mealPortions: '../../utils/mealPortions', // per-person card options and their caps
