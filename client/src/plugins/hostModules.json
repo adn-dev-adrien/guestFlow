@@ -21,6 +21,7 @@
     "FormControlLabel",
     "FormGroup",
     "FormHelperText",
+    "FormLabel",
     "Grid",
     "IconButton",
     "InputAdornment",

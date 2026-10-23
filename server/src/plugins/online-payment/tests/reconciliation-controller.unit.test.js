@@ -196,3 +196,20 @@ test('rule 2 — the start date defaults to the day the feature is first opened'
   assert.equal(controller.list().body.startDate, '2026-10-23');
   assert.equal(store.get('reconciliationStartDate'), '2026-10-23');
 });
+
+test('rule 18 — manual linking: the candidates of the dialog, an allocation spread over two échéances of one credit', () => {
+  const a = addReservation({ balanceAmount: 400, finalPrice: 400 });
+  const b = addReservation({ clientId: 2, balanceAmount: 300, finalPrice: 300 });
+  const { controller, transactions } = build();
+  transactions.upsertMany([credit('t1', 70000)], { bankAccountId: 'acc-1' });
+  const found = controller.candidates({ q: 'rossi' }).body.items;
+  assert.deepEqual(found.map((i) => i.reservation.id), [b], 'the dialog filters by client');
+  const answer = controller.confirm({ transactionId: 't1', allocations: [
+    { reservationId: a, ledgerKey: 'balance', amountCents: 40000 },
+    { reservationId: b, ledgerKey: 'balance', amountCents: 30000 },
+  ], user: USER });
+  assert.equal(answer.body.marked.length, 2, 'one credit settles two fiches');
+  assert.equal(row(a).balancePaid, 1);
+  assert.equal(row(b).balancePaid, 1);
+  assert.equal(controller.undo({ transactionId: 't1', user: USER }).body.restored.length, 2);
+});

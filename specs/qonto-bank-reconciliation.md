@@ -513,7 +513,7 @@ The interactive mock-up of the summary page is the reference
       1.2.0, SDK 1.6.0, `reservationPaymentMark`, recette CSV tool.
 - [x] Server tests: `reconciliation-matcher` (16), `reconciliation-receipt-states` (10),
       `reconciliation-transactions-reader` (6), `reconciliation-expected-receipts` (8),
-      `reconciliation-controller` (16), `reservation-payment-mark` (3),
+      `reconciliation-controller` (17), `reconciliation-settings` (4), `reservation-payment-mark` (3),
       `bank-transactions-from-qonto-csv` (4); four core tests updated (SDK 1.6.0, job list, page owner).
 - [x] Client (card, page, dialog, settings card, home alert) and its tests: `ReconciliationPage.test.jsx` (6), `ReservationReconciliationCard.test.jsx` (8); whole client suite 2053 passing. The card sits at `reservation.cards` order 5, right under the Finance card; the dialog and settings card follow the MUI v9 `slotProps` API.
 - [x] Recette on the shadow `:4103` (production copy of 2026-10-22, secrets purged, no credentials and a dead Qonto base URL so nothing can leave; real CSV export of 114 credits; start date set back to 2026-01-01 to exercise the history): 58 expected receipts, 39 proposed (most « sûr », to the cent), 11 gaps, 15 unmatched credits, 26 other credits. Browser run on desktop and 390 px: confirm → the fiche is marked received at the bank date and its ledger reads « Tout est perçu », « Défaire » → proposed again; manual link refuses an over-allocation. The detailed report holds real names and amounts, so it stays in the private shadow folder, not in this public repository.
