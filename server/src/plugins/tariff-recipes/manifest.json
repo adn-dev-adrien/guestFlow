@@ -1,7 +1,7 @@
 {
   "id": "tariff-recipes",
   "name": "Recettes tarifaires",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Génère les saisons et les prix à partir d’une recette.",
   "icon": "trending-up",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.4.0",
+  "sdk": "^2.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -24,6 +24,9 @@
     ],
     "1.1.0": [
       "Accueil : le calendrier saisonnier à relire rejoint « À traiter », compté par le serveur."
+    ],
+    "1.1.1": [
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

@@ -86,7 +86,8 @@ test('rule 25: the status counts the active plugins to configure', () => {
 });
 
 test('rule 25: ctx.setupStatus is an SDK 1.5.0 entry point and takes a function only', () => {
-  assert.equal(satisfies(SDK_VERSION, '^1.5.0'), true);
+  // Still there in SDK 2 (specs/sas-arrival-total-server-side.md rule 14 removed `recapLines` only).
+  assert.equal(satisfies(SDK_VERSION, '>=1.5.0'), true);
   const ctx = createContext('setup-probe', { settingsModel: () => ({}) });
   assert.throws(() => ctx.setupStatus('nope'), /setupStatus needs a function/);
   ctx.setupStatus(() => 'à connecter');

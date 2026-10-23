@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^1.1.0",
+  "sdk": "^2.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -42,6 +42,10 @@
     ],
     "1.0.7": [
       "L’avertissement avant effacement annonce aussi les temps de chauffe, de maintien en température, la soirée et les tarifs extérieurs que l’effacement remet à zéro."
+    ],
+    "1.1.0": [
+      "Le supplément de soirée du récapitulatif d’arrivée vient du serveur.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

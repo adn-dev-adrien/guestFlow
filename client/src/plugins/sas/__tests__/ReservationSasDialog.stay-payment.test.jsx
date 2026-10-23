@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, stayDue, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -15,6 +16,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -23,7 +25,11 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 // ── « Séjour à régler » — specs/collect-stay-payment-at-check-in.md ──────────────────────────────
 

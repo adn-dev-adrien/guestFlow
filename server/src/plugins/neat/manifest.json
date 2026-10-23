@@ -1,7 +1,7 @@
 {
   "id": "neat",
   "name": "Assurance annulation Neat",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Souscription automatique de l’assurance annulation.",
   "icon": "umbrella",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^1.5.0",
+  "sdk": "^2.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -30,6 +30,9 @@
     "1.2.1": [
       "Une souscription en échec dont le séjour n’est plus assuré (annulé, ligne retirée, séjour commencé, acompte non payé) est abandonnée : la nouvelle tentative ne souscrit plus de contrat payant.",
       "Un seul passage de souscription à la fois, même juste après un effacement des données."
+    ],
+    "1.2.2": [
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

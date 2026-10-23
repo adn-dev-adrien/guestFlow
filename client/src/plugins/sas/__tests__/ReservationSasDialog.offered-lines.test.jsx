@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -15,6 +16,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -23,7 +25,11 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 // ---- « Offrir » a recap line (specs/sas-offer-complement-lines.md) ----
 
@@ -55,16 +61,18 @@ test('arrival recap: offering a linen element drops it from the total and rides 
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByText(/Total : 5,00 €/)).toBeInTheDocument();
   clickBtn('Offrir');
-  // The line keeps its real price on screen (struck through); the total drops to 0.
-  expect(screen.getByText(/Taie d'oreiller : 5,00 €/)).toBeInTheDocument();
-  expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
+  // specs/sas-arrival-total-server-side.md rule 19 — the toggle answers at once, the money follows the
+  // server's answer. The line keeps its real price on screen (struck through); the total drops to 0.
   expect(screen.getByRole('button', { name: '✓ Offert' })).toBeInTheDocument();
+  expect(await screen.findByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
+  expect(screen.getByText(/Taie d'oreiller : 5,00 €/)).toBeInTheDocument();
 
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  // Sent at its REAL price with the gesture — the server is what stores it at 0 €.
-  expect(arg.complementItems).toEqual([{ label: 'Taie d\'oreiller', amount: 5, offered: true }]);
+  // Sent as intent with the gesture — the server prices it and stores it at 0 € (rules 5-6).
+  expect(arg.linenItems).toEqual([{ itemId: 1, qty: 1, offered: true }]);
+  expect(arg.complementItems).toBeUndefined();
 });
 
 test('arrival recap: offering a pre-existing extra sends its ref in offeredExtras', async () => {
@@ -83,7 +91,7 @@ test('arrival recap: offering a pre-existing extra sends its ref in offeredExtra
   expect(screen.getByText(/Total : 20,00 €/)).toBeInTheDocument();
   clickBtn('Offrir');
   // A stored complement was owed before this run: the server's flag keeps the badge away, the total reads 0.
-  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
+  expect(await screen.findByText(/Total : 0,00 €/)).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
   // Nothing left to collect → the settlement buttons disappear (§3.3 rule 11).
   expect(screen.queryByRole('button', { name: 'CB / Chèque' })).toBeNull();
 
@@ -115,7 +123,7 @@ test('arrival recap reopen: a line offered at the previous commit comes back « 
   expect(screen.getByText('Rien à percevoir')).toBeInTheDocument(); // specs/ui-review-2026-10-19-operations.md rule 4
   // Undoing the gesture bills it again.
   clickBtn('✓ Offert');
-  expect(screen.getByText(/Total : 20,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total : 20,00 €/)).toBeInTheDocument();
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   expect(api.commitArrivalSas.mock.calls[0][1].offeredExtras).toEqual([]);

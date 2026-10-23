@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^1.0.0",
+  "sdk": "^2.0.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -48,6 +48,9 @@
     ],
     "1.0.10": [
       "Commentaire du code débarrassé du prénom d’un voyageur et d’un numéro de réservation ; l’export ne change pas."
+    ],
+    "1.0.11": [
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

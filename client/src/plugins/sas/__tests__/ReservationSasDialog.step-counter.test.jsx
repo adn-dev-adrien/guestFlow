@@ -6,11 +6,13 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 0 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
@@ -34,4 +36,8 @@ test('rule 3 — « N sur M », and an opened page keeps its question\'s number'
   expect(screen.queryByText(/sur 4/)).toBeNull();
   clickBtn('Suivant');
   expect(await screen.findByText('3 sur 3')).toBeInTheDocument();
+});
+
+beforeEach(() => {
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
 });

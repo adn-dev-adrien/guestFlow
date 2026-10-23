@@ -4,7 +4,7 @@
 import { lazy } from 'react';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import {
-  initialValue, payloadOf, recapLines, recapNotes,
+  initialValue, payloadOf, recapNotes,
 } from './sasStep';
 import { countResourceTasks } from './planningTasks';
 
@@ -34,7 +34,6 @@ export default {
       skipLabel: 'Planifier plus tard',
       initialValue,
       payloadOf,
-      recapLines,
       recapNotes,
       Component: lazy(() => import('./SasSchedulingStep')),
     }],

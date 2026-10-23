@@ -51,6 +51,11 @@ function buildController({ captures, reservation }) {
     if (k === 'getRow') return () => ({ ...reservation, endOfStayComplementDetail: '[]' });
     if (k === 'getSasUpsellOptions') return () => ({ cleaning: { present: false }, bathLinen: { present: false } });
     if (k === 'listSasArrivalCustomLines') return () => [];
+    // specs/sas-arrival-total-server-side.md — the commit plans before it writes: nothing billed here.
+    if (k === 'resolveSasArrivalItems') return () => [];
+    if (k === 'planArrivalSas') return () => ({
+      lines: [], existingTotal: 0, addedTotal: 0, arrivalComplementTotal: 0, supplementOutsideComplement: 0, adjusted: null,
+    });
     if (k === 'commitArrivalSas') return (...args) => { captures.writes.push({ fn: 'commitArrivalSas', args }); return 0; };
     if (k === 'commitDepartureSas') return (...args) => { captures.writes.push({ fn: 'commitDepartureSas', args }); };
     if (k === 'addHistoryEntry') return (...args) => { captures.writes.push({ fn: 'addHistoryEntry', args }); };

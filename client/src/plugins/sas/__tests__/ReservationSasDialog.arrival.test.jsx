@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -15,6 +16,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -23,7 +25,11 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 // specs/arrival-departure-sas.md rule 3
 test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced items, commit payload', async () => {
@@ -62,23 +68,23 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   expect(api.commitArrivalSas).toHaveBeenCalledWith(1, {
     cautionReceived: true,
-    // specs/sas-upsells-activate-catalogue-option.md §3.1 — only the LINEN elements are custom lines;
-    // the ménage rides its boolean and lands on the catalogue option, priced server-side.
-    complementItems: [
-      // specs/sas-offer-complement-lines.md §4.3 — every item carries its geste-commercial flag.
-      { label: 'Taie d\'oreiller', amount: 5, offered: false },
-    ],
+    // specs/sas-arrival-total-server-side.md rules 4-7 — the draft the preview priced: the LINEN
+    // elements by item and quantity (priced by the server from « Facturables »), no kept line; the
+    // ménage rides its boolean and lands on the catalogue option, priced server-side.
+    // specs/sas-offer-complement-lines.md §4.3 — every item carries its geste-commercial flag.
+    linenItems: [{ itemId: 1, qty: 1, offered: false }],
+    keptLines: [],
+    soldOptions: undefined,
     cleaningAdded: true,
     bathLinenAdded: undefined,      // step not shown (no offer in this fixture)
     cleaningOffered: false,
     bathLinenOffered: false,
     offeredExtras: [],
     departureHandoverNote: '',
-    // specs/single-payment-at-check-in.md §3.1 — nothing is collectible on the stay here, so the
-    // server never offers the unified settlement and the commit says « settle them separately »:
-    // the two fields below keep deciding, exactly as they did before this feature.
+    // specs/sas-arrival-total-server-side.md rule 8 — the dialog only says whether « Régler
+    // séparément » was chosen; whether one gesture is possible at all is the server's call.
     arrivalPaymentMode: 'defer',
-    arrivalPaymentSplit: true,
+    arrivalPaymentSplit: false,
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the « Complément encaissé » box was not
     // ticked in this flow, so the complement stays unsettled (→ recalled at checkout).
     complementSettled: false,
@@ -89,6 +95,8 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
     stayPaidCash: false,
     // specs/plugins-phase-3c-hourly-resources.md rule 6 — no step of another plugin ran.
     pluginSteps: {},
+    // Rule 22 — the total the recap showed, compared by the server, never used as an amount.
+    displayedArrivalTotal: 85,
   });
 });
 
@@ -130,7 +138,7 @@ test('arrival SAS reopen: caution hidden once received, ménage reminder rides o
       // « déjà dû » so the total stays 5 €, not double it to 10 € (specs/reopen-completed-sas.md §4).
       complementAmount: 5,
       // The prior SAS complement, surfaced as a SAS-origin custom option (as getByIdWithDetails does).
-      options: [{ isCustom: 1, sasArrivalOrigin: 1, inComplement: 1, description: 'Taie d\'oreiller', unitPrice: 5 }],
+      options: [{ isCustom: 1, customOptionId: 41, sasArrivalOrigin: 1, inComplement: 1, description: 'Taie d\'oreiller', unitPrice: 5 }],
     },
     cleaning: { included: true, price: null },
   }));
@@ -153,7 +161,8 @@ test('arrival SAS reopen: caution hidden once received, ménage reminder rides o
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
   expect(arg.cautionReceived).toBeUndefined(); // caution step hidden → marker left untouched (tri-state)
-  expect(arg.complementItems).toEqual([{ label: 'Taie d\'oreiller', amount: 5, offered: false }]); // exactly one, no dup
+  expect(arg.linenItems).toEqual([{ itemId: 1, qty: 1, offered: false }]); // exactly one, no dup
+  expect(arg.keptLines).toEqual([]);
   expect(arg.departureHandoverNote).toBe('Clé sous le pot');
 });
 

@@ -145,7 +145,7 @@ function DayStrip({ days, activeDate, onPick }) {
   );
 }
 
-function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove, onSupplement }) {
+function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
   const [days, setDays] = useState(resource.days || []);
   const [activeDate, setActiveDate] = useState((resource.days || [])[0]?.date || '');
   const [loading, setLoading] = useState(false);
@@ -170,8 +170,6 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove, onSupp
         pending: ownBlocks.map((b) => ({ date: b.date, start: b.start, end: b.end })),
       });
       setDays(payload?.days || []);
-      // The server's supplement for every block on the card — what the recap bills (rule 32).
-      if (onSupplement) onSupplement(resource.resourceId, Number(payload?.supplement || 0));
     } catch {
       // A failed refresh must SURFACE. An empty grid would read as « tout est libre » and invite a
       // double booking (specs/ds-sweep-planning.md rule 9).
@@ -286,7 +284,7 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove, onSupp
   );
 }
 
-export default function SasResourceSchedulingPage({ reservationId, scheduling, blocks, onAdd, onRemove, onSupplement }) {
+export default function SasResourceSchedulingPage({ reservationId, scheduling, blocks, onAdd, onRemove }) {
   const resources = scheduling?.resources || [];
   const totalSupplement = blocks.reduce((sum, b) => sum + Number(b.supplement || 0), 0);
 
@@ -300,7 +298,6 @@ export default function SasResourceSchedulingPage({ reservationId, scheduling, b
           blocks={blocks}
           onAdd={onAdd}
           onRemove={onRemove}
-          onSupplement={onSupplement}
         />
       ))}
       {totalSupplement > 0 && (

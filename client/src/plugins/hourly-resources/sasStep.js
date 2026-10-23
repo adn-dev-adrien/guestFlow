@@ -7,12 +7,9 @@ import { seedResourceBlocks } from './scheduling';
 const resourcesOf = (data) => (Array.isArray(data && data.resources) ? data.resources : []);
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
-/** The blocks already placed, and the supplement the server computed for them. */
+/** The blocks already placed. What they owe is billed by the server (SDK 2.0.0 — no client `recapLines`). */
 export function initialValue(data) {
-  return {
-    blocks: seedResourceBlocks(data),
-    supplements: Object.fromEntries(resourcesOf(data).map((r) => [r.resourceId, Number(r.supplement || 0)])),
-  };
+  return { blocks: seedResourceBlocks(data) };
 }
 
 /** What the commit sends under `pluginSteps.resourceScheduling` (server rule 6). */
@@ -21,13 +18,6 @@ export function payloadOf(value, data) {
     blocks: (value?.blocks || []).map((b) => ({ resourceId: b.resourceId, date: b.date, start: b.start, end: b.end })),
     resourceIds: resourcesOf(data).map((r) => r.resourceId),
   };
-}
-
-/** The evening supplements, as the server prices them, for the recap and its total. */
-export function recapLines(value, data) {
-  return resourcesOf(data)
-    .map((r) => ({ label: r.supplementLabel, amount: round2(value?.supplements?.[r.resourceId]) }))
-    .filter((line) => line.amount > 0);
 }
 
 /** The hours sold but on no slot: the step can be skipped, so the recap is what keeps them in view. */

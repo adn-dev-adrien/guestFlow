@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -13,13 +14,18 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 0 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 const ADDED_GUEST = {
   platform: 'Booking', adults: 5, cautionAmount: 0,
@@ -43,7 +49,7 @@ test('the added guests are listed in the arrival recap and counted in its total'
 test('offering the added guests drops them from the total and sends their ref', async () => {
   await openRecap(ADDED_GUEST);
   clickBtn('Offrir');
-  expect(screen.getByText(/Total : 0,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total : 0,00 €/)).toBeInTheDocument(); // rule 19 — the money follows the server
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   expect(api.commitArrivalSas.mock.calls[0][1].offeredExtras).toEqual([{ kind: 'extraGuests', id: 0 }]);
@@ -55,5 +61,5 @@ test('already offered on the fiche → reopens as « ✓ Offert », undoable', a
   // Nothing owed at the door reads as the « Rien à percevoir » badge (ui-review-2026-10-19-operations rule 4).
   expect(screen.getByText('Rien à percevoir')).toBeInTheDocument();
   clickBtn('✓ Offert');
-  expect(screen.getByText(/Total : 40,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total : 40,00 €/)).toBeInTheDocument();
 });

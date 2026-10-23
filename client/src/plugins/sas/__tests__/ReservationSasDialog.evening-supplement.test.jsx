@@ -8,11 +8,13 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 20 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
@@ -20,7 +22,11 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+});
 
 const LABEL = 'Bain nordique — supplément soirée';
 
@@ -58,7 +64,7 @@ function reopened({ hoursSold = 2, applicable = false } = {}) {
 async function reachRecap() {
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  for (let i = 0; i < 6 && screen.queryAllByText(/Récapitulatif —/).length === 0; i += 1) {
+  for (let i = 0; i < 6 && screen.queryAllByText(/^Récapitulatif/).length === 0; i += 1) {
     clickBtn('Suivant');
   }
   await screen.findByText(/Récapitulatif —/);
@@ -75,7 +81,8 @@ test('rule 32: a re-opened SAS shows the supplement once and never sends it back
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  expect(arg.complementItems).toEqual([]);
+  expect(arg.keptLines).toEqual([]); // specs/sas-arrival-total-server-side.md rule 7
+  expect(arg.linenItems).toEqual([]);
   expect(arg.pluginSteps).toEqual({}, 'the step did not run: the stored hours stay as they are');
 });
 

@@ -8,11 +8,13 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: (id) => id !== 'hourly-resources' }));
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 20 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
@@ -37,7 +39,7 @@ test('rule 8: the supplement billed before stays in the recap, fixed, and is not
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  for (let i = 0; i < 6 && screen.queryAllByText(/Récapitulatif —/).length === 0; i += 1) clickBtn('Suivant');
+  for (let i = 0; i < 6 && screen.queryAllByText(/^Récapitulatif/).length === 0; i += 1) clickBtn('Suivant');
   await screen.findByText(/Récapitulatif —/);
 
   expect(screen.getByText(`+ ${LABEL} : 20,00 €`)).toBeInTheDocument();
@@ -46,5 +48,10 @@ test('rule 8: the supplement billed before stays in the recap, fixed, and is not
 
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
-  expect(api.commitArrivalSas.mock.calls[0][1].complementItems).toEqual([]);
+  // specs/sas-arrival-total-server-side.md rule 7 — a plugin's row is never kept by the dialog.
+  expect(api.commitArrivalSas.mock.calls[0][1].keptLines).toEqual([]);
+});
+
+beforeEach(() => {
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
 });

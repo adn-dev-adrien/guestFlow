@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { previewLikeTheServer } from './sasPreviewFake';
 
 const enabled = new Set();
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: (id) => enabled.has(id) }));
@@ -13,6 +14,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: (id) => enabled.has(id)
 vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
+    previewArrivalSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     getReservationWeatherAlerts: vi.fn(),
@@ -21,6 +23,8 @@ vi.mock('../../../api', () => ({
 }));
 
 beforeEach(() => {
+  // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   vi.clearAllMocks();
   enabled.clear();
   api.getReservationWeatherAlerts.mockResolvedValue({ alerts: [] });

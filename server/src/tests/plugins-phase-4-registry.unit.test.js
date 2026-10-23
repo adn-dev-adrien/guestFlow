@@ -39,7 +39,7 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 function manifest(id, version, extra = {}) {
   return {
     id, name: `Plugin ${id}`, version, description: 'd', icon: 'extension', surfaces: ['Une page'],
-    requires: [], guestflow: '>=3.9.0', sdk: '^1.0.0', changelog: { [version]: [`Version ${version}.`] }, ...extra,
+    requires: [], guestflow: '>=3.9.0', sdk: '^2.0.0', changelog: { [version]: [`Version ${version}.`] }, ...extra,
   };
 }
 
@@ -159,7 +159,6 @@ test('rule 2: each plugin has a valid manifest, and the catalogue is built from 
     assert.ok(satisfies(SDK_VERSION, m.sdk), `${id} accepts the running SDK`);
   });
 });
-
 test('rule 2: a manifest missing a field, or with a bad range, is refused with French reasons', () => {
   assert.ok(validateManifest({ ...manifest('x-y', '1.0.0'), version: '1.0' }).includes('Version absente ou invalide (x.y.z).'));
   assert.ok(validateManifest({ ...manifest('x-y', '1.0.0'), guestflow: 'not a range' }).length > 0);
@@ -175,10 +174,12 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // `ctx.attention` and the client `AttentionCard` (specs/shell-and-home-day-first.md rule 9); 1.6.0 since the core modules `reservationLedger`, `reservationPaymentMark` and `platformDisplay` (specs/qonto-bank-reconciliation.md); 1.7.0 since the core
 // rate limiter `paymentStartLimiter` (specs/public-online-payment.md rule 7); 1.5.0
 // since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). 1.8.0 since the core module `devisHelpers` and `capacity.publicGuestCap` (specs/site-extra-guest-line.md). All minor bumps.
+// 2.0.0 since the client step contract lost `recapLines` (specs/sas-arrival-total-server-side.md
+// rules 13-14): a removal, hence the first major.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
-  assert.equal(SDK_VERSION, '1.8.0');
-  assert.equal(satisfies(SDK_VERSION, '^1.0.0'), true);
-  assert.equal(satisfies(SDK_VERSION, '^2.0.0'), false);
+  assert.equal(SDK_VERSION, '2.0.0');
+  assert.equal(satisfies(SDK_VERSION, '^2.0.0'), true);
+  assert.equal(satisfies(SDK_VERSION, '^1.0.0'), false, 'a plugin built against SDK 1 is refused');
 });
 
 test('rule 1: a package holds manifest.json, server/ and client/ only — no link, no absolute path, no ..', () => {
@@ -253,7 +254,7 @@ const sourcesOf = ({ registry: reg = {}, bundled = {} }) => ({
   registry: (id) => reg[id] || [],
   bundled: (id) => (bundled[id] ? { manifest: bundled[id], sha256: 'a'.repeat(64) } : null),
 });
-const ENV = { coreVersion: '3.9.0', sdkVersion: '1.0.0' };
+const ENV = { coreVersion: '3.9.0', sdkVersion: '2.0.0' };
 
 test('rule 10: the highest compatible version is offered; the archive copy wins a tie', () => {
   const src = sourcesOf({
@@ -267,7 +268,7 @@ test('rule 10: the highest compatible version is offered; the archive copy wins 
 
 test('rule 22: a core too old is said « Nécessite GuestFlow 4.1 ou plus récent. »', () => {
   assert.deepEqual(rangeRefusal(manifest('linen', '2.0.0', { guestflow: '>=4.1.0' }), ENV), { code: 'CORE_TOO_OLD', message: 'Nécessite GuestFlow 4.1 ou plus récent.' });
-  assert.equal(rangeRefusal(manifest('linen', '2.0.0', { sdk: '^2.0.0' }), ENV).code, 'SDK_INCOMPATIBLE');
+  assert.equal(rangeRefusal(manifest('linen', '2.0.0', { sdk: '^3.0.0' }), ENV).code, 'SDK_INCOMPATIBLE');
   assert.equal(rangeRefusal(manifest('linen', '2.0.0', { guestflow: '<3.0.0' }), ENV).message, 'Incompatible avec cette version de GuestFlow.');
   assert.equal(rangeRefusal(manifest('linen', '2.0.0', { guestflow: '>=9.0.0' }), { ...ENV, coreVersion: '0.0.0-dev' }), null);
   assert.equal(floorLabel('>=4.1.2'), '4.1.2');
