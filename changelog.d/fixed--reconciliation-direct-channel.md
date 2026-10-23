@@ -1,0 +1,1 @@
+- Bank reconciliation treats a platform counted as a direct sale (« Compté comme vente directe ») as a direct stay: its own deposit and balance are expected, no platform payout or commission is written.
