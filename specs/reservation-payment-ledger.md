@@ -300,7 +300,15 @@ decimals is rounded and shown rounded.
       owes beyond it becomes the arrival complement (auto-gap, existing engine rule), what it owes
       less becomes a trop-perçu shown in the refund block
       ([reservation-refunds.md](reservation-refunds.md) rule 34);
-    - `complement` → the complement is recorded perceived and the row carries a `warning` detail
+    - `full` on a stay that has since grown an unpaid acompte (moved out of the last-minute window)
+      → the payment covers the acompte first: the acompte is recorded perceived at its amount, the
+      solde at the rest, both in one transaction, and the shortfall or the excess is handled as for
+      `balance`. A payment below the acompte is booked as an acompte (`deposit` above). Review of
+      2026-10-23: the solde alone used to be recorded, so the unpaid acompte was claimed on top of
+      the full payment;
+    - `complement` → the complement is recorded perceived the way « Marquer perçu » records it
+      (`resolveComplementPayment`, single-payment group released, arrival extras baseline pinned),
+      traced in the history, and the row carries a `warning` detail
       « Payé 24,00 € par un lien retiré, 30,00 € attendus » for the operator to settle;
     - in every case the row shows « Payé par lien le 05/08 (ancien montant) » and the admin is
       notified as today (`notifyPaidAfterCancel`).
@@ -427,6 +435,13 @@ decimals is rounded and shown rounded.
     stored-money path, as it always had: its earlier entries, possibly already sent to the accountant,
     are unchanged. Found while porting rule 42 to master (2026-10-19); reproduced on `inte/plugins`
     (acompte of May 2026 vanishing from the May export once the solde was marked in October).
+47. **An open link paid for an amount the stay no longer asks for is booked at its amount.** Rule 29
+    retires a stale link only on the fiche's save; a stay re-priced through `performUpdate` (plugins,
+    arrival SAS, arrival payment) keeps it open. When the poll or the webhook finds such a `deposit`,
+    `balance` or `full` link paid (`processPaidLink`), its `amountCents` is compared with the row and a
+    mismatch is booked exactly as rule 31 books a retired link — never by ticking the bucket at the
+    row's new amount. A bucket already perceived another way keeps the earlier behaviour (the
+    idempotent recorder records nothing). Review of `inte/plugins`, 2026-10-23.
 
 **Edge cases:**
 
@@ -474,7 +489,7 @@ decimals is rounded and shown rounded.
 | `utils/` | `arrivalPaymentDate.js` | T | `validateCollectionDate` — the « not in the future » half, used by every ledger mark (rule 9); the arrival payment keeps both halves. |
 | `utils/` | `moneyExpression.js` | C | Server twin of the client's arithmetic parser, so « 12,5 », « 100+20 » or « −5 » typed in a row editor are read by the server as typed (rule 21). |
 | `utils/` | `ledgerLinks.js` | C | Which open links an amount change makes stale, whether one was paid meanwhile (fake-provider testable), and the booking of a link paid after its retirement (rules 29-31). |
-| `utils/` | `paymentPollRunner.js` | T | `retryPendingCancellations` books a paid `'amount-changed'` link per rule 31 instead of only notifying. |
+| `utils/` | `paymentPollRunner.js` | T | `retryPendingCancellations` books a paid `'amount-changed'` link per rule 31 instead of only notifying; `processPaidLink` books an open link whose amount drifted the same way (rule 47). |
 | `utils/` | `pricing.js` | T | Echoes `autoDepositAmount` (« Montant fixé · calcul auto », rule 16); the override branches and the clamp stay as defence (rules 16-17). |
 | `controllers/` | `reservationsController.js` | T | `getById` adds `ledger`; `calculatePrice` adds `ledger`, feeds `depositDisabled` to the engine like the save does, and answers `ledgerEdit`; `update` (now async) plays the save in a rolled-back transaction when an open link exists, refuses a paid stale link (409), re-validates amounts (400), traces ledger edits, retires stale links (rules 21, 23, 29-30), re-reads the caution columns and drops them from the past-locked whitelist (rule 13); `updatePayment` validates dates, `expectedAmountCents`, caution order, zero buckets, and cascades the caution undo (rules 9, 11, 12, 14, 32); `platformCommission` words the transfer gap (rule 26). |
 | `controllers/` | `refundsController.js` | — | Unchanged; its register feeds the refund rows. |
@@ -486,6 +501,7 @@ decimals is rounded and shown rounded.
 | `tests/` | `reservation-ledger-amounts.unit.test.js` | C | Ranges, refusals, split vs price translation, solver, paid rows (rules 15-23). |
 | `tests/` | `reservation-ledger-marks.unit.test.js` | C | Dates, `AMOUNT_CHANGED`, caution order, PUT cannot write caution, undo (rules 8-14). |
 | `tests/` | `reservation-ledger-links.unit.test.js` | C | Link display, retirement on amount change, paid-after-retirement booking (rules 28-31). |
+| `tests/` | `ledger-link-amount-mismatch.unit.test.js` | C | A `full` link over a grown acompte, the traced complement booking (rule 31), an open link paid at a drifted amount (rule 47). |
 | `tests/` | `reservation-ledger-parity.unit.test.js` | C | Parity on a neutralised copy of the Solio base (§7), `LEDGER_PARITY_DB=<copy>`; a synthetic base otherwise (CI). |
 | `tests/` | `ledgerFixture.js` | C | Shared fixture: in-memory base, one property, the real controller driven like the fiche. |
 
@@ -606,7 +622,7 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
 
 ## 7. Test plan
 
-### Server unit tests (69)
+### Server unit tests (76)
 - [x] `reservation-ledger.unit.test.js` (15) — rules 1-7, 12, 24, 27-28: direct with acompte, without
   acompte, last-minute, platform without and with acompte, single arrival payment, refunds, caution
   states, cancelled stay, devis, stored rows breaking the guards; `remaining` equals `remainingToPay`.
@@ -623,6 +639,11 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
   unchanged link kept, provider down → remote-pending, the four link types, paid before the save → 409
   (dry run rolled back), paid after retirement → booked for `deposit`, `balance`, `complement`, double
   payment → notified only.
+- [x] `ledger-link-amount-mismatch.unit.test.js` (7) — rules 31 and 47 on the fixture stay (acompte
+  90 €, solde 217,20 €): a `full` link of 250 € → acompte 90 + solde 160 perceived, 57,20 € owed and
+  kept after a save; 400 € → 92,80 € trop-perçu; 50 € → booked as the acompte; a retired complement
+  link traced with its date and baseline; an open acompte link of 90 € paid after a re-price to 100 €
+  → booked at 90 €; a matching solde link recorded as before.
 - [x] `reservation-ledger-parity.unit.test.js` (1) — rules 1, 4, 5. **Run 2026-10-19 on a neutralised
   copy of the Solio base (56 reservations): every bucket state and amount matches `bucketStates`, every
   `remaining` matches `remainingToPay`, the accounting export (17 months, 12 116 bytes) is
