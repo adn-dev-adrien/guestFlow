@@ -1,6 +1,6 @@
 # Plugins and commercial hosting — inventory before making GuestFlow sellable
 
-- **Status:** Study — decisions D1–D7 and both open questions settled on 2026-09-28; nothing here is implemented
+- **Status:** Study, carried out — decisions D1–D7 and both open questions settled on 2026-09-28. Every phase of §12 is implemented on `inte/plugins` (0, 1, 2, 3a–3c, 4, P and the hosting phases H1–H2, with the control plane C1–C3); the merge into `master` is the owner's call. The study below is kept as the record of *why*; each phase's own spec is the record of *what*.
 - **Date:** 2026-09-28
 - **Base:** `master` at v3.3.1
 - **Summary for decision:** `docs/specs/2026-09-28-plugins-inventory.html`
