@@ -13,7 +13,7 @@ const { formatPlatformName, DIRECT_CHANNELS } = require('../utils/platformNameFo
 const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
-const { getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
+const { CUSTOM_OPTION_SIGNATURE_BASE, getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
@@ -1122,7 +1122,7 @@ function createReservationsModel(database) {
         optionsSignature: getOptionsSignature([
           ...options,
           ...customOptions.map((line, idx) => ({
-            optionId: 1000000 + idx,
+            optionId: CUSTOM_OPTION_SIGNATURE_BASE + idx,
             quantity: 1,
             totalPrice: Number(line.offered ? 0 : (line.amount || 0)),
             inComplement: Number(line.inComplement || 0),
