@@ -137,15 +137,43 @@ code the commit runs, so that what the operator is told to collect is what the b
 12. **A refusal is answered by the preview too.** When a hook's `validate` refuses the draft (e.g. the
     `SLOT_CONFLICT` of the hourly-resources step), the preview answers the same status and body as the
     commit would. The recap shows it before « Valider », instead of after.
-13. **The client `recapLines` contract is deprecated.** The dialog no longer reads it; the lines a
-    plugin bills are those of the preview. A step may still declare it (no load refusal) until the
-    next SDK major, which removes it. `recapNotes` (not money — e.g. « 1,5 h non planifiée ») stays a
-    client contract.
-14. **SDK 1.8.0.** `SDK_VERSION` goes from `1.7.0` to `1.8.0` (minor: no entry point removed). The SDK
-    changelog says: « `sas.arrival.steps[].recapLines` is deprecated and ignored — bill through
-    `ctx.sasCommit().complementItems`, now also called by the arrival preview and required to be
-    pure ». `hourly-resources` drops its `recapLines` and the `supplements` map of its step value, and
-    gets a version bump (rule 28 of plugins-phase-4-registry.md).
+13. **The client `recapLines` contract is removed, with no deprecation window** (decided 2026-10-23).
+    The dialog no longer reads it; the lines a plugin bills are those of the preview. A step that still
+    declares it is a step built against SDK 1.x. `recapNotes` (not money — e.g. « 1,5 h non
+    planifiée ») stays a client contract.
+14. **SDK 2.0.0.** Removing an entry point of the client SDK is a MAJOR bump
+    (`server/src/plugins/sdk/version.js` header; plugins-phase-4-registry.md rule 3): `SDK_VERSION`
+    goes from `1.7.0` to `2.0.0`. The SDK changelog says: « `sas.arrival.steps[].recapLines` is
+    removed — bill through `ctx.sasCommit().complementItems`, now also called by the arrival preview
+    and required to be pure ». `hourly-resources` drops its `recapLines` and the `supplements` map of
+    its step value.
+14bis. **A 2.0.0 host refuses every plugin declaring `^1.x`** (plugins-phase-4-registry.md rule 12: the
+    SDK must satisfy the manifest's `sdk` range). Every in-repo plugin therefore moves its range to
+    `^2.0.0` **in the same release**, with a version bump and a changelog line (rule 28 of the same
+    spec). The fourteen manifests and their current range:
+
+    | Plugin | `sdk` today |
+    |---|---|
+    | `accounting-export`, `sas`, `school-holidays` | `^1.0.0` |
+    | `hourly-resources` | `^1.1.0` |
+    | `gate-access`, `gites-de-france-intake`, `linen`, `tariff-recipes` | `^1.4.0` |
+    | `google-calendar`, `neat`, `weather-alerts` | `^1.5.0` |
+    | `booking-intake`, `online-payment` | `^1.6.0` |
+    | `website-booking` | `^1.7.0` |
+
+    Release steps, in this order, inside the single feature PR then the release:
+    1. bump `SDK_VERSION` to `2.0.0` and remove `recapLines` from the client contract;
+    2. move all fourteen `sdk` ranges to `^2.0.0`, bump each plugin's version (major for
+       `hourly-resources`, whose step contract changes; minor for the others, whose code does not
+       move) and add a French changelog line (« Compatible avec GuestFlow et son SDK 2. »);
+    3. `node scripts/check-plugin-versions.mjs` must pass on the PR (it already checks the bump and the
+       changelog lines);
+    4. the release publishes the core and the fourteen packages together (`release.yml`), so an
+       instance updating to it gets plugins it can load;
+    5. **plugins installed from outside this repository** (built against `^1.x`) are refused by the new
+       host until their author republishes them against `^2.0.0`; the release notes' operator digest
+       says so in one line. No such plugin is known today — to check against the registry before the
+       release.
 
 ### 3.4 The dialog
 
@@ -173,11 +201,16 @@ code the commit runs, so that what the operator is told to collect is what the b
     « Total indisponible » with « Réessayer »; lines show their label without amount; the settlement
     buttons and « Valider » are disabled. On a 409 refusal (rule 12) the recap shows the refusal's own
     message and a « Revenir à l'étape » link to the step that caused it.
-22. **The total the operator saw is checked at commit.** The commit body carries
-    `expectedArrivalTotal` (the `arrivalComplementTotal` of the preview shown). When the commit settles
-    money (`card` / `cash`) and its own plan differs by a cent or more, it writes nothing and answers
-    `409 ARRIVAL_TOTAL_CHANGED` with the fresh recap; the dialog replaces the recap and asks for a
-    second « Valider ». It is a consistency check, never an amount: rule 5 holds.
+22. **The total the operator saw is compared at commit, never enforced** (decided 2026-10-23). The
+    commit body carries `displayedArrivalTotal` (the `arrivalComplementTotal` of the preview shown).
+    The commit always goes through on its own plan. When the two differ by a cent or more, the
+    response carries `warning: { code: 'ARRIVAL_TOTAL_DIFFERED', displayed, stored }` and the dialog,
+    instead of closing, shows the stored total with the difference before « Fermer ». It is a
+    comparison, never an amount: rule 5 holds.
+22bis. **The difference is kept in the audit trail.** The `sas_arrival` history entry of that commit
+    (`recordSasHistory`, `server/src/plugins/sas/controller.js:108`) records « Total affiché au récap :
+    85,00 € — total enregistré : 90,00 € », so a later question about what the guest was told has an
+    answer on the fiche's « Historique des modifications ». No entry is added when the totals match.
 23. **Reception role.** The preview is open to the reception role (door money, like `GET .../sas`):
     `stayDue` is 0, `unifiable` is false, and no revenue field is served — the same guards as
     `buildStayPayment` / `buildArrivalPayment`.
@@ -215,12 +248,13 @@ code the commit runs, so that what the operator is told to collect is what the b
 | `models/` | `reservationsModel.js` | T | New `planArrivalSas(id, draft, { pluginItems })` (pure read: lines, before/after, totals, sales, adjusted); `commitArrivalSas` executes the plan instead of recomputing; linen priced from `linenItemsModel`; `keptLines` read by `customOptionId`. |
 | `utils/` | `arrivalSasPlan.js` | C | Pure arithmetic of the plan (delta, offered netting, override, rounding) on plain rows — unit-testable without a database. |
 | `utils/` | `sasCommitHooks.js` | T | Doc comment: `complementItems` / `validate` are pure and called by the preview; no behaviour change. |
-| `plugins/sas/` | `controller.js` | T | New `previewArrival`; shared `normaliseArrivalDraft(req)` (reception strip, `withoutLinenDecisions`, `prepare`) used by preview and commit; `arrivalPaymentSplit` decided from the plan (rule 8); `expectedArrivalTotal` check (rule 22). |
+| `plugins/sas/` | `controller.js` | T | New `previewArrival`; shared `normaliseArrivalDraft(req)` (reception strip, `withoutLinenDecisions`, `prepare`) used by preview and commit; `arrivalPaymentSplit` decided from the plan (rule 8); `displayedArrivalTotal` comparison → `warning` + history line (rules 22, 22bis). |
+| `plugins/sas/` | `sasAudit.js` | T | History label for the displayed-vs-stored difference (rule 22bis). |
 | `plugins/sas/` | `arrivalRecap.js` | C | Shapes a plan into the recap payload of §4.3 (pure). |
 | `plugins/sas/` | `index.js` | T | Route `POST /api/reservations/:id/sas/arrival/preview` + reception allowlist entry. |
 | `plugins/sas/` | `manifest.json` | T | Version bump + changelog line (French). |
-| `plugins/hourly-resources/` | `manifest.json` | T | Version bump; `sdk` range `^1.8.0`. |
-| `plugins/sdk/` | `version.js` | T | `SDK_VERSION = '1.8.0'`. |
+| `plugins/*/` | `manifest.json` ×14 | T | `sdk` range `^2.0.0`, version bump, changelog line (rule 14bis); `hourly-resources` major. |
+| `plugins/sdk/` | `version.js` | T | `SDK_VERSION = '2.0.0'` (rule 14). |
 | `plugins/sdk/` | `coreModules.json` | T | Expose `planArrivalSas`. |
 | `database.js` | — | — | (none) |
 
@@ -232,7 +266,7 @@ code the commit runs, so that what the operator is told to collect is what the b
 | `plugins/sas/` | `useArrivalRecapPreview.js` | C | Debounced (200 ms), latest-wins, abortable call; exposes `{ recap, pending, error, retry, freshFor(draft) }`. |
 | `plugins/sas/` | `arrivalDraft.js` | C | Pure builder: dialog state → draft (intent only, no amount). Shared by preview and commit. |
 | `plugins/hourly-resources/` | `sasStep.js`, `index.js`, `SasSchedulingStep.jsx` | T | Drop `recapLines` and the `supplements` map. |
-| `plugins/sdk/` | `index.js` | T | JSDoc of the `sas.*.steps` contract: `recapLines` deprecated. |
+| `plugins/sdk/` | `index.js` | T | JSDoc of the `sas.*.steps` contract: `recapLines` removed (SDK 2.0.0). |
 | `api.js` | `api.js` | T | `previewArrivalSas(id, draft, { signal })`. |
 
 **Component reuse declaration:**
@@ -248,7 +282,7 @@ code the commit runs, so that what the operator is told to collect is what the b
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | POST | `/api/reservations/:id/sas/arrival/preview` | the arrival commit body (below) | `ArrivalRecap` | admin + reception; writes nothing; 404 / 403 `SAS_LOCKED` / plugin 409 as the commit |
-| POST | `/api/reservations/:id/sas/arrival` | same body + settlement fields + `expectedArrivalTotal` | `{ ok, complementAmount, recap: ArrivalRecap }` | 409 `ARRIVAL_TOTAL_CHANGED` `{ recap }` (rule 22) |
+| POST | `/api/reservations/:id/sas/arrival` | same body + settlement fields + `displayedArrivalTotal` | `{ ok, complementAmount, recap: ArrivalRecap, warning: null \| { code: 'ARRIVAL_TOTAL_DIFFERED', displayed, stored } }` | always commits on its own plan; `warning` when displayed ≠ stored by ≥ 0,01 € (rules 22, 22bis) |
 
 **Draft / commit body** (changes in bold; everything else as today):
 
@@ -265,7 +299,7 @@ code the commit runs, so that what the operator is told to collect is what the b
   // settlement — ignored by the preview
   "arrivalPaymentMode": "card", "arrivalPaymentSplit": false,
   "stayPaid": true, "stayPaidCash": false,
-  "expectedArrivalTotal": 85.00                                      // commit only
+  "displayedArrivalTotal": 85.00                                     // commit only — compared, never used
 }
 ```
 
@@ -328,8 +362,10 @@ The recap looks the same. What changes is **where its figures come from** and th
   keep their label, amounts become « — ». Settlement buttons and « Valider » disabled.
 - **Refusal** (409 from a plugin) — `ErrorAlert` with the server's message (e.g. « Ce créneau vient
   d'être pris ») and « Revenir à l'étape ».
-- **Total changed at commit** (rule 22) — the recap is replaced by the server's, and a warning line
-  reads « Le total a changé : 90,00 € au lieu de 85,00 €. Vérifier puis valider. »
+- **Total differed at commit** (rules 22, 22bis) — the check-in is recorded. Instead of closing, the
+  dialog shows a warning (`warning` colour, not error): « Enregistré à 90,00 € — le récap affichait
+  85,00 €. » with the stored recap below and a single « Fermer ». The difference is on the fiche's
+  history.
 - **Adjusted** (rule 24) — a muted line under the total: « Montant ajusté sur la fiche (calcul :
   85,00 €) ».
 
@@ -372,8 +408,9 @@ the specs they cite).
   - a commit body carrying `arrivalPaymentSplit: false` on a non-unifiable plan settles separately;
   - linen priced from « Facturables »: item at 5,00, draft qty 2 → 10,00, whatever the client sends;
   - unknown `itemId` and `qty: 0` dropped;
-  - `expectedArrivalTotal` 85,00 vs plan 90,00 with `card` → 409 `ARRIVAL_TOTAL_CHANGED`, nothing
-    written; same mismatch with `defer` → committed (no money settled);
+  - `displayedArrivalTotal` 85,00 vs plan 90,00 with `card` → committed at 90,00, settled, response
+    `warning` { displayed 85,00, stored 90,00 }, and the `sas_arrival` history entry carries the
+    difference; same totals (85,00 / 85,00) → `warning: null`, no history line about it;
   - reception user: `stayDue` 0, `unifiable` false, no revenue field;
   - SAS locked for reception → 403 `SAS_LOCKED` on the preview too.
 - [ ] `server/src/plugins/hourly-resources/tests/sas-preview-hook.unit.test.js` (rules 10-12):
@@ -401,8 +438,13 @@ component **renders** the field; the arithmetic they used to prove moves to the 
 
 New: `ReservationSasDialog.recap-preview.test.jsx` (rules 15-22) — 200 ms coalescing (three taps →
 one call), latest-wins (a slow first answer arriving after the second is ignored), pending dims and
-disables « Valider », error shows « Total indisponible » + « Réessayer », 409 refusal message,
-`ARRIVAL_TOTAL_CHANGED` replaces the recap. And `arrivalDraft.test.js` — the draft carries no amount.
+disables « Valider », error shows « Total indisponible » + « Réessayer », 409 refusal message, a
+commit answering `warning` keeps the dialog open on « Enregistré à 90,00 € — le récap affichait
+85,00 € ». And `arrivalDraft.test.js` — the draft carries no amount.
+
+SDK 2.0.0 (rules 13, 14, 14bis): `server/src/tests/sdk-v2-ranges.unit.test.js` — every in-repo
+manifest's `sdk` range is satisfied by `SDK_VERSION`; a step declaring `recapLines` has no effect on the
+recap (client test in `ReservationSasDialog.evening-supplement.test.jsx`).
 
 ### Manual UI verification
 
@@ -427,14 +469,18 @@ disables « Valider », error shows « Total indisponible » + « Réessayer »,
 
 ## 9. Open questions
 
-- Q1: Should the preview also run on every step change (to show a running total in the header), or
-  only on the recap and the two sale steps as written?
-- Q2: `recapLines` — deprecate in SDK 1.8.0 and remove at 2.0.0 (written), or remove now with a major
-  bump? A 2.0.0 refuses every installed plugin whose manifest says `^1.x`, which is all of them.
-- Q3: Finding 3 of §1.1 (override wins silently) is read from the code, not observed. Confirm on a
-  copy of production that a SAS run on an adjusted complement stores the override, then choose:
-  show the adjusted amount (rule 24, written) or refuse to add lines to an adjusted complement.
-- Q4: Rule 22 refuses a commit whose total moved by ≥ 0,01 € when money is settled. Is a cent the
-  right threshold, or should any difference only warn after the commit?
+- Q3: Finding 3 of §1.1 (override wins silently) is read from the code, not observed. **Default:**
+  verify on a copy of production, before implementing, that a SAS run on an adjusted complement
+  stores the override; then confirm rule 24 (show the adjusted amount) or switch to refusing new lines
+  on an adjusted complement.
 - Q5: Debounce of 200 ms — no latency figure exists yet for a SAS call from the phone used at the
-  door (Wi-Fi or 4G). Keep 200 ms, or measure first and tune?
+  door (Wi-Fi or 4G). **Default:** start at 200 ms and measure on that phone during the manual check;
+  tune only if the measure says so.
+
+**Resolved (2026-10-23, owner on PR #759):**
+- Q1: Should the preview run on every step? → **No.** Only on the recap and the selling steps
+  (rule 17 as written).
+- Q2: `recapLines` deprecated in 1.8.0 or removed now? → **Removed now**, which needs SDK 2.0.0 and
+  moves every in-repo plugin's `sdk` range in the same release (rules 13, 14, 14bis).
+- Q4: Refuse the commit on a one-cent difference? → **No.** The commit goes through; the response
+  warns and the history keeps the difference (rules 22, 22bis).

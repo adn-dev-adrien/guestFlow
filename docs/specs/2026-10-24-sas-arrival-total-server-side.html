@@ -91,6 +91,7 @@ a{color:var(--primary);text-underline-offset:3px}
 .alert{display:none;margin-top:10px;border-radius:10px;padding:10px 12px;font-size:.86rem}
 .alert.show{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .alert.err{background:var(--error-soft);color:var(--error)}
+.alert.warn{background:var(--warning-soft);color:var(--warning)}
 .txtbtn{font:inherit;font-weight:600;font-size:.85rem;background:none;border:0;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:44px;padding:0 4px}
 .pay{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .pay button{flex:1 1 30%;font:inherit;font-size:.85rem;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
@@ -148,11 +149,11 @@ une fois  = séjour dû et total &gt; 0</div>
   <div class="card"><h3>Une seule fonction</h3><p><code>planArrivalSas</code> lit la réservation et le brouillon, rend lignes et totaux, n'écrit rien. L'enregistrement l'appelle puis écrit ce qu'elle dit.</p></div>
   <div class="card"><h3>Un aperçu</h3><p><code>POST …/sas/arrival/preview</code> reçoit exactement le corps de l'enregistrement et renvoie le récap chiffré, le total, « en une fois » possible ou non.</p></div>
   <div class="card"><h3>Des intentions, pas des montants</h3><p>Le linge part en <code>{ article, quantité }</code>. Le serveur tarife. L'enregistrement ne reprend jamais un chiffre de l'aperçu.</p></div>
-  <div class="card"><h3>Plugins</h3><p>Les lignes d'un plugin viennent de son crochet serveur, déjà existant. <code>recapLines</code> côté client devient obsolète (SDK 1.8.0) ; <em>Ressources à l'heure</em> le retire.</p></div>
+  <div class="card"><h3>Plugins</h3><p>Les lignes d'un plugin viennent de son crochet serveur, déjà existant. <code>recapLines</code> côté client est supprimé tout de suite : SDK 2.0.0, et les 14 plugins du dépôt passent à <code>^2.0.0</code> dans la même version.</p></div>
 </div>
 
 <h2>À manipuler</h2>
-<p>Récap fictif. Chaque geste part au « serveur » simulé (≈ 400 ms) après 200 ms de calme ; seule la dernière réponse compte. Pendant l'attente, les montants restent ceux du serveur, atténués, et « Valider » attend.</p>
+<p>Récap fictif. Chaque geste part au « serveur » simulé (≈ 400 ms) après 200 ms de calme ; seule la dernière réponse compte. Pendant l'attente, les montants restent ceux du serveur, atténués, et « Valider » attend. Le second interrupteur simule un prix modifié ailleurs entre l'aperçu et « Valider » : l'enregistrement passe et avertit.</p>
 <div class="demo">
   <div>
     <div class="ctl">
@@ -161,11 +162,11 @@ une fois  = séjour dû et total &gt; 0</div>
         <button type="button" data-net="ok" aria-pressed="true">Normal</button>
         <button type="button" data-net="slow" aria-pressed="false">Lent (1,5 s)</button>
         <button type="button" data-net="off" aria-pressed="false">Hors ligne</button>
-        <button type="button" data-net="refuse" aria-pressed="false">Refus 409</button>
       </div>
     </div>
     <div class="ctl card" style="padding:4px 14px">
       <label class="switchrow"><span>Séjour encore dû (480,00 €)</span><input type="checkbox" class="sw" id="stay"></label>
+      <label class="switchrow" style="border-top:1px solid var(--line)"><span>Prix du ménage changé ailleurs juste avant « Valider » (80 → 85 €)</span><input type="checkbox" class="sw" id="drift"></label>
     </div>
     <div class="ctl">
       <span>Requêtes vers le serveur</span>
@@ -183,6 +184,7 @@ une fois  = séjour dû et total &gt; 0</div>
       <div class="totrow small" id="allRow" hidden><span>Total à percevoir à l'arrivée</span><span class="amt" id="all">—</span></div>
       <div class="sub" id="mode"></div>
       <div class="alert err" id="err" role="alert"><span id="errMsg"></span><button type="button" class="txtbtn" id="retry">Réessayer</button></div>
+      <div class="alert warn" id="warn" role="status"><span id="warnMsg"></span><button type="button" class="txtbtn" id="close">Fermer</button></div>
       <div class="paylabel" id="payLbl">Règlement</div>
       <div class="pay" id="pay">
         <button type="button" data-pay="card" aria-pressed="false">CB / Chèque</button>
@@ -210,7 +212,8 @@ une fois  = séjour dû et total &gt; 0</div>
   <tbody>
     <tr><td>Le déplacement du calcul dans l'enregistrement change un montant stocké.</td><td>Tests de parité : pour chaque scénario connu (85 €, 84,80 €, 530 €, 32 €, 67 €…), aperçu = montant enregistré, et les tests actuels de l'enregistrement restent verts sans retouche.</td></tr>
     <tr><td>Réseau lent à la porte : le total met du temps à suivre.</td><td>Le geste répond tout de suite, le montant suit ; « Valider » attend un total frais. Hors ligne, l'enregistrement échouerait de toute façon.</td></tr>
-    <tr><td>Le total bouge entre l'aperçu et l'enregistrement (fiche modifiée ailleurs).</td><td>L'enregistrement compare au total affiché et refuse d'encaisser s'il diffère ; le récap se met à jour.</td></tr>
+    <tr><td>Le total bouge entre l'aperçu et l'enregistrement (fiche modifiée ailleurs).</td><td>L'enregistrement passe toujours sur son propre calcul ; s'il diffère du total affiché, un avertissement le dit et l'écart reste dans l'historique de la fiche.</td></tr>
+    <tr><td>SDK 2.0.0 : un hôte 2.0.0 refuse tout plugin déclaré <code>^1.x</code>.</td><td>Les 14 manifestes du dépôt passent à <code>^2.0.0</code> dans la même version, publiés avec le cœur. Un plugin installé hors du dépôt doit être republié par son auteur ; aucun connu à ce jour, à vérifier avant la version.</td></tr>
     <tr><td>Un plugin tiers calculait ses lignes côté client sans crochet serveur.</td><td>Impossible aujourd'hui : sans crochet, rien n'est enregistré. Retirer l'affichage client ne retire donc aucun argent.</td></tr>
   </tbody>
 </table>
@@ -218,11 +221,15 @@ une fois  = séjour dû et total &gt; 0</div>
 
 <h2>Arbitrages en attente</h2>
 <div class="card">
-  <div class="q"><b>Q1</b><span>Aperçu seulement sur le récap et les deux étapes de vente, ou aussi un total courant dans l'en-tête à chaque étape ?</span><span class="rec">Écrit : récap + étapes de vente.</span></div>
-  <div class="q"><b>Q2</b><span><code>recapLines</code> : obsolète en 1.8.0 puis retiré en 2.0.0, ou retiré tout de suite avec une version majeure ?</span><span class="rec">Écrit : 1.8.0. Une 2.0.0 refuserait tous les plugins installés (<code>^1.x</code>).</span></div>
-  <div class="q"><b>Q3</b><span>Complément ajusté sur la fiche : afficher le montant ajusté avec le calcul en dessous, ou interdire d'ajouter des lignes ?</span><span class="rec">D'abord vérifier sur une copie de la prod que l'ajustement gagne bien.</span></div>
-  <div class="q"><b>Q4</b><span>Seuil du refus « total changé » : au centime près, ou seulement un avertissement après coup ?</span><span class="rec">Écrit : refus au centime, uniquement quand on encaisse.</span></div>
-  <div class="q"><b>Q5</b><span>Délai de 200 ms avant l'appel : garder, ou mesurer d'abord sur le téléphone de l'accueil ?</span><span class="rec">Aucune mesure n'existe aujourd'hui.</span></div>
+  <div class="q"><b>Q3</b><span>Complément ajusté sur la fiche : afficher le montant ajusté avec le calcul en dessous, ou interdire d'ajouter des lignes ?</span><span class="rec">Par défaut : vérifier sur une copie de la prod, avant d'implémenter, que l'ajustement gagne bien.</span></div>
+  <div class="q"><b>Q5</b><span>Délai de 200 ms avant l'appel : garder, ou mesurer d'abord sur le téléphone de l'accueil ?</span><span class="rec">Par défaut : démarrer à 200 ms et mesurer sur ce téléphone pendant la recette.</span></div>
+</div>
+
+<h2>Tranché le 23/10</h2>
+<div class="card">
+  <div class="q"><b>Q1</b><span>L'aperçu tourne seulement sur le récap et les étapes de vente, pas à chaque étape.</span></div>
+  <div class="q"><b>Q2</b><span><code>recapLines</code> supprimé tout de suite : SDK 2.0.0, les 14 plugins du dépôt passent à <code>^2.0.0</code> dans la même version ; un plugin externe doit être republié.</span></div>
+  <div class="q"><b>Q4</b><span>Pas de refus pour un écart : l'enregistrement passe, un avertissement le signale et l'historique garde l'écart.</span></div>
 </div>
 </main>
 
@@ -267,7 +274,6 @@ une fois  = séjour dû et total &gt; 0</div>
       if(me.abort||id!==latest){log('drop','#'+id+' réponse ignorée (périmée)');return;}
       inflight=null; pending=false;
       if(net==='off'){error={kind:'net'};log('ko','#'+id+' ✕ réseau indisponible');}
-      else if(net==='refuse'){error={kind:'409'};log('ko','#'+id+' ✕ 409 SLOT_CONFLICT');}
       else{error=null;recap=server(d);log('ok','#'+id+' ← total '+eur(recap.arrivalComplementTotal)+(recap.unifiable?' · en une fois':''));}
       render();
     },lat);
@@ -306,7 +312,7 @@ une fois  = séjour dû et total &gt; 0</div>
     if(ok)$('all').textContent=eur(recap.totalAtArrival);
     $('mode').textContent=(ok&&!pending)?(recap.unifiable?'Un seul règlement : séjour et complément ensemble.':(due>0?'Complément à 0 € : le séjour se règle seul.':'')):'';
     var e=$('err');
-    if(error){e.classList.add('show');$('errMsg').textContent=error.kind==='net'?'Total indisponible : pas de réponse du serveur.':'Ce créneau vient d’être pris.';$('retry').textContent=error.kind==='net'?'Réessayer':'Revenir à l’étape';}
+    if(error){e.classList.add('show');$('errMsg').textContent='Total indisponible : pas de réponse du serveur.';}
     else e.classList.remove('show');
     var blocked=pending||!ok;
     $('payLbl').textContent=ok&&recap.unifiable?'Règlement':'Règlement du complément';
@@ -319,11 +325,23 @@ une fois  = séjour dû et total &gt; 0</div>
     b.onclick=function(){net=b.dataset.net;Array.prototype.forEach.call(document.querySelectorAll('[data-net]'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});log('','— réseau : '+b.textContent);request();};
   });
   $('stay').onchange=function(e){stayDue=e.target.checked;render();request();};
-  $('retry').onclick=function(){if(error&&error.kind==='409'){log('','— retour à l’étape Planifier (simulé)');net='ok';document.querySelector('[data-net="ok"]').click();return;}request();};
+  $('retry').onclick=function(){request();};
+  $('close').onclick=function(){$('warn').classList.remove('show');$('done').textContent='Dialogue fermé. L’écart reste dans l’historique de la fiche.';};
   Array.prototype.forEach.call($('pay').children,function(b){b.onclick=function(){pay=b.dataset.pay;render();};});
   $('validate').onclick=function(){
-    $('done').textContent='Enregistré : le serveur a recalculé '+eur(recap.arrivalComplementTotal)+' et l’a comparé au total affiché.';
-    log('ok','commit → total attendu '+eur(recap.arrivalComplementTotal)+' · identique');
+    // L'enregistrement refait son propre calcul ; le total affiché n'est qu'un point de comparaison.
+    var shown=recap.arrivalComplementTotal;
+    var stored=Math.round((shown+($('drift').checked&&!offered.cleaning?5:0))*100)/100;
+    $('warn').classList.remove('show');
+    if(stored!==shown){
+      $('warnMsg').textContent='Enregistré à '+eur(stored)+' — le récap affichait '+eur(shown)+'.';
+      $('warn').classList.add('show');
+      $('done').textContent='';
+      log('drop','commit → enregistré '+eur(stored)+' · affiché '+eur(shown)+' · avertissement + ligne d’historique');
+    }else{
+      $('done').textContent='Enregistré à '+eur(stored)+', comme affiché.';
+      log('ok','commit → enregistré '+eur(stored)+' · identique au total affiché');
+    }
   };
   render(); request();
 })();
