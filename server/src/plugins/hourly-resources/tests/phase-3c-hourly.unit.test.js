@@ -92,7 +92,7 @@ test('rule 17 (P16): the erasure warns about the paid external bookings, then li
   assert.deepEqual(lines, [
     { label: '2 réservations hors séjour, 140,00 € encaissés, absents de la compta', count: 2, warning: true },
     { label: '1 réservation hors séjour', count: 1 },
-    { label: 'les réglages de créneaux des ressources', count: 1 },
+    { label: 'les réglages horaires des ressources (créneaux, chauffe, maintien en température, soirée, tarifs extérieurs)', count: 1 },
   ]);
   assert.deepEqual(registry.get(plugin.id).data.tables, ['resource_bookings']);
 });

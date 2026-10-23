@@ -116,7 +116,11 @@ or **[CREATE]** (genuinely new logic).
    Rule 11) and is **not** a reservation.
 8. **Strict input validation at the public boundary.** Every field is validated for type, range,
    and format before any engine/DB call. `propertyId` must exist; `startDate < endDate`; dates
-   are ISO `YYYY-MM-DD`; guest counts are non-negative integers within the property capacity;
+   are ISO `YYYY-MM-DD`; the stay starts today or later (the accommodations' day, Europe/Paris),
+   lasts at most **365 nights** (`MAX_STAY_NIGHTS`) and ends at most **730 days** from today
+   (`MAX_BOOKING_HORIZON_DAYS`) — on `/quote` and `/booking-requests` alike, before the engine walks
+   the stay night by night (2026-10-23: an `endDate` of `9999-12-31` blocked the server for
+   seconds); guest counts are non-negative integers within the property capacity;
    `babyBeds` is a non-negative integer (couchage), capped server-side at the number of babies and
    persisted on the devis `babyBeds` field (NOT as a "Lit bébé" resource line — see
    specs/site-booking-notifications.md §3 rule 16); option ids must be applicable to the property;

@@ -461,6 +461,11 @@ shared-client rules at 27–28 and appended these three as 29–31.
 
 ## 10. Implementation progress
 
+- 2026-10-23 — the manifest asks for `sdk ^1.6.0` (plugin `1.3.1`): `ctx.core.reservations.platformWithholdsTouristTax`
+  (rule 31) reached `inte/plugins` while the SDK was `1.5.0` without a minor bump, and `1.6.0` is the
+  first version that is sure to carry it. A host on an older SDK now refuses the package instead of
+  failing at the first intake.
+
 - 2026-10-16 — shipped on `master` (#688, v3.10.0), on the minimal engine.
 - 2026-10-18 — `master` merged into `inte/plugins`; the plugin moves onto the full engine:
   - `server/src/plugins/booking-intake/manifest.json` (`1.0.0`, French changelog lines, `guestflow >=3.10.0`,

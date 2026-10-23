@@ -1,5 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+
+// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// fixtures' dates are fixed: today is pinned before all of them.
+require('../../../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Database = require('better-sqlite3');
 const Module = require('module');
 

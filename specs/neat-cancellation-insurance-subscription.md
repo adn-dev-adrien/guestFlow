@@ -171,6 +171,11 @@ through.
     the fiche shows a warning state (« Ligne assurance retirée — souscription Neat toujours
     active ») until the operator either restores the line or voids (rule 15). A `pending` job whose
     line disappears is simply dropped by the next scan.
+    > 2026-10-23 (review of `inte/plugins`): so is a **`failed`** job — the backoff ladder retries
+    > it like a pending one, so a failed job whose reservation stops qualifying (cancelled, line
+    > removed, stay started, deposit no longer paid) is dropped by the same scan. Before, Neat being
+    > down then a cancellation let the retry price and subscribe a paid policy for a stay that no
+    > longer wanted it (`neat-failed-job-disqualified.unit.test.js`).
 
 **Edge cases:**
 

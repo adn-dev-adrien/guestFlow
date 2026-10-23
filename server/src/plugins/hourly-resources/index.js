@@ -8,7 +8,9 @@
  */
 
 const sdk = require('../sdk');
-const { MIGRATIONS, resetHourlyColumns, hasTable } = require('./migrations');
+const {
+  MIGRATIONS, resetHourlyColumns, countHourlySettings, hasTable,
+} = require('./migrations');
 const bookingsModel = require('./bookingsModel');
 const schedulingModel = require('./schedulingModel');
 const planningCardsModel = require('./planningCardsModel');
@@ -81,8 +83,10 @@ function register(ctx) {
         const unpaid = all - paid.n;
         if (unpaid > 0) lines.push({ label: plural(unpaid, 'réservation hors séjour', 'réservations hors séjour'), count: unpaid });
       }
-      const slotted = db.prepare('SELECT COUNT(*) AS n FROM resources WHERE isComplex = 1 OR showsPlanningCard = 1').get().n;
-      if (slotted > 0) lines.push({ label: 'les réglages de créneaux des ressources', count: slotted });
+      const configured = countHourlySettings(db);
+      if (configured > 0) {
+        lines.push({ label: 'les réglages horaires des ressources (créneaux, chauffe, maintien en température, soirée, tarifs extérieurs)', count: configured });
+      }
       return lines;
     },
     purge: (db) => {

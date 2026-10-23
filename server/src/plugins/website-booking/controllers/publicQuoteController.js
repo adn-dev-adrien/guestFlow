@@ -170,7 +170,7 @@ async function quote(req, res) {
   // One resolver for the whole quote: the lines, the insurance block and the portion hints all name
   // labels, and one catalogue read serves them all (specs/translation-catalogue.md rule 21).
   const translate = translationResolver.forLang(lang);
-  const v = validateStayInput(req.body);
+  const v = validateStayInput(req.body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'devisInvalid', v.errors);
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);

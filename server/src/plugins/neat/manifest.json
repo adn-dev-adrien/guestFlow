@@ -1,7 +1,7 @@
 {
   "id": "neat",
   "name": "Assurance annulation Neat",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Souscription automatique de l’assurance annulation.",
   "icon": "umbrella",
   "surfaces": [
@@ -26,6 +26,10 @@
     ],
     "1.2.0": [
       "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
+    ],
+    "1.2.1": [
+      "Une souscription en échec dont le séjour n’est plus assuré (annulé, ligne retirée, séjour commencé, acompte non payé) est abandonnée : la nouvelle tentative ne souscrit plus de contrat payant.",
+      "Un seul passage de souscription à la fois, même juste après un effacement des données."
     ]
   }
 }

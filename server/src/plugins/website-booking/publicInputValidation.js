@@ -14,6 +14,10 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_AVAILABILITY_DAYS = 365;
+// Bounds on a public stay (specs/public-api.md rule 8). The engine walks the stay night by night,
+// synchronously: an unbounded endDate (9999-12-31) is millions of iterations that block the server.
+const MAX_STAY_NIGHTS = 365;
+const MAX_BOOKING_HORIZON_DAYS = 730;
 
 function isValidIsoDate(value) {
   if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
@@ -65,16 +69,30 @@ function validateAvailabilityQuery({ from, to, todayIso }) {
  * Validate the shared stay shape used by both /quote and /booking-requests (dates, times, guest
  * counts, options). `platform` is intentionally ignored — the public path always forces 'direct'
  * (specs/public-api.md Q8). Returns a sanitized value with only the whitelisted fields.
+ *
+ * `todayIso` (the accommodations' day, injected to keep this pure) refuses a stay starting in the
+ * past or ending beyond MAX_BOOKING_HORIZON_DAYS; the stay length is capped at MAX_STAY_NIGHTS
+ * whatever the day. Both public controllers pass it.
  */
-function validateStayInput(body = {}) {
+function validateStayInput(body = {}, { todayIso } = {}) {
   const errors = [];
   const propertyId = toNonNegativeInt(body.propertyId, NaN);
   if (!Number.isFinite(propertyId) || propertyId <= 0) errors.push({ field: 'propertyId', issue: 'required positive integer' });
 
   if (!isValidIsoDate(body.startDate)) errors.push({ field: 'startDate', issue: 'must be an ISO date (YYYY-MM-DD)' });
   if (!isValidIsoDate(body.endDate)) errors.push({ field: 'endDate', issue: 'must be an ISO date (YYYY-MM-DD)' });
-  if (isValidIsoDate(body.startDate) && isValidIsoDate(body.endDate) && body.endDate <= body.startDate) {
-    errors.push({ field: 'endDate', issue: 'must be after startDate' });
+  if (isValidIsoDate(body.startDate) && isValidIsoDate(body.endDate)) {
+    if (body.endDate <= body.startDate) {
+      errors.push({ field: 'endDate', issue: 'must be after startDate' });
+    } else if (daysBetween(body.startDate, body.endDate) > MAX_STAY_NIGHTS) {
+      errors.push({ field: 'endDate', issue: `stay must not exceed ${MAX_STAY_NIGHTS} nights` });
+    }
+    if (isValidIsoDate(todayIso)) {
+      if (body.startDate < todayIso) errors.push({ field: 'startDate', issue: 'must not be in the past' });
+      if (daysBetween(todayIso, body.endDate) > MAX_BOOKING_HORIZON_DAYS) {
+        errors.push({ field: 'endDate', issue: `must be within ${MAX_BOOKING_HORIZON_DAYS} days from today` });
+      }
+    }
   }
 
   if (body.checkInTime !== undefined && body.checkInTime !== '' && !ISO_TIME.test(body.checkInTime)) {
@@ -213,6 +231,8 @@ function validateAttribution(raw) {
 
 module.exports = {
   MAX_AVAILABILITY_DAYS,
+  MAX_STAY_NIGHTS,
+  MAX_BOOKING_HORIZON_DAYS,
   validateAttribution,
   isValidIsoDate,
   toNonNegativeInt,
