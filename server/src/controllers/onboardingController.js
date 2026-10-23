@@ -4,6 +4,8 @@
  *
  *   GET  /api/onboarding            { open, company, property, plugins, questions, emails, pluginsSummary }
  *   PUT  /api/onboarding/company    { name, email, phone, address, siret } → 200 { company, loginEmail, loginChanged } | 422 { errors }
+ *   GET  /api/onboarding/default-capacity?doubleBeds=&singleBeds= → { maxGuests } (rule 21: the
+ *                                     capacity proposed while the beds are typed)
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
  *                                     | 409 PROPERTIES_EXIST (specs/guest-email-texts-made-simple.md rule 29)
@@ -35,7 +37,7 @@ const NAME_ARTICLES = propertyArticle.ARTICLES;
 const { ONBOARDING_QUESTIONS } = require('../constants/onboardingQuestions');
 
 const RECOMMENDED = new Set(ONBOARDING_QUESTIONS.filter((q) => q.recommended).flatMap((q) => q.plugins));
-const MAX_CAPACITY = 50;
+const { defaultCapacity: capacityFor, MAX_CAPACITY } = require('../utils/defaultCapacity');
 
 /**
  * Runs an Express handler and resolves its answer once the handler has finished, so a step can reuse
@@ -317,9 +319,12 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
 
   async function saveProperty(req, res) {
     const b = req.body || {};
+    // Rule 21 — a property sent without a capacity takes the one its beds propose.
+    const noCapacity = b.maxGuests == null || String(b.maxGuests).trim() === '';
     const body = {
       name: String(b.name || '').trim(),
-      doubleBeds: b.doubleBeds, singleBeds: b.singleBeds, maxGuests: b.maxGuests,
+      doubleBeds: b.doubleBeds, singleBeds: b.singleBeds,
+      maxGuests: noCapacity ? capacityFor(b.doubleBeds, b.singleBeds) : b.maxGuests,
       defaultCheckIn: b.checkIn, defaultCheckOut: b.checkOut, pricePerNight: b.pricePerNight,
     };
     const errors = validatePropertyInput(body, null);
@@ -418,12 +423,18 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     return activeSummary((await pluginList()).filter((p) => p.state === 'active').length);
   }
 
+  // Rule 21 — the capacity the beds propose, asked while they are typed.
+  function defaultCapacity(req, res) {
+    const q = req.query || {};
+    return res.json({ maxGuests: capacityFor(q.doubleBeds, q.singleBeds) });
+  }
+
   function done(req, res) {
     model().complete();
     return res.json({ open: false });
   }
 
-  return { get, saveCompany, saveProperty, savePlugins, saveEmails, done };
+  return { get, defaultCapacity, saveCompany, saveProperty, savePlugins, saveEmails, done };
 }
 
 module.exports = {

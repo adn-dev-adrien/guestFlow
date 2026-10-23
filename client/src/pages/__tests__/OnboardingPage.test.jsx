@@ -9,7 +9,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getOnboarding: vi.fn(), saveOnboardingCompany: vi.fn(), saveOnboardingProperty: vi.fn(),
-    saveOnboardingPlugins: vi.fn(), completeOnboarding: vi.fn(),
+    saveOnboardingPlugins: vi.fn(), completeOnboarding: vi.fn(), getOnboardingDefaultCapacity: vi.fn(),
   },
 }));
 const refresh = vi.fn().mockResolvedValue();
@@ -52,7 +52,8 @@ test('a refusal keeps the step open with its messages; a valid step moves on', a
   expect(await screen.findByText('Étape 2 sur 5')).toBeInTheDocument();
 });
 
-test('step 2: the capacity follows the beds until typed; step 3 (rule 43): the answers go to the server, a failure is named', async () => {
+test('step 2: the capacity follows the server proposal for the beds; step 3 (rule 43): the answers go to the server, a failure is named', async () => {
+  api.getOnboardingDefaultCapacity.mockImplementation(async (d, s) => ({ maxGuests: 2 * Number(d) + Number(s) }));
   api.saveOnboardingCompany.mockResolvedValue({});
   api.saveOnboardingProperty.mockResolvedValue({ id: 1 });
   api.saveOnboardingPlugins.mockResolvedValue({ results: [{ id: 'website-booking', ok: false, error: 'PLUGIN_MIGRATION_FAILED' }, { id: 'sas', ok: true }] });
@@ -61,9 +62,9 @@ test('step 2: the capacity follows the beds until typed; step 3 (rule 43): the a
   next();
   await screen.findByText('Étape 2 sur 5');
   fireEvent.change(screen.getByLabelText('Lits doubles'), { target: { value: '2' } });
-  expect(screen.getByLabelText('Capacité')).toHaveValue(4);
+  await waitFor(() => expect(screen.getByLabelText('Capacité')).toHaveValue(4));
   fireEvent.change(screen.getByLabelText('Lits simples'), { target: { value: '1' } });
-  expect(screen.getByLabelText('Capacité')).toHaveValue(5);
+  await waitFor(() => expect(screen.getByLabelText('Capacité')).toHaveValue(5));
   next();
   await screen.findByText('Étape 3 sur 5');
   expect(api.saveOnboardingProperty.mock.calls[0][0]).toMatchObject({ doubleBeds: '2', singleBeds: '1', maxGuests: '5' });
