@@ -34,7 +34,7 @@ test('specs/site-extra-guest-line.md rule 8: checkGuestCapacity still tolerates 
 
 // ── toPublicProperty (rule 7) ──────────────────────────────────────────────────────────────────────
 
-test('toPublicProperty advertises the effective cap, never 0 (maxAdults alias included)', () => {
+test('specs/site-extra-guest-line.md rule 7: toPublicProperty advertises the effective cap, never 0 (maxAdults alias included)', () => {
   const p = toPublicProperty({ id: 1, name: 'La Granja', maxGuests: 0, basePriceIncludedGuests: 2 });
   assert.equal(p.maxGuests, 2);
   assert.equal(p.maxAdults, 2);
@@ -59,7 +59,7 @@ function engineQuote(over = {}) {
   };
 }
 
-test('a billed supplement yields an extraGuests row and keeps extraGuestSurcharge', () => {
+test('specs/site-extra-guest-line.md rule 1: a billed supplement yields an extraGuests row and keeps extraGuestSurcharge', () => {
   const q = toPublicQuote(engineQuote({
     extraGuestSurcharge: 25, extraGuestSurchargeOriginal: 25, extraGuestSurchargeOffered: false, extraGuestCount: 1,
   }), { available: true });
@@ -67,7 +67,7 @@ test('a billed supplement yields an extraGuests row and keeps extraGuestSurcharg
   assert.equal(q.extraGuestSurcharge, 25);
 });
 
-test('an offered supplement is flagged and bills 0', () => {
+test('specs/site-extra-guest-line.md rule 2: an offered supplement is flagged and bills 0', () => {
   const q = toPublicQuote(engineQuote({
     extraGuestSurcharge: 0, extraGuestSurchargeOriginal: 25, extraGuestSurchargeOffered: true, extraGuestCount: 1,
   }), { available: true });
