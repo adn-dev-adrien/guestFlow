@@ -372,7 +372,8 @@
     "roundMoney"
   ],
   "capacity": [
-    "checkGuestCapacity"
+    "checkGuestCapacity",
+    "publicGuestCap"
   ],
   "blockedDates": [
     "computeBlockedDates",
@@ -688,5 +689,19 @@
   ],
   "platformDisplay": [
     "platformDisplay"
+  ],
+  "devisHelpers": [
+    "roundMoney",
+    "formatDateFR",
+    "formatDateEN",
+    "formatDateLocalised",
+    "formatCurrency",
+    "isLineOffered",
+    "resolveExtraGuestPdfRow",
+    "timeToDecimalHour",
+    "formatHoursLabel",
+    "diffDays",
+    "addDaysToIsoDate",
+    "formatDate"
   ]
 }

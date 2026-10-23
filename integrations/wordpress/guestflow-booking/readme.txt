@@ -38,7 +38,9 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 == Changelog ==
 
 = 1.16.0 =
-* Reprend tout le contenu de la 1.14.1 (demande sans paiement, prix par personne, séjour minimum visible).
+* Personnes supplémentaires : le récapitulatif affiche leur supplément sur sa propre ligne (calculé par GuestFlow selon la grille tarifaire du logement), et le sélecteur de voyageurs rappelle combien de personnes le prix de base couvre.
+* La capacité du logement est toujours plafonnée côté site, même quand elle n'est pas renseignée dans GuestFlow.
+* Reprend tout le contenu de la 1.14.2 (demande sans paiement, prix par personne, séjour minimum visible).
 * Calendrier : le séjour choisi reste lisible au toucher (le survol ne vaut que pour une souris, et l'emporte même sur l'ancien module `gf-booking.php`), les jours passés, les nuits prises et les nuits libres ne se ressemblent plus, et une légende dit ce que chaque couleur veut dire. Quand les deux mois affichés n'offrent aucune arrivée possible (nuits prises, durée minimale, jours d'arrivée), « Prochaine disponibilité : mercredi 31 mars 2027 » propose d'y aller d'un clic (GuestFlow à jour requis).
 * Coordonnées : chaque champ manquant ou mal rempli est signalé sous le champ lui-même (« Champ requis. », « Adresse e-mail incomplète. »), le premier reçoit le curseur ; les refus de GuestFlow arrivent au même endroit, dans la langue de la page. Le moteur émet l'événement `gf:refused` pour qu'un thème qui déplace ses blocs puisse montrer le champ refusé. Claviers adaptés sur téléphone et saisie à 16 px, qui ne fait plus zoomer iOS.
 * Sur téléphone, le total et le bouton restent dans une barre en bas de l'écran ; le bouton suit l'étape (« Choisir les dates », « Continuer », puis l'envoi). La barre tient aussi dans un thème qui coupe le débordement de la page. Dans un bloc large, le récapitulatif suit le défilement dans une colonne à droite, avec le bouton ; sous un en-tête collant, régler `--gf-sticky-top` à sa hauteur. Les heures d'arrivée et de départ ont leur propre ligne.
