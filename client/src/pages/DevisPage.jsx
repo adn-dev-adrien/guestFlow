@@ -13,6 +13,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import DataPageScaffold from '../components/DataPageScaffold';
 import OriginBadge from '../components/OriginBadge';
 import StatusBadge from '../components/StatusBadge';
+import RowActionsMenu from '../components/RowActionsMenu';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -34,10 +35,8 @@ const STATUS_BADGE = {
 
 const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 
-// Devis total the guest owes = accommodation (finalPrice) + tourist tax, both server-computed.
-function devisTotalTtc(d) {
-  return Number(d.finalPrice || 0) + Number(d.touristTaxTotal || 0);
-}
+// `originLabel` of a website request whose channel is not known (server: utils/attributionChannel.js).
+const UNKNOWN_ORIGIN_LABEL = 'Origine inconnue';
 
 export default function DevisPage() {
   const navigate = useNavigate();
@@ -208,30 +207,62 @@ export default function DevisPage() {
       <TableCell>{displayDate(d.startDate)}</TableCell>
       <TableCell>{displayDate(d.endDate)}</TableCell>
       <TableCell align="right" sx={TABULAR}>
-        <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(devisTotalTtc(d))}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(d.totalTtc)}</Typography>
       </TableCell>
       <TableCell align="center" onClick={(e) => e.stopPropagation()}>{rowActions(d)}</TableCell>
     </TableRow>
   );
 
+  // specs/devis-list-mobile-card.md rules 1-4 — who, where, when, how much; one origin marker.
+  const originMarker = (d) => {
+    if (d.requestOrigin !== 'public') return null;
+    const known = d.originLabel && d.originLabel !== UNKNOWN_ORIGIN_LABEL;
+    return (
+      <Tooltip title={d.originDetail ? `${d.originLabel} — ${d.originDetail}` : 'Demande de réservation reçue depuis le site internet'}>
+        <Box component="span" sx={{ display: 'inline-flex', minWidth: 0, maxWidth: '62%', flex: '0 1 auto', '& .MuiChip-root': { maxWidth: '100%' } }}>
+          <StatusBadge status="info" label={known ? d.originLabel : 'Site internet'} icon={<LanguageIcon sx={{ fontSize: 14 }} />} />
+        </Box>
+      </Tooltip>
+    );
+  };
+
   const renderMobileCard = (d) => (
-    <Stack spacing={1}>
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-        <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer', minWidth: 0 }}>{devisNumberCell(d)}</Box>
+    <Box
+      role="button"
+      tabIndex={0}
+      aria-label={`Ouvrir le devis ${d.devisNumber}`}
+      onClick={() => handleEditDevis(d)}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleEditDevis(d); } }}
+      sx={{ cursor: 'pointer', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 4, borderRadius: 1 } }}
+    >
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+        <Typography noWrap sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}>{`${d.firstName || ''} ${d.lastName || ''}`.trim() || '—'}</Typography>
         <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
       </Stack>
-      <Box onClick={() => handleEditDevis(d)} sx={{ cursor: 'pointer' }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{d.firstName} {d.lastName}</Typography>
-        <Typography variant="caption" color="text.secondary">{d.propertyName || '—'}</Typography>
-        <Typography variant="caption" color="text.secondary" display="block">
-          {displayDate(d.startDate)} → {displayDate(d.endDate)}
-        </Typography>
-      </Box>
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="body1" sx={{ fontWeight: 700, ...TABULAR }}>{formatCurrency(devisTotalTtc(d))}</Typography>
-        {rowActions(d)}
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, mt: 0.5 }}>
+        <Typography variant="body2" noWrap sx={{ minWidth: 0, flex: 1 }}>{d.propertyName || '—'}</Typography>
+        {originMarker(d)}
       </Stack>
-    </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ ...TABULAR, display: 'block' }}>{d.stayLabel || '—'}</Typography>
+      <Stack
+        direction="row"
+        sx={{ alignItems: 'center', gap: 1, mt: 1.5, pt: 1, borderTop: 1, borderColor: 'divider' }}
+      >
+        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', flex: 1, whiteSpace: 'nowrap' }}>{d.devisNumber}</Typography>
+        <Typography variant="body1" sx={{ fontWeight: 700, whiteSpace: 'nowrap', ...TABULAR }}>{formatCurrency(d.totalTtc)}</Typography>
+        <Box onClick={(e) => e.stopPropagation()} sx={{ display: 'flex', alignItems: 'center', mr: -1 }}>
+          <Tooltip title="Télécharger le PDF">
+            <IconButton aria-label="Télécharger le PDF" onClick={() => handleOpenPdf(d)} sx={{ width: 44, height: 44 }}><DownloadIcon fontSize="small" /></IconButton>
+          </Tooltip>
+          <RowActionsMenu
+            items={[
+              d.status !== 'converted' && { label: 'Confirmer en réservation', icon: <CheckCircleIcon fontSize="small" />, onClick: () => handleConvert(d) },
+              { label: 'Supprimer', icon: <DeleteIcon fontSize="small" />, color: 'error', onClick: () => handleDelete(d) },
+            ]}
+          />
+        </Box>
+      </Stack>
+    </Box>
   );
 
   return (
