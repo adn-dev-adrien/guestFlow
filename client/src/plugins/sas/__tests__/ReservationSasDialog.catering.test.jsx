@@ -51,7 +51,7 @@ test('arrival SAS: selling the breakfast — mornings pre-selected, count shown,
 
   // Mornings page: every morning pre-checked, quantity read like the fiche (2 × 2 pers.).
   await screen.findByText('Quels matins ?');
-  expect(screen.getByText(/\(2 × 2 pers\. servies\)/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(2 × 2 pers\. servies\)/)).toBeInTheDocument();
   expect(await screen.findByText(/4 petits déjeuners — 32,00 €/)).toBeInTheDocument();
   clickBtn('Suivant');
 
