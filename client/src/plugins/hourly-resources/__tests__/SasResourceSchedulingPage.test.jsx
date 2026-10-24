@@ -115,6 +115,8 @@ test('an evening slot carries its supplement badge', () => {
   expect(screen.getByText('+20 €')).toBeInTheDocument();
 });
 
+// specs/resource-supplements-total-server-side.md rules 17, 18, 19, 19bis, 20 — the card renders the server's
+// supplement and hours left; no cross-resource sum; the per-slot badges stay; dimmed while refreshing.
 test("the card shows the server's supplement, evening credit included — not the sum of the badges", async () => {
   answeredSupplement = 10; // the sold line already bills 10 € of evening; the badge says +20 €
   render(<Harness />);
