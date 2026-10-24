@@ -157,3 +157,13 @@ test('rule 12 — the SAS read serves the departure seed, and only in departure 
   assert.deepEqual(read('departure').departureSeed.missingItems, { [TOWEL]: 2 });
   assert.equal('departureSeed' in read('arrival'), false);
 });
+
+test('specs/sas-departure-recap-server-side.md rule 27 — no departure money contract for plugin steps: a plugin payload changes nothing', () => {
+  const id = stay();
+  const plain = call('previewDeparture', id, DRAFT).body;
+  const withStep = call('previewDeparture', id, { ...DRAFT, pluginSteps: { weather: { extra: 999 } } }).body;
+  assert.deepEqual(withStep, plain);
+  const commit = call('commitDeparture', id, { ...DRAFT, pluginSteps: { weather: { extra: 999 } } });
+  assert.equal(commit.statusCode, 200);
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount FROM reservations WHERE id = ?').get(id).endOfStayComplementAmount, 93);
+});
