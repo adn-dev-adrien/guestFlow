@@ -199,7 +199,14 @@ function createModel(database) {
       .find((e) => Number(e.resource.id) === Number(resourceId));
     if (!entry) return null;
     // `pending` is every block on the picker (rule 26), so its supplement is the resource's.
-    return { days: daysFor({ reservation, entry, pending, now }), supplement: supplementOf(entry, pending) };
+    // `hoursRemaining` is the hours sold minus every block on the picker (rule 26), so the card never
+    // does that subtraction itself (specs/resource-supplements-total-server-side.md Q3).
+    const placedMinutes = pending.reduce((sum, b) => sum + Math.max(0, toMinutes(b.end) - toMinutes(b.start)), 0);
+    return {
+      days: daysFor({ reservation, entry, pending, now }),
+      supplement: supplementOf(entry, pending),
+      hoursRemaining: Math.max(0, round2(entry.hoursSold - placedMinutes / 60)),
+    };
   }
 
   /**

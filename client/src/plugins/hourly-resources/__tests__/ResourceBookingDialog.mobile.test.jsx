@@ -10,6 +10,7 @@ vi.mock('../../../api', () => ({
     getOccupiedSlots: vi.fn().mockResolvedValue({ occupiedSlots: [] }),
     getClients: vi.fn().mockResolvedValue([]),
     getProperties: vi.fn().mockResolvedValue([]),
+    previewResourceBooking: vi.fn().mockResolvedValue({ total: 0, pricing: 'free', bands: [] }),
   },
 }));
 

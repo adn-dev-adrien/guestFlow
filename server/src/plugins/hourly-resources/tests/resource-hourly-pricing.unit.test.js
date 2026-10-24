@@ -80,3 +80,41 @@ test('priceSessions: free hour capped to a short earliest session', () => {
   assert.equal(out.totalPrice, 60);
   assert.equal(out.billedHours, 2);
 });
+
+// specs/resource-supplements-total-server-side.md §4.1 — the breakdown the booking preview renders.
+test('priceSessions: bands and the offered minutes of 19:00-21:00 on the guest grid', () => {
+  const grid = { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 30 };
+  const out = priceSessions([{ date: '2026-07-10', start: '19:00', end: '21:00' }], grid, 60);
+  assert.equal(out.grossPrice, 70);
+  assert.equal(out.totalPrice, 35);
+  assert.equal(out.freeMinutesApplied, 60);
+  assert.equal(out.billedMinutes, 60);
+  assert.equal(out.freeValue, 35);
+  assert.deepEqual(out.bands, [{ band: 'evening', from: '19:00', to: '21:00', minutes: 120, rate: 35, amount: 70 }]);
+});
+
+test('priceSessions: consecutive slices of one band merge, a switch splits them', () => {
+  const day = priceSessions([{ date: '2026-07-10', start: '18:00', end: '20:00' }], GUEST, 0);
+  assert.deepEqual(day.bands.map((b) => [b.band, b.from, b.to, b.minutes]), [['day', '18:00', '20:00', 120]]);
+  const crossing = priceSessions([{ date: '2026-07-10', start: '19:00', end: '21:00' }], GUEST, 0);
+  assert.deepEqual(crossing.bands.map((b) => [b.band, b.from, b.to, b.amount]), [
+    ['day', '19:00', '20:00', 30], ['evening', '20:00', '21:00', 50],
+  ]);
+});
+
+test('priceSessions: the bands always add up to the gross total, whatever the slot and the rates', () => {
+  const variants = [
+    { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 25 },
+    { dayRate: 25.5, eveningRate: 35.3, eveningStart: '19:00', slotMinutes: 25 },
+    { dayRate: 33.33, eveningRate: 41.67, eveningStart: '19:10', slotMinutes: 20 },
+    { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 15 },
+  ];
+  for (const cfg of variants) {
+    const slot = cfg.slotMinutes;
+    const startMin = Math.ceil((17 * 60) / slot) * slot;
+    const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const out = priceSessions([{ date: '2026-07-10', start: hhmm(startMin), end: hhmm(startMin + slot * 9) }], cfg, 0);
+    const sum = Math.round(out.bands.reduce((acc, b) => acc + b.amount, 0) * 100) / 100;
+    assert.equal(sum, out.grossPrice, JSON.stringify(cfg));
+  }
+});

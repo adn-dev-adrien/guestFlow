@@ -9,6 +9,8 @@ const { PLUGIN_IDS } = require('../constants/plugins');
 const { SDK_VERSION } = require('../plugins/sdk/version');
 const { satisfies } = require('../utils/semverRange');
 
+// specs/resource-supplements-total-server-side.md rules 21, 22 — SDK 2.2.0 (a new entry point is a MINOR bump);
+// hourly-resources 1.2.0 and sas 1.5.0 declare ^2.2.0, the others keep a ^2.N.0 range that 2.2.0 satisfies.
 test('rule 14: the SDK is a 2.x, and a plugin built against SDK 1 is refused', () => {
   assert.match(SDK_VERSION, /^2\./);
   assert.equal(satisfies(SDK_VERSION, '^2.0.0'), true);

@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.0.0",
+  "sdk": "^2.2.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -46,6 +46,11 @@
     "1.1.0": [
       "Le supplément de soirée du récapitulatif d’arrivée vient du serveur.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.0": [
+      "Le prix d’une réservation de ressource vient du serveur.",
+      "Le supplément de soirée de l’étape « Planifier » déduit ce que la prestation vendue facture déjà.",
+      "Compatible avec le SDK 2.2 de GuestFlow."
     ]
   }
 }

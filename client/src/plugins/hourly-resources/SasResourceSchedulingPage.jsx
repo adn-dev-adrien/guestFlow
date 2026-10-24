@@ -5,7 +5,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { api, SlotPickerGrid } from '../sdk';
+import { api, formatCurrency, SlotPickerGrid } from '../sdk';
 import { dayLabel } from './scheduling';
 
 /**
@@ -150,17 +150,23 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
   const [activeDate, setActiveDate] = useState((resource.days || [])[0]?.date || '');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // What the server says the blocks owe and leave to place: the payload's until the first refresh, then
+  // each `free-slots` answer's (specs/resource-supplements-total-server-side.md rule 17, Q3).
+  const [supplement, setSupplement] = useState(resource.supplement);
+  const [hoursRemaining, setHoursRemaining] = useState(resource.hoursRemaining);
+  const seqRef = useRef(0);
+  const refreshedRef = useRef(false);
 
   const ownBlocks = useMemo(
     () => blocks.filter((b) => Number(b.resourceId) === Number(resource.resourceId)),
     [blocks, resource.resourceId],
   );
-  const placedMinutes = ownBlocks.reduce((sum, b) => sum + Number(b.durationMinutes || 0), 0);
-  // The blocks start from the hours already placed (rule 26), so what is left is the sold hours minus
-  // every block on the card.
-  const remaining = Math.max(0, Math.round((resource.hoursSold - placedMinutes / 60) * 100) / 100);
+  const remaining = Number(hoursRemaining || 0);
 
   const refresh = async () => {
+    seqRef.current += 1;
+    const seq = seqRef.current;
+    refreshedRef.current = true;
     setLoading(true);
     setLoadError(false);
     try {
@@ -169,20 +175,24 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
         reservationId,
         pending: ownBlocks.map((b) => ({ date: b.date, start: b.start, end: b.end })),
       });
+      if (seq !== seqRef.current) return;
       setDays(payload?.days || []);
+      setSupplement(payload?.supplement);
+      setHoursRemaining(payload?.hoursRemaining);
     } catch {
+      if (seq !== seqRef.current) return;
       // A failed refresh must SURFACE. An empty grid would read as « tout est libre » and invite a
       // double booking (specs/ds-sweep-planning.md rule 9).
       setLoadError(true);
       setDays([]);
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
   };
 
   // Re-classify after every placement/removal: the blocks just placed are occupancy for the next one.
   useEffect(() => {
-    if (ownBlocks.length === 0 && days === resource.days) return;
+    if (ownBlocks.length === 0 && !refreshedRef.current) return;
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownBlocks.length]);
@@ -279,6 +289,20 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
             </Stack>
           </>
         )}
+
+        {Number(supplement) > 0 && !loadError && (
+          <Typography
+            variant="body2"
+            sx={{
+              mt: 1.5, textAlign: 'right', fontWeight: 600, color: 'warning.dark',
+              fontVariantNumeric: 'tabular-nums', opacity: loading ? 0.55 : 1,
+              transition: 'opacity 150ms ease-out',
+              '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+            }}
+          >
+            Supplément soirée : {formatCurrency(supplement)}
+          </Typography>
+        )}
       </CardContent>
     </Card>
   );
@@ -286,7 +310,6 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
 
 export default function SasResourceSchedulingPage({ reservationId, scheduling, blocks, onAdd, onRemove }) {
   const resources = scheduling?.resources || [];
-  const totalSupplement = blocks.reduce((sum, b) => sum + Number(b.supplement || 0), 0);
 
   return (
     <Stack spacing={2}>
@@ -300,11 +323,6 @@ export default function SasResourceSchedulingPage({ reservationId, scheduling, b
           onRemove={onRemove}
         />
       ))}
-      {totalSupplement > 0 && (
-        <Typography variant="body2" sx={{ textAlign: 'right', fontWeight: 600 }}>
-          Supplément soirée : {Math.round(totalSupplement * 100) / 100} €
-        </Typography>
-      )}
     </Stack>
   );
 }

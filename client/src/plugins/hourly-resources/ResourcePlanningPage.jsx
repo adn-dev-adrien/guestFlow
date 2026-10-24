@@ -184,16 +184,16 @@ export default function ResourcePlanningPage() {
 
   async function handleSave(data) {
     try {
-      if (editingBooking) {
-        await api.updateResourceBooking(editingBooking.id, data);
-      } else {
-        await api.createResourceBooking({ resourceId: selectedResourceId, ...data });
-      }
+      const saved = editingBooking
+        ? await api.updateResourceBooking(editingBooking.id, data)
+        : await api.createResourceBooking({ resourceId: selectedResourceId, ...data });
       loadBookings();
-      setDialogOpen(false);
       showSuccess('Réservation enregistrée.');
+      // The dialog closes itself, unless the stored price differs from the one it showed.
+      return saved || {};
     } catch (e) {
       showError(e.message || "Impossible d'enregistrer la réservation.");
+      return null;
     }
   }
 

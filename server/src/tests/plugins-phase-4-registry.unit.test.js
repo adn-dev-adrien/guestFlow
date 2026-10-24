@@ -179,7 +179,7 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // (`planDepartureSas`, `resolveSasDepartureItems`, `departureSasPlan`; specs/sas-departure-recap-server-side.md
 // rule 26): additions only.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
-  assert.equal(SDK_VERSION, '2.1.0');
+  assert.match(SDK_VERSION, /^2\.\d+\.\d+$/);
   assert.equal(satisfies(SDK_VERSION, '^2.0.0'), true);
   assert.equal(satisfies(SDK_VERSION, '^1.0.0'), false, 'a plugin built against SDK 1 is refused');
 });

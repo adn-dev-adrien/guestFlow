@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prix des ressources serveur</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-soft:#E3ECE6; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E4DED2;
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5;
+  --serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--primary:#7FB596;--primary-soft:#22352B;--paper:#1B1A17;--card:#25231F;--ink:#EEEAE0;--muted:#A7A192;--line:#3A3730;
+    --success:#7FB596;--success-soft:#22352B;--warning:#D9B15E;--warning-soft:#3A3120;--error:#E08C82;--error-soft:#3D2522;}
+}
+*{box-sizing:border-box}
+::selection{background:var(--primary-soft);color:var(--ink)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);-webkit-text-size-adjust:100%}
+main{max-width:1080px;margin:0 auto;padding:32px 16px 64px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h1{font-size:1.9rem}
+h2{font-size:1.25rem;margin:44px 0 12px}
+h3{font-size:1.02rem;margin-bottom:8px}
+p{margin:0 0 10px;max-width:72ch}
+.lead{color:var(--muted);max-width:68ch;margin-top:8px}
+.meta{font-size:.82rem;color:var(--muted);margin-bottom:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.cols{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+ul{margin:0;padding-left:18px}
+li{margin:4px 0}
+code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:0 4px}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:tabular-nums}
+
+.flow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){.flow{grid-template-columns:1fr}}
+.flow .card h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{font:600 .7rem/1 var(--sans);padding:4px 8px;border-radius:999px;letter-spacing:.02em}
+.pill.bad{background:var(--error-soft);color:var(--error)}
+.cmp td,.cmp th,.risk td,.risk th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:.9rem}
+.cmp,.risk{border-collapse:collapse;width:100%}
+.cmp th,.risk th{font-size:.78rem;color:var(--muted);font-weight:600}
+.cmp td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cmp td.bad{color:var(--error);font-weight:600}
+.tablewrap{overflow-x:auto}
+
+/* Démo */
+.demo{display:grid;gap:16px;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);align-items:start}
+@media (max-width:820px){.demo{grid-template-columns:1fr}}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);flex-wrap:wrap}
+.seg button{font:inherit;font-size:.85rem;border:0;background:transparent;color:var(--ink);padding:0 12px;min-height:44px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--primary);color:var(--card)}
+.ctl{margin-bottom:14px}
+.ctl > span{display:block;font-size:.8rem;color:var(--muted);margin-bottom:6px}
+.switchrow{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.sw{appearance:none;width:44px;height:26px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.sw:checked{background:var(--primary)}
+.sw:checked::after{transform:translateX(18px)}
+.log{font:500 .78rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--paper);border-radius:10px;padding:10px 12px;min-height:140px;max-height:200px;overflow:auto;color:var(--muted)}
+.log .ok{color:var(--success)} .log .drop{color:var(--warning)} .log .ko{color:var(--error)}
+.today{font-size:.82rem;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:8px 12px}
+.today b{color:var(--error);font-variant-numeric:tabular-nums}
+
+.dlg{padding:0;overflow:hidden;box-shadow:0 8px 28px rgba(39,37,31,.10)}
+.dlghead{padding:16px 18px 8px}
+.dlghead small{display:block;color:var(--muted);font-size:.78rem;margin-top:2px}
+.dlgbody{padding:4px 18px 16px;display:grid;gap:12px}
+.summary{position:relative;border-radius:10px;padding:10px 12px;background:var(--success-soft);min-height:76px;overflow:hidden}
+.summary.refused{background:var(--error-soft)}
+.summary .l1{font-weight:700;font-variant-numeric:tabular-nums}
+.summary .l2{font-size:.8rem;color:var(--muted);min-height:1.25em;font-variant-numeric:tabular-nums}
+.summary .msg{font-size:.82rem;color:var(--error);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.amt{transition:opacity .18s}
+.pending .amt,.pending .l2{opacity:.55}
+.bar{position:absolute;left:0;right:0;bottom:0;height:2px;overflow:hidden;opacity:0;transition:opacity .15s}
+.bar::before{content:"";position:absolute;inset:0;width:40%;background:var(--honey);animation:slide 1s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.pending .bar{opacity:1}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.f{display:grid;gap:4px;font-size:.78rem;color:var(--muted)}
+select{font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:0 10px;width:100%}
+.q1{border:1px dashed var(--honey);border-radius:10px;padding:2px 12px}
+.q1 small{color:var(--muted);font-size:.74rem;display:block;margin-bottom:6px}
+.actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.btn{font:inherit;font-weight:600;font-size:.9rem;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--card);min-width:150px}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.txtbtn{font:inherit;font-weight:600;font-size:.82rem;background:none;border:0;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:44px;padding:0 4px}
+.warn{display:none;margin:0 18px 12px;border-radius:10px;padding:10px 12px;font-size:.86rem;background:var(--warning-soft);color:var(--warning)}
+.warn.show{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.done{color:var(--success);font-size:.85rem;padding:0 18px 12px;min-height:1.2em}
+
+.q{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.q:last-child{border-bottom:0}
+.q b{font-variant-numeric:tabular-nums;color:var(--primary)}
+.q .rec{grid-column:2;color:var(--muted);font-size:.86rem}
+@media (max-width:420px){.row2{grid-template-columns:1fr 1fr;gap:8px}.actions .btn{flex:1 1 auto}}
+@media (prefers-reduced-motion:reduce){
+  .bar::before{animation:none;width:100%;opacity:.6}
+  .sw::after,.amt{transition:none}
+}
+</style>
+</head>
+<body>
+<main>
+<p class="meta">Spec <code>specs/resource-supplements-total-server-side.md</code> · statut Implemented · 24/10/2026</p>
+<h1>Le prix des ressources, calculé par le serveur</h1>
+<p class="lead">La fenêtre de réservation du planning des ressources et l'étape « Planifier » du sas calculent elles-mêmes les euros qu'elles affichent. Proposition : le serveur répond, l'écran affiche. Même fonction pour l'aperçu et pour l'enregistrement.</p>
+
+<h2>Le constat</h2>
+<div class="flow">
+  <div class="card">
+    <h3>Fenêtre de réservation <span class="pill bad">copie du tarif dans React</span></h3>
+    <p>Le navigateur recopie la grille jour/soir, choisit le tarif « extérieurs », retire l'heure offerte du logement. Le serveur refait le calcul à l'enregistrement, par un autre chemin.</p>
+    <p>Les deux s'accordent sur le cas simple (17:00–19:00 : 60,00 € des deux côtés). Pas sur les autres.</p>
+  </div>
+  <div class="card">
+    <h3>Étape « Planifier » du sas <span class="pill bad">somme dans React</span></h3>
+    <p>La page additionne les badges « +10 € » des créneaux placés. Le serveur, lui, déduit ce que la prestation vendue facture déjà pour la soirée. Il envoie ce chiffre à chaque rafraîchissement ; la page l'ignore.</p>
+  </div>
+</div>
+<div class="card tablewrap" style="margin-top:12px">
+<table class="cmp">
+  <thead><tr><th>Cas (données fictives)</th><th>Affiché aujourd'hui</th><th>Enregistré ou facturé</th></tr></thead>
+  <tbody>
+    <tr><td>Créneau hors pas, 18:05–19:35 (pas de 30 min)</td><td class="n bad">50,00 €</td><td class="n">37,50 €</td></tr>
+    <tr><td>Ressource « complexe » à prix fixe 15 €, 2 h</td><td class="n bad">30,00 €</td><td class="n">15,00 €</td></tr>
+    <tr><td>Modification d'une réservation liée à un séjour</td><td>tarif extérieurs</td><td>tarif séjour</td></tr>
+    <tr><td>Sas : 2 h vendues 60,00 € (dont 10,00 € de soirée), placées 19:00–21:00</td><td class="n bad">Supplément 20 €</td><td class="n">10,00 €</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="cols">
+  <div class="card"><h3>Une seule fonction</h3><p><code>priceBooking</code> rend le prix détaillé d'un brouillon : total, bandes jour/soir, minutes offertes et facturées. L'enregistrement l'appelle et stocke son total.</p></div>
+  <div class="card"><h3>Un aperçu</h3><p><code>POST /api/resource-bookings/preview</code> reçoit le brouillon (ressource, date, heures, logement) et refuse ce que l'enregistrement refuserait : durée minimale, capacité.</p></div>
+  <div class="card"><h3>Le sas affiche le chiffre reçu</h3><p>Chaque carte de ressource montre son supplément tel que le serveur le répond déjà. Plus de total en bas de l'étape : le récap d'arrivée l'a.</p></div>
+  <div class="card"><h3>SDK 2.2.0</h3><p>Un appel ajouté à l'API cliente : version mineure. Le plugin passe en 1.2.0 sur <code>^2.2.0</code> ; les treize autres restent sur <code>^2.0.0</code>, compatibles.</p></div>
+</div>
+
+<h2>À manipuler</h2>
+<p>Fenêtre fictive, « Bain fictif » : jour 30 €/h, soir 40 €/h dès 19:00 pour les extérieurs, pas de 30 min, 1 h minimum ; « Cabane fictive » offre 1 h. Chaque changement part au « serveur » simulé après 200 ms de calme ; seule la dernière réponse compte. Les heures suivent le geste tout de suite, le prix suit la réponse.</p>
+<div class="demo">
+  <div>
+    <div class="ctl">
+      <span>Réseau</span>
+      <div class="seg" role="group" aria-label="Réseau">
+        <button type="button" data-net="ok" aria-pressed="true">Normal</button>
+        <button type="button" data-net="slow" aria-pressed="false">Lent (1,5 s)</button>
+        <button type="button" data-net="off" aria-pressed="false">Hors ligne</button>
+      </div>
+    </div>
+    <div class="ctl card" style="padding:4px 14px">
+      <label class="switchrow"><span>Tarif du soir changé ailleurs juste avant « Enregistrer » (40 → 45 €/h)</span><input type="checkbox" class="sw" id="drift"></label>
+    </div>
+    <div class="ctl">
+      <span>Ce que le navigateur afficherait aujourd'hui</span>
+      <div class="today" id="today">—</div>
+    </div>
+    <div class="ctl">
+      <span>Requêtes vers le serveur</span>
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="card dlg" id="dlg">
+    <div class="dlghead"><h3>Nouvelle réservation</h3><small>Bain fictif · 10:00–22:00 · Min 60 min</small></div>
+    <div class="dlgbody">
+      <div class="summary" id="sum" aria-live="polite">
+        <div class="l1"><span id="range">—</span><span class="amt" id="amt"></span></div>
+        <div class="l2" id="detail"></div>
+        <div class="msg" id="msg" hidden><span id="msgTxt"></span><button type="button" class="txtbtn" id="retry" hidden>Réessayer</button></div>
+        <div class="bar" aria-hidden="true"></div>
+      </div>
+      <div class="row2">
+        <label class="f">Heure début<select id="start"></select></label>
+        <label class="f">Heure fin<select id="end"></select></label>
+      </div>
+      <label class="f">Logement (optionnel)
+        <select id="prop"><option value="">— Aucun —</option><option value="2">Cabane fictive (1 h offerte)</option></select>
+      </label>
+      <div class="q1">
+        <label class="switchrow"><span>Offrir la réservation</span><input type="checkbox" class="sw" id="offer"></label>
+        <small>N'existe pas aujourd'hui : arbitrage Q1. Le prix réel reste affiché, barré.</small>
+      </div>
+    </div>
+    <div class="warn" id="warn" role="status"><span id="warnMsg"></span><button type="button" class="txtbtn" id="close">Fermer</button></div>
+    <div class="done" id="done" aria-live="polite"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="cancel">Annuler</button>
+      <button type="button" class="btn primary" id="save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li><b>Rien ne change dans ce qui est facturé.</b> L'écran affiche désormais ce que le serveur stocke déjà ; si le repli « hors pas » au tarif séjour est une erreur, c'est un correctif séparé (Q2).</li>
+  <li>Le grisage des heures déjà prises reste dans la fenêtre : ce n'est pas de l'argent, et le serveur refuse de toute façon.</li>
+  <li>Les heures « à planifier » du sas : des heures, pas des euros (Q3).</li>
+  <li>Le sélecteur de séances de la fiche n'affiche aucun montant : inchangé.</li>
+  <li>Pas de colonne, pas de migration.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="card tablewrap">
+<table class="risk">
+  <thead><tr><th>Risque</th><th>Parade</th></tr></thead>
+  <tbody>
+    <tr><td>La réécriture du calcul change un prix stocké.</td><td>Tests de parité : aperçu = <code>totalPrice</code> enregistré pour 60,00, 70,00, 40,00, 37,50, 15,00, 0,00 €. Les tests actuels du modèle gardent leurs chiffres.</td></tr>
+    <tr><td>Téléphone au bord du bain, réseau faible : le prix met du temps à suivre.</td><td>Les heures suivent le doigt, le prix suit la réponse, « Enregistrer » attend un prix frais. Hors ligne, l'enregistrement échouerait de toute façon.</td></tr>
+    <tr><td>Le tarif change entre l'aperçu et l'enregistrement.</td><td>L'enregistrement passe sur son propre prix et l'écart s'affiche dans la fenêtre avant de la fermer.</td></tr>
+    <tr><td>Les montants affichés changent pour l'opérateur (50,00 € devient 37,50 €).</td><td>C'est le chiffre déjà stocké en base : la compta ne bouge pas, seul l'écran devient juste. Une ligne du journal du plugin le dit.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Arbitrages en attente</h2>
+<div class="card">
+  <div class="q"><b>Q1</b><span>Ajouter « Offrir » à une réservation hors séjour (0 €, prix réel conservé) ?</span><span class="rec">Par défaut : non dans cette spec ; le brouillon pourra porter <code>offered</code> plus tard sans casser le contrat.</span></div>
+  <div class="q"><b>Q2</b><span>Le repli « hors pas » au tarif séjour (37,50 € au lieu de 50,00 €) est-il voulu ?</span><span class="rec">Par défaut : facturation inchangée ici ; correctif séparé qui fait avancer la fenêtre au pas de la ressource (30 min).</span></div>
+  <div class="q"><b>Q3</b><span>Les heures « à planifier » du sas viennent-elles aussi du serveur ?</span><span class="rec">Par défaut : oui, dans la même PR, à côté du supplément dans la même réponse.</span></div>
+  <div class="q"><b>Q4</b><span>Garder une trace quand une réservation est enregistrée à un autre prix que l'affiché ?</span><span class="rec">Par défaut : non, l'avertissement dans la fenêtre suffit (pas d'historique sur ces réservations).</span></div>
+  <div class="q"><b>Q5</b><span>Extraire un crochet générique d'aperçu, partagé avec le sas ?</span><span class="rec">Par défaut : oui, exposé par le SDK dans la même version 2.1.0.</span></div>
+</div>
+</main>
+
+<script>
+(function(){
+  // Données fictives. Le « serveur » est la seule place où l'on calcule un prix.
+  var R={open:600,close:1320,slot:30,min:60,guestDay:25,extDay:30,extEve:40,eveStart:1140};
+  var FREE={'':0,'2':60};
+  var state={start:'18:00',end:'20:00',prop:'',offer:false};
+  var net='ok', seq=0, latest=0, timer=null, inflight=null;
+  var price=null, pending=false, error=null;
+  var $=function(id){return document.getElementById(id)};
+  var toM=function(t){var p=t.split(':');return +p[0]*60+ +p[1]};
+  var toT=function(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+  var r2=function(v){return Math.round(v*100)/100};
+  var eur=function(v){return v.toFixed(2).replace('.',',')+' €'};
+  var hrs=function(min){var h=min/60;return (Number.isInteger(h)?h:String(h).replace('.',','))+' h'};
+  function log(cls,txt){var d=document.createElement('div');d.className=cls||'';d.textContent=txt;var l=$('log');l.appendChild(d);l.scrollTop=l.scrollHeight;}
+
+  function walk(s,e,eve){var t,tot=0,b={day:0,evening:0};for(t=s;t<e;t+=R.slot){var sl=Math.min(R.slot,e-t);var ev=t>=R.eveStart;var a=(ev?eve:R.extDay)*sl/60;tot+=a;b[ev?'evening':'day']+=a;}return {tot:tot,b:b};}
+  function server(d,eve){
+    var s=toM(d.startTime),e=toM(d.endTime),dur=e-s;
+    if(dur<R.min) return {status:400,error:'Durée minimale '+R.min+' min requise'};
+    var free=Math.min(FREE[d.propertyId]||0,dur);
+    if(s%R.slot||e%R.slot){ // hors pas : repli au tarif séjour, comme bookingsModel.js:80-82
+      var billed=Math.max(0,dur-free);
+      return {total:d.offered?0:r2(R.guestDay*billed/60),real:r2(R.guestDay*billed/60),pricing:'flat-hourly',durationMinutes:dur,freeMinutesApplied:free,billedMinutes:billed,bands:[{band:'day',amount:r2(R.guestDay*dur/60)}]};
+    }
+    var g=walk(s,e,eve), fv=free?walk(s,s+free,eve).tot:0;
+    var real=Math.max(0,r2(g.tot-fv));
+    var bands=[];if(g.b.day)bands.push({band:'jour',amount:r2(g.b.day)});if(g.b.evening)bands.push({band:'soir',amount:r2(g.b.evening)});
+    return {total:d.offered?0:real,real:real,pricing:'banded',durationMinutes:dur,freeMinutesApplied:free,billedMinutes:dur-free,bands:bands};
+  }
+  // La copie client d'aujourd'hui (ResourceBookingDialog.jsx:149-163) : toujours la grille extérieurs.
+  function clientToday(){var s=toM(state.start),e=toM(state.end);if(e<=s)return null;var free=Math.min(FREE[state.prop]||0,e-s);return Math.max(0,r2(walk(s,e,R.extEve).tot-(free?walk(s,s+free,R.extEve).tot:0)));}
+
+  function draft(){return {resourceId:4,bookingId:null,date:'2027-02-13',startTime:state.start,endTime:state.end,propertyId:state.prop||null,offered:state.offer}}
+  function complete(){return toM(state.end)>toM(state.start)}
+
+  function request(){
+    clearTimeout(timer);
+    if(!complete()){pending=false;render();return;}
+    pending=true; render();
+    timer=setTimeout(send,200);
+  }
+  function send(){
+    var id=++seq; latest=id; var d=draft();
+    if(inflight){inflight.abort=true;log('drop','#'+(id-1)+' abandonnée (une plus récente part)');}
+    var me={abort:false}; inflight=me;
+    log('','#'+id+' → aperçu '+d.startTime+'–'+d.endTime+(d.propertyId?' · Cabane fictive':'')+(d.offered?' · offerte':''));
+    setTimeout(function(){
+      if(me.abort||id!==latest){log('drop','#'+id+' réponse ignorée (périmée)');return;}
+      inflight=null; pending=false;
+      if(net==='off'){error={kind:'net'};price=null;log('ko','#'+id+' ✕ réseau indisponible');}
+      else{var res=server(d,R.extEve);
+        if(res.status){error={kind:'refused',msg:res.error};price=null;log('ko','#'+id+' ← '+res.status+' '+res.error);}
+        else{error=null;price=res;log('ok','#'+id+' ← '+eur(res.total)+(res.pricing==='flat-hourly'?' (hors pas : tarif séjour)':''));}}
+      render();
+    },net==='slow'?1500:400);
+  }
+
+  function render(){
+    var ok=complete();
+    $('range').textContent=ok?state.start+' → '+state.end+' · '+hrs(toM(state.end)-toM(state.start)):'Sélectionnez un créneau';
+    var a=$('amt'), det=$('detail'), msg=$('msg');
+    msg.hidden=true;$('retry').hidden=true;$('sum').classList.remove('refused');
+    if(!ok){a.textContent='';det.textContent='L’heure de fin doit être après l’heure de début.';}
+    else if(error&&!pending){
+      a.textContent='';det.textContent='';msg.hidden=false;$('sum').classList.add('refused');
+      if(error.kind==='net'){$('msgTxt').textContent='Prix indisponible : pas de réponse du serveur.';$('retry').hidden=false;}
+      else{$('msgTxt').textContent=error.msg;}
+    } else if(price){
+      a.innerHTML=' · '+(price.total!==price.real?'<s style="color:var(--muted);font-weight:500">'+eur(price.real)+'</s> ':'')+eur(price.total);
+      var parts=[];
+      if(price.freeMinutesApplied)parts.push(hrs(price.freeMinutesApplied)+' offerte · '+hrs(price.billedMinutes)+' facturée'+(price.billedMinutes>60?'s':''));
+      if(price.pricing==='banded')parts.push(price.bands.map(function(b){return b.band+' '+eur(b.amount)}).join(' · '));
+      else parts.push('hors pas : tarif séjour 25 €/h');
+      det.textContent=parts.join(' — ');
+    } else {a.textContent=' · …';det.textContent='';}
+    $('sum').classList.toggle('pending',pending);
+    var t=clientToday();
+    $('today').innerHTML=t==null?'—':'« '+state.start+' → '+state.end+' · <b>'+eur(t)+'</b> » '+(price&&!pending&&!error&&r2(t)!==price.real?'— ≠ '+eur(price.real)+' stockés':(price&&!pending&&!error?'— identique au serveur':''));
+    var fresh=ok&&!pending&&price&&!error;
+    $('save').disabled=!fresh;
+    $('save').textContent=pending?'Calcul du prix…':'Enregistrer';
+  }
+
+  function fill(sel,from,to,val){sel.innerHTML='';for(var m=from;m<=to;m+=15){var o=document.createElement('option');o.value=o.textContent=toT(m);sel.appendChild(o);}sel.value=val;}
+  fill($('start'),R.open,R.close-15,state.start);fill($('end'),R.open+15,R.close,state.end);
+  $('start').onchange=function(e){state.start=e.target.value;$('done').textContent='';request();};
+  $('end').onchange=function(e){state.end=e.target.value;$('done').textContent='';request();};
+  $('prop').onchange=function(e){state.prop=e.target.value;request();};
+  $('offer').onchange=function(e){state.offer=e.target.checked;request();};
+  $('retry').onclick=function(){request();};
+  $('cancel').onclick=function(){$('warn').classList.remove('show');$('done').textContent='Fenêtre fermée sans enregistrer.';};
+  $('close').onclick=function(){$('warn').classList.remove('show');$('done').textContent='Fenêtre fermée, semaine rechargée.';};
+  Array.prototype.forEach.call(document.querySelectorAll('[data-net]'),function(b){
+    b.onclick=function(){net=b.dataset.net;Array.prototype.forEach.call(document.querySelectorAll('[data-net]'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});log('','— réseau : '+b.textContent);request();};
+  });
+  $('save').onclick=function(){
+    // L'enregistrement recalcule avec le tarif du moment ; le prix affiché n'est qu'un point de comparaison.
+    var shown=price.total, res=server(draft(),$('drift').checked?45:R.extEve), stored=res.total;
+    $('warn').classList.remove('show');
+    if(stored!==shown){$('warnMsg').textContent='Enregistré à '+eur(stored)+' — l’aperçu affichait '+eur(shown)+'.';$('warn').classList.add('show');$('done').textContent='';log('drop','enregistrement → '+eur(stored)+' · affiché '+eur(shown)+' · avertissement');}
+    else{$('done').textContent='Enregistré à '+eur(stored)+', comme affiché.';log('ok','enregistrement → '+eur(stored)+' · identique');}
+  };
+  render(); request();
+})();
+</script>
+</body>
+</html>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Box, TextField, FormControl, InputLabel, Select, MenuItem,
-  FormControlLabel, Checkbox, Typography, Divider, Switch, Autocomplete, useMediaQuery, useTheme,
+  Button, Box, Alert, TextField, FormControl, InputLabel, Select, MenuItem,
+  FormControlLabel, Checkbox, Typography, Divider, Switch, Autocomplete, LinearProgress, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api } from '../sdk';
-import { previewRangeTotal } from './resourceSessions';
+import { api, formatCurrency } from '../sdk';
+import resourceBookingDraft from './resourceBookingDraft';
+import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
 
 function timeToMinutes(t) {
@@ -40,6 +41,18 @@ function isSlotAvailable(slotStart, slotEnd, occupiedSlots) {
 }
 
 const BOOKING_STEP_MINUTES = 5;
+
+// Wording only: every figure and minute count below is a field of the server's answer.
+function offeredBilledLabel(price) {
+  const offered = price.freeMinutesApplied;
+  const billed = price.billedMinutes;
+  return `${formatDuration(offered)} offert${offered > 1 && offered !== 60 ? 'es' : 'e'} · ${formatDuration(billed)} facturé${billed > 1 && billed !== 60 ? 'es' : 'e'}`;
+}
+
+const BAND_LABELS = { day: 'jour', evening: 'soir' };
+function bandsLabel(bands) {
+  return bands.map((b) => `${BAND_LABELS[b.band] || b.band} ${formatCurrency(b.amount)}`).join(' · ');
+}
 
 export default function ResourceBookingDialog({
   open,
@@ -79,6 +92,7 @@ export default function ResourceBookingDialog({
   const [notes, setNotes] = useState('');
   const [paid, setPaid] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedWarning, setSavedWarning] = useState(null);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
 
   const openMinutes = timeToMinutes(openTime);
@@ -132,40 +146,13 @@ export default function ResourceBookingDialog({
     });
   }
 
-  const currentPropertyPricing = (() => {
-    const pid = String(propertyId || '');
-    if (!pid) return null;
-    const map = resource?.propertyPricing && typeof resource.propertyPricing === 'object'
-      ? resource.propertyPricing
-      : null;
-    return map ? map[pid] : null;
-  })();
-  const effectiveUnitPrice = Number(currentPropertyPricing?.price ?? resource?.price ?? 0);
-  const freeMinutes = Math.max(0, Number(currentPropertyPricing?.freeMinutes || resource?.freeMinutes || 0));
-
-  // Price calculation. Hourly-scheduled resources (specs/resource-hourly-scheduling.md §3.5) use the
-  // time-banded grid with the EXTERNAL rate pair (this dialog books extérieurs, no logement reservation),
-  // falling back to the guest grid. Other hourly resources keep the flat duration × rate.
-  const isBandedHourly = Number(resource?.showsPlanningCard || 0) === 1 && resource?.priceType === 'per_hour';
-  let totalPrice;
-  if (resource?.priceType === 'free') {
-    totalPrice = 0;
-  } else if (isBandedHourly && selectedStart && selectedEnd) {
-    const dayRate = Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : effectiveUnitPrice;
-    const guestEvening = Number(resource.hourlyEveningRate) || 0;
-    const eveningRate = Number(resource.hourlyExternalEveningRate) > 0
-      ? Number(resource.hourlyExternalEveningRate)
-      : (guestEvening > 0 ? guestEvening : dayRate);
-    totalPrice = previewRangeTotal(
-      selectedStart, selectedEnd,
-      { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration },
-      freeMinutes,
-    );
-  } else if (isHourlyResource) {
-    totalPrice = (effectiveUnitPrice * Math.max(0, durationMinutes - freeMinutes)) / 60;
-  } else {
-    totalPrice = effectiveUnitPrice;
-  }
+  // The price is the server's: the draft below is all the dialog sends, and the answer is rendered as is
+  // (specs/resource-supplements-total-server-side.md rules 8-14).
+  const draft = useMemo(() => resourceBookingDraft({
+    resourceId: resource?.id, bookingId: booking?.id, date, startTime: selectedStart, endTime: selectedEnd, propertyId,
+  }), [resource?.id, booking?.id, date, selectedStart, selectedEnd, propertyId]);
+  const preview = useResourceBookingPreview({ draft, enabled: open });
+  const price = preview.price;
 
   // Check if current selection has conflicts
   const slotAvailable = useMemo(() => {
@@ -194,6 +181,7 @@ export default function ResourceBookingDialog({
 
   useEffect(() => {
     if (!open) return;
+    setSavedWarning(null);
     if (booking) {
       setDate(booking.date || '');
       setSelectedStart(booking.startTime || '');
@@ -245,11 +233,14 @@ export default function ResourceBookingDialog({
         notes,
         paid,
         propertyId: propertyId || null,
+        displayedTotal: price ? price.total : undefined,
         ...(externalMode
           ? { clientId: null, clientName: clientName.trim() || null, clientPhone: clientPhone.trim() || null }
           : { clientId: selectedClient?.id || null, clientName: null, clientPhone: null }),
       };
-      await onSave(data);
+      const saved = await onSave(data);
+      if (saved?.warning) setSavedWarning(saved.warning);
+      else if (saved) onClose();
     } finally {
       setSaving(false);
     }
@@ -264,6 +255,9 @@ export default function ResourceBookingDialog({
     && (externalMode ? clientName.trim() : selectedClient)
     && slotAvailable
   );
+  const shownPrice = draft ? price : null;
+  const showRefusal = Boolean(draft && preview.refusal && !preview.pending);
+  const showUnavailable = Boolean(draft && preview.error && !preview.pending);
 
 
   return (
@@ -275,11 +269,26 @@ export default function ResourceBookingDialog({
         </Typography>
       </DialogTitle>
       <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
-        {/* Two-column layout: planning left, form right */}
-        <Box sx={{ display: 'flex', gap: 2.5, flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'flex-start' }}>
+        {savedWarning ? (
+          <Alert severity="warning" role="status">
+            Enregistré à {formatCurrency(savedWarning.stored)} — l'aperçu affichait {formatCurrency(savedWarning.displayed)}.
+          </Alert>
+        ) : (
+        /* Planning left; on a phone the price summary comes first and stays in view while the planner is tapped */
+        <Box
+          sx={{
+            display: 'grid',
+            columnGap: 2.5,
+            rowGap: 2,
+            alignItems: 'start',
+            gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: '240px minmax(0, 1fr)' },
+            gridTemplateAreas: { xs: '"summary" "left" "form"', sm: '"left summary" "left form"' },
+            gridTemplateRows: { sm: 'auto 1fr' },
+          }}
+        >
 
           {/* LEFT: date picker + day planner */}
-          <Box sx={{ flex: '0 0 240px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Box sx={{ gridArea: 'left', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <TextField
               label="Date"
               type="date"
@@ -305,37 +314,101 @@ export default function ResourceBookingDialog({
             />
           </Box>
 
-          {/* RIGHT: client + form */}
-          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Selected slot summary */}
-            {selectedStart && selectedEnd && (
-              <Box sx={{ px: 1.5, py: 1, borderRadius: 1, bgcolor: slotAvailable ? '#e8f5e9' : '#ffebee', borderLeft: `3px solid ${slotAvailable ? '#4caf50' : '#f44336'}` }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+          {/* Price summary — every figure is the server's answer */}
+          <Box
+            sx={{
+              gridArea: 'summary',
+              minWidth: 0,
+              position: { xs: 'sticky', sm: 'static' },
+              top: 0,
+              zIndex: 2,
+              bgcolor: 'background.paper',
+            }}
+          >
+            {selectedStart && selectedEnd ? (
+              <Box
+                aria-busy={preview.pending}
+                sx={{
+                  position: 'relative', overflow: 'hidden', minHeight: 64,
+                  px: 1.5, py: 1, borderRadius: 1,
+                  bgcolor: slotAvailable && !showRefusal ? '#e8f5e9' : '#ffebee',
+                  borderLeft: `3px solid ${slotAvailable && !showRefusal ? '#4caf50' : '#f44336'}`,
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                   {selectedStart} → {selectedEnd} · {formatDuration(durationMinutes)}
-                  {totalPrice > 0 && <> · {totalPrice.toFixed(2)} €</>}
+                  {shownPrice && (
+                    <Box
+                      component="span"
+                      sx={{
+                        opacity: preview.pending ? 0.55 : 1,
+                        transition: 'opacity 150ms ease-out',
+                        '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+                      }}
+                    >
+                      {' · '}{formatCurrency(shownPrice.total)}
+                    </Box>
+                  )}
+                  {!shownPrice && draft && preview.pending && (
+                    <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}> · Calcul du prix…</Box>
+                  )}
+                  {showUnavailable && (
+                    <>
+                      <Box component="span" sx={{ fontWeight: 400, color: 'error.main' }}> · Prix indisponible</Box>
+                      <Button size="small" onClick={preview.retry} sx={{ ml: 1, minHeight: 44, minWidth: 44 }}>Réessayer</Button>
+                    </>
+                  )}
                 </Typography>
-                {isHourlyResource && freeMinutes > 0 && (
-                  <Typography variant="caption" color="text.secondary">
-                    {Math.min(durationMinutes, freeMinutes)} min offertes ({Math.max(0, durationMinutes - freeMinutes)} min facturees)
+                {shownPrice && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{
+                      display: 'block', fontVariantNumeric: 'tabular-nums',
+                      opacity: preview.pending ? 0.55 : 1,
+                    }}
+                  >
+                    {[
+                      shownPrice.freeMinutesApplied > 0 ? offeredBilledLabel(shownPrice) : null,
+                      shownPrice.pricing === 'banded' && shownPrice.bands.length > 0 ? bandsLabel(shownPrice.bands) : null,
+                    ].filter(Boolean).join(' · ')}
                   </Typography>
                 )}
-                {!slotAvailable && (
-                  <Typography variant="caption" color="error.main">Chevauche une réservation ou une remise en état</Typography>
+                {showRefusal ? (
+                  <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>{preview.refusal}</Typography>
+                ) : (
+                  <>
+                    {!slotAvailable && (
+                      <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>Chevauche une réservation ou une remise en état</Typography>
+                    )}
+                    {!meetsMinimumDuration && (
+                      <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>Durée minimale {minimumDurationMinutes} min requise</Typography>
+                    )}
+                    {selectedStart && selectedEnd && !isChronological && (
+                      <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
+                        L'heure de fin doit être après l'heure de début.
+                      </Typography>
+                    )}
+                  </>
                 )}
-                {!meetsMinimumDuration && (
-                  <Typography variant="caption" color="error.main">Durée minimale {minimumDurationMinutes} min requise</Typography>
+                {draft && preview.pending && (
+                  <LinearProgress
+                    aria-label="Calcul du prix"
+                    sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, bgcolor: 'transparent' }}
+                  />
                 )}
               </Box>
-            )}
-
-            {!selectedStart && (
+            ) : (
               <Box sx={{ px: 1.5, py: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
                 <Typography variant="caption" color="text.secondary">
                   Sélectionnez un créneau dans le planning
                 </Typography>
               </Box>
             )}
+          </Box>
 
+          {/* RIGHT: client + form */}
+          <Box sx={{ gridArea: 'form', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', gap: 1.25 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Heure début</InputLabel>
@@ -386,12 +459,6 @@ export default function ResourceBookingDialog({
                 </Select>
               </FormControl>
             </Box>
-
-            {selectedStart && selectedEnd && !isChronological && (
-              <Typography variant="caption" color="error.main">
-                L'heure de fin doit être après l'heure de début.
-              </Typography>
-            )}
 
             <Divider />
 
@@ -460,17 +527,24 @@ export default function ResourceBookingDialog({
             />
           </Box>
         </Box>
+        )}
       </DialogContent>
       <DialogActions>
-        {booking && (
-          <Button color="error" onClick={() => onDelete(booking.id)} disabled={saving}>
-            Supprimer
-          </Button>
+        {savedWarning ? (
+          <Button variant="contained" onClick={onClose} sx={{ minHeight: 44 }}>Fermer</Button>
+        ) : (
+          <>
+            {booking && (
+              <Button color="error" onClick={() => onDelete(booking.id)} disabled={saving}>
+                Supprimer
+              </Button>
+            )}
+            <Button onClick={onClose} disabled={saving}>Annuler</Button>
+            <Button variant="contained" onClick={handleSave} disabled={!canSave || !preview.fresh || saving}>
+              {saving ? 'Enregistrement...' : (draft && preview.pending ?'Calcul du prix…' : 'Enregistrer')}
+            </Button>
+          </>
         )}
-        <Button onClick={onClose} disabled={saving}>Annuler</Button>
-        <Button variant="contained" onClick={handleSave} disabled={!canSave || saving}>
-          {saving ? 'Enregistrement...' : 'Enregistrer'}
-        </Button>
       </DialogActions>
     </Dialog>
   );

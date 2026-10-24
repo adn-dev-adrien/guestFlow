@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.1.0",
+  "sdk": "^2.2.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -47,6 +47,9 @@
     "1.4.0": [
       "Le prix du petit déjeuner proposé à l’arrivée vient du serveur.",
       "Compatible avec le SDK 2.1 de GuestFlow."
+    ],
+    "1.5.0": [
+      "Compatible avec le SDK 2.2 de GuestFlow."
     ]
   }
 }

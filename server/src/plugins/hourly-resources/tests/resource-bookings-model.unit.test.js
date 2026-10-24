@@ -27,6 +27,16 @@ const DDL = `
   );
 `;
 
+// specs/resource-supplements-total-server-side.md rule 2 — the total is `priceBooking(draft).total`.
+function priced(model, resourceId, { startTime, endTime, propertyId, bookingId }) {
+  return model.priceBooking({ resourceId, date: '2099-06-01', startTime, endTime, propertyId, bookingId }).total;
+}
+
+// A booking tied to a reservation: the server prices it on the guest grid.
+function tiedBooking(db, resourceId) {
+  return Number(db.prepare("INSERT INTO resource_bookings (resourceId, reservationId, date, startTime, endTime) VALUES (?, 7, '2099-05-01', '08:00', '09:00')").run(resourceId).lastInsertRowid);
+}
+
 function freshModel(resourceOverrides = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
@@ -43,53 +53,47 @@ function freshModel(resourceOverrides = {}) {
   return { model: resourceBookingsModel.create(db), db, resourceId: Number(info.lastInsertRowid) };
 }
 
-test('computeBookingTotalPrice: per_hour bills duration minus freeMinutes', () => {
+test('priceBooking total: per_hour bills duration minus freeMinutes', () => {
   const { model, db, resourceId } = freshModel();
-  const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
-  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '10:00', endTime: '11:00' }), 60);
+  assert.equal(priced(model, resourceId, { startTime: '10:00', endTime: '11:00' }), 60);
   db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (1, ?, 60, 60)').run(resourceId);
   // 90 min - 60 free = 30 billed → 30€
-  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '10:00', endTime: '11:30', propertyId: 1 }), 30);
+  assert.equal(priced(model, resourceId, { startTime: '10:00', endTime: '11:30', propertyId: 1 }), 30);
 });
 
-test('computeBookingTotalPrice: per_stay returns the flat price, free returns 0', () => {
+test('priceBooking total: per_stay returns the flat price, free returns 0', () => {
   const flat = freshModel({ priceType: 'per_stay', price: 50 });
-  const fr = flat.db.prepare('SELECT * FROM resources WHERE id = ?').get(flat.resourceId);
-  assert.equal(flat.model.computeBookingTotalPrice({ resource: fr, startTime: '10:00', endTime: '12:00' }), 50);
+  assert.equal(priced(flat.model, flat.resourceId, { startTime: '10:00', endTime: '12:00' }), 50);
 
   const free = freshModel({ priceType: 'free', price: 99 });
-  const frr = free.db.prepare('SELECT * FROM resources WHERE id = ?').get(free.resourceId);
-  assert.equal(free.model.computeBookingTotalPrice({ resource: frr, startTime: '10:00', endTime: '12:00' }), 0);
+  assert.equal(priced(free.model, free.resourceId, { startTime: '10:00', endTime: '12:00' }), 0);
 });
 
 // specs/resource-hourly-scheduling.md §3.5 — time-banded grid + external/guest rate selection.
-test('computeBookingTotalPrice: hourly-scheduled uses the banded grid; external vs guest rate', () => {
+test('priceBooking total: hourly-scheduled uses the banded grid; external vs guest rate', () => {
   const { model, db, resourceId } = freshModel({
     priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,
     price: 30, hourlyEveningStart: '20:00', hourlyEveningRate: 50,
     hourlyExternalDayRate: 40, hourlyExternalEveningRate: 60,
   });
-  const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
   // Guest (tied to a reservation), 19:00–21:00 = 2×15 + 2×25 = 80.
-  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '19:00', endTime: '21:00', reservationId: 7 }), 80);
+  assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00', bookingId: tiedBooking(db, resourceId) }), 80);
   // External (no reservation), 19:00–21:00 = 2×20 + 2×30 = 100.
-  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '19:00', endTime: '21:00' }), 100);
+  assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00' }), 100);
 });
 
-test('computeBookingTotalPrice: external rate falls back to the guest grid when unset', () => {
-  const { model, db, resourceId } = freshModel({
+test('priceBooking total: external rate falls back to the guest grid when unset', () => {
+  const { model, resourceId } = freshModel({
     priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,
     price: 30, hourlyEveningStart: '20:00', hourlyEveningRate: 50,
     // no external rates → fall back to guest
   });
-  const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
-  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '19:00', endTime: '21:00' }), 80);
+  assert.equal(priced(model, resourceId, { startTime: '19:00', endTime: '21:00' }), 80);
 });
 
-test('computeBookingTotalPrice: non-scheduled hourly resource keeps the flat price (regression)', () => {
-  const { model, db, resourceId } = freshModel({ priceType: 'per_hour', price: 60, showsPlanningCard: 0 });
-  const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
-  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '10:00', endTime: '11:00' }), 60);
+test('priceBooking total: non-scheduled hourly resource keeps the flat price (regression)', () => {
+  const { model, resourceId } = freshModel({ priceType: 'per_hour', price: 60, showsPlanningCard: 0 });
+  assert.equal(priced(model, resourceId, { startTime: '10:00', endTime: '11:00' }), 60);
 });
 
 test('createBooking: missing fields → 400', () => {
