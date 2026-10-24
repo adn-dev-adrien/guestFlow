@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prix du petit déjeuner serveur</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-soft:#E3ECE6; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E4DED2;
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --amber-soft:#FBF3E2; --amber-line:#EBD3A2; --amber:#8A5A12;
+  --serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--primary:#7FB596;--primary-soft:#22352B;--paper:#1B1A17;--card:#25231F;--ink:#EEEAE0;--muted:#A7A192;--line:#3A3730;
+    --success:#7FB596;--success-soft:#22352B;--warning:#D9B15E;--warning-soft:#3A3120;--error:#E08C82;--error-soft:#3D2522;
+    --amber-soft:#2E2618;--amber-line:#5A4622;--amber:#E0B565;}
+}
+*{box-sizing:border-box}
+::selection{background:var(--primary-soft);color:var(--ink)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);-webkit-text-size-adjust:100%}
+main{max-width:1080px;margin:0 auto;padding:32px 16px 64px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h1{font-size:1.9rem}
+h2{font-size:1.25rem;margin:44px 0 12px}
+h3{font-size:1.02rem;margin-bottom:8px}
+p{margin:0 0 10px;max-width:72ch}
+.lead{color:var(--muted);max-width:68ch;margin-top:8px}
+.meta{font-size:.82rem;color:var(--muted);margin-bottom:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.cols{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+ul{margin:0;padding-left:18px}
+li{margin:4px 0}
+code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:0 4px;overflow-wrap:anywhere}
+a{color:var(--primary);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+.pill{font:600 .7rem/1 var(--sans);padding:4px 8px;border-radius:999px;letter-spacing:.02em}
+.pill.bad{background:var(--error-soft);color:var(--error)}
+.flow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){.flow{grid-template-columns:1fr}}
+.flow > *,.cols > *,.demo > *{min-width:0}
+.flow .card h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.formula{font:500 .82rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--paper);border-radius:10px;padding:10px 12px;margin:8px 0;overflow-x:auto;white-space:pre}
+
+/* Démo */
+.demo{display:grid;gap:16px;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);align-items:start}
+@media (max-width:820px){.demo{grid-template-columns:1fr}}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);flex-wrap:wrap}
+.seg button{font:inherit;font-size:.85rem;border:0;background:transparent;color:var(--ink);padding:0 12px;min-height:44px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--primary);color:var(--card)}
+.ctl{margin-bottom:14px}
+.ctl > span{display:block;font-size:.8rem;color:var(--muted);margin-bottom:6px}
+.log{font:500 .78rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:150px;max-height:220px;overflow:auto;color:var(--muted)}
+.log .ok{color:var(--success)} .log .drop{color:var(--warning)} .log .ko{color:var(--error)}
+
+.sas{padding:0;overflow:hidden}
+.sas::before{content:"";display:block;height:4px;background:var(--warning)}
+.sashead{padding:14px 18px 4px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sashead small{color:var(--muted);font-size:.78rem}
+.page{padding:8px 18px 16px}
+.page + .page{border-top:1px solid var(--line)}
+.step{font-size:.75rem;color:var(--muted);margin-bottom:6px;font-variant-numeric:tabular-nums}
+.offer{background:var(--amber-soft);border:1px solid var(--amber-line);border-radius:12px;padding:12px 14px}
+.offer strong,.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted);font-size:.86rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin:10px 0}
+.morning{display:flex;align-items:center;gap:8px;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:0 10px;cursor:pointer;background:var(--card);font-size:.88rem;transition:border-color .15s,background .15s}
+.morning:has(input:checked){border-color:var(--primary);background:var(--primary-soft)}
+.morning input{width:18px;height:18px;accent-color:var(--primary);margin:0}
+.qty{font-size:.9rem;min-height:1.5em;transition:opacity .18s}
+.stepper{display:flex;align-items:center;gap:8px;margin:12px 0 4px}
+.stepper label{font-size:.9rem;flex:1 1 0;min-width:0}
+.stepper button{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 1.1rem/1 var(--sans);cursor:pointer}
+.stepper button:active{transform:scale(.95)}
+.stepper input{width:64px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-align:center;font:600 1rem var(--sans);font-variant-numeric:tabular-nums}
+.stepper input[aria-invalid="true"]{border-color:var(--error);color:var(--error)}
+.hint{font-size:.8rem;min-height:1.3em;color:var(--muted)}
+.hint.err{color:var(--error)}
+.hint.warn{color:var(--warning)}
+.foot{position:relative;margin-top:10px;padding-top:10px;border-top:2px solid var(--ink)}
+.bar{position:absolute;left:0;right:0;top:-2px;height:2px;overflow:hidden;opacity:0;transition:opacity .15s}
+.bar::before{content:"";position:absolute;inset:0;width:40%;background:var(--honey);animation:slide 1s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.pending .bar{opacity:1}
+.pending .dim{opacity:.55}
+.total{font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums;transition:opacity .18s}
+.alert{display:none;margin-top:10px;border-radius:10px;padding:6px 12px;font-size:.86rem;background:var(--error-soft);color:var(--error)}
+.alert.show{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.txtbtn{font:inherit;font-weight:600;font-size:.85rem;background:none;border:0;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:44px;padding:0 4px}
+.next{width:100%;margin-top:12px;font:inherit;font-weight:600;min-height:48px;border:0;border-radius:12px;background:var(--primary);color:var(--card);cursor:pointer}
+
+.risk td,.risk th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:.9rem}
+.risk{border-collapse:collapse;width:100%}
+.risk th{font-size:.78rem;color:var(--muted);font-weight:600}
+.tablewrap{overflow-x:auto}
+.q{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.q:last-child{border-bottom:0}
+.q b{font-variant-numeric:tabular-nums;color:var(--primary)}
+.q .rec{grid-column:2;color:var(--muted);font-size:.86rem}
+@media (prefers-reduced-motion:reduce){
+  .bar::before{animation:none;width:100%;opacity:.6}
+  .qty,.total,.morning{transition:none}
+}
+</style>
+</head>
+<body>
+<main>
+<p class="meta">Spec <code>specs/breakfast-offer-price-server-side.md</code> · statut Draft · 24/10/2026</p>
+<h1>Le prix du petit déjeuner proposé à l'arrivée, calculé par le serveur</h1>
+<p class="lead">Au check-in, la page « Le client n'a pas pris le petit déjeuner » multiplie elle-même le tarif par le nombre de personnes, et la page des matins compte elle-même les petits déjeuners. Proposition : le serveur rend ces chiffres, le dialogue les affiche tels quels.</p>
+
+<h2>Le constat</h2>
+<div class="flow">
+  <div class="card">
+    <h3>Encore calculé dans React <span class="pill bad">2 endroits</span></h3>
+    <div class="formula">prix d'un matin = tarif × personnes      (offre)
+quantité        = matins × pers. servies (matins)</div>
+    <p>Le montant à côté de la quantité vient déjà du serveur depuis la #759. On peut donc lire « <b>6</b> petits déjeuners — 48,00 € » où le 6 a été compté par le navigateur et les 48,00 € par le serveur.</p>
+  </div>
+  <div class="card">
+    <h3>Ce que la lecture du code a trouvé</h3>
+    <ul>
+      <li>Le serveur sait déjà tout faire : <code>priceOptionSale</code> tarife la vente au moment de l'enregistrement.</li>
+      <li>Le nombre de personnes servies côté client n'a <b>pas de plafond</b> ; le serveur plafonne à la capacité du logement. Seul le maximum du compteur masque l'écart.</li>
+      <li>Le linge de toilette, sur le même dialogue, affiche déjà un montant serveur : le modèle existe.</li>
+      <li>Pas de TVA à afficher : les prix d'option sont TTC, au taux unique, et la taxe de séjour ne porte pas sur les options.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="cols">
+  <div class="card"><h3>Offre : le prix d'un matin</h3><p>Le chargement du SAS porte <code>perMorning: { persons, amount }</code>, tarifé par la fonction même de la vente, appliquée à un matin. Le nombre de personnes ne bouge pas sur cette page : pas besoin d'appel.</p></div>
+  <div class="card"><h3>Matins : l'aperçu répond la quantité</h3><p>L'aperçu existant renvoie <code>moments</code>, <code>servedPersons</code>, <code>units</code>, <code>amount</code>. Même boucle qu'aujourd'hui : 200 ms de calme, une requête, seule la dernière réponse compte.</p></div>
+  <div class="card"><h3>Pas de grille de prix</h3><p>L'aperçu tarife déjà n'importe quel brouillon avec le code de l'enregistrement. Une grille serait une deuxième source.</p></div>
+  <div class="card"><h3>Arrondi</h3><p>Euros TTC arrondis au centime par le serveur, sur le total (<code>tarif × unités</code>), jamais une somme de montants déjà arrondis.</p></div>
+</div>
+
+<h2>À manipuler</h2>
+<p>Séjour fictif, 4 matins, 3 personnes, logement de 5 places, petit déjeuner à 7,35 € par personne. Chaque geste part au « serveur » simulé (≈ 400 ms) après 200 ms de calme. Pendant l'attente, les chiffres restent ceux du serveur, atténués. Essayer de taper 0 ou 9 personnes.</p>
+<div class="demo">
+  <div>
+    <div class="ctl">
+      <span>Réseau</span>
+      <div class="seg" role="group" aria-label="Réseau">
+        <button type="button" data-net="ok" aria-pressed="true">Normal</button>
+        <button type="button" data-net="slow" aria-pressed="false">Lent (1,5 s)</button>
+        <button type="button" data-net="off" aria-pressed="false">Hors ligne</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span>Requêtes vers le serveur</span>
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="card sas" id="sas">
+    <div class="sashead"><h3>Petit déjeuner</h3><small>Arrivée · cabane fictive</small></div>
+    <div class="page">
+      <div class="step">Page « offre » — chiffre livré avec le SAS</div>
+      <div class="offer">
+        <div>Le client n'a pas pris le petit déjeuner.</div>
+        <div>Tarif : <strong>7,35 €</strong> par personne et par matin — <span class="num" id="perMorning">—</span></div>
+        <div class="muted">4 matins possibles sur ce séjour.</div>
+      </div>
+    </div>
+    <div class="page" id="mornings">
+      <div class="step">Page « matins » — chiffres de l'aperçu</div>
+      <strong>Quels matins ?</strong>
+      <div class="grid" id="grid"></div>
+      <div class="qty dim" id="qty">—</div>
+      <div class="stepper">
+        <label for="served">Personnes servies</label>
+        <button type="button" id="minus" aria-label="Une personne de moins">−</button>
+        <input id="served" inputmode="numeric" value="3" aria-describedby="servedHint">
+        <button type="button" id="plus" aria-label="Une personne de plus">+</button>
+      </div>
+      <div class="hint" id="servedHint" aria-live="polite"></div>
+      <div class="foot">
+        <div class="bar" aria-hidden="true"></div>
+        <div class="total dim" id="total">—</div>
+        <div class="alert" id="err" role="alert"><span>Montant indisponible</span><button type="button" class="txtbtn" id="retry">Réessayer</button></div>
+      </div>
+      <button type="button" class="next">Suivant</button>
+    </div>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Rien ne change dans ce qui est facturé : la fonction de tarification n'est pas modifiée, aucune migration.</li>
+  <li>La composition (viennoiseries, pain) et l'alerte « Quantités ≠ personnes » restent côté client : ce sont des quantités de nourriture, pas de l'argent.</li>
+  <li>Les indications de la fiche réservation (« ×2 pers. ×2 j. ») : une spec séparée pour tout le formulaire des extras.</li>
+  <li>Le récap du départ : spec séparée, déjà annoncée.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="card tablewrap">
+<table class="risk">
+  <thead><tr><th>Risque</th><th>Parade</th></tr></thead>
+  <tbody>
+    <tr><td>Le prix d'un matin diverge de ce que la vente facture.</td><td>Il est calculé par <code>priceOptionSale</code> sur un matin : un test de parité compare les deux sur les mêmes entrées.</td></tr>
+    <tr><td>Réseau lent à la porte : la quantité met du temps à suivre.</td><td>La case et le compteur bougent tout de suite ; les chiffres suivent, atténués entre deux réponses. Le récap bloque déjà « Valider » sans total frais.</td></tr>
+    <tr><td>Un nombre tapé au-delà de la capacité.</td><td>Le serveur plafonne, la page affiche son chiffre et remet le compteur dessus.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Arbitrages en attente</h2>
+<div class="card">
+  <div class="q"><b>Q1</b><span>Traiter aussi les repas de « Restauration » (même calcul de quantité, page suivante) dans la même PR ?</span><span class="rec">Par défaut : oui, le code est le même et sinon un chiffre compté par le navigateur reste à la page suivante.</span></div>
+  <div class="q"><b>Q2</b><span>SAS rouvert : l'offre annonce le prix pour le nombre de couverts déjà choisi, ou pour tout le groupe ?</span><span class="rec">Par défaut : le nombre déjà choisi, ce qui a vraiment été vendu.</span></div>
+  <div class="q"><b>Q3</b><span>Aperçu en erreur sur la page des matins : laisser « Suivant » actif, ou le bloquer ?</span><span class="rec">Par défaut : actif, rien n'est enregistré ici et le récap bloque « Valider ».</span></div>
+</div>
+</main>
+
+<script>
+(function(){
+  // Données fictives — aucune réservation réelle.
+  var PRICE=7.35, PARTY=3, CAPACITY=5;
+  var MORNINGS=['sam. 10','dim. 11','lun. 12','mar. 13'];
+  var checked=[true,true,true,true], served=PARTY, net='ok';
+  var seq=0, latest=0, timer=null, inflight=null, answer=null, pending=false, error=false;
+  var $=function(id){return document.getElementById(id)};
+  var round2=function(n){return Math.round((Number(n)||0)*100)/100};
+  var eur=function(v){return v.toFixed(2).replace('.',',')+' €'};
+  function log(cls,txt){var d=document.createElement('div');d.className=cls||'';d.textContent=txt;var l=$('log');l.appendChild(d);l.scrollTop=l.scrollHeight;}
+
+  // Le « serveur » : le seul endroit où l'on multiplie et où l'on arrondit.
+  function resolveServed(wanted){var ceiling=Math.max(1,PARTY,CAPACITY);return wanted>0?Math.min(Math.max(1,wanted),ceiling):PARTY;}
+  function priceSale(moments,wanted){var s=resolveServed(wanted);var units=moments*s;return {moments:moments,servedPersons:s,units:units,unitPrice:PRICE,amount:round2(PRICE*units)};}
+  // Livré avec le SAS : prix d'un matin = la même fonction, sur un matin.
+  $('perMorning').textContent=eur(priceSale(1,PARTY).amount)+' le matin pour '+PARTY+' pers.';
+
+  function draft(){return {occurrences:checked.reduce(function(n,c){return n+(c?1:0)},0),persons:served}}
+  function request(){clearTimeout(timer);pending=true;render();timer=setTimeout(send,200);}
+  function send(){
+    var id=++seq; latest=id; var d=draft();
+    if(inflight){inflight.abort=true;log('drop','#'+(id-1)+' abandonnée (une plus récente part)');}
+    var me={abort:false}; inflight=me;
+    log('','#'+id+' → aperçu : '+d.occurrences+' matin(s), '+d.persons+' pers.');
+    setTimeout(function(){
+      if(me.abort||id!==latest){log('drop','#'+id+' réponse ignorée (périmée)');return;}
+      inflight=null; pending=false;
+      if(net==='off'){error=true;log('ko','#'+id+' ✕ réseau indisponible');}
+      else{
+        error=false; answer=priceSale(d.occurrences,d.persons);
+        log('ok','#'+id+' ← '+answer.units+' petits déjeuners · '+eur(answer.amount));
+        if(answer.servedPersons!==served){
+          served=answer.servedPersons; $('served').value=served;
+          setHint('warn','Plafonné à '+CAPACITY+' : capacité du logement.');
+        }
+      }
+      render();
+    },net==='slow'?1500:400);
+  }
+  function setHint(kind,txt){var h=$('servedHint');h.className='hint'+(kind?' '+kind:'');h.textContent=txt;}
+
+  function render(){
+    $('mornings').classList.toggle('pending',pending);
+    var ok=answer&&!error;
+    $('qty').innerHTML='';
+    if(ok){
+      $('qty').append('Quantité : ');var b=document.createElement('strong');b.className='num';b.textContent=answer.units;$('qty').append(b);
+      $('qty').append(' ('+answer.moments+' × '+answer.servedPersons+' pers. servies)');
+      $('total').textContent=answer.units+' petit'+(answer.units>1?'s':'')+' déjeuner'+(answer.units>1?'s':'')+' — '+eur(answer.amount);
+    }else{$('qty').textContent='Quantité : —';$('total').textContent='— petits déjeuners — —';}
+    $('err').classList.toggle('show',error&&!pending);
+  }
+
+  var grid=$('grid');
+  MORNINGS.forEach(function(m,i){
+    var l=document.createElement('label');l.className='morning';
+    var c=document.createElement('input');c.type='checkbox';c.checked=checked[i];
+    c.onchange=function(){checked[i]=c.checked;request();};
+    l.appendChild(c);l.append(m+' · 09:00');grid.appendChild(l);
+  });
+  function setServed(v){served=v;$('served').value=v;$('served').setAttribute('aria-invalid','false');setHint('','');request();}
+  $('minus').onclick=function(){if(served>1)setServed(served-1);else setHint('err','Au moins 1 personne : pour retirer le petit déjeuner, décocher les matins.');};
+  $('plus').onclick=function(){setServed(served+1);};
+  $('served').oninput=function(e){
+    var raw=e.target.value.trim(); var n=Number(raw);
+    if(raw===''||!Number.isInteger(n)||n<1){e.target.setAttribute('aria-invalid','true');setHint('err','Au moins 1 personne. Aucune requête envoyée.');return;}
+    e.target.setAttribute('aria-invalid','false');setHint('','');served=n;request();
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-net]'),function(b){
+    b.onclick=function(){net=b.dataset.net;Array.prototype.forEach.call(document.querySelectorAll('[data-net]'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});log('','— réseau : '+b.textContent);request();};
+  });
+  $('retry').onclick=request;
+  render(); request();
+})();
+</script>
+</body>
+</html>

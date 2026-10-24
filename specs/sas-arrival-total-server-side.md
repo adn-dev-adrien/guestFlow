@@ -491,7 +491,9 @@ pillowcase (5 €) and the ménage (80 €), at 375, 900 and 1280 px:
   (`sas-departure-total-server-side`).
 - The offer prices shown before a sale (« 8,00 € par personne et par matin — 16,00 € le matin pour
   2 pers. » on the breakfast offer page) and the « supplément » total of the hourly-resources
-  scheduling page: shown before any line exists, they belong with the departure follow-up.
+  scheduling page: shown before any line exists. The breakfast offer price is specified in
+  [breakfast-offer-price-server-side.md](breakfast-offer-price-server-side.md); the hourly-resources
+  supplement belongs with the departure follow-up.
 - The breakfast composition pre-fill (`breakfastFoodFor`): counts of food, not money.
 - `recapNotes` of plugin steps: text, not money.
 - Any change to what is billed or how it is booked: the planner reproduces the commit's arithmetic, it
