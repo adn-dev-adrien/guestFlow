@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented |
 | **Branch** | `docs/sas-departure-recap-server` |
 | **Created** | 2026-10-24 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #768 |
 
 ---
 
@@ -92,14 +92,21 @@ the commit runs, so that what the operator collects at the door is what the book
 1. **A single core function plans the departure commit.** `reservationsModel.planDepartureSas(reservationId,
    input)` reads the reservation and returns the plan: every recap line, the end-of-stay complement
    and the recalled arrival complement before and after this run, and the amounts of §4.3. It **never
-   writes**. Its pure arithmetic lives in `utils/departureSasPlan.js` (`departureLines`,
-   `endOfStayAfter`, `recalledArrivalAfter`, `isRecalled`), which reuses `reconcileEndOfStayLines` and
-   the `round2` / `totalDiffered` of `utils/arrivalSasPlan.js` instead of copying them.
+   writes**. Its pure arithmetic lives in `utils/departureSasPlan.js` (`realOfStoredLine`,
+   `storedLineKey`, `classifyStoredLines`, `storeLine`, `keepRealLines`, `recalledArrivalAfter`,
+   `isRecalled`), which reuses `reconcileEndOfStayLines` and the `round2` / `totalDiffered` of
+   `utils/arrivalSasPlan.js` instead of copying them.
 2. **The commit executes the plan, it does not recompute it.** `commitDepartureSas` calls
    `planDepartureSas` at the start of its transaction and writes what the plan says: the offered flags
    of the recalled lines (`planOfferedComplementExtras` → writes), the end-of-stay detail, and the
    settlement. The pricing and netting of `reservationsModel.js:3338-3410` move into the planner; the
    commit keeps only the writes. Preview and commit therefore cannot diverge.
+   *Implementation note (2026-10-24):* the model's own input stays the **resolved** detail
+   (`endOfStayComplementDetail`: lines already priced, real total in `amount`, `lineKey` on the lines
+   the recap can offer) — the way the arrival commit takes `complementItems`. The HTTP body never
+   carries it: the controller builds it with `resolveSasDepartureItems` (rules 6-9). The model-level
+   commit tests therefore keep their fixtures; the 37 + 14 + 7 + 1 + 4 existing departure commits stay
+   green unchanged.
 3. **The preview endpoint runs the same planner on a draft.**
    `POST /api/reservations/:id/sas/departure/preview` takes **the same body as the commit** (the
    settlement fields are ignored) and answers the departure recap (§4.3). It writes nothing: no row, no
@@ -124,7 +131,9 @@ the commit runs, so that what the operator collects at the door is what the book
 9. **Stored lines are referenced, never re-sent.** Every line already in `endOfStayComplementDetail`
    that this run does not rebuild — a carried line (`source` set: deferred bath linen, mid-stay sale)
    or a preserved one (label mapping to no priced item) — is **kept by the server** from the stored
-   detail. The draft only carries its offered decision: `storedLines: [{ key, offered }]`. The `key` is
+   detail. The draft only carries its offered decision: `storedLines: [{ key, offered }]` — the dialog
+   lists **every** key it holds (the seed serves them as `storedKeys`) with the operator's decision,
+   because a key absent from the list means « as stored » and could never un-offer a line. The `key` is
    issued by the server (§4.3: `stored:<index>:<fingerprint>`, the fingerprint hashing label, amount,
    `source` and `key` of the stored line). A key that no longer matches the stored line is ignored —
    the line is billed at its real price — and rule 22 reports the difference. A stored line absent
@@ -138,8 +147,13 @@ the commit runs, so that what the operator collects at the door is what the book
     recalled (rule 6.ter of sas-offer-complement-lines.md). Finding 4 closes.
 12. **The re-edit seed comes from the server.** `GET /api/reservations/:id/sas?mode=departure` serves
     `departureSeed: { missingItems: { [itemId]: qty }, cleaningCharged, extinguisherQty: { [repairKey]:
-    qty }, offeredKeys: [...] }`, built from the stored detail by the same reader as the planner. The
-    dialog seeds its state from it and no longer divides an amount by a price (`:552`).
+    qty }, storedKeys: [...], offeredKeys: [...] }`, built from the stored detail by the same classifier
+    as the planner (`reservationsModel.buildDepartureSeed`). `missingItems`, `cleaningCharged` and
+    `extinguisherQty` are served only once a departure SAS was committed (a fresh run starts blank);
+    `storedKeys` and `offeredKeys` — the carried lines, the recalled arrival lines already offered, and
+    the SAS's own lines once committed — are always served. The dialog seeds its state from it and no
+    longer divides an amount by a price (`:552`). Where a stored linen line carries no `qty`, the server
+    falls back to `round(amount / price)`, the arithmetic the dialog used to run.
 
 ### 3.3 The dialog
 
@@ -190,13 +204,16 @@ the commit runs, so that what the operator collects at the door is what the book
     carries `adjusted.endOfStay: { amount, engineAmount }`; with a `complementAmountOverride` on a
     recalled arrival, `recall.total` is what `reapplyComplementOverride` leaves and
     `adjusted.arrival` says so. The recap adds a muted line under the total: « Montant ajusté sur la
-    fiche (calcul : 93,00 €) ». Findings 2 and 3 close.
+    fiche (calcul : 93,00 €) » for the end-of-stay amount, « Complément d'arrivée ajusté sur la fiche
+    (calcul : … ) » for the arrival one. Findings 2 and 3 close.
 25. **The commit response is the recap.** `{ ok, recap: DepartureRecap, warning }`; the dialog reads no
-    amount from anywhere else after a commit.
+    amount from anywhere else after a commit. The `recap` is the plan the commit executed (computed
+    just before the writes), not a re-plan of the state after them — which would already show the
+    recalled arrival as collected.
 
 ### 3.5 SDK and plugins
 
-26. **SDK 2.1.0, additive.** `planDepartureSas` and `resolveSasDepartureItems` join the
+26. **SDK 2.1.0, additive.** `planDepartureSas`, `resolveSasDepartureItems` and `buildDepartureSeed` join the
     `reservationsModel` list of `server/src/plugins/sdk/coreModules.json`, and `departureSasPlan` joins
     the core modules of `server/src/plugins/sdk/index.js` (the `sas` plugin's `departureRecap.js` reads
     it as `arrivalRecap.js` reads `arrivalSasPlan`). Adding entry points is a MINOR bump
@@ -230,14 +247,14 @@ the commit runs, so that what the operator collects at the door is what the book
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `models/` | `reservationsModel.js` | T | New `planDepartureSas(id, input)` (pure read: lines, before/after, totals, recall, adjusted) and `resolveSasDepartureItems(id, { missingItems, cleaningCharged, cleaningOffered, extinguisherCharges, storedLines })` (intent → priced lines); `buildDepartureSeed(id)` (rule 12); `commitDepartureSas` executes the plan instead of pricing. |
-| `utils/` | `departureSasPlan.js` | C | Pure arithmetic: stored-line keys and fingerprints, offered netting, end-of-stay total through `reconcileEndOfStayLines`, recalled amount with the arrival override, `isRecalled`. |
+| `models/` | `reservationsModel.js` | T | New `planDepartureSas(id, input)` (pure read: lines, before/after, totals, recall, adjusted) and `resolveSasDepartureItems(id, { missingItems, cleaningCharged, cleaningOffered, storedLines })` (intent → priced detail lines; the extinguisher intent is priced by the planner itself); `buildDepartureSeed(id)` (rule 12); `commitDepartureSas` executes the plan instead of pricing; `writeEndOfStayDetail` shares `keepRealLines` with the planner. |
+| `utils/` | `departureSasPlan.js` | C | Pure arithmetic: stored-line keys and fingerprints, the carried / preserved / rebuilt classification, how an offered line is stored, recalled amount with the arrival override, `isRecalled`. |
 | `utils/` | `arrivalSasPlan.js` | T | None in behaviour; `round2` / `totalDiffered` imported by the new module. |
 | `plugins/sas/` | `controller.js` | T | New `previewDeparture`; shared `normaliseDepartureDraft(req)` (extinguisher setting, reception guard) used by preview and commit; `displayedDepartureTotal` → `warning` + history line (rules 22-23); `getSas` serves `departureSeed`. |
 | `plugins/sas/` | `departureRecap.js` | C | Shapes a plan into the `DepartureRecap` payload (pure). |
 | `plugins/sas/` | `index.js` | T | Route `POST /api/reservations/:id/sas/departure/preview` + reception allowlist entry. |
-| `plugins/sas/` | `manifest.json` | T | Minor bump + French changelog line. |
-| `plugins/sdk/` | `version.js`, `index.js`, `coreModules.json` | T | `2.1.0`; expose `departureSasPlan`, `planDepartureSas`, `resolveSasDepartureItems` (rule 26). |
+| `plugins/sas/` | `manifest.json` | T | Minor bump (1.3.0) + French changelog lines. |
+| `plugins/sdk/` | `version.js`, `index.js`, `coreModules.json` | T | `2.1.0`; expose `departureSasPlan`, `planDepartureSas`, `resolveSasDepartureItems`, `buildDepartureSeed` (rule 26). |
 | `database.js` | — | — | (none) |
 
 ### 4.2 Client side (`client/src/`)
@@ -302,7 +319,7 @@ the commit runs, so that what the operator collects at the door is what the book
     { "key": "custom:41", "group": "recalled", "label": "Lit bébé", "qty": 1, "unitPrice": 7.70,
       "real": 7.70, "billed": 7.70, "offerable": true, "offered": false }
   ],
-  "endOfStayTotal": 123.00,           // what the commit stores in endOfStayComplementAmount
+  "endOfStayTotal": 123.00,           // what the commit stores in endOfStayComplementAmount (the announced amount when adjusted)
   "extinguisherTotal": 30.00,         // the extinguisher page subtotal (rule 15)
   "recall": { "shown": true, "framing": "merged", "total": 12.50 },   // null when nothing is recalled
   "grandTotal": 135.50,               // endOfStayTotal + recall.total
@@ -313,6 +330,10 @@ the commit runs, so that what the operator collects at the door is what the book
   "adjusted": null                    // { "endOfStay": { "amount": 50.00, "engineAmount": 93.00 }, "arrival": null }
 }
 ```
+
+The lines come in the order the dialog has always shown them: end-of-stay (ménage, linen), carried
+stored lines, extinguisher, preserved stored lines, then the recalled arrival lines (`group:
+'recalled'`). `recall` carries the framing and the total only; the lines are in `lines`.
 
 `key` is what the toggle sends back (`depCleaning`, `dep:<itemId>`, `ext:<repairKey>`,
 `stored:<i>:<fingerprint>`, `option:<id>` / `resource:<id>` / `custom:<id>` / `extraGuests:0` for the
@@ -364,7 +385,7 @@ Figures reuse the existing departure fixtures (`ReservationSasDialog.departure.t
 
 ### Server unit tests
 
-- [ ] `server/src/tests/sas-departure-plan.unit.test.js` (rules 1, 2, 6-12, 24) — pure arithmetic and the
+- [x] `server/src/tests/sas-departure-plan.unit.test.js` (16 tests) (rules 1, 2, 6-12, 24) — pure arithmetic and the
   plan on a migrated in-memory database:
   - ménage « Pas OK » at 80,00 → `endOfStayTotal` 80,00; offered → 0,00, real kept;
   - cleaning sold → `cleaningCharged: true` bills nothing; a stored ménage line is dropped;
@@ -382,14 +403,14 @@ Figures reuse the existing departure fixtures (`ReservationSasDialog.departure.t
   - mid-stay notes 33,33 settled → `midStaySettled` 33,33, `grandTotal` unchanged;
   - re-run with an unchanged draft → the stored total, not doubled; `departureSeed` rebuilds
     `{ 4: 2 }`, the cleaning and the offered keys.
-- [ ] `server/src/plugins/sas/tests/sas-departure-preview.unit.test.js` (rules 3, 5, 21-23, 25 — the real
+- [x] `server/src/plugins/sas/tests/sas-departure-preview.unit.test.js` (10 tests) (rules 3, 5, 21-23, 25 — the real
   controller): preview answers and writes nothing (`departureSasDoneAt`, `checkOutDone`, history all
   untouched); commit = preview (92,50); displayed 80,00 vs stored 85,00 → committed, warned, history
   « affiché 80,00 € » → « enregistré 85,00 € »; no line when equal; reception reaches the preview; locked
   SAS → 403; unknown stay → 404.
-- [ ] `server/src/tests/plugins-sdk-core-modules-contract.unit.test.js` updated (rule 26): the three new names listed,
+- [x] `server/src/tests/plugins-sdk-core-modules-contract.unit.test.js` updated (+ `plugins-phase-4-registry` and `sdk-v2-plugin-ranges` read 2.1.0) (rule 26): the three new names listed,
   `SDK_VERSION` 2.1.0 accepted by `^2.0.0`.
-- [ ] Existing, green unchanged on behaviour, fixtures moved to the intent body:
+- [x] Existing, green unchanged on behaviour (the model-level commits keep their resolved-detail input, see rule 2; the controller-level `reception-sas-lock` mock gained the two planner calls):
   `sas-commit.unit.test.js` (37 departure commits), `sas-offer-complement-lines.unit.test.js` (14),
   `departure-sas-keeps-the-payment.unit.test.js` (7), `platform-extra-guest-complement.unit.test.js` (1),
   `plugins/sas/tests/reception-sas-lock.unit.test.js` (4), `end-of-stay-adjustment.unit.test.js`.
@@ -408,10 +429,12 @@ component renders the field; after a gesture a money assertion awaits the answer
 | `ReservationSasDialog.thumb-footer.test.jsx` | « Rien à percevoir » cases | `nothingToCollect` read from the preview |
 | `ReservationSasDialog.recap-payment.test.jsx`, `extinguisher-off.test.jsx`, `phase-2.test.jsx`, `access-and-mode.test.jsx` | 1 each or more | the preview mock only |
 
-New: `ReservationSasDialog.departure-preview.test.jsx` (rules 13-20, 22) — the draft carries no amount;
-three quick « + » on a towel → one request; a slow answer overtaken is ignored; « Calcul du total… »
-disabled while pending; « Total indisponible » + « Réessayer »; the warning after a commit on another
-total. And `departureDraft.test.js` (rules 4, 6-9, 11). `useArrivalRecapPreview` tests follow the rename.
+New: `ReservationSasDialog.departure-preview.test.jsx` (rules 13-20, 22, 24 — 8 tests) — the draft
+carries no amount; three quick « Offrir » → one request; a slow answer overtaken is ignored; « Calcul du
+total… » disabled while pending with the last figure kept; « Total indisponible » + « Réessayer »; the
+extinguisher subtotal; the warning after a commit on another total; the adjusted note. And
+`departureDraft.test.js` (rules 4, 6-9, 11 — 4 tests). The arrival `ReservationSasDialog.recap-preview`
+suite runs unchanged on the renamed hook. Client SAS suites: 24 files, 129 tests; whole client suite 401 files, 2105 tests.
 
 ### E2E
 
@@ -419,14 +442,14 @@ total. And `departureDraft.test.js` (rules 4, 6-9, 11). `useArrivalRecapPreview`
 
 ### Manual UI verification (fictional stay, 375 / 900 / 1280 px)
 
-- [ ] Happy path: ménage « Pas OK » 80,00 + 2 serviettes 13,00 → « Total à percevoir : 93,00 € »;
+- [x] Happy path: ménage « Pas OK » 80,00 + 2 serviettes 13,00 → « Total à percevoir : 93,00 € »;
   « Offrir » on the ménage → 13,00 €; back to 93,00 €.
-- [ ] Slow server (1,2 s injected): amounts dimmed, bar under the total, « Calcul du total… ».
-- [ ] Offline: « Total indisponible », amounts « — », « Valider » disabled; « Réessayer » restores.
-- [ ] Price changed elsewhere before « Valider » (serviette 6,50 → 7,00): recorded at 94,00 €, warning,
+- [x] Slow server (1,2 s injected): amounts dimmed, bar under the total, « Calcul du total… ».
+- [x] Offline: « Total indisponible », amounts « — », « Valider » disabled; « Réessayer » restores.
+- [x] Price changed elsewhere before « Valider » (serviette 6,50 → 7,00): recorded at 94,00 €, warning,
   history line.
-- [ ] Adjusted end-of-stay (50 €): no « Ajustement » line, the muted note under the total.
-- [ ] Regression: arrival recap unchanged (shared hook), its suites and E2E green.
+- [x] Adjusted end-of-stay (50 €): no « Ajustement » line, the muted note under the total.
+- [x] Regression: arrival recap unchanged (shared hook), its suites and E2E green.
 
 ## 8. Out of scope
 
@@ -440,22 +463,27 @@ total. And `departureDraft.test.js` (rules 4, 6-9, 11). `useArrivalRecapPreview`
 
 ## 9. Open questions
 
-- **Q1 — Identity of a stored end-of-stay line.** The detail is JSON without row ids. Proposed default
-  (rule 9): `stored:<index>:<fingerprint>`, a stale key ignored and reported by rule 22. Alternative:
-  give every stored line a stable `lineId` at write time (no column, but every detail writer changes).
-- **Q2 — The stay still owed at check-out.** `nothingToCollect` at departure counts a direct stay's
-  unpaid acompte / solde (`plugins/sas/nothingToCollect.js`), yet the check-out recap has no stay block:
-  with nothing billed the recap shows no total and no badge — the money still owed is not named. Add a read-only
-  « Séjour encore dû » line in this spec, or leave it to a separate one?
-- **Q3 — « Déjà réglé en séjour » for the reception role.** `midStaySettledNotes` is not in the
-  reception reservation view (`utils/receptionView.js:22`), so a reception user never sees that line
-  today. Serve `midStaySettled` to reception (it is door money already collected), or keep it admin-only?
-- **Q4 — The « Ajustement » line on the recap (finding 2).** Read from the code only, no copy of
-  production at hand: confirm on a fixture that an end-of-stay adjusted to 50 € keeps 50 € after a
-  check-out adding 13 €, before choosing the default of rule 24 (announced amount + computed one beside
-  it).
-- **Q5 — Arrival seed symmetry.** Move the arrival re-edit seed to the server in the same PR (one more
-  reader, same pattern), or keep this PR departure-only?
-- **Q6 — Preview on the extinguisher page.** Rule 16 previews on the recap and on the extinguisher page
-  (its subtotal). Alternative: drop that subtotal and preview on the recap only — one request fewer per
-  check-out.
+None left.
+
+**Resolved (2026-10-24, owner on PR #768 — every default accepted):**
+- Q1: Identity of a stored end-of-stay line? → **Position + fingerprint** (`stored:<index>:<hash of
+  label, real amount, source, key>`), nothing to migrate. A stale key is ignored, the line is billed,
+  and rule 22 reports the difference. Offering a line does not change its fingerprint.
+- Q2: The stay still owed at check-out? → **A separate spec**, not in this change (§8).
+- Q3: « Déjà réglé en séjour » for the reception role? → **Yes**, it is door money already in the till:
+  the preview serves `midStaySettled` to the reception too.
+- Q4: The « Ajustement » line on the recap? → **Verified on a fixture** (no copy of production at
+  hand): an end-of-stay adjusted to 50 € stays at 50 € after a check-out adding 93 € of lines
+  (`sas-departure-plan.unit.test.js`, rule 10 test). The default of rule 24 is implemented: the
+  line leaves the recap, a muted note under the total gives the computed amount.
+- Q5: The arrival re-edit seed? → **Departure only**, the arrival seed follows later.
+- Q6: Preview on the extinguisher page? → **Both pages**: the subtotal there is the server's
+  (`extinguisherTotal`).
+
+## 10. Implementation progress
+
+Implemented 2026-10-24 on `docs/sas-departure-recap-server`: `departureSasPlan` + `planDepartureSas` /
+`resolveSasDepartureItems` / `buildDepartureSeed`, the preview route and the commit warning, the client
+`departureDraft` + `useSasRecapPreview` (renamed from `useArrivalRecapPreview`), the dialog rendering the
+preview, SDK 2.1.0, plugin `sas` 1.3.0. Server suite, client suite and E2E green; the dialog was
+exercised in a browser at 375, 900 and 1280 px (see the PR).

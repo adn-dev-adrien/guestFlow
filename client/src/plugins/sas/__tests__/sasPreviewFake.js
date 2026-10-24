@@ -1,5 +1,6 @@
 /**
- * A stand-in for the server's arrival preview (specs/sas-arrival-total-server-side.md §4.3), for the
+ * A stand-in for the server's arrival preview (specs/sas-arrival-total-server-side.md §4.3) and, further
+ * down, for its departure preview (specs/sas-departure-recap-server-side.md §4.3), for the
  * ReservationSasDialog suites. The dialog no longer prices anything: it renders what
  * `POST …/sas/arrival/preview` answers. These suites test THAT rendering and the draft it sends, so the
  * double answers like the server would for the fixture payload (`sasPayload`) the test loaded — the
@@ -133,5 +134,119 @@ export function previewLikeTheServer(api) {
     const results = api.getReservationSas.mock.results;
     const payload = await results[results.length - 1].value;
     return recapFor(payload, draft);
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The departure preview (specs/sas-departure-recap-server-side.md §4.3). Same contract as above: the
+// dialog renders what the server answers, so the double answers like it for the fixture payload. The
+// arithmetic itself is pinned server-side (server/src/tests/sas-departure-plan.unit.test.js).
+// ---------------------------------------------------------------------------------------------
+
+const CLEANING_LABEL = 'Ménage de fin de séjour';
+const storedKeyFor = (index) => `stored:${index}:test`;
+
+function parseDetail(reservation) {
+  try { return JSON.parse((reservation && reservation.endOfStayComplementDetail) || '[]') || []; } catch { return []; }
+}
+
+// The real price of a stored line, as the server reads it.
+const realOfStored = (l) => (Number(l.offered || 0) === 1
+  ? round2(l.originalAmount != null ? l.originalAmount : (Number(l.qty) || 1) * Number(l.unitPrice || 0))
+  : round2(l.amount));
+
+// What the server classifies out of the stored detail: the lines a run carries (tagged `source`) or
+// preserves (a label that maps to no priced item), each with its key.
+export function storedLinesOf(reservation, linenItems = []) {
+  const priced = new Set(linenItems.map((i) => String(i.label).trim()));
+  return parseDetail(reservation)
+    .map((line, index) => ({ line, index, key: storedKeyFor(index) }))
+    .filter(({ line }) => line && line.source !== 'adjustment')
+    .filter(({ line }) => line.source
+      || !(String(line.repairKey || '').startsWith('extinguisher') || String(line.label).trim() === CLEANING_LABEL || priced.has(String(line.label).trim())));
+}
+
+/** The `departureSeed` of the SAS read, for a fixture whose reservation carries a stored detail. */
+export function departureSeedFor(reservation, linenItems = []) {
+  const stored = storedLinesOf(reservation, linenItems);
+  return {
+    missingItems: {}, cleaningCharged: false, extinguisherQty: {},
+    storedKeys: stored.map((e) => e.key),
+    offeredKeys: stored.filter((e) => Number(e.line.offered || 0) === 1).map((e) => e.key),
+  };
+}
+
+export function departureRecapFor(payload, draft = {}) {
+  const r = payload.reservation || {};
+  const offeredRefs = new Set((draft.offeredArrivalExtras || []).map((x) => `${x.kind}:${Number(x.id)}`));
+  const decisions = new Map((draft.storedLines || []).map((x) => [x.key, Boolean(x.offered)]));
+  const own = [];
+  const line = (key, group, label, qty, unitPrice, real, offered, extra = {}) => ({
+    key, group, label, qty, unitPrice, real, billed: offered ? 0 : real, offerable: Boolean(key), offered: Boolean(offered), ...extra,
+  });
+  if (draft.cleaningCharged && !payload.cleaning?.included && Number(payload.cleaning?.price) > 0) {
+    const price = round2(payload.cleaning.price);
+    own.push({ rank: 0, ...line('depCleaning', 'endOfStay', CLEANING_LABEL, 1, price, price, draft.cleaningOffered) });
+  }
+  for (const m of (draft.missingItems || [])) {
+    const item = (payload.linenItems || []).find((i) => Number(i.id) === Number(m.itemId));
+    if (!item || !(Number(m.qty) > 0)) continue;
+    own.push({ rank: 0, ...line(`dep:${item.id}`, 'endOfStay', item.label, Number(m.qty), Number(item.price), round2(Number(item.price) * Number(m.qty)), m.offered) });
+  }
+  for (const { line: l, key } of storedLinesOf(r, payload.linenItems)) {
+    const offered = decisions.has(key) ? decisions.get(key) : Number(l.offered || 0) === 1;
+    own.push({ rank: l.source ? 1 : 3, ...line(key, 'stored', l.label, Number(l.qty || 1), Number(l.unitPrice || 0), realOfStored(l), offered) });
+  }
+  if (draft.extinguisherSealOkAtDeparture === 0) {
+    for (const c of (draft.extinguisherCharges || [])) {
+      const tariff = (payload.repairAmounts || []).find((t) => t.repairKey === c.repairKey);
+      if (!tariff || !(Number(c.qty) > 0)) continue;
+      own.push({ rank: 2, ...line(`ext:${c.repairKey}`, 'extinguisher', tariff.label, Number(c.qty), Number(tariff.price), round2(Number(tariff.price) * Number(c.qty)), c.offered) });
+    }
+  }
+  const ordered = own.map((l, i) => ({ l, i })).sort((a, b) => a.l.rank - b.l.rank || a.i - b.i).map(({ l: { rank, ...rest } }) => rest);
+  const endOfStayTotal = round2(ordered.reduce((s, l) => s + l.billed, 0));
+  const extinguisherTotal = round2(ordered.filter((l) => l.group === 'extinguisher').reduce((s, l) => s + l.billed, 0));
+
+  const ac = payload.arrivalComplement;
+  const recalled = ac && Number(ac.amount) > 0 && Number(ac.paid) !== 1;
+  let recall = null;
+  let recalledLines = [];
+  if (recalled) {
+    let delta = 0;
+    recalledLines = (ac.detail || []).map((l) => {
+      const key = l.ref ? `${l.ref.kind}:${l.ref.id}` : null;
+      const stored = Number(l.offered || 0) === 1;
+      const real = realOfStored(l);
+      const offered = Boolean(key) && offeredRefs.has(key);
+      if (key) delta += (offered && !stored ? -real : 0) + (!offered && stored ? real : 0);
+      return line(key, 'recalled', l.label, Number(l.qty || 1), Number(l.unitPrice || 0), real, offered, { billed: key ? (offered ? 0 : real) : round2(l.amount) });
+    });
+    recall = { shown: true, framing: ordered.length > 0 ? 'merged' : 'alone', total: Math.max(0, round2(Number(ac.amount) + delta)) };
+  }
+  const grandTotal = round2(endOfStayTotal + (recall ? recall.total : 0));
+  let notes = [];
+  try { notes = JSON.parse(r.midStaySettledNotes || '[]') || []; } catch { notes = []; }
+  return {
+    lines: [...ordered, ...recalledLines],
+    endOfStayTotal,
+    extinguisherTotal,
+    recall,
+    grandTotal,
+    settleable: grandTotal > 0,
+    nothingToCollect: Boolean(payload.nothingToCollect) && grandTotal <= 0,
+    endOfStayPaid: Number(r.endOfStayComplementPaid || 0) === 1
+      ? { date: r.endOfStayComplementPaidDate || null, cash: Number(r.endOfStayComplementPaidCash || 0) === 1 } : null,
+    midStaySettled: round2(notes.reduce((s, n) => s + (Number(n && n.total) || 0), 0)),
+    adjusted: null,
+  };
+}
+
+/** The mock implementation of `api.previewDepartureSas`: answers for the payload the dialog last loaded. */
+export function departurePreviewLikeTheServer(api) {
+  return async (id, draft) => {
+    const results = api.getReservationSas.mock.results;
+    const payload = await results[results.length - 1].value;
+    return departureRecapFor(payload, draft);
   };
 }

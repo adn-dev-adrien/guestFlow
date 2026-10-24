@@ -9,8 +9,8 @@ const { PLUGIN_IDS } = require('../constants/plugins');
 const { SDK_VERSION } = require('../plugins/sdk/version');
 const { satisfies } = require('../utils/semverRange');
 
-test('rule 14: the SDK is 2.0.0, and a plugin built against SDK 1 is refused', () => {
-  assert.equal(SDK_VERSION, '2.0.0');
+test('rule 14: the SDK is 2.x, and a plugin built against SDK 1 is refused', () => {
+  assert.equal(SDK_VERSION, '2.1.0');
   assert.equal(satisfies(SDK_VERSION, '^1.0.0'), false);
 });
 
@@ -20,6 +20,7 @@ test('rule 14bis: every in-repo plugin declares SDK 2 and says so in its changel
     const m = readSourceManifest(id);
     assert.equal(m.sdk, '^2.0.0', id);
     assert.ok(satisfies(SDK_VERSION, m.sdk), id);
-    assert.ok((m.changelog[m.version] || []).some((line) => /SDK 2/.test(line)), `${id} ${m.version} names SDK 2`);
+    // The release that moved the plugin to SDK 2 says so; later releases need not repeat it.
+    assert.ok(Object.values(m.changelog).flat().some((line) => /SDK 2/.test(line)), `${id} names SDK 2 in its changelog`);
   });
 });

@@ -14,7 +14,7 @@ import api from '../../../api';
 import Slot from '../../sdk/Slot';
 import placePluginSteps from '../placePluginSteps';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
-import { previewLikeTheServer } from './sasPreviewFake';
+import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
 const enabled = new Set();
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: (id) => enabled.has(id) }));
@@ -23,6 +23,7 @@ vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
     previewArrivalSas: vi.fn(),
+    previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
   },
@@ -49,6 +50,7 @@ vi.mock('../../index', async () => {
 beforeEach(() => {
   // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+  api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
   vi.clearAllMocks();
   enabled.clear();
 });

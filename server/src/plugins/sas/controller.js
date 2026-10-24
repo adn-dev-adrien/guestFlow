@@ -14,6 +14,7 @@ const { buildSasSnapshot, computeSasChanges } = require('./sasAudit');
 const { extinguisherCheckOn } = require('./settings');
 const { nothingToCollect } = require('./nothingToCollect');
 const { shapeArrivalRecap } = require('./arrivalRecap');
+const { shapeDepartureRecap } = require('./departureRecap');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -380,6 +381,9 @@ function getSas(req, res) {
     // catalogue of the property, prices already resolved per property. Arrival only — nothing is sold
     // at check-out. An option the operator booked on the fiche is absent (its step is closed).
     sasSales: saleOffersFor(reservation, { isDeparture }),
+    // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the operator
+    // decided, so the dialog seeds its state without dividing an amount by a price.
+    ...(isDeparture ? { departureSeed: reservationsModel.buildDepartureSeed(reservation.id) } : {}),
   });
 }
 
@@ -399,22 +403,24 @@ function previewArrival(req, res) {
   return res.json(arrivalRecapFor(req, reservation, plan));
 }
 
-// specs/sas-arrival-total-server-side.md rule 22bis — the history line that keeps what the guest was
-// told next to what was recorded.
+// specs/sas-arrival-total-server-side.md rule 22bis, specs/sas-departure-recap-server-side.md rule 23 —
+// the history line that keeps what the operator was shown next to what was recorded.
 const formatEuro = (n) => `${round2(n).toFixed(2).replace('.', ',')} €`;
-function recordTotalDifference(reservationId, warning) {
+function recordTotalDifference(reservationId, eventType, { field, label }, warning) {
   try {
-    reservationsModel.addHistoryEntry(reservationId, 'sas_arrival', [{
-      field: 'arrivalRecapTotal',
-      label: 'Total du récapitulatif d’arrivée',
+    reservationsModel.addHistoryEntry(reservationId, eventType, [{
+      field,
+      label,
       fromText: `affiché ${formatEuro(warning.displayed)}`,
       toText: `enregistré ${formatEuro(warning.stored)}`,
     }]);
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error(`[sas-history] arrival total difference on reservation ${reservationId} not recorded: ${err.message}`);
+    console.error(`[sas-history] ${eventType} total difference on reservation ${reservationId} not recorded: ${err.message}`);
   }
 }
+const ARRIVAL_TOTAL_HISTORY = { field: 'arrivalRecapTotal', label: 'Total du récapitulatif d’arrivée' };
+const DEPARTURE_TOTAL_HISTORY = { field: 'departureRecapTotal', label: 'Total du récapitulatif de départ' };
 
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
@@ -522,7 +528,7 @@ function commitArrival(req, res) {
   const warning = totalDiffered(displayedArrivalTotal, stored)
     ? { code: 'ARRIVAL_TOTAL_DIFFERED', displayed: round2(displayedArrivalTotal), stored }
     : null;
-  if (warning) recordTotalDifference(Number(req.params.id), warning);
+  if (warning) recordTotalDifference(Number(req.params.id), 'sas_arrival', ARRIVAL_TOTAL_HISTORY, warning);
   return res.json({
     ok: true,
     complementAmount,
@@ -532,39 +538,94 @@ function commitArrival(req, res) {
   });
 }
 
+/**
+ * specs/sas-departure-recap-server-side.md rules 3-4 — the departure draft, as the preview and the
+ * commit both read it: the extinguisher setting, the reception guard is the route's, and the intents
+ * resolved to priced lines. `input` is what `planDepartureSas` and `commitDepartureSas` take.
+ */
+function normaliseDepartureDraft(req, reservation) {
+  const body = req.body || {};
+  // specs/plugins-phase-p-productisation.md rule 16 — with the check off, no seal field is accepted.
+  const checked = extinguisherCheckOn();
+  return {
+    body,
+    input: {
+      // The detail lines are priced here from « Facturables », the property and the stored detail —
+      // never read from the body (rules 6-9).
+      endOfStayComplementDetail: reservationsModel.resolveSasDepartureItems(Number(reservation.id), {
+        missingItems: body.missingItems,
+        cleaningCharged: Boolean(body.cleaningCharged),
+        cleaningOffered: Boolean(body.cleaningOffered),
+        storedLines: body.storedLines,
+      }),
+      extinguisherSealOkAtDeparture: checked ? body.extinguisherSealOkAtDeparture : undefined,
+      extinguisherCharges: checked && Array.isArray(body.extinguisherCharges) ? body.extinguisherCharges : undefined,
+      // specs/sas-offer-complement-lines.md §3.2 rule 6 — gestes commerciaux on the RECALLED arrival
+      // lines; whether the set counts is the plan's call (rule 11).
+      offeredArrivalExtras: normaliseOfferedRefs(body.offeredArrivalExtras),
+    },
+  };
+}
+
+function departureRecapFor(reservation, plan) {
+  return shapeDepartureRecap(plan, {
+    nothingToCollect: nothingToCollect(reservation, { isDeparture: true, bucketStates, isDirectChannel }),
+  });
+}
+
+/**
+ * specs/sas-departure-recap-server-side.md rule 3 — the departure recap of a DRAFT: the very body the
+ * commit would receive (settlement fields ignored), planned by the very function the commit runs, and
+ * nothing written.
+ */
+function previewDeparture(req, res) {
+  const reservation = reservationsModel.getByIdWithDetails(req.params.id);
+  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const departureLock = receptionSasLock(req, reservation, 'departure');
+  if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
+  const draft = normaliseDepartureDraft(req, reservation);
+  const plan = reservationsModel.planDepartureSas(Number(req.params.id), draft.input);
+  return res.json(departureRecapFor(reservation, plan));
+}
+
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
   const departureLock = receptionSasLock(req, reservation, 'departure');
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
+  const draft = normaliseDepartureDraft(req, reservation);
   const {
-    cautionReturned, endOfStayComplementDetail = null, complementsSettled, complementsPaidCash, offeredArrivalExtras,
-  } = req.body || {};
-  // specs/plugins-phase-p-productisation.md rule 16 — with the check off, no seal field is accepted.
-  const checked = extinguisherCheckOn();
-  const extinguisherSealOkAtDeparture = checked ? (req.body || {}).extinguisherSealOkAtDeparture : undefined;
-  const extinguisherCharges = checked ? (req.body || {}).extinguisherCharges : undefined;
-  const beforeSas = snapshotSas(Number(req.params.id));
-  reservationsModel.commitDepartureSas(Number(req.params.id), {
+    cautionReturned, complementsSettled, complementsPaidCash, displayedDepartureTotal,
+  } = draft.body;
+  const id = Number(req.params.id);
+  // Rule 25 — the recap the response carries is the plan this commit executes.
+  const plan = reservationsModel.planDepartureSas(id, draft.input);
+  const recap = departureRecapFor(reservation, plan);
+  const beforeSas = snapshotSas(id);
+  reservationsModel.commitDepartureSas(id, {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
     cautionReturned: cautionReturned === undefined ? undefined : Boolean(cautionReturned),
-    // The end-of-stay amount is recomputed server-side from the detail + the extinguisher charges, so
-    // no client-supplied total is trusted (specs/extinguisher-seal-and-repair-amounts.md §3.2).
-    endOfStayComplementDetail,
-    extinguisherSealOkAtDeparture,
-    extinguisherCharges: Array.isArray(extinguisherCharges) ? extinguisherCharges : undefined,
+    ...draft.input,
     // specs/recall-unpaid-arrival-complement-at-checkout.md — « Compléments encaissés » → mark paid every
     // positive complement (end-of-stay + recalled arrival) at the checkout moment.
     complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
     complementsPaidCash: Boolean(complementsPaidCash),
-    // specs/sas-offer-complement-lines.md §3.2 rule 6 — gestes commerciaux on the RECALLED arrival lines.
-    offeredArrivalExtras: normaliseOfferedRefs(offeredArrivalExtras),
   });
-  recordSasHistory(Number(req.params.id), 'sas_departure', beforeSas);
-  return res.json({ ok: true });
+  recordSasHistory(id, 'sas_departure', beforeSas);
+  // Rules 22-23 — the total the recap showed is compared, never used: the commit went through on its
+  // own plan, and a difference is said and kept. `stored` is what was written.
+  const written = reservationsModel.getRow(id) || {};
+  const stored = round2(Number(written.endOfStayComplementAmount || 0) + (plan.recall ? Number(written.complementAmount || 0) : 0));
+  const warning = totalDiffered(displayedDepartureTotal, stored)
+    ? { code: 'DEPARTURE_TOTAL_DIFFERED', displayed: round2(displayedDepartureTotal), stored }
+    : null;
+  if (warning) recordTotalDifference(id, 'sas_departure', DEPARTURE_TOTAL_HISTORY, warning);
+  return res.json({ ok: true, recap, warning });
 }
 
-module.exports = { getSas, previewArrival, commitArrival, commitDeparture };
+module.exports = {
+  getSas, previewArrival, commitArrival, previewDeparture, commitDeparture,
+};
 // Le repli d'historique de la règle 10 est de la logique pure sur une liste de changements : exposé
 // pour être épinglé sans monter tout le harnais du contrôleur.
 module.exports.__test = { foldGroupedPayment, buildStayPayment, withoutLinenDecisions };
