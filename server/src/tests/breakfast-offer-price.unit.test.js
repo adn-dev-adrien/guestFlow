@@ -64,3 +64,12 @@ test('parity — perMorning equals the sale priced on the first candidate mornin
   });
   assert.equal(b.perMorning.amount, sale.totalPrice);
 });
+
+test('rule 12 — additive: the offer keeps every earlier field and the SDK range is untouched', () => {
+  const b = offers();
+  ['available', 'optionId', 'unitPrice', 'perPerson', 'defaultPersons', 'selectedPersons', 'maxPersons', 'mornings']
+    .forEach((key) => assert.ok(key in b, key));
+  const manifest = require('../plugins/sas/manifest.json');
+  assert.equal(manifest.sdk, '^2.0.0');
+  assert.ok(manifest.changelog[manifest.version], 'the bumped version carries its French changelog line');
+});

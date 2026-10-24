@@ -107,6 +107,24 @@ test('rule 10 — a failed preview hides the figures, says « Montant indisponib
   expect(await screen.findByText(/4 petits déjeuners — 32,00 €/)).toBeInTheDocument();
 });
 
+test('rule 8 — two quick taps make one preview request, and only the latest answer is shown', async () => {
+  const p = await openMornings(payload({ defaultPersons: 4, selectedPersons: 4, maxPersons: 5 }));
+  api.previewArrivalSas.mockImplementation(async (id, draft) => {
+    const persons = draft.soldOptions?.[0]?.persons || 4;
+    return breakfastAnswer(recapFor(p, draft), {
+      moments: 2, servedPersons: persons, units: 2 * persons, amount: 16 * persons,
+    });
+  });
+  clickBtn('Ajouter le petit déjeuner');
+  await screen.findByText(/8 petits déjeuners — 64,00 €/);
+  const before = api.previewArrivalSas.mock.calls.length;
+  const minus = screen.getAllByRole('button', { name: '−' });
+  fireEvent.click(minus[minus.length - 1]);
+  fireEvent.click(minus[minus.length - 1]);
+  expect(await screen.findByText(/4 petits déjeuners — 32,00 €/)).toBeInTheDocument();
+  expect(api.previewArrivalSas.mock.calls.length - before).toBe(1);
+});
+
 test('rule 11 — covers typed above what the server serves are reset to the server’s number', async () => {
   const p = await openMornings(payload({ defaultPersons: 2, selectedPersons: 2, maxPersons: 5 }));
   api.previewArrivalSas.mockImplementation(async (id, draft) => breakfastAnswer(recapFor(p, draft), {
