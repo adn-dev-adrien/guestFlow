@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Total de départ serveur</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-soft:#E3ECE6; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E4DED2;
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--primary:#7FB596;--primary-soft:#22352B;--paper:#1B1A17;--card:#25231F;--ink:#EEEAE0;--muted:#A7A192;--line:#3A3730;
+    --success:#7FB596;--success-soft:#22352B;--warning:#D9B15E;--warning-soft:#3A3120;--error:#E08C82;--error-soft:#3D2522;--info:#8FB4CF;--info-soft:#22303A;}
+}
+:root[data-theme="dark"]{--primary:#7FB596;--primary-soft:#22352B;--paper:#1B1A17;--card:#25231F;--ink:#EEEAE0;--muted:#A7A192;--line:#3A3730;
+  --success:#7FB596;--success-soft:#22352B;--warning:#D9B15E;--warning-soft:#3A3120;--error:#E08C82;--error-soft:#3D2522;--info:#8FB4CF;--info-soft:#22303A;}
+*{box-sizing:border-box}
+::selection{background:var(--primary-soft);color:var(--ink)}
+html{scrollbar-color:var(--line) var(--paper)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);-webkit-text-size-adjust:100%}
+main{max-width:1080px;margin:0 auto;padding:32px 16px 64px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h1{font-size:1.9rem;letter-spacing:-.02em}
+h2{font-size:1.25rem;margin:44px 0 12px}
+h3{font-size:1.02rem;margin-bottom:8px}
+p{margin:0 0 10px;max-width:72ch}
+.lead{color:var(--muted);max-width:68ch;margin-top:8px}
+.meta{font-size:.82rem;color:var(--muted);margin-bottom:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:0 3px 16px rgba(60,54,36,.06)}
+.cols{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+ul{margin:0;padding-left:18px}
+li{margin:5px 0}
+code{font-size:.85em;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:0 4px;overflow-wrap:anywhere}
+a{color:var(--primary);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+
+.flow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:720px){.flow{grid-template-columns:minmax(0,1fr)}}
+.flow .card h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{font:600 .7rem/1 var(--sans);padding:4px 8px;border-radius:999px;letter-spacing:.02em}
+.pill.bad{background:var(--error-soft);color:var(--error)}
+.formula{font:500 .82rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--paper);border-radius:10px;padding:10px 12px;margin:8px 0;overflow-x:auto;white-space:pre}
+
+.demo{display:grid;gap:16px;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:start}
+@media (max-width:820px){.demo{grid-template-columns:1fr}}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);flex-wrap:wrap}
+.seg button{font:inherit;font-size:.85rem;border:0;background:transparent;color:var(--ink);padding:0 12px;min-height:44px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--primary);color:var(--card)}
+.ctl{margin-bottom:14px}
+.ctl > span{display:block;font-size:.8rem;color:var(--muted);margin-bottom:6px}
+.switchrow{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;cursor:pointer}
+.switchrow+.switchrow{border-top:1px solid var(--line)}
+.sw{appearance:none;width:44px;height:26px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.sw:checked{background:var(--primary)}
+.sw:checked::after{transform:translateX(18px)}
+.log{font:500 .78rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--paper);border-radius:10px;padding:10px 12px;min-height:140px;max-height:220px;overflow:auto;color:var(--muted)}
+.log .ok{color:var(--success)} .log .drop{color:var(--warning)} .log .ko{color:var(--error)}
+.today{font-size:.82rem;color:var(--muted);margin-top:10px;min-height:1.3em}
+.today b{color:var(--error);font-variant-numeric:tabular-nums}
+
+.sas{padding:0;overflow:hidden}
+.sas::before{content:"";display:block;height:4px;background:var(--info)}
+.sashead{padding:14px 18px 6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sashead h3{margin:0}
+.sashead small{color:var(--muted);font-size:.78rem}
+.lines{padding:0 18px}
+.group{font-size:.74rem;font-weight:600;color:var(--muted);padding:12px 0 2px;letter-spacing:.01em}
+.line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:8px 0;border-bottom:1px solid var(--line);align-items:center}
+.line .lbl{font-size:.92rem;min-width:0}
+.line .lbl small{display:block;color:var(--muted);font-size:.76rem}
+.right{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.amt{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;min-width:6.5ch;transition:opacity .18s}
+.amt.struck{text-decoration:line-through;color:var(--muted)}
+.offer{font:inherit;font-size:.78rem;border:1px solid var(--line);background:transparent;color:var(--primary);border-radius:8px;padding:0 10px;cursor:pointer;min-height:44px;min-width:80px}
+.offer:active{transform:scale(.97)}
+.offer[aria-pressed="true"]{background:var(--success-soft);border-color:var(--success);color:var(--success)}
+.stepper{display:inline-flex;align-items:center;gap:2px}
+.stepper button{font:inherit;width:44px;height:44px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;cursor:pointer}
+.stepper button:active{transform:scale(.95)}
+.stepper button:disabled{opacity:.4;cursor:not-allowed}
+.stepper output{min-width:2ch;text-align:center;font-variant-numeric:tabular-nums}
+.foot{padding:12px 18px 16px;background:var(--card);border-top:2px solid var(--ink);position:relative;margin-top:8px}
+.bar{position:absolute;left:0;right:0;top:-2px;height:2px;overflow:hidden;opacity:0;transition:opacity .15s}
+.bar::before{content:"";position:absolute;inset:0;width:40%;background:var(--honey);animation:slide 1s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.pending .bar{opacity:1}
+.pending .amt{opacity:.55}
+.totrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-weight:700;font-size:1.1rem;font-variant-numeric:tabular-nums}
+.sub{color:var(--muted);font-size:.8rem;margin-top:4px;min-height:1.2em}
+.alert{display:none;margin-top:10px;border-radius:10px;padding:10px 12px;font-size:.86rem}
+.alert.show{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.alert.err{background:var(--error-soft);color:var(--error)}
+.alert.warn{background:var(--warning-soft);color:var(--warning)}
+.txtbtn{font:inherit;font-weight:600;font-size:.85rem;background:none;border:0;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:44px;padding:0 4px}
+.pay{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.pay button{flex:1 1 40%;font:inherit;font-size:.85rem;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.pay button[aria-pressed="true"]{border-color:var(--primary);background:var(--primary-soft);color:var(--primary);font-weight:600}
+.pay button:disabled,.validate:disabled{opacity:.45;cursor:not-allowed}
+.validate{width:100%;margin-top:10px;font:inherit;font-weight:600;min-height:48px;border:0;border-radius:12px;background:var(--primary);color:var(--card);cursor:pointer}
+.validate:active:not(:disabled){transform:scale(.985)}
+.paylabel{font-size:.82rem;font-weight:600;margin-top:12px}
+.done{color:var(--success);font-size:.85rem;margin-top:8px;min-height:1.2em}
+
+.risk td,.risk th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:.9rem}
+.risk{border-collapse:collapse;width:100%;min-width:520px}
+.risk th{font-size:.78rem;color:var(--muted);font-weight:600}
+.tablewrap{overflow-x:auto}
+.q{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.q:last-child{border-bottom:0}
+.q b{font-variant-numeric:tabular-nums;color:var(--primary)}
+.q .rec{grid-column:2;color:var(--muted);font-size:.86rem}
+@media (prefers-reduced-motion:reduce){
+  .bar::before{animation:none;width:100%;opacity:.6}
+  .sw::after,.amt,.sw{transition:none}
+}
+</style>
+</head>
+<body>
+<main>
+<p class="meta">Spec <code>specs/sas-departure-recap-server-side.md</code> · statut Draft · 24/10/2026</p>
+<h1>Le récap du SAS de départ, calculé par le serveur</h1>
+<p class="lead">Le récap du check-out additionne encore lui-même le ménage, le linge manquant, l'extincteur, les lignes reportées et le complément d'arrivée rappelé. Proposition : même méthode que l'arrivée, livrée en #759. Le serveur calcule, le dialogue affiche.</p>
+
+<h2>Le constat</h2>
+<div class="flow">
+  <div class="card">
+    <h3>Aujourd'hui <span class="pill bad">calcul dans React</span></h3>
+    <div class="formula">fin de séjour = ménage + linge (prix × qté)
+              + extincteur + lignes reportées
+              + lignes préservées
+rappel        = complément d'arrivée
+              − lignes offertes maintenant
+total         = fin de séjour + rappel</div>
+    <p>Puis le navigateur envoie chaque ligne <b>avec son montant</b>, et le serveur les enregistre telles quelles. Seul l'extincteur est re-tarifé par le serveur.</p>
+  </div>
+  <div class="card">
+    <h3>Ce que la lecture du code a trouvé</h3>
+    <ul>
+      <li><b>Linge, ménage, lignes reportées : stockés au prix du navigateur.</b> Un prix changé entre l'ouverture et « Valider » n'est pas vu.</li>
+      <li><b>La ligne « Ajustement » s'affiche, se compte et s'offre</b>, puis l'enregistrement l'ignore et la recalcule. Le récap annonce « ajusté + ajouts », la base garde l'ajustement.</li>
+      <li><b>Le rappel d'arrivée ignore l'ajustement d'arrivée</b> quand une ligne est offerte à la porte.</li>
+      <li><b>« Le complément d'arrivée est-il rappelé ? »</b> est décidé deux fois, côté dialogue et côté serveur.</li>
+      <li><b>Aucun plugin ne facture au départ</b> : l'impact SDK reste un ajout.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="cols">
+  <div class="card"><h3>Une seule fonction</h3><p><code>planDepartureSas</code> lit la réservation et le brouillon, rend lignes et totaux, n'écrit rien. L'enregistrement l'appelle puis écrit ce qu'elle dit.</p></div>
+  <div class="card"><h3>Un aperçu</h3><p><code>POST …/sas/departure/preview</code> reçoit le corps exact de l'enregistrement : lignes, sous-total extincteur, rappel, total, « Rien à percevoir », règlement demandé ou non.</p></div>
+  <div class="card"><h3>Des intentions</h3><p>Le linge part en <code>{ article, quantité }</code>, le ménage en oui/non. Les lignes déjà stockées restent côté serveur ; le dialogue n'envoie que « offerte ou non », par une clé que le serveur a émise.</p></div>
+  <div class="card"><h3>Écart signalé</h3><p>L'enregistrement passe toujours sur son propre calcul. S'il diffère du total affiché, un avertissement le dit et l'historique de la fiche garde l'écart.</p></div>
+</div>
+
+<h2>À manipuler</h2>
+<p>Récap fictif. Chaque geste part au « serveur » simulé (≈ 400 ms) après 200 ms de calme ; seule la dernière réponse compte. En attente, les montants restent ceux du serveur, atténués, et « Valider » attend. Sous le récap, ce que le calcul actuel du navigateur afficherait, pour comparer.</p>
+<div class="demo">
+  <div>
+    <div class="ctl">
+      <span>Réseau</span>
+      <div class="seg" role="group" aria-label="Réseau">
+        <button type="button" data-net="ok" aria-pressed="true">Normal</button>
+        <button type="button" data-net="slow" aria-pressed="false">Lent (1,5 s)</button>
+        <button type="button" data-net="off" aria-pressed="false">Hors ligne</button>
+      </div>
+    </div>
+    <div class="ctl card" style="padding:2px 14px">
+      <label class="switchrow"><span>Fin de séjour ajustée sur la fiche à 50,00 €</span><input type="checkbox" class="sw" id="adj"></label>
+      <label class="switchrow"><span>Prix de la serviette changé ailleurs juste avant « Valider » (6,50 → 7,00 €)</span><input type="checkbox" class="sw" id="drift"></label>
+    </div>
+    <div class="ctl">
+      <span>Requêtes vers le serveur</span>
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card sas" id="sas">
+      <div class="sashead"><h3>Récapitulatif fin de séjour</h3><small>Départ · cabane fictive</small></div>
+      <div class="lines" id="lines"></div>
+      <div class="foot" id="foot">
+        <div class="bar" aria-hidden="true"></div>
+        <div class="totrow"><span>Total à percevoir</span><span class="amt" id="tot">—</span></div>
+        <div class="sub" id="note"></div>
+        <div class="alert err" id="err" role="alert"><span>Total indisponible : pas de réponse du serveur.</span><button type="button" class="txtbtn" id="retry">Réessayer</button></div>
+        <div class="alert warn" id="warn" role="status"><span id="warnMsg"></span><button type="button" class="txtbtn" id="close">Fermer</button></div>
+        <div class="paylabel">Règlement</div>
+        <div class="pay" id="pay">
+          <button type="button" data-pay="card" aria-pressed="false">CB / Chèque</button>
+          <button type="button" data-pay="cash" aria-pressed="false">Payé en liquide</button>
+        </div>
+        <button type="button" class="validate" id="validate">Valider et terminer</button>
+        <div class="done" id="done" aria-live="polite"></div>
+      </div>
+    </div>
+    <p class="today" id="today"></p>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Rien ne change dans ce qui est facturé ni dans la comptabilité : la fonction reproduit l'arithmétique actuelle.</li>
+  <li>Pas de nouvelle colonne, pas de migration. Le détail stocké garde sa forme.</li>
+  <li>Pas de facturation par un plugin au départ : aucun plugin n'en a besoin aujourd'hui.</li>
+  <li>Le séjour encore dû au départ n'est pas ajouté au récap dans cette spec (question Q2).</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="card tablewrap">
+<table class="risk">
+  <thead><tr><th>Risque</th><th>Parade</th></tr></thead>
+  <tbody>
+    <tr><td>Déplacer le calcul dans l'enregistrement change un montant stocké.</td><td>Tests de parité sur les scénarios connus (80,00 €, 92,50 €, 84,80 €, 30,00 €…) : aperçu = montant enregistré, et les 37 enregistrements de départ déjà testés restent verts.</td></tr>
+    <tr><td>Une ligne stockée change entre l'ouverture et « Valider » (synchro en séjour) : la clé d'« Offrir » ne correspond plus.</td><td>La clé porte une empreinte de la ligne ; une clé périmée est ignorée, la ligne facturée, et l'écart signalé à la validation.</td></tr>
+    <tr><td>Réseau faible à la porte : le total met du temps à suivre.</td><td>Le geste répond tout de suite, le montant suit ; « Valider » attend un total frais. Hors ligne, l'enregistrement échouerait de toute façon.</td></tr>
+    <tr><td>Le SDK change.</td><td>Ajout seulement : 2.0.0 → 2.1.0, aucun plugin à republier, seul <code>sas</code> change de version.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Arbitrages en attente</h2>
+<div class="card">
+  <div class="q"><b>Q1</b><span>Identifier une ligne déjà stockée : position + empreinte, ou un identifiant écrit dans chaque ligne ?</span><span class="rec">Par défaut : position + empreinte. Rien à migrer.</span></div>
+  <div class="q"><b>Q2</b><span>Séjour direct encore dû au départ : l'afficher dans le récap de départ dans cette spec, ou dans une autre ?</span><span class="rec">Par défaut : une spec séparée.</span></div>
+  <div class="q"><b>Q3</b><span>« Déjà réglé en séjour » : le montrer aussi au rôle accueil (aujourd'hui masqué) ?</span><span class="rec">Par défaut : oui, c'est de l'argent déjà en caisse.</span></div>
+  <div class="q"><b>Q4</b><span>Ligne « Ajustement » : confirmer sur un jeu de test que l'ajustement gagne, puis la retirer du récap au profit d'une mention sous le total.</span><span class="rec">Par défaut : vérifier avant d'implémenter.</span></div>
+  <div class="q"><b>Q5</b><span>Faire calculer par le serveur aussi le pré-remplissage de l'arrivée, dans la même PR ?</span><span class="rec">Par défaut : départ seulement, arrivée ensuite.</span></div>
+  <div class="q"><b>Q6</b><span>Aperçu aussi sur la page extincteur (son sous-total), ou sur le récap seulement ?</span><span class="rec">Par défaut : les deux.</span></div>
+</div>
+</main>
+
+<script>
+(function(){
+  // Données fictives : aucune réservation réelle.
+  var BASE=[
+    {key:'depCleaning',group:'Fin de séjour',label:'Ménage de fin de séjour',unit:80,qty:1,offerable:true},
+    {key:'dep:4',group:'Fin de séjour',label:'Serviette',unit:6.5,qty:2,offerable:true,stepper:true},
+    {key:'stored:0:9f3a1c2e',group:'Fin de séjour',label:'Linge de toilette',hint:'Reporté depuis l’arrivée',unit:24,qty:1,offerable:true},
+    {key:null,group:'Complément d’arrivée rappelé',label:'Taxe de séjour',hint:'Jamais offerte',unit:4.8,qty:1,offerable:false},
+    {key:'custom:41',group:'Complément d’arrivée rappelé',label:'Lit bébé',unit:7.7,qty:1,offerable:true}
+  ];
+  var offered={}, towels=2, net='ok', pay=null;
+  var seq=0, latest=0, timer=null, inflight=null;
+  var recap=null, pending=false, error=null;
+  var $=function(id){return document.getElementById(id)};
+  var r2=function(v){return Math.round(v*100)/100};
+  var eur=function(v){var s=Math.abs(v).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,' ');return (v<0?'−':'')+s+' €'};
+  function log(cls,txt){var d=document.createElement('div');d.className=cls||'';d.textContent=txt;var l=$('log');l.appendChild(d);l.scrollTop=l.scrollHeight;}
+  function draft(){return {offered:Object.assign({},offered),towels:towels,adjusted:$('adj').checked}}
+
+  // Le « serveur » : la seule place où l'on additionne.
+  function server(d,towelPrice){
+    var lines=BASE.map(function(b){
+      var qty=b.key==='dep:4'?d.towels:b.qty, unit=b.key==='dep:4'?towelPrice:b.unit;
+      var real=r2(qty*unit), off=!!(b.key&&d.offered[b.key]);
+      return {key:b.key,qty:qty,unit:unit,real:real,billed:off?0:real,offered:off};
+    }).filter(function(l){return l.qty>0});
+    var eos=r2(lines.slice(0,lines.length-2).reduce(function(s,l){return s+l.billed},0));
+    var recall=r2(lines.slice(-2).reduce(function(s,l){return s+l.billed},0));
+    var engine=eos, adjusted=null;
+    if(d.adjusted){adjusted={amount:50,engineAmount:engine};eos=50;}
+    return {lines:lines,endOfStayTotal:eos,recallTotal:recall,grandTotal:r2(eos+recall),adjusted:adjusted};
+  }
+  // Le calcul actuel du navigateur : l'ajustement stocké (50 − 117) reste une ligne comptée.
+  function browserToday(d){
+    var s=server(Object.assign({},d,{adjusted:false}),6.5);
+    var add=d.adjusted?r2(50-117):0;
+    return r2(s.grandTotal+add);
+  }
+
+  function request(){clearTimeout(timer);pending=true;render();timer=setTimeout(send,200);}
+  function send(){
+    var id=++seq; latest=id; var d=draft();
+    if(inflight){inflight.abort=true;log('drop','#'+(id-1)+' abandonnée (une plus récente part)');}
+    var me={abort:false}; inflight=me;
+    log('','#'+id+' → aperçu envoyé');
+    setTimeout(function(){
+      if(me.abort||id!==latest){log('drop','#'+id+' réponse ignorée (périmée)');return;}
+      inflight=null; pending=false;
+      if(net==='off'){error=true;log('ko','#'+id+' ✕ réseau indisponible');}
+      else{error=null;recap=server(d,6.5);log('ok','#'+id+' ← total '+eur(recap.grandTotal)+(recap.adjusted?' · ajusté':''));}
+      render();
+    },net==='slow'?1500:400);
+  }
+
+  function render(){
+    var box=$('lines'); box.innerHTML=''; var lastGroup='';
+    var ok=recap&&!error;
+    BASE.forEach(function(b){
+      if(b.key==='dep:4'&&towels===0&&!b.stepper)return;
+      if(b.group!==lastGroup){var g=document.createElement('div');g.className='group';g.textContent=b.group;box.appendChild(g);lastGroup=b.group;}
+      var r=ok?recap.lines.filter(function(x){return x.key===b.key})[0]:null;
+      var isOff=!!(b.key&&offered[b.key]);
+      var row=document.createElement('div');row.className='line';
+      var lbl=document.createElement('div');lbl.className='lbl';
+      lbl.textContent=b.label;
+      var hint=b.hint||(r&&r.qty>1?r.qty+' × '+eur(r.unit):'');
+      if(hint){var s=document.createElement('small');s.textContent=hint;lbl.appendChild(s);}
+      if(b.stepper){
+        var st=document.createElement('div');st.className='stepper';st.style.marginTop='4px';
+        var minus=document.createElement('button');minus.type='button';minus.textContent='−';minus.setAttribute('aria-label','Une serviette de moins');minus.disabled=towels<=0;
+        var out=document.createElement('output');out.textContent=towels;
+        var plus=document.createElement('button');plus.type='button';plus.textContent='+';plus.setAttribute('aria-label','Une serviette de plus');
+        minus.onclick=function(){towels=Math.max(0,towels-1);render();request();};
+        plus.onclick=function(){towels+=1;render();request();};
+        st.appendChild(minus);st.appendChild(out);st.appendChild(plus);lbl.appendChild(st);
+      }
+      var right=document.createElement('div');right.className='right';
+      var a=document.createElement('span');a.className='amt'+(r&&r.offered?' struck':'');
+      a.textContent=r?eur(r.real):'—';
+      right.appendChild(a);
+      if(b.offerable){
+        var btn=document.createElement('button');btn.type='button';btn.className='offer';
+        btn.setAttribute('aria-pressed',isOff?'true':'false');
+        btn.textContent=isOff?'✓ Offert':'Offrir';
+        btn.onclick=function(){offered[b.key]=!offered[b.key];render();request();};
+        right.appendChild(btn);
+      }
+      row.appendChild(lbl);row.appendChild(right);box.appendChild(row);
+    });
+    $('sas').classList.toggle('pending',pending);
+    $('tot').textContent=ok?eur(recap.grandTotal):(error?'Total indisponible':'—');
+    $('note').textContent=ok&&recap.adjusted?'Montant ajusté sur la fiche (calcul : '+eur(recap.adjusted.engineAmount)+')':'';
+    $('err').classList.toggle('show',!!error);
+    var blocked=pending||!ok;
+    Array.prototype.forEach.call($('pay').children,function(b){b.disabled=!!error||!recap;b.setAttribute('aria-pressed',b.dataset.pay===pay?'true':'false');});
+    $('validate').disabled=blocked;
+    $('validate').textContent=pending?'Calcul du total…':'Valider et terminer';
+    var t=browserToday(draft());
+    $('today').innerHTML='';
+    var span=document.createElement('span');
+    span.textContent='Calcul actuel du navigateur : ';
+    var bb=document.createElement('b');bb.textContent=t>0?eur(t):'aucun total ('+eur(t)+')';
+    $('today').appendChild(span);$('today').appendChild(bb);
+    if(ok&&!pending&&r2(t)!==recap.grandTotal){$('today').appendChild(document.createTextNode(' — différent de ce qui serait enregistré.'));}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-net]'),function(b){
+    b.onclick=function(){net=b.dataset.net;Array.prototype.forEach.call(document.querySelectorAll('[data-net]'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});log('','— réseau : '+b.textContent);request();};
+  });
+  $('adj').onchange=function(){render();request();};
+  $('retry').onclick=function(){request();};
+  $('close').onclick=function(){$('warn').classList.remove('show');$('done').textContent='Dialogue fermé. L’écart reste dans l’historique de la fiche.';};
+  Array.prototype.forEach.call($('pay').children,function(b){b.onclick=function(){pay=b.dataset.pay;render();};});
+  $('validate').onclick=function(){
+    // L'enregistrement refait son propre calcul ; le total affiché n'est qu'un point de comparaison.
+    var shown=recap.grandTotal;
+    var stored=server(draft(),$('drift').checked?7:6.5).grandTotal;
+    $('warn').classList.remove('show');
+    if(stored!==shown){
+      $('warnMsg').textContent='Enregistré à '+eur(stored)+' — le récap affichait '+eur(shown)+'.';
+      $('warn').classList.add('show');$('done').textContent='';
+      log('drop','commit → enregistré '+eur(stored)+' · affiché '+eur(shown)+' · avertissement + historique');
+    }else{
+      $('done').textContent='Enregistré à '+eur(stored)+', comme affiché.';
+      log('ok','commit → enregistré '+eur(stored)+' · identique au total affiché');
+    }
+  };
+  render(); request();
+})();
+</script>
+</body>
+</html>
