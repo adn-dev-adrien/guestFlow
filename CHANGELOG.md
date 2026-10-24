@@ -4,6 +4,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.14.1] - 2026-10-24
+
+### Summary
+- Une fiche de séjour passé ou en cours portant une ligne libre peut de nouveau être enregistrée.
+- L'historique n'affiche plus de faux changement « Options » à chaque enregistrement de ces fiches.
+
+### Fixed
+- **A past stay carrying a custom line can be saved again** (spec `reservation-history-granular-diff.md` rule 12, 2026-10-23). « Enregistrer » answered « Cette réservation est passée ou en cours… » even with nothing edited, because the custom line was keyed differently before and after the save and looked like a change to the locked options. The same mismatch wrote a phantom « Options » row into the history on every save of such a fiche; it no longer does.
+
 ## [3.14.0] - 2026-10-23
 
 ### Summary
