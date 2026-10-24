@@ -56,6 +56,11 @@ function buildController({ captures, reservation }) {
     if (k === 'planArrivalSas') return () => ({
       lines: [], existingTotal: 0, addedTotal: 0, arrivalComplementTotal: 0, supplementOutsideComplement: 0, adjusted: null,
     });
+    // specs/sas-departure-recap-server-side.md — same for the check-out: nothing billed here.
+    if (k === 'resolveSasDepartureItems') return () => [];
+    if (k === 'planDepartureSas') return () => ({
+      lines: [], endOfStayTotal: 0, extinguisherTotal: 0, recall: null, grandTotal: 0, endOfStayPaid: null, midStaySettled: 0, adjusted: null,
+    });
     if (k === 'commitArrivalSas') return (...args) => { captures.writes.push({ fn: 'commitArrivalSas', args }); return 0; };
     if (k === 'commitDepartureSas') return (...args) => { captures.writes.push({ fn: 'commitDepartureSas', args }); };
     if (k === 'addHistoryEntry') return (...args) => { captures.writes.push({ fn: 'addHistoryEntry', args }); };

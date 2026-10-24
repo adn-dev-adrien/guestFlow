@@ -25,6 +25,7 @@ const CORE_MODULES = Object.freeze({
   sasCommitHooks: '../../utils/sasCommitHooks', // the steps of other plugins, around the core commit (phase 3c rule 6)
   sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core
   arrivalSasPlan: '../../utils/arrivalSasPlan', // the arithmetic of the arrival plan, shared by preview and commit
+  departureSasPlan: '../../utils/departureSasPlan', // the arithmetic of the departure plan, shared by preview and commit
   arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single arrival payment the commit recorded
   optionCategoriesMigration: '../../utils/optionCategoriesMigration', // CATERING_CATEGORY, the « Restauration » catalogue
   roles: '../../constants/roles', // isReceptionOnly — the reception role stays core (rule 13)

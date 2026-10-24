@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
-import { previewLikeTheServer } from './sasPreviewFake';
+import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -17,6 +17,7 @@ vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
     previewArrivalSas: vi.fn(),
+    previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+  api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
 // specs/arrival-departure-sas.md rule 13
@@ -73,14 +75,17 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
 
   // recap (caution page skipped: cautionAmount 0)
   await screen.findByText('Récapitulatif fin de séjour');
-  expect(screen.getByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument();
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  // The end-of-stay amount is computed server-side from the detail; the client sends the detail +
-  // the extinguisher condition/charges (specs/extinguisher-seal-and-repair-amounts.md §3.2).
-  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour' && l.amount === 80)).toBe(true);
+  // specs/sas-departure-recap-server-side.md rules 6-7, 22 — the ménage is a yes/no priced by the
+  // server, the total the recap showed rides along to be compared; no line, no amount is sent.
+  expect(arg.cleaningCharged).toBe(true);
+  expect(arg.cleaningOffered).toBe(false);
+  expect(arg.endOfStayComplementDetail).toBeUndefined();
+  expect(arg.displayedDepartureTotal).toBe(80);
   expect(arg.extinguisherSealOkAtDeparture).toBe(1);
   expect(arg.extinguisherCharges).toEqual([]);
   // Caution step skipped (cautionAmount 0) → no decision sent, the marker is left untouched
@@ -118,7 +123,7 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
   expect(screen.getByText(/Taxe de séjour : 4,80 €/)).toBeInTheDocument();
   expect(screen.getByText(/Lit bébé : 7,70 €/)).toBeInTheDocument();
   // Combined total = 80 (ménage) + 12,50 (recalled arrival) — still includes the arrival amount.
-  expect(screen.getByText(/Total à percevoir : 92,50 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total à percevoir : 92,50 €/)).toBeInTheDocument();
 
   // Settle « CB / Chèque » (specs/sas-recap-payment-buttons.md) then validate.
   clickBtn('CB / Chèque');
@@ -128,9 +133,11 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
   const arg = api.commitDepartureSas.mock.calls[0][1];
   expect(arg.complementsSettled).toBe(true);
   expect(arg.complementsPaidCash).toBe(false);
-  // The end-of-stay detail is unchanged — the arrival amount is NOT merged into it (kept separate).
-  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour' && l.amount === 80)).toBe(true);
-  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Taxe de séjour')).toBe(false);
+  // The arrival amount is NOT part of the end-of-stay draft (kept separate): only the ménage intent
+  // rides, and the grand total the recap showed is what the server compares.
+  expect(arg.cleaningCharged).toBe(true);
+  expect(arg.endOfStayComplementDetail).toBeUndefined();
+  expect(arg.displayedDepartureTotal).toBe(92.5);
 });
 
 test('departure SAS: a PAID arrival complement is NOT recalled', async () => {
@@ -152,7 +159,7 @@ test('departure SAS: a PAID arrival complement is NOT recalled', async () => {
   clickBtn('Oui');
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.queryByText("Compléments d'arrivée non perçus")).toBeNull();
-  expect(screen.getByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument(); // ménage only
+  expect(await screen.findByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument(); // ménage only
 });
 
 test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay complement) keeps the « non perçus » warning', async () => {
@@ -176,7 +183,7 @@ test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay compleme
   clickBtn('Oui');
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.getByText("Compléments d'arrivée non perçus")).toBeInTheDocument();
-  expect(screen.getByText(/Total à percevoir : 12,50 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total à percevoir : 12,50 €/)).toBeInTheDocument();
 });
 
 // specs/arrival-departure-sas.md rule 18
@@ -213,7 +220,7 @@ test('departure SAS: extinguisher not in good condition opens the tariff page; q
   clickBtn('Suivant');
 
   await screen.findByText('Récapitulatif fin de séjour');
-  expect(screen.getByText(/Total à percevoir : 30,00 €/)).toBeInTheDocument(); // 30 × 1
+  expect(await screen.findByText(/Total à percevoir : 30,00 €/)).toBeInTheDocument(); // 30 × 1
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
@@ -224,5 +231,5 @@ test('departure SAS: extinguisher not in good condition opens the tariff page; q
     { repairKey: 'extinguisher_seal', qty: 1, offered: false },
     { repairKey: 'extinguisher_use', qty: 0, offered: false },
   ]);
-  expect(arg.endOfStayComplementDetail.some((l) => String(l.repairKey || '').startsWith('extinguisher'))).toBe(false);
+  expect(arg.endOfStayComplementDetail).toBeUndefined();
 });

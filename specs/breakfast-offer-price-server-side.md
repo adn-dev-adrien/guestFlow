@@ -176,7 +176,7 @@ that what the operator announces at the door is what the commit bills.
 | `models/` | `reservationsModel.js` | T | `planArrivalSas` keeps `cardOccurrences.length` and `servedPersons` on each planned sold line (today only `qty`/`unitPrice`/`total`, `:2408-2409`). |
 | `plugins/sas/` | `arrivalRecap.js` | T | `salesBlock` answers `{ optionId, moments, servedPersons, units, unitPrice, amount }` for the breakfast (rule 5); unsold → `moments` 0 and `servedPersons` null (the draft carries no covers to answer for). |
 | `plugins/sas/` | `controller.js` | — | Unchanged: `saleOffersFor` already serves `buildSasSaleOffers`. |
-| `plugins/sas/` | `manifest.json` | T | `1.2.0 → 1.3.0`, changelog line « Le prix du petit déjeuner proposé à l'arrivée vient du serveur. » |
+| `plugins/sas/` | `manifest.json` | T | `1.3.0 → 1.4.0`, changelog line « Le prix du petit déjeuner proposé à l'arrivée vient du serveur. » |
 | `database.js` | — | — | (none) |
 
 ### 4.2 Client side (`client/src/`)
@@ -319,5 +319,5 @@ All three resolved on 2026-10-24: the owner accepted the default of each.
   stepper follows the server's `servedPersons` once a fresh answer differs (rule 11).
 - The error banner (« Montant indisponible » + « Réessayer ») is also shown under « Total
   restauration » (same states as the mornings page).
-- `sas` plugin `1.2.0 → 1.3.0`; tests: `breakfast-offer-price.unit.test.js` (8),
+- `sas` plugin `1.3.0 → 1.4.0` (after #768); tests: `breakfast-offer-price.unit.test.js` (8),
   `sas-breakfast-sales-block.unit.test.js` (5), `ReservationSasDialog.breakfast-offer-price.test.jsx` (7).

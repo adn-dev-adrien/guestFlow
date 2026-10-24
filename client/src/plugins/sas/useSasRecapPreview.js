@@ -1,10 +1,11 @@
 /**
- * useArrivalRecapPreview — the arrival recap as the server prices it
- * (specs/sas-arrival-total-server-side.md rules 17-21).
+ * useSasRecapPreview — a SAS recap as the server prices it (specs/sas-arrival-total-server-side.md
+ * rules 17-21, specs/sas-departure-recap-server-side.md rules 16-17): one hook for both ends.
  *
+ *   request       — the preview call of the end being run (`api.previewArrivalSas` / `api.previewDepartureSas`)
  *   reservationId — the stay
- *   draft         — the arrival draft (`buildArrivalDraft`), the very body the commit will send
- *   enabled       — true on the pages that show money (recap, breakfast mornings, restauration)
+ *   draft         — the draft (`buildArrivalDraft` / `buildDepartureDraft`), the very body the commit will send
+ *   enabled       — true on the pages that show money (the recap, the pages that sell or bill)
  *   resetKey      — anything that identifies one run of the wizard; a new value forgets the last answer
  *   delay         — quiet time before a request (200 ms); the first request of a page leaves at once
  *
@@ -15,10 +16,9 @@
 import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { api } from '../sdk';
 
-export default function useArrivalRecapPreview({
-  reservationId, draft, enabled, resetKey, delay = 200,
+export default function useSasRecapPreview({
+  request, reservationId, draft, enabled, resetKey, delay = 200,
 }) {
   const signature = useMemo(() => JSON.stringify(draft || {}), [draft]);
   const [answer, setAnswer] = useState({ recap: null, signature: null, error: null });
@@ -27,6 +27,8 @@ export default function useArrivalRecapPreview({
   const abortRef = useRef(null);
   const timerRef = useRef(null);
   const wasEnabledRef = useRef(false);
+  const requestRef = useRef(request);
+  requestRef.current = request;
 
   const send = useCallback((sig) => {
     seqRef.current += 1;
@@ -35,7 +37,7 @@ export default function useArrivalRecapPreview({
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     abortRef.current = controller;
     setPending(true);
-    api.previewArrivalSas(reservationId, JSON.parse(sig), { signal: controller ? controller.signal : undefined })
+    requestRef.current(reservationId, JSON.parse(sig), { signal: controller ? controller.signal : undefined })
       .then((recap) => {
         if (seq !== seqRef.current) return;
         setAnswer({ recap, signature: sig, error: null });

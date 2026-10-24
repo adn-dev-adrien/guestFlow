@@ -63,3 +63,16 @@ test('rule 35 — the contract records names only, nothing it would claim to che
     assert.ok(Array.isArray(exported) && exported.every((k) => typeof k === 'string'), name);
   }
 });
+
+test('rule 26 of sas-departure-recap-server-side — the departure planner joins the contract, additively (SDK 2.1.0 still satisfies ^2.0.0)', () => {
+  ['planDepartureSas', 'resolveSasDepartureItems', 'buildDepartureSeed'].forEach((name) => {
+    assert.ok(CONTRACT.reservationsModel.includes(name), name);
+    assert.equal(typeof sdk.coreModule('reservationsModel')[name], 'function', name);
+  });
+  assert.equal(sdk.coreModule('departureSasPlan'), require('../utils/departureSasPlan'));
+  assert.ok(CONTRACT.departureSasPlan.includes('recalledArrivalAfter'));
+  const { SDK_VERSION } = require('../plugins/sdk/version');
+  const { satisfies } = require('../utils/semverRange');
+  assert.equal(SDK_VERSION, '2.1.0');
+  assert.equal(satisfies(SDK_VERSION, '^2.0.0'), true);
+});

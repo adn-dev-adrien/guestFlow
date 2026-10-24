@@ -9,17 +9,18 @@ const { PLUGIN_IDS } = require('../constants/plugins');
 const { SDK_VERSION } = require('../plugins/sdk/version');
 const { satisfies } = require('../utils/semverRange');
 
-test('rule 14: the SDK is 2.0.0, and a plugin built against SDK 1 is refused', () => {
-  assert.equal(SDK_VERSION, '2.0.0');
+test('rule 14: the SDK is a 2.x, and a plugin built against SDK 1 is refused', () => {
+  assert.match(SDK_VERSION, /^2\./);
+  assert.equal(satisfies(SDK_VERSION, '^2.0.0'), true);
   assert.equal(satisfies(SDK_VERSION, '^1.0.0'), false);
 });
 
-test('rule 14bis: every in-repo plugin declares SDK 2 and says so in its changelog', () => {
+test('rule 14bis: every in-repo plugin declares an SDK 2 range the SDK satisfies, and its CURRENT version says so in its changelog', () => {
   assert.ok(PLUGIN_IDS.length >= 14);
   PLUGIN_IDS.forEach((id) => {
     const m = readSourceManifest(id);
-    assert.equal(m.sdk, '^2.0.0', id);
-    assert.ok(satisfies(SDK_VERSION, m.sdk), id);
+    assert.match(m.sdk, /^\^2\./, id);
+    assert.ok(satisfies(SDK_VERSION, m.sdk), `${id} ${m.sdk} is satisfied by SDK ${SDK_VERSION}`);
     assert.ok((m.changelog[m.version] || []).some((line) => /SDK 2/.test(line)), `${id} ${m.version} names SDK 2`);
   });
 });

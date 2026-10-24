@@ -70,6 +70,6 @@ test('rule 12 — additive: the offer keeps every earlier field and the SDK rang
   ['available', 'optionId', 'unitPrice', 'perPerson', 'defaultPersons', 'selectedPersons', 'maxPersons', 'mornings']
     .forEach((key) => assert.ok(key in b, key));
   const manifest = require('../plugins/sas/manifest.json');
-  assert.ok(require('semver').satisfies('2.0.0', manifest.sdk), 'the plugin still accepts the current SDK');
+  assert.ok(require('semver').satisfies('2.1.0', manifest.sdk), 'the plugin still accepts SDK 2.1');
   assert.ok(manifest.changelog[manifest.version], 'the bumped version carries its French changelog line');
 });

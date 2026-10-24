@@ -29,6 +29,9 @@ const {
 } = require('../utils/midStayExtras');
 const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
+const {
+  realOfStoredLine, classifyStoredLines, storeLine, keepRealLines, recalledArrivalAfter, isRecalled,
+} = require('../utils/departureSasPlan');
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 const { hasGuestArrived } = require('../utils/arrivalMoment');
@@ -546,9 +549,7 @@ function createReservationsModel(database) {
     // rewrite: it is the trace of the geste commercial and the only way to un-offer it on a re-open.
     // The « Ajustement » line is filtered out here on purpose: it is not a real line, it is recomputed
     // just below from whatever the real ones now weigh.
-    const real = (detailLines || [])
-      .filter((l) => l && !isAdjustmentLine(l))
-      .filter((l) => round2(l.amount) > 0 || Number(l.offered || 0) === 1);
+    const real = keepRealLines(detailLines);
     // specs/adjustable-complement-amounts.md §3.3 rule 20 — every path that rewrites the detail goes
     // through here, so the operator's adjustment is re-applied by all of them: the mid-stay sync of a
     // fiche save, settling or cancelling a note, offering a line, a departure-SAS re-run.
@@ -3313,11 +3314,266 @@ function createReservationsModel(database) {
       return tx();
     },
 
-    // Single commit for the departure SAS: caution return + the dedicated end-of-stay complement.
-    // The extinguisher charge is computed HERE (fat backend, specs/extinguisher-seal-and-repair-amounts.md
-    // §3.2 — 2026-06-17): the client sends only `extinguisherCharges` = [{ repairKey, qty }]; the server
-    // looks up the configured price, builds the lines, appends them to the end-of-stay detail, and the
-    // stored amount is the authoritative sum of every line (no client-supplied total is trusted).
+    // specs/sas-departure-recap-server-side.md rules 6-9 — the departure SAS sends INTENT: the missing
+    // linen by `itemId` + `qty`, the end-of-stay ménage as a yes/no, the stored lines by the key the
+    // server issued. Returns the detail lines the planner and the commit take, in the order the commit
+    // has always written them (ménage, linen, carried, preserved), each priced HERE from « Facturables »
+    // and the property — `{ lineKey, label, qty, unitPrice, amount (real), offered, source?, key? }`.
+    // An unknown item or a non-positive quantity is dropped; a key that no longer matches a stored line
+    // is ignored, so that line is billed at its real price (rule 9).
+    resolveSasDepartureItems(reservationId, {
+      missingItems, cleaningCharged, cleaningOffered, storedLines,
+    } = {}) {
+      const row = database.prepare('SELECT propertyId, endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return [];
+      const out = [];
+      if (cleaningCharged && !model.isCleaningSoldForReservation(reservationId)) {
+        const price = model.getCleaningPriceForProperty(row.propertyId);
+        if (price > 0) {
+          out.push({
+            lineKey: 'depCleaning', label: END_OF_STAY_CLEANING_LABEL, qty: 1, unitPrice: price, amount: price, offered: Boolean(cleaningOffered),
+          });
+        }
+      }
+      let priced = [];
+      try { priced = database.prepare('SELECT id, label, price FROM linen_priced_items').all(); } catch { priced = []; }
+      const byId = new Map(priced.map((i) => [Number(i.id), i]));
+      const seen = new Set();
+      for (const line of (Array.isArray(missingItems) ? missingItems : [])) {
+        const id = Number(line && line.itemId);
+        const item = byId.get(id);
+        const qty = Math.round(Number(line && line.qty) || 0);
+        if (!item || !(qty > 0) || seen.has(id)) continue;
+        seen.add(id);
+        const unitPrice = round2(item.price);
+        const amount = round2(unitPrice * qty);
+        if (!(amount > 0)) continue;
+        out.push({
+          lineKey: `dep:${id}`, label: String(item.label).trim(), qty, unitPrice, amount, offered: Boolean(line.offered),
+        });
+      }
+      const { carried, preserved } = classifyStoredLines(
+        parseDetailLines(row.endOfStayComplementDetail),
+        new Set(priced.map((i) => String(i.label).trim())),
+        END_OF_STAY_CLEANING_LABEL,
+      );
+      const decisions = new Map((Array.isArray(storedLines) ? storedLines : [])
+        .filter((x) => x && x.key)
+        .map((x) => [String(x.key), Boolean(x.offered)]));
+      for (const { line, key } of [...carried, ...preserved]) {
+        const offered = decisions.has(key) ? decisions.get(key) : Number(line.offered || 0) === 1;
+        out.push({
+          lineKey: key,
+          label: line.label,
+          qty: Number(line.qty || 1),
+          unitPrice: Number(line.unitPrice || 0),
+          amount: realOfStoredLine(line),
+          ...(line.source ? { source: line.source } : {}),
+          ...(line.key ? { key: line.key } : {}),
+          offered,
+        });
+      }
+      return out;
+    },
+
+    // The re-edit seed of the departure SAS (rule 12): what the stored detail says the operator decided,
+    // read by the same classification as the planner. Served whatever `departureSasDoneAt` says: a row
+    // stored before that marker existed, or a line written outside the SAS, must come back in the
+    // dialog instead of being dropped by the next commit (the planner rebuilds those lines from intent).
+    buildDepartureSeed(reservationId) {
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+      const seed = {
+        missingItems: {}, cleaningCharged: false, extinguisherQty: {}, storedKeys: [], offeredKeys: [],
+      };
+      if (!row) return seed;
+      let priced = [];
+      try { priced = database.prepare('SELECT id, label, price FROM linen_priced_items').all(); } catch { priced = []; }
+      const byLabel = new Map(priced.map((i) => [String(i.label).trim(), i]));
+      const { carried, preserved, rebuilt } = classifyStoredLines(
+        parseDetailLines(row.endOfStayComplementDetail), new Set(byLabel.keys()), END_OF_STAY_CLEANING_LABEL,
+      );
+      for (const { line, key } of [...carried, ...preserved]) {
+        seed.storedKeys.push(key);
+        if (Number(line.offered || 0) === 1) seed.offeredKeys.push(key);
+      }
+      {
+        for (const { line, kind } of rebuilt) {
+          const offered = Number(line.offered || 0) === 1;
+          if (kind === 'extinguisher') {
+            seed.extinguisherQty[String(line.repairKey)] = Math.max(1, Number(line.qty) || 1);
+            if (offered) seed.offeredKeys.push(`ext:${String(line.repairKey)}`);
+          } else if (kind === 'cleaning') {
+            seed.cleaningCharged = !model.isCleaningSoldForReservation(reservationId);
+            if (offered && seed.cleaningCharged) seed.offeredKeys.push('depCleaning');
+          } else {
+            const item = byLabel.get(String(line.label).trim());
+            seed.missingItems[item.id] = Number(line.qty) || Math.max(1, Math.round(realOfStoredLine(line) / Number(item.price || 1)));
+            if (offered) seed.offeredKeys.push(`dep:${item.id}`);
+          }
+        }
+      }
+      if (isRecalled({ amount: row.complementAmount, paid: row.complementPaid })) {
+        for (const l of model.buildArrivalComplementDetail(reservationId, { includeOffered: true }).detail) {
+          if (Number(l.offered || 0) === 1 && l.ref) seed.offeredKeys.push(`${l.ref.kind}:${l.ref.id}`);
+        }
+      }
+      return seed;
+    },
+
+    /**
+     * The departure SAS plan (specs/sas-departure-recap-server-side.md §3.1): every recap line, the
+     * end-of-stay complement and the recalled arrival complement as this run leaves them. PURE READ —
+     * the preview calls it on a draft, `commitDepartureSas` calls it at the start of its transaction and
+     * writes what it says. One computation, two callers: they cannot diverge.
+     *
+     * `input` is the commit's own input: `endOfStayComplementDetail` (the resolved lines, real totals in
+     * `amount`), `extinguisherSealOkAtDeparture` / `extinguisherCharges` (intent, priced here),
+     * `offeredArrivalExtras` (authoritative refs, honoured only while the arrival is recalled).
+     * `withLines: false` skips the itemised recalled lines (the commit never renders them).
+     */
+    planDepartureSas(reservationId, input = {}, { withLines = true } = {}) {
+      const {
+        endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, offeredArrivalExtras,
+      } = input;
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return null;
+
+      // Rule 3 of defer-arrival-complement-to-checkout.md — a cleaning already sold is never billed again,
+      // whatever the caller sends, and a ménage line stored by an earlier run is dropped.
+      const cleaningSold = model.isCleaningSoldForReservation(reservationId);
+      const base = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
+        .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))
+        .map((l) => ({ lineKey: l.lineKey, stored: storeLine(l), carried: Boolean(l.source), extinguisher: false }));
+      // Server-priced extinguisher lines: only when the extinguisher is NOT in good condition and a
+      // quantity is requested; the price is read from repair_amounts, a 0 € or 0-qty tariff makes no line.
+      const extinguisher = [];
+      if (extinguisherSealOkAtDeparture !== undefined && !extinguisherSealOkAtDeparture && Array.isArray(extinguisherCharges)) {
+        const priceStmt = database.prepare('SELECT label, price FROM repair_amounts WHERE repairKey = ?');
+        for (const charge of extinguisherCharges) {
+          const repairKey = String((charge && charge.repairKey) || '').trim();
+          const qty = Math.max(0, Math.floor(Number(charge && charge.qty) || 0));
+          if (!repairKey || qty <= 0) continue;
+          const tariff = priceStmt.get(repairKey);
+          if (!tariff) continue;
+          const unitPrice = Math.max(0, Number(tariff.price) || 0);
+          const lineAmount = round2(unitPrice * qty);
+          if (lineAmount <= 0) continue;
+          extinguisher.push({
+            lineKey: `ext:${repairKey}`,
+            stored: charge && charge.offered
+              ? { repairKey, label: tariff.label, qty, unitPrice, amount: 0, offered: 1, originalAmount: lineAmount }
+              : { repairKey, label: tariff.label, qty, amount: lineAmount },
+            carried: false,
+            extinguisher: true,
+            unitPrice,
+          });
+        }
+      }
+      const written = [...base, ...extinguisher];
+      const detail = written.map((w) => w.stored);
+
+      // The end-of-stay complement, through the very reconciliation the write point runs.
+      const kept = written.filter((w) => keepRealLines([w.stored]).length === 1);
+      const endOfStayOverride = readEndOfStayOverride(reservationId);
+      const reconciled = reconcileEndOfStayLines({ lines: keepRealLines(detail), override: endOfStayOverride });
+
+      const isStoredLine = (w) => String(w.lineKey || '').startsWith('stored:');
+      const rank = (w) => {
+        if (w.extinguisher) return 2;
+        if (w.carried) return 1;
+        return isStoredLine(w) ? 3 : 0;
+      };
+      const groupOf = (w) => {
+        if (w.extinguisher) return 'extinguisher';
+        return isStoredLine(w) ? 'stored' : 'endOfStay';
+      };
+      const lineOf = (w) => {
+        const real = realOfStoredLine(w.stored);
+        const offered = Number(w.stored.offered || 0) === 1;
+        return {
+          key: w.lineKey || null,
+          group: groupOf(w),
+          label: w.stored.label,
+          qty: Number(w.stored.qty || 1),
+          unitPrice: round2(w.unitPrice != null ? w.unitPrice : w.stored.unitPrice),
+          real,
+          billed: offered ? 0 : real,
+          offerable: Boolean(w.lineKey),
+          offered,
+        };
+      };
+      const lines = kept
+        .map((w, i) => ({ w, i }))
+        .sort((a, b) => rank(a.w) - rank(b.w) || a.i - b.i)
+        .map(({ w }) => lineOf(w));
+      const extinguisherTotal = round2(lines.filter((l) => l.group === 'extinguisher').reduce((s, l) => s + l.billed, 0));
+      const endOfStayAdjusted = endOfStayOverride != null && round2(reconciled.amount) !== round2(reconciled.real)
+        ? { amount: reconciled.amount, engineAmount: reconciled.real } : null;
+      // An adjustment with no real line behind it would leave the total on no line at all: it then gets
+      // its own, not offerable (rule 24). With real lines the note under the total says it.
+      if (endOfStayAdjusted && lines.length === 0 && reconciled.amount > 0) {
+        lines.push({
+          key: null, group: 'adjustment', label: 'Ajustement', qty: 1, unitPrice: reconciled.amount,
+          real: reconciled.amount, billed: reconciled.amount, offerable: false, offered: false,
+        });
+      }
+
+      // The recalled arrival complement (rule 11): only while something is still owed on it.
+      const recalls = isRecalled({ amount: row.complementAmount, paid: row.complementPaid });
+      const offeredRefs = recalls && Array.isArray(offeredArrivalExtras) ? offeredArrivalExtras : undefined;
+      let recall = null;
+      let recalledLines = [];
+      let arrivalAdjusted = null;
+      if (recalls) {
+        const { delta } = planOfferedComplementExtras(reservationId, offeredRefs);
+        const override = HAS_COMPLEMENT_OVERRIDES && row.complementAmountOverride != null ? Number(row.complementAmountOverride) : null;
+        const after = recalledArrivalAfter({ stored: row.complementAmount, delta, override });
+        const wanted = offeredRefs
+          ? new Set(offeredRefs.filter((x) => x && x.kind && x.id != null).map((x) => `${x.kind}:${Number(x.id)}`))
+          : null;
+        if (withLines) {
+          recalledLines = model.buildArrivalComplementDetail(reservationId, { includeOffered: true }).detail.map((l) => {
+            const key = l.ref ? `${l.ref.kind}:${l.ref.id}` : null;
+            const real = realOfStoredLine(l);
+            const offered = Boolean(key) && (wanted ? wanted.has(key) : Number(l.offered || 0) === 1);
+            return {
+              key,
+              group: 'recalled',
+              label: l.label,
+              qty: Number(l.qty || 1),
+              unitPrice: round2(l.unitPrice),
+              real,
+              billed: key ? (offered ? 0 : real) : round2(l.amount),
+              offerable: Boolean(key),
+              offered,
+            };
+          });
+        }
+        recall = { shown: true, framing: lines.length > 0 ? 'merged' : 'alone', total: after.total };
+        if (after.adjusted) arrivalAdjusted = { amount: after.total, engineAmount: after.engineAmount };
+      }
+      const paid = Number(row.endOfStayComplementPaid || 0) === 1;
+      return {
+        detail,
+        offeredRefs,
+        lines: [...lines, ...recalledLines],
+        endOfStayTotal: reconciled.amount,
+        extinguisherTotal,
+        recall,
+        grandTotal: round2(reconciled.amount + (recall ? recall.total : 0)),
+        endOfStayPaid: paid
+          ? { date: row.endOfStayComplementPaidDate || null, cash: Number(row.endOfStayComplementPaidCash || 0) === 1 }
+          : null,
+        midStaySettled: round2(model.getMidStaySettledNotes(reservationId).reduce((s, n) => s + (Number(n && n.total) || 0), 0)),
+        adjusted: endOfStayAdjusted || arrivalAdjusted ? { endOfStay: endOfStayAdjusted, arrival: arrivalAdjusted } : null,
+      };
+    },
+
+    // Single commit for the departure SAS: caution return + the dedicated end-of-stay complement. It
+    // EXECUTES `planDepartureSas` (specs/sas-departure-recap-server-side.md rule 2): the lines, their
+    // pricing and the offered netting come from the plan, this method only writes. The extinguisher
+    // charge is priced there too (specs/extinguisher-seal-and-repair-amounts.md §3.2) and the stored
+    // amount is the authoritative sum of every line (no client-supplied total is trusted).
     commitDepartureSas(reservationId, {
       cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges,
       complementsSettled, complementsPaidCash,
@@ -3329,16 +3585,16 @@ function createReservationsModel(database) {
     } = {}) {
       const tx = database.transaction(() => {
         const today = localTodayIso();
+        const plan = model.planDepartureSas(reservationId, {
+          endOfStayComplementDetail, extinguisherSealOkAtDeparture, extinguisherCharges, offeredArrivalExtras,
+        }, { withLines: false });
         // specs/sas-offer-complement-lines.md §3.2 rule 6.ter — the check-out recap only RECALLS the
-        // arrival complement when something is still owed on it (amount > 0 and unpaid). When it is
-        // not recalled, the recap rendered no arrival line, so it holds no authority over their
-        // `offered` flags: an empty set coming from that screen means « nothing was shown », never
-        // « nothing is offered ». Taken literally it billed back every offered line — and an arrival
-        // complement made entirely of gestes commerciaux sums to 0 €, which is exactly the case where
-        // it is not recalled.
-        const recall = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
-        const recallsArrival = Boolean(recall) && Number(recall.complementPaid || 0) !== 1 && round2(recall.complementAmount) > 0;
-        applyOfferedComplementExtras(reservationId, recallsArrival ? offeredArrivalExtras : undefined);
+        // arrival complement when something is still owed on it; when it is not recalled, the recap
+        // rendered no arrival line, so it holds no authority over their `offered` flags (the plan
+        // hands back no refs then). Taken literally an empty set billed back every offered line — and an
+        // arrival complement made entirely of gestes commerciaux sums to 0 €, which is exactly the case
+        // where it is not recalled.
+        applyOfferedComplementExtras(reservationId, plan.offeredRefs);
         // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
@@ -3353,56 +3609,9 @@ function createReservationsModel(database) {
               .run(reservationId);
           }
         }
-        // Server-built extinguisher lines: only when the extinguisher is NOT in good condition and a
-        // quantity is requested. Price is read from repair_amounts (authoritative); a 0 € or 0-qty
-        // tariff produces no line.
-        // specs/defer-arrival-complement-to-checkout.md §3.1 rule 3 — authoritative guard: when the
-        // cleaning is ALREADY sold on the reservation (booked option, « Ménage » line added by the
-        // arrival SAS, or property default), the end-of-stay cleaning can never be billed. Drops the
-        // line whatever the client sends, and drops a line stored by an earlier commit on re-run
-        // (rule 4: re-running the departure SAS is how an over-billed stay is corrected).
-        const cleaningSold = model.isCleaningSoldForReservation(reservationId);
-        // specs/sas-offer-complement-lines.md §3.3 rule 9 — an offered line is stored at 0 € but keeps
-        // its label, its quantity, its unit price and its `source`/`key` tags: that is what shows the
-        // real price struck through on the recap, and what lets a re-open bill it again.
-        // The real total is stored VERBATIM in `originalAmount`, never left to be re-derived — that is
-        // what makes the gesture reversible (§3.1 rule 3). `qty × unitPrice` is not that total: a
-        // « préservée » line (rule 6.bis) carries no unit price at all, so it was stored 1 × 0 € and
-        // its price was simply gone; and `buildMidStayLine` legitimately emits 2 × 16,67 € for a
-        // 33,33 € line, which re-derives one cent too high. Quantity and unit price are left exactly
-        // as sent — they are the recap wording and the history, not the price.
-        const offerLine = (line) => {
-          if (Number(line && line.offered ? 1 : 0) !== 1) return line;
-          // The recap sends the real total in `amount` — a line is zeroed HERE, not on the way in. The
-          // fallback makes the write idempotent all the same: re-committing an already-stored offered
-          // row verbatim would otherwise read its zeroed `amount` and overwrite the price with 0,
-          // destroying it. No client does that today; nothing should be one refactor away from it.
-          const sent = round2(line.amount);
-          return { ...line, offered: 1, amount: 0, originalAmount: sent > 0 ? sent : round2(line.originalAmount) };
-        };
-        const baseDetail = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
-          .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))
-          .map(offerLine);
-        const extinguisherLines = [];
-        if (extinguisherSealOkAtDeparture !== undefined && !extinguisherSealOkAtDeparture && Array.isArray(extinguisherCharges)) {
-          const priceStmt = database.prepare('SELECT label, price FROM repair_amounts WHERE repairKey = ?');
-          for (const charge of extinguisherCharges) {
-            const repairKey = String((charge && charge.repairKey) || '').trim();
-            const qty = Math.max(0, Math.floor(Number(charge && charge.qty) || 0));
-            if (!repairKey || qty <= 0) continue;
-            const row = priceStmt.get(repairKey);
-            if (!row) continue;
-            const unitPrice = Math.max(0, Number(row.price) || 0);
-            const lineAmount = Math.round(unitPrice * qty * 100) / 100;
-            if (lineAmount <= 0) continue;
-            extinguisherLines.push(charge && charge.offered
-              ? { repairKey, label: row.label, qty, unitPrice, amount: 0, offered: 1, originalAmount: lineAmount }
-              : { repairKey, label: row.label, qty, amount: lineAmount });
-          }
-        }
         // specs/adjustable-complement-amounts.md §3.3 rule 20 — through the single write point, so a
         // re-run of the departure SAS re-applies the operator's adjustment instead of erasing it.
-        const amount = writeEndOfStayDetail(reservationId, [...baseDetail, ...extinguisherLines], model.getMidStaySettledNotes(reservationId));
+        const amount = writeEndOfStayDetail(reservationId, plan.detail, model.getMidStaySettledNotes(reservationId));
 
         // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rules 4-5 — « Compléments encaissés »
         // confirmation on the departure recap. Tri-state (same contract as the caution). When ON, mark
