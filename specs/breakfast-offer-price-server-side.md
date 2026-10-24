@@ -174,7 +174,7 @@ that what the operator announces at the door is what the commit bills.
 |---|---|---|---|
 | `utils/` | `sasOptionSale.js` | T | `buildSasSaleOffers` adds `perMorning` to the breakfast block, priced by `priceOptionSale` on one candidate morning (rules 1-3). No new export. |
 | `models/` | `reservationsModel.js` | T | `planArrivalSas` keeps `cardOccurrences.length` and `servedPersons` on each planned sold line (today only `qty`/`unitPrice`/`total`, `:2408-2409`). |
-| `plugins/sas/` | `arrivalRecap.js` | T | `salesBlock` answers `{ optionId, moments, servedPersons, units, unitPrice, amount }` for the breakfast (rule 5); unsold → `servedPersons` from the offer. |
+| `plugins/sas/` | `arrivalRecap.js` | T | `salesBlock` answers `{ optionId, moments, servedPersons, units, unitPrice, amount }` for the breakfast (rule 5); unsold → `moments` 0 and `servedPersons` null (the draft carries no covers to answer for). |
 | `plugins/sas/` | `controller.js` | — | Unchanged: `saleOffersFor` already serves `buildSasSaleOffers`. |
 | `plugins/sas/` | `manifest.json` | T | `1.2.0 → 1.3.0`, changelog line « Le prix du petit déjeuner proposé à l'arrivée vient du serveur. » |
 | `database.js` | — | — | (none) |
@@ -263,7 +263,7 @@ Figures reuse the SAS fixtures (`client/src/plugins/sas/__tests__/sasFixtures.js
   - 2 mornings × 2 pers. → `{ moments: 2, servedPersons: 2, units: 4, unitPrice: 8, amount: 32.00 }`;
   - party 4, served 3 → `units 6`, `48.00`;
   - served 9 asked, capacity 5 → `servedPersons 5`, `units 10`, `80.00`;
-  - nothing ticked → `units 0`, `amount 0`, `servedPersons` = the offer's;
+  - nothing ticked → `units 0`, `amount 0`, `servedPersons` null (the page then shows « Quantité : 0 » without the covers clause);
   - reception role → same `sales.breakfast`.
 - [ ] Existing `sas-arrival-plan.unit.test.js`, `sas-arrival-preview.unit.test.js` and
   `sas-option-sales.unit.test.js` suites green unchanged.
@@ -315,7 +315,7 @@ All three resolved on 2026-10-24: the owner accepted the default of each.
 
 - `plan.lines` of `planArrivalSas` carry `moments` and `servedPersons` for a sold line; the recap
   strips them from `lines` and exposes them in `sales` only.
-- `servedFor` in the dialog is capped like the server (`min(…, max(1, party, maxPersons))`); the
+- `servedFor` in the dialog stays the intention only (typed number, else the offer's, at least 1); the ceiling is the server's, and the
   stepper follows the server's `servedPersons` once a fresh answer differs (rule 11).
 - The error banner (« Montant indisponible » + « Réessayer ») is also shown under « Total
   restauration » (same states as the mornings page).

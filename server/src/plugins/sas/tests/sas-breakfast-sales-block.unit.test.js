@@ -69,10 +69,10 @@ test('rule 11 — covers asked above the capacity are capped by the server', () 
   assert.deepEqual([b.servedPersons, b.units, b.amount], [5, 10, 80]);
 });
 
-test('rule 5 — nothing ticked → zero units and amount, covers of the offer', () => {
+test('rule 5 — nothing ticked → zero units and amount, no covers', () => {
   const id = stay(2);
   assert.deepEqual(preview(id, { soldOptions: [] }), {
-    optionId: BREAKFAST, moments: 0, servedPersons: 2, units: 0, unitPrice: 8, amount: 0,
+    optionId: BREAKFAST, moments: 0, servedPersons: null, units: 0, unitPrice: 8, amount: 0,
   });
 });
 

@@ -6,7 +6,7 @@ import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
-import { sasPayload, BREAKFAST_OFFER, salesPayload, renderDialog, clickBtn } from './sasFixtures';
+import { sasPayload, BREAKFAST_OFFER, MEAL_OFFER, salesPayload, renderDialog, clickBtn } from './sasFixtures';
 import { recapFor } from './sasPreviewFake';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -139,4 +139,20 @@ test('rule 11 — covers typed above what the server serves are reset to the ser
     const draftPersons = api.previewArrivalSas.mock.calls.at(-1)[1].soldOptions[0].persons;
     expect(draftPersons).toBe(2);
   });
+});
+
+test('rule 10 — a failed preview also hides « Total restauration », not only the lines', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2 },
+    cleaning: { included: true, price: 80 },
+    sasSales: salesPayload({ catering: { available: true, options: [MEAL_OFFER] } }),
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/souhaite-t-il de la restauration/);
+  api.previewArrivalSas.mockRejectedValue(Object.assign(new Error('offline'), { status: 0 }));
+  clickBtn('Oui, proposer');
+  expect(await screen.findByText('Montant indisponible')).toBeInTheDocument();
+  expect(screen.getByText(/Total restauration : —/)).toBeInTheDocument();
 });

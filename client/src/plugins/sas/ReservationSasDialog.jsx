@@ -722,11 +722,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const salesPersons = Number(salesOffer?.persons || 0);
   // Covers of one card option: the operator's number, falling back to the party the server announced
   // (specs/card-option-served-persons.md §3.3 rule 11).
-  // Capped like the server's `resolveServedPersons`: never above the party or the capacity.
-  const servedFor = (offer, picked) => Math.min(
-    Math.max(1, Number(picked) || Number(offer?.defaultPersons) || salesPersons || 1),
-    Math.max(1, salesPersons, Number(offer?.maxPersons) || 0),
-  );
+  const servedFor = (offer, picked) => Math.max(1, Number(picked) || Number(offer?.defaultPersons) || salesPersons || 1);
   const soldSelections = useMemo(() => {
     if (mode !== 'arrival' || !salesOffer) return [];
     const out = [];
@@ -1343,7 +1339,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               quantityText={(
                 <span style={{ fontVariantNumeric: 'tabular-nums', ...previewDim }}>
                   Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
-                  {sale && bf.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''}
+                  {sale && sale.moments > 0 && bf.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''}
                 </span>
               )}
             />
@@ -1440,7 +1436,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                         quantityText={chosen > 0 ? (
                           <span style={{ fontVariantNumeric: 'tabular-nums', ...previewDim }}>
                             Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
-                            {sale && o.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''} = {amount}
+                            {sale && sale.moments > 0 && o.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''} = {amount}
                           </span>
                         ) : 'Choisissez les moments servis'}
                       />
@@ -1469,7 +1465,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               );
             })}
             <Typography variant="body2" sx={{ fontWeight: 700, pt: 1, ...previewDim }}>
-              Total restauration : {money(recap ? recap.sales?.catering?.amount ?? 0 : null)}
+              Total restauration : {money(recap && !preview.error ? recap.sales?.catering?.amount ?? 0 : null)}
             </Typography>
             {preview.error && (
               <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />

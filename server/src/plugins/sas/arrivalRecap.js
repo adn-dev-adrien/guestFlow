@@ -15,13 +15,12 @@ const { round2, isUnifiable } = sdk.coreModule('arrivalSasPlan');
 
 // One sold line as the dialog renders it (specs/breakfast-offer-price-server-side.md rule 5): the
 // moments, the covers each serves, the billed quantity, the unit price and the amount — all priced
-// by the plan. A line sold by a previous run (no intent in the draft) falls back on the offer.
+// by the plan. Nothing sold: no covers either — the draft carries none to answer for.
 function saleEntry(offer, line) {
   const perPerson = Boolean(offer.perPerson);
   if (!line) {
     return {
-      optionId: Number(offer.optionId), moments: 0, servedPersons: perPerson ? Number(offer.selectedPersons) || null : null,
-      units: 0, unitPrice: round2(offer.unitPrice), amount: 0,
+      optionId: Number(offer.optionId), moments: 0, servedPersons: null, units: 0, unitPrice: round2(offer.unitPrice), amount: 0,
     };
   }
   return {
