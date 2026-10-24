@@ -223,3 +223,13 @@ test('rules 4, 7 — the controller maps refusals, and reception never reaches t
   assert.equal(record.roleAccess.reception.some((m) => m.method === 'POST' && m.re.test('/resource-bookings/preview')), false);
   assert.ok(record.roleAccess.reception.some((m) => m.re.test('/resource-bookings/planning-events')));
 });
+
+test('a bookingId of another resource is refused', () => {
+  const { model, db, resourceId } = seed();
+  const other = Number(db.prepare("INSERT INTO resources (name, priceType) VALUES ('Autre fictif', 'per_stay')").run().lastInsertRowid);
+  const id = Number(db.prepare(
+    "INSERT INTO resource_bookings (resourceId, date, startTime, endTime) VALUES (?, '2099-02-12', '10:00', '11:00')",
+  ).run(other).lastInsertRowid);
+  const out = model.priceBooking(draft(resourceId, '18:00', '20:00', { bookingId: id }));
+  assert.equal(out.status, 400);
+});

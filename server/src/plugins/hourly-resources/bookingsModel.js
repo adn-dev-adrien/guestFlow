@@ -148,8 +148,9 @@ function createModel(database) {
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
     let reservationId = null;
     if (bookingId) {
-      const existing = database.prepare('SELECT reservationId FROM resource_bookings WHERE id = ?').get(bookingId);
+      const existing = database.prepare('SELECT reservationId, resourceId FROM resource_bookings WHERE id = ?').get(bookingId);
       if (!existing) return { error: 'Réservation non trouvée', status: 404 };
+      if (Number(existing.resourceId) !== Number(resourceId)) return { error: 'Réservation d’une autre ressource', status: 400 };
       reservationId = existing.reservationId;
     }
     const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null });

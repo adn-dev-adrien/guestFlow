@@ -69,6 +69,20 @@ function bandsOf(fromMin, toMin, normCfg) {
   return out;
 }
 
+// Each band is rounded to the cent, the last one takes the remainder: the bands always add up to the
+// gross total the screen shows next to them.
+function roundedBands(raw, grossTotal) {
+  let spent = 0;
+  return raw.map((b, i) => {
+    const amount = i === raw.length - 1 ? round2(grossTotal - spent) : round2(b.raw);
+    spent = round2(spent + amount);
+    return {
+      band: b.band, from: formatTime(b.fromMin), to: formatTime(b.toMin),
+      minutes: b.toMin - b.fromMin, rate: round2(b.rate), amount,
+    };
+  });
+}
+
 const formatTime = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 /** Gross price of one session's [start, end) range (no free-hour deduction). */
@@ -145,10 +159,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
     freeMinutesApplied: freeApplied,
     billedMinutes,
     freeValue: round2(freeValue),
-    bands: valid.flatMap((s) => bandsOf(toMinutes(s.start), toMinutes(s.end), norm)).map((b) => ({
-      band: b.band, from: formatTime(b.fromMin), to: formatTime(b.toMin),
-      minutes: b.toMin - b.fromMin, rate: round2(b.rate), amount: round2(b.raw),
-    })),
+    bands: roundedBands(valid.flatMap((s) => bandsOf(toMinutes(s.start), toMinutes(s.end), norm)), round2(gross)),
   };
 }
 

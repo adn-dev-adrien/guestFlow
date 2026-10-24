@@ -101,3 +101,20 @@ test('priceSessions: consecutive slices of one band merge, a switch splits them'
     ['day', '19:00', '20:00', 30], ['evening', '20:00', '21:00', 50],
   ]);
 });
+
+test('priceSessions: the bands always add up to the gross total, whatever the slot and the rates', () => {
+  const variants = [
+    { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 25 },
+    { dayRate: 25.5, eveningRate: 35.3, eveningStart: '19:00', slotMinutes: 25 },
+    { dayRate: 33.33, eveningRate: 41.67, eveningStart: '19:10', slotMinutes: 20 },
+    { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 15 },
+  ];
+  for (const cfg of variants) {
+    const slot = cfg.slotMinutes;
+    const startMin = Math.ceil((17 * 60) / slot) * slot;
+    const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const out = priceSessions([{ date: '2026-07-10', start: hhmm(startMin), end: hhmm(startMin + slot * 9) }], cfg, 0);
+    const sum = Math.round(out.bands.reduce((acc, b) => acc + b.amount, 0) * 100) / 100;
+    assert.equal(sum, out.grossPrice, JSON.stringify(cfg));
+  }
+});

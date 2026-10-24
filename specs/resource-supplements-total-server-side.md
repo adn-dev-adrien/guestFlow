@@ -427,4 +427,6 @@ All five were answered by the owner on 2026-10-24 with the proposed default.
   5 tests), the SAS card on the server's `supplement` and `hoursRemaining` (+2 tests, the
   « running supplement » one rewritten), the three `previewRangeTotal` / `previewSessionsTotal` tests
   deleted. C1-C11 are all removed.
-- Plugin versions: `hourly-resources` 1.2.0 (`sdk ^2.1.0`), `sas` 1.2.1; SDK 2.1.0.
+- Plugin versions: `hourly-resources` 1.2.0 and `sas` 1.2.1, both `sdk ^2.1.0` (the `sas` hook imports `useLatestPreview`); SDK 2.1.0.
+- `bands` amounts are rounded per band, the last one taking the remainder, so they always sum to `grossTotal`. `priceBooking` refuses (400) a `bookingId` that belongs to another resource.
+- `useLatestPreview` aborts the in-flight request and drops its late answer as soon as `enabled` turns false, i.e. when the operator leaves a money page of the SAS (the arrival recap hook gains this).
