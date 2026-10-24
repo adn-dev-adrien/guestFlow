@@ -229,9 +229,10 @@ the commit runs, so that what the operator collects at the door is what the book
     (`plugins/sdk/version.js`): `2.0.0` → `2.1.0`. Only `sas` moves, since only it calls the new entry
     points (`departureSasPlan`, `planDepartureSas`, `resolveSasDepartureItems`, `buildDepartureSeed`
     and the client `api.previewDepartureSas`): minor bump to 1.3.0 with its French changelog lines,
-    `sdk` raised to `^2.1.0` and `guestflow` to `>=3.15.0` — the first core release after v3.14.1, the
-    one that ships SDK 2.1.0 — so an older core refuses the package instead of failing on a missing
-    function. The other plugins keep `^2.0.0`, which 2.1.0 satisfies.
+    `sdk` raised to `^2.1.0`; `guestflow` stays `>=3.9.0 <4.0.0`: the registry already refuses a
+    package whose `sdk` range the host SDK does not satisfy (`rangeRefusal`), so an older core is
+    refused through the SDK, and a guessed core floor could take the SAS down if the release carrying
+    SDK 2.1.0 is numbered otherwise. The other plugins keep `^2.0.0`, which 2.1.0 satisfies.
 27. **No departure money contract for plugin steps.** `sas.departure.steps` keeps `recapNotes` (text)
     only. Billing at check-out through a `sasCommit` hook is out of scope (§8); a step that wants it
     later gets it the arrival way, server-side.

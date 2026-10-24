@@ -10,7 +10,7 @@
     "Le rôle « Accueil » et son écran d’accueil"
   ],
   "requires": [],
-  "guestflow": ">=3.15.0 <4.0.0",
+  "guestflow": ">=3.9.0 <4.0.0",
   "sdk": "^2.1.0",
   "changelog": {
     "1.0.0": [
