@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
-import { previewLikeTheServer } from './sasPreviewFake';
+import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -17,6 +17,7 @@ vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
     previewArrivalSas: vi.fn(),
+    previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+  api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
 // ---- « Offrir » a recap line (specs/sas-offer-complement-lines.md) ----
@@ -148,17 +150,21 @@ test('departure recap: offering the end-of-stay ménage drops the total and tags
   clickBtn('Oui');
 
   await screen.findByText('Récapitulatif fin de séjour');
-  expect(screen.getByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument();
   clickBtn('Offrir');
-  expect(screen.queryByText(/Total à percevoir/)).toBeNull(); // nothing left to collect
+  // The toggle flips at once; the total follows the server's answer (specs/sas-departure-recap-server-side.md rule 18).
+  await waitFor(() => expect(screen.queryByText(/Total à percevoir/)).toBeNull()); // nothing left to collect
   expect(screen.queryByRole('button', { name: 'Payé en liquide' })).toBeNull();
 
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Valider et terminer' })).toBeEnabled());
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  expect(arg.endOfStayComplementDetail).toEqual([
-    { label: 'Ménage de fin de séjour', qty: 1, unitPrice: 80, amount: 80, offered: true },
-  ]);
+  // The gesture rides as intent; the server stores the line at 0 € with its real price.
+  expect(arg.cleaningCharged).toBe(true);
+  expect(arg.cleaningOffered).toBe(true);
+  expect(arg.endOfStayComplementDetail).toBeUndefined();
+  expect(arg.displayedDepartureTotal).toBe(0);
   expect(arg.complementsSettled).toBe(false);
 });
 
@@ -187,11 +193,11 @@ test('departure recap: a recalled arrival line is offerable, the taxe de séjour
   clickBtn('Oui');
 
   await screen.findByText('Récapitulatif fin de séjour');
-  expect(screen.getByText(/Total à percevoir : 12,50 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total à percevoir : 12,50 €/)).toBeInTheDocument();
   // Only ONE toggle: the tourist tax can never be a geste commercial (§3.2 rule 7).
   expect(screen.getAllByRole('button', { name: 'Offrir' })).toHaveLength(1);
   clickBtn('Offrir');
-  expect(screen.getByText(/Total à percevoir : 4,80 €/)).toBeInTheDocument(); // the tax is still due
+  expect(await screen.findByText(/Total à percevoir : 4,80 €/)).toBeInTheDocument(); // the tax is still due
 
   clickBtn('CB / Chèque');
   clickBtn('Valider et terminer');
@@ -229,7 +235,10 @@ test('departure recap: an arrival complement worth 0 € claims no authority ove
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.queryByText(/Total à percevoir/)).toBeNull(); // the offered linen is not a collection
 
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Valider et terminer' })).toBeEnabled());
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
-  expect(api.commitDepartureSas.mock.calls[0][1].offeredArrivalExtras).toBeUndefined();
+  // The dialog sends the set whenever it has one; whether it counts is the server's call (rule 11) — here
+  // the arrival is not recalled, so the preview showed no recall and the plan ignores it.
+  expect(api.commitDepartureSas.mock.calls[0][1].offeredArrivalExtras).toEqual([]);
 });

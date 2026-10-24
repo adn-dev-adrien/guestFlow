@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
-import { previewLikeTheServer } from './sasPreviewFake';
+import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -17,6 +17,7 @@ vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
     previewArrivalSas: vi.fn(),
+    previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+  api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
 // ---- arrival bath-linen upsell (specs/sas-bath-linen-upsell.md) ----
@@ -105,9 +107,10 @@ test('arrival SAS: bath-linen page is skipped when the offer is unavailable', as
   expect(screen.queryByText(/n'a pas pris le linge de toilette/)).toBeNull();
 });
 
-test('departure SAS: a bath-linen line deferred at arrival is shown, counted in the total, and re-sent on commit', async () => {
+test('departure SAS: a bath-linen line deferred at arrival is shown and counted in the total; it is not re-sent', async () => {
   // specs/sas-bath-linen-upsell.md §3.3 — the arrival SAS wrote a `source:'arrivalBathLinen'` end-of-stay
-  // line; the check-out recap must display + count it, and the departure commit must preserve it.
+  // line; the check-out recap must display + count it. specs/sas-departure-recap-server-side.md rule 9 —
+  // the server keeps it from the stored detail: the draft only refers to it by key.
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: {
       cautionAmount: 0,
@@ -129,15 +132,15 @@ test('departure SAS: a bath-linen line deferred at arrival is shown, counted in 
   clickBtn('Oui');
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.getByText(/Linge de toilette/)).toBeInTheDocument();
-  expect(screen.getByText(/Total à percevoir : 92,00 €/)).toBeInTheDocument(); // 80 + 12
+  expect(await screen.findByText(/Total à percevoir : 92,00 €/)).toBeInTheDocument(); // 80 + 12
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  const carried = arg.endOfStayComplementDetail.find((l) => l.source === 'arrivalBathLinen');
-  expect(carried).toBeTruthy();
-  expect(carried.amount).toBe(12);
-  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour' && l.amount === 80)).toBe(true);
+  expect(arg.endOfStayComplementDetail).toBeUndefined();
+  expect(arg.storedLines).toEqual([{ key: 'stored:0:test', offered: false }]);
+  expect(arg.cleaningCharged).toBe(true);
+  expect(JSON.stringify(arg)).not.toMatch(/"amount"/);
 });
 
 // specs/arrival-departure-sas.md rule 14
@@ -170,7 +173,8 @@ test('departure SAS: the ménage page is dropped when the cleaning is already so
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour')).toBe(false);
+  // The page was hidden, so the answer stays « fait »: nothing asks for a billed ménage.
+  expect(arg.cleaningCharged).toBe(false);
 });
 
 test('departure SAS re-open: a cleaning line billed before the ménage was sold is dropped on re-commit', async () => {
@@ -199,7 +203,9 @@ test('departure SAS re-open: a cleaning line billed before the ménage was sold 
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  expect(arg.endOfStayComplementDetail).toEqual([]);
+  // The stored ménage line is not carried: the draft does not ask for it, the server rebuilds the detail.
+  expect(arg.cleaningCharged).toBe(false);
+  expect(arg.storedLines).toEqual([]);
 });
 
 // Régression 2026-08-29 — a « préservée » line (label no longer mapping to any priced item) that was
@@ -234,15 +240,13 @@ test('departure SAS re-open: an offered preserved line comes back with its real 
   expect(screen.queryByText(/Total à percevoir/)).toBeNull();
 
   clickBtn('✓ Offert'); // withdraw the gesture
-  expect(screen.getByText(/Total à percevoir : 24,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText(/Total à percevoir : 24,00 €/)).toBeInTheDocument();
 
   clickBtn('CB / Chèque');
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
-  const line = api.commitDepartureSas.mock.calls[0][1].endOfStayComplementDetail
-    .find((l) => l.label === 'Drap ancien modèle');
-  expect(line).toMatchObject({ qty: 1, unitPrice: 0, amount: 24 });
-  expect(line.offered).toBeUndefined();
+  // The withdrawal is explicit in the draft (a key absent from the list would mean « as stored »).
+  expect(api.commitDepartureSas.mock.calls[0][1].storedLines).toEqual([{ key: 'stored:0:test', offered: false }]);
 });
 
 // ── specs/sas-upsells-activate-catalogue-option.md §3.2 rule 7 ────────────────────────────────────

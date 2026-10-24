@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.0.0",
+  "sdk": "^2.1.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -37,6 +37,12 @@
       "Récapitulatif d’arrivée : montants, total et règlement en une fois calculés par le serveur, à jour à chaque geste.",
       "Un total qui a changé entre le récapitulatif et l’enregistrement est signalé et noté dans l’historique de la fiche.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.3.0": [
+      "Récapitulatif de départ : lignes, total et règlement calculés par le serveur, à jour à chaque geste.",
+      "La ligne « Ajustement » n’est plus proposée à l’offre : un montant ajusté sur la fiche est signalé sous le total.",
+      "Un total qui a changé entre le récapitulatif et l’enregistrement est signalé et noté dans l’historique de la fiche.",
+      "Compatible avec le SDK 2.1 de GuestFlow."
     ]
   }
 }
