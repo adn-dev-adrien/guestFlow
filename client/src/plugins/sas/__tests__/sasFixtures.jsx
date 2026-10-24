@@ -24,6 +24,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../../theme';
 import DialogProvider from '../../../components/DialogProvider';
 import ReservationSasDialog from '../ReservationSasDialog';
+import { departureSeedFor } from './sasPreviewFake';
 
 const BASE_RES = {
   id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Tente', platform: 'direct',
@@ -59,6 +60,8 @@ export function sasPayload(over = {}) {
     arrivalPayment: over.arrivalPayment || { complementOpen: true, group: null },
     // specs/ui-review-2026-10-19-operations.md rule 4 — the server's « nothing owed before this run »;
     // derived here like the server does for the fixtures' direct, prepaid stays.
+    // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the check-out decided.
+    departureSeed: over.departureSeed || departureSeedFor({ ...BASE_RES, ...(over.reservation || {}) }, over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }]),
     nothingToCollect: over.nothingToCollect ?? !(Number(over.reservation?.complementAmount || 0) > 0
       && !Number(over.reservation?.complementPaid || 0)),
   };
@@ -87,6 +90,7 @@ export const BREAKFAST_OFFER = {
   // specs/card-option-served-persons.md — the party, the ceiling (property capacity) and the
   // per-person composition rule the wizard multiplies by the breakfasts actually sold.
   defaultPersons: 2, maxPersons: 5, selectedPersons: 2,
+  perMorning: { persons: 2, amount: 16 },
   compositionPerPerson: { coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 1, cereals: 0, bread: 0.5 },
 };
 export const MEAL_OFFER = {

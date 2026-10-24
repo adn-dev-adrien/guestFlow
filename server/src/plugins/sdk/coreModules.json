@@ -25,6 +25,7 @@
     "adjustMidStayNote",
     "applyEndOfStayAdjustment",
     "buildArrivalComplementDetail",
+    "buildDepartureSeed",
     "cancelMidStayNote",
     "captureArrivalExtrasBaseline",
     "captureArrivalExtrasBaselineIfDue",
@@ -80,6 +81,7 @@
     "listSasArrivalOptionLines",
     "markCancelled",
     "planArrivalSas",
+    "planDepartureSas",
     "readExtraLines",
     "releaseArrivalPaymentGroup",
     "releaseComplementBucket",
@@ -90,6 +92,7 @@
     "replaceOptions",
     "resolveArrivalExtrasBaseline",
     "resolveSasArrivalItems",
+    "resolveSasDepartureItems",
     "resolveSasOptionSales",
     "sasOriginCustomLabels",
     "search",
@@ -157,6 +160,17 @@
     "round2",
     "totalDiffered",
     "upsellOutcome"
+  ],
+  "departureSasPlan": [
+    "classifyStoredLines",
+    "isRecalled",
+    "keepRealLines",
+    "realOfStoredLine",
+    "recalledArrivalAfter",
+    "round2",
+    "storeLine",
+    "storedLineKey",
+    "totalDiffered"
   ],
   "arrivalPaymentGroup": [
     "BUCKETS",

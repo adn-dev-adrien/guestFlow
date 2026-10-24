@@ -24,16 +24,20 @@ function register(ctx) {
   // specs/sas-arrival-total-server-side.md rule 3 — the recap of a draft, written nowhere.
   ctx.route('post', '/api/reservations/:id/sas/arrival/preview', controller('previewArrival'));
   ctx.route('post', '/api/reservations/:id/sas/arrival', controller('commitArrival'));
+  // specs/sas-departure-recap-server-side.md rule 3 — same for the check-out.
+  ctx.route('post', '/api/reservations/:id/sas/departure/preview', controller('previewDeparture'));
   ctx.route('post', '/api/reservations/:id/sas/departure', controller('commitDeparture'));
 
   // The reception role runs the check-in and check-out (specs/reception-role-checkin-only.md §3.6
   // rule 11). The controller still refuses a SAS outside its day (specs/reception-sas-today-only.md).
-  // The arrival preview is door money, like the read (specs/sas-arrival-total-server-side.md rule 23).
+  // The previews are door money, like the read (specs/sas-arrival-total-server-side.md rule 23,
+  // specs/sas-departure-recap-server-side.md rule 21).
   ctx.reception([
     { method: 'GET', re: /^\/reservations\/\d+\/sas$/ },
     { method: 'POST', re: /^\/reservations\/\d+\/sas\/arrival$/ },
     { method: 'POST', re: /^\/reservations\/\d+\/sas\/departure$/ },
     { method: 'POST', re: /^\/reservations\/\d+\/sas\/arrival\/preview$/ },
+    { method: 'POST', re: /^\/reservations\/\d+\/sas\/departure\/preview$/ },
   ]);
 
   // Gap 3 — the « Facturables au SAS » prices answer only while the plugin is live.

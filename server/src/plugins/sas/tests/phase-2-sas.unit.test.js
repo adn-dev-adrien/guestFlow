@@ -139,12 +139,14 @@ test('specs/plugins-phase-2-hosts.md rule 8 — the core declares no SAS route a
   useLive();
   bootRoutes();
   const entries = loader.roleMatchers('reception').filter((m) => m.pluginId === 'sas');
-  assert.deepEqual(entries.map((m) => m.method), ['GET', 'POST', 'POST', 'POST']);
+  assert.deepEqual(entries.map((m) => m.method), ['GET', 'POST', 'POST', 'POST', 'POST']);
   assert.ok(entries[0].re.test('/reservations/42/sas'));
   assert.ok(entries[1].re.test('/reservations/42/sas/arrival'));
   assert.ok(entries[2].re.test('/reservations/42/sas/departure'));
   // specs/sas-arrival-total-server-side.md rule 23 — the arrival preview is door money too.
   assert.ok(entries[3].re.test('/reservations/42/sas/arrival/preview'));
+  // specs/sas-departure-recap-server-side.md rule 21 — and so is the departure preview.
+  assert.ok(entries[4].re.test('/reservations/42/sas/departure/preview'));
 });
 
 // ---------- rule 11, gap 5 ----------

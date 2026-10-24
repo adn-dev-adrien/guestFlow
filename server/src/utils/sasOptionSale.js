@@ -207,16 +207,29 @@ function buildSasSaleOffers({
     && round2(option?.price) > 0;
 
   const breakfastOption = options.find((o) => o.autoOptionType === 'breakfast');
-  let breakfast = { available: false, optionId: null, mornings: [], selected: [] };
+  let breakfast = { available: false, optionId: null, mornings: [], selected: [], perMorning: null };
   if (breakfastOption && sellable(breakfastOption) && !bookedOnFiche(breakfastOption.id)) {
     const offer = buildOptionOffer(breakfastOption, {
       persons, nights, stay, maxPersons, sold: soldByThisSas(breakfastOption.id),
     });
     // Only a card-configured breakfast can be sold here: the mornings ARE the product. A legacy
     // breakfast option without a planning card keeps being sold from the fiche.
+    const available = offer.showsPlanningCard && offer.occurrences.length > 0 && persons > 0;
+    // The price of ONE morning, by the very function the sale is billed with, so the offer page
+    // announces what the commit will bill (specs/breakfast-offer-price-server-side.md rules 1-3).
+    const oneMorning = available ? priceOptionSale(breakfastOption, {
+      unitPrice: offer.unitPrice,
+      persons,
+      nights,
+      stay,
+      occurrences: [offer.occurrences[0]],
+      servedPersons: offer.selectedPersons,
+      maxPersons,
+    }) : null;
     breakfast = {
       ...offer,
-      available: offer.showsPlanningCard && offer.occurrences.length > 0 && persons > 0,
+      available,
+      perMorning: oneMorning ? { persons: oneMorning.servedPersons, amount: oneMorning.totalPrice } : null,
       mornings: offer.occurrences,
       selected: offer.selectedOccurrences,
       compositionPerPerson: { ...BREAKFAST_COMPOSITION_PER_PERSON },

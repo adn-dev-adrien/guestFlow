@@ -585,6 +585,9 @@ const api = {
     method: 'POST', body, signal, readOnly: true,
   }),
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
+  previewDepartureSas: (id, body, { signal } = {}) => request(`/reservations/${encodeURIComponent(id)}/sas/departure/preview`, {
+    method: 'POST', body, signal, readOnly: true,
+  }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
   // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the
   // background when the check-in opens; returns { configured, resolved, department, alerts:[] }.

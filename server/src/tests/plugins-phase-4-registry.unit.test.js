@@ -175,7 +175,9 @@ test('rule 2: a manifest missing a field, or with a bad range, is refused with F
 // rate limiter `paymentStartLimiter` (specs/public-online-payment.md rule 7); 1.5.0
 // since `ctx.setupStatus` (specs/plugins-phase-0-foundation.md rule 25). 1.8.0 since the core module `devisHelpers` and `capacity.publicGuestCap` (specs/site-extra-guest-line.md). All minor bumps.
 // 2.0.0 since the client step contract lost `recapLines` (specs/sas-arrival-total-server-side.md
-// rules 13-14): a removal, hence the first major.
+// rules 13-14): a removal, hence the first major. 2.1.0 since the departure planner
+// (`planDepartureSas`, `resolveSasDepartureItems`, `departureSasPlan`; specs/sas-departure-recap-server-side.md
+// rule 26): additions only.
 test('rule 3: the SDK has a semver version starting at 1.0.0', () => {
   assert.match(SDK_VERSION, /^2\.\d+\.\d+$/);
   assert.equal(satisfies(SDK_VERSION, '^2.0.0'), true);

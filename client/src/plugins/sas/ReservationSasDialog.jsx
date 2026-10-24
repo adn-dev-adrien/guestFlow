@@ -53,20 +53,13 @@ import {
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
-import useArrivalRecapPreview from './useArrivalRecapPreview';
+import buildDepartureDraft from './departureDraft';
+import useSasRecapPreview from './useSasRecapPreview';
 import placePluginSteps from './placePluginSteps';
 import stepNumbering from './sasStepNumbering';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const EXTRA_GUESTS_OFFER_KEY = 'extraGuests:0';
-// The real price of a stored end-of-stay line: what it is billed at, or what it WOULD be billed at
-// once offered. The server stores that total verbatim (`originalAmount`), so there is no price to
-// rebuild here — specs/sas-offer-complement-lines.md §3.1 rule 3.bis. The `qty × unitPrice` branch is
-// only for rows written before that field shipped; production carries none (checked 2026-08-29).
-const realOfStoredLine = (l) => (Number(l?.offered || 0) === 1
-  ? round2(l.originalAmount != null ? l.originalAmount : (Number(l.qty) || 1) * Number(l.unitPrice || 0))
-  : round2(l?.amount));
-
 // French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
 function formatStepperValue(value) {
   return Number.isInteger(value) ? String(value) : String(value).replace('.', ',');
@@ -206,13 +199,13 @@ function PaymentModeButtons({
 // hidden: no reachable server → « Total indisponible » + « Réessayer »; a plugin refusing the draft
 // (409, e.g. a slot taken meanwhile) → its reason + the way back to its step.
 const RECAP_REFUSALS = { SLOT_CONFLICT: 'Ce créneau n’est plus libre.' };
-function RecapPreviewError({ error, onRetry, onBack }) {
+function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisponible : pas de réponse du serveur.' }) {
   const refused = Number(error?.status) === 409;
   return (
     <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 0.5 })}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {refused ? (RECAP_REFUSALS[error?.error] || 'Le récapitulatif est refusé.') : 'Total indisponible : pas de réponse du serveur.'}
+          {refused ? (RECAP_REFUSALS[error?.error] || 'Le récapitulatif est refusé.') : unavailable}
         </Typography>
         <Button size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
           {refused ? 'Revenir à l’étape' : 'Réessayer'}
@@ -308,7 +301,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // whose stored amount the server reads (specs/sas-arrival-total-server-side.md rule 7), so they're
   // never lost or duplicated.
   const [preservedArrival, setPreservedArrival] = useState([]);
-  const [preservedDeparture, setPreservedDeparture] = useState([]);
+  // specs/sas-departure-recap-server-side.md rule 9 — the keys the server issued for the stored lines
+  // the check-out carries; the dialog only echoes them back with the operator's decision.
+  const [storedKeys, setStoredKeys] = useState([]);
   // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « encaissé » confirmations on the
   // recaps (+ caisse-interne flag). Arrival: settles the arrival complement. Departure: settles every
   // positive complement (end-of-stay + recalled arrival).
@@ -378,7 +373,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
-    setPreservedArrival([]); setPreservedDeparture([]);
+    setPreservedArrival([]); setStoredKeys([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null); setSplitSettlement(false); setStayPayMode('defer');
     setPluginStepData({}); setPluginStepValues({}); setCommitWarning(null); setOffered(new Set());
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
@@ -454,15 +449,17 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             seed.add(EXTRA_GUESTS_OFFER_KEY);
           }
         } else {
-          // At check-out the recalled arrival lines arrive itemised with their `ref` — offered included.
-          for (const l of ((d.arrivalComplement && d.arrivalComplement.detail) || [])) {
-            if (Number(l.offered || 0) === 1 && l.ref) seed.add(`${l.ref.kind}:${l.ref.id}`);
-          }
-          let carried = [];
-          try { carried = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { carried = []; }
-          carried.filter((l) => l && l.source).forEach((l, i) => {
-            if (Number(l.offered || 0) === 1) seed.add(`carried:${i}`);
-          });
+          // specs/sas-departure-recap-server-side.md rule 12 — the server says which stored lines the
+          // check-out carries and which lines (carried, recalled, and the SAS's own once committed) are
+          // already offered.
+          const departureSeed = d.departureSeed || {};
+          setStoredKeys(departureSeed.storedKeys || []);
+          (departureSeed.offeredKeys || []).forEach((key) => seed.add(key));
+          // Lines stored before the SAS marker existed (or written outside it) come back too: the
+          // commit rebuilds the end-of-stay lines from intent, so they would otherwise be dropped.
+          const seededMissing = departureSeed.missingItems || {};
+          setMissingDep(seededMissing); setExtinguisherQty(departureSeed.extinguisherQty || {});
+          if (Object.keys(seededMissing).length > 0) setMissingAsk(true);
         }
 
         // Re-edit pre-fill (specs/reopen-completed-sas.md §2): a SAS already committed reopens with
@@ -525,53 +522,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           setCautionReturned(res.cautionReturned ? true : false);
           setDeparturePayMode(Number(res.endOfStayComplementPaid) === 1 ? (Number(res.endOfStayComplementPaidCash) === 1 ? 'cash' : 'card') : null);
           setExtinguisherOk(sealToBool(res.extinguisherSealOkAtDeparture));
-          let detail = [];
-          try { detail = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
-          const byLabel = new Map((d.linenItems || []).map((i) => [String(i.label), i]));
-          const nextDep = {}; const nextExtinguisher = {}; let charged = false; const keep = [];
-          detail.forEach((line) => {
-            const label = String(line.label || '');
-            // specs/sas-bath-linen-upsell.md §3.3 — arrival-origin lines (tagged `source`) are carried +
-            // displayed separately (carriedEndOfStayLines); skip them here so they aren't also duplicated
-            // into preservedDeparture.
-            if (line.source) return;
-            // Extinguisher lines carry a repairKey → recomputed server-side from the quantities below.
-            const lineOffered = Number(line.offered || 0) === 1;
-            if (line.repairKey && String(line.repairKey).startsWith('extinguisher')) {
-              nextExtinguisher[String(line.repairKey)] = Math.max(1, Number(line.qty) || 1);
-              if (lineOffered) seed.add(`ext:${String(line.repairKey)}`);
-              return;
-            }
-            if (label === 'Ménage de fin de séjour') {
-              charged = true;
-              if (lineOffered) seed.add('depCleaning');
-              return;
-            }
-            const item = byLabel.get(label);
-            if (item) {
-              nextDep[item.id] = Number(line.qty) || Math.max(1, Math.round(Number(line.amount) / Number(item.price || 1)));
-              if (lineOffered) seed.add(`dep:${item.id}`);
-            } else {
-              // specs/sas-offer-complement-lines.md §3.1 rule 3 — offering is lossless, so a preserved
-              // line must come back with its REAL price, not the 0 € it is stored at. Same reader as
-              // `carriedEndOfStayLines`. Quantity and unit price are carried too, so a re-commit
-              // re-sends them instead of flattening the line to « 1 × 0 € ».
-              if (lineOffered) seed.add(`preservedDep:${keep.length}`);
-              keep.push({
-                label,
-                amount: realOfStoredLine(line),
-                qty: Number(line.qty) || 1,
-                unitPrice: Number(line.unitPrice) || 0,
-              });
-            }
-          });
-          setMissingDep(nextDep); setExtinguisherQty(nextExtinguisher); setPreservedDeparture(keep);
-          // A stored « Ménage de fin de séjour » line billed before the cleaning was sold must not be
-          // re-sent: with the page hidden the answer is forced back to « fait »
-          // (specs/defer-arrival-complement-to-checkout.md §3.1 rule 4 — re-running the SAS is how an
-          // over-billed stay is corrected).
-          setCleaningOk(d.cleaning?.included ? true : !charged);
-          setMissingAsk(Object.keys(nextDep).length > 0 ? true : null);
+          // The decisions the stored detail records, read by the server (rule 12) — no amount divided by
+          // a price here. A stored ménage line billed before the cleaning was sold is not re-sent: with
+          // the page hidden the answer is forced back to « fait » (specs/defer-arrival-complement-to-
+          // checkout.md §3.1 rule 4 — re-running the SAS is how an over-billed stay is corrected).
+          setCleaningOk(d.cleaning?.included ? true : !(d.departureSeed || {}).cleaningCharged);
         }
         setOffered(seed);
       })
@@ -710,11 +665,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // ---- totals ----
   // specs/sas-offer-complement-lines.md §3.1 — every billable line carries `offerKey` (its identity in
   // the `offered` set) and `real` (the price it would be billed at). `amount` is what the total counts:
-  // 0 € as soon as the line is offered. `isOffered` reads the live in-memory decision. The arrival
-  // recap no longer prices anything here (specs/sas-arrival-total-server-side.md rule 15): its lines
-  // come from the server's preview. These helpers serve the departure recap (§8 of that spec).
+  // 0 € as soon as the line is offered. `isOffered` reads the live in-memory decision. Neither recap
+  // prices anything here (specs/sas-arrival-total-server-side.md rule 15, specs/sas-departure-recap-
+  // server-side.md rule 13): the lines and the totals come from the server's preview.
   const isOffered = useCallback((key) => Boolean(key) && offered.has(key), [offered]);
-  const billed = useCallback((key, real) => (offered.has(key) ? 0 : round2(real)), [offered]);
   // specs/sas-breakfast-and-catering-upsell.md §3.3 — what the two sale steps are selling right now.
   // `units` are counts (moments × personnes, or the quantity the operator picked): the server prices
   // them, in the preview and again at commit.
@@ -731,7 +685,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const occurrences = breakfastMornings.filter((m) => m.checked).map(({ date, time }) => ({ date, time }));
       if (occurrences.length > 0) {
         const persons = servedFor(bf, breakfastServed);
-        out.push({ offer: bf, occurrences, persons, units: occurrences.length * (bf.perPerson ? persons : 1) });
+        out.push({ offer: bf, occurrences, persons });
       }
     }
     if (salesOffer.catering?.available && cateringWanted === true) {
@@ -740,7 +694,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           const occurrences = (cateringGrids[opt.optionId] || []).filter((o) => o.checked).map(({ date, time }) => ({ date, time }));
           if (occurrences.length > 0) {
             const persons = servedFor(opt, cateringServed[opt.optionId]);
-            out.push({ offer: opt, occurrences, persons, units: occurrences.length * (opt.perPerson ? persons : 1) });
+            out.push({ offer: opt, occurrences, persons });
           }
         } else {
           const units = Number(cateringUnits[opt.optionId]) || 0;
@@ -770,15 +724,49 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     pluginSteps: pluginStepsPayload,
   }) : null), [mode, data, activeKeys, missingBed, preservedArrival, cleaningAdded, bathLinenAdded,
     soldSelections, offered, pluginStepsPayload]);
-  // Rule 17 — the pages that show money ask the server; the others leave it alone.
-  const previewShown = mode === 'arrival' && ['recap', 'breakfastMornings', 'cateringItems'].includes(stepKey);
-  const preview = useArrivalRecapPreview({
+  // specs/sas-departure-recap-server-side.md rule 4 — the check-out decisions as ONE draft too.
+  const extinguisherTariffs = useMemo(
+    () => (data?.repairAmounts || []).filter((x) => String(x.repairKey || '').startsWith('extinguisher')),
+    [data],
+  );
+  const departureDraft = useMemo(() => (mode === 'departure' && data ? buildDepartureDraft({
+    cleaningOk,
+    missingDep,
+    extinguisherCheck: Boolean(data.extinguisherCheck),
+    extinguisherOk,
+    extinguisherQty,
+    extinguisherKeys: extinguisherTariffs.map((t) => t.repairKey),
+    storedKeys,
+    offered,
+  }) : null), [mode, data, cleaningOk, missingDep, extinguisherOk, extinguisherQty, extinguisherTariffs, storedKeys, offered]);
+  // Rule 17 / rule 16 — the pages that show money ask the server; the others leave it alone.
+  const previewShown = mode === 'arrival'
+    ? ['recap', 'breakfastMornings', 'cateringItems'].includes(stepKey)
+    : ['recap', 'extinguisherItems'].includes(stepKey);
+  const draft = mode === 'arrival' ? arrivalDraft : departureDraft;
+  const preview = useSasRecapPreview({
+    request: (...args) => (mode === 'arrival' ? api.previewArrivalSas : api.previewDepartureSas)(...args),
     reservationId,
-    draft: arrivalDraft,
-    enabled: previewShown && Boolean(arrivalDraft) && !sasLock,
+    draft,
+    enabled: previewShown && Boolean(draft) && !sasLock,
     resetKey: `${open ? 1 : 0}:${reservationId}:${mode}`,
   });
   const recap = preview.recap;
+  // specs/sas-departure-recap-server-side.md rule 9 — a stored line's key is recomputed by the server at
+  // every preview (a mid-stay sync can rewrite the detail between the load and the recap): the draft
+  // follows the keys of the LAST answer, and a line the server reports offered under a key never seen
+  // before keeps its « ✓ Offert ». A key already known is never re-seeded, so withdrawing a gesture holds.
+  const storedKeysRef = useRef(storedKeys);
+  storedKeysRef.current = storedKeys;
+  useEffect(() => {
+    if (mode !== 'departure' || !recap) return;
+    const lines = recap.lines.filter((l) => l.group === 'stored' && l.key);
+    const keys = lines.map((l) => l.key);
+    const known = new Set(storedKeysRef.current);
+    const fresh = lines.filter((l) => l.offered && !known.has(l.key)).map((l) => l.key);
+    if (fresh.length > 0) setOffered((prev) => new Set([...prev, ...fresh]));
+    setStoredKeys((prev) => (prev.length === keys.length && prev.every((k, i) => k === keys[i]) ? prev : keys));
+  }, [mode, recap]);
   // Rule 21 — a plugin refused the draft: back to the first plugin page of this run, where the
   // operator fixes it (the scheduling step for a slot taken meanwhile).
   const backToRefusingStep = () => {
@@ -789,126 +777,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // estimate of ours. « — » until the server answered at all.
   const previewDim = preview.pending ? { opacity: 0.55, transition: 'opacity 150ms ease-out' } : { transition: 'opacity 150ms ease-out' };
   const money = (value) => (value == null ? '—' : formatCurrency(value));
-  // The sale steps' amounts, as the server prices them (rule 16): `null` until it answered.
-  const saleAmount = (optionId) => {
-    if (!recap) return null;
-    if (Number(recap.sales?.breakfast?.optionId) === Number(optionId)) return recap.sales.breakfast.amount;
-    const line = (recap.sales?.catering?.options || []).find((o) => Number(o.optionId) === Number(optionId));
-    return line ? line.amount : null;
-  };
-
-  // « label : qty × unitPrice € = total € » when there is a meaningful quantity, else « label : total € ».
-  // Always the REAL price (specs/sas-offer-complement-lines.md §3.1 rule 2): an offered line shows what
-  // the guest would have paid, struck through by `OfferableLine` — never a bare 0 €.
-  const lineText = (l) => {
-    const qty = Number(l.qty || 0);
-    const unit = Number(l.unitPrice || 0);
-    const total = l.real != null ? l.real : l.amount;
-    if (qty > 1 && unit > 0) return `${l.label} : ${qty} × ${formatCurrency(unit)} = ${formatCurrency(total)}`;
-    return `${l.label} : ${formatCurrency(total)}`;
-  };
-
-  const depMissingLines = useMemo(() => allItems
-    .filter((it) => Number(missingDep[it.id]) > 0)
-    .map((it) => {
-      const real = round2(Number(it.price) * Number(missingDep[it.id]));
-      return {
-        label: it.label, unitPrice: Number(it.price) || 0, qty: Number(missingDep[it.id]),
-        offerKey: `dep:${it.id}`, real, amount: billed(`dep:${it.id}`, real),
-      };
-    }), [allItems, missingDep, billed]);
-  // Never billable when the cleaning is already sold (specs/defer-arrival-complement-to-checkout.md
-  // §3.1 rule 1) — the page is hidden, and a line stored by an earlier commit is dropped on re-commit.
-  const depCleaningLine = (cleaningOk === false && !data?.cleaning?.included && data?.cleaning?.price)
-    ? {
-      label: 'Ménage de fin de séjour', unitPrice: round2(data.cleaning.price), qty: 1,
-      offerKey: 'depCleaning', real: round2(data.cleaning.price), amount: billed('depCleaning', data.cleaning.price),
-    } : null;
-  // Fire-extinguisher tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): at DEPARTURE, if the
-  // extinguisher is not in good condition, the operator enters a quantity for each extinguisher_* tariff.
-  // The bill is computed server-side from the quantities; these are PREVIEW lines for the recap only.
-  const extinguisherTariffs = useMemo(
-    () => (data?.repairAmounts || []).filter((x) => String(x.repairKey || '').startsWith('extinguisher')),
-    [data],
-  );
-  const extinguisherLines = useMemo(() => extinguisherTariffs
-    .filter((t) => Number(extinguisherQty[t.repairKey]) > 0)
-    .map((t) => {
-      const real = round2(Number(t.price) * Number(extinguisherQty[t.repairKey]));
-      const offerKey = `ext:${t.repairKey}`;
-      return {
-        repairKey: t.repairKey, label: t.label, unitPrice: Number(t.price) || 0,
-        qty: Number(extinguisherQty[t.repairKey]), offerKey, real, amount: billed(offerKey, real),
-      };
-    }), [extinguisherTariffs, extinguisherQty, billed]);
-  const extinguisherBilled = mode === 'departure' && Boolean(data?.extinguisherCheck) && extinguisherOk === false;
-  const previewExtinguisherLines = extinguisherBilled ? extinguisherLines : [];
-  // specs/sas-bath-linen-upsell.md §3.3 — end-of-stay lines the ARRIVAL SAS wrote (tagged `source`,
-  // e.g. deferred bath linen). They must be DISPLAYED in the check-out recap AND counted in the total
-  // AND re-sent verbatim on the departure commit (which rebuilds the whole detail) — else running the
-  // departure SAS would silently drop them. Carried whether or not the departure SAS was already
-  // committed (a fresh departure SAS must preserve them too). Non-editable here.
-  const carriedEndOfStayLines = useMemo(() => {
-    if (mode !== 'departure') return [];
-    let detail = [];
-    try { detail = JSON.parse(r?.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
-    // `key` identifies the extra a mid-stay line came from (specs/mid-stay-extras-to-end-of-stay-
-    // complement.md) — carried like `source` so the server keeps routing that money out of the
-    // acompte/solde/complément d'arrivée after a check-out commit rewrote the detail.
-    return detail
-      .filter((l) => l && l.source)
-      .map((l, i) => {
-        const real = realOfStoredLine(l);
-        const offerKey = `carried:${i}`;
-        return {
-          label: l.label, unitPrice: Number(l.unitPrice) || 0,
-          qty: Number(l.qty) || 1, source: l.source, ...(l.key ? { key: l.key } : {}),
-          offerKey, real, amount: billed(offerKey, real),
-        };
-      });
-  }, [mode, r, billed]);
-  // Lines billed by the laundry/cleaning flow (sent to the server verbatim). The extinguisher lines are
-  // sent as quantities (extinguisherCharges) — the server prices them — so they're excluded here.
-  const preservedDepartureLines = preservedDeparture.map((l, i) => ({
-    ...l, offerKey: `preservedDep:${i}`, real: round2(l.amount), amount: billed(`preservedDep:${i}`, l.amount),
-  }));
-  const endOfStaySentLines = [...(depCleaningLine ? [depCleaningLine] : []), ...depMissingLines];
-  const endOfStayLines = [...endOfStaySentLines, ...carriedEndOfStayLines, ...previewExtinguisherLines, ...preservedDepartureLines];
-  const endOfStayTotal = endOfStayLines.reduce((s, l) => s + l.amount, 0);
-  // specs/recall-unpaid-arrival-complement-at-checkout.md — at departure, recall the arrival complement
-  // when it was never settled (amount > 0 AND not paid). The amount stays separate in the DB; here it's
-  // only the combined total to collect + the detail to show.
-  const arrivalRecall = (mode === 'departure'
-    && data?.arrivalComplement
-    && Number(data.arrivalComplement.amount) > 0
-    && Number(data.arrivalComplement.paid) !== 1)
-    ? data.arrivalComplement : null;
-  // specs/sas-offer-complement-lines.md §3.2 rule 6 — the recalled lines are offerable at the door. Each
-  // one carries the `ref` of the row behind it (that's the offer key) and its real price; the tax and the
-  // un-itemised remainder have no ref → no toggle.
-  const arrivalRecallLines = useMemo(() => ((arrivalRecall && arrivalRecall.detail) || []).map((l) => {
-    const storedOffered = Number(l.offered || 0) === 1;
-    const real = realOfStoredLine(l);
-    const offerKey = l.ref ? `${l.ref.kind}:${l.ref.id}` : null;
-    return {
-      label: l.label, qty: Number(l.qty || 1), unitPrice: Number(l.unitPrice || 0),
-      offerKey, storedOffered, real, amount: offerKey ? billed(offerKey, real) : round2(l.amount),
-    };
-  }), [arrivalRecall, billed]);
-  const recalledArrivalAmount = arrivalRecall
-    ? Math.max(0, round2(Number(arrivalRecall.amount) - arrivalRecallLines.reduce((s, l) => (
-      l.offerKey ? s + (isOffered(l.offerKey) ? l.real : 0) - (l.storedOffered ? l.real : 0) : s
-    ), 0)))
-    : 0;
-  // specs/mid-stay-notes.md §3.5 rule 20 — what the « notes en séjour » already collected. Purely
-  // informational at check-out: it never enters the total to collect (it's in the till already).
-  const midStayAlreadySettled = useMemo(() => {
-    if (mode !== 'departure') return 0;
-    let notes = [];
-    try { notes = JSON.parse(r?.midStaySettledNotes || '[]') || []; } catch { notes = []; }
-    return Math.round(notes.reduce((s, n) => s + (Number(n?.total) || 0), 0) * 100) / 100;
-  }, [mode, r]);
-  const departureGrandTotal = Math.round((endOfStayTotal + recalledArrivalAmount) * 100) / 100;
+  // The covers the server priced win over a stale stepper ceiling (breakfast-offer-price-server-side.md
+  // rule 11): when the fresh answer serves another number than the one typed, the stepper follows.
+  const serverBreakfastCovers = preview.fresh ? Number(recap?.sales?.breakfast?.servedPersons) || 0 : 0;
+  const breakfastMomentsSold = preview.fresh ? Number(recap?.sales?.breakfast?.moments) || 0 : 0;
+  const typedBreakfastCovers = servedFor(salesOffer?.breakfast, breakfastServed);
+  useEffect(() => {
+    if (breakfastMomentsSold > 0 && serverBreakfastCovers > 0 && serverBreakfastCovers !== typedBreakfastCovers) {
+      setBreakfastServed(serverBreakfastCovers);
+    }
+  }, [breakfastMomentsSold, serverBreakfastCovers, typedBreakfastCovers]);
 
   // What the steps of other plugins recall on the recap (the hours of a bath on no slot, rule 6).
   const pluginRecapNotes = pluginSteps
@@ -954,27 +832,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breakfastServed, breakfastSold, breakfastFoodFor]);
-  // specs/sas-offer-complement-lines.md §4.3 — the offered keys `kind:id` become the refs the commit
-  // sends; a line with no ref (tax, remainder) can never be in the set.
-  const offeredRefsOf = (lines) => lines
-    .filter((l) => l.offerKey && isOffered(l.offerKey) && l.offerKey.includes(':'))
-    .map((l) => {
-      const [kind, id] = l.offerKey.split(':');
-      return { kind, id: Number(id) };
-    })
-    .filter((ref) => ['option', 'resource', 'custom', 'extraGuests'].includes(ref.kind) && Number.isFinite(ref.id));
-  // A recap line as the server stores it: the REAL price plus the gesture, never the netted amount —
-  // the server is what puts an offered line at 0 €.
-  const toDetailLine = (l) => ({
-    label: l.label,
-    qty: Number(l.qty || 1),
-    unitPrice: Number(l.unitPrice || 0),
-    amount: l.real,
-    ...(l.source ? { source: l.source } : {}),
-    ...(l.key ? { key: l.key } : {}),
-    ...(isOffered(l.offerKey) ? { offered: true } : {}),
-  });
-
   const commit = async () => {
     setCommitting(true); setError('');
     try {
@@ -1028,32 +885,22 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           return;
         }
       } else {
-        await api.commitDepartureSas(reservationId, {
+        // specs/sas-departure-recap-server-side.md rules 4, 22 — the draft the preview priced (intent only:
+        // the server prices it again and keeps the stored lines), the settlement, and the total the
+        // recap showed, compared by the server and never used as an amount.
+        const result = await api.commitDepartureSas(reservationId, {
           cautionReturned: activeKeys.includes('cautionReturn') ? (cautionReturned === true) : undefined,
-          // The extinguisher lines are NOT sent here — the server prices the quantities below and appends
-          // them, then recomputes the authoritative total (specs/extinguisher-seal-and-repair-amounts.md §3.2).
-          // Carried arrival-origin lines (e.g. deferred bath linen) are re-sent verbatim WITH their
-          // `source` tag so the departure commit (which rebuilds the whole detail) never drops them
-          // (specs/sas-bath-linen-upsell.md §3.3).
-          endOfStayComplementDetail: [...endOfStaySentLines, ...carriedEndOfStayLines, ...preservedDepartureLines]
-            .map(toDetailLine),
-          extinguisherSealOkAtDeparture: data.extinguisherCheck ? (extinguisherOk ? 1 : 0) : undefined,
-          extinguisherCharges: extinguisherBilled
-            ? extinguisherTariffs.map((t) => ({
-              repairKey: t.repairKey,
-              qty: Number(extinguisherQty[t.repairKey]) || 0,
-              offered: isOffered(`ext:${t.repairKey}`),
-            }))
-            : [],
+          ...departureDraft,
           // specs/sas-recap-payment-buttons.md — settlement mode → mark every positive complement paid
           // (end-of-stay + recalled arrival); 'cash' = caisse interne. No « defer » at check-out.
           complementsSettled: departurePayMode === 'card' || departurePayMode === 'cash',
           complementsPaidCash: departurePayMode === 'cash',
-          // specs/sas-offer-complement-lines.md §3.2 rule 6 — gestes commerciaux on the recalled lines.
-          // The set is AUTHORITATIVE, so it is only sent when the recap actually showed those lines:
-          // no recall, no toggle rendered, nothing to say about their offered flags (rule 6.ter).
-          offeredArrivalExtras: arrivalRecall ? offeredRefsOf(arrivalRecallLines) : undefined,
+          displayedDepartureTotal: recap ? recap.grandTotal : undefined,
         });
+        if (result && result.warning) {
+          setCommitWarning(result.warning);
+          return;
+        }
       }
       if (onDone) onDone();
       if (onClose) onClose();
@@ -1116,6 +963,121 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     + ` ne correspond${breakfastMismatch && breakfastFoodMismatch ? 'ent' : ''} pas au nombre de personnes (${breakfastPersons}). Continuer quand même ?`;
 
   // ---- page renderers ----
+  // specs/sas-departure-recap-server-side.md rules 13-15, 18-20, 24 — every amount below is a field of
+  // the server's latest preview. A gesture flips its toggle at once (local state); the money follows
+  // when the server answers, and until then the last figures stay, dimmed. No figure of ours fills the gap.
+  function renderDepartureRecap() {
+    if (!recap) {
+      return preview.error && !preview.pending
+        ? <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
+        : <LoadingState />;
+    }
+    const failed = Boolean(preview.error) && !preview.pending;
+    const shown = (value) => (failed ? '—' : formatCurrency(value));
+    const lineText = (l) => {
+      const qty = Number(l.qty || 0);
+      if (l.group !== 'recalled' && qty > 1 && Number(l.unitPrice) > 0 && !failed) {
+        return `${l.label} : ${qty} × ${formatCurrency(l.unitPrice)} = ${formatCurrency(l.real)}`;
+      }
+      return `${l.label} : ${shown(l.real)}`;
+    };
+    const renderLine = (l, i) => (
+      <OfferableLine
+        key={`${l.group}${l.key || i}`}
+        text={lineText(l)}
+        offered={l.offerable && l.key ? isOffered(l.key) : false}
+        onToggle={l.offerable && l.key ? () => toggleOffered(l.key) : undefined}
+      />
+    );
+    const ownLines = recap.lines.filter((l) => l.group !== 'recalled');
+    const recalledLines = recap.lines.filter((l) => l.group === 'recalled');
+    const alone = recap.recall && recap.recall.framing === 'alone';
+    return (
+      <Stack spacing={1}>
+        <Typography variant="sectionHeader">Récapitulatif fin de séjour</Typography>
+        {/* specs/defer-arrival-complement-to-checkout.md §3.1 rule 2 — the ménage page is hidden
+            when the cleaning is already sold; say so instead of leaving a silent gap. */}
+        {data.cleaning?.included && (
+          <Typography variant="body2" color="text.secondary">Ménage déjà réglé — aucune facturation de fin de séjour.</Typography>
+        )}
+        {/* specs/mid-stay-notes.md §3.5 rule 20 — read-only reminder: these prestations were
+            already collected during the stay, they are NOT part of the total to collect here. */}
+        {recap.midStaySettled > 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontVariantNumeric: 'tabular-nums' }}>
+            Déjà réglé en séjour : {shown(recap.midStaySettled)}
+          </Typography>
+        )}
+        {/* specs/ui-review-2026-10-19-operations.md rule 4 — nothing to collect at the door; the server
+            decides it on the planned total (rule 14). */}
+        {!failed && recap.nothingToCollect && (
+          <Box><StatusBadge status="success" label="Rien à percevoir" icon={<CheckIcon sx={{ fontSize: 16 }} />} /></Box>
+        )}
+        <Box sx={{ ...previewDim, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {/* Every check-out line is offerable (specs/sas-offer-complement-lines.md §3.2 rule 6). */}
+          {ownLines.map(renderLine)}
+          {/* specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement was never
+              settled. With an end-of-stay complement the arrival lines merge plainly into the same
+              « à percevoir » list; alone, it keeps the warning framing, as it then genuinely signals a
+              forgotten arrival collection. The server picks (rule 14). */}
+          {recap.recall && !alone && recalledLines.map(renderLine)}
+          {alone && (
+            <>
+              <Divider />
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', color: 'warning.main' }}>Compléments d'arrivée non perçus</Typography>
+              {recalledLines.map(renderLine)}
+              <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>Sous-total arrivée : <strong>{shown(recap.recall.total)}</strong></Typography>
+            </>
+          )}
+        </Box>
+        <Box sx={{ position: 'relative' }}>
+          {failed ? (
+            <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} />
+          ) : recap.grandTotal > 0 && (
+            <>
+              <Divider sx={{ mb: 1 }} />
+              {/* « à percevoir » serait faux sur de l'argent déjà rentré : le total reste affiché — il
+                  dit de quoi on parle — mais il ne réclame plus rien (rule 9bis). */}
+              <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+                {recap.endOfStayPaid ? 'Total fin de séjour' : 'Total à percevoir'}
+                {' : '}{formatCurrency(recap.grandTotal)}
+              </Typography>
+            </>
+          )}
+          {preview.pending && (
+            <LinearProgress aria-label="Calcul du total" sx={{ height: 2, mt: 0.5, borderRadius: 1 }} color="secondary" />
+          )}
+        </Box>
+        {/* Rule 24 — the operator's adjustment on the fiche wins; the computed figure stays visible. */}
+        {!failed && recap.adjusted?.endOfStay && (
+          <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            Montant ajusté sur la fiche (calcul : {formatCurrency(recap.adjusted.endOfStay.engineAmount)})
+          </Typography>
+        )}
+        {!failed && recap.adjusted?.arrival && (
+          <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            Complément d'arrivée ajusté sur la fiche (calcul : {formatCurrency(recap.adjusted.arrival.engineAmount)})
+          </Typography>
+        )}
+        {!failed && recap.settleable && (
+          <>
+            {/* rule 9bis — encaissé à la porte : le dire, sinon l'opérateur le réclame une seconde
+                fois au client, et un clic malheureux efface le paiement qui existe déjà. */}
+            {recap.endOfStayPaid && (
+              <Typography variant="body2" color="success.main">
+                Déjà encaissé{recap.endOfStayPaid.date ? ` le ${displayDate(recap.endOfStayPaid.date)}` : ''}
+                {recap.endOfStayPaid.cash ? ' (caisse interne)' : ''} — rien à percevoir.
+              </Typography>
+            )}
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
+            <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />
+          </>
+        )}
+        {cautionReturned === true && <Typography variant="body2" color="success.main">Caution rendue.</Typography>}
+        {keysReceived === false && <Typography variant="body2" color="warning.main">⚠ Clés non récupérées.</Typography>}
+      </Stack>
+    );
+  }
+
   function renderStepContent() {
     if (loading) return <LoadingState py={5} />;
     if (error && !data) return <ErrorAlert message={error} />;
@@ -1305,13 +1267,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       }
       case 'breakfastSale': {
         const bf = salesOffer.breakfast;
-        const perMorning = Math.round(Number(bf.unitPrice) * (bf.perPerson ? salesPersons : 1) * 100) / 100;
+        const { perMorning } = bf;
         return (
           <Stack spacing={1.5}>
             <Typography variant="body1">Le client n'a pas pris le petit déjeuner.</Typography>
             <Typography variant="body2">
               Tarif : <strong>{formatCurrency(bf.unitPrice)}</strong> {bf.perPerson ? 'par personne et par matin' : 'par matin'}
-              {bf.perPerson ? ` — ${formatCurrency(perMorning)} le matin pour ${salesPersons} pers.` : ''}
+              {perMorning && bf.perPerson ? ` — ${formatCurrency(perMorning.amount)} le matin pour ${perMorning.persons} pers.` : ''}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {bf.mornings.length} matin{bf.mornings.length > 1 ? 's' : ''} possible{bf.mornings.length > 1 ? 's' : ''} sur ce séjour.
@@ -1324,7 +1286,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const bf = salesOffer.breakfast;
         const chosen = breakfastMornings.filter((m) => m.checked).length;
         const served = servedFor(bf, breakfastServed);
-        const units = chosen * (bf.perPerson ? served : 1);
+        const sale = recap && !preview.error ? recap.sales?.breakfast : null;
         return (
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Quels matins ?</Typography>
@@ -1334,10 +1296,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 m.date === date && (m.slot ?? 0) === slot ? { ...m, checked } : m
               )))}
               quantityText={(
-                <>
-                  Quantité&nbsp;: <strong>{units}</strong>
-                  {bf.perPerson ? ` (${chosen} × ${served} pers. servies)` : ''}
-                </>
+                <span style={{ fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+                  Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
+                  {sale && sale.moments > 0 && bf.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''}
+                </span>
               )}
             />
             {/* specs/card-option-served-persons.md §3.3 — tout le monde ne prend pas le petit
@@ -1353,9 +1315,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               />
             )}
             <Divider />
-            <Typography variant="body2" sx={{ fontWeight: 700, ...previewDim }}>
-              {units} petit{units > 1 ? 's' : ''} déjeuner{units > 1 ? 's' : ''} — {money(saleAmount(bf.optionId))}
+            <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+              {sale
+                ? `${sale.units} petit${sale.units > 1 ? 's' : ''} déjeuner${sale.units > 1 ? 's' : ''} — ${money(sale.amount)}`
+                : '—'}
             </Typography>
+            {preview.error && (
+              <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+            )}
             {chosen === 0 && (
               <Typography variant="body2" color="warning.main">Aucun matin sélectionné — le petit déjeuner ne sera pas ajouté.</Typography>
             )}
@@ -1380,10 +1347,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               const chosen = grid.filter((x) => x.checked).length;
               const picked = Boolean(cateringPicked[o.optionId]);
               const served = servedFor(o, cateringServed[o.optionId]);
-              const units = o.showsPlanningCard
-                ? chosen * (o.perPerson ? served : 1)
-                : Number(cateringUnits[o.optionId]) || 0;
-              const amount = money(saleAmount(o.optionId));
+              const units = o.showsPlanningCard ? chosen : Number(cateringUnits[o.optionId]) || 0;
+              const sale = recap && !preview.error
+                ? (recap.sales?.catering?.options || []).find((x) => Number(x.optionId) === Number(o.optionId)) : null;
+              const amount = money(sale ? sale.amount : null);
               return (
                 <Box key={o.optionId} sx={{ py: 0.5 }}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -1425,11 +1392,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                             x.date === date && (x.slot ?? 0) === slot ? { ...x, checked } : x
                           )),
                         }))}
-                        quantityText={units > 0 ? (
-                          <>
-                            Quantité&nbsp;: <strong>{units}</strong>
-                            {o.perPerson ? ` (${chosen} × ${served} pers. servies)` : ''} = {amount}
-                          </>
+                        quantityText={chosen > 0 ? (
+                          <span style={{ fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+                            Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
+                            {sale && sale.moments > 0 && o.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''} = {amount}
+                          </span>
                         ) : 'Choisissez les moments servis'}
                       />
                       {/* specs/card-option-served-persons.md §3.3 — le nombre de couverts, quand les
@@ -1457,8 +1424,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               );
             })}
             <Typography variant="body2" sx={{ fontWeight: 700, pt: 1, ...previewDim }}>
-              Total restauration : {money(recap ? recap.sales?.catering?.amount ?? 0 : null)}
+              Total restauration : {money(recap && !preview.error ? recap.sales?.catering?.amount ?? 0 : null)}
             </Typography>
+            {preview.error && (
+              <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+            )}
           </Stack>
         );
       }
@@ -1508,10 +1478,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <QtyRow key={t.repairKey} item={{ id: t.repairKey, label: t.label, price: t.price }} qtyMap={extinguisherQty} setQtyMap={setExtinguisherQty} />
               ))}
             </Stack>
-            {extinguisherLines.length > 0 && (
+            {/* Rule 15 — the subtotal is the server's; « — » until it answered. */}
+            {Object.values(extinguisherQty).some((qty) => Number(qty) > 0) && (
               <>
                 <Divider />
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>Sous-total : {formatCurrency(extinguisherLines.reduce((s, l) => s + l.amount, 0))}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+                  Sous-total : {recap && !preview.error ? formatCurrency(recap.extinguisherTotal) : '—'}
+                </Typography>
               </>
             )}
           </Stack>
@@ -1688,92 +1661,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             </Stack>
           );
         }
-        return (
-          <Stack spacing={1}>
-            <Typography variant="sectionHeader">Récapitulatif fin de séjour</Typography>
-            {/* specs/defer-arrival-complement-to-checkout.md §3.1 rule 2 — the ménage page is hidden
-                when the cleaning is already sold; say so instead of leaving a silent gap. */}
-            {data.cleaning?.included && (
-              <Typography variant="body2" color="text.secondary">Ménage déjà réglé — aucune facturation de fin de séjour.</Typography>
-            )}
-            {/* specs/mid-stay-notes.md §3.5 rule 20 — read-only reminder: these prestations were
-                already collected during the stay, they are NOT part of the total to collect here. */}
-            {midStayAlreadySettled > 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                Déjà réglé en séjour : {formatCurrency(midStayAlreadySettled)}
-              </Typography>
-            )}
-            {/* specs/ui-review-2026-10-19-operations.md rule 4 — nothing to collect at the door. */}
-            {data.nothingToCollect && departureGrandTotal <= 0 && (
-              <Box><StatusBadge status="success" label="Rien à percevoir" icon={<CheckIcon sx={{ fontSize: 16 }} />} /></Box>
-            )}
-            {/* Every check-out line is offerable (specs/sas-offer-complement-lines.md §3.2 rule 6). */}
-            {endOfStayLines.map((l, i) => (
-              <OfferableLine
-                key={i}
-                text={lineText(l)}
-                offered={isOffered(l.offerKey)}
-                onToggle={l.offerKey ? () => toggleOffered(l.offerKey) : undefined}
-              />
-            ))}
-            {/* specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement was never
-                settled: recall its full detail. When there is ALSO an end-of-stay complement (services
-                taken during the stay), the arrival lines are merged plainly into the same « à percevoir »
-                list — NOT flagged « non perçus » — since the amount is just part of what's collected at
-                check-out (2026-07-20). Alone (no end-of-stay complement) it keeps the warning framing, as it
-                then genuinely signals a forgotten arrival collection. */}
-            {arrivalRecall && endOfStayLines.length > 0 && arrivalRecallLines.map((l, i) => (
-              <OfferableLine
-                key={`ar${i}`}
-                text={`${l.label} : ${formatCurrency(l.real)}`}
-                offered={isOffered(l.offerKey)}
-                onToggle={l.offerKey ? () => toggleOffered(l.offerKey) : undefined}
-              />
-            ))}
-            {arrivalRecall && endOfStayLines.length === 0 && (
-              <>
-                <Divider />
-                <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', color: 'warning.main' }}>Compléments d'arrivée non perçus</Typography>
-                {arrivalRecallLines.map((l, i) => (
-                  <OfferableLine
-                    key={`ar${i}`}
-                    text={`${l.label} : ${formatCurrency(l.real)}`}
-                    offered={isOffered(l.offerKey)}
-                    onToggle={l.offerKey ? () => toggleOffered(l.offerKey) : undefined}
-                  />
-                ))}
-                <Typography variant="body2">Sous-total arrivée : <strong>{formatCurrency(recalledArrivalAmount)}</strong></Typography>
-              </>
-            )}
-            {departureGrandTotal > 0 && (
-              <>
-                <Divider />
-                {/* « à percevoir » serait faux sur de l'argent déjà rentré : le total reste affiché — il
-                    dit de quoi on parle — mais il ne réclame plus rien (rule 9bis). */}
-                <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>
-                  {Number(r.endOfStayComplementPaid || 0) === 1 ? 'Total fin de séjour' : 'Total à percevoir'}
-                  {' : '}{formatCurrency(departureGrandTotal)}
-                </Typography>
-              </>
-            )}
-            {departureGrandTotal > 0 && (
-              <>
-                {/* rule 9bis — encaissé à la porte : le dire, sinon l'opérateur le réclame une seconde
-                    fois au client, et un clic malheureux efface le paiement qui existe déjà. */}
-                {Number(r.endOfStayComplementPaid || 0) === 1 && (
-                  <Typography variant="body2" color="success.main">
-                    Déjà encaissé{r.endOfStayComplementPaidDate ? ` le ${displayDate(r.endOfStayComplementPaidDate)}` : ''}
-                    {Number(r.endOfStayComplementPaidCash || 0) === 1 ? ' (caisse interne)' : ''} — rien à percevoir.
-                  </Typography>
-                )}
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
-                <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />
-              </>
-            )}
-            {cautionReturned === true && <Typography variant="body2" color="success.main">Caution rendue.</Typography>}
-            {keysReceived === false && <Typography variant="body2" color="warning.main">⚠ Clés non récupérées.</Typography>}
-          </Stack>
-        );
+        return renderDepartureRecap();
       default: {
         const step = pluginStepFor(stepKey);
         if (!step) return null;
@@ -1905,8 +1793,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         if (commitWarning) {
           return <Button variant="contained" onClick={() => { if (onDone) onDone(); if (onClose) onClose(); }}>Fermer</Button>;
         }
-        // Rule 20 — never commit against a total the operator has not seen.
-        const waiting = mode === 'arrival' && !preview.fresh;
+        // Rule 20 / rule 19 of the departure spec — never commit against a total the operator has not seen.
+        const waiting = !preview.fresh;
         return <>{quit}
           <Button variant="contained" onClick={commit} disabled={committing || waiting} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>
             {waiting && preview.pending ? 'Calcul du total…' : 'Valider et terminer'}

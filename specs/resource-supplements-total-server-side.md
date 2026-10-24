@@ -134,7 +134,7 @@ will store or bill, answered live while the operator draws a range or places a b
     change like the others (it moves the offered hour).
 11. **Latest wins.** Each request carries a sequence number; a response that is not the latest is
     discarded and the previous in-flight request is aborted (`AbortController`) — the pattern of
-    `useArrivalRecapPreview` in the `sas` plugin.
+    `useSasRecapPreview` in the `sas` plugin.
 12. **The range answers at once, the money follows.** The times, the duration and the planner highlight
     follow the operator's gesture on the spot (local state). The amount keeps its last server value,
     dimmed, with a thin bar under the summary, until the answer lands. No client estimate in between.
@@ -173,14 +173,14 @@ will store or bill, answered live while the operator draws a range or places a b
 
 ### 3.5 SDK and plugin version
 
-21. **SDK 2.1.0.** `api.previewResourceBooking(draft, { signal })` joins `client/src/api.js`, which the
+21. **SDK 2.2.0.** `api.previewResourceBooking(draft, { signal })` joins `client/src/api.js`, which the
     client SDK re-exports whole (`client/src/plugins/sdk/index.js:4`): adding an entry point is a MINOR
-    bump (`server/src/plugins/sdk/version.js` header). `SDK_VERSION` goes from `2.0.0` to `2.1.0`;
+    bump (`server/src/plugins/sdk/version.js` header). `SDK_VERSION` goes from `2.1.0` (SAS departure PR) to `2.2.0`;
     the call is `readOnly` (no « data changed » broadcast).
-22. **`hourly-resources` 1.2.0** declares `"sdk": "^2.1.0"` (it calls the new entry point) with French
+22. **`hourly-resources` 1.2.0** declares `"sdk": "^2.2.0"` (it calls the new entry point) with French
     changelog lines (« Le prix d'une réservation de ressource vient du serveur. », « Le supplément de
     soirée de l'étape « Planifier » déduit ce que la prestation vendue facture déjà. »). The thirteen
-    other plugins keep `^2.0.0`, which 2.1.0 satisfies: no bump for them.
+    other plugins keep `^2.0.0`, which 2.2.0 satisfies; `sas` 1.5.0 also moves to `^2.2.0` (its hook imports `useLatestPreview`): no bump for them.
 
 **Edge cases:**
 - Range not yet complete (start without end) → no request; the summary shows « Sélectionnez un
@@ -212,9 +212,9 @@ will store or bill, answered live while the operator draws a range or places a b
 | `plugins/hourly-resources/` | `controller.js` | T | New `preview` handler (maps `{ error, status }` like `create`); `create` / `update` answer `{ id?, totalPrice, warning }`. |
 | `plugins/hourly-resources/` | `routes.js` | T | `router.post('/preview', …)` before the `/:id` routes. |
 | `plugins/hourly-resources/` | `schedulingModel.js` | T | `getFreeSlots` also answers `hoursRemaining` (rule 19bis); `supplementOf` is unchanged — already the right figure. |
-| `plugins/hourly-resources/` | `manifest.json` | T | `1.2.0`, `sdk ^2.1.0`, changelog (rule 22). |
-| `plugins/sdk/` | `version.js` | T | `SDK_VERSION = '2.1.0'` (rule 21). |
-| `plugins/sas/` | `manifest.json` | T | `1.2.1`: its client hook now runs on `useLatestPreview` (changed file ⇒ version bump, CI rule). |
+| `plugins/hourly-resources/` | `manifest.json` | T | `1.2.0`, `sdk ^2.2.0`, changelog (rule 22). |
+| `plugins/sdk/` | `version.js` | T | `SDK_VERSION = '2.2.0'` (rule 21). |
+| `plugins/sas/` | `manifest.json` | T | `1.5.0`: its client hook now runs on `useLatestPreview` (changed file ⇒ version bump, CI rule). |
 | `tests/` | `sdk-v2-plugin-ranges`, `plugins-phase-4-registry` | T | The SDK is asserted « 2.x », the plugins' range `^2.N.0`. |
 | `database.js` | — | — | (none) |
 
@@ -224,7 +224,7 @@ will store or bill, answered live while the operator draws a range or places a b
 |---|---|---|---|
 | `plugins/hourly-resources/` | `ResourceBookingDialog.jsx` | T | Delete C1-C7; build the draft; render the preview (amount, offered/billed minutes, bands); pending / error / refusal states; the commit warning panel (rule 15). |
 | `hooks/` | `useLatestPreview.js` | C | Generic (Q5): debounced (200 ms; the first request leaves at once), latest-wins, abortable preview; `{ data, pending, error, fresh, retry }`. Exported by the SDK. |
-| `plugins/sas/` | `useArrivalRecapPreview.js` | T | Now a thin wrapper of `useLatestPreview` (same contract). |
+| `plugins/sas/` | `useSasRecapPreview.js` | T | Now a thin wrapper of `useLatestPreview` (same contract). |
 | `plugins/sdk/` | `index.js` | T | Exports `useLatestPreview`. |
 | `plugins/hourly-resources/` | `useResourceBookingPreview.js` | C | `useLatestPreview` bound to `api.previewResourceBooking`; exposes `{ price, pending, error, refusal, fresh, retry }` (a 400/409 is a `refusal`, anything else an `error`). |
 | `plugins/hourly-resources/` | `resourceBookingDraft.js` | C | Pure: dialog state → draft (rule 9). Shared by preview and commit. |
@@ -414,7 +414,7 @@ All five were answered by the owner on 2026-10-24 with the proposed default.
   follow-up.
 - **Q4 — Resolved (2026-10-24): no trace** of a price gap at commit; the dialog's notice only.
 - **Q5 — Resolved (2026-10-24): yes**, `useLatestPreview` in `client/src/hooks/`, exported by the SDK
-  in the 2.1.0 bump; `useArrivalRecapPreview` runs on it.
+  in the 2.2.0 bump; `useSasRecapPreview` runs on it.
 
 ## 10. Implementation progress
 
@@ -427,6 +427,6 @@ All five were answered by the owner on 2026-10-24 with the proposed default.
   5 tests), the SAS card on the server's `supplement` and `hoursRemaining` (+2 tests, the
   « running supplement » one rewritten), the three `previewRangeTotal` / `previewSessionsTotal` tests
   deleted. C1-C11 are all removed.
-- Plugin versions: `hourly-resources` 1.2.0 and `sas` 1.2.1, both `sdk ^2.1.0` (the `sas` hook imports `useLatestPreview`); SDK 2.1.0.
+- Plugin versions: `hourly-resources` 1.2.0 and `sas` 1.5.0, both `sdk ^2.2.0` (the `sas` hook imports `useLatestPreview`); SDK 2.2.0.
 - `bands` amounts are rounded per band, the last one taking the remainder, so they always sum to `grossTotal`. `priceBooking` refuses (400) a `bookingId` that belongs to another resource.
 - `useLatestPreview` aborts the in-flight request and drops its late answer as soon as `enabled` turns false, i.e. when the operator leaves a money page of the SAS (the arrival recap hook gains this).

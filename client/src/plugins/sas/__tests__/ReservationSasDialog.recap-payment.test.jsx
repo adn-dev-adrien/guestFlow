@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 import { sasPayload, stayDue, renderDialog, clickBtn } from './sasFixtures';
-import { previewLikeTheServer } from './sasPreviewFake';
+import { previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -17,6 +17,7 @@ vi.mock('../../../api', () => ({
   default: {
     getReservationSas: vi.fn(),
     previewArrivalSas: vi.fn(),
+    previewDepartureSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // specs/sas-arrival-total-server-side.md — the recap renders what the server previews.
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+  api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
 });
 
 // ---- recap settlement buttons (specs/sas-recap-payment-buttons.md) ----
