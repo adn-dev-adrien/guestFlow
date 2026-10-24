@@ -48,6 +48,29 @@ function priceMinutes(fromMin, toMin, normCfg) {
   return total;
 }
 
+// The same slot walk as `priceMinutes`, kept per band: consecutive slices of one band merge into one
+// entry, so a screen can show « jour 30 € · soir 40 € » without re-deriving the switch time.
+function bandsOf(fromMin, toMin, normCfg) {
+  const out = [];
+  if (toMin <= fromMin) return out;
+  const { dayRate, eveningRate, eveningStart, slotMinutes } = normCfg;
+  for (let t = fromMin; t < toMin; t += slotMinutes) {
+    const end = Math.min(t + slotMinutes, toMin);
+    const band = t < eveningStart ? 'day' : 'evening';
+    const rate = band === 'day' ? dayRate : eveningRate;
+    const last = out[out.length - 1];
+    if (last && last.band === band && last.toMin === t) {
+      last.toMin = end;
+      last.raw += rate * ((end - t) / 60);
+    } else {
+      out.push({ band, fromMin: t, toMin: end, rate, raw: rate * ((end - t) / 60) });
+    }
+  }
+  return out;
+}
+
+const formatTime = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
 /** Gross price of one session's [start, end) range (no free-hour deduction). */
 function priceRange(start, end, cfg = {}) {
   return round2(priceMinutes(toMinutes(start), toMinutes(end), normalizeConfig(cfg)));
@@ -76,7 +99,9 @@ function isValidSession(session, cfg = {}) {
  * Price a set of sessions for one reservation-resource (or a single standalone booking).
  *  - cfg: { dayRate, eveningRate, eveningStart, slotMinutes, openTime, closeTime, minMinutes }
  *  - freeMinutes: free allowance applied ONCE, to the earliest valid session's first minutes.
- * Returns { totalPrice, grossPrice, totalHours, billedHours, unitPrice, validSessions }.
+ * Returns { totalPrice, grossPrice, totalHours, billedHours, unitPrice, validSessions,
+ * freeMinutesApplied, billedMinutes, freeValue, bands } — the last four let a screen show the offered
+ * minutes and the per-band detail exactly as priced here.
  *
  * `totalHours` are the hours the guest actually gets (what the SAS has to place);
  * `billedHours` are what is charged, i.e. `totalHours` minus the free allowance
@@ -89,7 +114,10 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || (toMinutes(a.start) - toMinutes(b.start)));
 
   if (valid.length === 0) {
-    return { totalPrice: 0, grossPrice: 0, totalHours: 0, billedHours: 0, unitPrice: 0, validSessions: [] };
+    return {
+      totalPrice: 0, grossPrice: 0, totalHours: 0, billedHours: 0, unitPrice: 0, validSessions: [],
+      freeMinutesApplied: 0, billedMinutes: 0, freeValue: 0, bands: [],
+    };
   }
 
   const gross = valid.reduce((sum, s) => sum + priceMinutes(toMinutes(s.start), toMinutes(s.end), norm), 0);
@@ -114,6 +142,13 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
     billedHours,
     unitPrice,
     validSessions: valid,
+    freeMinutesApplied: freeApplied,
+    billedMinutes,
+    freeValue: round2(freeValue),
+    bands: valid.flatMap((s) => bandsOf(toMinutes(s.start), toMinutes(s.end), norm)).map((b) => ({
+      band: b.band, from: formatTime(b.fromMin), to: formatTime(b.toMin),
+      minutes: b.toMin - b.fromMin, rate: round2(b.rate), amount: round2(b.raw),
+    })),
   };
 }
 

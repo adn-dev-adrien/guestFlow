@@ -55,13 +55,23 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   function create(req, res) {
     const result = model().createBooking(req.body);
     if (result.error) return res.status(result.status).json({ error: result.error });
-    return res.json({ id: result.id });
+    return res.json({ id: result.id, totalPrice: result.totalPrice, warning: result.warning });
+  }
+
+  /**
+   * POST /api/resource-bookings/preview — the price of a booking draft, written nowhere
+   * (specs/resource-supplements-total-server-side.md rules 4-7). Admin only: it carries money.
+   */
+  function preview(req, res) {
+    const result = model().priceBooking(req.body || {});
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    return res.json(result);
   }
 
   function update(req, res) {
     const result = model().update(req.params.id, req.body);
     if (result.error) return res.status(result.status).json({ error: result.error });
-    return res.json({ ok: true });
+    return res.json({ ok: true, totalPrice: result.totalPrice, warning: result.warning });
   }
 
   function remove(req, res) {
@@ -135,7 +145,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   }
 
   return {
-    planningEvents, occupiedSlots, list, getOne, create, update, remove,
+    planningEvents, occupiedSlots, list, getOne, create, preview, update, remove,
     freeSlots, resourceCards, setResourceCardDone,
   };
 }

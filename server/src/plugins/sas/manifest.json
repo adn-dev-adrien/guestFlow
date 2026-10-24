@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -37,6 +37,10 @@
       "Récapitulatif d’arrivée : montants, total et règlement en une fois calculés par le serveur, à jour à chaque geste.",
       "Un total qui a changé entre le récapitulatif et l’enregistrement est signalé et noté dans l’historique de la fiche.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.1": [
+      "Le récapitulatif d’arrivée s’appuie sur le même mécanisme d’aperçu que les autres écrans, sans changement visible.",
+      "Compatible avec le SDK 2.1 de GuestFlow."
     ]
   }
 }

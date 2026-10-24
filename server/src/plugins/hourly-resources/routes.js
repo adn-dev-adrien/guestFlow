@@ -10,6 +10,7 @@ function buildRouter(controller) {
   // Specific routes before /:id to avoid conflicts.
   router.get('/planning-events', (req, res) => controller().planningEvents(req, res));
   router.get('/occupied-slots', (req, res) => controller().occupiedSlots(req, res));
+  router.post('/preview', (req, res) => controller().preview(req, res));
   router.get('/', (req, res) => controller().list(req, res));
   router.get('/:id', (req, res) => controller().getOne(req, res));
   router.post('/', (req, res) => controller().create(req, res));

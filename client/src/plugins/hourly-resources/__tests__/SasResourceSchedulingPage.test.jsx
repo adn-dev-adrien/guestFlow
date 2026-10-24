@@ -61,9 +61,19 @@ function Harness({ scheduling = SCHEDULING }) {
   );
 }
 
+// The server answers the supplement and the hours left (specs/resource-supplements-total-server-side.md
+// rule 17, Q3); the page renders both. Fake answer: the hours sold minus the blocks sent as `pending`.
+let soldHours;
+let answeredSupplement;
 beforeEach(() => {
+  soldHours = 2;
+  answeredSupplement = 0;
   api.getResourceFreeSlots.mockReset();
-  api.getResourceFreeSlots.mockResolvedValue({ days: SCHEDULING.resources[0].days });
+  api.getResourceFreeSlots.mockImplementation(async ({ pending }) => ({
+    days: SCHEDULING.resources[0].days,
+    supplement: answeredSupplement,
+    hoursRemaining: Math.max(0, soldHours - pending.length),
+  }));
 });
 
 test('shows the hours still owed', () => {
@@ -105,10 +115,24 @@ test('an evening slot carries its supplement badge', () => {
   expect(screen.getByText('+20 €')).toBeInTheDocument();
 });
 
-test('placing an evening slot surfaces the running supplement', async () => {
+test("the card shows the server's supplement, evening credit included — not the sum of the badges", async () => {
+  answeredSupplement = 10; // the sold line already bills 10 € of evening; the badge says +20 €
   render(<Harness />);
   fireEvent.click(screen.getByLabelText('20:00 — libre, supplément 20 €'));
-  await waitFor(() => expect(screen.getByText('Supplément soirée : 20 €')).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText('Supplément soirée : 10,00 €')).toBeInTheDocument());
+  expect(screen.queryByText(/20,00 €/)).not.toBeInTheDocument();
+});
+
+test("a re-opened step shows the payload's supplement from the first frame", () => {
+  render(<Harness scheduling={{ ...PLACED, resources: [{ ...PLACED.resources[0], supplement: 10 }] }} />);
+  expect(screen.getByText('Supplément soirée : 10,00 €')).toBeInTheDocument();
+});
+
+test('no supplement owed: no line', async () => {
+  render(<Harness />);
+  fireEvent.click(screen.getByLabelText('16:00 — libre'));
+  await waitFor(() => expect(screen.getByText('1 h à planifier')).toBeInTheDocument());
+  expect(screen.queryByText(/Supplément soirée/)).not.toBeInTheDocument();
 });
 
 test('a placed block is listed and can be removed, giving the hour back', async () => {
@@ -140,6 +164,7 @@ test('a failed refresh surfaces the error instead of an empty grid', async () =>
 });
 
 test('once every hour is placed, no more slots are offered', async () => {
+  soldHours = 1;
   render(<Harness scheduling={{
     ...SCHEDULING,
     resources: [{ ...SCHEDULING.resources[0], hoursSold: 1, hoursRemaining: 1 }],

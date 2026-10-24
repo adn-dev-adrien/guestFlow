@@ -312,6 +312,10 @@ const api = {
   },
   getResourceBookingPlanningEvents: (from, to) => request(`/resource-bookings/planning-events?from=${from}&to=${to}`),
   getOccupiedSlots: (resourceId, date) => request(`/resource-bookings/occupied-slots?resourceId=${resourceId}&date=${date}`),
+  // specs/resource-supplements-total-server-side.md rule 21 — the price of a booking draft, written nowhere.
+  previewResourceBooking: (draft, { signal } = {}) => request('/resource-bookings/preview', {
+    method: 'POST', body: draft, signal, readOnly: true,
+  }),
   createResourceBooking: (data) => request('/resource-bookings', { method: 'POST', body: data }),
   updateResourceBooking: (id, data) => request(`/resource-bookings/${id}`, { method: 'PUT', body: data }),
   deleteResourceBooking: (id) => request(`/resource-bookings/${id}`, { method: 'DELETE' }),

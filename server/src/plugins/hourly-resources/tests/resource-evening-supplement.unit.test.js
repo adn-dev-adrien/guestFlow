@@ -72,3 +72,24 @@ test('malformed or empty input yields 0, never NaN', () => {
   assert.equal(eveningSupplement([{ start: '21:00', end: '20:00' }], BAIN), 0);
   assert.equal(eveningSupplement([{}], BAIN), 0);
 });
+
+// specs/resource-supplements-total-server-side.md §1.2 finding 5 — the supplement the step shows is the
+// one the recap bills: what the sold line already bills for the evening is credited.
+test('free-slots answers the credited supplement and the hours left to place', () => {
+  const { seed } = require('./hourlySchedulingFixture');
+  // Sold 2 h for 60,00 at a 25 €/h day rate → 10,00 already billed for the evening.
+  const ctx = seed({
+    hoursSold: 2,
+    resource: { price: 25, hourlyEveningStart: '19:00', hourlyEveningRate: 35, slotDuration: 60 },
+  });
+  const now = new Date('2026-09-01T09:00:00Z');
+  const pending = [
+    { date: '2026-09-12', start: '19:00', end: '20:00' },
+    { date: '2026-09-12', start: '20:00', end: '21:00' },
+  ];
+  const answer = ctx.scheduling.getFreeSlots({ reservation: ctx.reservation, resourceId: ctx.resourceId, pending, now });
+  assert.equal(answer.supplement, 10);
+  assert.equal(answer.hoursRemaining, 0);
+  const partial = ctx.scheduling.getFreeSlots({ reservation: ctx.reservation, resourceId: ctx.resourceId, pending: pending.slice(0, 1), now });
+  assert.equal(partial.hoursRemaining, 1);
+});

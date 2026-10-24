@@ -1,6 +1,6 @@
 /**
  * Resource bookings model — sole DB access for `resource_bookings` (standalone resource slots, e.g. a
- * spa). Owns the booking price computation (server-authoritative), the turnover-aware slot-conflict
+ * spa). Owns the booking price (server-authoritative, `priceBooking`, shared by the preview and the commit), the turnover-aware slot-conflict
  * check, and CRUD. `create`/`update` return `{ ok, id }` or `{ error, status }` for the thin controller.
  *
  * Exports a default model bound to the production database, and a `create(db)` factory for tests.
@@ -49,7 +49,11 @@ function createModel(database) {
   // Bound to the same database handle so the test factory and production agree on what « occupied » is.
   const occupancyModel = resourceOccupancyModel.create(database);
 
-  function computeBookingTotalPrice({ resource, startTime, endTime, propertyId, reservationId }) {
+  /**
+   * The price of a booking and how it is made up — the one function behind the preview and the stored
+   * `totalPrice` (specs/resource-supplements-total-server-side.md rule 1). Pure read.
+   */
+  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId }) {
     const durationMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
     const pid = Number(propertyId || 0);
     const override = pid > 0
@@ -57,8 +61,12 @@ function createModel(database) {
       : null;
     const guestDayRate = Number(override?.price ?? resource.price ?? 0);
     const freeMinutes = Math.max(0, Number(override?.freeMinutes || 0));
+    const base = {
+      total: 0, pricing: 'free', rateGrid: null, durationMinutes,
+      freeMinutesApplied: 0, billedMinutes: 0, grossTotal: 0, bands: [], freeValue: 0,
+    };
 
-    if (resource.priceType === 'free') return 0;
+    if (resource.priceType === 'free') return base;
 
     // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5). A booking
     // with no reservation = « extérieur » → external rate pair (falling back to the guest grid).
@@ -73,15 +81,88 @@ function createModel(database) {
         : guestEveningRate;
       const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
       const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, freeMinutes);
-      if (priced.validSessions.length) return priced.totalPrice;
+      if (priced.validSessions.length) {
+        return {
+          ...base,
+          total: priced.totalPrice,
+          pricing: 'banded',
+          rateGrid: isExternal ? 'external' : 'guest',
+          freeMinutesApplied: priced.freeMinutesApplied,
+          billedMinutes: priced.billedMinutes,
+          grossTotal: priced.grossPrice,
+          bands: priced.bands,
+          freeValue: priced.freeValue,
+        };
+      }
       // off-grid range → fall through to the flat computation below.
     }
 
     if (resource.priceType === 'per_hour') {
-      const billedMinutes = Math.max(0, durationMinutes - freeMinutes);
-      return roundMoney((guestDayRate * billedMinutes) / 60);
+      const freeMinutesApplied = Math.min(durationMinutes, freeMinutes);
+      const billedMinutes = durationMinutes - freeMinutesApplied;
+      const total = roundMoney((guestDayRate * billedMinutes) / 60);
+      const grossTotal = roundMoney((guestDayRate * durationMinutes) / 60);
+      return {
+        ...base,
+        total,
+        pricing: 'flat-hourly',
+        freeMinutesApplied,
+        billedMinutes,
+        grossTotal,
+        bands: durationMinutes > 0
+          ? [{ band: 'day', from: startTime, to: endTime, minutes: durationMinutes, rate: roundMoney(guestDayRate), amount: grossTotal }]
+          : [],
+        freeValue: roundMoney(grossTotal - total),
+      };
     }
-    return roundMoney(guestDayRate);
+    const total = roundMoney(guestDayRate);
+    return { ...base, total, pricing: 'fixed', grossTotal: total };
+  }
+
+  // The refusals shared by the preview and the commit: minimum duration, then capacity — the booking
+  // itself excluded when it is edited.
+  function checkBookable({ resource, date, startTime, endTime, excludeId = null }) {
+    const duration = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
+    const minUsage = minimumUsageMinutes(resource);
+    if (minUsage > 0 && duration < minUsage) {
+      return { error: `Durée minimale ${minUsage} min requise`, status: 400 };
+    }
+    const turnover = Number(resource.turnoverMinutes || 0);
+    if (countConflicts(resource.id, date, startTime, endTime, turnover, excludeId) >= resource.quantity) {
+      return { error: 'Créneau non disponible (capacité atteinte)', status: 409 };
+    }
+    return null;
+  }
+
+  /**
+   * specs/resource-supplements-total-server-side.md rules 1, 4, 5 — prices a booking draft
+   * `{ resourceId, bookingId, date, startTime, endTime, propertyId }` without writing anything.
+   * Returns the breakdown, or `{ error, status }` with the very refusals the commit would give.
+   */
+  function priceBooking(draft = {}) {
+    const { resourceId, bookingId, date, startTime, endTime, propertyId } = draft;
+    if (!resourceId || !date || !startTime || !endTime) {
+      return { error: 'resourceId, date, startTime, endTime sont requis', status: 400 };
+    }
+    const resource = getResourceForBooking(resourceId);
+    if (!resource) return { error: 'Ressource non trouvée', status: 404 };
+    let reservationId = null;
+    if (bookingId) {
+      const existing = database.prepare('SELECT reservationId FROM resource_bookings WHERE id = ?').get(bookingId);
+      if (!existing) return { error: 'Réservation non trouvée', status: 404 };
+      reservationId = existing.reservationId;
+    }
+    const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null });
+    if (refusal) return refusal;
+    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId });
+  }
+
+  // Rule 15 — what the screen showed is compared with what is stored, never enforced.
+  function totalWarning(displayedTotal, stored) {
+    if (displayedTotal === undefined || displayedTotal === null || displayedTotal === '') return null;
+    const displayed = Number(displayedTotal);
+    if (!Number.isFinite(displayed) || Math.abs(displayed - stored) < 0.01) return null;
+    return { code: 'BOOKING_TOTAL_DIFFERED', displayed: roundMoney(displayed), stored };
   }
 
   // Minimum billable/usable duration (per-hour minimum or complex slot duration).
@@ -210,21 +291,14 @@ function createModel(database) {
     const resource = getResourceForBooking(resourceId);
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
 
-    const duration = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
-    const minUsage = minimumUsageMinutes(resource);
-    if (minUsage > 0 && duration < minUsage) {
-      return { error: `Durée minimale ${minUsage} min requise`, status: 400 };
-    }
-    const turnover = Number(resource.turnoverMinutes || 0);
-    if (countConflicts(resourceId, date, startTime, endTime, turnover, null) >= resource.quantity) {
-      return { error: 'Créneau non disponible (capacité atteinte)', status: 409 };
-    }
+    const refusal = checkBookable({ resource, date, startTime, endTime });
+    if (refusal) return refusal;
 
-    const totalPrice = computeBookingTotalPrice({ resource, startTime, endTime, propertyId, reservationId });
+    const totalPrice = breakdownOf({ resource, startTime, endTime, propertyId, reservationId }).total;
     const result = database.prepare(
       'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
     ).run(resourceId, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, paid ? 1 : 0);
-    return { ok: true, id: result.lastInsertRowid };
+    return { ok: true, id: result.lastInsertRowid, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
 
   function update(id, payload) {
@@ -239,19 +313,12 @@ function createModel(database) {
     const resource = getResourceForBooking(existing.resourceId);
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
 
-    const duration = Math.max(0, toMinutes(newEnd) - toMinutes(newStart));
-    const minUsage = minimumUsageMinutes(resource);
-    if (minUsage > 0 && duration < minUsage) {
-      return { error: `Durée minimale ${minUsage} min requise`, status: 400 };
-    }
-    const turnover = Number(resource.turnoverMinutes || 0);
-    if (countConflicts(existing.resourceId, newDate, newStart, newEnd, turnover, id) >= resource.quantity) {
-      return { error: 'Créneau non disponible (capacité atteinte)', status: 409 };
-    }
+    const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id });
+    if (refusal) return refusal;
 
     const nextPropertyId = propertyId !== undefined ? propertyId : existing.propertyId;
     const nextReservationId = reservationId !== undefined ? (reservationId || null) : existing.reservationId;
-    const totalPrice = computeBookingTotalPrice({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId });
+    const totalPrice = breakdownOf({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId }).total;
 
     database.prepare(
       "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,paid=?,updatedAt=datetime('now') WHERE id=?"
@@ -267,7 +334,7 @@ function createModel(database) {
       paid !== undefined ? (paid ? 1 : 0) : existing.paid,
       id,
     );
-    return { ok: true };
+    return { ok: true, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
 
   function remove(id) {
@@ -278,7 +345,8 @@ function createModel(database) {
   }
 
   return {
-    computeBookingTotalPrice,
+    priceBooking,
+    checkBookable,
     minimumUsageMinutes,
     countConflicts,
     listPlanningEvents,

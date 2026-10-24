@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented |
 | **Branch** | `docs/resource-supplements-total-server` |
 | **Created** | 2026-10-24 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #766 → `inte/plugins` |
 
 ---
 
@@ -162,6 +162,12 @@ will store or bill, answered live while the operator draws a range or places a b
 19. **The per-slot badges stay.** « +10 € » on a slot and on a placed block are already server figures
     (`availability.js:239`, `schedulingModel.js:184`): what that one block costs in the evening, before
     credit. They are read as such; nothing adds them.
+19bis. **The hours left to place come from the server too** (Q3). `free-slots` answers
+    `hoursRemaining` = hours sold minus every block of `pending`; the card renders it (payload's
+    `hoursRemaining` until the first refresh) and offers the grid only while it is above 0. The
+    client-side subtraction is deleted. The wizard's recap notes (`sasStep.js` `recapNotes`, « N h non
+    planifiées ») still subtract locally: they live outside the card and a refresh result is not
+    carried up — a follow-up, hours not money.
 20. **While a refresh runs, the card's supplement is dimmed**, like the dialog's amount (rule 12); a
     failed refresh hides it with the existing « Créneaux indisponibles » alert.
 
@@ -205,9 +211,11 @@ will store or bill, answered live while the operator draws a range or places a b
 | `plugins/hourly-resources/` | `hourlyPricing.js` | T | `priceSessions` also returns `bands` (`[{ band, from, to, minutes, rate, amount }]`, slices merged per band) and `freeMinutesApplied`; the arithmetic is unchanged. |
 | `plugins/hourly-resources/` | `controller.js` | T | New `preview` handler (maps `{ error, status }` like `create`); `create` / `update` answer `{ id?, totalPrice, warning }`. |
 | `plugins/hourly-resources/` | `routes.js` | T | `router.post('/preview', …)` before the `/:id` routes. |
-| `plugins/hourly-resources/` | `schedulingModel.js` | — | Unchanged: `supplementOf` is already the right figure. |
+| `plugins/hourly-resources/` | `schedulingModel.js` | T | `getFreeSlots` also answers `hoursRemaining` (rule 19bis); `supplementOf` is unchanged — already the right figure. |
 | `plugins/hourly-resources/` | `manifest.json` | T | `1.2.0`, `sdk ^2.1.0`, changelog (rule 22). |
 | `plugins/sdk/` | `version.js` | T | `SDK_VERSION = '2.1.0'` (rule 21). |
+| `plugins/sas/` | `manifest.json` | T | `1.2.1`: its client hook now runs on `useLatestPreview` (changed file ⇒ version bump, CI rule). |
+| `tests/` | `sdk-v2-plugin-ranges`, `plugins-phase-4-registry` | T | The SDK is asserted « 2.x », the plugins' range `^2.N.0`. |
 | `database.js` | — | — | (none) |
 
 ### 4.2 Client side (`client/src/`)
@@ -215,7 +223,10 @@ will store or bill, answered live while the operator draws a range or places a b
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `plugins/hourly-resources/` | `ResourceBookingDialog.jsx` | T | Delete C1-C7; build the draft; render the preview (amount, offered/billed minutes, bands); pending / error / refusal states; the commit warning panel (rule 15). |
-| `plugins/hourly-resources/` | `useResourceBookingPreview.js` | C | Debounced (200 ms; the first complete range leaves at once), latest-wins, abortable call; exposes `{ price, pending, error, fresh, retry }`. |
+| `hooks/` | `useLatestPreview.js` | C | Generic (Q5): debounced (200 ms; the first request leaves at once), latest-wins, abortable preview; `{ data, pending, error, fresh, retry }`. Exported by the SDK. |
+| `plugins/sas/` | `useArrivalRecapPreview.js` | T | Now a thin wrapper of `useLatestPreview` (same contract). |
+| `plugins/sdk/` | `index.js` | T | Exports `useLatestPreview`. |
+| `plugins/hourly-resources/` | `useResourceBookingPreview.js` | C | `useLatestPreview` bound to `api.previewResourceBooking`; exposes `{ price, pending, error, refusal, fresh, retry }` (a 400/409 is a `refusal`, anything else an `error`). |
 | `plugins/hourly-resources/` | `resourceBookingDraft.js` | C | Pure: dialog state → draft (rule 9). Shared by preview and commit. |
 | `plugins/hourly-resources/` | `resourceSessions.js` | T | Remove `normalizeConfig`, `priceMinutes`, `previewRangeTotal`, `previewSessionsTotal`, `round2` (C8, C9). |
 | `plugins/hourly-resources/` | `ResourcePlanningPage.jsx` | T | `handleSave` returns the commit response to the dialog, which closes itself unless `warning` is set. |
@@ -227,8 +238,9 @@ will store or bill, answered live while the operator draws a range or places a b
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `ErrorAlert` (SDK), `SlotPickerGrid` (SDK), MUI `LinearProgress` | Unchanged visuals. |
-| **Created (new generic)** | — | The hook's payload is a booking price; the `sas` hook's is an arrival recap. A shared `useLatestPreview(fetcher, draft)` would serve both — §9 Q5. |
+| **Created (new generic)** | `useLatestPreview` (`client/src/hooks/`) | Two plugins debounce a server preview the same way (Q5, resolved). |
 | **Specific (kept feature-local)** | `useResourceBookingPreview`, `resourceBookingDraft` | Only this dialog previews a standalone booking. |
+| **Added to MUI usage** | `Alert`, `LinearProgress` | The commit notice and the pending bar. |
 
 ### 4.3 API contract
 
@@ -266,8 +278,9 @@ will store or bill, answered live while the operator draws a range or places a b
 ```
 
 `bands` is `[]` for `fixed` and `free`; for `flat-hourly` it is one `day` band at the guest rate.
-Amounts are euros rounded to the cent by the server. The SAS step's contract does not change: the
-`supplement` field already exists on both payloads (§1.2 finding 6).
+Amounts are euros rounded to the cent by the server. The SAS step's contract gains one field:
+`GET /api/resources/:id/free-slots` answers `{ days, supplement, hoursRemaining }` (the `supplement`
+field already existed on both payloads, §1.2 finding 6).
 
 ---
 
@@ -300,8 +313,10 @@ The dialog and the step look the same; what changes is where their figures come 
 Copy is short and impersonal: no « vous », nothing about the mechanics.
 
 **Responsive** (Chromium at 375, 900 and 1280 px):
-- `xs`: the dialog is full screen (`ds-components.md` rule 22, unchanged); the summary sits above the
-  time selects, so the amount stays in view while the operator taps start/end on the planner; the
+- `xs`: the dialog is full screen (`ds-components.md` rule 22, unchanged); the summary is the first
+  block (a grid area above the planner) and sticks to the top of the dialog, so the amount stays in view
+  while the operator taps start/end on the planner; on `sm`+ the same grid area sits at the top of the
+  right column. The
   pending bar is attached to the summary, not the dialog footer; « Réessayer » and « Fermer » are
   44 px. The SAS card's supplement line stays inside its card — no scroll to the bottom of the step to
   read it.
@@ -388,19 +403,28 @@ At 375, 900 and 1280 px, fictional data only:
 
 ## 9. Open questions
 
-- **Q1.** Should a standalone booking get an « Offrir » toggle (whole booking at 0 €, real price kept),
-  like a fiche line? Today only the logement's offered minutes exist.
-  - Proposed default: **no** in this spec; the draft has room for an `offered` field later without
-    changing the contract.
-- **Q2.** Is the off-grid fallback the intended billing? 18:05–19:35 is stored at 37,50 € (flat guest
-  rate) where the banded external grid would say 50,00 €.
-  - Proposed default: keep billing unchanged here; in a separate fix, step the dialog by the resource's
-    slot (30 min) so off-grid ranges can no longer be drawn.
-- **Q3.** Should the SAS step's « N h à planifier » also come from the server (`free-slots` answering
-  `hoursRemaining` given `pending`)? Hours, not money, but derived data in React.
-  - Proposed default: yes, in the same PR — the field sits next to `supplement` in the same answer.
-- **Q4.** Keep a trace when a booking is stored at another price than the one shown (no history table
-  on `resource_bookings`)?
-  - Proposed default: no — the warning in the dialog only.
-- **Q5.** Extract a generic `useLatestPreview` now that two plugins debounce a preview the same way?
-  - Proposed default: yes, into `client/src/hooks/`, exported by the SDK in the same 2.1.0 bump.
+All five were answered by the owner on 2026-10-24 with the proposed default.
+
+- **Q1 — Resolved (2026-10-24): no « Offrir » toggle on a standalone booking.** Only the logement's
+  offered minutes exist; the draft has room for an `offered` field later without changing the contract.
+- **Q2 — Resolved (2026-10-24): billing unchanged.** The off-grid fallback to the flat guest rate stays
+  (18:05-19:35 is stored at 37,50 €); stepping the dialog by the resource's slot is a separate fix.
+- **Q3 — Resolved (2026-10-24): yes, the « à planifier » hours come from the server**, as
+  `hoursRemaining` in the `free-slots` answer (rule 19bis). The wizard's `recapNotes` is left for a
+  follow-up.
+- **Q4 — Resolved (2026-10-24): no trace** of a price gap at commit; the dialog's notice only.
+- **Q5 — Resolved (2026-10-24): yes**, `useLatestPreview` in `client/src/hooks/`, exported by the SDK
+  in the 2.1.0 bump; `useArrivalRecapPreview` runs on it.
+
+## 10. Implementation progress
+
+- Server: `priceBooking` / `checkBookable` in `bookingsModel.js`, `bands` + `freeMinutesApplied` +
+  `freeValue` in `priceSessions`, the `preview` route and handler, `hoursRemaining` on `free-slots`.
+  Tests: `resource-booking-preview.unit.test.js` (14, new); +2 in `resource-hourly-pricing`; +1 in
+  `resource-evening-supplement`; the three `computeBookingTotalPrice` tests of
+  `resource-bookings-model` now read `priceBooking(...).total`.
+- Client: dialog on the preview (`ResourceBookingDialog.preview.test.jsx`, 11 tests; `resourceBookingDraft.test.js`,
+  5 tests), the SAS card on the server's `supplement` and `hoursRemaining` (+2 tests, the
+  « running supplement » one rewritten), the three `previewRangeTotal` / `previewSessionsTotal` tests
+  deleted. C1-C11 are all removed.
+- Plugin versions: `hourly-resources` 1.2.0 (`sdk ^2.1.0`), `sas` 1.2.1; SDK 2.1.0.
