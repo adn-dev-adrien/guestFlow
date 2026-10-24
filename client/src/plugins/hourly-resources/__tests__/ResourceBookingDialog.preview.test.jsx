@@ -42,6 +42,11 @@ async function pickEnd(time) {
   fireEvent.click(await screen.findByRole('option', { name: time }));
 }
 
+function pickEndNow(time) {
+  fireEvent.mouseDown(screen.getAllByRole('combobox')[1]);
+  fireEvent.click(screen.getByRole('option', { name: time }));
+}
+
 const saveButton = () => screen.getByRole('button', { name: /Enregistrer|Calcul du prix…|Enregistrement/ });
 
 beforeEach(() => {
@@ -67,9 +72,10 @@ test('rule 10 — three quick end-time changes make one request', async () => {
   api.previewResourceBooking.mockResolvedValue(PRICE(70));
   mount();
   await waitFor(() => expect(api.previewResourceBooking).toHaveBeenCalledTimes(1));
-  await pickEnd('19:10');
-  await pickEnd('19:20');
-  await pickEnd('19:30');
+  // Synchronous on purpose: three changes inside the 200 ms window whatever the speed of the runner.
+  pickEndNow('19:10');
+  pickEndNow('19:20');
+  pickEndNow('19:30');
   await waitFor(() => expect(api.previewResourceBooking).toHaveBeenCalledTimes(2));
   await new Promise((resolve) => { setTimeout(resolve, 350); });
   expect(api.previewResourceBooking).toHaveBeenCalledTimes(2);
