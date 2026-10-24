@@ -2407,9 +2407,9 @@ function createReservationsModel(database) {
       const bathLinen = upsellOutcome({ offer: upsells.bathLinen, stored: storedRow(upsells.bathLinen.optionId), wanted: bathLinenAdded, offered: bathLinenOffered });
       const sales = Array.isArray(soldOptions) ? model.resolveSasOptionSales(reservationId, soldOptions) : null;
       const soldLines = sales
-        ? sales.map((l) => ({ optionId: Number(l.optionId), label: l.title, qty: Number(l.billedUnits), unitPrice: round2(l.unitPrice), total: round2(l.totalPrice) }))
+        ? sales.map((l) => ({ optionId: Number(l.optionId), label: l.title, qty: Number(l.billedUnits), unitPrice: round2(l.unitPrice), total: round2(l.totalPrice), moments: Array.isArray(l.cardOccurrences) ? l.cardOccurrences.length : null, servedPersons: l.servedPersons }))
         : sasRows.filter((x) => !upsellIds.has(Number(x.optionId))).map((x) => ({
-          optionId: Number(x.optionId), label: x.title || 'Prestation', qty: Number(x.billedUnits || 1), unitPrice: round2(x.unitPrice), total: round2(x.totalPrice),
+          optionId: Number(x.optionId), label: x.title || 'Prestation', qty: Number(x.billedUnits || 1), unitPrice: round2(x.unitPrice), total: round2(x.totalPrice), moments: null, servedPersons: null,
         }));
       const newOptionSum = HAS_RO_SAS_ARRIVAL_ORIGIN
         ? round2(cleaning.total + bathLinen.total + soldLines.reduce((s, l) => s + l.total, 0))
@@ -2434,7 +2434,7 @@ function createReservationsModel(database) {
       upsellLine('bathLinen', BATH_LINEN_LABEL, upsells.bathLinen, bathLinen);
       for (const l of soldLines) {
         lines.push({
-          key: null, group: 'added', optionId: l.optionId, label: l.label, qty: l.qty, unitPrice: l.unitPrice,
+          key: null, group: 'added', optionId: l.optionId, moments: l.moments, servedPersons: l.servedPersons, label: l.label, qty: l.qty, unitPrice: l.unitPrice,
           real: l.total, billed: l.total, offerable: false, offered: false,
         });
       }
