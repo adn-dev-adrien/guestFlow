@@ -316,10 +316,10 @@ test('arrival SAS: fewer breakfasts than guests → quantity, amount and composi
   clickBtn('Ajouter le petit déjeuner');
 
   await screen.findByText('Quels matins ?');
-  expect(screen.getByText(/\(2 × 4 pers\. servies\)/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(2 × 4 pers\. servies\)/)).toBeInTheDocument();
   const minus = screen.getAllByRole('button', { name: '−' });
   fireEvent.click(minus[minus.length - 1]);          // 3 breakfasts a morning
-  expect(screen.getByText(/\(2 × 3 pers\. servies\)/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(2 × 3 pers\. servies\)/)).toBeInTheDocument();
   expect(await screen.findByText(/6 petits déjeuners — 48,00 €/)).toBeInTheDocument();
   clickBtn('Suivant');
 
@@ -358,7 +358,7 @@ test('arrival SAS: the covers stepper stops at the capacity of the logement', as
 
   const plus = screen.getAllByRole('button', { name: '+' });
   fireEvent.click(plus[plus.length - 1]);           // 2 → 3, the property seats 3
-  expect(screen.getByText(/\(1 × 3 pers\. servies\)/)).toBeInTheDocument();
+  expect(await screen.findByText(/\(1 × 3 pers\. servies\)/)).toBeInTheDocument();
   expect(plus[plus.length - 1]).toBeDisabled();
 });
 

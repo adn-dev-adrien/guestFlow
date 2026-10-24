@@ -76,9 +76,14 @@ export function recapFor(payload, draft = {}) {
   for (const s of (draft.soldOptions || [])) {
     const offer = offers.find((o) => Number(o.optionId) === Number(s.optionId));
     if (!offer) continue;
-    const units = s.occurrences ? s.occurrences.length * (offer.perPerson ? Number(s.persons) : 1) : Number(s.units);
+    const units = s.occurrences ? s.occurrences.length * (offer.perPerson ? Math.min(Number(s.persons), Math.max(1, Number(offer.maxPersons) || 1)) : 1) : Number(s.units);
     const real = round2(Number(offer.unitPrice) * units);
-    sales.push({ optionId: Number(offer.optionId), units, amount: real });
+    const covers = s.occurrences && offer.perPerson ? Math.min(Number(s.persons), Math.max(1, Number(offer.maxPersons) || 1)) : null;
+    const billed = s.occurrences ? s.occurrences.length * (offer.perPerson ? covers : 1) : Number(s.units);
+    sales.push({
+      optionId: Number(offer.optionId), moments: s.occurrences ? s.occurrences.length : null, servedPersons: covers,
+      units: billed, unitPrice: Number(offer.unitPrice), amount: round2(Number(offer.unitPrice) * billed),
+    });
     added.push({ key: null, group: 'added', label: offer.title, qty: units, unitPrice: Number(offer.unitPrice), real, billed: real, offerable: false, offered: false });
   }
   // Plugin lines: the hourly-resources evening supplement the server bills, and a plugin's stored
@@ -107,7 +112,7 @@ export function recapFor(payload, draft = {}) {
   const total = paid ? round2(r.complementAmount) : round2(existingTotal + addedSum);
   const stayDue = payload.stayPayment?.applicable ? round2(payload.stayPayment.total) : 0;
   const breakfastId = payload.sasSales?.breakfast?.available ? Number(payload.sasSales.breakfast.optionId) : null;
-  const catering = (payload.sasSales?.catering?.options || []).map((o) => sales.find((s) => s.optionId === Number(o.optionId)) || { optionId: Number(o.optionId), units: 0, amount: 0 });
+  const catering = (payload.sasSales?.catering?.options || []).map((o) => sales.find((s) => s.optionId === Number(o.optionId)) || { optionId: Number(o.optionId), moments: 0, servedPersons: o.perPerson ? Number(o.selectedPersons) || null : null, units: 0, unitPrice: Number(o.unitPrice), amount: 0 });
   return {
     lines: [...lines, ...added],
     existingTotal: paid ? round2(r.complementAmount) : existingTotal,
@@ -121,7 +126,7 @@ export function recapFor(payload, draft = {}) {
     supplementOutsideComplement: paid ? addedSum : 0,
     adjusted: null,
     sales: {
-      breakfast: breakfastId != null ? (sales.find((s) => s.optionId === breakfastId) || { optionId: breakfastId, units: 0, amount: 0 }) : null,
+      breakfast: breakfastId != null ? (sales.find((s) => s.optionId === breakfastId) || { optionId: breakfastId, moments: 0, servedPersons: Number(payload.sasSales.breakfast.selectedPersons) || null, units: 0, unitPrice: Number(payload.sasSales.breakfast.unitPrice), amount: 0 }) : null,
       catering: { options: catering, amount: round2(catering.reduce((s, o) => s + o.amount, 0)) },
     },
   };

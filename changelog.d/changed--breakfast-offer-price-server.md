@@ -1,0 +1,1 @@
+- **Arrival SAS: the breakfast offer price is computed by the server.** The offer page shows the price of one morning for the covers served, and the mornings page shows the number of mornings, covers, breakfasts and the amount, all taken from the arrival preview (and the same for the « Restauration » meals). The dialog no longer multiplies or rounds anything. `sas` plugin 1.3.0.

@@ -87,6 +87,7 @@ export const BREAKFAST_OFFER = {
   // specs/card-option-served-persons.md — the party, the ceiling (property capacity) and the
   // per-person composition rule the wizard multiplies by the breakfasts actually sold.
   defaultPersons: 2, maxPersons: 5, selectedPersons: 2,
+  perMorning: { persons: 2, amount: 16 },
   compositionPerPerson: { coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 1, cereals: 0, bread: 0.5 },
 };
 export const MEAL_OFFER = {

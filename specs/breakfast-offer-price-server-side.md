@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented |
 | **Branch** | `docs/breakfast-offer-price-server` |
 | **Created** | 2026-10-24 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #767 |
 
 ---
 
@@ -300,13 +300,24 @@ Figures reuse the SAS fixtures (`client/src/plugins/sas/__tests__/sasFixtures.js
 
 ## 9. Open questions
 
-- **Q1** — Apply rules 5-6 to the « Restauration » card options (C5, the meals) in the same PR?
-  - Default: **yes** — `salesBlock` shapes every sold line the same way, the client code is a
-    copy of C2, and leaving it would keep one counted-in-React figure on the next page.
-- **Q2** — `perMorning.persons` on a re-opened SAS: this SAS's own number (rule 2) or always the
-  whole party?
-  - Default: **this SAS's number** — the offer then announces what was actually sold.
-- **Q3** — On a preview error on the mornings page, keep « Suivant » enabled (rule 10) or block it
-  like « Valider »?
-  - Default: **enabled** — nothing is committed from this page, and the recap blocks « Valider »
-    until a fresh answer.
+All three resolved on 2026-10-24: the owner accepted the default of each.
+
+- **Q1 — Resolved (2026-10-24): yes.** Rules 5-6 apply to the « Restauration » card options (C5) in the
+  same PR. `salesBlock` shapes the breakfast and every catering line the same way; the meal's
+  « Quantité : N (m × p pers. servies) = amount » reads the preview. A non-card option keeps the
+  operator's own quantity (an input, not a computation).
+- **Q2 — Resolved (2026-10-24): this SAS's number.** On a re-opened SAS, `perMorning.persons` is the
+  covers already chosen (`selectedPersons`), so the offer announces what was actually sold.
+- **Q3 — Resolved (2026-10-24): « Suivant » stays enabled** when the preview fails; the recap blocks
+  « Valider » until a fresh answer.
+
+## 10. Implementation notes
+
+- `plan.lines` of `planArrivalSas` carry `moments` and `servedPersons` for a sold line; the recap
+  strips them from `lines` and exposes them in `sales` only.
+- `servedFor` in the dialog is capped like the server (`min(…, max(1, party, maxPersons))`); the
+  stepper follows the server's `servedPersons` once a fresh answer differs (rule 11).
+- The error banner (« Montant indisponible » + « Réessayer ») is also shown under « Total
+  restauration » (same states as the mornings page).
+- `sas` plugin `1.2.0 → 1.3.0`; tests: `breakfast-offer-price.unit.test.js` (7),
+  `sas-breakfast-sales-block.unit.test.js` (5), `ReservationSasDialog.breakfast-offer-price.test.jsx` (6).

@@ -206,13 +206,13 @@ function PaymentModeButtons({
 // hidden: no reachable server → « Total indisponible » + « Réessayer »; a plugin refusing the draft
 // (409, e.g. a slot taken meanwhile) → its reason + the way back to its step.
 const RECAP_REFUSALS = { SLOT_CONFLICT: 'Ce créneau n’est plus libre.' };
-function RecapPreviewError({ error, onRetry, onBack }) {
+function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisponible : pas de réponse du serveur.' }) {
   const refused = Number(error?.status) === 409;
   return (
     <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 0.5 })}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {refused ? (RECAP_REFUSALS[error?.error] || 'Le récapitulatif est refusé.') : 'Total indisponible : pas de réponse du serveur.'}
+          {refused ? (RECAP_REFUSALS[error?.error] || 'Le récapitulatif est refusé.') : unavailable}
         </Typography>
         <Button size="small" color="inherit" onClick={refused ? onBack : onRetry} sx={{ minHeight: 44 }}>
           {refused ? 'Revenir à l’étape' : 'Réessayer'}
@@ -722,7 +722,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const salesPersons = Number(salesOffer?.persons || 0);
   // Covers of one card option: the operator's number, falling back to the party the server announced
   // (specs/card-option-served-persons.md §3.3 rule 11).
-  const servedFor = (offer, picked) => Math.max(1, Number(picked) || Number(offer?.defaultPersons) || salesPersons || 1);
+  // Capped like the server's `resolveServedPersons`: never above the party or the capacity.
+  const servedFor = (offer, picked) => Math.min(
+    Math.max(1, Number(picked) || Number(offer?.defaultPersons) || salesPersons || 1),
+    Math.max(1, salesPersons, Number(offer?.maxPersons) || 0),
+  );
   const soldSelections = useMemo(() => {
     if (mode !== 'arrival' || !salesOffer) return [];
     const out = [];
@@ -731,7 +735,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const occurrences = breakfastMornings.filter((m) => m.checked).map(({ date, time }) => ({ date, time }));
       if (occurrences.length > 0) {
         const persons = servedFor(bf, breakfastServed);
-        out.push({ offer: bf, occurrences, persons, units: occurrences.length * (bf.perPerson ? persons : 1) });
+        out.push({ offer: bf, occurrences, persons });
       }
     }
     if (salesOffer.catering?.available && cateringWanted === true) {
@@ -740,7 +744,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           const occurrences = (cateringGrids[opt.optionId] || []).filter((o) => o.checked).map(({ date, time }) => ({ date, time }));
           if (occurrences.length > 0) {
             const persons = servedFor(opt, cateringServed[opt.optionId]);
-            out.push({ offer: opt, occurrences, persons, units: occurrences.length * (opt.perPerson ? persons : 1) });
+            out.push({ offer: opt, occurrences, persons });
           }
         } else {
           const units = Number(cateringUnits[opt.optionId]) || 0;
@@ -789,13 +793,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // estimate of ours. « — » until the server answered at all.
   const previewDim = preview.pending ? { opacity: 0.55, transition: 'opacity 150ms ease-out' } : { transition: 'opacity 150ms ease-out' };
   const money = (value) => (value == null ? '—' : formatCurrency(value));
-  // The sale steps' amounts, as the server prices them (rule 16): `null` until it answered.
-  const saleAmount = (optionId) => {
-    if (!recap) return null;
-    if (Number(recap.sales?.breakfast?.optionId) === Number(optionId)) return recap.sales.breakfast.amount;
-    const line = (recap.sales?.catering?.options || []).find((o) => Number(o.optionId) === Number(optionId));
-    return line ? line.amount : null;
-  };
+  // The covers the server priced win over a stale stepper ceiling (breakfast-offer-price-server-side.md
+  // rule 11): when the fresh answer serves another number than the one typed, the stepper follows.
+  const serverBreakfastCovers = preview.fresh ? Number(recap?.sales?.breakfast?.servedPersons) || 0 : 0;
+  const breakfastMomentsSold = preview.fresh ? Number(recap?.sales?.breakfast?.moments) || 0 : 0;
+  const typedBreakfastCovers = servedFor(salesOffer?.breakfast, breakfastServed);
+  useEffect(() => {
+    if (breakfastMomentsSold > 0 && serverBreakfastCovers > 0 && serverBreakfastCovers !== typedBreakfastCovers) {
+      setBreakfastServed(serverBreakfastCovers);
+    }
+  }, [breakfastMomentsSold, serverBreakfastCovers, typedBreakfastCovers]);
 
   // « label : qty × unitPrice € = total € » when there is a meaningful quantity, else « label : total € ».
   // Always the REAL price (specs/sas-offer-complement-lines.md §3.1 rule 2): an offered line shows what
@@ -1305,13 +1312,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       }
       case 'breakfastSale': {
         const bf = salesOffer.breakfast;
-        const perMorning = Math.round(Number(bf.unitPrice) * (bf.perPerson ? salesPersons : 1) * 100) / 100;
+        const { perMorning } = bf;
         return (
           <Stack spacing={1.5}>
             <Typography variant="body1">Le client n'a pas pris le petit déjeuner.</Typography>
             <Typography variant="body2">
               Tarif : <strong>{formatCurrency(bf.unitPrice)}</strong> {bf.perPerson ? 'par personne et par matin' : 'par matin'}
-              {bf.perPerson ? ` — ${formatCurrency(perMorning)} le matin pour ${salesPersons} pers.` : ''}
+              {perMorning && bf.perPerson ? ` — ${formatCurrency(perMorning.amount)} le matin pour ${perMorning.persons} pers.` : ''}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {bf.mornings.length} matin{bf.mornings.length > 1 ? 's' : ''} possible{bf.mornings.length > 1 ? 's' : ''} sur ce séjour.
@@ -1324,7 +1331,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const bf = salesOffer.breakfast;
         const chosen = breakfastMornings.filter((m) => m.checked).length;
         const served = servedFor(bf, breakfastServed);
-        const units = chosen * (bf.perPerson ? served : 1);
+        const sale = recap && !preview.error ? recap.sales?.breakfast : null;
         return (
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Quels matins ?</Typography>
@@ -1334,10 +1341,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 m.date === date && (m.slot ?? 0) === slot ? { ...m, checked } : m
               )))}
               quantityText={(
-                <>
-                  Quantité&nbsp;: <strong>{units}</strong>
-                  {bf.perPerson ? ` (${chosen} × ${served} pers. servies)` : ''}
-                </>
+                <span style={{ fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+                  Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
+                  {sale && bf.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''}
+                </span>
               )}
             />
             {/* specs/card-option-served-persons.md §3.3 — tout le monde ne prend pas le petit
@@ -1353,9 +1360,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               />
             )}
             <Divider />
-            <Typography variant="body2" sx={{ fontWeight: 700, ...previewDim }}>
-              {units} petit{units > 1 ? 's' : ''} déjeuner{units > 1 ? 's' : ''} — {money(saleAmount(bf.optionId))}
+            <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+              {sale
+                ? `${sale.units} petit${sale.units > 1 ? 's' : ''} déjeuner${sale.units > 1 ? 's' : ''} — ${money(sale.amount)}`
+                : '—'}
             </Typography>
+            {preview.error && (
+              <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+            )}
             {chosen === 0 && (
               <Typography variant="body2" color="warning.main">Aucun matin sélectionné — le petit déjeuner ne sera pas ajouté.</Typography>
             )}
@@ -1380,10 +1392,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               const chosen = grid.filter((x) => x.checked).length;
               const picked = Boolean(cateringPicked[o.optionId]);
               const served = servedFor(o, cateringServed[o.optionId]);
-              const units = o.showsPlanningCard
-                ? chosen * (o.perPerson ? served : 1)
-                : Number(cateringUnits[o.optionId]) || 0;
-              const amount = money(saleAmount(o.optionId));
+              const units = o.showsPlanningCard ? chosen : Number(cateringUnits[o.optionId]) || 0;
+              const sale = recap && !preview.error
+                ? (recap.sales?.catering?.options || []).find((x) => Number(x.optionId) === Number(o.optionId)) : null;
+              const amount = money(sale ? sale.amount : null);
               return (
                 <Box key={o.optionId} sx={{ py: 0.5 }}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -1425,11 +1437,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                             x.date === date && (x.slot ?? 0) === slot ? { ...x, checked } : x
                           )),
                         }))}
-                        quantityText={units > 0 ? (
-                          <>
-                            Quantité&nbsp;: <strong>{units}</strong>
-                            {o.perPerson ? ` (${chosen} × ${served} pers. servies)` : ''} = {amount}
-                          </>
+                        quantityText={chosen > 0 ? (
+                          <span style={{ fontVariantNumeric: 'tabular-nums', ...previewDim }}>
+                            Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
+                            {sale && o.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''} = {amount}
+                          </span>
                         ) : 'Choisissez les moments servis'}
                       />
                       {/* specs/card-option-served-persons.md §3.3 — le nombre de couverts, quand les
@@ -1459,6 +1471,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="body2" sx={{ fontWeight: 700, pt: 1, ...previewDim }}>
               Total restauration : {money(recap ? recap.sales?.catering?.amount ?? 0 : null)}
             </Typography>
+            {preview.error && (
+              <RecapPreviewError error={preview.error} onRetry={preview.retry} onBack={backToRefusingStep} unavailable="Montant indisponible" />
+            )}
           </Stack>
         );
       }
