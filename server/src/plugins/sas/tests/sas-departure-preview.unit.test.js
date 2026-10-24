@@ -107,6 +107,10 @@ test('rules 22, 23 — a displayed total that differs: committed anyway, warned,
   assert.equal(line.label, 'Total du récapitulatif de départ');
   assert.equal(line.fromText, 'affiché 80,00 €');
   assert.equal(line.toText, 'enregistré 93,00 €');
+  // Rule 23 — one more change of the departure entry, not an entry of its own.
+  const entries = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND eventType = 'sas_departure'").all(id);
+  assert.equal(entries.length, 1);
+  assert.ok(JSON.parse(entries[0].changedFields).length > 1, 'it sits beside the other changes of the check-out');
 });
 
 test('rule 23 — no history line when the totals match', () => {

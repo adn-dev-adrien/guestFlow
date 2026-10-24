@@ -137,10 +137,14 @@ the commit runs, so that what the operator collects at the door is what the book
    issued by the server (§4.3: `stored:<index>:<fingerprint>`, the fingerprint hashing label, amount,
    `source` and `key` of the stored line). A key that no longer matches the stored line is ignored —
    the line is billed at its real price — and rule 22 reports the difference. A stored line absent
-   from `storedLines` is kept as stored.
+   from `storedLines` is kept as stored. The keys are recomputed by the server at every preview (a
+   mid-stay sync can rewrite the detail between the load and the recap): the dialog builds `storedLines`
+   from the `group: 'stored'` keys of the **last** preview, and a line the server reports offered under
+   a key never seen before keeps its « ✓ Offert ».
 10. **The adjustment line is never a recap line.** The « Ajustement » line of the stored detail is
     filtered out of the plan's lines and re-computed by `reconcileEndOfStayLines` exactly as the commit
-    does today; the recap announces it as `adjusted` (rule 24). Finding 2 of §1.1 closes.
+    does today; the recap announces it as `adjusted` (rule 24). Finding 2 of §1.1 closes. One exception
+    (rule 24): an adjustment with no real line behind it.
 11. **The recalled arrival lines keep their offered set.** `offeredArrivalExtras: [{ kind, id }]` is
     unchanged. Whether the set is authoritative is decided by the planner's `isRecalled`, never by the
     dialog: the dialog sends the set whenever it has one, the server ignores it when the arrival is not
@@ -149,9 +153,11 @@ the commit runs, so that what the operator collects at the door is what the book
     `departureSeed: { missingItems: { [itemId]: qty }, cleaningCharged, extinguisherQty: { [repairKey]:
     qty }, storedKeys: [...], offeredKeys: [...] }`, built from the stored detail by the same classifier
     as the planner (`reservationsModel.buildDepartureSeed`). `missingItems`, `cleaningCharged` and
-    `extinguisherQty` are served only once a departure SAS was committed (a fresh run starts blank);
-    `storedKeys` and `offeredKeys` — the carried lines, the recalled arrival lines already offered, and
-    the SAS's own lines once committed — are always served. The dialog seeds its state from it and no
+    `extinguisherQty` are served whatever `departureSasDoneAt` says (2026-10-24 review): a row stored
+    before that marker existed, or a line written outside the SAS, must come back in the dialog instead
+    of being dropped by the next commit, which rebuilds those lines from intent. `storedKeys` and
+    `offeredKeys` — the carried lines, the recalled arrival lines already offered, the SAS's own lines —
+    are served likewise. The dialog applies the ménage answer only when a SAS was committed. The dialog seeds its state from it and no
     longer divides an amount by a price (`:552`). Where a stored linen line carries no `qty`, the server
     falls back to `round(amount / price)`, the arithmetic the dialog used to run.
 
@@ -205,7 +211,10 @@ the commit runs, so that what the operator collects at the door is what the book
     recalled arrival, `recall.total` is what `reapplyComplementOverride` leaves and
     `adjusted.arrival` says so. The recap adds a muted line under the total: « Montant ajusté sur la
     fiche (calcul : 93,00 €) » for the end-of-stay amount, « Complément d'arrivée ajusté sur la fiche
-    (calcul : … ) » for the arrival one. Findings 2 and 3 close.
+    (calcul : … ) » for the arrival one. When the adjustment has **no real line** behind it (an announced
+    20 € and nothing billed), the total would sit on no line: the plan then adds one `group:
+    'adjustment'` line « Ajustement », not offerable, carrying the announced amount. Findings 2 and 3
+    close.
 25. **The commit response is the recap.** `{ ok, recap: DepartureRecap, warning }`; the dialog reads no
     amount from anywhere else after a commit. The `recap` is the plan the commit executed (computed
     just before the writes), not a re-plan of the state after them — which would already show the
@@ -217,8 +226,12 @@ the commit runs, so that what the operator collects at the door is what the book
     `reservationsModel` list of `server/src/plugins/sdk/coreModules.json`, and `departureSasPlan` joins
     the core modules of `server/src/plugins/sdk/index.js` (the `sas` plugin's `departureRecap.js` reads
     it as `arrivalRecap.js` reads `arrivalSasPlan`). Adding entry points is a MINOR bump
-    (`plugins/sdk/version.js`): `2.0.0` → `2.1.0`. No plugin range moves (`^2.0.0` accepts 2.1.0); only
-    `sas` is bumped (minor, with a French changelog line), as `check-plugin-versions.mjs` requires.
+    (`plugins/sdk/version.js`): `2.0.0` → `2.1.0`. Only `sas` moves, since only it calls the new entry
+    points (`departureSasPlan`, `planDepartureSas`, `resolveSasDepartureItems`, `buildDepartureSeed`
+    and the client `api.previewDepartureSas`): minor bump to 1.3.0 with its French changelog lines,
+    `sdk` raised to `^2.1.0` and `guestflow` to `>=3.15.0` — the first core release after v3.14.1, the
+    one that ships SDK 2.1.0 — so an older core refuses the package instead of failing on a missing
+    function. The other plugins keep `^2.0.0`, which 2.1.0 satisfies.
 27. **No departure money contract for plugin steps.** `sas.departure.steps` keeps `recapNotes` (text)
     only. Billing at check-out through a `sasCommit` hook is out of scope (§8); a step that wants it
     later gets it the arrival way, server-side.

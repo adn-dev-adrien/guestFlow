@@ -3377,10 +3377,9 @@ function createReservationsModel(database) {
     },
 
     // The re-edit seed of the departure SAS (rule 12): what the stored detail says the operator decided,
-    // read by the same classification as the planner. The decisions of the SAS itself (missing linen,
-    // ménage, extinguisher) come back only once a departure SAS was committed — a fresh run starts
-    // blank — while the stored lines to carry and the offered flags of the lines decided elsewhere
-    // (carried, recalled arrival) are always served.
+    // read by the same classification as the planner. Served whatever `departureSasDoneAt` says: a row
+    // stored before that marker existed, or a line written outside the SAS, must come back in the
+    // dialog instead of being dropped by the next commit (the planner rebuilds those lines from intent).
     buildDepartureSeed(reservationId) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       const seed = {
@@ -3397,7 +3396,7 @@ function createReservationsModel(database) {
         seed.storedKeys.push(key);
         if (Number(line.offered || 0) === 1) seed.offeredKeys.push(key);
       }
-      if (row.departureSasDoneAt) {
+      {
         for (const { line, kind } of rebuilt) {
           const offered = Number(line.offered || 0) === 1;
           if (kind === 'extinguisher') {
@@ -3508,6 +3507,16 @@ function createReservationsModel(database) {
         .sort((a, b) => rank(a.w) - rank(b.w) || a.i - b.i)
         .map(({ w }) => lineOf(w));
       const extinguisherTotal = round2(lines.filter((l) => l.group === 'extinguisher').reduce((s, l) => s + l.billed, 0));
+      const endOfStayAdjusted = endOfStayOverride != null && round2(reconciled.amount) !== round2(reconciled.real)
+        ? { amount: reconciled.amount, engineAmount: reconciled.real } : null;
+      // An adjustment with no real line behind it would leave the total on no line at all: it then gets
+      // its own, not offerable (rule 24). With real lines the note under the total says it.
+      if (endOfStayAdjusted && lines.length === 0 && reconciled.amount > 0) {
+        lines.push({
+          key: null, group: 'adjustment', label: 'Ajustement', qty: 1, unitPrice: reconciled.amount,
+          real: reconciled.amount, billed: reconciled.amount, offerable: false, offered: false,
+        });
+      }
 
       // The recalled arrival complement (rule 11): only while something is still owed on it.
       const recalls = isRecalled({ amount: row.complementAmount, paid: row.complementPaid });
@@ -3543,8 +3552,6 @@ function createReservationsModel(database) {
         recall = { shown: true, framing: lines.length > 0 ? 'merged' : 'alone', total: after.total };
         if (after.adjusted) arrivalAdjusted = { amount: after.total, engineAmount: after.engineAmount };
       }
-      const endOfStayAdjusted = endOfStayOverride != null && round2(reconciled.amount) !== round2(reconciled.real)
-        ? { amount: reconciled.amount, engineAmount: reconciled.real } : null;
       const paid = Number(row.endOfStayComplementPaid || 0) === 1;
       return {
         detail,

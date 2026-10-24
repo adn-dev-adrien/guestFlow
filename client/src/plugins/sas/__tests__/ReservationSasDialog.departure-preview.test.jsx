@@ -186,3 +186,64 @@ test('an adjusted end-of-stay total says so under the total, and the Ajustement 
   expect(screen.getByText('Montant ajusté sur la fiche (calcul : 80,00 €)')).toBeInTheDocument();
   expect(screen.queryByText(/Ajustement/)).toBeNull();
 });
+
+// rule 9 — the keys of the stored lines are the server's, recomputed at every preview
+test('a stored line’s key follows the last answer: « Offrir » still reaches it after the server re-keyed it', async () => {
+  const payload = sasPayload({
+    reservation: {
+      cautionAmount: 0,
+      endOfStayComplementDetail: JSON.stringify([{ label: 'Linge de toilette', qty: 3, unitPrice: 8, amount: 24, source: 'arrivalBathLinen' }]),
+    },
+    cleaning: { included: true, price: null },
+  });
+  api.getReservationSas.mockResolvedValue(payload);
+  // A mid-stay sync rewrote the detail between the load and the recap: the server now names the line otherwise.
+  api.previewDepartureSas.mockImplementation((id, draft) => wait(0).then(() => {
+    const back = { ...draft, storedLines: (draft.storedLines || []).map((x) => ({ ...x, key: 'stored:0:test' })) };
+    const recap = departureRecapFor(payload, back);
+    return { ...recap, lines: recap.lines.map((l) => (l.key === 'stored:0:test' ? { ...l, key: 'stored:0:fresh' } : l)) };
+  }));
+  renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/serviettes ou des draps/);
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+  await screen.findByText(/Linge de toilette : 3 × 8,00 € = 24,00 €/);
+  await waitFor(() => {
+    const last = api.previewDepartureSas.mock.calls.at(-1)[1];
+    expect(last.storedLines).toEqual([{ key: 'stored:0:fresh', offered: false }]);
+  });
+  clickBtn('Offrir');
+  await waitFor(() => expect(screen.queryByText(/Total à percevoir/)).toBeNull());
+  const last = api.previewDepartureSas.mock.calls.at(-1)[1];
+  expect(last.storedLines).toEqual([{ key: 'stored:0:fresh', offered: true }]);
+});
+
+// rule 12 — a row stored before the SAS marker existed is pre-filled, not dropped
+test('lines the server seeds on a never-committed departure come back in the draft', async () => {
+  api.getReservationSas.mockResolvedValue({
+    ...PAYLOAD,
+    departureSeed: {
+      missingItems: { 4: 2 }, cleaningCharged: false, extinguisherQty: {}, storedKeys: [], offeredKeys: [],
+    },
+  });
+  renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/fait correctement/);
+  clickBtn('OK');
+  await screen.findByText(/serviettes ou des draps/);
+  clickBtn('Oui');
+  await screen.findByText('Éléments manquants');
+  clickBtn('Suivant');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+  await screen.findByText('Récapitulatif fin de séjour');
+  expect(api.previewDepartureSas.mock.calls[0][1].missingItems).toEqual([{ itemId: 4, qty: 2, offered: false }]);
+});

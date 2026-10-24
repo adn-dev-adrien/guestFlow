@@ -234,13 +234,30 @@ test('edge — re-opened with an unchanged draft: the stored total, never double
   assert.equal(commit(id, draft).endOfStayComplementAmount, 93);
 });
 
-test('edge — a fresh departure SAS seeds nothing but the carried lines and the recalled offered flags', () => {
+test('rule 12 — a legacy row (no departureSasDoneAt) with a stored linen line is seeded too, not dropped by the next commit', () => {
   const id = stay({
     endOfStayComplementDetail: stored({ label: 'Serviette', qty: 2, unitPrice: 6.5, amount: 13 }),
   });
   const seed = model.buildDepartureSeed(id);
-  assert.deepEqual(seed.missingItems, {}, 'the stored linen line is a previous run’s decision; not reopened before a commit');
+  assert.deepEqual(seed.missingItems, { [TOWEL]: 2 });
   assert.deepEqual(seed.storedKeys, []);
+  const again = commit(id, { missingItems: Object.entries(seed.missingItems).map(([itemId, qty]) => ({ itemId: Number(itemId), qty })) });
+  assert.equal(again.endOfStayComplementAmount, 13, 'the line survives the commit');
+});
+
+test('rule 24 — an adjustment with no real line behind it gets its own visible, not offerable line', () => {
+  const id = stay({ complementAmount: 30, complementAmountOverride: null, endOfStayComplementAmountOverride: 20 });
+  db.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement) VALUES (?, 'Panier', 30, 1)").run(id);
+  const p = plan(id, {});
+  assert.equal(p.endOfStayTotal, 20);
+  assert.equal(p.grandTotal, 50);
+  const adjustment = p.lines.find((l) => l.group === 'adjustment');
+  assert.deepEqual(adjustment, {
+    key: null, group: 'adjustment', label: 'Ajustement', qty: 1, unitPrice: 20, real: 20, billed: 20, offerable: false, offered: false,
+  });
+  assert.equal(p.recall.framing, 'merged');
+  // With a real line behind it, the note says it and no line is added.
+  assert.equal(plan(id, { cleaningCharged: true }).lines.some((l) => l.group === 'adjustment'), false);
 });
 
 test('pure — a stored line key changes with the line; the classification tells rebuilt from kept', () => {

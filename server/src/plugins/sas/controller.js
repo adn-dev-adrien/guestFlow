@@ -108,9 +108,9 @@ function foldGroupedPayment(reservationId, changes) {
   ];
 }
 
-function recordSasHistory(reservationId, eventType, before) {
+function recordSasHistory(reservationId, eventType, before, extraChanges = []) {
   try {
-    const changes = foldGroupedPayment(reservationId, computeSasChanges(before, snapshotSas(reservationId)));
+    const changes = [...foldGroupedPayment(reservationId, computeSasChanges(before, snapshotSas(reservationId))), ...extraChanges];
     if (changes.length > 0) reservationsModel.addHistoryEntry(reservationId, eventType, changes);
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -406,14 +406,17 @@ function previewArrival(req, res) {
 // specs/sas-arrival-total-server-side.md rule 22bis, specs/sas-departure-recap-server-side.md rule 23 —
 // the history line that keeps what the operator was shown next to what was recorded.
 const formatEuro = (n) => `${round2(n).toFixed(2).replace('.', ',')} €`;
-function recordTotalDifference(reservationId, eventType, { field, label }, warning) {
+function totalDifferenceChange({ field, label }, warning) {
+  return {
+    field,
+    label,
+    fromText: `affiché ${formatEuro(warning.displayed)}`,
+    toText: `enregistré ${formatEuro(warning.stored)}`,
+  };
+}
+function recordTotalDifference(reservationId, eventType, history, warning) {
   try {
-    reservationsModel.addHistoryEntry(reservationId, eventType, [{
-      field,
-      label,
-      fromText: `affiché ${formatEuro(warning.displayed)}`,
-      toText: `enregistré ${formatEuro(warning.stored)}`,
-    }]);
+    reservationsModel.addHistoryEntry(reservationId, eventType, [totalDifferenceChange(history, warning)]);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(`[sas-history] ${eventType} total difference on reservation ${reservationId} not recorded: ${err.message}`);
@@ -611,15 +614,15 @@ function commitDeparture(req, res) {
     complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
     complementsPaidCash: Boolean(complementsPaidCash),
   });
-  recordSasHistory(id, 'sas_departure', beforeSas);
   // Rules 22-23 — the total the recap showed is compared, never used: the commit went through on its
-  // own plan, and a difference is said and kept. `stored` is what was written.
+  // own plan, and a difference is said and kept, as one more change of the `sas_departure` entry.
+  // `stored` is what was written.
   const written = reservationsModel.getRow(id) || {};
   const stored = round2(Number(written.endOfStayComplementAmount || 0) + (plan.recall ? Number(written.complementAmount || 0) : 0));
   const warning = totalDiffered(displayedDepartureTotal, stored)
     ? { code: 'DEPARTURE_TOTAL_DIFFERED', displayed: round2(displayedDepartureTotal), stored }
     : null;
-  if (warning) recordTotalDifference(id, 'sas_departure', DEPARTURE_TOTAL_HISTORY, warning);
+  recordSasHistory(id, 'sas_departure', beforeSas, warning ? [totalDifferenceChange(DEPARTURE_TOTAL_HISTORY, warning)] : []);
   return res.json({ ok: true, recap, warning });
 }
 

@@ -455,6 +455,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           const departureSeed = d.departureSeed || {};
           setStoredKeys(departureSeed.storedKeys || []);
           (departureSeed.offeredKeys || []).forEach((key) => seed.add(key));
+          // Lines stored before the SAS marker existed (or written outside it) come back too: the
+          // commit rebuilds the end-of-stay lines from intent, so they would otherwise be dropped.
+          const seededMissing = departureSeed.missingItems || {};
+          setMissingDep(seededMissing); setExtinguisherQty(departureSeed.extinguisherQty || {});
+          if (Object.keys(seededMissing).length > 0) setMissingAsk(true);
         }
 
         // Re-edit pre-fill (specs/reopen-completed-sas.md §2): a SAS already committed reopens with
@@ -521,11 +526,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // a price here. A stored ménage line billed before the cleaning was sold is not re-sent: with
           // the page hidden the answer is forced back to « fait » (specs/defer-arrival-complement-to-
           // checkout.md §3.1 rule 4 — re-running the SAS is how an over-billed stay is corrected).
-          const departureSeed = d.departureSeed || {};
-          const seededMissing = departureSeed.missingItems || {};
-          setMissingDep(seededMissing); setExtinguisherQty(departureSeed.extinguisherQty || {});
-          setCleaningOk(d.cleaning?.included ? true : !departureSeed.cleaningCharged);
-          setMissingAsk(Object.keys(seededMissing).length > 0 ? true : null);
+          setCleaningOk(d.cleaning?.included ? true : !(d.departureSeed || {}).cleaningCharged);
         }
         setOffered(seed);
       })
@@ -751,6 +752,21 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     resetKey: `${open ? 1 : 0}:${reservationId}:${mode}`,
   });
   const recap = preview.recap;
+  // specs/sas-departure-recap-server-side.md rule 9 — a stored line's key is recomputed by the server at
+  // every preview (a mid-stay sync can rewrite the detail between the load and the recap): the draft
+  // follows the keys of the LAST answer, and a line the server reports offered under a key never seen
+  // before keeps its « ✓ Offert ». A key already known is never re-seeded, so withdrawing a gesture holds.
+  const storedKeysRef = useRef(storedKeys);
+  storedKeysRef.current = storedKeys;
+  useEffect(() => {
+    if (mode !== 'departure' || !recap) return;
+    const lines = recap.lines.filter((l) => l.group === 'stored' && l.key);
+    const keys = lines.map((l) => l.key);
+    const known = new Set(storedKeysRef.current);
+    const fresh = lines.filter((l) => l.offered && !known.has(l.key)).map((l) => l.key);
+    if (fresh.length > 0) setOffered((prev) => new Set([...prev, ...fresh]));
+    setStoredKeys((prev) => (prev.length === keys.length && prev.every((k, i) => k === keys[i]) ? prev : keys));
+  }, [mode, recap]);
   // Rule 21 — a plugin refused the draft: back to the first plugin page of this run, where the
   // operator fixes it (the scheduling step for a slot taken meanwhile).
   const backToRefusingStep = () => {
