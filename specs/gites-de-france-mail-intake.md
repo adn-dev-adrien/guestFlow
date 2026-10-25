@@ -314,7 +314,10 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
 ## 9. Open questions
 
 1. **IMAP host/port**: derived from the SMTP host by default, editable in the plugin settings —
-   confirm on the first « Tester la connexion ».
+   confirm on the first « Tester la connexion ». *Amended 2026-10-25 (specs/airbnb-mail-intake.md rule 4):*
+   the default was the SMTP host itself (`smtp.gmail.com`), on which no IMAP pass can connect; it is now
+   deduced as `imap.<domain>`. The reader moved to the SDK (`sdk.mailbox.readMailsFrom`), shared with the
+   Airbnb intake plugin.
 
 **Resolved (2026-10-15, operator):**
 

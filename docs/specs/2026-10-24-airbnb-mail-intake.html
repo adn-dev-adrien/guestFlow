@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saisie Airbnb</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-soft:#E3ECE6;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E4DED2;
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root{--primary:#7FB596;--primary-soft:#22352B;--paper:#1B1A17;--card:#25231F;--ink:#EEEAE0;--muted:#A7A192;--line:#3A3730;
+    --success:#7FB596;--success-soft:#22352B;--warning:#D9B15E;--warning-soft:#3A3120;--error:#E08C82;--error-soft:#3D2522;--info:#8FB4CF;--info-soft:#22303A;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);-webkit-text-size-adjust:100%}
+main{max-width:1080px;margin:0 auto;padding:32px 16px 64px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;letter-spacing:-.01em;margin:0}
+h1{font-size:1.9rem}
+h2{font-size:1.25rem;margin:40px 0 12px}
+h3{font-size:1.05rem;margin-bottom:10px}
+p{margin:0 0 10px}
+.lead{color:var(--muted);max-width:70ch;margin-top:8px}
+.meta{font-size:.82rem;color:var(--muted);margin-bottom:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.grid3{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+ul{margin:0;padding-left:18px}
+li{margin:4px 0}
+.num{font-variant-numeric:tabular-nums}
+.demo{display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+@media (max-width:820px){.demo{grid-template-columns:1fr}}
+.seg{display:inline-flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chipbtn{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;cursor:pointer;min-height:44px}
+.chipbtn:hover{border-color:var(--primary)}
+.chipbtn:active{transform:scale(.97);transition:transform 100ms ease-out}
+.chipbtn[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.mail{font-size:.88rem}
+.mail .from{color:var(--muted);font-size:.78rem;margin-bottom:8px}
+.mrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line)}
+.mrow:last-child{border-bottom:0}
+.mrow input{width:110px;font:inherit;font-variant-numeric:tabular-nums;text-align:right;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--card);color:var(--ink);min-height:36px}
+.mrow input:focus{outline:2px solid var(--primary);outline-offset:1px}
+.colhead{font-weight:600;font-size:.82rem;margin:12px 0 2px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.line{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:9px 0;border-bottom:1px solid var(--line);align-items:center}
+.line:last-child{border-bottom:0}
+.line .sub{grid-column:1/-1;font-size:.78rem;color:var(--muted)}
+.amt{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.ok{color:var(--success);font-weight:600}
+.ko{color:var(--error);font-weight:600}
+.banner{border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px;animation:arrive .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes arrive{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.banner{animation:none}}
+.banner.applied{background:var(--success-soft);color:var(--success)}
+.banner.proposal{background:var(--info-soft);color:var(--info)}
+.banner.error{background:var(--error-soft);color:var(--error)}
+.banner p{margin:0;color:var(--ink)}
+.banner .acts{display:flex;gap:8px}
+@media (max-width:600px){.banner .acts{width:100%;flex-direction:column}.banner .acts button{width:100%}}
+.btn{font:inherit;font-size:.85rem;border-radius:10px;padding:8px 14px;min-height:44px;cursor:pointer;border:1px solid currentColor;background:transparent;color:inherit}
+.btn.fill{background:var(--info);border-color:var(--info);color:#fff}
+.note{font-size:.8rem;color:var(--muted);margin-top:10px}
+.open{color:var(--warning);font-weight:600}
+.decided{color:var(--success);font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+td,th{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+td.r,th.r{text-align:right}
+.tablewrap{overflow-x:auto}
+.hl{background:var(--warning-soft);border-radius:4px;padding:0 4px}
+</style>
+</head>
+<body>
+<main>
+  <div class="meta">Spec <code>specs/airbnb-mail-intake.md</code> · brouillon du 24/10/2026</div>
+  <h1>Remplir la fiche Airbnb depuis le mail</h1>
+  <p class="lead">À chaque mail « Nouvelle réservation confirmée » reçu sur contact@, le plugin <strong>airbnb-intake</strong> remplit la fiche iCal vierge aux mêmes dates : voyageur, composition, code de confirmation, message du voyageur et paiement plateforme. Une fiche déjà retouchée à la main n'est jamais écrasée.</p>
+
+  <h2>Le constat</h2>
+  <div class="grid3">
+    <div class="card"><span class="tag">Aujourd'hui</span><p>L'iCal Airbnb ne donne que les dates : la fiche arrive au nom de « Reserved Ical », pour 1 adulte et sans montant. Tout se recopie à la main.</p></div>
+    <div class="card"><span class="tag">Le mail</span><p>Il contient presque tout : nom, composition, code, annonce, dates et les deux colonnes d'argent. <strong>Il ne contient pas</strong> le téléphone, l'e-mail, la langue, ni l'année des dates.</p></div>
+    <div class="card"><span class="tag">À trancher</span><p>Deux lignes « Taxes » : celle payée par le voyageur et celle reversée à l'hôte. Ta saisie de 202609003 les lit à l'inverse de ce que les montants suggèrent.</p></div>
+  </div>
+
+  <h2>Du mail à la fiche — à manipuler</h2>
+  <p class="lead">Les montants du mail de 202610003 (fiche 22326, encore vierge). Modifie une valeur : le plugin vérifie que les deux colonnes tombent juste au centime, et refuse le mail sinon.</p>
+  <div class="seg" role="group" aria-label="Lecture des taxes">
+    <button class="chipbtn" data-reading="A" aria-pressed="true">Lecture A · taxe gardée par Airbnb</button>
+    <button class="chipbtn" data-reading="B" aria-pressed="false">Lecture B · ta saisie actuelle</button>
+  </div>
+  <div class="demo">
+    <div class="card mail">
+      <h3>Mail Airbnb</h3>
+      <div class="from">automated@airbnb.com · « Réservation confirmée : Louis Toussaint arrive le 26 déc. »</div>
+      <div class="mrow"><span>Voyageurs</span><span>5 adultes, 6 enfants, 2 bébés</span></div>
+      <div class="mrow"><span>Dates</span><span>sam. 26 déc. → mer. 30 déc.</span></div>
+      <div class="mrow"><span>Code de confirmation</span><span>HMN2HQHJAQ</span></div>
+      <div class="colhead">Le voyageur a payé</div>
+      <div class="mrow"><label for="nights">4 nuits</label><input id="nights" value="1154,60" inputmode="decimal"></div>
+      <div class="mrow"><label for="clean">Frais de ménage</label><input id="clean" value="0,00" inputmode="decimal"></div>
+      <div class="mrow"><label for="gtax">Taxes</label><input id="gtax" value="81,66" inputmode="decimal"></div>
+      <div class="mrow"><label for="total">Total (EUR)</label><input id="total" value="1236,26" inputmode="decimal"></div>
+      <div class="colhead">Versement de l'hôte</div>
+      <div class="mrow"><label for="htax">Taxes</label><input id="htax" value="52,80" inputmode="decimal"></div>
+      <div class="mrow"><label for="fee">Frais de service hôte (15,5 %)</label><input id="fee" value="178,96" inputmode="decimal"></div>
+      <div class="mrow"><label for="earn">Vous gagnez</label><input id="earn" value="1028,44" inputmode="decimal"></div>
+    </div>
+    <div>
+      <div id="banner"></div>
+      <div class="card">
+        <h3>Fiche 22326 — Paiement plateforme</h3>
+        <div id="fiche"></div>
+        <div id="checks" class="note"></div>
+      </div>
+    </div>
+  </div>
+  <p class="note">Simulation pour la maquette ; dans l'application, le serveur fait le calcul et la fiche n'affiche que le résultat.</p>
+
+  <h2>Les deux lectures sur les deux réservations mesurées</h2>
+  <div class="tablewrap card" style="padding:6px 12px">
+    <table>
+      <thead><tr><th></th><th class="r">202610003</th><th class="r">202609003</th></tr></thead>
+      <tbody>
+        <tr><td>Taxes payées par le voyageur</td><td class="r num">81,66</td><td class="r num">63,87</td></tr>
+        <tr><td>Taxes reversées à l'hôte</td><td class="r num">52,80</td><td class="r num">24,00</td></tr>
+        <tr><td>= 1,20 € × voyageurs hors bébés × nuits</td><td class="r num">1,20 × 11 × 4</td><td class="r num">1,20 × 10 × 2</td></tr>
+        <tr><td>Frais de service hôte annoncés par Airbnb</td><td class="r num">178,96</td><td class="r num">124,78</td></tr>
+        <tr><td><strong>A</strong> · commission (taxe retenue = gardée par Airbnb)</td><td class="r num ok">178,96</td><td class="r num ok">124,78</td></tr>
+        <tr><td><strong>B</strong> · commission (taxe retenue = reversée à l'hôte)</td><td class="r num ko">155,02</td><td class="r num ko">140,65</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Seule la lecture A retombe exactement sur les frais d'Airbnb. Mais elle suppose que le voyageur paie deux taxes : celle qu'Airbnb reverse lui-même à la commune, et 1,20 €/personne/nuit qui te revient — à vérifier dans les réglages « Taxes » de l'annonce.</p>
+
+  <h2>Les bannières de la fiche</h2>
+  <div class="seg" role="group" aria-label="État de la bannière">
+    <button class="chipbtn" data-b="applied" aria-pressed="true">Remplie</button>
+    <button class="chipbtn" data-b="proposal" aria-pressed="false">Fiche déjà modifiée</button>
+    <button class="chipbtn" data-b="error" aria-pressed="false">Mail refusé</button>
+  </div>
+  <div id="bannerDemo"></div>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <ul>
+    <li>Téléphone, e-mail et langue du voyageur : absents du mail, à reprendre sur Airbnb.</li>
+    <li>Mails de modification et d'annulation : l'iCal gère déjà les annulations.</li>
+    <li>Lire les pages hôte d'Airbnb, ou changer les réglages de taxe de l'annonce.</li>
+    <li>Reprendre la fiche 202609003 et les anciennes fiches Airbnb.</li>
+  </ul>
+
+  <h2>Le risque</h2>
+  <ul>
+    <li>Une règle d'argent fausse se recopie sur chaque réservation : le bloc paiement n'est écrit que si les deux colonnes du mail tombent juste <em>et</em> que la commission égale les frais annoncés par Airbnb.</li>
+    <li>Airbnb change le gabarit de son mail : le plugin refuse et le signale au tableau de bord, il ne devine jamais.</li>
+    <li>Le plugin arrive inactif ; rien n'est lu tant qu'aucun logement n'est relié à son annonce.</li>
+  </ul>
+
+  <h2>Arbitrages en attente</h2>
+  <table>
+    <tbody>
+      <tr><td class="decided">Décidé</td><td><strong>Les taxes reversées à l'hôte</strong> : lecture A — la taxe retenue est la part gardée par Airbnb, la commission égale ses frais de service.</td></tr>
+      <tr><td class="decided">Décidé</td><td><strong>Relier l'annonce au logement</strong> : par l'identifiant de l'annonce, présent dans chaque mail et dans l'adresse du flux iCal Airbnb de chaque logement. <strong>Rien à saisir</strong> : La Granja et L'Estiva sont reconnues, et un futur logement le sera dès que son flux est ajouté. Un champ facultatif permet de corriger.</td></tr>
+      <tr><td class="decided">Décidé</td><td><strong>Expéditeur</strong> : Airbnb &lt;automated@airbnb.com&gt;, sujet « Réservation confirmée : … ». Lu sur la partie texte du mail, pas sur le HTML.</td></tr>
+      <tr><td class="decided">Décidé</td><td>La source est le mail, pas les pages Airbnb. La boîte est contact@domainesolio.com.</td></tr>
+    </tbody>
+  </table>
+</main>
+<script>
+(function(){
+  var reading='A', bannerState='applied';
+  var ids=['nights','clean','gtax','total','htax','fee','earn'];
+  function val(id){var n=parseFloat(String(document.getElementById(id).value).replace(/\s/g,'').replace(',','.'));return isNaN(n)?NaN:n}
+  function eur(n){return isNaN(n)?'—':n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'}
+  function c(n){return Math.round(n*100)}
+  var BANNERS={
+    applied:{cls:'applied',text:'Rempli depuis le mail Airbnb du 24/10. Téléphone et e-mail à reprendre sur Airbnb.',acts:'<button class="btn" type="button">Voir sur Airbnb</button><button class="btn" type="button">Fermer</button>'},
+    proposal:{cls:'proposal',text:'Le mail Airbnb du 24/10 (HMN2HQHJAQ) concerne cette fiche, déjà modifiée à la main.',acts:'<button class="btn fill" type="button">Appliquer</button><button class="btn" type="button">Ignorer</button><button class="btn" type="button">Voir sur Airbnb</button>'},
+    error:{cls:'error',text:'Le mail Airbnb du 24/10 n’a pas pu être appliqué : les montants du voyageur ne tombent pas juste.',acts:'<button class="btn" type="button">Voir sur Airbnb</button><button class="btn" type="button">Fermer</button>'}
+  };
+  function bannerHtml(s){var b=BANNERS[s];return '<div class="banner '+b.cls+'" role="status"><p>'+b.text+'</p><div class="acts">'+b.acts+'</div></div>'}
+  function render(){
+    var v={};ids.forEach(function(i){v[i]=val(i)});
+    var guestOk=c(v.nights)+c(v.clean)+c(v.gtax)===c(v.total);
+    var hostOk=c(v.nights)+c(v.clean)+c(v.htax)-c(v.fee)===c(v.earn);
+    var feeOk=Math.round(0.155*(v.nights+v.clean)*100+1e-6)===c(v.fee);
+    var withheld=reading==='A'?(v.gtax-v.htax):v.htax;
+    var commission=v.total-v.earn-withheld;
+    var commOk=reading==='B'||c(commission)===c(v.fee);
+    var allOk=guestOk&&hostOk&&feeOk&&commOk&&ids.every(function(i){return !isNaN(v[i])});
+    document.getElementById('banner').innerHTML=bannerHtml(allOk?'applied':'error');
+    var f=document.getElementById('fiche');
+    if(!allOk){f.innerHTML='<p class="ko">Rien n’est écrit sur la fiche.</p>'}
+    else{
+      f.innerHTML=[
+        ['Montant total payé par le client',eur(v.total),'Total (EUR) du voyageur'],
+        ['Taxe de séjour retenue',eur(withheld),reading==='A'?'taxes du voyageur − taxes reversées à l’hôte':'taxes reversées à l’hôte'],
+        ['Virement reçu',eur(v.earn),'Vous gagnez'],
+        ['Commission',eur(commission),reading==='A'?'= frais de service hôte d’Airbnb':'≠ frais de service hôte ('+eur(v.fee)+')']
+      ].map(function(r){return '<div class="line"><span>'+r[0]+'</span><span class="amt">'+r[1]+'</span><span class="sub">'+r[2]+'</span></div>'}).join('');
+    }
+    function mark(ok,t){return '<span class="'+(ok?'ok':'ko')+'">'+(ok?'✓ ':'✗ ')+t+'</span>'}
+    document.getElementById('checks').innerHTML=[mark(guestOk,'colonne voyageur'),mark(hostOk,'colonne hôte'),mark(feeOk,'frais à 15,5 %'),reading==='A'?mark(commOk,'commission = frais Airbnb'):''].filter(Boolean).join(' · ');
+  }
+  ids.forEach(function(i){document.getElementById(i).addEventListener('input',render)});
+  document.querySelectorAll('[data-reading]').forEach(function(b){b.addEventListener('click',function(){reading=b.dataset.reading;document.querySelectorAll('[data-reading]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});render()})});
+  function renderBanner(){document.getElementById('bannerDemo').innerHTML=bannerHtml(bannerState)}
+  document.querySelectorAll('[data-b]').forEach(function(b){b.addEventListener('click',function(){bannerState=b.dataset.b;document.querySelectorAll('[data-b]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});renderBanner()})});
+  render();renderBanner();
+})();
+</script>
+</body>
+</html>

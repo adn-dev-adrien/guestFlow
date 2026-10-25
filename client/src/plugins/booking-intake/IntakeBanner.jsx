@@ -11,8 +11,7 @@
  *   onReservationChanged   () => void   the fiche reloads after the server wrote it
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Box, Button, Stack, Typography } from '@mui/material';
-import { api } from '../sdk';
+import { api, IntakeBanner as Banner } from '../sdk';
 
 const show = (value) => (value === null || value === undefined || value === '' ? 'vide' : String(value));
 
@@ -45,41 +44,32 @@ export default function IntakeBanner({ reservationId, onReservationChanged }) {
 
   if (!intake) return null;
 
-  const guestWaiting = intake.guestMessagePending && (
-    <Typography variant="body2" sx={{ mt: 0.5 }}>Message client sans réponse sur Booking.</Typography>
-  );
-  const fullOnXs = { flex: { xs: '1 1 100%', sm: '0 0 auto' }, minHeight: 44 };
+  const guestWaiting = intake.guestMessagePending ? 'Message client sans réponse sur Booking.' : null;
 
   if (intake.status === 'applied') {
     return (
-      <Alert severity="success" sx={{ mb: 2 }} onClose={busy ? undefined : () => run(() => api.hideBookingIntake(intake.id), false)}>
+      <Banner severity="success" busy={busy} notes={[guestWaiting]} onClose={() => run(() => api.hideBookingIntake(intake.id), false)}>
         Rempli depuis l’extranet Booking le {intake.appliedLabel}.
-        {guestWaiting}
-      </Alert>
+      </Banner>
     );
   }
 
   if (intake.status === 'proposed') {
     const count = intake.differences.length;
     return (
-      <Alert severity="info" sx={{ mb: 2 }}>
+      <Banner
+        severity="info"
+        busy={busy}
+        error={error}
+        details={intake.differences.map((d) => ({ key: d.field, text: `${d.label} : ${show(d.from)} → ${show(d.to)}` }))}
+        notes={[guestWaiting]}
+        actions={[
+          { key: 'apply', label: 'Appliquer', variant: 'contained', onClick: () => run(() => api.applyBookingIntake(intake.id), true) },
+          { key: 'ignore', label: 'Ignorer', onClick: () => run(() => api.ignoreBookingIntake(intake.id), false) },
+        ]}
+      >
         La page Booking propose {count} valeur{count > 1 ? 's' : ''} différente{count > 1 ? 's' : ''} de la fiche.
-        <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
-          {intake.differences.map((d) => (
-            <li key={d.field}><Typography variant="body2">{d.label} : {show(d.from)} → {show(d.to)}</Typography></li>
-          ))}
-        </Box>
-        {guestWaiting}
-        <Stack direction="row" gap={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
-          <Button size="small" variant="contained" disabled={busy} sx={fullOnXs} onClick={() => run(() => api.applyBookingIntake(intake.id), true)}>
-            Appliquer
-          </Button>
-          <Button size="small" variant="outlined" color="inherit" disabled={busy} sx={fullOnXs} onClick={() => run(() => api.ignoreBookingIntake(intake.id), false)}>
-            Ignorer
-          </Button>
-        </Stack>
-        {error && <Typography variant="body2" color="error" sx={{ mt: 1 }}>{error}</Typography>}
-      </Alert>
+      </Banner>
     );
   }
 

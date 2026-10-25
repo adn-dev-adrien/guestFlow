@@ -4,6 +4,7 @@
 
 const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 const BOOKING_INTAKE = 'booking-intake';
+const AIRBNB_INTAKE = 'airbnb-intake';
 
 const PLUGIN_CATALOG = Object.freeze([
   {
@@ -20,6 +21,13 @@ const PLUGIN_CATALOG = Object.freeze([
     icon: 'bookmark',
     surfaces: ['Paramètres › Intégrations › Saisie Booking', 'Le bandeau en haut de la fiche', 'Une alerte du tableau de bord'],
   },
+  {
+    id: AIRBNB_INTAKE,
+    name: 'Saisie Airbnb',
+    description: 'Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».',
+    icon: 'mail',
+    surfaces: ['Paramètres › Intégrations › Saisie Airbnb', 'Le bandeau en haut de la fiche', 'Une alerte du tableau de bord'],
+  },
 ].map((p) => Object.freeze({ ...p, surfaces: Object.freeze(p.surfaces), requires: Object.freeze([]) })));
 
 const PLUGIN_IDS = Object.freeze(PLUGIN_CATALOG.map((p) => p.id));
@@ -29,6 +37,7 @@ const PLUGIN_IDS = Object.freeze(PLUGIN_CATALOG.map((p) => p.id));
 const PLUGIN_SEED_BATCHES = Object.freeze([
   Object.freeze({ ledger: 'plugins_backport_seed_v1', ids: Object.freeze([GITES_DE_FRANCE_INTAKE]) }),
   Object.freeze({ ledger: 'plugins_backport_seed_v2', ids: Object.freeze([BOOKING_INTAKE]) }),
+  Object.freeze({ ledger: 'plugins_backport_seed_v3', ids: Object.freeze([AIRBNB_INTAKE]) }),
 ]);
 
 function findPlugin(id) {
@@ -38,6 +47,7 @@ function findPlugin(id) {
 module.exports = {
   GITES_DE_FRANCE_INTAKE,
   BOOKING_INTAKE,
+  AIRBNB_INTAKE,
   PLUGIN_CATALOG,
   PLUGIN_IDS,
   PLUGIN_SEED_BATCHES,

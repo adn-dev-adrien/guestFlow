@@ -15,6 +15,8 @@ export { default as StatusBadge } from '../../components/StatusBadge';
 export { default as SummaryItem } from '../../components/SummaryItem';
 export { default as MaskedTextField } from '../../components/MaskedTextField';
 export { default as SecretRevealField } from '../../components/SecretRevealField';
+// The banner every intake plugin shows on the fiche (specs/airbnb-mail-intake.md §4.1).
+export { default as IntakeBanner } from '../../components/IntakeBanner';
 export { displayDate } from '../../utils/formatters';
 // sas — what the guided arrival/departure dialog and its « Facturables » tab render with
 // (specs/plugins-phase-2-hosts.md rule 8). The steps of other plugins reach it through the slots.

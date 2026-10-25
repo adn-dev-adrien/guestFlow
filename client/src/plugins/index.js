@@ -2,7 +2,8 @@
 // allowed to import a plugin folder; everything else goes through `sdk/`.
 import gitesDeFranceIntake from './gites-de-france-intake';
 import bookingIntake from './booking-intake';
+import airbnbIntake from './airbnb-intake';
 
-const PLUGIN_MODULES = [gitesDeFranceIntake, bookingIntake];
+const PLUGIN_MODULES = [gitesDeFranceIntake, bookingIntake, airbnbIntake];
 
 export default PLUGIN_MODULES;
