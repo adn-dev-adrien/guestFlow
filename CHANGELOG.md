@@ -4,6 +4,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-10-25
+
+### Summary
+- Roostview a désormais sa propre clé d'API, en lecture seule : la clé du site WordPress ne change pas.
+- La nouvelle clé ROOSTVIEW_API_KEY est créée au démarrage dans server/.env.local, à coller dans Roostview.
+
+### Added
+- **Roostview API key** (spec `roostview-api-key.md`, 2026-10-25). A second public-API key, `ROOSTVIEW_API_KEY`, auto-generated in `server/.env.local`: read-only (catalogue, availability, quote), 403 everywhere else, never a relayed visitor. The WordPress key is unchanged and either can be rotated alone. +5 server tests.
+
 ## [3.15.1] - 2026-10-25
 
 ### Summary
