@@ -4,6 +4,19 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.15.0] - 2026-10-25
+
+### Summary
+- Nouveau module « Saisie Airbnb », installé inactif : il remplit la fiche depuis le mail « Réservation confirmée » d'Airbnb.
+- Pour l'utiliser, activer « Saisie Airbnb » dans Paramètres › Modules, puis « Tester la connexion » dans Intégrations.
+- La saisie des mails (Gîtes de France comprise) lit désormais la boîte sur imap.<domaine> quand « Serveur IMAP » est vide.
+
+### Added
+- **Saisie Airbnb** (spec `airbnb-mail-intake.md`, plugin `airbnb-intake`, installed inactive). The « Réservation confirmée » mail Airbnb sends to the mailbox GuestFlow sends from fills the matching iCal fiche: the guest on a client of their own, the party, the confirmation code, the guest's message in the notes, and « Paiement plateforme » — brut, the tourist tax Airbnb keeps, the payout, and a commission equal to Airbnb's host fee. A fiche already edited gets an « Appliquer / Ignorer » banner instead; every banner links to the reservation on Airbnb, where the phone and e-mail are. Each mail is matched to its property through the listing id carried by that property's Airbnb iCal feed, so nothing is typed per property and a new one is covered as soon as its feed is added. To use it: activate « Saisie Airbnb » in Paramètres › Modules, then « Tester la connexion » in Paramètres › Intégrations.
+
+### Fixed
+- **The mail intake reads on the IMAP server** (spec `airbnb-mail-intake.md` rule 4). With « Serveur IMAP » left empty, the Gîtes de France intake read the mailbox on the sending server (`smtp.gmail.com`), where no reading can connect; it now uses `imap.<domain>` (`imap.gmail.com`).
+
 ## [3.14.1] - 2026-10-24
 
 ### Summary
