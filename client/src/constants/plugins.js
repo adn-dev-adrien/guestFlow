@@ -5,8 +5,9 @@
 
 export const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 export const BOOKING_INTAKE = 'booking-intake';
+export const AIRBNB_INTAKE = 'airbnb-intake';
 
-export const PLUGIN_IDS = Object.freeze([GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE]);
+export const PLUGIN_IDS = Object.freeze([GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE]);
 
 export function isPluginEnabled(user, id) {
   return Boolean(user && Array.isArray(user.enabledPlugins) && user.enabledPlugins.includes(id));

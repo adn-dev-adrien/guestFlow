@@ -107,7 +107,7 @@ function SettingsSection({ onDirtyChange }, ref) {
               label="Serveur IMAP"
               value={draft.imapHost || ''}
               onChange={set('imapHost')}
-              helperText={`Vide : le serveur d’envoi${mailbox && mailbox.host ? ` (${mailbox.host})` : ''}.`}
+              helperText={`Vide : déduit du serveur d’envoi${mailbox && mailbox.defaultHost ? ` (${mailbox.defaultHost})` : ''}.`}
               fullWidth
             />
             <TextField label="Port IMAP" type="number" value={draft.imapPort || ''} onChange={set('imapPort')} helperText=" " sx={{ minWidth: { sm: 140 } }} />

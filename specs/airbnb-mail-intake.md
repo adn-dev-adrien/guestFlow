@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/airbnb-mail-intake` → `master` |
 | **Plugin id** | `airbnb-intake` — installed inactive, like the other intake plugins |
 | **Created** | 2026-10-24 |
@@ -109,9 +109,14 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
    ignored and never stored.
 3. Each matching message is recorded once (`Message-ID` unique), with the parsed fields — never the raw
    mail. A matching message that fails to parse is recorded `error` with the reason.
-4. **The IMAP reader moves to the SDK.** The Gîtes de France plugin's `mailboxReader.js` becomes
-   `ctx.core.mailbox.readFrom({ sender, sinceDays })` and both plugins call it; no IMAP code is
-   duplicated. It also returns the subject and the `Date` header, which rule 6 needs.
+4. **The IMAP reader moves to the SDK.** The Gîtes de France plugin's `mailboxReader.js` becomes the SDK
+   helper `sdk.mailbox.readMailsFrom({ host, port, user, password, sender, sinceDays })` and both plugins
+   call it; no IMAP code is duplicated. It also returns the subject and the `Date` header, which rule 6
+   needs. **The IMAP server is deduced from the sending one** when the plugin's « Serveur IMAP » is
+   empty: `smtp.<domain>` → `imap.<domain>` (`sdk.mailbox.imapHostFor`). *Found at implementation,
+   2026-10-25:* GuestFlow sends through `smtp.gmail.com`, and the Gîtes de France plugin read the mailbox
+   on that SMTP host — a pass could never have connected; it went unnoticed because no gîte is mapped in
+   production yet. Both plugins now read on `imap.gmail.com` by default.
 
 ### 3.2 Parsing (pure, unit-tested)
 
@@ -200,9 +205,10 @@ Model: `gites-de-france-intake` (same mailbox, same banner states, same placehol
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `plugins/sdk/` | `mailboxReader.js` | C | Moved from the Gîtes de France plugin: read-only IMAP, recent mails of one sender → `[{ messageId, receivedAt, subject, sentAt, text }]` (plain part, or the HTML reduced to text as today when there is none). The two added fields are read from the envelope; Gîtes de France ignores them. |
-| `plugins/sdk/` | `coreServices.js` | T | `ctx.core.mailbox.readFrom({ sender, sinceDays })` over `settings.mailbox()`. |
-| `client/src/components/` | `IntakeBanner.jsx` | C | Generic banner: `{ tone: applied\|proposal\|error, message, details[], onApply, onIgnore, onClose }`. The Booking spec planned this extraction « when a third intake plugin appears »: this is it. |
+| `plugins/sdk/` | `mailboxReader.js` | C (moved) | Moved from the Gîtes de France plugin: read-only IMAP, recent mails of one sender → `[{ messageId, receivedAt, sentAt, subject, text }]` (plain part, or the HTML reduced to text when there is none); `testConnection`; `imapHostFor(smtpHost)` (rule 4). |
+| `plugins/sdk/` | `index.js` | T | `sdk.mailbox.{ readMailsFrom, testConnection, imapHostFor }`, lazily required. |
+| `plugins/gites-de-france-intake/` | `index.js` | T | Reads through `sdk.mailbox`; IMAP host deduced (rule 4); `/mailbox` also returns `defaultHost`. |
+| `client/src/components/` | `IntakeBanner.jsx` | C | Generic, presentational banner: `severity, title?, children, details?, notes?, choices?, actions?, link?, onClose?, busy?, error?`. Exported from `client/src/plugins/sdk`. The Booking spec planned this extraction « when a third intake plugin appears »: this is it. The Gîtes de France and Booking banners render it, copy unchanged. |
 
 ### 4.2 The plugin — server (`server/src/plugins/airbnb-intake/`)
 
@@ -284,21 +290,30 @@ horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
 
 ## 7. Test plan
 
-- [ ] `airbnb-intake/tests/mailParser.unit.test.js` — the plain part of the 202610003 `.eml` (2026-10-25)
-  as fixture, with a fictitious guest, code, listing and thread ids and no tracking parameters (public
-  repository), the
-  202609003 figures (cleaning fee), year inference across New Year, each consistency refusal, other
-  Airbnb mails ignored.
-- [ ] `airbnb-intake/tests/paymentBlock.unit.test.js` — rule 9 on both measured bookings (commission =
-  host fee), rule 10 non-`platform` mode.
-- [ ] `airbnb-intake/tests/intakeService.unit.test.js` — auto-apply on a placeholder, proposal on an
-  edited fiche, pending → applied, unmapped listing, dedup, past stay refused, no e-mail sent.
-- [ ] `airbnb-intake/tests/isolation.unit.test.js` — no core file names the plugin outside registration.
-- [ ] Core: `ctx.core.mailbox.readFrom` (stubbed IMAP); Gîtes de France suite unchanged.
-- [ ] Client: `IntakeBanner` states; the two migrated banners' existing tests.
-- [ ] Full suites + E2E; `check-spec-coverage`.
-- [ ] Manual, on a copy of production with the IMAP stubbed by the real mail: fiche 22326 filled
-  (Louis Toussaint, 5/6/2, HMN2HQHJAQ, payment block), banner, mobile 390 px; plugin inactive → nothing.
+- [x] `airbnb-intake/tests/mailParser.unit.test.js` (8) — the plain part of the 202610003 `.eml`
+  (2026-10-25) as fixture, with a fictitious guest, code, listing and thread ids and no tracking
+  parameters (public repository), non-breaking spaces kept; the 202609003 figures (cleaning fee); year
+  inference across New Year and into the next year; each consistency refusal; other Airbnb mails.
+- [x] `airbnb-intake/tests/paymentBlock.unit.test.js` (4) — rule 9 on both measured bookings
+  (commission = host fee), refusals, rule 10 non-`platform` mode.
+- [x] `airbnb-intake/tests/intakeService.unit.test.js` (15) — auto-apply on a placeholder (own client,
+  party, code, notes, payment block, no times), notes appended, cleaning option, rule 10, proposal +
+  apply from the banner, pending → applied, unmapped listing on the dashboard, nothing read without a
+  listing, refused save, dedup, other mails skipped, unreadable booking mail, listing id or URL, IMAP
+  host deduction (rule 4).
+- [x] `airbnb-intake/tests/isolation.unit.test.js` (1) — no core file names the plugin outside registration.
+- [x] Gîtes de France suite unchanged (29) on the SDK reader.
+- [x] Client: `components/__tests__/IntakeBanner.test.jsx` (2), `airbnb-intake/__tests__/IntakeBanner.states.test.jsx`
+  (4); the Gîtes de France and Booking banner tests unchanged except their SDK mock (21).
+- [x] Suites on 2026-10-25: server 4 940 ✓, client 1 467 ✓ (one flaky `TariffRecipeCard` timing test on
+  a first run, green alone twice and on the rerun), build ✓, E2E 89 ✓ (+1 skipped).
+- [x] Manual, on a copy of production of 2026-10-25 with the real mail injected in place of IMAP: fiche
+  22326 filled — Louis Toussaint (own client; « Reserved Ical » untouched), 5/6/2, beds 4 doubles +
+  5 simples + 2 cots, HMN2HQHJAQ, message in the notes, brut 1 236,26, taxe 28,86, virement 1 028,44,
+  commission 178,96, « Net perçu 1 028,44 € ✓ cohérent avec le virement »; a second pass writes nothing;
+  green banner with « Voir sur Airbnb » (desktop and 390 px, no horizontal scroll); settings card at
+  390 px; a Booking banner (22324) unchanged; plugin deactivated → `404 PLUGIN_INACTIVE`; `/mailbox`
+  answers `imap.gmail.com` for both plugins.
 
 ## 8. Out of scope
 
