@@ -1,0 +1,1 @@
+- **Site booking (plugin 1.14.3):** a refused contact form now marks each empty field in red and scrolls to the first one. In the Solio drawer on a phone, the refusal message sat below the fold, so « Payer » looked inert — a guest tapped it 17 times on 2026-10-25 without ever seeing why.

@@ -758,6 +758,27 @@
       GF.el('div', { class: 'gf-hp' }, GF.el('label', {}, GF.t('honeypot'), f.hp))
     );
 
+    // A refused field is marked where it sits (specs/booking-drawer-friction.md rule 5): in the Solio
+    // drawer the shared message lands below the fold, so a phone saw a button that did nothing.
+    function markField(input, message) {
+      clearField(input);
+      input.setAttribute('aria-invalid', 'true');
+      input.parentNode.appendChild(GF.el('div', { class: 'gf-field-error' }, message));
+    }
+    function clearField(input) {
+      input.removeAttribute('aria-invalid');
+      var error = input.parentNode.querySelector('.gf-field-error');
+      if (error) error.remove();
+    }
+    function refuseFields(inputs, message) {
+      inputs.forEach(function (input) { markField(input, message); });
+      if (inputs[0].scrollIntoView) inputs[0].scrollIntoView({ block: 'center' });
+      inputs[0].focus({ preventScroll: true });
+    }
+    [f.firstName, f.lastName, f.email, f.phone].forEach(function (input) {
+      input.addEventListener('input', function () { clearField(input); });
+    });
+
     // CGV acceptance (specs/terms-acceptance-record.md rules 10-13): never pre-ticked; the version
     // travels with the request and GuestFlow records it. Rebuilt when GuestFlow answers that a newer
     // version was published meanwhile.
@@ -974,14 +995,17 @@
         return;
       }
       var first = f.firstName.value.trim(), last = f.lastName.value.trim(), email = f.email.value.trim(), phone = f.phone.value.trim();
-      if (!first || !last || !email || !phone) {
+      var empty = [f.firstName, f.lastName, f.email, f.phone].filter(function (input) { return !input.value.trim(); });
+      if (empty.length) {
         feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('requiredFields')));
+        refuseFields(empty, GF.t('fieldRequired'));
         GF.track('booking-refused', { lodging: lodging, reason: 'fields' });
         return;
       }
       // A UX hint only: GuestFlow stays the authority on the address it accepts.
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
         feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('invalidEmail')));
+        refuseFields([f.email], GF.t('invalidEmail'));
         GF.track('booking-refused', { lodging: lodging, reason: 'email' });
         return;
       }

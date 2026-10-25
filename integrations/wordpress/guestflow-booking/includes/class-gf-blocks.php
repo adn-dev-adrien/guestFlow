@@ -132,6 +132,7 @@ final class GF_Blocks
                 'capacity'        => __('Capacité', 'guestflow-booking'),
                 'persons'         => __('personnes', 'guestflow-booking'),
                 'requiredFields'  => __('Merci de renseigner tous les champs obligatoires.', 'guestflow-booking'),
+                'fieldRequired'   => __('Champ obligatoire.', 'guestflow-booking'),
                 // Online payment flow (specs/public-online-payment.md)
                 'payOnline'       => __('Payer en ligne', 'guestflow-booking'),
                 'preparingPayment' => __('Préparation du paiement…', 'guestflow-booking'),

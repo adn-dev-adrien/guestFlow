@@ -46,6 +46,9 @@ button.gf-cal-day.gf-shake { animation: gf-shake .32s cubic-bezier(.36, .07, .19
 .gf-field-time { flex: 0 1 130px; }
 .gf-field label { font-size: .8rem; color: var(--gf-muted); }
 .gf-field input, .gf-field select, .gf-field textarea { padding: .55rem; border: 1px solid var(--gf-border); border-radius: 8px; font: inherit; width: 100%; }
+.gf-field input[aria-invalid="true"] { border-color: #b3261e; box-shadow: 0 0 0 1px #b3261e; }
+.gf-field-error { color: #b3261e; font-size: .85em; margin-top: .25rem; }
+.gf-row:has(.gf-field-error) { align-items: flex-start; }
 .gf-field input.gf-ro { background: #f5f6f4; color: #333; font-weight: 600; pointer-events: none; }
 /* « Effacer les dates » — beside the date recap, bottom-aligned with the read-only inputs. */
 .gf-field-clear { flex: 0 0 auto; align-self: flex-end; }
