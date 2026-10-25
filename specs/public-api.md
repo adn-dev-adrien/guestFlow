@@ -628,6 +628,7 @@ can show "dates held while we confirm".
   explicit consent flag is required/stored in this version.
 - **Q4 — Anti-spam → HONEYPOT + RATE LIMIT ONLY.** No CAPTCHA; the WordPress proxy owns bot
   filtering. GuestFlow enforces the `_hp` honeypot + `bookingRequestLimiter`.
+- *(2026-10-25: a second, read-only key for Roostview — see [roostview-api-key.md](roostview-api-key.md). The site key below is unchanged.)*
 - **Q5 — Key management → SINGLE STATIC KEY.** One `PUBLIC_API_KEY` in `server/.env.local`. Rotation
   = change the value + restart (brief coordinated update with the proxy). Multi-key revocation is
   deferred (additive later).

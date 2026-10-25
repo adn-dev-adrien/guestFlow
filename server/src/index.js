@@ -122,6 +122,11 @@ try {
 getOrCreateSecret('PUBLIC_API_KEY', 32);
 logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
 
+// Roostview's own key (specs/roostview-api-key.md): read-only on the catalogue, availability and
+// quotes, distinct from the site's so either can be revoked alone. Never logged.
+getOrCreateSecret('ROOSTVIEW_API_KEY', 32);
+logErrorMarker('ROOSTVIEW_API_KEY ready in server/.env.local — paste it into Roostview › Réglages › GuestFlow.');
+
 // Gate keys (specs/gate-access-sowel-connector.md §3.4 rules 19-22). TWO secrets, and a key distinct from
 // the site's: the WordPress proxy has no business reading who sleeps here tonight. The key proves
 // the caller, the signature proves the call — and the signing secret never travels. Neither is ever

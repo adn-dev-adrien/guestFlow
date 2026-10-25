@@ -1,0 +1,1 @@
+- **Roostview API key** (spec `roostview-api-key.md`, 2026-10-25). A second public-API key, `ROOSTVIEW_API_KEY`, auto-generated in `server/.env.local`: read-only (catalogue, availability, quote), 403 everywhere else, never a relayed visitor. The WordPress key is unchanged and either can be rotated alone. +5 server tests.

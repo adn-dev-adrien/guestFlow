@@ -61,3 +61,59 @@ test('passes with correct Authorization: Bearer', () => {
   assert.equal(nextCalled, true);
   assert.equal(res.statusCode, null);
 });
+
+// --- specs/roostview-api-key.md — a second, read-only key for Roostview ---
+
+function runAs(headers, { method = 'GET', path = '/properties', site = 'site-key', roostview = 'rv-key' } = {}) {
+  const prev = { site: process.env.PUBLIC_API_KEY, rv: process.env.ROOSTVIEW_API_KEY };
+  if (site === null) delete process.env.PUBLIC_API_KEY; else process.env.PUBLIC_API_KEY = site;
+  if (roostview === null) delete process.env.ROOSTVIEW_API_KEY; else process.env.ROOSTVIEW_API_KEY = roostview;
+  const req = { ...mockReq(headers), method, path };
+  const res = mockRes();
+  let nextCalled = false;
+  requirePublicApiKey(req, res, () => { nextCalled = true; });
+  for (const [name, v] of [['PUBLIC_API_KEY', prev.site], ['ROOSTVIEW_API_KEY', prev.rv]]) {
+    if (v === undefined) delete process.env[name]; else process.env[name] = v;
+  }
+  return { req, res, nextCalled };
+}
+
+test('roostview key reads the catalogue, availability and quotes', () => {
+  for (const [method, path] of [['GET', '/properties'], ['GET', '/properties/2'], ['GET', '/properties/2/availability'], ['POST', '/quote'], ['POST', '/quote/']]) {
+    const { req, nextCalled, res } = runAs({ Authorization: 'Bearer rv-key' }, { method, path });
+    assert.equal(nextCalled, true, `${method} ${path}`);
+    assert.equal(res.statusCode, null);
+    assert.equal(req.publicApiCaller, 'roostview');
+  }
+});
+
+test('roostview key is read-only: booking requests, terms and plugin updates answer 403', () => {
+  for (const [method, path] of [['POST', '/booking-requests'], ['GET', '/terms'], ['GET', '/plugin/update'], ['POST', '/properties']]) {
+    const { nextCalled, res } = runAs({ 'X-API-Key': 'rv-key' }, { method, path });
+    assert.equal(nextCalled, false, `${method} ${path}`);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.body.error.code, 'FORBIDDEN');
+  }
+});
+
+test('the site key keeps the whole tree and is told apart from roostview', () => {
+  const { req, nextCalled } = runAs({ Authorization: 'Bearer site-key' }, { method: 'POST', path: '/booking-requests' });
+  assert.equal(nextCalled, true);
+  assert.equal(req.publicApiCaller, 'site');
+});
+
+test('roostview key fails closed when not configured, and never stands in for the site key', () => {
+  assert.equal(runAs({ 'X-API-Key': 'rv-key' }, { roostview: null }).res.statusCode, 401);
+  assert.equal(runAs({ 'X-API-Key': '' }, { roostview: '' }).res.statusCode, 401);
+  assert.equal(runAs({ 'X-API-Key': 'site-key' }, { site: null }).res.statusCode, 401);
+});
+
+test('a roostview call never takes a relayed visitor identity', () => {
+  const visitorContext = require('../middleware/visitorContext');
+  const req = { ...mockReq({ 'X-GuestFlow-Visitor-IP': '203.0.113.9' }), publicApiCaller: 'roostview' };
+  visitorContext(req, {}, () => {});
+  assert.equal(req.visitor.ip, '');
+  const site = { ...mockReq({ 'X-GuestFlow-Visitor-IP': '203.0.113.9' }), publicApiCaller: 'site' };
+  visitorContext(site, {}, () => {});
+  assert.equal(site.visitor.ip, '203.0.113.9');
+});
