@@ -10,6 +10,7 @@
 
 const { parseAirbnbMail, isBookingMail } = require('./mailParser');
 const { paymentBlock } = require('./paymentBlock');
+const { listingIdOf } = require('./listings');
 
 const isAirbnb = (platform) => /airbnb/.test(String(platform || '').toLowerCase().replace(/[^a-z]/g, ''));
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
@@ -17,21 +18,12 @@ const pad = (n) => String(n).padStart(2, '0');
 const frDate = (iso) => { const d = new Date(iso); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
 const frDay = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-// The settings field takes the listing id or a pasted `airbnb.fr/rooms/<id>` link (rule 11).
-function listingIdOf(value) {
-  const s = String(value || '').trim();
-  const fromUrl = s.match(/\/rooms\/(\d+)/);
-  if (fromUrl) return fromUrl[1];
-  return /^\d+$/.test(s) ? s : '';
-}
-
 function createIntakeService(deps) {
   const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, now = () => new Date() } = deps;
 
+  // `settings.listings()` is `[[propertyId, listingId]]`: detected from the iCal feeds, overridable (rule 11).
   function propertyIdsForListing(listingId) {
-    return Object.entries(settings.listings())
-      .filter(([, value]) => listingIdOf(value) === String(listingId))
-      .map(([propertyId]) => Number(propertyId));
+    return settings.listings().filter(([, id]) => id === String(listingId)).map(([propertyId]) => propertyId);
   }
 
   // Rule 11 — one reservation: Airbnb, the listing's property, same dates, not cancelled. An unmapped
@@ -158,7 +150,7 @@ function createIntakeService(deps) {
     const mailbox = settings.mailbox();
     if (!mailbox.host || !mailbox.user || !mailbox.password) return { skipped: 'Boîte mail non configurée' };
     // Rule 17 — installed with every plugin: nothing is read until a property is tied to a listing.
-    if (Object.values(settings.listings()).every((v) => !listingIdOf(v))) {
+    if (settings.listings().length === 0) {
       return { skipped: 'Aucun logement relié à une annonce Airbnb' };
     }
     const mails = await readMails({ ...mailbox, sender: settings.sender() });
@@ -231,4 +223,4 @@ function createIntakeService(deps) {
   return { runPass, blockFor, applyFromBanner, dismiss: (id) => intakes.dismiss(id), attention };
 }
 
-module.exports = { createIntakeService, listingIdOf, isAirbnb };
+module.exports = { createIntakeService, isAirbnb };

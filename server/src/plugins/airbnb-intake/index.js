@@ -7,7 +7,8 @@
 const express = require('express');
 const sdk = require('../sdk');
 const { buildModel, TABLE_SQL } = require('./intakesModel');
-const { createIntakeService, listingIdOf } = require('./intakeService');
+const { createIntakeService } = require('./intakeService');
+const { listingIdOf, detectedFromIcal, listingPairs } = require('./listings');
 
 const id = 'airbnb-intake';
 const TICK_MS = 15 * 60 * 1000;
@@ -44,6 +45,12 @@ function register(ctx) {
   const intakes = () => { if (!model) model = buildModel(ctx.db); return model; };
   const options = () => sdk.coreModule('optionsModel');
 
+  // Rule 11 — every property with an Airbnb iCal feed is covered without typing anything.
+  const detectedListings = () => detectedFromIcal(ctx.db.prepare(
+    `SELECT propertyId, url FROM ical_sources WHERE COALESCE(isActive, 1) = 1 AND COALESCE(disabled, 0) = 0
+     AND lower(url) LIKE '%airbnb.%/calendar/ical/%'`).all());
+  const listings = () => listingPairs({ detected: detectedListings(), manual: JSON.parse(ctx.settings.get('listings') || '{}') });
+
   const mailboxConfig = () => {
     const core = ctx.core.settings.mailbox();
     return { host: ctx.settings.get('imapHost') || sdk.mailbox.imapHostFor(core.host), port: Number(ctx.settings.get('imapPort') || 993), user: core.user, password: core.password };
@@ -54,7 +61,7 @@ function register(ctx) {
     settings: {
       mailbox: mailboxConfig,
       sender: () => ctx.settings.get('senderAddress'),
-      listings: () => JSON.parse(ctx.settings.get('listings') || '{}'),
+      listings,
       autoApply: () => String(ctx.settings.get('autoApply')) !== '0',
     },
     readMails: (cfg) => sdk.mailbox.readMailsFrom(cfg),
@@ -107,7 +114,8 @@ function register(ctx) {
   router.post('/test-mailbox', async (req, res) => res.json(await sdk.mailbox.testConnection(mailboxConfig())));
   router.get('/mailbox', (req, res) => {
     const cfg = mailboxConfig();
-    res.json({ host: cfg.host, defaultHost: sdk.mailbox.imapHostFor(ctx.core.settings.mailbox().host), port: cfg.port, user: cfg.user, hasPassword: Boolean(cfg.password), lastRunAt: ctx.settings.get('lastRunAt') || null });
+    const detected = Object.fromEntries(Object.entries(detectedListings()).map(([propertyId, ids]) => [propertyId, ids[0]]));
+    res.json({ host: cfg.host, defaultHost: sdk.mailbox.imapHostFor(ctx.core.settings.mailbox().host), port: cfg.port, user: cfg.user, hasPassword: Boolean(cfg.password), lastRunAt: ctx.settings.get('lastRunAt') || null, detected });
   });
   // The banner of the fiche (rule 14), ready to render.
   router.get('/reservation/:reservationId', (req, res) => res.json({ intake: service().blockFor(Number(req.params.reservationId)) }));

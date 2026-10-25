@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
-const { createIntakeService, listingIdOf } = require('../intakeService');
+const { createIntakeService } = require('../intakeService');
+const { listingIdOf, detectedFromIcal, listingPairs } = require('../listings');
 const { SUBJECT, SENT_AT, bookingMail, WITH_CLEANING } = require('./fixtures');
 
 const PLACEHOLDER = {
@@ -17,7 +18,7 @@ const CATALOGUE = [
 const MAIL = { messageId: '<m1@airbnb>', receivedAt: SENT_AT, sentAt: SENT_AT, subject: SUBJECT, text: bookingMail() };
 
 function setup({
-  reservations = [PLACEHOLDER], mails = [MAIL], listings = { 1: 'https://www.airbnb.fr/rooms/1234567890123456789' },
+  reservations = [PLACEHOLDER], mails = [MAIL], listings = [[1, '1234567890123456789']],
   autoApply = true, updateStatus = 200, withholds = true, notes = '', dates = ['2026-12-26', '2026-12-30'],
 } = {}) {
   const db = new Database(':memory:');
@@ -119,13 +120,13 @@ test('rule 11: no fiche yet → pending, then applied on a later pass', async ()
 });
 
 test('rule 11: an unmapped listing waits and reaches the dashboard with its id', async () => {
-  const { service } = setup({ listings: { 1: '999' }, mails: [{ ...MAIL, receivedAt: '2026-10-20T08:00:00.000Z' }] });
+  const { service } = setup({ listings: [[1, '999']], mails: [{ ...MAIL, receivedAt: '2026-10-20T08:00:00.000Z' }] });
   assert.deepEqual(await service.runPass(), { read: 1, pending: 1 });
   assert.equal(service.attention()[0].text, 'Annonce inconnue : Gîte 3* 10 pers., vue, bain nordique, âne, chèvre (1234567890123456789)');
 });
 
 test('rule 17: nothing is read before a property is tied to a listing', async () => {
-  const { service, calls } = setup({ listings: { 1: '' } });
+  const { service, calls } = setup({ listings: [] });
   assert.deepEqual(await service.runPass(), { skipped: 'Aucun logement relié à une annonce Airbnb' });
   assert.equal(calls.readWith, undefined);
 });
@@ -168,4 +169,28 @@ test('rule 4: the IMAP server is deduced from the sending one (smtp.gmail.com �
   assert.equal(imapHostFor('SMTP.ovh.net'), 'imap.ovh.net');
   assert.equal(imapHostFor('mail.example.org'), 'mail.example.org');
   assert.equal(imapHostFor(''), '');
+});
+
+test('rule 11: a property with an Airbnb iCal feed needs nothing typed — the id comes from the feed address', () => {
+  const sources = [
+    { propertyId: 1, url: 'https://www.airbnb.fr/calendar/ical/1398287456607254737.ics?s=secret' },
+    { propertyId: 2, url: 'https://www.airbnb.fr/calendar/ical/1576845044615216441.ics?s=secret' },
+    { propertyId: 3, url: 'https://www.booking.com/hotel/fr/x.ics' },
+  ];
+  const detected = detectedFromIcal(sources);
+  assert.deepEqual(detected, { 1: ['1398287456607254737'], 2: ['1576845044615216441'] });
+  assert.deepEqual(listingPairs({ detected, manual: {} }), [[1, '1398287456607254737'], [2, '1576845044615216441']]);
+});
+
+test('rule 11: an override replaces what was detected for that property only, and covers one without a feed', () => {
+  const detected = { 1: ['111'], 2: ['222'] };
+  const manual = { 1: 'https://www.airbnb.fr/rooms/999', 2: 'n’importe quoi', 3: '333' };
+  assert.deepEqual(listingPairs({ detected, manual }), [[1, '999'], [2, '222'], [3, '333']]);
+});
+
+test('rule 11: a booking of the property’s second listing is matched too', async () => {
+  const other = { ...MAIL, text: bookingMail().replace('1234567890123456789', '5555') };
+  const { service, calls } = setup({ listings: [[1, '1234567890123456789'], [1, '5555']], mails: [other] });
+  assert.equal((await service.runPass()).applied, 1);
+  assert.equal(calls.updates[0].id, 22326);
 });

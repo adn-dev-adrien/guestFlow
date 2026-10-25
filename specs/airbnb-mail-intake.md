@@ -159,9 +159,16 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
 
 ### 3.4 Matching and applying
 
-11. A message is matched to **one** reservation: platform Airbnb, property mapped to the **listing id**
-    (setting: property → listing id; the field accepts the id or a pasted `airbnb.fr/rooms/<id>` URL —
-    resolved 2026-10-25, the id survives a renamed listing), same arrival and departure, not cancelled. No match yet →
+11. A message is matched to **one** reservation: platform Airbnb, property of the mail's **listing id**,
+    same arrival and departure, not cancelled. *Amended 2026-10-25 (operator: « facilement extensible et
+    générique »):* **nothing is typed for a property.** Each active Airbnb iCal feed's address carries the
+    listing id (`airbnb.fr/calendar/ical/<id>.ics`), so the property ↔ listing map is read from
+    `ical_sources` on every pass — a new property, or a new listing, is covered the day its feed is added,
+    and Estiva needs no more setup than La Granja. The plugin setting `listings` is only an **override**:
+    a property's own value (the id or a pasted `airbnb.fr/rooms/<id>` link) replaces what was detected for
+    that property, and covers one that has no Airbnb feed. A property may carry several listings.
+    Measured on production the same day: Granja → `1398287456607254737` (the id of the real mail),
+    Estiva → `1576845044615216441`. No match yet →
     `pending`, retried at each pass (the iCal import may come later); still unmatched after 24 h → shown
     on the dashboard.
 12. **Auto-apply** only onto an untouched iCal placeholder (`sourceType = 'ical'`, `icalSyncLocked = 0`,
@@ -182,7 +189,7 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     reservation URL of rule 5, where the operator finds the phone.
 15. Dashboard: one line per intake in `error` or unmatched for more than 24 h.
 16. Applying never sends an e-mail to the guest.
-17. Nothing is read before a property is tied to a listing; a started or past stay is refused by
+17. Nothing is read while no property has an Airbnb listing (no feed, no override); a started or past stay is refused by
     `ctx.core.reservations.update` (`PAST_RESERVATION`).
 
 **Edge cases:**
@@ -191,8 +198,8 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
 - The guest's message announces more people than the party (« peut-être un 6ème ») → only the « Voyageurs »
   line counts; the message lands in the notes.
 - Modification or cancellation mails → not parsed (Out of scope); the iCal flow handles cancellations.
-- A listing that no property is mapped to → `pending` then dashboard line « Annonce inconnue : <titre>
-  (<id>) », so the id can be copied into the settings.
+- A listing that no property is mapped to (no iCal feed carries its id) → `pending` then dashboard line
+  « Annonce inconnue : <titre> (<id>) », so the id can be pasted as an override.
 - IMAP down → logged, retried at the next pass; the iCal flow is unaffected.
 
 ---
@@ -214,7 +221,8 @@ Model: `gites-de-france-intake` (same mailbox, same banner states, same placehol
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `index.js` | C | `register(ctx)`: migration, settings, the 15-min job, `/api/airbnb-intake` router, data. |
+| `index.js` | C | `register(ctx)`: migration, settings, the 15-min job, `/api/airbnb-intake` router, data; reads the listings off `ical_sources`. |
+| `listings.js` | C | Pure: listing id from a link, ids detected from the iCal feed addresses, the effective `[propertyId, listingId]` pairs with overrides (rule 11). |
 | `mailParser.js` | C | Pure: mail text → booking or typed parse error (rules 5–8). |
 | `paymentBlock.js` | C | Pure: parsed money → the four « Paiement plateforme » fields + check (rules 9–10). |
 | `intakesModel.js` | C | CRUD on `airbnb_intakes`. |
@@ -268,8 +276,8 @@ CREATE TABLE IF NOT EXISTS airbnb_intakes (
 );
 ```
 
-Settings: `senderAddress`, `pollEveryHours`, `listings` (JSON `{ propertyId: { id?, title? } }`),
-`autoApply` (1), `lastRunAt`. No core column, no core table. No existing record changes.
+Settings: `senderAddress`, `imapHost`, `imapPort`, `pollEveryHours`, `listings` (JSON `{ propertyId: "<id or
+rooms link>" }`, optional override, rule 11), `autoApply` (1), `lastRunAt`. No core column, no core table. No existing record changes.
 
 ## 6. UI / UX
 
@@ -281,8 +289,9 @@ See the decision page. Copy, short and impersonal:
   [Appliquer] [Ignorer]
 - Error (red, closable): « Le mail Airbnb du 24/10 n’a pas pu être appliqué : <raison> ».
 - Dashboard: « Mails Airbnb à vérifier », one line per intake, « Ouvrir la fiche ».
-- Settings « Saisie Airbnb »: sender, frequency, « Annonce Airbnb de chaque logement » (id or pasted
-  `airbnb.fr/rooms/…` link), « Remplir seul une
+- Settings « Saisie Airbnb »: sender, frequency, « Annonce Airbnb de chaque logement » — « Reconnue d’après
+  le flux iCal Airbnb du logement : rien à saisir. Ce champ ne sert qu’à la corriger. », each field showing
+  « Reconnue : <id> » as its placeholder (id or pasted `airbnb.fr/rooms/…` link to override), « Remplir seul une
   fiche iCal encore intacte », « Relever maintenant », last pass.
 
 Responsive: the banner buttons stack full width on `xs`, 44 px targets; settings rows stack on `xs`; no
@@ -296,16 +305,19 @@ horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
   inference across New Year and into the next year; each consistency refusal; other Airbnb mails.
 - [x] `airbnb-intake/tests/paymentBlock.unit.test.js` (4) — rule 9 on both measured bookings
   (commission = host fee), refusals, rule 10 non-`platform` mode.
-- [x] `airbnb-intake/tests/intakeService.unit.test.js` (15) — auto-apply on a placeholder (own client,
+- [x] `airbnb-intake/tests/intakeService.unit.test.js` (18) — auto-apply on a placeholder (own client,
   party, code, notes, payment block, no times), notes appended, cleaning option, rule 10, proposal +
   apply from the banner, pending → applied, unmapped listing on the dashboard, nothing read without a
   listing, refused save, dedup, other mails skipped, unreadable booking mail, listing id or URL, IMAP
-  host deduction (rule 4).
+  host deduction (rule 4), listings detected from the iCal feeds, override per property, two listings
+  on one property (rule 11).
 - [x] `airbnb-intake/tests/isolation.unit.test.js` (1) — no core file names the plugin outside registration.
 - [x] Gîtes de France suite unchanged (29) on the SDK reader.
 - [x] Client: `components/__tests__/IntakeBanner.test.jsx` (2), `airbnb-intake/__tests__/IntakeBanner.states.test.jsx`
   (4); the Gîtes de France and Booking banner tests unchanged except their SDK mock (21).
-- [x] Suites on 2026-10-25: server 4 940 ✓, client 1 467 ✓ (one flaky `TariffRecipeCard` timing test on
+- [x] Rule 11 amendment, on the same production copy: no setting typed, the mapping read from `ical_sources`
+  gives Granja → …254737 and Estiva → …216441, and the real mail fills fiche 22326 as before.
+- [x] Suites on 2026-10-25: server 4 943 ✓, client 1 467 ✓ (one flaky `TariffRecipeCard` timing test on
   a first run, green alone twice and on the rerun), build ✓, E2E 89 ✓ (+1 skipped).
 - [x] Manual, on a copy of production of 2026-10-25 with the real mail injected in place of IMAP: fiche
   22326 filled — Louis Toussaint (own client; « Reserved Ical » untouched), 5/6/2, beds 4 doubles +
@@ -329,7 +341,8 @@ horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
 None.
 
 **Resolved (2026-10-25, measured on the raw mail):**
-- ~~Listing → property~~ → by **listing id**: every booking mail links `airbnb.fr/rooms/<id>` (rule 11).
+- ~~Listing → property~~ → by **listing id**, which every booking mail links (`airbnb.fr/rooms/<id>`), read
+  against the listing id of each property's Airbnb iCal feed — nothing to type (rule 11).
 - ~~Sender address~~ → `Airbnb <automated@airbnb.com>`, subject « Réservation confirmée : … » (rule 2).
 
 **Resolved (2026-10-24, operator):**

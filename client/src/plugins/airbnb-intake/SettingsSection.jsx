@@ -1,8 +1,9 @@
 /**
  * SettingsSection — the « Saisie Airbnb » card of Paramètres › Intégrations (specs/airbnb-mail-intake.md
  * §4.3). The mailbox is the one GuestFlow sends from (same account as the SMTP settings): only the IMAP
- * server, the sender, the frequency and the property → Airbnb listing map are set here. No Save of its
- * own: the page's bar saves it through the ref.
+ * server, the sender and the frequency are set here. The listing of each property comes from its Airbnb
+ * iCal feed (rule 11); the field per property only overrides it. No Save of its own: the page's bar
+ * saves it through the ref.
  *
  * Props:
  *   onDirtyChange  (dirty: boolean) => void
@@ -113,7 +114,10 @@ function SettingsSection({ onDirtyChange }, ref) {
           </Stack>
 
           <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Annonce Airbnb de chaque logement</Typography>
+            <Typography variant="subtitle2">Annonce Airbnb de chaque logement</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Reconnue d’après le flux iCal Airbnb du logement : rien à saisir. Ce champ ne sert qu’à la corriger.
+            </Typography>
             <Stack spacing={1}>
               {properties.map((p) => (
                 <TextField
@@ -122,7 +126,7 @@ function SettingsSection({ onDirtyChange }, ref) {
                   label={p.name}
                   value={listingMap[p.id] || ''}
                   onChange={(e) => setListing(p.id, e.target.value)}
-                  placeholder="https://www.airbnb.fr/rooms/…"
+                  placeholder={mailbox && mailbox.detected && mailbox.detected[p.id] ? `Reconnue : ${mailbox.detected[p.id]}` : 'Aucun flux iCal Airbnb — coller le lien de l’annonce'}
                   sx={{ maxWidth: { sm: 480 } }}
                 />
               ))}
