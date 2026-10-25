@@ -260,6 +260,10 @@ msgstr "Default property (ID)"
 msgid "Merci de renseigner tous les champs obligatoires."
 msgstr "Please fill in every required field."
 
+#: includes/class-gf-blocks.php:135
+msgid "Champ obligatoire."
+msgstr "Required field."
+
 #: includes/class-gf-blocks.php:171
 msgid "Merci d’indiquer si vous souhaitez l’assurance annulation."
 msgstr "Please tell us whether you would like cancellation insurance."

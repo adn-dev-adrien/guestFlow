@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.14.2
+Stable tag: 1.14.3
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,9 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.14.3 =
+* Coordonnées manquantes : au clic sur « Payer » ou « Envoyer », chaque champ vide est signalé en rouge sous lui-même et l’écran défile jusqu’au premier ; sur téléphone, le refus restait hors de vue et le bouton semblait inactif.
 
 = 1.14.2 =
 * Personnes supplémentaires : le récapitulatif affiche leur supplément sur sa propre ligne (calculé par GuestFlow selon la grille tarifaire du logement), et le sélecteur de voyageurs rappelle combien de personnes le prix de base couvre.
