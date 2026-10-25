@@ -4,6 +4,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.15.1] - 2026-10-25
+
+### Summary
+- Sur le site, un champ de coordonnées oublié est signalé en rouge et l'écran défile jusqu'à lui : sur téléphone, « Payer » semblait inactif.
+- Mettre à jour le plugin GuestFlow Booking en 1.14.3 depuis l'administration WordPress pour en profiter.
+
+### Fixed
+- **Site booking (plugin 1.14.3):** a refused contact form now marks each empty field in red and scrolls to the first one. In the Solio drawer on a phone, the refusal message sat below the fold, so « Payer » looked inert: on 2026-10-25 a guest tapped it 17 times without ever seeing why.
+
 ## [3.15.0] - 2026-10-25
 
 ### Summary
