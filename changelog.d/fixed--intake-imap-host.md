@@ -1,1 +1,0 @@
-- **The mail intake reads on the IMAP server** (spec `airbnb-mail-intake.md` rule 4). With « Serveur IMAP » left empty, the Gîtes de France intake read the mailbox on the sending server (`smtp.gmail.com`), where no reading can connect; it now uses `imap.<domain>` (`imap.gmail.com`).
