@@ -84,8 +84,8 @@ const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
 // (specs/plugins-phase-3b-neat.md rule 7).
 const PHASE_3_IDS = ['online-payment', 'neat', 'hourly-resources'];
 // specs/gites-de-france-mail-intake.md — the first plugin added after the twelve; then
-// specs/booking-extranet-intake.md.
-const LATER_IDS = ['gites-de-france-intake', 'booking-intake', 'airbnb-intake'];
+// specs/booking-extranet-intake.md, specs/airbnb-mail-intake.md, specs/google-vacation-rentals-feed.md.
+const LATER_IDS = ['gites-de-france-intake', 'booking-intake', 'airbnb-intake', 'google-vacation-rentals'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
   assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS, ...LATER_IDS].sort());
@@ -343,9 +343,10 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   // in phase 3b: 5 min, first pass at 150 s; the Gîtes de France mail intake: a 15-min tick that reads
   // the mailbox every `pollEveryHours`, first tick at 120 s (specs/gites-de-france-mail-intake.md rule 2);
   // the bank reconciliation read: 8 h, first pass at 240 s (specs/qonto-bank-reconciliation.md rule 5);
-  // the Airbnb mail intake: a 15-min tick, first tick at 180 s (specs/airbnb-mail-intake.md rule 2).
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 240 * 1000]);
+  // the Airbnb mail intake: a 15-min tick, first tick at 180 s (specs/airbnb-mail-intake.md rule 2);
+  // the Google Vacation Rentals full re-send: an hourly tick, first at 150 s (specs/google-vacation-rentals-feed.md rule 13).
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 240 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };
@@ -405,8 +406,10 @@ test('rule 9: a handler runs only while its plugin is live, and a throwing one n
 test('rule 9: Google subscribes to the five events it used to be called for', () => {
   const db = freshDb();
   boot(db, { installed: [] });
-  // reservation.paid (phase 3a) changes nothing in a calendar event.
-  assert.deepEqual([...registry.get('google-calendar').handlers.keys()].sort(), eventBus.EVENTS.filter((e) => e !== 'reservation.paid').sort());
+  // reservation.paid (phase 3a) changes nothing in a calendar event, nor does a price
+  // (pricing.changed, specs/google-vacation-rentals-feed.md rule 12).
+  assert.deepEqual([...registry.get('google-calendar').handlers.keys()].sort(),
+    eventBus.EVENTS.filter((e) => e !== 'reservation.paid' && e !== 'pricing.changed').sort());
 });
 
 // ---------- email variables (rule 10) ----------

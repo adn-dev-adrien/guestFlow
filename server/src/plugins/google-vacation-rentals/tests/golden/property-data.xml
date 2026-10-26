@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Transaction timestamp="2027-03-01T04:00:00Z" id="solio-la-granja-1" partner="solio_partner">
+  <PropertyDataSet action="overlay">
+    <Property>solio-la-granja</Property>
+    <RoomData>
+      <RoomID>whole</RoomID>
+      <Name><Text text="La Granja &amp; co" language="fr"/></Name>
+      <Capacity>14</Capacity>
+    </RoomData>
+    <PackageData>
+      <PackageID>direct</PackageID>
+      <Name><Text text="Tarif du site" language="fr"/></Name>
+      <Occupancy>14</Occupancy>
+      <ChargeCurrency>web</ChargeCurrency>
+    </PackageData>
+  </PropertyDataSet>
+</Transaction>

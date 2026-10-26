@@ -19,6 +19,7 @@ const WEATHER_ALERTS = 'weather-alerts';
 const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 const BOOKING_INTAKE = 'booking-intake';
 const AIRBNB_INTAKE = 'airbnb-intake';
+const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
 
 // specs/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
 // list only fixes the order the Plugins page shows them in. A version installed from the registry
@@ -26,7 +27,7 @@ const AIRBNB_INTAKE = 'airbnb-intake';
 const CATALOG_ORDER = [
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
-  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE,
+  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS,
 ];
 
 const PLUGIN_CATALOG = Object.freeze(CATALOG_ORDER.map((id) => readSourceManifest(id)));
@@ -53,7 +54,7 @@ const PLUGIN_PAGES = Object.freeze({
   '/finance/rapprochement': [ONLINE_PAYMENT],
   '/school-holidays': [SCHOOL_HOLIDAYS],
   '/parametres/recettes': [TARIFF_RECIPES],
-  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE],
+  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS],
 });
 
 // specs/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
@@ -77,6 +78,7 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [GITES_DE_FRANCE_INTAKE]: `${INTEGRATIONS}?tab=${GITES_DE_FRANCE_INTAKE}`,
   [BOOKING_INTAKE]: `${INTEGRATIONS}?tab=${BOOKING_INTAKE}`,
   [AIRBNB_INTAKE]: `${INTEGRATIONS}?tab=${AIRBNB_INTAKE}`,
+  [GOOGLE_VACATION_RENTALS]: `${INTEGRATIONS}?tab=${GOOGLE_VACATION_RENTALS}`,
 });
 
 /** → the ids of the plugins a page belongs to, or [] for a core page or an unknown address. */

@@ -23,10 +23,10 @@ beforeEach(() => enabled.clear());
 // phase 3 online-payment, neat (specs/plugins-phase-3b-neat.md rule 15) and hourly-resources
 // (specs/plugins-phase-3c-hourly-resources.md rule 24); then gites-de-france-intake
 // (specs/gites-de-france-mail-intake.md), booking-intake (specs/booking-extranet-intake.md) and
-// airbnb-intake (specs/airbnb-mail-intake.md).
+// airbnb-intake (specs/airbnb-mail-intake.md), google-vacation-rentals (specs/google-vacation-rentals-feed.md).
 test('rule 2: the modules are listed once', () => {
   expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual([
-    'accounting-export', 'airbnb-intake', 'booking-intake', 'gate-access', 'gites-de-france-intake', 'google-calendar', 'hourly-resources', 'linen', 'neat', 'online-payment', 'sas', 'school-holidays',
+    'accounting-export', 'airbnb-intake', 'booking-intake', 'gate-access', 'gites-de-france-intake', 'google-calendar', 'google-vacation-rentals', 'hourly-resources', 'linen', 'neat', 'online-payment', 'sas', 'school-holidays',
     'tariff-recipes', 'weather-alerts', 'website-booking',
   ]);
 });
