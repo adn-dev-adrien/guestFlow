@@ -1,0 +1,1 @@
+- `properties.platformCleaningFees` (TEXT JSON, default `'[]'`), written by the tariff recipe apply only. Existing rows: empty, the grid is unchanged until a recipe carrying a `cleaning` block is re-applied — re-apply Gîte 3.6.0 and Aventura Lodge 1.2.0 after installing (no season moves).

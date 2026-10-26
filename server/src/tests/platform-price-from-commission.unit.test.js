@@ -96,7 +96,7 @@ function gridDb() {
   const db = platformsDb();
   db.exec(`
     CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, extraGuestPrice REAL DEFAULT 0,
-      extraGuestPriceUnit TEXT DEFAULT 'per_stay', welcomePackCost REAL DEFAULT 0);
+      extraGuestPriceUnit TEXT DEFAULT 'per_stay', welcomePackCost REAL DEFAULT 0, platformCleaningFees TEXT DEFAULT '[]');
     CREATE TABLE pricing_rules (
       id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER NOT NULL, label TEXT,
       pricePerNight REAL NOT NULL DEFAULT 0, startDate TEXT,

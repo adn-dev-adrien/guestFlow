@@ -4,7 +4,8 @@
  *
  * One row per sales channel — the Direct row first (its displayed price covers the welcome pack after
  * the booking-engine fee), then the commissioned platforms — with, per tariff season, the whole-euro
- * price to configure on that channel, plus a « Personne supp. » column. The commission % is shown
+ * price to configure on that channel, plus a « Personne supp. » column and, when a channel bills one, a
+ * « Ménage / séjour » column (specs/tariff-recipe-platform-cleaning-fee.md). The commission % is shown
  * read-only: it is global per channel and edited on Paramètres → Plateformes
  * (specs/settings-rationalization.md rule 19). All gross math is server-side; this only renders.
  *
@@ -16,7 +17,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import {
-  Card, CardContent, Box, Typography, TableHead, TableBody, TableRow, TableCell, Link,
+  Card, CardContent, Box, Typography, TableHead, TableBody, TableRow, TableCell, Link, Tooltip,
 } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import api from '../api';
@@ -48,6 +49,8 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
 
   const { platforms, seasons } = data;
   const hasCommissioned = platforms.some((p) => !p.isDirect);
+  // specs/tariff-recipe-platform-cleaning-fee.md rule 10 — the column exists only when a channel bills one.
+  const hasCleaningFee = platforms.some((p) => p.cleaningFee != null);
   const extraUnitLabel = seasons[0]?.extraGuestPriceUnit === 'per_night' ? 'Personne supp. / nuit' : 'Personne supp. / séjour';
 
   // The extra-guest price is per channel; when the seasons disagree (distinct per-season net
@@ -110,6 +113,7 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
                     </TableCell>
                   ))}
                   <TableCell align="right">{extraUnitLabel}</TableCell>
+                  {hasCleaningFee && <TableCell align="right">Ménage / séjour</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -130,6 +134,21 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
                       </TableCell>
                     ))}
                     <TableCell align="right">{extraGuestCell(p.id)}</TableCell>
+                    {hasCleaningFee && (
+                      <TableCell align="right">
+                        {p.cleaningFee == null ? '—' : (
+                          <Tooltip
+                            enterTouchDelay={0}
+                            title={`Ménage ${formatCurrency(p.cleaningFeeDetail.cleaningNet)} + corvées ${formatCurrency(p.cleaningFeeDetail.choresNet)} = ${formatCurrency(p.cleaningFeeDetail.net)} net`}
+                          >
+                            <Box component="span" sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{euro(p.cleaningFee)}</Typography>
+                              <Typography variant="caption" color="text.secondary">net {formatCurrency(p.cleaningFeeDetail.net)}</Typography>
+                            </Box>
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

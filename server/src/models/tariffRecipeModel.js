@@ -17,6 +17,7 @@
  */
 
 const { buildHorizonPlan, materializeClosures } = require('../utils/seasonPlan');
+const { resolvePlatformCleaningFees } = require('../utils/platformCleaningFee');
 
 function roundOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -322,11 +323,23 @@ function createTariffRecipeModel(database, recipeStore) {
       }
     }
 
+    // specs/tariff-recipe-platform-cleaning-fee.md rule 6 — a fee for a channel GuestFlow does not know
+    // would silently never reach the grid: refuse the whole apply instead.
+    const platformNames = recipe.cleaning?.platformFees?.length
+      ? database.prepare('SELECT name FROM platforms').all().map((p) => p.name)
+      : [];
+    const cleaningFees = resolvePlatformCleaningFees(recipe.cleaning, platformNames);
+    for (const name of cleaningFees.unknown) {
+      warnings.push(`Plateforme inconnue dans la recette : ${name}`);
+      blocking = true;
+    }
+
     return {
       recipe: { id: recipe.id, version: recipe.version, label: recipe.label },
       horizon: { fromYear, toYear },
       seasons,
       closures: closuresDiff,
+      cleaningFees: cleaningFees.fees,
       conflicts,
       warnings,
       blocking,
@@ -383,6 +396,7 @@ function createTariffRecipeModel(database, recipeStore) {
     if (!nothingToDo) runTransaction();
     else propertiesModel.setTariffRecipe(Number(propertyId), recipeId, diff.recipe.version);
     propertiesModel.setWelcomePackCost(Number(propertyId), recipe?.welcomePack?.cost ?? 0);
+    propertiesModel.setPlatformCleaningFees(Number(propertyId), diff.cleaningFees);
 
     // specs/tariff-change-journal.md rule 5 — date the change, and only a real one. An apply that
     // moves no season and adds no closure changed no tariff, so it writes nothing: a journal full of
