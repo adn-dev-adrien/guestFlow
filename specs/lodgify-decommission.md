@@ -394,6 +394,15 @@ tables, because its Booking source now goes through the Booking path.
     9,67 % came from the two 2025 stays (165,72 € on 1 714 €), booked before the Lodgify connection
     and paid through Abritel's own payment under the older terms. Still open: whether payment fees
     come on top of the 15 % once Abritel collects again after the cut — asked of Vrbo support.
+  - A: **Abritel after the cut, 2026-10-26 — 8 % today, 12 % from « early November ».** Vrbo moved
+    both listings to the « Formule à la commission ». Its own pages disagree with each other (the
+    support e-mail says 12 %, the pre-publication screen 16,25 %, the listing table 8 %); the
+    formula page `p/cyp` is the authoritative one: **5 % commission + 3 % payment processing**. The
+    `lodging-supply/commission-update` page announces a flat **12 %, payment processing included**,
+    « début novembre », date to be e-mailed; a reservation keeps the rate of the day it is booked,
+    and Abritel never reprices the listing itself. `Abritel` is therefore stored at **8**, and must
+    go to **12** — with the grid re-entered — the day the change takes effect. No settled payout
+    exists yet under this formula: the first one confirms the rate (method of §9 Q7).
   - A: **Measured on Airbnb 2026-10-15 — the stored 15.5 % is exact.** Two settled
     reservations: the gîte's HMEZ45YASB (725 € of nights + 80 € cleaning, « Frais de service
     hôte (15.5 %) » −124,78 €, 124,78 ÷ 805,00 = 15,50 %) and L'Estiva's HM9JRBCT4S (297 € of
@@ -783,3 +792,52 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     tax 1,20 €, promotions 3 → 7 nights 20/30/36/40/42,85 %. Tent: markup 7,5 %, room tax 5,51 %, VAT
     10 % included, promotions 2 → 7 nights 24/33/38/41/43/45 %. Both « Modérée », instant booking,
     booking window 550 days. The gîte's Vrbo cleaning fee is the same question as Q8 on Airbnb.
+
+- 2026-10-26 — **Abritel switch-over, gîte: disconnected by Vrbo, re-entered, wired, back online.**
+  - *The cut.* Vrbo support disconnected the account from Lodgify on request (§10 step 2) and left
+    both listings **hidden**, on the « Formule à la commission ». The gîte kept its 3 reviews (10/10).
+  - *What the cut left behind.* Every per-date price at **9 999 €** on both listings, the base rate
+    included; a mandatory **80 €** cleaning fee and **« Enfants non acceptés »** on the gîte; the
+    « Modérée – 30 jours » cancellation policy intact. No length-of-stay discount, no promotion.
+  - *Commission.* Measured on the formula page, not taken from the e-mail: 8 % until early November,
+    then 12 % (§9 Q7). Stored at 8.
+  - *Grid.* `gite-2027` regrossed at 8 % by `/platform-prices`: 314 / 329 / 371 / 449 / 917 / 987 €,
+    36 date ranges from today to 2027-12-31, per-date minimum stays (2, 3 on the May bridge and on
+    11-13 Nov 2027, 4 in Très haute), extra guest **28 €/night above 10**. Abritel offers only a
+    7-night and a 28-night discount: the weekly one is set to **42,85 %** (the recipe's 42,857 %
+    rounded down so it never undershoots the net), 2 to 6 nights sell at the full nightly price
+    (operator's call). Cleaning fee to **0 €**, sold on site as on Airbnb and Booking (§9 Q8);
+    children accepted, all ages. Written through the calendar's own `ratesAndDiscountsOverride` and
+    `minStayOverride` mutations and read back through `getRatesAndAvailability`: **432 days, zero
+    discrepancy** on price, weekly discount and minimum stay.
+  - *Feeds.* GuestFlow's export of La Granja imported on Abritel as « GuestFlow ». Abritel's own
+    export (`abritel.fr/icalendar/<hash>.ics?nonTentative`) carries only Abritel's native stays —
+    no echo of imported dates — and is wired as GuestFlow source **#15** (`Abritel`, La Granja). Its
+    first sync created two **past** reservations at 0 €: #22328 (24→26/10/2025, « Reserved -
+    Adrien ») and #22329 (31/12/2025→03/01/2026, « Reserved - Carole », the twin of #22201, a
+    hand-corrected Lodgify fiche with its own accounting). The takeover does not fire (different
+    platform label, one night apart), and relabelling #22201 to `Abritel` to force it would switch
+    its tourist-tax mode and move its totals (1 222 € → 1 246 €) on a past stay — not done.
+    Operator's calls: #22328 priced at the 2025 « Standard » rate (2 × 100 €) and marked paid on
+    26/10/2025; #22329 **left as it is** next to #22201 (0 €, no money is misstated, 2025 counts one
+    stay too many).
+  - *Back online* through `p/listing-status` → « Réactiver l'annonce » (« Publier l'annonce » alone
+    only leaves it « Masquée »). Cancellation still « Modérée – 30 jours » after publication.
+  - *Quotes, public page, 2 adults unless stated* — each one is the recipe at 8 % plus 1,20 € of
+    tourist tax per adult and night: Moyenne 2 nights 663 € (2 × 329), Haute 747 € (2 × 371), Très
+    haute 4 nights 1 806 € (4 × 449), Noël 1 979 € (2 × 987), Très basse 2 nights 633 € (2 × 314),
+    a week 2 215 € − 942 € (−42,85 %), 12 guests 769 € (+ 2 × 28 € × 2). 6→8 Nov 2026 (held on
+    Booking) is unavailable; 2 nights in Très haute are refused (minimum 4). Nouvel An could not be
+    quoted (31/12/2026 is booked, 31/12/2027 is beyond the 12-month window); its 917 € is among the
+    432 days read back. The public page took about twenty minutes to stop answering « pas
+    disponible » after the reactivation.
+  - ⚠️ *Deadline.* The owner dashboard dates the 12 % formula « à compter du 29 octobre ». On that
+    day: `Abritel` → 12 in Paramètres → Plateformes, then re-enter the grid (gîte 328 / 344 / 388 /
+    470 / 958 / 1032 €, extra guest 29 €), or every Abritel night booked afterwards nets ~4 % under
+    the recipe.
+  - *Left on the gîte's Abritel calendar:* three older imports (Gîtes de France, Airbnb, GreenGo)
+    that GuestFlow's feed now covers; they double every stay as a « Conflit » badge (dates stay
+    closed either way). Removal is the operator's, the session's attempt being refused.
+  - *Tent.* Blocked by Abritel itself: « Nous avons besoin de plus d'informations sur votre
+    annonce. Veuillez nous contacter » over its calendar, and « Expirée – aucun abonnement actif ».
+    Nothing done on it; prices still at 9 999 €; support to be written to.
