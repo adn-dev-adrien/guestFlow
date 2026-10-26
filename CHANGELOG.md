@@ -4,6 +4,24 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.18.0] - 2026-10-26
+
+### Summary
+- La grille « Prix plateformes » affiche les frais de ménage à poser sur chaque plateforme (Airbnb : 122 € pour le gîte, 13 € pour le lodge).
+- Après l'installation, réappliquer les recettes Gîte 3.6.0 et Aventura Lodge 1.2.0 pour voir ces frais (aucune saison ne bouge).
+- Le sas d'arrivée ne demande plus de rappeler vaisselle et poubelles aux voyageurs Airbnb, comme Airbnb l'exige.
+- Les mails J-2 / J-1 ne disent plus à un voyageur Airbnb que le ménage est à sa charge, et le sas de départ ne le lui facture plus.
+
+### Added
+- **Tariff recipes — cleaning fee billed by a platform.** A recipe can declare what a ménage costs, the hourly rate of the chores, and which channels bill a separate cleaning fee (ménage included or chores only). The « Prix plateformes » grid gains a « Ménage / séjour » column with the fee to configure, commission included, and its net make-up. Shipped recipes: Gîte 3.6.0 (Airbnb 122 €), Aventura Lodge 1.2.0 (Airbnb 13 €) — the cost of the dishes, trash and beds Airbnb no longer lets hosts ask of guests (`specs/tariff-recipe-platform-cleaning-fee.md`).
+
+### Changed
+- **Arrival SAS — no checkout chores for Airbnb guests.** Airbnb forbids asking its guests to do the dishes, take out the trash or strip the beds, or adding such a request at arrival (bookings made from 2026-11-20). The SAS no longer tells the operator to remind an Airbnb guest that « la vaisselle doit être faite et rangée, et les poubelles vidées »; every other channel keeps the reminder. The SAS read serves the new `cleaning.guestReminder` flag (`specs/airbnb-no-checkout-chores.md`).
+- **Airbnb guests are never asked for the ménage, nor billed for it.** The J-2 / J-1 e-mails count the « Frais de ménage (Airbnb) » line as a booked ménage and never tell an Airbnb guest the ménage is « à votre charge »; the departure SAS no longer offers to bill an undone ménage on an Airbnb stay, and the commit drops such a line server-side.
+
+### Migration
+- `properties.platformCleaningFees` (TEXT JSON, default `'[]'`), written by the tariff recipe apply only. Existing rows: empty, the grid is unchanged until a recipe carrying a `cleaning` block is re-applied — re-apply Gîte 3.6.0 and Aventura Lodge 1.2.0 after installing (no season moves).
+
 ## [3.17.0] - 2026-10-26
 
 ### Summary
