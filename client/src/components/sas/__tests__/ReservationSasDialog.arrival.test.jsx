@@ -127,7 +127,7 @@ test('arrival SAS reopen: caution hidden once received, ménage reminder rides o
       // The prior SAS complement, surfaced as a SAS-origin custom option (as getByIdWithDetails does).
       options: [{ isCustom: 1, sasArrivalOrigin: 1, inComplement: 1, description: 'Taie d\'oreiller', unitPrice: 5 }],
     },
-    cleaning: { included: true, price: null },
+    cleaning: { included: true, price: null, guestReminder: true },
   }));
   renderDialog({ mode: 'arrival' });
 

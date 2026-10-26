@@ -89,7 +89,8 @@ confirmation — records the caution status and the complement(s) on the reserva
 10. **Ménage (only if the cleaning is NOT already included).**
     - **Cleaning included** (reservation has the cleaning option `autoOptionType='cleaning'`, or it's a
       property default) → **no ménage page**; the client reminder (« vaisselle faite et rangée, poubelles
-      vidées ») is carried to the recap instead (rule 12, specs/sas-hide-settled-steps.md §3).
+      vidées ») is carried to the recap instead (rule 12, specs/sas-hide-settled-steps.md §3) — never on
+      an Airbnb stay (specs/airbnb-no-checkout-chores.md).
       **Exception (2026-08-03):** when the only reason it is « included » is the SAS's own row
       (`sasArrivalOrigin = 1`), the page **stays visible, pre-selected « ajouté »**, so the operator can undo
       it — see [sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md) §3.2.
@@ -124,7 +125,7 @@ confirmation — records the caution status and the complement(s) on the reserva
     catering sold at check-in), **with the full detail
     line by line**. Also shows the caution status (Fait / non traité). When the cleaning is included, shows the
     client reminder « vaisselle faite et rangée, poubelles vidées » (moved here from the hidden ménage page,
-    specs/sas-hide-settled-steps.md §3). Buttons **Valider et terminer** (commit) / **Quitter**.
+    specs/sas-hide-settled-steps.md §3), except on an Airbnb stay (specs/airbnb-no-checkout-chores.md). Buttons **Valider et terminer** (commit) / **Quitter**.
 
 ### 3.2 Departure SAS — pages (in order, each conditional)
 13. **Récap séjour (intro, always).** Client, logement, dates, heure de départ. Button **Commencer**.

@@ -1350,7 +1350,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           return (
             <Stack spacing={1}>
               <Typography variant="body1">✅ Le ménage est inclus.</Typography>
-              <Typography variant="body2" color="text.secondary">Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées.</Typography>
+              {data.cleaning.guestReminder && (
+                <Typography variant="body2" color="text.secondary">Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées.</Typography>
+              )}
             </Stack>
           );
         }
@@ -1630,8 +1632,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <Typography variant="body1" sx={{ fontWeight: 600 }}>Séjour : {formatCurrency(stayDue)}</Typography>
               )}
               {/* specs/sas-hide-settled-steps.md §3 rule 4 — when the ménage page is hidden (cleaning
-                  included), its client reminder is carried here so it's not lost. */}
-              {data.cleaning?.included && (
+                  included), its client reminder is carried here so it's not lost — never for an Airbnb
+                  guest (specs/airbnb-no-checkout-chores.md rule 3). */}
+              {data.cleaning?.guestReminder && (
                 <Typography variant="body2" color="text.secondary">
                   Ménage inclus — rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées.
                 </Typography>
