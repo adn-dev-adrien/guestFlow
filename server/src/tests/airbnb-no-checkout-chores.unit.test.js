@@ -47,16 +47,19 @@ function readSas({ platform, sold }) {
   return res.body;
 }
 
+// specs/airbnb-no-checkout-chores.md rule 1
 test('Airbnb stay with the ménage included: no guest reminder', () => {
   const body = readSas({ platform: 'Airbnb', sold: true });
   assert.equal(body.cleaning.included, true);
   assert.equal(body.cleaning.guestReminder, false);
 });
 
+// specs/airbnb-no-checkout-chores.md rule 4
 test('Booking stay with the ménage included: the reminder stays', () => {
   assert.equal(readSas({ platform: 'Booking', sold: true }).cleaning.guestReminder, true);
 });
 
+// specs/airbnb-no-checkout-chores.md rule 5
 test('Airbnb stay without the ménage: no reminder (the ménage offer page is unchanged)', () => {
   const body = readSas({ platform: 'Airbnb', sold: false });
   assert.equal(body.cleaning.included, false);
@@ -67,6 +70,7 @@ test('no recorded platform counts as direct: the reminder stays', () => {
   assert.equal(readSas({ platform: null, sold: true }).cleaning.guestReminder, true);
 });
 
+// specs/airbnb-no-checkout-chores.md rule 2
 test('isAirbnbChannel ignores case and whitespace, and nothing else is Airbnb', () => {
   assert.equal(isAirbnbChannel('Airbnb'), true);
   assert.equal(isAirbnbChannel(' airbnb '), true);
