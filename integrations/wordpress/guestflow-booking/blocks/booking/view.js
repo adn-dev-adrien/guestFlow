@@ -47,6 +47,25 @@
     try { return new URLSearchParams(window.location.search).get(name); } catch (e) { return null; }
   }
 
+  // GuestFlow specs/google-vacation-rentals-feed.md rule 19 — the landing link Google builds carries
+  // the stay: ?checkin=DD/MM/YYYY&checkout=DD/MM/YYYY&guests=N. A malformed, impossible or past value
+  // is ignored silently and the block opens empty, as without the link.
+  function frDateParam(name) {
+    var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(queryParam(name) || '');
+    if (!m) return null;
+    var iso = m[3] + '-' + m[2] + '-' + m[1];
+    var d = new Date(iso + 'T00:00:00');
+    return isNaN(d.getTime()) || isoOf(d) !== iso ? null : iso;
+  }
+  function stayFromUrl() {
+    var start = frDateParam('checkin');
+    var end = frDateParam('checkout');
+    var datesOk = !!(start && end && start >= todayIso() && end > start);
+    var rawGuests = queryParam('guests') || '';
+    var guests = /^\d{1,2}$/.test(rawGuests) ? parseInt(rawGuests, 10) : 0;
+    return { start: datesOk ? start : null, end: datesOk ? end : null, guests: guests >= 1 ? guests : null };
+  }
+
   function init(container) {
     var propertyId = parseInt(container.dataset.propertyId, 10) || 0;
     var showOptions = container.dataset.showOptions !== '0';
@@ -612,6 +631,9 @@
     var maxBabies = Number(detail.maxBabies || 0);
     // The widget opens on 2 adults — a 1-guest property would start over capacity.
     if (state.adults > maxGuests) state.adults = maxGuests;
+    // Rule 19 — the party size of the link, when the property can host it.
+    var stayInUrl = stayFromUrl();
+    if (stayInUrl.guests && stayInUrl.guests <= maxGuests) state.adults = stayInUrl.guests;
     function guestCap(get) {
       return function () {
         return get() + Math.max(0, maxGuests - persons());
@@ -1414,6 +1436,17 @@
       feedback.innerHTML = '';
       feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, res ? GF.errorMessage(res) : GF.t('genericError')));
       if (pendingRequest) feedback.appendChild(GF.el('div', { class: 'gf-inline-info' }, GF.t('paymentRetry', pendingRequest.reference)));
+    }
+
+    // Rule 19 — the dates of the link, on the month of the arrival; the quote that follows says
+    // whether they are still free, as for a stay picked on the calendar.
+    if (stayInUrl.start) {
+      state.start = stayInUrl.start;
+      state.end = stayInUrl.end;
+      calBase = firstOfMonth(new Date(stayInUrl.start + 'T00:00:00'));
+      f.startDisplay.value = shortDate(state.start);
+      f.endDisplay.value = shortDate(state.end);
+      f.clearDates.disabled = false;
     }
 
     renderBabyBeds();
