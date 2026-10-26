@@ -18,7 +18,14 @@ const EVENTS = Object.freeze([
   'reservation.cancelled',
   'reservation.deleted',
   'ical.imported',
+  // specs/google-vacation-rentals-feed.md rule 12 — { propertyId | null, source } after a write that can
+  // move a price, a minimum stay, a changeover day or a closed night. `null` = every property.
+  'pricing.changed',
 ]);
+
+// The events a plugin may emit itself through `ctx.events.emit` (tariff-recipes announces a recipe
+// apply). A plugin never announces a reservation: those come from the core's own writes.
+const PLUGIN_EMITTABLE = Object.freeze(['pricing.changed']);
 
 function logFailure(pluginId, what, err) {
   // eslint-disable-next-line no-console
@@ -94,4 +101,4 @@ function sasData(reservationId) {
   return out;
 }
 
-module.exports = { EVENTS, emit, dispatch, emailContext, editorTokens, sasData };
+module.exports = { EVENTS, PLUGIN_EMITTABLE, emit, dispatch, emailContext, editorTokens, sasData };

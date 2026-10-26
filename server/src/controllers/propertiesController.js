@@ -7,6 +7,7 @@ const { toReceptionPropertyList } = require('../utils/receptionView');
 const { validatePropertyInput } = require('../utils/propertyValidation');
 const { quotaRefusal } = require('../utils/planQuota');
 const propertyArticle = require('../utils/propertyArticle');
+const { emitPricingChanged, priceBearingRow, priceBearingChanged } = require('../utils/pricingChanged');
 
 // Map a model result ({ data } | { error, status, conflictingRule?, code? }) to an HTTP response.
 function respond(res, result) {
@@ -85,7 +86,10 @@ async function create(req, res) {
 async function update(req, res) {
   if (refuseInvalid(res, req.body, model.getByIdWithDetails(req.params.id))) return;
   try {
-    res.json(await model.update(req.params.id, req.body, req.file));
+    const before = priceBearingRow(req.params.id);
+    const result = await model.update(req.params.id, req.body, req.file);
+    if (priceBearingChanged(before, priceBearingRow(req.params.id))) emitPricingChanged(req.params.id, 'property');
+    res.json(result);
   } catch (err) {
     console.error('[propertiesController.update]', err);
     res.status(500).json({ error: 'Erreur lors de la mise à jour du logement' });
@@ -96,16 +100,23 @@ function remove(req, res) {
   res.json(model.remove(req.params.id));
 }
 
+// specs/google-vacation-rentals-feed.md rule 12 — a write that succeeded announces itself; a refusal
+// announces nothing.
+function respondAndAnnounce(res, result, propertyId, source) {
+  if (result && !result.error) emitPricingChanged(propertyId, source);
+  return respond(res, result);
+}
+
 function addPricing(req, res) {
-  respond(res, model.addPricingRule(req.params.id, req.body));
+  respondAndAnnounce(res, model.addPricingRule(req.params.id, req.body), req.params.id, 'pricing');
 }
 
 function updatePricing(req, res) {
-  respond(res, model.updatePricingRule(req.params.id, req.params.ruleId, req.body));
+  respondAndAnnounce(res, model.updatePricingRule(req.params.id, req.params.ruleId, req.body), req.params.id, 'pricing');
 }
 
 function deletePricing(req, res) {
-  respond(res, model.deletePricingRule(req.params.id, req.params.ruleId));
+  respondAndAnnounce(res, model.deletePricingRule(req.params.id, req.params.ruleId), req.params.id, 'pricing');
 }
 
 // « Prix plateformes » grid for the tarif page (specs/platform-price-from-commission.md).
@@ -115,13 +126,14 @@ function platformPrices(req, res) {
 }
 
 function applyPricing(req, res) {
-  respond(res, model.applyPricingTo(Number(req.params.id), req.body));
+  const target = req.body && req.body.targetPropertyId;
+  respondAndAnnounce(res, model.applyPricingTo(Number(req.params.id), req.body), target, 'pricing');
 }
 
 // Calendar season painting (specs/pricing-min-nights-per-range.md): (re)assign a selected period to a
 // season with a minimum-nights, carving/splitting the covering season(s) server-side.
 function assignPricingDateRange(req, res) {
-  respond(res, model.assignDateRangeToSeason(req.params.id, req.body));
+  respondAndAnnounce(res, model.assignDateRangeToSeason(req.params.id, req.body), req.params.id, 'pricing');
 }
 
 function addDocument(req, res) {
@@ -133,7 +145,9 @@ function deleteDocument(req, res) {
 }
 
 function setOptions(req, res) {
-  res.json(model.setOptions(req.params.id, req.body.optionIds));
+  const result = model.setOptions(req.params.id, req.body.optionIds);
+  emitPricingChanged(req.params.id, 'options');
+  res.json(result);
 }
 
 module.exports = {

@@ -7,6 +7,7 @@ const db = require('../database');
 const model = require('../models/establishmentClosuresModel');
 const { validateRange } = require('../utils/establishmentClosuresValidation');
 const { sentenceCase } = require('../utils/textFormatters');
+const { emitPricingChanged } = require('../utils/pricingChanged');
 
 function normalizePropertyId(raw) {
   if (raw == null || raw === '' || raw === 'null') return null;
@@ -64,6 +65,8 @@ function create(req, res) {
 
   const label = sentenceCase(rawLabel || 'Fermeture établissement') || 'Fermeture établissement';
   const result = model.insert({ propertyId, label, startDate, endDate });
+  // specs/google-vacation-rentals-feed.md rule 12 — `null` (every property) for an establishment-wide closure.
+  emitPricingChanged(propertyId, 'closures');
   return res.json({ id: result.id });
 }
 
@@ -102,12 +105,17 @@ function update(req, res) {
 
   const label = sentenceCase(rawLabel || 'Fermeture établissement') || 'Fermeture établissement';
   model.update(id, { propertyId, label, startDate, endDate });
+  // The closure may have moved from one property to another: both are recomputed.
+  emitPricingChanged(propertyId, 'closures');
+  if (existing.propertyId !== propertyId) emitPricingChanged(existing.propertyId, 'closures');
   return res.json({ ok: true });
 }
 
 function remove(req, res) {
   const id = Number(req.params.id);
+  const existing = model.findById(id);
   model.delete(id);
+  if (existing) emitPricingChanged(existing.propertyId, 'closures');
   return res.json({ ok: true });
 }
 

@@ -678,12 +678,14 @@ function createController(model = defaultModel, deps = {}) {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const unknown = Object.keys(body).filter((key) => !record.settings.some((k) => k.key === key));
       if (unknown.length) return res.status(400).json({ error: 'UNKNOWN_SETTING', keys: unknown });
-      // A declared `validate(value) → message | null` refuses the whole write (specs/plugins-phase-2-hosts.md
-      // rule 15: the linen stock and laundry day keep the checks the core settings form had).
+      // A declared `validate(value, body) → message | null` refuses the whole write (specs/plugins-phase-2-hosts.md
+      // rule 15: the linen stock and laundry day keep the checks the core settings form had). `body` is
+      // the whole write, for a key that depends on another one sent with it
+      // (specs/google-vacation-rentals-feed.md rule 16: « Envoi » needs the partner id).
       const errors = {};
       record.settings.forEach(({ key, validate }) => {
         if (!validate || !Object.prototype.hasOwnProperty.call(body, key)) return;
-        const message = validate(body[key]);
+        const message = validate(body[key], body);
         if (message) errors[key] = message;
       });
       if (Object.keys(errors).length) return res.status(400).json({ error: 'INVALID_SETTING', errors });
