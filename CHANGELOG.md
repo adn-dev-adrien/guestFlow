@@ -4,6 +4,19 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.17.0] - 2026-10-26
+
+### Summary
+- Séjour commencé : options, ressources et lignes libres s'ajoutent sans déverrouiller la fiche, jusqu'à l'encaissement du complément de fin de séjour.
+- Ces ventes partent dans le complément de fin de séjour ; ce qui a été vendu à l'arrivée peut augmenter, jamais diminuer ni disparaître.
+- Dates, voyageurs, notes et suppression restent verrouillés comme avant.
+
+### Added
+- **Extras on a locked fiche.** Once a stay has started, options, resources and custom lines can be added and corrected without « Déverrouiller cette fiche », until the end-of-stay complement is collected. The sale goes to the end-of-stay complement. Lines sold at arrival can be increased but never removed, reduced or offered; dates, guests, notes and deletion stay locked (spec `mid-stay-extras-on-locked-fiche.md`).
+
+### Fixed
+- Saving a reservation whose resource turns out to be unavailable no longer leaves part of the changes written: the whole save is now rolled back.
+
 ## [3.16.0] - 2026-10-25
 
 ### Summary
