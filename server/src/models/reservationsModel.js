@@ -9,7 +9,7 @@
 
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
-const { formatPlatformName, DIRECT_CHANNELS } = require('../utils/platformNameFormat');
+const { formatPlatformName, DIRECT_CHANNELS, isAirbnbChannel } = require('../utils/platformNameFormat');
 const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
@@ -3192,7 +3192,9 @@ function createReservationsModel(database) {
         // arrival SAS, or property default), the end-of-stay cleaning can never be billed. Drops the
         // line whatever the client sends, and drops a line stored by an earlier commit on re-run
         // (rule 4: re-running the departure SAS is how an over-billed stay is corrected).
-        const cleaningSold = model.isCleaningSoldForReservation(reservationId);
+        // specs/airbnb-no-checkout-chores.md rule 7 — nor on an Airbnb stay, whatever the client sends.
+        const cleaningSold = model.isCleaningSoldForReservation(reservationId)
+          || isAirbnbChannel((database.prepare('SELECT platform FROM reservations WHERE id = ?').get(reservationId) || {}).platform);
         // specs/sas-offer-complement-lines.md §3.3 rule 9 — an offered line is stored at 0 € but keeps
         // its label, its quantity, its unit price and its `source`/`key` tags: that is what shows the
         // real price struck through on the recap, and what lets a re-open bill it again.

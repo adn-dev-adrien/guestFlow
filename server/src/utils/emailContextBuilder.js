@@ -13,6 +13,7 @@ const { formatDateLong, formatTimeShort } = require('./dateFr');
 const { formatCurrency } = require('./devisHelpers');
 const { isClientVisibleOption } = require('./optionVisibility');
 const { isCleaningOption } = require('./cleaningOption');
+const { isAirbnbChannel } = require('./platformNameFormat');
 const { resolveCancelOn } = require('./paymentSchedule');
 const { buildStayContent } = require('./stayContentContext');
 const { resolveEmailIdentity } = require('./emailIdentity');
@@ -108,8 +109,11 @@ function buildCgvUrl(settings, termsVersion) {
  */
 function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, gateInvitation = null }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
+  // specs/airbnb-no-checkout-chores.md rule 6 — a free « Frais de ménage (Airbnb) » line is a cleaning
+  // the guest paid for, exactly as the SAS reads it (isCleaningSoldForReservation).
+  const customCleaningBooked = (customOptions || []).some((co) => isCleaningOption({ title: co.description }));
   const stayContent = buildStayContent({
-    reservation, client, property, options, facts: stayFacts || {}, settings, lang, sequence: sequence || {},
+    reservation, client, property, options, facts: { ...(stayFacts || {}), customCleaningBooked }, settings, lang, sequence: sequence || {},
   });
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never appear in client emails —
   // drop them up-front so every option-derived list/flag/complement line below ignores them.
@@ -151,7 +155,10 @@ function buildContext({ reservation, client, property, options = [], resources =
   // Cleaning ("Ménage") option — shared rule (tag OR name « ménage »), see utils/cleaningOption.js.
   // Name-matching fixes the bug where a hand-created « Ménage » option (no tag) left the "cleaning at
   // your charge" else-branch showing even when cleaning WAS booked; the SAS uses the same helper.
-  const hasCleaningOption = (options || []).some(isCleaningOption);
+  // Also true on any Airbnb stay: the J-1 « il reste à votre charge » branch is a chore request Airbnb
+  // forbids (specs/airbnb-no-checkout-chores.md rule 6).
+  const hasCleaningOption = (options || []).some(isCleaningOption) || customCleaningBooked
+    || isAirbnbChannel((reservation || {}).platform);
 
   // "Linge fourni par défaut" — the reservation's PROPERTY includes bed linen as a default-offered
   // option (specs/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the

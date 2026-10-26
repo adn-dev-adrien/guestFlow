@@ -39,3 +39,16 @@ test('other channel, ménage included: the recap keeps the reminder', async () =
   await reachRecap(true);
   expect(screen.getByText(/vaisselle doit être faite/)).toBeInTheDocument();
 });
+
+// specs/airbnb-no-checkout-chores.md rule 7 — no « ménage fait correctement ? » page on an Airbnb departure.
+test('Airbnb departure without a cleaning line: straight to the missing-items question', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionAmount: 0 },
+    cleaning: { included: false, price: 80, billableAtDeparture: false },
+  }));
+  renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
+  expect(screen.queryByText(/Le ménage de fin de séjour a-t-il été fait correctement/)).toBeNull();
+});

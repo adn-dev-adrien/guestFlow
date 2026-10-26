@@ -223,6 +223,8 @@ function getSas(req, res) {
       price: cleaningPrice,
       sasOrigin: upsells.cleaning.sasOrigin,
       guestReminder: cleaningIncluded && !isAirbnbChannel(reservation.platform),
+      // Rule 7 — a ménage left undone is never billed to an Airbnb guest (Airbnb forbids the penalty).
+      billableAtDeparture: !cleaningIncluded && !isAirbnbChannel(reservation.platform),
     },
     // specs/sas-bath-linen-upsell.md §3.1 — bath-linen upsell (per-person price, mirrors the engine).
     // Still offered while the only row present is our own, so the operator can undo it.
