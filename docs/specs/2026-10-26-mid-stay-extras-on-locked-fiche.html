@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Options en cours de séjour</title>
+<style>
+:root{
+  --primary:#2F5D46;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+::selection{background:#D5E3D9}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:980px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.35rem/1.2 var(--serif);margin:48px 0 12px}
+p{margin:0 0 12px;max-width:70ch}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0;padding-left:1.1em;max-width:70ch}
+ul.plain li{margin:4px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.panel h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- maquette ---------- */
+.demo-bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:8px 0 14px}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 .9rem var(--sans);color:var(--muted);padding:7px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.check{display:inline-flex;align-items:center;gap:8px;font-size:.92rem;color:var(--ink);cursor:pointer;min-height:36px}
+.check input{width:18px;height:18px;accent-color:var(--primary)}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+.actionbar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:12px}
+.actionbar .t{font:600 1rem var(--serif);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:grid;place-items:center;cursor:pointer;color:var(--ink)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:active{transform:scale(.96)}
+.banner{display:flex;gap:10px;align-items:center;color:var(--warning);font-size:.9rem;margin:0 0 12px}
+.banner span{flex:1}
+.btn-o{border:1px solid currentColor;background:transparent;color:var(--warning);border-radius:8px;padding:6px 10px;font:500 .82rem var(--sans);cursor:pointer;min-height:36px;white-space:nowrap}
+@media(max-width:600px){.banner{flex-direction:column;align-items:stretch}}
+.grid{display:grid;grid-template-columns:1fr 1.25fr;gap:12px;align-items:start}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;transition:opacity .25s ease}
+.card h3{font:600 1.05rem var(--serif);margin:0 0 12px}
+.card h4{font:600 .92rem var(--serif);margin:16px 0 10px}
+.locked{opacity:.55;pointer-events:none}
+.field{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.field label{font-size:.75rem;color:var(--muted)}
+.field .v{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:.92rem}
+.row{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;transition:background .2s ease,border-color .2s ease}
+.row.on{border-color:#C9D9CE;background:#FAFCFA}
+.row-top{display:flex;align-items:center;gap:10px}
+.row-top .name{flex:1;min-width:0}
+.row-top .name b{font-weight:600;font-size:.93rem}
+.row-top .price{color:var(--muted);font-size:.82rem}
+.cap{display:block;font-size:.76rem;color:var(--info);margin-top:2px}
+.cap.mid{color:var(--honey)}
+.row-bot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;flex-wrap:wrap}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stepper button{width:40px;height:40px;border:0;background:#F4F1EA;font-size:1.1rem;cursor:pointer;color:var(--ink)}
+.stepper button:disabled{color:#BDB7A9;cursor:not-allowed}
+.stepper input{width:48px;height:40px;border:0;text-align:center;font:500 .95rem var(--sans);font-variant-numeric:tabular-nums;color:var(--ink);background:var(--card)}
+.stepper.err{border-color:var(--error);animation:nudge .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes nudge{0%,100%{transform:translateX(0)}30%{transform:translateX(-4px)}60%{transform:translateX(3px)}}
+.total{font-weight:600;font-variant-numeric:tabular-nums}
+.err-msg{color:var(--error);font-size:.78rem;width:100%}
+/* switch */
+.sw{position:relative;width:46px;height:28px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.sw i{position:absolute;inset:0;border-radius:99px;background:#CFC8BA;transition:background .2s ease}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .25s cubic-bezier(.3,.9,.3,1)}
+.sw input:checked+i{background:var(--primary)}
+.sw input:checked+i::after{transform:translateX(18px)}
+.sw input:disabled{cursor:not-allowed}
+.sw input:disabled+i{opacity:.55}
+.sw input:focus-visible+i{outline:2px solid var(--primary);outline-offset:2px}
+.custom{display:grid;grid-template-columns:1fr 84px 84px 36px;gap:8px;align-items:center;margin-bottom:8px}
+.custom input{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:.9rem;min-width:0;color:var(--ink)}
+.custom input.n{text-align:right;font-variant-numeric:tabular-nums}
+.x{width:36px;height:36px;border:0;background:transparent;color:var(--error);cursor:pointer;border-radius:8px}
+@media(max-width:480px){.custom{grid-template-columns:1fr 1fr 36px}.custom input:first-child{grid-column:1/-1}}
+.add{border:1px solid var(--primary);color:var(--primary);background:transparent;border-radius:8px;padding:6px 12px;font:500 .85rem var(--sans);cursor:pointer;min-height:36px}
+.eos{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:4px}
+.eos-line{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;padding:3px 0}
+.eos-line span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+.eos-total{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-weight:600}
+.eos-empty{color:var(--muted);font-size:.86rem}
+.kv{display:flex;justify-content:space-between;font-size:.88rem;padding:3px 0;color:var(--muted)}
+.kv b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+.paid{display:inline-block;font-size:.72rem;padding:2px 8px;border-radius:99px;background:var(--success-bg);color:var(--success);margin-left:6px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);opacity:0;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:.9rem;max-width:calc(100% - 32px);transition:opacity .2s ease,transform .3s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--error)}
+.hint{font-size:.85rem;color:var(--muted);margin-top:10px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Ajouter une option pendant le séjour</h1>
+<p class="lede">Spec <code>specs/mid-stay-extras-on-locked-fiche.md</code> — brouillon du 26/10/2026, à valider.</p>
+
+<h2>Constat</h2>
+<p>Dès l'arrivée, la fiche est verrouillée. La carte « Options et ressources » est grisée, et le serveur n'écrit même pas les lignes d'options. Vendre une bière ou un ménage à un client présent oblige à « Déverrouiller cette fiche » : réservé à l'admin, et cela rouvre tout, dates, logement et suppression compris.</p>
+<p>La partie argent existe déjà : une prestation vendue après l'arrivée part dans le <b>complément de fin de séjour</b>, encaissé au SAS de départ. Il manque seulement la porte.</p>
+
+<h2>Ce qu'on propose</h2>
+<div class="cols">
+  <div class="panel"><h3>Ouvert sans déverrouiller</h3>
+    <ul class="plain">
+      <li>Toute la carte : options, ressources (bain nordique), lignes libres.</li>
+      <li>Jusqu'à l'encaissement du complément de fin de séjour, même après le départ.</li>
+      <li>Pour tout utilisateur qui enregistre déjà des fiches, pas seulement l'admin.</li>
+    </ul></div>
+  <div class="panel"><h3>Ce qui reste figé</h3>
+    <ul class="plain">
+      <li>Les lignes vendues à l'arrivée : ni retirées ni réduites. On peut en ajouter (3<sup>e</sup> petit-déjeuner).</li>
+      <li>Dates, logement, voyageurs, notes, suppression, annulation.</li>
+      <li>Le serveur décide de la fenêtre et refuse le reste, le navigateur ne fait qu'afficher.</li>
+    </ul></div>
+</div>
+
+<h2>Essayer</h2>
+<p>Fiche d'un séjour en cours. Activez le ménage, ajoutez une bière, essayez de baisser le petit-déjeuner sous ce qui a été vendu à l'arrivée, puis cochez « complément encaissé ».</p>
+
+<div class="demo-bar">
+  <div class="seg" role="group" aria-label="Version">
+    <button type="button" data-mode="before" aria-pressed="false">Aujourd'hui</button>
+    <button type="button" data-mode="after" aria-pressed="true">Proposé</button>
+  </div>
+  <label class="check"><input type="checkbox" id="collected"> Complément de fin de séjour encaissé</label>
+</div>
+
+<div class="frame">
+  <div class="actionbar">
+    <div class="t">Famille Martin · La Granja · 24 → 29 oct.</div>
+    <button class="ib save" id="save" type="button" aria-label="Enregistrer" title="Enregistrer">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+    </button>
+    <button class="ib" type="button" id="cancel" aria-label="Annuler" title="Annuler">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <div class="banner"><span id="bannerText"></span><button class="btn-o" type="button" id="unlock">Déverrouiller cette fiche</button></div>
+
+  <div class="grid">
+    <div>
+      <div class="card locked" aria-disabled="true">
+        <h3>Séjour</h3>
+        <div class="field"><label>Arrivée</label><div class="v">vendredi 24 octobre 2026</div></div>
+        <div class="field"><label>Départ</label><div class="v">mercredi 29 octobre 2026</div></div>
+        <div class="field"><label>Voyageurs</label><div class="v">2 adultes, 2 enfants</div></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3>Paiements</h3>
+        <div class="kv"><span>Acompte</span><b>180,00 €<span class="paid">payé</span></b></div>
+        <div class="kv"><span>Solde</span><b>420,00 €<span class="paid">payé</span></b></div>
+        <div class="kv"><span>Complément d'arrivée</span><b>48,00 €<span class="paid">payé</span></b></div>
+        <h4>Complément de fin de séjour</h4>
+        <div class="eos" id="eos"></div>
+      </div>
+    </div>
+
+    <div class="card" id="extras">
+      <h3>Options et ressources</h3>
+      <div id="opts"></div>
+      <h4 style="display:flex;justify-content:space-between;align-items:center">Options personnalisées <button class="add" type="button" id="addCustom">Ajouter une ligne</button></h4>
+      <div id="customs"></div>
+    </div>
+  </div>
+</div>
+<p class="hint">Les montants sont fictifs. Sur mobile, la carte passe sous les paiements et la mention « Vendu à l'arrivée » se replie sous le libellé.</p>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="plain">
+  <li>Vendre depuis la réception ou les SAS hors de la fiche.</li>
+  <li>Changer la façon d'encaisser le complément de fin de séjour.</li>
+  <li>Le bouton « Forcer en complément » reste inactif dans cette fenêtre : une vente en cours de séjour va de toute façon en fin de séjour.</li>
+</ul>
+
+<h2>Risque</h2>
+<p>Faible côté argent : le routage vers la fin de séjour est en production depuis août et testé. Le point sensible est le contrôle serveur des lignes d'arrivée : une erreur laisserait retirer une prestation déjà encaissée. Il est couvert par une batterie de tests dédiée (~14 cas serveur, ~5 client) et par un refus explicite (<code>ARRIVAL_EXTRAS_FROZEN</code>).</p>
+<p>Le verrou n'est plus calculé dans le navigateur : la fiche lit un objet <code>editLock</code> préparé par le serveur.</p>
+
+<h2>Arbitrages</h2>
+<p>Tranchés le 26/10 : fenêtre jusqu'à l'encaissement fin de séjour ; lignes d'arrivée figées, ajouts libres ; toute la carte. <b>Aucun en attente</b> — reste à valider la spec.</p>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  var eur = function(n){return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';};
+  var initial = function(){return {
+    opts:[
+      {id:'pdj',name:'Petit-déjeuner',unit:12,label:'12 € / pers.',qty:2,on:true,arrival:2,qtyable:true},
+      {id:'bain',name:'Bain nordique — 1 h',unit:0,label:'Offert',qty:1,on:true,arrival:1,offered:true},
+      {id:'menage',name:'Ménage de fin de séjour',unit:60,label:'60 € forfait',qty:1,on:false,arrival:0},
+      {id:'bois',name:'Panier de bois',unit:15,label:'15 € / panier',qty:1,on:false,arrival:0,qtyable:true},
+      {id:'heure',name:'Bain nordique — heure suppl.',unit:25,label:'25 € / heure',qty:1,on:false,arrival:0,qtyable:true}
+    ],
+    customs:[],
+    errors:{}
+  };};
+  var s = initial(), mode='after', collected=false, seq=0;
+  var $ = function(id){return document.getElementById(id);};
+
+  function editable(){return mode==='after' && !collected;}
+  function midLines(){
+    var out=[];
+    s.opts.forEach(function(o){
+      if(!o.on||o.offered) return;
+      var extra=o.qty-o.arrival;
+      if(extra>0) out.push({label:o.name+(o.qtyable?' : '+extra+' × '+eur(o.unit).replace(',00',''):''),amount:extra*o.unit});
+    });
+    s.customs.forEach(function(c){
+      var a=(Number(c.qty)||0)*(Number(String(c.price).replace(',','.'))||0);
+      if(c.desc.trim()&&a>0) out.push({label:c.desc.trim()+(c.qty>1?' : '+c.qty+' × '+eur(Number(String(c.price).replace(',','.'))).replace(',00',''):''),amount:a});
+    });
+    return out;
+  }
+
+  function render(){
+    document.querySelectorAll('.seg button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.mode===mode));});
+    var open=editable();
+    $('bannerText').textContent = open
+      ? 'Séjour commencé : options, client, plateforme, prix et paiements restent modifiables.'
+      : 'Cette réservation est passée ou en cours : seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution restent modifiables.';
+    $('extras').classList.toggle('locked',!open);
+    $('extras').setAttribute('aria-disabled',String(!open));
+
+    var h='';
+    s.opts.forEach(function(o){
+      var frozen = o.arrival>0;
+      var err=s.errors[o.id];
+      h+='<div class="row'+(o.on?' on':'')+'"><div class="row-top"><div class="name"><b>'+o.name+'</b> <span class="price">· '+o.label+'</span>';
+      if(mode==='after'&&frozen) h+='<span class="cap">Vendu à l\'arrivée'+(o.qtyable?' : '+o.arrival+' minimum':'')+'</span>';
+      else if(mode==='after'&&o.on) h+='<span class="cap mid">Fin de séjour</span>';
+      h+='</div><span class="sw"><input type="checkbox" aria-label="'+o.name+'" data-sw="'+o.id+'"'+(o.on?' checked':'')+(frozen?' disabled title="Vendu à l\'arrivée"':'')+'><i></i></span></div>';
+      if(o.on&&o.qtyable){
+        var min=mode==='after'?Math.max(1,o.arrival):1;
+        h+='<div class="row-bot"><div class="stepper'+(err?' err':'')+'"><button type="button" data-dec="'+o.id+'" aria-label="Moins"'+(o.qty<=min?' disabled':'')+'>−</button><input inputmode="numeric" aria-label="Quantité '+o.name+'" data-qty="'+o.id+'" value="'+o.qty+'"><button type="button" data-inc="'+o.id+'" aria-label="Plus">+</button></div><span class="total">'+eur(o.qty*o.unit)+'</span>';
+        if(err) h+='<span class="err-msg">'+err+'</span>';
+        h+='</div>';
+      }
+      h+='</div>';
+    });
+    $('opts').innerHTML=h;
+
+    var c='';
+    if(!s.customs.length) c='<p class="eos-empty" style="margin:0">Aucune option personnalisée.</p>';
+    s.customs.forEach(function(l){
+      c+='<div class="custom"><input aria-label="Description" placeholder="Description" data-c="'+l.k+'" data-f="desc" value="'+l.desc.replace(/"/g,'&quot;')+'"><input class="n" aria-label="Quantité" inputmode="numeric" data-c="'+l.k+'" data-f="qty" value="'+l.qty+'"><input class="n" aria-label="Prix unitaire" inputmode="decimal" data-c="'+l.k+'" data-f="price" value="'+l.price+'"><button class="x" type="button" aria-label="Retirer la ligne" data-rm="'+l.k+'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button></div>';
+    });
+    $('customs').innerHTML=c;
+    renderEos();
+  }
+
+  function renderEos(){
+    var lines=midLines(), e='';
+    if(!lines.length) e='<div class="eos-empty">Rien à percevoir au départ pour l\'instant.</div>';
+    else{
+      var t=0;
+      lines.forEach(function(l){t+=l.amount;e+='<div class="eos-line"><span>'+l.label+'</span><span>'+eur(l.amount)+'</span></div>';});
+      e+='<div class="eos-line eos-total"><span>À percevoir au départ'+(collected?'<span class="paid">payé</span>':'')+'</span><span>'+eur(t)+'</span></div>';
+    }
+    $('eos').innerHTML=e;
+  }
+
+  var toastTimer;
+  function toast(msg,bad){
+    var t=$('toast');t.textContent=msg;t.className='toast show'+(bad?' bad':'');
+    clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.className='toast'+(bad?' bad':'');},2600);
+  }
+  function find(id){return s.opts.filter(function(o){return o.id===id;})[0];}
+  function setQty(o,v){
+    var min=Math.max(1,o.arrival);
+    if(!(v>=1)){v=min;}
+    if(v<o.arrival){s.errors[o.id]='Vendu à l\'arrivée : '+o.arrival+' minimum.';o.qty=o.arrival;}
+    else{delete s.errors[o.id];o.qty=Math.min(v,20);}
+    render();
+  }
+
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('button,[data-mode]');if(!t)return;
+    if(t.dataset.mode){mode=t.dataset.mode;s.errors={};render();return;}
+    if(t.dataset.inc){var o=find(t.dataset.inc);setQty(o,o.qty+1);return;}
+    if(t.dataset.dec){var o2=find(t.dataset.dec);setQty(o2,o2.qty-1);return;}
+    if(t.dataset.rm){s.customs=s.customs.filter(function(l){return l.k!==t.dataset.rm;});render();return;}
+    if(t.id==='addCustom'){s.customs.push({k:'c'+(++seq),desc:seq===1?'Bière locale':'',qty:seq===1?4:1,price:seq===1?'3':''});render();
+      var ins=$('customs').querySelectorAll('input[data-f=desc]');if(ins.length)ins[ins.length-1].focus();return;}
+    if(t.id==='save'){
+      if(mode==='before'){toast('Seuls le client, la plateforme, les prix et les paiements sont enregistrés. Options ignorées.',true);return;}
+      if(collected){toast('Fiche enregistrée. Options inchangées : complément de fin de séjour déjà encaissé.');return;}
+      var n=midLines().length;toast(n?'Enregistré : '+n+' prestation'+(n>1?'s':'')+' en fin de séjour.':'Enregistré.');return;}
+    if(t.id==='cancel'){s=initial();seq=0;render();toast('Modifications annulées.');return;}
+    if(t.id==='unlock'){toast('Déverrouillage complet, réservé à l\'admin : inchangé.');}
+  });
+  // Clicks on a greyed card never reach it; tell why on the surrounding frame.
+  $('extras').parentElement.addEventListener('pointerdown',function(e){
+    if(!editable()&&e.target.closest('#extras')===null&&e.target.closest('.grid')&&e.clientX>$('extras').getBoundingClientRect().left&&e.clientY>$('extras').getBoundingClientRect().top&&e.clientY<$('extras').getBoundingClientRect().bottom){
+      toast(mode==='before'?'Carte verrouillée : déverrouiller la fiche pour ajouter une option.':'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.',true);
+    }
+  });
+  document.addEventListener('change',function(e){
+    var t=e.target;
+    if(t.dataset.sw){var o=find(t.dataset.sw);o.on=t.checked;if(o.on)o.qty=Math.max(o.qty,1);render();return;}
+    if(t.dataset.qty){setQty(find(t.dataset.qty),parseInt(t.value,10));return;}
+    if(t.id==='collected'){collected=t.checked;s.errors={};render();}
+  });
+  document.addEventListener('input',function(e){
+    var t=e.target;
+    if(t.dataset.c){var l=s.customs.filter(function(x){return x.k===t.dataset.c;})[0];l[t.dataset.f]=t.dataset.f==='qty'?(parseInt(t.value,10)||0):t.value;renderEos();}
+  });
+  render();
+})();
+</script>
+</body>
+</html>

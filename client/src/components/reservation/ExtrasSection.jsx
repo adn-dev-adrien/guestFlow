@@ -14,6 +14,10 @@ import { formatCurrency } from '../../utils/formatters';
 import OptionRow from './OptionRow';
 import OptionCategorySection from './OptionCategorySection';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
+import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
+import { resourceLineKey, displayedFloor } from '../../utils/arrivalLineKey';
+
+const NO_ARRIVAL_LINES = {};
 
 // French day-of-week + date label for an occurrence row (e.g. « lun. 7 juil. »).
 function occurrenceDateLabel(iso) {
@@ -29,7 +33,8 @@ function occurrenceDateLabel(iso) {
  * the time-banded grid. Replaces the plain « Heures » quantity field for these resources.
  */
 function ResourceSessions({ resource }) {
-  const { form, setResourceSessions, isReservationLocked } = useReservationForm();
+  const { form, setResourceSessions, isReservationLocked, extrasWindowOpen } = useReservationForm();
+  const sessionsLocked = isReservationLocked && !extrasWindowOpen;
   const selected = form.selectedResources.find((sr) => sr.resourceId === resource.id);
   const sessions = Array.isArray(selected?.sessions) ? selected.sessions : [];
   const days = enumerateStayDates(form.startDate, form.endDate);
@@ -72,14 +77,14 @@ function ResourceSessions({ resource }) {
             <TextField
               select size="small" label="Jour" value={days.includes(s.date) ? s.date : ''}
               onChange={(e) => updateSession(idx, { date: e.target.value })}
-              disabled={isReservationLocked} sx={{ minWidth: 150 }}
+              disabled={sessionsLocked} sx={{ minWidth: 150 }}
             >
               {days.map((d) => <MenuItem key={d} value={d} sx={{ textTransform: 'capitalize' }}>{dateLabel(d)}</MenuItem>)}
             </TextField>
             <TextField
               select size="small" label="Début" value={times.includes(s.start) ? s.start : ''}
               onChange={(e) => setStart(idx, e.target.value)}
-              disabled={isReservationLocked} sx={{ width: 110 }}
+              disabled={sessionsLocked} sx={{ width: 110 }}
             >
               {/* A start that can't fit the first whole hour before closing is disabled. */}
               {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) + firstDur > closeMin}>{t}</MenuItem>)}
@@ -89,18 +94,18 @@ function ResourceSessions({ resource }) {
               onChange={(e) => updateSession(idx, { end: e.target.value })}
               error={isInvalid(s)}
               helperText={isInvalid(s) ? `min. ${Math.round(minMinutes / 60 * 10) / 10} h` : ''}
-              disabled={isReservationLocked} sx={{ width: 110 }}
+              disabled={sessionsLocked} sx={{ width: 110 }}
             >
               {/* End options before « début + 1 h » are greyed out; the Select opens centred on the
                   current value (MUI scrolls the selected item into view). */}
               {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) < toMinutes(s.start) + firstDur}>{t}</MenuItem>)}
             </TextField>
-            <IconButton size="small" color="error" onClick={() => removeSession(idx)} disabled={isReservationLocked} aria-label="Retirer la séance">
+            <IconButton size="small" color="error" onClick={() => removeSession(idx)} disabled={sessionsLocked} aria-label="Retirer la séance">
               <DeleteIcon fontSize="small" />
             </IconButton>
           </Stack>
         ))}
-        <Button size="small" startIcon={<AddIcon />} onClick={addSession} disabled={isReservationLocked || days.length === 0} sx={{ alignSelf: 'flex-start' }}>
+        <Button size="small" startIcon={<AddIcon />} onClick={addSession} disabled={sessionsLocked || days.length === 0} sx={{ alignSelf: 'flex-start' }}>
           Ajouter une séance
         </Button>
       </Stack>
@@ -119,10 +124,19 @@ export default function ExtrasSection() {
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
+    // specs/mid-stay-extras-on-locked-fiche.md — the server-decided window and the floor of each line
+    // sold at arrival; absent (older context) → the card behaves as before.
+    extrasWindowOpen, arrivalLines: rawArrivalLines, frozenCustomOptionIds,
     setResourceInComplement,
     bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode,
   } = useReservationForm();
+  const arrivalLines = rawArrivalLines || NO_ARRIVAL_LINES;
+  // Inside the window the card is live again (rule 15); outside it the whole card stays locked.
+  const extrasLocked = Boolean(isReservationLocked) && !extrasWindowOpen;
+  // Rule 8 — a mid-stay sale goes to the end-of-stay complement whatever its routing: the switch would
+  // do nothing, so it is frozen while the window is open.
+  const routingLocked = extrasLocked || Boolean(extrasWindowOpen);
   // specs/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). A muted caption explains the default. Only engine-derived auto-options keep
@@ -170,7 +184,7 @@ export default function ExtrasSection() {
   const isOptionPinned = (opt) => Boolean(opt.alwaysVisible) || isOptionEnabled(opt);
 
   return (
-    <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
+    <Card variant="outlined" sx={{ ...formSectionCardSx, ...(extrasWindowOpen ? null : lockedSectionSx) }}>
       <CardContent sx={formSectionContentSx}>
         <Typography variant="sectionHeader" sx={{ mb: 2 }}>Options et ressources</Typography>
         {isPlatformReservation && !isDevisMode && (
@@ -210,7 +224,7 @@ export default function ExtrasSection() {
             <Box>
               <Stack direction="row" sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }}>Options personnalisées</Typography>
-                <Button size="small" variant="outlined" onClick={addCustomOption} disabled={isReservationLocked}>
+                <Button size="small" variant="outlined" onClick={addCustomOption} disabled={extrasLocked}>
                   Ajouter une ligne
                 </Button>
               </Stack>
@@ -220,7 +234,10 @@ export default function ExtrasSection() {
                 </Typography>
               ) : (
                 <Stack spacing={1.25}>
-                  {(form.customOptions || []).map((line) => (
+                  {(form.customOptions || []).map((line) => {
+                    const soldAtArrival = line.customOptionId != null && (frozenCustomOptionIds || []).includes(Number(line.customOptionId));
+                    const lineLocked = extrasLocked || soldAtArrival;
+                    return (
                     <Card key={line.customKey} variant="outlined" sx={{ bgcolor: 'background.paper' }}>
                       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack spacing={1.25}>
@@ -229,8 +246,14 @@ export default function ExtrasSection() {
                             label="Description"
                             value={line.description || ''}
                             onChange={(e) => updateCustomOption(line.customKey, { description: e.target.value })}
+                            disabled={lineLocked}
                             fullWidth
                           />
+                          {soldAtArrival && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: '4px !important' }}>
+                              {line.offered ? OFFERED_LINE_CAPTION : ARRIVAL_LINE_CAPTION}
+                            </Typography>
+                          )}
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
                             {/* ArithmeticTextField (specs/reservation-price-arithmetic.md): text input
                                 that accepts the French comma (« 12,5 ») and commits on Enter/blur. A
@@ -241,6 +264,7 @@ export default function ExtrasSection() {
                               label="Prix TTC"
                               value={line.amount ?? 0}
                               onCommit={(v) => updateCustomOption(line.customKey, { amount: v === '' ? 0 : v })}
+                              disabled={lineLocked}
                               sx={{ width: { xs: '100%', sm: 180 } }}
                             />
                             {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
@@ -256,19 +280,21 @@ export default function ExtrasSection() {
                                     slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
                                     checked={complementChecked(line.inComplement)}
                                     onChange={(e) => updateCustomOption(line.customKey, { inComplement: e.target.checked })}
+                                    disabled={routingLocked}
                                   />
                                 }
                                 label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}
                               />
                             </Tooltip>
-                            <Button color="error" variant="text" onClick={() => removeCustomOption(line.customKey)}>
+                            <Button color="error" variant="text" onClick={() => removeCustomOption(line.customKey)} disabled={lineLocked}>
                               Supprimer
                             </Button>
                           </Stack>
                         </Stack>
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </Stack>
               )}
             </Box>
@@ -289,6 +315,7 @@ export default function ExtrasSection() {
                     const unavailable = Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
                     const resourceConflict = Boolean(selected) && !isPerHour && (unavailable || requestedTooMuch);
+                    const arrivalLine = arrivalLines[resourceLineKey(resource.id)];
                     let factorHint = '';
                     if (resource.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
                     else if (resource.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
@@ -320,6 +347,11 @@ export default function ExtrasSection() {
                                   ? 'Déjà réservée'
                                   : `${formatCurrency(resource.price)} ${PRICE_TYPE_LABELS[resource.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}${!isPerHour ? ` • ${resource.available} dispo` : ''}`}
                               </Typography>
+                              {arrivalLine && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                  {arrivalLine.reason === 'offered' ? OFFERED_LINE_CAPTION : ARRIVAL_LINE_CAPTION}
+                                </Typography>
+                              )}
                               {hasFreeFirstHour && (
                                 <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
                                   1ère heure offerte pour ce logement
@@ -329,7 +361,7 @@ export default function ExtrasSection() {
                             <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                               <FormControlLabel
                                 sx={{ m: 0 }}
-                                control={<Switch checked={enabled} onChange={(e) => setResourceEnabled(resource.id, e.target.checked)} disabled={unavailable} />}
+                                control={<Switch checked={enabled} onChange={(e) => setResourceEnabled(resource.id, e.target.checked)} disabled={unavailable || Boolean(arrivalLine)} />}
                                 label={unavailable ? 'Indispo' : ''}
                               />
                             </Stack>
@@ -349,7 +381,7 @@ export default function ExtrasSection() {
                               <QuantityField
                                 size="small"
                                 label={isPerHour ? 'Heures' : 'Qté'}
-                                min={1}
+                                min={arrivalLine ? displayedFloor(toDisplayedQuantity(arrivalLine.minQuantity, resource.priceType), isPerHour) : 1}
                                 max={isPerHour ? undefined : (resource.available || 0) * getQuantityMultiplier(resource.priceType)}
                                 value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
                                 onCommit={(v) => setResourceQuantity(resource.id, toBaseQuantity(v, resource.priceType))}
@@ -359,7 +391,7 @@ export default function ExtrasSection() {
                                     : isHourlyScheduled ? 'Heures vendues — planifiées au check-in.'
                                       : isPerHour ? 'La quantité correspond au nombre d\'heures.' : ''
                                 }
-                                disabled={isReservationLocked}
+                                disabled={extrasLocked}
                                 sx={{ width: { xs: '100%', sm: 200 } }}
                               />
                               <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -376,6 +408,7 @@ export default function ExtrasSection() {
                                         slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
                                         checked={complementChecked(selected?.inComplement)}
                                         onChange={(e) => setResourceInComplement(resource.id, e.target.checked)}
+                                        disabled={routingLocked}
                                       />
                                     }
                                     label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}
