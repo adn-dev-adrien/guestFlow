@@ -21,6 +21,7 @@ const baseRow = (over = {}) => ({
 
 // ── Pure rules ───────────────────────────────────────────────────────────────
 
+// specs/mid-stay-extras-on-locked-fiche.md rules 1, 4
 test('window — open during the stay and after departure while the end-of-stay complement is uncollected', () => {
   assert.equal(isMidStayExtrasWindowOpen(baseRow(), TODAY), true);
   assert.equal(isMidStayExtrasWindowOpen(baseRow({ startDate: TODAY }), TODAY), true);
@@ -28,6 +29,7 @@ test('window — open during the stay and after departure while the end-of-stay 
   assert.equal(isMidStayExtrasWindowOpen(baseRow({ startDate: '2026-05-01', endDate: '2026-05-04' }), TODAY), true);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rules 1, 4
 test('window — closed once the end-of-stay complement is collected, by card or in cash', () => {
   for (const flag of ['endOfStayComplementPaid', 'endOfStayComplementPaidCash']) {
     assert.deepEqual(midStayExtrasWindow(baseRow({ [flag]: 1 }), TODAY), {
@@ -36,6 +38,7 @@ test('window — closed once the end-of-stay complement is collected, by card or
   }
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rule 1
 test('window — a future fiche is not locked, a cancelled or devis row never opens it', () => {
   assert.deepEqual(midStayExtrasWindow(baseRow({ startDate: '2026-07-12' }), TODAY), {
     locked: false, extrasEditable: false, extrasClosedReason: null,
@@ -188,6 +191,7 @@ test('GET editLock — locked, editable, and the floor of each arrival line (rul
   });
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rules 5, 9
 test('adding a catalogue option during the stay is saved and goes to the end-of-stay complement only', () => {
   const id = seedStay();
   put(id, () => {});
@@ -205,6 +209,7 @@ test('adding a catalogue option during the stay is saved and goes to the end-of-
   assert.deepEqual([after.startDate, after.endDate, after.adults], [before.startDate, before.endDate, before.adults]);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rule 5
 test('adding a custom line and a resource during the stay lands in the end-of-stay complement', () => {
   const id = seedStay();
   put(id, () => {});
@@ -218,6 +223,7 @@ test('adding a custom line and a resource during the stay lands in the end-of-st
   assert.equal(endOfStayOf(id), 27);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rule 7
 test('removing a line sold during the stay is saved and the end-of-stay complement goes back down', () => {
   const id = seedStay();
   put(id, () => {});
@@ -229,6 +235,7 @@ test('removing a line sold during the stay is saved and the end-of-stay compleme
   assert.equal(endOfStayOf(id), 0);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rules 6, 9
 test('removing or reducing a line sold at arrival is refused with ARRIVAL_EXTRAS_FROZEN, and nothing is written', () => {
   const id = seedStay();
   put(id, () => {});
@@ -242,6 +249,7 @@ test('removing or reducing a line sold at arrival is refused with ARRIVAL_EXTRAS
   assert.deepEqual(customLabels(id), ['Bouteille de vin']);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rule 6
 test('increasing a line sold at arrival is saved, only the added units go to the end-of-stay complement', () => {
   const id = seedStay();
   put(id, () => {});
@@ -254,6 +262,7 @@ test('increasing a line sold at arrival is saved, only the added units go to the
   assert.equal(endOfStayOf(id), 0);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rule 8
 test('the payload cannot move the « Forcer en complément » routing of a line inside the window', () => {
   const id = seedStay();
   put(id, () => {});
@@ -266,6 +275,7 @@ test('the payload cannot move the « Forcer en complément » routing of a line 
   assert.equal(db.prepare('SELECT inComplement FROM reservation_custom_options WHERE reservationId = ?').get(id).inComplement, 0);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rules 8, 9
 test('changing dates or guests together with an option is refused as PAST_RESERVATION_LOCKED', () => {
   const id = seedStay();
   put(id, () => {});
@@ -277,6 +287,7 @@ test('changing dates or guests together with an option is refused as PAST_RESERV
   assert.deepEqual(optionIds(id), [101]);
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rules 4, 9
 test('an extras change after the end-of-stay complement is collected is refused as MID_STAY_EXTRAS_CLOSED', () => {
   const id = seedStay({ endOfStayPaid: 1 });
   const result = put(id, (b) => { b.options.push({ optionId: 102, quantity: 1 }); });
@@ -305,6 +316,7 @@ test('a linen option added during the stay lets the bed counts move; sold at arr
   assert.deepEqual(db.prepare('SELECT singleBeds, doubleBeds FROM reservations WHERE id = ?').get(frozen), { singleBeds: 2, doubleBeds: 0 });
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rule 2
 test('the stay lock is the server clock: a fiche that has not started is not locked', () => {
   const id = seedStay();
   db.prepare('UPDATE reservations SET startDate = ? WHERE id = ?').run(isoPlus(2), id);
@@ -330,6 +342,7 @@ const snapshot = (id) => JSON.stringify({
   history: db.prepare('SELECT COUNT(*) AS n FROM reservation_history WHERE reservationId = ?').get(id).n,
 });
 
+// specs/mid-stay-extras-on-locked-fiche.md rule 10
 test('S1 — a locked fiche never checked in still freezes what it carries (no baseline yet)', () => {
   const id = seedStay({ checkedIn: 0, balancePaid: 1 });
   assert.equal(model.getArrivalExtrasBaseline(id), null);

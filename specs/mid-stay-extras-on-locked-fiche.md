@@ -54,6 +54,7 @@ arrival stays frozen, and everything else on the fiche stays locked.
    write time (rule 9). The client never derives it.
 3. Any role that can already save a reservation can use the window. No admin requirement — this is a
    routine operation, unlike « Déverrouiller cette fiche ».
+   > **Sans test** — no new authorization: `PUT /api/reservations/:id` keeps its existing `enforceRoleAccess` gate (admin-only today, §10).
 4. Once the end-of-stay complement is collected, the window closes: the card is locked again, as
    today. To bill something after that, the operator unticks « payé » on the end-of-stay complement
    (mid-stay spec rule 19) — which reopens the window — or unlocks the fiche.
@@ -121,6 +122,7 @@ arrival stays frozen, and everything else on the fiche stays locked.
 14. **Banner** (locked fiche, window open): « Séjour commencé : options, client, plateforme, prix et
     paiements restent modifiables. » followed by the existing « Déverrouiller cette fiche » button for
     admins. Window closed: today's text, unchanged.
+   > **Sans test** — static copy, checked manually on fiche 22282 (2026-10-26).
 15. **Card** « Options et ressources »: not greyed when the window is open. Every other locked card
     keeps today's greyed rendering.
 16. A frozen arrival line shows its switch ON and disabled, its quantity field with `min =
@@ -128,8 +130,10 @@ arrival stays frozen, and everything else on the fiche stays locked.
     like any line of a future reservation.
 17. The « Complément de fin de séjour » block of the finance card already lists the mid-stay lines
     (mid-stay spec rule 13) — it updates on the live quote, before saving, as today.
+   > **Sans test** — existing behaviour, covered by mid-stay-extras-to-end-of-stay-complement.md rule 13 tests.
 18. **Mobile**: no layout change — the caption wraps under the label inside the existing option row;
     the banner already stacks its button under the text on `xs`.
+   > **Sans test** — layout only, checked manually at 390 px (2026-10-26).
 
 **Edge cases:**
 
