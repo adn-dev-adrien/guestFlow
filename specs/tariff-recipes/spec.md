@@ -560,6 +560,7 @@ Eleven idempotent columns and one small table. Recipes themselves are files, not
 | `properties` | `tariffRecipeVersion` | TEXT | `''` | The version actually applied, for the "recipe has moved" indicator. |
 | `properties` | `extraGuestPriceUnit` | TEXT | `'per_stay'` | `per_stay` (legacy, every existing property) or `per_night`. |
 | `properties` | `welcomePackCost` | REAL | `0` | Fixed per-stay cost the direct displayed price must cover. `0` = today's formula. |
+| `properties` | `platformCleaningFees` | TEXT | `'[]'` | Cleaning fee billed apart by a channel, net per platform — added by [tariff-recipe-platform-cleaning-fee.md](../tariff-recipe-platform-cleaning-fee.md). |
 | `pricing_rules` | `seasonKey` | TEXT | `NULL` | The recipe season this rule materialises. `NULL` = manual, never touched by an apply. |
 | `pricing_rules` | `seasonRank` | INTEGER | `NULL` | Cheap-to-expensive order; what "one rank up" walks. |
 | `pricing_rules` | `netTargetPerNight` | REAL | `NULL` | Channel-grid pivot (rule 34bis). `NULL` = `pricePerNight` is the net, legacy behaviour. |

@@ -337,6 +337,34 @@ function validateRecipe(json) {
     if (wp.cost !== undefined && !isFiniteNonNegative(wp.cost)) return fail('welcomePack.cost', 'nombre ≥ 0 requis');
   }
 
+  // ── cleaning (fee billed apart by a platform) ──────────────────────────────
+  // specs/tariff-recipe-platform-cleaning-fee.md rules 1–3 — what a ménage costs, and which channels
+  // bill it (or only the chores they forbid asking of the guest) as a separate cleaning fee.
+  if (json.cleaning !== undefined && json.cleaning !== null) {
+    const cl = json.cleaning;
+    if (typeof cl !== 'object' || Array.isArray(cl)) return fail('cleaning', 'doit être un objet { netCost, hourlyRate, platformFees }');
+    if (cl.netCost !== undefined && !isFiniteNonNegative(cl.netCost)) return fail('cleaning.netCost', 'nombre ≥ 0 requis');
+    if (cl.hourlyRate !== undefined && !isFiniteNonNegative(cl.hourlyRate)) return fail('cleaning.hourlyRate', 'nombre ≥ 0 requis');
+    if (cl.platformFees !== undefined && cl.platformFees !== null) {
+      if (!Array.isArray(cl.platformFees)) return fail('cleaning.platformFees', 'doit être une liste');
+      const seen = new Set();
+      for (let i = 0; i < cl.platformFees.length; i += 1) {
+        const f = cl.platformFees[i];
+        const where = `cleaning.platformFees[${i}]`;
+        if (!f || typeof f !== 'object') return fail(where, 'doit être un objet');
+        const name = typeof f.platform === 'string' ? f.platform.trim().toLowerCase() : '';
+        if (!name) return fail(`${where}.platform`, 'nom de plateforme requis');
+        if (seen.has(name)) return fail(`${where}.platform`, `« ${f.platform} » est déjà déclarée`);
+        seen.add(name);
+        if (typeof f.chargesCleaning !== 'boolean') return fail(`${where}.chargesCleaning`, 'true | false');
+        if (f.choresMinutes !== undefined && !isFiniteNonNegative(f.choresMinutes)) return fail(`${where}.choresMinutes`, 'nombre ≥ 0 requis');
+        // Rule 12 — a part the fee must cover cannot silently price at 0 €.
+        if (f.chargesCleaning && cl.netCost === undefined) return fail('cleaning.netCost', `requis : ${f.platform} facture le ménage`);
+        if (Number(f.choresMinutes || 0) > 0 && cl.hourlyRate === undefined) return fail('cleaning.hourlyRate', `requis : ${f.platform} compte des minutes de corvées`);
+      }
+    }
+  }
+
   // ── extraGuest (informational + property config) ───────────────────────────
   if (json.extraGuest !== undefined && json.extraGuest !== null) {
     const eg = json.extraGuest;

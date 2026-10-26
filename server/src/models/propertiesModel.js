@@ -657,9 +657,13 @@ function createPropertiesModel(database) {
     // every net column NULL, so the grid keeps meaning "gross up the season price".
     platformPrices(propertyId) {
       const property = database.prepare(
-        'SELECT welcomePackCost, extraGuestPrice, extraGuestPriceUnit FROM properties WHERE id = ?'
+        'SELECT welcomePackCost, extraGuestPrice, extraGuestPriceUnit, platformCleaningFees FROM properties WHERE id = ?'
       ).get(Number(propertyId)) || {};
       const welcomePackCost = Math.max(0, Number(property.welcomePackCost || 0));
+      let storedCleaningFees = [];
+      try { storedCleaningFees = JSON.parse(property.platformCleaningFees || '[]'); } catch { storedCleaningFees = []; }
+      const cleaningFeeByName = new Map((Array.isArray(storedCleaningFees) ? storedCleaningFees : [])
+        .map((f) => [String(f.platform || '').trim().toLowerCase(), f]));
 
       const rows = database.prepare(`
         SELECT id, name, COALESCE(commissionPercent, 0) AS commissionPercent
@@ -679,7 +683,17 @@ function createPropertiesModel(database) {
       // operator to configure the same channel twice, with two rates that must never disagree.
       // Hidden from this grid only: the platform row itself still carries reservations and their
       // commissions.
-      const platforms = [directRow, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))];
+      const platforms = [directRow, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))].map((p) => {
+        // specs/tariff-recipe-platform-cleaning-fee.md rules 8–9 — grossed up with the commission read
+        // NOW, so editing a platform's commission moves the fee without re-applying the recipe. The
+        // direct ménage is a GuestFlow option, never a channel fee.
+        const fee = p.isDirect ? null : cleaningFeeByName.get(String(p.name || '').trim().toLowerCase());
+        return {
+          ...p,
+          cleaningFee: fee ? grossFromNet(fee.net, p.commissionPercent) : null,
+          cleaningFeeDetail: fee ? { cleaningNet: fee.cleaningNet, choresNet: fee.choresNet, net: fee.net } : null,
+        };
+      });
 
       const seasons = database.prepare(
         'SELECT id, label, pricePerNight, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, extraGuestTiers FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',
@@ -831,6 +845,13 @@ function createPropertiesModel(database) {
     // specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 — the welcome-pack cost price is owned
     // by the RECIPE, not by the property form: it is a margin input for the channel grid, never a
     // guest-facing amount. Written only by the recipe apply, exactly like the recipe pointer.
+    // Recipe-owned, like the welcome pack (specs/tariff-recipe-platform-cleaning-fee.md rules 4, 7).
+    setPlatformCleaningFees(propertyId, fees) {
+      database.prepare("UPDATE properties SET platformCleaningFees = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(JSON.stringify(Array.isArray(fees) ? fees : []), Number(propertyId));
+      return { data: { ok: true } };
+    },
+
     setWelcomePackCost(propertyId, cost) {
       database.prepare("UPDATE properties SET welcomePackCost = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(Math.max(0, Number(cost) || 0), Number(propertyId));

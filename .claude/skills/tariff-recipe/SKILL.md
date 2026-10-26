@@ -58,6 +58,7 @@ Read `specs/tariff-recipes/spec.md` before a substantial change; it is the sourc
 | Calendar: base season, periods, modifiers | Options included in the rate (`property_option_defaults.offered`) |
 | Recurring closures | Free units on an option (`property_option_prices.freeUnits`) |
 | Welcome-pack COST price (`welcomePack.cost`) — a margin input, never guest-facing | Which options make up the pack |
+| Cleaning billed apart by a channel (`cleaning`: ménage net cost, hourly rate, and per channel `chargesCleaning` + `choresMinutes`) — the grid's « Ménage / séjour » column grosses it up with the channel's commission (`specs/tariff-recipe-platform-cleaning-fee.md`) | The ménage option price GuestFlow bills on its own fiches |
 | Extra-guest unit and threshold | Extra-guest price on the property |
 | Horizon | Platform commissions (global, shared between properties) |
 
