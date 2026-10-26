@@ -8,6 +8,8 @@
  *   onBlockChange  (block) => void — replaces the block with the server's answer
  *   reservationId  the stay
  *   guestName      named in the void confirmation
+ *   locked         the fiche is locked: retry and void stay disabled
+ *                  (specs/mid-stay-extras-on-locked-fiche.md, implementation notes)
  */
 import React from 'react';
 import {
@@ -25,7 +27,7 @@ const LABEL = {
   line_removed_active: 'Ligne retirée — souscription active',
 };
 
-export default function NeatInsuranceStatus({ block, onBlockChange, reservationId, guestName }) {
+export default function NeatInsuranceStatus({ block, onBlockChange, reservationId, guestName, locked = false }) {
   const { confirm, alert } = useAppDialogs();
   const { showSuccess } = useToast();
   if (!block) return null;
@@ -82,12 +84,12 @@ export default function NeatInsuranceStatus({ block, onBlockChange, reservationI
       {(block.status === 'failed' || active) && (
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5 }}>
           {block.status === 'failed' && (
-            <Button size="small" variant="outlined" onClick={retry} sx={{ minHeight: 44 }}>
+            <Button size="small" variant="outlined" onClick={retry} disabled={locked} sx={{ minHeight: 44 }}>
               Réessayer maintenant
             </Button>
           )}
           {active && (
-            <Button size="small" variant="outlined" color="error" onClick={voidSubscription} sx={{ minHeight: 44 }}>
+            <Button size="small" variant="outlined" color="error" onClick={voidSubscription} disabled={locked} sx={{ minHeight: 44 }}>
               Résilier chez Neat
             </Button>
           )}

@@ -59,10 +59,10 @@ function setup() {
 // ---------- catalogue (rules 1-3) ----------
 
 // Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md)
-// and « Saisie Booking » (specs/booking-extranet-intake.md).
-test('catalogue: fourteen plugins with unique ids and every field', () => {
-  assert.equal(PLUGIN_CATALOG.length, 14);
-  assert.equal(new Set(PLUGIN_IDS).size, 14);
+// « Saisie Booking » (specs/booking-extranet-intake.md) and « Saisie Airbnb » (specs/airbnb-mail-intake.md).
+test('catalogue: fifteen plugins with unique ids and every field', () => {
+  assert.equal(PLUGIN_CATALOG.length, 15);
+  assert.equal(new Set(PLUGIN_IDS).size, 15);
   for (const p of PLUGIN_CATALOG) {
     assert.ok(p.id && p.name && p.description && p.icon, p.id);
     assert.ok(Array.isArray(p.surfaces) && p.surfaces.length > 0, p.id);

@@ -88,7 +88,13 @@ function getResourcesSignature(lines) {
     .join('|');
 }
 
+// specs/reservation-history-granular-diff.md rule 12 — custom lines have no stable id, so both
+// snapshots key them by their rank AMONG CUSTOM LINES on this one base. Two schemes (one counting the
+// catalogue lines too) made every save of a fiche with a custom line look like an options change.
+const CUSTOM_OPTION_SIGNATURE_BASE = 1000000;
+
 function buildAuditSnapshotFromPayload(payload, quote) {
+  let customRank = 0;
   return {
     propertyId: Number(payload.propertyId),
     clientId: Number(payload.clientId),
@@ -131,8 +137,8 @@ function buildAuditSnapshotFromPayload(payload, quote) {
       ? null : Number(payload.complementAmountOverride),
     endOfStayComplementAmountOverride: payload.endOfStayComplementAmountOverride === undefined || payload.endOfStayComplementAmountOverride === null || payload.endOfStayComplementAmountOverride === ''
       ? null : Number(payload.endOfStayComplementAmountOverride),
-    optionsSignature: getOptionsSignature((quote.optionLines || []).map((line, idx) => ({
-      optionId: line.optionId != null ? Number(line.optionId) : (2000000 + idx),
+    optionsSignature: getOptionsSignature((quote.optionLines || []).map((line) => ({
+      optionId: line.optionId != null ? Number(line.optionId) : (CUSTOM_OPTION_SIGNATURE_BASE + customRank++),
       quantity: Number(line.quantity || 1),
       totalPrice: Number(line.totalPrice || 0),
       inComplement: Number(line.inComplement || 0),
@@ -150,7 +156,7 @@ function formatHistoryMoney(amount) {
 function optionDisplayName(optionId, optionNames = {}) {
   const id = Number(optionId);
   // Custom options are recorded in the signature under synthetic ids (≥ 1_000_000) and carry no name.
-  if (id >= 1000000) return 'Option personnalisée';
+  if (id >= CUSTOM_OPTION_SIGNATURE_BASE) return 'Option personnalisée';
   return optionNames[id] || `Option #${id}`;
 }
 
@@ -358,6 +364,7 @@ function computeAuditChanges(beforeSnapshot, afterSnapshot) {
 }
 
 module.exports = {
+  CUSTOM_OPTION_SIGNATURE_BASE,
   HISTORY_FIELD_LABELS,
   DERIVED_HISTORY_FIELDS,
   normalizeHistoryValue,

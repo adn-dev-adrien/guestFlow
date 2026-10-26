@@ -31,6 +31,10 @@ function register(ctx) {
   const ensureApiKey = () => {
     sdk.secrets.getOrCreate(KEY_NAME, 32, { rotatable: true });
     ctx.log.info(`${KEY_NAME} ready — shown in Paramètres › Intégrations › Site internet.`);
+    // Roostview's own key (specs/roostview-api-key.md): read-only on the catalogue, availability and
+    // quotes, distinct from the site's so either can be revoked alone. Never logged.
+    sdk.secrets.getOrCreate('ROOSTVIEW_API_KEY', 32);
+    ctx.log.info('ROOSTVIEW_API_KEY ready in server/.env.local — paste it into Roostview › Réglages › GuestFlow.');
   };
   ctx.onInstall(ensureApiKey);
   ctx.onBoot(ensureApiKey);

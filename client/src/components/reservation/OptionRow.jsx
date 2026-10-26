@@ -13,6 +13,8 @@ import { isWelcomePackLine } from '../../utils/welcomePackApply';
 import { formatCurrency } from '../../utils/formatters';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 import { useSlot } from '../../plugins/sdk/useSlot';
+import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
+import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 
 /**
  * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).
@@ -22,7 +24,8 @@ import { useSlot } from '../../plugins/sdk/useSlot';
  * itself is rendered by the shared `OccurrenceGrid` (the arrival SAS sells the same moments).
  */
 function OptionCardOccurrences({ opt }) {
-  const { form, quantityPersons, setOptionCardOccurrences, isReservationLocked } = useReservationForm();
+  const { form, quantityPersons, setOptionCardOccurrences, isReservationLocked, extrasWindowOpen, arrivalLines } = useReservationForm();
+  const lockedMoments = (arrivalLines || {})[optionLineKey(opt.id)]?.lockedOccurrences || [];
   const selected = form.selectedOptions.find((so) => Number(so.optionId) === Number(opt.id));
   const grid = Array.isArray(selected?.cardOccurrences) ? selected.cardOccurrences : [];
   const perPerson = String(opt.priceType || '').includes('per_person');
@@ -60,7 +63,8 @@ function OptionCardOccurrences({ opt }) {
       onToggle={toggleOcc}
       slotTimes={slotTimes}
       onSlotTimeChange={setSlotTime}
-      disabled={isReservationLocked}
+      disabled={isReservationLocked && !extrasWindowOpen}
+      isLocked={(o) => Boolean(o.checked) && lockedMoments.some((m) => m.date === o.date && m.time === o.time)}
       quantityText={(
         <>
           Quantité&nbsp;: <strong>{billedUnits}</strong>
@@ -83,8 +87,14 @@ function BedLinenInputsBlock() {
     exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
     reservationBedCapacity, requiredRegularBeds,
     handleSuggestBeds,
-    selectedProp, isReservationLocked,
+    selectedProp, isReservationLocked, extrasWindowOpen, propertyOptions, arrivalLines,
   } = useReservationForm();
+  // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the bed counts follow the linen line: frozen
+  // when a bed-linen option was sold at arrival, editable when it is added during the stay.
+  const linenSoldAtArrival = (propertyOptions || []).some(
+    (o) => Number(o.countsAsBedLinen || 0) === 1 && Boolean((arrivalLines || {})[optionLineKey(o.id)]),
+  );
+  const bedsLocked = (isReservationLocked && !extrasWindowOpen) || linenSoldAtArrival;
   return (
     <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
       <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1 }}>
@@ -104,7 +114,7 @@ function BedLinenInputsBlock() {
             fullWidth
             error={bedsCapacityMismatch || exceedsDoubleBedsLimit}
             helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
-            disabled={isReservationLocked}
+            disabled={bedsLocked}
           />
           <QuantityField
             label="Lits simples"
@@ -116,7 +126,7 @@ function BedLinenInputsBlock() {
             fullWidth
             error={bedsCapacityMismatch || exceedsSingleBedsLimit}
             helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
-            disabled={isReservationLocked}
+            disabled={bedsLocked}
           />
         </Box>
         <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
@@ -125,7 +135,7 @@ function BedLinenInputsBlock() {
             variant="text"
             startIcon={<AutoFixHighIcon fontSize="small" />}
             onClick={handleSuggestBeds}
-            disabled={!selectedProp || isReservationLocked}
+            disabled={!selectedProp || bedsLocked}
             sx={{ textTransform: 'none', width: { xs: '100%', sm: 'auto' } }}
           >
             Suggérer les lits
@@ -155,7 +165,7 @@ export default function OptionRow({ opt }) {
   const {
     form, updateForm,
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
-    setOptionEnabled, setOptionQuantity, isReservationLocked,
+    setOptionEnabled, setOptionQuantity, isReservationLocked, extrasWindowOpen, arrivalLines: rawArrivalLines,
     setOptionInComplement, setAutoOptionInComplement,
     setOptionCardPersons, maxGuestsAllowed,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
@@ -168,6 +178,11 @@ export default function OptionRow({ opt }) {
   // specs/plugins-phase-3b-neat.md rule 22 — an option the catalogue hides, shown because the stay
   // carries it: its price stands, nothing about it can change.
   const readOnly = Boolean(opt.readOnly);
+
+  const arrivalLine = (rawArrivalLines || {})[optionLineKey(opt.id)];
+  const extrasLocked = Boolean(isReservationLocked) && !extrasWindowOpen;
+  // Rule 8 — inside the window a mid-stay sale goes to the end-of-stay complement whatever its routing.
+  const routingLocked = extrasLocked || Boolean(extrasWindowOpen);
 
   // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
   // of `form.selectedOptions` — see ReservationPage.js (spec force-item-to-complement.md §3.1).
@@ -249,6 +264,11 @@ export default function OptionRow({ opt }) {
                 <Chip size="small" color="success" variant="outlined" label="Pack de bienvenue" />
               )}
             </Stack>
+            {arrivalLine && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                {arrivalLine.reason === 'offered' ? OFFERED_LINE_CAPTION : ARRIVAL_LINE_CAPTION}
+              </Typography>
+            )}
             <Typography variant="body2" color="text.secondary">
               {readOnly
                 ? `Prix figé : ${formatCurrency(selected?.totalPrice || 0)}`
@@ -263,7 +283,7 @@ export default function OptionRow({ opt }) {
             <Tooltip title={readOnly ? opt.readOnlyReason || '' : ''}>
               <FormControlLabel
                 sx={{ m: 0 }}
-                control={<Switch checked={enabled} disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
+                control={<Switch checked={enabled} disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault || Boolean(arrivalLine)} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
               />
             </Tooltip>
             {readOnly && (
@@ -302,7 +322,7 @@ export default function OptionRow({ opt }) {
                 max={servedPersonsMax}
                 value={servedPersons}
                 onCommit={(v) => setOptionCardPersons(opt.id, v)}
-                disabled={isReservationLocked}
+                disabled={extrasLocked || Boolean(arrivalLine)}
                 helperText="Par défaut toute la tablée."
                 sx={{ width: { xs: '100%', sm: 240 } }}
               />
@@ -312,10 +332,10 @@ export default function OptionRow({ opt }) {
               <QuantityField
                 size="small"
                 label="Qté"
-                min={1}
+                min={arrivalLine ? displayedFloor(toDisplayedQuantity(arrivalLine.minQuantity, opt.priceType)) : 1}
                 value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
                 onCommit={(v) => setOptionQuantity(opt.id, toBaseQuantity(v, opt.priceType))}
-                disabled={isReservationLocked}
+                disabled={extrasLocked}
                 sx={{ width: { xs: '100%', sm: 180 } }}
               />
             )}
@@ -335,6 +355,7 @@ export default function OptionRow({ opt }) {
                       slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
                       checked={complementChecked(selected?.inComplement)}
                       onChange={(e) => setOptionInComplement(opt.id, e.target.checked)}
+                      disabled={routingLocked}
                     />
                   }
                   label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}
@@ -405,6 +426,7 @@ export default function OptionRow({ opt }) {
                         slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
                         checked={autoOptionsInComplementSet.has(Number(opt.id))}
                         onChange={(e) => setAutoOptionInComplement(opt.id, e.target.checked)}
+                        disabled={routingLocked}
                       />
                     }
                     label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}

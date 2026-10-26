@@ -84,12 +84,21 @@ JJ/MM/AAAA — and several changes in the same edit are listed one under the oth
     `Mise à jour sans changement détecté` otherwise.
 11. All of the above is computed **on the server**: the client receives ready-to-print
     `label` / `fromText` / `toText` / `kind` / `group` and only renders them.
+12. **Both snapshots key custom lines the same way** — `1_000_000 + rank among the custom lines`, the
+    constant `CUSTOM_OPTION_SIGNATURE_BASE` of `utils/reservationAudit.js`. *Amendment 2026-10-23*: the
+    stored snapshot (`reservationsModel`) used that scheme but the payload snapshot
+    (`buildAuditSnapshotFromPayload`) used `2_000_000 + rank among ALL option lines`. Every save of a
+    fiche carrying a custom line therefore logged a phantom « Options » change, and on a past stay —
+    where options are locked — « Enregistrer » was refused with « Cette réservation est passée ou en
+    cours… » even with nothing edited. Measured on a copy of production: 6 past fiches, réservation
+    202609003 among them. History rows already written with `2_000_000` ids still read
+    `Option personnalisée`.
 
 **Edge cases:**
 - Option removed *and* another added in the same edit → two rows (`−` then `+`), not one `changed`.
-- Custom options carry synthetic, position-based ids (`2_000_000 + index`): removing one shifts the
-  followers, so a single removal can surface as several rows on custom lines. Accepted (they have no
-  stable identity in the signature); they are labeled `Option personnalisée`.
+- Custom options carry synthetic, position-based ids (`1_000_000 + rank among custom lines`, rule 12):
+  removing one shifts the followers, so a single removal can surface as several rows on custom lines.
+  Accepted (they have no stable identity in the signature); they are labeled `Option personnalisée`.
 - A quantity change that leaves the total price identical (offered line) still produces a `changed`
   row — the signature carries the quantity.
 - Signature empty on both sides → no row at all (`computeAuditChanges` wouldn't have emitted one).
@@ -217,6 +226,9 @@ already exists.
       dates, percent, `null` → `vide`; rules 7/8: derived split + derived-only entry rendered as main
       list; rule 9: a row carrying `fromText`/`toText` (SAS shape) passes through untouched.
 - [x] `tests/reservation-audit.unit.test.js` — trimmed of the removed exports.
+- [x] `tests/custom-option-audit-signature.unit.test.js` (**rule 12**, 3 tests) — catalogue lines do not
+  shift a custom line's key, several custom lines keep their rank, a real custom-line change is still
+  reported.
 - [x] Full server suite: 2369 pass.
 
 ### Client tests

@@ -150,11 +150,19 @@ export default function PricingSummary({
   onToggleCustomOptionInComplement,
   onToggleResourceInComplement,
   onToggleTouristTaxInComplement,
+  // specs/mid-stay-extras-on-locked-fiche.md — inside the window the routing is the server's and a
+  // line sold at arrival can be neither offered nor un-offered.
+  routingLocked = false,
+  isFrozenLine = () => false,
   // specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tourist tax is frozen; show a
   // refresh button next to the label to force a live recompute.
   isTouristTaxFrozen = false,
   onRefreshTouristTax,
 }) {
+  const lockChip = (chip) => {
+    if (!routingLocked) return chip;
+    return chip === 'on' ? 'readonly' : (chip === 'off' ? null : chip);
+  };
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [showTouristTaxDetail, setShowTouristTaxDetail] = useState(false);
 
@@ -439,7 +447,9 @@ export default function PricingSummary({
                   }
                 };
 
-                const renderRow = ({ label, amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
+                const frozen = isFrozenLine(isCustom ? 'custom' : 'option', so);
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen });
+                const renderRowRaw = ({ label, amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                       <Typography variant="body2" color="text.secondary">
@@ -586,7 +596,9 @@ export default function PricingSummary({
                   }
                 };
 
-                const renderRow = ({ amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
+                const frozen = isFrozenLine('resource', sr);
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen });
+                const renderRowRaw = ({ amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                       <Typography variant="body2" color="text.secondary">

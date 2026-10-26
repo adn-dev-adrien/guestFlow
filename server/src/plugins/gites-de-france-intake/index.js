@@ -8,7 +8,6 @@ const express = require('express');
 const sdk = require('../sdk');
 const { buildModel, TABLE_SQL } = require('./intakesModel');
 const { createIntakeService } = require('./intakeService');
-const mailbox = require('./mailboxReader');
 
 const id = 'gites-de-france-intake';
 const TICK_MS = 15 * 60 * 1000;
@@ -48,7 +47,7 @@ function register(ctx) {
 
   const mailboxConfig = () => {
     const core = ctx.core.settings.mailbox();
-    return { host: ctx.settings.get('imapHost') || core.host, port: Number(ctx.settings.get('imapPort') || 993), user: core.user, password: core.password };
+    return { host: ctx.settings.get('imapHost') || sdk.mailbox.imapHostFor(core.host), port: Number(ctx.settings.get('imapPort') || 993), user: core.user, password: core.password };
   };
 
   const service = () => createIntakeService({
@@ -59,7 +58,7 @@ function register(ctx) {
       giteNumbers: () => JSON.parse(ctx.settings.get('giteNumbers') || '{}'),
       autoApply: () => String(ctx.settings.get('autoApply')) !== '0',
     },
-    readMails: (cfg) => mailbox.readBookingMails(cfg),
+    readMails: (cfg) => sdk.mailbox.readMailsFrom(cfg),
     findReservations: ({ propertyIds, startDate, endDate }) => ctx.db.prepare(`
       SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount FROM reservations
       WHERE propertyId IN (${propertyIds.map(() => '?').join(',')}) AND startDate = ? AND endDate = ?`)
@@ -106,10 +105,10 @@ function register(ctx) {
   router.post('/run', async (req, res) => {
     try { res.json(await runPass()); } catch (err) { res.status(502).json({ error: err.message }); }
   });
-  router.post('/test-mailbox', async (req, res) => res.json(await mailbox.testConnection(mailboxConfig())));
+  router.post('/test-mailbox', async (req, res) => res.json(await sdk.mailbox.testConnection(mailboxConfig())));
   router.get('/mailbox', (req, res) => {
     const cfg = mailboxConfig();
-    res.json({ host: cfg.host, port: cfg.port, user: cfg.user, hasPassword: Boolean(cfg.password), lastRunAt: ctx.settings.get('lastRunAt') || null });
+    res.json({ host: cfg.host, defaultHost: sdk.mailbox.imapHostFor(ctx.core.settings.mailbox().host), port: cfg.port, user: cfg.user, hasPassword: Boolean(cfg.password), lastRunAt: ctx.settings.get('lastRunAt') || null });
   });
   // The banner of the fiche (rule 12), ready to render.
   router.get('/reservation/:reservationId', (req, res) => res.json({ intake: service().blockFor(Number(req.params.reservationId)) }));

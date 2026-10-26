@@ -143,6 +143,22 @@ can either pay now or send a request without paying.
     with the travellers first, that gap opened screen 1 on an empty band.
 > **Sans test** — le tiroir de Solio vit dans le dépôt privé `adn-dev-adrien/solio-site` depuis la fusion dans `inte/plugins` ; la règle y est tenue par `tests/booking-drawer-friction.test.js`.
 
+### Found in production (added 2026-10-25, plugin 1.14.3)
+
+21. **A refused contact form marks each field it refuses, where the field sits** — rule 5 asked for it,
+    and 1.14.1 only wrote one shared message under the actions. In the drawer the actions live in the
+    sticky bar, so that message sat below the fold: on a 360 × 800 Android, a guest tapped « Payer »
+    17 times on 2026-10-25 and saw nothing happen, then reported the button as greyed out. Now each
+    empty required field (prénom, nom, e-mail, téléphone) gets a red border and « Champ obligatoire. »
+    beneath it, an invalid e-mail gets « Adresse e-mail invalide. », the first refused field scrolls
+    into view and takes the focus, and typing in a field clears its mark. The shared message stays,
+    for blocks where it is visible. `booking-refused` keeps its `fields` / `email` reasons.
+    *On `inte/plugins` (master sync of 2026-10-26):* the plugin there (1.16.x) already refuses on the
+    field ([wordpress-plugin.md](wordpress-plugin.md) rule 28: the reason under each field, the first
+    one revealed and focused, `gf:refused` for the drawer), which covers this rule; master's 1.14.3
+    code is not carried over, only its readme line.
+> **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (refus des champs sur 360 × 800).
+
 **Edge cases:**
 - Arrival whose minimum cannot be met before the next booked night (e.g. 2 free nights before a
   booking, minimum 4) → the arrival itself is not bookable: drawn like a booked day, no price.
@@ -273,7 +289,8 @@ The mock-up is the reference: [`docs/specs/2026-10-19-booking-drawer-friction.ht
 2. Arrival 20/11 → hint « Départ à partir du 22 novembre » ; 21/11 hatched, tap → shake + refusal in
    the bar; 22/11 accepted.
 3. An arrival boxed in by a booking is not offered.
-4. Screen 2, both actions: empty form → field errors; CGV unticked → the engine's refusal; « Envoyer
+4. Screen 2, both actions: empty form → each empty field marked « Champ obligatoire. », the first one
+   scrolled into view and focused, also at 360 × 800 (rule 21); CGV unticked → the engine's refusal; « Envoyer
    une demande sans payer » → confirmation, a « Demande » appears in GuestFlow with its origin, no
    payment link.
 5. « Payer » → Qonto as today. Deposit mode on a test property → « Payer l'acompte ».
@@ -332,4 +349,10 @@ None open.
   - « Payer » without Qonto refuses and gives the buttons back;
   - a block without the setting is unchanged.
 - Rules 19 and 20 came out of that verification.
+
+**Rule 21, 2026-10-25** on `fix/booking-required-fields-feedback` (plugin 1.14.3). Checked with
+Playwright on the live La Granja page at 360 × 800 (Galaxy S9+), the branch's `view.js` and
+`style.css` swapped in and every write blocked: only the prénom filled → nom, e-mail and téléphone
+marked, the view scrolled to « Nom » and focused it; typing a name cleared its mark; « pas-un-mail » →
+« Adresse e-mail invalide. » under the e-mail, focused.
 

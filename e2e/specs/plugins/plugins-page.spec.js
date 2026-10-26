@@ -22,7 +22,7 @@ test.describe.configure({ mode: 'serial' });
 
 test('the seeded database has every catalogue plugin installed and active', async ({ page }) => {
   await page.goto('/parametres/plugins');
-  await expect(page.getByRole('tab', { name: 'Installés (14)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Installés (15)' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: 'Disponibles (0)' })).toBeVisible();
   await expect(googleCard(page).getByText(GOOGLE_STATE, { exact: true })).toBeVisible();
 });
@@ -57,11 +57,11 @@ test('uninstall takes two clicks, moves the plugin to « Disponibles », and it 
   await expect(googleCard(page).getByText(/^Données conservées\.$/)).toBeVisible();
   await googleCard(page).getByRole('button', { name: 'Confirmer la désinstallation' }).click();
 
-  await expect(page.getByRole('tab', { name: 'Installés (13)' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Installés (14)' })).toBeVisible();
   await page.getByRole('tab', { name: 'Disponibles (1)' }).click();
   await googleCard(page).getByRole('button', { name: 'Installer' }).click();
 
-  await expect(page.getByRole('tab', { name: 'Installés (14)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Installés (15)' })).toHaveAttribute('aria-selected', 'true');
   await expect(googleCard(page).getByText(GOOGLE_STATE, { exact: true })).toBeVisible();
 });
 
@@ -143,6 +143,6 @@ test('uninstalling Météo with « Effacer aussi ses données » erases its key;
 
   await page.getByRole('tab', { name: /^Disponibles/ }).click();
   await weather.getByRole('button', { name: 'Installer' }).click();
-  await expect(page.getByRole('tab', { name: 'Installés (14)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Installés (15)' })).toHaveAttribute('aria-selected', 'true');
   expect(await (await request.get('/api/plugins/weather-alerts/settings')).json()).toEqual({ apiKeySet: false });
 });

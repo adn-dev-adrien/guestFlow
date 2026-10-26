@@ -240,7 +240,8 @@ Optional: a plugin that declares nothing reads « Actif ».
 16. The client SDK (`client/src/plugins/sdk/`) re-exports what a plugin may use: `api` (the HTTP
     client), `useAuth`, `usePlugin`, the dialogs and toasts, the generic components (`PageActionBar`,
     `StatusBadge`, `EmptyState`, `ConfirmDialog`, `FormDialog`, `LoadingState`, `ErrorAlert`,
-    `SummaryItem`, `MaskedTextField`, `SecretRevealField`, `SasKeypadCode`) and `displayDate`. The HTTP
+    `SummaryItem`, `MaskedTextField`, `SecretRevealField`, `SasKeypadCode`, and since SDK 2.3.0
+    `IntakeBanner` — specs/airbnb-mail-intake.md §4.1) and `displayDate`. The HTTP
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 

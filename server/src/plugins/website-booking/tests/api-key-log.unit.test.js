@@ -30,8 +30,9 @@ test('rule 24: the key is created at boot and the log line does not claim server
   } finally {
     localEnv.getOrCreateSecret = original;
   }
-  assert.deepEqual(created, ['PUBLIC_API_KEY']);
-  assert.equal(infos.length, 1);
+  // specs/roostview-api-key.md rule 1 — Roostview's read-only key is created beside it.
+  assert.deepEqual(created, ['PUBLIC_API_KEY', 'ROOSTVIEW_API_KEY']);
+  assert.equal(infos.length, 2);
   assert.match(infos[0], /PUBLIC_API_KEY ready/);
   assert.doesNotMatch(infos[0], /server\/\.env\.local/);
 });

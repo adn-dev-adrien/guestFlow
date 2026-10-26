@@ -1,0 +1,21 @@
+{
+  "id": "airbnb-intake",
+  "name": "Saisie Airbnb",
+  "version": "1.0.0",
+  "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
+  "icon": "mail",
+  "surfaces": [
+    "Paramètres › Intégrations › Saisie Airbnb",
+    "Le bandeau en haut de la fiche",
+    "Une alerte du tableau de bord"
+  ],
+  "requires": [],
+  "guestflow": ">=3.16.0 <4.0.0",
+  "sdk": "^2.3.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet, pour le SDK 2 de GuestFlow : le mail « Réservation confirmée » d’Airbnb remplit la fiche iCal (voyageur, groupe, code de confirmation, message et « Paiement plateforme »).",
+      "Accueil : les mails Airbnb à vérifier rejoignent « À traiter », comptés par le serveur."
+    ]
+  }
+}

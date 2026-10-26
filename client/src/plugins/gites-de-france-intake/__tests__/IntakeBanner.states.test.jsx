@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import { BASE } from './intakeFixtures';
 
 const api = vi.hoisted(() => ({ getGdfIntakeForReservation: vi.fn(), applyGdfIntake: vi.fn(), dismissGdfIntake: vi.fn() }));
-vi.mock('../../sdk', () => ({ api, formatCurrency: (n) => `${n} €` }));
+vi.mock('../../sdk', async () => ({ api, formatCurrency: (n) => `${n} €`, IntakeBanner: (await vi.importActual('../../../components/IntakeBanner')).default }));
 
 import IntakeBanner from '../IntakeBanner';
 

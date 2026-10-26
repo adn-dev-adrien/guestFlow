@@ -79,6 +79,10 @@ const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
+const {
+  midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
+} = require('../utils/midStayExtrasWindow');
+const { extraLineKey } = require('../utils/midStayExtras');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
@@ -792,6 +796,9 @@ function getById(req, res) {
     // specs/plugins-phase-3c-hourly-resources.md rule 18 — the same for the resources sold by the hour
     // while no plugin offers them.
     frozenResources: resourceOffer.frozenResources(db, reservation.id),
+    // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the lock decided by the server: the fiche
+    // renders it and derives nothing (CLAUDE.md §6.0).
+    editLock: model.getEditLock(Number(req.params.id), { today: getTodayIsoDate() }),
   });
 }
 
@@ -1388,6 +1395,67 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   return preview;
 }
 
+const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
+const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.';
+
+// specs/mid-stay-extras-on-locked-fiche.md rule 8 — inside the window the routing of every line is
+// the stored one (a mid-stay sale goes to the end-of-stay complement whatever it is), so the payload
+// cannot move it; a line with no stored counterpart falls back to the engine's default.
+function pinStoredRouting(body, routing) {
+  const pin = (line, stored) => {
+    const { inComplement, ...rest } = line;
+    return stored === undefined ? rest : { ...rest, inComplement: stored };
+  };
+  if (Array.isArray(body.options)) {
+    body.options = body.options.map((o) => pin(o, routing.options.get(Number(o.optionId))));
+  }
+  if (Array.isArray(body.resources)) {
+    body.resources = body.resources.map((r) => pin(r, routing.resources.get(Number(r.resourceId))));
+  }
+  if (Array.isArray(body.customOptions)) {
+    const free = [...routing.customs];
+    body.customOptions = body.customOptions.map((c) => {
+      let at = c.customOptionId != null ? free.findIndex((s) => s.id === Number(c.customOptionId)) : -1;
+      if (at < 0) {
+        const key = extraLineKey({ isCustom: true, title: c.description });
+        at = free.findIndex((s) => extraLineKey({ isCustom: true, title: s.description }) === key);
+      }
+      const [match] = at >= 0 ? free.splice(at, 1) : [];
+      return pin(c, match ? match.inComplement : undefined);
+    });
+  }
+  if (Array.isArray(body.autoOptionsInComplement)) {
+    body.autoOptionsInComplement = body.autoOptionsInComplement
+      .filter((optionId) => routing.options.get(Number(optionId)) === 1);
+  }
+}
+
+// specs/mid-stay-extras-on-locked-fiche.md §3.3 — opens the window for this save when the fiche is
+// locked and its end-of-stay complement is not collected. Pins everything rule 8 keeps locked
+// (routing, tariff refresh, the bed counts of a linen sold at arrival) and returns the state the
+// arrival floors are checked against; null when the window is closed or the fiche is unlocked.
+function enterMidStayExtrasWindow(id, body, today) {
+  if (!midStayExtrasWindow(model.getRow(id), today).extrasEditable) return null;
+  // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
+  // carries now as « sold at arrival » (rule 10), unconditionally.
+  model.captureArrivalExtrasBaseline(id);
+  const baseline = model.getArrivalExtrasBaseline(id);
+  const beforeLines = model.readExtraLinesWithQuantity(id);
+  pinStoredRouting(body, model.getStoredRouting(id));
+  body.refreshPricingToCurrent = false;
+  // Rule 8 — the bed counts follow the linen line: they move only when the payload brings a bed-linen
+  // option that was not sold at arrival; in every other case they stay what is stored.
+  const floors = arrivalLineFloors(baseline, beforeLines);
+  const newLinen = (Array.isArray(body.options) ? body.options : [])
+    .filter((option) => !floors[`opt:${Number(option.optionId)}`]);
+  if (!hasBedLinenOption(newLinen)) {
+    const stored = model.getRow(id);
+    body.singleBeds = stored.singleBeds;
+    body.doubleBeds = stored.doubleBeds;
+  }
+  return { baseline, beforeLines };
+}
+
 function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
@@ -1428,6 +1496,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // a blank value keeps the existing number (handled in the model), so only a non-empty duplicate fails.
   const numberError = reservationNumberOverrideError(req.body.reservationNumber, id);
   if (numberError) return res.status(400).json(numberError);
+
+  const todayIso = getTodayIsoDate();
+  const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso);
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -1481,7 +1552,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
   // `pastReservationLocked` gates the 14-field allowlist below. An admin drops it for this request
   // only, after « Déverrouiller cette fiche » (specs/settings-rationalization.md rule 17a).
-  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= getTodayIsoDate())
+  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso)
     && !pastUnlocked;
 
   const existingReservation = model.getForUpdate(id);
@@ -1601,6 +1672,14 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   if (ledgerRefusal) return res.status(400).json({ error: ledgerRefusal, code: 'LEDGER_AMOUNT_REFUSED' });
 
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
+  if (midStayWindow) {
+    const violations = arrivalExtrasViolations(
+      midStayWindow.baseline, midStayWindow.beforeLines, [...(quote.optionLines || []), ...(quote.resourceLines || [])],
+    );
+    if (violations.length > 0) {
+      return res.status(400).json({ error: ARRIVAL_EXTRAS_FROZEN_MESSAGE, code: 'ARRIVAL_EXTRAS_FROZEN', lines: violations });
+    }
+  }
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
@@ -1617,8 +1696,19 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       // discovered later. See specs/force-item-to-complement.md §7.
       'touristTaxInComplement',
     ]);
+    // specs/mid-stay-extras-on-locked-fiche.md rule 9 — the extras and what they move on the row.
+    if (midStayWindow) {
+      ['totalPrice', 'optionsSignature', 'resourcesSignature', 'singleBeds', 'doubleBeds']
+        .forEach((field) => allowedLockedFields.add(field));
+    }
     const forbiddenChanges = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
       .filter((change) => !allowedLockedFields.has(change.field));
+    const extrasFields = new Set(['optionsSignature', 'resourcesSignature']);
+    const collected = midStayExtrasWindow(storedPaymentForQuote, todayIso).extrasClosedReason === 'endOfStayCollected';
+    if (collected && forbiddenChanges.length > 0 && forbiddenChanges.every((change) => extrasFields.has(change.field))
+      && extrasContentChanged(model.readExtraLinesWithQuantity(id), [...(quote.optionLines || []), ...(quote.resourceLines || [])])) {
+      return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
+    }
     if (forbiddenChanges.length > 0) {
       return res.status(400).json({
         error: 'Cette réservation est passée ou en cours. Seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution peuvent encore être modifiés.',
@@ -1719,39 +1809,52 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // accounting stops emitting a phantom entry for an échéance that no longer exists.
     ...(depositDisabledFlag ? { depositPaid: false, depositPaidDate: null } : {}),
   };
-  model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked);
+  // The row, its lines and its history land together: a refused resource (409) must not leave the
+  // lines half rewritten (specs/mid-stay-extras-on-locked-fiche.md).
+  const writeAll = () => {
+    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked);
 
-  if (!pastReservationLocked && reservationOptions) model.replaceOptions(id, quote.optionLines);
-  if (!pastReservationLocked) {
-    const sasOriginLabels = model.sasOriginCustomLabels(id);
-    model.deleteCustomOptions(id);
-    if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels);
+    // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
+    const writesExtras = !pastReservationLocked || Boolean(midStayWindow);
+    if (writesExtras && reservationOptions) model.replaceOptions(id, quote.optionLines);
+    if (writesExtras) {
+      const sasOriginLabels = model.sasOriginCustomLabels(id);
+      model.deleteCustomOptions(id);
+      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels);
+    }
+    if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
+
+    if (writesExtras && reservationResources) {
+      model.deleteResources(id);
+      const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id });
+      if (resourceError) throw new CreationRefused(resourceError);
+    }
+
+    // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 11 — the engine has computed what was
+    // sold during the stay; store it as the mid-stay lines of the end-of-stay complement (the SAS-owned
+    // lines are preserved, the amount is re-totalled). Frozen once that complement is collected.
+    model.syncMidStayComplement(id, quote.midStayExtrasLines);
+
+    // specs/adjustable-complement-amounts.md §3.6 rule 36 — same ventilation, recomputed at every save
+    // so a new option or a re-priced line moves the postes, never the announced total.
+    model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
+
+    const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
+    // specs/reservation-payment-ledger.md rule 23 — an amount set from the ledger reads as such.
+    const ledgerChange = ledgerHistoryChange({ body: req.body, stored: storedPaymentForQuote, quote });
+    if (ledgerChange) changes.unshift(ledgerChange);
+    if (existingReservation && String(existingReservation.sourceType || '') === 'ical' && Number(existingReservation.icalSyncLocked || 0) !== 1 && nextIcalSyncLocked === 1) {
+      changes.push({ field: 'icalSyncLocked', label: 'Synchronisation iCal', from: 'Active', to: 'Verrouillée après modification manuelle' });
+    }
+    if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
+
+  };
+  try {
+    if (typeof db.transaction === 'function') db.transaction(writeAll)(); else writeAll();
+  } catch (err) {
+    if (err instanceof CreationRefused) return res.status(err.refusal.status).json(err.refusal.body);
+    throw err;
   }
-  if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
-
-  if (!pastReservationLocked && reservationResources) {
-    model.deleteResources(id);
-    const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id });
-    if (resourceError) return res.status(resourceError.status).json(resourceError.body);
-  }
-
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 11 — the engine has computed what was
-  // sold during the stay; store it as the mid-stay lines of the end-of-stay complement (the SAS-owned
-  // lines are preserved, the amount is re-totalled). Frozen once that complement is collected.
-  model.syncMidStayComplement(id, quote.midStayExtrasLines);
-
-  // specs/adjustable-complement-amounts.md §3.6 rule 36 — same ventilation, recomputed at every save
-  // so a new option or a re-priced line moves the postes, never the announced total.
-  model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
-
-  const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
-  // specs/reservation-payment-ledger.md rule 23 — an amount set from the ledger reads as such.
-  const ledgerChange = ledgerHistoryChange({ body: req.body, stored: storedPaymentForQuote, quote });
-  if (ledgerChange) changes.unshift(ledgerChange);
-  if (existingReservation && String(existingReservation.sourceType || '') === 'ical' && Number(existingReservation.icalSyncLocked || 0) !== 1 && nextIcalSyncLocked === 1) {
-    changes.push({ field: 'icalSyncLocked', label: 'Synchronisation iCal', from: 'Active', to: 'Verrouillée après modification manuelle' });
-  }
-  if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
 
   res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
   if (!silent) emitPluginEvent('reservation.updated', { reservationId: Number(id) });
