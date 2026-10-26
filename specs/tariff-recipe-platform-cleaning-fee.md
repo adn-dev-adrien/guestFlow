@@ -6,7 +6,7 @@
 | **Branch** | `feature/recipe-platform-cleaning-fee` |
 | **Created** | 2026-10-26 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#788](https://github.com/adn-dev-adrien/guestFlow/pull/788) |
 
 ---
 
@@ -85,6 +85,19 @@ The recipe declares what a ménage costs and which channels bill it as a separat
 10. The grid shows a « Ménage / séjour » column only when at least one channel has a fee. A channel
     without one shows « — ».
 
+### 3.4 Added after review (2026-10-26)
+
+11. **A cleaning-fee change is a change.** The preview compares the recipe's fees with the stored ones,
+    per platform, by net, and serves `cleaningFeeChanges: [{ platform, from, to }]` (`null` = no fee).
+    The apply dialog lists them and no longer says « Rien à modifier » when one differs; the apply
+    counts them as a change, so it answers `applied: true` and writes its line in the tariff journal
+    ([tariff-change-journal.md](tariff-change-journal.md) rule 5) — the guest-facing Airbnb price moved.
+12. **No part can silently price at 0 €.** The loader requires `netCost` as soon as one entry has
+    `chargesCleaning: true`, and `hourlyRate` as soon as one entry counts `choresMinutes > 0`.
+13. **The own channels carry no platform cleaning fee.** An entry naming `direct` or `Lodgify` (the
+    Direct row of the grid, rule 10's edge case) blocks the apply with « Le canal direct ne facture pas
+    de frais de ménage plateforme : <nom> » — it would be stored and never shown.
+
 **Edge cases:**
 - `chargesCleaning: false` and `choresMinutes: 0` → net 0 → fee 0 €, shown as « 0 € » (declared, not
   absent).
@@ -102,8 +115,8 @@ The recipe declares what a ménage costs and which channels bill it as a separat
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `tariffRecipe.js` | T | Validates the `cleaning` block (rules 1–3). |
-| `utils/` | `platformCleaningFee.js` | C | Pure: net to recover per entry (rule 5). |
-| `models/` | `tariffRecipeModel.js` | T | Apply: resolves platforms, blocks on unknown (rule 6), writes on both paths (rules 4, 7). |
+| `utils/` | `platformCleaningFee.js` | C | Pure: net to recover per entry (rule 5); stored-vs-desired diff (rule 11). |
+| `models/` | `tariffRecipeModel.js` | T | Apply: resolves platforms, blocks on unknown or own channel (rules 6, 13), diffs stored fees and counts them as a change (rule 11), writes on both paths (rules 4, 7). |
 | `models/` | `propertiesModel.js` | T | `setPlatformCleaningFees`; `platformPrices` serves `cleaningFee` + detail (rules 8–9). |
 | `database.js` | `database.js` | T | Idempotent `properties.platformCleaningFees TEXT DEFAULT '[]'`. |
 | `recipes/` | `gite-2027.json` | T | 3.6.0 — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }. |
@@ -115,6 +128,8 @@ The recipe declares what a ménage costs and which channels bill it as a separat
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/` | `PlatformPriceCard.jsx` | T | « Ménage / séjour » column with the detail in a tooltip (rule 10). |
+| `components/property/` | `TariffRecipeCard.jsx` | T | Apply dialog lists `cleaningFeeChanges`, « Rien à modifier » only when there are none (rule 11). |
+| `components/property/__tests__/` | `TariffRecipeCard.cleaning-fee.test.jsx` | C | Rule 11 in the dialog. |
 | `components/__tests__/` | `PlatformPriceCard.cleaning-fee.test.jsx` | C | Column shown / hidden, « — » cell. |
 
 **Component reuse declaration:** consumes the existing `PlatformPriceCard`, `TableCard`, MUI `Tooltip`.
@@ -125,7 +140,8 @@ Nothing created.
 | Method | Endpoint | Response change |
 |---|---|---|
 | GET | `/api/properties/:id/platform-prices` | Each `platforms[]` item gains `cleaningFee: number \| null` and `cleaningFeeDetail: { cleaningNet, choresNet, net } \| null`. Additive. |
-| POST | recipe apply (unchanged route) | May answer the new blocking error of rule 6. |
+| GET | recipe preview (unchanged route) | Gains `cleaningFees` and `cleaningFeeChanges` (rule 11). |
+| POST | recipe apply (unchanged route) | May answer the new blocking errors of rules 6 and 13. |
 
 ### 4.4 Skills and docs
 
@@ -158,19 +174,21 @@ change (the card has no action).
 
 ## 7. Test plan
 
-### Server unit tests — `tariff-recipe-platform-cleaning-fee.unit.test.js` (9 tests)
+### Server unit tests — `tariff-recipe-platform-cleaning-fee.unit.test.js` (12 tests)
 - [x] Validation: valid block, shipped recipes, missing block, each invalid field (rules 1–3).
 - [x] Net: Gîte 102.92, Estiva 10.42 (rule 5).
 - [x] Grid: Airbnb 15.5 % → 122 € and 13 €; commission change moves the fee (rules 8–9).
 - [x] Apply: written with an empty season diff; unknown platform blocks; absent block clears (4, 6, 7).
+- [x] Cleaning-only change reported, applied, journaled; required parts; own channel blocked (11–13).
 
 Eight existing suites build their own `properties` table: they gain the `platformCleaningFees` column,
 and the three that apply a shipped recipe gain a `platforms` table with Airbnb.
 
-### Client unit tests — `PlatformPriceCard.cleaning-fee.test.jsx` (2 tests)
-- [x] Column present with a fee (value, net, make-up), absent without; « — » for a channel without one.
+### Client unit tests
+- [x] `PlatformPriceCard.cleaning-fee.test.jsx` (2) — column present with a fee (value, net, make-up), absent without; « — » for a channel without one.
+- [x] `TariffRecipeCard.cleaning-fee.test.jsx` (2) — rule 11 in the apply dialog.
 
-Full suites on 2026-10-26: server 4 985/4 985, client 1 480/1 480, E2E 89 passed (1 skipped).
+Full suites on 2026-10-26: server 4 988/4 988, client 1 482/1 482, E2E 89 passed (1 skipped).
 
 ### Manual UI verification
 - [x] Gîte 3.6.0 and Lodge 1.2.0 applied on a dev copy → Airbnb 122 € (net 102,92 €) and 13 €, the

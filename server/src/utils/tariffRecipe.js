@@ -358,6 +358,9 @@ function validateRecipe(json) {
         seen.add(name);
         if (typeof f.chargesCleaning !== 'boolean') return fail(`${where}.chargesCleaning`, 'true | false');
         if (f.choresMinutes !== undefined && !isFiniteNonNegative(f.choresMinutes)) return fail(`${where}.choresMinutes`, 'nombre ≥ 0 requis');
+        // Rule 12 — a part the fee must cover cannot silently price at 0 €.
+        if (f.chargesCleaning && cl.netCost === undefined) return fail('cleaning.netCost', `requis : ${f.platform} facture le ménage`);
+        if (Number(f.choresMinutes || 0) > 0 && cl.hourlyRate === undefined) return fail('cleaning.hourlyRate', `requis : ${f.platform} compte des minutes de corvées`);
       }
     }
   }

@@ -9,7 +9,7 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 
 const { validateRecipe } = require('../utils/tariffRecipe');
-const { resolvePlatformCleaningFees } = require('../utils/platformCleaningFee');
+const { resolvePlatformCleaningFees, diffPlatformCleaningFees } = require('../utils/platformCleaningFee');
 const { createTariffRecipeModel } = require('../models/tariffRecipeModel');
 const { buildModel: buildPropertiesModel } = require('../models/propertiesModel');
 
@@ -79,7 +79,7 @@ test('an invalid cleaning block is rejected with its field path', () => {
     [{ platformFees: [{ platform: '  ', chargesCleaning: true }] }, 'cleaning.platformFees[0].platform'],
     [{ platformFees: [{ platform: 'Airbnb', chargesCleaning: 'oui' }] }, 'cleaning.platformFees[0].chargesCleaning'],
     [{ platformFees: [{ platform: 'Airbnb', chargesCleaning: true, choresMinutes: -5 }] }, 'cleaning.platformFees[0].choresMinutes'],
-    [{ platformFees: [{ platform: 'Airbnb', chargesCleaning: true }, { platform: 'airbnb', chargesCleaning: false }] }, 'cleaning.platformFees[1].platform'],
+    [{ netCost: 80, platformFees: [{ platform: 'Airbnb', chargesCleaning: true }, { platform: 'airbnb', chargesCleaning: false }] }, 'cleaning.platformFees[1].platform'],
   ];
   for (const [cleaning, where] of cases) {
     const err = errorOf(withCleaning(cleaning));
@@ -103,7 +103,7 @@ test('apply writes the fees even when no season changes', () => {
   model.apply(1, recipe.id);
   db.prepare("UPDATE properties SET platformCleaningFees = '[]' WHERE id = 1").run();
   const second = model.apply(1, recipe.id);
-  assert.equal(second.applied, false, 'nothing to do on the seasons');
+  assert.ok(second.seasons.every((x) => x.action === 'unchanged'), 'nothing to do on the seasons');
   assert.deepEqual(storedFees(db), [{ platform: 'Airbnb', cleaningNet: 80, choresNet: 22.92, net: 102.92 }]);
 });
 
@@ -152,4 +152,46 @@ test('the commission is read at request time: changing it moves the fee without 
   props.setPlatformCleaningFees(1, [{ platform: 'Airbnb', cleaningNet: 80, choresNet: 22.92, net: 102.92 }]);
   db.prepare("UPDATE platforms SET commissionPercent = 3 WHERE name = 'Airbnb'").run();
   assert.equal(props.platformPrices(1).platforms.find((p) => p.name === 'Airbnb').cleaningFee, 107);
+});
+
+// specs/tariff-recipe-platform-cleaning-fee.md rule 11
+test('a cleaning-only change is reported, applied and journaled', () => {
+  const db = createDb();
+  db.exec(`CREATE TABLE tariff_change_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER NOT NULL, kind TEXT NOT NULL,
+    recipeId TEXT NOT NULL DEFAULT '', recipeVersion TEXT NOT NULL DEFAULT '', occurredAt TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual', note TEXT NOT NULL DEFAULT '',
+    createdAt TEXT DEFAULT (datetime('now')))`);
+  const plain = validateRecipe(BASE).recipe;
+  createTariffRecipeModel(db, storeOf(plain)).apply(1, plain.id);
+
+  const recipe = validateRecipe(withCleaning({ netCost: 80, hourlyRate: 25, platformFees: [{ platform: 'Airbnb', chargesCleaning: true, choresMinutes: 55 }] })).recipe;
+  const model = createTariffRecipeModel(db, storeOf(recipe));
+  const preview = model.preview(1, recipe.id);
+  assert.ok(preview.seasons.every((s) => s.action === 'unchanged'), 'the seasons are already compliant');
+  assert.deepEqual(preview.cleaningFeeChanges, [{ platform: 'Airbnb', from: null, to: 102.92 }]);
+  assert.equal(model.apply(1, recipe.id).applied, true, 'the guest-facing Airbnb price moved');
+  assert.deepEqual(model.preview(1, recipe.id).cleaningFeeChanges, [], 'idempotent once written');
+  const journaled = db.prepare("SELECT recipeVersion FROM tariff_change_events WHERE propertyId = 1 AND kind = 'recipe' ORDER BY id").all();
+  assert.equal(journaled.length, 2, 'the plain apply, then the cleaning-only apply');
+
+  assert.deepEqual(diffPlatformCleaningFees('[{"platform":"Airbnb","net":102.92}]', []), [{ platform: 'Airbnb', from: 102.92, to: null }]);
+  assert.deepEqual(diffPlatformCleaningFees('garbage', []), []);
+});
+
+// specs/tariff-recipe-platform-cleaning-fee.md rule 12
+test('a part the fee must cover cannot silently price at 0 €', () => {
+  assert.ok(errorOf(withCleaning({ hourlyRate: 25, platformFees: [{ platform: 'Airbnb', chargesCleaning: true }] })).startsWith('cleaning.netCost'));
+  assert.ok(errorOf(withCleaning({ netCost: 80, platformFees: [{ platform: 'Airbnb', chargesCleaning: false, choresMinutes: 25 }] })).startsWith('cleaning.hourlyRate'));
+  assert.equal(errorOf(withCleaning({ netCost: 80, platformFees: [{ platform: 'Airbnb', chargesCleaning: true, choresMinutes: 0 }] })), undefined, 'no chores → no rate needed');
+});
+
+// specs/tariff-recipe-platform-cleaning-fee.md rule 13
+test('an own channel carries no platform cleaning fee: the apply is blocked', () => {
+  const db = createDb();
+  const recipe = validateRecipe(withCleaning({ netCost: 80, hourlyRate: 25, platformFees: [{ platform: 'direct', chargesCleaning: true }] })).recipe;
+  const out = createTariffRecipeModel(db, storeOf(recipe)).apply(1, recipe.id);
+  assert.equal(out.blocking, true);
+  assert.ok(out.warnings.includes('Le canal direct ne facture pas de frais de ménage plateforme : direct'));
+  assert.deepEqual(storedFees(db), []);
 });

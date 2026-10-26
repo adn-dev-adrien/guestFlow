@@ -26,4 +26,21 @@ function resolvePlatformCleaningFees(cleaning, platformNames = []) {
   return { fees, unknown };
 }
 
-module.exports = { resolvePlatformCleaningFees };
+// Rule 11 — stored (JSON column) vs desired, per platform, by net. `from`/`to` are nets, null = no fee.
+function diffPlatformCleaningFees(storedJson, desired = []) {
+  let stored = [];
+  try { stored = JSON.parse(storedJson || '[]'); } catch { stored = []; }
+  if (!Array.isArray(stored)) stored = [];
+  const key = (name) => String(name || '').trim().toLowerCase();
+  const before = new Map(stored.map((f) => [key(f.platform), f]));
+  const after = new Map(desired.map((f) => [key(f.platform), f]));
+  const changes = [];
+  for (const k of new Set([...before.keys(), ...after.keys()])) {
+    const from = before.has(k) ? Number(before.get(k).net) : null;
+    const to = after.has(k) ? Number(after.get(k).net) : null;
+    if (from !== to) changes.push({ platform: (after.get(k) || before.get(k)).platform, from, to });
+  }
+  return changes;
+}
+
+module.exports = { resolvePlatformCleaningFees, diffPlatformCleaningFees };
