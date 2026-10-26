@@ -622,8 +622,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       // specs/defer-arrival-complement-to-checkout.md §3.1 rule 1 — the end-of-stay ménage page is
       // dropped when the cleaning is already sold (booked option, « Ménage » added at check-in, or
       // property default), exactly like the arrival one: the host does it, so there is nothing to
-      // assess and nothing to bill. Otherwise a « Non » would charge the cleaning a second time.
-      data.cleaning?.included ? null : 'cleaning',
+      // assess and nothing to bill. Otherwise a « Non » would charge the cleaning a second time. Never
+      // on an Airbnb stay either: Airbnb forbids billing a chore (specs/airbnb-no-checkout-chores.md rule 7).
+      (data.cleaning?.included || data.cleaning?.billableAtDeparture === false) ? null : 'cleaning',
       'missingAsk',
       missingAsk === true ? 'missingItems' : null,
       'keys',
@@ -843,7 +844,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     }), [allItems, missingDep, billed]);
   // Never billable when the cleaning is already sold (specs/defer-arrival-complement-to-checkout.md
   // §3.1 rule 1) — the page is hidden, and a line stored by an earlier commit is dropped on re-commit.
-  const depCleaningLine = (cleaningOk === false && !data?.cleaning?.included && data?.cleaning?.price)
+  const depCleaningLine = (cleaningOk === false && !data?.cleaning?.included
+    && data?.cleaning?.billableAtDeparture !== false && data?.cleaning?.price)
     ? {
       label: 'Ménage de fin de séjour', unitPrice: round2(data.cleaning.price), qty: 1,
       offerKey: 'depCleaning', real: round2(data.cleaning.price), amount: billed('depCleaning', data.cleaning.price),
