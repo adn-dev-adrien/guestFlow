@@ -6,7 +6,7 @@
 | **Branch** | `feature/google-vacation-rentals-feed` (targets `inte/plugins`) |
 | **Created** | 2026-10-26 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#787](https://github.com/adn-dev-adrien/guestFlow/pull/787) |
 
 ---
 
