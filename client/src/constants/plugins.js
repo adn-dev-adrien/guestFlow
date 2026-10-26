@@ -19,11 +19,12 @@ export const WEATHER_ALERTS = 'weather-alerts';
 export const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 export const BOOKING_INTAKE = 'booking-intake';
 export const AIRBNB_INTAKE = 'airbnb-intake';
+export const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
 
 export const PLUGIN_IDS = Object.freeze([
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
-  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE,
+  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS,
 ]);
 
 // The pages plugin modules contribute, with the roles that may open them (rule 15). Read live:
@@ -41,7 +42,7 @@ export const MODULE_ROUTE_ROLES = liveRecord(
 // Pages that only exist for a plugin. An array means « visible while any of them is active »
 // (Intégrations holds the sections of eight plugins). Plugin modules add their own pages.
 export const ROUTE_PLUGINS = liveRecord(() => ({
-  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE],
+  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS],
   ...Object.fromEntries(moduleRoutes().map((route) => [route.path, route.pluginId])),
 }), modulesVersion);
 

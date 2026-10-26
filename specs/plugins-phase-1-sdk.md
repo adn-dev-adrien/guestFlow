@@ -245,6 +245,10 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-26 — SDK 2.4.0 (`specs/google-vacation-rentals-feed.md` rule 12): `ctx.events.emit(name, payload)`
+> lets a plugin announce `pricing.changed`, and only that event; `coreModule('directQuote')` exposes the
+> website's quote (`utils/directQuote.js`), shared by website-booking and google-vacation-rentals.
+
 > 2026-10-19 — `dashboard.alerts` / `dashboard.alerts.urgent` since SDK 1.4.0
 > (`specs/shell-and-home-day-first.md` rules 9, 22): the home no longer drops these slots in place.
 > A contribution whose `key` the plugin also declared server-side with `ctx.attention` is drawn as a

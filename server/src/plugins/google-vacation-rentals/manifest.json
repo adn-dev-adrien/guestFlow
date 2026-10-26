@@ -1,0 +1,23 @@
+{
+  "id": "google-vacation-rentals",
+  "name": "Google Vacation Rentals",
+  "version": "1.0.0",
+  "description": "Envoie à Google les prix du site et les disponibilités de chaque logement.",
+  "icon": "travel-explore",
+  "surfaces": [
+    "Intégrations › Google Vacation Rentals"
+  ],
+  "requires": [
+    {
+      "id": "website-booking",
+      "range": "^1.7.1"
+    }
+  ],
+  "guestflow": ">=3.10.0 <4.0.0",
+  "sdk": "^2.4.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version : prix des séjours, disponibilités et restrictions calculés par le moteur du site, en simulation tant que Google n’a pas ouvert le compte (SDK 2.4)."
+    ]
+  }
+}

@@ -9,8 +9,9 @@
 // produces an empty diff and writes nothing) and journal the run so the Dashboard surfaces it.
 // A blocking condition journals instead of writing — the operator is told, never silently left
 // with a half-configured year. One pending journal row per property max (no daily spam).
-// deps: { model, store, database } — the plugin passes its own; tests pass in-memory ones.
-function runTariffRecipeHorizonPass(reason = 'cron', { model, store, database }) {
+// deps: { model, store, database, announce? } — the plugin passes its own; tests pass in-memory ones.
+// `announce(propertyId)` emits `pricing.changed` once a pass wrote (specs/google-vacation-rentals-feed.md rule 12).
+function runTariffRecipeHorizonPass(reason = 'cron', { model, store, database, announce = () => {} }) {
   const properties = database.prepare("SELECT id, name, tariffRecipeId FROM properties WHERE tariffRecipeId != ''").all();
   if (!properties.length) return;
   const pendingByProperty = new Set(model.listPendingRuns().map((run) => run.propertyId));
@@ -37,6 +38,7 @@ function runTariffRecipeHorizonPass(reason = 'cron', { model, store, database })
           propertyId: property.id, recipeId: recipe.id, recipeVersion: recipe.version,
           generatedYear: targetYear, note: `Saisons générées jusqu'à fin ${targetYear} — à relire.`,
         });
+        announce(property.id);
         console.log(`[tariff-recipes] ${reason}: horizon étendu jusqu'à ${targetYear} pour « ${property.name} »`);
       } else if (result.blocking) {
         model.recordRun({

@@ -49,7 +49,11 @@ function register(ctx) {
     return model;
   };
 
+  // specs/google-vacation-rentals-feed.md rule 12 — a recipe that wrote prices says so.
+  const announce = (propertyId) => ctx.events.emit('pricing.changed', { propertyId: Number(propertyId), source: 'tariff-recipes' });
+
   const controller = createController({
+    announce,
     db: ctx.db,
     store: getStore,
     model: getModel,
@@ -78,7 +82,9 @@ function register(ctx) {
     name: 'horizon',
     intervalMs: 24 * 60 * 60 * 1000,
     bootDelayMs: 140 * 1000,
-    run: (reason = 'cron') => runTariffRecipeHorizonPass(reason, { model: getModel(), store: getStore(), database: ctx.db }),
+    run: (reason = 'cron') => runTariffRecipeHorizonPass(reason, {
+      model: getModel(), store: getStore(), database: ctx.db, announce,
+    }),
   });
 
   // Rule 20 — only the recipe's hold on the properties goes: every season, price and closure stays,

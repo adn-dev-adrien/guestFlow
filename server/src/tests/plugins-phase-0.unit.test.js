@@ -59,14 +59,16 @@ function setup() {
 // ---------- catalogue (rules 1-3) ----------
 
 // Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md)
-// « Saisie Booking » (specs/booking-extranet-intake.md) and « Saisie Airbnb » (specs/airbnb-mail-intake.md).
-test('catalogue: fifteen plugins with unique ids and every field', () => {
-  assert.equal(PLUGIN_CATALOG.length, 15);
-  assert.equal(new Set(PLUGIN_IDS).size, 15);
+// « Saisie Booking » (specs/booking-extranet-intake.md), « Saisie Airbnb » (specs/airbnb-mail-intake.md) and
+// « Google Vacation Rentals » (specs/google-vacation-rentals-feed.md), the first to require another plugin:
+// its landing page is the website.
+test('catalogue: sixteen plugins with unique ids and every field', () => {
+  assert.equal(PLUGIN_CATALOG.length, 16);
+  assert.equal(new Set(PLUGIN_IDS).size, 16);
   for (const p of PLUGIN_CATALOG) {
     assert.ok(p.id && p.name && p.description && p.icon, p.id);
     assert.ok(Array.isArray(p.surfaces) && p.surfaces.length > 0, p.id);
-    assert.deepEqual([...p.requires], []);
+    assert.deepEqual([...p.requires].map((r) => r.id), p.id === 'google-vacation-rentals' ? ['website-booking'] : [], p.id);
   }
   assert.equal(findPlugin('sas').name, 'Arrivée et départ guidés');
   assert.equal(findPlugin('nope'), null);

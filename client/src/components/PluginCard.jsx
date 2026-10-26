@@ -43,6 +43,7 @@ import SchoolIcon from '@mui/icons-material/School';
 import ThunderstormIcon from '@mui/icons-material/Thunderstorm';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
+import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StatusBadge from './StatusBadge';
@@ -63,6 +64,7 @@ const ICONS = {
   thunderstorm: ThunderstormIcon,
   mail: MarkEmailReadIcon,
   bookmark: BookmarkIcon,
+  'travel-explore': TravelExploreIcon,
 };
 
 export default function PluginCard({

@@ -155,6 +155,11 @@ const api = {
   getAirbnbIntakeMailbox: () => request('/airbnb-intake/mailbox'),
   testAirbnbIntakeMailbox: () => request('/airbnb-intake/test-mailbox', { method: 'POST' }),
   runAirbnbIntake: () => request('/airbnb-intake/run', { method: 'POST' }),
+  // Google Vacation Rentals plugin (specs/google-vacation-rentals-feed.md §4.3).
+  getGoogleVrStatus: () => request('/google-vacation-rentals/status'),
+  pushGoogleVr: ({ propertyId, full } = {}) => request('/google-vacation-rentals/push', { method: 'POST', body: { propertyId, full: Boolean(full) } }),
+  checkGoogleVr: ({ propertyId, samples } = {}) => request('/google-vacation-rentals/check', { method: 'POST', body: { propertyId, samples }, readOnly: true }),
+  getGoogleVrLog: (limit = 20) => request(`/google-vacation-rentals/log?limit=${limit}`),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 

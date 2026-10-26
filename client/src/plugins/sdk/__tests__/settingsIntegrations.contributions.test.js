@@ -16,6 +16,7 @@ test('rule 4: each contributing plugin declares a short tab label', () => {
     'gites-de-france-intake': 'Gîtes de France',
     'booking-intake': 'Booking',
     'airbnb-intake': 'Airbnb',
+    'google-vacation-rentals': 'Google Vacation Rentals',
   });
 });
 

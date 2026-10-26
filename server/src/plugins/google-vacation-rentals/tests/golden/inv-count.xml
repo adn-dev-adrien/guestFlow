@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OTA_HotelInvCountNotifRQ xmlns="http://www.opentravel.org/OTA/2003/05" EchoToken="solio-la-granja-1" TimeStamp="2027-03-01T04:00:00Z" Version="3.0">
+  <POS><Source><RequestorID ID="solio_partner"/></Source></POS>
+  <Inventories HotelCode="solio-la-granja">
+    <Inventory>
+      <StatusApplicationControl Start="2027-03-06" End="2027-03-07" InvTypeCode="whole"/>
+      <InvCounts><InvCount Count="1" CountType="2"/></InvCounts>
+    </Inventory>
+    <Inventory>
+      <StatusApplicationControl Start="2027-03-08" End="2027-03-08" InvTypeCode="whole"/>
+      <InvCounts><InvCount Count="0" CountType="2"/></InvCounts>
+    </Inventory>
+    <Inventory>
+      <StatusApplicationControl Start="2027-03-09" End="2027-03-09" InvTypeCode="whole"/>
+      <InvCounts><InvCount Count="1" CountType="2"/></InvCounts>
+    </Inventory>
+    <Inventory>
+      <StatusApplicationControl Start="2027-03-10" End="2027-03-10" InvTypeCode="whole"/>
+      <InvCounts><InvCount Count="0" CountType="2"/></InvCounts>
+    </Inventory>
+  </Inventories>
+</OTA_HotelInvCountNotifRQ>

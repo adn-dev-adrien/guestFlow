@@ -4,8 +4,9 @@
 
 const { missingEventYears } = require('./seasonPlan');
 
-// deps: { db, store(), model(), properties(), journal() } — injected by the plugin's register.
-function createController({ db, store: getStore, model: getModel, properties, journal }) {
+// deps: { db, store(), model(), properties(), journal(), announce(propertyId) } — injected by the
+// plugin's register. `announce` emits `pricing.changed` (specs/google-vacation-rentals-feed.md rule 12).
+function createController({ db, store: getStore, model: getModel, properties, journal, announce = () => {} }) {
   function list(req, res) {
     const store = getStore();
     const usedBy = db.prepare(
@@ -42,6 +43,7 @@ function createController({ db, store: getStore, model: getModel, properties, jo
     if (!recipeId) return res.status(400).json({ error: 'recipeId requis' });
     const result = getModel().apply(req.params.id, recipeId);
     if (result.blocking) return res.status(409).json(result);
+    if (result.applied) announce(req.params.id);
     return res.json(result);
   }
 

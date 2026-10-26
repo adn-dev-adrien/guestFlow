@@ -2,6 +2,7 @@
 
 const model = require('../models/optionsModel');
 const { insuranceOffered } = require('../utils/quotePostProcessors');
+const { emitPricingChanged } = require('../utils/pricingChanged');
 
 // The early-arrival / late-departure options are edited on each property (specs/settings-rationalization.md
 // rule 15): the catalogue view (`?view=catalogue`) leaves them out; every other caller gets them all.
@@ -56,7 +57,11 @@ function update(req, res) {
   if (insuranceFlagRefused(req, res)) return undefined;
   const invalid = validatePercentPrice(req.body);
   if (invalid) return res.status(422).json({ error: 'VALIDATION_FAILED', details: [invalid] });
-  return res.json(model.update(req.params.id, req.body));
+  const result = model.update(req.params.id, req.body);
+  // A default option of a property is part of its website quote (specs/google-vacation-rentals-feed.md
+  // rule 12): the shared catalogue moves every property.
+  emitPricingChanged(null, 'options');
+  return res.json(result);
 }
 
 function remove(req, res) {
@@ -64,6 +69,7 @@ function remove(req, res) {
   if (result && result.error) {
     return res.status(result.status || 400).json({ error: result.error });
   }
+  emitPricingChanged(null, 'options');
   return res.json(result);
 }
 

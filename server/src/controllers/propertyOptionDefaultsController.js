@@ -17,6 +17,7 @@
  */
 
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
+const { emitPricingChanged } = require('../utils/pricingChanged');
 
 function parseIdParam(value) {
   const n = Number(value);
@@ -28,7 +29,7 @@ function parseIdParam(value) {
 // plugin offers the insurance, it is not among them, or creating a booking would be refused (422).
 const withoutUnofferedInsurance = (rows) => require('../utils/insuranceOffer').dropInsurance(require('../database'), rows);
 
-function buildController({ model = propertyOptionDefaultsModel, hideInsurance = withoutUnofferedInsurance } = {}) {
+function buildController({ model = propertyOptionDefaultsModel, hideInsurance = withoutUnofferedInsurance, announce = emitPricingChanged } = {}) {
   return {
     listForProperty(req, res) {
       const propertyId = parseIdParam(req.params.id);
@@ -43,6 +44,8 @@ function buildController({ model = propertyOptionDefaultsModel, hideInsurance = 
       const offered = Boolean(req.body && req.body.offered);
       try {
         const row = model.set(propertyId, optionId, offered);
+        // The website quote merges the defaults (specs/google-vacation-rentals-feed.md rule 12).
+        announce(propertyId, 'option-defaults');
         return res.json(row);
       } catch (err) {
         // SQLite FK violation when the property or option doesn't exist → 404 is more
@@ -59,6 +62,7 @@ function buildController({ model = propertyOptionDefaultsModel, hideInsurance = 
       const optionId = parseIdParam(req.params.optionId);
       if (!propertyId || !optionId) return res.status(400).json({ error: 'INVALID_ID' });
       model.unset(propertyId, optionId);
+      announce(propertyId, 'option-defaults');
       return res.status(204).end();
     },
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OTA_HotelRateAmountNotifRQ xmlns="http://www.opentravel.org/OTA/2003/05" EchoToken="solio-la-granja-1" TimeStamp="2027-03-01T04:00:00Z" Version="3.0">
+  <POS><Source><RequestorID ID="solio_partner"/></Source></POS>
+  <RateAmountMessages HotelCode="solio-la-granja">
+    <RateAmountMessage>
+      <StatusApplicationControl Start="2027-03-06" End="2027-03-06" InvTypeCode="whole" RatePlanCode="direct"/>
+      <Rates>
+        <Rate>
+          <BaseByGuestAmts>
+            <BaseByGuestAmt AmountBeforeTax="638.00" AmountAfterTax="640.40" CurrencyCode="EUR" NumberOfGuests="1"/>
+            <BaseByGuestAmt AmountBeforeTax="638.00" AmountAfterTax="642.80" CurrencyCode="EUR" NumberOfGuests="2"/>
+          </BaseByGuestAmts>
+          <LengthsOfStay><LengthOfStay Time="2" TimeUnit="Day"/></LengthsOfStay>
+        </Rate>
+      </Rates>
+    </RateAmountMessage>
+    <RateAmountMessage>
+      <StatusApplicationControl Start="2027-03-06" End="2027-03-06" InvTypeCode="whole" RatePlanCode="direct"/>
+      <Rates>
+        <Rate>
+          <BaseByGuestAmts>
+            <BaseByGuestAmt AmountBeforeTax="1466.36" AmountAfterTax="1475.60" CurrencyCode="EUR" NumberOfGuests="11"/>
+          </BaseByGuestAmts>
+          <LengthsOfStay><LengthOfStay Time="7" TimeUnit="Day"/></LengthsOfStay>
+        </Rate>
+      </Rates>
+    </RateAmountMessage>
+  </RateAmountMessages>
+</OTA_HotelRateAmountNotifRQ>

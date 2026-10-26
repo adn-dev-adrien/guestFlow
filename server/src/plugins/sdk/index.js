@@ -44,6 +44,7 @@ const CORE_MODULES = Object.freeze({
   termsModel: '../../models/termsModel', // current CGV version, the acceptance record (rule 26)
   updateStateModel: '../../models/updateStateModel', // the WordPress plugin release the manifest serves
   pricing: '../../utils/pricing', // the quote engine
+  directQuote: '../../utils/directQuote', // the website's quote (default options merged), also priced by google-vacation-rentals (SDK 2.4.0)
   reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
   capacity: '../../utils/capacity', // guest capacity of a property
   devisHelpers: '../../utils/devisHelpers', // the extra-guest row of a quote, read from its pricing

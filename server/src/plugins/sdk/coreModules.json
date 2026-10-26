@@ -727,5 +727,10 @@
     "diffDays",
     "addDaysToIsoDate",
     "formatDate"
+  ],
+  "directQuote": [
+    "buildEngineQuote",
+    "createDirectQuote",
+    "defaultPortionQuantity"
   ]
 }

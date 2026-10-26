@@ -5,7 +5,9 @@
  */
 
 const registry = require('./registry');
-const { EVENTS } = require('./eventBus');
+const eventBus = require('./eventBus');
+
+const { EVENTS, PLUGIN_EMITTABLE } = eventBus;
 const coreServices = require('./coreServices');
 
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
@@ -152,6 +154,11 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
         if (!EVENTS.includes(name)) throw new Error(`${prefix} unknown event ${name}`);
         if (!record.handlers.has(name)) record.handlers.set(name, []);
         record.handlers.get(name).push(handler);
+      },
+      // SDK 2.4.0 — only the events of PLUGIN_EMITTABLE; dispatched like the core's own emits.
+      emit(name, payload) {
+        if (!PLUGIN_EMITTABLE.includes(name)) throw new Error(`${prefix} may not emit ${name}`);
+        eventBus.emit(name, payload);
       },
     },
     // { tokens: [{ name, label }], flags: [name], build(reservationId) → { tokens, flags } } (rule 10)
