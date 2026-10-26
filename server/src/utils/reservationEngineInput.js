@@ -130,6 +130,10 @@ function buildReservationEngineInput(db, reservation) {
     // base again, so a replay that omitted it would price the stay on a different base than the
     // fiche and hand the « Suivi taxe de séjour » page a number the fiche never showed.
     platformGrossAmount: reservation.platformGrossAmount,
+    // specs/platform-tourist-tax-out-of-the-commission.md rule 25 — the fiche reads the brut net of
+    // this amount; a replay without it puts the withheld tax back in the solde, and the payment
+    // capture then refuses to mark that solde paid.
+    platformTouristTaxAmount: reservation.platformTouristTaxAmount,
     platformPaidGuests: reservation.platformPaidGuests,
     // Rule 12 — the freeze envelope travels with the rest. The caller decides whether to honour it
     // (`freezeTouristTax`); this only makes sure it has the values to honour it with.

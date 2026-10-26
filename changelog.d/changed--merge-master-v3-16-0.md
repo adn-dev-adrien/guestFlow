@@ -1,0 +1,5 @@
+- **Airbnb intake joins the plugin catalogue** (spec `airbnb-mail-intake.md` rule 0, note of 2026-10-26). Shipped on `master` in v3.16.0, « Saisie Airbnb » runs on the full plugin engine: its own manifest (1.0.0), installed from the Plugins page, its mails to check under « À traiter » on the home, its own « Airbnb » tab in Intégrations. Plugin SDK 2.3.0: `sdk.mailbox` (read-only IMAP shared by the mail intakes) and the client `IntakeBanner`.
+- plugin:website-booking `ROOSTVIEW_API_KEY`, the read-only public API key of master's v3.16.0, is created by the plugin with `PUBLIC_API_KEY` (spec `roostview-api-key.md`).
+- plugin:gites-de-france-intake Le serveur IMAP est déduit du serveur d’envoi (smtp.… → imap.…) et le bandeau de la fiche est celui des autres saisies.
+- plugin:booking-intake Le bandeau de la fiche est celui des autres saisies.
+- plugin:neat Sur une fiche verrouillée, « Réessayer maintenant » et « Résilier chez Neat » restent inactifs.

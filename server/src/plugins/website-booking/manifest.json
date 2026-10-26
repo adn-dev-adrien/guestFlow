@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -61,6 +61,9 @@
     ],
     "1.6.1": [
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.7.0": [
+      "Crée aussi la clé ROOSTVIEW_API_KEY, en lecture seule : catalogue, disponibilités et devis, rien d’autre (403). Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

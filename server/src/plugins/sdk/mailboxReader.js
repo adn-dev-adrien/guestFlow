@@ -1,10 +1,11 @@
 /**
- * Reads the booking mails of one sender from an IMAP mailbox (specs/gites-de-france-mail-intake.md rule 1).
- * Read-only: the mailbox is opened with `readOnly`, nothing is flagged, moved or deleted — the operator's
- * mail client still sees every message as it was.
+ * Reads the mails of one sender from an IMAP mailbox, for the intake plugins
+ * (specs/gites-de-france-mail-intake.md rule 1, specs/airbnb-mail-intake.md rule 4). Read-only: the
+ * mailbox is opened with `readOnly`, nothing is flagged, moved or deleted — the operator's mail client
+ * still sees every message as it was.
  *
- * Returns `[{ messageId, receivedAt, text }]`, the text being the plain-text part, or the HTML part
- * reduced to text when the mail has no plain part.
+ * Returns `[{ messageId, receivedAt, sentAt, subject, text }]`, the text being the plain-text part, or
+ * the HTML part reduced to text when the mail has no plain part.
  */
 
 const { ImapFlow } = require('imapflow');
@@ -43,7 +44,7 @@ async function readPart(client, uid, part) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function readBookingMails({
+async function readMailsFrom({
   host, port = 993, user, password, sender, sinceDays = 30, now = new Date(), ImapClient = ImapFlow,
 }) {
   const client = new ImapClient({ host, port: Number(port), secure: Number(port) === 993, auth: { user, pass: password }, logger: false });
@@ -64,6 +65,7 @@ async function readBookingMails({
       out.push({
         messageId: (msg.envelope && msg.envelope.messageId) || `uid:${uid}`,
         receivedAt: new Date(msg.internalDate || (msg.envelope && msg.envelope.date) || now).toISOString(),
+        sentAt: new Date((msg.envelope && msg.envelope.date) || msg.internalDate || now).toISOString(),
         subject: (msg.envelope && msg.envelope.subject) || '',
         text: plainPart ? raw : htmlToText(raw),
       });
@@ -73,6 +75,13 @@ async function readBookingMails({
     if (lock) lock.release();
     await client.logout().catch(() => {});
   }
+}
+
+// The IMAP server of the account GuestFlow sends from: `smtp.<domain>` reads on `imap.<domain>`
+// (smtp.gmail.com → imap.gmail.com). Any other host is kept as is. specs/airbnb-mail-intake.md rule 4.
+function imapHostFor(smtpHost) {
+  const host = String(smtpHost || '').trim();
+  return /^smtp\./i.test(host) ? `imap.${host.slice(5)}` : host;
 }
 
 async function testConnection({ host, port = 993, user, password }) {
@@ -86,4 +95,4 @@ async function testConnection({ host, port = 993, user, password }) {
   }
 }
 
-module.exports = { readBookingMails, testConnection, htmlToText };
+module.exports = { readMailsFrom, testConnection, htmlToText, imapHostFor };

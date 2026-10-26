@@ -1,1 +1,0 @@
-- **Switching logement no longer keeps the previous one's offered options** (spec `per-property-default-options.md` rule 11, 2026-10-22). A devis opened on L'Estiva, where the Ménage is offered by default, then moved to La Granja showed the Ménage « ✓ Offert » at 0 € instead of 80 €. Devis already saved that way keep their 0 € line: reopen them and click « Offert » to bill it.

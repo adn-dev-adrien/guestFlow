@@ -147,6 +147,14 @@ const api = {
   getBookingIntakeLog: (limit = 10) => request(`/booking-intake/intakes?limit=${limit}`),
   createBookingIntakeSecret: () => request('/booking-intake/secret', { method: 'POST' }),
   regenerateBookingIntakeSecret: () => request('/booking-intake/secret/regenerate', { method: 'POST' }),
+  // Saisie Airbnb plugin (specs/airbnb-mail-intake.md §4.4).
+  getAirbnbIntakeForReservation: (reservationId) => request(`/airbnb-intake/reservation/${reservationId}`),
+  applyAirbnbIntake: (intakeId) => request(`/airbnb-intake/${intakeId}/apply`, { method: 'POST' }),
+  dismissAirbnbIntake: (intakeId) => request(`/airbnb-intake/${intakeId}/dismiss`, { method: 'POST' }),
+  getAirbnbIntakeAlerts: () => request('/airbnb-intake'),
+  getAirbnbIntakeMailbox: () => request('/airbnb-intake/mailbox'),
+  testAirbnbIntakeMailbox: () => request('/airbnb-intake/test-mailbox', { method: 'POST' }),
+  runAirbnbIntake: () => request('/airbnb-intake/run', { method: 'POST' }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 

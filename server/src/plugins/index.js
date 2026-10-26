@@ -18,4 +18,5 @@ module.exports = [
   require('./hourly-resources'),
   require('./gites-de-france-intake'),
   require('./booking-intake'),
+  require('./airbnb-intake'),
 ];

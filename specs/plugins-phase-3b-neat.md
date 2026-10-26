@@ -250,7 +250,9 @@ arrives.
       `{ key, appliesTo(option), Component }`. `OptionRow` renders, under the line, each live
       contribution whose `appliesTo` matches.
     - Each contribution receives `option`, its plugin's block (`pluginBlocks[pluginId]`), an
-      `onBlockChange` to replace it, and the stay's `reservationId` and `guestName`.
+      `onBlockChange` to replace it, and the stay's `reservationId` and `guestName`. *Since SDK 2.3.0
+      (master sync of 2026-10-26):* also `locked`, true on a locked fiche — Neat's retry and void stay
+      disabled there ([mid-stay-extras-on-locked-fiche.md](mid-stay-extras-on-locked-fiche.md)).
     - Neat contributes `NeatInsuranceStatus`, for `appliesTo: (o) => o.isCancellationInsurance`: the chip,
       the premium line, the « ligne retirée » warning, « Réessayer maintenant » and « Résilier chez
       Neat » (with its confirmation). It calls `/api/neat/...` itself, through the `api` client that

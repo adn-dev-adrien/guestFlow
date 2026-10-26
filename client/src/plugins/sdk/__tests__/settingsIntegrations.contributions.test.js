@@ -15,6 +15,7 @@ test('rule 4: each contributing plugin declares a short tab label', () => {
     'gate-access': 'Portail',
     'gites-de-france-intake': 'Gîtes de France',
     'booking-intake': 'Booking',
+    'airbnb-intake': 'Airbnb',
   });
 });
 

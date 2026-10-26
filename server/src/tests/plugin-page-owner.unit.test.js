@@ -46,7 +46,7 @@ test('rule 40: the answer carries the plugin name, its state and the sentence to
   assert.deepEqual(one.plugins.map((p) => [p.id, p.state]), [['accounting-export', 'available']]);
   assert.equal(one.message, 'Cette page dépend du plugin «\u00a0Export comptable\u00a0», qui n’est pas activé.');
   const many = ask(ctrl, '/settings/integrations');
-  assert.equal(many.plugins.length, 7);
+  assert.equal(many.plugins.length, 8);
   assert.equal(many.message, 'Cette page dépend de plugins qui ne sont pas activés.');
   assert.deepEqual(ask(ctrl, '/nulle-part'), { plugins: [], message: null });
   db.close();
@@ -80,9 +80,9 @@ test('rule 42: an active plugin answers like a core page; an installed, disabled
   db.close();
 });
 
-test('rule 42: Intégrations is named while none of its seven plugins is active, and not after', () => {
+test('rule 42: Intégrations is named while none of its eight plugins is active, and not after', () => {
   const { db, ctrl } = controller();
-  assert.equal(ask(ctrl, '/settings/integrations').plugins.length, 7);
+  assert.equal(ask(ctrl, '/settings/integrations').plugins.length, 8);
   pluginsModel.buildModel(db).install('google-calendar');
   assert.deepEqual(ask(ctrl, '/settings/integrations'), { plugins: [], message: null });
   db.close();

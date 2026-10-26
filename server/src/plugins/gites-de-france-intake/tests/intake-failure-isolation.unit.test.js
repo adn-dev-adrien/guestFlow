@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 
 const { setup } = require('./serviceFixtures');
 const { BOOKING_MAIL, withTotals } = require('./fixtures');
-const { readBookingMails } = require('../mailboxReader');
+const { readMailsFrom } = require('../../sdk/mailboxReader');
 
 const ONE_RENT = withTotals(BOOKING_MAIL, { net: '455.00', options: '80.00', total: '535.00' });
 const otherDossier = (text) => text.replace(/11773-2026/g, '11774-2026');
@@ -70,19 +70,19 @@ const MAILBOX = { host: 'imap.test', user: 'u', password: 'p', sender: 's@test' 
 
 test('a refused INBOX lock still logs out of the mailbox', async () => {
   const { FakeImap, log } = fakeImap({ failLock: true });
-  await assert.rejects(readBookingMails({ ...MAILBOX, ImapClient: FakeImap }), /Mailbox does not exist/);
+  await assert.rejects(readMailsFrom({ ...MAILBOX, ImapClient: FakeImap }), /Mailbox does not exist/);
   assert.equal(log.loggedOut, 1);
   assert.equal(log.released, 0);
 });
 
 test('a failed connect still closes the client', async () => {
   const { FakeImap, log } = fakeImap({ failConnect: true });
-  await assert.rejects(readBookingMails({ ...MAILBOX, ImapClient: FakeImap }), /ECONNRESET/);
+  await assert.rejects(readMailsFrom({ ...MAILBOX, ImapClient: FakeImap }), /ECONNRESET/);
   assert.equal(log.loggedOut, 1);
 });
 
 test('a normal read releases the lock and logs out once', async () => {
   const { FakeImap, log } = fakeImap();
-  assert.deepEqual(await readBookingMails({ ...MAILBOX, ImapClient: FakeImap }), []);
+  assert.deepEqual(await readMailsFrom({ ...MAILBOX, ImapClient: FakeImap }), []);
   assert.deepEqual(log, { loggedOut: 1, released: 1 });
 });

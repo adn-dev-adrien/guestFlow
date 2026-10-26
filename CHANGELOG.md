@@ -4,6 +4,61 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-10-25
+
+### Summary
+- Roostview a désormais sa propre clé d'API, en lecture seule : la clé du site WordPress ne change pas.
+- La nouvelle clé ROOSTVIEW_API_KEY est créée au démarrage dans server/.env.local, à coller dans Roostview.
+
+### Added
+- **Roostview API key** (spec `roostview-api-key.md`, 2026-10-25). A second public-API key, `ROOSTVIEW_API_KEY`, auto-generated in `server/.env.local`: read-only (catalogue, availability, quote), 403 everywhere else, never a relayed visitor. The WordPress key is unchanged and either can be rotated alone. +5 server tests.
+
+## [3.15.1] - 2026-10-25
+
+### Summary
+- Sur le site, un champ de coordonnées oublié est signalé en rouge et l'écran défile jusqu'à lui : sur téléphone, « Payer » semblait inactif.
+- Mettre à jour le plugin GuestFlow Booking en 1.14.3 depuis l'administration WordPress pour en profiter.
+
+### Fixed
+- **Site booking (plugin 1.14.3):** a refused contact form now marks each empty field in red and scrolls to the first one. In the Solio drawer on a phone, the refusal message sat below the fold, so « Payer » looked inert: on 2026-10-25 a guest tapped it 17 times without ever seeing why.
+
+## [3.15.0] - 2026-10-25
+
+### Summary
+- Nouveau module « Saisie Airbnb », installé inactif : il remplit la fiche depuis le mail « Réservation confirmée » d'Airbnb.
+- Pour l'utiliser, activer « Saisie Airbnb » dans Paramètres › Modules, puis « Tester la connexion » dans Intégrations.
+- La saisie des mails (Gîtes de France comprise) lit désormais la boîte sur imap.<domaine> quand « Serveur IMAP » est vide.
+
+### Added
+- **Saisie Airbnb** (spec `airbnb-mail-intake.md`, plugin `airbnb-intake`, installed inactive). The « Réservation confirmée » mail Airbnb sends to the mailbox GuestFlow sends from fills the matching iCal fiche: the guest on a client of their own, the party, the confirmation code, the guest's message in the notes, and « Paiement plateforme » — brut, the tourist tax Airbnb keeps, the payout, and a commission equal to Airbnb's host fee. A fiche already edited gets an « Appliquer / Ignorer » banner instead; every banner links to the reservation on Airbnb, where the phone and e-mail are. Each mail is matched to its property through the listing id carried by that property's Airbnb iCal feed, so nothing is typed per property and a new one is covered as soon as its feed is added. To use it: activate « Saisie Airbnb » in Paramètres › Modules, then « Tester la connexion » in Paramètres › Intégrations.
+
+### Fixed
+- **The mail intake reads on the IMAP server** (spec `airbnb-mail-intake.md` rule 4). With « Serveur IMAP » left empty, the Gîtes de France intake read the mailbox on the sending server (`smtp.gmail.com`), where no reading can connect; it now uses `imap.<domain>` (`imap.gmail.com`).
+
+## [3.14.1] - 2026-10-24
+
+### Summary
+- Une fiche de séjour passé ou en cours portant une ligne libre peut de nouveau être enregistrée.
+- L'historique n'affiche plus de faux changement « Options » à chaque enregistrement de ces fiches.
+
+### Fixed
+- **A past stay carrying a custom line can be saved again** (spec `reservation-history-granular-diff.md` rule 12, 2026-10-23). « Enregistrer » answered « Cette réservation est passée ou en cours… » even with nothing edited, because the custom line was keyed differently before and after the save and looked like a change to the locked options. The same mismatch wrote a phantom « Options » row into the history on every save of such a fiche; it no longer does.
+
+## [3.14.0] - 2026-10-23
+
+### Summary
+- Le solde d'une réservation Airbnb ou Gîtes de France avec taxe de séjour retenue peut de nouveau être marqué payé.
+- Un paiement refusé par le serveur s'affiche désormais sur la fiche au lieu d'un bouton sans effet.
+- Changer de logement sur un devis ne garde plus les options offertes du logement précédent.
+- La liste des devis est lisible sur téléphone : voyageur, logement, séjour, puis numéro et total.
+
+### Changed
+- **Devis list on a phone is readable** (spec `devis-list-mobile-card.md`, 2026-10-22). The logement and the dates no longer run together (« Gite10/05/2027 »): each card reads guest, logement, stay (« 10 → 13 mai 2027 · 3 nuits »), then number and total. A website request shows one origin badge, and « Confirmer en réservation » / « Supprimer » moved into a « ⋯ » menu. `GET /api/devis` rows gain `nights`, `stayLabel` and `totalTtc`.
+
+### Fixed
+- **Switching logement no longer keeps the previous one's offered options** (spec `per-property-default-options.md` rule 11, 2026-10-22). A devis opened on L'Estiva, where the Ménage is offered by default, then moved to La Granja showed the Ménage « ✓ Offert » at 0 € instead of 80 €. Devis already saved that way keep their 0 € line: reopen them and click « Offert » to bill it.
+- **A platform booking whose tourist tax the platform withheld can be marked paid again** (spec `platform-tourist-tax-out-of-the-commission.md` rule 25, 2026-10-23). « Marquer solde payé » did nothing on an Airbnb or Gîtes de France fiche carrying a « Taxe de séjour retenue »: the server re-priced the solde with that tax back in it and refused the payment, and the fiche swallowed the refusal. The refusal is now shown on the fiche if it ever happens again.
+
 ## [3.13.0] - 2026-10-22
 
 ### Summary

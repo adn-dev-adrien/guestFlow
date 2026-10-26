@@ -1,7 +1,7 @@
 {
   "id": "neat",
   "name": "Assurance annulation Neat",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Souscription automatique de l’assurance annulation.",
   "icon": "umbrella",
   "surfaces": [
@@ -33,6 +33,9 @@
     ],
     "1.2.2": [
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.3": [
+      "Sur une fiche verrouillée, « Réessayer maintenant » et « Résilier chez Neat » restent inactifs. Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

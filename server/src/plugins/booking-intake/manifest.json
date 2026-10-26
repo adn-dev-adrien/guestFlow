@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.0.0",
+  "sdk": "^2.3.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet : un script du navigateur envoie la page de la réservation ouverte dans l’extranet Booking, et la fiche iCal se remplit.",
@@ -44,6 +44,9 @@
     ],
     "1.3.2": [
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.3.3": [
+      "Le bandeau de la fiche est celui des autres saisies, avec le SDK 2.3 de GuestFlow."
     ]
   }
 }

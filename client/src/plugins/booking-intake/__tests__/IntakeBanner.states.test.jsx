@@ -9,7 +9,7 @@ import { APPLIED, PROPOSED } from './intakeFixtures';
 const api = vi.hoisted(() => ({
   getBookingIntakeForReservation: vi.fn(), applyBookingIntake: vi.fn(), ignoreBookingIntake: vi.fn(), hideBookingIntake: vi.fn(),
 }));
-vi.mock('../../sdk', () => ({ api }));
+vi.mock('../../sdk', async () => ({ api, IntakeBanner: (await vi.importActual('../../../components/IntakeBanner')).default }));
 
 import IntakeBanner from '../IntakeBanner';
 

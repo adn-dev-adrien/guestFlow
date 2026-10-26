@@ -18,6 +18,7 @@ const SCHOOL_HOLIDAYS = 'school-holidays';
 const WEATHER_ALERTS = 'weather-alerts';
 const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 const BOOKING_INTAKE = 'booking-intake';
+const AIRBNB_INTAKE = 'airbnb-intake';
 
 // specs/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
 // list only fixes the order the Plugins page shows them in. A version installed from the registry
@@ -25,7 +26,7 @@ const BOOKING_INTAKE = 'booking-intake';
 const CATALOG_ORDER = [
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
-  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE,
+  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE,
 ];
 
 const PLUGIN_CATALOG = Object.freeze(CATALOG_ORDER.map((id) => readSourceManifest(id)));
@@ -34,7 +35,7 @@ const PLUGIN_IDS = Object.freeze(PLUGIN_CATALOG.map((p) => p.id));
 
 // specs/plugins-phase-0-foundation.md rule 10 — what an existing database gets installed and active:
 // the twelve features that were core before phase 0, so nothing disappears. A plugin added since
-// (the two intakes) is a new opt-in and is never installed by the seed.
+// (the three intakes) is a new opt-in and is never installed by the seed.
 const SEEDED_ON_EXISTING_IDS = Object.freeze([
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
@@ -52,7 +53,7 @@ const PLUGIN_PAGES = Object.freeze({
   '/finance/rapprochement': [ONLINE_PAYMENT],
   '/school-holidays': [SCHOOL_HOLIDAYS],
   '/parametres/recettes': [TARIFF_RECIPES],
-  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE],
+  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE],
 });
 
 // specs/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
@@ -75,6 +76,7 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [WEATHER_ALERTS]: `${INTEGRATIONS}?tab=${WEATHER_ALERTS}`,
   [GITES_DE_FRANCE_INTAKE]: `${INTEGRATIONS}?tab=${GITES_DE_FRANCE_INTAKE}`,
   [BOOKING_INTAKE]: `${INTEGRATIONS}?tab=${BOOKING_INTAKE}`,
+  [AIRBNB_INTAKE]: `${INTEGRATIONS}?tab=${AIRBNB_INTAKE}`,
 });
 
 /** → the ids of the plugins a page belongs to, or [] for a core page or an unknown address. */

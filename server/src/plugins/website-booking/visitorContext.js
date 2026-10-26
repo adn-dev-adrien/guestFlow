@@ -25,7 +25,9 @@ function readVisitor(req) {
 }
 
 function visitorContext(req, res, next) {
-  req.visitor = readVisitor(req);
+  // Only the WordPress proxy relays a visitor; any other caller is its own visitor
+  // (specs/roostview-api-key.md rule 4) and cannot pick an identity through these headers.
+  req.visitor = req.publicApiCaller === 'roostview' ? { ip: '', userAgent: '', pluginVersion: '' } : readVisitor(req);
   next();
 }
 

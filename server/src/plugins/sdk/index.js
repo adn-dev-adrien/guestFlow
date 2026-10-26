@@ -125,4 +125,10 @@ module.exports = Object.freeze({
   calendar: Object.freeze({
     frenchPublicHolidays: (...args) => require('../../utils/frenchHolidays').getFrenchPublicHolidays(...args),
   }),
+  // Read-only IMAP for the plugins that read booking mails (specs/airbnb-mail-intake.md rule 4).
+  mailbox: Object.freeze({
+    readMailsFrom: (...args) => require('./mailboxReader').readMailsFrom(...args),
+    testConnection: (...args) => require('./mailboxReader').testConnection(...args),
+    imapHostFor: (...args) => require('./mailboxReader').imapHostFor(...args),
+  }),
 });
