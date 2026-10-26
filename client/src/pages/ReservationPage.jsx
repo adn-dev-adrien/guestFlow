@@ -64,6 +64,8 @@ import ErrorAlert from '../components/ErrorAlert';
 import { useAuth } from '../hooks/useAuth';
 import Slot from '../plugins/sdk/Slot';
 import { ADMIN, userHasRole } from '../constants/roles';
+import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
+import { LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER } from '../constants/reservationLock';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -117,6 +119,9 @@ function parseCustomPrice(value) {
 
 // specs/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
 // reservation without any refund reads.
+const NO_ARRIVAL_LINES = {};
+const NO_FROZEN_CUSTOM_IDS = [];
+
 const EMPTY_REFUND_REGISTER = {
   refunds: [],
   refundableLines: [],
@@ -326,6 +331,9 @@ export default function ReservationPage() {
 
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
+  // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the lock as the server decided it: whether the
+  // fiche is locked, whether its extras are still editable, and the floor of each line sold at arrival.
+  const [editLock, setEditLock] = useState(null);
   const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
   const [isIcalSource, setIsIcalSource] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
@@ -745,9 +753,8 @@ export default function ReservationPage() {
         // Load reservation details if editing
         if (reservationId) {
           const res = await api.getReservation(reservationId);
-          const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-          const isPast = Boolean(res.startDate && res.startDate <= todayStr);
-          setExistingReservationLocked(isPast);
+          setExistingReservationLocked(Boolean(res.editLock?.locked));
+          setEditLock(res.editLock || null);
           setPastUnlocked(false);
           const { options: catalogueOptions } = await loadPropertyContext(res.propertyId, props);
 
@@ -2343,6 +2350,8 @@ export default function ReservationPage() {
         setInitialSnapshot(formSnapshot);
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
+          // The page stays open: refetch so the server's `editLock` (floors, window) is fresh.
+          setReloadToken((token) => token + 1);
         } else {
           navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
         }
@@ -2450,6 +2459,9 @@ export default function ReservationPage() {
         return false;
       }
       await alert({ title: 'Erreur', message: err.message });
+      // The end-of-stay complement was collected elsewhere while this fiche was open: reload it so the
+      // extras card shows its locked state (specs/mid-stay-extras-on-locked-fiche.md).
+      if (err?.code === 'MID_STAY_EXTRAS_CLOSED') setReloadToken((token) => token + 1);
       return false;
     }
   };
@@ -2888,6 +2900,13 @@ export default function ReservationPage() {
   // A new reservation dated in the past can only be recorded by an admin who unlocks it.
   const pastNewReservation = Boolean(!reservationId && !isDevisMode && form.startDate && form.startDate < todayIso);
   const lockedSectionSx = isReservationLocked ? { opacity: 0.55, pointerEvents: 'none' } : undefined;
+  const extrasWindowOpen = Boolean(isReservationLocked && editLock?.extrasEditable);
+  const arrivalLines = extrasWindowOpen ? (editLock.arrivalLines || {}) : NO_ARRIVAL_LINES;
+  const frozenCustomOptionIds = extrasWindowOpen ? (editLock.frozenCustomOptionIds || []) : NO_FROZEN_CUSTOM_IDS;
+  const isFrozenArrivalLine = (kind, line) => {
+    if (kind === 'custom') return line.customOptionId != null && frozenCustomOptionIds.includes(Number(line.customOptionId));
+    return Boolean(arrivalLines[kind === 'option' ? optionLineKey(line.optionId) : resourceLineKey(line.resourceId)]);
+  };
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
   const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
@@ -3086,7 +3105,7 @@ export default function ReservationPage() {
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
     datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
-    isReservationLocked,
+    isReservationLocked, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
     // guests / beds
     maxGuestsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
     exceedsGuestsCapacity, exceedsBabiesCapacity,
@@ -3207,7 +3226,7 @@ export default function ReservationPage() {
         {isReservationLocked && (
           <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
             <Typography variant="body2" color="warning.main" sx={{ flex: 1 }}>
-              Cette réservation est passée ou en cours : seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution restent modifiables.
+              {extrasWindowOpen ? MID_STAY_EXTRAS_BANNER : LOCKED_FICHE_BANNER}
             </Typography>
             {isAdmin && (
               <Button size="small" variant="outlined" color="warning" onClick={() => setPastUnlocked(true)}>
@@ -3397,6 +3416,8 @@ export default function ReservationPage() {
           onToggleCustomOptionInComplement={setCustomOptionInComplementFromSummary}
           onToggleResourceInComplement={setResourceInComplement}
           onToggleTouristTaxInComplement={(next) => setForm((prev) => ({ ...prev, touristTaxInComplement: Boolean(next) }))}
+          routingLocked={extrasWindowOpen}
+          isFrozenLine={isFrozenArrivalLine}
           isTouristTaxFrozen={isTouristTaxFrozen}
           onRefreshTouristTax={() => setTouristTaxRefreshRequested(true)}
         />

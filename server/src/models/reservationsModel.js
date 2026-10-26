@@ -34,6 +34,7 @@ const {
   buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
   buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE,
 } = require('../utils/midStayExtras');
+const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
@@ -2253,18 +2254,72 @@ function createReservationsModel(database) {
     readExtraLines(reservationId) {
       const options = database.prepare('SELECT optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(reservationId);
       const resources = database.prepare('SELECT resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(reservationId);
-      const customs = database.prepare('SELECT description, amount, offered FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+      const customs = database.prepare('SELECT id, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
       return [
         ...options.map((o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0) })),
         ...resources.map((r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0) })),
         // A custom line stores its ORIGINAL amount; an offered one is worth 0 like in the engine.
         ...customs.map((c) => ({
           isCustom: true,
+          customOptionId: Number(c.id),
           title: c.description,
           totalPrice: Number(c.offered || 0) === 1 ? 0 : Number(c.amount || 0),
           offered: Number(c.offered || 0),
         })),
       ];
+    },
+
+    // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the « Forcer en complément » routing as stored,
+    // so a save inside the window can carry it back untouched whatever the payload says.
+    getStoredRouting(reservationId) {
+      const flag = (r) => Number(r.inComplement || 0);
+      return {
+        options: new Map(database.prepare('SELECT optionId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_options WHERE reservationId = ?')
+          .all(reservationId).map((r) => [Number(r.id), flag(r)])),
+        resources: new Map(database.prepare('SELECT resourceId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
+          .all(reservationId).map((r) => [Number(r.id), flag(r)])),
+        customs: database.prepare('SELECT id, description, COALESCE(inComplement, 0) AS inComplement FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id')
+          .all(reservationId).map((r) => ({ id: Number(r.id), description: r.description, inComplement: flag(r) })),
+      };
+    },
+
+    // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the ready-to-render lock of a fiche: is it
+    // locked, may its extras still be edited, and the floor of every line sold at arrival.
+    getEditLock(reservationId, { today }) {
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return null;
+      const lines = model.readExtraLinesWithQuantity(reservationId);
+      // A locked fiche has started: with no baseline captured yet, what it carries now IS what was sold
+      // at arrival, exactly what the next save will pin.
+      const baseline = model.getArrivalExtrasBaseline(reservationId) || JSON.stringify(buildExtrasBaseline(lines));
+      return buildEditLock(row, today, baseline, lines);
+    },
+
+    // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count
+    // (specs/mid-stay-extras-on-locked-fiche.md rules 6 and 13). A custom line is one unit.
+    readExtraLinesWithQuantity(reservationId) {
+      const quantities = (table, idColumn) => new Map(
+        database.prepare(`SELECT ${idColumn} AS id, quantity FROM ${table} WHERE reservationId = ?`)
+          .all(reservationId).map((row) => [Number(row.id), Number(row.quantity || 0)]),
+      );
+      const optionUnits = quantities('reservation_options', 'optionId');
+      const optionOccurrences = new Map(database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?')
+        .all(reservationId).map((row) => {
+          let list = [];
+          try { list = row.cardOccurrences ? JSON.parse(row.cardOccurrences) : []; } catch { list = []; }
+          return [Number(row.optionId), (Array.isArray(list) ? list : []).map((o) => ({ date: o.date, time: o.time }))];
+        }));
+      const resourceUnits = quantities('reservation_resources', 'resourceId');
+      const hourlyResources = new Set(database.prepare(
+        "SELECT id FROM resources WHERE priceType = 'per_hour' OR COALESCE(isComplex, 0) = 1",
+      ).all().map((row) => Number(row.id)));
+      return model.readExtraLines(reservationId).map((line) => {
+        if (line.optionId != null) return { ...line, quantity: optionUnits.get(line.optionId), occurrences: optionOccurrences.get(line.optionId) };
+        if (line.resourceId != null) {
+          return { ...line, quantity: resourceUnits.get(line.resourceId), hourly: hourlyResources.has(line.resourceId) };
+        }
+        return { ...line, quantity: 1 };
+      });
     },
 
     // The baseline the ENGINE should use right now. It is captured lazily, on the first save at/after

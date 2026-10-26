@@ -16,6 +16,7 @@ import { Box, Stack, Typography, TextField, Chip } from '@mui/material';
  *  - onSlotTimeChange(slot, time) => void — required with `slotTimes`
  *  - quantityText    right-aligned caption (e.g. « Quantité : 6 (3 × 2 pers.) »)
  *  - disabled        read-only rendering
+ *  - isLocked        (occurrence) => boolean — a single moment that cannot be toggled (sold at arrival)
  *  - emptyText       shown instead of the grid when there is no candidate
  */
 
@@ -28,7 +29,7 @@ function occurrenceDateLabel(iso) {
 }
 
 export default function OccurrenceGrid({
-  grid = [], onToggle, slotTimes, onSlotTimeChange, quantityText, disabled = false, emptyText,
+  grid = [], onToggle, slotTimes, onSlotTimeChange, quantityText, disabled = false, isLocked, emptyText,
 }) {
   if (grid.length === 0) {
     return emptyText
@@ -90,7 +91,7 @@ export default function OccurrenceGrid({
                 size="small"
                 color={o.checked ? 'primary' : 'default'}
                 variant={o.checked ? 'filled' : 'outlined'}
-                onClick={disabled ? undefined : () => onToggle(date, o.slot ?? 0, !o.checked)}
+                onClick={disabled || (isLocked && isLocked(o)) ? undefined : () => onToggle(date, o.slot ?? 0, !o.checked)}
                 sx={{ height: 24, fontWeight: 600 }}
               />
             ))}
