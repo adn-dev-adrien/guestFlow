@@ -2473,8 +2473,11 @@ export default function ReservationPage() {
         api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
-          // The page stays open: refetch so the server's `editLock` (floors, window) is fresh.
-          setReloadToken((token) => token + 1);
+          // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
+          // locked fiche: elsewhere the after-save action is the ledger's mark, whose form must stay
+          // open to show a refusal (specs/reservation-payment-ledger.md rules 9-10) — a full reload
+          // would close it — and a locked fiche never saves whole to mark a payment.
+          if (isReservationLocked) setReloadToken((token) => token + 1);
         } else {
           navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
         }
