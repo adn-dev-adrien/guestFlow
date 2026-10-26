@@ -20,11 +20,14 @@ What stays allowed: leaving used dishes in the sink, gathering the towels, sorti
 indoor bins, locking up.
 
 Done outside the code on 2026-10-26, in the Airbnb host console:
-- **Cleaning fee** — Gîte 0 € → **108 €** (80 € ménage + ~28 € for the dishes, trash and beds the guest
-  no longer does, at 25 €/h, grossed up for Airbnb's 15.5 % host fee); L'Estiva 0 € → **13 €** (its
-  ménage is already in the nightly price). Proved on two public quotes.
-- **« Avant le départ » requests** of both listings rewritten to the allowed list; the Gîte's
-  « départ après 10 h facturé une demi-nuit » (a penalty) removed.
+- **Cleaning fee** — Gîte 0 € → **122 €** ((80 € ménage + 22.92 € for the dishes, trash and beds the
+  guest no longer does, 55 min at 25 €/h) ÷ 0.845, Airbnb's 15.5 % host fee being taken on the cleaning
+  fee too — a first 108 € forgot that); L'Estiva 0 € → **13 €** (its ménage is already in the nightly
+  price). Proved on public quotes. The recipe carries these from
+  [tariff-recipe-platform-cleaning-fee.md](tariff-recipe-platform-cleaning-fee.md).
+- **« Avant le départ » requests** reworded the same day to mention neither the dishes nor the trash
+  (Adrien: guests who know do it anyway, the others stay free).
+- The Gîte's « départ après 10 h facturé une demi-nuit » (a penalty) removed from its requests.
 
 What is left in GuestFlow: when the cleaning is included, the **arrival SAS** tells the operator to
 « Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées » — on the hidden
@@ -123,7 +126,7 @@ Full suites on 2026-10-26: server 4 981/4 981, client 1 480/1 480, E2E 89 passed
 
 ### Manual UI verification
 - [x] Arrival SAS on an Airbnb Gîte stay with « Frais de ménage (Airbnb) » 108 € → `guestReminder: false`,
-  recap without the reminder (dev copy, 2026-10-26).
+  recap without the reminder (dev copy, 2026-10-26; the live fee is now 122 €, same custom-line path).
 - [x] Arrival SAS on a Booking stay with the ménage → recap with the reminder.
 - [x] Mobile width (390px): recap without the reminder, no horizontal scroll.
 
