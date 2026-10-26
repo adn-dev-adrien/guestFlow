@@ -117,9 +117,10 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 
 ## Airbnb, Booking, Vrbo — les canaux autrefois nourris par Lodgify
 
-> **Airbnb n'est plus dans ce cas depuis le 2026-10-15** : les deux annonces sont débranchées de
-> Lodgify et se pilotent depuis la console hôte. Voir « Airbnb — console autonome » plus bas.
-> Booking et Vrbo restent poussés par Lodgify jusqu'à leur propre bascule (`specs/lodgify-decommission.md` §10).
+> **Plus aucun canal n'est dans ce cas.** Airbnb est débranché depuis le 2026-10-15, Booking le
+> même soir, Abritel/Vrbo le 2026-10-26 (déconnexion faite par le support Vrbo). Chacun se pilote
+> depuis sa propre console : voir « Airbnb — console autonome » et « Abritel — console autonome »
+> plus bas. Le tableau d'identifiants ci-dessous reste valable.
 
 Tant qu'un canal est poussé par Lodgify, il n'a pas de console à configurer. **Il se vérifie donc
 uniquement sur sa page publique**, et c'est là que les surprises apparaissent.
@@ -1479,3 +1480,102 @@ Trois choses à savoir avant d'y toucher :
   l'onglet « Factures de réservations » (`tab=ipm-booking-invoices`). Pour mesurer la commission,
   lire le second : 129,28 € sur 861,84 € = **15,00 %**, assiette = total entier. Le 9,67 % du
   premier vient de séjours antérieurs à Lodgify, sous l'ancienne formule.
+
+## Abritel — console autonome (depuis le 2026-10-26)
+
+Débranché de Lodgify par le support Vrbo (piège n° 34), qui a remis les deux annonces **masquées**
+et sous la « Formule à la commission ». Tout se règle désormais depuis l'Espace Propriétaire
+(`abritel.fr/p/properties`, connexion Expedia Group Partner — la session voyageur d'abritel.fr ne
+suffit pas, elle redirige vers `accounts.expediagroup.com/partner/login`).
+
+| Réglage | Où |
+|---|---|
+| Statut, réactivation | `p/listing-status?propertyId=<id>` — « Réactiver l'annonce » |
+| Formule et taux réel | `p/cyp?propertyId=<id>` (détail commission + frais de paiement), `lodging-supply/commission-update?propertyId=<id>` (bascule annoncée) |
+| Prix, remises, nuits min | `p/calendar/<clé composite>` → panneau « Paramètres » ; une plage se sélectionne par clic puis Maj+clic |
+| Frais (ménage, voyageur supplémentaire) | `p/fees-settings?propertyId=<id>` |
+| Règlement intérieur (enfants, animaux…) | `lodging-supply/settings/rentalpolicy/houserules?propertyId=<id>` |
+| Annulation | `lodging-supply/settings/cancellationpolicy?propertyId=<id>` |
+| iCal (import + lien d'export) | calendrier → « Disponibilités » → « Synchronisez les calendriers » ; le bouton « Copier le lien » d'une entrée donne l'export **de l'annonce** (`abritel.fr/icalendar/<hash>.ics?nonTentative`), le même pour toutes les entrées |
+
+**Saisir une grille sans cliquer 36 fois.** Le formulaire « Tarifs et réductions » envoie à
+`POST /p/calendar/graphql` la mutation `ratesAndDiscountsOverride` (`unitUrl`, `startDate`,
+`endDate`, `nightlyRate` par jour de semaine, `discount7Night`, `discount28Night`), et « Durée
+minimum de séjour » la mutation `minStayOverride` (`minStay`). Capturer une requête faite à la main
+(en-têtes `x-csrf-jwt` et `x-homeaway-requestmarker` compris), puis la rejouer depuis la page pour
+chaque plage de la recette : chaque réponse renvoie les jours écrits, à comparer à la cible. La
+relecture indépendante se fait en interceptant `getRatesAndAvailability` (une année par appel) au
+chargement du calendrier. Gîte, 2026-10-26 : 36 plages, 432 jours, zéro écart, deux fois.
+
+Identifiants d'unité : gîte `/units/0003/b4ea1132-7a88-4dbb-bc12-291b67033b92`.
+
+### Piège n° 35 — le taux Abritel a quatre versions, une seule est la bonne
+
+Mesuré le 2026-10-26 sur le gîte, pour la même formule et le même jour :
+
+| Source | Taux affiché |
+|---|---|
+| Mail du support Vrbo | « Formule à la commission (12 %) » |
+| Écran « examinons votre annonce avant de la mettre en ligne » | « 16,25 % … frais de traitement des paiements inclus » |
+| `p/properties`, avant puis après publication | « Performance - 2 (16,25 %) », puis « Formule à la commission (8 %) » |
+| `p/cyp` (la formule elle-même) | **commission 5 % + frais de traitement 3 % = 8 %** |
+
+La vérité est sur `p/cyp` et `lodging-supply/commission-update` : **8 % aujourd'hui**, **12 % tout
+compris « début novembre »** (date à confirmer par e-mail d'Abritel), frais de paiement supprimés,
+voyageur toujours facturé de ses propres frais de service, et **une réservation garde le taux du
+jour où elle est prise**. Abritel ne touche jamais aux tarifs lui-même. Conséquence : le jour de la
+bascule, passer `platforms.commissionPercent` d'Abritel à 12 et reposer la grille, sinon chaque nuit
+vendue passe ~4 % sous le net. Puis confirmer sur le premier versement réel (méthode du piège 31).
+
+### Piège n° 36 — Abritel ne sait faire ni dégressivité courte ni frais optionnel
+
+- **Réductions de durée** : seulement « semaine (7 nuits et plus) » et « mois (28 nuits et plus) »,
+  par date. Aucune promotion ne fait 3 à 6 nuits (types : réservation anticipée, dernière minute,
+  mobile, membres). Choix d'Adrien le 2026-10-26 : **semaine seule**, à **42,85 %** (et non 42,86,
+  qui passerait sous le net à l'arrondi près) ; 2 à 6 nuits au prix plein. Le palier 28 nuits hérite
+  tout seul de la valeur semaine.
+- **Frais** : ménage, animaux, voyageur supplémentaire et les six frais personnalisés sont tous
+  facturés d'office. Le ménage du gîte est donc à **0 €** et payé sur place (80 €, hors commission),
+  comme sur Airbnb et Booking.
+- `ratesAndDiscountsOverride` **réécrit les remises** de chaque date qu'il touche : toujours envoyer
+  `discount7Night: { operation: 'CHANGE', discount }`, sinon `CLEAR` efface la remise semaine.
+
+### Piège n° 37 — la remise en ligne a trois étapes et des défauts piégés
+
+1. `supply/home` redirige vers `supply/onboard/review` (« Vous y êtes presque ») : relire **tout**.
+   Le gîte y était à **9 999 €/nuit**, ménage **80 €** obligatoire, et **« Enfants non acceptés »**.
+2. « Publier l'annonce » ne publie pas : l'annonce passe « Publication en attente », puis
+   « Masquée », formule « Inactive ».
+3. `p/listing-status` → « Réactiver l'annonce » la met **en ligne** pour de bon. Les avis survivent
+   (gîte : 3 avis, 10/10).
+
+Les « conditions par défaut » de l'étape 1 annoncent une annulation « Très souple » : sur le gîte,
+la politique « Modérée – 30 jours » a survécu, mais la relire après chaque remise en ligne. La page
+publique met une vingtaine de minutes à se rouvrir : juste après, tout devis répond « pas
+disponible », même sur des dates libres — attendre avant de soupçonner la grille.
+
+**Lire un devis Abritel.** `abritel.fr/location-vacances/p<annonce>?chkin=AAAA-MM-JJ&chkout=…&adults=N`
+affiche « Le prix actuel est de X € » **taxes et frais compris** : la taxe de séjour du gîte y est
+(1,20 € par adulte et par nuit), aucun frais de service voyageur visible. La remise semaine
+s'affiche à part (« Séjour de 7 nuits ou plus : −942 € » sous le prix barré). Un séjour trop court
+répond « Cet hébergement impose une durée de séjour plus longue ».
+
+### Piège n° 38 — le premier import du flux Abritel ramène le passé
+
+L'export Abritel ne porte que les séjours propres à Abritel (pas les dates importées : aucun écho),
+**mais aussi les séjours passés**. Créer la source GuestFlow en a créé deux, à 0 € : un vieux séjour
+« Reserved - Adrien » (24→26/10/2025) et le doublon d'une fiche Lodgify corrigée à la main (Carole,
+#22201, 31/12/2025). La reprise automatique (`takeover`) ne joue pas : elle exige la même
+plateforme **et** les mêmes dates, et la fiche Lodgify n'a ni l'une ni l'autre. Ne pas changer la
+plateforme d'une fiche passée pour forcer la reprise : passer de Lodgify à Abritel bascule le mode
+de taxe de séjour et change les totaux (1 222 € → 1 246 €). Supprimer un import ne sert à rien tant
+que la source est active : la synchro suivante le recrée. Choix d'Adrien : le séjour sans
+équivalent (#22328) est valorisé au tarif « Standard » 2025 et marqué payé, le doublon de Carole
+(#22329) reste à 0 € à côté de #22201.
+
+### Piège n° 39 — la tente reste bloquée par Abritel
+
+Après la déconnexion, le calendrier de la tente affiche une fenêtre sans bouton de fermeture :
+« Nous avons besoin de plus d'informations sur votre annonce. Veuillez nous contacter. », et
+l'annonce est « Expirée – aucun abonnement actif ». Rien ne se règle depuis la console : il faut
+écrire au support (la tente est à 9 999 €/nuit tant qu'elle n'est pas reprise).

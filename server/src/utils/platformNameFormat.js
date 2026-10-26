@@ -63,4 +63,13 @@ function isDirectChannel(platform) {
   return DIRECT_CHANNELS.has(String(platform ?? 'direct').trim().toLowerCase() || 'direct');
 }
 
-module.exports = { formatPlatformName, isDirectChannel, DIRECT_CHANNELS };
+/**
+ * Airbnb bookings — `isAirbnbChannel(platform)`. Airbnb forbids asking its guests for checkout chores
+ * (specs/airbnb-no-checkout-chores.md), so the SAS must know the channel, whatever its recorded casing.
+ */
+function isAirbnbChannel(platform) {
+  // Slugged prefix, like the e-mail sequence: an iCal source labelled « Airbnb Tente » is stored AirbnbTente.
+  return String(platform ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').startsWith('airbnb');
+}
+
+module.exports = { formatPlatformName, isDirectChannel, isAirbnbChannel, DIRECT_CHANNELS };

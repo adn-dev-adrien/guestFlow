@@ -622,8 +622,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       // specs/defer-arrival-complement-to-checkout.md §3.1 rule 1 — the end-of-stay ménage page is
       // dropped when the cleaning is already sold (booked option, « Ménage » added at check-in, or
       // property default), exactly like the arrival one: the host does it, so there is nothing to
-      // assess and nothing to bill. Otherwise a « Non » would charge the cleaning a second time.
-      data.cleaning?.included ? null : 'cleaning',
+      // assess and nothing to bill. Otherwise a « Non » would charge the cleaning a second time. Never
+      // on an Airbnb stay either: Airbnb forbids billing a chore (specs/airbnb-no-checkout-chores.md rule 7).
+      (data.cleaning?.included || data.cleaning?.billableAtDeparture === false) ? null : 'cleaning',
       'missingAsk',
       missingAsk === true ? 'missingItems' : null,
       'keys',
@@ -843,7 +844,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     }), [allItems, missingDep, billed]);
   // Never billable when the cleaning is already sold (specs/defer-arrival-complement-to-checkout.md
   // §3.1 rule 1) — the page is hidden, and a line stored by an earlier commit is dropped on re-commit.
-  const depCleaningLine = (cleaningOk === false && !data?.cleaning?.included && data?.cleaning?.price)
+  const depCleaningLine = (cleaningOk === false && !data?.cleaning?.included
+    && data?.cleaning?.billableAtDeparture !== false && data?.cleaning?.price)
     ? {
       label: 'Ménage de fin de séjour', unitPrice: round2(data.cleaning.price), qty: 1,
       offerKey: 'depCleaning', real: round2(data.cleaning.price), amount: billed('depCleaning', data.cleaning.price),
@@ -1350,7 +1352,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           return (
             <Stack spacing={1}>
               <Typography variant="body1">✅ Le ménage est inclus.</Typography>
-              <Typography variant="body2" color="text.secondary">Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées.</Typography>
+              {data.cleaning.guestReminder && (
+                <Typography variant="body2" color="text.secondary">Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées.</Typography>
+              )}
             </Stack>
           );
         }
@@ -1630,8 +1634,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <Typography variant="body1" sx={{ fontWeight: 600 }}>Séjour : {formatCurrency(stayDue)}</Typography>
               )}
               {/* specs/sas-hide-settled-steps.md §3 rule 4 — when the ménage page is hidden (cleaning
-                  included), its client reminder is carried here so it's not lost. */}
-              {data.cleaning?.included && (
+                  included), its client reminder is carried here so it's not lost — never for an Airbnb
+                  guest (specs/airbnb-no-checkout-chores.md rule 3). */}
+              {data.cleaning?.guestReminder && (
                 <Typography variant="body2" color="text.secondary">
                   Ménage inclus — rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées.
                 </Typography>

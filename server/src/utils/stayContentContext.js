@@ -17,7 +17,7 @@
 const { formatDateLong } = require('./dateFr');
 const { isCleaningOption, normalizeOptionName } = require('./cleaningOption');
 const { isClientVisibleOption } = require('./optionVisibility');
-const { isDirectChannel } = require('./platformNameFormat');
+const { isDirectChannel, isAirbnbChannel } = require('./platformNameFormat');
 
 const WEEKDAYS = { fr: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
 const MONTHS = { fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'], en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] };
@@ -188,7 +188,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   const towelsIncluded = cls.included.has('towels');
   const towelsCovered = towelsIncluded || cls.booked.has('towels');
   const cleaningIncluded = cls.included.has('cleaning');
-  const cleaningBooked = cls.booked.has('cleaning');
+  const cleaningBooked = cls.booked.has('cleaning') || Boolean(facts.customCleaningBooked);
 
   let bedsParagraph = '';
   if (bedConfigLabel && bedsMade) {
@@ -307,6 +307,9 @@ function buildStayContent({ reservation, client, property, options = [], facts =
     cleaningParagraph = t('Le ménage de fin de séjour est pour nous : profitez de votre dernière matinée sans y penser.', 'End-of-stay cleaning is on us: enjoy your last morning without a thought for it.');
   } else if (cleaningBooked) {
     cleaningParagraph = t('Vous avez choisi l\'option ménage : profitez de votre dernière matinée, nous nous occupons du reste.', 'You chose the cleaning option: enjoy your last morning, we take care of the rest.');
+  } else if (isAirbnbChannel(r.platform)) {
+    // specs/airbnb-no-checkout-chores.md rule 6 — no written chore request to an Airbnb guest.
+    cleaningParagraph = '';
   } else {
     cleaningParagraph = t(
       'Pour rappel, vous n\'avez pas choisi l\'option ménage : nous vous demanderons donc de rendre le logement comme vous l\'avez trouvé. Rien de compliqué, un petit panneau dans le logement vous indique ce qui est attendu. Et si, une fois sur place, vous préférez garder votre dernière matinée pour vous, l\'option reste possible : il suffit de nous le dire.',

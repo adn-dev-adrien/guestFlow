@@ -62,7 +62,9 @@ lost.
 4. **Client reminder moves to the recap.** The reminder previously shown on the included-ménage page
    (*« Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées. »*) is
    shown on the **arrival recap** page instead, and only when `cleaning.included` is true (i.e. exactly
-   the case where the dedicated page was removed).
+   the case where the dedicated page was removed). **Since 2026-10-26** the client reads
+   `cleaning.guestReminder` instead, which the server sets to `false` for an Airbnb stay — Airbnb forbids
+   checkout chores ([airbnb-no-checkout-chores.md](airbnb-no-checkout-chores.md)).
 5. **Scope = arrival only.** The **departure** « Retour caution » page (`cautionReturn`) is
    **unchanged** — it is a different action (returning the caution), not an « already settled » state,
    and it stays reachable in re-edit to correct a mis-marked return.
@@ -133,7 +135,8 @@ No schema change. No migration. No data impact.
 - **Arrival SAS stepper** loses the caution band when the caution is received, and the ménage band
   when the cleaning is included. The stepper simply gets shorter; navigation (« Précédent » /
   « Suivant ») is unchanged.
-- **Arrival recap** gains one secondary line when the cleaning is included:
+- **Arrival recap** gains one secondary line when the cleaning is included (not on an Airbnb stay, see
+  [airbnb-no-checkout-chores.md](airbnb-no-checkout-chores.md)):
   *« Ménage inclus — rappeler au client : la vaisselle doit être faite et rangée, et les poubelles
   vidées. »* (`Typography variant="body2" color="text.secondary"`).
 - **Responsive:** the dialog remains `fullScreen` on mobile (`xs`); removing pages only shortens the

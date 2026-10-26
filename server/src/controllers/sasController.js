@@ -20,7 +20,7 @@ const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
 const { isReceptionOnly } = require('../constants/roles');
 const { sasLockReason } = require('../utils/sasEditWindow');
 const { stayDueAtArrival } = require('../utils/reservationSettlement');
-const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
+const { formatPlatformName, isDirectChannel, isAirbnbChannel } = require('../utils/platformNameFormat');
 const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = require('../utils/receptionView');
 const gateInvitationView = require('../utils/gateInvitationView');
 
@@ -216,7 +216,16 @@ function getSas(req, res) {
     gateAccess: { available: Boolean(gateInvitationView.usableInvitation(require('../database'), reservation.id)) },
     // `sasOrigin` = this row is the arrival SAS's own upsell → the step stays visible, pre-selected
     // « ajouté », and « Non merci » removes it (specs/sas-upsells-activate-catalogue-option.md §3.2).
-    cleaning: { included: cleaningIncluded, price: cleaningPrice, sasOrigin: upsells.cleaning.sasOrigin },
+    // `guestReminder` — the « vaisselle / poubelles » reminder, never for an Airbnb guest: Airbnb forbids
+    // checkout chores and any request added at arrival (specs/airbnb-no-checkout-chores.md rule 1).
+    cleaning: {
+      included: cleaningIncluded,
+      price: cleaningPrice,
+      sasOrigin: upsells.cleaning.sasOrigin,
+      guestReminder: cleaningIncluded && !isAirbnbChannel(reservation.platform),
+      // Rule 7 — a ménage left undone is never billed to an Airbnb guest (Airbnb forbids the penalty).
+      billableAtDeparture: !cleaningIncluded && !isAirbnbChannel(reservation.platform),
+    },
     // specs/sas-bath-linen-upsell.md §3.1 — bath-linen upsell (per-person price, mirrors the engine).
     // Still offered while the only row present is our own, so the operator can undo it.
     bathLinen: (() => {
