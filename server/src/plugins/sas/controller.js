@@ -32,7 +32,7 @@ const { isReceptionOnly } = sdk.coreModule('roles');
 const { sasLockReason } = sdk.coreModule('sasEditWindow');
 const { stayDueAtArrival, bucketStates } = sdk.coreModule('reservationSettlement');
 const { isUnifiable, totalDiffered, round2 } = sdk.coreModule('arrivalSasPlan');
-const { formatPlatformName, isDirectChannel } = sdk.coreModule('platformNameFormat');
+const { formatPlatformName, isDirectChannel, isChoreFreeChannel } = sdk.coreModule('platformNameFormat');
 const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = sdk.coreModule('receptionView');
 
 // specs/plugins-phase-2-hosts.md rule 11 (P6) — the bed-linen and towel steps belong to `linen`.
@@ -342,7 +342,16 @@ function getSas(req, res) {
     pluginData: pluginSasData(reservation.id),
     // `sasOrigin` = this row is the arrival SAS's own upsell → the step stays visible, pre-selected
     // « ajouté », and « Non merci » removes it (specs/sas-upsells-activate-catalogue-option.md §3.2).
-    cleaning: { included: cleaningIncluded, price: cleaningPrice, sasOrigin: upsells.cleaning.sasOrigin },
+    // `guestReminder` — the « vaisselle / poubelles » reminder, never on a channel that forbids checkout
+    // chores and any request added at arrival (specs/airbnb-no-checkout-chores.md rules 1, 8).
+    cleaning: {
+      included: cleaningIncluded,
+      price: cleaningPrice,
+      sasOrigin: upsells.cleaning.sasOrigin,
+      guestReminder: cleaningIncluded && !isChoreFreeChannel(reservation.platform),
+      // Rule 7 — a ménage left undone is never billed on such a channel (it forbids the penalty).
+      billableAtDeparture: !cleaningIncluded && !isChoreFreeChannel(reservation.platform),
+    },
     // specs/sas-bath-linen-upsell.md §3.1 — bath-linen upsell (per-person price, mirrors the engine).
     // Still offered while the only row present is our own, so the operator can undo it.
     ...linenPayload(() => {

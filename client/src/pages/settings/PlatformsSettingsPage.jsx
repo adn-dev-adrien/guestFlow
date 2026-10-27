@@ -32,7 +32,7 @@ const TAX_OPTIONS = [
   { value: 'platform_reversed', label: 'Plateforme → établissement' },
   { value: 'owner', label: "À l'arrivée" },
 ];
-const EDITABLE = ['color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays', 'countsAsDirect'];
+const EDITABLE = ['color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays', 'countsAsDirect', 'forbidsGuestChores'];
 
 // The rows as the form edits them: numbers become strings so a half-typed value stays as typed.
 function toDraft(platforms) {
@@ -156,6 +156,15 @@ export default function PlatformsSettingsPage() {
       slotProps={{ input: { 'aria-label': `Compté comme vente directe ${formatPlatformLabel(p.name)}` } }}
     />
   );
+  // specs/airbnb-no-checkout-chores.md rule 8 — a platform rule, so an own channel has none.
+  const choresCell = (p) => (p.forbidsGuestChores === null ? '—' : (
+    <Switch
+      checked={Boolean(p.forbidsGuestChores)}
+      onChange={(e) => setField(p.id, 'forbidsGuestChores', e.target.checked)}
+      disabled={saving}
+      slotProps={{ input: { 'aria-label': `Sans corvées de départ ${formatPlatformLabel(p.name)}` } }}
+    />
+  ));
   const taxCell = (p) => (p.touristTaxCollection === null ? '—' : (
     <TextField
       select
@@ -212,6 +221,7 @@ export default function PlatformsSettingsPage() {
                   <TableCell sx={{ minWidth: 200 }}>Taxe de séjour</TableCell>
                   <TableCell>Virement (jours)</TableCell>
                   <TableCell>Vente directe</TableCell>
+                  <TableCell>Sans corvées</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -224,6 +234,7 @@ export default function PlatformsSettingsPage() {
                     <TableCell>{taxCell(p)}</TableCell>
                     <TableCell>{payoutCell(p)}</TableCell>
                     <TableCell>{directCell(p)}</TableCell>
+                    <TableCell>{choresCell(p)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -261,6 +272,9 @@ export default function PlatformsSettingsPage() {
                   </Box>
                 )}
                 <FormControlLabel control={directCell(p)} label="Compté comme vente directe" sx={{ minHeight: 44 }} />
+                {p.forbidsGuestChores !== null && (
+                  <FormControlLabel control={choresCell(p)} label="Sans corvées de départ" sx={{ minHeight: 44 }} />
+                )}
               </Stack>
             </CardContent>
           </Card>

@@ -21,7 +21,7 @@ import {
   useMediaQuery, useTheme,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import { api, LoadingState } from '../sdk';
+import { api, LoadingState, formatCurrency } from '../sdk';
 
 const ACTION_LABELS = {
   create: { label: 'sera créée', color: 'success' },
@@ -266,6 +266,9 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
   };
 
   const changedSeasons = (preview?.seasons || []).filter((s) => s.action !== 'unchanged');
+  // specs/tariff-recipe-platform-cleaning-fee.md rule 11 — a cleaning-fee change is a change too.
+  const cleaningFeeChanges = preview?.cleaningFeeChanges || [];
+  const netLabel = (value) => (value == null ? '—' : `${formatCurrency(value)} net`);
 
   return (
     <Card variant="outlined" sx={{ mb: 3 }}>
@@ -398,7 +401,16 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
                 .map((warning, index) => (
                   <Alert key={index} severity={preview.blocking ? 'error' : 'warning'} sx={{ mb: 1 }}>{warning}</Alert>
                 ))}
-              {changedSeasons.length === 0 && (preview.closures?.added || []).length === 0 && !preview.blocking && (
+              {cleaningFeeChanges.length > 0 && (
+                <Alert severity="info" sx={{ mb: 1 }}>
+                  {cleaningFeeChanges.map((c) => (
+                    <Typography key={c.platform} variant="body2">
+                      {c.platform} : frais de ménage {netLabel(c.from)} → {netLabel(c.to)}
+                    </Typography>
+                  ))}
+                </Alert>
+              )}
+              {changedSeasons.length === 0 && (preview.closures?.added || []).length === 0 && cleaningFeeChanges.length === 0 && !preview.blocking && (
                 <Alert severity="success">Rien à modifier — les saisons sont déjà conformes à la recette.</Alert>
               )}
               <List dense disablePadding>

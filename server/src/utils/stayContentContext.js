@@ -25,7 +25,7 @@
 const { formatDateLong } = require('./dateFr');
 const { isCleaningOption, normalizeOptionName } = require('./cleaningOption');
 const { isClientVisibleOption } = require('./optionVisibility');
-const { isDirectChannel } = require('./platformNameFormat');
+const { isDirectChannel, isChoreFreeChannel } = require('./platformNameFormat');
 const { renderStayText, renderText } = require('./stayTextCatalogue');
 const { format: formatWithArticle } = require('./propertyArticle');
 const { pendingFactsOf } = require('./propertyFacts');
@@ -229,7 +229,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   const towelsIncluded = Number(p.towelsProvided) === 1 || (p.towelsProvided == null && cls.included.has('towels'));
   const towelsCovered = towelsIncluded || cls.booked.has('towels');
   const cleaningIncluded = Number(p.cleaningIncluded) === 1 || (p.cleaningIncluded == null && cls.included.has('cleaning'));
-  const cleaningBooked = cls.booked.has('cleaning');
+  const cleaningBooked = cls.booked.has('cleaning') || Boolean(facts.customCleaningBooked);
 
   let bedsParagraph = '';
   if (bedConfigLabel && bedsMade) {
@@ -321,6 +321,8 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   if (pending.has('cleaning') && !cleaningBooked) cleaningParagraph = '';
   else if (cleaningIncluded) cleaningParagraph = say('cleaning.included');
   else if (cleaningBooked) cleaningParagraph = say('cleaning.booked');
+  // specs/airbnb-no-checkout-chores.md rules 6, 8 — no written chore request on such a channel.
+  else if (isChoreFreeChannel(r.platform)) cleaningParagraph = '';
   else cleaningParagraph = say('cleaning.notBooked');
   const complementDue = Number(r.complementAmount || 0) > 0 && Number(r.complementPaid || 0) !== 1;
   const complementLine = complementDue

@@ -12,7 +12,7 @@
  */
 
 const db = require('../database');
-const { formatPlatformName, isDirectChannel, refreshDirectChannels } = require('../utils/platformNameFormat');
+const { formatPlatformName, isDirectChannel, refreshDirectChannels, refreshChoreFreeChannels } = require('../utils/platformNameFormat');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
 const { describeIcalSync } = require('../utils/icalSyncStatus');
@@ -357,11 +357,31 @@ function createPlatformsModel(database) {
       refreshDirectChannels(database);
     },
 
+    // « Sans corvées de départ » (specs/airbnb-no-checkout-chores.md rule 8). Guarded like
+    // `countsAsDirectIds`: a database without the column has no such channel.
+    choreFreeIds() {
+      try {
+        return new Set(database.prepare('SELECT id FROM platforms WHERE forbidsGuestChores = 1').all().map((r) => Number(r.id)));
+      } catch {
+        return new Set();
+      }
+    },
+
+    setForbidsGuestChores(id, on) {
+      database.prepare('UPDATE platforms SET forbidsGuestChores = ? WHERE id = ?').run(on ? 1 : 0, Number(id));
+    },
+
+    /** The cached set `isChoreFreeChannel` reads, re-read after a save. */
+    refreshChoreFreeChannels() {
+      refreshChoreFreeChannels(database);
+    },
+
     // Every per-platform COMMERCIAL setting in one list, for the « Plateformes » settings page
     // (specs/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
     // `direct` has no deposit / tourist-tax / payout notion, and an own channel (Lodgify) no payout.
     listSettings() {
       const counted = this.countsAsDirectIds();
+      const choreFree = this.choreFreeIds();
       return stmts.listAll.all().map((p) => {
         const isDirect = platformSlug(p.name) === DIRECT_NAME;
         const ownChannel = isDirectChannel(p.name);
@@ -370,6 +390,8 @@ function createPlatformsModel(database) {
           name: p.name,
           isDirect,
           countsAsDirect: isDirect || counted.has(Number(p.id)),
+          // The own channels ask what the operator decides: never a platform rule.
+          forbidsGuestChores: ownChannel ? null : choreFree.has(Number(p.id)),
           color: resolveColor(p.name, p.color),
           commissionPercent: Number(p.commissionPercent) || 0,
           takesDeposit: isDirect ? null : this.getDepositMode(p.name) === 1,

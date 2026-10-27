@@ -69,7 +69,10 @@ test('rule 12 — additive: the offer keeps every earlier field and the SDK rang
   const b = offers();
   ['available', 'optionId', 'unitPrice', 'perPerson', 'defaultPersons', 'selectedPersons', 'maxPersons', 'mornings']
     .forEach((key) => assert.ok(key in b, key));
+  // The breakfast price added no SDK entry point; the range later moved to ^2.5.0 for another reason
+  // (specs/airbnb-no-checkout-chores.md rule 8), so only « a range the running SDK satisfies » is pinned.
   const manifest = require('../plugins/sas/manifest.json');
-  assert.ok(require('semver').satisfies('2.2.0', manifest.sdk), 'the plugin still accepts SDK 2.2');
+  const { SDK_VERSION } = require('../plugins/sdk/version');
+  assert.ok(require('semver').satisfies(SDK_VERSION, manifest.sdk), 'the running SDK satisfies the plugin range');
   assert.ok(manifest.changelog[manifest.version], 'the bumped version carries its French changelog line');
 });

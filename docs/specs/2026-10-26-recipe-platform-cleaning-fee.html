@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ménage dans la recette</title>
+<style>
+  :root { --bg:#F8F5EF; --paper:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E4DED2; --primary:#2F5D46; --error:#A8433A; --error-bg:#F7E8E5; --ok-bg:#E6EFE7; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#171915; --paper:#20231E; --ink:#ECE9E1; --muted:#A9A496; --line:#353A32; --primary:#8CC5A5; --error:#E08A80; --error-bg:#3A2522; --ok-bg:#24352A; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:32px 16px 64px; }
+  h1, h2 { font-family: "Source Serif 4", Georgia, serif; font-weight:600; }
+  h1 { font-size:1.6rem; margin:0 0 4px; letter-spacing:-.01em; }
+  h2 { font-size:1.1rem; margin:32px 0 8px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  ul { padding-left:20px; } li { margin:4px 0; }
+  .card { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; min-width:560px; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:500; font-size:.85rem; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .strong { font-weight:600; }
+  .new { background:var(--ok-bg); }
+  label { display:flex; flex-direction:column; gap:4px; font-size:.85rem; color:var(--muted); }
+  input[type=text] { font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:8px 10px; width:100%; min-height:44px; font-variant-numeric:tabular-nums; }
+  input[aria-invalid=true] { border-color:var(--error); }
+  .err { color:var(--error); font-size:.8rem; min-height:1.2em; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
+  .chk { flex-direction:row; align-items:center; gap:8px; min-height:44px; color:var(--ink); }
+  .chk input { width:20px; height:20px; accent-color:var(--primary); }
+  .refused { background:var(--error-bg); color:var(--error); border-radius:8px; padding:8px 12px; margin-top:12px; font-size:.9rem; }
+  .detail { color:var(--muted); font-size:.8rem; display:block; }
+  pre { background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:12px; overflow-x:auto; font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Le ménage dans la recette tarifaire</h1>
+  <p class="sub">Spec <code>specs/tariff-recipe-platform-cleaning-fee.md</code> · 26/10/2026 · à valider</p>
+
+  <h2>Constat</h2>
+  <ul>
+    <li>Les frais de ménage Airbnb (gîte 122 €, tente 13 €) ont été saisis à la main ; la recette ne les connaît pas.</li>
+    <li>À la prochaine mise à jour tarifaire, rien ne rappelle qu'Airbnb en porte, ni leur montant. Le premier chiffre (108 €) oubliait déjà la commission sur le ménage.</li>
+  </ul>
+
+  <h2>Ce qu'on propose</h2>
+  <p>La recette porte le coût net du ménage, le taux horaire et, pour chaque canal qui facture un ménage à part, les minutes de corvées. La grille « Prix plateformes » affiche une colonne « Ménage / séjour » au montant brut à saisir, commission comprise.</p>
+<pre>"cleaning": {
+  "netCost": 80,
+  "hourlyRate": 25,
+  "platformFees": [
+    { "platform": "Airbnb", "chargesCleaning": true, "choresMinutes": 55 }
+  ]
+}</pre>
+
+  <h2>Essayer : la grille du gîte</h2>
+  <p class="sub">Les prix par nuit sont indicatifs. Seule la colonne verte est nouvelle. Une valeur invalide fait refuser la recette, comme au chargement.</p>
+  <div class="card">
+    <div class="grid">
+      <label>Coût net du ménage (€)<input type="text" id="netCost" value="80" inputmode="decimal"><span class="err" id="e-netCost"></span></label>
+      <label>Taux horaire (€)<input type="text" id="hourlyRate" value="25" inputmode="decimal"><span class="err" id="e-hourlyRate"></span></label>
+      <label>Corvées Airbnb (min)<input type="text" id="minutes" value="55" inputmode="numeric"><span class="err" id="e-minutes"></span></label>
+      <label>Commission Airbnb (%)<input type="text" id="commission" value="15.5" inputmode="decimal"><span class="err" id="e-commission"></span></label>
+      <label class="chk"><input type="checkbox" id="charges" checked> Airbnb facture le ménage lui-même</label>
+    </div>
+    <div id="refused" class="refused" hidden>Recette refusée au chargement : <span id="refusedMsg"></span></div>
+    <div class="scroll" style="margin-top:16px">
+      <table>
+        <thead><tr><th>Canal</th><th class="num">Commission</th><th class="num">Très basse</th><th class="num">Personne supp. / nuit</th><th class="num new">Ménage / séjour</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <ul>
+    <li>Pousser le montant vers Airbnb : les prix restent saisis à la main dans chaque extranet.</li>
+    <li>Facturer le ménage sur la fiche : la saisie Airbnb par mail le relève déjà.</li>
+    <li>Le tarif « séjours courte durée » d'Airbnb.</li>
+  </ul>
+
+  <h2>Risque</h2>
+  <p>Faible. Une nouvelle colonne en base, vide par défaut, et la grille reste identique tant que la recette n'est pas réappliquée. Après la mise en production, réappliquer les deux recettes (gîte 3.6.0, tente 1.2.0), sans changer aucune saison.</p>
+
+  <h2>Arbitrages</h2>
+  <p>Tranché le 26/10 : coût net + corvées par canal ; gîte à 122 €.</p>
+</main>
+<script>
+  const base = [
+    { name: 'Direct', c: 5, night: 303, extra: 0, direct: true },
+    { name: 'Airbnb', c: 15.5, night: 341, extra: 30, airbnb: true },
+    { name: 'Booking', c: 16.44, night: 345, extra: 30 },
+    { name: 'GitesDeFrance', c: 10, night: 320, extra: 28 },
+  ];
+  const euros = (v) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const num = (id, { max } = {}) => {
+    const raw = document.getElementById(id).value.trim().replace(',', '.');
+    const v = Number(raw);
+    let err = '';
+    if (raw === '' || !Number.isFinite(v)) err = 'nombre requis';
+    else if (v < 0) err = 'nombre ≥ 0 requis';
+    else if (max != null && v >= max) err = `doit être < ${max}`;
+    document.getElementById(id).setAttribute('aria-invalid', err ? 'true' : 'false');
+    document.getElementById('e-' + id).textContent = err;
+    return err ? { err: `cleaning.${id === 'minutes' ? 'platformFees[0].choresMinutes' : id === 'commission' ? '(commission Airbnb)' : id} — ${err}` } : { v };
+  };
+  function render() {
+    const f = [num('netCost'), num('hourlyRate'), num('minutes'), num('commission', { max: 100 })];
+    const bad = f.find((x) => x.err);
+    document.getElementById('refused').hidden = !bad;
+    if (bad) { document.getElementById('refusedMsg').textContent = bad.err; document.getElementById('rows').innerHTML = ''; return; }
+    const [netCost, rate, minutes, commission] = f.map((x) => x.v);
+    const charges = document.getElementById('charges').checked;
+    const cleaningNet = charges ? netCost : 0;
+    const choresNet = Math.round(minutes / 60 * rate * 100) / 100;
+    const net = Math.round((cleaningNet + choresNet) * 100) / 100;
+    document.getElementById('rows').innerHTML = base.map((p) => {
+      const c = p.airbnb ? commission : p.c;
+      const fee = p.airbnb ? Math.ceil(net / (1 - c / 100) - 1e-9) : null;
+      const cell = fee == null ? '—' : `<span class="strong">${fee} €</span><span class="detail">ménage ${euros(cleaningNet)} + corvées ${euros(choresNet)} = ${euros(net)} net</span>`;
+      return `<tr><td>${p.name}</td><td class="num">${c} %</td><td class="num strong">${p.night} €</td><td class="num">${p.direct ? '—' : p.extra + ' €'}</td><td class="num new">${cell}</td></tr>`;
+    }).join('');
+  }
+  document.querySelectorAll('input').forEach((i) => i.addEventListener('input', render));
+  render();
+</script>
+</body>
+</html>

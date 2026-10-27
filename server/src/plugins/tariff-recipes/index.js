@@ -106,6 +106,8 @@ function register(ctx) {
     },
     purge: (db) => {
       db.prepare("UPDATE properties SET tariffRecipeId = '', tariffRecipeVersion = ''").run();
+      // specs/tariff-recipe-platform-cleaning-fee.md rule 14 — recipe-owned, edited by nothing else.
+      db.prepare("UPDATE properties SET platformCleaningFees = '[]'").run();
       db.prepare('UPDATE pricing_rules SET seasonKey = NULL').run();
       model = null;
     },

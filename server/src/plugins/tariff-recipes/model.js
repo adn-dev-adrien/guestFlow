@@ -17,7 +17,10 @@
  */
 
 const { buildHorizonPlan, materializeClosures } = require('./seasonPlan');
+const { resolvePlatformCleaningFees, diffPlatformCleaningFees } = require('./platformCleaningFee');
 const sdk = require('../sdk');
+
+const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 
 function roundOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -323,11 +326,34 @@ function createTariffRecipeModel(database, recipeStore) {
       }
     }
 
+    // specs/tariff-recipe-platform-cleaning-fee.md rule 6 — a fee for a channel GuestFlow does not know
+    // would silently never reach the grid: refuse the whole apply instead.
+    const platformNames = recipe.cleaning?.platformFees?.length
+      ? database.prepare('SELECT name FROM platforms').all().map((p) => p.name)
+      : [];
+    const cleaningFees = resolvePlatformCleaningFees(recipe.cleaning, platformNames);
+    for (const name of cleaningFees.unknown) {
+      warnings.push(`Plateforme inconnue dans la recette : ${name}`);
+      blocking = true;
+    }
+    // Rule 13 — the own channels are the Direct row, which never shows a channel fee: an entry there
+    // would be stored and never displayed.
+    for (const fee of cleaningFees.fees.filter((f) => isDirectChannel(f.platform))) {
+      warnings.push(`Le canal direct ne facture pas de frais de ménage plateforme : ${fee.platform}`);
+      blocking = true;
+    }
+    // Rule 11 — what the apply would change on the stored fees, so a cleaning-only change is neither
+    // announced as « rien à modifier » nor left out of the tariff journal.
+    const storedRow = database.prepare('SELECT platformCleaningFees FROM properties WHERE id = ?').get(Number(propertyId));
+    const cleaningFeeChanges = diffPlatformCleaningFees(storedRow?.platformCleaningFees, cleaningFees.fees);
+
     return {
       recipe: { id: recipe.id, version: recipe.version, label: recipe.label },
       horizon: { fromYear, toYear },
       seasons,
       closures: closuresDiff,
+      cleaningFees: cleaningFees.fees,
+      cleaningFeeChanges,
       conflicts,
       warnings,
       blocking,
@@ -340,7 +366,8 @@ function createTariffRecipeModel(database, recipeStore) {
     if (diff.blocking) {
       return { applied: false, ...diff };
     }
-    const nothingToDo = diff.seasons.every((s) => s.action === 'unchanged') && diff.closures.added.length === 0;
+    const nothingToDo = diff.seasons.every((s) => s.action === 'unchanged') && diff.closures.added.length === 0
+      && diff.cleaningFeeChanges.length === 0;
 
     const runTransaction = database.transaction(() => {
       for (const closure of diff.closures.added) {
@@ -384,6 +411,7 @@ function createTariffRecipeModel(database, recipeStore) {
     if (!nothingToDo) runTransaction();
     else propertiesModel.setTariffRecipe(Number(propertyId), recipeId, diff.recipe.version);
     propertiesModel.setWelcomePackCost(Number(propertyId), recipe?.welcomePack?.cost ?? 0);
+    propertiesModel.setPlatformCleaningFees(Number(propertyId), diff.cleaningFees);
 
     // specs/tariff-change-journal.md rule 5 — date the change, and only a real one. An apply that
     // moves no season and adds no closure changed no tariff, so it writes nothing: a journal full of

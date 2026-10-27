@@ -89,4 +89,41 @@ function registerDirectChannelSql(database) {
   Object.defineProperty(database, '__directChannelSql', { value: true });
 }
 
-module.exports = { formatPlatformName, isDirectChannel, setDirectChannels, refreshDirectChannels, registerDirectChannelSql };
+/**
+ * Channels that forbid checkout chores — `isChoreFreeChannel(platform)`.
+ *
+ * Some platforms forbid asking their guests for any checkout chore (dishes, trash, « leave it as you
+ * found it ») and billing an undone one: Airbnb does. The operator ticks « Sans corvées de départ » on
+ * such a platform (`platforms.forbidsGuestChores`); the SAS and the guest e-mails then read this set
+ * instead of a platform name (specs/airbnb-no-checkout-chores.md rule 8).
+ */
+let choreFreeChannels = new Set();
+
+function isChoreFreeChannel(platform) {
+  return choreFreeChannels.has(channelKey(platform));
+}
+
+function setChoreFreeChannels(names = []) {
+  choreFreeChannels = new Set(names.map(channelKey));
+}
+
+/**
+ * Re-reads `platforms.forbidsGuestChores`: at boot and after every platform save. An own channel never
+ * counts, whatever it stored: the settings page shows it no switch to untick.
+ */
+function refreshChoreFreeChannels(database) {
+  let names = [];
+  try {
+    names = database.prepare('SELECT name FROM platforms WHERE forbidsGuestChores = 1').all()
+      .map((r) => r.name).filter((name) => !isDirectChannel(name));
+  } catch {
+    names = [];
+  }
+  setChoreFreeChannels(names);
+}
+
+module.exports = {
+  formatPlatformName, isDirectChannel, setDirectChannels, refreshDirectChannels, registerDirectChannelSql,
+  isChoreFreeChannel, setChoreFreeChannels, refreshChoreFreeChannels,
+};
+
