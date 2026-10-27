@@ -1,6 +1,7 @@
 // specs/ical-cancellation-approval.md rules 11 and 14 (2026-10-27 spec review) — approving an iCal
 // cancellation deletes the stay, and its history (the « Suppression iCal approuvée » row first) must
-// survive: `reservation_history` no longer cascades with `reservations`.
+// survive: `reservation_history` no longer cascades with `reservations`. Rule 15: without the foreign
+// key, every delete path (the operator's, the iCal clean-up, a devis) leaves the rows behind by design.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

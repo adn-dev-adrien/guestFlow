@@ -53,6 +53,17 @@ function difficultyFor({ addressRequestsLastHour = 0, requestsLastHour = 0 } = {
   return Math.min(MAX_BITS, BASE_BITS + surgeBits(requestsLastHour) + PER_REQUEST_BITS * Number(addressRequestsLastHour || 0));
 }
 
+/**
+ * Rule 32 — the least a challenge must have been issued at to be spent now: base, +2 bits per request
+ * this address already sent in the hour (no grace: the drawer fetches a fresh challenge after every
+ * send, so only a challenge fetched ahead falls short), and the flood surcharge of the moment minus
+ * one 2-bit step (a challenge issued just before the hour crossed a threshold still passes).
+ */
+function requiredDifficulty({ addressRequestsLastHour = 0, requestsLastHour = 0 } = {}) {
+  const surge = Math.max(0, surgeBits(requestsLastHour) - SURGE_STEP_BITS);
+  return Math.min(MAX_BITS, BASE_BITS + surge + PER_REQUEST_BITS * Number(addressRequestsLastHour || 0));
+}
+
 function signatureOf(fields, ipKey, secret) {
   const payload = [fields.challengeId, fields.salt, fields.difficulty, fields.issuedAt, fields.expiresAt, ipKey].join('|');
   return crypto.createHmac('sha256', String(secret)).update(payload).digest('hex');
@@ -133,6 +144,7 @@ module.exports = {
   ipKeyOf,
   surgeBits,
   difficultyFor,
+  requiredDifficulty,
   issue,
   verify,
   solve,

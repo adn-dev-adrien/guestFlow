@@ -347,6 +347,14 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
     conflicting `{ resourceId, date, start, end }`. A session the stay **already stored unchanged** is
     not re-judged, so a fiche that carried such an overlap before this fix can still be saved for
     anything else; moving or adding a session is judged.
+35. **The most uses at once, not every use of the slot** (adversarial review of the 2026-10-27 fixes,
+    amends rule 34). Rule 34 counted every outside use touching a session: with a resource ×2, bookings
+    17:00–18:30 and 19:30–21:00 refused a session 18:00–20:00 although one unit stays free throughout.
+    `firstSessionConflict` now compares the **peak** of simultaneous uses during the session (a sweep
+    over the stay's own overlapping sessions and the outside uses) with the quantity. Each outside use
+    still keeps the resource for its `turnoverMinutes` after it, and the session for its own after it,
+    so the pairwise rule of rule 34 is unchanged for a resource ×1; two uses one after the other, reset
+    included, take one unit, not two.
 
 ---
 
@@ -381,7 +389,7 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 | `controllers/` | `controllers/resourcesController.js` | T | Rule 25: availability endpoint for the picker's live refresh. |
 | `routes/` | `routes/resources.js` | T | `GET /api/resources/:id/free-slots`. |
 | `database.js` | `database.js` | T | Rule 11: idempotent `ADD COLUMN` for `resources.heatUpMinutes` + `resources.heatRetentionMinutes` (both `INTEGER NOT NULL DEFAULT 0`). |
-| `utils/` | `utils/resourceSessionConflicts.js` | T | (2026-10-27) Rule 34: `firstSessionConflict` also counts what `occupiedOn(resourceId, date)` returns, turnover-aware, skipping the sessions already stored unchanged; `conflictError` answers `RESOURCE_SLOT_TAKEN` for those. |
+| `utils/` | `utils/resourceSessionConflicts.js` | T | (2026-10-27) Rule 34: `firstSessionConflict` also counts what `occupiedOn(resourceId, date)` returns, turnover-aware, skipping the sessions already stored unchanged; `conflictError` answers `RESOURCE_SLOT_TAKEN` for those. Rule 35: the peak of simultaneous uses (`peakConcurrency`), never their count. |
 | `models/` | `models/resourceOtherUsesModel.js` | C | (2026-10-27) Rule 34, core side: external bookings + other stays' sessions of a resource on a date, `turnoverOf`, the stay's stored sessions. Guarded: `resource_bookings` and `turnoverMinutes` exist only once the plugin is installed. |
 | `controllers/` | `controllers/reservationsController.js` | T | (2026-10-27) Rule 34: `refuseSessionConflict(res, resources, reservationId)` on create and update. |
 
@@ -614,6 +622,10 @@ new file, next to the assertions they replace (three of which pinned the old, bu
       session → refused, a devis holds no slot; free slots, back-to-back uses and the stay's own stored
       session pass; the turnover keeps the reset free; an old overlap stored unchanged does not lock the
       fiche, moving it is judged; no plugin tables → the stay-only check.
+- [x] `tests/resource-session-peak-concurrency.unit.test.js` (6, rule 35, adversarial review of the
+      2026-10-27 fixes): ×2 with 17:00–18:30 and 19:30–21:00 accepts 18:00–20:00 (with and without a
+      turnover), two simultaneous bookings fill it, an unfinished reset takes a ×1 unit, own sessions
+      count at the same instant only, `peakConcurrency` never stacks touching intervals. Failed before.
 - `tests/hourlySchedulingFixture.js` — the stay fixture, shared with `sas-resource-scheduling`.
 
 ### Server — extended existing tests

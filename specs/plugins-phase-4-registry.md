@@ -287,6 +287,12 @@ below are the recommended ones; each is reversible in a later spec.
     on the card. An **inactive** dependant does not block a deactivation (it does not run), but still
     blocks an uninstall. Found when `website-booking` could be switched off while
     `google-vacation-rentals`, which requires it, stayed active.
+37. **A plugin activates only on top of active requirements** (adversarial review of the 2026-10-27
+    fixes, mirror of rule 36). `POST /api/plugins/:id/activate` refuses a plugin one of whose
+    requirements (`manifest.requires`) is not installed or not active: 409 `REQUIREMENT_INACTIVE`
+    with `requires` (those ids) and « Nécessite <nom> : à activer d’abord. », which the Plugins page
+    shows on the card. Found when Google Vacation Rentals could be re-activated while
+    `website-booking` was off.
 
 ---
 
@@ -305,7 +311,7 @@ below are the recommended ones; each is reversible in a later spec.
 | `utils/` | `semverRange.js` | C | Range checks (dependency `semver`) |
 | `utils/` | `pluginsSchema.js` | T | `manifest`, `pinned_sha256` columns |
 | `models/` | `pluginsModel.js` | T | Version, source, manifest, hash |
-| `controllers/` | `pluginsController.js` | T | Offers, install, update, rollback, uninstall checks (rules 10–16); deactivation refused while an active plugin requires it (rule 36) |
+| `controllers/` | `pluginsController.js` | T | Offers, install, update, rollback, uninstall checks (rules 10–16); deactivation refused while an active plugin requires it (rule 36), activation refused while a requirement is inactive (rule 37) |
 | `routes/` | `plugins.js` | T | `POST /api/plugins/:id/update`, `/rollback`, `POST /api/plugins/refresh` |
 | `index.js` | `index.js` | T | `/plugin-assets` static mount |
 | `constants/` | `plugins.js` | T | Catalogue built from the manifests |
@@ -391,6 +397,7 @@ word per line (seen in the browser check of 2026-10-17).
 - _(added 2026-10-18)_ `plugins-manifest-upper-bound.unit.test.js` (rule 34) and
   `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
 - _(added 2026-10-27)_ `plugins-deactivate-required-by.unit.test.js` (rule 36, 4 tests).
+- _(added 2026-10-27, adversarial review)_ `plugins-activate-requires-active.unit.test.js` (rule 37, 3 tests; the refusal failed on the code before the fix).
 
 ## 8. Out of scope
 

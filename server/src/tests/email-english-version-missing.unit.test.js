@@ -19,6 +19,8 @@ const { stayDedupKey } = require('../utils/guestEmailSequence');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
 
 const MESSAGE = 'Version anglaise manquante pour ce modèle.';
+// Rule 12 — the refused send also says what to do.
+const ACTION = 'Version anglaise manquante pour ce modèle : la rédiger dans Emails › Modèles, ou passer le mail en français.';
 
 function setup({ emailLanguage = 'en' } = {}) {
   const db = freshDb();
@@ -53,7 +55,7 @@ test('the manual send to an English-speaking guest is refused in French; nothing
   const { db, emails, mail, reservationId, templateId } = setup();
   const res = await call(emails.send, { body: { reservationId, templateId, overrides: { subject: 'Hi', body: 'Typed' } } });
   assert.equal(res.status, 422);
-  assert.deepEqual(res.body, { error: 'ENGLISH_VERSION_MISSING', message: MESSAGE });
+  assert.deepEqual(res.body, { error: 'ENGLISH_VERSION_MISSING', message: ACTION });
   assert.equal(mail.sent.length, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM email_log').get().n, 0);
 });

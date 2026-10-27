@@ -12,6 +12,7 @@
 
 const { buildVatItems } = require('./paymentLinkItems');
 const { buildStayLineLabel } = require('./paymentLinkLabel');
+const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = require('./emailTemplateLanguage');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
 // dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
@@ -228,7 +229,16 @@ async function sendInstallmentRequest(deps, id, installmentId) {
 }
 const sendingNow = new Set();
 
+// specs/email-language-fr-en.md rule 12 — a mail that cannot leave (no English version for an English
+// guest) is refused before any link is minted at the provider. `englishMissing` is optional in deps.
+function englishMissingRefusal(deps, id, stableKey) {
+  if (!deps.englishMissing || !deps.englishMissing({ reservationId: id, stableKey })) return null;
+  return { httpStatus: 422, body: { error: ENGLISH_VERSION_MISSING, reason: ENGLISH_VERSION_MISSING, message: ENGLISH_VERSION_MISSING_PAYMENT_ACTION } };
+}
+
 async function doSendInstallmentRequest(deps, id, installmentId) {
+  const refused = englishMissingRefusal(deps, id, REQUEST_TEMPLATES.installment);
+  if (refused) return refused;
   const link = await ensureInstallmentLink(deps, id, installmentId);
   const installment = deps.installmentsModel.findById(installmentId);
   const result = await deps.sendTemplate({
@@ -263,6 +273,8 @@ async function sendPaymentRequest(deps, id, requestedType) {
   const stableKey = REQUEST_TEMPLATES[type];
   if (!stableKey) return { httpStatus: 400, body: { error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit/balance/full).' } };
 
+  const refused = englishMissingRefusal(deps, id, stableKey);
+  if (refused) return refused;
   const link = await ensurePaymentLink(deps, id, type); // {httpStatus} throw bubbles to the controller
   const result = await deps.sendTemplate({ reservationId: id, stableKey, paymentLink: link.url, amountCents: link.amountCents });
 

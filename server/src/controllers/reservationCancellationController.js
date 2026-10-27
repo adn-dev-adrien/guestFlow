@@ -26,6 +26,17 @@ const { sendReservationTemplateEmail } = require('../utils/reservationEmailSende
 const { cancelReservation } = require('../utils/cancelReservation');
 const { deactivateAbandonedLinks } = require('../utils/paymentLinkDeactivation');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { ENGLISH_VERSION_MISSING } = require('../utils/emailTemplateLanguage');
+
+// specs/email-language-fr-en.md rule 12 — a notice asked for and not sent is told to the operator.
+const NOTICE_NOT_SENT = Object.freeze({
+  [ENGLISH_VERSION_MISSING]: 'version anglaise manquante',
+  'no-template': 'modèle désactivé',
+  'no-email': 'adresse e-mail manquante',
+});
+function cancellationNoticeWarning(reason) {
+  return `Mail d’annulation non envoyé : ${NOTICE_NOT_SENT[reason] || 'envoi impossible'}.`;
+}
 
 // POST /api/reservations/:id/cancel — { reason?, notifyClient? }
 async function cancel(req, res) {
@@ -48,6 +59,7 @@ async function cancel(req, res) {
   const providerLabel = (require('../utils/paymentProviders').declared() || {}).label || 'le prestataire de paiement';
 
   let emailSent = false;
+  let emailReason = null;
   if (req.body && req.body.notifyClient && result.clientEmail) {
     try {
       const sendResult = await sendReservationTemplateEmail({
@@ -60,7 +72,9 @@ async function cancel(req, res) {
         stableKey: 'cancellation_notice',
       });
       emailSent = Boolean(sendResult && sendResult.sent);
+      if (!emailSent) emailReason = (sendResult && sendResult.reason) || 'failed';
     } catch (err) {
+      emailReason = 'failed';
       // The stay IS cancelled — a failed notice must not undo it, only be reported.
       console.error('[cancellation-notice] send failed:', err && err.message);
     }
@@ -74,6 +88,7 @@ async function cancel(req, res) {
     refundId: result.refundId,
     compensationId: result.compensationId,
     emailSent,
+    emailWarning: emailReason ? cancellationNoticeWarning(emailReason) : null,
     paymentLinksNotDeactivated: notDeactivated,
     paymentLinksWarning: notDeactivated > 0
       ? `Lien de paiement encore actif chez ${providerLabel} : à désactiver depuis ${providerLabel}.`

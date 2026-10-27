@@ -91,6 +91,11 @@ glance, what to handle at check-in.
     over blue (rule 2) on an arrival, red over orange (rule 9) on a departure. Rule 2's blue alert needs
     the other logement's checkout at or before the arrival and its cleaning still running at the arrival
     time.
+11. **Durations in hours and minutes, the property's own times** (adversarial review of the 2026-10-27
+    fixes). The cleaning duration of an explanation reads « 1h30 », « 2h15 », « 3h » (a 1.5 h cleaning
+    read « 1h5 »). A stay without its own `checkInTime` / `checkOutTime` takes its logement's
+    `defaultCheckIn` / `defaultCheckOut`, and only then 15:00 / 10:00 (amends rule 8: it fell back to
+    15:00 / 10:00 straight away, hiding a turnover on a logement whose default checkout is 12:00).
 
 **Edge cases:**
 - `bedLinenAlert`: a reservation whose beds were coerced to 0 (no linen option) surfaces `no_linen`,
@@ -114,8 +119,8 @@ glance, what to handle at check-in.
 | — | — | — | Caution / platform badges: **no server change** (`reservationsModel` already returns `cautionAmount`/`cautionReceived`; `properties.cleaningHours` exists). |
 | `utils/` | `utils/bedLinenAdequacy.js` | C | Pure `computeBedLinenAlert({ reservation, options, bedLinenProvidedByDefault })` → `null` / `{type:'no_linen'}` / `{type:'capacity',capacity,required}` (rule 6). |
 | `models/` | `models/reservationsModel.js` | T | `getByIdWithDetails` computes `bedLinenProvidedByDefault` (query `property_option_defaults`) + sets `reservation.bedLinenAlert` via the util. |
-| `utils/` | `utils/planningArrivalAlerts.js` | C | Pure `computePlanningAlerts({ stays, cleaningHoursByProperty, from, to })` → `{ arrivals, departures }` (rules 1–3, 7–10). (2026-10-27) |
-| `models/` | `models/planningAlertsModel.js` | C | `alertsInRange({ from, to })`: loads the real stays of `[from − 7 d, to + 7 d]` with their client names and every logement's `cleaningHours`, hands them to the util. (2026-10-27) |
+| `utils/` | `utils/planningArrivalAlerts.js` | C | Pure `computePlanningAlerts({ stays, cleaningHoursByProperty, propertyTimes, from, to })` → `{ arrivals, departures }` (rules 1–3, 7–11), `cleaningLabel` (rule 11). (2026-10-27) |
+| `models/` | `models/planningAlertsModel.js` | C | `alertsInRange({ from, to })`: loads the real stays of `[from − 7 d, to + 7 d]` with their client names and every logement's `cleaningHours` and default check-in / check-out (rule 11), hands them to the util. (2026-10-27) |
 | `controllers/` | `controllers/planningController.js` | T | `alerts` handler: validates `from`/`to` (400 `INVALID_DATE_RANGE`). (2026-10-27) |
 | `routes/` | `routes/planning.js` | T | `GET /alerts`. Reception reads it through the existing `GET /planning/*` allowlist entry. (2026-10-27) |
 
@@ -183,7 +188,10 @@ No schema change. Uses existing `reservations.cautionAmount`, `reservations.caut
       logements raise « Départs simultanés » on both departure rows, an 11:00 one does not (F2); no
       blue alert when the other logements are clean at the arrival, blue when one is still being
       cleaned (F3); each alert on its own card kind (F4); exact fit / overrun / days apart; half hours
-      « 1h5 », cancelled stays ignored, iCal summary as the name.
+      « 1h30 » (rule 11; it pinned « 1h5 » before), cancelled stays ignored, iCal summary as the name.
+- [x] `tests/planning-alerts-times-and-cleaning-label.unit.test.js` (5, rule 11, adversarial review of the
+      2026-10-27 fixes) — « 1h30 » / « 2h15 » / « 3h »; a timeless stay takes its property's 12:00 / 14:00
+      and raises the turnover the 10:00 / 15:00 fallback hid; the model passes the defaults. Failed before.
 
 ### Client unit tests (vitest)
 - [x] `components/__tests__/ReservationCard.test.js` — bed-linen alert renders « Linge de lit non pris »

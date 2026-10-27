@@ -18,8 +18,8 @@ const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
+const { englishMissing, normaliseLang } = require('../utils/emailTemplateLanguage');
 const { createEmailService } = require('../utils/emailService');
-const { formatCurrency } = require('../utils/devisHelpers');
 const financeModel = require('../models/financeModel');
 const { storedLinkComponents } = require('../utils/storedLinkComponents');
 const installmentsModel = require('../models/installmentsModel');
@@ -31,6 +31,19 @@ const { linkAmountCents } = require('../utils/ledgerLinks');
 const paymentRequestService = require('../utils/paymentRequestService');
 const { LINK_TYPES, LINK_TITLES } = paymentRequestService;
 
+// specs/email-language-fr-en.md rule 12 — the request template this guest would receive has no English
+// version: checked before the link is minted, with the language the sender would resolve.
+function requestEnglishMissing(reservationId, stableKey) {
+  const template = emailTemplatesModel.findByStableKey(stableKey);
+  if (!template || !template.enabled) return false;
+  const row = database.prepare(`
+    SELECT r.emailLanguage AS reservationLang, c.emailLanguage AS clientLang
+    FROM reservations r LEFT JOIN clients c ON c.id = r.clientId WHERE r.id = ?
+  `).get(Number(reservationId));
+  if (!row) return false;
+  return englishMissing(template, normaliseLang(row.clientLang || row.reservationLang));
+}
+
 // Wire the module-scoped deps into the injectable service (utils/paymentRequestService).
 function requestServiceDeps(provider) {
   return {
@@ -41,6 +54,7 @@ function requestServiceDeps(provider) {
     provider,
     installmentsModel,
     resolveInstallmentItems: (id, installment, plan) => resolveInstallmentComponents(id, installment, plan),
+    englishMissing: ({ reservationId, stableKey }) => requestEnglishMissing(reservationId, stableKey),
     sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents, installment = null }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
@@ -50,7 +64,8 @@ function requestServiceDeps(provider) {
       // specs/deposit-blocks-the-dates.md rule 11 — the email announces, to the cent, what the link
       // charges: the amount travels with the link rather than being re-derived from the row.
       extraContext: {
-        vars: { paymentLink, paymentAmount: formatCurrency(Number(amountCents || 0) / 100) },
+        vars: { paymentLink },
+        amounts: { paymentAmount: Number(amountCents || 0) / 100 },
         flags: { hasPaymentLink: true },
       },
     }),
@@ -256,4 +271,4 @@ module.exports = {
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { sendError, runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };
+module.exports.__test = { sendError, requestServiceDeps, runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };

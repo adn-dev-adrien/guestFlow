@@ -35,8 +35,12 @@ function frDate(iso) {
   return `${d}/${mo}/${y}`;
 }
 
+// « 3h », « 1h30 », « 2h15 » — hours and minutes, never the decimal digits (« 1h5 » meant 1 h 30).
 function cleaningLabel(hours) {
-  return Number.isInteger(hours) ? `${hours}h` : String(hours).replace('.', 'h');
+  const minutes = Math.round(Number(hours) * 60);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 }
 
 function guestName(stay) {
@@ -44,11 +48,14 @@ function guestName(stay) {
   return name || (stay.icalOriginalSummary && String(stay.icalOriginalSummary).trim()) || `Réservation #${stay.id}`;
 }
 
-function normalize(stay, cleaningHoursByProperty) {
+// A stay without its own time takes its property's default check-in / check-out (rule 12), and only
+// then the app-wide 15:00 / 10:00.
+function normalize(stay, cleaningHoursByProperty, propertyTimes) {
   const raw = cleaningHoursByProperty[stay.propertyId];
   const hours = Number.isFinite(Number(raw)) && raw !== null && raw !== '' ? Number(raw) : DEFAULT_CLEANING_HOURS;
-  const checkInTime = formatTimeShort(stay.checkInTime) || DEFAULT_CHECK_IN;
-  const checkOutTime = formatTimeShort(stay.checkOutTime) || DEFAULT_CHECK_OUT;
+  const times = propertyTimes[stay.propertyId] || {};
+  const checkInTime = formatTimeShort(stay.checkInTime) || formatTimeShort(times.checkIn) || DEFAULT_CHECK_IN;
+  const checkOutTime = formatTimeShort(stay.checkOutTime) || formatTimeShort(times.checkOut) || DEFAULT_CHECK_OUT;
   const checkoutAt = stamp(stay.endDate, checkOutTime);
   return {
     ...stay,
@@ -66,10 +73,12 @@ function normalize(stay, cleaningHoursByProperty) {
  * @param {Array}  args.stays — `{ id, propertyId, startDate, endDate, checkInTime, checkOutTime,
  *                              firstName, lastName, icalOriginalSummary }`, real reservations only.
  * @param {object} args.cleaningHoursByProperty — `{ [propertyId]: hours }`.
+ * @param {object} args.propertyTimes — `{ [propertyId]: { checkIn, checkOut } }`, the properties'
+ *                              default times for a stay that has none.
  * @param {string} args.from / args.to — the planning window (ISO dates, inclusive).
  */
-function computePlanningAlerts({ stays = [], cleaningHoursByProperty = {}, from, to }) {
-  const all = stays.map((s) => normalize(s, cleaningHoursByProperty))
+function computePlanningAlerts({ stays = [], cleaningHoursByProperty = {}, propertyTimes = {}, from, to }) {
+  const all = stays.map((s) => normalize(s, cleaningHoursByProperty, propertyTimes))
     .filter((s) => s.arrivalAt !== null && s.checkoutAt !== null);
   const arrivals = {};
   const departures = {};
@@ -119,4 +128,4 @@ function computePlanningAlerts({ stays = [], cleaningHoursByProperty = {}, from,
   return { arrivals, departures };
 }
 
-module.exports = { computePlanningAlerts };
+module.exports = { computePlanningAlerts, cleaningLabel };
