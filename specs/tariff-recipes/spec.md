@@ -536,13 +536,13 @@ all-inclusive pricing as the first such recipe.
 - Changeover rule on a 1-night stay → arrival and departure rules both apply and can be mutually
   impossible; the preview warns when a recipe declares such a combination.
 
-### 3.11 Display fixes (2026-10-27 audit)
+### 3.12 Display fixes (2026-10-27 audit)
 
-56. **The recipe card's degressivity is a server label.** `GET /api/tariff-recipes/:id` returns
+60. **The recipe card's degressivity is a server label.** `GET /api/tariff-recipes/:id` returns
     `labels.lengthOfStayDiscounts` (`labels.js`), « 2 nuits −0 % · … · 7 nuits −42,9 % »: French
     decimal comma, one decimal at most. A recipe may hold an exact fraction (the gîte's 3/7 =
     42,857 %); the card printed it raw (« −42.857142857142854 % ») and no longer formats it itself.
-57. **The recipes page lines up with every other page.** Its `PageActionBar` sits outside the padded
+61. **The recipes page lines up with every other page.** Its `PageActionBar` sits outside the padded
     content (it was 24 px lower and narrower than elsewhere), « Journal des changements » uses the
     `sectionHeader` role, and a shipped recipe's `label` / `description` never carries Markdown
     backticks (the gîte's « `welcomePack.cost` » now reads « le levier du pack accueil »; the
@@ -565,7 +565,7 @@ Full code map in [architecture.md](architecture.md). Summary:
 - **One new feature component** (`TariffRecipeCard`); everything else composes existing generics.
 
 - **2026-10-27 audit:** `server/src/plugins/tariff-recipes/labels.js` (new) formats the card's
-  degressivity label; `controller.getOne` adds `labels` to its payload (rule 56).
+  degressivity label; `controller.getOne` adds `labels` to its payload (rule 60).
 
 ## 5. Data model
 
@@ -726,7 +726,7 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - [ ] Mobile pass: recipe browser, tariff page card and diff dialog, calendar markers and legend,
       property detail form, reservation summary.
 
-- **2026-10-27 audit (rules 56-57):** `tariff-recipe-card-labels.unit.test.js` (5 server tests),
+- **2026-10-27 audit (rules 60-61):** `tariff-recipe-card-labels.unit.test.js` (5 server tests),
   `TariffRecipeCard.degressivity-label.test.jsx` (1) and `TariffRecipesPage.layout.test.jsx` (2).
 
 ## 8. Out of scope

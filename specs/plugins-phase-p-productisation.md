@@ -444,7 +444,7 @@ Decisions taken on 2026-10-06:
     flex column) and the actions are pushed to its bottom (`margin-top: auto`), still `sticky` for a
     long step, inside the card's 16 px padding.
 
-45. **The assistant's fields keep even gaps** (2026-10-27 audit). No blank helper line is reserved under
+47. **The assistant's fields keep even gaps** (2026-10-27 audit). No blank helper line is reserved under
     a field any more: a message shows when there is one, and steps 1 and 2 use the same 16 px gap as
     the property grid. The reserved lines, added to the stack's and the grid's own gaps, gave uneven
     spacing from one field to the next.
@@ -687,7 +687,7 @@ rest of the suite, and `option-categories.spec.js` seeds the catering catalogue 
 **Integrated review of inte/plugins (2026-10-19)** — rule 44: `components/__tests__/StepperPage.phone-actions.test.jsx` (1: order and variants);
 the onboarding suites keep passing unchanged.
 
-- **2026-10-27 audit (rule 45):** `OnboardingPage.spacing.test.jsx` (1 test).
+- **2026-10-27 audit (rule 47):** `OnboardingPage.spacing.test.jsx` (1 test).
 
 ## 8. Out of scope
 

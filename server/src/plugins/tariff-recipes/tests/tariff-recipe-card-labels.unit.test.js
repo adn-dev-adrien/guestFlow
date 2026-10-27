@@ -6,7 +6,7 @@ const path = require('node:path');
 const { lengthOfStayDiscountsLabel, frPercent } = require('../labels');
 const { createController } = require('../controller');
 
-// specs/tariff-recipes/spec.md §3.2 rule (2026-10-27 audit) — the recipe card read
+// specs/tariff-recipes/spec.md rule 60 (2026-10-27 audit) — the recipe card read
 // « 7 nuits −42.857142857142854 % »: the server now sends the French label, one decimal at most.
 
 const gite = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'recipes', 'gite-2027.json'), 'utf8'));
