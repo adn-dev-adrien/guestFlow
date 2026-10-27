@@ -2625,14 +2625,6 @@ function calculateReservationQuote({
   // is due `balanceDaysBefore` before arrival, clamped so it can never land before the booking day.
   // A devis takes its validity date as the acompte deadline. Both are NULL when their bucket carries
   // nothing to collect — a deadline on a €0 line would only confuse the UI and the emails.
-  const depositDueDate = resolveDepositDueDate({
-    kind: quoteKind,
-    hasDeposit: !depositDisabled && resolvedDepositAmount > 0,
-    bookingDate,
-    validUntil,
-    existingDepositDueDate,
-    depositDueDays: property.depositDueDays,
-  });
   // specs/platform-payout-due-date.md §3.1 — on a NON-direct reservation the solde is the platform's
   // payout, due `payoutDueDays` after the guest leaves; own channels keep the J-30 rule above.
   const balanceDueDate = resolveBalanceDueDate({
@@ -2651,6 +2643,16 @@ function calculateReservationQuote({
     // OTA name never had an acompte to lose, so it keeps the guest-facing derivation (rule 3 above).
     dueOnValidUntil: String(quoteKind) === 'devis' && !platformIsNonDirect && resolvedDepositAmount === 0,
     validUntil,
+  });
+  const depositDueDate = resolveDepositDueDate({
+    kind: quoteKind,
+    hasDeposit: !depositDisabled && resolvedDepositAmount > 0,
+    bookingDate,
+    validUntil,
+    existingDepositDueDate,
+    depositDueDays: property.depositDueDays,
+    // specs/payment-schedule-and-cancellation.md rule 47 — never after the solde.
+    notAfter: balanceDueDate,
   });
 
   // Complément à percevoir = forced items (manual or tax-on-arrival or touristTaxInComplement)

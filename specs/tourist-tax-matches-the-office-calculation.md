@@ -238,6 +238,15 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     > **Amended 2026-09-11** — the threshold counts the withheld tourist tax too
     > (`brut < extras + supplément + taxe retenue`): a brut that covers the extras but not the tax it
     > claims to contain is just as inconsistent, and floors the base the same way.
+17. **Fixed at the 2026-10-27 spec review — the save pins the tax like the preview.** `calculate-price`
+    honoured rules 10-12 but `PUT /reservations/:id` built its engine input without
+    `freezeTouristTax` / `frozenTouristTax*`: a notes-only save after the commune rate moved wrote the new
+    tax (18 € instead of the 15 € collected) and re-stamped the freeze on it, while the paid solde kept
+    the old figure. Both paths now share `frozenTouristTaxInputs`: a save that keeps the stay as it was
+    sold (logement, dates, party) pins the collected tax. A save that changes the stay itself still
+    re-prices it, on purpose — the difference is a trop-perçu or an amount owed
+    ([reservation-refunds.md](reservation-refunds.md) rules 34-36). « Recalculer la taxe de séjour »
+    (`refreshTouristTax`) still lifts the pin deliberately.
 
 ---
 
@@ -363,6 +372,7 @@ Server 3868 pass, client 1199 pass.
 - [ ] Mobile (`xs`): the fiche caption and the Suivi table read correctly.
 
 ---
+- Spec review 2026-10-27 (rule 17): `server/src/tests/collected-tax-kept-on-save.unit.test.js` (2 tests — notes-only save keeps the collected tax, « Recalculer » still re-prices).
 
 ## 8. Out of scope
 

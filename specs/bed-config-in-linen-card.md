@@ -162,6 +162,11 @@ the new invariant.
     bed-linen option. The dashboard now shows the bed counts only when one is above 0 — « — » in the
     arrivals table, no line on the phone card — as the planning card already did
     (`components/ReservationCard.jsx`). Rule 7 is unchanged.
+12. **Fixed at the 2026-10-27 spec review — rule 7 reads the persisted lines.** The invariant checked
+    the payload before the engine dropped the options not offered on the property: a bed-linen option
+    sent by API for a logement that does not carry it was dropped, yet its bed counts were stored
+    (`bedLinenAlert: no_linen`). Create and update now zero the single/double counts on the lines the
+    engine kept (`quote.optionLines`).
 
 **Edge cases:**
 - Operator enters `4` doubles, then turns the Switch OFF → form
@@ -429,6 +434,7 @@ manual UI check.
       full-width.
 
 ---
+- Spec review 2026-10-27 (rule 12): `server/src/tests/create-without-times-and-linen.unit.test.js` — a linen option not offered on the property leaves no bed counts; an offered one keeps them.
 
 ## 8. Out of scope
 

@@ -35,6 +35,9 @@ const HISTORY_FIELD_LABELS = {
   discountPercent: 'Réduction (%)',
   finalPrice: 'Prix final',
   depositAmount: 'Acompte',
+  // specs/reservation-history-granular-diff.md rule 13 — an acompte typed by hand is a decision, not a
+  // recalculation: it reads as its own row, apart from the « Recalculs » block.
+  depositAmountOverride: 'Acompte saisi',
   depositDueDate: 'Date acompte',
   balanceAmount: 'Solde',
   balanceDueDate: 'Date solde',
@@ -117,7 +120,12 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     discountPercent: Number(payload.discountPercent || 0),
     finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
     depositAmount: Number(quote.depositAmount || 0),
-    depositDueDate: quote.depositDueDate || payload.depositDueDate || null,
+    // Same rule as the model: a zero acompte carries no deadline (disable-deposit-per-reservation rule 2).
+    depositDueDate: Math.round(Number(quote.depositAmount || 0) * 100) > 0
+      ? (quote.depositDueDate || payload.depositDueDate || null)
+      : null,
+    depositAmountOverride: payload.depositAmountOverride === undefined || payload.depositAmountOverride === null || payload.depositAmountOverride === ''
+      ? null : Number(payload.depositAmountOverride),
     balanceAmount: Number(quote.balanceAmount || 0),
     balanceDueDate: quote.balanceDueDate || payload.balanceDueDate || null,
     notes: capitalizeFirst(payload.notes) || null,
@@ -181,6 +189,7 @@ const HISTORY_FIELD_FORMATS = {
   touristTaxTotal: 'money',
   finalPrice: 'money',
   depositAmount: 'money',
+  depositAmountOverride: 'money',
   balanceAmount: 'money',
   cautionAmount: 'money',
   discountPercent: 'percent',

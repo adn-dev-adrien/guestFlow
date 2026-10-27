@@ -361,6 +361,11 @@ acompte is kept as an indemnity, and the books say so correctly.
   column is left as harmless residue.
 - Cancelling a stay whose acompte was paid **in the current month** → the avoir + indemnity land in the
   same month as the encaissement; the three entries coexist and net to the correct result.
+47. **Fixed at the 2026-10-27 spec review — the acompte is never due after the solde.** Booked 31 to 36
+    days out, `booking + depositDueDays` (7) fell after `arrival − balanceDaysBefore` (30): booked on
+    27/10 for 28/11, the acompte was due 03/11 and the solde 29/10. A FRESH acompte deadline is now
+    capped at the solde deadline (`resolveDepositDueDate({ notAfter })`); a stored one keeps its promise
+    (rule 4). A platform solde (payout after departure) never caps anything in practice.
 
 ---
 
@@ -619,6 +624,7 @@ One line per reservation:
       no cancel button; the click posts the server's own `remindType`; the « échéance dépassée » copy;
       the title counts late rows and to-dos separately.
 - [x] `npx vitest run` green (131 files). `npm run test:e2e` — see below.
+- Spec review 2026-10-27 (rule 47): `server/src/tests/deposit-not-due-after-solde.unit.test.js` (3 tests — cap, stored date untouched, stay booked 32 days out).
 
 ## 8. Out of scope
 

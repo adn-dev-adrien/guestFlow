@@ -46,7 +46,7 @@ import { WEBSITE_BOOKING } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
-import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
+import { getRangeOccupancyConflictInfo, isPlacementUnchanged } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
@@ -2193,8 +2193,7 @@ export default function ReservationPage() {
     try { loadedSnapshot = initialSnapshot ? JSON.parse(initialSnapshot) : null; } catch { loadedSnapshot = null; }
     const loadedForm = loadedSnapshot && loadedSnapshot.form;
     const placementUnchanged = Boolean(reservationId && loadedForm
-      && Number(loadedSnapshot.selectedProp) === Number(selectedProp)
-      && loadedForm.startDate === form.startDate && loadedForm.endDate === form.endDate);
+      && isPlacementUnchanged({ loadedProp: loadedSnapshot.selectedProp, loadedForm, selectedProp, form }));
     const occupancyUnchanged = Boolean(reservationId && loadedForm
       && Number(loadedSnapshot.selectedProp) === Number(selectedProp)
       && Number(loadedForm.adults || 0) === Number(form.adults || 0)

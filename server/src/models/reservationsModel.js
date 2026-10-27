@@ -79,6 +79,13 @@ function parseDetailLines(raw) {
 }
 
 // Business error the controller maps to a 409 with its code (specs/mid-stay-notes.md §4.3).
+// specs/disable-deposit-per-reservation.md rule 2 — no acompte, no acompte deadline. The posted date is
+// only a fallback for a deposit the engine priced without dating it; it never survives a zero deposit.
+function storedDepositDueDate(quote, postedDepositDueDate) {
+  if (!(round2(quote.depositAmount) > 0)) return null;
+  return quote.depositDueDate || postedDepositDueDate || null;
+}
+
 function midStayError(code, message) {
   const err = new Error(message);
   err.code = code;
@@ -790,7 +797,10 @@ function createReservationsModel(database) {
     isReservationNumberTaken(number, exceptId) {
       const value = String(number || '').trim();
       if (!value) return false;
-      let sql = "SELECT 1 FROM reservations WHERE kind = 'reservation' AND reservationNumber = ?";
+      // Every row the unique index covers — devis and cancelled stays included — so a number held by
+      // one is refused with the French 400, never by the index as a 500
+      // (specs/reservation-number-and-search.md rule 16).
+      let sql = 'SELECT 1 FROM reservations WHERE reservationNumber = ?';
       const params = [value];
       if (exceptId) { sql += ' AND id != ?'; params.push(Number(exceptId)); }
       return Boolean(database.prepare(sql).get(...params));
@@ -1116,6 +1126,7 @@ function createReservationsModel(database) {
         finalPrice: Number(row.finalPrice || 0),
         depositAmount: Number(row.depositAmount || 0),
         depositDueDate: row.depositDueDate || null,
+        depositAmountOverride: row.depositAmountOverride == null ? null : Number(row.depositAmountOverride),
         depositPaidDate: row.depositPaidDate || null,
         balanceAmount: Number(row.balanceAmount || 0),
         balanceDueDate: row.balanceDueDate || null,
@@ -1170,6 +1181,16 @@ function createReservationsModel(database) {
                adults, children, teens, babies, singleBeds, doubleBeds, babyBeds
           FROM reservations WHERE id = ?
       `).get(reservationId);
+    },
+
+    // The check-in / check-out times a stay takes when none is given: the property's own defaults
+    // (specs/edit-reservation-blocked-by-overlap.md rule 5, specs/reservations-backend-mvc.md rule 9).
+    getPropertyDefaultTimes(propertyId) {
+      const row = database.prepare('SELECT defaultCheckIn, defaultCheckOut FROM properties WHERE id = ?').get(Number(propertyId));
+      return {
+        checkInTime: (row && row.defaultCheckIn) || '15:00',
+        checkOutTime: (row && row.defaultCheckOut) || '10:00',
+      };
     },
 
     getForArchiveCheck(reservationId) {
@@ -1291,7 +1312,7 @@ function createReservationsModel(database) {
       });
     },
 
-    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 15): the stays the boot repair
+    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 16): the stays the boot repair
     // numbered — possibly ghosts of a failed creation, still blocking their dates — until the operator
     // has looked at them. Empty on a schema without the stamp.
     listRepairedNumbers() {
@@ -1557,8 +1578,8 @@ function createReservationsModel(database) {
           notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount,
           depositDisabled, touristTaxInComplement, depositAmountOverride, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
           platformTouristTaxAmount,
-          tariffSnapshot)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          tariffSnapshot, complementAmount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -1566,7 +1587,7 @@ function createReservationsModel(database) {
         platformNormalized, quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
-        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, capitalizeFirst(notes),
+        quote.depositAmount || 0, storedDepositDueDate(quote, depositDueDate), quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, capitalizeFirst(notes),
         cautionAmount || 0,
         extraGuestSurchargeOffered ? 1 : 0,
         nightBlocks.blocksPreviousNight,
@@ -1584,6 +1605,10 @@ function createReservationsModel(database) {
         // Written once, at creation, and replayed by every later save so a recipe change never
         // re-prices what is already in the database.
         quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
+        // specs/force-item-to-complement.md rule 18 — the arrival complement the engine priced. Left
+        // out of this INSERT until the 2026-10-27 review, so a stay created with a line routed to the
+        // complement read « Rien à percevoir » at the SAS until its first re-save.
+        Number(quote.complementAmount || 0),
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistExtraGuestComplement(result.lastInsertRowid, quote);
@@ -1594,6 +1619,25 @@ function createReservationsModel(database) {
       // amount just written, so a line that later freezes can still explain itself.
       writeTouristTaxSnapshot(database, result.lastInsertRowid, quote);
       return result.lastInsertRowid;
+    },
+
+    // specs/tariff-recipes/spec.md §3 rule 62 — the snapshot a save priced with becomes the stored one,
+    // so the nights it added and the reprice of a moved arrival carry their season into the next save.
+    // `replayed` = the save ran on the stored snapshot: its property-level half (included guests, unit
+    // price, tiers) came from there and is kept as it was when the quote carries no tier table of its
+    // own (a party at or under the included guests prices no tier, which is not « sold without »).
+    refreshTariffSnapshot(reservationId, snapshot, { replayed = false } = {}) {
+      if (!snapshot) return;
+      let next = snapshot;
+      if (replayed) {
+        const row = database.prepare('SELECT tariffSnapshot FROM reservations WHERE id = ?').get(reservationId);
+        let stored = null;
+        try { stored = row && row.tariffSnapshot ? JSON.parse(row.tariffSnapshot) : null; } catch { stored = null; }
+        if (stored && next.extraGuestTiers == null && stored.extraGuestTiers != null) {
+          next = { ...next, extraGuestTiers: stored.extraGuestTiers };
+        }
+      }
+      database.prepare('UPDATE reservations SET tariffSnapshot = ? WHERE id = ?').run(JSON.stringify(next), reservationId);
     },
 
     /**
@@ -1875,7 +1919,7 @@ function createReservationsModel(database) {
         platformNormalized, quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
-        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null,
+        quote.depositAmount || 0, storedDepositDueDate(quote, depositDueDate),
         depositPaid ? 1 : 0, depositPaid ? (depositPaidDate || null) : null,
         quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null,
         balancePaid ? 1 : 0, balancePaid ? (balancePaidDate || null) : null,

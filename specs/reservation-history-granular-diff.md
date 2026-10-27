@@ -93,6 +93,10 @@ JJ/MM/AAAA — and several changes in the same edit are listed one under the oth
     cours… » even with nothing edited. Measured on a copy of production: 6 past fiches, réservation
     202609003 among them. History rows already written with `2_000_000` ids still read
     `Option personnalisée`.
+13. **Fixed at the 2026-10-27 spec review — the typed acompte is audited.** Setting or clearing
+    `depositAmountOverride` left only the Acompte / Solde recalculations, so nobody could tell an acompte
+    had been typed by hand. The field is now in both snapshots, labelled « Acompte saisi » (money),
+    shown in the main list (not in « Recalculs »), and allowed on a past-locked fiche like `depositAmount`.
 
 **Edge cases:**
 - Option removed *and* another added in the same edit → two rows (`−` then `+`), not one `changed`.
@@ -245,6 +249,7 @@ _Done 2026-08-07 against the dev DB (real history rows, headless Chromium)._
 - [x] Old entries (written before this change) render with the new formatting — read-time only.
 - [x] Mobile (`xs`, 390px): rows wrap under their label, no horizontal scroll.
 - [x] Regression: the iCal lock line (`Active → Verrouillée après modification manuelle`) is untouched.
+- Spec review 2026-10-27 (rule 13): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — « Acompte saisi » rows on set and clear, none on a plain re-save.
 
 ## 8. Out of scope
 

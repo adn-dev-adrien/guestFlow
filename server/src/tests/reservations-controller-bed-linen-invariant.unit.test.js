@@ -43,10 +43,12 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
     listForProperty: () => defaults,
   };
   const pricingMock = {
-    calculateReservationQuote() {
+    // Like the real engine, the quote lines echo the options it was given (rule 12 reads them).
+    calculateReservationQuote(input) {
       return {
         totalPrice: 0, finalPrice: 0, depositAmount: 0, balanceAmount: 0,
-        optionLines: [], resourceLines: [], nightlyBreakdown: [],
+        optionLines: (input.selectedOptions || []).map((o) => ({ optionId: Number(o.optionId), quantity: 1, totalPrice: 0 })),
+        resourceLines: [], nightlyBreakdown: [],
         depositDueDate: null, balanceDueDate: null, nights: 1, error: null,
       };
     },

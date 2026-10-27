@@ -149,6 +149,17 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
 - Stay dates extended BETWEEN deposit-paid and balance-paid: `accommodationAcompteContribTtc` is frozen; `accommodationSoldeContribTtc = currentAccommodationTtc − accommodationAcompteContribTtc` at balance-paid → absorbs the extension. Clean.
 - `paidSnapshotDeposit > paidSnapshotBalance` (impossible in practice — would require shrinking between payments). The `max(0, …)` clamp prevents negative contributions; conservation invariant test catches any drift.
 - Item removed AFTER balance-paid (e.g. refund): contribs stay (they represent what WAS in the entry). Complement = `currentTotalPrice − contribs` becomes negative → clamped to 0. The conservation invariant breaks (acompte+solde now > current item value); the engine emits a warning in the server log so the operator knows to manually correct.
+18. **Fixed at the 2026-10-27 spec review — the complement is stored at creation.** `insertReservation`
+    had no `complementAmount` column: a stay created with a line routed to the complement (Ménage 80 €)
+    stored 0 while the engine had taken the line out of the acompte and the solde, so the SAS read
+    « Rien à percevoir » until the first re-save. The INSERT now writes `quote.complementAmount`. A
+    one-shot boot repair (`created_complement_amount_repaired_v1`, `utils/createdComplementRepair.js`)
+    restores the rows that lost it, and only those: reservation, not cancelled, created on the fiche,
+    complement unpaid / 0 / not adjusted, arrival SAS not done, never saved since creation, and
+    `finalPrice − acompte − solde` equal to the routed lines (+ the tax when it is routed). Each repair
+    is logged at boot and written to the reservation's history. The iCal import is unpriced by design
+    and a devis conversion copies the devis row (whose lines are pinned out of the complement unless the
+    operator flagged them): both re-price on their first save.
 
 ---
 
@@ -323,6 +334,7 @@ For the duplicated line label (`Option B (+1)`), the engine returns the `quantit
 - [ ] Mobile (`xs`) → checkbox column reachable; summary splits readably.
 
 ---
+- Spec review 2026-10-27 (rule 18): `server/src/tests/created-stay-complement-amount.unit.test.js` (3 tests — complement stored at creation, boot repair limited to the proven rows and idempotent, unproven gap left alone).
 
 ## 8. Out of scope
 

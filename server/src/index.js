@@ -287,6 +287,7 @@ app.get('/api/version', require('./controllers/versionController').buildVersionH
 const settingsModelForFavicon = require('./models/settingsModel');
 const { uploadsDir: faviconUploadsDir } = require('./middleware/multerLogoUpload');
 const { buildFaviconHandler } = require('./middleware/dynamicFavicon');
+const { bodyParserRefusal } = require('./utils/bodyParserRefusal');
 const dynamicFavicon = buildFaviconHandler({
   settingsModel: settingsModelForFavicon,
   uploadsDir: faviconUploadsDir,
@@ -320,6 +321,10 @@ app.use('/api', (req, res) => {
 // SQL fragment or a token. It is logged server-side and the caller gets a stable, opaque shape.
 // eslint-disable-next-line no-unused-vars -- `next` is required for express to see this as an error handler
 app.use((err, req, res, next) => {
+  // A body the JSON parser refuses is the caller's mistake, not a crash: a 400 that says so, not an
+  // « Erreur interne » logged as unhandled (specs/express-5-upgrade.md rule 7).
+  const refusal = bodyParserRefusal(err);
+  if (refusal && !res.headersSent) return res.status(refusal.status).json(refusal.body);
   console.error(`[unhandled] ${req.method} ${req.originalUrl}`, err);
   if (res.headersSent) return;
   res.status(err && Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500)

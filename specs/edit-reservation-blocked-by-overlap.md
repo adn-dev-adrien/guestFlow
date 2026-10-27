@@ -51,6 +51,14 @@ the reservation **into** a conflict (changing dates/place/occupancy) still valid
 4. Moving a reservation **into** a conflict (changed placement → overlap) is still rejected (409);
    increasing occupancy beyond capacity (changed occupancy) is still rejected (400). The min-nights
    and past-reservation guards are untouched.
+5. **Fixed at the 2026-10-27 spec review — times and cots are really compared.** The server compared
+   property + dates only, and so did the fiche: a departure moved to 18:00 with the next guest arriving
+   at 15:00 (+ 3 h of cleaning) was saved, while the same booking was refused at creation. Rule 1 now
+   holds on both sides. The server compares each time on its **effective** value — the stored time, or
+   the property's `defaultCheckIn` / `defaultCheckOut` when an older iCal row stored NULL — so the fiche
+   filling a NULL with the property default is not a move. `babyBeds` joins the occupancy comparison of
+   rule 2 whenever a count is stored (a NULL count, from an import, is « not set » and does not trigger
+   the guard). Client: `isPlacementUnchanged` in `utils/reservationConflicts.js`.
 
 **Edge cases:**
 - Finance-only edit (platform payment, client, notes, payment flags) on an overlapping/over-capacity
@@ -102,6 +110,7 @@ conflict still shows the existing blocking dialog.
       saved → **no** « Conflit » dialog, save navigated away, reopen shows `platformGrossAmount = 655`.
       (Before the fix: « Conflit de réservation » blocked the save with no PUT.)
 - [ ] Changing its dates onto another booking → « Conflit de réservation » still blocks (guard runs).
+- Spec review 2026-10-27 (rule 5): `server/src/tests/reservation-time-change-overlap.unit.test.js` (4 tests — later departure, earlier arrival, NULL-time import not seen as moved, cot increase checked) and `client/src/utils/__tests__/reservationConflicts.placement-times.test.js` (5 tests).
 
 ## 8. Out of scope
 

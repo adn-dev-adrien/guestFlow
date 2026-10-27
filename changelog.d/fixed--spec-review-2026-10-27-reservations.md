@@ -1,0 +1,12 @@
+- Reservation fiche: changing only the check-in or check-out time now re-runs the overlap check (fiche and server), so a late departure that blocks the next arrival is refused like at creation; a baby-bed increase re-runs the baby-bed check.
+- A stay created with a line routed to the arrival complement now stores that complement; the SAS no longer reads « Rien à percevoir » for it.
+- Saving a fiche no longer re-prices a tourist tax already collected (the save pins it like the live quote does).
+- The tariff snapshot is refreshed on every save that rewrites the nights, so a notes-only save after an extension or an arrival move no longer moves the price.
+- Saving a started stay no longer fails after the property's default caution changed, and the first save no longer writes a phantom « Caution 0 € → 500 € » history row.
+- The acompte deadline is cleared when the acompte becomes 0 €, and is never due after the solde (stays booked 31-36 days ahead).
+- Setting or clearing a hand-typed acompte now leaves an « Acompte saisi » history row.
+- Money/percentage refusals of the reservation endpoints answer in French, with the machine code in `code`.
+- A reservation created without times takes the property's default check-in/check-out times.
+- The « no linen → no bed counts » invariant reads the lines the engine kept, not the payload.
+- A reservation number held by any row (devis included) is refused with the French 400 instead of failing on the unique index.
+- A malformed JSON request body answers 400 « Requête invalide : le corps JSON est mal formé. » instead of « Erreur interne du serveur ».

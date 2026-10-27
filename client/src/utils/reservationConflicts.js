@@ -27,6 +27,20 @@ function getEffectiveReservationBounds(reservation) {
   return { occupiedStartDate, occupiedEndDate };
 }
 
+/**
+ * Did an edit leave the stay where it was? Same logement, same dates, same check-in / check-out times
+ * (specs/edit-reservation-blocked-by-overlap.md rules 1 and 5): a time change moves the block window
+ * as surely as a date does, so it re-runs the overlap check. The loaded form already holds the
+ * property defaults for a stay stored without times, so the comparison is like with like.
+ */
+export function isPlacementUnchanged({ loadedProp, loadedForm, selectedProp, form }) {
+  if (!loadedForm || !form) return false;
+  return Number(loadedProp) === Number(selectedProp)
+    && loadedForm.startDate === form.startDate && loadedForm.endDate === form.endDate
+    && (loadedForm.checkInTime || '') === (form.checkInTime || '')
+    && (loadedForm.checkOutTime || '') === (form.checkOutTime || '');
+}
+
 export function getBlockedNightConflictInfo(dateStr, reservations = []) {
   const nextDateStr = shiftDate(dateStr, 1);
   const prevDateStr = shiftDate(dateStr, -1);
