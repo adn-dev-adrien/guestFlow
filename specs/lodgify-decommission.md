@@ -841,3 +841,31 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *Tent.* Blocked by Abritel itself: « Nous avons besoin de plus d'informations sur votre
     annonce. Veuillez nous contacter » over its calendar, and « Expirée – aucun abonnement actif ».
     Nothing done on it; prices still at 9 999 €; support to be written to.
+
+- 2026-10-26 (afternoon and evening) — **Lodgify cut entirely, subscription cancelled.** The
+  operator asked that nothing go through Lodgify any more, ahead of §10 step 8's 72-hour watch:
+  every channel already had its own sync path, and Abritel's dynamic pricing was the last open item.
+  - *Abritel dynamic pricing.* Switched on by Abritel on the gîte after its reactivation, without
+    being asked. The operator turned it off from MarketMaker once support had answered. Read back
+    afterwards: 432 days, 0 difference from the grid. Support also confirmed the rates: **8 % + VAT
+    until 2026-10-28, 12 % VAT included from 2026-10-29** (the deadline above stands). The tent was
+    unblocked by support; reactivating it is left to the operator.
+  - *Export first.* Every Lodgify booking was exported to CSV and archived outside the repository:
+    41 bookings (December 2025 → 15/10/2026) and 24 more in the bin. The export URL
+    (`/oh/PropertyOwner/QuoteReport?filter=<base64 JSON>`) only answers a real browser download;
+    a scripted request gets a Cloudflare 403. The last Lodgify booking (15/10) is Booking #22324,
+    already in GuestFlow: nothing was missing.
+  - *Cut, channel by channel.* The Airbnb tent listing's « Lodgify » calendar import was removed
+    (AbracadaRoom, GreenGO and GuestFlow remain; the gîte imports GuestFlow only). Google Vacation
+    Rentals: both properties « Non publié ». The Lodgify website was taken offline (« Site web
+    introuvable »). Both GuestFlow Lodgify sources had been inactive since 2026-10-15. Vrbo still
+    shows « Synchronisé » in Lodgify, but Vrbo had already cut it on its side; the cancellation
+    ends it.
+  - *Subscription.* Cancellation requested from Paramètres → Facturation. The plan was two years,
+    already paid until 2027-11-26. Billing still read « Actif » that evening: check it again before
+    considering the step done.
+  - *Consequence: Google.* The Solio properties no longer appear in Google's « Locations de
+    vacances » results. A lodging Business Profile has no booking-link field, so the only way back
+    is a direct Google Vacation Rentals connection. The interest form was sent on 2026-10-26, and
+    GuestFlow's feed is the `google-vacation-rentals` plugin (`specs/google-vacation-rentals-feed.md`,
+    §11 holds the steps to resume when Google answers).
