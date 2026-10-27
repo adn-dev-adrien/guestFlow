@@ -24,10 +24,21 @@ import api from '../api';
 import TableCard from './TableCard';
 import LoadingState from './LoadingState';
 import EmptyState from './EmptyState';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatCurrencyRounded, formatPercent } from '../utils/formatters';
+import { formatPlatformLabel } from '../constants/platforms';
 
-// Whole-euro display (the server already ceils): 190 → « 190 € », never « 190,00 € ».
-const euro = (value) => (value == null ? '—' : `${value} €`);
+// Whole-euro display (the server already ceils): 1075 → « 1 075 € », never « 1 075,00 € ».
+const euro = (value) => (value == null ? '—' : formatCurrencyRounded(value));
+// A money cell never breaks between the figure and « € » (2026-10-27 audit: « 1075 / € »).
+const NOWRAP = { whiteSpace: 'nowrap' };
+// The channel column stays in view while the seasons scroll sideways (a recipe with six seasons
+// does not fit beside the drawer once the amounts stop wrapping).
+const STICKY_FIRST = {
+  position: 'sticky',
+  left: 0,
+  zIndex: 1,
+  bgcolor: 'background.paper',
+};
 
 export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
   const [data, setData] = useState({ platforms: [], seasons: [] });
@@ -62,11 +73,11 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
     const tiered = [...new Set(seasons
       .map((s) => s.extraGuestTiersByPlatform?.[platformId])
       .filter(Boolean)
-      .map((tiers) => tiers.map((t, i) => (i === 0 ? `${t.price} €` : `puis ${t.price} €`)).join(' ')))];
+      .map((tiers) => tiers.map((t, i) => (i === 0 ? euro(t.price) : `puis ${euro(t.price)}`)).join(' ')))];
     if (tiered.length) return tiered.join(' / ');
     const values = [...new Set(seasons.map((s) => s.extraGuestByPlatform?.[platformId]).filter((v) => v != null))];
     if (values.length === 0) return '—';
-    return values.map((v) => `${v} €`).join(' / ');
+    return values.map((v) => euro(v)).join(' / ');
   };
 
   return (
@@ -99,15 +110,15 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
         )}
 
         {!loading && hasCommissioned && seasons.length > 0 && (
-          <TableCard minWidth={480}>
+          <TableCard minWidth={480} cardSx={{ '& .MuiTableCell-root': { px: 1 }, '& .MuiTableCell-root:first-of-type': { pl: 2 } }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>Canal</TableCell>
-                  <TableCell align="right" sx={{ width: 120 }}>Commission</TableCell>
+                  <TableCell sx={STICKY_FIRST}>Canal</TableCell>
+                  <TableCell align="right">Commission</TableCell>
                   {seasons.map((s) => (
                     <TableCell key={s.ruleId} align="right">
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.label}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ ...NOWRAP, display: 'block' }}>
                         net {formatCurrency(s.netPerNight)}
                       </Typography>
                     </TableCell>
@@ -119,21 +130,21 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
               <TableBody>
                 {platforms.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: p.isDirect ? 700 : 500 }}>{p.name}</Typography>
+                    <TableCell sx={STICKY_FIRST}>
+                      <Typography variant="body2" sx={{ fontWeight: p.isDirect ? 700 : 500 }}>{formatPlatformLabel(p.name)}</Typography>
                       {p.isDirect && p.directVia?.length > 0 && (
                         <Typography variant="caption" color="text.secondary">{p.directVia.join(', ')}</Typography>
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="body2" aria-label={`Commission ${p.name}`}>{`${Number(p.commissionPercent ?? 0)} %`}</Typography>
+                      <Typography variant="body2" sx={NOWRAP} aria-label={`Commission ${formatPlatformLabel(p.name)}`}>{formatPercent(p.commissionPercent ?? 0)}</Typography>
                     </TableCell>
                     {seasons.map((s) => (
-                      <TableCell key={s.ruleId} align="right" sx={{ fontWeight: 600 }}>
+                      <TableCell key={s.ruleId} align="right" sx={{ fontWeight: 600, ...NOWRAP }}>
                         {euro(s.byPlatform?.[p.id])}
                       </TableCell>
                     ))}
-                    <TableCell align="right">{extraGuestCell(p.id)}</TableCell>
+                    <TableCell align="right" sx={NOWRAP}>{extraGuestCell(p.id)}</TableCell>
                     {hasCleaningFee && (
                       <TableCell align="right">
                         {p.cleaningFee == null ? '—' : (

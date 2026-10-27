@@ -107,7 +107,7 @@ const theme = createTheme({
     },
     MuiButton: {
       styleOverrides: {
-        root: { textTransform: 'none', fontWeight: 500, [COARSE_POINTER]: { minHeight: TOUCH_TARGET } },
+        root: { textTransform: 'none', fontWeight: 500, [COARSE_POINTER]: { minHeight: TOUCH_TARGET, minWidth: TOUCH_TARGET } },
       },
     },
     // Touch targets (specs/ds-components.md rule 21): on a finger-driven screen every icon button,

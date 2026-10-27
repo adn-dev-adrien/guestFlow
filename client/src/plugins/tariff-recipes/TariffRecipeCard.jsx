@@ -43,7 +43,7 @@ const frDate = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-FR',
  * property-level inclusions the recipe deliberately does not own (spec §3.1 rule 6), so the two
  * halves of the deal read in one place instead of being spread across three screens.
  */
-function recipeHighlights(recipe, rateInclusions, missingEvents) {
+function recipeHighlights(recipe, rateInclusions, missingEvents, labels) {
   if (!recipe) return [];
   const out = [];
   const seasons = recipe.seasons || [];
@@ -59,11 +59,11 @@ function recipeHighlights(recipe, rateInclusions, missingEvents) {
     });
   }
 
-  const table = recipe.lengthOfStayDiscounts || [];
-  if (table.length) {
+  // Server-formatted (a recipe may hold an exact 3/7 discount): never print the raw number.
+  if (labels?.lengthOfStayDiscounts) {
     out.push({
       label: 'Dégressivité',
-      value: `${table.map((r) => `${r.nights} nuits −${r.discountPct} %`).join(' · ')}. Au-delà, le prix de la dernière nuit déclarée se prolonge.`,
+      value: `${labels.lengthOfStayDiscounts}. Au-delà, le prix de la dernière nuit déclarée se prolonge.`,
     });
   }
 
@@ -192,6 +192,7 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
   const [busy, setBusy] = useState(false);
   const [activeDocument, setActiveDocument] = useState(null);
   const [missingEvents, setMissingEvents] = useState([]);
+  const [labels, setLabels] = useState(null);
 
   useEffect(() => { setSelectedId(activeRecipeId || ''); }, [activeRecipeId]);
 
@@ -206,14 +207,15 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
         // Server-computed (spec §3.3): the property card and the Dashboard alert must not disagree
         // about which years are missing, so neither of them derives it.
         setMissingEvents(res?.missingEvents || []);
+        setLabels(res?.labels || null);
       })
-      .catch(() => { if (!cancelled) { setActiveDocument(null); setMissingEvents([]); } });
+      .catch(() => { if (!cancelled) { setActiveDocument(null); setMissingEvents([]); setLabels(null); } });
     return () => { cancelled = true; };
   }, [activeRecipeId]);
 
   const highlights = useMemo(
-    () => recipeHighlights(activeDocument, rateInclusions, missingEvents),
-    [activeDocument, rateInclusions, missingEvents]
+    () => recipeHighlights(activeDocument, rateInclusions, missingEvents, labels),
+    [activeDocument, rateInclusions, missingEvents, labels]
   );
 
   const load = useCallback(async () => {

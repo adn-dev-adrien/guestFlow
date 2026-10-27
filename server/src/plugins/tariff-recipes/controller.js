@@ -3,6 +3,7 @@
 // the scheduled-run journal the Dashboard consumes.
 
 const { missingEventYears } = require('./seasonPlan');
+const { lengthOfStayDiscountsLabel } = require('./labels');
 
 // deps: { db, store(), model(), properties(), journal(), announce(propertyId) } — injected by the
 // plugin's register. `announce` emits `pricing.changed` (specs/google-vacation-rentals-feed.md rule 12).
@@ -29,7 +30,8 @@ function createController({ db, store: getStore, model: getModel, properties, jo
     // in the client so the property card and the Dashboard alert cannot disagree about what is missing.
     const fromYear = new Date().getFullYear();
     const missingEvents = missingEventYears(recipe, fromYear, fromYear + (recipe.horizonYears || 2) - 1);
-    return res.json({ recipe, meta: getStore().getRecipeMeta(req.params.id), missingEvents });
+    const labels = { lengthOfStayDiscounts: lengthOfStayDiscountsLabel(recipe) };
+    return res.json({ recipe, meta: getStore().getRecipeMeta(req.params.id), missingEvents, labels });
   }
 
   function previewForProperty(req, res) {

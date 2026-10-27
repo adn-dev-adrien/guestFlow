@@ -86,7 +86,7 @@ test('platforms but no seasons → seasons hint', async () => {
 test('the commission is shown read-only, with a link to the Plateformes page', async () => {
   api.getPlatformPrices.mockResolvedValue(GRID);
   render(<PlatformPriceCard propertyId={1} />);
-  expect(await screen.findByLabelText('Commission Airbnb')).toHaveTextContent('15.5 %');
+  expect(await screen.findByLabelText('Commission Airbnb')).toHaveTextContent('15,5 %');
   expect(screen.getByLabelText('Commission Direct')).toHaveTextContent('5 %');
   expect(screen.queryByRole('spinbutton')).toBeNull();
   expect(screen.getByRole('link', { name: 'Plateformes' })).toHaveAttribute('href', '/settings/plateformes');

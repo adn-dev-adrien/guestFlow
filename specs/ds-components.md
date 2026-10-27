@@ -184,6 +184,22 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
   changes.
 - NotFound route must stay AFTER all real routes; accountant role sees it too (no role gate on 404).
 
+26. **A wide table follows its container, not only the viewport** (2026-10-27 audit).
+    `ResponsiveTable` takes `cardsBelowWidth`: the cards replace the table whenever the CONTAINER is
+    narrower than that many pixels (measured with a `ResizeObserver`; an unknown 0 width keeps the
+    table). The Dashboard day lists use it — next to the 240 px drawer the arrivals table hid Note /
+    Paiements / Caution in a scroller at 900 and 1280.
+27. **Soft chips keep their own shape.** `softChipSx(status)` (exported by `StatusBadge`) gives a
+    Chip the soft background + dark text of the status tokens while it keeps its own height and
+    radius — the ARRIVÉE / DÉPART pills and the « Linge de lit non pris », « Caution à percevoir »,
+    « Complément » chips of the planning cards were filled semantic Chips, forbidden by
+    design-system §3.1.
+28. **A short text button is 44 px wide on touch too** (2026-10-27 audit, extends rule 21). The theme's
+    coarse-pointer rule gives `MuiButton` a 44 px `min-width` as well as its `min-height` (« Détail »
+    measured 33 × 44). Measured at 390 px with touch emulation, the other controls the audit listed
+    (top-bar and date-nav icon buttons, checkboxes, SAS « Fiche », guest-name links) already reach
+    44 px through rule 21 and the link hit area; the fiche's client chip gets a 44 px minimum height.
+
 ---
 
 ## 4. Architecture
@@ -229,6 +245,11 @@ and `utils/deploymentPaths.js` (server). No new generic component: the fixes liv
 ### 4.3 API contract
 
 Unchanged.
+
+- **2026-10-27 audit (rules 26-28):** `components/ResponsiveTable.jsx` (`cardsBelowWidth`),
+  `components/StatusBadge.jsx` (`softChipSx`), `theme.js` (Button touch width), and their consumers
+  `pages/Dashboard.jsx`, `components/ReservationCard.jsx`, `components/DepartureMiniRow.jsx`,
+  `pages/ReservationPage.jsx` (client chip).
 
 ---
 
@@ -287,6 +308,9 @@ No schema change, no migration.
 - [x] ConfirmDialog at xs: `paperFullScreen` AND truly covers the viewport (390/390) — required a
   theme patch: the phase-1 mobile Dialog margin shrank fullScreen papers by 16 px; now scoped with
   `'&.MuiDialog-paperFullScreen'` (theme.js).
+
+- **2026-10-27 audit (rules 26-28):** `ResponsiveTable.container-width.test.jsx` (3),
+  `ReservationCard.soft-chips.test.jsx` (2), `touchTargets.button-width.test.jsx` (1).
 
 ## 8. Out of scope
 

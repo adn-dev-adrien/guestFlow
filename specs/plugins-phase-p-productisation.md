@@ -481,6 +481,10 @@ Decisions taken on 2026-10-06:
     navigates with the router state `{ reopen: true }` (rule 22); any other visit of `/demarrage` is
     redirected to `/`. Step 1 no longer changes the login implicitly
     (`specs/hosting-h2-account-security.md` rule 37).
+47. **The assistant's fields keep even gaps** (2026-10-27 audit). No blank helper line is reserved under
+    a field any more: a message shows when there is one, and steps 1 and 2 use the same 16 px gap as
+    the property grid. The reserved lines, added to the stack's and the grid's own gaps, gave uneven
+    spacing from one field to the next.
 
 ## 4. Architecture
 
@@ -737,6 +741,7 @@ the onboarding suites keep passing unchanged.
 kept, stored acompte kept, new stay direct, past fiche saved);
 `tests/counts-as-direct-tourist-tax-routing.unit.test.js` (3, rule 45: engine = export = SAS);
 `client/src/components/__tests__/PricingSummary.counts-as-direct.test.jsx` (2, rule 45).
+- **2026-10-27 audit (rule 47):** `OnboardingPage.spacing.test.jsx` (1 test).
 
 ## 8. Out of scope
 

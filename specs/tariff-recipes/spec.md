@@ -572,6 +572,17 @@ all-inclusive pricing as the first such recipe.
     la nuit du … ») and lets the operator decide. `pricing.hasUnpricedNights(quote)` is the core helper
     the public quote and booking paths use to refuse such a stay (website-booking plugin, lot 4 of
     the audit).
+### 3.12 Display fixes (2026-10-27 audit)
+
+60. **The recipe card's degressivity is a server label.** `GET /api/tariff-recipes/:id` returns
+    `labels.lengthOfStayDiscounts` (`labels.js`), « 2 nuits −0 % · … · 7 nuits −42,9 % »: French
+    decimal comma, one decimal at most. A recipe may hold an exact fraction (the gîte's 3/7 =
+    42,857 %); the card printed it raw (« −42.857142857142854 % ») and no longer formats it itself.
+61. **The recipes page lines up with every other page.** Its `PageActionBar` sits outside the padded
+    content (it was 24 px lower and narrower than elsewhere), « Journal des changements » uses the
+    `sectionHeader` role, and a shipped recipe's `label` / `description` never carries Markdown
+    backticks (the gîte's « `welcomePack.cost` » now reads « le levier du pack accueil »; the
+    recipe version is unchanged — no price moves).
 
 ---
 
@@ -593,6 +604,8 @@ Full code map in [architecture.md](architecture.md). Summary:
 `mergeNightlyBreakdownWithLocked` gated on the arrival date and returning the locked dates (57),
 `extraGuestNightSeason` + `tariffSnapshot.extraGuestNights` (58), `unpricedNights` /
 `hasUnpricedNights` (59). `client/src/components/PricingSummary.jsx` renders the rule-59 warning.
+- **2026-10-27 audit:** `server/src/plugins/tariff-recipes/labels.js` (new) formats the card's
+  degressivity label; `controller.getOne` adds `labels` to its payload (rule 60).
 
 ## 5. Data model
 
@@ -759,6 +772,8 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 `tests/pricing-unpriced-nights.unit.test.js` (3, rule 59),
 `client/src/components/__tests__/PricingSummary.unpriced-nights.test.jsx` (3, rule 59);
 `tests/tariff-frozen-on-sold-reservation.unit.test.js` now expects `extraGuestNights` in the snapshot.
+- **2026-10-27 audit (rules 60-61):** `tariff-recipe-card-labels.unit.test.js` (5 server tests),
+  `TariffRecipeCard.degressivity-label.test.jsx` (1) and `TariffRecipesPage.layout.test.jsx` (2).
 
 ## 8. Out of scope
 

@@ -51,6 +51,7 @@ import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
 import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPrefill';
+import { COARSE_POINTER, TOUCH_TARGET } from '../utils/touchHitArea';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
 import useWelcomePack from '../hooks/useWelcomePack';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
@@ -3591,6 +3592,8 @@ export default function ReservationPage() {
                       sx={{
                         display: 'inline-flex', alignItems: 'center', gap: 0.75, width: 'fit-content', maxWidth: '100%',
                         cursor: 'pointer', px: 1.25, py: 0.75, borderRadius: 2, mt: -0.25,
+                        // 35 px tall: a finger needs 44 (specs/ds-components.md rule 21, 2026-10-27 audit).
+                        [COARSE_POINTER]: { minHeight: TOUCH_TARGET },
                         bgcolor: (t) => alpha(t.palette.primary.main, 0.08),
                         border: '1px solid',
                         borderColor: (t) => alpha(t.palette.primary.main, 0.22),

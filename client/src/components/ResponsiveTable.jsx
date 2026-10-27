@@ -14,9 +14,13 @@
  *   onItemClick?:     (item) => void              row/card click (adds pointer cursor)
  *   cardsBelow?:      'sm' | 'md' | 'lg'          breakpoint under which the cards replace the table
  *                                                 (default 'sm'; a wide table raises it)
+ *   cardsBelowWidth?: number                      the cards also replace the table whenever the
+ *                                                 CONTAINER is narrower than this (px) — a wide table
+ *                                                 next to the drawer must not hide its last columns
+ *                                                 in a scroller nobody notices (2026-10-27 audit)
  */
-import React from 'react';
-import { Card, CardContent, Stack, TableBody, TableHead, useMediaQuery } from '@mui/material';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { Box, Card, CardContent, Stack, TableBody, TableHead, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import TableCard from './TableCard';
 import EmptyState from './EmptyState';
@@ -32,14 +36,33 @@ export default function ResponsiveTable({
   size = 'small',
   onItemClick,
   cardsBelow = 'sm',
+  cardsBelowWidth,
 }) {
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down(cardsBelow));
+  const containerRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
-  if (!items.length) return <EmptyState message={emptyText} py={4} />;
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!cardsBelowWidth || !el) return undefined;
+    const measure = () => setContainerWidth(el.getBoundingClientRect().width);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [cardsBelowWidth]);
 
-  if (isXs && renderMobileCard) {
-    return (
+  // A zero width (jsdom, a hidden tab) is « unknown », not « narrow ».
+  const tooNarrow = Boolean(cardsBelowWidth) && containerWidth > 0 && containerWidth < cardsBelowWidth;
+  const showCards = (isXs || tooNarrow) && Boolean(renderMobileCard);
+
+  let content;
+  if (!items.length) {
+    content = <EmptyState message={emptyText} py={4} />;
+  } else if (showCards) {
+    content = (
       <Stack spacing={1.5}>
         {items.map((item) => (
           <Card
@@ -54,12 +77,15 @@ export default function ResponsiveTable({
         ))}
       </Stack>
     );
+  } else {
+    content = (
+      <TableCard minWidth={minWidth} size={size}>
+        <TableHead>{head}</TableHead>
+        <TableBody>{items.map((item) => renderRow(item))}</TableBody>
+      </TableCard>
+    );
   }
 
-  return (
-    <TableCard minWidth={minWidth} size={size}>
-      <TableHead>{head}</TableHead>
-      <TableBody>{items.map((item) => renderRow(item))}</TableBody>
-    </TableCard>
-  );
+  if (!cardsBelowWidth) return content;
+  return <Box ref={containerRef} sx={{ minWidth: 0 }}>{content}</Box>;
 }

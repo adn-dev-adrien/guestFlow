@@ -3,7 +3,14 @@
 
 const { MONTH_NAMES } = require('./financeWindow');
 
-const eur = (n) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round(Number(n) || 0))} €`;
+// Whole euros grouped with a REGULAR space, exactly like the client's `formatCurrencyRounded` that
+// draws the tiles beside these lines. Intl's narrow no-break space (U+202F) renders next to nothing
+// in the app font, so « 1 300 € » read « 1300 € » under a tile saying « 1 900 € » (2026-10-27 audit).
+const eur = (n) => {
+  const rounded = Math.round(Number(n) || 0);
+  const grouped = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${rounded < 0 ? '-' : ''}${grouped} €`;
+};
 const pct = (x) => `${Math.round(x * 100)} %`;
 const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // Guillemets held to their word by a narrow no-break space: « tuile « » never wraps after the «.

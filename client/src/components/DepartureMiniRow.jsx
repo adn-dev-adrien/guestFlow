@@ -36,6 +36,7 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import ChecklistIcon from '@mui/icons-material/Checklist';
+import { softChipSx } from './StatusBadge';
 import { sasLockTooltip, statusLockTooltip } from '../constants/receptionSasLock';
 
 const DEPARTURE_BG = grey[100]; // #F5F5F5 — quieter than the arrival peach on purpose.
@@ -120,35 +121,31 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
           {/* DÉPART badge — FlightTakeoff (plane lifting off) = symmetric counterpart
               to the ARRIVÉE Land icon. Same airport-board family, distinct silhouette. */}
           <Chip
-            icon={<FlightTakeoffIcon sx={{ fontSize: 18, color: 'white !important' }} />}
+            icon={<FlightTakeoffIcon sx={{ fontSize: 18 }} />}
             label="DÉPART"
             size="small"
-            sx={{
+            sx={[softChipSx(done ? 'success' : 'warning'), {
               height: 26,
               fontSize: 12,
               fontWeight: 800,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
               px: 0.5,
               '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
-            }}
+            }]}
           />
           {/* Time pill — symmetric with the arrival card (Adrien 2026-06-06). */}
           <Chip
-            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
+            icon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
             label={checkOutTime}
             size="small"
-            sx={{
+            sx={[softChipSx(done ? 'success' : 'warning'), {
               height: 22,
               fontSize: 13,
               fontWeight: 800,
               borderRadius: 1.5,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
               '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
-            }}
+            }]}
           />
-          {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
+          {done && <Chip label="Effectué" size="small" sx={[softChipSx('success'), { height: 20, fontSize: 11, fontWeight: 600 }]} />}
           <Box sx={{ flexGrow: 1 }} />
           {/* Actions top-right on tablet/desktop; on mobile they move to the bottom row below. */}
           {!isMobile && (

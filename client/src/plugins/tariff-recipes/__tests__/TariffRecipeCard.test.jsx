@@ -55,6 +55,7 @@ test('the particularities panel states the recipe deal in plain French', async (
       calendar: { modifiers: [{ type: 'public_holiday_bridge', amount: 1, minNights: 'block' }] },
       closures: [{ label: 'Fermeture hivernale', from: '10-15', to: '03-31' }],
     },
+    labels: { lengthOfStayDiscounts: '2 nuits −24 % · 7 nuits −45 %' },
   });
   render(
     <TariffRecipeCard

@@ -128,7 +128,7 @@ export default function TariffRecipesPage() {
   }, []);
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
+    <Box>
       <PageActionBar
         title="Recettes tarifaires"
         actionsBefore={[{
@@ -139,48 +139,50 @@ export default function TariffRecipesPage() {
         }]}
       />
 
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
-        Les saisons et tarifs des logements en mode automatique sont calculés à partir de ces
-        recettes, jours fériés compris.
-      </Typography>
-
-      {loadError && <ErrorAlert message="Impossible de charger les recettes." onRetry={load} />}
-      {!loadError && !data && <LoadingState py={4} label="Chargement…" />}
-
-      {data && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          {(data.invalid || []).map((invalid) => (
-            <ErrorAlert
-              key={`${invalid.source}-${invalid.file}`}
-              message={`Recette invalide (${invalid.source === 'local' ? 'locale' : 'livrée'} · ${invalid.file}) : ${invalid.error}`}
-            />
-          ))}
-          {(data.recipes || []).length === 0 && (data.invalid || []).length === 0 && (
-            <EmptyState icon={<MenuBookIcon />} py={6} message="Aucune recette tarifaire." />
-          )}
-          {(data.recipes || []).map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}
-        </Box>
-      )}
-
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>Journal des changements</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
-          Quand la grille a changé, et quand les voyageurs l'ont vu. La recette appliquée ici est
-          datée automatiquement ; la mise en ligne sur les plateformes se déclare à la main.
+      <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Les saisons et tarifs des logements en mode automatique sont calculés à partir de ces
+          recettes, jours fériés compris.
         </Typography>
 
-        {journalError && <ErrorAlert message="Impossible de charger le journal." onRetry={loadJournal} />}
-        {!journalError && !journal && <LoadingState py={4} label="Chargement…" />}
-        {!journalError && journal && (
-          <TariffChangeJournal
-            events={journal}
-            properties={properties}
-            declareOpen={declareOpen}
-            onDeclareClose={() => setDeclareOpen(false)}
-            onCreate={async (payload) => { await api.addTariffChangeEvent(payload); await loadJournal(); }}
-            onDelete={async (eventId) => { await api.deleteTariffChangeEvent(eventId); await loadJournal(); }}
-          />
+        {loadError && <ErrorAlert message="Impossible de charger les recettes." onRetry={load} />}
+        {!loadError && !data && <LoadingState py={4} label="Chargement…" />}
+
+        {data && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {(data.invalid || []).map((invalid) => (
+              <ErrorAlert
+                key={`${invalid.source}-${invalid.file}`}
+                message={`Recette invalide (${invalid.source === 'local' ? 'locale' : 'livrée'} · ${invalid.file}) : ${invalid.error}`}
+              />
+            ))}
+            {(data.recipes || []).length === 0 && (data.invalid || []).length === 0 && (
+              <EmptyState icon={<MenuBookIcon />} py={6} message="Aucune recette tarifaire." />
+            )}
+            {(data.recipes || []).map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}
+          </Box>
         )}
+
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="sectionHeader" component="h2">Journal des changements</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+            Quand la grille a changé, et quand les voyageurs l'ont vu. La recette appliquée ici est
+            datée automatiquement ; la mise en ligne sur les plateformes se déclare à la main.
+          </Typography>
+
+          {journalError && <ErrorAlert message="Impossible de charger le journal." onRetry={loadJournal} />}
+          {!journalError && !journal && <LoadingState py={4} label="Chargement…" />}
+          {!journalError && journal && (
+            <TariffChangeJournal
+              events={journal}
+              properties={properties}
+              declareOpen={declareOpen}
+              onDeclareClose={() => setDeclareOpen(false)}
+              onCreate={async (payload) => { await api.addTariffChangeEvent(payload); await loadJournal(); }}
+              onDelete={async (eventId) => { await api.deleteTariffChangeEvent(eventId); await loadJournal(); }}
+            />
+          )}
+        </Box>
       </Box>
     </Box>
   );

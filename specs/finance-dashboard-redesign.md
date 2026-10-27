@@ -336,6 +336,11 @@ without losing anything today's page shows.
 - A refund attributed to a month with no stay → the column is drawn at 0, the tooltip keeps the
   negative amount (as in 3.6.0).
 
+48. **The « faits marquants » write money like the tiles** (2026-10-27 audit). `financeInsights.eur`
+    groups thousands with a regular space — the client's `formatCurrencyRounded` — instead of Intl's
+    narrow no-break space, which renders as almost nothing in the app font: « 1300 € » under a tile
+    reading « 1 900 € ».
+
 ---
 
 ## 4. Architecture
@@ -617,6 +622,8 @@ par mois » and « Taux d'occupation » side by side.
 
 **Integrated review of inte/plugins (2026-10-19)** — rule 47: `components/__tests__/YearOverYearBadge.soft-tokens.test.jsx` (8: each badge tone,
 each insight tone, the channels token).
+
+- **2026-10-27 audit (rule 48):** `finance-insights-money-format.unit.test.js` (1 test).
 
 ## 8. Out of scope
 

@@ -137,9 +137,9 @@ confirmation — records the caution status and the complement(s) on the reserva
     **nothing can be billed** (the server drops the line whatever the client sends). The recap then reads
     « Ménage déjà réglé — aucune facturation de fin de séjour. » See
     [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.1.
-14.bis **Serviettes / draps manquants (always).** *« Des serviettes ou des draps sont-ils manquants ? »*
-    Buttons **Non** (→ next) / **Oui** (→ rule 14.ter).
-14.ter **Éléments manquants (only when 14.bis = « Oui »).** Lists **all** priced Blanchisserie items (bed +
+14.bis **Serviettes / draps manquants (always).** *« Les serviettes et les draps sont-ils tous là ? »* (worded « Des serviettes ou des draps sont-ils manquants ? » until the 2026-10-27 audit — rule 28)
+    Buttons **Non** (→ rule 14.ter) / **Oui** (→ next).
+14.ter **Éléments manquants (only when 14.bis = « Non », something is missing).** Lists **all** priced Blanchisserie items (bed +
     towel categories) with a **quantity** picker; `Σ (qty × price)` is **added to the end-of-stay
     complement** (§3.3). Button **Suivant**.
 15. **Réception des clés (always).** *« Avez-vous récupéré les clés ? »* Buttons **Oui** / **Non** (a
@@ -242,6 +242,13 @@ confirmation — records the caution status and the complement(s) on the reserva
 26. **Never blocks the commit.** The history is written after the money is committed and inside a
     try/catch: a failure there is logged, never surfaced as a failed check-in.
 27. **A commit that changed nothing writes no entry** (same contract as the fiche's `update`).
+
+28. **« Oui » never changes side** (2026-10-27 audit). Every yes/no page of the departure reads
+    « Non | Oui » (or « Pas OK | OK »), the reassuring answer filled and last. The missing-items
+    question is asked the positive way round — « Les serviettes et les draps sont-ils tous là ? »,
+    « Oui » = nothing missing, « Non » opens the missing-items page — because « Des serviettes ou des
+    draps sont-ils manquants ? » put a filled « Non » on the right and « Oui » on the left, the reverse
+    of the keys page that follows (rule 14.bis keeps its behaviour, only its wording turns).
 
 ---
 
@@ -447,6 +454,9 @@ existing reservations needed.
       « Rendue » marks returned.
 - [ ] Blanchisserie: add/edit linen element prices; they appear in the arrival linen-items page.
 - [ ] Mobile (`xs`): full-screen stepper, buttons stacked.
+
+- **2026-10-27 audit (rule 28):** `ReservationSasDialog.answer-positions.test.jsx` (1 test); the
+  departure suites answer the reworded question with « Oui ».
 
 ## 8. Out of scope
 

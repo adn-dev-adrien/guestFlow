@@ -71,7 +71,9 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [ONLINE_PAYMENT]: '/parametres/paiements',
   [GOOGLE_CALENDAR]: `${INTEGRATIONS}?tab=${GOOGLE_CALENDAR}`,
   [ACCOUNTING_EXPORT]: '/comptabilite/plateformes',
-  [SAS]: null,
+  // Its « Facturables au SAS » tab: without it the card had no button and looked empty beside the
+  // others (2026-10-27 audit).
+  [SAS]: '/parametres/options-ressources?tab=sas',
   [TARIFF_RECIPES]: '/parametres/recettes',
   [SCHOOL_HOLIDAYS]: '/parametres/vacances-fermetures',
   [WEATHER_ALERTS]: `${INTEGRATIONS}?tab=${WEATHER_ALERTS}`,

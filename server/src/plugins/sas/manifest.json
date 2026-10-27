@@ -62,6 +62,7 @@
     ],
     "1.7.0": [
       "Le champ « Code portail » de Paramètres › Établissement est dessiné par le plugin, avec sa recherche.",
+      "Départ : « Les serviettes et les draps sont-ils tous là ? » — « Oui » reste à droite sur toutes les questions.",
       "Compatible avec le SDK 2.6 de GuestFlow."
     ]
   }
