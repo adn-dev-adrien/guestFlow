@@ -78,7 +78,8 @@
     "1.8.0": [
       "Demandes du site : une vérification anti-robot (preuve de travail calculée par le navigateur, sans service extérieur) précède chaque demande. Elle s’allonge pour une adresse qui renvoie souvent et un peu pour tous lors d’un afflux, sans jamais refuser un client.",
       "Au plus 3 nouveaux devis par adresse e-mail sur 24 h ; au-delà, seule la mise à jour d’une demande en cours passe.",
-      "La même demande renvoyée (même e-mail, même logement, mêmes dates) met à jour le devis ouvert au lieu d’en créer un second : même numéro, même lien de paiement, ligne dans l’historique, et « Modifiée par le client après envoi » quand il avait été envoyé.",
+      "La même demande renvoyée (même e-mail, même logement, mêmes dates) met à jour un devis encore brouillon et jamais touché au lieu d’en créer un second (même numéro, ligne dans l’historique) ; un devis déjà ouvert, modifié ou envoyé ne change pas, seul le message du client s’ajoute à ses notes (« Message du client après envoi » s’il était envoyé). Le numéro et le lien de paiement ne sont jamais renvoyés à une demande qui ne les détient pas déjà.",
+      "Message limité à 2 000 caractères, et 10 messages ajoutés au plus par devis.",
       "Les demandes jamais ouvertes ni traitées sont supprimées 30 jours après leur arrivée, avec le client créé pour elles quand il n’a rien d’autre.",
       "Accueil : au-delà de 20 demandes en une heure, la carte le signale. Paramètres › Intégrations › Site : « Protection anti-robot inactive » tant que l’extension WordPress n’est pas à jour.",
       "Compatible avec le SDK 2.5 de GuestFlow."

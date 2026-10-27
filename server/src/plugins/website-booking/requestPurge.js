@@ -25,13 +25,16 @@ function namedElsewhere(db, clientId) {
 function runRequestPurge({ now = Date.now(), db = sdk.coreModule('database'), devisModel = sdk.coreModule('devisModel'), clientsModel = sdk.coreModule('clientsModel') } = {}) {
   requestStore.ensureTables(db);
   const cutoff = new Date(now - KEEP_DAYS * DAY_MS).toISOString().slice(0, 19).replace('T', ' ');
+  // 30 days from the guest's last request for the stay, not from the first one: a request updated
+  // yesterday is not an old one (review of PR #805).
   const candidates = db.prepare(`
-    SELECT id FROM reservations
-     WHERE kind = 'devis' AND requestOrigin = 'public'
-       AND COALESCE(devisStatus, 'draft') = 'draft'
-       AND convertedReservationId IS NULL
-       AND operatorSeenAt IS NULL
-       AND createdAt < ?
+    SELECT r.id FROM reservations r
+      LEFT JOIN public_request_stays s ON s.reservationId = r.id
+     WHERE r.kind = 'devis' AND r.requestOrigin = 'public'
+       AND COALESCE(r.devisStatus, 'draft') = 'draft'
+       AND r.convertedReservationId IS NULL
+       AND r.operatorSeenAt IS NULL
+       AND COALESCE(s.lastRequestAt, r.createdAt) < ?
   `).all(cutoff).map((r) => r.id);
 
   let deleted = 0;

@@ -159,3 +159,59 @@ test('versionAtLeast reads semver, not text', () => {
   assert.equal(proof.versionAtLeast('1.9.9', '1.18.0'), false);
   assert.equal(proof.versionAtLeast('', '1.18.0'), false);
 });
+
+// ── review of PR #805 — rules 23 (prefetched challenges) and 24 (sticky enforcement) ────────────
+
+test('rule 23: challenges fetched ahead raise the next one — the fiftieth is not cheap', () => {
+  reset();
+  db.exec('DELETE FROM public_request_issued');
+  const difficulties = [];
+  for (let i = 0; i < 6; i += 1) {
+    const r = res();
+    proof.issueChallenge({ visitor: visitor('203.0.113.7'), body: {}, query: {} }, r);
+    difficulties.push(r.body.data.difficulty);
+  }
+  assert.deepEqual(difficulties, [12, 14, 16, 18, 20, 22]);
+});
+
+test('rule 23: a challenge issued before a flood, or before the address spent others, is refused as too easy', async () => {
+  reset();
+  db.exec('DELETE FROM public_request_issued');
+  lastSeen = '1.18.0';
+  const cheap = res();
+  proof.issueChallenge({ visitor: visitor('203.0.113.8'), body: {}, query: {} }, cheap);
+  const c = cheap.body.data;
+  assert.equal(c.difficulty, 12);
+  const nonce = challenge.solve(c);
+  for (let i = 0; i < 45; i += 1) store.logRequest(`10.0.0.${i}`);
+  await new Promise((resolve) => { setTimeout(resolve, 3100); });
+  const refused = post({ challenge: c, nonce }, '203.0.113.8');
+  assert.equal(refused.passed, false);
+  assert.equal(refused.r.body.error.details[0].issue, 'tooEasy');
+
+  // The drawer's retry: a fresh challenge carries the surcharge of now and goes through.
+  const fresh = res();
+  proof.issueChallenge({ visitor: visitor('203.0.113.8'), body: {}, query: {} }, fresh);
+  assert.ok(fresh.body.data.difficulty >= 16);
+  await new Promise((resolve) => { setTimeout(resolve, 3100); });
+  assert.equal(post({ challenge: fresh.body.data, nonce: challenge.solve(fresh.body.data) }, '203.0.113.8').passed, true);
+});
+
+test('rule 24: once a solving plugin was seen, an older reported version never lifts the proof', () => {
+  reset();
+  let since = '';
+  const orig = { since: settings.proofEnforcedSince, mark: settings.markProofEnforced };
+  settings.proofEnforcedSince = () => since;
+  settings.markProofEnforced = () => { since = '2026-10-27T10:00:00Z'; };
+  try {
+    lastSeen = '';
+    proof.issueChallenge({ visitor: visitor('81.250.12.4', '1.18.0'), body: {}, query: {} }, res());
+    assert.ok(since, 'stamped');
+    lastSeen = '1.17.1';
+    assert.equal(proof.proofEnforced(), true);
+    assert.equal(post({}).passed, false);
+  } finally {
+    settings.proofEnforcedSince = orig.since;
+    settings.markProofEnforced = orig.mark;
+  }
+});

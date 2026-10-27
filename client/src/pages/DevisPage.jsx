@@ -194,8 +194,8 @@ export default function DevisPage() {
     <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
       <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
       {d.expired && <StatusBadge status="warning" label="Périmé" />}
-      {/* specs/public-request-abuse-and-grouping.md rule 14 — the guest changed it after it was sent. */}
-      {d.publicUpdatedAfterSendAt && <StatusBadge status="warning" label="Modifiée par le client après envoi" />}
+      {/* specs/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
+      {d.publicUpdatedAfterSendAt && <StatusBadge status="warning" label="Message du client après envoi" />}
     </Stack>
   );
 

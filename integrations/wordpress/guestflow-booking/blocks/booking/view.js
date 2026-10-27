@@ -878,7 +878,8 @@
     f.lastName = GF.el('input', { type: 'text', autocomplete: 'family-name', enterkeyhint: 'next' });
     f.email = GF.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', autocapitalize: 'none', enterkeyhint: 'next' });
     f.phone = GF.el('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', enterkeyhint: 'next' });
-    f.message = GF.el('textarea', { rows: '3' });
+    // GuestFlow refuses a message over 2 000 characters (specs/public-request-abuse-and-grouping.md rule 22).
+    f.message = GF.el('textarea', { rows: '3', maxlength: '2000' });
     f.hp = GF.el('input', { type: 'text', tabindex: '-1', autocomplete: 'off' });
 
     // Refused on the field (specs/wordpress-plugin.md rule 28): each required input has its own line
@@ -1419,6 +1420,9 @@
         _hp: f.hp.value,
       });
       if (terms) body.termsVersion = terms.version;
+      // The quote this drawer already created: only its token lets GuestFlow answer with that quote's
+      // id and payment link (specs/public-request-abuse-and-grouping.md rule 20).
+      if (pendingRequest && pendingRequest.token) body.publicToken = pendingRequest.token;
       var paying = mode !== 'request' && paysNow();
       // The stay alone decides a retry (rule 27): a corrected message or phone keeps the same devis.
       var requestKey = JSON.stringify(stay);
@@ -1470,8 +1474,12 @@
           return;
         }
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
+          var data = res.body.data;
+          // Rules 20-21 — a request for a stay GuestFlow already has may come back without any quote:
+          // no id, no token, so nothing to pay here. The guest reads what happened to their request.
+          var noQuote = !data.publicToken;
           GF.track('booking-requested', { lodging: lodging, nights: nightsOf(body.startDate, body.endDate), guests: persons(), mode: paying ? 'pay' : 'request' });
-          if (paying) {
+          if (paying && !noQuote) {
             pendingRequest = {
               key: requestKey, requestId: res.body.data.requestId, token: res.body.data.publicToken, reference: res.body.data.reference || '',
             };
@@ -1480,9 +1488,11 @@
           }
           container.innerHTML = '';
           // Rule 13 — the same stay sent again updated the guest's open request.
-          var sentText = res.body.data.updated && res.body.data.requestedOn
-            ? GF.t('requestUpdated', GF.date(res.body.data.requestedOn + 'T00:00:00'))
-            : GF.t('requestSent', res.body.data.reference || '');
+          var askedOn = data.requestedOn ? GF.date(data.requestedOn + 'T00:00:00') : '';
+          var sentText;
+          if (data.messageAdded) sentText = GF.t('messageAdded', askedOn);
+          else if (data.updated) sentText = GF.t('requestUpdated', askedOn);
+          else sentText = data.reference ? GF.t('requestSent', data.reference) : GF.t('requestReceived');
           container.appendChild(GF.el('div', { class: 'gf-success' }, sentText));
           return;
         }

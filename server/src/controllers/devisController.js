@@ -38,12 +38,15 @@ function createController(model, {
     return res.json(model.list(req.query));
   }
 
+  // Every admin read of one devis — the fiche, its PDF, its history, the extension preview — is the
+  // operator handling it: the purge of untouched website requests skips it from then on
+  // (specs/public-request-abuse-and-grouping.md rules 10, 17).
+  const seen = (id) => { if (typeof model.markOperatorSeen === 'function') model.markOperatorSeen(id); };
+
   function getOne(req, res) {
     const devis = model.findById(req.params.id);
     if (!devis) return res.status(404).json({ error: 'Devis non trouvé' });
-    // Opening the fiche is what « handled » starts with: the purge of untouched website requests
-    // skips a devis the operator has read (specs/public-request-abuse-and-grouping.md rule 10).
-    if (typeof model.markOperatorSeen === 'function') model.markOperatorSeen(devis.id);
+    seen(devis.id);
     // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
     // specs/plugins-phase-3a-online-payment.md rule 18 — the payment request button follows the provider.
     // specs/plugins-phase-3b-neat.md rule 22 — the options it carries that the catalogue hides, read-only;
@@ -60,6 +63,7 @@ function createController(model, {
   // specs/ui-review-2026-10-19-operations.md rule 20 — what « prolonger » would change, then the
   // extension itself. Both refuse a quote that is not an expired open one (409).
   function extensionPreview(req, res) {
+    seen(req.params.id);
     return respond(res, model.previewExtension(req.params.id));
   }
 
@@ -74,6 +78,7 @@ function createController(model, {
   function history(req, res) {
     const h = model.getHistory(req.params.id);
     if (h === null) return res.status(404).json({ error: 'Devis non trouvé' });
+    seen(req.params.id);
     return res.json(h);
   }
 
@@ -122,6 +127,7 @@ function createController(model, {
   async function pdf(req, res) {
     const full = model.findById(req.params.id);
     if (!full) return res.status(404).json({ error: 'Devis non trouvé' });
+    seen(full.id);
     try {
       const settings = settingsModel.read();
       // specs/devis-pdf-total-parity.md §3.1 rule 5 — the engine quote comes from the model's single

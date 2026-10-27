@@ -852,10 +852,15 @@ db.exec(`
     digestKey TEXT NOT NULL,
     refId     INTEGER,
     kind      TEXT NOT NULL,
-    createdAt TEXT NOT NULL
+    createdAt TEXT NOT NULL,
+    takenAt   TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_notification_digest_items_key ON notification_digest_items (digestKey, id);
 `);
+// `takenAt`: a summary being sent; the rows go only once it left (review of PR #805).
+if (!db.prepare('PRAGMA table_info(notification_digest_items)').all().some((c) => c.name === 'takenAt')) {
+  db.exec('ALTER TABLE notification_digest_items ADD COLUMN takenAt TEXT');
+}
 
 db.generateDevisNumber = generateDevisNumber;
 db.retireDevisNumber = retireDevisNumber;

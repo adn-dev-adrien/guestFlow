@@ -67,8 +67,7 @@ test('rule 2: the drawer starts the work when the form opens, and says « Vérif
 
 test('rule 13: an update says « Votre demande du <date> a été mise à jour. »', () => {
   const view = read('blocks', 'booking', 'view.js');
-  assert.match(view, /res\.body\.data\.updated && res\.body\.data\.requestedOn/);
-  assert.match(view, /GF\.t\('requestUpdated', /);
+  assert.match(view, /else if \(data\.updated\) sentText = GF\.t\('requestUpdated', askedOn\);/);
 });
 
 test('the two strings are declared and translated', () => {
@@ -78,5 +77,27 @@ test('the two strings are declared and translated', () => {
     .forEach(([key, fr, en]) => {
       assert.ok(blocks.includes(`'${key}'`) && blocks.includes(`__('${fr}'`), key);
       assert.ok(po.includes(`msgid "${fr}"\nmsgstr "${en}"`), fr);
+    });
+});
+
+// Review of PR #805 — rules 20-22 on the drawer side.
+test('rule 20: the drawer sends the token of the quote it created, and pays only a quote that came back with one', () => {
+  const view = read('blocks', 'booking', 'view.js');
+  assert.match(view, /if \(pendingRequest && pendingRequest\.token\) body\.publicToken = pendingRequest\.token;/);
+  assert.match(view, /var noQuote = !data\.publicToken;/);
+  assert.match(view, /if \(paying && !noQuote\) \{/);
+});
+
+test('rules 21-22: « message ajouté », a reference-free receipt, and the 2 000-character textarea', () => {
+  const view = read('blocks', 'booking', 'view.js');
+  assert.match(view, /if \(data\.messageAdded\) sentText = GF\.t\('messageAdded', askedOn\);/);
+  assert.match(view, /GF\.t\('requestReceived'\)/);
+  assert.match(view, /GF\.el\('textarea', \{ rows: '3', maxlength: '2000' \}\)/);
+  const blocks = read('includes', 'class-gf-blocks.php');
+  const po = read('languages', 'guestflow-booking-en_GB.po');
+  [['messageAdded', 'Votre demande du %s a déjà été transmise : votre message a été ajouté.'], ['requestReceived', 'Demande reçue. Nous vous recontactons rapidement.']]
+    .forEach(([key, fr]) => {
+      assert.ok(blocks.includes(`'${key}'`) && blocks.includes(`__('${fr}'`), key);
+      assert.match(po, new RegExp(`msgid "${fr.replace(/[.%]/g, '\\$&')}"\nmsgstr "[^"]+"`));
     });
 });

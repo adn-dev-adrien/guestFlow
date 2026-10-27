@@ -119,7 +119,7 @@ function buildNotificationService({
     return `  - ${label} : ${Number(offered) === 1 ? 'offert (0 €)' : euro(totalPrice)}`;
   }
 
-  function buildDevisEmail(devis, publicUrl, { updated = false } = {}) {
+  function buildDevisEmail(devis, publicUrl, { updated = false, messageDropped = false } = {}) {
     const client = `${String(devis.firstName || '').trim()} ${String(devis.lastName || '').trim()}`.trim();
     const ref = devis.devisNumber ? ` #${devis.devisNumber}` : '';
     const subject = `${updated ? 'Demande de devis mise à jour' : 'Nouvelle demande de devis'}${ref} — ${devis.propertyName || ''}`.trim();
@@ -128,6 +128,8 @@ function buildNotificationService({
       updated
         ? 'Le client a renvoyé sa demande depuis le site : le devis a été mis à jour.'
         : 'Nouvelle demande de devis reçue depuis le site.',
+      // specs/public-request-abuse-and-grouping.md rule 22.
+      ...(messageDropped ? ['Son message n’a pas été ajouté : 10 messages déjà ajoutés à ce devis.'] : []),
       '',
       `Logement : ${devis.propertyName || ''}`,
       `Client : ${client || '—'}`,
@@ -195,7 +197,7 @@ function buildNotificationService({
    * window is pushed and mailed at once; the following ones are kept for one summary at the end of the
    * window (rule 9), sent by `flushDueDigests`. Never refuses anything, never throws.
    */
-  async function notifyNewSiteDevis(devisId, { updated = false } = {}) {
+  async function notifyNewSiteDevis(devisId, { updated = false, messageDropped = false } = {}) {
     try {
       const devis = loadDevis(devisId);
       if (!devis) return { sent: false, skipped: 'not_found' };
@@ -203,7 +205,7 @@ function buildNotificationService({
       // The grouping is best effort too: a store it cannot read mails this request on its own.
       let admission = { immediate: true };
       try {
-        admission = siteDigest().admit({ key: SITE_DEVIS_DIGEST, refId: devis.id, kind: updated ? 'updated' : 'new' });
+        admission = siteDigest().admit({ key: SITE_DEVIS_DIGEST, refId: devis.id, kind: updated ? (messageDropped ? 'updated-capped' : 'updated') : 'new' });
       } catch (err) {
         logger.warn('[notificationService.digest]', err && err.message ? err.message : err);
       }
@@ -219,7 +221,7 @@ function buildNotificationService({
       // Email (its own gating).
       const ctx = resolveContext();
       if (ctx.skip) return { sent: false, skipped: ctx.skip };
-      const { subject, text } = buildDevisEmail(devis, ctx.publicUrl, { updated });
+      const { subject, text } = buildDevisEmail(devis, ctx.publicUrl, { updated, messageDropped });
       return await deliver({ recipient: ctx.recipient, subject, text });
     } catch (err) {
       logger.warn('[notificationService.notifyNewSiteDevis]', err && err.message ? err.message : err);
@@ -228,7 +230,7 @@ function buildNotificationService({
   }
 
   function buildSiteDigestEmail(items, publicUrl) {
-    const fresh = items.filter((i) => i.kind !== 'updated').length;
+    const fresh = items.filter((i) => !String(i.kind).startsWith('updated')).length;
     const updatedCount = items.length - fresh;
     const parts = [];
     if (fresh) parts.push(`${fresh} nouvelle${fresh > 1 ? 's' : ''} demande${fresh > 1 ? 's' : ''} du site`);
@@ -237,7 +239,7 @@ function buildNotificationService({
     const lines = [`${subject.charAt(0).toUpperCase()}${subject.slice(1)} depuis le dernier e-mail.`, ''];
     items.forEach((item) => {
       const devis = item.refId ? loadDevis(item.refId) : null;
-      const tag = item.kind === 'updated' ? 'mise à jour' : 'nouvelle';
+      const tag = { updated: 'mise à jour', 'updated-capped': 'mise à jour, message non ajouté : limite atteinte' }[item.kind] || 'nouvelle';
       if (!devis) { lines.push(`- (${tag}) demande supprimée depuis`); return; }
       const client = `${String(devis.firstName || '').trim()} ${String(devis.lastName || '').trim()}`.trim() || '—';
       const ref = devis.devisNumber ? `#${devis.devisNumber} ` : '';
@@ -259,16 +261,20 @@ function buildNotificationService({
       return { sent: 0 };
     }
     let sent = 0;
-    for (const { key, items } of due) {
+    for (const { key, items, ids } of due) {
       if (key !== SITE_DEVIS_DIGEST) continue;
+      // The rows go once the summary left — or when nothing could ever send it (notifications off, no
+      // SMTP): a failed send keeps them for the next flush, a sent one is never sent twice.
       try {
         const ctx = resolveContext();
         const email = buildSiteDigestEmail(items, ctx.publicUrl || '');
-        await pushNewReservation({ title: email.subject, body: 'Demandes de devis du site', url: '/devis' });
-        if (ctx.skip) continue;
+        if (ctx.skip) { siteDigest().settle(ids, true); continue; }
         const result = await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
+        siteDigest().settle(ids, true);
         if (result.sent) sent += 1;
+        await pushNewReservation({ title: email.subject, body: 'Demandes de devis du site', url: '/devis' });
       } catch (err) {
+        try { siteDigest().settle(ids, false); } catch { /* the stale mark frees them later */ }
         logger.warn('[notificationService.flushDueDigests]', err && err.message ? err.message : err);
       }
     }

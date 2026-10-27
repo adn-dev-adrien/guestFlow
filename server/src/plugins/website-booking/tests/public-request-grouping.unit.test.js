@@ -55,7 +55,8 @@ test('rule 13: the same stay updates the open quote — same id, number and toke
   assert.equal(first.body.data.updated, false);
   const before = row(first.body.data.requestId);
 
-  const second = send({ ...stay, adults: 3, options: [{ optionId: menage, quantity: 1 }], guest: guest(' Same@Example.FR '), message: 'Nous serons trois' });
+  // The drawer that sent the first request holds its token (rule 20).
+  const second = send({ ...stay, adults: 3, options: [{ optionId: menage, quantity: 1 }], guest: guest(' Same@Example.FR '), message: 'Nous serons trois', publicToken: first.body.data.publicToken });
   assert.equal(second.statusCode, 201);
   const d = second.body.data;
   assert.equal(d.updated, true);
@@ -84,7 +85,7 @@ test('edge case: the same request twice (double click) answers the same quote, u
   const stay = { propertyId: gite, ...freshStay(), adults: 2, guest: guest('double@example.fr'), message: 'Bonjour' };
   const first = send(stay);
   const historyBefore = db.prepare('SELECT COUNT(*) AS n FROM reservation_history WHERE reservationId = ?').get(first.body.data.requestId).n;
-  const second = send(stay);
+  const second = send({ ...stay, publicToken: first.body.data.publicToken });
   assert.equal(second.statusCode, 201);
   assert.equal(second.body.data.requestId, first.body.data.requestId);
   assert.equal(second.body.data.updated, false);
@@ -101,14 +102,16 @@ test('rule 15: same e-mail and dates, another property → a second quote', () =
   assert.equal(count('group@example.fr'), 2);
 });
 
-test('rule 14: a quote the operator already sent is updated and flagged « modifiée après envoi »', () => {
+test('rules 14 + 21: a quote the operator already sent keeps its composition and is flagged', () => {
   const stay = { propertyId: gite, ...freshStay(), guest: guest('sent@example.fr') };
   const first = send({ ...stay, adults: 2 });
   db.prepare("UPDATE reservations SET devisStatus = 'sent' WHERE id = ?").run(first.body.data.requestId);
   const second = send({ ...stay, adults: 4 });
   assert.equal(second.body.data.updated, true);
+  assert.equal(second.body.data.messageAdded, true);
   const after = row(first.body.data.requestId);
   assert.equal(after.devisStatus, 'sent', 'the status stays');
+  assert.equal(after.adults, 2, 'rule 21: never changed');
   assert.ok(after.publicUpdatedAfterSendAt, 'flagged');
 
   // The operator's next save clears it.
@@ -123,6 +126,7 @@ test('rule 13: a paid quote is not open — the same stay makes a new one', () =
   db.prepare("INSERT INTO payment_links (reservationId, type, url, amountCents, status) VALUES (?, 'full', 'https://pay.example', 1000, 'paid')")
     .run(first.body.data.requestId);
   const second = send({ ...stay, adults: 3 });
+  assert.ok(second.body.data.requestId, 'a new quote, its own id');
   assert.notEqual(second.body.data.requestId, first.body.data.requestId);
   assert.notEqual(second.body.data.reference, first.body.data.reference);
 });

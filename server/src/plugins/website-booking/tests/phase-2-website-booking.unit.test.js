@@ -190,8 +190,8 @@ test('specs/plugins-phase-2-hosts.md rule 28 — the plugin copies its two app_s
   db.prepare("DELETE FROM migrations WHERE name LIKE 'plugin:website-booking:%'").run();
   db.prepare("UPDATE app_settings SET requireTermsAcceptance = 0, lastSeenPluginVersion = '' WHERE id = 1").run();
   boot({ installed: [] });
-  // The copy, then the request tables of specs/public-request-abuse-and-grouping.md §5.
-  assert.equal(loader.migrate(db, ID), 2);
+  // The copy, then the request tables of specs/public-request-abuse-and-grouping.md §5 (v1, v2).
+  assert.equal(loader.migrate(db, ID), 3);
   assert.equal(settingsModel.raw(ID, 'requireTermsAcceptance'), '0');
   assert.equal(settingsModel.raw(ID, 'lastSeenPluginVersion'), '', 'an empty value is not copied');
 

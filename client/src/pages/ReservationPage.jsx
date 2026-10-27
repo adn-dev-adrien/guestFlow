@@ -3622,10 +3622,10 @@ export default function ReservationPage() {
                           </span>
                         </Tooltip>
                       )}
-                      {/* specs/public-request-abuse-and-grouping.md rule 14 — re-send it. */}
+                      {/* specs/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
                       {form.publicUpdatedAfterSendAt && (
-                        <Tooltip title="Le client a renvoyé sa demande depuis le site après l’envoi du devis : à renvoyer">
-                          <span><StatusBadge status="warning" label="Modifiée par le client après envoi" /></span>
+                        <Tooltip title="Le client a écrit depuis le site après l’envoi du devis : son message est dans les notes">
+                          <span><StatusBadge status="warning" label="Message du client après envoi" /></span>
                         </Tooltip>
                       )}
                       <OriginBadge label={form.originLabel} detail={form.originDetail} />

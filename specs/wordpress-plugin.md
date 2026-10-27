@@ -242,7 +242,12 @@ remaining the single source of truth for prices, availability, and validation.
     older than 14 minutes is re-fetched, a fresh one is prepared after every send, and a
     `CHALLENGE_INVALID` other than « missing » is retried once on its own. An answer with
     `updated: true` reads « Votre demande du <date> a été mise à jour. ». No challenge available (an
-    older GuestFlow) → the request goes without one, as before.
+    older GuestFlow) → the request goes without one, as before. Review of PR #805
+    ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rules 20-22): the
+    block sends the token of the quote it created (`publicToken`); an answer without a token is a
+    receipt — no payment is offered, the page reads « Votre demande du <date> a déjà été transmise :
+    votre message a été ajouté. » (`messageAdded`), « … a été mise à jour. » or « Demande reçue. Nous
+    vous recontactons rapidement. »; the message field stops at 2 000 characters.
 
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings

@@ -83,7 +83,7 @@ th{font-size:12px;color:var(--mute);font-weight:600}
 <div class="tools">
 <button id="bot1">Robot : 50 demandes, une seule IP</button>
 <button id="bot2">Robot : 50 demandes, 50 IP</button>
-<button id="send15">Fin de la fenêtre de 15 min</button>
+<button id="opSend">Opérateur : envoyer le dernier devis</button><button id="send15">Fin de la fenêtre de 15 min</button>
 <button id="reset">Remettre à zéro</button>
 </div>
 <div class="scroll"><table>
@@ -98,7 +98,8 @@ th{font-size:12px;color:var(--mute);font-weight:600}
 <section class="card decide">
 <h2>À essayer</h2>
 <ul>
-<li>Envoyer, puis changer le nombre d'adultes et renvoyer : <strong>même numéro de devis</strong>, mis à jour.</li>
+<li>Envoyer, puis changer le nombre d'adultes et renvoyer : le brouillon jamais touché est <strong>mis à jour</strong> (même numéro côté GuestFlow), et le site ne renvoie ni numéro ni lien de paiement à qui ne les détient pas déjà.</li>
+<li>Cliquer « Opérateur : envoyer le dernier devis », puis renvoyer la même demande avec un autre nombre d'adultes : rien ne change dans le devis, seul le message s'ajoute — « Votre demande du … a déjà été transmise : votre message a été ajouté. » — et la liste affiche « Message après envoi ».</li>
 <li>Changer de logement aux mêmes dates : un second devis.</li>
 <li>Renvoyer plusieurs fois depuis la même IP : la vérification s'allonge (×4 à chaque demande de l'heure).</li>
 <li>« Robot, 50 IP » (50 e-mails différents, le pire cas) : il crée des devis, mais un seul e-mail opérateur plus un récapitulatif, et la difficulté de base monte. Envoyez ensuite normalement depuis une autre IP : le vrai client passe, avec quelques secondes de vérification au plus.</li>
@@ -120,7 +121,7 @@ function render(){$('kDevis').textContent=S.devis.length;$('kClients').textConte
 const tb=$('rows');tb.innerHTML='';if(!S.devis.length){tb.innerHTML='<tr><td colspan="5" style="color:var(--mute)">Aucune demande.</td></tr>';return;}
 [...S.devis].reverse().slice(0,12).forEach(d=>{const tr=document.createElement('tr');const st=document.createElement('td');
 const mk=(c,t)=>{const s=document.createElement('span');s.className='tag '+c;s.textContent=t;return s;};
-st.append(mk('t-ok','Demande du site'));if(d.updates)st.append(mk('t-warn',`Mise à jour ×${d.updates}`));if(d.sent&&d.updates)st.append(mk('t-bad','Modifiée après envoi'));
+st.append(mk('t-ok','Demande du site'));if(d.updates)st.append(mk('t-warn',`Mise à jour ×${d.updates}`));if(d.sent)st.append(mk('t-ok','Envoyé'));if(d.sent&&d.messages)st.append(mk('t-bad',`Message après envoi ×${d.messages}`));
 [d.no,d.email,`${d.prop} · ${d.from.slice(8)}/${d.from.slice(5,7)} → ${d.to.slice(8)}/${d.to.slice(5,7)}`,`${d.adults} ad.`].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td);});tr.append(st);tb.append(tr);});
 if(S.devis.length>12){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.style.color='var(--mute)';td.textContent=`… et ${S.devis.length-12} autres`;tr.append(td);tb.append(tr);}}
 function submit(req){
@@ -128,7 +129,9 @@ const email=req.email.trim().toLowerCase();
 if(req.elapsedMs<3000){S.refused++;return{cls:'bad',text:'Envoi trop rapide : réessayez dans un instant.'};}
 const open=S.devis.find(d=>d.email===email&&d.prop===req.prop&&d.from===req.from&&d.to===req.to);
 S.ipHits[req.ip]=(S.ipHits[req.ip]||0)+1;S.recent++;
-if(open){const changed=open.adults!==req.adults||req.msg;open.adults=req.adults;open.updates=(open.updates||0)+1;notify('demande mise à jour');log(`Devis ${open.no} mis à jour (même e-mail, logement, dates).`);return{cls:'ok',text:`Votre demande ${open.no} a été mise à jour.`};}
+if(open){const day=new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});notify('demande mise à jour');
+if(open.sent){open.messages=(open.messages||0)+1;log(`Devis ${open.no} déjà envoyé : composition inchangée (${open.adults} ad.), message ajouté aux notes.`);return{cls:'ok',text:`Votre demande du ${day} a déjà été transmise : votre message a été ajouté.`};}
+open.adults=req.adults;open.updates=(open.updates||0)+1;log(`Brouillon ${open.no} mis à jour (même e-mail, logement, dates) — numéro et lien non renvoyés au site.`);return{cls:'ok',text:`Votre demande du ${day} a été mise à jour.`};}
 const day=S.emailNew[email]||0;if(day>=3){S.refused++;log(`Refus : 3 devis déjà ouverts pour ${email} sur 24 h.`);return{cls:'warn',text:'Plusieurs demandes sont déjà en cours pour cette adresse. Elles seront traitées rapidement.'};}
 S.emailNew[email]=day+1;const no=`D-2027-${String(++S.seq).padStart(4,'0')}`;
 S.devis.push({no,email,prop:req.prop,from:req.from,to:req.to,adults:req.adults});S.clients.add(email);notify('nouvelle demande');log(`Devis ${no} créé pour ${email}.`);
@@ -141,6 +144,7 @@ const o=$('out');o.className='msg '+res.cls;o.textContent=res.text;S.issuedAt=Da
 function bot(multiIp){let cost=0,created=0;for(let i=0;i<50;i++){const ip=multiIp?`203.0.113.${i}`:'198.51.100.7';const bits=difficultyFor(ip);const ms=Math.pow(2,bits)*0.02;cost+=ms;
 const res=submit({ip,email:multiIp?`bot${i}-${Date.now()}@spam.test`:'bot@spam.test',prop:'Gîte',from:'2027-08-0'+(1+i%8),to:'2027-08-1'+(i%8),adults:2,elapsedMs:4000});if(/créé|envoyée/.test(res.text))created++;}
 log(`Robot (${multiIp?'50 IP, 50 e-mails':'1 IP'}) : ${created} devis créés, calcul cumulé ≈ ${fmtDur(cost)}. Difficulté de base maintenant +${surge()} bits : un client attend ≈ ${fmtDur(Math.pow(2,BASE+surge())*0.02)} au lieu de ${fmtDur(Math.pow(2,BASE)*0.02)}, sans refus. Ces devis non traités seront purgés à 30 jours.`);render();}
+$('opSend').addEventListener('click',()=>{const d=S.devis[S.devis.length-1];if(!d){log('Aucun devis à envoyer.');return;}d.sent=true;log(`Opérateur : devis ${d.no} envoyé au client.`);render();});
 $('bot1').addEventListener('click',()=>bot(false));
 $('bot2').addEventListener('click',()=>bot(true));
 $('send15').addEventListener('click',()=>{if(S.pending.length){S.mails++;log(`E-mail récapitulatif : ${S.pending.length} demande(s) de la fenêtre.`);}else log('Fin de fenêtre : rien à résumer.');S.pending=[];S.windowCount=0;render();});

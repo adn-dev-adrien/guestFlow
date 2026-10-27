@@ -969,6 +969,37 @@ function createModel(database) {
     }, { source: 'public', flagAfterSend: wasSent });
   }
 
+  /**
+   * The guest wrote again about a quote the operator already handled
+   * (specs/public-request-abuse-and-grouping.md rule 21): nothing of the quote changes but its notes,
+   * which gain `note` (nothing when empty); a quote already sent is flagged so the operator reads it.
+   */
+  function appendPublicMessage(id, note) {
+    const numId = Number(id);
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
+    if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    const status = existing.devisStatus || 'draft';
+    const emailed = (() => {
+      try {
+        return Boolean(database.prepare("SELECT 1 FROM email_log WHERE reservationId = ? AND status = 'sent' LIMIT 1").get(numId));
+      } catch { return false; }
+    })();
+    const wasSent = status === 'sent' || status === 'accepted' || emailed;
+    const text = String(note || '').trim();
+    database.transaction(() => {
+      const before = snapshotFromDb(numId);
+      if (text) {
+        const notes = [String(existing.notes || '').trim(), text].filter(Boolean).join('\n\n');
+        database.prepare("UPDATE reservations SET notes = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(notes, numId);
+      }
+      if (wasSent && hasReservationColumn('publicUpdatedAfterSendAt')) {
+        database.prepare("UPDATE reservations SET publicUpdatedAfterSendAt = ? WHERE id = ? AND kind = 'devis'").run(sqliteNow(), numId);
+      }
+      addHistoryEntry(numId, 'public_message', computeAuditChanges(before, snapshotFromDb(numId)));
+    })();
+    return { ok: true, data: findById(numId) };
+  }
+
   // The operator opened the devis (GET /api/devis/:id): the first time is stamped, so the purge of
   // untouched website requests never deletes one somebody read (rule 10).
   function markOperatorSeen(id) {
@@ -994,7 +1025,7 @@ function createModel(database) {
            AND r.convertedReservationId IS NULL
            AND r.operatorSeenAt IS NULL
            AND NOT EXISTS (SELECT 1 FROM reservation_history h WHERE h.reservationId = r.id
-                            AND h.eventType NOT IN ('create', 'public_update', 'terms_accepted'))
+                            AND h.eventType NOT IN ('create', 'public_update', 'public_message', 'terms_accepted'))
            AND NOT EXISTS (SELECT 1 FROM email_log l WHERE l.reservationId = r.id)
            AND NOT EXISTS (SELECT 1 FROM payment_links p WHERE p.reservationId = r.id)
       `).get(numId);
@@ -1155,6 +1186,7 @@ function createModel(database) {
     resolvePaymentSchedule,
     list,
     updateFromPublicRequest,
+    appendPublicMessage,
     markOperatorSeen,
     purgePublicRequest,
     findById,

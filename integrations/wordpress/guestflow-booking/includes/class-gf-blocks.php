@@ -138,6 +138,8 @@ final class GF_Blocks
                 // GuestFlow specs/public-request-abuse-and-grouping.md rules 2 and 13.
                 'verifying'       => __('Vérification…', 'guestflow-booking'),
                 'requestUpdated'  => __('Votre demande du %s a été mise à jour.', 'guestflow-booking'),
+                'messageAdded'    => __('Votre demande du %s a déjà été transmise : votre message a été ajouté.', 'guestflow-booking'),
+                'requestReceived' => __('Demande reçue. Nous vous recontactons rapidement.', 'guestflow-booking'),
                 'bookNow'         => __('Réserver', 'guestflow-booking'),
                 'capacity'        => __('Capacité', 'guestflow-booking'),
                 'persons'         => __('personnes', 'guestflow-booking'),

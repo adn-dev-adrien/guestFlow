@@ -22,7 +22,7 @@ const termsModel = sdk.coreModule('termsModel');
 const { validateStayInput, validateGuest, validateAttribution, withFieldMessages } = require('../publicInputValidation');
 const { classifyAttribution } = sdk.coreModule('attributionChannel');
 const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
-const { generateToken } = sdk.coreModule('publicDevisToken');
+const { generateToken, tokensMatch } = sdk.coreModule('publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
 const { stayRuleBreach, hasUnpricedNights } = require('../publicProjections');
@@ -40,14 +40,27 @@ const normalisedEmail = (email) => String(email || '').trim().toLowerCase();
 // `createdAt` of a devis row is SQLite's `YYYY-MM-DD HH:MM:SS`, in UTC.
 const sqliteUtc = (ms) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
+// Rule 22 — what a request may write: a message of at most 2 000 characters, and at most 10 of them
+// appended to one quote.
+const MAX_MESSAGE_LENGTH = 2000;
+const MAX_APPENDED_MESSAGES = 10;
+
 /**
- * Rule 12 — the open website quote of the same stay: same normalised e-mail, same property, same
- * dates, neither converted nor paid. Only a request from the site is ever updated this way: a quote
- * the operator typed is theirs.
+ * Rule 12 — the website quote of the same stay: same normalised e-mail, same property, same dates,
+ * neither converted nor paid. Only a request from the site is ever found: a quote the operator typed is
+ * theirs. `touched` (rule 21) is 1 once the operator did anything with it — a status other than draft,
+ * an opening, an edit, a guest e-mail, a payment link of any status: such a quote only gains messages.
  */
 function findOpenSameStay(email, { propertyId, startDate, endDate }) {
   return db.prepare(`
-    SELECT r.id, r.devisNumber, r.publicToken, r.createdAt, r.finalPrice
+    SELECT r.id, r.devisNumber, r.publicToken, r.createdAt, r.finalPrice,
+           CASE WHEN COALESCE(r.devisStatus, 'draft') <> 'draft'
+                  OR r.operatorSeenAt IS NOT NULL
+                  OR EXISTS (SELECT 1 FROM reservation_history h WHERE h.reservationId = r.id
+                              AND h.eventType NOT IN ('create', 'public_update', 'public_message', 'terms_accepted'))
+                  OR EXISTS (SELECT 1 FROM email_log l WHERE l.reservationId = r.id)
+                  OR EXISTS (SELECT 1 FROM payment_links p WHERE p.reservationId = r.id)
+                THEN 1 ELSE 0 END AS touched
       FROM reservations r
       JOIN clients c ON c.id = r.clientId
      WHERE r.kind = 'devis' AND r.requestOrigin = 'public'
@@ -83,10 +96,10 @@ function requestFingerprint(value, message) {
   })).digest('hex');
 }
 
-/** The dated line a request updated in place appends to the notes (rule 13). */
-function updateNote(message, identityNote, todayIso) {
+/** The dated line a request appends to the notes (rules 13 and 21). */
+function updateNote(message, identityNote, todayIso, { messageOnly = false } = {}) {
   const [y, m, d] = String(todayIso).split('-');
-  const head = `Demande mise à jour depuis le site le ${d}/${m}/${y}`;
+  const head = `${messageOnly ? 'Message ajouté' : 'Demande mise à jour'} depuis le site le ${d}/${m}/${y}`;
   const text = String(message || '').trim();
   return [text ? `${head} :\n${text}` : `${head}.`, identityNote].filter(Boolean).join('\n\n');
 }
@@ -205,6 +218,11 @@ function create(req, res) {
 
   const visitor = req.visitor || {};
   const message = String(req.body.message || '').trim();
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    // The drawer prints the sentence as it is (its textarea also stops at 2 000).
+    return failT(res, req, 422, 'VALIDATION_FAILED', 'messageTooLong',
+      [{ field: 'message', issue: `at most ${MAX_MESSAGE_LENGTH} characters` }]);
+  }
   const fingerprint = requestFingerprint(v.value, message);
 
   // Rules 12-16 — the same stay as an open website quote updates that quote instead of creating one.
@@ -338,50 +356,67 @@ function create(req, res) {
 }
 
 /**
- * Rules 13-16 — the open quote of the same stay takes the new request: party, times, options and
- * resources, priced by the engine as a creation; the message appended; number, token and earlier CGV
- * acceptances kept, the new acceptance recorded. The same request twice (a double click) changes
- * nothing and answers the same quote. The response is a creation's, with the same ids and
- * `updated: true`.
+ * Rules 13-16 and 20-22 — a request for the stay of an existing website quote.
+ *
+ * - An untouched draft takes the new request: party, times, options and resources, priced by the
+ *   engine as a creation; the message appended; number, token and earlier CGV acceptances kept, the new
+ *   acceptance recorded.
+ * - A quote the operator touched (rule 21) is never changed: the message is appended, the operator told.
+ * - The same request twice (a double click) changes nothing.
+ * - The quote's id, number, price and payment token are answered only to a request that carries its
+ *   current token (rule 20): knowing a guest's e-mail and dates must never hand anyone their quote.
  */
 function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint, terms, visitor }) {
-  const respond = (row, updated) => ok(res, {
-    requestId: row.id,
-    publicToken: row.publicToken,
+  const holdsToken = Boolean(sameStay.publicToken) && tokensMatch(sameStay.publicToken, req.body.publicToken);
+  const respond = ({ updated, messageAdded = false, finalPrice = sameStay.finalPrice }) => ok(res, {
     status: 'pending',
-    reference: row.devisNumber || null,
     propertyId: value.propertyId,
     startDate: value.startDate,
     endDate: value.endDate,
-    finalPrice: Number(row.finalPrice || 0),
-    currency: 'EUR',
     updated,
+    ...(messageAdded ? { messageAdded: true } : {}),
     // The date the guest first asked, for « Votre demande du <date> a été mise à jour. »
     requestedOn: String(sameStay.createdAt || '').slice(0, 10) || null,
+    ...(holdsToken ? {
+      requestId: sameStay.id,
+      publicToken: sameStay.publicToken,
+      reference: sameStay.devisNumber || null,
+      finalPrice: Number(finalPrice || 0),
+      currency: 'EUR',
+    } : {}),
   }, 201);
 
   const stay = requestStore.getStay(sameStay.id);
-  if (stay && stay.fingerprint === fingerprint) return respond(sameStay, false);
+  if (stay && stay.fingerprint === fingerprint) return respond({ updated: false });
 
   const client = clientsModel.findByEmail(guest.email);
   const identityNote = client ? submittedIdentityNote(client, guest, langStated(req) ? langOf(req) : null) : '';
   const todayIso = sdk.coreModule('reservationHelpers').getTodayIsoDate();
+  const messageOnly = Number(sameStay.touched) === 1;
+  const appendsLeft = (stay ? Number(stay.appendCount || 0) : 0) < MAX_APPENDED_MESSAGES;
+  const note = updateNote(message, identityNote, todayIso, { messageOnly });
+  const messageDropped = !appendsLeft;
 
   const persist = db.transaction(() => {
-    const result = devisModel.updateFromPublicRequest(sameStay.id, {
-      adults: value.adults,
-      children: value.children,
-      teens: value.teens,
-      babies: value.babies,
-      babyBeds: value.babyBeds,
-      checkInTime: value.checkInTime,
-      checkOutTime: value.checkOutTime,
-      selectedOptions: value.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
-      selectedResources: (value.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
-      planningCardAsQuantity: true,
-    }, { note: updateNote(message, identityNote, todayIso) });
+    let result;
+    if (messageOnly) {
+      result = devisModel.appendPublicMessage(sameStay.id, appendsLeft ? note : '');
+    } else {
+      result = devisModel.updateFromPublicRequest(sameStay.id, {
+        adults: value.adults,
+        children: value.children,
+        teens: value.teens,
+        babies: value.babies,
+        babyBeds: value.babyBeds,
+        checkInTime: value.checkInTime,
+        checkOutTime: value.checkOutTime,
+        selectedOptions: value.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
+        selectedResources: (value.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
+        planningCardAsQuantity: true,
+      }, { note: appendsLeft ? note : '' });
+    }
     if (result.error) throw Object.assign(new Error(result.error), { devisError: result });
-    if (terms.version) {
+    if (terms.version && !messageOnly) {
       termsModel.insertAcceptance({
         reservationId: sameStay.id,
         termsVersionId: terms.version.id,
@@ -392,7 +427,7 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
         pluginVersion: visitor.pluginVersion,
       });
     }
-    requestStore.recordStay(sameStay.id, fingerprint);
+    requestStore.recordStay(sameStay.id, fingerprint, { appended: appendsLeft });
     return result.data;
   });
 
@@ -407,8 +442,9 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
     throw e;
   }
   if (visitor.pluginVersion) settings.recordPluginVersion(visitor.pluginVersion);
-  Promise.resolve(notificationService.notifyNewSiteDevis(sameStay.id, { updated: true })).catch(() => {});
-  return respond({ ...sameStay, finalPrice: devis.finalPrice }, true);
+  Promise.resolve(notificationService.notifyNewSiteDevis(sameStay.id, messageDropped ? { updated: true, messageDropped: true } : { updated: true }))
+    .catch(() => {});
+  return respond({ updated: true, messageAdded: messageOnly, finalPrice: devis && devis.finalPrice });
 }
 
 /**
@@ -440,4 +476,4 @@ function checkTermsAcceptance(termsVersion) {
   return { version: current };
 }
 
-module.exports = { create, checkTermsAcceptance, submittedIdentityNote, requestFingerprint, NEW_DEVIS_PER_EMAIL_PER_DAY };
+module.exports = { create, checkTermsAcceptance, submittedIdentityNote, requestFingerprint, NEW_DEVIS_PER_EMAIL_PER_DAY, MAX_MESSAGE_LENGTH, MAX_APPENDED_MESSAGES };

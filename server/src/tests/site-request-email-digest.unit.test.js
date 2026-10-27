@@ -21,7 +21,7 @@ function seedDb() {
     CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT);
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, quantity REAL, totalPrice REAL, offered INTEGER);
     CREATE TABLE notification_digest_windows (digestKey TEXT PRIMARY KEY, windowStartedAt TEXT NOT NULL);
-    CREATE TABLE notification_digest_items (id INTEGER PRIMARY KEY AUTOINCREMENT, digestKey TEXT NOT NULL, refId INTEGER, kind TEXT NOT NULL, createdAt TEXT NOT NULL);
+    CREATE TABLE notification_digest_items (id INTEGER PRIMARY KEY AUTOINCREMENT, digestKey TEXT NOT NULL, refId INTEGER, kind TEXT NOT NULL, createdAt TEXT NOT NULL, takenAt TEXT);
   `);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Marie', 'Durand', 'm@example.fr')").run();
@@ -86,4 +86,33 @@ test('rule 9: after a quiet window the next request is mailed at once again; an 
   assert.equal(sent.length, 2);
   assert.match(sent[1].subject, /^Demande de devis mise à jour #2027-01-001/);
   assert.match(sent[1].text, /le devis a été mis à jour/);
+});
+
+// Review of PR #805 — a summary is removed only once it left: a failed send waits for the next flush,
+// and a sent one never leaves twice.
+test('rule 9: a failed summary stays for the next flush, then goes once', async () => {
+  const db = seedDb();
+  const sent = [];
+  let failing = true;
+  const clock = { now: Date.parse('2027-03-01T10:00:00Z') };
+  const svc = buildNotificationService({
+    db,
+    settingsModel,
+    emailServiceFactory: () => ({ isConfigured: true, send: async (m) => { if (failing && /demandes? du site/.test(m.subject)) throw new Error('SMTP down'); sent.push(m); } }),
+    pushService: { sendToPref: async () => {} },
+    logger: { warn() {} },
+    digest: buildNotificationDigest({ db, now: () => clock.now }),
+  });
+  await svc.notifyNewSiteDevis(1);
+  clock.now += 60 * 1000;
+  await svc.notifyNewSiteDevis(2);
+  await svc.notifyNewSiteDevis(3, { updated: true, messageDropped: true });
+  clock.now = Date.parse('2027-03-01T10:16:00Z');
+  assert.deepEqual(await svc.flushDueDigests(), { sent: 0 });
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notification_digest_items').get().n, 2, 'kept');
+  failing = false;
+  assert.deepEqual(await svc.flushDueDigests(), { sent: 1 });
+  assert.match(sent.at(-1).text, /message non ajouté : limite atteinte/);
+  assert.deepEqual(await svc.flushDueDigests(), { sent: 0 });
+  assert.equal(sent.filter((m) => /du site/.test(m.subject)).length, 1);
 });

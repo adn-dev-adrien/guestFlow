@@ -193,6 +193,12 @@ msgstr "Checking…"
 msgid "Votre demande du %s a été mise à jour."
 msgstr "Your request of %s has been updated."
 
+msgid "Votre demande du %s a déjà été transmise : votre message a été ajouté."
+msgstr "Your request of %s had already reached us: your message has been added."
+
+msgid "Demande reçue. Nous vous recontactons rapidement."
+msgstr "Request received. We will get back to you shortly."
+
 #: includes/class-gf-blocks.php:114
 msgid "Envoyer la demande"
 msgstr "Send the request"

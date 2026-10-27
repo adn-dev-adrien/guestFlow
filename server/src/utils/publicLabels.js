@@ -123,6 +123,8 @@ const FR = Object.freeze({
     challengeInvalid: 'La vérification anti-robot a échoué. Merci de renvoyer la demande.',
     challengeMissing: 'Le formulaire doit être mis à jour : merci de recharger la page.',
     requestsPendingForEmail: 'Plusieurs demandes sont déjà en cours pour cette adresse. Elles seront traitées rapidement.',
+    // Rule 22.
+    messageTooLong: 'Message trop long : 2 000 caractères au plus.',
   }),
 
   // One short sentence per refused contact field, printed by the site UNDER that field
@@ -218,6 +220,7 @@ const EN = Object.freeze({
     challengeInvalid: 'The anti-robot check failed. Please send the request again.',
     challengeMissing: 'The form needs updating: please reload the page.',
     requestsPendingForEmail: 'Several requests are already in progress for this address. They will be handled shortly.',
+    messageTooLong: 'Message too long: 2,000 characters at most.',
   }),
 
   fieldErrors: Object.freeze({

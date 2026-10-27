@@ -1,6 +1,7 @@
 /**
- * DevisPage — « Modifiée par le client après envoi » (specs/public-request-abuse-and-grouping.md
- * rule 14): a website quote the guest changed after the operator sent it says so in the list.
+ * DevisPage — « Message du client après envoi » (specs/public-request-abuse-and-grouping.md
+ * rules 14, 21): a website quote the guest wrote about again after the operator sent it says so in
+ * the list.
  */
 
 import React from 'react';
@@ -70,15 +71,15 @@ beforeEach(() => {
   api.getDevis.mockReset();
 });
 
-test('a sent quote the guest changed is flagged', async () => {
+test('a sent quote the guest wrote about again is flagged', async () => {
   api.getDevis.mockResolvedValue([{ ...DEVIS, devisStatus: 'sent', status: 'sent', publicUpdatedAfterSendAt: '2026-10-27 10:00:00' }]);
   renderPage();
-  expect((await screen.findAllByText('Modifiée par le client après envoi')).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText('Message du client après envoi')).length).toBeGreaterThan(0);
 });
 
 test('without the stamp, no flag', async () => {
   api.getDevis.mockResolvedValue([{ ...DEVIS, publicUpdatedAfterSendAt: null }]);
   renderPage();
   await screen.findAllByText('D-2026-001');
-  expect(screen.queryByText('Modifiée par le client après envoi')).not.toBeInTheDocument();
+  expect(screen.queryByText('Message du client après envoi')).not.toBeInTheDocument();
 });

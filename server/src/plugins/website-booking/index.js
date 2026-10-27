@@ -22,6 +22,7 @@ const id = 'website-booking';
 const ERASED_LABELS = {
   requireTermsAcceptance: 'le réglage d’exigence des CGV',
   lastSeenPluginVersion: 'la dernière version du plugin WordPress vue',
+  proofEnforcedSince: 'la vérification anti-robot devenue obligatoire',
 };
 
 function register(ctx) {
@@ -31,6 +32,8 @@ function register(ctx) {
     { name: 'settings_from_app_settings_v1', up: settings.copyFromAppSettings },
     // specs/public-request-abuse-and-grouping.md §5 — spent challenges, the request log, the stays.
     { name: 'public_request_tables_v1', up: (db) => db.exec(requestStore.TABLES_SQL) },
+    // Review of PR #805 — issued challenges and the appended-message count.
+    { name: 'public_request_tables_v2', up: requestStore.migrateV2 },
   ]);
 
   // Rule 24 — the key exists only once the plugin is installed. Never logged: the operator copies it
@@ -111,6 +114,7 @@ function register(ctx) {
       const lines = [];
       if (!requireTermsAcceptance) lines.push({ label: ERASED_LABELS.requireTermsAcceptance, count: 1 });
       if (lastSeenPluginVersion) lines.push({ label: ERASED_LABELS.lastSeenPluginVersion, count: 1 });
+      if (settings.proofEnforcedSince()) lines.push({ label: ERASED_LABELS.proofEnforcedSince, count: 1 });
       return lines;
     },
     purge: settings.resetLegacyColumns,

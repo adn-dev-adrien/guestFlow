@@ -37,7 +37,10 @@ function request(email) {
   db.prepare("INSERT INTO terms_acceptances (reservationId, termsVersionId, acceptedAt) VALUES (?, ?, '2026-01-01')").run(id, versionId);
   return id;
 }
-const age = (id, days) => db.prepare("UPDATE reservations SET createdAt = datetime('now', ?) WHERE id = ?").run(`-${days} days`, id);
+const age = (id, days) => {
+  db.prepare("UPDATE reservations SET createdAt = datetime('now', ?) WHERE id = ?").run(`-${days} days`, id);
+  db.prepare("UPDATE public_request_stays SET lastRequestAt = datetime('now', ?) WHERE reservationId = ?").run(`-${days} days`, id);
+};
 const exists = (id) => Boolean(db.prepare('SELECT 1 FROM reservations WHERE id = ?').get(id));
 const clientOf = (id) => db.prepare('SELECT clientId FROM reservations WHERE id = ?').get(id).clientId;
 const clientExists = (cid) => Boolean(db.prepare('SELECT 1 FROM clients WHERE id = ?').get(cid));
@@ -97,4 +100,28 @@ test('a client with another reservation stays when its untouched request goes', 
   runRequestPurge();
   assert.equal(exists(id), false);
   assert.equal(clientExists(cid), true);
+});
+
+// ── review of PR #805 ──────────────────────────────────────────────────────────────────────────────
+
+test('a request whose PDF the operator downloaded from the list stays (operatorSeenAt set by the PDF route)', async () => {
+  const id = request('pdf@example.fr');
+  const r = res();
+  r.setHeader = () => {}; r.send = () => r; r.end = () => r; r.type = () => r; r.set = () => r;
+  await devisController.pdf({ params: { id }, query: {} }, r);
+  assert.ok(db.prepare('SELECT operatorSeenAt FROM reservations WHERE id = ?').get(id).operatorSeenAt);
+  age(id, 40);
+  runRequestPurge();
+  assert.equal(exists(id), true);
+});
+
+test('the 30 days run from the guest\'s last request, not the first', () => {
+  const id = request('recent@example.fr');
+  age(id, 40);
+  db.prepare("UPDATE public_request_stays SET lastRequestAt = datetime('now', '-2 days') WHERE reservationId = ?").run(id);
+  runRequestPurge();
+  assert.equal(exists(id), true);
+  db.prepare("UPDATE public_request_stays SET lastRequestAt = datetime('now', '-31 days') WHERE reservationId = ?").run(id);
+  runRequestPurge();
+  assert.equal(exists(id), false);
 });

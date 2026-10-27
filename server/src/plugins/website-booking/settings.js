@@ -7,6 +7,9 @@
 const DECLARED = [
   { key: 'requireTermsAcceptance', default: '1' },
   { key: 'lastSeenPluginVersion' },
+  // specs/public-request-abuse-and-grouping.md rule 24 — when the site first reported a plugin that
+  // solves the proof of work. Once set, the proof stays required; nothing resets it.
+  { key: 'proofEnforcedSince' },
 ];
 
 // The app_settings columns the values lived in until v3.8; they stay in place, unread.
@@ -35,6 +38,15 @@ function setRequireTermsAcceptance(on) {
 
 function recordPluginVersion(version) {
   store.set('lastSeenPluginVersion', String(version || ''));
+}
+
+function proofEnforcedSince() {
+  if (!store) return '';
+  return String(store.get('proofEnforcedSince') || '');
+}
+
+function markProofEnforced() {
+  if (store) store.set('proofEnforcedSince', new Date().toISOString());
 }
 
 const legacyColumns = (db) => new Set(db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name));
@@ -71,6 +83,8 @@ module.exports = {
   termsSettings,
   setRequireTermsAcceptance,
   recordPluginVersion,
+  proofEnforcedSince,
+  markProofEnforced,
   copyFromAppSettings,
   resetLegacyColumns,
 };

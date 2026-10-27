@@ -96,7 +96,9 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 12. **Same stay.** Two site requests are the same stay when they have the same normalised e-mail, the
     same property, and the same arrival and departure dates.
 13. **Update in place.** When a new request is the same stay as an **open** devis (a devis, not yet
-    paid, converted or cancelled), GuestFlow updates that devis instead of creating one:
+    paid, converted or cancelled), GuestFlow updates that devis instead of creating one — **narrowed by
+    rules 20-21 (review of PR #805): only an untouched draft is updated, and its ids and token are
+    answered only to the holder of its token**:
     - party (adults, teens, children, babies, baby beds), times, options and resources are replaced by
       the new request's, and the price is recomputed by the engine, as on creation;
     - the guest's new message is appended to the notes, dated, after the previous ones;
@@ -106,7 +108,9 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     - the response is the same as a creation, with the **same** `requestId` and `reference`, and
       `updated: true`; the drawer says « Votre demande du <date> a été mise à jour. ».
 14. A devis the operator already **sent** to the guest is updated the same way, flagged « Modifiée par
-    le client après envoi » in the list and on the fiche, so the operator re-sends it.
+    le client après envoi » in the list and on the fiche, so the operator re-sends it. **Replaced by
+    rule 21 (2026-10-27): a sent devis is never changed; the flag reads « Message du client après
+    envoi ».**
 15. Same e-mail and dates but **another property** → a new devis (a group may want both lodgings).
 16. An update counts in the operator e-mails of rule 9 as « demande mise à jour », never as a new one,
     and does not count against rule 7.
@@ -138,6 +142,44 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     arranged, the discount and a custom price stay; the price is computed at today's tariffs with the
     property's default options, exactly as a creation. The first send attaches nothing else: no new
     attribution, no change of language.
+20. **Never hand a quote to whoever knows the stay** (review of PR #805, operator decision 2026-10-27
+    « Brouillon seul, jamais le lien »). The answer to a request for an existing quote's stay carries
+    that quote's `requestId`, `reference`, price and `publicToken` **only** when the request carries
+    the quote's current token (`publicToken` in the body — the drawer that created it holds it).
+    Otherwise it is a receipt without any of them: `{ status, updated, messageAdded?, requestedOn,
+    propertyId, startDate, endDate }`, and the drawer offers no payment for it. A double click is
+    answered the same way.
+21. **Only an untouched draft is updated** (same review and decision). A quote is touched once the
+    operator did anything with it: a status other than draft, an opening (`operatorSeenAt`), an edit
+    (any history entry besides creation, website update, website message, CGV acceptance), a guest
+    e-mail logged against it, or a payment link of any status. A touched quote never changes — party,
+    options, lines, offered flags, price all stay: the request only appends its message, dated
+    (« Message ajouté depuis le site le … »), records a `public_message` history line, flags a quote
+    already sent `publicUpdatedAfterSendAt` (« Message du client après envoi » on the list and the
+    fiche), and counts in the operator e-mails as « demande mise à jour ». The response says
+    `messageAdded: true`; the drawer reads « Votre demande du <date> a déjà été transmise : votre
+    message a été ajouté. ». No CGV acceptance is recorded for it (nothing was accepted anew).
+22. **What a request may write** (review). `message` is at most 2 000 characters (`422
+    VALIDATION_FAILED`, `details[0].field = 'message'`; the drawer's textarea stops there). At most 10
+    messages are appended to one quote; beyond, the request still succeeds, nothing is appended, and
+    the operator e-mail says « message non ajouté : limite atteinte ».
+23. **A challenge fetched ahead is no bargain** (review). Every challenge handed out to an address is
+    logged (`public_request_issued`, 24 h) and counts in the next one's difficulty, like a request. At
+    verification, a challenge whose difficulty is below what the address must solve **now** (the
+    flood surcharge of the moment, +2 bits per request it sent in the hour) is refused
+    `CHALLENGE_INVALID` / `tooEasy`; the drawer fetches a fresh one and retries once, so a real guest
+    still gets through. Cap unchanged; nobody is refused for someone else.
+24. **The proof stays required** (review). Once the site reported a plugin that solves it, the
+    plugin setting `proofEnforcedSince` is stamped and the proof stays required whatever version is
+    reported later. There is no reset: going back to an older plugin closes the site form until it is
+    updated again.
+25. **The purge counts from the last request and sees every read** (review). The 30 days of rule 10
+    run from the guest's last request for the stay (`public_request_stays.lastRequestAt`), else the
+    creation. `operatorSeenAt` is stamped by every admin read of one devis: the fiche, its PDF (also
+    downloaded from the list), its history and the extension preview.
+26. **A summary leaves before it is forgotten** (review). The rows of a 15-minute summary are marked
+    while it is sent and deleted only once it left; a failed send keeps them for the next flush; a
+    mark older than 10 minutes (a crash mid-send) is taken again.
 
 ## 4. Architecture
 
@@ -146,8 +188,9 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `plugins/website-booking/` | `challenge.js` | C | Issue / verify signed challenges, adaptive difficulty (rules 1–5b). Pure. |
-| `plugins/website-booking/` | `requestStore.js` | C | The plugin tables: spent challenges, request log (per address, 24 h), per-devis fingerprint + created client. |
-| `plugins/website-booking/controllers/` | `publicChallengeController.js` | C | `GET /challenge` handler, `requireProof` middleware, the transition switch (version ≥ 1.18.0). |
+| `plugins/website-booking/` | `requestStore.js` | C | The plugin tables: spent challenges, request log and issued challenges (per address, 24 h), per-devis fingerprint, created client, appended messages, last request. |
+| `plugins/website-booking/controllers/` | `publicChallengeController.js` | C | `GET /challenge` handler, `requireProof` middleware (incl. `tooEasy`, rule 23), the sticky transition switch (rule 24). |
+| `plugins/website-booking/` | `settings.js` | T | `proofEnforcedSince` (rule 24). |
 | `plugins/website-booking/routes/` | `bookingRequests.js` | T | `GET /challenge`; verification before the controller. |
 | `plugins/website-booking/controllers/` | `publicBookingRequestController.js` | T | Per-e-mail limit (7), same-stay lookup and update in place (12–16). |
 | `plugins/website-booking/` | `requestPurge.js` | C | Daily purge of unhandled requests (10), registered with `ctx.jobs`. |
@@ -156,8 +199,8 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 | `utils/` | `notificationService.js` | T | 15-minute grouping of site-request e-mails (9, 16): `notifyNewSiteDevis(id, { updated })`, `flushDueDigests()`. |
 | `utils/` | `notificationDigest.js` | C | Generic window store (admit / takeDue) in the database. |
 | `scheduledTasks.js` | — | T | `flushDueDigests` every minute, and 45 s after boot. |
-| `models/` | `devisModel.js` | T | `updateFromPublicRequest` reusing the creation path (13), `markOperatorSeen`, `purgePublicRequest`; the flag set / cleared by `update` and `updateStatus`. |
-| `controllers/` | `devisController.js` | T | `getOne` stamps `operatorSeenAt`. |
+| `models/` | `devisModel.js` | T | `updateFromPublicRequest` reusing the creation path (13), `appendPublicMessage` (rule 21), `markOperatorSeen`, `purgePublicRequest`; the flag set / cleared by `update` and `updateStatus`. |
+| `controllers/` | `devisController.js` | T | `getOne`, `pdf`, `history`, `extensionPreview` stamp `operatorSeenAt` (rule 25). |
 | `database.js` | — | T | The two columns, `devis_number_retired` (read by `generateDevisNumber`), the digest tables. |
 | `utils/` | `publicLabels.js` | T | `challengeInvalid`, `challengeMissing`, `requestsPendingForEmail` (fr + en). |
 | `plugins/website-booking/tests/` | `public-request-challenge.unit.test.js`, `public-request-grouping.unit.test.js`, `public-request-purge.unit.test.js` | C | Rules 1–16. |
@@ -176,7 +219,7 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 | Method | Endpoint | Change |
 |---|---|---|
 | GET | `/public/v1/booking-requests/challenge` | New. `{ data: { challengeId, salt, difficulty, issuedAt, expiresAt, signature } }`, `Cache-Control: no-store`. Records the plugin version the proxy reports. |
-| POST | `/public/v1/booking-requests` | Carries `challenge` (the object received, verbatim) and `nonce` (base 36). Returns `updated` (boolean) and `requestedOn` (`YYYY-MM-DD` of the first request). New errors `403 CHALLENGE_INVALID` (`details[0].issue` ∈ missing · forged · expired · tooFast · wrong · used), `429 TOO_MANY_REQUESTS` per e-mail. |
+| POST | `/public/v1/booking-requests` | Carries `challenge` (the object received, verbatim) and `nonce` (base 36). May carry `publicToken` (the quote the drawer created). Returns `updated` (boolean), `messageAdded` (rule 21) and `requestedOn` (`YYYY-MM-DD` of the first request); for an existing quote, `requestId` / `reference` / `finalPrice` / `publicToken` only to the token's holder (rule 20). New errors `403 CHALLENGE_INVALID` (`details[0].issue` ∈ missing · forged · expired · tooFast · wrong · used · tooEasy), `429 TOO_MANY_REQUESTS` per e-mail, `422 VALIDATION_FAILED` on a message over 2 000 characters. |
 | GET | `/api/settings/website-connection` | Gains `antiBot: { active, pluginVersion, requiredVersion }`. |
 | GET | `/api/dashboard/public-devis-pending` | Gains `requestsLastHour`. |
 | GET | `/api/devis/:id` | Stamps `operatorSeenAt` the first time. The devis rows carry `publicUpdatedAfterSendAt`. |
@@ -187,8 +230,12 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
   rows deleted after expiry.
 - `public_request_log (id, at, ipKey)` — plugin table, one row per request past the proof, kept 24 h
   (rules 4, 5b, 11).
-- `public_request_stays (reservationId PK, fingerprint, createdClientId)` — plugin table: the last
-  request that wrote a site devis (double click) and the client created for it (purge).
+- `public_request_stays (reservationId PK, fingerprint, createdClientId, appendCount, lastRequestAt)`
+  — plugin table: the last request that wrote a site devis (double click), the client created for it
+  (purge), the appended messages (rule 22), the last request's time (rule 25).
+- `public_request_issued (id, at, ipKey)` — plugin table, challenges handed out, kept 24 h (rule 23).
+- Plugin setting `proofEnforcedSince` (rule 24).
+- `notification_digest_items.takenAt` (rule 26).
 - `reservations.publicUpdatedAfterSendAt TEXT` — rule 14 flag.
 - `reservations.operatorSeenAt TEXT` — rule 17.
 - `devis_number_retired (prefix PK, lastIncrement)` — core; the purge retires a number,
@@ -214,6 +261,22 @@ See the interactive mock-up `docs/specs/2026-10-27-public-request-abuse-and-grou
 - Manual: drawer on a phone (390 px), request sent before / after the check completes.
 
 ### Results (2026-10-27)
+
+After the review of PR #805 (rules 20-26):
+- `public-request-takeover.unit.test.js` — 9 tests (rules 20-22, F2: an operator-edited draft keeps
+  its lines); `public-request-challenge` +3 (rules 23-24) → 12; `public-request-purge` +2 (rule 25) →
+  7; `site-request-email-digest` +1 (rule 26) → 3; `wordpress-plugin-proof-of-work` +2 → 9. Each was
+  run first against the pre-review code and failed there.
+- Adjusted: `public-request-grouping` (the drawer sends the token; a sent quote only gains the
+  message), migration count 3, `DevisPage.public-update-flag` (new label).
+- Full suites: server **6 476 / 6 476**, client Vitest **2 190 / 2 190**, E2E 148 passed, 1 skipped.
+- Manual at 390 px (same isolated stack): the stay of a quote already sent, sent again with another
+  message → « Votre demande du 27 octobre 2026 a déjà été transmise : votre message a été ajouté. »,
+  the quote keeps its party and gains the dated message and the flag; an untouched draft sent again
+  from a fresh page → « … a été mise à jour. », no number nor token in the answer; the mock-up's new
+  « Opérateur : envoyer le dernier devis » path shows the same.
+
+First implementation:
 
 - `server/src/plugins/website-booking/tests/public-request-challenge.unit.test.js` — 9 tests (rules
   1-5b, transition).
@@ -248,3 +311,6 @@ See the interactive mock-up `docs/specs/2026-10-27-public-request-abuse-and-grou
   only.
 - Q: Grouping key? — A (2026-10-27, Adrien): same e-mail, same dates, same property.
 - Q: Duplicate of an open devis? — A (2026-10-27, Adrien): update the open devis in place.
+- Q: May a request for a known stay update a quote the operator already handled, and answer its
+  payment link? — A (2026-10-27, Adrien, review of PR #805): « Brouillon seul, jamais le lien » —
+  rules 20-21.
