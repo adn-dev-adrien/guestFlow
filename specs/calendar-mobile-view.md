@@ -51,6 +51,14 @@ changing the desktop experience**.
 6. **Mini-calendars.** The day strip is wrapped in a horizontal-scroll container with a
    `minWidth` floor (`N × 44px`) so it scrolls on a phone instead of squishing; on desktop
    the `1fr` columns still fill the width.
+7. **The week shown at load is today's, whatever the strip's width at mount** (fixed at the 2026-10-27
+   spec review). A deep link (`/calendar?propertyId=1`) mounted the strip while it was still 0 px wide:
+   the landing scroll was lost and the view sat on the first week of the strip (« 1 – 7 juin ») with no
+   data until something else moved it. The landing position is now re-applied whenever the strip's width
+   changes (`ResizeObserver`), which also keeps the shown week when the phone rotates.
+8. **Every line names the platform the same way** (fixed at the 2026-10-27 spec review). The mid-stay
+   (« en cours ») and devis lines print `formatPlatformLabel(platform)`, like the arrival and departure
+   lines — they printed the stored value, a lowercase « direct ».
 
 ## 4. Architecture (Client)
 
@@ -58,6 +66,7 @@ changing the desktop experience**.
 |---|---|---|---|
 | `utils/` | `calendarDaySummary.js` | C | NEW. Pure: `buildDaySummary(dateStr, reservations, devis)` → `{ arrival, departure, ongoing, devis[] }`; `isEmptyDay`; `getMonday`; `weekDays`. |
 | `components/` | `CalendarWeekView.js` | C | NEW. Mobile week view: 53-week horizontal scroll-snap strip (today ±26 weeks), only the centered week ±1 rendered; header + nav; per-day rows via `buildDaySummary`. Reuses `calendarVisuals` (`getReservationColor`, `compactName`, `DAY_NAMES`, `ZONE_COLORS`, `formatDate`, `shiftDate`), `getClosureForDate`, `getSchoolHolidayInfo`. |
+| `components/` | `CalendarWeekView.jsx` | T | (2026-10-27) Rule 7: the landing scroll is a layout effect re-applied by a `ResizeObserver` on the strip; rule 8: `formatPlatformLabel` on the mid-stay and devis lines. |
 | `pages/` | `CalendarPage.js` | T | Adds `useMediaQuery` switch (xs → `CalendarWeekView`, else `CalendarMonthGrid`) and `ensureWeekLoaded` to extend the month range on week change. |
 | `components/` | `SyncedPropertyMiniCalendars.js` | T | Day strip wrapped in an `overflowX:auto` container with a `minWidth` floor for mobile scroll. |
 
@@ -92,6 +101,10 @@ No change.
 - [x] `client/src/components/__tests__/CalendarWeekView.test.js` (5) — current week renders
       arrival/departure/ongoing labels; header week range; clicking a line fires
       `onReservationClick`; free future days offer to create; note button fires `onOpenNote`.
+- [x] `CalendarWeekView.deep-link-week.test.jsx` (1, rule 7, 2026-10-27) — mounted at 0 px, the strip
+      lands on today's week once it gets a width.
+- [x] `CalendarWeekView.platform-label.test.jsx` (+1, rule 8, 2026-10-27) — a mid-stay line reads
+      « Direct », never « direct ».
 
 ### Manual UI verification
 

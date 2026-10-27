@@ -69,7 +69,8 @@ function gateInsurance(res, engineInput, bookingId) {
 }
 const refundsModel = require('../models/refundsModel');
 const { overpaymentOf, overpaymentLinesOf } = require('../utils/overpayment');
-const { firstSessionConflict, conflictError: sessionConflictError } = require('../utils/resourceSessionConflicts');
+const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
+const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
 const { formatCurrency } = require('../utils/devisHelpers');
 const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
@@ -387,10 +388,17 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
 }
 
 // specs/plugins-phase-3c-hourly-resources.md rule 30 — sessions of the stay that use a resource more
-// times at once than it exists are refused (409 `SESSIONS_OVERLAP`). Answers and returns false.
-function refuseSessionConflict(res, resources) {
+// times at once than it exists are refused (409 `SESSIONS_OVERLAP`); so is a new session on a slot an
+// external booking or another stay already holds (specs/hourly-resource-quantity-and-sas-scheduling.md
+// rule 28, 409 `RESOURCE_SLOT_TAKEN`). Answers and returns false.
+function refuseSessionConflict(res, resources, reservationId = null) {
   const conflict = firstSessionConflict(resources, (resourceId) => {
     try { return (db.prepare('SELECT quantity FROM resources WHERE id = ?').get(resourceId) || {}).quantity; } catch { return 1; }
+  }, {
+    occupiedOn: (resourceId, date) => resourceOtherUsesModel.occupiedOn({ resourceId, date, excludeReservationId: reservationId }),
+    turnoverOf: (resourceId) => resourceOtherUsesModel.turnoverOf(resourceId),
+    storedOf: (resourceId) => new Set(resourceOtherUsesModel.storedSessions({ reservationId, resourceId })
+      .map((s) => sessionKey(String(s.date).slice(0, 10), s.start, s.end))),
   });
   if (!conflict) return true;
   res.status(409).json(sessionConflictError(conflict));
@@ -1730,7 +1738,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     ...scheduleQuoteInputs(id),
   };
   if (!gateInsurance(res, engineInput, Number(id))) return;
-  if (!refuseSessionConflict(res, engineInput.selectedResources)) return;
+  if (!refuseSessionConflict(res, engineInput.selectedResources, Number(id))) return;
   req.body.options = engineInput.selectedOptions;
   let quote = calculateReservationQuote(engineInput);
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): same as the preview.

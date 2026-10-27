@@ -80,6 +80,9 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    reloads on every day change (and when the server's day moves on, rule 7); a load that
    answers after a newer one started is dropped, so the day shown and its arrivals and departures
    always match.
+10. **`?day=` must be a real calendar day** (fixed at the 2026-10-27 spec review). A day with the right
+    shape but none behind it (`2026-13-01`, `2026-02-30`) answered 200 with no day; it is refused 400
+    « Date invalide. » like a malformed one.
 
 ## 4. Architecture
 | Layer | File | Responsibility |
@@ -120,6 +123,8 @@ Until 2026-10-18 there was no server change (the page reused `GET /reservations`
   refused); client `ReservationsUpcomingPage.ready-toggle.test.jsx` (3: ticked before the server
   answers and only its day re-asked, a refused save puts the box back, a late recount never
   overwrites a newer one).
+- [x] Rule 10 — server `upcoming-reservations-impossible-day.unit.test.js` (2: impossible days 400, real
+  days including 29 February 2028 accepted).
 - [x] Rule 9 — client `Dashboard.stale-load.test.jsx` (1: the load of the day left behind, answering
   last, does not replace the arrivals of the day shown).
 - [x] Rule 7 amendment — `RefundDialog.local-day.test.jsx`, `LaundryExtraTripDialog.local-day.test.jsx`

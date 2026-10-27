@@ -8,6 +8,11 @@ import {
   getBlockedNightInfo, resHasMidDays, compactName,
   CLEANING_COLOR, BLOCKED_NIGHT_COLOR,
 } from '../utils/calendarVisuals';
+import { formatPlatformLabel } from '../constants/platforms';
+
+// A long name stays inside its day: cut with an ellipsis, never drawn over the next cells
+// (2026-10-27 spec review, F13).
+const FIT = { maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' };
 
 /**
  * CalendarDayCell — renders a single day of the reservation calendar (the diagonal
@@ -122,7 +127,7 @@ export default function CalendarDayCell({
         {renderNoteLabel(dateStr, true)}
         {isLabelDay ? (
           <>
-            <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap' }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap', ...FIT, px: 0.5 }}>
               {midRes.bookingConflictAt && (
                 <Tooltip title="Conflit de dates — paiement en ligne reçu (remboursement / relogement à traiter)">
                   <WarningAmberIcon sx={{ fontSize: 15, verticalAlign: 'text-bottom', mr: 0.5 }} />
@@ -131,7 +136,7 @@ export default function CalendarDayCell({
               {midRes.firstName} {midRes.lastName}
             </Typography>
             <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
-              {midRes.platform}
+              {formatPlatformLabel(midRes.platform)}
             </Typography>
           </>
         ) : (
@@ -196,11 +201,11 @@ export default function CalendarDayCell({
               <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
                 devis
               </Typography>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap', ...FIT, px: 0.5 }}>
                 {activeDevis.firstName} {activeDevis.lastName}
               </Typography>
               <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
-                {activeDevis.platform || '-'}
+                {formatPlatformLabel(activeDevis.platform) || '-'}
               </Typography>
             </>
           )}
@@ -458,12 +463,12 @@ export default function CalendarDayCell({
         const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
         const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
         return (
-          <Box sx={{ position: 'absolute', bottom: 1, right: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
-            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
+          <Box sx={{ position: 'absolute', bottom: 1, right: 2, left: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
+            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow, ...FIT }}>
               {compactName(arrivalRes.firstName, arrivalRes.lastName)}
             </Typography>
             <Typography sx={{ fontSize: platSize, fontWeight: 500, color: whiteSoft, lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
-              {arrivalRes.platform}
+              {formatPlatformLabel(arrivalRes.platform)}
             </Typography>
           </Box>
         );
@@ -474,12 +479,12 @@ export default function CalendarDayCell({
         const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
         const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
         return (
-          <Box sx={{ position: 'absolute', top: 1, left: 2, zIndex: 2, textAlign: 'left', lineHeight: 1, pointerEvents: 'none' }}>
-            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
+          <Box sx={{ position: 'absolute', top: 1, left: 2, right: 2, zIndex: 2, textAlign: 'left', lineHeight: 1, pointerEvents: 'none' }}>
+            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow, ...FIT }}>
               {compactName(departureRes.firstName, departureRes.lastName)}
             </Typography>
             <Typography sx={{ fontSize: platSize, fontWeight: 500, color: whiteSoft, lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
-              {departureRes.platform}
+              {formatPlatformLabel(departureRes.platform)}
             </Typography>
           </Box>
         );

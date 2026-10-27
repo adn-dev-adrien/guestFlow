@@ -9,6 +9,7 @@
 const router = require('express').Router();
 const controller = require('../controllers/planningController');
 
+router.get('/alerts', controller.alerts);
 router.get('/breakfast', controller.breakfastSummary);
 router.get('/option-cards', controller.optionCards);
 router.post('/option-cards/done', controller.setOptionCardDone);

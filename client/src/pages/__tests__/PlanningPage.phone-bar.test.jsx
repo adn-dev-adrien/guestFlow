@@ -15,7 +15,7 @@ vi.mock('../../components/DialogProvider', () => ({ useToast: () => ({ showError
 vi.mock('../../components/sas/ReservationSasDialog', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getProperties: vi.fn().mockResolvedValue([]),
+    getPlanningAlerts: vi.fn().mockResolvedValue({ arrivals: {}, departures: {} }),
     getReservations: vi.fn().mockResolvedValue([]),
     getReservation: vi.fn(),
     getBreakfastPlanningSummary: vi.fn().mockResolvedValue({ breakfastByDate: {} }),

@@ -37,3 +37,25 @@ test('rule 21 — arrival and departure lines carry the display label, not the s
   expect(screen.getByText('10:00 · Airbnb')).toBeInTheDocument();
   expect(screen.queryByText(/· direct$/)).toBeNull();
 });
+
+// 2026-10-27 spec review (F13) — the mid-stay lines printed the stored « direct » in lowercase.
+test('rule 21 — a mid-stay line carries the display label too', () => {
+  render(
+    <CalendarWeekView
+      today={TODAY}
+      reservations={[{ id: 3, startDate: '2026-07-06', endDate: '2026-07-12', firstName: 'Lea', lastName: 'Petit', platform: 'direct' }]}
+      devisList={[]}
+      closures={[]}
+      selectedProp={1}
+      calendarNotes={{}}
+      publicHolidays={new Set()}
+      onReservationClick={vi.fn()}
+      onDevisClick={vi.fn()}
+      onOpenNewReservation={vi.fn()}
+      onOpenNote={vi.fn()}
+      onWeekChange={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByText('Direct').length).toBeGreaterThan(0);
+  expect(screen.queryByText('direct')).toBeNull();
+});

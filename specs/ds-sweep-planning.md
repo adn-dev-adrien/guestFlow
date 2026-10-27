@@ -217,6 +217,14 @@ business behavior, figure, or calendar geometry**.
     foreground (window focus, tab visible again). A Dashboard or Planning left open overnight moves to
     the new day on return, and « Aujourd'hui » leads to it; a date the operator picked stays picked.
 
+### 3.13 Planning cards on a phone (added 2026-10-27, spec review)
+
+30. **An icon never wraps alone.** On the Planning cards (arrival, departure row, option / breakfast
+    card) the house icon and the logement's name, and the person icon and the client's name, form one
+    unit that wraps together: a long name breaks inside itself next to its icon instead of leaving the
+    icon alone on a line (seen at 390 px with « Studio Avec Un Nom De Logement Vraiment Très Long »). The
+    platform badge and the alert caption still wrap after it.
+
 **Edge cases:**
 - No computed figure, occupancy math, drag-and-drop behavior, or calendar geometry changes.
 - `calendar-platform-colors.test.js` guard (no direct `PLATFORM_COLORS[…]` outside

@@ -134,13 +134,16 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
             <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2, minWidth: 0 }}>
               {item.propertyName}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.clientName}</Typography>
+            {/* Icon and name wrap together: a long name never leaves the icon alone on its line. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, maxWidth: '100%' }}>
+              <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0 }}>{item.clientName}</Typography>
+            </Box>
             {/* The cook must read the number of plates to prepare, not the size of the party. */}
             {servedPersons != null && (
               <Chip

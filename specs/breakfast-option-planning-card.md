@@ -68,6 +68,17 @@ while its **planning rendering remains the rich BreakfastDayCard**, now fed by t
 7. **Migration (one-time, guarded)**: for every reservation that has the breakfast option and **no**
    `cardOccurrences` yet, seed `cardOccurrences` = each served morning `(startDate, endDate]` at the
    reservation's `breakfastTime` (else the option default). Idempotent (recorded in the `migrations` table).
+8. **A fallback card ticks like the others** (fixed at the 2026-10-27 spec review, F5). A breakfast sold
+   after the migration without chosen mornings (site / API booking), or served through a property
+   default, shows the rule 4 fallback card every morning — but has no stored occurrence to carry its
+   « préparé » flag, so `POST /api/planning/option-cards/done` answered 404 `OCCURRENCE_NOT_FOUND` and
+   the planning showed that raw code in a toast. When no stored occurrence matches, the endpoint now
+   records the flag of that fallback card in `breakfast_fallback_done` (one row per reservation and
+   morning; unticking deletes it) and `breakfastByDate` reads it back. It answers 404 only when that
+   reservation has no fallback card that morning (arrival morning, outside the stay, chosen mornings, a
+   non-breakfast option). The materialisation of occurrences was ruled out: it would change the
+   quantity the engine bills. The planning never shows a server code: a refused toggle reads
+   « Impossible de mettre à jour le petit déjeuner. » (« … la préparation. » on an option card).
 
 ## 4. Architecture
 
@@ -77,10 +88,17 @@ while its **planning rendering remains the rich BreakfastDayCard**, now fed by t
 | models | `models/breakfastModel.js` | `breakfastByDate`: emit a card per breakfast `cardOccurrence` (date ∈ window, occurrence hour) + drinks; fallback to the served-morning window when no occurrences. `getForReservation`: hour from the first occurrence. |
 | models | `models/planningOptionCardsModel.js` | Exclude `o.autoOptionType='breakfast'` from the generic cards (no double). |
 | components | `components/reservation/ExtrasSection.js` | Hide the legacy single « Heure souhaitée » field for breakfast (the occurrence checklist drives the hour). |
-| database | `database.js` | One-time guarded migration (`migrations` table): seed `cardOccurrences` on existing breakfast reservations (served mornings × breakfastTime). |
+| database | `database.js` | One-time guarded migration (`migrations` table): seed `cardOccurrences` on existing breakfast reservations (served mornings × breakfastTime). Since 2026-10-27: `breakfast_fallback_done` table (rule 8). |
+| models | `models/breakfastModel.js` | (2026-10-27) `setFallbackDone({ reservationId, optionId, date, done })` — rule 8; `breakfastByDate` reads the fallback cards' `done` from `breakfast_fallback_done`. |
+| controllers | `controllers/planningController.js` | (2026-10-27) `setOptionCardDone` falls back to `breakfastModel.setFallbackDone` when no stored occurrence matches. |
+| pages | `client/src/pages/PlanningPage.jsx` | (2026-10-27) The toggles' failure toasts are fixed French sentences, never `e.message`. |
 
 ## 5. Data model
 No new columns (reuses `options.showsPlanningCard/cardRepeat/planningCardTimes` + `reservation_options.cardOccurrences`).
+
+Since 2026-10-27 (rule 8): table `breakfast_fallback_done (reservationId → reservations ON DELETE CASCADE,
+date TEXT, createdAt TEXT, PRIMARY KEY (reservationId, date))`, created idempotently in `database.js`,
+starts empty. No existing row is touched.
 
 ## 6. Test plan
 - [x] `breakfastSeed`: the seeded/promoted breakfast option carries `showsPlanningCard=1`, `once_per_day`,
@@ -89,6 +107,11 @@ No new columns (reuses `options.showsPlanningCard/cardRepeat/planningCardTimes` 
   hours; without, falls back to the served-morning window. (`tests/breakfast-option-card.unit.test.js`.)
 - [x] `planningOptionCardsModel`: a breakfast option never produces a generic card.
 - [x] Server suite 1603 pass.
+- [x] `tests/breakfast-fallback-done.unit.test.js` (4, rule 8, 2026-10-27): a fallback card (no chosen
+  mornings) ticks and unticks morning by morning; a property-default breakfast ticks; arrival morning,
+  a morning outside the stay and a non-breakfast option still 404; chosen mornings keep their own flag.
+- [x] Manual (2026-10-27, instance, 390 + 1280 px): ticking « Marquer comme préparé » on a breakfast sold
+  without chosen mornings stays ticked after a reload, no toast.
 - [x] Manual (dev): breakfast option shows the per-day occurrence checklist (presence-filtered: the
   arrival morning is excluded), no legacy « Heure souhaitée »; quantity = selected mornings × persons
   (4 = 2×2); the Planning shows the breakfast cards on the checked days (21/22 juin) with **no** duplicate

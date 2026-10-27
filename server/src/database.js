@@ -2680,6 +2680,19 @@ db.exec(`
 db.exec('CREATE INDEX IF NOT EXISTS idx_booking_pace_cancellations_property ON booking_pace_cancellations(propertyId)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(createdAt)');
 
+// ---------- BREAKFAST FALLBACK « PRÉPARÉ » MARKS (specs/breakfast-option-planning-card.md) ----------
+// A breakfast served without chosen mornings (site/API booking, property default) shows a card every
+// morning but has no stored occurrence to carry its « préparé » flag: the flag lives here, one row per
+// reservation and morning. Additive, starts empty.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS breakfast_fallback_done (
+    reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (reservationId, date)
+  )
+`);
+
 // ---------- ACCOUNT SECURITY (specs/hosting-h2-account-security.md §5) ----------
 // Reset links, second step, backup codes, account history, support access and its log, and the
 // disabled « Support GuestFlow » user. Additive, idempotent.

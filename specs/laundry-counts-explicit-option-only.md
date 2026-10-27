@@ -2,13 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `fix/laundry-count-explicit-option` |
 | **Created** | 2026-08-11 |
 | **Approved** | 2026-08-11 |
+| **Implemented** | Status corrected at the 2026-10-27 spec review: the explicit-only count (`INTERNAL_ONLY` in `server/src/plugins/linen/laundryModel.js`), the incomplete list of `/api/planning/laundry` and the warning chip of the laundry card are in production |
 | **Author** | Adrien |
 | **Amends** | [weekly-bed-linen-tracking.md](weekly-bed-linen-tracking.md) §3.7, [linen-inventory-shortage-tracking.md](linen-inventory-shortage-tracking.md) §3.3, [laundry-bath-mat.md](laundry-bath-mat.md) §3 rule 11 |
-| **Related PR** | _(opened at the end of implementation)_ |
+| **Related PR** | #410 |
 
 ---
 
