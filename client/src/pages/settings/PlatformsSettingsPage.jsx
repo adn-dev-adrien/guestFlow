@@ -12,7 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Alert, Box, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead,
+  Alert, Box, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, Table, TableContainer, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -211,34 +211,37 @@ export default function PlatformsSettingsPage() {
         {!draft && !loadError && <LoadingState label="Chargement des plateformes…" />}
         {draft && !isMobile && (
           <Card variant="outlined">
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Plateforme</TableCell>
-                  <TableCell>Couleur</TableCell>
-                  <TableCell>Commission (%)</TableCell>
-                  <TableCell>Acompte</TableCell>
-                  <TableCell sx={{ minWidth: 200 }}>Taxe de séjour</TableCell>
-                  <TableCell>Virement (jours)</TableCell>
-                  <TableCell>Vente directe</TableCell>
-                  <TableCell>Sans corvées</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</TableCell>
-                    <TableCell>{colorCell(p)}</TableCell>
-                    <TableCell>{commissionCell(p)}</TableCell>
-                    <TableCell>{depositCell(p)}</TableCell>
-                    <TableCell>{taxCell(p)}</TableCell>
-                    <TableCell>{payoutCell(p)}</TableCell>
-                    <TableCell>{directCell(p)}</TableCell>
-                    <TableCell>{choresCell(p)}</TableCell>
+            {/* Scroll-contained: the Card clips, and seven columns outgrow it below ~1100px. */}
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Plateforme</TableCell>
+                    <TableCell>Couleur</TableCell>
+                    <TableCell>Commission (%)</TableCell>
+                    <TableCell>Acompte</TableCell>
+                    <TableCell sx={{ minWidth: 200 }}>Taxe de séjour</TableCell>
+                    <TableCell>Virement (jours)</TableCell>
+                    <TableCell>Vente directe</TableCell>
+                    <TableCell>Sans corvées</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {rows.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</TableCell>
+                      <TableCell>{colorCell(p)}</TableCell>
+                      <TableCell>{commissionCell(p)}</TableCell>
+                      <TableCell>{depositCell(p)}</TableCell>
+                      <TableCell>{taxCell(p)}</TableCell>
+                      <TableCell>{payoutCell(p)}</TableCell>
+                      <TableCell>{directCell(p)}</TableCell>
+                      <TableCell>{choresCell(p)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Card>
         )}
         {draft && isMobile && rows.map((p) => (
@@ -250,7 +253,7 @@ export default function PlatformsSettingsPage() {
                   <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{formatPlatformLabel(p.name)}</Typography>
                 </Box>
                 <Box>
-                  <Typography variant="caption" color="text.secondary">Commission (%)</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Commission (%)</Typography>
                   {commissionCell(p)}
                 </Box>
                 {p.takesDeposit !== null && (
@@ -261,13 +264,13 @@ export default function PlatformsSettingsPage() {
                 )}
                 {p.touristTaxCollection !== null && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Taxe de séjour</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Taxe de séjour</Typography>
                     {taxCell(p)}
                   </Box>
                 )}
                 {p.payoutDueDays !== null && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Virement (jours après le départ)</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Virement (jours après le départ)</Typography>
                     {payoutCell(p)}
                   </Box>
                 )}
