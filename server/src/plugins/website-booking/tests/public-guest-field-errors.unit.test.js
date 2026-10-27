@@ -1,3 +1,4 @@
+require('./isolatedDb');
 // specs/wordpress-plugin.md rule 28 (UI/UX review 2026-10-18, decision 3) — every refused contact
 // field carries its own sentence in the visitor's language, so the site prints it under that field
 // instead of one generic line under the button. `field` and `issue` never move: additions only.

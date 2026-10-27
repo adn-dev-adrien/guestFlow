@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  addDays, arrivalDates, lengthsFor, partySizes, taxDependsOnHeadcount, enumerate, itineraryKey,
+  addDays, arrivalDates, lengthsFor, partySizes, enumerate, itineraryKey,
 } = require('../itineraries');
 
 test('arrivals run from today over horizonDays, across a month and a year end', () => {
@@ -20,23 +20,18 @@ test('rule 4 — stay lengths go up to maxLos; rule 8 — never past the last ni
   assert.deepEqual(lengthsFor(horizonEnd, { maxLos: 14, horizonEnd }), []);
 });
 
-test('rule 4 — a per-adult tourist tax prices every party size up to the cap', () => {
+test('rule 4 — every party size from 1 to the cap, whatever the tourist tax (2026-10-27 audit)', () => {
   const gite = { basePriceIncludedGuests: 10, touristTaxMode: 'per_day_per_person', touristTaxPerDayPerPerson: 1.2 };
-  assert.equal(taxDependsOnHeadcount(gite), true);
   assert.deepEqual(partySizes(gite, 14), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
-});
-
-test('rule 4 — without a headcount tax: the included guests, then each extra guest up to the cap', () => {
+  // No headcount tax: a per-person default option still makes a party of 1 cheaper than the 4 included.
   const flat = { basePriceIncludedGuests: 4, touristTaxMode: 'per_day_per_person', touristTaxPerDayPerPerson: 0 };
-  assert.deepEqual(partySizes(flat, 6), [4, 5, 6]);
+  assert.deepEqual(partySizes(flat, 6), [1, 2, 3, 4, 5, 6]);
   const fixed = { basePriceIncludedGuests: 2, touristTaxMode: 'fixed_amount', touristTaxFixedAmount: 10 };
-  assert.deepEqual(partySizes(fixed, 4), [2, 3, 4]);
-  const percent = { basePriceIncludedGuests: 2, touristTaxMode: 'percentage_accommodation', touristTaxPercentage: 5 };
-  assert.deepEqual(partySizes(percent, 3), [1, 2, 3], 'the percentage rate is per occupant');
+  assert.deepEqual(partySizes(fixed, 4), [1, 2, 3, 4]);
 });
 
 test('edge case — a party above the cap is never priced; an included count above the cap is clamped', () => {
-  assert.deepEqual(partySizes({ basePriceIncludedGuests: 8 }, 4), [4]);
+  assert.deepEqual(partySizes({ basePriceIncludedGuests: 8 }, 4), [1, 2, 3, 4]);
   assert.deepEqual(partySizes({ basePriceIncludedGuests: 0 }, 0), [1]);
 });
 

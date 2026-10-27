@@ -159,6 +159,16 @@ Let a website visitor **pay their full stay online** and have the reservation co
     link later). A GuestFlow older than the field (no `onlineReady`) keeps the block's choice. A
     payment that fails anyway is retried on the same devis (`specs/wordpress-plugin.md` rule 16).
 
+### Stay rules re-checked at payment (fixed at the 2026-10-27 audit)
+
+13. **`pay` re-checks the stay rules after availability.** Minimum stay, maximum stay and changeover
+    days are read from the property's seasons for the SAVED devis dates (`calculateBaseStayPrice` +
+    `checkChangeover`, the engine's own helpers) and refused with `409 MIN_NIGHTS` / `MAX_NIGHTS` /
+    `CHANGEOVER`, worded like the booking request ([public-api.md](public-api.md) rule 12). Nothing is
+    paid yet, so the refusal is clean; the availability re-check also sees a neighbour's late
+    check-out and early check-in (public-api.md rule 15). Covered by
+    `plugins/website-booking/tests/public-stay-rules.unit.test.js`.
+
 ## 4. Architecture
 
 ### 4.1 Server (`server/src/`)

@@ -16,6 +16,10 @@
  * See specs/site-english-version.md §3 rules 3, 8, 10 and §4.1.
  */
 
+// JS weekday convention (0 = Sunday), the one `utils/changeover.js` stores.
+const FR_DAYS = Object.freeze(['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']);
+const EN_DAYS = Object.freeze(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
+
 const FR = Object.freeze({
   // ── Price basis, per priceType (specs/public-planning-options.md) ──────────
   priceUnit: Object.freeze({
@@ -88,6 +92,16 @@ const FR = Object.freeze({
     devisNotFound: 'Devis introuvable.',
     /** « Séjour trop court : minimum 3 nuit(s). » */
     minNights: (n) => `Séjour trop court : minimum ${n} nuit${n > 1 ? 's' : ''}.`,
+    /** « Séjour trop long : maximum 7 nuits. » */
+    maxNights: (n) => `Séjour trop long : maximum ${n} nuit${n > 1 ? 's' : ''}.`,
+    /** « Arrivée le samedi et départ le samedi uniquement sur cette période. » — only the breached sides. */
+    changeover: (arrivalDay, departureDay) => {
+      const parts = [];
+      if (arrivalDay != null) parts.push(`arrivée le ${FR_DAYS[arrivalDay]}`);
+      if (departureDay != null) parts.push(`départ le ${FR_DAYS[departureDay]}`);
+      const text = parts.join(' et ');
+      return `${text.charAt(0).toUpperCase()}${text.slice(1)} uniquement sur cette période.`;
+    },
     // The pricing engine phrases its own refusals, in French, for the back-office. A visitor gets
     // our sentence instead and the engine's text travels in `details`, where it belongs: it is a
     // diagnostic, not a message written for a guest.
@@ -175,6 +189,14 @@ const EN = Object.freeze({
   errors: Object.freeze({
     devisNotFound: 'Quote not found.',
     minNights: (n) => `Stay too short: ${n} night${n > 1 ? 's' : ''} minimum.`,
+    maxNights: (n) => `Stay too long: ${n} night${n > 1 ? 's' : ''} maximum.`,
+    changeover: (arrivalDay, departureDay) => {
+      const parts = [];
+      if (arrivalDay != null) parts.push(`check-in on ${EN_DAYS[arrivalDay]}`);
+      if (departureDay != null) parts.push(`check-out on ${EN_DAYS[departureDay]}`);
+      const text = parts.join(' and ');
+      return `${text.charAt(0).toUpperCase()}${text.slice(1)} only for these dates.`;
+    },
     quoteRefused: 'This request cannot be priced.',
     propertyNotFound: 'Property not found.',
     termsNotFound: 'Version not found.',

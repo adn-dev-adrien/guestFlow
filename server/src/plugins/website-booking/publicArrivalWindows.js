@@ -21,9 +21,14 @@ function addDays(iso, n) {
  * @param {Set}      p.blockedSet   blocked nights; must extend `maxNights` past `to`
  * @param {Function} p.minNightsFor (dateIso) => effective minimum of that night, or null when unpriced
  * @param {number}   [p.maxNights]  how far a window is searched before the arrival is given up
+ * @param {Function} [p.isStayAllowed] (start, end) => true | { ok, stop? } — the other stay rules the
+ *   quote enforces (maximum stay, changeover days; nextAvailability.stayRulesPredicate). A long-enough
+ *   stay it refuses is extended night by night; `stop` gives the arrival up. Default: any stay.
  * @returns {{date: string, minNights: number, earliestDeparture: string}[]}
  */
-function computeArrivalWindows({ from, to, todayIso, blockedSet, minNightsFor, maxNights = 30 }) {
+function computeArrivalWindows({
+  from, to, todayIso, blockedSet, minNightsFor, maxNights = 30, isStayAllowed = () => true,
+}) {
   const out = [];
   for (let date = from < todayIso ? todayIso : from; date < to; date = addDays(date, 1)) {
     let required = 0;
@@ -33,8 +38,14 @@ function computeArrivalWindows({ from, to, todayIso, blockedSet, minNightsFor, m
       if (min == null) break;
       required = Math.max(required, min);
       if (n >= required) {
-        out.push({ date, minNights: required, earliestDeparture: addDays(date, n) });
-        break;
+        // Fixed at the 2026-10-27 audit: an arrival the changeover days or the maximum stay refuse
+        // is not offered, and the earliest departure is the first one the quote accepts.
+        const verdict = isStayAllowed(date, addDays(date, n));
+        if (verdict === true || (verdict && verdict.ok)) {
+          out.push({ date, minNights: required, earliestDeparture: addDays(date, n) });
+          break;
+        }
+        if (verdict && verdict.stop) break;
       }
       night = addDays(night, 1);
     }

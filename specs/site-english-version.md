@@ -137,6 +137,11 @@ the first page and the last email.
     value to `fr`, and the plugin deployed today sends no `lang` at all, so a blind overwrite would
     silently reset every English client to French on their next booking. The controller therefore
     separates "no language stated" from "language stated as fr".
+    *Superseded at the 2026-10-27 audit by [public-api.md](public-api.md) rule 13:* an anonymous
+    request never changes a stored client, its language included — anyone knowing a guest's address
+    could rewrite it. A stated language that differs from the client's is written in the devis notes
+    (« … langue en ») for the operator to apply; the devis keeps the page's language in `pdfLanguage`
+    (rule 13). A NEW client is still created with the stated language.
 13. The language the request arrived in is recorded on the devis and travels to the reservation, so
     the operator can see it even when it disagrees with the client's stored preference (§6).
     `requestOrigin` travels with it: measured 2026-09-24, `carryOverColumns`
@@ -530,7 +535,7 @@ below was already shipped and already wrong; none of it could have been seen fro
 - An English visitor lands on a French page with no translation → the switcher points at the English
   home rather than 404-ing.
 - A booking request in English for an existing client known as French → the request is honoured, the
-  stored language is left alone (rule 12).
+  stored language is left alone and the devis notes say « langue en » (rule 12 as amended 2026-10-27).
 - Polylang deactivated → `pll_current_language()` is absent, everything resolves to `fr`, the site
   behaves exactly as it does today.
 

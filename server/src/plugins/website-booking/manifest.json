@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -67,6 +67,13 @@
     ],
     "1.7.1": [
       "Le devis du site est calculé par le cœur de GuestFlow, le même que celui envoyé à Google Vacation Rentals (SDK 2.4)."
+    ],
+    "1.7.2": [
+      "Durée maximale et jours d’arrivée / de départ : le devis du site les signale, la demande les refuse (MAX_NIGHTS, CHANGEOVER), le calendrier ne propose plus une arrivée qu’ils interdisent, et le paiement les revérifie.",
+      "Seules les options du catalogue public sont acceptées : ni option interne, ni option offerte par défaut, ni prix négatif. La même option deux fois dans une demande est refusée au lieu d’une erreur 500.",
+      "Une demande dont l’e-mail correspond à un client existant ne modifie plus sa fiche (nom, téléphone, langue) : l’identité saisie est notée sur le devis.",
+      "La vérification des disponibilités voit le départ tardif ou l’arrivée anticipée d’une réservation voisine.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

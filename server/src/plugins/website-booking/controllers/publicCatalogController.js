@@ -23,7 +23,7 @@ const {
 } = require('../publicProjections');
 const { ok, failT, langOf } = sdk.coreModule('publicHttp');
 const translationResolver = sdk.coreModule('translationResolver');
-const { isClientVisibleOption } = sdk.coreModule('optionVisibility');
+const { publicSelectableOptions } = require('../publicSelectableOptions');
 const { groupOptionsByCategory } = sdk.coreModule('optionGrouping');
 
 function todayIso() {
@@ -52,32 +52,12 @@ function byPriceAsc(a, b) {
   return Number(a.price || 0) - Number(b.price || 0);
 }
 
-/**
- * Option ids that are OFFERED defaults for a property — included in the price, not a client choice,
- * so they must not surface as selectable on the public booking form
- * (specs/property-default-option-applicability.md rule 4). Guarded for schemas without the table.
- */
-function offeredDefaultOptionIds(propertyId) {
-  try {
-    return new Set(
-      db.prepare('SELECT optionId FROM property_option_defaults WHERE propertyId = ? AND offered = 1')
-        .all(Number(propertyId)).map((row) => Number(row.optionId))
-    );
-  } catch { return new Set(); }
-}
-
 function listOptions(req, res) {
   const propertyId = Number(req.params.id);
   if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
   const lang = langOf(req);
   const translate = translationResolver.forLang(lang);
-  const excluded = offeredDefaultOptionIds(propertyId);
-  const visible = optionsModel.listForProperty(propertyId)
-    .filter((opt) => !excluded.has(Number(opt.id)))
-    // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never reach the public catalog.
-    // Filtered BEFORE grouping so a category whose options are all internal yields no group at all
-    // (specs/option-categories.md §3 rule 14).
-    .filter(isClientVisibleOption)
+  const visible = publicSelectableOptions(propertyId, { db, optionsModel })
     .map((opt) => toPublicOption(opt, lang, translate));
   // The cancellation insurance leaves the supplements lists entirely
   // (specs/cancellation-insurance.md §3.3 rule 18): it gets its own block, with a mandatory
@@ -138,7 +118,7 @@ function getAvailability(req, res) {
     // stay, arrival day) is not an availability.
     isStayAllowed: stayRulesPredicate(rules),
   });
-  const { arrivals, nightPrices } = calendarHints(rules, from, to, new Set(lookahead));
+  const { arrivals, nightPrices } = calendarHints(rules, from, to, new Set(lookahead), stayRulesPredicate(rules));
   return ok(res, toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate, arrivals, nightPrices }));
 }
 
@@ -146,12 +126,13 @@ const ARRIVAL_LOOKAHEAD_NIGHTS = 31;
 
 // Rules 10 + 13: per bookable arrival, the minimum and the earliest departure; per free night, its
 // base price. Both read the pricing rules exactly as the quote does (pricing.js first-match rule).
-function calendarHints(rules, from, to, blockedSet) {
+function calendarHints(rules, from, to, blockedSet, isStayAllowed) {
   const today = todayIso();
   const arrivals = computeArrivalWindows({
     from, to, todayIso: today, blockedSet,
     minNightsFor: (date) => effectiveMinNightsForDate(rules, date),
     maxNights: ARRIVAL_LOOKAHEAD_NIGHTS - 1,
+    isStayAllowed,
   });
   const nightPrices = [];
   for (let date = from < today ? today : from; date < to; date = addDays(date, 1)) {

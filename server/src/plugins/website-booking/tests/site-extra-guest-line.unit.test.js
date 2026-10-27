@@ -1,3 +1,4 @@
+require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these

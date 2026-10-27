@@ -225,6 +225,13 @@ remaining the single source of truth for prices, availability, and validation.
     `.gf-btn-ghost`, `.gf-btn-forest` were repainted fir green), `.gf-section` likewise, the
     out-of-flow button is `.gfb-cta` (Solio's header has a `.gf-cta`), and the tap-highlight reset
     applies to engine buttons only. A test reads the stylesheet for each of these.
+30. **A stay the seasons refuse reads as refused, in GuestFlow's words** (2026-10-27 audit, plugin
+    1.17.1). When the quote carries `stayRefusal` (maximum stay or changeover days,
+    [public-api.md](public-api.md) rule 12), the booking block treats it like a minimum-stay breach:
+    the sentence under the calendar and in the récapitulatif, the bar's amount replaced by it, no quote
+    kept, the request button disabled — the period stays on screen. The plugin writes no sentence of
+    its own; a submit that still reaches GuestFlow is answered `409 MAX_NIGHTS` / `CHANGEOVER` with the
+    same sentence, which the block already prints. A GuestFlow without the field behaves as before.
 
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
@@ -234,7 +241,7 @@ remaining the single source of truth for prices, availability, and validation.
   `available:false` from the API) but the **Submit** button is disabled with an inline message; the
   server re-checks anyway and would return `409`.
 - Quote breaches minimum nights → inline message from the quote's `minNights`/`minNightsBreached`;
-  submit disabled.
+  submit disabled. Maximum stay or changeover days → the quote's `stayRefusal`, same treatment (rule 30).
 - Slow/timeout API call → proxy uses a bounded timeout (e.g. 8 s) and surfaces a retry message; reads
   fall back to the last cached value when still within a stale-OK grace window (optional, see §9).
 - Multiple blocks on one page → each block instance fetches independently; shared reads hit the same
@@ -439,6 +446,10 @@ respects its container width.
       specificity, phone-only bar). Browser re-check with the real Solio CSS (`gf-site-style.php`,
       the drawer of `gf-seo-reservation.php`, the legacy `gf-booking.php`) injected into the harness,
       Chromium and WebKit, 390 touch / 900 / 1280.
+
+- [x] Rule 30 (2026-10-27): `client/src/__tests__/wordpress-booking-view.stay-refusal.test.js` (2: the
+      real `view.js` prints `stayRefusal` and keeps the request disabled; a quote without it is drawn
+      as before); the refusal itself is `plugins/website-booking/tests/public-stay-rules.unit.test.js`.
 
 ### Manual verification
 - [ ] Install the built `.zip` on a WordPress test site; configure base URL + key; "Test connection" =

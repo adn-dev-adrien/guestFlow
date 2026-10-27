@@ -1178,6 +1178,19 @@
           setSubmit(true);
           return;
         }
+        // Maximum stay or changeover days (plugin 1.17.1): GuestFlow writes the sentence, in the
+        // page's language; the period stays on screen like a minimum-stay breach.
+        if (q.stayRefusal) {
+          trackOnce('booking-unavailable', datesKey + '|stay-rules', { reason: 'stay-rules' });
+          renderCal({ msg: q.stayRefusal, isError: true });
+          summary.innerHTML = '';
+          summary.appendChild(GF.el('div', { class: 'gf-empty' }, q.stayRefusal));
+          warn.innerHTML = '';
+          lastQuote = null;
+          setBarAmount('', q.stayRefusal);
+          setSubmit(true);
+          return;
+        }
         lastQuote = q;
         drawSummary(q);
         if (q.available === false) trackOnce('booking-unavailable', datesKey + '|taken', { reason: 'taken' });

@@ -16,8 +16,11 @@ const optionsModel = sdk.coreModule('optionsModel');
 const resourcesModel = sdk.coreModule('resourcesModel');
 const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { validateStayInput } = require('../publicInputValidation');
-const { toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits } = require('../publicProjections');
+const {
+  toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits, hasUnpricedNights,
+} = require('../publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
+const { publicSelectableOptions } = require('../publicSelectableOptions');
 const { resolvePublicPaymentMode } = sdk.coreModule('publicPaymentMode');
 const { mergePropertyDefaultsIntoPayload } = sdk.coreModule('propertyDefaultOptions');
 const propertyOptionDefaultsModel = sdk.coreModule('propertyOptionDefaultsModel');
@@ -40,10 +43,13 @@ const { buildEngineQuote } = sdk.coreModule('directQuote').createDirectQuote({
   isPerPersonCardOption,
 });
 
-/** Reject any option id that is not applicable to the property. Returns an error list or null. */
+/**
+ * Reject any option id the public catalogue does not offer for the property — not applicable, an
+ * offered default, internal-only or negative-priced. Returns an error list or null.
+ */
 function checkOptionApplicability(propertyId, options) {
   if (!options.length) return null;
-  const applicable = new Set(optionsModel.listForProperty(propertyId).map((o) => Number(o.id)));
+  const applicable = new Set(publicSelectableOptions(propertyId, { db, optionsModel }).map((o) => Number(o.id)));
   const errors = options
     .filter((o) => !applicable.has(Number(o.optionId)))
     .map((o) => ({ field: 'options', issue: `option ${o.optionId} is not available for this property` }));
@@ -140,7 +146,10 @@ async function quote(req, res) {
   }
 
   const blocked = computeBlockedDates(v.value.propertyId, v.value.startDate, v.value.endDate);
-  const available = !rangeHasBlockedNight(v.value.startDate, v.value.endDate, blocked);
+  // A night no season prices is not for sale (specs/booking-drawer-friction.md rule 10), whatever the
+  // engine's fallback rate would make of it (`unpricedNights`, fixed at the 2026-10-27 audit).
+  const available = !rangeHasBlockedNight(v.value.startDate, v.value.endDate, blocked)
+    && !hasUnpricedNights(engineQuote);
 
   // Server-decided payment mode: deposit only when the property opted in AND the deposit is positive.
   const paymentMode = resolvePublicPaymentMode(db, v.value.propertyId, Math.round(Number(engineQuote.depositAmount || 0) * 100));

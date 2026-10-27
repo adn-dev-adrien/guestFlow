@@ -66,6 +66,20 @@ function validateAvailabilityQuery({ from, to, todayIso }) {
 }
 
 /**
+ * One line per option / resource: the same id twice is refused here, at the boundary (fixed at the
+ * 2026-10-27 audit — it reached the booking lines' UNIQUE index and answered a 500). The quantity says
+ * how many.
+ */
+function pushDuplicates(errors, lines, field, key) {
+  const seen = new Set();
+  lines.forEach((line, i) => {
+    if (!Number.isFinite(line[key])) return;
+    if (seen.has(line[key])) errors.push({ field: `${field}[${i}].${key}`, issue: 'duplicate id: send one line with a quantity' });
+    seen.add(line[key]);
+  });
+}
+
+/**
  * Validate the shared stay shape used by both /quote and /booking-requests (dates, times, guest
  * counts, options). `platform` is intentionally ignored — the public path always forces 'direct'
  * (specs/public-api.md Q8). Returns a sanitized value with only the whitelisted fields.
@@ -129,6 +143,7 @@ function validateStayInput(body = {}, { todayIso } = {}) {
         if (Number.isNaN(quantity) || quantity < 1) errors.push({ field: `options[${i}].quantity`, issue: 'must be a positive integer' });
         return { optionId, quantity: Number.isNaN(quantity) ? 1 : quantity };
       });
+      pushDuplicates(errors, options, 'options', 'optionId');
     }
   }
 
@@ -146,6 +161,7 @@ function validateStayInput(body = {}, { todayIso } = {}) {
         if (Number.isNaN(quantity) || quantity < 1) errors.push({ field: `resources[${i}].quantity`, issue: 'must be a positive integer' });
         return { resourceId, quantity: Number.isNaN(quantity) ? 1 : quantity };
       });
+      pushDuplicates(errors, resources, 'resources', 'resourceId');
     }
   }
 
