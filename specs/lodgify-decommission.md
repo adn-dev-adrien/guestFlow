@@ -862,7 +862,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     shows « Synchronisé » in Lodgify, but Vrbo had already cut it on its side; the cancellation
     ends it.
   - *Subscription.* Cancellation requested from Paramètres → Facturation. The plan was two years,
-    already paid until 2026-11-27. Billing still read « Actif » that evening: check it again before
+    already paid until 2027-11-26. Billing still read « Actif » that evening: check it again before
     considering the step done.
   - *Consequence: Google.* The Solio properties no longer appear in Google's « Locations de
     vacances » results. A lodging Business Profile has no booking-link field, so the only way back
