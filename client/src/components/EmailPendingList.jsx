@@ -8,7 +8,7 @@
  *
  * Props:
  *   rows:              Array<{ templateId, reservationId, templateName, clientFullName,
- *                             clientEmail, propertyName, startDate }>
+ *                             clientEmail, propertyName, startDate, occurrenceKey?, installmentNumber? }>
  *   onPreview:         (row) => void   — row click (only fired when the client has an email)
  *   onOpenReservation: (row) => void   — client-name click (isolated from the row click)
  *   onAcknowledge:     (row) => void   — "Ignorer" action
@@ -20,6 +20,7 @@ import {
   TableContainer, Table, TableHead, TableRow, TableCell, TableBody,
   Typography, Stack, Chip, Button, Link,
 } from '@mui/material';
+import { INSTALLMENT_NAME } from '../constants/installmentStrings';
 
 function formatStayDate(startDate) {
   if (!startDate) return '';
@@ -44,7 +45,7 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
         <TableBody>
           {rows.map((r) => (
               <TableRow
-                key={`${r.templateId}-${r.reservationId}`}
+                key={`${r.templateId}-${r.reservationId}-${r.occurrenceKey || ''}`}
                 hover
                 onClick={() => onPreview(r)}
                 sx={{ cursor: 'pointer' }}
@@ -80,6 +81,9 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
                 <TableCell>
                   <Stack spacing={0.25} sx={{ alignItems: 'flex-start' }}>
                     <span>{r.templateName}</span>
+                    {r.installmentNumber ? (
+                      <Typography variant="caption" color="text.secondary">{INSTALLMENT_NAME(r.installmentNumber)}</Typography>
+                    ) : null}
                     {r.manual ? (
                       <Chip label="Ajouté manuellement" size="small" color="info" variant="outlined" sx={{ height: 20 }} />
                     ) : null}

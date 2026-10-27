@@ -57,6 +57,13 @@ function bucketStates(r = {}) {
       applicable: endOfStay > 0,
       settled: Boolean(r.endOfStayComplementPaid) || Boolean(r.endOfStayComplementPaidCash),
     },
+    // specs/direct-installments.md rule 5 — an installment plan replaces the acompte and the solde; the
+    // stay's row carries its collected and still-due totals (models/installmentsModel).
+    installments: {
+      amount: round2(round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount)),
+      applicable: round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount) > 0,
+      settled: round2(r.installmentsUnpaidAmount) === 0,
+    },
   };
 }
 
@@ -84,7 +91,7 @@ function remainingToPay(r) {
   const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
-  return round2(deposit + balance + complement + endOfStay);
+  return round2(deposit + balance + complement + endOfStay + round2(r.installmentsUnpaidAmount));
 }
 
 /**
@@ -103,12 +110,15 @@ function remainingToPay(r) {
  *          settled, due }` — `due` is the part this step would collect (0 when already settled).
  */
 function stayDueAtArrival(r = {}) {
-  const { deposit, balance } = bucketStates(r);
+  const { deposit, balance, installments } = bucketStates(r);
   const due = (b) => (b.applicable && !b.settled ? b.amount : 0);
+  // Rule 36 — what an installment plan still owes is due at the door too; it is what the row says is unpaid.
+  const installmentsDue = round2(r.installmentsUnpaidAmount);
   return {
-    total: round2(due(deposit) + due(balance)),
+    total: round2(due(deposit) + due(balance) + installmentsDue),
     deposit: { ...deposit, due: due(deposit) },
     balance: { ...balance, due: due(balance) },
+    installments: { ...installments, due: installmentsDue },
   };
 }
 
@@ -122,6 +132,9 @@ function stayDueAtArrival(r = {}) {
 // Mirrored in SQL by financeModel's ATTRIBUTION_DATE_SQL; the two are pinned together by
 // tests/finance-attribution-date.unit.test.js.
 function attributionDate(r = {}) {
+  // A plan fully collected: the day its last installment was (rule 37).
+  const planDone = String(r.installmentsLastPaidDate == null ? '' : r.installmentsLastPaidDate).trim();
+  if (planDone) return planDone.slice(0, 10);
   const paidDate = String(r.balancePaidDate == null ? '' : r.balancePaidDate).trim();
   if (r.balancePaid && paidDate) return paidDate.slice(0, 10);
   return String(r.endDate == null ? '' : r.endDate).slice(0, 10);
@@ -169,6 +182,7 @@ function comptaCollected(r) {
     + (r.balancePaid && !r.balancePaidCash ? Number(r.balanceAmount || 0) - soldeComm : 0)
     + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
     + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
+    + round2(r.installmentsPaidAmount)
     // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
     + midStayNotesTotal(r)
     // …and a refund is money already given back (specs/reservation-refunds.md rule 18).

@@ -11,11 +11,13 @@ import RefundDialog from './RefundDialog';
 import PaymentMarkForm from './PaymentMarkForm';
 import PlatformStatementEditor from './PlatformStatementEditor';
 import LedgerList from '../LedgerList';
+import InstallmentPlanCard from './InstallmentPlanCard';
 import LedgerAmountEditor from '../LedgerAmountEditor';
 import { useAppDialogs, useToast } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
 import { formatCurrency, formatAmountInput, displayDate } from '../../utils/formatters';
 import { complementDeferralAccess } from '../../utils/complementDeferralAccess';
+import { localIsoToday } from '../../utils/isoDay';
 
 function todayStr() {
   const d = new Date();
@@ -268,6 +270,8 @@ export default function FinanceSection() {
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
     // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
     ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
+    // specs/direct-installments.md — the plan of a direct reservation and its setter.
+    installmentPlan = null, setInstallmentPlan, fichePristine = true,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
   const { showError } = useToast();
@@ -424,6 +428,8 @@ export default function FinanceSection() {
 
   // ── Ledger actions (rules 8-14, 19, 25-26, 28) ─────────────────────────────
   const rows = ledger?.rows || [];
+  // The plan replaces the acompte and the solde: their « Sans acompte » switch has nothing to switch.
+  const hasInstallmentPlan = Boolean(installmentPlan && installmentPlan.installments && installmentPlan.installments.length > 0);
   // Closing a panel gives the focus back to what opened it (the amount, or the row's action).
   const close = () => {
     const key = panel && panel.key;
@@ -794,6 +800,20 @@ export default function FinanceSection() {
                 </Box>
               )}
 
+              {editingReservationId && !isDevisMode && installmentPlan && installmentPlan.eligible && (
+                <Box sx={{ mb: 2 }}>
+                  <InstallmentPlanCard
+                    key={editingReservationId}
+                    reservationId={editingReservationId}
+                    plan={installmentPlan}
+                    disabled={!fichePristine}
+                    today={localIsoToday()}
+                    onPlanChange={setInstallmentPlan}
+                    onMoneyChanged={reloadReservationFinance}
+                  />
+                </Box>
+              )}
+
               <LedgerList
                 rows={rows}
                 closing={ledger?.closing || null}
@@ -810,7 +830,7 @@ export default function FinanceSection() {
             {/* The split settings of the stay: they move money between the rows above. */}
             {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit) || (Number(pricingQuote?.touristTaxTotal || 0) > 0 && !pricingQuote?.touristTaxCollectedOnArrival)) && (
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} sx={{ flexWrap: 'wrap' }}>
-                {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit)) && (
+                {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit)) && !hasInstallmentPlan && (
                   <FormControlLabel
                     control={(
                       <Switch

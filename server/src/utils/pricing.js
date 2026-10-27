@@ -22,6 +22,7 @@ const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
 const { resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay } = require('./paymentSchedule');
+const { readInstallmentSummary } = require('./installmentSummary');
 const {
   findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
 } = require('./babyBedSupplement');
@@ -2490,6 +2491,17 @@ function calculateReservationQuote({
     resolvedBalanceAmount = paidBalanceAmount;
   }
 
+  // specs/direct-installments.md rules 4-5 — an installment plan replaces the acompte and the solde: the
+  // pre-arrival amount (`preArrivalAmount`) is handed to the plan, which the caller rebalances after the
+  // save. Read by the saved booking's id; a booking that does not exist yet has no plan, and neither does
+  // one on a platform (rule 1: a switch away from the own channels ends the plan with the save).
+  // A bucket already collected is never zeroed (rule 35): such a stay keeps its acompte / solde.
+  const installmentPlan = isDirectChannel(platform) && !depositPaid && !balancePaid ? readInstallmentSummary(db, bookingId) : null;
+  if (installmentPlan) {
+    resolvedDepositAmount = 0;
+    resolvedBalanceAmount = 0;
+  }
+
   // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
   // the BOOKING and never moves again (`existingDepositDueDate` wins on every recompute); the solde
   // is due `balanceDaysBefore` before arrival, clamped so it can never land before the booking day.
@@ -2534,15 +2546,17 @@ function calculateReservationQuote({
   // auto-gap too: that share of the stay total is already billed in the end-of-stay complement, so
   // leaving it here would charge it twice.
   const ownerStayTotal = roundMoney(totalStayPrice);
+  const planScheduled = installmentPlan ? installmentPlan.scheduled : 0;
   const autoGapBetweenDepositAndBalance = roundMoney(Math.max(
     0,
-    ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount
+    ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount - planScheduled
       - complementForcedItemsTotal - taxInComplement - midStayTotal,
   ));
   // specs/reservation-refunds.md rule 34 — the other side of that gap: what the paid acompte and solde
   // hold beyond what they now have to cover, once the stay was reduced after they were paid. The engine
   // keeps a paid bucket's amount, so without this the money received above the new total went unseen.
-  const paidOnSchedule = (depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0);
+  const paidOnSchedule = (depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0)
+    + (installmentPlan ? installmentPlan.paid : 0);
   const overCollectedTtc = roundMoney(Math.max(
     0,
     paidOnSchedule - (ownerStayTotal - complementForcedItemsTotal - taxInComplement - midStayTotal),
@@ -2550,16 +2564,19 @@ function calculateReservationQuote({
   const rawComplement = roundMoney(complementForcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
   // Rule 36 — the paid solde of a stay without acompte was kept at what it collected: the gap is owed.
   const noDepositGap = balancePaid && isDirectChannel(platform) && noDepositToShare && Number(balanceAmount) > 0;
+  // Rule 8 — a rise on a plan whose installments are all paid goes to the arrival complement, exactly as
+  // when acompte and solde are both paid.
+  const preArrivalSettled = ((depositPaid || noDepositGap) && balancePaid) || Boolean(installmentPlan && installmentPlan.allPaid);
   let resolvedComplementAmount;
   if (complementPaid) {
     resolvedComplementAmount = roundMoney(complementAmount);
   } else if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || complementForcedItemsTotal > 0) {
     // Forced contributions are visible from save 1, regardless of payment state.
-    resolvedComplementAmount = (depositPaid || noDepositGap) && balancePaid
+    resolvedComplementAmount = preArrivalSettled
       ? rawComplement
       : roundMoney(complementForcedItemsTotal + taxInComplement);
   } else {
-    resolvedComplementAmount = (depositPaid || noDepositGap) && balancePaid ? autoGapBetweenDepositAndBalance : 0;
+    resolvedComplementAmount = preArrivalSettled ? autoGapBetweenDepositAndBalance : 0;
   }
   // What the engine would collect on its own — the « Calcul auto (X €) » the fiche shows under the
   // adjustment field, and the base the accounting ventilation is spread over (§3.6 rule 36).

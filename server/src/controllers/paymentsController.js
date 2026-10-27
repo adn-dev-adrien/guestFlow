@@ -22,6 +22,8 @@ const { createEmailService } = require('../utils/emailService');
 const { formatCurrency } = require('../utils/devisHelpers');
 const financeModel = require('../models/financeModel');
 const { storedLinkComponents } = require('../utils/storedLinkComponents');
+const installmentsModel = require('../models/installmentsModel');
+const { requestContext } = require('../utils/installmentPlan');
 
 // ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
 
@@ -36,10 +38,14 @@ function requestServiceDeps(provider) {
     resolveAmountCents,
     resolveItems: (id, type) => resolveVatComponents(id, type),
     provider,
-    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents }) => sendReservationTemplateEmail({
+    installmentsModel,
+    resolveInstallmentItems: (id, installment, plan) => resolveInstallmentComponents(id, installment, plan),
+    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents, installment = null }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
       reservationId, stableKey,
+      installment: installment ? requestContext(installment, installmentsModel.listFor(reservationId)) : null,
+      occurrenceKey: installment ? `installment:${installment.id}` : '',
       // specs/deposit-blocks-the-dates.md rule 11 — the email announces, to the cent, what the link
       // charges: the amount travels with the link rather than being re-derived from the row.
       extraContext: {
@@ -119,6 +125,26 @@ function storedReservationComponents(id, type, db = database) {
   });
 }
 
+// specs/direct-installments.md rule 39 — the basket of ONE installment: the tourist tax (when it rides the
+// pre-arrival money) shared in proportion over the plan and exempt of VAT, the rest at the global rate.
+function resolveInstallmentComponents(id, installment, plan, db = database) {
+  let row = null;
+  try {
+    row = db.prepare(`
+      SELECT r.touristTaxTotal, ${financeModel.helpers.TAX_ON_ARRIVAL_SQL} AS taxOnArrival
+        FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
+  } catch { row = null; }
+  if (!row) return null;
+  const taxCents = row.taxOnArrival ? 0 : Math.round(Number(row.touristTaxTotal || 0) * 100);
+  const shares = require('../utils/installmentPlan').taxShares(taxCents, plan.map((p) => p.amountCents));
+  const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;
+  const taxable = Number(installment.amountCents) - share;
+  if (taxable <= 0) return null;
+  const components = [{ title: `${LINK_TITLES.installment} ${installment.number}/${plan.length}`, grossCents: taxable, taxable: true }];
+  if (share > 0) components.push({ title: 'Taxe de séjour', grossCents: share, taxable: false });
+  return { components, vatRatePercent: financeModel.helpers.getVatRate(db) };
+}
+
 const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
 
 // Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; anything
@@ -159,6 +185,13 @@ const sendPaymentRequestEmail = withProvider(async (req, res, provider) => {
   // service (acompte when there is one, full payment otherwise); it is no longer assumed to be a deposit.
   const type = req.body && req.body.type ? String(req.body.type) : null;
   try {
+    // specs/direct-installments.md rule 20 — « Envoyer la demande » on an installment of the fiche.
+    if (type === 'installment') {
+      const installmentId = Number(req.body.installmentId);
+      if (!Number.isInteger(installmentId)) return res.status(400).json({ error: 'INVALID_INSTALLMENT', message: 'Échéance manquante.' });
+      const sent = await paymentRequestService.sendInstallmentRequest(requestServiceDeps(provider), id, installmentId);
+      return res.status(sent.httpStatus).json(sent.body);
+    }
     const { httpStatus, body } = await paymentRequestService.sendPaymentRequest(requestServiceDeps(provider), id, type);
     return res.status(httpStatus).json(body);
   } catch (err) { return sendError(res, err, provider); }
@@ -200,11 +233,24 @@ const pollPaymentsNow = withProvider(async (req, res, provider) => {
   } catch (err) { return sendError(res, err, provider); }
 });
 
+// The link of one installment, for the request email sent from the « à valider » queue (rule 19). Throws the
+// same `{ httpStatus, error, message }` as the service; without a provider, a 409.
+async function ensureInstallmentLinkFor(id, installmentId) {
+  const provider = paymentProviders.active();
+  if (!provider) throw { httpStatus: 409, ...paymentProviders.NO_PROVIDER };
+  try {
+    return await paymentRequestService.ensureInstallmentLink(requestServiceDeps(provider), Number(id), Number(installmentId));
+  } catch (err) {
+    if (err && err.httpStatus) throw err;
+    throw { httpStatus: 502, error: provider.errorCode, message: `Erreur de l'API ${provider.label} : à réessayer, détail dans les journaux.` };
+  }
+}
+
 module.exports = {
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents };
+module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };

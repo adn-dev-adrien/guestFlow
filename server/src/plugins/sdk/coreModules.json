@@ -732,5 +732,8 @@
     "buildEngineQuote",
     "createDirectQuote",
     "defaultPortionQuantity"
+  ],
+  "installmentPlan": [
+    "taxShares"
   ]
 }

@@ -29,8 +29,9 @@ const UPCOMING_PER_PROPERTY = 5;
 //
 // Guarded at factory level like the refund columns below: a minimal test schema without
 // `balancePaidDate` degrades to the plain departure date rather than failing every query.
-const ATTRIBUTION_DATE_SQL_FULL = `(
-  CASE
+const attributionDateSql = ({ withPlan }) => `(
+  CASE${withPlan ? `
+    WHEN TRIM(COALESCE(r.installmentsLastPaidDate, '')) <> '' THEN DATE(r.installmentsLastPaidDate)` : ''}
     WHEN r.balancePaid = 1 AND TRIM(COALESCE(r.balancePaidDate, '')) <> ''
       THEN DATE(r.balancePaidDate)
     ELSE r.endDate
@@ -131,9 +132,10 @@ function createFinanceModel(database) {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
     catch { return false; }
   };
-  // The window key of every money query (see ATTRIBUTION_DATE_SQL_FULL above).
+  // The window key of every money query (see attributionDateSql above).
+  // A plan fully collected attaches the stay to the day its last installment was (rule 37).
   const ATTRIBUTION_DATE_SQL = hasReservationColumn('balancePaidDate')
-    ? ATTRIBUTION_DATE_SQL_FULL
+    ? attributionDateSql({ withPlan: hasReservationColumn('installmentsLastPaidDate') })
     : 'r.endDate';
 
   // specs/collect-stay-payment-at-check-in.md §3.4 — the caisse-interne flags of the stay buckets.

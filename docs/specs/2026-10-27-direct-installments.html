@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Échéancier des directes</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-soft:#E3ECE6;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+::selection{background:#D5E3D9}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:1040px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.35rem/1.2 var(--serif);margin:52px 0 12px}
+p{margin:0 0 12px;max-width:70ch}
+code{font-size:.88em;background:#EFEBE2;padding:1px 5px;border-radius:5px}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0;padding-left:1.1em;max-width:70ch}
+ul.plain li{margin:5px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.panel h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- demo controls ---------- */
+.demo-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:10px 0 14px}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 .9rem var(--sans);color:#57534A;padding:7px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.chipbtn{border:1px dashed #BDB4A2;background:transparent;color:var(--ink);border-radius:99px;padding:6px 12px;font:500 .85rem var(--sans);cursor:pointer;min-height:36px}
+.chipbtn[aria-pressed=true]{border-style:solid;border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.chipbtn:active{transform:scale(.97)}
+.ghost{border:0;background:transparent;color:var(--muted);text-decoration:underline;text-underline-offset:3px;font:inherit;font-size:.85rem;cursor:pointer;min-height:36px}
+
+.stage{transition:max-width .35s cubic-bezier(.2,.8,.2,1);margin:0 auto;max-width:1040px}
+.stage.phone{max-width:390px}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+.actionbar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:12px}
+.actionbar .t{font:600 1rem var(--serif);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actionbar .s{font-size:.8rem;color:var(--muted);white-space:nowrap}
+.phone .actionbar .s{display:none}
+@media(max-width:600px){.actionbar .s{display:none}}
+.paiddate{color:var(--muted);font-size:.92rem}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card h3{font:600 1.1rem var(--serif);margin:0}
+.head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.head h3{flex:1}
+.phone .head{flex-direction:column;align-items:stretch}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.stepper{user-select:none;-webkit-user-select:none}
+.stepper button{width:44px;height:44px;border:0;background:#F4F1EA;font-size:1.2rem;cursor:pointer;color:var(--ink);touch-action:manipulation;transition:background .1s ease}
+.stepper button:active:not(:disabled){background:#E6E0D3}
+[hidden]{display:none!important}
+.stepper button:disabled{color:#BDB7A9;cursor:not-allowed}
+.stepper output{min-width:118px;text-align:center;font:500 .95rem var(--sans);font-variant-numeric:tabular-nums}
+.lockinfo{font-size:.8rem;color:var(--muted)}
+
+.rows{display:flex;flex-direction:column;gap:8px}
+.irow{display:grid;grid-template-columns:34px 170px 1fr auto auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;transition:background .25s ease,border-color .25s ease}
+.irow.paid{background:#FAFCFA;border-color:#C9D9CE}
+.irow.flash{background:#FBF6EA}
+.irow .n{font:600 .95rem var(--serif);color:var(--muted)}
+.irow .amt{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
+.irow .amt small{display:block;font-weight:500;color:var(--honey);font-size:.75rem}
+.irow input[type=date]{height:42px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:.92rem;color:var(--ink);background:var(--card);width:100%}
+.amtin{display:inline-flex;align-items:center;gap:4px}
+.irow input[type=number]{width:96px;height:42px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:inherit;font-weight:600;font-size:.95rem;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--card)}
+.irow .amt small.pin{color:var(--info)}
+.irow input.bad{border-color:var(--error);background:var(--error-bg);animation:nudge .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes nudge{0%,100%{transform:translateX(0)}30%{transform:translateX(-4px)}60%{transform:translateX(3px)}}
+.err{grid-column:2/-1;color:var(--error);font-size:.8rem;margin-top:-4px}
+.badge{display:inline-block;font-size:.75rem;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.b-soon{background:#EFEBE2;color:var(--muted)}
+.b-ask{background:var(--warning-bg);color:var(--warning)}
+.b-sent{background:var(--info-bg);color:var(--info)}
+.b-paid{background:var(--success-bg);color:var(--success)}
+.acts{display:flex;gap:6px;justify-content:flex-end}
+.btn{border:1px solid var(--primary);color:var(--primary);background:transparent;border-radius:8px;padding:0 12px;font:500 .84rem var(--sans);cursor:pointer;min-height:40px;white-space:nowrap}
+.btn.fill{background:var(--primary);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:active{transform:scale(.97)}
+.phone .irow{grid-template-columns:1fr auto;grid-template-areas:"n badge" "date amt" "acts acts";row-gap:8px}
+.phone .irow .n{grid-area:n}.phone .irow .badgecell{grid-area:badge;text-align:right}
+.phone .irow .datecell{grid-area:date}.phone .irow .amt{grid-area:amt}
+.phone .irow .acts{grid-area:acts}.phone .irow .acts .btn{flex:1}
+.phone .irow .err{grid-column:1/-1}
+@media(max-width:760px){
+  .irow{grid-template-columns:1fr auto;grid-template-areas:"n badge" "date amt" "acts acts";row-gap:8px}
+  .irow .n{grid-area:n}.irow .badgecell{grid-area:badge;text-align:right}
+  .irow .datecell{grid-area:date}.irow .amt{grid-area:amt}
+  .irow .acts{grid-area:acts}.irow .acts .btn{flex:1}.irow .err{grid-column:1/-1}
+}
+.gap{margin-top:10px;background:var(--warning-bg);color:var(--warning);border-radius:10px;padding:10px 12px;font-size:.88rem}
+.confirm{margin:0 0 12px;background:var(--info-bg);color:var(--info);border-radius:10px;padding:10px 12px;font-size:.88rem;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.confirm span{flex:1;min-width:200px}
+.foot{display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:flex-end;border-top:1px solid var(--line);margin-top:14px;padding-top:12px;font-size:.9rem;color:var(--muted)}
+.foot b{color:var(--ink);font-variant-numeric:tabular-nums;font-weight:600}
+.empty{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.empty span{flex:1;color:var(--muted)}
+
+.mail{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;max-width:620px;font-size:.95rem}
+.mail .meta{font-size:.8rem;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px}
+.mail table{border-collapse:collapse;margin:8px 0 14px;font-variant-numeric:tabular-nums;font-size:.9rem}
+.mail td{padding:3px 14px 3px 0}
+.mail .paybtn{display:inline-block;background:var(--primary);color:#fff;border-radius:8px;padding:10px 16px;text-decoration:none;font-weight:500}
+.mail .cur{font-weight:600}
+.queue{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;max-width:620px;margin-top:12px;flex-wrap:wrap;font-size:.9rem}
+.queue span{flex:1;min-width:220px}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);opacity:0;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:.9rem;max-width:calc(100% - 32px);transition:opacity .2s ease,transform .3s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--error)}
+.q{border-top:1px solid var(--line);padding:14px 0}
+.q:first-of-type{border-top:0}
+.q b{display:block;margin-bottom:4px}
+.q p{color:var(--muted);margin:0}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Payer une réservation directe en plusieurs fois</h1>
+<p class="lede">Spec <code>specs/direct-installments.md</code>, brouillon du 27/10/2026 à valider.</p>
+
+<h2>Constat</h2>
+<p>L'argent d'un séjour tient dans des cases fixes : l'acompte, le solde et les compléments. Il n'existe que deux dates d'échéance, l'acompte à la réservation et le solde à J-30. Un client qui veut régler en trois fois n'a aucune place dans la fiche : pas d'échéance datée, pas de lien Qonto pour un montant partiel, pas de mail pour le lui demander.</p>
+
+<h2>Ce qu'on propose</h2>
+<div class="cols">
+  <div class="panel"><h3>Sur la fiche, pour les directes seulement</h3>
+    <ul class="plain">
+      <li>On choisit le nombre d'échéances (de 2 à 12).</li>
+      <li>La 1<sup>re</sup> échéance tombe le jour de la création, la dernière à J-30 et les autres à intervalles réguliers entre les deux.</li>
+      <li>Chaque date reste modifiable tant que l'échéance n'est pas payée.</li>
+      <li>L'échéancier remplace l'acompte et le solde. Les compléments sur place et la caution ne changent pas.</li>
+    </ul>
+  </div>
+  <div class="panel"><h3>Les montants</h3>
+    <ul class="plain">
+      <li>Chaque échéance est arrondie à l'euro ; la dernière ajuste pour retomber sur le total exact.</li>
+      <li>Le montant d'une échéance non payée peut être saisi à la main, sauf pour la dernière. Les suivantes se partagent le reste.</li>
+      <li>Avant le premier versement, tout se recalcule.</li>
+      <li>Une fois la 1<sup>re</sup> échéance payée, les montants sont figés. Une option ajoutée est répartie sur les échéances restantes ; une baisse ne réduit rien et l'écart est signalé.</li>
+    </ul>
+  </div>
+  <div class="panel"><h3>Les demandes de règlement</h3>
+    <ul class="plain">
+      <li>À sa date, chaque échéance arrive dans la file « à valider », avec un mail et un lien Qonto à son montant exact. Un clic l'envoie.</li>
+      <li>On peut aussi l'envoyer en avance depuis la fiche, notamment la 1<sup>re</sup>.</li>
+      <li>Un lien payé marque l'échéance payée tout seul.</li>
+    </ul>
+  </div>
+  <div class="panel"><h3>Ce qu'on ne fait pas</h3>
+    <ul class="plain">
+      <li>Aucune relance automatique ni annulation pour impayé.</li>
+      <li>Pas d'échéancier sur les réservations plateformes, et le client ne le choisit pas lui-même sur le site.</li>
+      <li>Après le 1<sup>er</sup> versement, une baisse de prix ne réduit aucune échéance : l'écart est seulement signalé.</li>
+      <li>Aucun mail ne part sans ta validation.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Maquette</h2>
+<p>Séjour du 14/06 au 21/06/2027 réservé en direct, total 1 001,50 €, aujourd'hui = 27/10/2026. Tu peux changer le nombre d'échéances, saisir une date ou un montant (500 € sur la 1<sup>re</sup>, par exemple), ajouter le ménage, marquer la 1<sup>re</sup> échéance payée puis retirer le ménage.</p>
+
+<div class="demo-bar">
+  <div class="seg" role="group" aria-label="Largeur">
+    <button type="button" data-vp="desk" aria-pressed="true">Ordinateur</button>
+    <button type="button" data-vp="phone" aria-pressed="false">Téléphone</button>
+  </div>
+  <button type="button" class="chipbtn" id="optMenage" aria-pressed="false">Option ménage +90 €</button>
+  <button type="button" class="chipbtn" id="optRemise" aria-pressed="false">Geste commercial −25 €</button>
+  <button type="button" class="ghost" id="reset">Recommencer</button>
+</div>
+
+<div class="stage" id="stage">
+  <div class="frame">
+    <div class="actionbar"><span class="t">Martin · La Granja</span><span class="s">14/06 → 21/06/2027 · Direct</span></div>
+    <div class="card" id="card">
+      <div id="plan">
+        <div class="head"><h3>Échéancier</h3>
+          <div class="stepper" role="group" aria-label="Nombre d’échéances">
+            <button type="button" data-step="-1" aria-label="Une échéance de moins">−</button>
+            <output class="num" id="countOut" aria-live="polite"></output>
+            <button type="button" data-step="1" aria-label="Une échéance de plus">+</button>
+          </div>
+          <span class="lockinfo" id="lockInfo" hidden>Figé depuis le 1<sup>er</sup> versement</span>
+          <button type="button" class="ghost" id="drop">Supprimer l’échéancier</button>
+        </div>
+        <div id="body"></div>
+      </div>
+      <div class="empty" id="emptyBox" hidden><span>Paiement en plusieurs fois</span><button type="button" class="btn fill" id="create">Créer un échéancier</button></div>
+    </div>
+  </div>
+</div>
+
+<h2>Le mail d'échéance</h2>
+<p>Modèle « Demande de règlement d'une échéance », en français et en anglais, livré en mode Manuel. Clique sur « Envoyer la demande » dans la maquette pour voir le mail de l'échéance concernée.</p>
+<div class="mail" id="mail"></div>
+<div class="queue">
+  <span><b>À valider</b> · Échéance 2/3 · Martin · <span class="num" id="qAmt"></span> €, due le <span id="qDate"></span></span>
+  <button type="button" class="btn fill" tabindex="-1">Envoyer</button>
+  <button type="button" class="btn" tabindex="-1">Ignorer</button>
+</div>
+
+<h2>Le risque</h2>
+<ul class="plain">
+  <li>Deux tables existantes doivent être reconstruites : celle des liens de paiement, pour accepter le type « échéance », et la file « à valider », pour accepter plusieurs entrées par réservation. Les lignes sont recopiées une à une et un test rejoue la migration sur une copie de la prod.</li>
+  <li>Quand un montant change, l'ancien lien est désactivé chez Qonto. Aujourd'hui ce n'est fait qu'en base : un client pourrait encore payer l'ancien lien.</li>
+  <li>« Réservation directe » passe par <code>isDirectChannel()</code>. Le découpage acompte/solde actuel teste encore <code>platform === 'direct'</code> ; l'échéancier ne recopie pas cette erreur.</li>
+</ul>
+
+<h2>Arbitrages tranchés le 27/10</h2>
+<div class="q"><b>Montant saisi à la main : oui</b><p>Sur les échéances non payées, sauf la dernière, qui ajuste toujours. Le montant saisi reste fixé quand le total change ; seules les autres échéances bougent.</p></div>
+<div class="q"><b>« En retard » : 3 jours après la date d'échéance</b></div>
+<div class="q"><b>Baisse après le premier versement : écart signalé</b><p>Rien n'est réduit automatiquement ; tu règles l'écart depuis le registre.</p></div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const TODAY = '2026-10-27', ARRIVAL = '2027-06-14', BALANCE_DAYS = 30, BASE = 100150, MAX = 12;
+  const DAY = 86400000;
+  const toMs = d => Date.parse(d + 'T00:00:00Z');
+  const toIso = ms => new Date(ms).toISOString().slice(0, 10);
+  const fr = d => d.split('-').reverse().join('/');
+  const eur = c => (c / 100).toLocaleString('fr-FR', { minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
+  const LAST = toIso(Math.max(toMs(TODAY), toMs(ARRIVAL) - BALANCE_DAYS * DAY));
+
+  let s;
+  function init() {
+    s = { count: 3, extras: { menage: false, remise: false }, rows: [], gap: 0, pending: null, errors: {}, aerrors: {}, added: {}, mailFor: 1 };
+    s.rows = defaultRows(3);
+    split();
+  }
+  const total = () => BASE + (s.extras.menage ? 9000 : 0) - (s.extras.remise ? 2500 : 0);
+  const frozen = () => s.rows.some(r => r.paid);
+
+  function defaultRows(n) {
+    const a = toMs(TODAY), b = toMs(LAST);
+    return Array.from({ length: n }, (_, i) => ({
+      number: i + 1,
+      dueDate: toIso(a + Math.round((b - a) * i / (n - 1) / DAY) * DAY),
+      amount: 0, paid: false, requested: false, edited: false, pinned: false
+    }));
+  }
+  function spread(cents, k) {
+    const each = Math.round(cents / k / 100) * 100;
+    return Array.from({ length: k }, (_, i) => i < k - 1 ? each : cents - each * (k - 1));
+  }
+  const lastOpen = () => [...s.rows].reverse().find(r => !r.paid);
+  const floating = () => s.rows.filter(r => !r.paid && !r.pinned);
+  function split() {
+    const t = total();
+    if (!frozen()) {
+      const fixed = s.rows.filter(r => r.pinned).reduce((a, r) => a + r.amount, 0);
+      const open = floating();
+      spread(t - fixed, open.length).forEach((a, i) => { open[i].amount = a; });
+      s.gap = 0; s.added = {};
+      return;
+    }
+    const delta = t - s.rows.reduce((sum, r) => sum + r.amount, 0);
+    if (delta > 0) {
+      const open = floating();
+      spread(delta, open.length).forEach((a, i) => {
+        open[i].amount += a;
+        s.added[open[i].number] = (s.added[open[i].number] || 0) + a;
+      });
+      s.gap = 0;
+    } else {
+      s.gap = -delta;
+    }
+  }
+  function maxCount() {
+    return Math.min(MAX, Math.floor((toMs(LAST) - toMs(TODAY)) / DAY) + 1);
+  }
+  function status(r) {
+    if (r.paid) return ['b-paid', 'Payée le ' + fr(TODAY).slice(0, 5) + ' · lien'];
+    if (r.requested) return ['b-sent', 'Demandée le ' + fr(TODAY).slice(0, 5)];
+    if (r.dueDate <= TODAY) return ['b-ask', 'À demander'];
+    return ['b-soon', 'À venir'];
+  }
+  function dateError(i, value) {
+    const prev = s.rows[i - 1], next = s.rows[i + 1];
+    if (!value) return 'Date requise.';
+    if (value < TODAY) return 'Date passée : choisir à partir du ' + fr(TODAY) + '.';
+    if (value > ARRIVAL) return 'Après l’arrivée du ' + fr(ARRIVAL) + '.';
+    if (prev && value <= prev.dueDate) return 'Doit tomber après l’échéance ' + prev.number + ' (' + fr(prev.dueDate) + ').';
+    if (next && value >= next.dueDate) return 'Doit tomber avant l’échéance ' + next.number + ' (' + fr(next.dueDate) + ').';
+    return null;
+  }
+
+  const card = document.getElementById('card');
+  const $ = id => document.getElementById(id);
+  function render() {
+    const fz = frozen(), t = total(), paid = s.rows.filter(r => r.paid).reduce((a, r) => a + r.amount, 0);
+    const mx = maxCount();
+    $('plan').hidden = false; $('emptyBox').hidden = true;
+    $('countOut').textContent = s.count + ' échéances';
+    card.querySelector('[data-step="-1"]').disabled = fz || s.count <= 2;
+    card.querySelector('[data-step="1"]').disabled = fz || s.count >= mx;
+    $('lockInfo').hidden = !fz; $('drop').hidden = fz;
+    let h = '';
+    if (s.pending) {
+      h += '<div class="confirm"><span>Passer à ' + s.pending + ' échéances recalcule toutes les dates ; les dates modifiées seront perdues.</span>' +
+        '<button type="button" class="btn fill" id="cOk">Recalculer</button><button type="button" class="btn" id="cNo">Garder</button></div>';
+    }
+    h += '<div class="rows">';
+    s.rows.forEach((r, i) => {
+      const [cls, label] = status(r), err = s.errors[i], aerr = s.aerrors[i];
+      const add = s.added[r.number];
+      h += '<div class="irow' + (r.paid ? ' paid' : '') + (r.flash ? ' flash' : '') + '">' +
+        '<span class="n">' + r.number + '</span>' +
+        '<span class="datecell">' + (r.paid ? '<span class="paiddate num">' + fr(r.dueDate) + '</span>' :
+          '<input type="date" data-i="' + i + '" value="' + (err ? err.value : r.dueDate) + '" min="' + TODAY + '" max="' + ARRIVAL + '"' +
+          (err ? ' class="bad" aria-invalid="true"' : '') + ' aria-label="Date de l’échéance ' + r.number + '">') + '</span>' +
+        '<span class="amt num">' + (r.paid || r === lastOpen() ? eur(r.amount) + ' €' :
+          '<span class="amtin"><input type="number" inputmode="numeric" step="1" min="1" data-a="' + i + '" value="' + (aerr ? aerr.value : r.amount / 100) + '"' +
+          (aerr ? ' class="bad" aria-invalid="true"' : '') + ' aria-label="Montant de l’échéance ' + r.number + '"> €</span>') +
+          (r.pinned && !r.paid ? '<small class="pin">fixé</small>' : '') +
+          (add ? '<small>+' + eur(add) + ' € option</small>' : '') + '</span>' +
+        '<span class="badgecell"><span class="badge ' + cls + '">' + label + '</span></span>' +
+        '<span class="acts">' + (r.paid ? '' :
+          '<button type="button" class="btn" data-send="' + i + '">' + (r.requested ? 'Copier le lien' : 'Envoyer la demande') + '</button>' +
+          '<button type="button" class="btn fill" data-pay="' + i + '"' + (i > 0 && !s.rows[i - 1].paid ? ' disabled title="Payer d’abord l’échéance précédente (maquette)"' : '') + '>Marquer payée</button>') +
+        '</span>' +
+        (err ? '<span class="err" role="alert">' + err.msg + '</span>' : '') +
+        (aerr ? '<span class="err" role="alert">' + aerr.msg + '</span>' : '') +
+        '</div>';
+    });
+    h += '</div>';
+    if (s.gap) h += '<div class="gap">Échéancier au-dessus du séjour : <b class="num">' + eur(s.gap) + ' €</b>. Les montants restent figés ; à régler au registre (remboursement ou geste).</div>';
+    h += '<div class="foot"><span>Total séjour <b>' + eur(t) + ' €</b></span><span>Payé <b>' + eur(paid) + ' €</b></span><span>Reste <b>' + eur(Math.max(0, s.rows.reduce((a, r) => a + r.amount, 0) - paid)) + ' €</b></span></div>';
+    $('body').innerHTML = h;
+    s.rows.forEach(r => { r.flash = false; });
+    renderMail();
+  }
+
+  function renderMail() {
+    const r = s.rows[s.mailFor - 1] || s.rows[0];
+    let rows = '';
+    s.rows.forEach(x => {
+      rows += '<tr' + (x === r ? ' class="cur"' : '') + '><td>Échéance ' + x.number + '</td><td>' + fr(x.dueDate) + '</td><td style="text-align:right">' + eur(x.amount) + ' €</td><td>' + (x.paid ? 'réglée' : '') + '</td></tr>';
+    });
+    document.getElementById('mail').innerHTML =
+      '<div class="meta">À : martin@example.com · Objet : Votre séjour à La Granja — échéance ' + r.number + '/' + s.rows.length + '</div>' +
+      '<p>Bonjour,</p><p>Comme convenu, voici l’échéance ' + r.number + ' sur ' + s.rows.length + ' de votre séjour du 14 au 21 juin 2027 : <b class="num">' + eur(r.amount) + ' €</b>, à régler d’ici le ' + fr(r.dueDate) + '.</p>' +
+      '<table>' + rows + '</table>' +
+      '<a class="paybtn" href="#mail" onclick="return false">Régler ' + eur(r.amount) + ' €</a>' +
+      '<p style="margin-top:14px">À très bientôt,<br>Domaine Solio</p>';
+    const q = s.rows[1] || s.rows[0];
+    document.getElementById('qAmt').textContent = eur(q.amount);
+    document.getElementById('qDate').textContent = fr(q.dueDate);
+  }
+
+  const toastEl = document.getElementById('toast');
+  let tt;
+  function toast(msg, bad) {
+    toastEl.textContent = msg; toastEl.className = 'toast show' + (bad ? ' bad' : '');
+    clearTimeout(tt); tt = setTimeout(() => { toastEl.className = 'toast'; }, 2600);
+  }
+
+  function setCount(n) {
+    s.count = n; s.rows = defaultRows(n); s.errors = {}; s.aerrors = {}; s.pending = null; s.mailFor = 1;
+    split(); render();
+  }
+
+  card.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.step) {
+      const n = s.count + Number(b.dataset.step);
+      if (s.rows.some(r => r.edited)) { s.pending = n; render(); } else setCount(n);
+    } else if (b.id === 'cOk') setCount(s.pending);
+    else if (b.id === 'cNo') { s.pending = null; render(); }
+    else if (b.id === 'drop') { $('plan').hidden = true; $('emptyBox').hidden = false; }
+    else if (b.id === 'create') { setCount(3); }
+    else if (b.dataset.send) {
+      const r = s.rows[b.dataset.send];
+      s.mailFor = r.number;
+      if (r.requested) toast('Lien copié');
+      else { r.requested = true; toast('Demande de l’échéance ' + r.number + ' envoyée'); }
+      render();
+      document.getElementById('mail').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+    } else if (b.dataset.pay) {
+      const r = s.rows[b.dataset.pay];
+      r.paid = true; r.flash = true;
+      toast('Échéance ' + r.number + ' payée' + (r.number === 1 ? ' : montants figés' : ''));
+      render();
+    }
+  });
+
+  card.addEventListener('change', e => {
+    const inp = e.target;
+    if (inp.dataset.a !== undefined) {
+      const i = Number(inp.dataset.a), r = s.rows[i], v = Math.round(Number(inp.value) * 100);
+      const others = s.rows.filter(x => !x.paid && !x.pinned && x !== r);
+      const fixed = s.rows.filter(x => (x.paid || x.pinned) && x !== r).reduce((a, x) => a + x.amount, 0);
+      const rest = total() - fixed - v;
+      let msg = null;
+      if (!inp.value || v <= 0 || v % 100) msg = 'Montant en euros entiers, supérieur à 0.';
+      else if (rest < 100 * others.length) msg = 'Laisse moins de 1 € à l’échéance ' + others[others.length - 1].number + '.';
+      if (msg) { s.aerrors[i] = { msg, value: inp.value }; toast('Montant refusé', true); }
+      else {
+        delete s.aerrors[i];
+        r.amount = v; r.pinned = true; r.flash = true;
+        spread(rest, others.length).forEach((a, k) => { others[k].amount = a; others[k].flash = true; });
+        s.gap = 0; s.added = {};
+      }
+      render();
+      return;
+    }
+    if (inp.type !== 'date') return;
+    const i = Number(inp.dataset.i), msg = dateError(i, inp.value);
+    if (msg) { s.errors[i] = { msg, value: inp.value }; toast('Date refusée', true); }
+    else { delete s.errors[i]; s.rows[i].dueDate = inp.value; s.rows[i].edited = true; }
+    render();
+  });
+
+  function toggle(id, key) {
+    const el = document.getElementById(id);
+    el.addEventListener('click', () => {
+      s.extras[key] = !s.extras[key];
+      el.setAttribute('aria-pressed', s.extras[key]);
+      const before = s.rows.map(r => r.amount);
+      split();
+      s.rows.forEach((r, i) => { if (r.amount !== before[i]) r.flash = true; });
+      render();
+    });
+  }
+  toggle('optMenage', 'menage');
+  toggle('optRemise', 'remise');
+
+  document.getElementById('reset').addEventListener('click', () => {
+    document.querySelectorAll('.chipbtn').forEach(c => c.setAttribute('aria-pressed', 'false'));
+    init(); render();
+  });
+  document.querySelectorAll('[data-vp]').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-vp]').forEach(x => x.setAttribute('aria-pressed', x === btn));
+    document.getElementById('stage').classList.toggle('phone', btn.dataset.vp === 'phone');
+  }));
+
+  init(); render();
+})();
+</script>
+</body>
+</html>

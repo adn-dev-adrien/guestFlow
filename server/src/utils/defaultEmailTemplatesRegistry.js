@@ -343,6 +343,39 @@ const FULL_REQUEST_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
+// Installment request — one email per installment of a direct reservation's plan
+// (specs/direct-installments.md rules 18-21). `{{installmentSchedule}}` lists the whole plan; the link,
+// created per installment at its exact amount, is injected per-send like `{{paymentLink}}`.
+const INSTALLMENT_REQUEST_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Comme convenu, voici l\'échéance {{installmentNumber}} sur {{installmentCount}} de votre séjour {{propertyWithArticle}} : {{installmentAmount}}, à régler d\'ici le {{installmentDueDate}}.',
+  '',
+  '{{installmentSchedule}}',
+  '',
+  '{{#if hasPaymentLink}}Payer {{installmentAmount}} en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}',
+  '',
+  'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const INSTALLMENT_REQUEST_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'As agreed, here is instalment {{installmentNumber}} of {{installmentCount}} for your stay at {{propertyWithArticle}}: {{installmentAmount}}, due by {{installmentDueDate}}.',
+  '',
+  '{{installmentSchedule}}',
+  '',
+  '{{#if hasPaymentLink}}Pay {{installmentAmount}} online: {{paymentLink}}{{else}}Please contact us to arrange payment.{{/if}}',
+  '',
+  'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
 const DEFAULT_TEMPLATES = Object.freeze([
   // Guest email sequence (specs/guest-email-sequence.md §3.1). Scheduled by
   // utils/guestEmailSequenceRunner and sent through the ledger. They ship « manual »: each one
@@ -488,6 +521,17 @@ const DEFAULT_TEMPLATES = Object.freeze([
     sendMode:  'manual',   // rule 11 — a request for money is never sent by a cron
     enabled:   true,
   }),
+  Object.freeze({
+    stableKey: 'installment_request',
+    name:      "Demande de règlement d'une échéance (lien de paiement)",
+    subject:   'Échéance {{installmentNumber}}/{{installmentCount}} de votre séjour {{propertyWithArticle}}',
+    body:      INSTALLMENT_REQUEST_BODY,
+    subjectEn: 'Instalment {{installmentNumber}}/{{installmentCount}} for your stay at {{propertyWithArticle}}',
+    bodyEn:    INSTALLMENT_REQUEST_BODY_EN,
+    dayOffset: 0,          // sentinel — one queue entry per due installment (emailLogModel.listPending)
+    sendMode:  'manual',   // rule 18 — a request for money is never sent by a cron
+    enabled:   true,
+  }),
   // ───────────────────────────────────────────────────────────────────────────────
   // Add new default templates below. One object per template; follow the contract
   // documented at the top of this file. Re-uses any of the variables / flags listed in
@@ -499,17 +543,19 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
 // date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
 // the model's exclusion and the senders stay in sync.
-const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'cancellation_notice']);
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'installment_request', 'cancellation_notice']);
 
 // Every template that asks a guest for money (specs/payment-schedule-and-cancellation.md §1 amendment,
 // rule 44). None of them may ever carry `sendMode: 'auto'`: a dunning email is a commercial act the
 // server cannot judge — it cannot know the acompte arrived by transfer this morning or that a delay was
 // agreed by phone. A request leaves on an operator click (dashboard card / reservation page); a reminder
 // waits in the manual queue. A new money template joins this list, and the seed test enforces the rule.
-const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder', 'full_request']);
+const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder', 'full_request', 'installment_request']);
 
 // The templates only a plugin can send: without it, the editor does not list them.
-const PLUGIN_OF_TEMPLATE = Object.freeze({ deposit_request: 'online-payment', balance_request: 'online-payment', full_request: 'online-payment' });
+const PLUGIN_OF_TEMPLATE = Object.freeze({
+  deposit_request: 'online-payment', balance_request: 'online-payment', full_request: 'online-payment', installment_request: 'online-payment',
+});
 
 module.exports = {
   DEFAULT_TEMPLATES,

@@ -12,7 +12,9 @@
  *   row:         the ledger row (its `action` carries `cash`, `payout: { expected }`, `after`)
  *   today:       `YYYY-MM-DD`
  *   dateLabel:   « Perçu le », « Reçue le », « Rendue le », « Reçu le »
- *   onSubmit:    async ({ date, cash, payout, commission }) → { ok, error?, field? }
+ *   methods:     optional `[{ value, label }]` — asks HOW it was received (an installment: virement, chèque…);
+ *                the choice rides `onSubmit({ …, method })`. Absent on the other ledger rows.
+ *   onSubmit:    async ({ date, cash, payout, commission, method? }) → { ok, error?, field? }
  *   onCancel:    () → void
  *   checkPayout: async (payout) → { gapLabel, commissionLabel, commission } — rule 26
  *   formatAmountInput: (number) → « 829,42 »
@@ -23,12 +25,13 @@ import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@m
 import DateField from '../DateField';
 import { evaluateArithmetic } from '../../utils/arithmetic';
 
-export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCancel, checkPayout, formatAmountInput, previousDate = null }) {
+export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCancel, checkPayout, formatAmountInput, previousDate = null, methods = null }) {
   const action = row.action || {};
   const payoutMode = Boolean(action.payout);
   // A mark redone after an undo proposes the day it was first recorded (its accounting month).
   const [date, setDate] = useState(previousDate || today);
   const [cash, setCash] = useState(false);
+  const [method, setMethod] = useState(methods && methods.length ? methods[0].value : null);
   // Prefilled only when the net is known (a commission was entered): otherwise the transfer is typed —
   // a gross prefilled as the transfer would read « cohérent » with a zero commission.
   const [payout, setPayout] = useState(payoutMode && action.payout.expected != null ? formatAmountInput(action.payout.expected) : '');
@@ -66,6 +69,7 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
     }
     const res = await onSubmit({
       date, cash, payout: payoutMode ? Math.round(payoutValue * 100) / 100 : null, commission,
+      ...(methods ? { method } : {}),
     });
     setBusy(false);
     // The refusal goes under the field the server names; a refusal of the whole mark under the form.
@@ -107,6 +111,19 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
         helperText={dateError || ' '}
         slotProps={{ inputLabel: { shrink: true } }}
       />
+      {methods && (
+        <TextField
+          select
+          label="Mode de paiement"
+          size="small"
+          value={method}
+          onChange={(e) => setMethod(e.target.value)}
+          helperText=" "
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+        >
+          {methods.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </TextField>
+      )}
       {previousDate && date && date.slice(0, 7) !== previousDate.slice(0, 7) && (
         <Typography variant="body2" color="warning.text" sx={{ gridColumn: '1 / -1' }}>
           {`Le mois comptable change : ${previousDate.slice(5, 7)}/${previousDate.slice(0, 4)} → ${date.slice(5, 7)}/${date.slice(0, 4)}.`}

@@ -166,6 +166,9 @@ function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
   });
   const deposit = withCollectible('deposit');
   const balance = withCollectible('balance');
+  // specs/direct-installments.md rule 36 — what a plan still owes is due at the door: the SAS settles it
+  // by marking the remaining installments paid (cash), never by ticking acompte / solde.
+  const installments = due.installments;
   const settledHere = own.filter((b) => Number(b.atArrival || 0) === 1);
   const paid = settledHere.some((b) => Number(b.paid || 0) === 1);
   return {
@@ -175,9 +178,10 @@ function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
     // an alert »). A platform SAS that settled the stay on an earlier run still gets the step, so
     // its own (mistaken) collection stays visible and undoable.
     applicable: (isDirectChannel(reservation.platform) && due.total > 0) || settledHere.length > 0,
-    total: Math.round((deposit.collectible + balance.collectible) * 100) / 100,
+    total: Math.round((deposit.collectible + balance.collectible + installments.due) * 100) / 100,
     deposit,
     balance,
+    installments,
     // The OTA warning of rule 9 — on a platform booking the solde is the payout, not the guest's money.
     channel: isDirectChannel(reservation.platform) ? 'direct' : 'platform',
     platformLabel: formatPlatformName(reservation.platform),

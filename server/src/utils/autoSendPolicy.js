@@ -18,9 +18,13 @@
  * resolve to `false`. The safe default is « ask me », never « mail the guest ».
  */
 
+const { PAYMENT_STABLE_KEYS } = require('./defaultEmailTemplatesRegistry');
+
 function templateAutoSends(template) {
   try {
     if (!template) return false;
+    // Rule 44 — whatever its stored mode, a template that asks for money is never sent by a cron.
+    if (PAYMENT_STABLE_KEYS.includes(template.stableKey)) return false;
     const enabled = template.enabled === true || Number(template.enabled) === 1;
     return enabled && String(template.sendMode) === 'auto';
   } catch {

@@ -17,6 +17,8 @@
  *   `cancel_due`        — the solde is late enough that the stay may be cancelled and the acompte kept;
  *   `balance_to_request`— the solde is due and the guest has never been asked for it;
  *   `balance_overdue`   — the solde is late, the cancellation deadline is not reached yet;
+ *   `installment_overdue` — an installment of the plan is unpaid three days after its due date
+ *                         (specs/direct-installments.md rule 22); no reminder, no cancellation;
  *   `deposit_to_request`— the acompte has never been asked for (from the booking day on);
  *   `deposit_overdue`   — the acompte is late;
  *   `platform_payout_overdue` — an OTA has not settled `payoutDueDays` after the guest left
@@ -43,6 +45,7 @@ const SEVERITY_BY_STATE = {
   cancel_due: 'error',
   balance_to_request: 'warning',
   balance_overdue: 'warning',
+  installment_overdue: 'warning',
   // An acompte to ask for is a to-do on a brand-new booking, not a problem: every direct reservation
   // passes through this state, so making it yellow would leave the card permanently warning.
   deposit_to_request: 'info',
@@ -58,7 +61,7 @@ const SEVERITY_BY_STATE = {
 // platform payout — money owed by a platform arrives eventually; money owed by a guest about to walk
 // in does not (specs/platform-payout-due-date.md rule 13).
 const STATE_RANK = [
-  'unpaid_at_arrival', 'cancel_due', 'balance_to_request', 'balance_overdue',
+  'unpaid_at_arrival', 'cancel_due', 'balance_to_request', 'balance_overdue', 'installment_overdue',
   'deposit_to_request', 'deposit_overdue', 'platform_payout_overdue', 'platform_amount_missing',
 ];
 
@@ -270,10 +273,57 @@ function buildPaymentDeadlineRow(row = {}, today) {
   };
 }
 
+/**
+ * Rule 22 — one row per reservation whose plan has late installments (`rows`: the late ones, joined with
+ * their stay and guest). Nothing to chase from here: no automatic reminder, no cancellation.
+ */
+function buildInstallmentDeadlineRows(rows = [], today) {
+  const byReservation = new Map();
+  for (const row of rows) {
+    const snoozedUntil = toIsoDay(row.paymentAlertSnoozedUntil);
+    if (snoozedUntil && snoozedUntil >= today) continue;
+    const endDate = toIsoDay(row.endDate);
+    if (endDate && (daysBetween(endDate, today) || 0) > MAX_DAYS_AFTER_STAY) continue;
+    const group = byReservation.get(row.reservationId) || [];
+    group.push(row);
+    byReservation.set(row.reservationId, group);
+  }
+  return [...byReservation.values()].map((late) => {
+    const first = late[0];
+    const dueDate = toIsoDay(first.dueDate);
+    const totalDue = round2(late.reduce((sum, r) => sum + Number(r.amountCents) / 100, 0));
+    // Rule 36 — the guest is at the door and the plan is not paid: the same red state as acompte / solde.
+    const state = toIsoDay(first.startDate) <= today ? 'unpaid_at_arrival' : 'installment_overdue';
+    return {
+      reservationId: Number(first.reservationId),
+      reservationNumber: first.reservationNumber || null,
+      state,
+      severity: SEVERITY_BY_STATE[state],
+      clientName: clientNameOf(first),
+      clientEmail: first.email || '',
+      propertyName: first.propertyName || '',
+      platformLabel: null,
+      startDate: toIsoDay(first.startDate),
+      endDate: toIsoDay(first.endDate),
+      depositDue: 0,
+      balanceDue: 0,
+      installmentsDue: late.length,
+      totalDue,
+      dueDate,
+      daysLate: Math.max(0, daysBetween(dueDate, today) || 0),
+      cancelOn: null,
+      canCancel: false,
+      retainedDepositAmount: 0,
+      canRemind: false,
+      remindType: null,
+      requestSent: false,
+    };
+  });
+}
+
 /** Every alert row, most severe first, then most overdue first. */
-function buildPaymentDeadlineRows(rows = [], today) {
-  return rows
-    .map((row) => buildPaymentDeadlineRow(row, today))
+function buildPaymentDeadlineRows(rows = [], today, lateInstallments = []) {
+  return [...rows.map((row) => buildPaymentDeadlineRow(row, today)), ...buildInstallmentDeadlineRows(lateInstallments, today)]
     .filter(Boolean)
     .sort((a, b) => {
       const rank = STATE_RANK.indexOf(a.state) - STATE_RANK.indexOf(b.state);
@@ -286,6 +336,7 @@ function buildPaymentDeadlineRows(rows = [], today) {
 module.exports = {
   buildPaymentDeadlineRow,
   buildPaymentDeadlineRows,
+  buildInstallmentDeadlineRows,
   SEVERITY_BY_STATE,
   STATE_RANK,
 };

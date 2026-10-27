@@ -37,7 +37,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
      * @returns {{ written: boolean, reason?: string, error?: { status: number, body: object } }}
      */
     writeIfComplete({ receipt, lines, expectedBankCents, tolerance = 0, user }) {
-      const fields = BUCKET_FIELDS[receipt.ledgerKey];
+      const fields = receipt.installmentId ? { installment: true } : BUCKET_FIELDS[receipt.ledgerKey];
       if (!fields) return { written: false, reason: 'no-bucket' };
       if (receipt.paid) return { written: false, reason: 'already-received' };
       const got = lines.reduce((s, l) => s + l.amountCents, 0);
@@ -46,7 +46,11 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       if (!settled) return { written: false, reason: 'no-date' };
 
       const before = reservations.getRow(receipt.reservationId) || {};
-      const body = { [fields.flag]: true, [fields.date]: settled };
+      // An installment is marked through its own handler (rule 38); « Défaire » cannot take it back: the
+      // payment stays recorded, as a bank transfer cannot be un-received.
+      const body = fields.installment
+        ? { installmentId: receipt.installmentId, installmentPaidDate: settled, installmentMethod: 'transfer' }
+        : { [fields.flag]: true, [fields.date]: settled };
       let payout = null;
       let commission = null;
       if (String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {

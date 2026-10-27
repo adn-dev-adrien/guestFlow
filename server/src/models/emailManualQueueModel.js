@@ -2,7 +2,8 @@
  * Email manual queue model — sole DB access for `email_manual_queue`
  * (specs/manual-email-from-template.md §4.1 + §5).
  *
- * Stores the (templateId, reservationId) pairs the operator explicitly queued for sending.
+ * Stores the (templateId, reservationId, occurrenceKey) triples the operator explicitly queued for sending.
+ * The occurrence key is '' except for an email sent once per installment (specs/direct-installments.md).
  * The pending controller merges these with the date-driven candidates; send / acknowledge
  * remove the pair. Only the pair + createdAt is stored — the email body is always re-rendered
  * live at preview/send, so template/reservation edits are reflected (no stale snapshot).
@@ -10,24 +11,24 @@
  * Exports a default model bound to the production database + a `buildModel(db)` factory for tests.
  *
  * API:
- *   add(templateId, reservationId)    → true if a new row was inserted (idempotent; existing pair → false)
- *   remove(templateId, reservationId) → boolean (true when a row was deleted)
- *   has(templateId, reservationId)    → boolean
+ *   add(templateId, reservationId, occurrenceKey?)    → true if a new row was inserted (idempotent; existing → false)
+ *   remove(templateId, reservationId, occurrenceKey?) → boolean (true when a row was deleted)
+ *   has(templateId, reservationId, occurrenceKey?)    → boolean
  *   listEnriched()                    → queued rows joined with template + reservation + client + property,
  *                                       plus the most recent `sent` `lastSentAt` per pair
  */
 
 function buildModel(database) {
-  // INSERT OR IGNORE → idempotent on the (templateId, reservationId) primary key.
+  // INSERT OR IGNORE → idempotent on the (templateId, reservationId, occurrenceKey) primary key.
   const addStmt = database.prepare(`
-    INSERT OR IGNORE INTO email_manual_queue (templateId, reservationId)
-    VALUES (?, ?)
+    INSERT OR IGNORE INTO email_manual_queue (templateId, reservationId, occurrenceKey)
+    VALUES (?, ?, ?)
   `);
   const removeStmt = database.prepare(
-    'DELETE FROM email_manual_queue WHERE templateId = ? AND reservationId = ?'
+    'DELETE FROM email_manual_queue WHERE templateId = ? AND reservationId = ? AND occurrenceKey = ?'
   );
   const hasStmt = database.prepare(
-    'SELECT 1 FROM email_manual_queue WHERE templateId = ? AND reservationId = ? LIMIT 1'
+    'SELECT 1 FROM email_manual_queue WHERE templateId = ? AND reservationId = ? AND occurrenceKey = ? LIMIT 1'
   );
 
   // Same shape as emailLogModel.listPending so the controller can merge the two lists
@@ -46,9 +47,10 @@ function buildModel(database) {
       COALESCE(c.email, '') AS clientEmail,
       COALESCE(p.name, '')  AS propertyName,
       1 AS manual,
+      q.occurrenceKey AS occurrenceKey,
       (
         SELECT MAX(l.sentAt) FROM email_log l
-        WHERE l.templateId = t.id AND l.reservationId = r.id AND l.status = 'sent'
+        WHERE l.templateId = t.id AND l.reservationId = r.id AND l.occurrenceKey = q.occurrenceKey AND l.status = 'sent'
       ) AS lastSentAt
     FROM email_manual_queue q
     JOIN email_templates t ON t.id = q.templateId
@@ -59,18 +61,18 @@ function buildModel(database) {
     ORDER BY q.createdAt ASC
   `);
 
-  function add(templateId, reservationId) {
-    const info = addStmt.run(Number(templateId), Number(reservationId));
+  function add(templateId, reservationId, occurrenceKey = '') {
+    const info = addStmt.run(Number(templateId), Number(reservationId), String(occurrenceKey));
     return info.changes > 0;
   }
 
-  function remove(templateId, reservationId) {
-    const info = removeStmt.run(Number(templateId), Number(reservationId));
+  function remove(templateId, reservationId, occurrenceKey = '') {
+    const info = removeStmt.run(Number(templateId), Number(reservationId), String(occurrenceKey));
     return info.changes > 0;
   }
 
-  function has(templateId, reservationId) {
-    return Boolean(hasStmt.get(Number(templateId), Number(reservationId)));
+  function has(templateId, reservationId, occurrenceKey = '') {
+    return Boolean(hasStmt.get(Number(templateId), Number(reservationId), String(occurrenceKey)));
   }
 
   function listEnriched() {

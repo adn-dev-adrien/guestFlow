@@ -18,7 +18,9 @@ const { sendSequenceMail } = require('./guestEmailSequenceRunner');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { guestEmailMessage } = require('./guestEmailHtml');
 
-async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
+// `installment` (the plan context of utils/installmentPlan.requestContext) and `occurrenceKey` make this the
+// request of ONE installment (specs/direct-installments.md rules 19-21).
+async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext, installment = null, occurrenceKey = '' }) {
   const template = templatesModel.findByStableKey(stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
 
@@ -54,7 +56,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   const termsVersion = loadTermsVersion(database, reservation.id);
   const context = buildContext({
     reservation, client, property, options, resources, customOptions,
-    bedLinenProvidedByDefault, settings, lang, termsVersion,
+    bedLinenProvidedByDefault, settings, lang, termsVersion, installment,
     // The local copy of the gate-access result — nothing to reach, nothing to wait for.
     pluginContext: pluginEmailContext(reservation.id),
   });
@@ -73,14 +75,14 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
     await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
     const row = logModel.insert({
       templateId: template.id, reservationId: reservation.id, status: 'sent', channel: 'smtp',
-      errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to,
+      errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
     });
     return { sent: true, emailLogId: row && row.id, recipientEmail: to };
   } catch (err) {
     const errMsg = err && err.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : String((err && err.message) || 'unknown');
     logModel.insert({
       templateId: template.id, reservationId: reservation.id, status: 'failed',
-      errorMessage: errMsg, renderedSubject: subject, renderedBody: body, recipientEmail: to,
+      errorMessage: errMsg, renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
     });
     return { sent: false, reason: errMsg };
   }

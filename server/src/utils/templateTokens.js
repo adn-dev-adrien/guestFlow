@@ -19,7 +19,7 @@ const { unknownToken, structureError, STRUCTURE_MESSAGES } = require('./emailTem
  */
 const SECTIONS = Object.freeze([
   { id: 'confirmation', title: 'Confirmation', when: 'Envoyé à la réservation', stableKeys: ['reservation_confirmation'] },
-  { id: 'payment', title: 'Demandes de paiement', when: 'Envoyées à la demande et aux échéances', stableKeys: ['deposit_request', 'deposit_reminder', 'full_request', 'balance_request', 'balance_reminder'] },
+  { id: 'payment', title: 'Demandes de paiement', when: 'Envoyées à la demande et aux échéances', stableKeys: ['deposit_request', 'deposit_reminder', 'full_request', 'balance_request', 'balance_reminder', 'installment_request'] },
   { id: 'j7', title: 'Préparation du séjour', when: 'Envoyé 7 jours avant l’arrivée', stableKeys: ['arrival_reminder_7d'] },
   { id: 'j2', title: 'Accès et arrivée', when: 'Envoyé 2 jours avant l’arrivée', stableKeys: ['arrival_reminder_1d'] },
   { id: 'j1', title: 'Merci et avis', when: 'Envoyé le lendemain du départ', stableKeys: ['guest_thanks_j1'] },
@@ -86,6 +86,11 @@ const VARIABLES = Object.freeze([
   { name: 'retainedDepositAmount', label: 'Acompte conservé', in: ['payment', 'cancellation'] },
   { name: 'paymentLink', label: 'Lien de paiement', in: ['payment'] },
   { name: 'paymentAmount', label: 'Montant demandé', in: ['payment'] },
+  { name: 'installmentNumber', label: 'N° de l’échéance', in: ['payment'] },
+  { name: 'installmentCount', label: 'Nombre d’échéances', in: ['payment'] },
+  { name: 'installmentAmount', label: 'Montant de l’échéance', in: ['payment'] },
+  { name: 'installmentDueDate', label: 'Date de l’échéance', in: ['payment'] },
+  { name: 'installmentSchedule', label: 'Échéancier complet', in: ['payment'] },
   { name: 'cautionAmount', label: 'Caution', in: STAY },
   { name: 'complementAmount', label: 'Complément', in: STAY },
   { name: 'complementNotice', label: 'Détail du complément', in: STAY },

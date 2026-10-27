@@ -14,7 +14,8 @@ const { computePlatformCommission } = require('./platformCommission');
 /**
  * @param {object} p
  * @param {number} p.reservationId
- * @param {object} p.body   the PATCH body (`balancePaid`, `balancePaidDate`, `expectedAmountCents`…)
+ * @param {object} p.body   the PATCH body (`balancePaid`, `balancePaidDate`, `expectedAmountCents`…), or
+ *                       `{ installmentId, installmentPaidDate, installmentMethod }` to mark one installment
  * @param {object} p.user   the signed operator (`req.user`)
  * @returns {{ status: number, body: object }}
  */
@@ -27,6 +28,15 @@ function applyPaymentMark({ reservationId, body, user }) {
     status(code) { status = code; return res; },
     json(value) { payload = value; return res; },
   };
+  // specs/direct-installments.md rule 38 — an installment is marked through its own handler, same guards.
+  if (body && body.installmentId != null) {
+    require('../controllers/installmentsController').markPaid({
+      params: { id: String(reservationId), installmentId: String(body.installmentId) },
+      body: { paidDate: body.installmentPaidDate, method: body.installmentMethod || 'transfer' },
+      user,
+    }, res);
+    return { status, body: payload };
+  }
   controller.updatePayment({ params: { id: String(reservationId) }, body: { ...body }, user }, res);
   return { status, body: payload };
 }

@@ -391,6 +391,8 @@ export default function ReservationPage() {
   const [storedLedger, setStoredLedger] = useState(null);
   const [storedHeadline, setStoredHeadline] = useState(null);
   const [storedSummary, setStoredSummary] = useState(null);
+  // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
+  const [installmentPlan, setInstallmentPlan] = useState(null);
   const ledgerEditMarkerRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -935,6 +937,7 @@ export default function ReservationPage() {
           setStoredLedger(res.ledger || null);
           setStoredHeadline(res.storedHeadline || null);
           setStoredSummary(res.storedSummary || null);
+          setInstallmentPlan(res.installmentPlan || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
           setIsIcalSource(res.sourceType === 'ical');
@@ -2470,7 +2473,7 @@ export default function ReservationPage() {
         setInitialSnapshot(formSnapshot);
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
@@ -2712,6 +2715,7 @@ export default function ReservationPage() {
     setPluginBlocks(res.pluginBlocks || {});
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
+    setInstallmentPlan(res.installmentPlan || null);
     const serverWritten = {
       // L'état d'encaissement du complément d'arrivée est écrit par le serveur (les boutons de la
       // carte le PATCHent immédiatement) : le relire ici évite que le formulaire et la base ne
@@ -3393,6 +3397,7 @@ export default function ReservationPage() {
     // changed the fiche, never on a locked one; a fiche never saved has only the live one.
     ledger: showLiveMoney ? (pricingQuote?.ledger || storedLedger) : storedLedger,
     checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
+    installmentPlan, setInstallmentPlan, fichePristine: !isDirty,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,

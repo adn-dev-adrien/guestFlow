@@ -43,7 +43,15 @@ const { guestEmailMessage } = require('../utils/guestEmailHtml');
 // Templates that re-offer an existing payment link (injected read-only at preview/send time).
 const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
 
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, testMailer = null }) {
+// specs/direct-installments.md rules 19-21 — the request of one installment: it carries the plan in its
+// variables and its own link, and is sent once per installment (the occurrence key).
+const INSTALLMENT_STABLE_KEY = 'installment_request';
+
+// `installmentRequests` (utils/installmentRequests.js) is what this controller knows of the plan:
+//   available() → a payment provider can mint links;  resolve(reservationId, occurrenceKey) → the installment
+//   to ask for ({ id, occurrenceKey, context, openLinkUrl }) or null;  ensureLink(reservationId, installmentId);
+//   markRequested(installmentId).
+function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, installmentRequests = null, testMailer = null }) {
   // specs/guest-email-sequence.md rules 12-13bis — the ledger key a sequence email is sent under
   // from this controller. Null for every other template (payment emails keep their own rules).
   // A season email sent by hand counts for the season that just passed or is coming.
@@ -89,6 +97,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // wins, else the CLIENT's language, else the reservation's (transitional fallback), else French.
     const useLang = normaliseLang(lang || graph.client?.emailLanguage || graph.reservation.emailLanguage);
 
+    const installmentRef = template.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests
+      ? installmentRequests.resolve(reservationId, extra.occurrenceKey)
+      : null;
     const context = buildContext({
       reservation: graph.reservation,
       client:      graph.client,
@@ -106,9 +117,16 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       }),
       settings,
       lang:        useLang,
+      installment: installmentRef ? installmentRef.context : null,
       // The local copy of the invitation: composing an email never reaches the house.
       pluginContext: pluginEmailContext(reservationId),
     });
+
+    if (installmentRef) {
+      const url = extra.paymentLink || installmentRef.openLinkUrl || '';
+      context.vars.paymentLink = url;
+      context.flags.hasPaymentLink = Boolean(url);
+    }
 
     // Payment-link templates (e.g. deposit_reminder) re-offer the existing OPEN link for the devis —
     // read-only, no Qonto write. Empty when there is none → the body falls back via {{#if hasPaymentLink}}.
@@ -142,6 +160,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       html,
       missingVariables,
       lang: useLang,
+      occurrenceKey: installmentRef ? installmentRef.occurrenceKey : '',
+      installmentId: installmentRef ? installmentRef.id : null,
     };
   }
 
@@ -163,11 +183,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   // ---------- HTTP handlers ----------
 
   function preview(req, res) {
-    const { reservationId, templateId, lang } = req.query || {};
+    const { reservationId, templateId, lang, occurrenceKey } = req.query || {};
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
-    const result = buildPreview(Number(reservationId), Number(templateId), {}, lang);
+    const result = buildPreview(Number(reservationId), Number(templateId), {}, lang, { occurrenceKey });
     if (result.error) return res.status(result.status).json({ error: result.error });
     return res.json({
       to: result.to,
@@ -180,12 +200,25 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   async function send(req, res) {
-    const { reservationId, templateId, overrides, lang, confirmResend } = req.body || {};
+    const { reservationId, templateId, overrides, lang, confirmResend, occurrenceKey } = req.body || {};
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
-    const result = buildPreview(Number(reservationId), Number(templateId), overrides || {}, lang);
+    // An installment request goes out with its own link, minted (or reused) at its exact amount.
+    let paymentLink = null;
+    const wanted = templatesModel.findById(templateId);
+    if (wanted && wanted.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests) {
+      const target = installmentRequests.resolve(Number(reservationId), occurrenceKey);
+      if (!target) return res.status(404).json({ error: 'INSTALLMENT_NOT_FOUND', message: 'Aucune échéance à demander.' });
+      try {
+        paymentLink = (await installmentRequests.ensureLink(Number(reservationId), target.id)).url;
+      } catch (err) {
+        return res.status(err.httpStatus || 502).json({ error: err.error || 'PAYMENT_LINK_FAILED', message: err.message || 'Lien de paiement impossible.' });
+      }
+    }
+    const result = buildPreview(Number(reservationId), Number(templateId), overrides || {}, lang, { occurrenceKey, paymentLink });
     if (result.error) return res.status(result.status).json({ error: result.error });
+    const sentKey = result.occurrenceKey;
 
     // Resolve the recipient: the client's email on file wins; otherwise the operator may
     // type one in the send dialog (overrides.to) for a client that has none. That typed
@@ -220,6 +253,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         renderedSubject: result.subject,
         renderedBody:    result.body,
         recipientEmail:  recipient,
+        occurrenceKey:   sentKey,
       });
       if (plan) ledger.markFailed(plan.dedupKey, 'EMAIL_NOT_CONFIGURED');
       return res.status(409).json({ error: 'EMAIL_NOT_CONFIGURED', emailLogId: failed.id });
@@ -240,10 +274,12 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         renderedSubject: result.subject,
         renderedBody:    result.body,
         recipientEmail:  recipient,
+        occurrenceKey:   sentKey,
       });
       if (plan) ledger.markSent(plan.dedupKey, { recipientEmail: recipient, emailLogId: row.id });
+      if (result.installmentId) installmentRequests.markRequested(result.installmentId);
       // A manually-queued pair leaves the queue once sent (specs/manual-email-from-template.md §3 rule 7).
-      if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
+      if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId), sentKey);
       return res.json({ ok: true, emailLogId: row.id, sentAt: row.sentAt });
     } catch (err) {
       const failed = logModel.insert({
@@ -254,6 +290,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         renderedSubject: result.subject,
         renderedBody:    result.body,
         recipientEmail:  recipient,
+        occurrenceKey:   sentKey,
       });
       if (plan) ledger.markFailed(plan.dedupKey, String(err?.message || 'unknown'));
       const code = err?.code === 'EMAIL_NOT_CONFIGURED' ? 409 : 500;
@@ -270,12 +307,15 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const lookbackDays = Number((req.query && req.query.lookbackDays) || 7);
     // Only the « manual » templates are proposed: an « auto » one leaves on its own
     // (specs/settings-rationalization.md rule 17b).
-    const dateDriven = logModel.listPending({ today, lookbackDays });
+    // An installment request needs a payment provider to mint its link: without one it is not proposed.
+    const dateDriven = logModel.listPending({ today, lookbackDays })
+      .filter((row) => !row.occurrenceKey || (installmentRequests && installmentRequests.available()));
     // Manually-queued pairs are shown unconditionally (they bypass the sent/ack filter — that is
     // what allows a deliberate resend, specs/manual-email-from-template.md §3 rule 6). Merge +
     // dedup by (templateId, reservationId): the manual flag wins so the UI can badge the row.
-    const manual = manualQueueModel ? manualQueueModel.listEnriched() : [];
-    const key = (r) => `${r.templateId}:${r.reservationId}`;
+    const manual = (manualQueueModel ? manualQueueModel.listEnriched() : [])
+      .filter((row) => !row.occurrenceKey || (installmentRequests && installmentRequests.available()));
+    const key = (r) => `${r.templateId}:${r.reservationId}:${r.occurrenceKey || ''}`;
     const manualKeys = new Set(manual.map(key));
     const merged = [
       ...manual,
@@ -289,6 +329,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   function acknowledge(req, res) {
     const { templateId, reservationId } = req.params || {};
     if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    const occurrenceKey = String((req.query && req.query.occurrenceKey) || '');
 
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
@@ -297,14 +338,14 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
     // Skipping always removes the pair from the manual queue, even when it was previously
     // sent/acknowledged (a re-queued pair must still be dismissable).
-    if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
+    if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId), occurrenceKey);
     // A skipped sequence email is closed in the ledger: the sequence never sends it afterwards.
     const skipPlan = sequencePlanFor(template, graph);
     if (skipPlan) ledger.recordOutsideSend({ ...skipPlan, status: 'skipped', note: 'ignoré par l\'opérateur' });
 
     // Idempotent: a second acknowledge for the same pair is a no-op (the pending list
     // already filters out any pair with an existing 'sent' or 'acknowledged-skip' row).
-    if (logModel.existsFor(Number(templateId), Number(reservationId), ['sent', 'acknowledged-skip'])) {
+    if (logModel.existsFor(Number(templateId), Number(reservationId), ['sent', 'acknowledged-skip'], occurrenceKey)) {
       return res.json({ ok: true, alreadyHandled: true });
     }
 
@@ -336,6 +377,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       renderedSubject: subject,
       renderedBody:    body,
       recipientEmail:  String(graph.client?.email || '').trim(),
+      occurrenceKey,
     });
     return res.json({ ok: true, emailLogId: row.id });
   }
@@ -346,6 +388,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   function markSent(req, res) {
     const { templateId, reservationId } = req.params || {};
     if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    const occurrenceKey = String((req.query && req.query.occurrenceKey) || '');
 
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
@@ -353,13 +396,18 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
 
     // Always dequeue, even if already handled (a re-queued pair must still leave the list).
-    if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
+    if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId), occurrenceKey);
+    // An installment asked for outside GuestFlow counts as requested: the row says so, no link behind it.
+    if (occurrenceKey && installmentRequests) {
+      const target = installmentRequests.resolve(Number(reservationId), occurrenceKey);
+      if (target) installmentRequests.markRequested(target.id);
+    }
     const manualPlan = sequencePlanFor(template, graph);
     if (manualPlan) {
       ledger.recordOutsideSend({ ...manualPlan, status: 'sent', recipientEmail: String(graph.client?.email || '').trim(), note: 'envoyé hors GuestFlow' });
     }
 
-    if (logModel.existsFor(Number(templateId), Number(reservationId), ['sent', 'acknowledged-skip'])) {
+    if (logModel.existsFor(Number(templateId), Number(reservationId), ['sent', 'acknowledged-skip'], occurrenceKey)) {
       return res.json({ ok: true, alreadyHandled: true });
     }
 
@@ -389,6 +437,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       renderedSubject: subject,
       renderedBody:    body,
       recipientEmail:  String(graph.client?.email || '').trim(),
+      occurrenceKey,
     });
     return res.json({ ok: true, emailLogId: row.id });
   }
@@ -456,15 +505,24 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const graph = loadReservationGraph(database, reservationId);
     if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
 
+    // An installment request queued by hand is queued for the installment it will ask for: its key is stored,
+    // so sending (which closes the entry under that key) really removes it.
+    let occurrenceKey = '';
+    if (template.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests) {
+      const target = installmentRequests.resolve(Number(reservationId), '');
+      if (!target) return res.status(404).json({ error: 'INSTALLMENT_NOT_FOUND', message: 'Aucune échéance à demander.' });
+      occurrenceKey = target.occurrenceKey;
+    }
+
     // Already-sent guard: warn (with the last send date) unless the operator forces a resend.
     if (!force) {
-      const lastSent = logModel.lastSentAt(Number(templateId), Number(reservationId));
+      const lastSent = logModel.lastSentAt(Number(templateId), Number(reservationId), occurrenceKey);
       if (lastSent) {
         return res.json({ ok: false, alreadySent: true, lastSentAt: lastSent });
       }
     }
 
-    manualQueueModel.add(Number(templateId), Number(reservationId));
+    manualQueueModel.add(Number(templateId), Number(reservationId), occurrenceKey);
     return res.json({ ok: true, queued: true });
   }
 

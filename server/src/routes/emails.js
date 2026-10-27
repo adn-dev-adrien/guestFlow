@@ -21,6 +21,7 @@ const controller = buildController({
   emailServiceFactory: createEmailService,
   ledger,
   preferences,
+  installmentRequests: require('../utils/installmentRequests').createInstallmentRequests(),
   testMailer: require('../utils/accountMailer').createAccountMailer({ settingsModel }),
 });
 

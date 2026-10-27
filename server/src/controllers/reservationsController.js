@@ -91,6 +91,7 @@ const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
 const ledgerLinks = require('../utils/ledgerLinks');
+const installments = require('./installmentsController');
 
 // specs/reservation-payment-ledger.md §3.1 — the payments ledger of a fiche, built by the server from
 // the stored row (paid states, dates, caution, single payment) and, while the fiche is edited, the live
@@ -119,6 +120,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     overpayment,
     midStayNotes: parseMidStayNotes(row && row.midStaySettledNotes),
     cautionAmount,
+    installmentPlan: id ? installments.planFor(id) : null,
     canRequest: Boolean(paymentProviders.summary()),
     today: getTodayIsoDate(),
   });
@@ -717,7 +719,9 @@ function storedSummaryOf(row) {
   const acompteCommission = isPlatform ? round2(row.acompteCommissionAmount) : 0;
   const soldeCommission = isPlatform ? round2(row.platformCommissionAmount) : 0;
   const totalCommission = round2(acompteCommission + soldeCommission);
-  const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
+  // With an installment plan the pre-arrival money is the plan's, not the (zeroed) acompte and solde.
+  const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)
+    + Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0));
   const tax = round2(row.touristTaxTotal);
   // HT / TVA of the stored total, the live summary's rule (one rate, per poste, TTC → HT), on the
   // stored lines: options and resources as stored, the accommodation the rest of the stored price.
@@ -775,6 +779,8 @@ function getById(req, res) {
     // paid the buckets separately, which is every reservation before this feature. The raw column
     // rides along untouched for the SAS, which re-reads it as the stored group.
     arrivalPayment: buildArrivalPaymentView(reservation),
+    // specs/direct-installments.md §4.3 — the plan of a direct reservation, ready to render.
+    installmentPlan: installments.planFor(reservation.id),
     // specs/reservation-payment-ledger.md rule 1 — the payments ledger, ready to render.
     ledger: ledgerFor({ row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount } }),
     // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
@@ -1380,7 +1386,11 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   const res = createResultRecorder();
   if (!dryRun) {
     applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
-    return res.result();
+    const result = res.result();
+    // specs/direct-installments.md rule 17 — whoever saved (the fiche, a plugin, the SAS), the links that bill
+    // an amount the save just changed are abandoned and deactivated; the poll retries should the provider fail.
+    if (result.status === 200) installments.retireChangedLinks(reservationId);
+    return result;
   }
   let preview = null;
   try {
@@ -1483,6 +1493,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   const cancelled = cancelledGuard(id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
+
+  // specs/direct-installments.md rule 1 — a plan with money in keeps the reservation on the own channels.
+  const planRefusal = installments.platformChangeRefusal(id, req.body.platform);
+  if (planRefusal) return res.status(planRefusal.status).json(planRefusal.body);
 
   // specs/reservation-payment-ledger.md rule 13 — the save never writes a payment state: the four
   // caution columns are re-read from the database like the paid flags (single-payment-from-the-fiche
@@ -1813,6 +1827,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // lines half rewritten (specs/mid-stay-extras-on-locked-fiche.md).
   const writeAll = () => {
     model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked);
+    // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total.
+    installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);
@@ -1896,6 +1912,11 @@ const PAID_DATE_FIELDS = [
  * Returns `{ status, body }` or null.
  */
 function paymentMarkRefusal(row, body, today) {
+  // specs/direct-installments.md rule 35 — a stay with a plan is collected installment by installment.
+  const hasPlan = Number(row.installmentsTarget || 0) > 0;
+  if (hasPlan && (body.depositPaid === true || body.depositPaid === 1 || body.balancePaid === true || body.balancePaid === 1)) {
+    return { status: 409, body: { error: 'Un échéancier remplace l’acompte et le solde : marquer les échéances.', code: 'INSTALLMENTS_IN_PLACE' } };
+  }
   for (const [flagField, dateField] of PAID_DATE_FIELDS) {
     if (!body[flagField] || body[dateField] === undefined || body[dateField] === null || body[dateField] === '') continue;
     const checked = validateCollectionDate(body[dateField], { today, invalidReason: 'Date invalide.' });
@@ -2241,3 +2262,6 @@ module.exports = {
   suggestBeds, platformCommission, list, search, occupiedDates, getById, getHistory, calculatePrice,
   create, update, performUpdate, updatePayment, settleArrivalPayment, remove,
 };
+
+// Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
+module.exports.__test = { paymentMarkRefusal };
