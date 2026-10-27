@@ -505,7 +505,7 @@ function computeTouristTaxBreakdown({
     touristTaxRate = perDayRate;
     touristTaxUnitAmount = perDayRate;
     touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);
-    touristTaxLabel = `${touristTaxUnitAmount.toFixed(2)}EUR x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nightsCount} nuit${nightsCount > 1 ? 's' : ''}`;
+    touristTaxLabel = `${frenchEuros(touristTaxUnitAmount)} × ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} × ${nightsCount} nuit${nightsCount > 1 ? 's' : ''}`;
   } else if (mode === 'percentage_accommodation' || mode === 'percentage_and_fixed') {
     touristTaxRate = communePercentage;
     municipalUnitAmount = roundMoney(perOccupantNightPriceHt * (communePercentage / 100));
@@ -516,13 +516,15 @@ function computeTouristTaxBreakdown({
     }
     touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);
     const fixedLabel = mode === 'percentage_and_fixed' && fixedAmount > 0
-      ? ` + ${fixedAmount.toFixed(2)}EUR`
+      ? ` + ${frenchEuros(fixedAmount)}`
       : '';
     // specs/tourist-tax-matches-the-office-calculation.md rule 15 — the caption opens on the stay's
     // whole base HT because that is the single figure the office's form asks for (« Montant du séjour
     // HT »). The operator retypes it and lands on the amount shown beside it; the per-night and
-    // per-occupant steps follow so the arithmetic can be checked without a calculator.
-    touristTaxLabel = `(${stayBaseHt.toFixed(2)}EUR HT ÷ ${nightsCount} nuit${nightsCount > 1 ? 's' : ''} ÷ ${occupantsCount || 0} occupant${occupantsCount > 1 ? 's' : ''} = ${averageNightPriceHt.toFixed(2)}EUR HT/nuit) x ${communePercentage.toFixed(2)}% + ${departmentPercentage.toFixed(2)}% dep${fixedLabel} = ${touristTaxUnitAmount.toFixed(2)}EUR/adulte/nuit`;
+    // per-occupant steps follow so the arithmetic can be checked without a calculator. Exactly the
+    // spec's shape, French-formatted: an intermediate « = X € HT/nuit » used to print the per-NIGHT
+    // price after dividing by the occupants, which no division of the shown figures produces.
+    touristTaxLabel = `(${frenchEuros(stayBaseHt)} HT ÷ ${nightsCount} nuit${nightsCount > 1 ? 's' : ''} ÷ ${occupantsCount || 0} occupant${occupantsCount > 1 ? 's' : ''}) × ${frenchPercent(communePercentage)} + ${frenchPercent(departmentPercentage)} dep${fixedLabel} = ${frenchEuros(touristTaxUnitAmount)}/adulte/nuit`;
   }
 
   return {
@@ -546,6 +548,16 @@ function computeTouristTaxBreakdown({
     touristTaxTotal,
   };
 }
+
+// French money / percentage for the server-phrased captions (« 1 234,56 € », « 5,00 % »).
+const NBSP = '\u00a0';
+function frenchNumber(value) {
+  const n = roundMoney(Number(value || 0));
+  const [int, dec] = Math.abs(n).toFixed(2).split('.');
+  return `${n < 0 ? '−' : ''}${int.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)},${dec}`;
+}
+const frenchEuros = (value) => `${frenchNumber(value)}${NBSP}€`;
+const frenchPercent = (value) => `${frenchNumber(value)}${NBSP}%`;
 
 function timeToDecimalHour(timeStr, fallback = 0) {
   const value = String(timeStr || '').trim();
@@ -708,9 +720,13 @@ function computeExtraGuestSurcharge({
   if (unit !== 'per_night') {
     return { total: roundMoney(count * baseUnit), ratioTotal: null, unit: 'per_stay' };
   }
-  if (count <= 0 || !Array.isArray(nightlyBreakdown) || nightlyBreakdown.length === 0) {
+  if (!Array.isArray(nightlyBreakdown) || nightlyBreakdown.length === 0) {
     return { total: 0, ratioTotal: 0, unit: 'per_night' };
   }
+  // The tiers are resolved even with nobody above the included guests: the tariff snapshot stores
+  // them, and a party that grows after the sale must be billed at the table it was sold under — a
+  // count of 0 at the sale used to store « no tiers » and bill the newcomer 0 € (spec review
+  // 2026-10-27, tariff-events-and-extra-guest-tiers rule 23).
   let total = 0;
   let ratioTotal = 0;
   let tiers = null;
@@ -742,7 +758,7 @@ function computeExtraGuestSurcharge({
   }
   return {
     total: roundMoney(total),
-    ratioTotal: roundMoney(ratioTotal),
+    ratioTotal: count > 0 ? roundMoney(ratioTotal) : 0,
     unit: 'per_night',
     tiers,
     label: tiers ? describeExtraGuestTiers(tiers) : null,
@@ -2242,10 +2258,13 @@ function calculateReservationQuote({
   // PLATFORM's figure, never ours, which is exactly what makes subtracting it safe where subtracting
   // our own estimate was not (platform-brut-excludes-offered-tourist-tax.md). Empty → 0 → every term
   // below is inert and the brut keeps being read tax-excluded, so no already-booked reservation moves.
-  const withheldTouristTaxInBrut = (platformGrossPin != null && isTouristTaxOfferedByPlatform
+  // `Entered` is kept apart from the amount: « 0 € withheld » is the platform's answer, not an empty
+  // box, and the fiche must print it instead of falling back to our estimate (spec review 2026-10-27).
+  const withheldTouristTaxEntered = platformGrossPin != null && isTouristTaxOfferedByPlatform
     && platformTouristTaxAmountInput !== '' && platformTouristTaxAmountInput != null
-    && Number.isFinite(Number(platformTouristTaxAmountInput)))
-    ? roundMoney(Math.max(0, Number(platformTouristTaxAmountInput)))
+    && Number.isFinite(Number(platformTouristTaxAmountInput)) && Number(platformTouristTaxAmountInput) >= 0;
+  const withheldTouristTaxInBrut = withheldTouristTaxEntered
+    ? roundMoney(Number(platformTouristTaxAmountInput))
     : 0;
 
   // specs/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
@@ -2475,31 +2494,6 @@ function calculateReservationQuote({
   // specs/reservation-refunds.md rules 38 and 40 — whose amount a paid solde follows: the platform's
   // statement on a platform sale, and on a counts-as-direct channel whose platform amount is entered.
   const paidSoldeFollowsStatement = channel.platformSale || platformGrossPin != null;
-  // specs/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
-  // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
-  // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
-  // so the summary shows the single « Total du séjour TTC » line).
-  // specs/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
-  // Both ≥ 0, non-direct only. The acompte/solde AMOUNTS are gross (what the guest pays); the commissions
-  // are tracked separately and booked on the platform account per échéance. Net perçu = total − Σ.
-  const clampCommission = (input) => {
-    const n = input === '' || input == null ? 0 : Number(input);
-    return channel.namedChannel && Number.isFinite(n) && n > 0 ? roundMoney(n) : 0;
-  };
-  const platformCommissionAmount = clampCommission(platformCommissionAmountInput); // solde
-  const acompteCommissionAmount = clampCommission(acompteCommissionAmountInput);   // acompte
-  const totalPlatformCommission = roundMoney(platformCommissionAmount + acompteCommissionAmount);
-  // Net perçu = what the platform actually settles to us = the PRE-ARRIVAL amount (acompte + solde) minus
-  // its commission. It must NOT be based on `totalStayPrice`: the complement (the on-arrival tourist tax
-  // for owner-collect platforms — `touristTaxCollectedOnArrival` — plus any on-site extras) is collected
-  // by US at check-in, never by the platform. Using `totalStayPrice` over-counted the platform's payout by
-  // exactly the complement, so the « Paiement plateforme » reconciliation always showed an écart equal to
-  // the tourist tax (specs/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
-  // right bucket, so for tax-collecting platforms (tax in the balance, complement = 0) the value is
-  // unchanged (= totalStayPrice − commission).
-  const platformNetReceivedAmount = totalPlatformCommission > 0
-    ? roundMoney(preArrivalAmount - totalPlatformCommission)
-    : null;
   // specs/plugins-phase-p-productisation.md rule 45 — an EXISTING stay on a counts-as-direct channel
   // keeps the schedule it was stored with: sold as a single payment (no acompte, no acompte deadline)
   // it stays one, paid or not; a stored acompte stays as it is. Only a new stay takes the direct rule.
@@ -2619,6 +2613,40 @@ function calculateReservationQuote({
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = 0;
   }
+
+  // specs/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
+  // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
+  // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
+  // so the summary shows the single « Total du séjour TTC » line).
+  // specs/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
+  // Both ≥ 0, non-direct only. The acompte/solde AMOUNTS are gross (what the guest pays); the commissions
+  // are tracked separately and booked on the platform account per échéance. Net perçu = total − Σ.
+  // Rule 3 + edge case — each commission is clamped to ITS échéance (net cash ≥ 0): a 100 € commission
+  // typed on a 0 € acompte used to flow into finance as a −100 € net (spec review 2026-10-27). Clamped
+  // here, after the split, because the échéance amounts are only known now. An installment plan holds
+  // the whole pre-arrival amount, so it is the solde's cap there.
+  const clampCommission = (input, echeanceAmount) => {
+    const n = input === '' || input == null ? 0 : Number(input);
+    if (!channel.namedChannel || !Number.isFinite(n) || n <= 0) return 0;
+    return roundMoney(Math.min(n, Math.max(0, Number(echeanceAmount) || 0)));
+  };
+  const platformCommissionAmount = clampCommission( // solde
+    platformCommissionAmountInput,
+    installmentPlan ? preArrivalAmount : resolvedBalanceAmount,
+  );
+  const acompteCommissionAmount = clampCommission(acompteCommissionAmountInput, resolvedDepositAmount); // acompte
+  const totalPlatformCommission = roundMoney(platformCommissionAmount + acompteCommissionAmount);
+  // Net perçu = what the platform actually settles to us = the PRE-ARRIVAL amount (acompte + solde) minus
+  // its commission. It must NOT be based on `totalStayPrice`: the complement (the on-arrival tourist tax
+  // for owner-collect platforms — `touristTaxCollectedOnArrival` — plus any on-site extras) is collected
+  // by US at check-in, never by the platform. Using `totalStayPrice` over-counted the platform's payout by
+  // exactly the complement, so the « Paiement plateforme » reconciliation always showed an écart equal to
+  // the tourist tax (specs/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
+  // right bucket, so for tax-collecting platforms (tax in the balance, complement = 0) the value is
+  // unchanged (= totalStayPrice − commission).
+  const platformNetReceivedAmount = totalPlatformCommission > 0
+    ? roundMoney(preArrivalAmount - totalPlatformCommission)
+    : null;
 
   // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
   // the BOOKING and never moves again (`existingDepositDueDate` wins on every recompute); the solde
@@ -2921,7 +2949,9 @@ function calculateReservationQuote({
       includedGuests,
       extraGuestPrice: extraGuestUnitPrice,
       extraGuestPriceUnit,
-      extraGuestTiers: extraGuestCalc.tiers || null,
+      // `[]` = sold without tiers, an explicit answer; `null` only survives in snapshots written
+      // before the 2026-10-27 spec review, and replays as « no tiers » too (rule 12ter backfill).
+      extraGuestTiers: extraGuestCalc.tiers || [],
       // Rule 58 — the season each night was sold under, for the per-night supplement.
       extraGuestNights: extraGuestPriceUnit === 'per_night'
         ? Object.fromEntries(nightlyBreakdown.map((night) => {
@@ -2944,7 +2974,12 @@ function calculateReservationQuote({
     // on, plus the two halves it comes from, so the summary can render « Base : X − Y de prestations
     // comprises » without subtracting them back (wrong whenever the base was floored at 0).
     touristTaxBaseAccommodation: taxBaseAccommodation,
-    touristTaxBaseBeforeDeduction: taxBaseBeforeDeduction,
+    // On a pinned brut the base starts from what the guest paid (the brut less the extras and the
+    // supplement it carries), not from the tariff: the caption must name the figure actually used
+    // (tourist-tax-included-services-deduction.md rule 17, spec review 2026-10-27).
+    touristTaxBaseBeforeDeduction: platformGrossPin != null
+      ? roundMoney(Math.max(0, taxAccommodationPaid - extraGuestInBrutSurcharge))
+      : taxBaseBeforeDeduction,
     touristTaxIncludedInRateDeduction,
     // specs/tourist-tax-matches-the-office-calculation.md — the accommodation the guest paid before
     // the two deductions (rules 2-3), whether the fiche is frozen (rule 12), and the inconsistent-brut
@@ -3007,7 +3042,7 @@ function calculateReservationQuote({
     // null when the box is empty / the mode isn't « collecte ET reverse ». Distinct from
     // `touristTaxOriginalTotal`, which stays the engine's OWN estimate: the fiche displays the
     // withheld one and falls back to the estimate, « Reprendre le calcul » offers the estimate.
-    platformTouristTaxWithheld: withheldTouristTaxInBrut > 0 ? withheldTouristTaxInBrut : null,
+    platformTouristTaxWithheld: withheldTouristTaxEntered ? withheldTouristTaxInBrut : null,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,

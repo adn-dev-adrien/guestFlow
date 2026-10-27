@@ -176,6 +176,14 @@ the same amount.
   page computes, never which stays it lists (`tourist-tax-declaration-month-stay-end.md` still owns
   the attribution).
 
+### Fixed at the 2026-10-27 spec review
+
+17. **On a pinned brut the caption starts from the paid base.** `touristTaxBaseBeforeDeduction` was
+    always the tariff accommodation, so a Booking stay entered at 450 € (4 adults, 62 € of supplement
+    in the brut) read « Base : 359,79 € − 60,00 € de prestations comprises » while the tax was computed
+    on 450 − 62 − 60. With a brut it is now `brut − extras − taxe retenue − supplément in the brut`
+    (388 €), so « X − Y » is the base the tax used. Without a brut nothing changes.
+
 ---
 
 ## 4. Architecture
@@ -190,6 +198,7 @@ the same amount.
 |---|---|---|---|
 | `routes/` | — | — | (none) |
 | `controllers/` | `reservationsController.js` | T | Rule 5 — on update, re-injects into `selectedOptions` / `offeredOptionIds` a property default `offered = 1` that the stored reservation carries and the payload dropped. Rule 16 — `calculatePrice` forwards `babies` to the engine |
+| `utils/` | `pricing.js` | T | 2026-10-27 (rule 17) — `touristTaxBaseBeforeDeduction` is the paid base (brut − extras − taxe retenue − supplément) when a brut is pinned. |
 | `models/` | `financeModel.js` | T | Rules 14-15 — `getTouristTaxExtraction` drops its own pricing arithmetic and replays the engine per stay (freeze included); exposes `nightPricePerOccupantHt` + `includedServicesDeduction` |
 | `utils/` | `reservationEngineInput.js` | C | `buildReservationEngineInput` — the persisted booking in the shape the engine expects. Moved out of `forceItemContribsCapture.js`, which now imports it: two callers, one replay |
 | `utils/` | `financeCalcs.js` | T | `computeAccommodationAmountAfterDiscount` **removed** — the declaration was its only caller and it is the arithmetic rule 14 replaces (CLAUDE.md §7, no dead code) |
@@ -316,6 +325,9 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
 ## 7. Test plan
 
 ### Server unit tests
+
+- `tourist-tax-deduction-caption-brut.unit.test.js` (2, rule 17) — brut booking names the paid base;
+  without a brut the tariff stays.
 - [x] `tests/tourist-tax-included-services-deduction.unit.test.js` (**new**) — 11 tests: the deduction
       is applied (18,00 € → 15,00 € on the reference stay); it is **identical for 2 and for 6
       occupants** (rule 3); a manually-offered non-default option is not deducted (rule 2); a custom

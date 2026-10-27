@@ -257,7 +257,13 @@ function buildYearPlan(recipe, year, closureRows = []) {
         // « pont » from licensing short stays inside a season that demands 4.
         const floor = Math.max(1, seasonMin);
         let override = null;
-        if (minNights > floor) {
+        if (raisedKey === current.season && Number(kept.minNights || 0) === minNights) {
+          // Rule 16quater, completed at the 2026-10-27 spec review — a night that keeps its season
+          // and whose period minimum already IS the strongest constraint stays exactly as it was.
+          // Rewriting it (and dropping the period's own minimum) split the Gîte's 2026 Très haute in
+          // four ranges around the 14-juillet block and the Saturday 15 August, for no constraint.
+          override = current.override || null;
+        } else if (minNights > floor) {
           override = { ...kept, minNights };
         } else if (Object.keys(kept).length) {
           // Drop the KEY, never set it to undefined: an explicit `minNights: undefined` travels into

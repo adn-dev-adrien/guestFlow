@@ -115,6 +115,14 @@ saved keeps exactly the price it was sold at.
     derived line and choose their own quantity — the engine drops its own line when the id is already
     selected.
 
+### 3.6 Fixed at the 2026-10-27 spec review
+
+19. **A reservation created with a cot and no ticked option stores the cot's line.** The create path
+    wrote the engine's option lines only when the payload ticked at least one option, so a booking
+    created with `babyBeds = 2` and nothing else billed 10 € with no `reservation_options` row; rule 10
+    then read it as grandfathered and the next save dropped the 10 € (369,79 → 359,79 on the Lodge).
+    The engine's lines are now always written on create, as the update path already did.
+
 **Edge cases:**
 
 - `babies > 0` but `babyBeds = 0` (guest brings their own, or none left) → no line, no charge. The J-7
@@ -148,6 +156,7 @@ saved keeps exactly the price it was sold at.
 |---|---|---|---|
 | `routes/` | — | — | (none — no new endpoint) |
 | `controllers/` | `reservationsController.js` | T | Passes `babyBeds` + `bookingId` to the engine in `calculatePrice` / `create` / `update` |
+| `controllers/` | `reservationsController.js` | T | 2026-10-27 (rule 19) — `create` writes the engine's option lines even when the payload ticked none. |
 | `controllers/` | `public/publicQuoteController.js` | T | Passes the already-validated `babyBeds` to the engine, and strips engine-managed auto-options from the visitor's `options` (rule 18bis) |
 | `controllers/` | `paymentsController.js` | T | `runDevisEngineQuote`: passes `babyBeds` + `bookingId` so a payment link never drops the line |
 | `models/` | `devisModel.js` | T | Passes `babyBeds` (`body ?? existing`) + `bookingId` (the devis on update) |
@@ -296,6 +305,9 @@ No page-level action added. `ReservationPage` keeps its existing bar.
 ## 7. Test plan
 
 ### Server unit tests — **+39, all green** (`cd server && npm test` → 3233 passing)
+
+- `baby-bed-line-stored-on-create.unit.test.js` (1, rule 19) — the real controller stores the cot line
+  of a reservation created with no ticked option.
 
 - [x] `tests/baby-bed-supplement.unit.test.js` (+16) — the pure rule
   - 1 cot → 5 €; 3 cots → 15 € with `quantity = billedUnits = 3`; unchanged by the stay length;

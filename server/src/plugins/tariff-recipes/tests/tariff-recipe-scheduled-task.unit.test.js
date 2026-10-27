@@ -12,7 +12,7 @@ const { runTariffRecipeHorizonPass } = require('../horizon');
 function createDb() {
   const db = new Database(':memory:');
   db.exec(`
-    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT,
+    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, basePriceIncludedGuests INTEGER DEFAULT 0,
       tariffRecipeId TEXT DEFAULT '', tariffRecipeVersion TEXT DEFAULT '',
       extraGuestPrice REAL DEFAULT 0, extraGuestPriceUnit TEXT DEFAULT 'per_stay', welcomePackCost REAL DEFAULT 0, platformCleaningFees TEXT DEFAULT '[]',
       updatedAt TEXT);

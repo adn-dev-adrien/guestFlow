@@ -72,6 +72,7 @@ The recipe declares what a ménage costs and which channels bill it as a separat
    choresMinutes / 60 × hourlyRate`, rounded to the cent, plus its two parts for display.
 6. An entry whose `platform` matches no row of the `platforms` table blocks the apply with « Plateforme
    inconnue dans la recette : <nom> ». Nothing is written.
+   > **Superseded 2026-10-27 by rule 15** — an unknown channel is skipped and named, it no longer blocks.
 7. Re-applying a recipe without `cleaning`, or without an entry for a channel, clears that channel's
    stored fee: the recipe owns the value, as it owns `welcomePackCost`.
 
@@ -110,6 +111,16 @@ The recipe declares what a ménage costs and which channels bill it as a separat
 - The Direct row never shows a cleaning fee: the ménage there is a GuestFlow option, priced by the
   engine.
 
+### 3.5 Fixed at the 2026-10-27 spec review
+
+15. **An unknown channel is skipped, not blocking** (supersedes rule 6). A fresh install records only
+    `direct` in `platforms`, so both shipped recipes refused to apply (« Plateforme inconnue dans la
+    recette : Airbnb »): a generic product failed on its own recipes. The fee of a channel the
+    installation does not record is now left out, the rest of the recipe applies, and the preview names
+    it: « Plateforme inconnue dans la recette : <nom> — frais de ménage non appliqués. Ajouter la
+    plateforme dans Paramètres › Plateformes puis réappliquer. » Re-applying once the channel exists
+    picks the fee up as a change (rule 11).
+
 ---
 
 ## 4. Architecture
@@ -126,6 +137,7 @@ plateformes » grid stay in the core, inert without a recipe (an empty list, no 
 | `plugins/tariff-recipes/` | `platformCleaningFee.js` | C | Pure: net to recover per entry (rule 5); stored-vs-desired diff (rule 11). |
 | `plugins/tariff-recipes/` | `controller.js`, `index.js` | T | Detach and purge empty the stored fees (rule 14). |
 | `plugins/tariff-recipes/` | `model.js` | T | Apply: resolves platforms, blocks on unknown or own channel (rules 6, 13), diffs stored fees and counts them as a change (rule 11), writes on both paths (rules 4, 7). |
+| `plugins/tariff-recipes/` | `model.js` | T | 2026-10-27 (rule 15) — an unknown channel is skipped with a non-blocking warning; rule 6's block is gone. |
 | `models/` | `propertiesModel.js` | T | `setPlatformCleaningFees`; `platformPrices` serves `cleaningFee` + detail (rules 8–9). |
 | `database.js` | `database.js` | T | Idempotent `properties.platformCleaningFees TEXT DEFAULT '[]'`. |
 | `plugins/tariff-recipes/recipes/` | `gite-2027.json` | T | 3.6.0 — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }. |
@@ -184,6 +196,9 @@ change (the card has no action).
 ## 7. Test plan
 
 ### Server unit tests — `tariff-recipe-platform-cleaning-fee.unit.test.js` (14 tests; 2 added for rule 14 on 2026-10-27)
+
+- 2026-10-27 spec review (rule 15): the rule-6 case now asserts skip + warning;
+  `tariff-recipe-fresh-install.unit.test.js` (3) applies both shipped recipes on a `direct`-only install.
 - [x] Validation: valid block, shipped recipes, missing block, each invalid field (rules 1–3).
 - [x] Net: Gîte 102.92, Estiva 10.42 (rule 5).
 - [x] Grid: Airbnb 15.5 % → 122 € and 13 €; commission change moves the fee (rules 8–9).

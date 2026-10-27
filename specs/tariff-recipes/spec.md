@@ -584,6 +584,24 @@ all-inclusive pricing as the first such recipe.
     backticks (the gîte's « `welcomePack.cost` » now reads « le levier du pack accueil »; the
     recipe version is unchanged — no price moves).
 
+### 3.13 Fixed at the 2026-10-27 spec review
+
+62. **The recipe's `extraGuest.unit` and `appliesAbove` are written on the property.** They were
+    validated at load and then dropped by the apply: the Lodge recipe applied to a property left at its
+    default `per_stay` billed its 15/8 tiers 0 € (4 adults, 3 high-season nights → no supplement), and
+    nothing said so. The apply now writes `extraGuestPriceUnit` (a tier table without a declared unit
+    means `per_night`) and `basePriceIncludedGuests`, on both paths like the welcome-pack cost. The
+    preview lists them as `extraGuestChanges: [{ field, label, from, to }]` (« Supplément voyageurs :
+    par séjour → par nuit », « Personnes incluses dans le prix : 0 → 2 ») and they count as a change
+    (`applied: true`, one line in the tariff journal). A field the recipe does not declare is left
+    alone. A tier table on `unit: per_stay` is refused at load — a per-stay supplement never reads tiers.
+63. **A holiday block that adds nothing leaves its nights exactly as they were** (completes rule
+    16quater). A night that keeps its season and whose period minimum already is the strongest
+    constraint keeps its period override verbatim; rewriting it without that minimum split the Gîte's
+    2026 Très haute in four ranges (07-11→13, 07-14→08-14, 08-15, 08-16→21) around the 14-juillet block
+    and the Saturday 15 August. It is now one range, `2026-07-11 → 2026-08-21, minNights 4`; a block
+    minimum stronger than the night's (Lodge, 14 juillet, 3 nights over a 1-night season) still splits.
+
 ---
 
 ## 4. Architecture
@@ -606,6 +624,12 @@ Full code map in [architecture.md](architecture.md). Summary:
 `hasUnpricedNights` (59). `client/src/components/PricingSummary.jsx` renders the rule-59 warning.
 - **2026-10-27 audit:** `server/src/plugins/tariff-recipes/labels.js` (new) formats the card's
   degressivity label; `controller.getOne` adds `labels` to its payload (rule 60).
+- **2026-10-27 spec review:** `plugins/tariff-recipes/model.js` — `diffExtraGuestConfig` /
+  `desiredExtraGuestConfig`, preview `extraGuestChanges`, apply writes them (rule 62);
+  `writeExtraGuestConfig` (the recipe-only writer, direct SQL so the plugin needs no newer core);
+  `plugins/tariff-recipes/store.js` refuses tiers on a per-stay unit; `seasonPlan.js` keeps a block
+  night's period override when the block adds nothing (rule 63);
+  `client/src/plugins/tariff-recipes/TariffRecipeCard.jsx` lists `extraGuestChanges` in the preview.
 
 ## 5. Data model
 
@@ -694,6 +718,10 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 ## 7. Test plan
 
 ### Server unit tests
+
+- 2026-10-27 spec review: `plugins/tariff-recipes/tests/tariff-recipe-extra-guest-config.unit.test.js`
+  (6, rule 62), `season-plan-block-inside-period-minimum.unit.test.js` (2, rule 63); the Gîte end-to-end
+  test now pins the 2026 Très haute as one range.
 
 - [ ] `tests/tariff-recipe-load.unit.test.js` — a valid recipe loads; an invalid one is rejected alone
       with its error; a `data/recipes/` recipe overrides a bundled one of the same `id`; a missing data
@@ -804,6 +832,22 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 ## 9. Open questions
 
 _None. All three are answered below._
+
+**Answered at the 2026-10-27 spec review (no code change):**
+- **The grid's Direct row ≠ the billed price on an install whose `direct` commission is 0.** The
+  Direct row grosses the net up at the `direct` platform's own commission; the engine bills the
+  recipe's `pricePerNight`, computed with the 5 % own-channel fee (rule 31). The two agree only
+  when `direct` carries that 5 % in Paramètres › Plateformes — 0 % on a fresh install, hence
+  170 / 205 / 235 against 179 / 216 / 247. Configuration, not a defect: the identity is the
+  safeguard of rule 34bis, and it is what reports a missing net (skill trap 15). The grid reads the
+  `direct` row's commission only (a counts-as-direct channel such as Lodgify is listed under it, its
+  own rate unused), so after Lodgify's decommission (2026-10-26) that row must still carry 5 % for
+  the grid to read true.
+- **Two weeks on the Gîte = 2 552,03 €, not 2 × 1 276 €.** Every night is a stored, rounded line
+  (reservation-price-arithmetic) and the 8th-and-later nights each cost a seventh of a week rounded
+  to the cent (182,29 €), so seven of them make 1 276,03 €. Pinned by control case G5 (3 607,97 €
+  for two August weeks). Removing the cents would mean cumulative rounding for every progressive
+  tariff, which moves every stored night: not worth 3 cents.
 
 **Resolved (2026-08-12) — the welcome pack, decided by the owner:**
 - **Which channels.** `direct` **and** `Lodgify` (rule 53). The code shipped gating on the string

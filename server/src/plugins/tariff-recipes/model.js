@@ -28,6 +28,40 @@ function roundOrNull(value) {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 
+// specs/tariff-recipes/spec.md §3 rule 62 — what the recipe's `extraGuest` block asks of the property.
+// A tier table only bills per night, so tiers without a declared unit mean `per_night`.
+function desiredExtraGuestConfig(extraGuest) {
+  if (!extraGuest || typeof extraGuest !== 'object') return {};
+  const unit = extraGuest.unit ?? (extraGuest.perNightTiers ? 'per_night' : undefined);
+  return { unit, includedGuests: extraGuest.appliesAbove };
+}
+
+const EXTRA_GUEST_UNIT_LABELS = { per_night: 'par nuit', per_stay: 'par séjour' };
+
+function diffExtraGuestConfig(propertyRow, extraGuest) {
+  const desired = desiredExtraGuestConfig(extraGuest);
+  const changes = [];
+  const currentUnit = propertyRow?.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay';
+  if (desired.unit !== undefined && desired.unit !== currentUnit) {
+    changes.push({
+      field: 'extraGuestPriceUnit',
+      label: 'Supplément voyageurs',
+      from: EXTRA_GUEST_UNIT_LABELS[currentUnit],
+      to: EXTRA_GUEST_UNIT_LABELS[desired.unit],
+    });
+  }
+  const currentIncluded = Number(propertyRow?.basePriceIncludedGuests ?? 0);
+  if (desired.includedGuests !== undefined && Number(desired.includedGuests) !== currentIncluded) {
+    changes.push({
+      field: 'basePriceIncludedGuests',
+      label: 'Personnes incluses dans le prix',
+      from: String(currentIncluded),
+      to: String(desired.includedGuests),
+    });
+  }
+  return changes;
+}
+
 function parseRanges(raw) {
   if (Array.isArray(raw)) return raw;
   try {
@@ -160,6 +194,20 @@ function createTariffRecipeModel(database, recipeStore) {
       if (existingEffect !== desiredEffect) changes.push({ field: 'progressiveTiers', from: 'courbe actuelle', to: 'courbe de la recette' });
     }
     return changes;
+  }
+
+  // Rule 62 — recipe-owned, like the welcome pack: only the fields the recipe declares are written.
+  // Direct SQL on purpose, as for the range reset above: the plugin must not need a core method newer
+  // than the GuestFlow versions its manifest accepts.
+  function writeExtraGuestConfig(propertyId, { unit, includedGuests }) {
+    if (unit !== undefined) {
+      database.prepare("UPDATE properties SET extraGuestPriceUnit = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(unit === 'per_night' ? 'per_night' : 'per_stay', propertyId);
+    }
+    if (includedGuests !== undefined) {
+      database.prepare("UPDATE properties SET basePriceIncludedGuests = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(Math.max(0, Math.trunc(Number(includedGuests) || 0)), propertyId);
+    }
   }
 
   function preview(propertyId, recipeId) {
@@ -326,15 +374,16 @@ function createTariffRecipeModel(database, recipeStore) {
       }
     }
 
-    // specs/tariff-recipe-platform-cleaning-fee.md rule 6 — a fee for a channel GuestFlow does not know
-    // would silently never reach the grid: refuse the whole apply instead.
+    // specs/tariff-recipe-platform-cleaning-fee.md rule 15 (supersedes rule 6) — a fee for a channel
+    // this installation does not record is skipped, named in the preview, and the rest of the recipe
+    // applies: a fresh install records only `direct`, and the shipped recipes must still apply there.
+    // Re-applying once the channel exists picks the fee up (rule 11 sees it as a change).
     const platformNames = recipe.cleaning?.platformFees?.length
       ? database.prepare('SELECT name FROM platforms').all().map((p) => p.name)
       : [];
     const cleaningFees = resolvePlatformCleaningFees(recipe.cleaning, platformNames);
     for (const name of cleaningFees.unknown) {
-      warnings.push(`Plateforme inconnue dans la recette : ${name}`);
-      blocking = true;
+      warnings.push(`Plateforme inconnue dans la recette : ${name} — frais de ménage non appliqués. Ajouter la plateforme dans Paramètres › Plateformes puis réappliquer.`);
     }
     // Rule 13 — the own channels are the Direct row, which never shows a channel fee: an entry there
     // would be stored and never displayed.
@@ -346,6 +395,10 @@ function createTariffRecipeModel(database, recipeStore) {
     // announced as « rien à modifier » nor left out of the tariff journal.
     const storedRow = database.prepare('SELECT platformCleaningFees FROM properties WHERE id = ?').get(Number(propertyId));
     const cleaningFeeChanges = diffPlatformCleaningFees(storedRow?.platformCleaningFees, cleaningFees.fees);
+    const extraGuestChanges = diffExtraGuestConfig(
+      database.prepare('SELECT extraGuestPriceUnit, basePriceIncludedGuests FROM properties WHERE id = ?').get(Number(propertyId)),
+      recipe.extraGuest,
+    );
 
     return {
       recipe: { id: recipe.id, version: recipe.version, label: recipe.label },
@@ -354,6 +407,7 @@ function createTariffRecipeModel(database, recipeStore) {
       closures: closuresDiff,
       cleaningFees: cleaningFees.fees,
       cleaningFeeChanges,
+      extraGuestChanges,
       conflicts,
       warnings,
       blocking,
@@ -367,7 +421,7 @@ function createTariffRecipeModel(database, recipeStore) {
       return { applied: false, ...diff };
     }
     const nothingToDo = diff.seasons.every((s) => s.action === 'unchanged') && diff.closures.added.length === 0
-      && diff.cleaningFeeChanges.length === 0;
+      && diff.cleaningFeeChanges.length === 0 && diff.extraGuestChanges.length === 0;
 
     const runTransaction = database.transaction(() => {
       for (const closure of diff.closures.added) {
@@ -412,6 +466,7 @@ function createTariffRecipeModel(database, recipeStore) {
     else propertiesModel.setTariffRecipe(Number(propertyId), recipeId, diff.recipe.version);
     propertiesModel.setWelcomePackCost(Number(propertyId), recipe?.welcomePack?.cost ?? 0);
     propertiesModel.setPlatformCleaningFees(Number(propertyId), diff.cleaningFees);
+    writeExtraGuestConfig(Number(propertyId), desiredExtraGuestConfig(recipe?.extraGuest));
 
     // specs/tariff-change-journal.md rule 5 — date the change, and only a real one. An apply that
     // moves no season and adds no closure changed no tariff, so it writes nothing: a journal full of

@@ -1,7 +1,7 @@
 {
   "id": "tariff-recipes",
   "name": "Recettes tarifaires",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Génère les saisons et les prix à partir d’une recette.",
   "icon": "trending-up",
   "surfaces": [
@@ -41,6 +41,12 @@
       "Carte recette : la dégressivité s’affiche en français, une décimale au plus (« 7 nuits −42,9 % »).",
       "Page des recettes : barre d’actions alignée sur les autres pages, titre du journal au style des sections, description sans accents graves.",
       "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.4.0": [
+      "Appliquer une recette règle aussi le supplément voyageurs du logement (par nuit, personnes incluses), et l’aperçu le montre.",
+      "Une plateforme encore inconnue n’empêche plus d’appliquer une recette : ses frais de ménage sont ignorés et signalés.",
+      "Un pont férié qui n’ajoute aucune contrainte ne coupe plus la saison en plusieurs plages.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }
