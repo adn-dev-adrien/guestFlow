@@ -31,7 +31,7 @@ export default function IntakeAlert({ attention }) {
         {items.map((item) => (
           <Typography key={item.id} variant="body2">
             {item.dossierNumber ? `Dossier ${item.dossierNumber}` : 'Mail'} du {displayDate(item.receivedAt.slice(0, 10))} —{' '}
-            {STATUS_TEXT[item.status] || item.error}
+            {item.error || STATUS_TEXT[item.status]}
             {item.reservationId && (
               <>
                 {' · '}

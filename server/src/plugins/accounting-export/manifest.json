@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.0.0",
+  "sdk": "^2.5.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -55,6 +55,10 @@
     "1.0.12": [
       "Chaque échéance payée d’un échéancier est une écriture à sa date, la taxe de séjour répartie au prorata.",
       "Compatible avec le SDK 2.0 de GuestFlow."
+    ],
+    "1.0.13": [
+      "Ne s’installe plus sur un GuestFlow trop ancien pour lire les échéanciers : demande le SDK 2.5.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
     ]
   }
 }

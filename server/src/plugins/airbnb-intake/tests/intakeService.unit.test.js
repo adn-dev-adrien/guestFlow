@@ -19,7 +19,7 @@ const MAIL = { messageId: '<m1@airbnb>', receivedAt: SENT_AT, sentAt: SENT_AT, s
 
 function setup({
   reservations = [PLACEHOLDER], mails = [MAIL], listings = [[1, '1234567890123456789']],
-  autoApply = true, updateStatus = 200, withholds = true, notes = '', dates = ['2026-12-26', '2026-12-30'],
+  autoApply = true, updateStatus = 200, withholds = true, notes = '', dates = ['2026-12-26', '2026-12-30'], now = '2026-10-25T09:00:00.000Z',
 } = {}) {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
@@ -47,7 +47,7 @@ function setup({
       withholdsTouristTax: () => withholds,
       findOrCreateClient: (c) => { calls.clients.push(c); return { id: 141, ...c }; },
     },
-    now: () => new Date('2026-10-25T09:00:00.000Z'),
+    now: () => new Date(now),
   });
   return { service, intakes, calls };
 }
@@ -88,7 +88,7 @@ test('rule 12: the guest message is appended under the existing notes, once', as
 
 test('rule 12: a cleaning fee at the catalogue price ticks the cleaning option, paid to the platform', async () => {
   const mail = { ...MAIL, subject: 'Réservation confirmée : Camille Martin arrive le 9 oct.', text: bookingMail(WITH_CLEANING), sentAt: '2026-09-10T08:00:00.000Z', receivedAt: '2026-09-10T08:00:00.000Z' };
-  const { service, calls } = setup({ mails: [mail], dates: ['2026-10-09', '2026-10-11'] });
+  const { service, calls } = setup({ mails: [mail], dates: ['2026-10-09', '2026-10-11'], now: '2026-09-10T09:00:00.000Z' });
   await service.runPass();
   const { patch } = calls.updates[0];
   assert.deepEqual(patch.options, [{ optionId: 7, quantity: 1, inComplement: 0 }]);

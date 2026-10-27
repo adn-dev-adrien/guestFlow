@@ -239,7 +239,7 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 
 **Review of 2026-10-18**
 
-27. **The first login is the company email.** At step 1 of the start assistant, when the administrator
+27. **The first login is the company email** *(opt-in since 2026-10-27, rule 37)*. At step 1 of the start assistant, when the administrator
     still logs in with the bootstrap `admin@guestflow.local`, the company email typed becomes the login
     (unless another account holds it), and the assistant says so once: « Connexion désormais avec … ».
     « Mot de passe oublié » then reaches a real mailbox. A login the owner chose is never changed.
@@ -303,6 +303,14 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     `GUESTFLOW_LICENCE_PUBLIC_KEY` or `GUESTFLOW_REGISTRY_PUBLIC_KEY` is that key refuses to start
     (`server/src/utils/testOnlyKeys.js`, checked first thing in `index.js`). Unmanaged installs, the
     E2E server included, are unaffected.
+37. **The login e-mail never changes implicitly** (audit 2026-10-27; amends rule 27). Saving the
+    « Entreprise » step silently replaced the bootstrap login with the company e-mail, and an operator
+    who kept typing `admin@guestflow.local` was locked out. Step 1 now shows « Utiliser aussi cette
+    adresse pour se connecter », **unticked by default** and only while the administrator still logs in
+    with the bootstrap address (`GET /api/onboarding` → `login.canAdopt`). Only a ticked box
+    (`PUT /api/onboarding/company` with `useAsLogin: true`, a literal boolean) replaces the login, with
+    the rest of rule 27 unchanged (an address another account holds is kept; « Connexion désormais
+    avec … » said once at step 2). Unticked, the login stays as it is.
 
 ---
 
@@ -363,6 +371,9 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
   `/parametres/acces-support`; `/login` with a session goes home), `constants/roles.js`
   (`ROUTE_CONDITIONS`: the support page needs `supportAccessEnabled` from `/auth/me`),
   `constants/settingsMenu.js`, `UserManagementPage` (rule 9), `api.js`, `hooks/useAuth.jsx`.
+- Rule 37 (2026-10-27): `pages/OnboardingPage.jsx` shows the « Utiliser aussi cette adresse pour se
+  connecter » box at step 1 when `GET /api/onboarding` returns `login.canAdopt`; server
+  `controllers/onboardingController.js` (`adoptLoginEmail` only on `useAsLogin: true`, `login` in `get`).
 
 ### 4.4 API
 
@@ -452,6 +463,11 @@ most); at 390 px each cell is about 45 px wide. Interactive mock:
 - 2026-10-23 (security review): rule 36 — a managed install with the test-only key as either
   variable refuses to start, an unmanaged one or a managed one with another key starts
   (`hosting-h2-test-only-key.unit.test.js`, 3).
+- 2026-10-27 (audit): rule 37 — without the opt-in the bootstrap login is kept, only a literal
+  `useAsLogin: true` changes it, `GET /api/onboarding` says whether to offer it
+  (`onboarding-login-opt-in.unit.test.js`, 3); the rule 27 tests send the opt-in. Client
+  `OnboardingPage.login-opt-in.test.jsx` (3: unticked by default and sent as `false`, ticked → `true`
+  and « Connexion désormais avec … », not offered over a login the owner chose).
 
 **Client unit tests:** the second-step screen, the banner states and the support bar; the backup-code
 switch of the code field and the backup codes dialog closing on « Terminé » only (2026-10-17).

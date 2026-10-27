@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
 import OnboardingPage from './pages/OnboardingPage';
+import { onboardingRoute } from './utils/onboardingRoute';
 import EmailTextsSettingsPage from './pages/settings/EmailTextsSettingsPage';
 import LoginPage from './pages/LoginPage';
 import ForcedPasswordChangePage from './pages/ForcedPasswordChangePage';
@@ -862,8 +863,13 @@ function AuthGate() {
   }
   if (user.mustChangePassword) return <ForcedPasswordChangePage />;
   // The start assistant, full screen and outside the side menu (specs/plugins-phase-p-productisation.md
-  // rule 20): an admin lands there while it is open, and may reopen it from Réglages › Système.
-  if (userHasRole(user, ADMIN) && (user.onboardingOpen || location.pathname === '/demarrage')) return <OnboardingPage />;
+  // rule 20): an admin lands there while it is open, and may reopen it from Réglages › Système (rule 22).
+  // Rule 45 — once it is done, `/demarrage` reached by accident goes home instead of restarting at step 1.
+  const onboarding = onboardingRoute({
+    isAdmin: userHasRole(user, ADMIN), onboardingOpen: user.onboardingOpen, pathname: location.pathname, state: location.state,
+  });
+  if (onboarding === 'assistant') return <OnboardingPage />;
+  if (onboarding === 'home') return <Navigate to="/" replace />;
   return <PageTitleProvider><AppShell /></PageTitleProvider>;
 }
 

@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 
 import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));

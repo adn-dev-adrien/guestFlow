@@ -2,8 +2,8 @@
  * Onboarding controller — the start assistant (specs/plugins-phase-p-productisation.md §3.D rules
  * 20–23, §4.3). Admin-only through the role guard.
  *
- *   GET  /api/onboarding            { open, company, property, plugins, questions, emails, pluginsSummary }
- *   PUT  /api/onboarding/company    { name, email, phone, address, siret } → 200 { company, loginEmail, loginChanged } | 422 { errors }
+ *   GET  /api/onboarding            { open, company, property, plugins, questions, emails, pluginsSummary, login: { email, canAdopt } }
+ *   PUT  /api/onboarding/company    { name, email, phone, address, siret, useAsLogin } → 200 { company, loginEmail, loginChanged } | 422 { errors }
  *   GET  /api/onboarding/default-capacity?doubleBeds=&singleBeds= → { maxGuests } (rule 21: the
  *                                     capacity proposed while the beds are typed)
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
@@ -214,6 +214,8 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
       open: model().isOpen(), company: companyOf(row), property: propertyStep(), emails: emailsOf(row), plugins: list,
       questions: questionsOf(list),
       pluginsSummary: activeSummary(list.filter((p) => p.state === 'active').length),
+      // specs/hosting-h2-account-security.md rule 37 — whether step 1 offers its « se connecter » opt-in.
+      login: { email: (req.user && req.user.email) || null, canAdopt: isBootstrapLogin(req.user) },
     });
   }
 
@@ -277,17 +279,24 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
     return res.json({ emails: emailsOf(settingsModel.read()) });
   }
 
+  // The bootstrap login (`admin@guestflow.local`) is nobody's mailbox: step 1 offers to replace it.
+  function isBootstrapLogin(user) {
+    if (!usersModel || !user || !user.id) return false;
+    const current = usersModel.findById(user.id);
+    return Boolean(current) && String(current.email).toLowerCase() === DEFAULT_ADMIN_EMAIL;
+  }
+
   /**
-   * specs/hosting-h2-account-security.md rule 27 — the bootstrap login (`admin@guestflow.local`) is
-   * nobody's mailbox: the company email typed at step 1 becomes the administrator's login, so « Mot de
-   * passe oublié » reaches someone. Any other login is the owner's own choice and is kept. Returns the
-   * login after the step.
+   * specs/hosting-h2-account-security.md rules 27, 37 — the company email typed at step 1 becomes the
+   * administrator's login only when the operator ticked « Utiliser aussi cette adresse pour se
+   * connecter » (`useAsLogin`, off by default), and only over the bootstrap login: never implicitly,
+   * since an operator who kept typing the old login was locked out. Returns the login after the step.
    */
-  function adoptLoginEmail(user, email) {
+  function adoptLoginEmail(user, email, useAsLogin) {
     const kept = (row) => ({ loginEmail: row && row.email ? row.email : null, loginChanged: false });
     if (!usersModel || !user || !user.id) return kept(user);
     const current = usersModel.findById(user.id);
-    if (!current || String(current.email).toLowerCase() !== DEFAULT_ADMIN_EMAIL) return kept(current);
+    if (useAsLogin !== true || !isBootstrapLogin(user)) return kept(current);
     const holder = usersModel.findByEmail(email);
     if (holder && Number(holder.id) !== Number(current.id)) return kept(current);
     try {
@@ -314,7 +323,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
       companyAddress: company.address, companySiret: company.siret,
     });
     ensureVapid(settingsModel.read());
-    return res.json({ company, ...adoptLoginEmail(req.user, company.email) });
+    return res.json({ company, ...adoptLoginEmail(req.user, company.email, b.useAsLogin === true) });
   }
 
   async function saveProperty(req, res) {

@@ -34,10 +34,10 @@ function onboarding(users) {
 
 const COMPANY = { name: 'Les Cabanes du Lac', email: 'Contact@Cabanes-du-Lac.fr', phone: '', address: '', siret: '' };
 
-test('rule 27: the bootstrap login becomes the company email typed at step 1', async () => {
+test('rule 27: the bootstrap login becomes the company email typed at step 1 (when asked to, rule 37)', async () => {
   const h = setup();
   const admin = h.addUser(DEFAULT_ADMIN_EMAIL);
-  const res = await call(onboarding(h.users).saveCompany, { body: COMPANY, user: admin });
+  const res = await call(onboarding(h.users).saveCompany, { body: { ...COMPANY, useAsLogin: true }, user: admin });
   assert.equal(res.status, 200);
   assert.equal(res.body.loginEmail, 'contact@cabanes-du-lac.fr');
   assert.equal(res.body.loginChanged, true);
@@ -52,13 +52,13 @@ test('rule 27: the bootstrap login becomes the company email typed at step 1', a
 test('rule 27: a login the owner chose, or an address another account holds, is kept', async () => {
   const h = setup();
   const own = h.addUser('claire@exemple.fr');
-  const kept = await call(onboarding(h.users).saveCompany, { body: COMPANY, user: own });
+  const kept = await call(onboarding(h.users).saveCompany, { body: { ...COMPANY, useAsLogin: true }, user: own });
   assert.deepEqual([kept.body.loginEmail, kept.body.loginChanged], ['claire@exemple.fr', false]);
 
   const other = setup();
   const admin = other.addUser(DEFAULT_ADMIN_EMAIL);
   other.addUser('contact@cabanes-du-lac.fr', { roles: ['reception'] });
-  const clash = await call(onboarding(other.users).saveCompany, { body: COMPANY, user: admin });
+  const clash = await call(onboarding(other.users).saveCompany, { body: { ...COMPANY, useAsLogin: true }, user: admin });
   assert.equal(clash.status, 200);
   assert.deepEqual([clash.body.loginEmail, clash.body.loginChanged], [DEFAULT_ADMIN_EMAIL, false]);
 });

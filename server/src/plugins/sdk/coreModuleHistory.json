@@ -1,0 +1,119 @@
+{
+  "_doc": "What coreModule() exposed at each SDK minor since 2.0.0 (specs/plugins-phase-1-sdk.md, SDK notes). A plugin may only call a module or a name that exists at the FLOOR of its manifest `sdk` range: tests/plugins-sdk-core-module-floor.unit.test.js. Adding a module or a name to coreModules.json means recording it here under the SDK minor that ships it.",
+  "baseline": {
+    "version": "2.0.0",
+    "modules": [
+      "database",
+      "settingsModel",
+      "reservationsModel",
+      "linenItemsModel",
+      "repairAmountsModel",
+      "breakfastModel",
+      "optionsModel",
+      "sasCommitHooks",
+      "sasOptionSale",
+      "arrivalSasPlan",
+      "arrivalPaymentGroup",
+      "optionCategoriesMigration",
+      "roles",
+      "sasEditWindow",
+      "reservationSettlement",
+      "platformNameFormat",
+      "receptionView",
+      "planningDateRange",
+      "propertiesModel",
+      "resourcesModel",
+      "propertyOptionDefaultsModel",
+      "propertyDefaultOptions",
+      "clientsModel",
+      "devisModel",
+      "termsModel",
+      "updateStateModel",
+      "pricing",
+      "reservationHelpers",
+      "capacity",
+      "blockedDates",
+      "changeover",
+      "mealPortions",
+      "quotePostProcessors",
+      "insuranceOffer",
+      "resourceOffer",
+      "translationResolver",
+      "optionVisibility",
+      "optionGrouping",
+      "publicLabels",
+      "publicDevisToken",
+      "publicPaymentMode",
+      "paymentProviders",
+      "attributionChannel",
+      "babyBedResource",
+      "releaseClient",
+      "notificationService",
+      "publicHttp",
+      "publicPaymentController",
+      "rateLimiters",
+      "enforceSubscription",
+      "platformsModel",
+      "refundsModel",
+      "cancellationCompensationsModel",
+      "midStayExtras",
+      "complementAllocation",
+      "csv",
+      "settingsValidation",
+      "paymentLinksModel",
+      "paymentPollRunner",
+      "paymentEffectDeps",
+      "qonto",
+      "reservationEngineInput",
+      "pushService",
+      "dateFr",
+      "reservationLedger",
+      "reservationPaymentMark",
+      "platformDisplay",
+      "devisHelpers"
+    ]
+  },
+  "added": [
+    {
+      "version": "2.1.0",
+      "modules": [
+        "departureSasPlan"
+      ],
+      "names": {
+        "reservationsModel": [
+          "buildDepartureSeed",
+          "planDepartureSas",
+          "resolveSasDepartureItems"
+        ]
+      }
+    },
+    {
+      "version": "2.4.0",
+      "modules": [
+        "directQuote"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.5.0",
+      "modules": [
+        "installmentPlan"
+      ],
+      "names": {
+        "platformNameFormat": [
+          "isChoreFreeChannel",
+          "refreshChoreFreeChannels",
+          "setChoreFreeChannels"
+        ],
+        "platformsModel": [
+          "choreFreeIds",
+          "refreshChoreFreeChannels",
+          "setForbidsGuestChores"
+        ],
+        "propertiesModel": [
+          "setPlatformCleaningFees"
+        ]
+      }
+    }
+  ]
+}

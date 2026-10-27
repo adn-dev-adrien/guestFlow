@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import GuestsBedsSection from '../GuestsBedsSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 // specs/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — the bed counters + the
 // "Suggérer les lits" button + the bedsCapacityMismatch warning moved out of this card

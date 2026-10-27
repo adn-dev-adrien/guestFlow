@@ -17,9 +17,12 @@ const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(Str
 const pad = (n) => String(n).padStart(2, '0');
 const frDate = (iso) => { const d = new Date(iso); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
 const frDay = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 function createIntakeService(deps) {
   const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, now = () => new Date() } = deps;
+  // The accommodations' day: the process runs in their time zone (utils/localDate.js).
+  const today = deps.today || (() => localDay(now()));
 
   // `settings.listings()` is `[[propertyId, listingId]]`: detected from the iCal feeds, overridable (rule 11).
   function propertyIdsForListing(listingId) {
@@ -83,7 +86,7 @@ function createIntakeService(deps) {
       }
     }
 
-    const payment = paymentBlock(booking, { withholds: core.withholdsTouristTax(reservation.propertyId) });
+    const payment = paymentBlock(booking, { withholds: core.withholdsTouristTax(reservation.propertyId, reservation.platform) });
     if (!payment.ok) return { error: payment.error };
     const commission = core.platformCommission({
       gross: payment.block.platformGrossAmount,
@@ -116,6 +119,13 @@ function createIntakeService(deps) {
   }
 
   function apply(intake, reservation) {
+    // Rule 18 — the core refuses a started stay (PAST_RESERVATION); asking first keeps fullPatch from
+    // creating a client record that no fiche would ever point to.
+    if (String(intake.parsed.startDate) <= today()) {
+      const error = 'Séjour commencé : fiche à saisir à la main';
+      intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });
+      return { status: 'error', error };
+    }
     const planned = fullPatch(intake, reservation);
     if (planned.error) {
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error: planned.error });
@@ -169,7 +179,15 @@ function createIntakeService(deps) {
     }
     const outcome = {};
     for (const intake of intakes.listOpen()) {
-      const status = process(intake);
+      // Rule 19 — one intake that throws is recorded and left behind: it would stay `pending`, first in
+      // listOpen, and stop every later pass before the intakes behind it.
+      let status;
+      try {
+        status = process(intake);
+      } catch (err) {
+        intakes.setStatus(intake.id, { status: 'error', error: `Erreur inattendue : ${err.message}` });
+        status = 'error';
+      }
       outcome[status] = (outcome[status] || 0) + 1;
     }
     return { read, ...outcome };
@@ -187,7 +205,10 @@ function createIntakeService(deps) {
       receivedLabel: frDate(intake.receivedAt),
       code: intake.confirmationCode,
       airbnbUrl: booking.reservationUrl || null,
-      taxLeftEmpty: intake.status === 'applied' && booking.code ? !core.withholdsTouristTax((getReservation(reservationId) || {}).propertyId) : false,
+      taxLeftEmpty: intake.status === 'applied' && booking.code ? (() => {
+        const r = getReservation(reservationId) || {};
+        return !core.withholdsTouristTax(r.propertyId, r.platform);
+      })() : false,
     };
   }
 

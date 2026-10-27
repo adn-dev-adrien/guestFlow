@@ -30,10 +30,11 @@ function createIntakeService(deps) {
       .map(([propertyId]) => Number(propertyId));
   }
 
-  // Rule 9 — one reservation: Gîtes de France, the gîte's property, same dates, not cancelled.
+  // Rule 9 — one reservation: Gîtes de France, the gîte's property, same dates, not cancelled. A gîte no
+  // property is tied to yet waits (`pending`, its reason kept) until the operator maps it (rule 18).
   function match(booking) {
     const propertyIds = propertyIdsForGite(booking.giteNumber);
-    if (propertyIds.length === 0) return { error: `Aucun logement n’est relié au gîte n°${booking.giteNumber}` };
+    if (propertyIds.length === 0) return { reservation: null, unmapped: `Aucun logement n’est relié au gîte n°${booking.giteNumber}` };
     const rows = findReservations({ propertyIds, startDate: booking.startDate, endDate: booking.endDate })
       .filter((r) => r.kind === 'reservation' && isGitesDeFrance(r.platform));
     if (rows.length > 1) return { error: 'Plusieurs fiches Gîtes de France sur ces dates' };
@@ -167,7 +168,11 @@ function createIntakeService(deps) {
     }
     const m = match(intake.parsed);
     if (m.error) { intakes.setStatus(intake.id, { status: 'error', error: m.error }); return 'error'; }
-    if (!m.reservation) return 'pending';
+    if (!m.reservation) {
+      const reason = m.unmapped || null;
+      if ((intake.error || null) !== reason) intakes.setStatus(intake.id, { status: 'pending', error: reason });
+      return 'pending';
+    }
     if (!settings.autoApply() || !isUntouched(m.reservation)) {
       intakes.setStatus(intake.id, { status: 'proposed', reservationId: m.reservation.id });
       return 'proposed';
@@ -242,7 +247,7 @@ function createIntakeService(deps) {
     if (!intake || !intake.parsed) return { status: 'error', error: 'Saisie introuvable' };
     if (intake.status === 'needs_rent' || (intake.status === 'applied' && rent != null)) return chooseRent(intake, rent);
     const m = match(intake.parsed);
-    if (m.error || !m.reservation) return { status: 'error', error: m.error || 'Fiche introuvable' };
+    if (m.error || !m.reservation) return { status: 'error', error: m.error || m.unmapped || 'Fiche introuvable' };
     return apply(intake, m.reservation, { rent });
   }
 

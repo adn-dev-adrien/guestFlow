@@ -10,7 +10,7 @@ import { COARSE_POINTER, TOUCH_TARGET, touchHitArea } from './utils/touchHitArea
  * used by status chips (soft bg + its `text` colour — never filled semantic Chips).
  *
  * Typography roles (custom variants — use these, not raw h4/h6, for the roles they name):
- *   pageTitle     serif 600 — the one page title (rendered by PageActionBar / PageHeader)
+ *   pageTitle     serif 600 — the one page title (rendered by PageActionBar)
  *   sectionHeader serif 600 — section headings inside a page
  *   kpiValue      sans 700, tabular-nums — KPI figures (amounts/dates NEVER render in serif)
  *   kpiLabel      sans 600, muted — KPI captions

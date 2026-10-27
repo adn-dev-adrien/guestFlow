@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 // specs/platform-tourist-tax-out-of-the-commission.md — the « Taxe de séjour retenue » box in the
 // « Paiement plateforme » block: when it shows up, what it says, and what it does to the commission

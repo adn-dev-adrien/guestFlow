@@ -101,6 +101,15 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 
 ## 4. Architecture
 
+> **Moved to plugin `school-holidays` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
+> `server/src/plugins/school-holidays/`: `controller.js` · `routes.js` · `model.js` · `sync.js` (sync
+> engine) · `educationGouvClient.js` (data.education.gouv.fr client) · `validation.js` · `localDay.js` ·
+> `index.js` (mount `/api/school-holidays`, hourly job). Client `client/src/plugins/school-holidays/`:
+> `SchoolHolidaysPage.jsx`, `SchoolHolidaysTimeline.jsx`, `SchoolHolidaysSyncBanner.jsx`,
+> `SchoolHolidayFormFields.jsx`, `SchoolHolidayBand.jsx`, `SchoolYearStrip.jsx`, `holidayInfo.js`,
+> `markers.js`, `schoolYear.js`, `zoneColors.js`, `index.js`.
+
 > **Reminder — Fat backend, thin frontend.** All validation, the sync engine, and the scheduling live on the server. The page only renders bands and submits the form. The existing client helper `getSchoolHolidayInfo` (used by Calendar + Seasons) remains on the client as a pure render helper and is queued for server migration in Bloc 6.
 
 ### 4.1 Server side (`server/src/`)
