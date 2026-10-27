@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/direct-installments` (from `inte/plugins`) |
 | **Created** | 2026-10-27 |
 | **Author** | Adrien |
@@ -144,6 +144,40 @@ its due date, after the operator validates it.
 22. No automatic reminder and no cancellation for non-payment in this spec (§8). An « En retard »
     installment is visible in the ledger and in the dashboard's collection alert.
 
+**Implementation rules** (added 2026-10-27, while building — nothing above is renumbered)
+
+23. **The stay's row carries the plan's totals.** `reservations.installmentsPaidAmount`,
+    `installmentsUnpaidAmount` and `installmentsTarget` (the pre-arrival amount of the last
+    recalculation) are written by every write on the plan. Every reader of the stay's money that already
+    loads the row — `remainingToPay`, `comptaCollected`, `isSettled`, `computePaymentStatus`, the finance
+    pages — takes them from there, so none of them learns about the table. `bucketStates` gains an
+    `installments` bucket. The arrival SAS's « collect the stay at the door » (`stayDueAtArrival`) does not
+    know installments: it collects acompte and solde only, i.e. nothing for a stay with a plan.
+24. **Frozen means « any installment paid »**, not only the first (rule 8): money collected on installment 2
+    while 1 is still open freezes the plan just as well.
+25. **What a rise added is stored** (`reservation_installments.addedCents`, shown as « +X € ajoutés »
+    beside the amount) until the next recalculation, so the card needs no previous state to show it.
+    Every other write on the amounts resets it.
+26. **The engine reads the plan itself.** `calculateReservationQuote` asks `reservation_installments` by
+    `bookingId` and ignores the plan when the platform is not an own channel (rule 1: a switch away
+    ends the plan with the save). With a plan: acompte, solde and their due dates are 0 / null; a rise
+    on a fully paid plan goes to the arrival complement (rule 8); installments paid above a lowered total
+    surface as `overCollectedTtc` (trop-perçu), like a paid solde.
+27. **The link of an installment is a single 0 %-VAT line**, titled « Échéance séjour n/N » and enriched with
+    the booking reference like the other stay lines; no VAT basket is built for a share of the stay.
+28. **A payment received for a link replaced after an amount change** (rule 17) is booked on its installment
+    at the amount really received (pinned); the other unpaid installments rebalance; an installment paid
+    meanwhile another way makes it a double payment — nothing recorded, the payment id stays on the link
+    row, the admin is told.
+29. **Accounting**: each paid installment is one encaissement (`kind: 'installment'`, `installment:
+    { number, count }`) at its paid date, built on the stored-money path of the solde (a plan never
+    captures per-line contribs); the tourist tax is shared in proportion to the plan's scheduled total.
+30. **Eligibility payload**: `eligible: false` hides the card (platform, devis, cancelled); `eligible: true,
+    canCreate: false` shows the empty line with the reason (money already in, too close to the arrival).
+    `DELETE` answers the same payload with no installments, not `null`.
+31. The card's layout follows **its own width** (container query), not the window's: the fiche column is
+    narrow even on a laptop, so the two-line card layout also serves there; the one-line row needs 720 px.
+
 **Edge cases:**
 
 - Reservation total ends below N euros → rule 6 would produce 0 € installments: the server
@@ -172,20 +206,25 @@ its due date, after the operator validates it.
 |---|---|---|---|
 | `routes/` | `reservations.js` | T | `PUT /:id/installments`, `DELETE /:id/installments`, `POST /:id/installments/:n/payment` |
 | `routes/` | `payments.js` | T | `POST /reservations/:id/payment-emails` accepts `{ type: 'installment', installmentId }` |
-| `controllers/` | `installmentsController.js` | C | Validates eligibility (rules 1–3), applies count/dates, triggers recompute |
+| `controllers/` | `installmentsController.js` | C | Validates eligibility (rules 1–3), applies count / dates / amounts, manual marks, `planFor`, `syncAfterSave` (rules 7, 8, 13), retires stale links, late installments for the alert |
 | `controllers/` | `reservationsController.js` | T | Exposes `installmentPlan` in the fiche payload; recompute after every save |
 | `controllers/` | `paymentsController.js` | T | Installment link + email on click |
-| `models/` | `installmentsModel.js` | C | CRUD on `reservation_installments` (prepared statements) |
+| `models/` | `installmentsModel.js` | C | CRUD on `reservation_installments` (prepared statements), keeps the stay's aggregates (rule 23) |
 | `models/` | `paymentLinksModel.js` | T | `type 'installment'` + `installmentId`; one open link per installment |
-| `utils/` | `installmentPlan.js` | C | Pure: default dates (rule 10), euro split (rule 6), frozen spread (rule 8), statuses (rule 14) |
+| `utils/` | `installmentPlan.js` | C | Pure: default dates (rule 10), euro split (rule 6), recompute / frozen spread / pins (rules 7–9a), date and amount validation, statuses (rule 14), the payload |
+| `utils/` | `installmentSync.js`, `installmentPayment.js`, `installmentSummary.js` | C | Persisting the rebalance after a total change; the one way an installment is recorded paid; the engine's read of the plan |
+| `utils/` | `installmentRequests.js` | C | What the emails controller knows of installments: which one an entry names, its variables, its link |
+| `utils/` | `installmentsMigration.js` | C | The idempotent rebuilds of `payment_links` and `email_manual_queue` and the additive columns (§5) |
+| `utils/` | `reservationSettlement.js`, `paymentStatus.js`, `paymentDeadlines.js` | T | `installments` bucket, collected installments, the `installment_overdue` row |
 | `utils/` | `pricing.js` | T | With a plan: acompte / solde = 0, pre-arrival amount handed to the plan (rules 4–5) |
-| `utils/` | `reservationLedger.js` | T | Installment rows replace acompte / solde rows; gap row (rule 8) |
+| `utils/` | `reservationLedger.js` | T | Installment rows replace acompte / solde rows; gap row (rule 8); clamped-date warning (rule 13) |
 | `utils/` | `stayPaymentRecorder.js` | T | Records an installment payment, emits `reservation.paid` |
 | `utils/` | `paymentPollRunner.js` | T | `applyPaidEffect` for `installment` links |
 | `utils/` | `paymentRequestService.js` | T | `ensurePaymentLink` / `sendPaymentRequest` for one installment; deactivates the replaced link at the provider (rule 17) |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | `installment_request` (FR/EN, manual, gated by `online-payment`) |
 | `utils/` | `emailContextBuilder.js` | T | Installment variables (rule 21) |
-| `models/` | `emailLogModel.js` | T | `listPending` branch per due installment; dedupe per (template, reservation, occurrence) |
+| `models/` | `emailLogModel.js`, `emailManualQueueModel.js` | T | `listPending` branch per due installment; dedupe per (template, reservation, occurrence) |
+| `controllers/` | `emailsController.js`, `routes/emails.js` | T | Preview / send / ignore / mark-sent carry the occurrence key; sending mints the link first |
 | `utils/` | `autoSendPolicy.js` | — | Unchanged; the template is manual and money templates stay out of the cron |
 | `plugins/accounting-export/` | `accountingModel.js` | T | Books each paid installment as an encaissement on its paid date |
 | `controllers/` | `dashboardController.js` | T | Late installments feed the collection alert |
@@ -196,9 +235,10 @@ its due date, after the operator validates it.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/reservation/` | `InstallmentPlanCard.jsx` | C | « Échéancier » block inside the Finance section: count stepper, one row per installment |
-| `components/reservation/` | `FinanceSection.jsx` | T | Renders the card for eligible fiches; hides acompte / solde rows while a plan exists |
-| `components/reservation/` | `LedgerList.jsx` | T | Renders installment rows and the gap row sent by the server |
-| `services/` | `api.js` | T | Three installment calls |
+| `components/reservation/` | `FinanceSection.jsx`, `PaymentMarkForm.jsx` | T | Renders the card for eligible fiches; the mark form optionally asks the payment mode |
+| `components/` | `EmailPendingList.jsx`, `EmailManualSendDialog.jsx`; `pages/EmailTemplatesPage.jsx`, `ReservationPage.jsx` | T | The « à valider » rows and actions carry the occurrence key; the page holds the plan |
+| `components/` | `LedgerList.jsx` | — | Unchanged: the ledger rows (installments, gap) are shaped by the server |
+| `services/` | `api.js` | T | The installment calls, and the occurrence key on the pending-email calls |
 | `constants/` | `installmentStrings.js` | C | French labels and statuses |
 
 **Component reuse declaration:**
@@ -214,22 +254,31 @@ its due date, after the operator validates it.
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | PUT | `/api/reservations/:id/installments` | `{ count }`, `{ dates: [{ id, dueDate }] }` or `{ amounts: [{ id, amount }] }` | `{ installmentPlan }` | `409` ineligible (rules 1–2), `400` invalid count/date/amount (rules 3, 9a, 11) |
-| DELETE | `/api/reservations/:id/installments` | — | `{ installmentPlan: null }` | `409` once money is in |
+| DELETE | `/api/reservations/:id/installments` | — | `{ installmentPlan }` (no installments, rule 30) | `409` once money is in |
 | POST | `/api/reservations/:id/installments/:installmentId/payment` | `{ paidDate, method }` | `{ installmentPlan }` | Manual mark (rule 16) |
-| POST | `/api/reservations/:id/payment-emails` | `{ type: 'installment', installmentId }` | `{ sent, paymentUrl }` | Existing endpoint, new type |
+| POST | `/api/payments/reservations/:id/payment-emails` | `{ type: 'installment', installmentId }` | `{ sent, type, url, amountCents, … }` | Existing endpoint, new type |
+| GET | `/api/emails/pending` | — | rows with `occurrenceKey`, `installmentNumber` | One row per due installment; acknowledge / mark-sent take `?occurrenceKey=` and preview / send `occurrenceKey` |
 | GET | `/api/reservations/:id` | — | `{ …, installmentPlan }` | Payload below |
 
 ```json
 "installmentPlan": {
   "eligible": true,
+  "canCreate": false,
+  "reason": null,
   "countLocked": false,
   "frozen": false,
   "total": 1001.5,
+  "paid": 0,
+  "remaining": 1001.5,
   "gap": 0,
+  "minCount": 2,
   "maxCount": 12,
+  "count": 3,
+  "canRequest": true,
   "installments": [
     { "id": 41, "number": 1, "dueDate": "2026-10-27", "amount": 334, "status": "toRequest",
       "statusLabel": "À demander", "editable": true, "amountEditable": true, "amountEdited": false,
+      "dateEdited": false, "added": 0, "clamped": false,
       "paidDate": null, "method": null,
       "requestedAt": null, "linkUrl": null }
   ]
@@ -257,6 +306,7 @@ CREATE TABLE IF NOT EXISTS reservation_installments (
   requestedAt TEXT,
   dateEdited INTEGER NOT NULL DEFAULT 0,
   amountEdited INTEGER NOT NULL DEFAULT 0,
+  addedCents INTEGER NOT NULL DEFAULT 0,
   createdAt TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (reservationId, number)
 );
@@ -268,7 +318,9 @@ CREATE TABLE IF NOT EXISTS reservation_installments (
 - `email_manual_queue` and `email_log`: a column `occurrenceKey TEXT NOT NULL DEFAULT ''` joins the
   dedupe key (`installment:<id>` for this template, `''` for every existing template). The queue's
   primary key `(templateId, reservationId)` becomes `(templateId, reservationId, occurrenceKey)` —
-  same rebuild-and-copy pattern.
+  same rebuild-and-copy pattern; `email_log` only needs the added column.
+- `reservations`: `installmentsPaidAmount`, `installmentsUnpaidAmount`, `installmentsTarget` (euros,
+  default 0) — rule 23.
 - Amounts are stored in cents, like `payment_links.amountCents`.
 
 **Data impact:** no existing reservation has a plan; every existing row keeps its meaning (`''`
@@ -319,28 +371,33 @@ fiche's Save button.
 ## 7. Test plan
 
 ### Server unit tests
-- [ ] `tests/direct-installments.unit.test.js` — rule 6 split (1 001,50 / 3; 1 000 / 3; total < N refused)
-- [ ] same file — rule 10 default dates (even spacing, last at J-30, short stay refused)
-- [ ] same file — rule 7 recompute before payment; rule 8 rise spread on unpaid, drop frozen with gap, all paid → complement
-- [ ] same file — rule 9a pinned amount (rest spread, last adjusts, refusals, pins kept on recompute and rise, cleared on count change)
-- [ ] same file — rule 14 « En retard » at due date + 3 days
-- [ ] same file — rules 1–3 eligibility (`isDirectChannel`, Lodgify-as-direct, devis, money already in)
-- [ ] same file — rule 11 date validation (past, after arrival, out of order)
-- [ ] `tests/direct-installments-links.unit.test.js` — link per installment, paid link marks the installment, amount change deactivates the old link
-- [ ] `tests/direct-installments-emails.unit.test.js` — one queue entry per due installment, template manual, variables
-- [ ] `tests/direct-installments-migration.unit.test.js` — rebuilds keep every `payment_links` / queue / log row
+Baseline 6 264 → **6 349** (+85, all green).
+- [x] `tests/direct-installments.unit.test.js` (38) — rule 6 split (1 001,50 / 3; 1 000 / 3; total < N refused)
+- [x] same file — rule 10 default dates (even spacing, last at J-30, short stay refused)
+- [x] same file — rule 7 recompute before payment; rule 8 rise spread on unpaid, drop frozen with gap, all paid → complement
+- [x] same file — rule 9a pinned amount (rest spread, last adjusts, refusals, pins kept on recompute and rise, cleared on count change)
+- [x] same file — rule 14 « En retard » at due date + 3 days
+- [x] same file — rules 1–3 eligibility (`isDirectChannel`, Lodgify-as-direct, devis, money already in)
+- [x] same file — rule 11 date validation (past, after arrival, out of order)
+- [x] `tests/direct-installments-links.unit.test.js` (11) — link per installment, paid link marks the installment, amount change deactivates the old link, retired link paid anyway (rule 28)
+- [x] `tests/direct-installments-emails.unit.test.js` (12) — one queue entry per due installment, template manual, variables, send / ignore / mark-sent
+- [x] `tests/direct-installments-migration.unit.test.js` (7) — rebuilds keep every `payment_links` / queue / log row
+- [x] `tests/direct-installments-money.unit.test.js` (17) — engine, settlement, ledger, finance, accounting, collection alert (rules 4, 5, 8, 22, 29)
 
 ### Client tests
-- [ ] `client/src/components/reservation/__tests__/InstallmentPlanCard.test.jsx` — renders payload, stepper limits, refused date message
+Baseline 2 153 → **2 170** (+17, all green).
+- [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.test.jsx` (15) — renders payload, stepper limits and rapid clicks, refused date / amount, create / remove, send / copy, manual mark
+- [x] `client/src/components/__tests__/EmailPendingList.installments.test.jsx` (2) — one row per installment, the deadline card label
 
 ### Manual UI verification
-- [ ] Direct fiche, 3 installments, edit installment 2's date, add an option → amounts follow
-- [ ] Mark installment 1 paid, add an option → spread on 2–3; remove it → amounts unchanged, gap shown
-- [ ] « Envoyer la demande » on installment 1 → email in the log with a working sandbox link
-- [ ] Next day of a due date: entry in « à valider »
-- [ ] Mobile 390 px: rows as cards, no horizontal scroll
-- [ ] Regression: a direct fiche without plan still shows acompte / solde; a Booking fiche shows no card
-- [ ] `npm run test:e2e` green
+Checked 2026-10-27 in the browser (dev server on an E2E-seeded database, 1280, 1920 and 390 px, no console error but the intended 400 of a refused date): create (3), rapid clicks on « + » (one request, 6 shown), refused past date (red field, server sentence, typed value kept), typed amount (« fixé », the others follow), « Marquer payée » with the mode (plan frozen, ledger rows follow), 390 px two-line cards with no horizontal scroll (`scrollWidth` 390).
+- [x] Direct fiche, 3 installments, edit installment 2's date → amounts follow (browser + `direct-installments.unit.test.js`)
+- [x] Mark installment 1 paid, add an option → spread on 2–3; remove it → amounts unchanged, gap shown (unit tests; the option itself not replayed in the browser)
+- [ ] « Envoyer la demande » on installment 1 → email in the log with a working sandbox link — **not run**: no Qonto sandbox connected here; link, mail, log and queue are covered by unit tests with a fake provider
+- [ ] Next day of a due date: entry in « à valider » — covered by `listPending` tests, not waited for a real day
+- [x] Mobile 390 px: rows as cards, no horizontal scroll
+- [x] Regression: a direct fiche without plan still shows acompte / solde (ledger tests); a platform fiche shows no card (`eligible: false`)
+- [x] `npm run test:e2e` green — 148 passed, 1 skipped (run on ports 3100 / 4100: another session holds 4000)
 
 ## 8. Out of scope
 
