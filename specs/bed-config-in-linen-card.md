@@ -156,6 +156,12 @@ the new invariant.
     state (`form.singleBeds` etc.), so this is purely a layout
     decision; enabling a second bed-linen option doesn't duplicate
     the inputs.
+11. **No bed count, no « Lits » line** (audit 2026-10-27). The display audit found « Lits : D:0 / S:0 /
+    B:0 » on the dashboard for stays created through `POST /api/reservations` with `singleBeds: 1,
+    doubleBeds: 1`: the create did not lose them, rule 7 zeroed them because those stays carry no
+    bed-linen option. The dashboard now shows the bed counts only when one is above 0 — « — » in the
+    arrivals table, no line on the phone card — as the planning card already did
+    (`components/ReservationCard.jsx`). Rule 7 is unchanged.
 
 **Edge cases:**
 - Operator enters `4` doubles, then turns the Switch OFF → form
@@ -391,6 +397,9 @@ Expected: existing **1006** + **5 + 4** = **1015** server tests.
 | **NEW** `client/src/components/__tests__/GuestsBedsSection.no-beds.test.js` | (1) Card title is "Voyageurs" (not "Voyageurs et couchages"). (2) No `TextField` with label `Lits doubles / Lits simples / Lits bébé` is rendered. |
 
 Expected: existing **227** + **4 + 2** = **233** Vitest cases.
+
+Audit 2026-10-27 (rule 11): `client/src/pages/__tests__/Dashboard.beds-empty.test.jsx` (2) — no « D:0 / S:0 »
+for a stay without bed counts, the counts shown when there are some.
 
 ### 7.3 E2E (Playwright)
 

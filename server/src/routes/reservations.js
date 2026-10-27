@@ -15,6 +15,8 @@ const notReception = (handler) => (req, res) => (isReceptionOnly(req.user)
 // model (DB), and utils (occupancy / audit / bed distribution).
 router.post('/suggest-beds', controller.suggestBeds);
 router.post('/platform-commission', controller.platformCommission);
+// « Nouvelle note » total (specs/mid-stay-notes.md rule 22) — before '/:id'.
+router.post('/mid-stay-note/preview', controller.previewMidStayNote);
 router.get('/', controller.list);
 // MUST stay before '/:id' — otherwise Express matches `:id = 'search'`.
 router.get('/search', controller.search);

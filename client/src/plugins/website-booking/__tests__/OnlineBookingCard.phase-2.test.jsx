@@ -19,7 +19,6 @@ vi.mock('../../../api', () => ({
     previewTerms: vi.fn(),
     getOnlineBooking: vi.fn(),
     updateTermsEnforcement: vi.fn(),
-    getPendingPublicDevis: vi.fn(),
   },
 }));
 
@@ -52,7 +51,6 @@ beforeEach(() => {
     requireTermsAcceptance: true, lastSeenPluginVersion: '', minPluginVersion: '1.8.0',
     pluginOutdated: false, bookingClosed: true, outdatedPluginBlocks: false,
   });
-  api.getPendingPublicDevis.mockResolvedValue({ alerts: [{ id: 1 }, { id: 2 }] });
 });
 
 const renderPage = () => render(<MemoryRouter><TermsSettingsPage /></MemoryRouter>);

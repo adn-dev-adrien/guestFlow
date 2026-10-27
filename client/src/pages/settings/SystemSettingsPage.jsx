@@ -54,7 +54,7 @@ export default function SystemSettingsPage() {
               <Typography variant="sectionHeader">Assistant de démarrage</Typography>
               <Typography variant="body2" color="text.secondary">Entreprise, premier logement et plugins, pas à pas.</Typography>
             </Box>
-            <Button variant="outlined" onClick={() => navigate('/demarrage')}>Ouvrir l'assistant</Button>
+            <Button variant="outlined" onClick={() => navigate('/demarrage', { state: { reopen: true } })}>Ouvrir l'assistant</Button>
           </Box>
         </CardContent>
       </Card>

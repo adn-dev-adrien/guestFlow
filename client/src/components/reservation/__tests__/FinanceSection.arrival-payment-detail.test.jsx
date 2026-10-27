@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 import api from '../../../api';
 import { paidRow, ledgerOf } from './ledgerFixtures';
 

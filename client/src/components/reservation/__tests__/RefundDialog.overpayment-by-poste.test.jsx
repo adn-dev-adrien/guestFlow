@@ -6,7 +6,7 @@ import RefundDialog from '../RefundDialog';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 // specs/reservation-refunds.md rule 35 — le trop-perçu réparti par poste par le serveur : la fiche dit
 // d'où il vient (taxe recalculée comprise), et la fenêtre de remboursement ouvre une ligne par poste.

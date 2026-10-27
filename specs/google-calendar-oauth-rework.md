@@ -89,6 +89,14 @@ Connect GuestFlow to a Google account in one click ("Connecter mon compte Google
 
 ## 4. Architecture
 
+> **Moved to plugin `google-calendar` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
+> `server/src/plugins/google-calendar/`: `controller.js` (OAuth connect, calendar choice, status, test,
+> sync) · `oauthClient.js` · `client.js` (connection test, French errors) · `events.js` (pure event
+> builders) · `model.js` (reservations to push) · `sync.js` (rules 16–24) · `settings.js` (the connection
+> in `plugin_settings`, encrypted) · `index.js` (mount `/api/google-calendar`, job). Client
+> `client/src/plugins/google-calendar/`: `SettingsGoogleCalendarSection.jsx`, `index.js`.
+
 > Fat backend, thin frontend: OAuth flow, token lifecycle, calendar listing, diffing, status labels — all server-side. The client renders payloads and triggers actions.
 
 ### 4.1 Server side (`server/src/`)

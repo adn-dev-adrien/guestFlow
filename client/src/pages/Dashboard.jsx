@@ -45,6 +45,14 @@ const optionsResourcesText = (r) => {
   return [optionsText, resourcesText].filter(Boolean).join(' | ') || '—';
 };
 
+// « D:1 / S:2 / B:0 », or null when the stay has no bed at all: the server zeroes the bed counts of a
+// stay without a bed-linen option (specs/bed-config-in-linen-card.md rules 7, 14), so « D:0 / S:0 / B:0 »
+// would only say « nothing to prepare » in a misleading way.
+const bedsLabel = (r) => {
+  const [d, s, b] = [r.doubleBeds, r.singleBeds, r.babyBeds].map((n) => Number(n || 0));
+  return d || s || b ? `D:${d} / S:${s} / B:${b}` : null;
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { showError } = useToast();
@@ -220,7 +228,7 @@ export default function Dashboard() {
         <TableCell>{r.propertyName}</TableCell>
         <TableCell>{r.firstName} {r.lastName}</TableCell>
         <TableCell>
-          {`D:${Number(r.doubleBeds || 0)} / S:${Number(r.singleBeds || 0)} / B:${Number(r.babyBeds || 0)}`}
+          {bedsLabel(r) || '—'}
         </TableCell>
         <TableCell>{optionsResourcesText(r)}</TableCell>
         <TableCell>{r.notes || '—'}</TableCell>
@@ -254,9 +262,9 @@ export default function Dashboard() {
             </Box>
           </Stack>
           <Typography variant="body2">{r.firstName} {r.lastName}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            Lits : D:{Number(r.doubleBeds || 0)} / S:{Number(r.singleBeds || 0)} / B:{Number(r.babyBeds || 0)}
-          </Typography>
+          {bedsLabel(r) && (
+            <Typography variant="caption" color="text.secondary">{`Lits : ${bedsLabel(r)}`}</Typography>
+          )}
           {optionsResourcesText(r) !== '—' && (
             <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
           )}

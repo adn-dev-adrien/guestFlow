@@ -214,6 +214,17 @@ a key could not be made or when Sowel stopped asking.
 
 ## 4. Architecture
 
+> **Moved to plugin `gate-access` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> (audit 2026-10-27).** The tables below are the map at implementation time; the core files they name
+> no longer exist. The code lives in `server/src/plugins/gate-access/`:
+> `keys.js` (the key list the house reads, and its wording) · `results.js` (the house's outcomes, admin
+> alerts) · `window.js` (validity window, rule 4) · `invitationView.js` (what the fiche shows of a key) ·
+> `keysModel.js` (storage, §5) · `requireConnector.js` (the connector's key + request signature, rules 19–22) · `signResponse.js`
+> (signed answers to the house) · `controller.js` (admin side) · `publicRoutes.js` (`/public/v1/gate`) ·
+> `emailContext.js` (the key in the guest emails, rule 23) · `attention.js` (home subject) · `index.js`
+> (registration). Client `client/src/plugins/gate-access/`: `GateAccessCard.jsx`, `GateKeysAlert.jsx`,
+> `SasGateAccessStep.jsx`, `SettingsGateAccessSection.jsx`, `index.js`.
+
 ### 4.1 Server side (`server/src/`)
 
 | Layer | File | T/C | Responsibility |

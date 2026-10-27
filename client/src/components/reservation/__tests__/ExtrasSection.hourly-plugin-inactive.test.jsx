@@ -8,7 +8,7 @@ import { vi } from 'vitest';
 
 import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: (id) => id !== 'hourly-resources' }));
 

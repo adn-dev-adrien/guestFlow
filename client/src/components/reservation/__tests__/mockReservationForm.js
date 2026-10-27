@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
-import { midStayNoteAccess, countMidStayNotes } from '../../utils/midStayNoteAccess';
-import { localIsoToday } from '../../utils/isoDay';
+import { midStayNoteAccess, countMidStayNotes } from '../../../utils/midStayNoteAccess';
+import { localIsoToday } from '../../../utils/isoDay';
 /**
  * Test-only helper: builds a complete mock value for ReservationFormContext so the section
  * components can be rendered in isolation. Not imported by production code.

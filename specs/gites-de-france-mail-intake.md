@@ -173,6 +173,12 @@ choice in one click.
     mailbox. A new customer's fresh base installs no plugin at all.
 17. `ctx.core.reservations.update` refuses a stay that has started or is past (`409 PAST_RESERVATION`):
     those stay the operator's, as the fiche's own lock already says.
+18. *(Fixed at the 2026-10-27 audit.)* A mail for a gîte number **no property is tied to yet** waits
+    `pending`, its reason kept (« Aucun logement n’est relié au gîte n°… »), and is retried at every pass
+    like a mail whose iCal fiche has not arrived; once the operator fills « N° de gîte », the next pass
+    applies it. After 24 h the dashboard line shows that reason instead of « aucune fiche sur ces dates ».
+    It used to end in a final `error` that no later pass looked at again (the Airbnb intake already
+    waited, `specs/airbnb-mail-intake.md` rule 11).
 
 ---
 
@@ -291,9 +297,13 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
   supplement, both consistency refusals, other mails, phone forms, the 6 measured dossiers, 504/505
   ambiguity, no rate.
 - [x] `.../tests/intakeService.unit.test.js` (18): sender/mailbox, auto-fill patch, payment block,
-  rent choice, proposal, auto-apply off, pending → applied, unmapped gîte, no mapping → no read,
+  rent choice, proposal, auto-apply off, pending → applied, unmapped gîte (pending, rule 18), no mapping → no read,
   `Message-ID` and dossier dedup, unreadable vs other mails, rate 0, custom lines, refused save, no
   e-mail, dismiss, no mailbox.
+- [x] `.../tests/unmapped-gite-pending.unit.test.js` (2, audit 2026-10-27): rule 18 — unmapped → pending
+  with its reason → applied once mapped; mapped without a fiche → pending, reason cleared.
+- [x] Client `IntakeAlert.unmapped-gite.test.jsx` (1, audit 2026-10-27): the dashboard line of rule 18 says
+  the server's reason.
 - [x] `.../tests/isolation.unit.test.js` (1): rule 0 — no core file names the plugin's table, routes or
   folder outside the two registration lists.
 - [x] Core `server/src/tests/reservation-update-service.unit.test.js` (6): recorder, `performUpdate` =

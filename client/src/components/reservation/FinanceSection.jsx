@@ -873,9 +873,9 @@ export default function FinanceSection() {
             open={Boolean(midStayNoteOpen)}
             onClose={() => setMidStayNoteOpen(false)}
             pendingLines={pendingMidStayLines}
-            onSettle={(items, cash) => saveThenRun(async () => {
+            onSettle={({ checkedKeys, opening }, cash) => saveThenRun(async () => {
               await api.markPayment(editingReservationId, {
-                settleMidStayNote: { items: items.map(({ key, amount }) => ({ key, amount })), cash },
+                settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
               });
               await reloadReservationFinance();
             })}

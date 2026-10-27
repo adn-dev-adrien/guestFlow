@@ -6,7 +6,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 import { ReservationFormProvider } from '../../../components/reservation/ReservationFormContext';
 import ExtrasSection from '../../../components/reservation/ExtrasSection';
-import { makeMockContext } from '../../../components/reservation/mockReservationForm';
+import { makeMockContext } from '../../../components/reservation/__tests__/mockReservationForm';
 import DialogProvider from '../../../components/DialogProvider';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));

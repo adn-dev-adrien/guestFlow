@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import StaySection from '../StaySection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 vi.mock('../../MiniPlanningStrip', () => ({ default: () => <div data-testid="mini-planning-strip" /> }));
 

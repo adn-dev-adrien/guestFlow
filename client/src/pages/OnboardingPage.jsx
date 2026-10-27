@@ -12,7 +12,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
-  Alert, Box, Chip, Link, Stack, Switch, TextField, Typography,
+  Alert, Box, Checkbox, Chip, FormControlLabel, Link, Stack, Switch, TextField, Typography,
 } from '@mui/material';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
@@ -63,6 +63,10 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   // Rule 28 — the properties the instance already has, when the assistant did not create them.
   const [existingProperties, setExistingProperties] = useState(0);
   const [loginEmail, setLoginEmail] = useState('');
+  // specs/hosting-h2-account-security.md rule 37 — the login changes only when this is ticked, and
+  // the box is offered only over the bootstrap login (the server says which).
+  const [canAdoptLogin, setCanAdoptLogin] = useState(false);
+  const [useAsLogin, setUseAsLogin] = useState(false);
   const [pluginsSummary, setPluginsSummary] = useState('');
   // Rule 42 — a plugin installed from a package is not in the open bundle: leaving loads the app again.
   const [needsLoad, setNeedsLoad] = useState(false);
@@ -77,6 +81,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     api.getOnboarding()
       .then((data) => {
         setCompany((c) => ({ ...c, ...data.company }));
+        setCanAdoptLogin(Boolean(data.login && data.login.canAdopt));
         // Rule 28 — the property the assistant created comes back to be edited, never doubled.
         if (data.property && data.property.draft) {
           setProperty({ ...EMPTY_PROPERTY, ...data.property.draft });
@@ -170,11 +175,12 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     setFailure('');
     try {
       if (step === 1) {
-        // specs/hosting-h2-account-security.md rule 27 — the company email becomes the login of the
-        // bootstrap account; the step says so once.
-        const saved = await api.saveOnboardingCompany(company);
+        // specs/hosting-h2-account-security.md rules 27, 37 — the company email becomes the login of
+        // the bootstrap account only when the box is ticked; the step says so once.
+        const saved = await api.saveOnboardingCompany({ ...company, useAsLogin: canAdoptLogin && useAsLogin });
         if (saved && saved.loginChanged) {
           setLoginEmail(saved.loginEmail);
+          setCanAdoptLogin(false);
           await refresh();
         }
       }
@@ -248,6 +254,13 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         <Stack spacing={1}>
           <TextField label="Nom de l’entreprise" required {...field(company, setCompany, 'name')} />
           <TextField label="Email" type="email" required {...field(company, setCompany, 'email')} />
+          {canAdoptLogin && (
+            <FormControlLabel
+              sx={{ mt: -1, mb: 2, minHeight: 44 }}
+              control={<Checkbox checked={useAsLogin} onChange={(e) => setUseAsLogin(e.target.checked)} />}
+              label="Utiliser aussi cette adresse pour se connecter"
+            />
+          )}
           <TextField label="Téléphone" {...field(company, setCompany, 'phone')} />
           <TextField label="Adresse" {...field(company, setCompany, 'address')} />
           <TextField label="SIRET" {...field(company, setCompany, 'siret')} helperText={errors.siret || '14 chiffres'} />
