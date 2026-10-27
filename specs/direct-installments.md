@@ -162,8 +162,8 @@ its due date, after the operator validates it.
     ends the plan with the save). With a plan: acompte, solde and their due dates are 0 / null; a rise
     on a fully paid plan goes to the arrival complement (rule 8); installments paid above a lowered total
     surface as `overCollectedTtc` (trop-perçu), like a paid solde.
-27. **The link of an installment is a single 0 %-VAT line**, titled « Échéance séjour n/N » and enriched with
-    the booking reference like the other stay lines; no VAT basket is built for a share of the stay.
+27. *Superseded by rule 39 (2026-10-27)*: the installment link no longer is a single 0 %-VAT line.
+    > **Sans test** — superseded by rule 39, which is tested.
 28. **A payment received for a link whose amount the plan has since moved** (rule 17) is booked on its
     installment at the amount really received (pinned), whether the link was retired (poll) or is still open
     (webhook, poll); the other unpaid installments rebalance; an installment paid meanwhile another way makes
@@ -178,7 +178,7 @@ its due date, after the operator validates it.
     `DELETE` answers the same payload with no installments, not `null`.
 31. The card's layout follows **its own width** (container query), not the window's: the fiche column is
     narrow even on a laptop, so the two-line card layout also serves there; the one-line row needs 720 px.
-
+    > **Sans test** — CSS layout, verified visually at 390 / 1280 / 1920 px.
 32. **Rounding that never starves or lowers an installment.** Rule 6's half-up rounding stays the default.
     When it would leave the last share under 1 € (plan creation, a typed amount's spread, a recompute with
     pins) — or a negative share (the spread of a rise, rule 8) — every share is floored to the euro instead and
@@ -425,7 +425,7 @@ fiche's Save button.
 
 ### Server unit tests
 Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templates replaced by one, rule 43).
-- [x] `tests/direct-installments.unit.test.js` (43) — rule 6 split (1 001,50 / 3; 1 000 / 3; total < N refused)
+- [x] `tests/direct-installments.unit.test.js` (44) — rule 6 split (1 001,50 / 3; 1 000 / 3; total < N refused)
 - [x] same file — rule 10 default dates (even spacing, last at J-30, short stay refused)
 - [x] same file — rule 7 recompute before payment; rule 8 rise spread on unpaid, drop frozen with gap, all paid → complement
 - [x] same file — rule 9a pinned amount (rest spread, last adjusts, refusals, pins kept on recompute and rise, cleared on count change)

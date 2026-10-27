@@ -167,7 +167,7 @@ async function createPlan(harness, count = 3) {
   return call(harness.controller.put, { params: { id: harness.reservationId }, body: { count } });
 }
 
-test('rules 5, 6, 10 — creating a plan stores the installments, the aggregates and zeroes the buckets', async () => {
+test('rules 5, 6, 10, 23 — creating a plan stores the installments, the aggregates and zeroes the buckets', async () => {
   const h = createHarness();
   h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 0, balanceAmount: 0, depositDueDate: null, balanceDueDate: null };
   const { status, body } = await createPlan(h);
@@ -210,7 +210,7 @@ test('rule 3 — a count outside 2..max, or a total too low, is refused with 400
   assert.match(refused.body.message, /Total trop faible/);
 });
 
-test('rule 1 — a platform booking, a devis and a cancelled stay never get a plan (409)', async () => {
+test('rules 1, 30 — a platform booking, a devis and a cancelled stay never get a plan (409, eligible false)', async () => {
   for (const stay of [{ platform: 'Booking' }, { kind: 'devis' }, { kind: 'cancelled' }]) {
     const h = createHarness({ stay });
     const refused = await createPlan(h);
@@ -229,7 +229,7 @@ test('rule 1 — a platform marked « countsAsDirect » (Lodgify-recorded stay) 
   assert.equal(created.body.installmentPlan.eligible, true);
 });
 
-test('rule 2 — nothing may have been collected: money already in refuses the plan', async () => {
+test('rules 2, 30 — nothing may have been collected: money already in refuses the plan (eligible, canCreate false, reason)', async () => {
   const h = createHarness();
   h.db.prepare('UPDATE reservations SET depositPaid = 1 WHERE id = ?').run(h.reservationId);
   const refused = await createPlan(h);
@@ -261,7 +261,7 @@ test('rule 2 — once an installment is paid the count and the plan itself are l
   assert.equal(h.installmentsModel.listFor(h.reservationId).length, 3);
 });
 
-test('rule 5 — removing a plan with nothing paid gives the buckets back, recomputed by the usual split', async () => {
+test('rules 5, 30 — removing a plan with nothing paid (answers the empty payload, not null) gives the buckets back, recomputed by the usual split', async () => {
   const h = createHarness();
   await createPlan(h);
   h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 300, balanceAmount: 701.5, depositDueDate: '2026-11-03', balanceDueDate: '2027-05-15' };
@@ -388,7 +388,7 @@ test('a second stay is not touched by the first one’s plan', async () => {
   assert.equal(h.controller.planFor(other).installments.length, 0);
 });
 
-test('rule 8 — the payload names what a rise just added to each unpaid installment, until the next recalculation', async () => {
+test('rules 8, 25 — the payload names what a rise just added to each unpaid installment, until the next recalculation', async () => {
   const h = createHarness();
   await createPlan(h);
   const [first] = h.installmentsModel.listFor(h.reservationId);
@@ -454,4 +454,16 @@ test('rule 33 — what was collected covers the stay: the rest of the plan is no
   assert.equal(h.controller.lateInstallments('2030-01-01').length, 0, 'not in the collection alert');
   const { remainingToPay } = require('../utils/reservationSettlement');
   assert.equal(remainingToPay(h.db.prepare('SELECT * FROM reservations WHERE id = ?').get(h.reservationId)), 0);
+});
+
+test('rule 24 — the plan is frozen as soon as ANY installment is paid, not only the first', async () => {
+  const h = createHarness();
+  await createPlan(h);
+  const [, second] = h.installmentsModel.listFor(h.reservationId);
+  await call(h.controller.markPaid, { params: { id: h.reservationId, installmentId: second.id }, body: { paidDate: TODAY, method: 'cash' } });
+  const payload = h.controller.planFor(h.reservationId);
+  assert.deepEqual([payload.frozen, payload.countLocked], [true, true]);
+  h.controller.syncAfterSave(h.reservationId, { preArrivalAmount: 1091.5 });
+  assert.deepEqual(h.installmentsModel.listFor(h.reservationId).map((r) => r.amountCents), [37900, 33400, 37850],
+    'the paid installment 2 keeps its amount; the rise is spread over the unpaid 1 and 3');
 });

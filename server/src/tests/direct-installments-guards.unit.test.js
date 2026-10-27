@@ -47,7 +47,7 @@ async function withPlan(options) {
 const put = (h, body) => call(h.controller.put, { params: { id: h.reservationId }, body });
 
 // ── Rule 17 — a link paid at an amount the plan has since moved ─────────────────────────────────────
-test('rule 17 — an open link paid after a rebalance books what was received, not the new amount', async () => {
+test('rules 17, 28 — an open link paid after a rebalance books what was received, not the new amount', async () => {
   const h = await withPlan();
   const link = await ensureInstallmentLink(h.deps, h.reservationId, h.rows[1].id);
   h.installmentsModel.updateRow(h.rows[1].id, { amountCents: 40000 });

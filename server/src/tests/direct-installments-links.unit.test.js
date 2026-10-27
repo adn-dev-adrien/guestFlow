@@ -156,7 +156,7 @@ test('rule 15 — a paid link on a cancelled stay is money to refund, never a pa
   assert.equal(h.installmentsModel.findById(h.rows[0].id).paid, 0);
 });
 
-test('rule 17 — a link retired for an amount change and paid anyway books the installment at what was paid', async () => {
+test('rules 17, 28 — a link retired for an amount change and paid anyway books the installment at what was paid', async () => {
   const h = await withPlan();
   const old = await ensureInstallmentLink(h.deps, h.reservationId, h.rows[0].id);
   h.installmentsModel.updateRow(h.rows[0].id, { amountCents: 40000 });

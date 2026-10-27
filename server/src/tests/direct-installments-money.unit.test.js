@@ -75,7 +75,7 @@ function planOn(db, bookingId, rows) {
   ).run(bookingId, i + 1, `2026-1${i}-27`, amountCents, paid ? 1 : 0));
 }
 
-test('rules 4, 5 — without a plan the usual split stands; with one, acompte and solde are 0 and the pre-arrival amount is handed over', () => {
+test('rules 4, 5, 26 — without a plan the usual split stands; with one, acompte and solde are 0 and the pre-arrival amount is handed over', () => {
   const db = engineDb();
   const plain = calculateReservationQuote({ ...STAY, db, bookingId: 42 });
   assert.deepEqual([plain.depositAmount, plain.balanceAmount], [90, 210]);
@@ -92,7 +92,7 @@ test('rules 4, 5 — without a plan the usual split stands; with one, acompte an
   assert.deepEqual([other.depositAmount, other.balanceAmount], [90, 210], 'another booking keeps its split');
 });
 
-test('rule 1 — a stay that left the own channels ignores the plan, whatever the table still holds', () => {
+test('rules 1, 26 — a stay that left the own channels ignores the plan, whatever the table still holds', () => {
   const db = engineDb();
   planOn(db, 42, [[15000, false], [15000, false]]);
   const onPlatform = calculateReservationQuote({ ...STAY, db, bookingId: 42, platform: 'Booking' });
@@ -279,7 +279,7 @@ test('rule 5 — the finance readers see the installments collected as money rec
   assert.equal(summary.totalCollected, 400);
 });
 
-test('accounting — each paid installment is an encaissement of its own, at its paid date, booked like a solde', () => {
+test('rule 29 — accounting: each paid installment is an encaissement of its own, at its paid date, booked like a solde', () => {
   const db = plannedStay(booksDb());
   const accounting = createAccountingModel(db);
   const january = accounting.encaissementsByMonth({ month: 1, year: 2027 });
