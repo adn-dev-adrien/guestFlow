@@ -4,7 +4,7 @@
  * rule 6).
  *
  * One row per payment link a provider issued for a reservation/devis (deposit / balance / full /
- * complement). The polling pass reads `status='open'` rows, asks the provider, and flips them to `paid`.
+ * complement, or one installment of a plan — `installmentId`, specs/direct-installments.md). The polling pass reads `status='open'` rows, asks the provider, and flips them to `paid`.
  * Amounts are stored in **cents** (integer, exact — never float euros). The rows are core data: they
  * are the trace of what was asked and paid online, and outlive the provider's plugin.
  *
@@ -16,13 +16,14 @@
  *   settledBucketDateOf(link)               → the day the stay recorded that link's bucket as paid, or null
  *   markRetiredLinkPaid(id, { providerPaymentId, paidAt, reason? }) → a link retired by retireSettled (or, with
  *                                           reason 'amount-changed', by retireForAmountChange) was paid: cancelled→paid
- *   retireForAmountChange(reservationId, type, newAmountCents) → cancels the open links of that type whose amount
+ *   retireForAmountChange(reservationId, type, newAmountCents, installmentId?) → cancels the open links of that type whose amount
  *                                           the fiche changed (specs/reservation-payment-ledger.md rule 29)
  *   listPollable({ now, force, cadence })   → the open links due for a provider check (the polling worklist)
  *   touchPolled(id, at?)                    → stamps lastPolledAt (every provider call made for a link)
  *   hasKnownExpiry(link)                    → whether the link carries a real expiry date
  *   listForReservation(reservationId)       → every link for a reservation, newest first
  *   findOpenForReservation(reservationId, type) → the current open link of that type, or undefined
+ *   findOpenForInstallment(installmentId)   → the current open link of that installment, or undefined
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
@@ -36,7 +37,7 @@
  * `coldIntervalMinutes` — measured from its persisted `lastPolledAt`, so a restart resets nothing.
  */
 
-const VALID_TYPES = new Set(['deposit', 'balance', 'full', 'complement']);
+const VALID_TYPES = new Set(['deposit', 'balance', 'full', 'complement', 'installment']);
 const VALID_STATUSES = new Set(['open', 'paid', 'expired', 'cancelled']);
 
 const MINUTE_MS = 60 * 1000;
@@ -90,13 +91,13 @@ function isPollDue(link, nowMs, cadence = POLL_CADENCE_DEFAULTS) {
 
 function buildModel(database) {
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
-    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason`;
+    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId`;
 
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
-      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, expiresAt)
+      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, expiresAt, installmentId)
     VALUES
-      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, @expiresAt)
+      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, @expiresAt, @installmentId)
   `);
 
   function findById(id) {
@@ -118,6 +119,7 @@ function buildModel(database) {
       currency: String(payload.currency || 'EUR'),
       status,
       expiresAt: payload.expiresAt == null ? null : String(payload.expiresAt),
+      installmentId: payload.installmentId == null ? null : Number(payload.installmentId),
     });
     return findById(info.lastInsertRowid);
   }
@@ -164,6 +166,9 @@ function buildModel(database) {
            (l.type = 'deposit' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1)
            OR (l.type IN ('balance', 'full') AND COALESCE(c.balancePaid, r.balancePaid, 0) = 1)
            OR (l.type = 'complement' AND COALESCE(c.complementPaid, r.complementPaid, 0) = 1)
+           OR (l.type = 'installment' AND EXISTS (
+             SELECT 1 FROM reservation_installments i WHERE i.id = l.installmentId AND i.paid = 1
+           ))
          )
        ORDER BY l.id
     `).all();
@@ -183,6 +188,10 @@ function buildModel(database) {
   // Rule 24 — the day the stay recorded the bucket of a link retired by rule 23 (a link on a devis
   // reads the reservation the devis became); null when unknown or no longer paid.
   function settledBucketDateOf(link) {
+    if (link && link.type === 'installment') {
+      const installment = database.prepare('SELECT paid, paidDate FROM reservation_installments WHERE id = ?').get(Number(link.installmentId));
+      return installment && Number(installment.paid) === 1 && installment.paidDate ? String(installment.paidDate).slice(0, 10) : null;
+    }
     const col = { deposit: 'depositPaid', balance: 'balancePaid', full: 'balancePaid', complement: 'complementPaid' }[link && link.type];
     if (!col) return null;
     const row = database.prepare(`
@@ -212,10 +221,14 @@ function buildModel(database) {
   // specs/reservation-payment-ledger.md rule 29 (§9 Q3) — the fiche changed the amount an open link
   // bills: the link is abandoned at once, with the remote-deactivation marker so the poll deactivates
   // it at the provider (rule 8) and books it if the guest paid it anyway (rule 31).
-  function retireForAmountChange(reservationId, type, newAmountCents) {
-    const open = database.prepare(
-      `SELECT ${SELECT_COLS} FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'open' ORDER BY id`
-    ).all(Number(reservationId), String(type));
+  function retireForAmountChange(reservationId, type, newAmountCents, installmentId = null) {
+    const open = installmentId == null
+      ? database.prepare(
+        `SELECT ${SELECT_COLS} FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'open' ORDER BY id`
+      ).all(Number(reservationId), String(type))
+      : database.prepare(
+        `SELECT ${SELECT_COLS} FROM payment_links WHERE reservationId = ? AND type = ? AND installmentId = ? AND status = 'open' ORDER BY id`
+      ).all(Number(reservationId), String(type), Number(installmentId));
     const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'amount-changed' WHERE id = ? AND status = 'open'");
     const at = new Date().toISOString();
     const retired = [];
@@ -256,6 +269,12 @@ function buildModel(database) {
     return database.prepare(
       `SELECT ${SELECT_COLS} FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'open' ORDER BY id DESC LIMIT 1`
     ).get(Number(reservationId), String(type));
+  }
+
+  function findOpenForInstallment(installmentId) {
+    return database.prepare(
+      `SELECT ${SELECT_COLS} FROM payment_links WHERE type = 'installment' AND installmentId = ? AND status = 'open' ORDER BY id DESC LIMIT 1`
+    ).get(Number(installmentId));
   }
 
   // Resolve a link by its provider id (the webhook receives the remote id, not our row id).
@@ -329,6 +348,7 @@ function buildModel(database) {
     hasKnownExpiry,
     listForReservation,
     findOpenForReservation,
+    findOpenForInstallment,
     findByProviderLinkId,
     markPaid,
     updateStatus,

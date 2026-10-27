@@ -36,6 +36,8 @@ function buildController({
     ).all();
     return draftTemplateFor(templates, type, requestSent);
   },
+  // specs/direct-installments.md rule 22 — the unpaid installments three days past their due date.
+  lateInstallments = (today) => require('./installmentsController').lateInstallments(today),
   today: injectedToday = null,
 } = {}) {
   const resolveToday = () => injectedToday || getTodayIsoDate();
@@ -194,7 +196,7 @@ function buildController({
         return { ...row, payoutDueDays: payoutDaysByPlatform.get(key) };
       });
       const canRequest = hasPaymentProvider();
-      const rows = buildPaymentDeadlineRows(candidates, today).map((row) => {
+      const rows = buildPaymentDeadlineRows(candidates, today, lateInstallments(today)).map((row) => {
         if (canRequest || !row.remindType) return row;
         // Rule 25: no payment link to mint, so « Envoyer la demande » opens the request email as a draft.
         const templateId = requestTemplateId(row.remindType, Boolean(row.requestSent));

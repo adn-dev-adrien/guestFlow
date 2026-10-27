@@ -105,7 +105,7 @@ function hourlyResourcesLive() {
   try { return require('../plugins/sdk/registry').isLive('hourly-resources'); } catch { return false; }
 }
 
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, pluginContext = null }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, pluginContext = null, installment = null }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
   const stayContent = buildStayContent({
     reservation, client, property, options, facts: stayFacts || {}, settings, lang, sequence: sequence || {},
@@ -420,6 +420,17 @@ function buildContext({ reservation, client, property, options = [], resources =
       // sender overrides it per-send with the amount the payment link actually charges (tourist tax
       // included); this default keeps template previews meaningful.
       paymentAmount:   money(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.finalPrice || 0)),
+      // specs/direct-installments.md rule 21 — the installment this request asks for, and the whole plan.
+      // Empty outside an installment request (the plan is read by the sender, never derived here).
+      installmentNumber:   installment ? String(installment.number) : '',
+      installmentCount:    installment ? String(installment.count) : '',
+      installmentAmount:   installment ? money(installment.amount) : '',
+      installmentDueDate:  installment ? formatDateLong(installment.dueDate, L) : '',
+      installmentSchedule: installment ? installment.schedule.map((line) => {
+        const state = line.paid ? (isEn ? 'paid' : 'réglée') : '';
+        const label = isEn ? 'Instalment' : 'Échéance';
+        return `${label} ${line.number} · ${formatDateLong(line.dueDate, L)} · ${money(line.amount)}${state ? ` · ${state}` : ''}`;
+      }).join('\n') : '',
       // Lists
       optionsList,
       reservedOptionsList,

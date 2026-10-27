@@ -22,6 +22,8 @@ const { createEmailService } = require('../utils/emailService');
 const { formatCurrency } = require('../utils/devisHelpers');
 const financeModel = require('../models/financeModel');
 const { storedLinkComponents } = require('../utils/storedLinkComponents');
+const installmentsModel = require('../models/installmentsModel');
+const { requestContext } = require('../utils/installmentPlan');
 
 // ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
 
@@ -36,10 +38,13 @@ function requestServiceDeps(provider) {
     resolveAmountCents,
     resolveItems: (id, type) => resolveVatComponents(id, type),
     provider,
-    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents }) => sendReservationTemplateEmail({
+    installmentsModel,
+    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents, installment = null }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
       reservationId, stableKey,
+      installment: installment ? requestContext(installment, installmentsModel.listFor(reservationId)) : null,
+      occurrenceKey: installment ? `installment:${installment.id}` : '',
       // specs/deposit-blocks-the-dates.md rule 11 — the email announces, to the cent, what the link
       // charges: the amount travels with the link rather than being re-derived from the row.
       extraContext: {
@@ -159,6 +164,13 @@ const sendPaymentRequestEmail = withProvider(async (req, res, provider) => {
   // service (acompte when there is one, full payment otherwise); it is no longer assumed to be a deposit.
   const type = req.body && req.body.type ? String(req.body.type) : null;
   try {
+    // specs/direct-installments.md rule 20 — « Envoyer la demande » on an installment of the fiche.
+    if (type === 'installment') {
+      const installmentId = Number(req.body.installmentId);
+      if (!Number.isInteger(installmentId)) return res.status(400).json({ error: 'INVALID_INSTALLMENT', message: 'Échéance manquante.' });
+      const sent = await paymentRequestService.sendInstallmentRequest(requestServiceDeps(provider), id, installmentId);
+      return res.status(sent.httpStatus).json(sent.body);
+    }
     const { httpStatus, body } = await paymentRequestService.sendPaymentRequest(requestServiceDeps(provider), id, type);
     return res.status(httpStatus).json(body);
   } catch (err) { return sendError(res, err, provider); }
@@ -200,9 +212,22 @@ const pollPaymentsNow = withProvider(async (req, res, provider) => {
   } catch (err) { return sendError(res, err, provider); }
 });
 
+// The link of one installment, for the request email sent from the « à valider » queue (rule 19). Throws the
+// same `{ httpStatus, error, message }` as the service; without a provider, a 409.
+async function ensureInstallmentLinkFor(id, installmentId) {
+  const provider = paymentProviders.active();
+  if (!provider) throw { httpStatus: 409, ...paymentProviders.NO_PROVIDER };
+  try {
+    return await paymentRequestService.ensureInstallmentLink(requestServiceDeps(provider), Number(id), Number(installmentId));
+  } catch (err) {
+    if (err && err.httpStatus) throw err;
+    throw { httpStatus: 502, error: provider.errorCode, message: `Erreur de l'API ${provider.label} : à réessayer, détail dans les journaux.` };
+  }
+}
+
 module.exports = {
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):

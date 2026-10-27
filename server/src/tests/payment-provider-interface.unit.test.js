@@ -12,6 +12,7 @@ const paymentProviders = require('../utils/paymentProviders');
 const paymentsController = require('../controllers/paymentsController');
 const { buildController: buildDashboardController } = require('../controllers/dashboardController');
 const { migratePaymentLinksToProviders } = require('../utils/paymentLinksProviderMigration');
+const { migrateInstallmentsSchema } = require('../utils/installmentsMigration');
 const paymentLinksModel = require('../models/paymentLinksModel');
 
 const provider = (over = {}) => ({
@@ -119,6 +120,8 @@ test('rules 6, 20 — the upgrade renames the Qonto columns, keeps every row and
 
   migratePaymentLinksToProviders(db);
   migratePaymentLinksToProviders(db);
+  // The boot runs the installment migration right after: the model reads its `installmentId` column.
+  migrateInstallmentsSchema(db);
 
   const links = paymentLinksModel.buildModel(db);
   const open = links.findByProviderLinkId('qonto', 'ql_open');

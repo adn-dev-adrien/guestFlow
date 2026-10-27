@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS email_log (
     errorMessage TEXT DEFAULT '',
     renderedSubject TEXT NOT NULL,
     renderedBody TEXT NOT NULL,
-    recipientEmail TEXT NOT NULL DEFAULT '', channel TEXT NOT NULL DEFAULT 'smtp',
+    recipientEmail TEXT NOT NULL DEFAULT '', channel TEXT NOT NULL DEFAULT 'smtp', occurrenceKey TEXT NOT NULL DEFAULT '',
     CHECK (status IN ('sent', 'failed', 'acknowledged-skip'))
   );
 
@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS email_manual_queue (
     templateId    INTEGER NOT NULL,
     reservationId INTEGER NOT NULL,
     createdAt     TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (templateId, reservationId),
+    occurrenceKey TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (templateId, reservationId, occurrenceKey),
     FOREIGN KEY (templateId)    REFERENCES email_templates(id) ON DELETE CASCADE,
     FOREIGN KEY (reservationId) REFERENCES reservations(id)    ON DELETE CASCADE
   );
@@ -251,7 +252,8 @@ CREATE TABLE IF NOT EXISTS payment_links (
     provider TEXT NOT NULL DEFAULT 'qonto',
     remoteCancelPendingAt TEXT,
     cancelReason TEXT,
-    CHECK (type IN ('deposit', 'balance', 'full', 'complement')),
+    installmentId INTEGER,
+    CHECK (type IN ('deposit', 'balance', 'full', 'complement', 'installment')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );
 
@@ -487,6 +489,23 @@ CREATE TABLE IF NOT EXISTS reservations (
     updatedAt TEXT DEFAULT (datetime('now')), cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT, cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT, sourceType TEXT NOT NULL DEFAULT 'manual', sourcePlatformKey TEXT, sourceIcalSourceId INTEGER, sourceIcalEventUid TEXT, icalSyncLocked INTEGER NOT NULL DEFAULT 0, checkInReady INTEGER DEFAULT 0, checkInDone INTEGER DEFAULT 0, checkOutDone INTEGER DEFAULT 0, blocksPreviousNight INTEGER NOT NULL DEFAULT 0, blocksNextNight INTEGER NOT NULL DEFAULT 0, touristTaxRate REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0, customPrice REAL, extraGuestSurchargeOffered INTEGER NOT NULL DEFAULT 0, icalOriginalSummary TEXT, depositPaidDate TEXT, balancePaidDate TEXT, complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0, complementPaidDate TEXT, clientGrossAmount REAL, platformCommissionAmount REAL, acompteCommissionAmount REAL, platformGrossAmount REAL, platformPayoutAmount REAL, platformTouristTaxAmount REAL, kind TEXT NOT NULL DEFAULT 'reservation', devisNumber TEXT, devisStatus TEXT, validUntil TEXT, convertedReservationId INTEGER, depositDisabled INTEGER NOT NULL DEFAULT 0, touristTaxInComplement INTEGER NOT NULL DEFAULT 0, accommodationAcompteContribTtc REAL DEFAULT NULL, accommodationSoldeContribTtc REAL DEFAULT NULL, touristTaxAcompteContribTtc REAL DEFAULT NULL, touristTaxSoldeContribTtc REAL DEFAULT NULL, pdfLanguage TEXT NOT NULL DEFAULT 'fr', breakfastTime TEXT, requestOrigin TEXT, depositAmountOverride REAL, endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0, endOfStayComplementPaidDate TEXT, endOfStayComplementDetail TEXT, arrivalSasDoneAt TEXT, departureSasDoneAt TEXT, breakfastCoffee INTEGER NOT NULL DEFAULT 0, breakfastTea INTEGER NOT NULL DEFAULT 0, breakfastChocolate INTEGER NOT NULL DEFAULT 0, breakfastMilk INTEGER NOT NULL DEFAULT 0, breakfastPastries INTEGER NOT NULL DEFAULT 0, breakfastCereals INTEGER NOT NULL DEFAULT 0, breakfastBread REAL NOT NULL DEFAULT 0, breakfastNotifiedDate TEXT, breakfastNote TEXT, departureHandoverNote TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, arrivalNotifiedAt TEXT, departureNotifiedAt TEXT, extinguisherSealOkAtArrival INTEGER, extinguisherSealOkAtDeparture INTEGER, bookingConflictAt TEXT, touristTaxDeclaredAt TEXT, publicToken TEXT, attributionChannel TEXT, attributionLabel TEXT, attribution TEXT, attributionAt TEXT, cancelledAt TEXT, cancellationReason TEXT, cancelledBy INTEGER, paymentAlertSnoozedUntil TEXT, depositPaidCash INTEGER NOT NULL DEFAULT 0, balancePaidCash INTEGER NOT NULL DEFAULT 0, depositPaidAtArrival INTEGER NOT NULL DEFAULT 0, balancePaidAtArrival INTEGER NOT NULL DEFAULT 0, arrivalPaymentGroup TEXT, complementPaidAtArrival INTEGER NOT NULL DEFAULT 0, arrivalPaymentReduction REAL, arrivalPaymentTip REAL, endOfStayComplementPaidAtDeparture INTEGER NOT NULL DEFAULT 0, touristTaxFrozenAt TEXT, touristTaxFrozenBaseHt REAL, touristTaxFrozenOccupants INTEGER, touristTaxFrozenUnitAmount REAL,
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
     FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE CASCADE
+  );
+
+CREATE TABLE IF NOT EXISTS reservation_installments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    dueDate TEXT NOT NULL,
+    amountCents INTEGER NOT NULL,
+    paid INTEGER NOT NULL DEFAULT 0,
+    paidDate TEXT,
+    paidMethod TEXT,
+    requestedAt TEXT,
+    dateEdited INTEGER NOT NULL DEFAULT 0,
+    amountEdited INTEGER NOT NULL DEFAULT 0,
+    addedCents INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (reservationId, number)
   );
 
 CREATE TABLE IF NOT EXISTS resource_properties (

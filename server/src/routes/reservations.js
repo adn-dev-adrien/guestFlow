@@ -3,6 +3,13 @@ const controller = require('../controllers/reservationsController');
 const refundsController = require('../controllers/refundsController');
 const cancellationController = require('../controllers/reservationCancellationController');
 const upcomingController = require('../controllers/upcomingReservationsController');
+const installmentsController = require('../controllers/installmentsController');
+const { isReceptionOnly } = require('../constants/roles');
+
+// Reception sees no money (specs/reception-role-checkin-only.md): the plan is never theirs to change.
+const notReception = (handler) => (req, res) => (isReceptionOnly(req.user)
+  ? res.status(403).json({ error: 'FORBIDDEN' })
+  : handler(req, res));
 
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
@@ -24,6 +31,10 @@ router.delete('/:id/refunds/:refundId', refundsController.remove);
 // Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
 // nothing in GuestFlow cancels a stay on its own.
 router.post('/:id/cancel', cancellationController.cancel);
+// Échéancier d'une réservation directe (specs/direct-installments.md §4.3).
+router.put('/:id/installments', notReception(installmentsController.put));
+router.delete('/:id/installments', notReception(installmentsController.remove));
+router.post('/:id/installments/:installmentId/payment', notReception(installmentsController.markPaid));
 router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
 router.put('/:id', controller.update);

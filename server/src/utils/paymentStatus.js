@@ -24,8 +24,10 @@ function computePaymentStatus(reservation = {}, today = localTodayIso()) {
   const depositPaid = !!reservation.depositPaid;
   const balancePaid = !!reservation.balancePaid;
 
+  // specs/direct-installments.md — the installments collected so far count like a paid acompte / solde.
   const remainingDue = round2(
-    finalPrice - (depositPaid ? depositAmount : 0) - (balancePaid ? balanceAmount : 0),
+    finalPrice - (depositPaid ? depositAmount : 0) - (balancePaid ? balanceAmount : 0)
+      - Number(reservation.installmentsPaidAmount || 0),
   );
 
   const depositOverdue = !depositPaid && !!reservation.depositDueDate && reservation.depositDueDate < today;

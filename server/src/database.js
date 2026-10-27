@@ -1641,6 +1641,10 @@ db.exec(`
 // Provider-neutral payment links (specs/plugins-phase-3a-online-payment.md rules 6, 8, 20).
 require('./utils/paymentLinksProviderMigration').migratePaymentLinksToProviders(db);
 
+// Installment plan of a direct reservation (specs/direct-installments.md §5): payment_links type +
+// installmentId, the manual queue's occurrence key, the stay's installment aggregates.
+require('./utils/installmentsMigration').migrateInstallmentsSchema(db);
+
 // Bilingual templates (specs/email-language-fr-en.md): optional English subject/body. Additive +
 // idempotent; must run BEFORE the seed so fresh installs insert the EN side too.
 {

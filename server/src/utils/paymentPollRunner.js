@@ -40,6 +40,14 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
   if (row.kind === 'cancelled') return { effect: 'reservation-cancelled' };
 
+  // specs/direct-installments.md rule 15 — a paid link of an installment marks that installment paid.
+  if (link.type === 'installment') {
+    const { recordInstallmentPayment } = require('./installmentPayment');
+    const { emit } = require('../plugins/sdk/eventBus');
+    recordInstallmentPayment({ db: database, emit }, { installmentId: link.installmentId, paidDate, method: 'link' });
+    return { effect: 'installment-marked' };
+  }
+
   const isDeposit = link.type === 'deposit';
   const isFull = link.type === 'full';
 
@@ -158,7 +166,8 @@ async function retryPendingCancellations({ paymentLinksModel, provider, notifyPa
         continue;
       }
       if (pay.paid && link.cancelReason === 'amount-changed' && database) {
-        results.push(await bookAmountChangedPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, recordPayment, link, pay }));
+        const book = link.type === 'installment' ? bookInstallmentPaidAfterAmountChange : bookAmountChangedPaidLink;
+        results.push(await book({ paymentLinksModel, notifyPaidAfterCancel, database, recordPayment, link, pay }));
         continue;
       }
       if (pay.paid) {
@@ -229,6 +238,24 @@ async function bookAmountChangedPaidLink({ paymentLinksModel, notifyPaidAfterCan
   }
   if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: booked.effect === 'double-payment' ? 'paid-after-cancel' : 'paid', ...booked };
+}
+
+// specs/direct-installments.md rule 17 — the same for an installment: the link retired for an amount change
+// was paid at its old amount. The money is real, so the installment takes that amount (pinned) and the
+// others rebalance; an installment paid meanwhile another way makes it a double payment (nothing recorded,
+// the payment id stays on the row for the refund).
+async function bookInstallmentPaidAfterAmountChange({ paymentLinksModel, notifyPaidAfterCancel, database, link, pay }) {
+  const { paidDayOf } = require('./stayPaymentRecorder');
+  const { recordInstallmentPayment } = require('./installmentPayment');
+  const { emit } = require('../plugins/sdk/eventBus');
+  const paidAt = pay.paidAt || new Date().toISOString();
+  const booked = recordInstallmentPayment({ db: database, emit }, {
+    installmentId: link.installmentId, paidDate: paidDayOf(paidAt), method: 'link', amountCents: link.amountCents,
+  });
+  if (booked.flipped) paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: pay.paymentId || null, paidAt, reason: 'amount-changed' });
+  else paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
+  if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
+  return { id: link.id, reservationId: link.reservationId, type: link.type, status: booked.flipped ? 'paid' : 'paid-after-cancel', effect: booked.flipped ? 'installment-booked' : 'double-payment' };
 }
 
 // One pass (specs/payment-polling-fair-use.md): retry the owed deactivations, retire links past a known

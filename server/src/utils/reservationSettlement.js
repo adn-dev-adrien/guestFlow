@@ -57,6 +57,13 @@ function bucketStates(r = {}) {
       applicable: endOfStay > 0,
       settled: Boolean(r.endOfStayComplementPaid) || Boolean(r.endOfStayComplementPaidCash),
     },
+    // specs/direct-installments.md rule 5 — an installment plan replaces the acompte and the solde; the
+    // stay's row carries its collected and still-due totals (models/installmentsModel).
+    installments: {
+      amount: round2(round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount)),
+      applicable: round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount) > 0,
+      settled: round2(r.installmentsUnpaidAmount) === 0,
+    },
   };
 }
 
@@ -84,7 +91,7 @@ function remainingToPay(r) {
   const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
-  return round2(deposit + balance + complement + endOfStay);
+  return round2(deposit + balance + complement + endOfStay + round2(r.installmentsUnpaidAmount));
 }
 
 /**
@@ -169,6 +176,7 @@ function comptaCollected(r) {
     + (r.balancePaid && !r.balancePaidCash ? Number(r.balanceAmount || 0) - soldeComm : 0)
     + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
     + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
+    + round2(r.installmentsPaidAmount)
     // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
     + midStayNotesTotal(r)
     // …and a refund is money already given back (specs/reservation-refunds.md rule 18).

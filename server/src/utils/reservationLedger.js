@@ -115,13 +115,15 @@ function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
  * @param {object} [p.overpayment]  `{ ttc, lines }` — the live trop-perçu (reservation-refunds rule 34)
  * @param {object[]} [p.midStayNotes] the settled mid-stay notes
  * @param {number} [p.cautionAmount] the effective caution (live from the property until received)
+ * @param {object|null} [p.installmentPlan] the `installmentPlan` payload (specs/direct-installments.md rule 5):
+ *                                  its installments REPLACE the acompte and solde rows
  * @param {boolean} [p.canRequest]  a payment provider is ready (« Renvoyer la demande »)
  * @param {string} p.today          `YYYY-MM-DD`
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
  */
 function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
-  midStayNotes = [], cautionAmount = 0, canRequest = false, today,
+  midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -198,8 +200,47 @@ function buildLedger({
     return '';
   };
 
+  const planRows = installmentPlan && installmentPlan.installments && installmentPlan.installments.length > 0
+    ? installmentPlan.installments : null;
+
+  // ── Échéancier (specs/direct-installments.md rules 5, 8, 13, 14) ─────────
+  // The plan replaces the acompte and the solde: one row per installment, then the warning when the plan
+  // holds more than the stay.
+  if (planRows) {
+    const count = planRows.length;
+    const TONES = { paid: 'done', late: 'late', requested: 'due', toRequest: 'due', upcoming: 'due' };
+    for (const installment of planRows) {
+      const detail = { warnings: [] };
+      if (installment.clamped) detail.warnings.push(warn('Date ramenée à l\'arrivée'));
+      if (installment.status === 'paid') detail.warnings.push(...futureWarning(installment.paidDate));
+      rows.push({
+        key: `installment-${installment.number}`,
+        label: `Échéance ${installment.number}/${count}`,
+        amount: installment.amount,
+        state: installment.status === 'paid' ? 'paid' : installment.status === 'late' ? 'late' : 'due',
+        tone: TONES[installment.status] || 'due',
+        stateLabel: installment.status === 'upcoming'
+          ? `À percevoir avant le ${shortDate(installment.dueDate, stayYear)}`
+          : installment.status === 'late'
+            ? `En retard depuis le ${shortDate(installment.dueDate, stayYear)}`
+            : installment.statusLabel,
+        action: null,
+        amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+        detail: tidyDetail(detail),
+        ...(installment.status === 'paid' && isoDay(installment.paidDate) ? { paidDate: isoDay(installment.paidDate) } : {}),
+      });
+    }
+    if (installmentPlan.gap > 0) {
+      rows.push({
+        key: 'installmentGap', label: 'Échéancier au-dessus du séjour', amount: installmentPlan.gap, state: 'due', tone: 'warning',
+        stateLabel: 'À régler : remboursement, geste commercial ou à garder',
+        action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null }, detail: null,
+      });
+    }
+  }
+
   // ── Acompte (rules 4, 6, 15-17, 20) ───────────────────────────────────────
-  {
+  if (!planRows) {
     let notApplicable = null;
     if (isPlatform && !platformTakesDeposit) notApplicable = `Sans objet · ${platformName} encaisse en une fois`;
     else if (depositDisabled) notApplicable = 'Sans objet · acompte désactivé';
@@ -268,7 +309,7 @@ function buildLedger({
   }
 
   // ── Solde / Versement de la plateforme (rules 4, 15, 17-19, 24-26) ───────
-  {
+  if (!planRows) {
     const label = ota ? `Versement ${platformName}` : 'Solde';
     const link = linkDetail(pickLink(links, 'balance'), { stayYear, due: !paid.balance, canRequest });
     const detail = { warnings: [] };

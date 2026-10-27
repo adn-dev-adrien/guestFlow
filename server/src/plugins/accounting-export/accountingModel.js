@@ -80,6 +80,15 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const hasNotesColumn = hasReservationColumn('midStaySettledNotes');
   const midStayNotesClause = hasNotesColumn ? 'OR (r.midStaySettledNotes LIKE ?)' : '';
   const midStayNotesParams = (from) => (hasNotesColumn ? [`%"paidDate":"${String(from).slice(0, 8)}%`] : []);
+  // specs/direct-installments.md — an installment is an encaissement of its own, at its paid date. A schema
+  // without the table (a minimal test one) simply has none.
+  const hasInstallments = hasTable(database, 'reservation_installments');
+  const installmentClause = hasInstallments
+    ? `OR EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id AND i.paid = 1 AND i.paidDate >= ? AND i.paidDate < ?)`
+    : '';
+  const installmentCols = hasReservationColumn('installmentsPaidAmount')
+    ? 'r.installmentsPaidAmount, r.installmentsUnpaidAmount'
+    : '0 AS installmentsPaidAmount, 0 AS installmentsUnpaidAmount';
   // Refunds live in their own tables, so the month filter is a plain range predicate (no LIKE scan
   // like the notes register needs). Bound to the same database so the test factory covers both.
   const refunds = createRefundsModel(database);
@@ -116,6 +125,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
                r.touristTaxInComplement,
                r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
                r.touristTaxAcompteContribTtc, r.touristTaxSoldeContribTtc,
+               ${installmentCols},
                c.firstName, c.lastName,
                p.name AS propertyName
         FROM reservations r
@@ -137,10 +147,11 @@ function createAccountingModel(database, { settings = createAccountSettings(data
             (r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ? AND COALESCE(r.complementPaidCash, 0) = 0)
             OR
             (r.endOfStayComplementPaid = 1 AND r.endOfStayComplementPaidDate >= ? AND r.endOfStayComplementPaidDate < ? AND COALESCE(r.endOfStayComplementPaidCash, 0) = 0)
+            ${installmentClause}
             ${midStayNotesClause}
           )
         ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate, r.endOfStayComplementPaidDate), r.id
-      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth, ...midStayNotesParams(from));
+      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth, ...(hasInstallments ? [from, nextMonth] : []), ...midStayNotesParams(from));
 
       // Read the global commission config once per export run (settings + platforms).
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
@@ -171,6 +182,16 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         }
         if (inMonth(row.balancePaid, row.balancePaidDate) && Number(row.balancePaidCash || 0) === 0) {
           entries.push(buildEntry(row, 'balance', perLineData, commissionContext, taxContext));
+        }
+        // One encaissement per installment collected in the month (specs/direct-installments.md): the plan
+        // replaces the acompte and the solde, so these are the pre-arrival money of such a stay.
+        if (hasInstallments) {
+          const plan = database.prepare('SELECT number, amountCents, paidDate, paid FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(row.id);
+          for (const installment of plan) {
+            if (Number(installment.paid) === 1 && inMonth(1, installment.paidDate)) {
+              entries.push(buildInstallmentEntry(row, installment, plan.length, perLineData, commissionContext, taxContext));
+            }
+          }
         }
         // Cash complements are settled off the books → never emitted as an encaissement.
         if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0) {
@@ -508,6 +529,24 @@ function splitByDestination({ optionLines, customOptionLines, resourceLines }, m
 //
 // `taxContext.collectedOnArrival` is resolved by the caller (no quote recompute); pure-function
 // callers (unit tests) inject it directly.
+// One installment collected → one encaissement, booked like the solde it stands for: the stored-money
+// split (a plan never captured per-line contribs), with the tourist tax shared out in proportion to the
+// plan's scheduled total (the solde used to carry all of it). specs/direct-installments.md.
+function buildInstallmentEntry(row, installment, count, perLineData, commissionContext, taxContext) {
+  const amount = round2(Number(installment.amountCents) / 100);
+  const scheduled = round2(Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0));
+  const taxShare = scheduled > 0 ? round2(Number(row.touristTaxTotal || 0) * Math.min(1, amount / scheduled)) : 0;
+  const standIn = {
+    ...row,
+    depositAmount: 0,
+    balanceAmount: amount,
+    balancePaidDate: installment.paidDate,
+    touristTaxTotal: taxShare,
+  };
+  const entry = buildEntry(standIn, 'balance', { ...perLineData, hasContribs: false }, commissionContext, taxContext);
+  return entry && { ...entry, kind: 'installment', installment: { number: installment.number, count } };
+}
+
 /**
  * The two entries a single arrival payment can carry beyond its buckets
  * (specs/arrival-payment-detail-and-adjustment.md §3.4).
@@ -1056,5 +1095,5 @@ function bucketFromTtc(name, ttc, ratePercent) {
 
 module.exports = {
   create: createAccountingModel,
-  __test: { buildEntry, buildEndOfStayEntry, splitByDestination },
+  __test: { buildEntry, buildEndOfStayEntry, splitByDestination, buildInstallmentEntry },
 };
