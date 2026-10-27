@@ -262,6 +262,10 @@ all-inclusive pricing as the first such recipe.
     `changeoverBreached` with the required weekdays; the save is refused with a machine code and a
     French message; and the same force-override that exists for minimum nights lets the operator save
     anyway. Same plumbing, same UI pattern, same escape hatch — nothing new to learn.
+    *2026-10-27 audit:* the escape hatch is the back-office's alone. The website's public path
+    refuses a maximum-stay or changeover breach like a minimum-stay one (`409 MAX_NIGHTS` /
+    `CHANGEOVER`), its quote and calendar say so first, and its payment re-checks them —
+    [public-api.md](../public-api.md) rule 12. It used to refuse the minimum only.
 24. **iCal imports are never blocked by either rule.** A platform booking that violates the constraint
     is a fact to record, not a request to validate; it imports and is flagged, as today for minimum
     nights.

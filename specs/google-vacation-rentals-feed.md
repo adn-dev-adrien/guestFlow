@@ -66,8 +66,10 @@ size already filled in — with no channel manager in between.
    (default: the `identifier` the website's structured data already uses, e.g. `solio-la-granja`).
 4. **Prices are length-of-stay totals computed by `calculateReservationQuote`**, never re-derived:
    for every arrival date in the horizon and every stay length from the property's minimum to
-   `maxLos` (setting, default 14 nights), and for every party size at which the total changes (the
-   included guests, then each extra guest up to `maxGuests`), the plugin asks the quote engine for
+   `maxLos` (setting, default 14 nights), and for every party size from 1 to the public guest cap
+   (amended at the 2026-10-27 audit: it started at the included guests when the tourist tax ignored
+   the headcount, but a per-person default option still makes a smaller party cheaper on the site —
+   230 € on the site, 260 € sent for 2 guests of 4 included), the plugin asks the quote engine for
    `platform: 'direct'` with the same default options as the website, and sends the resulting total
    **tax included** (accommodation + extra-guest supplement + default options + tourist tax).
 5. A stay the website would refuse is not priced: an itinerary that breaches minimum/maximum stay,
@@ -236,7 +238,8 @@ the property table becomes one card per property, the log becomes a list; action
 ## 7. Test plan
 
 ### Server unit tests (`plugins/google-vacation-rentals/tests/`)
-- Itineraries: minimum stay, maximum LOS, party sizes only where the total changes, horizon cap.
+- Itineraries: minimum stay, maximum LOS, every party size from 1 to the cap (2026-10-27), horizon cap.
+- `tests/small-party-pricing.unit.test.js` (2026-10-27): with a per-person default option and no headcount tax, a party of 2 is sent the website's 230 €, not the 4-guest 260 €.
 - Calendar: an itinerary's amount equals `calculateReservationQuote` + tourist tax for the gîte
   recipe (progressive 3–6 nights, weekly discount, supplement above 10 guests) and the tente recipe.
 - Blocked night, closure, changeover → itinerary omitted and the right restriction emitted.
@@ -301,9 +304,9 @@ the property table becomes one card per property, the log becomes a list; action
   stay length, so the server stays responsive. Consequence for rule 12's edge case: a tariff change
   reaches Google about 30 s (debounce) + up to a minute and a half (the gîte's recomputation) after
   the save, not « within a minute ».
-- **Party sizes** (rule 4): with a tourist tax per adult (or per occupant), every size from 1 to the
-  public cap is priced. Otherwise the smallest priced size is the included guests and a smaller party
-  pays its price; the check (rule 17) reads it that way.
+- **Party sizes** (rule 4): every size from 1 to the public cap is priced (2026-10-27 audit; it used
+  to start at the included guests when the tourist tax ignored the headcount, which overpriced small
+  parties whenever a per-person default option existed).
 - **Taxes** (rule 4, Q3): the tourist tax travels inside each length-of-stay amount
   (`AmountAfterTax`, with `AmountBeforeTax` beside it) instead of a separate Taxes message; the whole
   length-of-stay shape is isolated in `ariXml.losAmountMessage`, to be confirmed with Google (Q3).

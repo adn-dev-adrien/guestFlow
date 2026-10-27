@@ -36,28 +36,16 @@ function lengthsFor(arrival, { maxLos, horizonEnd }) {
   return out;
 }
 
-// The tourist-tax modes whose amount moves with the number of guests: per adult and night, and the
-// percentage of the price per occupant (the « non classé » rate).
-const HEADCOUNT_TAX_MODES = new Set(['per_day_per_person', 'percentage_accommodation']);
-
-function taxDependsOnHeadcount(property) {
-  const mode = String(property.touristTaxMode || 'per_day_per_person');
-  if (!HEADCOUNT_TAX_MODES.has(mode)) return false;
-  if (mode === 'per_day_per_person') return Number(property.touristTaxPerDayPerPerson || 0) > 0;
-  return Number(property.touristTaxPercentage || 0) > 0 || Number(property.touristTaxDepartmentPercentage || 0) > 0;
-}
-
 /**
- * The party sizes at which the total can change (rule 4): every size up to `cap` when the tourist tax
- * counts the guests; otherwise the included guests (one price for any smaller party), then each extra
- * guest up to `cap`. `cap` is the public guest cap — a larger party is never priced (edge cases).
+ * The party sizes priced (rule 4): every size from 1 to `cap`, the public guest cap — a larger party
+ * is never priced (edge cases). Fixed at the 2026-10-27 audit: below the included guests the total
+ * looked flat, but a per-person default option (bed linen…) or a per-adult tourist tax still makes a
+ * smaller party cheaper on the site, and Google was sent the included-guests price for it.
  */
 function partySizes(property, cap) {
   const max = Math.max(1, Math.floor(Number(cap) || 1));
-  const included = Math.max(1, Math.min(max, Math.floor(Number(property.basePriceIncludedGuests) || 1)));
-  const from = taxDependsOnHeadcount(property) ? 1 : included;
   const out = [];
-  for (let g = from; g <= max; g += 1) out.push(g);
+  for (let g = 1; g <= max; g += 1) out.push(g);
   return out;
 }
 
@@ -76,5 +64,5 @@ function enumerate({ today, horizonDays, maxLos, sizes }) {
 const itineraryKey = ({ checkin, nights, guests }) => `${checkin}|${nights}|${guests}`;
 
 module.exports = {
-  addDays, daysBetween, horizon, arrivalDates, lengthsFor, partySizes, taxDependsOnHeadcount, enumerate, itineraryKey,
+  addDays, daysBetween, horizon, arrivalDates, lengthsFor, partySizes, enumerate, itineraryKey,
 };

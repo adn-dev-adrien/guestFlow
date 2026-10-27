@@ -25,6 +25,7 @@ const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
 const { generateToken } = sdk.coreModule('publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
+const { stayRuleBreach, hasUnpricedNights } = require('../publicProjections');
 const optionsModel = sdk.coreModule('optionsModel');
 const { isPerPersonCardOption, portionCap, portionWording } = sdk.coreModule('mealPortions');
 const { ok, fail, failT, langOf, langStated } = sdk.coreModule('publicHttp');
@@ -58,6 +59,23 @@ function checkPortionCaps(input, engineQuote, lang = 'fr') {
     }
   }
   return null;
+}
+
+const sameText = (a, b) => String(a || '').trim().toLocaleLowerCase('fr') === String(b || '').trim().toLocaleLowerCase('fr');
+const sameDigits = (a, b) => String(a || '').replace(/\D/g, '') === String(b || '').replace(/\D/g, '');
+
+/**
+ * The note filed on the devis when the e-mail matched an existing client but the visitor typed
+ * another identity (specs/public-api.md rule 13). Empty when everything typed matches the record.
+ * `statedLang` is null when the request stated no language: silence is not a different language.
+ */
+function submittedIdentityNote(client, guest, statedLang) {
+  const langDiffers = statedLang && String(client.emailLanguage || 'fr') !== statedLang;
+  if (sameText(client.firstName, guest.firstName) && sameText(client.lastName, guest.lastName)
+    && sameDigits(client.phone, guest.phone) && !langDiffers) return '';
+  const typed = [`${guest.firstName} ${guest.lastName}`.trim(), guest.phone, statedLang ? `langue ${statedLang}` : '']
+    .filter(Boolean).join(', ');
+  return `Client existant reconnu par l'e-mail — identité saisie : ${typed}. La fiche client n'a pas été modifiée.`;
 }
 
 function create(req, res) {
@@ -101,7 +119,7 @@ function create(req, res) {
     return failT(res, req, 409, 'DATES_UNAVAILABLE', 'datesUnavailable');
   }
 
-  // Run the engine to enforce min-nights and to surface the price for the receipt.
+  // Run the engine to enforce the stay rules and to surface the price for the receipt.
   const engineQuote = buildEngineQuote(v.value);
   if (engineQuote.error) {
     if (engineQuote.status === 404) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
@@ -109,9 +127,13 @@ function create(req, res) {
     // engine's own wording travels in `details`, where a diagnostic belongs.
     return failT(res, req, 422, 'VALIDATION_FAILED', 'quoteRefused', [{ field: 'quote', issue: engineQuote.error }]);
   }
-  if (engineQuote.minNightsBreached) {
-    return failT(res, req, 409, 'MIN_NIGHTS', 'minNights', undefined, engineQuote.requiredMinNights);
-  }
+  // Minimum stay, maximum stay, changeover days — every rule the back-office enforces, none of them
+  // forceable from the site (specs/tariff-recipes/spec.md §3.4 rule 23).
+  // A night no season prices is not for sale (specs/booking-drawer-friction.md rule 10), whatever the
+  // engine's fallback rate would make of it (`unpricedNights`, fixed at the 2026-10-27 audit).
+  if (hasUnpricedNights(engineQuote)) return failT(res, req, 409, 'DATES_UNAVAILABLE', 'datesUnavailable');
+  const breach = stayRuleBreach(engineQuote);
+  if (breach) return failT(res, req, 409, breach.code, breach.key, undefined, ...breach.args);
 
   // Portions over what the stay can serve are REFUSED here, where the live quote only clamps
   // (specs/site-meal-portions.md rule 3): this request becomes the devis the guest pays, so it is
@@ -133,22 +155,20 @@ function create(req, res) {
   const origin = classifyAttribution(attribution);
 
   const persist = db.transaction(() => {
-    // Resolve-or-create the client by normalized email (never overwrite an existing name/phone).
+    // Resolve-or-create the client by normalized email. An anonymous request never changes a stored
+    // client field — name, phone or language (fixed at the 2026-10-27 audit: anyone knowing a guest's
+    // address could rewrite their email language). What the visitor typed, when it differs, is kept on
+    // the devis notes for the operator to read and apply by hand.
     let client = clientsModel.findByEmail(g.value.email);
+    let identityNote = '';
     if (!client) {
       client = clientsModel.insert({
         firstName: g.value.firstName, lastName: g.value.lastName,
         email: g.value.email, phone: g.value.phone,
         emailLanguage: lang,
       });
-    } else if (langWasStated && String(client.emailLanguage || 'fr') !== lang) {
-      // Rule 12: a request that EXPLICITLY states a language wins over the stored preference — the
-      // page the guest chose to read is the best evidence available of the language they want.
-      // Silence does not win: rule 1 reads a missing `lang` as French, and the plugin deployed
-      // today sends none, so a blind overwrite would reset every English client to French on their
-      // next booking.
-      clientsModel.update(client.id, { ...client, emailLanguage: lang });
-      client = { ...client, emailLanguage: lang };
+    } else {
+      identityNote = submittedIdentityNote(client, g.value, langWasStated ? lang : null);
     }
 
     const result = devisModel.create({
@@ -173,7 +193,7 @@ function create(req, res) {
       // operator to arrange (specs/public-planning-options.md); a per-person one counts portions,
       // already checked against the stay's cap above (specs/site-meal-portions.md).
       planningCardAsQuantity: true,
-      notes: String(req.body.message || '').trim(),
+      notes: [String(req.body.message || '').trim(), identityNote].filter(Boolean).join('\n\n'),
       // The quote PDF reads this column and no other (utils/devisPdf.js), and it becomes the
       // reservation's language at conversion (devisModel.convertToReservation).
       pdfLanguage: lang,
@@ -268,4 +288,4 @@ function checkTermsAcceptance(termsVersion) {
   return { version: current };
 }
 
-module.exports = { create, checkTermsAcceptance };
+module.exports = { create, checkTermsAcceptance, submittedIdentityNote };

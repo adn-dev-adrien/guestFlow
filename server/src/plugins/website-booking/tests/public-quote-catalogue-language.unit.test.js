@@ -1,3 +1,4 @@
+require('./isolatedDb');
 /**
  * specs/translation-catalogue.md rule 21 — the live quote reads the catalogue, like every other
  * surface that names a label. Also specs/site-english-version.md rule 6, which said so first.

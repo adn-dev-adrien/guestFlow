@@ -1,3 +1,4 @@
+require('./isolatedDb');
 // specs/public-api.md rule 8 — the public stay dates are bounded before any engine call: no start in
 // the past (the accommodations' day), at most MAX_STAY_NIGHTS nights, no end beyond
 // MAX_BOOKING_HORIZON_DAYS. An unbounded endDate (9999-12-31) used to walk millions of nights

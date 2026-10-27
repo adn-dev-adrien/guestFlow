@@ -121,8 +121,8 @@ test('§4.3 — push, check and log: 409 while no property is enabled, then a si
   assert.equal(pushed.body.mode, 'simulation');
   assert.equal(pushed.body.runs[0].result, 'simulated');
   assert.equal(pushed.body.runs[0].resultLabel, 'Simulé');
-  // 30 arrivals × up to 3 nights × party sizes 2 to 4 (no tourist tax: one price up to the 2 included).
-  assert.equal(pushed.body.runs[0].rates, (28 * 3 + 2 + 1) * 3);
+  // 30 arrivals × up to 3 nights × party sizes 1 to 4 (every size, 2026-10-27 audit).
+  assert.equal(pushed.body.runs[0].rates, (28 * 3 + 2 + 1) * 4);
   const checked = await call(app, 'POST', '/api/google-vacation-rentals/check', { samples: 50 });
   assert.equal(checked.status, 200);
   assert.equal(checked.body.checked, 50);

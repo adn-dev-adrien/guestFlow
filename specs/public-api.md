@@ -136,6 +136,47 @@ or **[CREATE]** (genuinely new logic).
 11. **No temporary hold (this version).** A booking request does **not** block the calendar; dates
     stay available until the admin accepts/converts the pending devis. The hold design is kept in §8
     as a reference for a possible later addition (decision Q9).
+12. **Every stay rule the back-office enforces, the public path enforces, with no override**
+    (fixed at the 2026-10-27 audit; [tariff-recipes/spec.md](tariff-recipes/spec.md) §3.4 rules
+    20bis-23). `POST /booking-requests` refuses, in this order, `409 MIN_NIGHTS`, `409 MAX_NIGHTS`
+    and `409 CHANGEOVER`; the `message` names the limit (« Séjour trop long : maximum 7 nuits. »,
+    « Arrivée le samedi et départ le samedi uniquement sur cette période. » — only the breached sides,
+    in the caller's language). `POST /quote` exposes `maxNights`, `maxNightsBreached`,
+    `changeoverBreached` beside `minNights`/`minNightsBreached`, and `stayRefusal`: that same sentence,
+    or `null` when the stay passes every rule — the site prints it as it is. The `arrivals` of
+    `GET /availability` only offer an arrival whose stay some departure can satisfy (changeover days,
+    maximum stay — the same predicate as `nextAvailableDate`), with the first such departure as
+    `earliestDeparture`. `POST /booking-requests/:id/pay` re-checks the three rules on the SAVED devis before any
+    link is made (the tariff may have tightened since the request); an exception the operator grants
+    is sent as a payment link from the fiche, never through this route. A night no season prices is
+    not for sale: when the engine reports `unpricedNights`, `/quote` answers `available: false` and
+    `/booking-requests` `409 DATES_UNAVAILABLE` (the flag comes from the pricing engine; until the
+    engine carries it, the calendar alone keeps such nights out of reach — booking-drawer-friction
+    rule 10).
+13. **An anonymous request never changes a stored client** (fixed at the 2026-10-27 audit). When the
+    e-mail matches an existing client, the devis is filed under that client and none of its fields
+    moves — not the name, not the phone, not `emailLanguage` (this supersedes
+    [site-english-version.md](site-english-version.md) rule 12: anyone knowing a guest's address
+    could rewrite it). When what the visitor typed differs from the record (name or phone, compared
+    case- and format-insensitively, or an explicitly stated language), the devis notes end with
+    « Client existant reconnu par l'e-mail — identité saisie : <prénom nom>, <téléphone>, langue <xx>.
+    La fiche client n'a pas été modifiée. », after the visitor's own message. The devis still records
+    the page's language in `pdfLanguage`.
+14. **The quote and the booking request accept exactly the public catalogue** (fixed at the
+    2026-10-27 audit). An option id is accepted only if `GET /properties/:id/options` lists it:
+    applicable to the property, not an offered default, client-visible (`displayToClient`), and not
+    sold at a negative price — anything else is `422 VALIDATION_FAILED` (`optionUnavailable`). The
+    admin API refuses a negative option price outright (`POST`/`PUT /api/options`, `400`
+    « Le prix d’une option ne peut pas être négatif. »): a reduction is a price adjustment or a
+    refund ([reservation-refunds.md](reservation-refunds.md)), never an option.
+15. **The availability re-check sees a neighbour's edges** (fixed at the 2026-10-27 audit). A late
+    check-out blocks the night of its departure day and an early check-in the night before its
+    arrival; `utils/blockedDates.computeBlockedDates` reads the reservations one day wider on each
+    side and returns only the nights of the asked window, so the exact-window re-checks of `/quote`,
+    `/booking-requests`, `/pay` and the Google feed see them.
+16. **One line per option or resource** (fixed at the 2026-10-27 audit). The same `optionId` or
+    `resourceId` twice in one stay is `422 VALIDATION_FAILED` (`details` names the repeated line);
+    the quantity says how many. It used to reach the booking lines' unique index and answer a 500.
 
 **Edge cases:**
 
@@ -143,8 +184,8 @@ or **[CREATE]** (genuinely new logic).
 - Availability range too large (`to - from > 365 days`) or inverted → `422 VALIDATION_FAILED`.
 - Availability range omitted → default window = today … today + 12 months.
 - Quote with dates fully/partially overlapping blocked dates → quote still computes (price is date-driven), but response includes `"available": false` so the proxy can refuse the request UI-side. The booking-request endpoint **re-checks** availability server-side and rejects with `409 DATES_UNAVAILABLE` if blocked at submit time.
-- Quote breaching minimum nights → engine returns `minNightsBreached: true`; public quote surfaces `available`/`minNights` info and the booking-request endpoint rejects with `409 MIN_NIGHTS` unless within rules.
-- Booking request for a guest whose email already exists → reuse the existing client row (match on normalized email); never duplicate, never overwrite their stored name/phone silently (append request as a new pending devis).
+- Quote breaching minimum nights → engine returns `minNightsBreached: true`; public quote surfaces `available`/`minNights` info and the booking-request endpoint rejects with `409 MIN_NIGHTS` unless within rules. Maximum stay and changeover days likewise (`409 MAX_NIGHTS` / `409 CHANGEOVER`, rule 12).
+- Booking request for a guest whose email already exists → reuse the existing client row (match on normalized email); never duplicate, never overwrite any stored field (rule 13: the typed identity goes to the devis notes).
 - Honeypot filled (`_hp` non-empty) → respond `201` shaped like a success receipt **without** persisting anything (don't help spammers distinguish a block from a pass).
 - Option id sent that is not applicable to the property → `422 VALIDATION_FAILED` (`details` names the offending option), never silently dropped.
 - Unknown/extra body fields → ignored (forward-compatible), except forbidden pricing-override fields which, if present, are ignored (not an error) and logged.
@@ -177,6 +218,10 @@ or **[CREATE]** (genuinely new logic).
 | `utils/` | `pricing.js` | REUSE | **Untouched.** Called by `publicQuoteController` and indirectly by the devis create path. |
 | `plugins/website-booking/` | `nextAvailability.js` | C (2026-10-19) | Pure `findNextAvailableDate` + `stayRulesPredicate` (the engine's min/max stay and changeover days, through SDK 1.3.0 core modules `pricing` and `changeover`) — the availability payload's `nextAvailableDate` (§4.3). Test: `public-next-availability.unit.test.js`. |
 | `plugins/website-booking/` | `publicInputValidation.js` + `utils/publicLabels.js` | T (2026-10-19) | Guest errors carry `reason`; `withFieldMessages` adds `labels(lang).fieldErrors` as `message` (§4.3 booking-requests). Test: `public-guest-field-errors.unit.test.js`. |
+| `plugins/website-booking/` | `publicSelectableOptions.js` | C (2026-10-27) | The options a visitor may pick (applicable, not an offered default, client-visible, price ≥ 0): the catalogue lists them, the quote and the booking request accept only them (rule 14). |
+| `plugins/website-booking/` | `publicProjections.js`, `publicArrivalWindows.js`, controllers | T (2026-10-27) | `stayRuleBreach` + the quote's `maxNights`/`maxNightsBreached`/`changeoverBreached`/`stayRefusal`, `hasUnpricedNights`; arrival windows run `stayRulesPredicate`; the booking request refuses `MAX_NIGHTS`/`CHANGEOVER`, never edits an existing client and notes the typed identity (rules 12-13); duplicate lines refused by `validateStayInput` (rule 16). |
+| `utils/` | `blockedDates.js`, `publicLabels.js` | T (2026-10-27) | Reservations read one day wider so a neighbour's late check-out / early check-in counts (rule 15); `maxNights` + `changeover` refusals in FR/EN. |
+| `controllers/` | `optionsController.js`, `public/publicPaymentController.js` | T (2026-10-27) | Negative option price refused (rule 14); `pay` re-checks the stay rules (rule 12). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T (only if hold enabled) | Releases expired holds (see §8). |
 | `database.js` | `database.js` | T | Idempotent migration: add `reservations.requestOrigin TEXT` (NULL); if hold enabled, add hold columns/table. |
 | `index.js` | `index.js` | T | Mount `app.use('/public/v1', require('./routes/public'))` **before** the `/api` guard block; add `trust proxy` already present. |
@@ -227,7 +272,7 @@ them. The data already flows through the existing Devis UI; a visual badge is a 
 | POST | `/public/v1/booking-requests` | public | key | `BookingRequest` | `201 { data: BookingRequestReceipt }` | Pending devis; rate-limited + anti-spam. |
 
 HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
-`409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 OVER_CAPACITY`, `422 VALIDATION_FAILED`,
+`409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`, `422 VALIDATION_FAILED`,
 `429 TOO_MANY_REQUESTS`, `500 INTERNAL_ERROR` (generic message).
 
 ---
@@ -401,6 +446,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     "persons": 3,
     "available": true,
     "minNights": 3, "minNightsBreached": false,
+    "maxNights": 14, "maxNightsBreached": false, "changeoverBreached": false, "stayRefusal": null,
     "currency": "EUR",
     "nightlyBreakdown": [ { "date": "2026-07-20", "price": 120 } ],
     "accommodationTotal": 840,
@@ -503,7 +549,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     No `hold` field in this version (Q9).
   - **Excluded:** the full pricing breakdown and any client/admin internals. The proxy gets a
     confirmation receipt, not a quote dump (it can re-quote if it needs the breakdown).
-- **Errors:** `409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 OVER_CAPACITY`,
+- **Errors:** `409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`,
   `422 VALIDATION_FAILED`, `404 PROPERTY_NOT_FOUND`, `429 TOO_MANY_REQUESTS`, `401`.
   - Refused contact fields *(2026-10-19, additive — UI/UX review 2026-10-18, decision 3)*: each
     `details[]` entry for `guest.firstName` / `guest.lastName` / `guest.email` / `guest.phone` keeps
@@ -600,6 +646,17 @@ follow-up.
       authenticate; `publicApiLimiter` returns **429** past its per-IP window; `bookingRequestLimiter`
       is stricter (3rd booking → 429) and does **not** throttle plain reads. Per-test `X-Forwarded-For`
       isolates the rate-limit buckets. **(5 tests)**
+
+- [x] 2026-10-27 audit (rules 12-16), one file per subject:
+      `plugins/website-booking/tests/public-stay-rules.unit.test.js` (6: `MAX_NIGHTS`, `CHANGEOVER`
+      FR/EN, a valid week, the quote's fields and sentence, Saturday-only arrivals with Saturday
+      departures, `/pay` refusing a devis the tightened tariff no longer allows),
+      `public-request-existing-client.unit.test.js` (2), `public-option-acceptance.unit.test.js` (5:
+      catalogue, internal / offered default / negative refused on both routes, the visible option
+      priced), `public-duplicate-lines.unit.test.js` (3), `src/tests/blocked-dates-neighbour-edges.unit.test.js`
+      (3), `src/tests/options-negative-price.unit.test.js` (2). Real modules over a temporary database.
+      The suites of this folder whose mocks still let the SDK open the real `database.js` now require
+      `tests/isolatedDb.js` first, so none of them touches the checkout's `guestflow.db`.
 
 ### Manual / integration verification (all ✅ 2026-06-08, curl against `localhost:4000`)
 - [x] Happy path (server-to-server `curl`): list → detail → options → availability → quote →

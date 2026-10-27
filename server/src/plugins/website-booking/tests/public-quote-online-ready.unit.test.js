@@ -1,3 +1,4 @@
+require('./isolatedDb');
 // specs/public-online-payment.md rule 12 — the public quote says whether the site can take a payment
 // now (`payment.onlineReady`), so a block set to « payer en ligne » sends a plain request while no
 // provider is connected instead of creating a devis the payment then fails on. A field added to
