@@ -16,6 +16,7 @@ const { formatPlatformName, isDirectChannel, refreshDirectChannels, refreshChore
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
 const { describeIcalSync } = require('../utils/icalSyncStatus');
+const { defaultMarksStaysClosed } = require('../utils/icalClosedFeed');
 
 const DIRECT_NAME = 'direct';
 
@@ -449,9 +450,7 @@ function createPlatformsModel(database) {
       // Prepared lazily: this model is constructed on minimal test DBs that have no `ical_sources`
       // table; only this per-property merge actually needs it.
       const sources = database.prepare(`
-        SELECT id AS sourceId, propertyId, name, url, platformKey, platformLabel, platformColor,
-               isActive, collectsTouristTax, touristTaxRemittedByPlatform, disabled,
-               lastSyncAt, lastSyncStatus, lastSyncMessage, lastSyncCounts, lastImportedCount
+        SELECT *, id AS sourceId
           FROM ical_sources
          WHERE propertyId = ?
          ORDER BY id DESC
@@ -500,6 +499,11 @@ function createPlatformsModel(database) {
           disabled: source ? Number(source.disabled) === 1 : false,
           // Rule 2 — a stopped source (`isActive = 0`) is shown as such and offers no sync.
           isActive: source ? Number(source.isActive) !== 0 : true,
+          // specs/lodgify-decommission.md §3 rule 16 — the feed marks every stay « CLOSED - Not available ».
+          // No source yet (or a pre-migration row): what a new source would start with.
+          feedMarksStaysClosed: source && source.feedMarksStaysClosed != null
+            ? Number(source.feedMarksStaysClosed) === 1
+            : defaultMarksStaysClosed(slug, name),
           sourceId: source ? source.sourceId : null,
           lastSyncAt: source ? source.lastSyncAt : null,
           lastSyncStatus: source ? source.lastSyncStatus : null,

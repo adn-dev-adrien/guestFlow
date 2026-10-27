@@ -468,3 +468,50 @@ Suites after the fix: server **3 616 / 3 616**, client Vitest **1 144 / 1 144**,
 The typo-correction exclusion of §3.4 stands: `Gitedefrance` and `GitesDeFrance` are distinct slugs
 and stay two platforms. Rule 19 deliberately prefers the catalogue's spelling precisely so that
 normalising a reference never *creates* such a split.
+
+---
+
+## Addendum — saving an iCal source respelled its platform (audit 2026-10-27)
+
+**Symptom.** Saving the « GitesDeFrance » calendar (URL edit on the property's platforms tab) stored
+`Gitesdefrance`; saving « AirbnbTente » stored `Airbnbtente`. Each save created a second `platforms`
+row with no commission and default switches, every later import was tagged with it, and the Gîtes de
+France intake, which reads the commission by exact name, applied 0 % instead of 10 %.
+
+**Root cause.** `resolveSourceInput` ran `sentenceCase` before `formatPlatformName`. The sentence-case
+pass lowercases everything after the first letter, which erases the camelCase boundaries
+`formatPlatformName` relies on, so the canonical form of `GitesDeFrance` became `Gitesdefrance`. The
+boot de-duplication grouped rows by `formatPlatformName`, under which both spellings are already
+canonical: it never merged them.
+
+### Rules added
+
+22. **A saved source keeps its platform's spelling.** `ical_sources.platformLabel` is
+    `formatPlatformName(platformLabel || platformKey)`, with no sentence-case pass first: the catalogue
+    name the tab sends comes back unchanged, and a free-typed label is still put in canonical form
+    (`gîtes de france` → `GitesDeFrance`).
+23. **The boot de-duplication groups by slug.** `runPlatformSlugDedup` groups `platforms` rows by their
+    compact slug (accents, case and separators ignored), so `AirbnbTente` / `Airbnbtente` and
+    `GitesDeFrance` / `Gitesdefrance` are one group. The group's name is the canonical form of its
+    most-segmented spelling (the one that kept its word boundaries; lowest id on a tie). The merge of
+    settings is unchanged — commission and the other scalars from the operator's row, `countsAsDirect`
+    and `forbidsGuestChores` ticked if ticked on any duplicate — and the references of every merged
+    row (`reservations.platform`, `ical_sources.platformLabel`) follow. This heals, at the first boot
+    of the fix, the rows and imports the bug already split.
+
+The typo-correction exclusion above stands: `Gitedefrance` (no « s ») and `GitesDeFrance` are still
+two slugs.
+
+### Architecture — files touched
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `models/` | `models/propertyIcalModel.js` | T | `resolveSourceInput` drops the sentence-case pass (rule 22). |
+| `utils/` | `utils/platformSlugDedupMigration.js` | T | Groups by compact slug, names the group after its most-segmented spelling (rule 23). |
+
+### Test plan
+
+| Test file | Cases | Pins |
+|---|---|---|
+| `tests/platform-label-drift.unit.test.js` (C) | 4 — saving « GitesDeFrance » and « AirbnbTente » keeps the spelling, the commission and a single catalogue row; a free-typed label is canonicalised; the dedup merges both pairs into the operator's rows with every setting and reference, idempotently. | Rules 22–23. |
+| `tests/airbnb-no-checkout-chores.unit.test.js` (S) | unchanged — the dedup still ORs the two switches. | Rule 23. |

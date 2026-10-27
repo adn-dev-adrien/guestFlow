@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (amendment rule 14, 2026-10-22) |
+| **Status** | Implemented (amendment rule 14, 2026-10-22; rules 16-17, audit 2026-10-27) |
 | **Branch** | `feature/lodgify-decommission` _(Claude-managed)_ |
 | **Created** | 2026-09-21 |
 | **Author** | Adrien |
@@ -94,6 +94,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 5. For a source whose `platformKey` is `booking`, `isUnavailableIcalEvent` does **not** drop events:
    every event is a candidate reservation, then goes through takeover (rule 1) and the echo filter
    (rule 6). Airbnb, Vrbo/Abritel and all other sources keep today's filter unchanged.
+   > **Amended 2026-10-27 (rule 16):** « a Booking feed » is now the source's own setting
+   > `feedMarksStaysClosed`, not the exact slug `booking`. Every rule of this spec that says « Booking
+   > feed » (4bis, 5–8, 14) applies to a source with that setting ticked.
 6. **Echo filter (Booking only).** After takeover, a Booking event is an **echo** and is skipped —
    no insert, no mapping — when its nights are **entirely covered** by:
    - reservations of the property imported by another source or entered in GuestFlow, and/or
@@ -165,8 +168,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 - Lodgify feed and native feed both active during the transition → the takeover moves each booking
   once; the Lodgify feed still lists the UID, but it is superseded (rule 2bis), so its next syncs skip
   it and never raise a cancellation alert for it.
-- A Booking event overlapping a closure → skipped by the pre-existing closure guard (counted as
-  « ignoré (fermeture) »), before the echo filter is reached.
+- A Booking event whose every night is inside a closure → skipped by the closure guard (counted as
+  « ignoré (fermeture) »), before the echo filter is reached. Partly inside → created and flagged in
+  conflict (rule 8, rule 17). _(Was « any overlap → skipped » until the 2026-10-27 audit.)_
 - A stay moved on a channel after takeover → handled by the existing UID and 3.5 steps on the native
   source, like any other feed.
 
@@ -215,6 +219,38 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     old UID itself comes back. Without it, the operator approving that alert would delete a live
     stay and free its nights until the next sync re-created it, without its notes or payments.
 
+16. **« Séjours en CLOSED » is a setting of the iCal source** _(fixed at the 2026-10-27 audit)_.
+    `ical_sources.feedMarksStaysClosed` says that the feed names every stay « CLOSED - Not available »
+    (Booking.com's export). It is what the sync reads for rules 4bis, 5–8 and 14 — no longer the
+    exact slug `booking`. **Why:** a Booking calendar registered as `booking-com`, `BookingCom` or
+    `booking-tente` (a second listing) was not recognised; every one of its stays was dropped at
+    parse time, the feed then looked empty, and the empty-feed sweep proposed every stay it had
+    imported for cancellation.
+    - **Default.** `NULL` means « never chosen »: the platform's spelling decides — a source whose
+      key, label or name reads « booking… » under any spelling (accents, case and separators ignored)
+      is treated as ticked, any other as unticked. A new source is stored with that default; a schema
+      without the column falls back the same way.
+    - **Migration.** One-shot `migrations.ical_feed_marks_stays_closed_v1`: every existing source
+      whose spelling reads « booking… » gets `1`. It runs once, so an operator who later unticks a
+      source keeps it unticked.
+    - **Operator control.** The URL editor of the property's « Plateformes & iCal » tab carries the
+      switch « Chaque séjour est noté « CLOSED - Not available » », saved with the URL; a ticked row
+      shows the chip « Séjours en « CLOSED » ». An edit that does not send the field keeps it.
+17. **The closure guard only drops the closure's own echo** _(fixed at the 2026-10-27 audit)_. An
+    event with **no mapping** whose **every night** is inside an operator-declared closure (property
+    or global) is skipped, counted « ignoré (fermeture) », no mapping, no alert — the closure coming
+    back from a channel. Anything else follows the normal path:
+    - a new event only **partly** inside a closure is created and flagged `bookingConflictAt` (badge
+      and notification of `specs/ical-import-hardening.md` rule 3), on every feed;
+    - a **known** stay its platform moves onto a closure is updated when pristine and flagged in
+      conflict, or, when locked, raises its date-drift alert (`specs/ical-sync-override-locked-dates.md`);
+    - a closure counts as a taken range in the overlap check of rule 8 / hardening rule 3, so a stay
+      moved off it loses the flag (hardening rule 13).
+    **Why:** the 2026-06-06 guard dropped every overlapping event before the matching cascade. A stay
+    the guest moved on Airbnb onto a closure stayed on its old dates in GuestFlow with no alert, and a
+    new booking straddling the end of a closure never existed in GuestFlow — its nights stayed open
+    in the export to every other channel.
+
 ---
 
 ## 4. Architecture
@@ -232,10 +268,13 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 | `utils/` | `platformMerge.js` | T | Rule 14: merging sources also moves the owners in `ical_export_ranges` / `ical_export_tombstones` |
 | `models/` | `icalModel.js` | T | `exportProperty` refreshes the snapshot each time a feed is served (never allowed to break the feed) |
 | `utils/` | `icalBookingEcho.js` | C | Pure function: event range + covering ranges → `echo` / `partial` / `free`, night by night |
-| `utils/` | `icalParser.js` | T | `parseIcsEvents(ics, { keepUnavailable })` — the caller decides from `platformKey` |
+| `utils/` | `icalParser.js` | T | `parseIcsEvents(ics, { keepUnavailable })` — the caller decides from the source's setting (rule 16) |
+| `utils/` | `icalClosedFeed.js` | C | Rule 16: `defaultMarksStaysClosed(...labels)` (the « booking… » spelling default) and `runClosedFeedMigration(db)` (the one-shot) |
+| `models/` | `propertyIcalModel.js` (rules 16–17) | T | Reads/writes `feedMarksStaysClosed` on create/update and in `syncSource`; the closure guard moved after the matching cascade, applied to unmapped events entirely inside a closure; closures join the overlap check |
+| `models/` | `platformsModel.js` | T | Rule 16: `listForProperty` rows carry `feedMarksStaysClosed` (boolean, default resolved) |
 | `utils/` | `notificationService.js` | T | `notifyBookingConflict(id, { origin: 'ical' })` — conflict copy for the Booking feed |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Purge tombstones older than 7 days in the existing iCal task |
-| `database.js` + `schema.sql` | both | T | Create `ical_export_ranges`, `ical_export_tombstones`, `ical_superseded_events` (idempotent). Rule 14: `ADD COLUMN sourceIcalSourceId` on the first two |
+| `database.js` + `schema.sql` | both | T | Create `ical_export_ranges`, `ical_export_tombstones`, `ical_superseded_events` (idempotent). Rule 14: `ADD COLUMN sourceIcalSourceId` on the first two. Rule 16: `ADD COLUMN ical_sources.feedMarksStaysClosed` (nullable) + the one-shot migration |
 | `controllers/` / `routes/` | — | — | None: sources, toggles and sync endpoints already exist |
 
 ### 4.2 Client side (`client/src/`)
@@ -243,11 +282,16 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` / `components/` | — | — | None: the sync message is server-built text; the conflict badge already exists |
+| `components/property/` | `PropertyPlatformsTab.jsx` | T | Rule 16: the switch in the URL editor (MUI `Switch` + `FormControlLabel`), sent with the URL and with « Désactiver / Réactiver »; the chip on a ticked row |
 
 **Component reuse declaration:** consumed — the existing iCal sources screen and conflict badge;
-created — none; specific — none.
+created — none; specific — none. Rule 16 adds a plain MUI switch to the existing editor: no new component.
 
 ### 4.3 API contract
+
+Rule 16: `POST` / `PUT /api/properties/:id/ical-sources[/:sourceId]` accept `feedMarksStaysClosed:
+boolean` (absent → kept, or the spelling default on creation); `GET /api/properties/:id/platforms` rows
+carry `feedMarksStaysClosed: boolean`.
 
 No new endpoint. The sync endpoints return three more fields (`takenOverCount`, `echoSkippedCount`,
 `conflictReservationIds`), and `ical_sources.lastSyncCounts` gains `takenOver`, `echoSkipped`,
@@ -285,13 +329,22 @@ snapshot is rewritten in full at its next refresh, so every range has its owner 
 served after the upgrade. Tombstones written before the upgrade keep `NULL` and expire within 72 h.
 No data is lost or rewritten.
 
+**Rule 16 (2026-10-27):** `ical_sources.feedMarksStaysClosed INTEGER` (nullable, idempotent
+`ADD COLUMN`). `NULL` = never chosen, the spelling decides; the one-shot migration writes `1` on every
+existing « booking… » source. Nothing is lost or rewritten elsewhere.
+
 **Data impact:** additive table, empty at start. Takeover rewrites `sourceIcalSourceId`,
 `sourceIcalEventUid` and the mapping rows of reservations it claims — logged in
 `reservation_history`, and a production DB backup is taken before the switch (§10 step 1).
 
 ## 6. UI / UX
 
-No screen changes. The sync message under each iCal source reads, for example:
+Rule 16 (2026-10-27): « Logement › Plateformes & iCal », « Modifier l'URL » opens the URL field and,
+under it, the switch « Chaque séjour est noté « CLOSED - Not available » » (≥ 44 px row, the label
+wraps on 390 px). A ticked row shows the chip « Séjours en « CLOSED » » next to the other chips.
+Desktop and mobile alike — the chips already wrap.
+
+Otherwise no screen changes. The sync message under each iCal source reads, for example:
 « 0 créé(s), 0 mis à jour, **3 reprise(s)**, **2 écho(s) ignoré(s)**, 0 annulation(s) à valider, 5 inchangé(s) ».
 A conflicting Booking reservation shows the existing conflict badge on the fiche and the calendar.
 Mobile behaviour unchanged (text wraps as today).
@@ -329,6 +382,19 @@ Mobile behaviour unchanged (text wraps as today).
 
 `tests/property-ical-dedup.unit.test.js` — its schema gains `kind`, `bookingConflictAt` and the three
 tables, because its Booking source now goes through the Booking path.
+
+### Server unit tests — 2026-10-27 audit (rules 16-17)
+- [x] `tests/ical-closed-feed-setting.unit.test.js` (7 tests) — `Booking.com` and `BookingTente` sources
+  keep their CLOSED stays; the setting, not the name, decides (ticked on another feed, unticked on
+  Booking, kept by an edit that does not send it); a never-chosen source follows its spelling; the
+  `/platforms` payload; the one-shot migration; the fallback without the column.
+- [x] `tests/ical-closure-guard-scope.unit.test.js` (4 tests) — a new event inside a closure is skipped;
+  partly inside → created and flagged; a pristine stay moved onto a closure is updated and flagged; a
+  locked one raises its drift alert.
+- [x] `tests/property-ical-closure-guard.unit.test.js` — the « mixed feed » case now creates the event
+  straddling the end of the closure.
+- [x] Client: `components/property/__tests__/PropertyPlatformsTab.closed-feed.test.jsx` (3 tests) — chip,
+  switch saved with the URL, kept by « Désactiver ».
 
 ### Manual verification
 - [ ] On a prod copy (`DB_PATH`), point the Booking source at a recorded native feed fixture and run a sync: no duplicate, echoes counted.
@@ -552,6 +618,10 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
 ---
 
 ## 11. Implementation progress
+
+- 2026-10-27 — **Audit.** Rule 16 (the « séjours en CLOSED » setting replaces the exact slug `booking`)
+  and rule 17 (the closure guard narrowed to the closure's own echo) added, with their tests; rule 5
+  and the closure edge case amended.
 
 - 2026-09-21 — server implementation, 19 unit tests, rehearsed on a production copy, spec synced (Implemented). No client code: the
   sync message is server-built text.

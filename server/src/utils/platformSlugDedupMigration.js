@@ -59,19 +59,33 @@ function isCustomScalar(col, val) {
   return Number(val) !== 0; // hasVatOnCommission, commissionPercent, platformTakesDeposit, the switches
 }
 
+const slug = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 function runPlatformSlugDedup(database) {
   const cols = new Set(database.prepare('PRAGMA table_info(platforms)').all().map((c) => c.name));
   const present = OPTIONAL_COLS.filter((c) => cols.has(c));
   const select = `SELECT id, name${present.length ? ', ' + present.join(', ') : ''} FROM platforms`;
   const rows = database.prepare(select).all();
 
-  // Group by canonical name (the slug's canonical UpperCamelCase form).
-  const groups = new Map();
+  // Group by compact slug — case, accents and separators ignored (specs/normalize-platform-names.md
+  // rule 22). Grouping by `formatPlatformName` kept `AirbnbTente` and `Airbnbtente` apart: both are
+  // already canonical, yet they are one platform, and the second one carried no commission.
+  // The group's name is the canonical form of its most-segmented spelling: `GitesDeFrance` keeps the
+  // word boundaries that `Gitesdefrance` lost.
+  const segmentsOf = (name) => (String(name).normalize('NFD').replace(/\p{M}/gu, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).filter(Boolean).length);
+  const bySlug = new Map();
   for (const r of rows) {
     const canonical = formatPlatformName(r.name);
     if (canonical == null || canonical === '') continue; // empty/punctuation-only → operator cleans up
-    if (!groups.has(canonical)) groups.set(canonical, []);
-    groups.get(canonical).push(r);
+    const key = slug(r.name);
+    if (!bySlug.has(key)) bySlug.set(key, []);
+    bySlug.get(key).push(r);
+  }
+  const groups = new Map();
+  for (const list of bySlug.values()) {
+    const richest = [...list].sort((a, b) => (segmentsOf(b.name) - segmentsOf(a.name)) || (a.id - b.id))[0];
+    groups.set(formatPlatformName(richest.name), list);
   }
 
   const hasIcal = tableExists(database, 'ical_sources');
@@ -144,7 +158,6 @@ function runPlatformSlugDedup(database) {
   // never gets rewritten into a name no `platforms` row carries: the feed slug `gites-de-france`
   // becomes the catalogue's `GitesDeFrance` rather than a second spelling of it. With no matching
   // row, the canonical form is the target and the boot seeding creates the row.
-  const slug = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const catalogue = new Map();
   for (const r of database.prepare('SELECT name FROM platforms').all()) {
     const key = slug(r.name);
