@@ -62,12 +62,13 @@ test('rule 25: « Actif · à connecter » + « Configurer » while the plugin l
   assert.deepEqual(card.setup, { needed: false, label: 'Actif', path: '/settings/integrations?tab=google-calendar', action: 'Réglages' });
 });
 
-test('rule 25: an inactive plugin offers no settings action; a plugin with no place offers none either', () => {
+test('rule 25: an inactive plugin offers no settings action; the SAS opens its « Facturables » tab', () => {
   const ctrl = controllerWith({ neat: { enabled: 0 }, sas: { enabled: 1 } }, { neat: { setupStatus: () => 'identifiants manquants' } });
   const views = ctrl.views();
   assert.equal(views.find((p) => p.id === 'neat').setup.action, null);
   assert.equal(views.find((p) => p.id === 'neat').setup.needed, false);
-  assert.deepEqual(views.find((p) => p.id === 'sas').setup, { needed: false, label: 'Actif', path: null, action: null });
+  // 2026-10-27 audit — the SAS card used to have no button at all and read as empty.
+  assert.deepEqual(views.find((p) => p.id === 'sas').setup, { needed: false, label: 'Actif', path: '/parametres/options-ressources?tab=sas', action: 'Réglages' });
 });
 
 test('rule 25: a check that throws reads as nothing missing, never as a broken page', () => {

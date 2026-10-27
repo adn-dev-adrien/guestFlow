@@ -244,6 +244,11 @@ export default function OptionRow({ opt }) {
   const servedPersons = Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1);
   const servedPersonsMax = Math.max(servedPersons, Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1);
 
+  let switchCaption = '';
+  if (readOnly) switchCaption = opt.readOnlyReason || 'Lecture seule';
+  else if (isAutoTimedOption) switchCaption = 'Ajout automatique';
+  else if (isForcedByPropertyDefault) switchCaption = 'Inclus';
+
   return (
     <Card
       variant="outlined"
@@ -279,23 +284,27 @@ export default function OptionRow({ opt }) {
                   : `${isPercentOfStay ? `${Number(opt.price) || 0} %` : formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
             </Typography>
           </Box>
-          <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
-            <Tooltip title={readOnly ? opt.readOnlyReason || '' : ''}>
-              <FormControlLabel
-                sx={{ m: 0 }}
-                control={<Switch checked={enabled} disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault || Boolean(arrivalLine)} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
-              />
-            </Tooltip>
-            {readOnly && (
-              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right' }}>{opt.readOnlyReason || 'Lecture seule'}</Typography>
-            )}
-            {isAutoTimedOption && (
-              <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
-            )}
-            {!isAutoTimedOption && isForcedByPropertyDefault && (
-              <Typography variant="caption" color="text.secondary">Inclus</Typography>
-            )}
-          </Stack>
+          {/* The switch and the word saying why it is set sit on ONE row — on a phone the switch
+              floated alone with « Ajout automatique » stacked under it (2026-10-27 audit). */}
+          <Tooltip title={readOnly ? opt.readOnlyReason || '' : ''}>
+            <FormControlLabel
+              labelPlacement="start"
+              sx={{ m: 0, gap: 1, alignSelf: { xs: 'stretch', sm: 'flex-start' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}
+              label={(
+                <Typography variant="caption" color="text.secondary" sx={{ textAlign: { sm: 'right' } }}>
+                  {switchCaption}
+                </Typography>
+              )}
+              control={(
+                <Switch
+                  checked={enabled}
+                  disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault || Boolean(arrivalLine)}
+                  onChange={(e) => setOptionEnabled(opt.id, e.target.checked)}
+                  slotProps={{ input: { 'aria-label': opt.title } }}
+                />
+              )}
+            />
+          </Tooltip>
         </Stack>
 
         {lineContributions.map(({ key, pluginId, Component }) => (

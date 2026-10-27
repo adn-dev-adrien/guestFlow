@@ -100,7 +100,9 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       if (errors[key]) setErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
     },
     error: Boolean(errors[key]),
-    helperText: errors[key] || ' ',
+    // No reserved blank line under each field: it made the gaps uneven (a reserved line + the stack's
+    // gap, a hint, or the grid's own gap). The message appears when there is one (2026-10-27 audit).
+    helperText: errors[key] || undefined,
   });
 
   // Rule 21 — the capacity follows what the server proposes for the beds until it is typed by hand.
@@ -245,7 +247,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       {failure && <Alert severity="error" sx={{ mb: 2 }}>{failure}</Alert>}
 
       {step === 1 && (
-        <Stack spacing={1}>
+        <Stack spacing={2}>
           <TextField label="Nom de l’entreprise" required {...field(company, setCompany, 'name')} />
           <TextField label="Email" type="email" required {...field(company, setCompany, 'email')} />
           <TextField label="Téléphone" {...field(company, setCompany, 'phone')} />
@@ -266,11 +268,11 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       )}
 
       {step === 2 && !existingProperties && (
-        <Stack spacing={1}>
+        <Stack spacing={2}>
           <TextField label="Nom du logement" required {...field(property, setProperty, 'name')} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2, rowGap: 2 }}>
-            <TextField label="Lits doubles" type="number" value={property.doubleBeds} onChange={setBeds('doubleBeds')} error={Boolean(errors.doubleBeds)} helperText={errors.doubleBeds || ' '} />
-            <TextField label="Lits simples" type="number" value={property.singleBeds} onChange={setBeds('singleBeds')} error={Boolean(errors.singleBeds)} helperText={errors.singleBeds || ' '} />
+            <TextField label="Lits doubles" type="number" value={property.doubleBeds} onChange={setBeds('doubleBeds')} error={Boolean(errors.doubleBeds)} helperText={errors.doubleBeds || undefined} />
+            <TextField label="Lits simples" type="number" value={property.singleBeds} onChange={setBeds('singleBeds')} error={Boolean(errors.singleBeds)} helperText={errors.singleBeds || undefined} />
             <TextField
               label="Capacité"
               type="number"
@@ -278,8 +280,8 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
               onChange={typeCapacity}
             />
             <TextField label="Prix par nuit (€)" type="number" required {...field(property, setProperty, 'pricePerNight')} />
-            <TextField label="Arrivée à partir de" type="time" {...field(property, setProperty, 'checkIn')} error={Boolean(errors.defaultCheckIn)} helperText={errors.defaultCheckIn || ' '} />
-            <TextField label="Départ avant" type="time" {...field(property, setProperty, 'checkOut')} error={Boolean(errors.defaultCheckOut)} helperText={errors.defaultCheckOut || ' '} />
+            <TextField label="Arrivée à partir de" type="time" {...field(property, setProperty, 'checkIn')} error={Boolean(errors.defaultCheckIn)} helperText={errors.defaultCheckIn || undefined} />
+            <TextField label="Départ avant" type="time" {...field(property, setProperty, 'checkOut')} error={Boolean(errors.defaultCheckOut)} helperText={errors.defaultCheckOut || undefined} />
           </Box>
         </Stack>
       )}

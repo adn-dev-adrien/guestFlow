@@ -40,8 +40,8 @@ test('departure SAS without the extinguisher check: from the keys straight to th
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('OK');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
 

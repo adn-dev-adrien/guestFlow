@@ -1,0 +1,12 @@
+- Home: the departures and arrivals lists switch to cards whenever their column cannot hold the table, so Note, Paiements and Caution are never hidden in a scroller at 900 or 1280 px; the month calendar shows Sunday at 900 px.
+- Planning cards: the ARRIVÉE / DÉPART pills and the « Linge de lit non pris », « Caution à percevoir » and « Complément » chips use the soft status colours instead of filled chips.
+- Tariff page: one month at a time on a phone, the property name as a caption beside « Gestion tarifaire », and a seasons table that fits at 1280 px.
+- « Prix plateformes »: French amounts (« 1 075 € », « 15,5 % »), « Direct » capitalised, prices that never wrap, and the channel column kept in view while scrolling.
+- Finance highlights write thousands like the tiles (« 1 300 € »).
+- Reservation form: the children / teens / babies age ranges are helper texts, no longer cut; an option's switch and « Ajout automatique » sit on one row on a phone.
+- Plugins page: the version stays on the name's line, long statuses wrap, and the guided arrival/departure card opens its « Facturables au SAS » settings.
+- Planning on a phone: no empty bar around the laundry button, which now sits beside the date.
+- Start assistant: even gaps between fields.
+- Touch screens: short text buttons are 44 px wide, and the fiche's client chip 44 px high.
+- plugin:tariff-recipes The recipe card prints its degressivity in French with one decimal; the recipes page lines up with the other pages.
+- plugin:sas Departure: « Les serviettes et les draps sont-ils tous là ? » keeps « Oui » on the same side as every other question.

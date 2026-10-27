@@ -29,6 +29,14 @@ import { addIsoDays } from '../utils/isoDay';
 
 const addDays = addIsoDays;
 
+// The day lists switch to cards as soon as their CONTAINER cannot hold the arrivals table without a
+// scroller — the drawer eats 240 px, so a viewport breakpoint alone hid Note / Paiements / Caution
+// behind a scroll nobody noticed at 900 and 1280 (2026-10-27 audit). Both lists switch together so
+// the page never mixes a table and cards.
+const DEPARTURES_TABLE_WIDTH = 760;
+const ARRIVALS_TABLE_WIDTH = 940;
+const DAY_LISTS_CARDS_BELOW = ARRIVALS_TABLE_WIDTH;
+
 // Row/card background reflecting the check-in/out status (done = greyed, ready = green tint).
 const statusBgSx = (t, done, ready = false) => {
   if (done) return { bgcolor: alpha(t.palette.grey[500], 0.18) };
@@ -229,7 +237,7 @@ export default function Dashboard() {
             <CollectionStatusCell collection={r.operationalCollection} side="arrival" />
           </TableCell>
         )}
-        <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+        <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700, whiteSpace: 'nowrap' }}>
           {Number(r.cautionAmount || 0) > 0
             ? (cautionOk ? `OK (${formatCurrency(r.cautionAmount)})` : `NON (${formatCurrency(r.cautionAmount)})`)
             : '—'}
@@ -366,7 +374,8 @@ export default function Dashboard() {
               <ResponsiveTable
                 items={departuresToday}
                 getKey={(r) => r.id}
-                minWidth={860}
+                minWidth={DEPARTURES_TABLE_WIDTH}
+                cardsBelowWidth={DAY_LISTS_CARDS_BELOW}
                 emptyText="Aucun départ ce jour."
                 head={departuresHead}
                 renderRow={renderDepartureRow}
@@ -380,7 +389,8 @@ export default function Dashboard() {
               <ResponsiveTable
                 items={arrivalsToday}
                 getKey={(r) => r.id}
-                minWidth={1080}
+                minWidth={ARRIVALS_TABLE_WIDTH}
+                cardsBelowWidth={DAY_LISTS_CARDS_BELOW}
                 emptyText="Aucune arrivée ce jour."
                 head={arrivalsHead}
                 renderRow={renderArrivalRow}

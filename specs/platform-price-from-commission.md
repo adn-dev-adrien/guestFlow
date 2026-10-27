@@ -64,6 +64,13 @@ owner nets the season's price/night. The commission % is entered per platform an
 - A platform with `commissionPercent = 0` → gross = net (shown as-is, not hidden).
 - Changing a season's net price → the grid reflects it on next load/refresh.
 
+7. **The grid reads in French and never wraps a price** (2026-10-27 audit). Whole euros are grouped
+   like every amount of the app (`formatCurrencyRounded`: « 1 075 € »), the commission uses a decimal
+   comma (`formatPercent`: « 15,5 % »), a channel is named by `formatPlatformLabel` (« Direct », not
+   the stored « direct »), money cells and the « net … € » sub-labels do not wrap, the cells are
+   tighter so six seasons fit at 1280, and the « Canal » column stays in view (sticky) while the
+   seasons scroll sideways.
+
 ---
 
 ## 4. Architecture
@@ -104,6 +111,9 @@ properties).
 |---|---|---|---|---|
 | GET | `/api/properties/:id/platform-prices` | — | `{ platforms: [{ id, name, commissionPercent }], seasons: [{ ruleId, label, netPerNight, byPlatform: { [platformId]: number\|null } }] }` | Excludes `direct`. `null` gross = invalid % (≥100). |
 | PUT | `/api/platforms/:id` (existing) | `{ commissionPercent? }` (+ existing fields) | updated platform | `commissionPercent` clamped to `[0, 99.99]`. |
+
+- **2026-10-27 audit:** `client/src/utils/formatters.js` gains `formatPercent` (one decimal, comma);
+  `PlatformPriceCard.jsx` uses it with `formatCurrencyRounded` and `formatPlatformLabel` (rule 7).
 
 ---
 
@@ -151,6 +161,9 @@ The `direct` platform keeps `0` and is never shown in this feature.
       /properties/1/platform-prices` → grid; `PUT /platforms/:id/commission` 15 % → season net 252 →
       Airbnb gross **296,47 €** (= 252 / 0,85); dev DB reverted to 0 after the check. Client build green.
 - [ ] Browser pass of the tarif-page card (the user's env) — recommended before release.
+
+- **2026-10-27 audit (rule 7):** `PlatformPriceCard.french-format.test.jsx` (1 test); the « 15.5 % »
+  assertion of `PlatformPriceCard.test.jsx` now expects « 15,5 % ».
 
 ## 8. Out of scope
 

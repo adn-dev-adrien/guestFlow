@@ -26,6 +26,9 @@ const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juill
 const BAR_H = 22;      // px per lane
 const HEADER_H = 24;   // px for the day-number band
 const BAND_H = 20;     // px per closure band, along the bottom of the days (rule 13)
+// Seven ~80 px days: the 720 it used to be hid Sunday behind a scroller next to the drawer at 900
+// (2026-10-27 audit). Exported for the test that pins it under the md content width.
+export const CALENDAR_MIN_WIDTH = 560;
 // The closure texture: soft ink hatching (resolved via useTheme — it is a CSS string, not an sx token).
 export const closureHatch = (theme) => {
   const soft = alpha(theme.palette.text.primary, 0.05);
@@ -525,7 +528,7 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
       </Collapse>
 
       <Box ref={scrollRef} onScroll={handleScroll} sx={{ overflowY: 'auto', overflowX: { xs: 'visible', sm: 'auto' }, maxHeight: { xs: '74vh', sm: 'calc(100vh - 240px)' }, pr: 0.5 }}>
-        <Box sx={{ minWidth: { xs: 'auto', sm: 720 } }}>
+        <Box sx={{ minWidth: { xs: 'auto', sm: CALENDAR_MIN_WIDTH } }}>
           {months.map((m) => (
             <MonthBlock
               key={`${m.year}-${m.month}`}

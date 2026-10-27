@@ -46,8 +46,8 @@ async function openRecap(props = {}) {
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('Pas OK');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -120,8 +120,8 @@ test('before any answer, a failing server replaces the list with the same panel'
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('OK');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -137,8 +137,8 @@ test('the extinguisher page shows the server’s subtotal, « — » until it an
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('OK');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -176,8 +176,8 @@ test('an adjusted end-of-stay total says so under the total, and the Ajustement 
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('Pas OK');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -206,8 +206,8 @@ test('a stored line’s key follows the last answer: « Offrir » still reaches 
   renderDialog({ mode: 'departure' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -236,8 +236,8 @@ test('lines the server seeds on a never-committed departure come back in the dra
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('OK');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Oui');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Non');
   await screen.findByText('Éléments manquants');
   clickBtn('Suivant');
   await screen.findByText(/récupéré les clés/);

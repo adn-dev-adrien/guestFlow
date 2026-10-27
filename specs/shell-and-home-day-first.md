@@ -192,6 +192,15 @@ the top bar says which page is open.
   in the top bar; nothing scrolls sideways at 390 px.
 - 99+ in a count → the chip shows the number as is (tabular figures, no truncation).
 
+25. **The home's day lists never hide a column** (2026-10-27 audit). Départs and Arrivées switch to
+    their cards together as soon as their container cannot hold the arrivals table (940 px,
+    `ResponsiveTable.cardsBelowWidth`) — at 900 and 1280 the 860 / 1080 px tables hid Note,
+    Paiements and Caution in a scroller nobody noticed. The month calendar's floor drops from 720 to
+    560 px so Sunday shows at 900.
+26. **The planning draws no empty bar on a phone.** Its plugin buttons (the laundry trip) are custom
+    nodes, which rule 23 never moves to the top bar: below `sm` they ride with the date strip and the
+    page bar, left with nothing, is not drawn.
+
 ---
 
 ## 4. Architecture
@@ -311,6 +320,10 @@ never moved, the folded « ⋯ », a title without room, the hidden slot during 
 E2E `e2e/specs/mobile/top-bar-action.spec.js` (the titles stay whole at 390 px), with the shared
 `mediaRulesFixture.js` (jsdom applies no `@media`: the suite reads the declarations under each
 breakpoint).
+
+- **2026-10-27 audit (rules 25-26):** `CumulativeMonthCalendar.width.test.jsx` (1) and
+  `PlanningPage.phone-bar.test.jsx` (1); the table/cards switch is pinned by
+  `ResponsiveTable.container-width.test.jsx` (ds-components rule 26).
 
 ## 8. Out of scope
 

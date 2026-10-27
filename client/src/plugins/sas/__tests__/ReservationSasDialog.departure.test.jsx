@@ -62,8 +62,8 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   clickBtn('Pas OK'); // → +80 end-of-stay
 
   // missing items? → Non
-  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
 
   // keys → Oui
   await screen.findByText(/récupéré les clés/);
@@ -109,8 +109,8 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('Pas OK'); // +80 end-of-stay
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -151,8 +151,8 @@ test('departure SAS: a PAID arrival complement is NOT recalled', async () => {
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('Pas OK');
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -175,8 +175,8 @@ test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay compleme
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('OK'); // ménage fait → NO end-of-stay charge
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
@@ -204,8 +204,8 @@ test('departure SAS: extinguisher not in good condition opens the tariff page; q
   clickBtn('Commencer');
   await screen.findByText(/fait correctement/);
   clickBtn('OK'); // cleaning OK → no cleaning charge
-  await screen.findByText(/serviettes ou des draps/);
-  clickBtn('Non');
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
 

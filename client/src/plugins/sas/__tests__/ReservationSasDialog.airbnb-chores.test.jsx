@@ -61,6 +61,6 @@ test('chore-free channel departure without a cleaning line: straight to the miss
   renderDialog({ mode: 'departure' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
   expect(screen.queryByText(/Le ménage de fin de séjour a-t-il été fait correctement/)).toBeNull();
 });

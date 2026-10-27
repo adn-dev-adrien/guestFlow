@@ -14,6 +14,19 @@ import { Chip } from '@mui/material';
 
 const SEMANTIC = ['success', 'warning', 'error', 'info'];
 
+/**
+ * The same soft treatment for a Chip that keeps its own size/shape (calendar & planning pills):
+ * `sx={[softChipSx('warning'), { height: 22 }]}`. Never a filled semantic Chip (design-system §3.1).
+ */
+export const softChipSx = (status) => (t) => {
+  const sem = SEMANTIC.includes(status) ? status : null;
+  return {
+    bgcolor: sem ? t.palette[sem].soft : t.palette.grey[200],
+    color: sem ? t.palette[sem].text : t.palette.text.secondary,
+    '& .MuiChip-icon': { color: 'inherit' },
+  };
+};
+
 export default function StatusBadge({ status, label, icon, wrap = false }) {
   const sem = SEMANTIC.includes(status) ? status : null;
   return (

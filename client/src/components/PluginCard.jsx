@@ -122,10 +122,16 @@ export default function PluginCard({
             <Icon fontSize="small" />
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{plugin.name}</Typography>
-              {plugin.version && <Typography variant="caption" color="text.secondary">{plugin.version}</Typography>}
-            </Box>
+            {/* The version flows after the name inside one line of text: as a flex sibling it dropped
+                onto its own line whenever the name and the button filled the row (2026-10-27 audit). */}
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {plugin.name}
+              {plugin.version && (
+                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1, fontWeight: 400, whiteSpace: 'nowrap' }}>
+                  {plugin.version}
+                </Typography>
+              )}
+            </Typography>
             <Typography variant="body2" color="text.secondary">{plugin.description}</Typography>
             {installed && outOfPlan && (
               <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
@@ -136,6 +142,7 @@ export default function PluginCard({
             {installed && !outOfPlan && (
               <Box sx={{ mt: 0.5 }}>
                 <StatusBadge
+                  wrap
                   status={failed || incompatible ? 'error' : active ? (setup.needed ? 'warning' : 'success') : 'neutral'}
                   label={incompatible ? 'Incompatible avec cette version' : failed ? 'Erreur' : active ? setup.label || 'Actif' : 'Inactif'}
                 />

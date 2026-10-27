@@ -9,6 +9,7 @@
  *   displayDateLong        10 juillet 2026        — prose-like contexts (SAS, notices)
  *   displayDateTime        10/07/2026 14:35       — timestamps (history, logs)
  *   formatAmountInput      7,20 / 1234,50         — an amount shown inside an editable money field
+ *   formatPercent          15,5 % / 20 %          — a rate (commission, discount): one decimal at most
  *
  * Amounts use REGULAR spaces (grouping + before €) on purpose — not Intl's narrow no-break spaces —
  * so rendered strings stay greppable/assertable and match the app's historical output.
@@ -40,6 +41,14 @@ export function formatCurrencyRounded(n) {
   const rounded = Math.round(num);
   const grouped = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return `${rounded < 0 ? '-' : ''}${grouped} €`;
+}
+
+export function formatPercent(n) {
+  if (n == null || n === '') return '—';
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '—';
+  const rounded = Math.round(num * 10) / 10;
+  return `${String(rounded).replace('.', ',')} %`;
 }
 
 export function displayDate(d) {

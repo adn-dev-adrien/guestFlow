@@ -69,9 +69,9 @@ test('rule 2 — « Dégât / litige » is the one red answer, outlined; « Rend
   renderDialog({ mode: 'departure' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
-  clickBtn('Non');
-  await screen.findByRole('button', { name: 'Oui' });
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
+  await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByRole('button', { name: 'Rendue' });
   const [bad, good] = footerButtons();
@@ -103,9 +103,9 @@ test('rule 4 — a departure with nothing billed says « Rien à percevoir »', 
   renderDialog({ mode: 'departure' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
-  clickBtn('Non');
-  await screen.findByRole('button', { name: 'Oui' });
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
+  await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByRole('button', { name: 'Valider et terminer' });
   expect(screen.getByText('Rien à percevoir')).toBeInTheDocument();
@@ -139,9 +139,9 @@ test('rule 4 — a stay still owed at departure (server: nothingToCollect false)
   renderDialog({ mode: 'departure' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
-  clickBtn('Non');
-  await screen.findByRole('button', { name: 'Oui' });
+  await screen.findByText(/serviettes et les draps sont-ils tous là/);
+  clickBtn('Oui');
+  await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   await screen.findByRole('button', { name: 'Valider et terminer' });
   expect(screen.queryByText('Rien à percevoir')).toBeNull();
