@@ -1,0 +1,1 @@
+- `reservation_installments.paidSplit` (TEXT, nullable) is added on boot (idempotent `ALTER TABLE` in `utils/installmentsMigration.js`): the accounting split of an installment, stored when it is collected. No backfill: installments collected before the column keep the live split.

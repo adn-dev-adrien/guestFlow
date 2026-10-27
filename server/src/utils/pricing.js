@@ -2820,8 +2820,11 @@ function calculateReservationQuote({
   // owed by the arrival complement — counting the pre-arrival amount too took it twice (600 paid,
   // stay raised to 700: « Total perçu » 800). A plan not fully paid absorbs the rise itself (rule 8 of
   // direct-installments), so it still counts for the whole pre-arrival amount.
+  // A plan above the stay after a drop (rule 8: nothing is lowered) counts for the stay, never for
+  // installments the guest does not owe; what it already collected stays counted
+  // (specs/reservation-payment-ledger.md rule 48 — same figure as the stored headline).
   const planCarries = installmentPlan
-    ? (installmentPlan.allPaid ? planScheduled : preArrivalAmount)
+    ? (installmentPlan.allPaid ? planScheduled : Math.max(preArrivalAmount, Number(installmentPlan.paid || 0)))
     : 0;
   const netReceivedForTotal = roundMoney(
     resolvedDepositAmount + resolvedBalanceAmount + planCarries - totalPlatformCommission,

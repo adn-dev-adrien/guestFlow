@@ -182,6 +182,10 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
 - **Restauration d'une sauvegarde antérieure à la migration** → la table est recréée vide par le bloc
   idempotent au boot ; aucune indemnité n'est inventée.
 
+29. **Corrigé à la revue du 2026-10-27.** Le verrou de la règle 6 répond avant la validation du corps :
+    un `PUT` sur une indemnité `received` renvoie **409 `COMPENSATION_LOCKED`** quel que soit le corps
+    (sans plateforme, il renvoyait 400 `PLATFORM_REQUIRED`).
+
 ---
 
 ## 4. Architecture
@@ -424,6 +428,7 @@ l'échelle de la ligne.
 
 ### Server unit tests (`node --test`) — 48 tests ajoutés, suite à 3055 ✅
 
+- [x] `tests/cancellation-compensation-lock-first.unit.test.js` (2, revue du 2026-10-27) — règle 29 : 409 avant 400 sur une indemnité encaissée ; une indemnité en attente garde sa validation
 - [x] `tests/cancellation-compensations-model.unit.test.js` (11) — create / update pending / verrou
       `received` (update, delete, receive → `COMPENSATION_LOCKED`) / reopen efface montant + date /
       `listReceivedByMonth` borne bien le mois (1er inclus, 1er du suivant exclu) / tri des `pending`

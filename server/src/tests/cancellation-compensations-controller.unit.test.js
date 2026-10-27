@@ -23,6 +23,7 @@ function fakeModel(overrides = {}) {
   return {
     calls,
     model: {
+      getById: (id) => ({ id, status: 'pending' }),
       listPending: () => [{ id: 1, expectedAmount: 84, status: 'pending' }, { id: 2, expectedAmount: 16.5, status: 'pending' }],
       listReceivedByMonth: (bounds) => { calls.bounds = bounds; return [{ id: 3, receivedAmount: 79.2, status: 'received' }]; },
       create: (payload) => { calls.create.push(payload); return { id: 9, ...payload }; },

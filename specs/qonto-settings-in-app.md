@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/qonto-settings-in-app` |
 | **Created** | 2026-09-07 |
 | **Author** | Adrien |

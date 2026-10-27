@@ -60,13 +60,27 @@ function storedNetTotal(row = {}, { refundsBookTtc = 0 } = {}) {
   const deposit = Number(row.depositDisabled || 0) === 1 ? 0 : Number(row.depositAmount || 0);
   return round2(
     deposit + Number(row.balanceAmount || 0)
-    + Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0)
+    + storedPlanCarries(row)
     - Number(row.acompteCommissionAmount || 0) - Number(row.platformCommissionAmount || 0)
     + Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0)
     + midStayNotesTotal(row, { withCash: true })
     - Number(refundsBookTtc || 0)
     + arrivalPaymentAdjustment(row).net,
   );
+}
+
+/**
+ * What an installment plan contributes to « Total perçu » (specs/reservation-payment-ledger.md rule 48),
+ * the stored twin of the engine's `planCarries`: every installment once all are paid; otherwise the stay's
+ * pre-arrival amount (`installmentsTarget`), or what was collected when that is more. A plan left above
+ * the stay by a drop (direct-installments rule 8) shows its gap on the ledger, never in this total.
+ */
+function storedPlanCarries(row = {}) {
+  const paid = Number(row.installmentsPaidAmount || 0);
+  const unpaid = Number(row.installmentsUnpaidAmount || 0);
+  const target = Number(row.installmentsTarget || 0);
+  if (!(unpaid > 0)) return paid;
+  return target > 0 ? Math.max(target, paid) : paid + unpaid;
 }
 
 /**

@@ -17,6 +17,7 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { exerciseMonths } = require('../utils/exerciseOverview');
+const installmentPlan = require('../utils/installmentPlan');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -215,14 +216,28 @@ function createFinanceModel(database) {
   // specs/finance-dashboard-redesign.md rule 34 — what a stay has overdue, as a row of « En retard »,
   // or null. Each row lists its overdue elements (`overdueItems`) ready to render; `paidField` names the
   // payment flag « Marquer payé » ticks for that element, and nothing else (rule 38).
-  function overdueOf(r, today) {
+  function overdueOf(r, today, lateInstallments = []) {
     if (r.settled) return null;
     if (isDirectChannel(r.platform)) {
-      if (!r.isOverdue) return null;
       const overdueItems = [];
       if (r.depositOverdue) overdueItems.push({ kind: 'deposit', paidField: 'depositPaid', label: 'Acompte', amount: round2(r.depositAmount), dueDate: r.depositDueDate });
       if (r.balanceOverdue) overdueItems.push({ kind: 'balance', paidField: 'balancePaid', label: 'Solde', amount: round2(r.balanceAmount), dueDate: r.balanceDueDate });
-      return { ...r, payoutOverdue: false, overdueItems };
+      // An installment « En retard » on the fiche is late here too (specs/direct-installments.md rule 14):
+      // the plan replaces the acompte and the solde, so without it such a stay was never late. It has no
+      // payment flag: « Marquer payé » records it through its own endpoint (`installmentId`).
+      for (const i of lateInstallments) {
+        overdueItems.push({ kind: `installment:${i.id}`, installmentId: i.id, paidField: null, label: `Échéance ${i.number}/${i.count}`, amount: round2(Number(i.amountCents) / 100), dueDate: i.dueDate });
+      }
+      if (overdueItems.length === 0) return null;
+      const dueDates = overdueItems.map((item) => item.dueDate).filter(Boolean).sort();
+      return {
+        ...r,
+        isOverdue: true,
+        payoutOverdue: false,
+        overdueAmount: round2(overdueItems.reduce((sum, item) => sum + item.amount, 0)),
+        oldestDueDate: dueDates[0] || null,
+        overdueItems,
+      };
     }
     const balance = round2(r.balanceAmount);
     if (!(balance > 0) || r.balancePaid || !(r.endDate < today)) return null;
@@ -243,6 +258,24 @@ function createFinanceModel(database) {
       oldestDueDate: dueDate,
       overdueItems: [{ kind: 'payout', paidField: 'balancePaid', label: `Versement ${platformDisplayName(r.platform)}`, amount: payout, dueDate }],
     };
+  }
+
+  // The installments the fiche and the payment deadlines call late (installmentsModel.listLate, the
+  // collection alert's own read: due + LATE_AFTER_DAYS passed, or the guest has arrived; a plan covered
+  // by what it collected owes nothing), per stay. A schema without the table has none.
+  function lateInstallmentsOf(today) {
+    const byStay = new Map();
+    let rows = [];
+    try {
+      rows = require('./installmentsModel').buildModel(database)
+        .listLate({ cutoff: addDaysToIsoDate(today, -installmentPlan.LATE_AFTER_DAYS), today });
+    } catch { rows = []; }
+    for (const row of rows) {
+      const list = byStay.get(row.reservationId) || [];
+      list.push(row);
+      byStay.set(row.reservationId, list);
+    }
+    return byStay;
   }
 
   const model = {
@@ -674,8 +707,9 @@ function createFinanceModel(database) {
       // directe » platform is chased like a direct booking — and a platform stay whose payout is late
       // (departure + the platform's payout delay, specs/platform-payout-due-date.md). Platforms collect
       // the guest's payment themselves: only their own transfer can be late.
+      const lateInstallmentsByStay = lateInstallmentsOf(today);
       const overdueReservations = allRows.map(enrich)
-        .map((r) => overdueOf(r, today))
+        .map((r) => overdueOf(r, today, lateInstallmentsByStay.get(r.id)))
         .filter(Boolean)
         .sort((a, b) => (a.oldestDueDate || '').localeCompare(b.oldestDueDate || ''));
       const overdueTotalAmount = round2(

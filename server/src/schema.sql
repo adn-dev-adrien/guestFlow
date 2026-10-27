@@ -504,6 +504,7 @@ CREATE TABLE IF NOT EXISTS reservation_installments (
     amountEdited INTEGER NOT NULL DEFAULT 0,
     addedCents INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    paidSplit TEXT,
     UNIQUE (reservationId, number)
   );
 
