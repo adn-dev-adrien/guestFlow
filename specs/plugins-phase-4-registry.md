@@ -280,6 +280,13 @@ below are the recommended ones; each is reversible in a later spec.
     the host modules of rule 33. *(Clarified 2026-10-18, second review: the list holds names only. It
     catches a module or an export removed or renamed; a changed signature behind the same name is not
     detected, and stays a matter of review and of the SDK major version.)*
+36. **A plugin an active plugin requires stays active** (operator decision 2026-10-27, spec review).
+    Deactivating a plugin that an **active** plugin requires is refused like uninstalling it (rule
+    12): `POST /api/plugins/:id/deactivate` answers 409 `REQUIRED_BY` with `requiredBy` (the
+    dependants' ids) and « Nécessaire à <nom> : à désactiver d’abord. », which the Plugins page shows
+    on the card. An **inactive** dependant does not block a deactivation (it does not run), but still
+    blocks an uninstall. Found when `website-booking` could be switched off while
+    `google-vacation-rentals`, which requires it, stayed active.
 
 ---
 
@@ -298,7 +305,7 @@ below are the recommended ones; each is reversible in a later spec.
 | `utils/` | `semverRange.js` | C | Range checks (dependency `semver`) |
 | `utils/` | `pluginsSchema.js` | T | `manifest`, `pinned_sha256` columns |
 | `models/` | `pluginsModel.js` | T | Version, source, manifest, hash |
-| `controllers/` | `pluginsController.js` | T | Offers, install, update, rollback, uninstall checks (rules 10–16) |
+| `controllers/` | `pluginsController.js` | T | Offers, install, update, rollback, uninstall checks (rules 10–16); deactivation refused while an active plugin requires it (rule 36) |
 | `routes/` | `plugins.js` | T | `POST /api/plugins/:id/update`, `/rollback`, `POST /api/plugins/refresh` |
 | `index.js` | `index.js` | T | `/plugin-assets` static mount |
 | `constants/` | `plugins.js` | T | Catalogue built from the manifests |
@@ -383,6 +390,7 @@ word per line (seen in the browser check of 2026-10-17).
 - Release tooling: version check fails on a changed plugin without a bump.
 - _(added 2026-10-18)_ `plugins-manifest-upper-bound.unit.test.js` (rule 34) and
   `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
+- _(added 2026-10-27)_ `plugins-deactivate-required-by.unit.test.js` (rule 36, 4 tests).
 
 ## 8. Out of scope
 

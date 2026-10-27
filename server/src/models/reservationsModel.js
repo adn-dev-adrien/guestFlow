@@ -492,6 +492,10 @@ function createReservationsModel(database) {
   const HAS_RCO_SAS_LINE_KEY = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'sasLineKey'); } catch { return false; }
   })();
+  // A custom line keeps its count (specs/arrival-departure-sas.md rule 29); minimal test schemas lack it.
+  const HAS_RCO_QUANTITY = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity'); } catch { return false; }
+  })();
   // Extras baseline captured when the stay starts (specs/mid-stay-extras-to-end-of-stay-complement.md
   // §3.1). Guarded so minimal test schemas without the column simply never route anything to the
   // end-of-stay complement (legacy behaviour).
@@ -906,8 +910,10 @@ function createReservationsModel(database) {
       }
 
       const customOptions = database.prepare(`
-        SELECT rco.id as customOptionId, rco.description as title, rco.description, 1 as quantity,
-          rco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
+        SELECT rco.id as customOptionId, rco.description as title, rco.description,
+          ${HAS_RCO_QUANTITY ? 'MAX(COALESCE(rco.quantity, 1), 1)' : '1'} as quantity,
+          ${HAS_RCO_QUANTITY ? 'ROUND(rco.amount / MAX(COALESCE(rco.quantity, 1), 1), 2)' : 'rco.amount'} as unitPrice,
+          ${HAS_RCO_QUANTITY ? 'MAX(COALESCE(rco.quantity, 1), 1)' : '1'} as billedUnits, 'per_stay' as priceType,
           CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END as totalPrice,
           rco.amount as originalTotalPrice,
           COALESCE(rco.offered, 0) as offered,
@@ -2318,7 +2324,7 @@ function createReservationsModel(database) {
           key: `bed:${Number(item.id)}`, label: String(item.label).trim(), qty, unitPrice, amount, offered: Boolean(line.offered),
         });
       }
-      const ownRow = database.prepare(`SELECT id, description, amount FROM reservation_custom_options
+      const ownRow = database.prepare(`SELECT id, description, amount, ${HAS_RCO_QUANTITY ? 'quantity' : '1 AS quantity'} FROM reservation_custom_options
         WHERE id = ? AND reservationId = ? AND sasArrivalOrigin = 1${HAS_RCO_SAS_LINE_KEY ? ' AND sasLineKey IS NULL' : ''}`);
       const seen = new Set();
       for (const line of (Array.isArray(keptLines) ? keptLines : [])) {
@@ -2328,8 +2334,9 @@ function createReservationsModel(database) {
         if (!row || !(Number(row.amount) > 0)) continue;
         seen.add(id);
         const amount = round2(row.amount);
+        const qty = Math.max(1, Math.round(Number(row.quantity) || 1));
         out.push({
-          key: `kept:${id}`, label: String(row.description).trim(), qty: 1, unitPrice: amount, amount, offered: Boolean(line.offered),
+          key: `kept:${id}`, label: String(row.description).trim(), qty, unitPrice: round2(amount / qty), amount, offered: Boolean(line.offered),
         });
       }
       return out;
@@ -3137,10 +3144,15 @@ function createReservationsModel(database) {
             const insert = HAS_RCO_SAS_LINE_KEY
               ? database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin, sasLineKey) VALUES (?, ?, ?, ?, ?, 1, 1, ?)')
               : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
+            // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded
+            // statements above stay valid on a schema without the column.
+            const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
             let sort = Number(maxSort) + 1;
             for (const it of items) {
               const values = [reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, it.offered ? 1 : 0, sort];
-              insert.run(...values, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
+              const inserted = insert.run(...values, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
+              const qty = Math.round(Number(it.qty) || 1);
+              if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);
               sort += 1;
             }
           }

@@ -105,7 +105,8 @@ confirmation — records the caution status and the complement(s) on the reserva
     `sasArrivalOrigin = 1`, priced by the engine — so the laundry and the linen stock finally count the
     towels, revised 2026-08-03) / **Non merci** (→ next). **No payment
     question here** — the whole complement (bath linen included) is settled on the recap
-    (CB/Chèque · Payé en liquide · En fin de séjour). Skipped when bath linen is already taken or no priced
+    (CB/Chèque · Payé en liquide · En fin de séjour — « Plus tard » when the stay is settled in the
+    same payment, specs/sas-recap-payment-buttons.md rule 1 note of 2026-10-27). Skipped when bath linen is already taken or no priced
     `bathroom_linen` option exists.
 10.ter **Petit déjeuner — vente (only if the reservation did NOT take the breakfast option).** Offer page
     (tarif + how many mornings the stay allows) with **Ajouter le petit déjeuner** / **Non merci**; adding it
@@ -123,7 +124,9 @@ confirmation — records the caution status and the complement(s) on the reserva
 12. **Récapitulatif (always).** Shows the **arrival complement to collect** = **existing `complementAmount`**
     (before the SAS) **+** the items added during the SAS (linen elements, cleaning, bath linen, breakfast and
     catering sold at check-in), **with the full detail
-    line by line**. Also shows the caution status (Fait / non traité). When the cleaning is included, shows the
+    line by line**. Also shows the caution status (Fait / non traité) — after « Reporter au départ »
+    the recap reads « Caution non perçue : reportée au départ. » (it showed nothing until the
+    2026-10-27 spec review; `ReservationSasDialog.caution-deferred.test.jsx`). When the cleaning is included, shows the
     client reminder « vaisselle faite et rangée, poubelles vidées » (moved here from the hidden ménage page,
     specs/sas-hide-settled-steps.md §3), except on an Airbnb stay (specs/airbnb-no-checkout-chores.md). Buttons **Valider et terminer** (commit) / **Quitter**.
 
@@ -250,6 +253,16 @@ confirmation — records the caution status and the complement(s) on the reserva
     draps sont-ils manquants ? » put a filled « Non » on the right and « Oui » on the left, the reverse
     of the keys page that follows (rule 14.bis keeps its behaviour, only its wording turns).
 
+29. **A linen element keeps its count** (fixed at the 2026-10-27 spec review). The arrival SAS writes
+    a missing linen element as a custom line; the row stored the total only (« Taie d'oreiller »
+    × 2 at 3,30 € = one 6,60 € row), so the planning card and every reader showed « ×1 ».
+    `reservation_custom_options.quantity` (default 1) now keeps the count: the reservation payload
+    gives such a line `quantity` / `billedUnits` = the count and `unitPrice` = amount ÷ count; a
+    fiche save carries the count over with the SAS marker; a reopened SAS seeds its counters from it
+    instead of dividing the amount by a price that may have changed. Existing SAS rows are backfilled
+    once (`sas_custom_line_quantity_v1`) when their amount is an exact multiple of the priced item of
+    the same label. Pinned by `tests/sas-custom-line-quantity.unit.test.js`.
+
 ---
 
 ## 4. Architecture
@@ -264,6 +277,8 @@ confirmation — records the caution status and the complement(s) on the reserva
 |---|---|---|---|
 | `database.js` | `database.js` | T | Migrations: `linen_priced_items` table; `reservations.endOfStayComplementAmount` / `endOfStayComplementPaid` / `endOfStayComplementPaidDate` / `endOfStayComplementDetail` (idempotent ADD COLUMN). |
 | `models/` | `models/linenItemsModel.js` | C | CRUD for `linen_priced_items` (list / replace-all). |
+| `utils/` | `utils/sasCustomLineQuantityMigration.js` | C | _(2026-10-27, rule 29)_ `reservation_custom_options.quantity` + the one-shot backfill of existing SAS lines, called from `database.js`. |
+| `models/` | `models/bookingLinesModel.js` | T | _(2026-10-27, rule 29)_ a fiche save carries a SAS line's count over with its marker. |
 | `models/` | `models/reservationsModel.js` | T | Reuse `getByIdWithDetails`; add `commitArrivalSas` / `commitDepartureSas` (caution flags, insert custom options inComplement + re-price for arrival; set end-of-stay complement for departure). |
 | `controllers/` | `controllers/reservationsController.js` (or new `sasController.js`) | C/T | `getSasData(id, mode)` assembles the SAS payload (applicable pages + data: caution, options list, bedLinenAlert, cleaning included? + property cleaning price, existing complement, linen elements). `commitArrivalSas` / `commitDepartureSas`. |
 | `utils/` | `utils/bedLinenAdequacy.js` | REUSE | Same `bedLinenAlert` already used by the planning card. |
@@ -390,7 +405,9 @@ existing reservations needed.
   **CB / Chèque** (encaissé, compta), **Payé en liquide** (caisse interne, hors compta), and — arrival only —
   **En fin de séjour** (leave unpaid → recalled at check-out), **pre-selected on arrival** so validating the
   SAS without touching the buttons visibly means « encaissé au check-out ». The departure recap shows the same
-  buttons without « En fin de séjour », none pre-selected. See specs/sas-recap-payment-buttons.md.
+  buttons without « En fin de séjour », none pre-selected. See specs/sas-recap-payment-buttons.md. When the
+  recap settles the stay and the complement in one payment, the third button reads « Plus tard »
+  (2026-10-27 spec review).
 - **Blanchisserie page**: existing stock fields kept; a new « Tarifs des éléments de linge » table below,
   with add-row / edit / delete / drag-reorder, saved with the page.
 - **States**: loading while fetching the SAS payload; error → retry; empty linen-items list → the « Pas OK »

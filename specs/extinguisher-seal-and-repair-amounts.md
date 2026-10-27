@@ -80,6 +80,9 @@ guest-billable amounts live in one place.
 7. **One page, departure only.** The extinguisher condition page appears on **every departure** SAS (a
    safety check), placed just before the recap; the conditional tariff page follows it only on « Non ».
    The single commit at the recap is unchanged. The **arrival** SAS no longer has an extinguisher page.
+   *(2026-10-27 spec review: « every departure » holds only while the `extinguisherCheck` setting of
+   the `sas` plugin is on — [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md)
+   rule 16. Off, the departure shows no extinguisher page and the commit accepts no seal field.)*
 7. **« Précédent » navigation (new — all SAS pages).** The SAS gains a back affordance (a « ‹ » arrow in
    the header band, shown from the 2nd page on) that returns to the previous page; in-memory decisions
    are **preserved** (revisiting a page shows the prior answer). Going back writes nothing — only

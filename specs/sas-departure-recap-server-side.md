@@ -236,6 +236,13 @@ the commit runs, so that what the operator collects at the door is what the book
 27. **No departure money contract for plugin steps.** `sas.departure.steps` keeps `recapNotes` (text)
     only. Billing at check-out through a `sasCommit` hook is out of scope (§8); a step that wants it
     later gets it the arrival way, server-side.
+28. **A count of linen pieces is a whole number** (fixed at the 2026-10-27 spec review). A missing
+    quantity of 1.5 was rounded to 2 by `resolveSasDepartureItems` and billed; the arrival's
+    `resolveSasArrivalItems` rounded the same way. The SAS controller now refuses a non-integer or
+    negative `qty` in `missingItems` (departure) or `linenItems` (arrival) with **400
+    `INVALID_QUANTITY`** « Quantité invalide : un nombre entier de pièces est attendu. », at the
+    preview as at the commit, before anything is planned or written. Pinned by
+    `plugins/sas/tests/sas-whole-quantities.unit.test.js`.
 
 **Edge cases:**
 - End-of-stay complement already paid (single payment at check-in, or a prior check-out) →

@@ -2007,6 +2007,12 @@ db.exec(`
     sortOrder INTEGER NOT NULL DEFAULT 0
   );
 `);
+
+// ---------- SAS CUSTOM LINES KEEP THEIR QUANTITY ----------
+// specs/arrival-departure-sas.md rule 29 (2026-10-27 spec review): « Taie d'oreiller » × 2 was one
+// custom row carrying the total only. Column + one-shot backfill, recorded in `migrations`.
+require('./utils/sasCustomLineQuantityMigration').ensureCustomLineQuantity(db, { skipBackfill: process.env.SKIP_MIGRATIONS === 'true' });
+
 // « Tarifs facturables » — repair amounts (operator-managed in Réglages). Generic priced list; rows with
 // a `repairKey` are SAS-linked + protected. Seeded with the fire-extinguisher seal
 // (specs/extinguisher-seal-and-repair-amounts.md).

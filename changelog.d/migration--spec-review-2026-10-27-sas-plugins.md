@@ -1,0 +1,1 @@
+- `reservation_custom_options.quantity` (INTEGER, default 1) is added at boot. One-shot `sas_custom_line_quantity_v1`: an existing arrival-SAS custom line whose label is a priced linen item and whose amount is an exact multiple (> 1) of that price gets that count; every other row keeps 1. No amount changes.

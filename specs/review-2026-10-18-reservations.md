@@ -78,6 +78,10 @@ The reservation screens say what they mean, on a phone, a tablet and a desktop.
 - The tabs of a page keep showing from `sm`: `centerFrom` applies to `center` only.
 
 ---
+8. **The fiche's selects have a name (fixed at the 2026-10-27 spec review).** « Logement », « Heure
+   d'arrivée » and « Heure de départ » were comboboxes without an accessible name: their `InputLabel`
+   had no `id` for the `Select` to point at. Each pair is now linked (`labelId`), so a screen reader
+   announces the field. Pinned by `StaySection.accessible-names.test.jsx`.
 
 ## 4. Architecture
 
