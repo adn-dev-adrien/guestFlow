@@ -492,12 +492,18 @@ canonical: it never merged them.
     (`gîtes de france` → `GitesDeFrance`).
 23. **The boot de-duplication groups by slug.** `runPlatformSlugDedup` groups `platforms` rows by their
     compact slug (accents, case and separators ignored), so `AirbnbTente` / `Airbnbtente` and
-    `GitesDeFrance` / `Gitesdefrance` are one group. The group's name is the canonical form of its
-    most-segmented spelling (the one that kept its word boundaries; lowest id on a tie). The merge of
-    settings is unchanged — commission and the other scalars from the operator's row, `countsAsDirect`
-    and `forbidsGuestChores` ticked if ticked on any duplicate — and the references of every merged
-    row (`reservations.platform`, `ical_sources.platformLabel`) follow. This heals, at the first boot
-    of the fix, the rows and imports the bug already split.
+    `GitesDeFrance` / `Gitesdefrance` are one group. The surviving row — and its name, in canonical
+    form — is the **most-referenced** one (stays in `reservations.platform` + iCal sources in
+    `ical_sources.platformLabel`), then the lowest id; the spelling with the most camel-case segments
+    only breaks a tie between rows nobody references. *(Amended 2026-10-27 after the PR #798 review:
+    the first version kept the most-segmented spelling, so one stray `AirBnb` row renamed the
+    established `Airbnb` and rewrote its 7 stays and 2 sources — and the Qonto reconciliation, which
+    matches platform names exactly, stopped proposing their payouts.)* The merge of settings is
+    unchanged — commission and the other scalars from the operator's row, `countsAsDirect` and
+    `forbidsGuestChores` ticked if ticked on any duplicate — and the references of every merged row
+    (`reservations.platform`, `ical_sources.platformLabel`, and `cancellation_compensations.platform`
+    when the table exists) follow. This heals, at the first boot of the fix, the rows and imports the
+    bug already split.
 
 The typo-correction exclusion above stands: `Gitedefrance` (no « s ») and `GitesDeFrance` are still
 two slugs.
@@ -507,11 +513,11 @@ two slugs.
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `models/` | `models/propertyIcalModel.js` | T | `resolveSourceInput` drops the sentence-case pass (rule 22). |
-| `utils/` | `utils/platformSlugDedupMigration.js` | T | Groups by compact slug, names the group after its most-segmented spelling (rule 23). |
+| `utils/` | `utils/platformSlugDedupMigration.js` | T | Groups by compact slug; the most-referenced row survives (segments only between unreferenced rows); compensations re-pointed too (rule 23). |
 
 ### Test plan
 
 | Test file | Cases | Pins |
 |---|---|---|
-| `tests/platform-label-drift.unit.test.js` (C) | 4 — saving « GitesDeFrance » and « AirbnbTente » keeps the spelling, the commission and a single catalogue row; a free-typed label is canonicalised; the dedup merges both pairs into the operator's rows with every setting and reference, idempotently. | Rules 22–23. |
+| `tests/platform-label-drift.unit.test.js` (C) | 5 — saving « GitesDeFrance » and « AirbnbTente » keeps the spelling, the commission and a single catalogue row; a free-typed label is canonicalised; the dedup merges both pairs into the operator's (most-referenced) rows with every setting and reference, idempotently; a stray `AirBnb` / `GreenGo` never renames the referenced `Airbnb` / `Greengo`, segments decide between unreferenced rows, compensations follow. | Rules 22–23. |
 | `tests/airbnb-no-checkout-chores.unit.test.js` (S) | unchanged — the dedup still ORs the two switches. | Rule 23. |

@@ -68,12 +68,8 @@ function runPlatformSlugDedup(database) {
   const rows = database.prepare(select).all();
 
   // Group by compact slug — case, accents and separators ignored (specs/normalize-platform-names.md
-  // rule 22). Grouping by `formatPlatformName` kept `AirbnbTente` and `Airbnbtente` apart: both are
+  // rule 23). Grouping by `formatPlatformName` kept `AirbnbTente` and `Airbnbtente` apart: both are
   // already canonical, yet they are one platform, and the second one carried no commission.
-  // The group's name is the canonical form of its most-segmented spelling: `GitesDeFrance` keeps the
-  // word boundaries that `Gitesdefrance` lost.
-  const segmentsOf = (name) => (String(name).normalize('NFD').replace(/\p{M}/gu, '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).filter(Boolean).length);
   const bySlug = new Map();
   for (const r of rows) {
     const canonical = formatPlatformName(r.name);
@@ -82,29 +78,44 @@ function runPlatformSlugDedup(database) {
     if (!bySlug.has(key)) bySlug.set(key, []);
     bySlug.get(key).push(r);
   }
-  const groups = new Map();
-  for (const list of bySlug.values()) {
-    const richest = [...list].sort((a, b) => (segmentsOf(b.name) - segmentsOf(a.name)) || (a.id - b.id))[0];
-    groups.set(formatPlatformName(richest.name), list);
-  }
 
   const hasIcal = tableExists(database, 'ical_sources');
   const updateIcal = hasIcal ? database.prepare('UPDATE ical_sources SET platformLabel = ? WHERE platformLabel = ?') : null;
   const updateRes = database.prepare('UPDATE reservations SET platform = ? WHERE platform = ?');
+  // Display data of a cancelled stay's indemnity: follows the merge like the stays.
+  const hasCompensations = tableExists(database, 'cancellation_compensations')
+    && database.prepare('PRAGMA table_info(cancellation_compensations)').all().some((c) => c.name === 'platform');
+  const updateComp = hasCompensations ? database.prepare('UPDATE cancellation_compensations SET platform = ? WHERE platform = ?') : null;
   const deletePlatform = database.prepare('DELETE FROM platforms WHERE id = ?');
+  const repointRefs = (to, from) => {
+    if (updateIcal) updateIcal.run(to, from);
+    updateRes.run(to, from);
+    if (updateComp) updateComp.run(to, from);
+  };
+
+  // Rule 23 (amended after the PR #798 review) — the survivor is the most-referenced row (stays + iCal
+  // sources), then the lowest id. Other code matches platform names exactly (the Qonto reconciliation
+  // among them), so a stray `AirBnb` must never rename the established `Airbnb`. « Most camel-case
+  // segments » only breaks a tie between rows nobody references (`GitesDeFrance` over `Gitesdefrance`).
+  const countRes = database.prepare('SELECT COUNT(*) c FROM reservations WHERE platform = ?');
+  const countIcal = hasIcal ? database.prepare('SELECT COUNT(*) c FROM ical_sources WHERE platformLabel = ?') : null;
+  const refsOf = (name) => countRes.get(name).c + (countIcal ? countIcal.get(name).c : 0);
+  const segmentsOf = (name) => (String(name).normalize('NFD').replace(/\p{M}/gu, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).filter(Boolean).length);
+  const groups = [];
+  for (const list of bySlug.values()) {
+    const ranked = list.map((r) => ({ row: r, refs: refsOf(r.name) })).sort((a, b) => (b.refs - a.refs)
+      || (a.refs === 0 && b.refs === 0 ? segmentsOf(b.row.name) - segmentsOf(a.row.name) : 0)
+      || (a.row.id - b.row.id));
+    const sorted = ranked.map((x) => x.row);
+    groups.push({ canonical: formatPlatformName(sorted[0].name), sorted });
+  }
 
   let mergedCount = 0;
   let renamedCount = 0;
 
-  for (const [canonical, list] of groups.entries()) {
-    if (list.length === 1 && list[0].name === canonical) continue; // already clean → no-op
-
-    // Winner: the row already named canonically, else the lowest id (deterministic + stable).
-    const sorted = [...list].sort((a, b) => {
-      const aCanon = a.name === canonical ? 0 : 1;
-      const bCanon = b.name === canonical ? 0 : 1;
-      return (aCanon - bCanon) || (a.id - b.id);
-    });
+  for (const { canonical, sorted } of groups) {
+    if (sorted.length === 1 && sorted[0].name === canonical) continue; // already clean → no-op
     const winner = sorted[0];
     const losers = sorted.slice(1);
 
@@ -129,14 +140,12 @@ function runPlatformSlugDedup(database) {
 
     // Re-point name-based references (iCal sources + reservations) to the canonical name, drop losers.
     for (const loser of losers) {
-      if (updateIcal) updateIcal.run(canonical, loser.name);
-      updateRes.run(canonical, loser.name);
+      repointRefs(canonical, loser.name);
       deletePlatform.run(loser.id);
       mergedCount += 1;
     }
     if (winner.name !== canonical) {
-      if (updateIcal) updateIcal.run(canonical, winner.name);
-      updateRes.run(canonical, winner.name);
+      repointRefs(canonical, winner.name);
       renamedCount += 1;
     }
 
