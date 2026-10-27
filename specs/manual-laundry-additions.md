@@ -58,8 +58,11 @@ trip date** (one human, one trip per day — same scope as skips).
    reservation backlog — identical to how reservation linen behaves under a skip
    ([skip-laundry-trip.md](skip-laundry-trip.md) §3.2).
 6. **Editing.** Setting the six values for a date **upserts** the row. Setting all six to zero
-   **deletes** the row (no empty rows; the trip reverts to reservation-only). Negative inputs are
-   clamped to 0 server-side (authoritative).
+   **deletes** the row (no empty rows; the trip reverts to reservation-only). ~~Negative inputs are
+   clamped to 0 server-side (authoritative).~~ **Superseded by
+   [laundry-manual-removals.md](laundry-manual-removals.md)** (note added at the 2026-10-27 spec review):
+   a negative value is now stored **signed** and removes that many items from the trip; the trip's
+   count is floored at 0, and a stock withdrawal is capped at the dirty pile.
 7. **No reservation coupling.** Manual additions never touch reservations, options, or the
    complement/finance — they are purely a linen-trip overlay.
 8. **Hide-when-empty unchanged.** A trip with zero reservation linen but non-zero manual additions

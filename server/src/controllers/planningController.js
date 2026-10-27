@@ -6,6 +6,7 @@
 
 const breakfastModel = require('../models/breakfastModel');
 const planningOptionCardsModel = require('../models/planningOptionCardsModel');
+const planningAlertsModel = require('../models/planningAlertsModel');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -16,8 +17,24 @@ function isIsoDate(value) {
 function buildController({
   breakfastModel: injectedBreakfastModel = breakfastModel,
   planningOptionCardsModel: injectedOptionCardsModel = planningOptionCardsModel,
+  planningAlertsModel: injectedAlertsModel = planningAlertsModel,
 } = {}) {
   return {
+    /**
+     * GET /api/planning/alerts?from=YYYY-MM-DD&to=YYYY-MM-DD
+     *
+     * The cleaning alerts of the planning cards (specs/planning-arrival-alerts.md rules 7–10), keyed
+     * by card kind: `{ arrivals: { [reservationId]: alert }, departures: { [reservationId]: alert } }`.
+     */
+    alerts(req, res) {
+      const from = (req.query && req.query.from) || '';
+      const to = (req.query && req.query.to) || '';
+      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+      }
+      return res.json(injectedAlertsModel.alertsInRange({ from, to }));
+    },
+
     /**
      * GET /api/planning/breakfast?from=YYYY-MM-DD&to=YYYY-MM-DD
      *
@@ -82,9 +99,15 @@ function buildController({
         || !isIsoDate(date)) {
         return res.status(400).json({ error: 'INVALID_PAYLOAD' });
       }
-      const result = injectedOptionCardsModel.setOccurrenceDone({
+      let result = injectedOptionCardsModel.setOccurrenceDone({
         reservationId, optionId, date, time: String(body.time || ''), done: Boolean(body.done),
       });
+      // A breakfast served without chosen mornings has a card every morning but no stored occurrence:
+      // its flag is kept apart (specs/breakfast-option-planning-card.md, 2026-10-27 spec review).
+      if (result && (result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND')) {
+        const fallback = injectedBreakfastModel.setFallbackDone({ reservationId, optionId, date, done: Boolean(body.done) });
+        if (fallback && !fallback.error) result = fallback;
+      }
       if (result && result.error) {
         const status = result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND' ? 404 : 400;
         return res.status(status).json({ error: result.error });

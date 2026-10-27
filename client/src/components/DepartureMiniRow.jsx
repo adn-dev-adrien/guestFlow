@@ -158,10 +158,13 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
         {/* Detail block indented to align with the left edge of the DÉPART badge */}
         <Box sx={{ pl: '40px' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
-              {reservation.propertyName}
-            </Typography>
+            {/* Icon and name wrap together: a long name never leaves the icon alone on its line. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, maxWidth: '100%' }}>
+              <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2, minWidth: 0 }}>
+                {reservation.propertyName}
+              </Typography>
+            </Box>
             {alertInfo?.explanation && (
               <Typography
                 variant="caption"
@@ -179,7 +182,7 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
           {/* Second-line block reduced to the client name. Clock + "Départ HH:MM"
               duplicate of the top time pill is removed (Adrien 2026-06-06). */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
             {onOpenClient && reservation.clientId ? (
               <Link
                 component="button"

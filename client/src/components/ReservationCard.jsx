@@ -226,10 +226,13 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
         {/* Detail block indented to align with the left edge of the ARRIVÉE badge (checkbox 32px + gap 8px) */}
         <Box sx={{ pl: '40px' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
-              {r.propertyName}
-            </Typography>
+            {/* Icon and name wrap together: a long name never leaves the icon alone on its line. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, maxWidth: '100%' }}>
+              <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2, minWidth: 0 }}>
+                {r.propertyName}
+              </Typography>
+            </Box>
             {r.platform && (
               <Box
                 component="span"
@@ -268,7 +271,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
           {/* Second-line block reduced to the client name. The clock icon + "Arrivée
               HH:MM" duplicate of the top time pill is removed (Adrien 2026-06-06). */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
             {/* Client name → client fiche (the rest of the card is non-clickable; the buttons above
                 open the reservation / SAS). */}
             {onOpenClient && r.clientId ? (

@@ -541,6 +541,9 @@ const api = {
   // `{ breakfastByDate: { 'YYYY-MM-DD': { items: [{ clientName, propertyName, persons }], totalPersons } } }`.
   getBreakfastPlanningSummary: ({ from, to }) =>
     request(`/planning/breakfast?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // specs/planning-arrival-alerts.md rules 7–10 — the cards' cleaning alerts, computed by the server.
+  getPlanningAlerts: ({ from, to }) =>
+    request(`/planning/alerts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   // Option-driven planning cards (specs/option-planning-card.md §3.3). Returns one card per stored
   // occurrence of a « carte planning » option whose date ∈ [from, to]. Payload:
   // `{ optionCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] } } }`.

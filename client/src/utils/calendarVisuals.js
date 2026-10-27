@@ -8,6 +8,9 @@ import { getBlockedNightConflictInfo } from './reservationConflicts';
 
 export const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 export const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+// The French abbreviations: cutting the full name gave « Nove. », « Octo. », and « Jui » for both June
+// and July (2026-10-27 spec review).
+export const MONTH_SHORT_NAMES = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
 
 // Time window for the proportional day fill: 8h → 21h (13h range).
 export const DAY_START = 8;

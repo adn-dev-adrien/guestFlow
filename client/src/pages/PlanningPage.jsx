@@ -20,8 +20,6 @@ import DepartureMiniRow from '../components/DepartureMiniRow';
 import Slot from '../plugins/sdk/Slot';
 import { readSasDeepLink, readBreakfastDeepLink } from '../utils/sasDeepLink';
 import { orderDayEntries } from '../utils/planningDayOrder';
-import { displayDate } from '../utils/formatters';
-import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
 import { countDayTasks } from '../utils/planningDayTasks';
 import { useAuth } from '../hooks/useAuth';
@@ -128,15 +126,17 @@ export default function PlanningPage() {
       await api.setPlanningOptionCardDone({
         reservationId: item.reservationId, optionId: item.optionId, date: item.date, time: item.time, done: nextDone,
       });
-    } catch (e) {
+    } catch {
       apply(!nextDone); // revert
-      showError(e.message || 'Impossible de mettre à jour la préparation.');
+      // The server answers a code (OCCURRENCE_NOT_FOUND…): the operator reads a sentence, never the code.
+      showError('Impossible de mettre à jour la préparation.');
     }
   }, [showError]);
 
   // The breakfast card shares the « fait » toggle (specs/breakfast-option-planning-card.md) — same
   // generic occurrence endpoint, but optimistic state lives in breakfastByDate (matched by reservation
-  // + hour on the day). No-op revert if the occurrence isn't found (legacy / un-migrated fallback).
+  // + hour on the day). A breakfast without chosen mornings ticks the same way: the server keeps that
+  // morning's flag apart (2026-10-27 spec review).
   const handleToggleBreakfastDone = useCallback(async (item, nextDone) => {
     if (!item || !item.optionId) return;
     const apply = (value) => setBreakfastByDate((prev) => {
@@ -151,9 +151,9 @@ export default function PlanningPage() {
       await api.setPlanningOptionCardDone({
         reservationId: item.reservationId, optionId: item.optionId, date: item.date, time: item.time, done: nextDone,
       });
-    } catch (e) {
+    } catch {
       apply(!nextDone);
-      showError(e.message || 'Impossible de mettre à jour le petit déjeuner.');
+      showError('Impossible de mettre à jour le petit déjeuner.');
     }
   }, [showError]);
 
@@ -187,8 +187,10 @@ export default function PlanningPage() {
   const todayStr = useServerToday();
   const [pickedStart, setStartDate] = useState(null);
   const startDate = pickedStart || todayStr;
-  const [alertMap, setAlertMap] = useState({});
-  const [properties, setProperties] = useState([]);
+  // Cleaning alerts of the cards, computed by the server and keyed by card kind
+  // (specs/planning-arrival-alerts.md rules 7–10): an arrival card reads `arrivals`, a departure row
+  // reads `departures` — a stay's two cards never share an alert.
+  const [alerts, setAlerts] = useState({ arrivals: {}, departures: {} });
   const [departuresMap, setDeparturesMap] = useState({});
   // Cards plugins add to the days (slot `planning.days`, specs/plugins-phase-2-hosts.md rule 5):
   // contribution id → { [date]: entry }, each loaded by the contribution's own `load`.
@@ -228,11 +230,6 @@ export default function PlanningPage() {
 
   const lastLoadedRef = useRef(null);
 
-  // Load properties once
-  useEffect(() => {
-    api.getProperties().then(setProperties);
-  }, []);
-
   // Loads the contributed day cards of [from, to]. `merge` adds a window the infinite scroll reached;
   // otherwise the contribution's dates are replaced. A failed load leaves that contribution's cards
   // out and says so; the other cards render.
@@ -258,119 +255,21 @@ export default function PlanningPage() {
     to: contributedUntilRef.current || addDays(startDate, DAYS_AHEAD - 1),
   }), [loadContributions, startDate]);
 
-  // Detect scheduling conflicts
-  const detectAlerts = useCallback((days, props = []) => {
-    const alerts = {};
-    const propMap = Object.fromEntries(props.map((p) => [p.id, p]));
-
-    // Flatten all reservations for cross-day/cross-day lookups
-    const allRess = days.flatMap((d) => d.reservations);
-
-    for (const day of days) {
-      const ress = day.reservations;
-      for (let i = 0; i < ress.length; i++) {
-        const r = ress[i];
-
-        // Type 1: Multiple logements with same checkout time (orange for simultaneity)
-        const firstCheckout = ress[i].endDate === ress[i].startDate ? ress[i].checkOutTime || '11:00' : '11:00';
-        const matchingCheckout = ress.filter(
-          (rr) => rr.id !== r.id && rr.endDate === r.endDate && (rr.checkOutTime || '11:00') === firstCheckout
-        );
-        if (matchingCheckout.length > 0) {
-          alerts[r.id] = { type: 'orange', explanation: 'Départs simultanés de plusieurs logements' };
-        }
-
-        // Type 2: previous checkout + cleaning time compared to current arrival
-        const samePropertyPast = allRess.filter((rr) => rr.id !== r.id && rr.propertyId === r.propertyId);
-        const prevRes = samePropertyPast
-          .map((rr) => {
-            const co = rr.checkOutTime || '10:00';
-            return { rr, endStamp: `${rr.endDate}T${co}:00` };
-          })
-          .filter((x) => x.endStamp <= `${r.startDate}T${r.checkInTime || '15:00'}:00`)
-          .sort((a, b) => b.endStamp.localeCompare(a.endStamp))[0]?.rr;
-        if (prevRes) {
-          const prop = propMap[r.propertyId];
-          const cleaningHours = Number(prop?.cleaningHours ?? 3);
-          const cleaningMinutes = Math.round(cleaningHours * 60);
-          const prevCheckOut = prevRes.checkOutTime || '10:00';
-
-          // Compare REAL datetimes (date + time + cleaning), not minutes-of-day: a 10:00 checkout
-          // followed by a 10:00 arrival 9 days later is NOT a turnover conflict.
-          if (cleaningTurnoverConflict({
-            checkoutDate: prevRes.endDate,
-            checkoutTime: prevCheckOut,
-            cleaningMinutes,
-            arrivalDate: r.startDate,
-            arrivalTime: r.checkInTime || '15:00',
-          })) {
-            const cleaningDisplay = Number.isInteger(cleaningHours)
-              ? `${cleaningHours}h`
-              : `${String(cleaningHours).replace('.', 'h')}`;
-            const departureDate = displayDate(prevRes.endDate);
-            alerts[r.id] = {
-              type: 'red',
-              explanation: `${prevRes.firstName} ${prevRes.lastName} part le ${departureDate} à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
-              // No `cleaningDisplay` field on the arrival side — Adrien 2026-06-06 asked
-              // for the standalone red "Ménage" badge to be removed from the arrival
-              // card. The cleaning duration stays embedded in the explanation sentence
-              // (rendered as a caption next to the property name). Only the departure
-              // side carries the field, which `DepartureMiniRow` surfaces as a
-              // prominent block in the place freed by the removed "Famille" row.
-            };
-            if (!alerts[prevRes.id]) {
-              alerts[prevRes.id] = {
-                type: 'red',
-                explanation: `Arrivée de ${r.firstName} ${r.lastName} ${displayDate(r.startDate)} à ${r.checkInTime || '15:00'}, ménage: ${cleaningDisplay}`,
-                cleaningDisplay,
-              };
-            }
-          }
-        }
-
-        // Type 3: Arrival during another logement's cleaning (blue). Datetime-correct: only flag an
-        // other-property checkout whose cleaning window actually overlaps this arrival (not merely a
-        // same-time checkout on an earlier day).
-        if (!alerts[r.id]) {
-          const otherRes = allRess.find((rr) => {
-            if (rr.id === r.id || rr.propertyId === r.propertyId || rr.endDate > r.startDate) return false;
-            const otherProp = propMap[rr.propertyId];
-            const otherCleaningMinutes = otherProp?.cleaning || 120;
-            const otherCheckOut = rr.endDate === rr.startDate ? rr.checkOutTime || '11:00' : '11:00';
-            return cleaningTurnoverConflict({
-              checkoutDate: rr.endDate,
-              checkoutTime: otherCheckOut,
-              cleaningMinutes: otherCleaningMinutes,
-              arrivalDate: r.startDate,
-              arrivalTime: r.checkInTime || '15:00',
-            });
-          });
-          if (otherRes) {
-            alerts[r.id] = {
-              type: 'blue',
-              explanation: `Arrivée pendant nettoyage d'un autre logement`,
-            };
-          }
-        }
-      }
-    }
-
-    setAlertMap(alerts);
-  }, []);
-
   const loadPlanning = async (from) => {
     setLoading(true);
     setLoadError(false);
     try {
       const to = addDays(from, DAYS_AHEAD - 1);
       contributedUntilRef.current = to;
-      const [reservationsBase, breakfastSummary, optionCardsSummary] = await Promise.all([
+      const [reservationsBase, breakfastSummary, optionCardsSummary, alertsSummary] = await Promise.all([
         api.getReservations({ from, to }),
         // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
         // Non-blocking like the others; an empty map keeps the planning fully functional.
         api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
         // specs/option-planning-card.md §3.3 — option-driven planning cards. Non-blocking.
         api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
+        // specs/planning-arrival-alerts.md rule 7 — the cards' cleaning alerts. Non-blocking.
+        api.getPlanningAlerts({ from, to }).catch(() => null),
         // The plugins' day cards — non-blocking: a failed contribution only loses its own cards.
         loadContributions(dayContributions, { from, to }),
       ]);
@@ -411,7 +310,7 @@ export default function PlanningPage() {
       // Option-driven planning cards (specs/option-planning-card.md §3.3).
       setOptionCardsByDate(optionCardsSummary?.optionCardsByDate || {});
 
-      detectAlerts(days, properties);
+      setAlerts({ arrivals: alertsSummary?.arrivals || {}, departures: alertsSummary?.departures || {} });
       lastLoadedRef.current = to;
     } catch (e) {
       setLoadError(true);
@@ -422,7 +321,7 @@ export default function PlanningPage() {
 
   useEffect(() => {
     if (startDate) loadPlanning(startDate);
-  }, [startDate, properties]); // eslint-disable-line
+  }, [startDate]); // eslint-disable-line
 
   // Infinite scroll listener — bound to the WINDOW: the page has no scroll container of its own
   // anymore (specs/ds-sweep-planning.md rule 6 — the sticky bar must survive scrolling).
@@ -445,6 +344,13 @@ export default function PlanningPage() {
             const next = summary?.breakfastByDate || {};
             setBreakfastByDate((prev) => ({ ...prev, ...next }));
           })
+          .catch(() => {});
+        // The next window's cleaning alerts, merged per card kind (specs/planning-arrival-alerts.md).
+        api.getPlanningAlerts({ from: nextStart, to: nextEnd })
+          .then((next) => setAlerts((prev) => ({
+            arrivals: { ...prev.arrivals, ...(next?.arrivals || {}) },
+            departures: { ...prev.departures, ...(next?.departures || {}) },
+          })))
           .catch(() => {});
         // Same incremental pattern for the option-driven cards (specs/option-planning-card.md §3.3).
         api.getPlanningOptionCards({ from: nextStart, to: nextEnd })
@@ -497,7 +403,6 @@ export default function PlanningPage() {
             });
 
             setPlanningDays((prev) => [...prev, ...newDays]);
-            detectAlerts([...planningDays, ...newDays], properties);
             lastLoadedRef.current = nextEnd;
           });
         });
@@ -506,7 +411,7 @@ export default function PlanningPage() {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loading, planningDays, detectAlerts, properties]); // eslint-disable-line
+  }, [loading, planningDays]); // eslint-disable-line
 
   const handleToggleReady = async (r) => {
     const newReady = !r.checkInReady;
@@ -654,7 +559,7 @@ export default function PlanningPage() {
                 onOpenReservation={receptionMode ? undefined : openReservation}
                 onOpenSas={sasOn ? openDepartureSas : undefined}
                 onOpenClient={receptionMode ? undefined : openClient}
-                alertInfo={alertMap[r.id]}
+                alertInfo={alerts.departures[r.id]}
               />
             ),
           }));
@@ -666,7 +571,7 @@ export default function PlanningPage() {
               <ReservationCard
                 reservation={r}
                 onToggleReady={handleToggleReady}
-                alertInfo={alertMap[r.id]}
+                alertInfo={alerts.arrivals[r.id]}
                 onOpenReservation={receptionMode ? undefined : openReservation}
                 onOpenSas={sasOn ? openArrivalSas : undefined}
                 onOpenClient={receptionMode ? undefined : openClient}

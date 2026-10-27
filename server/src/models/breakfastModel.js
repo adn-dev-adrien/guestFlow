@@ -225,7 +225,51 @@ function buildModel(database) {
     return (optionDefaultRow && formatTimeShort(optionDefaultRow.breakfastTime)) || FALLBACK_BREAKFAST_TIME;
   }
 
+  // « Préparé » marks of the mornings served WITHOUT stored occurrences (the fallback cards below:
+  // a breakfast sold by the site or the API with no chosen mornings, or a property default). They have
+  // no occurrence to carry the flag, so it lives in its own table, one row per reservation and morning
+  // (specs/breakfast-option-planning-card.md rule added at the 2026-10-27 spec review). Guarded so a
+  // minimal test schema without the table reads every fallback card as not done.
+  const HAS_FALLBACK_MARKS = (() => {
+    try { return Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'breakfast_fallback_done'").get()); }
+    catch { return false; }
+  })();
+  const fallbackMarksStmt = HAS_FALLBACK_MARKS
+    ? database.prepare('SELECT reservationId, date FROM breakfast_fallback_done WHERE date >= ? AND date <= ?')
+    : null;
+  function fallbackMarks(from, to) {
+    if (!fallbackMarksStmt) return new Set();
+    return new Set(fallbackMarksStmt.all(String(from), String(to)).map((m) => `${m.reservationId}|${m.date}`));
+  }
+
+  // Is there a fallback card (no stored occurrence) for this reservation on this morning?
+  function hasFallbackCard(reservationId, date) {
+    const row = stmt.all(date, date).find((r) => Number(r.reservationId) === Number(reservationId));
+    if (!row || morningPersons(row) <= 0) return false;
+    return parseBreakfastOccurrences(row.breakfastCardOccurrences).length === 0;
+  }
+
   return {
+    /**
+     * Toggles the « préparé » flag of a FALLBACK breakfast card — a morning served without stored
+     * occurrences. Returns `{ ok, done }`, or `{ error: 'OCCURRENCE_NOT_FOUND' }` when that reservation
+     * has no fallback card on that morning (its mornings are chosen occurrences, or none is served).
+     */
+    setFallbackDone({ reservationId, optionId, date, done } = {}) {
+      const isBreakfast = Boolean(database.prepare("SELECT 1 FROM options WHERE id = ? AND autoOptionType = 'breakfast'").get(Number(optionId)));
+      if (!HAS_FALLBACK_MARKS || !isBreakfast || !hasFallbackCard(reservationId, String(date))) {
+        return { error: 'OCCURRENCE_NOT_FOUND' };
+      }
+      if (done) {
+        database.prepare('INSERT OR IGNORE INTO breakfast_fallback_done (reservationId, date) VALUES (?, ?)')
+          .run(Number(reservationId), String(date));
+      } else {
+        database.prepare('DELETE FROM breakfast_fallback_done WHERE reservationId = ? AND date = ?')
+          .run(Number(reservationId), String(date));
+      }
+      return { ok: true, done: Boolean(done) };
+    },
+
     /**
      * Breakfast state for the arrival SAS breakfast page. Returns
      * `{ applicable, persons, time, coffee, tea, chocolate, milk, pastries, cereals, bread, note }`.
@@ -295,6 +339,7 @@ function buildModel(database) {
       try { const o = database.prepare("SELECT id FROM options WHERE autoOptionType = 'breakfast' ORDER BY id LIMIT 1").get(); breakfastOptionId = o ? o.id : null; } catch { breakfastOptionId = null; }
 
       const rows = stmt.all(String(to), String(from));
+      const doneMornings = fallbackMarks(from, to);
       const result = {};
       for (const r of rows) {
         const persons = morningPersons(r);
@@ -340,7 +385,10 @@ function buildModel(database) {
           const breakfastTime = formatTimeShort(r.reservationBreakfastTime) || optionDefaultTime;
           let cursor = isoMax(addDays(String(r.startDate), 1), String(from));
           const cap   = isoMin(String(r.endDate), String(to));
-          while (cursor <= cap) { pushCard(cursor, breakfastTime, false); cursor = addDays(cursor, 1); }
+          while (cursor <= cap) {
+            pushCard(cursor, breakfastTime, doneMornings.has(`${r.reservationId}|${cursor}`));
+            cursor = addDays(cursor, 1);
+          }
         }
       }
       // Sort each day's breakfasts by time (earliest first), tie-break by client name then id —

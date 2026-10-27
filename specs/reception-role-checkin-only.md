@@ -206,6 +206,12 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     single-threaded CPU/SQL denial of service. The ceiling is deliberately generous so it never
     rejects a real planning or laundry horizon.
 
+13. **No request a role is refused** (fixed at the 2026-10-27 spec review, F15). The app shell's
+    favicon hook read `GET /api/settings` for every signed-in user, so each page of a reception-only
+    (or accountant) user logged a 403 in the console. The hook now runs for an admin only
+    (`useDynamicFavicon({ enabled })`); the other roles keep the logo the server already serves on
+    `/favicon.ico`. (The SAS dialog's own settings read belongs to the SAS plugin, fixed in its lot.)
+
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
   no confinement (rule 1).
@@ -266,6 +272,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 | `components/` | `components/DepartureMiniRow.js` | T | Same `canOpen*` gating for the departure row. |
 | `components/sas/` | `components/sas/ReservationSasDialog.js` | T | Accept `canOpenReservation` / `canOpenClientFiche` (default `true`); hide « Ouvrir la fiche » + the client-name link when false. |
 | `pages/` | `pages/PlanningPage.js` | T | Compute `receptionMode = userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN)`; pass `canOpenClientFiche={!receptionMode}` / `canOpenReservation={!receptionMode}` to the cards + SAS dialog. Data-loading path unchanged (server strips the payloads). |
+| `hooks/` | `hooks/useDynamicFavicon.js` | T | (2026-10-27, rule 13) `enabled` option; `App.jsx` passes `enabled: userHasRole(user, ADMIN)`. Test: `hooks/__tests__/useDynamicFavicon.non-admin.test.jsx`. |
 | `api.js` | — | — | No new methods — reception reuses `getReservations` / `getReservation` / `getProperties` (server-stripped) + the existing SAS + planning methods. |
 
 **Component reuse declaration:**

@@ -10,10 +10,11 @@
  * fresh logo upload wouldn't surface until the tab is force-reloaded. This hook handles both
  * cases at runtime + adds a cache-buster to defeat the favicon cache.
  *
+ * Only an admin reads `GET /api/settings`: the caller passes `enabled: false` before login and for
+ * the other roles, whose request would only end in a 401 / 403 in the console (2026-10-27 spec review,
+ * F15 — the reception's planning). They keep the logo the server serves on `/favicon.ico`.
+ *
  * Failure modes:
- *   - GET /api/settings returns 401 / 403 (pre-login) → we silently fall through (the bundled
- *     default favicon stays). Settings is fetched again once the user logs in via the
- *     `refreshKey` we feed from the auth state.
  *   - Network error → same, silent fall-through. A broken favicon endpoint must NEVER block
  *     the app.
  */
@@ -22,8 +23,9 @@ import { useEffect } from 'react';
 import api from '../api';
 import { setFavicon } from '../utils/setFavicon';
 
-export function useDynamicFavicon({ refreshKey } = {}) {
+export function useDynamicFavicon({ refreshKey, enabled = true } = {}) {
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -39,7 +41,7 @@ export function useDynamicFavicon({ refreshKey } = {}) {
       }
     })();
     return () => { cancelled = true; };
-  }, [refreshKey]);
+  }, [refreshKey, enabled]);
 }
 
 export default useDynamicFavicon;

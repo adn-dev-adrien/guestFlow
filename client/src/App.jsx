@@ -591,7 +591,8 @@ function AppShell() {
   // middleware also serves the logo on /favicon.ico in prod, but the CRA dev server :3000 serves
   // public/favicon.ico directly without proxying — this hook covers both modes + sidesteps the
   // browser's aggressive favicon cache via a version-keyed buster.
-  useDynamicFavicon({ refreshKey: user && user.id });
+  // Admin only: the other roles cannot read the settings (a 403 in the console on every page).
+  useDynamicFavicon({ refreshKey: user && user.id, enabled: userHasRole(user, ADMIN) });
 
   // Non-admin roles are confined client-side to their allowed surface (the server already 403s every
   // other endpoint, but we redirect so they don't see empty shells). A user who also holds admin
