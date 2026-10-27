@@ -895,5 +895,10 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     unavailable.
   - *Gîte, re-checked the same day:* 431 days, 0 difference from the 8 % grid (no dynamic-pricing
     drift), extra guest 28 € above 10, no cleaning fee; GuestFlow's `Abritel` platform still at 8 %.
-  - ⚠️ *Still due on 2026-10-29:* `Abritel` → 12 in Paramètres → Plateformes, and the gîte's grid
-    at 12 % (328 / 344 / 388 / 470 / 958 / 1032 €, extra guest 29 €). The tent is already there.
+  - *12 % brought forward to the same day* (operator's choice, so that both listings and GuestFlow
+    agree two days ahead of Abritel's 2026-10-29 switch): `Abritel` → 12 in GuestFlow; the gîte's
+    grid at 328 / 344 / 388 / 470 / 958 / 1032 €, −42,86 % from 7 nights, extra guest 29 € above
+    10. Read back: 431 days, 0 difference, and GuestFlow's per-platform prices give the same
+    figures. Bookings made before 2026-10-29 still pay 8 %: their commission may need adjusting.
+    GuestFlow shows the tent's Abritel extra guest as 18 € (its flat-price derivation); Abritel
+    charges the 16 € chosen above.
