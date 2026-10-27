@@ -449,20 +449,28 @@ Decisions taken on 2026-10-06:
 45. **A platform counted as direct is a direct sale in every money path.** Rule 19 made
     `countsAsDirect` an attribute; the pricing engine still tested the name `direct` by hand, so such
     a stay was half direct (welcome pack, plan, headline) and half platform (acompte zeroed, extras
-    defaulted to the complement, tax collected on arrival, a brut not covering the extras the
-    operator ticked). One helper, `utils/saleChannel.js`, now answers for every money path:
-    - `ownChannel` (`direct` or counts-as-direct) — acompte and solde on the property's schedule like
-      `direct`; no default extras-to-complement; the tourist tax rides the solde; the ledger shows
-      its acompte row;
+    defaulted to the complement, a brut not covering the extras the operator ticked). One helper,
+    `utils/saleChannel.js`, now answers for every money path:
+    - `ownChannel` (`direct` or counts-as-direct) — a NEW stay takes the acompte and solde on the
+      property's schedule like `direct`; no default extras-to-complement; the ledger shows its
+      acompte row;
     - `platformSale` (the opposite) — single payout unless the platform takes an acompte, extras
-      default to the complement, owner-mode tax collected on arrival, « Versement » rows;
+      default to the complement, « Versement » rows;
     - `namedChannel` (anything but `direct`) — a platform amount (brut) and commissions can be
-      entered, and the tourist-tax mode is read from the `platforms` row.
+      entered, and the tourist-tax mode is read from the `platforms` row: in mode « owner » the tax
+      is collected on arrival, on a counts-as-direct channel too. The engine, the accounting export
+      (`collectedOnArrival`) and the arrival SAS recap (`touristTaxInComplementAmount`) all read it
+      this way (review of PR #803, 2026-10-27: the engine had moved it to the solde alone).
+    **An existing stay keeps its stored schedule** (review of PR #803, 2026-10-27): a saved
+    reservation on a counts-as-direct channel whose acompte is neither paid nor disabled nor set by
+    hand keeps the acompte it was stored with — 0 for a stay sold as a single payment, paid or not,
+    so no acompte (and no overdue acompte deadline) appears on the next recompute, the net stays the
+    same, and a past fiche can still be saved under the past-reservation lock; a stored acompte stays,
+    even inside the last-minute window. Only a new stay follows the direct rule.
     A counts-as-direct stay whose platform amount is entered settles like a platform one once paid:
     the paid solde follows that amount (reservation-refunds.md rule 40) and no arrival complement is
     asked for the difference. A stay whose single payment is already in (no acompte, solde paid)
-    stays a single payment on every later recompute, so the existing counts-as-direct stays sold as
-    one payout do not grow an acompte. The fiche reads the server's `platformSale` answer instead of
+    stays a single payment on every later recompute, on every channel. The fiche reads the server's `platformSale` answer instead of
     the platform's name. The bank reconciliation is deliberately left on `namedChannel`
     (qonto-bank-reconciliation.md rule 43: a counts-as-direct engine stay is still paid out by its
     platform, Stripe batch and commission), and so is the ledger's « Versement » row.
@@ -570,7 +578,8 @@ is a bottom-sticky bar under `sm`, primary last.
 the one reading of a channel for money. Consumers: `utils/pricing.js` (extras routing, brut pin,
 tax on arrival, acompte branch, commissions, paid-solde rule, `platformSale` in the quote),
 `utils/reservationLedger.js` (acompte « Sans objet » only on a platform sale; the « Versement »
-row and the commissions stay on `namedChannel`). Client: `ReservationPage.jsx` exposes `isPlatformSale` (the quote's answer) in
+row and the commissions stay on `namedChannel`), `models/reservationsModel.js`
+(`touristTaxInComplementAmount` via `isNamedChannel`). Client: `ReservationPage.jsx` exposes `isPlatformSale` (the quote's answer) in
 the form context; `PricingSummary`, `FinanceSection`, `ExtrasSection` and `OptionRow` read it.
 
 ## 5. Data model
@@ -713,6 +722,9 @@ rest of the suite, and `option-categories.spec.js` seeds the catering catalogue 
 the onboarding suites keep passing unchanged.
 
 **Audit 2026-10-27:** `tests/sale-channel-counts-as-direct.unit.test.js` (6, rule 45);
+`tests/counts-as-direct-keeps-stored-schedule.unit.test.js` (5, rule 45: single payment kept, net
+kept, stored acompte kept, new stay direct, past fiche saved);
+`tests/counts-as-direct-tourist-tax-routing.unit.test.js` (3, rule 45: engine = export = SAS);
 `client/src/components/__tests__/PricingSummary.counts-as-direct.test.jsx` (2, rule 45).
 
 ## 8. Out of scope

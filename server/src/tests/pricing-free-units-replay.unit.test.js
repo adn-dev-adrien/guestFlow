@@ -51,3 +51,16 @@ test('one more unit on a sold line is priced once, the free unit deducted once',
   });
   assert.equal(more.optionLines.find((l) => l.optionId === 12).totalPrice, 18);
 });
+
+test('a row stored without a tariff snapshot predates the free units: nothing is added back (review of #803)', () => {
+  // Breakfast sold 8 € × 4 = 32 € gross before free units existed; the property now grants 2.
+  const db = pricingAuditDb({ included: 10 });
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits) VALUES (1, 11, 8, 2)').run();
+  const q = calculateReservationQuote({
+    ...STAY, db, platform: 'direct', selectedOptions: [{ optionId: 11, quantity: 1 }],
+    lockedOptionLines: [{ optionId: 11, quantity: 1, unitPrice: 8, billedUnits: 4, priceType: 'per_person_per_night', totalPrice: 32, offered: 0 }],
+    lockedTariff: null,
+  });
+  const line = q.optionLines.find((l) => l.optionId === 11);
+  assert.deepEqual([line.unitPrice, line.freeUnits, line.totalPrice], [8, 2, 16], 'was unit 12, total 24');
+});

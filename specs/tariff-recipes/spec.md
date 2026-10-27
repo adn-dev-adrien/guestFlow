@@ -540,8 +540,10 @@ all-inclusive pricing as the first such recipe.
 
 56. **A sold option keeps its value over every save, free units included.** A line stores its total
     net of the free units the rate includes (rule 52bis) while `billedUnits` stays gross. The replay
-    adds the free units back at the stored unit price before merging the sold line, and deducts them
-    once after it (`lockedLineGrossOfFreeUnits`). Before: « Jus 6 € × 3, 1 offert » went 12 → 8 →
+    adds back, at the stored unit price, the free units the tariff snapshot says were deducted, before
+    merging the sold line, and deducts the free units once after it (`lockedLineGrossOfFreeUnits`).
+    A row stored without a snapshot predates the free units and holds a gross total: nothing is added
+    back (review of PR #803). Before: « Jus 6 € × 3, 1 offert » went 12 → 8 →
     5,34 → 3,56 over three saves, and a breakfast at 8 € per person per night with 2 free went
     32 → 21,32.
 57. **The sold night prices are kept only while the arrival date is unchanged** (operator decision
@@ -747,7 +749,7 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - [ ] Mobile pass: recipe browser, tariff page card and diff dialog, calendar markers and legend,
       property detail form, reservation summary.
 
-**Audit 2026-10-27:** `tests/pricing-free-units-replay.unit.test.js` (3, rule 56),
+**Audit 2026-10-27:** `tests/pricing-free-units-replay.unit.test.js` (4, rule 56),
 `tests/pricing-night-lock-arrival.unit.test.js` (5, rule 57),
 `tests/extra-guest-per-night-sold-season.unit.test.js` (5, rule 58),
 `tests/pricing-unpriced-nights.unit.test.js` (3, rule 59),

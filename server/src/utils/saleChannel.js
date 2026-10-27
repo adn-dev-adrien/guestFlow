@@ -4,9 +4,10 @@
  *
  * A platform marked « Compté comme vente directe » (`platforms.countsAsDirect`) is a DIRECT SALE: the
  * guest relationship is the operator's own, so it is billed like `direct` — acompte and solde on the
- * property's schedule, extras not routed to the arrival complement by default, the tourist tax on the
- * solde. It still keeps what only a named channel has: a platform amount (brut) can be entered, a
- * commission can be booked, and its tourist-tax mode is read from its `platforms` row.
+ * property's schedule for a new stay (an existing one keeps its stored schedule), extras not routed to
+ * the arrival complement by default. It still keeps what only a named channel has: a platform amount
+ * (brut) can be entered, a commission can be booked, and its tourist-tax mode is read from its
+ * `platforms` row (« owner »: collected on arrival).
  *
  *   ownChannel    `direct` or a counts-as-direct platform — the direct-sale rules apply.
  *   platformSale  the opposite: an OTA sale (single payout unless the platform takes an acompte,

@@ -26,10 +26,10 @@ test('an extra added without a flag stays in the acompte / solde, and the acompt
   const lodgify = calculateReservationQuote({ ...STAY, db: lodgifyDb(), platform: 'Lodgify', selectedOptions: [{ optionId: 10, quantity: 1 }] });
   const direct = calculateReservationQuote({ ...STAY, db: lodgifyDb(), platform: 'direct', selectedOptions: [{ optionId: 10, quantity: 1 }] });
   assert.equal(lodgify.optionLines[0].inComplement, 0);
-  for (const key of ['finalPrice', 'depositAmount', 'balanceAmount', 'complementAmount', 'touristTaxTotal']) {
+  for (const key of ['finalPrice', 'depositAmount', 'touristTaxTotal']) {
     assert.equal(lodgify[key], direct[key], key);
   }
-  assert.equal(lodgify.touristTaxCollectedOnArrival, false, 'the tax rides the solde, like direct');
+  assert.equal(lodgify.touristTaxCollectedOnArrival, true, 'the tax follows the platform\'s own mode (owner: on arrival)');
   assert.equal(lodgify.platformSale, false);
   assert.equal(lodgify.platformTakesDeposit, false);
 });

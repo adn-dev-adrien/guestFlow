@@ -1901,9 +1901,9 @@ function calculateReservationQuote({
           : roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights)));
       // The units the sold line was granted free — the ones its stored total is net of.
       const lockedGranted = lockedFreeUnitsFor(optionId);
-      const soldFreeUnits = isDirectBooking
-        ? (lockedGranted != null ? lockedGranted : Number(option.freeUnits || 0))
-        : 0;
+      // Only what a snapshot says was deducted is added back: a row stored without one predates the
+      // free units and holds a gross total (rule 56).
+      const soldFreeUnits = isDirectBooking && lockedGranted != null ? lockedGranted : 0;
       const merged = mergeLineWithLockedSnapshot({
         lockedLine: lockedInsuranceLine
           || reconstructLockedRealTotal(lockedLineGrossOfFreeUnits(locked, soldFreeUnits), unitBase),
@@ -2412,10 +2412,12 @@ function calculateReservationQuote({
   // i.e. the platform does NOT collect from the guest (case 3, `owner`). Case 1 (platform collects then
   // reverses to us) is paid by the platform with the settlement → it stays in the BALANCE, not the
   // complement. Direct keeps the historic balance behaviour.
-  // Rule 45 of plugins-phase-p-productisation.md — a counts-as-direct channel keeps the tax on the solde.
+  // Rule 45 of plugins-phase-p-productisation.md — the tax mode is the platform's own setting, so a
+  // counts-as-direct channel follows it like any named channel (the accounting export and the SAS
+  // recap read it the same way).
   const isTouristTaxCollectedOnArrival = (
     !collectsFromGuest
-    && channel.platformSale
+    && channel.namedChannel
     && touristTaxTotal > 0
   );
 
@@ -2498,7 +2500,17 @@ function calculateReservationQuote({
   const platformNetReceivedAmount = totalPlatformCommission > 0
     ? roundMoney(preArrivalAmount - totalPlatformCommission)
     : null;
-  if (platformIsNonDirect) {
+  // specs/plugins-phase-p-productisation.md rule 45 — an EXISTING stay on a counts-as-direct channel
+  // keeps the schedule it was stored with: sold as a single payment (no acompte, no acompte deadline)
+  // it stays one, paid or not; a stored acompte stays as it is. Only a new stay takes the direct rule.
+  const storedDepositKnown = depositAmount !== null && depositAmount !== undefined && depositAmount !== '';
+  const keepsStoredSchedule = channel.ownChannel && channel.namedChannel && Number(bookingId) > 0
+    && storedDepositKnown && !depositPaid && !depositDisabled
+    && (depositAmountOverride === null || depositAmountOverride === undefined || depositAmountOverride === '');
+  if (keepsStoredSchedule) {
+    resolvedDepositAmount = roundMoney(Math.min(Math.max(0, Number(depositAmount) || 0), accommodationPreArrival));
+    resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - resolvedDepositAmount));
+  } else if (platformIsNonDirect) {
     // specs/platform-per-echeance-commission.md — the acompte/solde split the GROSS pre-arrival (the
     // guest-facing amounts); the commission is booked separately per échéance, NOT subtracted from the
     // displayed amounts. specs/platform-deposit-toggle.md — « no acompte » (default) or `depositDisabled`
