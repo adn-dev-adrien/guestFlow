@@ -979,6 +979,12 @@ db.exec(`
   if (!icalSourceCols.includes('emptyFeedStreak')) {
     db.exec('ALTER TABLE ical_sources ADD COLUMN emptyFeedStreak INTEGER NOT NULL DEFAULT 0');
   }
+  // specs/lodgify-decommission.md §3 rule 16 — the feed marks every stay « CLOSED - Not available »
+  // (Booking.com). 1/0 = the operator's choice on the platforms tab; NULL = not chosen yet, the platform's
+  // spelling decides (`utils/icalClosedFeed.js`). The one-shot migration below ticks existing Booking rows.
+  if (!icalSourceCols.includes('feedMarksStaysClosed')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN feedMarksStaysClosed INTEGER');
+  }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
 // (idempotent via INSERT OR IGNORE):
@@ -1329,6 +1335,23 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     }
   } catch (e) {
     console.error('[platform-slug-dedup] failed (non-fatal):', e && e.message);
+  }
+}
+
+// specs/lodgify-decommission.md §3 rule 16 — one-shot: every existing source whose platform reads
+// « booking… » (`booking`, `booking-com`, `BookingTente`…) gets the « séjours en CLOSED » setting, which
+// used to be inferred from the exact slug `booking` only.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'ical_feed_marks_stays_closed_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runClosedFeedMigration } = require('./utils/icalClosedFeed');
+    const tx = db.transaction(() => {
+      const ticked = runClosedFeedMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return ticked;
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[migration:ical-feed-marks-stays-closed] ${tx()} source(s) ticked`);
   }
 }
 

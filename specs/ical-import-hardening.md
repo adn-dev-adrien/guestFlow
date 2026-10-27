@@ -111,6 +111,20 @@ nothing, and the platforms tab says in one short line what the last sync did.
     (`specs/booking-extranet-intake.md` rule 27, `specs/gites-de-france-mail-intake.md`), leaving the
     « Ical <platform> » placeholder without a stay. Every sync deletes the clients named « Ical … » with
     no e-mail, phone, address or note and no reservation or quote. *(Added 2026-10-18, second review.)*
+15. **A nameless summary never merges two platforms' stays.** The cross-source de-dup (the same booking
+    seen in two feeds: same dates, same summary) only applies when the summary names someone
+    (`parseGuestName(...).isFallback` is false). Two platforms each sending « Reserved » on the same
+    dates are two stays sold twice: both are created and the second is flagged in conflict (rule 3).
+    *(Fixed at the 2026-10-27 audit: the Abritel stay was mapped onto the Airbnb one, one reservation,
+    no flag — a hidden overbooking.)*
+16. **Three valid feed shapes are read as they are meant** *(fixed at the 2026-10-27 audit)*:
+    - `BEGIN:VEVENT` / `END:VEVENT` followed by blanks still delimit an event (it parsed to 0 events,
+      while `isCompleteIcs` already accepted the document);
+    - `DURATION` (RFC 5545 §3.8.2.5: `P5D`, `P1W`, `P4DT18H`) gives the departure when `DTEND` is
+      absent (it used to import one night); a timed arrival counts the duration from its time;
+    - the unavailability words (« blocked », « non disponible »…) in `DESCRIPTION` only drop an event
+      whose summary names nobody: « Jean Dupont » with « non disponible pour le ménage » is a stay. A
+      summary carrying those words is still dropped, as before.
 
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
@@ -135,9 +149,9 @@ nothing, and the platforms tab says in one short line what the last sync did.
 |---|---|---|---|
 | `routes/` | — | — | (none — `/api/properties/:id/ical-sources/:sourceId/sync` and `/platforms` unchanged) |
 | `controllers/` | — | — | (none) |
-| `models/` | `models/propertyIcalModel.js` | T | `fetchFeed(source)` (rules 4–5); `syncSource(source, { prefetched })`; `syncMany(sources)` (rule 4); per-stay placeholder in `getOrCreateIcalClient` (rule 1); overlap stamp on create and on a date move for every feed (rule 3), cleared when the move leaves every taken night (rule 13); a repeated UID's former mapping kept by the event on its date (rule 12); orphan placeholders deleted after each sync (rule 14); `repeatedUidCount` (rule 6); `syncOne` refuses an inactive source (rule 2). |
+| `models/` | `models/propertyIcalModel.js` | T | `fetchFeed(source)` (rules 4–5); `syncSource(source, { prefetched })`; `syncMany(sources)` (rule 4); per-stay placeholder in `getOrCreateIcalClient` (rule 1); overlap stamp on create and on a date move for every feed (rule 3), cleared when the move leaves every taken night (rule 13); a repeated UID's former mapping kept by the event on its date (rule 12); orphan placeholders deleted after each sync (rule 14); `repeatedUidCount` (rule 6); `syncOne` refuses an inactive source (rule 2); cross-source de-dup only on a named summary (rule 15). |
 | `models/` | `models/platformsModel.js` | T | `listForProperty` rows carry `isActive`, `syncStatus`, boolean `disabled` (rules 2, 9, 10). |
-| `utils/` | `utils/icalParser.js` | T | `isCompleteIcs` (rule 5), repeated-UID keys with their `baseUid` (rules 6, 12), UTC instant in the server zone (rule 7), placeholder words (rules 8, 11). |
+| `utils/` | `utils/icalParser.js` | T | `isCompleteIcs` (rule 5), repeated-UID keys with their `baseUid` (rules 6, 12), UTC instant in the server zone (rule 7), placeholder words (rules 8, 11); trailing blanks on the event markers, `DURATION`, description-only unavailability (rule 16). |
 | `utils/` | `utils/icalSyncStatus.js` | C | Pure `describeIcalSync(row, { now, timeZone })` → `{ tone, text, detail }` (rule 9). |
 | `utils/` | `utils/icalPlaceholderClientsMigration.js` | C | `splitSharedIcalPlaceholderClients(db)` (rule 1, data side); `removeOrphanIcalPlaceholders(db)` (rule 14). |
 | `utils/` | `utils/notificationService.js` | T | The `ical` conflict copy names the platform (rule 3). |
@@ -206,6 +220,13 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
   (`disabled: false`), `lodgify-decommission-native-feeds.unit.test.js` (the conflict mail names the
   platform it is given).
 
+### Server unit tests — 2026-10-27 audit
+
+- `server/src/tests/ical-nameless-summary-matching.unit.test.js` (6 cases, with
+  `specs/ical-summary-fallback-cross-uid.md` rule 7) — rule 15: two platforms' « Reserved » on the same
+  dates → two stays, the second flagged; a guest named on two feeds is still one stay.
+- `server/src/tests/ical-parser-edges.unit.test.js` (4 cases) — rule 16.
+
 ### Client tests
 
 - `components/property/__tests__/PropertyPlatformsTab.sync-status.test.jsx` (rules 2, 9, 10).
@@ -222,6 +243,13 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
   arbitration of `specs/lodgify-decommission.md` rule 10.
 - `DTSTAMP` as a DATE-TIME and `VALUE=DATE` on the export (review n2): left for after the
   `master` hotfix lands, so the export model merges cleanly between the two branches.
+  **Re-examined at the 2026-10-27 audit and kept as is:** the export is read today by Booking,
+  Airbnb, Abritel, Gîtes de France, GreenGo and Abracadaroom, and all of them block the dates with the
+  current `DTSTART:YYYYMMDD`. Nothing in the repository says how each importer parses the line; one
+  that matches `DTSTART:` literally would stop blocking every date — an overbooking on every channel,
+  silent until a guest arrives. The change needs a verification per channel (one blocked date read
+  back by quote on each extranet, `platform-tariff-rollout` style) before it ships; it is not worth
+  that risk without such a check.
 - Re-attributing, in production data, the stays whose shared client already carries a guest's
   e-mail: the diagnostic script lists them; the repair is by hand.
 
@@ -233,5 +261,7 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 ## 10. Implementation progress
 
 - 2026-10-18 — implemented on `fix/review-ical-intake` → `inte/plugins`.
+- 2026-10-27 — audit: rules 15 (nameless cross-source de-dup) and 16 (parser edges) added; the export
+  format decision recorded in §8.
 - 2026-10-18 — second review: rules 11–14 added (GdF « BOOKED », repeated UID keeps its stay, conflict
   flag cleared, orphan placeholders deleted); 20 server cases.

@@ -165,6 +165,14 @@ dropped the UID.
     a "soft" foreign key (no ON DELETE CASCADE on `reservation_history.reservationId`).
 12. **Single PR, no follow-up split.** Sync detection + cancellation table + Dashboard
     alert + approve/reject endpoints ship together.
+13. **A stay already cancelled in GuestFlow is never proposed for deletion** *(fixed at the
+    2026-10-27 audit)*. When the reservation dropped by its feed has `kind ≠ 'reservation'` (cancelled
+    in GuestFlow: requalified, refunded…), rule 1 drops the mapping and records **no** alert — there is
+    nothing left to approve. An alert raised before this rule is still approvable, but `approve` then
+    keeps the row: it drops the reservation's mappings, sets `outcome = 'already_cancelled'` and
+    returns `{ ok: true, outcome: 'already_cancelled' }` without emitting `reservation.cancelled` again.
+    **Why:** approving used to `DELETE` the cancelled reservation, and the delete cascaded its
+    `reservation_refunds` — the credit note owed to the guest disappeared with it.
 
 **Edge cases:**
 - **The same UID disappears AND a new UID at the same dates/name appears in the same
@@ -209,7 +217,7 @@ dropped the UID.
 |---|---|---|---|
 | `routes/` | [routes/dashboard.js](server/src/routes/dashboard.js) | T | Mounts 3 new routes: `GET /ical-cancellation`, `POST /ical-cancellation/:id/approve`, `POST /ical-cancellation/:id/reject`. |
 | `controllers/` | [controllers/dashboardController.js](server/src/controllers/dashboardController.js) | T | Adds `icalCancellation(req,res)`, `approveIcalCancellation(req,res)`, `rejectIcalCancellation(req,res)`. Same shape pattern as the date-drift trio. |
-| `models/` | `models/icalCancellationModel.js` | C | `recordPending({reservationId, sourceId, eventUid})` (UPSERT per reservation), `resolveOnReappearance(sourceId, eventUid)` (auto-cancel pending rows), `listPending()` (joined payload), `approve(id)` (atomic delete + history + ack), `reject(id)` (ack only). All write paths inside SQL transactions. |
+| `models/` | `models/icalCancellationModel.js` | C | `recordPending({reservationId, sourceId, eventUid})` (UPSERT per reservation), `resolveOnReappearance(sourceId, eventUid)` (auto-cancel pending rows), `listPending()` (joined payload), `approve(id)` (atomic delete + history + ack; keeps an already-cancelled stay, rule 13), `reject(id)` (ack only). All write paths inside SQL transactions. |
 | `models/` | [models/propertyIcalModel.js](server/src/models/propertyIcalModel.js) | T | `syncSource()` extended at two points: (a) before the per-event loop, call `cancellationModel.resolveOnReappearance` for each `(sourceId, eventUid)` in the incoming feed; (b) replace the auto-delete branch with a `recordPending` call when the reservation has no remaining mappings. |
 | `database.js` | [database.js](server/src/database.js) | T | New idempotent block: `CREATE TABLE IF NOT EXISTS ical_cancellation_alerts(...)` + partial index on `(acknowledgedAt) WHERE acknowledgedAt IS NULL`. |
 
@@ -240,7 +248,7 @@ dropped the UID.
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/dashboard/ical-cancellation` | — | `{ alerts: [{ id, reservationId, clientName, propertyName, startDate, endDate, sourceName, detectedAt, reservationExists }] }` | Sorted by `detectedAt DESC`. Only unacknowledged rows. `reservationExists` drives the disabled state of the Supprimer button. |
-| POST | `/api/dashboard/ical-cancellation/:id/approve` | — | `{ ok: true }` | Deletes the reservation; 409 on already-acknowledged, 404 if id unknown. Idempotent shape returned when the reservation is already gone (outcome = 'reservation_gone'). |
+| POST | `/api/dashboard/ical-cancellation/:id/approve` | — | `{ ok: true }` | Deletes the reservation; 409 on already-acknowledged, 404 if id unknown. Idempotent shape returned when the reservation is already gone (outcome = 'reservation_gone'). `outcome = 'already_cancelled'` when the stay was cancelled in GuestFlow: kept, not deleted (rule 13). |
 | POST | `/api/dashboard/ical-cancellation/:id/reject` | — | `{ ok: true }` | Marks rejected; 409 on already-acknowledged, 404 if id unknown. Reservation stays. |
 
 Auth: same admin gating as the date-drift routes (the existing `enforceRoleAccess`
@@ -367,6 +375,9 @@ No change.
     (2026-06-15).
   - **Boundary: a stay ending exactly today falls out of the feed** → still raises an
     alert (`endDate === today` is not "past", strict `<`).
+- [x] `tests/ical-cancelled-stay-dropped.unit.test.js` (rule 13, 2026-10-27 audit, 3 cases) — a cancelled
+  stay leaving its feed raises no alert and loses its mapping; approving an older alert keeps the row
+  and its refund (`outcome = 'already_cancelled'`); a live stay still gets its alert.
 - [ ] `tests/dashboard-controller-ical-cancellation.unit.test.js` (C) — HTTP shaping:
   - `GET` returns `{ alerts: [] }` when nothing pending; forwards model payload as-is.
   - `POST /:id/approve` returns 200; 400 on bad id; 409 on already-acknowledged;
