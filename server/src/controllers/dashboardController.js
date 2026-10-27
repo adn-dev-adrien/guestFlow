@@ -234,10 +234,10 @@ function buildController({
       if (type !== 'deposit' && type !== 'balance') {
         return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de relance invalide (deposit/balance).' });
       }
-      if (!hasPaymentProvider()) return res.status(409).json(require('../utils/paymentProviders').NO_PROVIDER);
       // specs/platform-payout-due-date.md rule 20 — a platform booking is paid by the platform, never
       // by the guest. The card already hides the button; refusing here means the email cannot be sent
-      // by hand either, whatever a stale client or a direct API call asks for.
+      // by hand either, whatever a stale client or a direct API call asks for. Checked BEFORE the
+      // provider: the reason a platform stay gets no reminder does not depend on the configuration.
       const platform = injectedReservationsModel.getPlatform(id);
       if (platform !== null && !isDirectChannel(platform)) {
         return res.status(400).json({
@@ -245,6 +245,7 @@ function buildController({
           message: "Cette réservation est réglée par la plateforme : aucune relance n'est envoyée au client.",
         });
       }
+      if (!hasPaymentProvider()) return res.status(409).json(require('../utils/paymentProviders').NO_PROVIDER);
       try {
         const { httpStatus, body } = type === 'deposit'
           ? await sendDepositRequest(id)

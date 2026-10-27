@@ -66,7 +66,9 @@ function changedRows(draft, saved) {
 export default function PlatformsSettingsPage() {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
+  // Cards below 1280 px: with the side menu open the seven columns need ~915 px of content, which a
+  // 1200 px window does not leave (2026-10-27 spec review). From 1280 px the table shows every column.
+  const isMobile = useMediaQuery(theme.breakpoints.down(1280));
   const { showSuccess, showError } = useToast();
   const [saved, setSaved] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -137,7 +139,7 @@ export default function PlatformsSettingsPage() {
       error={Boolean(fieldError(p.id, 'commissionPercent'))}
       helperText={fieldError(p.id, 'commissionPercent') || ''}
       slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `Commission ${formatPlatformLabel(p.name)}` } }}
-      sx={{ width: { xs: '100%', md: 110 } }}
+      sx={{ width: { xs: '100%', lg: 76 } }}
     />
   );
   const depositCell = (p) => (p.takesDeposit === null ? '—' : (
@@ -148,7 +150,7 @@ export default function PlatformsSettingsPage() {
       size="small"
       disabled={saving}
       slotProps={{ htmlInput: { 'aria-label': `Acompte ${formatPlatformLabel(p.name)}` } }}
-      sx={{ minWidth: 90 }}
+      sx={{ minWidth: 84 }}
     >
       <MenuItem value={0}>Non</MenuItem>
       <MenuItem value={1}>Oui</MenuItem>
@@ -222,7 +224,7 @@ export default function PlatformsSettingsPage() {
       error={Boolean(fieldError(p.id, 'payoutDueDays'))}
       helperText={fieldError(p.id, 'payoutDueDays') || ''}
       slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': `Virement ${formatPlatformLabel(p.name)}` } }}
-      sx={{ width: { xs: '100%', md: 90 } }}
+      sx={{ width: { xs: '100%', lg: 68 } }}
     />
   ));
 
@@ -246,17 +248,25 @@ export default function PlatformsSettingsPage() {
         {!draft && !loadError && <LoadingState label="Chargement des plateformes…" />}
         {draft && !isMobile && (
           <Card variant="outlined">
-            {/* Scroll-contained: the Card clips, and seven columns outgrow it below ~1100px. */}
+            {/* Every column fits from 1200 px with the side menu open (2026-10-27 spec review): the colour
+                sits beside the name, headers never wrap, cells are compact. Scroll-contained all the same. */}
             <TableContainer>
-              <Table size="small">
+              <Table
+                size="small"
+                sx={{
+                  '& .MuiTableCell-root': { px: 0.75 },
+                  '& .MuiTableCell-root:first-of-type': { pl: 2 },
+                  '& .MuiTableCell-root:last-of-type': { pr: 2 },
+                  '& .MuiTableCell-head': { whiteSpace: 'nowrap' },
+                }}
+              >
                 <TableHead>
                   <TableRow>
                     <TableCell>Plateforme</TableCell>
-                    <TableCell>Couleur</TableCell>
-                    <TableCell>Commission (%)</TableCell>
+                    <TableCell>Commission %</TableCell>
                     <TableCell>Acompte</TableCell>
-                    <TableCell sx={{ minWidth: 200 }}>Taxe de séjour</TableCell>
-                    <TableCell>Virement (jours)</TableCell>
+                    <TableCell sx={{ width: 220 }}>Taxe de séjour</TableCell>
+                    <TableCell>Virement (j)</TableCell>
                     <TableCell>Vente directe</TableCell>
                     <TableCell>Sans corvées</TableCell>
                   </TableRow>
@@ -264,8 +274,12 @@ export default function PlatformsSettingsPage() {
                 <TableBody>
                   {rows.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</TableCell>
-                      <TableCell>{colorCell(p)}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {colorCell(p)}
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</Typography>
+                        </Box>
+                      </TableCell>
                       <TableCell>{commissionCell(p)}</TableCell>
                       <TableCell>{depositCell(p)}</TableCell>
                       <TableCell>{taxCell(p)}</TableCell>

@@ -111,6 +111,19 @@ function createPlatformsModel(database) {
     // model construction and break every platforms-model consumer.
   };
 
+  // The catalogue spelling of a platform typed or sent any way (2026-10-27 spec review,
+  // specs/platforms-and-ical-rework.md rule 15): the existing row or built-in name with the same slug, also when
+  // the input carries the « .com » of the brand (« Booking.com », `BookingCom` → `Booking`); otherwise
+  // the input in its canonical form. `direct` stays `direct`.
+  function canonicalName(input) {
+    const formatted = formatPlatformName(input);
+    if (!formatted || formatted === DIRECT_NAME) return formatted;
+    const slug = platformSlug(formatted);
+    const candidates = [...stmts.listAll.all().map((r) => r.name), ...KNOWN_PLATFORM_NAMES];
+    const bySlug = (s) => candidates.find((n) => platformSlug(n) === s);
+    return bySlug(slug) || (slug.length > 3 && slug.endsWith('com') && bySlug(slug.slice(0, -3))) || formatted;
+  }
+
   return {
     listAll() {
       return stmts.listAll.all();
@@ -152,25 +165,28 @@ function createPlatformsModel(database) {
       stmts.upsert.run(canonical);
       return stmts.findByName.get(canonical) || null;
     },
-    // Re-run the union INSERT OR IGNORE from `ical_sources.platformLabel` +
-    // `reservations.platform` so any platform that appeared since the last boot/upsert lands on
-    // the dedicated config page. Idempotent: existing rows are untouched. Returns the number
-    // of new platforms inserted so the UI can flash a friendly "+N nouvelles plateformes"
-    // toast on the operator's refresh click.
+    canonicalName,
+    // Register, in their catalogue spelling, every platform `ical_sources.platformLabel` and
+    // `reservations.platform` name that no row covers yet (same slug), so a platform that appeared since
+    // the last boot — a reservation, an intake, an import — lands on the « Plateformes » page. Idempotent.
+    // Returns the number of new platforms so the accounting refresh can flash « +N nouvelles plateformes ».
     rescan() {
-      const before = database.prepare('SELECT COUNT(*) AS c FROM platforms').get().c;
-      database.exec(`
-        INSERT OR IGNORE INTO platforms (name)
-        SELECT DISTINCT platformLabel FROM ical_sources
-         WHERE platformLabel IS NOT NULL AND platformLabel != ''
-      `);
-      database.exec(`
-        INSERT OR IGNORE INTO platforms (name)
-        SELECT DISTINCT platform FROM reservations
-         WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
-      `);
-      const after = database.prepare('SELECT COUNT(*) AS c FROM platforms').get().c;
-      return Math.max(0, after - before);
+      const known = new Set(stmts.listAll.all().map((r) => platformSlug(r.name)));
+      const used = database.prepare(`
+        SELECT platformLabel AS name FROM ical_sources WHERE platformLabel IS NOT NULL AND platformLabel != ''
+        UNION
+        SELECT platform AS name FROM reservations WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
+      `).all();
+      let inserted = 0;
+      for (const { name } of used) {
+        const canonical = canonicalName(name);
+        const slug = platformSlug(canonical);
+        if (!slug || slug === DIRECT_NAME || known.has(slug)) continue;
+        stmts.upsert.run(canonical);
+        known.add(slug);
+        inserted += 1;
+      }
+      return inserted;
     },
     // Guard against editing the Direct row. The spec says Direct fields are server-side
     // ignored — never written. Returns the unchanged row, mirroring update()'s contract.
@@ -218,12 +234,11 @@ function createPlatformsModel(database) {
     // never-used built-in can still be recoloured. A colour equal to the built-in brand colour (or
     // empty) clears the override (stored NULL) so the platform tracks the built-in default again.
     setColor(name, hex) {
-      const slug = platformSlug(name);
+      const canonical = canonicalName(name);
+      const slug = platformSlug(canonical);
       if (!slug) return null;
       let row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
       if (!row) {
-        const canonical = slug === DIRECT_NAME ? DIRECT_NAME : (formatPlatformName(name) || String(name).trim());
-        if (!canonical) return null;
         stmts.upsert.run(canonical);
         row = stmts.findByName.get(canonical);
         if (!row) return null;

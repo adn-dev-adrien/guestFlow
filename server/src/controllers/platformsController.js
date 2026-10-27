@@ -78,7 +78,10 @@ const MAX_REVIEW_WHERE = 80;
 
 // GET /api/platforms/settings — the « Plateformes » settings page (specs/settings-rationalization.md
 // rule 17): every per-platform commercial setting, in one list.
+// A platform that appeared since the boot (a reservation, an intake, an import) is registered first,
+// so it is on the page the moment it exists — not after a restart (specs/platforms-and-ical-rework.md rule 16).
 function listSettings(req, res) {
+  platformsModel.rescan();
   res.json({ platforms: platformsModel.listSettings() });
 }
 
@@ -112,22 +115,26 @@ function planRow(row, current) {
   if (!current.isDirect && has('countsAsDirect')) {
     apply.push(() => platformsModel.setCountsAsDirect(current.id, row.countsAsDirect === true));
   }
+  // The own-channel guards below read the state AFTER this save: a row ticked « Compté comme vente
+  // directe » in the same batch takes no platform rule (specs/airbnb-no-checkout-chores.md rule 10).
+  const ownChannel = current.isDirect
+    || (has('countsAsDirect') ? row.countsAsDirect === true : isDirectChannel(current.name));
   // specs/airbnb-no-checkout-chores.md rule 8 — a platform rule, so never on an own channel.
-  if (!isDirectChannel(current.name) && has('forbidsGuestChores')) {
+  if (!ownChannel && has('forbidsGuestChores')) {
     apply.push(() => platformsModel.setForbidsGuestChores(current.id, row.forbidsGuestChores === true));
   }
   // specs/platform-settings-relay-and-review.md rules 1-4 — guest-contact settings, never on an own channel.
-  if (!isDirectChannel(current.name) && has('relaysGuestEmail')) {
+  if (!ownChannel && has('relaysGuestEmail')) {
     apply.push(() => platformsModel.setRelaysGuestEmail(current.id, row.relaysGuestEmail === true));
   }
-  if (!isDirectChannel(current.name) && (has('reviewWhereFr') || has('reviewWhereEn'))) {
+  if (!ownChannel && (has('reviewWhereFr') || has('reviewWhereEn'))) {
     const fr = has('reviewWhereFr') ? String(row.reviewWhereFr ?? '').trim() : current.reviewWhereFr;
     const en = has('reviewWhereEn') ? String(row.reviewWhereEn ?? '').trim() : current.reviewWhereEn;
     if (fr.length > MAX_REVIEW_WHERE) errors.reviewWhereFr = `${MAX_REVIEW_WHERE} caractères au plus.`;
     if (en.length > MAX_REVIEW_WHERE) errors.reviewWhereEn = `${MAX_REVIEW_WHERE} caractères au plus.`;
     if (fr.length <= MAX_REVIEW_WHERE && en.length <= MAX_REVIEW_WHERE) apply.push(() => platformsModel.setReviewWhere(current.id, { fr, en }));
   }
-  if (!isDirectChannel(current.name) && has('payoutDueDays')) {
+  if (!ownChannel && has('payoutDueDays')) {
     const days = parsePayoutDueDaysInput(row.payoutDueDays);
     if (days === null) errors.payoutDueDays = 'Un nombre entier de jours (0 à 365).';
     else apply.push(() => platformsModel.setPayoutDueDays(current.name, days));

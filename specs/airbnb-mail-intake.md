@@ -211,6 +211,11 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     row (`reservations.platform`, e.g. a renamed or second Airbnb channel), not from a hard-coded
     `airbnb` key. (The Booking intake keeps its `booking` key on purpose: it rewrites the fiche's channel to
     « Booking », so the fiche's platform before the write is not the one that will hold the tax.)
+21. *(Fixed at the 2026-10-27 spec review.)* The guest's client is created **in the same transaction as the
+    fiche's update**: the plugin hands its find-or-create payload to `ctx.core.reservations.update(id, patch,
+    { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first. A fiche the core
+    refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
+    no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
 
 **Edge cases:**
 - Same mail twice → `Message-ID` dedup; a second mail with the same confirmation code → ignored once the

@@ -94,12 +94,12 @@ function createIntakeService(deps) {
       touristTax: payment.block.platformTouristTaxAmount || 0,
     });
 
-    const client = core.findOrCreateClient({ firstName: booking.firstName, lastName: booking.lastName });
     const beds = core.suggestBeds(reservation.propertyId, { adults: booking.adults, children: booking.children, teens: 0 });
 
     return {
+      // Created by the core in the same transaction as the update: a refused fiche leaves no client behind.
+      client: { firstName: booking.firstName, lastName: booking.lastName },
       patch: {
-        clientId: client.id,
         reservationNumber: booking.code,
         adults: booking.adults,
         children: booking.children,
@@ -131,7 +131,7 @@ function createIntakeService(deps) {
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error: planned.error });
       return { status: 'error', error: planned.error };
     }
-    const result = core.updateReservation(reservation.id, planned.patch, { label: `Mail Airbnb du ${frDate(intake.receivedAt)}` });
+    const result = core.updateReservation(reservation.id, planned.patch, { label: `Mail Airbnb du ${frDate(intake.receivedAt)}`, client: planned.client });
     if (result.status !== 200) {
       const error = (result.body && result.body.error) || `Erreur ${result.status}`;
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });

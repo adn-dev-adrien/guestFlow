@@ -1,0 +1,1 @@
+- `reservation_history` is rebuilt once without its foreign key on `reservations` (`reservation_history_outlives_reservation_v1`): every row, id and the id counter are kept; deleting a stay now leaves its history in place.

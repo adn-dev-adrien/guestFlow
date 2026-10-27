@@ -38,6 +38,10 @@ function setup() {
   const RES_COLUMNS = ['clientId', 'platform', 'reservationNumber', 'adults', 'children', 'teens', 'babies', 'checkInTime', 'notes',
     'platformGrossAmount', 'platformTouristTaxAmount', 'platformPayoutAmount'];
   const target = { id: 22307 };
+  const findOrCreate = (p) => db.prepare('SELECT * FROM clients WHERE lower(email) = lower(?)').get(p.email)
+    || db.prepare('SELECT * FROM clients WHERE id = ?').get(db.prepare(
+      'INSERT INTO clients (firstName, lastName, email, phone, emailLanguage) VALUES (?, ?, ?, ?, ?)',
+    ).run(p.firstName, p.lastName, p.email, p.phone || null, p.emailLanguage).lastInsertRowid);
   const service = createIntakeService({
     intakes: buildModel(db),
     hotelIds: () => ({ 1: '14407976' }),
@@ -50,16 +54,15 @@ function setup() {
     clientShared: (clientId, reservationId) => Boolean(db
       .prepare('SELECT 1 FROM reservations WHERE clientId = ? AND id != ? LIMIT 1').get(clientId, reservationId == null ? -1 : reservationId)),
     core: {
-      updateReservation: (id, patch) => {
+      // Like the core (SDK 2.7.0): the client of `opts.client`, found by e-mail or created, becomes the fiche's.
+      updateReservation: (id, rawPatch, opts = {}) => {
+        const own = opts.client ? findOrCreate(opts.client) : null;
+        const patch = own ? { ...rawPatch, clientId: own.id } : rawPatch;
         const cols = RES_COLUMNS.filter((c) => c in patch);
         db.prepare(`UPDATE reservations SET ${cols.map((c) => `${c} = @${c}`).join(', ')} WHERE id = @id`)
           .run({ ...Object.fromEntries(cols.map((c) => [c, patch[c]])), id });
-        return { status: 200, body: { ok: true } };
+        return { status: 200, clientId: own ? own.id : undefined, body: { ok: true } };
       },
-      findOrCreateClient: (p) => db.prepare('SELECT * FROM clients WHERE lower(email) = lower(?)').get(p.email)
-        || db.prepare('SELECT * FROM clients WHERE id = ?').get(db.prepare(
-          'INSERT INTO clients (firstName, lastName, email, phone, emailLanguage) VALUES (?, ?, ?, ?, ?)',
-        ).run(p.firstName, p.lastName, p.email, p.phone || null, p.emailLanguage).lastInsertRowid),
       updateClient: (id, p) => db.prepare('UPDATE clients SET firstName = ?, lastName = ?, email = ? WHERE id = ?').run(p.firstName, p.lastName, p.email, id),
       suggestBeds: () => ({ singleBeds: 6, doubleBeds: 4 }),
       platformCommission: (f) => Math.round((f.gross - f.payout - f.touristTax) * 100) / 100,
