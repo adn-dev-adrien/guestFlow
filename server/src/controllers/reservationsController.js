@@ -1135,6 +1135,11 @@ function createStay(req, res) {
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
+  // specs/reservations-backend-mvc.md rule 10 — refused here rather than by the NOT NULL constraint (a 500).
+  if (!req.body.clientId) {
+    return res.status(400).json({ error: 'Un client est requis pour créer la réservation.', code: 'CLIENT_REQUIRED' });
+  }
+
   // Reservation number override collision guard (specs/reservation-number-and-search.md §3 rule 4).
   const numberError = reservationNumberOverrideError(req.body.reservationNumber, null);
   if (numberError) return res.status(400).json(numberError);

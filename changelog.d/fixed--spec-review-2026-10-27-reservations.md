@@ -10,3 +10,4 @@
 - The « no linen → no bed counts » invariant reads the lines the engine kept, not the payload.
 - A reservation number held by any row (devis included) is refused with the French 400 instead of failing on the unique index.
 - A malformed JSON request body answers 400 « Requête invalide : le corps JSON est mal formé. » instead of « Erreur interne du serveur ».
+- A reservation posted without a client is refused with a French 400 `CLIENT_REQUIRED` instead of a server error (specs/reservations-backend-mvc.md rule 10).
