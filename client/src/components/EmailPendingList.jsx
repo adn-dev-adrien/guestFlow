@@ -20,6 +20,7 @@ import {
   TableContainer, Table, TableHead, TableRow, TableCell, TableBody,
   Typography, Stack, Chip, Button, Link,
 } from '@mui/material';
+import { INSTALLMENT_NAME } from '../constants/installmentStrings';
 
 function formatStayDate(startDate) {
   if (!startDate) return '';
@@ -81,7 +82,7 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
                   <Stack spacing={0.25} sx={{ alignItems: 'flex-start' }}>
                     <span>{r.templateName}</span>
                     {r.installmentNumber ? (
-                      <Typography variant="caption" color="text.secondary">Échéance {r.installmentNumber}</Typography>
+                      <Typography variant="caption" color="text.secondary">{INSTALLMENT_NAME(r.installmentNumber)}</Typography>
                     ) : null}
                     {r.manual ? (
                       <Chip label="Ajouté manuellement" size="small" color="info" variant="outlined" sx={{ height: 20 }} />

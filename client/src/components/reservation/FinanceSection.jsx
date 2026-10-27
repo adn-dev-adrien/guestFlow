@@ -271,7 +271,7 @@ export default function FinanceSection() {
     // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
     ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
     // specs/direct-installments.md — the plan of a direct reservation and its setter.
-    installmentPlan = null, setInstallmentPlan,
+    installmentPlan = null, setInstallmentPlan, fichePristine = true,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
   const { showError } = useToast();
@@ -803,9 +803,10 @@ export default function FinanceSection() {
               {editingReservationId && !isDevisMode && installmentPlan && installmentPlan.eligible && (
                 <Box sx={{ mb: 2 }}>
                   <InstallmentPlanCard
+                    key={editingReservationId}
                     reservationId={editingReservationId}
                     plan={installmentPlan}
-                    arrivalDate={form.startDate}
+                    disabled={!fichePristine}
                     today={localIsoToday()}
                     onPlanChange={setInstallmentPlan}
                     onMoneyChanged={reloadReservationFinance}

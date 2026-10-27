@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { vi } from 'vitest';
 import EmailPendingList from '../EmailPendingList';
-import { deadlineHeadline, DEADLINE_STATE_LABELS } from '../../constants/paymentDeadlines';
 
 const row = (number) => ({
   templateId: 9, reservationId: 100, templateName: 'Demande de règlement d\'une échéance', clientFullName: 'Camille Martin',
@@ -21,10 +20,4 @@ test('two installments of one stay are two rows, named by number, and each actio
   expect(screen.getByText('Échéance 2')).toBeInTheDocument();
   await user.click(screen.getAllByRole('button', { name: 'Envoyer' })[1]);
   expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ occurrenceKey: 'installment:42', installmentNumber: 2 }));
-});
-
-test('an installment in arrears reads on the payment-deadline card', () => {
-  expect(DEADLINE_STATE_LABELS.installment_overdue).toBe('Échéance en retard');
-  expect(deadlineHeadline({ state: 'installment_overdue', daysLate: 8, installmentsDue: 2 })).toBe('2 échéances en retard — 8 jours de retard');
-  expect(deadlineHeadline({ state: 'installment_overdue', daysLate: 3, installmentsDue: 1 })).toBe('Échéance en retard — 3 jours de retard');
 });

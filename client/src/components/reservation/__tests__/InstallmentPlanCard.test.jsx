@@ -27,7 +27,7 @@ const installment = (number, extra = {}) => ({
 
 const planOf = (overrides = {}) => ({
   eligible: true, canCreate: false, reason: null, countLocked: false, frozen: false,
-  total: 1001.5, paid: 0, remaining: 1001.5, gap: 0, minCount: 2, maxCount: 12, count: 3, canRequest: true,
+  total: 1001.5, paid: 0, remaining: 1001.5, gap: 0, minCount: 2, maxCount: 12, count: 3, canRequest: true, arrivalDate: '2027-06-14',
   installments: [
     installment(1, { status: 'toRequest', statusLabel: 'À demander' }),
     installment(2),
@@ -36,11 +36,11 @@ const planOf = (overrides = {}) => ({
   ...overrides,
 });
 
-function Harness({ initial, onMoney = vi.fn() }) {
+function Harness({ initial, onMoney = vi.fn(), disabled = false }) {
   const [plan, setPlan] = React.useState(initial);
   return (
     <DialogProvider>
-      <InstallmentPlanCard reservationId={7} plan={plan} arrivalDate="2027-06-14" today="2026-10-27" onPlanChange={setPlan} onMoneyChanged={onMoney} />
+      <InstallmentPlanCard reservationId={7} plan={plan} today="2026-10-27" disabled={disabled} onPlanChange={setPlan} onMoneyChanged={onMoney} />
     </DialogProvider>
   );
 }
@@ -167,6 +167,7 @@ test('rule 11 — a refused date turns the field red with the server\'s sentence
   render(<Harness initial={planOf()} />);
   const field = within(rowOf(2)).getByLabelText('Date de l’échéance 2');
   fireEvent.change(field, { target: { value: '2026-12-01' } });
+  fireEvent.blur(field);
   expect(await screen.findByRole('alert')).toHaveTextContent(message);
   expect(api.putInstallments).toHaveBeenCalledWith(7, { dates: [{ id: 42, dueDate: '2026-12-01' }] });
   expect(within(rowOf(2)).getByLabelText('Date de l’échéance 2')).toHaveValue('2026-12-01');
@@ -260,4 +261,88 @@ test('rule 16 — a refused mark shows the server\'s reason under the form, whic
   await user.click(screen.getByRole('button', { name: 'Valider' }));
   expect(await screen.findByText('Un encaissement ne peut pas être daté dans le futur.')).toBeInTheDocument();
   expect(screen.getByLabelText('Perçu le')).toBeInTheDocument();
+});
+
+test('a change of mind while the first request is in flight is sent: + then − ends on the server at the count asked', async () => {
+  vi.useFakeTimers();
+  const releases = [];
+  api.putInstallments.mockImplementation(({}, body) => new Promise((resolve) => {
+    releases.push(() => resolve({ installmentPlan: planOf({ count: body.count, installments: Array.from({ length: body.count }, (_, i) => installment(i + 1)) }) }));
+  }));
+  render(<Harness initial={planOf()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Une échéance de plus' }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(301); });
+  expect(api.putInstallments).toHaveBeenLastCalledWith(7, { count: 4 });
+  fireEvent.click(screen.getByRole('button', { name: 'Une échéance de moins' }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(301); });
+  expect(api.putInstallments).toHaveBeenLastCalledWith(7, { count: 3 });
+  expect(api.putInstallments).toHaveBeenCalledTimes(2);
+  await act(async () => { releases[0](); });
+  expect(screen.getByText('3 échéances')).toBeInTheDocument();
+  await act(async () => { releases[1](); });
+  expect(screen.getByText('3 échéances')).toBeInTheDocument();
+});
+
+test('« Supprimer l\u2019échéancier » waits for the count being gathered: it is disabled until the request has settled', async () => {
+  const user = userEvent.setup();
+  let release;
+  api.putInstallments.mockImplementation(() => new Promise((resolve) => { release = () => resolve({ installmentPlan: planOf({ count: 4, installments: Array.from({ length: 4 }, (_, i) => installment(i + 1)) }) }); }));
+  render(<Harness initial={planOf()} />);
+  await user.click(screen.getByRole('button', { name: 'Une échéance de plus' }));
+  expect(screen.getByRole('button', { name: 'Supprimer l’échéancier' })).toBeDisabled();
+  await waitFor(() => expect(api.putInstallments).toHaveBeenCalled());
+  expect(screen.getByRole('button', { name: 'Supprimer l’échéancier' })).toBeDisabled();
+  await act(async () => { release(); });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Supprimer l’échéancier' })).toBeEnabled());
+});
+
+test('rule 44 — while the fiche has unsaved changes the card is read-only and says why', () => {
+  render(<Harness initial={planOf()} disabled />);
+  expect(screen.getByText('Enregistrer la fiche avant de modifier l’échéancier.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Une échéance de plus' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Supprimer l’échéancier' })).toBeDisabled();
+  expect(within(rowOf(1)).getByLabelText('Date de l’échéance 1')).toBeDisabled();
+  expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toBeDisabled();
+  expect(within(rowOf(1)).getByRole('button', { name: 'Marquer payée' })).toBeDisabled();
+});
+
+test('the arrival bound of a date is the SAVED one the server sends, not the fiche being edited', () => {
+  render(<Harness initial={planOf({ arrivalDate: '2027-06-14' })} />);
+  expect(within(rowOf(2)).getByLabelText('Date de l’échéance 2')).toHaveAttribute('max', '2027-06-14');
+});
+
+test('a date is sent when the field is left, not per keystroke, and a refused value is not sent twice', async () => {
+  api.putInstallments.mockRejectedValue(Object.assign(new Error('Échéance 2 : date passée, à partir du 27/10/2026.'), { status: 400 }));
+  render(<Harness initial={planOf()} />);
+  const field = () => within(rowOf(2)).getByLabelText('Date de l’échéance 2');
+  fireEvent.change(field(), { target: { value: '2026-01-01' } });
+  fireEvent.change(field(), { target: { value: '2026-02-01' } });
+  fireEvent.change(field(), { target: { value: '2026-12-01' } });
+  expect(api.putInstallments).not.toHaveBeenCalled();
+  fireEvent.blur(field());
+  await screen.findByRole('alert');
+  expect(api.putInstallments).toHaveBeenCalledTimes(1);
+  expect(api.putInstallments).toHaveBeenCalledWith(7, { dates: [{ id: 42, dueDate: '2026-12-01' }] });
+  fireEvent.blur(field());
+  expect(api.putInstallments).toHaveBeenCalledTimes(1);
+  fireEvent.change(field(), { target: { value: '2026-12-02' } });
+  fireEvent.blur(field());
+  await waitFor(() => expect(api.putInstallments).toHaveBeenCalledTimes(2));
+});
+
+test('once an error is gone the field shows the server value again, and the amount error does not cover the date', async () => {
+  const user = userEvent.setup();
+  api.putInstallments.mockRejectedValueOnce(Object.assign(new Error('Montant refusé.'), { status: 400 }));
+  render(<Harness initial={planOf()} />);
+  const amount = within(rowOf(1)).getByLabelText('Montant de l’échéance 1');
+  await user.clear(amount);
+  await user.type(amount, '999');
+  await user.tab();
+  expect(await screen.findByRole('alert')).toHaveTextContent('Montant refusé.');
+  expect(within(rowOf(1)).getByLabelText('Date de l’échéance 1')).not.toHaveAttribute('aria-invalid');
+  api.putInstallments.mockResolvedValueOnce({ installmentPlan: planOf({ installments: [installment(1, { amount: 400, amountEdited: true }), installment(2, { amount: 301 }), installment(3, { amount: 300.5, amountEditable: false })] }) });
+  await user.clear(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'));
+  await user.type(within(rowOf(1)).getByLabelText('Montant de l’échéance 1'), '400{Enter}');
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('400');
 });

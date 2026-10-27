@@ -74,7 +74,7 @@ its due date, after the operator validates it.
 
 6. Euro rounding: installments 1 … N−1 are `round(total / N)` to the whole euro (half up); the last
    one is `total − sum(others)` and carries the cents. Example: 1 001,50 € in 3 → 334 + 334 +
-   333,50.
+   333,50. When rounding up would leave the last share too small, rule 32 applies.
 7. **Before the first installment is paid**, every recalculation of the reservation total
    (option added or removed, dates, guests) **recomputes all amounts** by rule 6. Dates stay as
    the operator left them.
@@ -151,8 +151,7 @@ its due date, after the operator validates it.
     recalculation) are written by every write on the plan. Every reader of the stay's money that already
     loads the row — `remainingToPay`, `comptaCollected`, `isSettled`, `computePaymentStatus`, the finance
     pages — takes them from there, so none of them learns about the table. `bucketStates` gains an
-    `installments` bucket. The arrival SAS's « collect the stay at the door » (`stayDueAtArrival`) does not
-    know installments: it collects acompte and solde only, i.e. nothing for a stay with a plan.
+    `installments` bucket. (Revised 2026-10-27: the arrival SAS does know installments — rule 36.)
 24. **Frozen means « any installment paid »**, not only the first (rule 8): money collected on installment 2
     while 1 is still open freezes the plan just as well.
 25. **What a rise added is stored** (`reservation_installments.addedCents`, shown as « +X € ajoutés »
@@ -165,10 +164,12 @@ its due date, after the operator validates it.
     surface as `overCollectedTtc` (trop-perçu), like a paid solde.
 27. **The link of an installment is a single 0 %-VAT line**, titled « Échéance séjour n/N » and enriched with
     the booking reference like the other stay lines; no VAT basket is built for a share of the stay.
-28. **A payment received for a link replaced after an amount change** (rule 17) is booked on its installment
-    at the amount really received (pinned); the other unpaid installments rebalance; an installment paid
-    meanwhile another way makes it a double payment — nothing recorded, the payment id stays on the link
-    row, the admin is told.
+28. **A payment received for a link whose amount the plan has since moved** (rule 17) is booked on its
+    installment at the amount really received (pinned), whether the link was retired (poll) or is still open
+    (webhook, poll); the other unpaid installments rebalance; an installment paid meanwhile another way makes
+    it a double payment — nothing recorded, the payment id stays on the link row, the admin is told. Every
+    save that moves an amount — the fiche, `performUpdate` for a plugin, the SAS, mid-stay extras — retires
+    the links that bill the old amount (marker kept, the poll deactivates them should the provider fail).
 29. **Accounting**: each paid installment is one encaissement (`kind: 'installment'`, `installment:
     { number, count }`) at its paid date, built on the stored-money path of the solde (a plan never
     captures per-line contribs); the tourist tax is shared in proportion to the plan's scheduled total.
@@ -177,6 +178,52 @@ its due date, after the operator validates it.
     `DELETE` answers the same payload with no installments, not `null`.
 31. The card's layout follows **its own width** (container query), not the window's: the fiche column is
     narrow even on a laptop, so the two-line card layout also serves there; the one-line row needs 720 px.
+
+32. **Rounding that never starves or lowers an installment.** Rule 6's half-up rounding stays the default.
+    When it would leave the last share under 1 € (plan creation, a typed amount's spread, a recompute with
+    pins) — or a negative share (the spread of a rise, rule 8) — every share is floored to the euro instead and
+    the last takes the remainder, so it is never smaller than the others. A rise never lowers any
+    installment: 1,50 € over 3 unpaid installments adds 0 + 0 + 1,50 €.
+33. **A plan covered by what was collected is not owed.** When the installments paid reach the stay's total
+    (a drop after payments, rule 8), the unpaid ones are no longer due: the stay's unpaid aggregate is 0,
+    « Reste à percevoir » ignores them, they leave the « à valider » queue and the collection alert, the
+    request button is hidden (`settled: true`, `canRequest: false`). The rows stay on the ledger with the gap
+    warning for the operator to settle.
+34. **Money with no installment to land on.** A paid link whose installment no longer exists (plan resized,
+    removed, platform switch) books nothing and is never called « installment-marked » or a double payment:
+    the admin is told « money received, unallocated » (`notifyPaidAfterCancel`). A link paid for an
+    installment already collected another way is a double payment: nothing recorded, the admin is told.
+35. **Links follow the plan.** Creating a plan retires and deactivates the stay's open acompte / solde / full
+    links and is refused (409) when one of them is paid; removing or resizing a plan, or switching platform,
+    retires the installment links (checked against the provider first — a link paid meanwhile refuses the
+    change). A bucket already collected is never zeroed by a plan (the engine ignores the plan, « Marquer
+    acompte / solde perçu » is refused on a stay with a plan). A link minted while the plan was changing is
+    cancelled at once.
+36. **Unpaid installments are due at arrival.** `stayDueAtArrival` counts them (`installments.due`), the SAS
+    stay step offers them, and « CB / Chèque » marks every remaining installment paid today by `cash` (espèces:
+    an installment has no caisse interne); « Pas maintenant » leaves them as they are. The payment-deadline
+    card shows `unpaid_at_arrival` for a plan unpaid once the guest has arrived.
+37. **Fiscal attribution.** When every installment is paid, the stay attaches to the day of the last one
+    (`reservations.installmentsLastPaidDate`, in JS `attributionDate` and its SQL twin).
+38. **Bank reconciliation.** Each installment is an expected receipt (`installment-<n>`, espèces excluded); a
+    confirmed transfer marks it paid through the core's mark (`applyPaymentMark` with `installmentId`), same
+    guards. « Défaire » cannot take an installment back.
+39. **VAT basket and tourist tax shares.** The link of an installment carries the VAT basket of its share of
+    the stay; the tourist tax (when it rides the pre-arrival money) is shared in proportion to the amounts
+    over the plan, exempt of VAT, the last installment taking what is left, so the shares add up to the tax.
+    The accounting export uses the same shares (rule 29).
+40. **Concurrency.** Link creation is serialised per installment, and a second « Envoyer la demande » on an
+    installment already being requested answers 409 instead of sending a second mail.
+41. **A request queued by hand** (template chosen in « Créer un email ») is queued for the installment it
+    resolves to (the first unpaid), under that installment's occurrence key, so sending it closes the entry.
+42. **Queue availability.** Installment entries — dated or queued by hand — are proposed only while a payment
+    provider is ready.
+43. **Hard guard of rule 44 of the payment-schedule spec.** A template that asks for money
+    (`PAYMENT_STABLE_KEYS`, `installment_request` included) never sends from the 08:00 pass whatever its
+    stored mode, and the template editor refuses to set it to « auto » (409).
+44. **The card follows the SAVED fiche.** While the fiche form has unsaved changes the card is read-only with
+    « Enregistrer la fiche avant de modifier l'échéancier »; the arrival bound of a date is the saved one
+    (`arrivalDate` of the payload).
 
 **Edge cases:**
 
@@ -197,21 +244,23 @@ its due date, after the operator validates it.
 ## 4. Architecture
 
 > Fat backend: amounts, dates, statuses, gaps and eligibility are all computed on the server; the
-> client renders `installmentPlan` from the fiche payload and posts the operator's two inputs
-> (count, dates).
+> client renders `installmentPlan` from the fiche payload and posts the operator's three inputs
+> (count, dates, amounts).
 
 ### 4.1 Server side (`server/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | `reservations.js` | T | `PUT /:id/installments`, `DELETE /:id/installments`, `POST /:id/installments/:n/payment` |
-| `routes/` | `payments.js` | T | `POST /reservations/:id/payment-emails` accepts `{ type: 'installment', installmentId }` |
 | `controllers/` | `installmentsController.js` | C | Validates eligibility (rules 1–3), applies count / dates / amounts, manual marks, `planFor`, `syncAfterSave` (rules 7, 8, 13), retires stale links, late installments for the alert |
 | `controllers/` | `reservationsController.js` | T | Exposes `installmentPlan` in the fiche payload; recompute after every save |
-| `controllers/` | `paymentsController.js` | T | Installment link + email on click |
+| `controllers/` | `paymentsController.js` | T | `payment-emails` accepts `{ type: 'installment', installmentId }`; the link's VAT basket (rule 39); the link for a queue entry |
 | `models/` | `installmentsModel.js` | C | CRUD on `reservation_installments` (prepared statements), keeps the stay's aggregates (rule 23) |
 | `models/` | `paymentLinksModel.js` | T | `type 'installment'` + `installmentId`; one open link per installment |
 | `utils/` | `installmentPlan.js` | C | Pure: default dates (rule 10), euro split (rule 6), recompute / frozen spread / pins (rules 7–9a), date and amount validation, statuses (rule 14), the payload |
+| `utils/` | `reservationPaymentMark.js`, `autoSendPolicy.js`, `emailTemplatesController` (T) | T | The mark routes an installment body to the plan (rule 38); money templates never auto (rule 43) |
+| `utils/` | `reservationSettlement.js`, `models/financeModel.js`, `models/reservationsModel.js` | T | `stayDueAtArrival` and `attributionDate` know the plan (rules 36–37); the SAS commit settles installments |
+| `plugins/` | `sas/controller.js`, `online-payment/reconciliation/*`, `accounting-export/accountingModel.js`, `sdk/` | T | SAS stay payload; installment receipts; tax shares from the core (`installmentPlan.taxShares` exposed to plugins) |
 | `utils/` | `installmentSync.js`, `installmentPayment.js`, `installmentSummary.js` | C | Persisting the rebalance after a total change; the one way an installment is recorded paid; the engine's read of the plan |
 | `utils/` | `installmentRequests.js` | C | What the emails controller knows of installments: which one an entry names, its variables, its link |
 | `utils/` | `installmentsMigration.js` | C | The idempotent rebuilds of `payment_links` and `email_manual_queue` and the additive columns (§5) |
@@ -222,13 +271,13 @@ its due date, after the operator validates it.
 | `utils/` | `paymentPollRunner.js` | T | `applyPaidEffect` for `installment` links |
 | `utils/` | `paymentRequestService.js` | T | `ensurePaymentLink` / `sendPaymentRequest` for one installment; deactivates the replaced link at the provider (rule 17) |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | `installment_request` (FR/EN, manual, gated by `online-payment`) |
-| `utils/` | `emailContextBuilder.js` | T | Installment variables (rule 21) |
+| `utils/` | `emailContextBuilder.js`, `templateTokens.js`, `reservationEmailSender.js` | T | Installment variables (rule 21), their catalogue entries, the sender passing the plan and the occurrence key |
 | `models/` | `emailLogModel.js`, `emailManualQueueModel.js` | T | `listPending` branch per due installment; dedupe per (template, reservation, occurrence) |
 | `controllers/` | `emailsController.js`, `routes/emails.js` | T | Preview / send / ignore / mark-sent carry the occurrence key; sending mints the link first |
 | `utils/` | `autoSendPolicy.js` | — | Unchanged; the template is manual and money templates stay out of the cron |
 | `plugins/accounting-export/` | `accountingModel.js` | T | Books each paid installment as an encaissement on its paid date |
 | `controllers/` | `dashboardController.js` | T | Late installments feed the collection alert |
-| `database.js` | `database.js` | T | Table, `payment_links` CHECK + column, queue/log occurrence key (§5) |
+| `database.js` | `database.js`, `schema.sql` | T | Table, `payment_links` CHECK + column, queue/log occurrence key, stay aggregates (§5) |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -240,12 +289,13 @@ its due date, after the operator validates it.
 | `components/` | `LedgerList.jsx` | — | Unchanged: the ledger rows (installments, gap) are shaped by the server |
 | `services/` | `api.js` | T | The installment calls, and the occurrence key on the pending-email calls |
 | `constants/` | `installmentStrings.js` | C | French labels and statuses |
+| `constants/` | `paymentDeadlines.js` | T | Label, badge and headline of an `installment_overdue` row |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `StatusBadge`, `ConfirmDialog`, `PaymentMarkForm`, `ErrorAlert`, `LedgerList` | The status chip, the « edited dates will be lost » confirmation, the manual payment form. |
+| **Consumed (existing generic)** | `StatusBadge`, `PaymentMarkForm`, `DateField` | The status chip, the manual payment form (extended with an optional payment mode), the date input. Confirmations and errors are inline MUI `Alert`s. |
 | **Created (new generic)** | — | The stepper and date fields are MUI primitives. |
 | **Specific (kept feature-local)** | `InstallmentPlanCard` | Tied to the plan's rules; nothing else edits a list of dated amounts. |
 
@@ -351,13 +401,16 @@ installment:
   response). A refused amount turns the field red with the reason (« Laisse moins de 1 € à
   l'échéance 3 »).
 
-- Action: « Envoyer la demande » (unpaid, online payment active), « Copier le lien » once sent,
-  « Marquer payée » in the overflow.
+- Action: « Envoyer la demande » (unpaid, online payment active, covered plan excluded), « Copier le lien »
+  once sent, and a visible « Marquer payée » button on every unpaid row.
 - Invalid date: the field turns red, the message names the rule (« Après l'échéance 1 et avant
   l'arrivée du 14/06/2027 »), the previous value is kept server-side.
-- Frozen plan with a rise: the changed rows show the added part (« +40 € option ») for the session.
+- Frozen plan with a rise: the changed rows show the added part (« +40,00 € ajoutés ») until the next
+  recalculation (rule 25).
 - Gap (rule 8): warning line under the rows, « Échéancier au-dessus du séjour : 25 € ».
-- Footer: « Total 1 001,50 € · payé 334 € · reste 667,50 € » (server values).
+- Footer: « Total séjour 1 001,50 € · Payé 334 € · Reste 667,50 € » (server values).
+- A date or an amount is sent when its field is left (or Enter), never per keystroke; a value the server
+  refused is not sent again until it changes; once the error is gone the field shows the server value.
 
 **Responsive:**
 - `xs` (≤600 px): each row becomes a two-line card — number + status on top, date field + amount
@@ -371,8 +424,8 @@ fiche's Save button.
 ## 7. Test plan
 
 ### Server unit tests
-Baseline 6 264 → **6 349** (+85, all green).
-- [x] `tests/direct-installments.unit.test.js` (38) — rule 6 split (1 001,50 / 3; 1 000 / 3; total < N refused)
+Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templates replaced by one, rule 43).
+- [x] `tests/direct-installments.unit.test.js` (43) — rule 6 split (1 001,50 / 3; 1 000 / 3; total < N refused)
 - [x] same file — rule 10 default dates (even spacing, last at J-30, short stay refused)
 - [x] same file — rule 7 recompute before payment; rule 8 rise spread on unpaid, drop frozen with gap, all paid → complement
 - [x] same file — rule 9a pinned amount (rest spread, last adjusts, refusals, pins kept on recompute and rise, cleared on count change)
@@ -382,12 +435,14 @@ Baseline 6 264 → **6 349** (+85, all green).
 - [x] `tests/direct-installments-links.unit.test.js` (11) — link per installment, paid link marks the installment, amount change deactivates the old link, retired link paid anyway (rule 28)
 - [x] `tests/direct-installments-emails.unit.test.js` (12) — one queue entry per due installment, template manual, variables, send / ignore / mark-sent
 - [x] `tests/direct-installments-migration.unit.test.js` (7) — rebuilds keep every `payment_links` / queue / log row
-- [x] `tests/direct-installments-money.unit.test.js` (17) — engine, settlement, ledger, finance, accounting, collection alert (rules 4, 5, 8, 22, 29)
+- [x] `tests/direct-installments-money.unit.test.js` (17) — engine, settlement, ledger, finance, accounting, collection alert (rules 4, 5, 8, 22, 29, 39)
+- [x] `tests/direct-installments-guards.unit.test.js` (17) — link paid at a moved amount, `performUpdate` retire, plan creation / removal / resize / platform switch, unallocated and double payments, concurrency, VAT basket, hand-queued request, queue availability, rule 43, boot migration on orphan rows (rules 17, 34, 35, 39–43)
+- [x] `tests/direct-installments-arrival.unit.test.js` (7) — due at arrival, SAS settlement, bank receipts, paid buckets never zeroed (rules 35, 36, 38); rule 37 extends `finance-attribution-date.unit.test.js`
 
 ### Client tests
-Baseline 2 153 → **2 170** (+17, all green).
-- [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.test.jsx` (15) — renders payload, stepper limits and rapid clicks, refused date / amount, create / remove, send / copy, manual mark
-- [x] `client/src/components/__tests__/EmailPendingList.installments.test.jsx` (2) — one row per installment, the deadline card label
+Baseline 2 153 → **2 176** (+23, all green).
+- [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.test.jsx` (21) — renders payload, stepper limits, rapid clicks and change of mind during a request, remove waiting for the count, read-only on a dirty fiche (rule 44), date / amount sent on blur only and refusals, create / remove, send / copy, manual mark
+- [x] `client/src/components/__tests__/EmailPendingList.installments.test.jsx` (1) and `constants/__tests__/paymentDeadlines.installments.test.js` (1) — one row per installment, the deadline card label
 
 ### Manual UI verification
 Checked 2026-10-27 in the browser (dev server on an E2E-seeded database, 1280, 1920 and 390 px, no console error but the intended 400 of a refused date): create (3), rapid clicks on « + » (one request, 6 shown), refused past date (red field, server sentence, typed value kept), typed amount (« fixé », the others follow), « Marquer payée » with the mode (plan frozen, ledger rows follow), 390 px two-line cards with no horizontal scroll (`scrollWidth` 390).

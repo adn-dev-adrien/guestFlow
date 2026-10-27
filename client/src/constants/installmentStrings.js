@@ -7,8 +7,8 @@ export const PLAN_TITLE = 'Échéancier';
 export const PLAN_EMPTY_LABEL = 'Paiement en plusieurs fois';
 export const PLAN_CREATE = 'Créer un échéancier';
 export const PLAN_DELETE = 'Supprimer l’échéancier';
+export const PLAN_DIRTY = 'Enregistrer la fiche avant de modifier l’échéancier.';
 export const PLAN_FROZEN = 'Figé depuis le 1er versement';
-export const PLAN_NOT_AVAILABLE = 'Échéancier indisponible';
 
 export const STEPPER_LABEL = 'Nombre d’échéances';
 export const STEPPER_LESS = 'Une échéance de moins';
@@ -19,6 +19,7 @@ export const RECOMPUTE_WARNING = (count) => `Passer à ${count} échéances reca
 export const RECOMPUTE_CONFIRM = 'Recalculer';
 export const RECOMPUTE_KEEP = 'Garder';
 
+export const INSTALLMENT_NAME = (number) => `Échéance ${number}`;
 export const DATE_LABEL = (number) => `Date de l’échéance ${number}`;
 export const AMOUNT_LABEL = (number) => `Montant de l’échéance ${number}`;
 export const PINNED_MARK = 'fixé';

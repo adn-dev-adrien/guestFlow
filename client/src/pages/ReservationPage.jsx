@@ -3397,7 +3397,7 @@ export default function ReservationPage() {
     // changed the fiche, never on a locked one; a fiche never saved has only the live one.
     ledger: showLiveMoney ? (pricingQuote?.ledger || storedLedger) : storedLedger,
     checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
-    installmentPlan, setInstallmentPlan,
+    installmentPlan, setInstallmentPlan, fichePristine: !isDirty,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,
