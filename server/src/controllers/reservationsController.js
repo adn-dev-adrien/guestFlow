@@ -8,6 +8,7 @@ const { platformDisplay } = require('../utils/platformDisplay');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { refuseInvalidServedPersons } = require('../utils/cardServedPersons');
 const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
 const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
@@ -43,6 +44,13 @@ const { reservationBlocks } = require('../utils/pluginReservationBlocks');
 // keeps the line it carries exactly as stored and cannot gain one. Applies the gate to the engine
 // input; answers 422 and returns false when the payload adds the insurance.
 function gateInsurance(res, engineInput, bookingId) {
+  // specs/card-option-served-persons.md rule 3 — the served count is refused at ≤ 0, on every path
+  // that prices options (preview, create, update), before the engine reads it as the party.
+  const servedRefusal = refuseInvalidServedPersons(engineInput.selectedOptions);
+  if (servedRefusal) {
+    res.status(400).json(servedRefusal);
+    return false;
+  }
   const gate = insuranceOffer.gateSelection({
     db, bookingId, selectedOptions: engineInput.selectedOptions, lockedOptionLines: engineInput.lockedOptionLines,
   });
@@ -1223,6 +1231,9 @@ function createStay(req, res) {
     // reduced to the net. Without this the fiche (live) and the books diverged (Yann P.: stored 983/892
     // vs fiche 994/903).
     platformCommissionAmount: req.body.platformCommissionAmount,
+    // specs/platform-per-echeance-commission.md rule 3 — the engine clamps both commissions to their
+    // échéance; the acompte one must reach it on SAVE too, or its clamp reads « none entered ».
+    acompteCommissionAmount: req.body.acompteCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-extra-guest-complement.md §3.2 rule 4 — a brut entered at creation captures the
     // composition sold by the platform.
@@ -1300,7 +1311,10 @@ function createStay(req, res) {
     model.addHistoryEntry(id, 'create', [
       { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
     ]);
-    if (reservationOptions && reservationOptions.length > 0) model.insertOptions(id, quote.optionLines);
+    // The engine's own lines (a baby cot, an early/late check-in) are written even when the payload
+    // ticked no option: they are in the price, and a cot billed without its row was read as
+    // « grandfathered » by the next save, which dropped it (baby-bed-supplement rule 19).
+    model.insertOptions(id, quote.optionLines);
     if (reservationCustomOptions && reservationCustomOptions.length > 0) model.insertCustomOptions(id, quote.optionLines);
     model.insertNights(id, quote.nightlyBreakdown);
 
@@ -1715,6 +1729,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // specs/platform-payment-entry.md + platform-commission-line.md — forward the brut (pins finalPrice)
     // and the commission (reduces the solde to the net) to the engine on SAVE, not just the live preview.
     platformCommissionAmount: req.body.platformCommissionAmount,
+    // specs/platform-per-echeance-commission.md rule 3 — the engine clamps both commissions to their
+    // échéance; the acompte one must reach it on SAVE too, or its clamp reads « none entered ».
+    acompteCommissionAmount: req.body.acompteCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-extra-guest-complement.md §3.2 rules 4-6 — captured on the save that enters the
     // brut, kept while it stays entered, cleared with it.

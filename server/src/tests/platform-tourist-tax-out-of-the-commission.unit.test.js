@@ -386,7 +386,8 @@ test('rule 15 — an explicit 0 computes like an empty box', () => {
   });
 
   assert.equal(zero.finalPrice, empty.finalPrice);
-  assert.equal(zero.platformTouristTaxWithheld, null);
+  // Rule 26 (2026-10-27) — « 0 » is the platform's answer, served as 0; only the empty box is null.
+  assert.equal(zero.platformTouristTaxWithheld, 0);
   assert.equal(empty.platformTouristTaxWithheld, null);
   db.close();
 });

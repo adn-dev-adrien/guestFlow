@@ -28,7 +28,7 @@ function createDb() {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE platforms (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, commissionPercent REAL NOT NULL DEFAULT 0);
-    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT,
+    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, basePriceIncludedGuests INTEGER DEFAULT 0,
       tariffRecipeId TEXT DEFAULT '', tariffRecipeVersion TEXT DEFAULT '',
       extraGuestPrice REAL DEFAULT 0, extraGuestPriceUnit TEXT DEFAULT 'per_stay', welcomePackCost REAL DEFAULT 0,
       platformCleaningFees TEXT DEFAULT '[]', updatedAt TEXT);
@@ -107,15 +107,18 @@ test('apply writes the fees even when no season changes', () => {
   assert.deepEqual(storedFees(db), [{ platform: 'Airbnb', cleaningNet: 80, choresNet: 22.92, net: 102.92 }]);
 });
 
-// specs/tariff-recipe-platform-cleaning-fee.md rule 6
-test('a platform GuestFlow does not know blocks the apply and writes nothing', () => {
+// specs/tariff-recipe-platform-cleaning-fee.md rule 15 (supersedes rule 6, spec review 2026-10-27)
+test('a platform GuestFlow does not know is skipped and named; the rest of the recipe applies', () => {
   const db = createDb();
-  const recipe = validateRecipe(withCleaning({ netCost: 80, hourlyRate: 25, platformFees: [{ platform: 'Vrbo', chargesCleaning: true }] })).recipe;
+  const recipe = validateRecipe(withCleaning({ netCost: 80, hourlyRate: 25, platformFees: [
+    { platform: 'Vrbo', chargesCleaning: true }, { platform: 'Airbnb', chargesCleaning: true },
+  ] })).recipe;
   const out = createTariffRecipeModel(db, storeOf(recipe)).apply(1, recipe.id);
-  assert.equal(out.blocking, true);
-  assert.ok(out.warnings.includes('Plateforme inconnue dans la recette : Vrbo'));
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pricing_rules').get().n, 0);
-  assert.deepEqual(storedFees(db), []);
+  assert.equal(out.blocking, false);
+  assert.equal(out.applied, true);
+  assert.ok(out.warnings.some((w) => w.startsWith('Plateforme inconnue dans la recette : Vrbo — frais de ménage non appliqués')));
+  assert.ok(db.prepare('SELECT COUNT(*) AS n FROM pricing_rules').get().n > 0, 'the seasons are written');
+  assert.deepEqual(storedFees(db).map((f) => f.platform), ['Airbnb']);
 });
 
 // specs/tariff-recipe-platform-cleaning-fee.md rule 7

@@ -170,8 +170,9 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   // split here differ only in where the redundant override is recorded — the effective minimum is 4
   // from 11 July to 21 August, which is what the quote assertions below pin down.
   assert.deepEqual(plan2026.peak, [
-    r('2026-07-11', '2026-07-13'), r('2026-07-14', '2026-08-14', 4),
-    r('2026-08-15', '2026-08-15'), r('2026-08-16', '2026-08-21', 4),
+    // One range: the 14-juillet block and the Saturday 15 August add nothing to the summer core's
+    // 4-night minimum, so they no longer split it (rule 16quater, spec review 2026-10-27).
+    r('2026-07-11', '2026-08-21', 4),
   ]);
   // The two peaks: only the nights that carry the premium. 25 December is split off by its own
   // holiday minimum, not by a price change — both Christmas nights bill the same 930 €.
@@ -219,7 +220,7 @@ test('a holiday raise stops at Haute, and never demotes a night above it', () =>
   // implemented as min(cap, rank + 1) would have moved these three nights down to Haute.
   // The minimum is 4, not the block's own 3: a holiday block may RAISE a season's minimum, never
   // lower it, or those three days would be the only short stays allowed in the whole summer.
-  assert.ok(plan.peak.some((x) => x.startDate === '2026-07-11' && x.endDate === '2026-07-13'));
+  assert.ok(plan.peak.some((x) => x.startDate <= '2026-07-11' && x.endDate >= '2026-07-13' && x.minNights === 4));
   assert.equal(plan.high.some((x) => x.startDate.startsWith('2026-07-1')), false);
 });
 

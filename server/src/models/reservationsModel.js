@@ -55,6 +55,14 @@ const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
+// specs/platform-per-echeance-commission.md rule 3 — a commission is clamped to its échéance (net cash
+// ≥ 0). The engine clamps it (`quote.<field>`), so the stored figure is the engine's whenever it gave
+// one: storing the raw input let a 100 € commission on a 0 € acompte reach finance as a −100 € net.
+function storedCommission(input, engineValue) {
+  const entered = Math.max(0, Number(input));
+  return engineValue != null && Number.isFinite(Number(engineValue)) ? Math.min(entered, Number(engineValue)) : entered;
+}
+
 // Origin shown on the « Nouvelles réservations » dashboard card (specs/dashboard-ical-new-reservations.md
 // rule 9): the iCal source, else « Site » for a paid website devis, else the channel set on the fiche.
 function newReservationOriginLabel(row) {
@@ -1557,11 +1565,11 @@ function createReservationsModel(database) {
       // NULL on direct bookings (no commission). Drives the fiche « net perçu » only; the accounting
       // commission stays derived from `clientGrossAmount`.
       const platformCommissionForStore = platformIsNonDirect
-        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? Math.max(0, Number(platformCommissionAmount)) : null)
+        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? storedCommission(platformCommissionAmount, quote.platformCommissionAmount) : null)
         : null;
       // specs/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
       const acompteCommissionForStore = platformIsNonDirect
-        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? Math.max(0, Number(acompteCommissionAmount)) : null)
+        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? storedCommission(acompteCommissionAmount, quote.acompteCommissionAmount) : null)
         : null;
       // specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
       const platformGrossForStore = platformIsNonDirect
@@ -1883,11 +1891,11 @@ function createReservationsModel(database) {
         : Number(quote.finalPrice || 0);
       // specs/platform-commission-line.md — operator-entered platform commission (€), clamped ≥ 0; NULL on direct.
       const platformCommissionForStore = platformIsNonDirect
-        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? Math.max(0, Number(platformCommissionAmount)) : null)
+        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? storedCommission(platformCommissionAmount, quote.platformCommissionAmount) : null)
         : null;
       // specs/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
       const acompteCommissionForStore = platformIsNonDirect
-        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? Math.max(0, Number(acompteCommissionAmount)) : null)
+        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? storedCommission(acompteCommissionAmount, quote.acompteCommissionAmount) : null)
         : null;
       // specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
       const platformGrossForStore = platformIsNonDirect
