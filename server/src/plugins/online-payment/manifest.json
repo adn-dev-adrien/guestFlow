@@ -53,6 +53,7 @@
     "1.2.5": [
       "Rapprochement bancaire : quand la plateforme a pris un acompte, le virement du solde n’attend plus que le solde, et la commission inscrite sur la fiche ne compte plus l’acompte.",
       "Rapprochement bancaire : un échéancier illisible est signalé au lieu de ne plus rien attendre.",
+      "Rapprochement bancaire : un versement retrouve ses séjours quelle que soit l’orthographe enregistrée du nom de la plateforme.",
       "Compatible avec le SDK 2.6 de GuestFlow."
     ]
   }

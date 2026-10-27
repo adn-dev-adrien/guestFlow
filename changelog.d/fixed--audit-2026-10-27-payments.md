@@ -4,3 +4,4 @@
 - Cancelling a stay paid through an installment plan books the requalification of what was collected: an avoir (stay at the sales VAT rate, tourist-tax shares at 0 %) and a VAT-free indemnity (specs/direct-installments.md rule 46).
 - plugin:online-payment The bank reconciliation no longer inflates a platform's commission by the acompte the platform took: the solde credit is expected and written as the solde, the fiche payout being credit + acompte net (specs/qonto-bank-reconciliation.md rule 44).
 - plugin:online-payment The installments are read through the core installments model (SDK 2.6.0); a failing read surfaces instead of expecting nothing; the manifest changelog is in version order (rule 45).
+- plugin:online-payment The bank reconciliation matches a payout to its platform's stays whatever the stored spelling of the platform name (specs/qonto-bank-reconciliation.md rule 46).

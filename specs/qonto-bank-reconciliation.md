@@ -299,6 +299,11 @@ a short list of the gaps to fix on the fiches.
 45. **The installments are read through the core.** The plan's rows come from the core installments
     model (`sdk.coreModule('installmentsModel')`, SDK 2.6), never by raw SQL on a core table, and a
     failing read is an error — it no longer turns into an empty plan that silently expects nothing.
+46. **A platform is matched whatever its spelling.** Patterns, the batch list and the receipts' channel
+    are compared by slug (case, accents and separators ignored): a stay stored as `Gitesdefrance` or
+    `AirBnb` still receives its platform's payout. *Why:* the boot de-duplication of platform rows may
+    keep either spelling (specs/normalize-platform-names.md rule 23), and an exact-name match then
+    proposed nothing (audit 2026-10-27).
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay

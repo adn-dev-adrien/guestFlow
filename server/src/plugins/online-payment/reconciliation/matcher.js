@@ -28,6 +28,10 @@ const DEFAULT_BATCH_PLATFORMS = Object.freeze(['Lodgify']);
 const normalize = (s) => String(s == null ? '' : s)
   .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9.=+]+/g, ' ').trim();
 const { day } = require('./dates');
+
+// A platform is the same whatever its stored spelling (`Airbnb` / `AirBnb`, `GitesDeFrance` /
+// `Gitesdefrance`): patterns, batch list and receipts are compared by slug, never by exact name.
+const platformSlug = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const dayNumber = (iso) => (iso ? Math.floor(Date.parse(`${iso}T00:00:00Z`) / MS_DAY) : null);
 const daysBetween = (a, b) => (day(a) && day(b) ? dayNumber(day(b)) - dayNumber(day(a)) : null);
 
@@ -89,7 +93,8 @@ const proposal = (tx, items, confidence, source, reason, extra = {}) => ({
 /** Rules 13, 14, 32 — a recognised platform payout. */
 function platformProposals(tx, platform, receipts, settings) {
   const settled = day(tx.settledAt);
-  const mine = receipts.filter((r) => r.channel === `platform:${platform}` && r.openCents > 0);
+  const mine = receipts.filter((r) => String(r.channel || '').startsWith('platform:')
+    && platformSlug(String(r.channel).slice('platform:'.length)) === platformSlug(platform) && r.openCents > 0);
   // A fiche is often typed after the money moved, so its creation date says nothing: the window is
   // anchored on the expected date alone (Abracadaroom pays at booking time, months before the stay).
   const inWindow = (r) => {
@@ -101,7 +106,7 @@ function platformProposals(tx, platform, receipts, settings) {
   const candidates = mine.filter(inWindow);
   const out = [];
   const recorded = candidates.filter((r) => r.payoutRecorded);
-  const batch = (settings.batchPlatforms || DEFAULT_BATCH_PLATFORMS).includes(platform);
+  const batch = (settings.batchPlatforms || DEFAULT_BATCH_PLATFORMS).some((b) => platformSlug(b) === platformSlug(platform));
 
   if (batch) {
     const recent = mine.filter((r) => {
