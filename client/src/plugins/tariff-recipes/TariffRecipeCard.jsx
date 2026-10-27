@@ -270,7 +270,7 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
   const changedSeasons = (preview?.seasons || []).filter((s) => s.action !== 'unchanged');
   // specs/tariff-recipe-platform-cleaning-fee.md rule 11 — a cleaning-fee change is a change too.
   const cleaningFeeChanges = preview?.cleaningFeeChanges || [];
-  // specs/tariff-recipes/spec.md rule 62 — the supplement unit and included guests the recipe sets.
+  // specs/tariff-recipes/spec.md rule 64 — the supplement unit and included guests the recipe sets.
   const extraGuestChanges = preview?.extraGuestChanges || [];
   const netLabel = (value) => (value == null ? '—' : `${formatCurrency(value)} net`);
 

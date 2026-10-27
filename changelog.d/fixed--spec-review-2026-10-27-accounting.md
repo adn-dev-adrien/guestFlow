@@ -2,7 +2,7 @@
 - **Finance « En retard » lists late installments** — tile, insight and detail — like the fiche and the payment deadlines; « Marquer payé » records each through its own endpoint (specs/direct-installments.md rule 48, specs/finance-dashboard-redesign.md rule 49).
 - **Installment plan after a price drop:** the fiche's « Total perçu » counts the stay (or what was already collected, when more), the same figure live and stored, instead of the plan left above the stay (specs/reservation-payment-ledger.md rule 48).
 - The stored ledger's acompte row names its ceiling (`amountEdit.max`, the accommodation) like the live one (rule 49).
-- Cancelling a stay with nothing paid records `unpaid_deposit`, not `unpaid_balance` (specs/payment-schedule-and-cancellation.md rule 47).
+- Cancelling a stay with nothing paid records `unpaid_deposit`, not `unpaid_balance` (specs/payment-schedule-and-cancellation.md rule 48).
 - The cancellation insurance can no longer be deleted (`409`, it was archived), and a percentage with more than 2 decimals is refused (`422`) (specs/cancellation-insurance.md rule 28).
 - A `PUT` on a received cancellation compensation answers `409 COMPENSATION_LOCKED` whatever its body (specs/cancellation-compensation.md rule 29).
 - A payment link is never minted for an échéance already paid: `409 ALREADY_PAID` before any provider call (specs/online-payments-qonto.md rule 21).

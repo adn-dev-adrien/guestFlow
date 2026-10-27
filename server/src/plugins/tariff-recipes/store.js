@@ -387,7 +387,7 @@ function validateRecipe(json) {
         'incompatible avec perNightTiers : les paliers sont déjà une dégressivité (la 2ᵉ nuit serait facturée 8 × 0,52 = 4,16 €)');
     }
     // A tier table is a per-night price: on a per-stay supplement the engine never reads it, so the
-    // recipe card would announce « 15 € la 1ʳᵉ nuit » and bill nothing (rule 62).
+    // recipe card would announce « 15 € la 1ʳᵉ nuit » and bill nothing (rule 64).
     if (eg.perNightTiers && eg.unit === 'per_stay') {
       return fail('extraGuest.unit', 'per_night requis avec perNightTiers : un supplément par séjour ne lit pas les paliers');
     }

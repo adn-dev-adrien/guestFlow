@@ -131,7 +131,7 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
     DISPLAYED prices as if they were net (direct showed 16/9 instead of 15/8). After applying a
     recipe, verify the grid's direct row REPRODUCES the displayed prices — that identity is the
     whole point of a net pivot, and it fails loudly the moment one is dropped.
-16. **`extraGuest.unit` and `appliesAbove` are written on the property by the apply** (rule 62 of
+16. **`extraGuest.unit` and `appliesAbove` are written on the property by the apply** (rule 64 of
     `specs/tariff-recipes/spec.md`); the preview lists them as « Supplément voyageurs » / « Personnes
     incluses ». A tier table on a `per_stay` unit is refused at load: a per-stay supplement never reads
     tiers, and the card would announce a price nobody is billed.

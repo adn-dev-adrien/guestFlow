@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { computeTouristTaxBreakdown } = require('../utils/pricing').__test;
 
-// specs/tourist-tax-matches-the-office-calculation.md rule 17 (spec review 2026-10-27,
+// specs/tourist-tax-matches-the-office-calculation.md rule 18 (spec review 2026-10-27,
 // M2). The caption printed « (272.55EUR HT ÷ 3 nuits ÷ 2 occupants = 90.85EUR HT/nuit) x 5.00% … »:
 // the « = 90,85 » was the per-night price BEFORE the occupant division, so the shown arithmetic was
 // false, and the figures were English-formatted. It now reads exactly as the spec writes it.

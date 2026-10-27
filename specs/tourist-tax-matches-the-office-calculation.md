@@ -250,7 +250,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
 
 ### Fixed at the 2026-10-27 spec review
 
-17. **The rule-15 caption is the spec's, to the character.** It read
+18. **The rule-15 caption is the spec's, to the character.** It read
     « (272.55EUR HT ÷ 3 nuits ÷ 2 occupants = 90.85EUR HT/nuit) x 5.00% … »: the « = 90,85 » was the
     per-night price BEFORE the division by the occupants, so the shown arithmetic was false, and the
     figures were English-formatted. It now reads « (272,55 € HT ÷ 3 nuits ÷ 2 occupants) × 5,00 % +
@@ -270,7 +270,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `pricing.js` | T | `computeTouristTaxBreakdown`: occupants exclude babies; returns the base it used. `calculateReservationQuote`: base per rules 1-7 (brut minus non-complement extras, minus inclusions, minus surcharge); accepts the frozen base/occupants and returns them verbatim when frozen; emits the rule-16 inconsistency flag. |
-| `utils/` | `pricing.js` | T | 2026-10-27 (rule 17) — `frenchEuros` / `frenchPercent`; the caption follows rule 15's shape with French figures. |
+| `utils/` | `pricing.js` | T | 2026-10-27 (rule 18) — `frenchEuros` / `frenchPercent`; the caption follows rule 15's shape with French figures. |
 | `utils/` | `reservationEngineInput.js` | T | Carries `platformGrossAmount` and the three frozen columns, so the declaration and the contrib capture replay exactly what the fiche shows. |
 | `utils/` | `touristTaxFreeze.js` | C | Pure helpers: `carriesTaxInBalance(routing)`, `shouldFreeze(reservation, routing)` (rules 10-11), `reconstructFrozenBase(stored, property)` (rule 14). Unit-testable, and shared by the save path, the declaration and the migration so the three can never disagree. |
 | `controllers/` | `reservationsController.js` | T | `calculatePrice` / `create` / `update`: pass the frozen inputs; on save, freeze when rule 10's instalment flips to paid. |
@@ -347,7 +347,7 @@ Checked at `xs` / `md` / `lg`.
 
 ### Server unit tests
 
-- `tourist-tax-caption-format.unit.test.js` (4, rule 17) — the spec shape, French figures, the shown
+- `tourist-tax-caption-format.unit.test.js` (4, rule 18) — the spec shape, French figures, the shown
   figures reproduce the unit amount, per-person mode.
 
 - [x] `tests/tourist-tax-base-accommodation-only.unit.test.js` — extended: the brut derives the base

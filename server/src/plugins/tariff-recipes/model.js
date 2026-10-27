@@ -28,7 +28,7 @@ function roundOrNull(value) {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 
-// specs/tariff-recipes/spec.md §3 rule 62 — what the recipe's `extraGuest` block asks of the property.
+// specs/tariff-recipes/spec.md §3 rule 64 — what the recipe's `extraGuest` block asks of the property.
 // A tier table only bills per night, so tiers without a declared unit mean `per_night`.
 function desiredExtraGuestConfig(extraGuest) {
   if (!extraGuest || typeof extraGuest !== 'object') return {};

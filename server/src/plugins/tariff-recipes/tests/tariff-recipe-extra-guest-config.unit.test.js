@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { createTariffRecipeModel } = require('../model');
 const { validateRecipe } = require('../store');
 
-// specs/tariff-recipes/spec.md §3 rule 62 — spec review 2026-10-27 (M1). The recipe's
+// specs/tariff-recipes/spec.md §3 rule 64 — spec review 2026-10-27 (M1). The recipe's
 // `extraGuest.unit` and `appliesAbove` were validated and then never written: applying the Lodge
 // recipe to a property left at `per_stay` billed its 15/8 tiers 0 € (a per-stay supplement never
 // reads a tier table), and nothing in the preview said so.
