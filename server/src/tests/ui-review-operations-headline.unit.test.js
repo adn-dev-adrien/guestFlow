@@ -9,7 +9,7 @@ const { calculateReservationQuote } = require('../utils/pricing');
 
 test('rule 10 — a platform stay leads with « Vous percevez », the guest-paid total second', () => {
   const h = quoteHeadline({
-    finalPrice: 959.39, touristTaxOriginalTotal: 28, sejourNetTotal: 829.42,
+    finalPrice: 959.39, touristTaxOriginalTotal: 28, touristTaxTotal: 28, sejourNetTotal: 829.42,
   }, { isPlatform: true });
   assert.deepEqual(h, {
     label: 'Vous percevez', amount: 829.42, secondary: { label: 'Total du séjour', amount: 987.39 },

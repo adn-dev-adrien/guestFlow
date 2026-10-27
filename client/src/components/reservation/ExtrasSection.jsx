@@ -33,7 +33,7 @@ export default function ExtrasSection() {
     extrasWindowOpen, arrivalLines: rawArrivalLines, frozenCustomOptionIds,
     setResourceInComplement,
     bedLinenForcedOptionIds, lockedIncludedOptionIds,
-    isDevisMode,
+    isDevisMode, isPlatformSale,
   } = useReservationForm();
   // The server lists only what is offered; a resource the stay carries but the catalogue hides comes
   // back from `frozenResources`, read-only (specs/plugins-phase-3c-hourly-resources.md rule 18).
@@ -50,7 +50,7 @@ export default function ExtrasSection() {
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). A muted caption explains the default. Only engine-derived auto-options keep
   // their toggle hidden — their routing is the algorithm's, not the operator's (rule 5).
-  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+  const isPlatformReservation = Boolean(isPlatformSale);
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
   // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde

@@ -152,6 +152,13 @@ and the TOTAL TTC always agree with the lines printed just above them, for the l
 - **Public (WordPress) devis** → `planningCardAsQuantity` replayed, planning-card options priced by
   quantity as when the guest booked.
 
+### 3.5 Fixed at the 2026-10-27 audit
+
+13. **The discounted season rows add up to the engine's accommodation.** The engine rounds the
+    discounted accommodation once, on the whole stay; the PDF rounded each season group on its own and
+    could print a cent more (89,26 for 89,25). Every group but the last is rounded on its own; the
+    last takes what is left of the stay's rounded total (`discountedGroupTotals`).
+
 ---
 
 ## 4. Architecture
@@ -189,6 +196,9 @@ None. The devis screen is already correct; this spec brings the PDF back in line
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/devis/:id/pdf` | — | `application/pdf` | Unchanged contract; the **content** of the totals block is corrected |
+
+**Audit 2026-10-27 (rule 13).** `utils/devisPdf.js` — `discountedGroupTotals`, exported under
+`__test`.
 
 ---
 
@@ -261,6 +271,8 @@ built through the real model — offered property-default option + percentage to
 - [x] `recomputeQuote` returns the persisted `finalPrice` + `touristTaxTotal` on that devis, so the
       PDF and the devis screen read the same numbers.
 - [ ] Prod re-check on the reported devis after deploy: expected 9,60 € / 533,52 €.
+
+**Audit 2026-10-27:** `tests/devis-pdf-discount-rounding.unit.test.js` (2, rule 13).
 
 ## 8. Out of scope
 

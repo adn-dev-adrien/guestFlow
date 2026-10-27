@@ -294,6 +294,14 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     stay 22298 by a night without refunding it and saw a 107,20 € trop-perçu stay on the fiche with
     no documented way to close it.*
 
+40. **Rule 38 holds on a platform that takes an acompte (audit 2026-10-27).** With both échéances
+    paid, the paid acompte stays and the paid solde follows the statement: `solde = max(0, pre-arrival
+    − acompte)`, and no arrival complement is asked for a correction upwards. Gîtes de France,
+    acompte 180 + solde 420 paid on a brut of 600: brut corrected to 450 → solde 270 (it kept 420,
+    with 150 of trop-perçu); corrected to 700 → solde 520 (it asked 100 at arrival). The same holds
+    on a counts-as-direct channel whose platform amount is entered (plugins-phase-p-productisation.md
+    rule 45).
+
 ---
 
 ## 4. Architecture
@@ -361,6 +369,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 Auth: `requireAuth` + admin role (403 `FORBIDDEN_ROLE` for reception/accountant).
 Errors: `{ error, code }` with the codes of rules 10–13.
 Idempotency: none — a double POST creates two refunds (visible in the history, deletable).
+
+**Audit 2026-10-27 (rule 40).** `utils/pricing.js` — the platform branch with both échéances paid,
+and `paidSoldeFollowsStatement` for the rules 36/38 tests.
 
 ---
 
@@ -529,6 +540,8 @@ like « Nouvelle note », not a page-level one).
       figures with no refund recorded.
 - [x] Mobile (`xs`): dialog fullscreen, history readable, no horizontal scroll.
 - [x] `npm run test:e2e` (Playwright) green — 45 passed, 1 skipped.
+
+**Audit 2026-10-27:** `tests/platform-acompte-paid-follows-statement.unit.test.js` (3, rule 40).
 
 ## 8. Out of scope
 

@@ -205,10 +205,6 @@ export default function PricingSummary({
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
-  // Engine-authoritative total: the server already netted out the platform-collected tax (= 0 in
-  // `touristTaxTotal`) and kept it in for owner-collected / direct cases. No client-side stripping.
-  const totalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
-
   // Single global VAT rate (specs/single-vat-rate.md §4.2). The engine still ships three
   // separate `vatPercentage*` keys for backward compatibility — they all carry the same
   // value, so we read one and ignore the others.
@@ -244,7 +240,10 @@ export default function PricingSummary({
   // extras line is server-forced to inComplement = 1. The per-line <ComplementChip> here is
   // therefore meaningless (no toggle to expose) and is hidden. The "Offert/Offrir" button
   // stays — a geste commercial works the same on platform and direct reservations.
-  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+  // specs/plugins-phase-p-productisation.md rule 45 — the server says whether the stay is a platform
+  // SALE: a channel « Compté comme vente directe » reads as a direct one.
+  const isPlatformReservation = Boolean(quote?.platformSale);
+  const unpricedNights = Array.isArray(quote?.unpricedNights) ? quote.unpricedNights : [];
 
   return (
     <Box
@@ -304,6 +303,15 @@ export default function PricingSummary({
               </Box>
             </Box>
           </Box>
+
+          {/* specs/tariff-recipes/spec.md §3 rule 59 — a night no season covers is priced by default:
+              the fiche says so, the operator decides. */}
+          {unpricedNights.length > 0 && (
+            <Typography variant="caption" role="alert" sx={{ display: 'block', color: 'warning.main', overflowWrap: 'anywhere' }}>
+              {unpricedNights.length > 1 ? 'Aucune saison tarifaire ne couvre les nuits du ' : 'Aucune saison tarifaire ne couvre la nuit du '}
+              {unpricedNights.map((date) => displayDate(date)).join(', ')}.
+            </Typography>
+          )}
 
           {nightlyBreakdown.length > 0 && showNightlyBreakdown && (
             <Box
@@ -828,39 +836,23 @@ export default function PricingSummary({
           {(() => {
             const acompteComm = Number(quote?.acompteCommissionAmount || 0);
             const soldeComm = Number(quote?.platformCommissionAmount || 0);
-            const totalComm = Number(quote?.totalPlatformCommission ?? (acompteComm + soldeComm));
+            const totalComm = Number(quote?.totalPlatformCommission || 0);
             const netReceived = quote?.platformNetReceivedAmount;
             const hasCommission = totalComm > 0;
-            // « Total du séjour » = the GROSS the client pays: finalPrice (accommodation + all
-            // options/resources) + the REAL tourist tax (original, even when offered — the guest paid it).
-            // The end-of-stay complement has two halves: what the departure SAS bills (ménage, linge
-            // manquant, extincteur — flat amounts OUTSIDE finalPrice) and the prestations sold during
-            // the stay (real option/resource lines, already inside finalPrice). Only the first half is
-            // added here, else the mid-stay part would be counted twice in the gross.
-            // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — the end-of-stay
-            // complement is collected on site like the arrival one: same treatment in the cascade.
-            const endOfStay = Number(quote?.endOfStayComplementTotal ?? form.endOfStayComplementAmount ?? 0);
-            // specs/mid-stay-notes.md §3.5 rule 19 — prestations already collected through a note.
-            const midStayNotes = Number(quote?.midStaySettledTotal || 0);
-            // The SAS half of the end-of-stay complement (ménage/linge/extincteur) lives OUTSIDE
-            // finalPrice; the mid-stay half (sold + collected or still due) is already inside it.
-            const endOfStaySas = Math.max(0, endOfStay - Number(quote?.midStayRemainingTotal ?? quote?.midStayExtrasTotal ?? 0));
-            // Rule 13 — with a withheld amount stated, this cascade becomes literally true: « Total du
-            // séjour » is the guest-paid total off the statement and « Versement plateforme » is the
-            // transfer, top and bottom of the same column.
-            const grossTotal = Number(quote?.finalPrice != null ? quote.finalPrice : totalSejour)
-              + touristTaxPlatformAmount + endOfStaySas;
-            // Deductions to the commission base: the tax the platform collects + remits to the commune
-            // itself (offered), and the extras collected on-site (the complément). What's left is the
-            // pre-arrival amount the platform commissions on.
-            const offeredTax = isTouristTaxOffered ? touristTaxPlatformAmount : 0;
+            // specs/ui-review-2026-10-19-operations.md rule 32 — the cascade's figures come shaped by the
+            // server (`quote.summaryCascade`): « Total du séjour » is the headline's gross, the platform's
+            // withheld tax and the on-site total are its own deductions. The panel only prints them.
+            const cascade = quote?.summaryCascade || {};
+            const grossTotal = Number(cascade.grossTotal || 0);
+            const offeredTax = Number(cascade.offeredTaxDeduction || 0);
+            const onSiteTotal = Number(cascade.onSiteTotal || 0);
             const complement = Number(quote?.complementAmount || 0);
-            const onSiteTotal = complement + endOfStay + midStayNotes;
+            const endOfStay = Number(quote?.endOfStayComplementTotal || 0);
+            const midStayNotes = Number(quote?.midStaySettledTotal || 0);
             // specs/complement-buckets-by-moment.md §3 rule 1 — the server files each amount under the
-            // moment it is collected; the panel only prints. Fallback for a quote from an older payload
-            // (or a devis preview): everything under arrival, which is what the engine returns anyway.
+            // moment it is collected; the panel only prints.
             const split = quote?.complementSplit || { arrival: complement, duringStay: midStayNotes, endOfStay };
-            const montantSoumis = Number(quote?.preArrivalAmount != null ? quote.preArrivalAmount : (grossTotal - offeredTax - onSiteTotal));
+            const montantSoumis = Number(cascade.commissionBase || 0);
             const versement = netReceived != null ? Number(netReceived) : montantSoumis;
             // specs/reservation-refunds.md §3.3 rule 17 — money given back to the guest is the last
             // deduction of the cascade: everything above still shows what was sold and collected.
@@ -871,7 +863,7 @@ export default function PricingSummary({
             // `sejourNetTotal` ; ici on ne fait qu'imprimer la ligne qui l'explique.
             const arrivalReduction = Number(quote?.arrivalPaymentReduction || 0);
             const arrivalTip = Number(quote?.arrivalPaymentTip || 0);
-            const totalPercu = Number(quote?.sejourNetTotal ?? (versement + onSiteTotal - refundsTotal));
+            const totalPercu = Number(quote?.sejourNetTotal || 0);
             // The cascade flow (deductions → versement → +complément) only makes sense for a platform
             // reservation. Direct keeps a single « Total du séjour » + a complément line if any.
             const row = (label, value, opts = {}) => (

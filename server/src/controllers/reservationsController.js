@@ -696,8 +696,7 @@ function settleArrivalPayment(req, res) {
 
 function storedHeadlineOf(row) {
   if (!row) return null;
-  const { quoteHeadline } = require('../utils/quoteHeadline');
-  const { comptaCollected, remainingToPay } = require('../utils/reservationSettlement');
+  const { quoteHeadline, storedNetTotal } = require('../utils/quoteHeadline');
   const { isDirectChannel } = require('../utils/platformNameFormat');
   let refundsBookTtc = 0;
   try { refundsBookTtc = Number(refundsModel.totalsByReservation(Number(row.id)).book || 0); } catch { refundsBookTtc = 0; }
@@ -708,7 +707,7 @@ function storedHeadlineOf(row) {
     platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : row.platformTouristTaxAmount,
     endOfStayComplementTotal: row.endOfStayComplementAmount,
     midStayRemainingTotal: midStay,
-    sejourNetTotal: round2(comptaCollected({ ...row, refundsBookTtc }) + remainingToPay(row)),
+    sejourNetTotal: storedNetTotal(row, { refundsBookTtc }),
   }, { isPlatform: !isDirectChannel(row.platform) });
 }
 

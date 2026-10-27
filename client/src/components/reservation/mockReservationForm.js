@@ -26,12 +26,16 @@ export function makeMockForm(overrides = {}) {
 
 export function makeMockContext(overrides = {}) {
   const { form: formOverrides, ...rest } = overrides;
+  const form = makeMockForm(formOverrides);
   return {
     // shared styles
     formSectionCardSx: {}, lockedSectionSx: undefined, formSectionContentSx: {}, sectionGridSx: {},
     // core
-    form: makeMockForm(formOverrides),
+    form,
     updateForm: vi.fn(),
+    // The page's « platform sale » answer from the server (specs/plugins-phase-p-productisation.md
+    // rule 45); the mock answers as the engine does for a channel not counted as direct.
+    isPlatformSale: String(form.platform || 'direct').toLowerCase() !== 'direct',
     // catalogs
     properties: [{ id: 1, name: 'Villa', label: 'Villa Test' }],
     propertyOptions: [{ id: 10, title: 'Petit-déjeuner', price: 10, priceType: 'per_person' }],

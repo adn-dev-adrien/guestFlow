@@ -68,6 +68,11 @@ test('the quote hands back the tariff context it used, ready to be stored', () =
     extraGuestPrice: 27,
     extraGuestPriceUnit: 'per_night',
     extraGuestTiers: null,
+    // Rule 58 — the season each night was sold under, for the per-night supplement.
+    extraGuestNights: {
+      '2026-09-10': { base: 200, unit: 27 },
+      '2026-09-11': { base: 200, unit: 27 },
+    },
     freeUnitsByOption: { 6: 2 },
   });
   db.close();

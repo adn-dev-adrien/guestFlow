@@ -30,15 +30,21 @@ function renderSummary(quote, form = FORM) {
   );
 }
 
-const QUOTE = { finalPrice: 250, totalStayPrice: 250, nights: 2, optionLines: [], resourceLines: [], touristTaxTotal: 0, touristTaxOriginalTotal: 0 };
+// The cascade's figures come shaped by the server (`summaryCascade`, specs/ui-review-2026-10-19-
+// operations.md rule 32) — the fixtures carry them as the engine would.
+const QUOTE = { finalPrice: 250, totalStayPrice: 250, nights: 2, optionLines: [], resourceLines: [], touristTaxTotal: 0, touristTaxOriginalTotal: 0, platformSale: true };
+const cascade = (grossTotal, offeredTaxDeduction, onSiteTotal, commissionBase) => ({
+  summaryCascade: { grossTotal, offeredTaxDeduction, onSiteTotal, commissionBase },
+});
 
 test('full cascade: offered tax + complement + commission', () => {
   // gross 274.60 (finalPrice 265 + tax 9.60) − taxe 9.60 (→ commune) − compléments 15 = 250 (soumis à
   // commission) ; − 30 commission = 220 (versement) ; + 15 compléments = 235 (total perçu).
   renderSummary({
     ...QUOTE, finalPrice: 265, touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 9.60,
+    platformTouristTaxWithheld: 9.60,
     complementAmount: 15, preArrivalAmount: 250, platformCommissionAmount: 30, totalPlatformCommission: 30,
-    platformNetReceivedAmount: 220, sejourNetTotal: 235,
+    platformNetReceivedAmount: 220, sejourNetTotal: 235, ...cascade(274.6, 9.6, 15, 250),
   });
   expect(screen.getByText('Total du séjour')).toBeInTheDocument();
   expect(screen.getByText('274,60 €')).toBeInTheDocument();           // gross
@@ -66,8 +72,9 @@ test('full cascade: offered tax + complement + commission', () => {
 test('offered tax, no complement → « − Taxe de séjour (plateforme) » then « Montant soumis à commission »', () => {
   renderSummary({
     ...QUOTE, finalPrice: 200, touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 4.80,
+    platformTouristTaxWithheld: 4.80,
     complementAmount: 0, preArrivalAmount: 195.20, platformCommissionAmount: 30, totalPlatformCommission: 30,
-    platformNetReceivedAmount: 165.20, sejourNetTotal: 165.20,
+    platformNetReceivedAmount: 165.20, sejourNetTotal: 165.20, ...cascade(204.8, 4.8, 0, 195.2),
   });
   expect(screen.getByText('204,80 €')).toBeInTheDocument();           // gross = 200 + 4.80
   expect(screen.getByText('Taxe de séjour (plateforme)')).toBeInTheDocument();
@@ -85,7 +92,7 @@ test('complément de fin de séjour : sa propre ligne, déduite puis rajoutée a
   renderSummary({
     ...QUOTE, finalPrice: 250, complementAmount: 15, endOfStayComplementTotal: 72, midStayExtrasTotal: 12,
     preArrivalAmount: 223, platformCommissionAmount: 30, totalPlatformCommission: 30,
-    platformNetReceivedAmount: 193, sejourNetTotal: 280,
+    platformNetReceivedAmount: 193, sejourNetTotal: 280, ...cascade(310, 0, 87, 223),
   });
   expect(screen.getByText('310,00 €')).toBeInTheDocument();            // 250 + 60 (part SAS)
   expect(screen.getByText('− 87,00 €')).toBeInTheDocument();           // 15 + 72 perçus sur place
@@ -98,7 +105,7 @@ test('complément de fin de séjour : sa propre ligne, déduite puis rajoutée a
 
 test('direct : le complément de fin de séjour apparaît sous le total du séjour', () => {
   renderSummary(
-    { ...QUOTE, finalPrice: 200, complementAmount: 0, endOfStayComplementTotal: 12, midStayExtrasTotal: 12, sejourNetTotal: 212 },
+    { ...QUOTE, platformSale: false, finalPrice: 200, complementAmount: 0, endOfStayComplementTotal: 12, midStayExtrasTotal: 12, sejourNetTotal: 212, ...cascade(200, 0, 12, 200) },
     { ...FORM, platform: 'direct' },
   );
   expect(screen.getByText('dont complément de fin de séjour')).toBeInTheDocument();
@@ -109,6 +116,7 @@ test('platform with commission, no tax/complement → no deduction sub-lines, ju
   renderSummary({
     ...QUOTE, finalPrice: 250, touristTaxOriginalTotal: 0, complementAmount: 0, preArrivalAmount: 250,
     acompteCommissionAmount: 9, platformCommissionAmount: 21, totalPlatformCommission: 30, platformNetReceivedAmount: 220, sejourNetTotal: 220,
+    ...cascade(250, 0, 0, 250),
   });
   expect(screen.getByText('Total du séjour')).toBeInTheDocument();
   // No tax / complement deduction → no « Montant soumis à commission » intermediate line.
@@ -126,6 +134,7 @@ test('non-offered platform → NO « Taxe de séjour (plateforme) » deduction l
   renderSummary({
     ...QUOTE, finalPrice: 250, touristTaxOfferedByPlatform: false, touristTaxOriginalTotal: 12, touristTaxTotal: 12,
     complementAmount: 0, preArrivalAmount: 262, platformCommissionAmount: 30, totalPlatformCommission: 30, platformNetReceivedAmount: 232, sejourNetTotal: 232,
+    ...cascade(262, 0, 0, 262),
   });
   expect(screen.queryByText('Taxe de séjour (plateforme)')).toBeNull();
   expect(screen.queryByText('− 12,00 €')).toBeNull();
@@ -175,7 +184,7 @@ test('Acompte / Solde show the client-paid gross — Damien Nicolet BRUT case', 
 test('Direct reservation keeps the plain Acompte / Solde labels', () => {
   render(
     <PricingSummary
-      quote={{ ...QUOTE, finalPrice: 200, totalStayPrice: 200 }}
+      quote={{ ...QUOTE, platformSale: false, finalPrice: 200, totalStayPrice: 200 }}
       form={{ ...FORM, platform: 'direct', depositAmount: 60, balanceAmount: 140 }}
       selectedProperty={{ name: 'Villa A' }}
       offeredOptionIds={new Set()} propertyOptions={[]} availableResources={[]}
@@ -189,7 +198,7 @@ test('Direct reservation keeps the plain Acompte / Solde labels', () => {
 
 test('direct reservation → a single « Total du séjour », no platform cascade', () => {
   renderSummary(
-    { ...QUOTE, finalPrice: 250, touristTaxTotal: 10, touristTaxOriginalTotal: 10, complementAmount: 0, sejourNetTotal: 260 },
+    { ...QUOTE, platformSale: false, finalPrice: 250, touristTaxTotal: 10, touristTaxOriginalTotal: 10, complementAmount: 0, sejourNetTotal: 260, ...cascade(260, 0, 0, 260) },
     { ...FORM, platform: 'direct' }
   );
   expect(screen.getByText('Total du séjour')).toBeInTheDocument();
@@ -206,7 +215,7 @@ test('complément durant le séjour : ligne dédiée dans la cascade', () => {
     ...QUOTE, finalPrice: 250, complementAmount: 15,
     endOfStayComplementTotal: 12, midStayRemainingTotal: 12, midStaySettledTotal: 30,
     preArrivalAmount: 205, platformCommissionAmount: 30, totalPlatformCommission: 30,
-    platformNetReceivedAmount: 175, sejourNetTotal: 232,
+    platformNetReceivedAmount: 175, sejourNetTotal: 232, ...cascade(250, 0, 57, 205),
   });
   expect(screen.getByText('− 57,00 €')).toBeInTheDocument();          // 15 + 12 + 30 perçus sur place
   expect(screen.getByText('Complément durant le séjour')).toBeInTheDocument();
@@ -217,8 +226,8 @@ test('complément durant le séjour : ligne dédiée dans la cascade', () => {
 test('direct : « dont complément durant le séjour » sous le total du séjour', () => {
   renderSummary(
     {
-      ...QUOTE, finalPrice: 200, complementAmount: 0, endOfStayComplementTotal: 0,
-      midStayRemainingTotal: 0, midStaySettledTotal: 18, sejourNetTotal: 200,
+      ...QUOTE, platformSale: false, finalPrice: 200, complementAmount: 0, endOfStayComplementTotal: 0,
+      midStayRemainingTotal: 0, midStaySettledTotal: 18, sejourNetTotal: 200, ...cascade(200, 0, 18, 200),
     },
     { ...FORM, platform: 'direct' },
   );

@@ -1,0 +1,11 @@
+- **Options with free units keep their value over every save** (specs/tariff-recipes/spec.md rule 56): a welcome-pack option (« Jus 6 € × 3, 1 offert ») no longer loses value at each save (12 → 8 → 5,34 → 3,56).
+- **« Total perçu / Vous percevez » counts a rise after payment once** (specs/fiche-total-sejour-net-of-commission.md rule 11): solde 600 paid, stay raised to 700 now reads 700, not 800.
+- **A platform with an acompte follows its statement once both échéances are paid** (specs/reservation-refunds.md rule 40): the solde follows the corrected brut and no complement is asked at arrival.
+- **The sold night prices are kept only while the arrival date is unchanged** (specs/tariff-recipes/spec.md rule 57): moving the arrival reprices the stay at the current tariff, so a progressive tariff keeps its rank logic; extending or shortening the departure keeps the sold nights.
+- **A platform « Compté comme vente directe » is a direct sale everywhere** (specs/plugins-phase-p-productisation.md rule 45): acompte and solde like direct, extras not routed to the complement by default, tourist tax on the solde, one `saleChannel` helper for every money path, and the fiche reads the server's answer.
+- **The per-night extra-guest supplement of a sold reservation no longer follows the live season price** (specs/tariff-recipes/spec.md rule 58).
+- **An extra added on an arrival complement already collected is billed at check-out** (specs/mid-stay-extras-to-end-of-stay-complement.md rule 20), so the buckets always add up to the stay.
+- **The live « Total HT / TVA » includes the extra-guest supplement**, as the stored summary and the export do (specs/single-vat-rate.md rule 13).
+- **The fiche's headline is the same live and stored** (specs/ui-review-2026-10-19-operations.md rules 31-32): the platform-handled tax estimate is no longer added to « Total du séjour », a caisse-interne complement no longer makes the stored headline differ, and the summary's closing cascade is served by the server.
+- **A night no season covers is named** (`unpricedNights`, specs/tariff-recipes/spec.md rule 59): the fiche warns, and `hasUnpricedNights` lets the public flows refuse it.
+- **The devis PDF's discounted season rows add up to the engine's total** (specs/devis-pdf-total-parity.md rule 13): no more 89,26 printed for 89,25.

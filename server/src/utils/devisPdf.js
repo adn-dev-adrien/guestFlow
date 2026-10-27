@@ -170,6 +170,22 @@ function drawSerifText(doc, names, text, x, y, options = {}) {
 // unconditionally. That rule's own bug (PDF tax 15,36 € vs. summary 16,80 €) stays fixed: a quote
 // that reconciles still wins. Exported under `__test` so the invariant is provable without parsing
 // the FlateDecode-compressed PDF stream.
+// specs/devis-pdf-total-parity.md rule 13 — the engine rounds the discounted accommodation ONCE, on
+// the whole stay; rounding each season group on its own drifted by a cent (89,26 printed for 89,25).
+// Every group but the last is rounded on its own; the last takes what is left of the stay's rounded
+// total, so the rows add up to the engine's figure.
+function discountedGroupTotals(groupTotals, factor) {
+  const target = roundMoney(groupTotals.reduce((sum, total) => sum + Number(total || 0), 0) * factor);
+  let drawn = 0;
+  return groupTotals.map((total, index) => {
+    const reduced = index === groupTotals.length - 1
+      ? roundMoney(target - drawn)
+      : roundMoney(Number(total || 0) * factor);
+    drawn = roundMoney(drawn + reduced);
+    return reduced;
+  });
+}
+
 function resolveLiveTaxTotals(full, quote, printedStayTtc) {
   // Legacy callers render no table and pass nothing — the persisted stay price is their "printed" one.
   const printedStay = roundMoney(Number(printedStayTtc != null ? printedStayTtc : (full.finalPrice || 0)));
@@ -613,15 +629,16 @@ function generateDevisPdf(full, settings, quote) {
     const accommodationFactor = Number(full.discountPercent || 0) > 0
       ? Math.max(0, 1 - (Number(full.discountPercent || 0) / 100))
       : 1;
-    for (const g of groups) {
+    const reducedTotals = discountedGroupTotals(groups.map((g) => g.totalPrice), accommodationFactor);
+    groups.forEach((g, index) => {
       const label = L.accommodationWithSeason(g.count, g.seasonLabel);
-      const reducedTotal = roundMoney(Number(g.totalPrice || 0) * accommodationFactor);
+      const reducedTotal = reducedTotals[index];
       drawRow(label, g.count, reducedTotal, vatAccommodation, false, {
         originalTtc: Number(g.totalPrice || 0),
         badgeText: Number(full.discountPercent || 0) > 0 ? L.accommodationDiscount(Number(full.discountPercent || 0)) : '',
       });
       accommodationTtcDrawn += reducedTotal;
-    }
+    });
   } else {
     // Flat accommodation row
     const accTotal = roundMoney((full.totalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
@@ -1051,6 +1068,7 @@ module.exports = {
     nextLineY,
     PDF_PALETTE,
     resolveLiveTaxTotals,
+    discountedGroupTotals,
     lineAmounts,
     resolveRowGeometry,
     resolveOptionTitle: __resolveOptionTitle,

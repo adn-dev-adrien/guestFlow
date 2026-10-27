@@ -15,7 +15,7 @@
 
 const { remainingToPay, round2 } = require('./reservationSettlement');
 const { parseGroup } = require('./arrivalPaymentGroup');
-const { isDirectChannel } = require('./platformNameFormat');
+const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
 
 const NBSP = ' ';
@@ -134,9 +134,12 @@ function buildLedger({
   const stored = Boolean(row && row.id);
   const canAct = stored && !isDevis && !cancelled;
   const stayYear = isoDay(r.startDate || (quote && quote.startDate) || live.startDate)?.slice(0, 4) || null;
-  // Rule 24 — the engine's own split: anything but 'direct' is settled by a platform.
-  const isPlatform = String(platform || 'direct').trim().toLowerCase() !== 'direct';
-  const ota = isPlatform && !isDirectChannel(platform);
+  // Rule 24 — the engine's own split (specs/plugins-phase-p-productisation.md rule 45): a named
+  // channel carries a platform amount and commissions; only a platform SALE drops the acompte and is
+  // settled by a payout.
+  const channel = saleChannel(platform);
+  const isPlatform = channel.namedChannel;
+  const ota = channel.platformSale;
   const platformName = platformDisplay(platform);
   const depositDisabled = flag(has('depositDisabled') ? live.depositDisabled : r.depositDisabled);
   const group = parseGroup(r.arrivalPaymentGroup);
@@ -242,7 +245,7 @@ function buildLedger({
   // ── Acompte (rules 4, 6, 15-17, 20) ───────────────────────────────────────
   if (!planRows) {
     let notApplicable = null;
-    if (isPlatform && !platformTakesDeposit) notApplicable = `Sans objet · ${platformName} encaisse en une fois`;
+    if (ota && !platformTakesDeposit) notApplicable = `Sans objet · ${platformName} encaisse en une fois`;
     else if (depositDisabled) notApplicable = 'Sans objet · acompte désactivé';
     else if (!paid.deposit && depositAmount === 0 && override == null) notApplicable = 'Sans objet · paiement en une fois';
     if (notApplicable && !paid.deposit) {
