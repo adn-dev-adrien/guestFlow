@@ -12,6 +12,10 @@ const settings = require('./settings');
 const { buildEnforcementController } = require('./enforcementController');
 const { buildPendingController } = require('./pendingController');
 const { buildSiteConnectionController, KEY_NAME } = require('./siteConnectionController');
+const requestStore = require('./requestStore');
+const challenge = require('./challenge');
+const { runRequestPurge } = require('./requestPurge');
+const { proofEnforced, CHALLENGE_PLUGIN_VERSION } = require('./controllers/publicChallengeController');
 
 const id = 'website-booking';
 
@@ -23,7 +27,11 @@ const ERASED_LABELS = {
 function register(ctx) {
   ctx.settings.declare(settings.DECLARED);
   settings.bindStore(ctx.settings);
-  ctx.migrations([{ name: 'settings_from_app_settings_v1', up: settings.copyFromAppSettings }]);
+  ctx.migrations([
+    { name: 'settings_from_app_settings_v1', up: settings.copyFromAppSettings },
+    // specs/public-request-abuse-and-grouping.md §5 — spent challenges, the request log, the stays.
+    { name: 'public_request_tables_v1', up: (db) => db.exec(requestStore.TABLES_SQL) },
+  ]);
 
   // Rule 24 — the key exists only once the plugin is installed. Never logged: the operator copies it
   // from Paramètres › Intégrations into the WordPress proxy settings (rule 30). An uninstall never
@@ -35,6 +43,9 @@ function register(ctx) {
     // quotes, distinct from the site's so either can be revoked alone. Never logged.
     sdk.secrets.getOrCreate('ROOSTVIEW_API_KEY', 32);
     ctx.log.info('ROOSTVIEW_API_KEY ready in server/.env.local — paste it into Roostview › Réglages › GuestFlow.');
+    // The key the proof-of-work challenges are signed with (specs/public-request-abuse-and-grouping.md
+    // rule 1). Never leaves the server.
+    sdk.secrets.getOrCreate(challenge.SECRET_NAME, 32);
   };
   ctx.onInstall(ensureApiKey);
   ctx.onBoot(ensureApiKey);
@@ -43,6 +54,12 @@ function register(ctx) {
     publicUrl: () => ctx.core.settings.publicUrl(),
     ensureKey: () => sdk.secrets.getOrCreate(KEY_NAME, 32, { rotatable: true }),
     rotateKey: () => sdk.secrets.rotate(KEY_NAME, 32),
+    // The transition edge case: the tab says when the site's plugin does not solve challenges yet.
+    antiBot: () => ({
+      active: proofEnforced(),
+      pluginVersion: settings.termsSettings().lastSeenPluginVersion || null,
+      requiredVersion: CHALLENGE_PLUGIN_VERSION,
+    }),
   });
   ctx.route('get', '/api/settings/website-connection', connection.get);
   ctx.route('post', '/api/settings/website-connection/regenerate', connection.regenerate);
@@ -61,6 +78,8 @@ function register(ctx) {
 
   const pending = buildPendingController({
     listPendingPublicDevis: () => sdk.coreModule('reservationsModel').listPendingPublicDevis(),
+    // Rule 11 — the requests of the last hour, for the « trafic inhabituel » line.
+    requestsLastHour: () => requestStore.countRecent({ windowMs: 60 * 60 * 1000 }),
   });
   ctx.route('get', '/api/dashboard/public-devis-pending', pending.list);
   ctx.attention({ key: 'site-requests', rank: 20, handler: pending.list, summarize: require('./attention').summarize });
@@ -69,13 +88,24 @@ function register(ctx) {
     settings,
     currentTerms: () => sdk.coreModule('termsModel').getCurrent(),
   });
+  // Rule 10 — every day, the website requests nobody touched in 30 days go, with their lone client.
+  ctx.jobs.every({
+    name: 'request-purge',
+    intervalMs: 24 * 60 * 60 * 1000,
+    bootDelayMs: 10 * 60 * 1000,
+    run: () => {
+      const { deleted, clientsDeleted } = runRequestPurge();
+      if (deleted) ctx.log.info(`${deleted} demande(s) du site non traitée(s) depuis 30 jours supprimée(s), ${clientsDeleted} client(s) avec`);
+    },
+  });
+
   ctx.route('get', '/api/terms/online-booking', enforcement.get);
   ctx.route('put', '/api/terms/enforcement', enforcement.update);
 
   // Rule 27 — the two settings only. Every devis, acceptance and token stays: they are the stays'
   // records. The API key stays too (rule 24).
   ctx.data({
-    tables: [],
+    tables: requestStore.TABLES,
     describe: () => {
       const { requireTermsAcceptance, lastSeenPluginVersion } = settings.termsSettings();
       const lines = [];

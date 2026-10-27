@@ -41,6 +41,9 @@ function createController(model, {
   function getOne(req, res) {
     const devis = model.findById(req.params.id);
     if (!devis) return res.status(404).json({ error: 'Devis non trouvé' });
+    // Opening the fiche is what « handled » starts with: the purge of untouched website requests
+    // skips a devis the operator has read (specs/public-request-abuse-and-grouping.md rule 10).
+    if (typeof model.markOperatorSeen === 'function') model.markOperatorSeen(devis.id);
     // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
     // specs/plugins-phase-3a-online-payment.md rule 18 — the payment request button follows the provider.
     // specs/plugins-phase-3b-neat.md rule 22 — the options it carries that the catalogue hides, read-only;

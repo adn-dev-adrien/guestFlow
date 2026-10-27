@@ -63,6 +63,10 @@ to the address configured in the SMTP settings.
    the devis is handled (status changed / converted / deleted). Clicking it navigates to the devis.
 6. When a **new site devis** is created, send an **email** summarising the request (client, property,
    dates, guests, options, resources, total, reference) **plus a clickable link to the devis**.
+   Since 2026-10-27 ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md)
+   rules 9 and 16): only the first request of a 15-minute window is mailed (and pushed) at once; the
+   following ones, and the requests updated in place (« demande mise à jour »), are gathered into one
+   summary at the end of the window.
 7. When the iCal sync imports a **genuinely new** reservation (not an update/unchanged/locked one),
    send **one email per new reservation** summarising it (platform, property, dates, guest name)
    **plus a clickable link to the reservation**.

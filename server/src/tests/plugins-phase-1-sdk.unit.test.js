@@ -344,9 +344,10 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   // the mailbox every `pollEveryHours`, first tick at 120 s (specs/gites-de-france-mail-intake.md rule 2);
   // the bank reconciliation read: 8 h, first pass at 240 s (specs/qonto-bank-reconciliation.md rule 5);
   // the Airbnb mail intake: a 15-min tick, first tick at 180 s (specs/airbnb-mail-intake.md rule 2);
-  // the Google Vacation Rentals full re-send: an hourly tick, first at 150 s (specs/google-vacation-rentals-feed.md rule 13).
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 240 * 1000]);
+  // the Google Vacation Rentals full re-send: an hourly tick, first at 150 s (specs/google-vacation-rentals-feed.md rule 13);
+  // the purge of untouched website requests: daily, first at 10 min (specs/public-request-abuse-and-grouping.md rule 10).
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 240 * 1000, 600 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };

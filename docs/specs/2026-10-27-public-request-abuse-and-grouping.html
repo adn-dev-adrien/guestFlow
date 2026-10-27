@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demandes du site</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1f2a24;--mute:#5f6a64;--line:#e2ded5;--accent:#2f5d46;--accent-ink:#fff;--warn-bg:#f6edd7;--warn:#7a5200;--bad-bg:#f8e6e2;--bad:#9b2c1f;--ok-bg:#e5efe8;--ok:#2f5d46}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121513;--card:#1a1f1c;--ink:#e7ebe8;--mute:#9aa49f;--line:#2b322e;--accent:#8fc2a6;--accent-ink:#10251a;--warn-bg:#33291a;--warn:#e6c27a;--bad-bg:#3a201b;--bad:#f2a493;--ok-bg:#1f2d25;--ok:#a7cdb6}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 16px 64px}
+h1{font:600 26px/1.2 Georgia,serif;margin:0 0 4px}
+h2{font:600 18px/1.3 Georgia,serif;margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 20px;max-width:760px}
+.grid{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+label{display:block;font-size:12px;color:var(--mute);margin:10px 0 4px}
+input,select{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-height:44px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);width:100%;margin-top:14px;font-weight:600}
+button:disabled{opacity:.6;cursor:default}
+.msg{margin-top:12px;border-radius:8px;padding:10px 12px;font-size:14px;display:none}
+.msg.ok{display:block;background:var(--ok-bg);color:var(--ok)}
+.msg.warn{display:block;background:var(--warn-bg);color:var(--warn)}
+.msg.bad{display:block;background:var(--bad-bg);color:var(--bad)}
+.hint{font-size:12px;color:var(--mute);margin-top:8px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--mute);font-weight:600}
+.tag{display:inline-block;font-size:11px;font-weight:600;border-radius:6px;padding:2px 7px;margin:2px 4px 0 0;white-space:nowrap}
+.t-ok{background:var(--ok-bg);color:var(--ok)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-bad{background:var(--bad-bg);color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+@media (max-width:520px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--mute)}
+.log{font:12.5px/1.5 ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:190px;overflow:auto;white-space:pre-wrap}
+.scroll{overflow-x:auto}
+.decide{margin-top:18px}
+.decide li{margin:6px 0}
+@media (prefers-reduced-motion:no-preference){.msg{transition:opacity .2s}}
+</style>
+</head>
+<body>
+<main>
+<h1>Demandes de devis du site : anti-robot et regroupement</h1>
+<p class="sub">Maquette de <code>specs/public-request-abuse-and-grouping.md</code>. Le formulaire de gauche résout vraiment la preuve de travail dans votre navigateur, en SHA-256 : c'est le temps qu'attendrait un client. À droite, ce que voit l'opérateur. Les boutons « robot » simulent une attaque.</p>
+
+<div class="grid">
+<section class="card" aria-labelledby="f">
+<h2 id="f">Formulaire du site</h2>
+<label for="ip">Adresse IP du visiteur (simulée)</label>
+<select id="ip"><option>81.250.12.4</option><option>90.12.77.31</option><option>2a01:cb00:1::5</option></select>
+<label for="email">E-mail</label>
+<input id="email" type="email" value="marie.dupont@example.com" autocomplete="off">
+<label for="prop">Logement</label>
+<select id="prop"><option>Gîte</option><option>Tente</option></select>
+<div class="row">
+<div><label for="from">Arrivée</label><input id="from" type="date" value="2027-07-10"></div>
+<div><label for="to">Départ</label><input id="to" type="date" value="2027-07-17"></div>
+</div>
+<div class="row">
+<div><label for="adults">Adultes</label><input id="adults" type="number" min="1" max="14" value="4"></div>
+<div><label for="msg">Message</label><input id="msg" value="Arrivée vers 18 h"></div>
+</div>
+<button class="primary" id="send">Envoyer la demande</button>
+<div class="msg" id="out" role="status" aria-live="polite"></div>
+<p class="hint" id="pow">Vérification préparée à l'ouverture du formulaire.</p>
+</section>
+
+<section class="card" aria-labelledby="a">
+<h2 id="a">Côté GuestFlow</h2>
+<div class="kpis">
+<div class="kpi"><b id="kDevis">0</b><span>devis créés</span></div>
+<div class="kpi"><b id="kClients">0</b><span>clients créés</span></div>
+<div class="kpi"><b id="kMails">0</b><span>e-mails à l'opérateur</span></div>
+<div class="kpi"><b id="kRefused">0</b><span>demandes refusées</span></div>
+</div>
+<div class="tools">
+<button id="bot1">Robot : 50 demandes, une seule IP</button>
+<button id="bot2">Robot : 50 demandes, 50 IP</button>
+<button id="send15">Fin de la fenêtre de 15 min</button>
+<button id="reset">Remettre à zéro</button>
+</div>
+<div class="scroll"><table>
+<thead><tr><th>N°</th><th>Client</th><th>Séjour</th><th>Voyageurs</th><th>État</th></tr></thead>
+<tbody id="rows"><tr><td colspan="5" style="color:var(--mute)">Aucune demande.</td></tr></tbody>
+</table></div>
+<h2 style="margin-top:16px;font-size:15px">Journal</h2>
+<div class="log" id="log"></div>
+</section>
+</div>
+
+<section class="card decide">
+<h2>À essayer</h2>
+<ul>
+<li>Envoyer, puis changer le nombre d'adultes et renvoyer : <strong>même numéro de devis</strong>, mis à jour.</li>
+<li>Changer de logement aux mêmes dates : un second devis.</li>
+<li>Renvoyer plusieurs fois depuis la même IP : la vérification s'allonge (×4 à chaque demande de l'heure).</li>
+<li>« Robot, 50 IP » (50 e-mails différents, le pire cas) : il crée des devis, mais un seul e-mail opérateur plus un récapitulatif, et la difficulté de base monte. Envoyez ensuite normalement depuis une autre IP : le vrai client passe, avec quelques secondes de vérification au plus.</li>
+<li>Envoyer moins de 3 s après avoir rechargé la page : refus « trop rapide ».</li>
+</ul>
+</section>
+</main>
+<script>
+const S={recent:0,devis:[],clients:new Set(),mails:0,refused:0,windowCount:0,pending:[],ipHits:{},emailNew:{},seq:240,issuedAt:Date.now()};
+const $=id=>document.getElementById(id);
+const BASE=12;
+function log(t){const l=$('log');l.textContent=`${new Date().toLocaleTimeString('fr-FR')}  ${t}\n`+l.textContent;}
+function surge(){return Math.min(6,2*Math.floor(S.recent/20));}
+function difficultyFor(ip){return BASE+surge()+2*(S.ipHits[ip]||0);}
+async function solve(bits){const enc=new TextEncoder();const salt=Math.random().toString(36).slice(2);const t0=performance.now();for(let n=0;;n++){const h=new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode(salt+n)));let z=0;for(const b of h){if(b===0){z+=8;continue;}z+=Math.clz32(b)-24;break;}if(z>=bits)return{n,ms:performance.now()-t0};if(performance.now()-t0>8000)return{n,ms:performance.now()-t0,cut:true};}}
+function fmtDur(ms){if(ms<1000)return`${Math.round(ms)} ms`;const s=ms/1000;if(s<90)return`${s.toFixed(1).replace('.',',')} s`;const m=s/60;if(m<90)return`${Math.round(m)} min`;const h=m/60;if(h<48)return`${Math.round(h)} h`;return`${Math.round(h/24)} jours`;}
+function notify(kind){if(S.windowCount===0){S.mails++;log(`E-mail immédiat à l'opérateur : ${kind}.`);}else{S.pending.push(kind);}S.windowCount++;}
+function render(){$('kDevis').textContent=S.devis.length;$('kClients').textContent=S.clients.size;$('kMails').textContent=S.mails;$('kRefused').textContent=S.refused;
+const tb=$('rows');tb.innerHTML='';if(!S.devis.length){tb.innerHTML='<tr><td colspan="5" style="color:var(--mute)">Aucune demande.</td></tr>';return;}
+[...S.devis].reverse().slice(0,12).forEach(d=>{const tr=document.createElement('tr');const st=document.createElement('td');
+const mk=(c,t)=>{const s=document.createElement('span');s.className='tag '+c;s.textContent=t;return s;};
+st.append(mk('t-ok','Demande du site'));if(d.updates)st.append(mk('t-warn',`Mise à jour ×${d.updates}`));if(d.sent&&d.updates)st.append(mk('t-bad','Modifiée après envoi'));
+[d.no,d.email,`${d.prop} · ${d.from.slice(8)}/${d.from.slice(5,7)} → ${d.to.slice(8)}/${d.to.slice(5,7)}`,`${d.adults} ad.`].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td);});tr.append(st);tb.append(tr);});
+if(S.devis.length>12){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.style.color='var(--mute)';td.textContent=`… et ${S.devis.length-12} autres`;tr.append(td);tb.append(tr);}}
+function submit(req){
+const email=req.email.trim().toLowerCase();
+if(req.elapsedMs<3000){S.refused++;return{cls:'bad',text:'Envoi trop rapide : réessayez dans un instant.'};}
+const open=S.devis.find(d=>d.email===email&&d.prop===req.prop&&d.from===req.from&&d.to===req.to);
+S.ipHits[req.ip]=(S.ipHits[req.ip]||0)+1;S.recent++;
+if(open){const changed=open.adults!==req.adults||req.msg;open.adults=req.adults;open.updates=(open.updates||0)+1;notify('demande mise à jour');log(`Devis ${open.no} mis à jour (même e-mail, logement, dates).`);return{cls:'ok',text:`Votre demande ${open.no} a été mise à jour.`};}
+const day=S.emailNew[email]||0;if(day>=3){S.refused++;log(`Refus : 3 devis déjà ouverts pour ${email} sur 24 h.`);return{cls:'warn',text:'Plusieurs demandes sont déjà en cours pour cette adresse. Elles seront traitées rapidement.'};}
+S.emailNew[email]=day+1;const no=`D-2027-${String(++S.seq).padStart(4,'0')}`;
+S.devis.push({no,email,prop:req.prop,from:req.from,to:req.to,adults:req.adults});S.clients.add(email);notify('nouvelle demande');log(`Devis ${no} créé pour ${email}.`);
+return{cls:'ok',text:`Demande ${no} envoyée. Réponse rapide par e-mail.`};}
+$('send').addEventListener('click',async()=>{const b=$('send');const ip=$('ip').value;const bits=difficultyFor(ip);b.disabled=true;b.textContent='Vérification…';
+const r=await solve(bits);b.disabled=false;b.textContent='Envoyer la demande';
+$('pow').textContent=r.cut?`Vérification à ${bits} bits : ${fmtDur(r.ms)} écoulées, coupée pour la maquette (un vrai client ne renverrait pas tant de fois).`:`Vérification résolue en ${fmtDur(r.ms)} (difficulté ${bits} bits pour cette IP).`;
+const res=submit({ip,email:$('email').value,prop:$('prop').value,from:$('from').value,to:$('to').value,adults:Number($('adults').value),msg:$('msg').value,elapsedMs:Date.now()-S.issuedAt});
+const o=$('out');o.className='msg '+res.cls;o.textContent=res.text;S.issuedAt=Date.now()-3000;render();});
+function bot(multiIp){let cost=0,created=0;for(let i=0;i<50;i++){const ip=multiIp?`203.0.113.${i}`:'198.51.100.7';const bits=difficultyFor(ip);const ms=Math.pow(2,bits)*0.02;cost+=ms;
+const res=submit({ip,email:multiIp?`bot${i}-${Date.now()}@spam.test`:'bot@spam.test',prop:'Gîte',from:'2027-08-0'+(1+i%8),to:'2027-08-1'+(i%8),adults:2,elapsedMs:4000});if(/créé|envoyée/.test(res.text))created++;}
+log(`Robot (${multiIp?'50 IP, 50 e-mails':'1 IP'}) : ${created} devis créés, calcul cumulé ≈ ${fmtDur(cost)}. Difficulté de base maintenant +${surge()} bits : un client attend ≈ ${fmtDur(Math.pow(2,BASE+surge())*0.02)} au lieu de ${fmtDur(Math.pow(2,BASE)*0.02)}, sans refus. Ces devis non traités seront purgés à 30 jours.`);render();}
+$('bot1').addEventListener('click',()=>bot(false));
+$('bot2').addEventListener('click',()=>bot(true));
+$('send15').addEventListener('click',()=>{if(S.pending.length){S.mails++;log(`E-mail récapitulatif : ${S.pending.length} demande(s) de la fenêtre.`);}else log('Fin de fenêtre : rien à résumer.');S.pending=[];S.windowCount=0;render();});
+$('reset').addEventListener('click',()=>{Object.assign(S,{recent:0,devis:[],clients:new Set(),mails:0,refused:0,windowCount:0,pending:[],ipHits:{},emailNew:{},seq:240,issuedAt:Date.now()});$('log').textContent='';$('out').className='msg';render();});
+render();
+</script>
+</body>
+</html>

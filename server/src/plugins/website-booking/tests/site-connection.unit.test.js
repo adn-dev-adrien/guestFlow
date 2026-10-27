@@ -42,7 +42,7 @@ test('rule 30: the address and the key, never cached', () => {
   });
   const out = call(controller.get);
   assert.equal(out.headers['cache-control'], 'no-store');
-  assert.deepEqual(out.body, { address: { value: 'https://guestflow.example.com', source: 'setting' }, apiKey: 'the-key' });
+  assert.deepEqual(out.body, { address: { value: 'https://guestflow.example.com', source: 'setting' }, apiKey: 'the-key', antiBot: null });
 });
 
 test('rule 30: no public URL → the browsing origin, flagged as a guess', () => {

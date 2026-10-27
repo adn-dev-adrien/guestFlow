@@ -819,10 +819,46 @@ function generateDevisNumber() {
     const parts = existing.devisNumber.split('-');
     increment = parseInt(parts[2] || '0', 10) + 1;
   }
+  // A number retired by the purge of untouched website requests is never handed out again
+  // (specs/public-request-abuse-and-grouping.md rule 10): a quote number may have gaps, not repeats.
+  const retired = db.prepare('SELECT lastIncrement FROM devis_number_retired WHERE prefix = ?').get(prefix);
+  if (retired && Number(retired.lastIncrement) >= increment) increment = Number(retired.lastIncrement) + 1;
   return `${prefix}${String(increment).padStart(3, '0')}`;
 }
 
+/** Remember a devis number about to be deleted, so `generateDevisNumber` skips past it. */
+function retireDevisNumber(devisNumber) {
+  const m = /^(\d{4}-\d{2}-)(\d+)$/.exec(String(devisNumber || ''));
+  if (!m) return;
+  db.prepare(`INSERT INTO devis_number_retired (prefix, lastIncrement) VALUES (?, ?)
+    ON CONFLICT(prefix) DO UPDATE SET lastIncrement = MAX(lastIncrement, excluded.lastIncrement)`)
+    .run(m[1], parseInt(m[2], 10));
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_number_retired (
+    prefix        TEXT PRIMARY KEY,
+    lastIncrement INTEGER NOT NULL
+  );
+  -- Operator notifications grouped by window (utils/notificationDigest.js,
+  -- specs/public-request-abuse-and-grouping.md rule 9): the first event of a window is mailed at once,
+  -- the next ones wait here for the summary. In the database so a restart neither loses nor repeats it.
+  CREATE TABLE IF NOT EXISTS notification_digest_windows (
+    digestKey       TEXT PRIMARY KEY,
+    windowStartedAt TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS notification_digest_items (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    digestKey TEXT NOT NULL,
+    refId     INTEGER,
+    kind      TEXT NOT NULL,
+    createdAt TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_notification_digest_items_key ON notification_digest_items (digestKey, id);
+`);
+
 db.generateDevisNumber = generateDevisNumber;
+db.retireDevisNumber = retireDevisNumber;
 
 // Initialize default timed options for existing properties when schema supports it.
 // Silent when the schema isn't ready or the property table is empty; surfaces a count line
@@ -2109,6 +2145,13 @@ db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey =
   if (!rcols.includes('attributionLabel')) db.exec('ALTER TABLE reservations ADD COLUMN attributionLabel TEXT');
   if (!rcols.includes('attribution')) db.exec('ALTER TABLE reservations ADD COLUMN attribution TEXT');
   if (!rcols.includes('attributionAt')) db.exec('ALTER TABLE reservations ADD COLUMN attributionAt TEXT');
+  // specs/public-request-abuse-and-grouping.md §5 — `publicUpdatedAfterSendAt`: the guest changed a
+  // website request the operator had already sent (rule 14), cleared by the operator's next save;
+  // `operatorSeenAt`: the first time the operator opened the devis, so the 30-day purge of untouched
+  // requests (rule 10) never deletes one somebody read. NULL on every existing row: an old request
+  // counts as unread only while nothing else (status, edit, e-mail, payment) says it was handled.
+  if (!rcols.includes('publicUpdatedAfterSendAt')) db.exec('ALTER TABLE reservations ADD COLUMN publicUpdatedAfterSendAt TEXT');
+  if (!rcols.includes('operatorSeenAt')) db.exec('ALTER TABLE reservations ADD COLUMN operatorSeenAt TEXT');
   // specs/platform-extra-guest-complement.md §5 — the persons the platform billed, and the part of the
   // extra-guest supplement collected on arrival (real price, kept when offered). Reservations whose
   // brut is already entered take their current composition as the paid base: their totals do not move.

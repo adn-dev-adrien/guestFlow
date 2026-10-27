@@ -323,10 +323,13 @@
     "findById",
     "getHistory",
     "list",
+    "markOperatorSeen",
+    "purgePublicRequest",
     "recomputeQuote",
     "remove",
     "resolvePaymentSchedule",
     "update",
+    "updateFromPublicRequest",
     "updateStatus"
   ],
   "termsModel": [
@@ -521,6 +524,7 @@
   "notificationService": [
     "__test",
     "buildNotificationService",
+    "flushDueDigests",
     "notifyBookingConflict",
     "notifyNewIcalReservation",
     "notifyNewSiteDevis",

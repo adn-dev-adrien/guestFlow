@@ -980,6 +980,7 @@ export default function ReservationPage() {
           setForm({
             clientId: devis.clientId,
             requestOrigin: devis.requestOrigin || null,
+            publicUpdatedAfterSendAt: devis.publicUpdatedAfterSendAt || null,
             originLabel: devis.originLabel || null,
             originDetail: devis.originDetail || null,
             adults: devis.adults || 1,
@@ -3619,6 +3620,12 @@ export default function ReservationPage() {
                           <span>
                             <StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} />
                           </span>
+                        </Tooltip>
+                      )}
+                      {/* specs/public-request-abuse-and-grouping.md rule 14 — re-send it. */}
+                      {form.publicUpdatedAfterSendAt && (
+                        <Tooltip title="Le client a renvoyé sa demande depuis le site après l’envoi du devis : à renvoyer">
+                          <span><StatusBadge status="warning" label="Modifiée par le client après envoi" /></span>
                         </Tooltip>
                       )}
                       <OriginBadge label={form.originLabel} detail={form.originDetail} />

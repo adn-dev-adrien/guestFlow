@@ -24,6 +24,8 @@ import { displayDateTime } from '../../utils/formatters';
 const HISTORY_EVENT_TITLES = {
   create: 'Création',
   update: 'Modification',
+  // specs/public-request-abuse-and-grouping.md rule 13.
+  public_update: 'Demande mise à jour depuis le site',
   sas_arrival: 'SAS arrivée',
   sas_departure: 'SAS départ',
   // specs/terms-acceptance-record.md rule 20.

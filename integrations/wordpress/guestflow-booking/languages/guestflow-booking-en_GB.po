@@ -187,6 +187,12 @@ msgstr "Children"
 msgid "Envoi…"
 msgstr "Sending…"
 
+msgid "Vérification…"
+msgstr "Checking…"
+
+msgid "Votre demande du %s a été mise à jour."
+msgstr "Your request of %s has been updated."
+
 #: includes/class-gf-blocks.php:114
 msgid "Envoyer la demande"
 msgstr "Send the request"

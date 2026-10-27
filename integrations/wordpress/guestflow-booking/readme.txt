@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.17.1
+Stable tag: 1.18.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,10 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.18.0 =
+* Anti-robot : dès l'ouverture du formulaire, le navigateur résout une vérification de GuestFlow (preuve de travail, calculée en arrière-plan, sans service extérieur ni cookie). Le visiteur ne la voit pas, sauf s'il envoie avant la fin : le bouton affiche alors « Vérification… ». GuestFlow 3 avec l'extension « Réservation depuis le site » 1.8.0 requis ; à partir de cette version, GuestFlow refuse les demandes envoyées sans vérification.
+* La même demande renvoyée (même e-mail, même logement, mêmes dates) met à jour la demande en cours : « Votre demande du <date> a été mise à jour. »
 
 = 1.17.1 =
 * Durée maximale et jours d'arrivée / de départ : quand GuestFlow refuse le séjour choisi, le moteur l'affiche clairement (« Séjour trop long : maximum 7 nuits. », « Arrivée le samedi uniquement sur cette période. ») au lieu d'un devis, et la demande ne peut pas être envoyée (GuestFlow à jour requis).
