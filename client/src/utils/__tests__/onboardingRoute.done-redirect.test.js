@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md rule 45 (audit 2026-10-27) — once onboarding is done,
+// specs/plugins-phase-p-productisation.md rule 46 (audit 2026-10-27) — once onboarding is done,
 // `/demarrage` reached by accident goes home; reopening it from Réglages › Système still works.
 import { onboardingRoute } from '../onboardingRoute';
 
@@ -9,7 +9,7 @@ test('rule 20: an admin is sent to the assistant while onboarding is open, where
   expect(onboardingRoute({ ...admin, onboardingOpen: true, pathname: '/demarrage', state: null })).toBe('assistant');
 });
 
-test('rule 45: done, `/demarrage` typed or reached with « Précédent » goes home', () => {
+test('rule 46: done, `/demarrage` typed or reached with « Précédent » goes home', () => {
   expect(onboardingRoute({ ...admin, pathname: '/demarrage', state: null })).toBe('home');
   expect(onboardingRoute({ isAdmin: false, onboardingOpen: false, pathname: '/demarrage', state: { reopen: true } })).toBe('home');
 });

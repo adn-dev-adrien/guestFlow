@@ -444,7 +444,7 @@ Decisions taken on 2026-10-06:
     flex column) and the actions are pushed to its bottom (`margin-top: auto`), still `sticky` for a
     long step, inside the card's 16 px padding.
 
-45. **Once done, `/demarrage` goes home** (audit 2026-10-27). After `POST /api/onboarding/done` the
+46. **Once done, `/demarrage` goes home** (audit 2026-10-27). After `POST /api/onboarding/done` the
     address stayed reachable — typed, bookmarked or reached with « Précédent » — and restarted the
     assistant at step 1. Now `App.jsx` asks `utils/onboardingRoute.js`: the assistant opens while
     onboarding is open (rule 20) or when it was reopened on purpose from Réglages › Système, which
@@ -504,7 +504,7 @@ Decisions taken on 2026-10-06:
 | `components/` | `MentionEditor.jsx` | C | Specific: one mention, its options and its price source |
 | `components/` | `StepperPage.jsx` | C | **Generic**: a page-level stepper with the counter, « Plus tard », « Précédent » / « Suivant ». Reusable for any guided flow |
 | `components/property/` | `PropertyStayTexts.jsx` | C | Specific: « Textes propres à ce logement », saved text by text. _Superseded by #693 (`specs/guest-email-texts-made-simple.md`): the file was deleted; the per-property facts live in `PropertyArrivalFacts.jsx`._ |
-| `pages/settings/` | `SystemSettingsPage.jsx` | T | « Assistant de démarrage » reopens `/demarrage` (with the router state `{ reopen: true }` since rule 45) |
+| `pages/settings/` | `SystemSettingsPage.jsx` | T | « Assistant de démarrage » reopens `/demarrage` (with the router state `{ reopen: true }` since rule 46) |
 | `components/` | `SettingsPushNotificationsSection.jsx` | T | Says when no address can sign push (rule 18) |
 | `plugins/sas/` | `ExtinguisherCheckCard.jsx` | C | The switch, in the « Facturables au SAS » tab |
 | `plugins/accounting-export/` | `PlatformAccountsPage.jsx` | T | The « Comptes » section |
@@ -515,7 +515,7 @@ Decisions taken on 2026-10-06:
 | `pages/settings/` | `PlatformsSettingsPage.jsx` | T | « Compté comme vente directe » |
 | `plugins/accounting-export/` | settings section | T | « Plan comptable » (rules 27–28) |
 | `plugins/sas/` | settings + `ReservationSasDialog.jsx` | T | Rule 16 |
-| `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20), and `/demarrage` home once it is done unless reopened on purpose (rule 45, `utils/onboardingRoute.js`); a page whose plugin is off renders `NotFoundPage` for an administrator instead of sending home (rule 42) |
+| `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20), and `/demarrage` home once it is done unless reopened on purpose (rule 46, `utils/onboardingRoute.js`); a page whose plugin is off renders `NotFoundPage` for an administrator instead of sending home (rule 42) |
 | `pages/` | `OnboardingPage.jsx` | T | Leaving after an install that asked for `reload` loads the app again (rule 42) |
 | `pages/` | `OnboardingPage.jsx` | T | Rule 43 — step 3 is three switches (MUI `Switch` rows in one bordered list) with their « Active : … » line |
 | `components/` | `NotFoundPage.jsx` | C | **Generic**: the app's 404, or « Plugin inactif » for a plugin's page (rule 40) |
@@ -671,7 +671,7 @@ endpoint, a missing capacity filled on save, a typed one kept and validated); cl
 dropped, a failure leaves the field editable, typed by hand stops following) with
 `onboardingCapacityFixtures.jsx`; `OnboardingPage` updated to the server value.
 
-Audit 2026-10-27 (rule 45): client `onboardingRoute.done-redirect` (4: open → assistant, done →
+Audit 2026-10-27 (rule 46): client `onboardingRoute.done-redirect` (4: open → assistant, done →
 home, reopened from Réglages › Système → assistant, other pages untouched). `PropertyStayTexts` (1)
 above was deleted with its component in #693.
 
