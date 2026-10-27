@@ -115,17 +115,17 @@ export const INTEGRATIONS_PATH = '/settings/integrations';
 /**
  * Rule 27 — what the summary's search also understands, page by page: the words an owner types
  * (« wifi », « iban », « smtp », « 2fa »), written as the row then shows them (« Contient : Wi-Fi »).
+ * The core's pages only: a plugin page brings its words on its `settings.menu` entry (`keywords`), and a
+ * plugin adds words to a core page through `settings.keywords` — `{ key, path, keywords }`
+ * (specs/platform-settings-relay-and-review.md rule 10), so the core names no plugin feature.
  */
 export const SETTINGS_KEYWORDS = Object.freeze({
-  '/settings/etablissement': ['IBAN', 'BIC', 'Banque', 'SIRET', 'TVA intracommunautaire', 'Logo', 'Adresse', 'Téléphone', 'Raison sociale', 'Pied de devis', 'Code portail'],
+  '/settings/etablissement': ['IBAN', 'BIC', 'Banque', 'SIRET', 'TVA intracommunautaire', 'Logo', 'Adresse', 'Téléphone', 'Raison sociale', 'Pied de devis'],
   [PROPERTIES_PATH]: ['Wi-Fi', 'Adresse du logement', 'Code de la boîte à clés', 'Accès', 'Caution', 'Ménage', 'Linge de lit', 'Serviettes', 'Tarifs', 'Saisons', 'Taxe de séjour', 'Acompte', 'Calendrier iCal', 'Photos', 'Lits'],
   '/settings/plateformes': ['Airbnb', 'Booking', 'Abritel', 'Gîtes de France', 'Commission', 'iCal'],
   '/parametres/conditions-generales': ['CGV', 'CGL', 'Conditions de vente', 'Annulation'],
-  '/parametres/options-ressources': ['Options', 'Repas', 'Petit-déjeuner', 'Planche', 'Bain nordique', 'Sauna', 'Ressources', 'Traductions'],
-  '/parametres/recettes': ['Tarifs', 'Prix', 'Saisons', 'Dégressivité', 'Durée minimale'],
+  '/parametres/options-ressources': ['Options', 'Repas', 'Petit-déjeuner', 'Ressources', 'Traductions'],
   '/parametres/vacances-fermetures': ['Vacances scolaires', 'Zone A', 'Zone B', 'Zone C', 'Fermeture', 'Congés'],
-  '/parametres/stock-blanchisserie': ['Linge', 'Draps', 'Serviettes', 'Blanchisserie', 'Stock'],
-  '/parametres/paiements': ['Qonto', 'Lien de paiement', 'Carte bancaire', 'Paiement en ligne'],
   '/settings/tva-exercice': ['TVA', 'Taux', 'Exercice comptable', 'Clôture', 'Objectif de chiffre d’affaires'],
   '/settings/emails': ['SMTP', 'Serveur d’envoi', 'Mot de passe d’application', 'Gmail', 'Expéditeur', 'Adresse d’envoi', 'Notifications', 'Push', 'Mail de test'],
   // Rule 29 — the emails by the names every page gives them (« Accès et arrivée », « Rappel de solde »).
@@ -136,6 +136,18 @@ export const SETTINGS_KEYWORDS = Object.freeze({
   '/parametres/plugins': ['Plugin', 'Extension', 'Module', 'Activer', 'Désactiver'],
   '/mon-compte': ['Mot de passe', 'Second code', '2FA', 'Double authentification', 'Code par email', 'Appli d’authentification', 'Prénom', 'Email de connexion'],
 });
+
+/**
+ * The words a summary row is found by: the core's (SETTINGS_KEYWORDS), its plugin entry's own, and those
+ * the live plugins add to that page (`contributed` = the `settings.keywords` slot).
+ */
+export function settingsKeywordsOf(entry, contributed = []) {
+  return [...new Set([
+    ...(SETTINGS_KEYWORDS[entry.path] || []),
+    ...(entry.keywords || []),
+    ...contributed.filter((c) => c.path === entry.path).flatMap((c) => c.keywords || []),
+  ])];
+}
 
 // The group of each entry of SETTINGS_MENU: the index of its family (the dividers before it).
 function groupIds(menu) {

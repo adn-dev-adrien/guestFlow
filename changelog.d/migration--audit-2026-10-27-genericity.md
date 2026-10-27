@@ -1,0 +1,2 @@
+- `platforms.relaysGuestEmail`, `reviewWhereFr`, `reviewWhereEn` added; one-shot `platform_guest_contact_v1` ticks the relay switch on existing Airbnb / Booking rows and writes the former review wordings (Gîtes de France, Airbnb, Booking), so existing e-mails are unchanged.
+- `user_push_channel_prefs` added; one-shot `push_channel_prefs_v1` carries the « Souscriptions Neat » choices over from `user_push_prefs.neat`.

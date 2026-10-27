@@ -10,5 +10,9 @@ export default {
     'optionsResources.tabs': [{
       key: 'sas', value: 'sas', label: 'Facturables au SAS', order: 30, Component: lazy(() => import('./BillableAmountsTab')),
     }],
+    // The gate code handed out at arrival, in Paramètres › Établissement, and the word that finds it
+    // there (specs/platform-settings-relay-and-review.md rule 11).
+    'settings.etablissement': [{ key: 'portal-code', order: 10, Component: lazy(() => import('./SettingsPortalCodeField')) }],
+    'settings.keywords': [{ key: 'portal-code', path: '/settings/etablissement', keywords: ['Code portail'] }],
   },
 };

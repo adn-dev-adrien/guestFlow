@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { MAIL, planStayMails, planSeasonMail, capReached } = require('../utils/guestEmailSequence');
+const { setRelayChannels } = require('../utils/platformNameFormat');
 
 const CLIENT = { id: 1, email: 'camille@example.fr' };
 const STAY = { id: 42, clientId: 1, platform: 'direct', createdAt: '2027-03-02', startDate: '2027-07-10', endDate: '2027-07-17' };
@@ -78,11 +79,14 @@ test('season mails: a client who never stayed is not a candidate at all', () => 
   assert.equal(season(MAIL.NOVEMBER, [], { sendDate: '2027-11-15' }), null);
 });
 
-test('season mails: Airbnb / Booking relay addresses are never prospected; one direct stay is enough', () => {
+test('season mails: relay addresses are never prospected; one direct stay is enough', () => {
+  // The platforms ticked « Adresse e-mail relais » (specs/platform-settings-relay-and-review.md rule 2).
+  setRelayChannels(['Airbnb', 'Booking']);
   const airbnb = { ...STAY, platform: 'Airbnb' };
   assert.equal(season(MAIL.NOVEMBER, [airbnb], { sendDate: '2027-11-15' }).blocked, 'relayAddress');
-  assert.equal(season(MAIL.JANUARY, [{ ...airbnb, platform: 'Booking.com' }], { sendDate: '2028-01-06' }).blocked, 'relayAddress');
+  assert.equal(season(MAIL.JANUARY, [{ ...airbnb, platform: 'Booking' }], { sendDate: '2028-01-06' }).blocked, 'relayAddress');
   assert.equal(season(MAIL.NOVEMBER, [airbnb, { ...STAY, id: 43, platform: 'GitesDeFrance', startDate: '2026-05-01', endDate: '2026-05-04' }], { sendDate: '2027-11-15' }).blocked, null);
+  setRelayChannels([]);
 });
 
 test('season mails: a reservation in progress or upcoming holds them back', () => {

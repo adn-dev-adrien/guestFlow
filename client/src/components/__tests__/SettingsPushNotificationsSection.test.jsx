@@ -11,7 +11,13 @@ import * as push from '../../push/registerPush';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getPushPreferences: vi.fn().mockResolvedValue({ newReservation: true, arrivals: true, departures: true, breakfast: true }),
+    getPushPreferences: vi.fn().mockResolvedValue({
+      newReservation: true, arrivals: true, departures: true, breakfast: true,
+      channels: [
+        { key: 'newReservation', label: 'Nouvelle réservation' }, { key: 'arrivals', label: 'Arrivées' },
+        { key: 'departures', label: 'Départs' }, { key: 'breakfast', label: 'Petit déjeuner' },
+      ],
+    }),
     updatePushPreferences: vi.fn().mockResolvedValue({}),
     getPushPublicKey: vi.fn().mockResolvedValue({ publicKey: 'k', configured: true }),
     sendPushTest: vi.fn().mockResolvedValue({ sent: 1 }),

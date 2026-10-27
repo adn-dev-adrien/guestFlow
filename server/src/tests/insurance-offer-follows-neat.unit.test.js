@@ -71,7 +71,7 @@ test('rule 21 — the hidden option answers 404, and no option can become the in
     const res = fakeRes();
     call(res);
     assert.equal(res.statusCode, 400);
-    assert.equal(res.body.error, 'L’assurance annulation demande le plugin Neat.');
+    assert.equal(res.body.error, 'L’assurance annulation demande un plugin d’assurance actif.');
   }
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM options WHERE isCancellationInsurance = 1').get().n, 1);
 });
@@ -84,7 +84,7 @@ test('rule 22 — a stay that carries the insurance gets it back read-only; one 
   const [frozen] = insuranceOffer.frozenOptions(db, insured);
   assert.equal(frozen.id, 10);
   assert.equal(frozen.readOnly, true);
-  assert.equal(frozen.readOnlyReason, 'Lecture seule : plugin Neat inactif');
+  assert.equal(frozen.readOnlyReason, 'Lecture seule : aucun plugin d’assurance actif');
   assert.deepEqual(insuranceOffer.frozenOptions(db, bare), []);
   offerInsurance();
   assert.deepEqual(insuranceOffer.frozenOptions(db, insured), [], 'with Neat the tile is the ordinary one');

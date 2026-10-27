@@ -25,7 +25,7 @@ const PLUGINS = [
 ];
 
 const QUESTIONS = [
-  { id: 'options', label: 'Des options payantes à l’arrivée : repas, linge, bain nordique ?', answer: true, allowed: true, plan: null, hint: 'Active : Arrivée et départ guidés.' },
+  { id: 'options', label: 'Des options payantes à l’arrivée : repas, linge, sauna ou spa ?', answer: true, allowed: true, plan: null, hint: 'Active : Arrivée et départ guidés.' },
   { id: 'website', label: 'Un site internet qui prend des réservations ?', answer: true, allowed: true, plan: null, hint: 'Active : Réservation depuis le site.' },
   { id: 'payment', label: 'Encaisser en ligne, par lien de paiement ?', answer: false, allowed: false, plan: 'Forfait Premium', hint: null },
 ];

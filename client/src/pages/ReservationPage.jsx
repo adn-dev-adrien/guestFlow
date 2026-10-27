@@ -3662,7 +3662,7 @@ export default function ReservationPage() {
 
           <Card variant="outlined" sx={formSectionCardSx}>
             <CardContent sx={formSectionContentSx}>
-              <Typography variant="sectionHeader" sx={{ mb: 2 }}>Canal</Typography>
+              <Typography variant="sectionHeader" sx={{ mb: 2 }}>Plateforme</Typography>
               <FormControl fullWidth>
                 <InputLabel id="reservation-platform-label">Plateforme</InputLabel>
                 <Select labelId="reservation-platform-label" value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>

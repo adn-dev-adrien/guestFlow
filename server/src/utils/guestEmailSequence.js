@@ -11,7 +11,7 @@
  * yearly cap are applied by the runner, which owns the DB.
  */
 
-const { isDirectChannel } = require('./platformNameFormat');
+const { isDirectChannel, isRelayChannel } = require('./platformNameFormat');
 
 const MAIL = Object.freeze({
   CONFIRMATION: 'reservation_confirmation',
@@ -51,7 +51,7 @@ const REASONS = Object.freeze({
   stayBeforeActivation: 'Séjour terminé avant l\'activation de la séquence',
   clientOptedOut: 'Case client « Ne pas envoyer les mails après séjour »',
   unsubscribed: 'Client désinscrit des nouvelles',
-  relayAddress: 'Adresse relais Airbnb / Booking',
+  relayAddress: 'Adresse e-mail relais de la plateforme',
   upcomingStay: 'Réservation en cours ou à venir',
   recentStay: 'Séjour terminé il y a moins de 30 jours',
   capReached: '3 contacts après séjour déjà envoyés sur 12 mois',
@@ -97,10 +97,8 @@ function seasonDedupKey(stableKey, clientId, seasonKey) {
 
 // ---------------------------------------------------------------- channel helpers
 
-function isRelayChannel(platform) {
-  const p = String(platform || '').toLowerCase().replace(/[^a-z]/g, '');
-  return p.startsWith('airbnb') || p.startsWith('booking');
-}
+// `isRelayChannel` — the platforms ticked « Adresse e-mail relais » (specs/platform-settings-relay-and-review.md
+// rule 2), never a platform name.
 
 function hasEmail(client) {
   return Boolean(client && String(client.email || '').trim());

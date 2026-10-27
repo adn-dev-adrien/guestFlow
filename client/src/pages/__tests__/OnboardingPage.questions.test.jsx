@@ -19,7 +19,7 @@ import api from '../../api';
 import OnboardingPage from '../OnboardingPage';
 
 const QUESTIONS = [
-  { id: 'options', label: 'Des options payantes à l’arrivée : repas, linge, bain nordique ?', answer: true, allowed: true, plan: null, hint: 'Active : Ressources à l’heure, Linge et blanchisserie, Arrivée et départ guidés.' },
+  { id: 'options', label: 'Des options payantes à l’arrivée : repas, linge, sauna ou spa ?', answer: true, allowed: true, plan: null, hint: 'Active : Ressources à l’heure, Linge et blanchisserie, Arrivée et départ guidés.' },
   { id: 'website', label: 'Un site internet qui prend des réservations ?', answer: true, allowed: true, plan: null, hint: 'Active : Réservation depuis le site.' },
   { id: 'payment', label: 'Encaisser en ligne, par lien de paiement ?', answer: false, allowed: true, plan: null, hint: 'Active : Paiement en ligne (Qonto).' },
 ];

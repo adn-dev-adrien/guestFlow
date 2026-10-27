@@ -21,6 +21,7 @@ export default {
     'dashboard.alerts': [{ key: 'bank-reconciliation', order: 20, Component: lazy(() => import('./ReconciliationAlert')) }],
     'settings.menu': [{
       path: '/parametres/paiements', label: 'Paiements en ligne', Icon: PaymentsIcon, before: '/settings/tva-exercice',
+      keywords: ['Qonto', 'Lien de paiement', 'Carte bancaire', 'Paiement en ligne'],
     }],
   },
 };

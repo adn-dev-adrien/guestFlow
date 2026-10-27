@@ -48,6 +48,8 @@ function emptyRecord(id) {
     attention: [],
     // specs/plugins-phase-0-foundation.md rule 25 — () → null | what the plugin still lacks.
     setupStatus: null,
+    // specs/platform-settings-relay-and-review.md rule 8 — [{ key, label }] push toggles (SDK 2.6.0).
+    pushChannels: [],
   };
 }
 

@@ -15,6 +15,7 @@ const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', '
 const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
+const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
 function createContext(id, { db, settingsModel, dataDir = null } = {}) {
   const record = registry.ensure(id);
@@ -141,6 +142,18 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     setupStatus(check) {
       if (typeof check !== 'function') throw new Error(`${prefix} setupStatus needs a function`);
       record.setupStatus = check;
+    },
+    // A push notification toggle of « Notifications push » (specs/platform-settings-relay-and-review.md
+    // rule 8, SDK 2.6.0): offered while the plugin is live, sent with `pushService.sendToPref(key, …)`.
+    // `label` is French, as the toggle reads.
+    pushChannel({ key, label } = {}) {
+      if (!PUSH_CHANNEL_KEY.test(String(key || ''))) throw new Error(`${prefix} a push channel needs a key like "my-channel"`);
+      if (!label || typeof label !== 'string') throw new Error(`${prefix} push channel "${key}" needs a label`);
+      const { CORE_PUSH_CHANNELS } = require('../../utils/pushChannels');
+      const taken = CORE_PUSH_CHANNELS.some((c) => c.key === key)
+        || registry.all().some((r) => (r.pushChannels || []).some((c) => c.key === key));
+      if (taken) throw new Error(`${prefix} the push channel "${key}" is already declared`);
+      record.pushChannels.push({ key, label });
     },
     migrations(list) { record.migrations.push(...list); },
     settings,

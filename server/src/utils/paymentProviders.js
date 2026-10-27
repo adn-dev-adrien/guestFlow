@@ -10,6 +10,8 @@
  *   getPayment(linkId, { origin? })             → { paid, paymentId?, paidAt? }
  *   getLinkStatus(linkId)                       → 'open' | 'expired' | 'cancelled'
  *   cancelLink(linkId)                          → resolves once the link can no longer be paid
+ *   describeError(err)?                         → { httpStatus, error, message } for an error the
+ *                                                 provider words itself (« à connecter d'abord »), else null
  *
  * `active()` is null while no live plugin offers a ready provider: every online-payment entry point
  * then refuses with NO_PAYMENT_PROVIDER and the screens hide their buttons.

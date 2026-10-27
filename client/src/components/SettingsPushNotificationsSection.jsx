@@ -4,7 +4,7 @@
  *
  * Self-contained (per-user data via the /push API, not the global settings form): on mount it reads the
  * device subscription state + this user's preferences. The operator enables/disables push on the current
- * device and toggles which notifications they receive (nouvelle réservation / arrivées / départs).
+ * device and toggles which notifications they receive — the list the server serves with its labels.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,23 +15,14 @@ import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
 import { pushSupported, getPushState, enablePush, disablePush } from '../push/registerPush';
 
-const PREF_LABELS = [
-  ['newReservation', 'Nouvelle réservation'],
-  ['arrivals', 'Arrivées'],
-  ['departures', 'Départs'],
-  // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md rule 6).
-  ['breakfast', 'Petit déjeuner'],
-  // Neat subscription failures (specs/neat-cancellation-insurance-subscription.md rule 11) — listed
-  // only while the neat plugin is live (specs/plugins-phase-3b-neat.md rule 17).
-  ['neat', 'Souscriptions Neat'],
-];
-// What the server lists as `available`; without its answer, the core channels only.
-const CORE_KEYS = ['newReservation', 'arrivals', 'departures', 'breakfast'];
+// The toggles are the server's `channels` ([{ key, label }]): the core's, then those the live plugins
+// declare (specs/platform-settings-relay-and-review.md rule 8). The card names no plugin.
+const NO_PREFS = { channels: [] };
 
 export default function SettingsPushNotificationsSection() {
   const supported = pushSupported();
   const [state, setState] = useState({ enabled: false, permission: 'default' });
-  const [prefs, setPrefs] = useState({ newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true });
+  const [prefs, setPrefs] = useState(NO_PREFS);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -44,7 +35,7 @@ export default function SettingsPushNotificationsSection() {
     try {
       const [st, pr, key] = await Promise.all([
         getPushState(),
-        api.getPushPreferences().catch(() => ({ newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true })),
+        api.getPushPreferences().catch(() => NO_PREFS),
         api.getPushPublicKey().catch(() => ({ configured: true })),
       ]);
       setState({ enabled: st.enabled, permission: st.permission });
@@ -151,7 +142,7 @@ export default function SettingsPushNotificationsSection() {
               </Box>
 
               <Stack spacing={0.5}>
-                {PREF_LABELS.filter(([key]) => (prefs.available || CORE_KEYS).includes(key)).map(([key, label]) => (
+                {(prefs.channels || []).map(({ key, label }) => (
                   <FormControlLabel
                     key={key}
                     control={<Switch checked={Boolean(prefs[key])} onChange={(e) => onTogglePref(key, e.target.checked)} />}

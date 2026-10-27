@@ -414,7 +414,7 @@ Decisions taken on 2026-10-06:
 
     | Question | « Oui » turns on | On a fresh instance |
     |---|---|---|
-    | « Des options payantes à l'arrivée : repas, linge, bain nordique ? » | Ressources à l'heure, Linge et blanchisserie, Arrivée et départ guidés (the SAS is where options are sold and paid) | oui |
+    | « Des options payantes à l'arrivée : repas, linge, sauna ou spa ? » (neutral examples since the 2026-10-27 audit, specs/platform-settings-relay-and-review.md rule 10) | Ressources à l'heure, Linge et blanchisserie, Arrivée et départ guidés (the SAS is where options are sold and paid) | oui |
     | « Un site internet qui prend des réservations ? » | Réservation depuis le site | oui |
     | « Encaisser en ligne, par lien de paiement ? » | Paiement en ligne (Qonto) | non |
 

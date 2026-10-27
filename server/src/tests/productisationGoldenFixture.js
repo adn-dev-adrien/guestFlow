@@ -173,6 +173,14 @@ function buildSolioDb() {
   db.prepare("DELETE FROM migrations WHERE name = 'productisation_v1'").run();
   require('../utils/productisationMigration').runProductisationMigration(db, { env: {} });
   require('../utils/platformNameFormat').refreshDirectChannels(db);
+  // specs/platform-settings-relay-and-review.md rule 6 — Solio's platforms carry the review wordings the
+  // code used to know by name: the same upgrade, on the platforms its stays name.
+  const addPlatform = db.prepare('INSERT OR IGNORE INTO platforms (name) VALUES (?)');
+  db.prepare("SELECT DISTINCT platform FROM reservations WHERE platform IS NOT NULL AND platform != ''").all()
+    .forEach((r) => addPlatform.run(r.platform));
+  db.prepare("DELETE FROM migrations WHERE name = 'platform_guest_contact_v1'").run();
+  require('../utils/platformGuestContactMigration').runPlatformGuestContactMigration(db);
+  require('../utils/platformNameFormat').refreshGuestContactChannels(db);
 
   return db;
 }

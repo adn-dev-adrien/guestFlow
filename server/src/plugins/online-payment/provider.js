@@ -26,6 +26,14 @@ function createQontoProvider({ settings, env = process.env } = {}) {
 
     isReady: () => store().qontoConnected(),
 
+    // The errors Qonto's own wording explains better than « Erreur de l'API » (paymentProviders contract).
+    describeError(err) {
+      if (err && err.code === 'QONTO_NOT_CONNECTED') {
+        return { httpStatus: 400, error: 'QONTO_NOT_CONNECTED', message: "Qonto à connecter d'abord (OAuth), avant le provider." };
+      }
+      return null;
+    },
+
     async createLink({ title, amountCents, items, expectedTotalCents, redirectUrl }, { origin = 'manual-link' } = {}) {
       const link = await call(origin, (client, accessToken) => client.createPaymentLink({
         accessToken, title, amountCents, items, expectedTotalCents, redirectUrl,

@@ -40,7 +40,7 @@ function validatePercentPrice(payload) {
 // offers it.
 function insuranceFlagRefused(req, res) {
   if (!req.body || !req.body.isCancellationInsurance || insuranceOffered()) return false;
-  res.status(400).json({ error: 'L’assurance annulation demande le plugin Neat.' });
+  res.status(400).json({ error: 'L’assurance annulation demande un plugin d’assurance actif.' });
   return true;
 }
 

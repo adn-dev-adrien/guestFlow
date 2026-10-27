@@ -8,6 +8,7 @@ export default {
     routes: [{ path: '/parametres/stock-blanchisserie', Component: lazy(() => import('./LinenStockPage')), roles: ['admin'] }],
     'settings.menu': [{
       path: '/parametres/stock-blanchisserie', label: 'Linge', Icon: LocalLaundryServiceIcon, after: '/parametres/vacances-fermetures',
+      keywords: ['Linge', 'Draps', 'Serviettes', 'Blanchisserie', 'Stock'],
     }],
     // Before the recipe runs: a shortage is something to act on before the stays it names.
     'dashboard.alerts': [{ key: 'linen-shortage', order: 5, Component: lazy(() => import('./LinenShortageAlert')) }],
