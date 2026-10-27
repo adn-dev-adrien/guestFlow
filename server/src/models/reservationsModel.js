@@ -10,7 +10,7 @@
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
-const { formatPlatformName, registerDirectChannelSql } = require('../utils/platformNameFormat');
+const { formatPlatformName, registerDirectChannelSql, isChoreFreeChannel } = require('../utils/platformNameFormat');
 const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
@@ -3503,8 +3503,9 @@ function createReservationsModel(database) {
       if (!row) return null;
 
       // Rule 3 of defer-arrival-complement-to-checkout.md — a cleaning already sold is never billed again,
-      // whatever the caller sends, and a ménage line stored by an earlier run is dropped.
-      const cleaningSold = model.isCleaningSoldForReservation(reservationId);
+      // whatever the caller sends, and a ménage line stored by an earlier run is dropped. Nor on a channel
+      // that forbids billing an undone chore (specs/airbnb-no-checkout-chores.md rules 7–8).
+      const cleaningSold = model.isCleaningSoldForReservation(reservationId) || isChoreFreeChannel(row.platform);
       const base = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
         .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))
         .map((l) => ({ lineKey: l.lineKey, stored: storeLine(l), carried: Boolean(l.source), extinguisher: false }));

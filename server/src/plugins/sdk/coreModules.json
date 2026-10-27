@@ -216,9 +216,12 @@
   ],
   "platformNameFormat": [
     "formatPlatformName",
+    "isChoreFreeChannel",
     "isDirectChannel",
+    "refreshChoreFreeChannels",
     "refreshDirectChannels",
     "registerDirectChannelSql",
+    "setChoreFreeChannels",
     "setDirectChannels"
   ],
   "receptionView": [
@@ -263,6 +266,7 @@
     "remove",
     "saveEmailHooks",
     "setOptions",
+    "setPlatformCleaningFees",
     "setTariffRecipe",
     "setWelcomePackCost",
     "update",
@@ -551,6 +555,7 @@
   ],
   "platformsModel": [
     "DIRECT_NAME",
+    "choreFreeIds",
     "colorMap",
     "countsAsDirectIds",
     "create",
@@ -565,12 +570,14 @@
     "listNames",
     "listSettings",
     "listWithCommission",
+    "refreshChoreFreeChannels",
     "refreshDirectChannels",
     "rescan",
     "setColor",
     "setCommissionPercent",
     "setCountsAsDirect",
     "setDepositMode",
+    "setForbidsGuestChores",
     "setPayoutDueDays",
     "setTouristTaxCollection",
     "update",

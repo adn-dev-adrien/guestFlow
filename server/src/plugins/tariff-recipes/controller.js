@@ -48,9 +48,11 @@ function createController({ db, store: getStore, model: getModel, properties, jo
   }
 
   // Detach: the property keeps its seasons verbatim, only the pointer is cleared
-  // (the « Recette introuvable → détacher » escape hatch of spec §3 edge cases).
+  // (the « Recette introuvable → détacher » escape hatch of spec §3 edge cases). The platform cleaning
+  // fees go with the recipe: nothing else edits them (specs/tariff-recipe-platform-cleaning-fee.md rule 14).
   function detachFromProperty(req, res) {
     properties().setTariffRecipe(req.params.id, '', '');
+    properties().setPlatformCleaningFees(req.params.id, []);
     res.json({ ok: true });
   }
 

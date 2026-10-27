@@ -396,6 +396,7 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   tryAddProp('tariffRecipeVersion', "ALTER TABLE properties ADD COLUMN tariffRecipeVersion TEXT DEFAULT ''");
   tryAddProp('extraGuestPriceUnit', "ALTER TABLE properties ADD COLUMN extraGuestPriceUnit TEXT DEFAULT 'per_stay'");
   tryAddProp('welcomePackCost', 'ALTER TABLE properties ADD COLUMN welcomePackCost REAL DEFAULT 0');
+  tryAddProp('platformCleaningFees', "ALTER TABLE properties ADD COLUMN platformCleaningFees TEXT DEFAULT '[]'");
 
   const ruleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map((c) => c.name);
   const tryAddRule = (col, sql) => { if (!ruleCols.includes(col)) db.exec(sql); };
@@ -2488,6 +2489,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   // `direct` and every platform counted as a direct sale (rule 19).
   db.prepare("UPDATE platforms SET countsAsDirect = 1 WHERE name = 'direct'").run();
   require('./utils/platformNameFormat').refreshDirectChannels(db);
+}
+
+// ---------- CHORE-FREE CHANNELS — specs/airbnb-no-checkout-chores.md rule 8 ----------
+{
+  const { applyChoreFreeChannelsSchema, runChoreFreeChannelsMigration } = require('./utils/choreFreeChannelsMigration');
+  applyChoreFreeChannelsSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runChoreFreeChannelsMigration(db);
+  require('./utils/platformNameFormat').refreshChoreFreeChannels(db);
 }
 
 // ---------- TRANSLATION CATALOGUE ----------

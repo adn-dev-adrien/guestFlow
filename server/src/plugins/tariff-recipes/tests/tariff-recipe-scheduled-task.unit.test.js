@@ -14,7 +14,7 @@ function createDb() {
   db.exec(`
     CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT,
       tariffRecipeId TEXT DEFAULT '', tariffRecipeVersion TEXT DEFAULT '',
-      extraGuestPrice REAL DEFAULT 0, extraGuestPriceUnit TEXT DEFAULT 'per_stay', welcomePackCost REAL DEFAULT 0,
+      extraGuestPrice REAL DEFAULT 0, extraGuestPriceUnit TEXT DEFAULT 'per_stay', welcomePackCost REAL DEFAULT 0, platformCleaningFees TEXT DEFAULT '[]',
       updatedAt TEXT);
     CREATE TABLE pricing_rules (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, label TEXT,
       pricePerNight REAL DEFAULT 100, pricingMode TEXT DEFAULT 'fixed', progressiveTiers TEXT DEFAULT '[]',

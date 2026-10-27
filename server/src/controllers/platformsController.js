@@ -111,6 +111,10 @@ function planRow(row, current) {
   if (!current.isDirect && has('countsAsDirect')) {
     apply.push(() => platformsModel.setCountsAsDirect(current.id, row.countsAsDirect === true));
   }
+  // specs/airbnb-no-checkout-chores.md rule 8 — a platform rule, so never on an own channel.
+  if (!isDirectChannel(current.name) && has('forbidsGuestChores')) {
+    apply.push(() => platformsModel.setForbidsGuestChores(current.id, row.forbidsGuestChores === true));
+  }
   if (!isDirectChannel(current.name) && has('payoutDueDays')) {
     const days = parsePayoutDueDaysInput(row.payoutDueDays);
     if (days === null) errors.payoutDueDays = 'Un nombre entier de jours (0 à 365).';
@@ -120,7 +124,7 @@ function planRow(row, current) {
 }
 
 // PUT /api/platforms/settings — body `{ platforms: [{ id, color?, commissionPercent?, takesDeposit?,
-// touristTaxCollection?, payoutDueDays?, countsAsDirect? }] }`. All rows are validated first; one invalid field
+// touristTaxCollection?, payoutDueDays?, countsAsDirect?, forbidsGuestChores? }] }`. All rows are validated first; one invalid field
 // refuses the whole save with `{ code: 'PLATFORMS_INVALID', errors: { [id]: { field: message } } }`.
 function saveSettings(req, res) {
   const rows = req.body && Array.isArray(req.body.platforms) ? req.body.platforms : null;
@@ -141,6 +145,7 @@ function saveSettings(req, res) {
   if (Object.keys(errors).length) return res.status(400).json({ code: 'PLATFORMS_INVALID', errors });
   actions.forEach((run) => run());
   platformsModel.refreshDirectChannels();
+  platformsModel.refreshChoreFreeChannels();
   return res.json({ platforms: platformsModel.listSettings() });
 }
 

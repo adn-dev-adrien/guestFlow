@@ -245,6 +245,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-27 — SDK 2.5.0 (master v3.18.0 merged into `inte/plugins`): `coreModule('platformNameFormat')`
+> gains `isChoreFreeChannel` / `setChoreFreeChannels` / `refreshChoreFreeChannels`
+> (`specs/airbnb-no-checkout-chores.md` rule 8); `coreModule('platformsModel')` gains `choreFreeIds`,
+> `setForbidsGuestChores`, `refreshChoreFreeChannels`; `propertiesModel` gains `setPlatformCleaningFees`
+> (`specs/tariff-recipe-platform-cleaning-fee.md`). `sas` 1.6.0 and `tariff-recipes` 1.3.0 require it.
+
 > 2026-10-26 — SDK 2.4.0 (`specs/google-vacation-rentals-feed.md` rule 12): `ctx.events.emit(name, payload)`
 > lets a plugin announce `pricing.changed`, and only that event; `coreModule('directQuote')` exposes the
 > website's quote (`utils/directQuote.js`), shared by website-booking and google-vacation-rentals.

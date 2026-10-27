@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.2.0",
+  "sdk": "^2.5.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -54,6 +54,11 @@
     "1.5.1": [
       "À l’arrivée, le séjour à régler inclut les échéances restantes ; le SAS les marque payées en espèces.",
       "Compatible avec le SDK 2.2 de GuestFlow."
+    ],
+    "1.6.0": [
+      "Sur une plateforme « Sans corvées de départ », le sas ne rappelle plus la vaisselle ni les poubelles.",
+      "Au départ, le ménage non fait n’est plus facturé sur ces plateformes.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
     ]
   }
 }

@@ -1,6 +1,6 @@
 {
   "id": "gite-2027",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "label": "Gîte — grille automatique 2027",
   "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
@@ -238,6 +238,18 @@
   "_comment_welcomePack": "N'est PAS un pack accueil ici, mais le levier d'alignement du canal direct. La grille n'applique `fixedCost` qu'à la ligne directe (propertiesModel : `fixedCost: p.isDirect ? welcomePackCost : 0`), ce qui permet d'afficher en direct le prix du canal le moins cher tout en ne payant que 5 % de commission — la différence reste à l'exploitant. Consigne d'Adrien du 2026-08-28 : « en direct je veux que tu me place au prix le plus bas des plateformes ». Passé de 16 € à 15 € le 2026-08-28 quand Abritel a été ajouté à 9,7 % : il devient le canal le moins cher, et à 16 € le direct serait sorti 1 € AU-DESSUS de lui en très basse saison. À 15 €, le direct est à égalité avec Abritel sur la première saison et en dessous partout ailleurs. Ce nombre est à recalculer à chaque fois qu'un canal moins cher entre dans `platforms`. Interne à la recette : le client ne voit jamais ce nombre.",
   "welcomePack": {
     "cost": 15
+  },
+  "_comment_cleaning": "Airbnb interdit depuis les réservations du 20/11/2026 de demander vaisselle, poubelles et lits défaits (specs/airbnb-no-checkout-chores.md). Le ménage du gîte n'est pas dans le prix de la nuit : Airbnb le facture à part, et ses frais de ménage couvrent le ménage (80 €) plus les 55 minutes de corvées à 25 €/h, soit 102,92 € net. Airbnb prélevant sa commission sur les frais de ménage aussi, la grille affiche 122 € à saisir (specs/tariff-recipe-platform-cleaning-fee.md).",
+  "cleaning": {
+    "netCost": 80,
+    "hourlyRate": 25,
+    "platformFees": [
+      {
+        "platform": "Airbnb",
+        "chargesCleaning": true,
+        "choresMinutes": 55
+      }
+    ]
   },
   "_comment_colors": "Une couleur par RANG de prix — vert pour la moins chère, rouge pour la plus chère — et non une rampe proportionnelle au prix (Adrien, 2026-08-28 : « je veux juste que tu classes les tarifs et que tu attribues une couleur par rapport au classement »). Six teintes franchement distinctes : vert, vert-jaune, jaune, orange clair, orange, rouge. Le calendrier les compose sur du blanc à 55 % d'opacité ; à l'ancienne valeur de 13 % elles ressortaient toutes blanches, quel que soit le choix de couleurs. À réordonner si l'ordre des prix change."
 }
