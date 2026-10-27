@@ -65,39 +65,70 @@ function requalificationLines(depositTtc, depositBuckets, vatRate) {
 }
 
 /**
+ * The avoir lines of the installments collected under a plan (specs/direct-installments.md rule 46).
+ * Each was booked like a solde: the stay at the sales VAT rate plus its share of the tourist tax at 0 %
+ * (rule 39), so the avoir reverses exactly those two parts.
+ */
+function installmentLines(amountTtc, touristTaxTtc, vatRate) {
+  const tax = Math.min(round2(touristTaxTtc), amountTtc);
+  const stay = round2(amountTtc - tax);
+  const lines = [];
+  if (stay > 0) {
+    lines.push({ lineKey: 'accommodation', label: BUCKET_LABELS.accommodation, bucket: 'accommodation', quantity: 1, unitPrice: stay, amountTtc: stay, vatRate });
+  }
+  if (tax > 0) {
+    lines.push({ lineKey: 'touristTax', label: 'Taxe de séjour', bucket: 'touristTax', quantity: null, unitPrice: null, amountTtc: tax, vatRate: 0 });
+  }
+  return lines;
+}
+
+/**
  * @param {object} input
  * @param {object} input.reservation      row with id, propertyId, propertyName, platform, firstName,
  *                                        lastName, startDate, endDate, finalPrice, depositAmount,
  *                                        depositPaid
  * @param {object} [input.depositBuckets] `{ accommodation, options, resources }` TTC shares of the acompte
+ * @param {object} [input.installmentsRetained] `{ amountTtc, touristTaxTtc }` — what the installments of a
+ *                                        plan collected, and the tourist tax inside it
  * @param {string} input.cancellationDate YYYY-MM-DD — the day the requalification is booked
  * @param {number} input.vatRate          the sales VAT rate the acompte was booked at
  * @param {string} [input.reason]         operator's cancellation reason, carried on both records
- * @returns {{depositTtc:number, refund:object, compensation:object}|null} null when there is no
- *          collected acompte to requalify — a cancellation then books nothing (rule 27).
+ * @returns {{retainedTtc:number, depositTtc:number, installmentsTtc:number, refund:object, compensation:object}|null}
+ *          null when there is no collected acompte nor installment to requalify — a cancellation then
+ *          books nothing (rule 27).
  */
 function buildCancellationRequalification({
   reservation,
   depositBuckets = null,
+  installmentsRetained = null,
   cancellationDate,
   vatRate = 0,
   reason = '',
 } = {}) {
   const row = reservation || {};
-  const depositTtc = round2(row.depositAmount);
-  if (!Number(row.depositPaid) || depositTtc <= 0) return null;
+  const depositTtc = Number(row.depositPaid) ? Math.max(0, round2(row.depositAmount)) : 0;
+  const installmentsTtc = Math.max(0, round2(installmentsRetained && installmentsRetained.amountTtc));
+  const retainedTtc = round2(depositTtc + installmentsTtc);
+  if (retainedTtc <= 0) return null;
 
-  const label = 'Annulation — acompte conservé';
+  const label = installmentsTtc > 0 ? 'Annulation — échéances conservées' : 'Annulation — acompte conservé';
   const note = String(reason || '').trim();
+  const rate = Number(vatRate) || 0;
+  const lines = [
+    ...(depositTtc > 0 ? requalificationLines(depositTtc, depositBuckets, rate) : []),
+    ...(installmentsTtc > 0 ? installmentLines(installmentsTtc, installmentsRetained.touristTaxTtc, rate) : []),
+  ];
 
   return {
+    retainedTtc,
     depositTtc,
+    installmentsTtc,
     refund: {
       reservationId: Number(row.id),
       refundDate: cancellationDate,
       method: 'retained',
       reason: note ? `${label} : ${note}` : label,
-      lines: requalificationLines(depositTtc, depositBuckets, Number(vatRate) || 0),
+      lines,
     },
     compensation: {
       reservationId: Number(row.id),
@@ -109,7 +140,7 @@ function buildCancellationRequalification({
       startDate: row.startDate || null,
       endDate: row.endDate || null,
       cancelledStayAmount: round2(row.finalPrice),
-      receivedAmount: depositTtc,
+      receivedAmount: retainedTtc,
       receivedDate: cancellationDate,
       origin: 'retained_deposit',
       notes: note,
@@ -117,4 +148,4 @@ function buildCancellationRequalification({
   };
 }
 
-module.exports = { buildCancellationRequalification, __test: { requalificationLines, round2 } };
+module.exports = { buildCancellationRequalification, __test: { requalificationLines, installmentLines, round2 } };

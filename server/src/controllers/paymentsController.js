@@ -24,6 +24,7 @@ const financeModel = require('../models/financeModel');
 const { storedLinkComponents } = require('../utils/storedLinkComponents');
 const installmentsModel = require('../models/installmentsModel');
 const { requestContext } = require('../utils/installmentPlan');
+const { linkAmountCents } = require('../utils/ledgerLinks');
 
 // ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
 
@@ -74,32 +75,34 @@ function runDevisEngineQuote(id, model = devisModel) {
 // matches the acompte/solde/total GuestFlow shows. The stored `depositAmount`/`balanceAmount` columns
 // can be stale (pricing-rule change, public-API devis); the engine is the single source of truth.
 // Falls back to the stored row for reservations or on failure.
+// A `full` link charges the acompte plus the solde — the pre-arrival amount, tourist tax included and the
+// arrival complement excluded — because that is exactly what its payment marks paid
+// (specs/deposit-blocks-the-dates.md rule 18, decided 2026-10-27).
 function resolveAmountCents(id, type, row, quoteOf = runDevisEngineQuote) {
-  let euros = Number(row[LINK_TYPES[type]] || 0); // fallback = stored column
   const quote = quoteOf(id);
-  const field = type === 'deposit' ? 'depositAmount' : type === 'balance' ? 'balanceAmount' : 'finalPrice';
-  if (quote && quote[field] != null) euros = Number(quote[field]);
-  return Math.round(euros * 100);
+  const source = quote && (LINK_TYPES[type] || []).every((f) => quote[f] != null) ? quote : row; // fallback = stored columns
+  return linkAmountCents(type, source) || 0;
 }
 
 // VAT basket components per link type (specs/payment-links-vat.md), from the engine quote. The tourist
-// tax is VAT-exempt and (for direct stays) rides on the solde, so only `balance` carries a 0 %-VAT tax
-// line; deposit (accommodation-only) and admin full (finalPrice, tax-excl) are single taxable lines.
+// tax is VAT-exempt and (for direct stays) rides on the solde, so `balance` and `full` (acompte + solde)
+// carry a 0 %-VAT tax line; the deposit (accommodation-only) is a single taxable line. The tax is left
+// out when it is paid on arrival (collected there, or forced to the complement).
 // Returns null for reservations / engine failure → the caller keeps the safe single 0 %-VAT line.
 function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote, storedOf = storedReservationComponents) {
   const quote = quoteOf(id);
   if (!quote) return storedOf(id, type);
   const cents = (v) => Math.round(Number(v || 0) * 100);
   const vatRatePercent = quote.vatPercentageAccommodation != null ? Number(quote.vatPercentageAccommodation) : 10;
-  const taxCents = Boolean(quote.touristTaxCollectedOnArrival) ? 0 : cents(quote.touristTaxTotal);
+  const taxOnArrival = Boolean(quote.touristTaxCollectedOnArrival) || Boolean(quote.touristTaxInComplement);
+  const taxCents = taxOnArrival ? 0 : cents(quote.touristTaxTotal);
   let components = null;
   if (type === 'deposit') {
     components = [{ title: LINK_TITLES.deposit, grossCents: cents(quote.depositAmount), taxable: true }];
-  } else if (type === 'full') {
-    components = [{ title: LINK_TITLES.full, grossCents: cents(quote.finalPrice), taxable: true }];
-  } else if (type === 'balance') {
-    const balCents = cents(quote.balanceAmount);
-    components = [{ title: LINK_TITLES.balance, grossCents: balCents - taxCents, taxable: true }];
+  } else if (type === 'balance' || type === 'full') {
+    const totalCents = linkAmountCents(type, quote);
+    if (taxCents > totalCents) return null;
+    components = [{ title: LINK_TITLES[type], grossCents: totalCents - taxCents, taxable: true }];
     if (taxCents > 0) components.push({ title: 'Taxe de séjour', grossCents: taxCents, taxable: false });
   } else {
     return null; // complement etc. → single line fallback

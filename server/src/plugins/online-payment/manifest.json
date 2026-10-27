@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -12,7 +12,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.0.0",
+  "sdk": "^2.6.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -33,15 +33,15 @@
     "1.1.0": [
       "La carte du plugin dit si la connexion Qonto manque, et « Configurer » ouvre Paiements en ligne."
     ],
-    "1.2.2": [
-      "Rapprochement bancaire : retour au comportement du registre des paiements, où toute plateforme autre que « direct » est réglée par un versement de plateforme."
+    "1.2.0": [
+      "Rapprochement bancaire : les virements reçus sur le compte Qonto sont comparés aux paiements attendus des fiches, avec les écarts de règlement.",
+      "Sur la fiche de réservation, une carte confirme un virement et marque l’échéance reçue."
     ],
     "1.2.1": [
       "Version retirée."
     ],
-    "1.2.0": [
-      "Rapprochement bancaire : les virements reçus sur le compte Qonto sont comparés aux paiements attendus des fiches, avec les écarts de règlement.",
-      "Sur la fiche de réservation, une carte confirme un virement et marque l’échéance reçue."
+    "1.2.2": [
+      "Rapprochement bancaire : retour au comportement du registre des paiements, où toute plateforme autre que « direct » est réglée par un versement de plateforme."
     ],
     "1.2.3": [
       "Compatible avec le SDK 2 de GuestFlow."
@@ -49,6 +49,11 @@
     "1.2.4": [
       "Le rapprochement bancaire attend et inscrit chaque échéance d’un échéancier comme un virement à part.",
       "Compatible avec le SDK 2.0 de GuestFlow."
+    ],
+    "1.2.5": [
+      "Rapprochement bancaire : quand la plateforme a pris un acompte, le virement du solde n’attend plus que le solde, et la commission inscrite sur la fiche ne compte plus l’acompte.",
+      "Rapprochement bancaire : un échéancier illisible est signalé au lieu de ne plus rien attendre.",
+      "Compatible avec le SDK 2.6 de GuestFlow."
     ]
   }
 }

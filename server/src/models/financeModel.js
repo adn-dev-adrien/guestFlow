@@ -86,7 +86,10 @@ function totalSejour(r) {
   // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée at the door lowers
   // what the operator earns exactly as a refund does, and a pourboire raises it. Applied here as well
   // as in `comptaCollected` so `comptaCollected + remainingToPay === totalSejour` keeps holding.
-  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r) - refundsBook(r)
+  // specs/direct-installments.md rule 45 — an installment plan replaces the acompte and the solde (the
+  // engine zeroes both): the plan's collected and still-due totals are the stay's pre-arrival money.
+  const installments = round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount);
+  return round2(deposit + balance + complement + endOfStay + installments + midStayNotesTotal(r) - refundsBook(r)
     + arrivalPaymentAdjustment(r).net);
 }
 

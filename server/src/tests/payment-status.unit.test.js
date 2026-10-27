@@ -29,13 +29,27 @@ test('deposit only paid → remainingDue is the balance', () => {
   assert.equal(s.paymentComplete, false);
 });
 
-test('overpaid → negative remainingDue is still complete', () => {
+test('every bucket paid → remainingDue 0 whatever finalPrice says (the trop-perçu is the refund\'s)', () => {
   const s = computePaymentStatus(
     { finalPrice: 400, depositAmount: 150, balanceAmount: 350, depositPaid: 1, balancePaid: 1 },
     TODAY,
   );
-  assert.equal(s.remainingDue, -100);
+  assert.equal(s.remainingDue, 0);
   assert.equal(s.paymentComplete, true);
+});
+
+// Audit 2026-10-27 — remainingDue is the unpaid buckets, not `finalPrice − paid buckets`.
+test('the tourist tax rides on the solde: nothing paid → the whole solde, tax included, is due', () => {
+  const s = computePaymentStatus({ finalPrice: 380, touristTaxTotal: 6, depositAmount: 0, balanceAmount: 386 }, TODAY);
+  assert.equal(s.remainingDue, 386, 'not finalPrice (380)');
+});
+
+test('solde paid, a line routed to the arrival complement still owed → the complement is due', () => {
+  const s = computePaymentStatus({
+    finalPrice: 380, touristTaxTotal: 6, depositAmount: 0, balanceAmount: 306, balancePaid: 1, complementAmount: 80,
+  }, TODAY);
+  assert.equal(s.remainingDue, 80, 'not 380 − 306 = 74');
+  assert.equal(s.paymentComplete, false);
 });
 
 test('deposit overdue (past due date, unpaid) but balance not yet due', () => {

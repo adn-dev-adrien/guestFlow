@@ -225,6 +225,23 @@ its due date, after the operator validates it.
     « Enregistrer la fiche avant de modifier l'échéancier »; the arrival bound of a date is the saved one
     (`arrivalDate` of the payload).
 
+**Fixed at the 2026-10-27 audit**
+
+45. **A plan is revenue.** The « total de séjour » of the Finance pages (`financeModel.totalSejour`)
+    counts the plan's collected and still-due totals, since the engine zeroes the acompte and the solde
+    (rule 5): revenue, per property and per channel, booking pace, projection and the iCal cancellation
+    snapshot all read it, and `comptaCollected + remainingToPay === totalSejour` holds on a plan
+    (600 € in 3 × 200 €, two paid → revenue 600, collected 400, pending 200). The « Encaissé » table
+    lists one row per collected installment (« Échéance n/N », its paid date). The « Reste » of a stay
+    (`remainingDue`) is the unpaid buckets, the very `remainingToPay` figure. *Why:* such a stay showed
+    0 € of revenue.
+46. **Cancelling a stay paid through a plan retains what it collected.** The cancellation requalifies
+    the paid installments like a retained acompte (payment-schedule spec §3.6): one avoir (method
+    `retained`) reversing the stay part at the sales VAT rate and the tourist-tax shares at 0 % (the
+    shares of rule 39, as the accounting booked them), and one VAT-free indemnity for the same sum.
+    The unpaid installments are the abandoned solde. *Why:* the cancellation booked nothing, the
+    installments stayed séjour revenue for a stay that never happened.
+
 **Edge cases:**
 
 - Reservation total ends below N euros → rule 6 would produce 0 € installments: the server
@@ -237,7 +254,7 @@ its due date, after the operator validates it.
 - Platform switched from direct to a platform with a plan in place and nothing paid → the plan
   is deleted, acompte / solde come back. With money in → the switch is refused (`409`).
 - Cancelling a reservation with a plan → open links retired and deactivated; paid installments stay
-  in the ledger for the cancellation flow.
+  in the ledger and are requalified as retained (rule 46).
 
 ---
 
@@ -277,6 +294,8 @@ its due date, after the operator validates it.
 | `utils/` | `autoSendPolicy.js` | — | Unchanged; the template is manual and money templates stay out of the cron |
 | `plugins/accounting-export/` | `accountingModel.js` | T | Books each paid installment as an encaissement on its paid date |
 | `controllers/` | `dashboardController.js` | T | Late installments feed the collection alert |
+| `models/` | `financeModel.js`, `financeDashboardModel.js`; `utils/paymentStatus.js` | T | Rule 45: `totalSejour` counts the plan, one « Encaissé » row per paid installment, `remainingDue` = `remainingToPay` |
+| `utils/` | `cancelReservation.js`, `cancellationRequalification.js`; `controllers/reservationCancellationController.js` | T | Rule 46: the paid installments (and their tax shares) feed the retained avoir + indemnity |
 | `database.js` | `database.js`, `schema.sql` | T | Table, `payment_links` CHECK + column, queue/log occurrence key, stay aggregates (§5) |
 
 ### 4.2 Client side (`client/src/`)
@@ -438,6 +457,8 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `tests/direct-installments-money.unit.test.js` (17) — engine, settlement, ledger, finance, accounting, collection alert (rules 4, 5, 8, 22, 29, 39)
 - [x] `tests/direct-installments-guards.unit.test.js` (17) — link paid at a moved amount, `performUpdate` retire, plan creation / removal / resize / platform switch, unallocated and double payments, concurrency, VAT basket, hand-queued request, queue availability, rule 43, boot migration on orphan rows (rules 17, 34, 35, 39–43)
 - [x] `tests/direct-installments-arrival.unit.test.js` (7) — due at arrival, SAS settlement, bank receipts, paid buckets never zeroed (rules 35, 36, 38); rule 37 extends `finance-attribution-date.unit.test.js`
+- [x] `tests/direct-installments-finance-revenue.unit.test.js` (4) — rule 45: the invariant on a plan, summary per property, pace and projection, one « Encaissé » row per installment
+- [x] `tests/direct-installments-cancellation.unit.test.js` (2) — rule 46: avoir 400 @ 10 % + 8 @ 0 %, indemnity 408, nothing collected → nothing booked
 
 ### Client tests
 Baseline 2 153 → **2 176** (+23, all green).

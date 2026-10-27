@@ -16,6 +16,7 @@ const reservationsModel = require('../models/reservationsModel');
 const refundsModel = require('../models/refundsModel');
 const compensationsModel = require('../models/cancellationCompensationsModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
+const installmentsModel = require('../models/installmentsModel');
 const settingsModel = require('../models/settingsModel');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
@@ -30,7 +31,7 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 async function cancel(req, res) {
   const id = Number(req.params.id);
   const result = cancelReservation(
-    { database: db, reservationsModel, refundsModel, compensationsModel, paymentLinksModel },
+    { database: db, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel },
     id,
     {
       reason: (req.body && req.body.reason) || '',

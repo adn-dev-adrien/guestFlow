@@ -147,6 +147,19 @@ booking is settled by the platform and carries no such promise.
     it replaces. *Why:* after a save the fiche said « À payer avant : 08/10/2026 » while the PDF said
     02/11.
 
+**Fixed at the 2026-10-27 audit**
+
+18. **A full payment link charges exactly what its payment records** (decided by the operator
+    2026-10-27). A `full` link — the admin one, the public website one and the e-mail that announces
+    it (`{{paymentAmount}}`) — charges the **acompte plus the solde**, i.e. the pre-arrival amount:
+    tourist tax included (unless it is paid on arrival), lines routed to the arrival complement
+    excluded. Its VAT basket is built like the solde's: the stay part at the global rate plus a 0 %
+    « Taxe de séjour » line. Paid, it marks the acompte (when there is one) and the solde received; a
+    stale-link check and the poll compare it to that same sum. *Why:* the link charged `finalPrice` —
+    tax left out, complement lines kept in — while its payment ticked the whole solde paid: 3 nights ×
+    100 € + ménage 80 € with 6 € of tax charged 380 € and booked 386 € as received; with the ménage in
+    the Complément the guest paid 380 € for a 306 € solde and was asked for the ménage again on arrival.
+
 ---
 
 ## 4. Architecture
@@ -161,7 +174,9 @@ booking is settled by the platform and carries no such promise.
 | `utils/` | `devisPdfLabels.js` | T | 3 new keys × FR/EN: `depositSecuresDates`, `fullPaymentLabel`, `fullPaymentSecuresDates`. |
 | `utils/` | `paymentRequestService.js` | T | `REQUEST_TEMPLATES.full = 'full_request'`; new pure `resolveRequestType(row, requested)` (rule 10). |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | `full_request` FR/EN + its two key lists (`EVENT_TRIGGERED_STABLE_KEYS`, `PAYMENT_STABLE_KEYS`). |
-| `controllers/` | `paymentsController.js` | T | Stops assuming `deposit` when the request names no type; injects `{{paymentAmount}}` from the link into the email context. |
+| `controllers/` | `paymentsController.js` | T | Stops assuming `deposit` when the request names no type; injects `{{paymentAmount}}` from the link into the email context. Rule 18: `resolveAmountCents('full')` = acompte + solde, `resolveVatComponents('full')` splits the tax like the solde. |
+| `utils/` | `ledgerLinks.js`, `storedLinkComponents.js`, `devisQuote.js` | T | Rule 18: the `full` amount (stale-link check, reservation basket, public full payment) = stored acompte + solde. |
+| `utils/` | `paymentPollRunner.js` | T | Rule 18: a paid `full` link on a reservation records the acompte too when there is one; the amount-changed check reads acompte + solde. |
 | `utils/` | `emailContextBuilder.js` | T | New `{{paymentAmount}}` variable, overridden per-send by the sender (rule 13). |
 | `models/` | `devisModel.js` | T | `resolvePaymentSchedule` mirrors rule 7 for a stored deposit-less **direct** devis (the enriched fiche and the PDF must not disagree with the engine). |
 | `routes/` | — | — | (none — the endpoint keeps its shape) |
@@ -267,6 +282,11 @@ summary needs no change: a 0 € acompte already renders as no acompte.
 - [x] `tests/public-payment-mode.unit.test.js` (T) — rule 16: no acompte → the website asks for the
       whole stay.
 - [x] Full suite green: **3426 tests, 0 failures** (`cd server && npm test`).
+- [x] `tests/full-payment-link-pre-arrival.unit.test.js` (5) — rule 18: the audit scenario (386 €, basket
+      380 + 6), a ménage in the Complément (306 €), a reservation's stored columns, the paid link records
+      the solde (and the acompte when there is one) without an « amount changed » rebooking.
+      `devis-quote`, `payment-link-quote-parity` and `reservation-ledger-links` follow the new amount.
+      Full suite after the audit fixes: **6 422 tests, 0 failures**.
 
 ### Client tests
 - [x] `client/src/__tests__/payment-request-no-hardcoded-type.test.js` (2) — the request carries no

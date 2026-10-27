@@ -8,7 +8,18 @@
 
 const flag = (v) => Number(v || 0) === 1 || v === true;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const { day } = require('./dates');
+
+/**
+ * Rule 46 — what a platform that took an acompte already paid out for it: the acompte net of its own
+ * commission. Its solde credit is the rest of the payout, so the fiche's payout (the whole stay's net,
+ * the figure `computePlatformCommission` reads) is that credit plus this. 0 without a platform acompte.
+ */
+function platformAcompteNet(row) {
+  if (flag(row.depositDisabled) || !(Number(row.depositAmount || 0) > 0)) return 0;
+  return Math.max(0, round2(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0)));
+}
 
 // The ledger rows of the direct buckets, with the stored column of their cash flag and their date.
 const DIRECT_ROWS = {
@@ -58,10 +69,13 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     const payout = row.platformPayoutAmount != null && row.platformPayoutAmount !== '' && Number(row.platformPayoutAmount) > 0
       ? Number(row.platformPayoutAmount) : null;
     if (!(grossRaw > 0) && payout == null) return out;
+    // Rule 46 — the solde credit of a platform that took an acompte carries the solde only.
+    const acompteNet = platformAcompteNet(row);
+    const soldeGross = acompteNet > 0 ? Math.max(0, grossRaw - Number(row.depositAmount || 0)) : grossRaw;
     out.push({
       reservationId: row.id, ledgerKey: 'balance', label: balance.label, channel: `platform:${platform}`, platform,
-      expectedCents: payout != null ? cents(payout) : cents(grossRaw),
-      grossCents: cents(grossRaw),
+      expectedCents: payout != null ? cents(Math.max(0, payout - acompteNet)) : cents(soldeGross),
+      grossCents: cents(soldeGross),
       payoutRecorded: payout != null,
       expectedDate: paid ? day(row.balancePaidDate) : day(row.balanceDueDate),
       dueDate: day(row.balanceDueDate),
@@ -129,29 +143,32 @@ const RESERVATION_SQL = `
   LEFT JOIN properties p ON p.id = r.propertyId
   WHERE COALESCE(r.kind, 'reservation') = 'reservation' AND r.cancelledAt IS NULL AND r.endDate >= ?`;
 
-// The plan's rows, read like the reservation: a core table. A database without it has no plan.
-function installmentsOf(db, reservationId) {
-  try {
-    return db.prepare('SELECT id, number, dueDate, amountCents, paid, paidDate, paidMethod FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(Number(reservationId));
-  } catch { return []; }
+// The plan's rows, read through the core's installments model (a core table): a read failure is a real
+// error and surfaces, never an empty plan that would silently expect nothing (audit 2026-10-27).
+function installmentsReader(db, listInstallments) {
+  if (typeof listInstallments === 'function') return listInstallments;
+  const model = require('../../sdk').coreModule('installmentsModel').buildModel(db);
+  return (reservationId) => model.listFor(reservationId);
 }
 
 /** Rule 2 — every in-scope reservation with its receipts. */
-function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks }) {
+function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments }) {
   const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
+  const installmentsOf = installmentsReader(db, listInstallments);
   const receipts = [];
   rows.forEach((row) => {
-    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(db, row.id), today })
+    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), today })
       .forEach((rc) => receipts.push(rc));
   });
   return receipts;
 }
 
 /** The receipts of one reservation, scope included (the fiche's block). */
-function expectedReceiptsOfReservation({ db, reservationId, startDate, today, buildLedger, parseGroup, listLinks }) {
+function expectedReceiptsOfReservation({ db, reservationId, startDate, today, buildLedger, parseGroup, listLinks, listInstallments }) {
   const row = db.prepare(`${RESERVATION_SQL} AND r.id = ?`).get(startDate, Number(reservationId));
   if (!row) return null;
-  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(db, row.id), today });
+  const installmentsOf = installmentsReader(db, listInstallments);
+  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), today });
 }
 
-module.exports = { expectedReceipts, expectedReceiptsOfReservation, receiptsOfReservation, reservationBrief };
+module.exports = { expectedReceipts, expectedReceiptsOfReservation, receiptsOfReservation, reservationBrief, platformAcompteNet };

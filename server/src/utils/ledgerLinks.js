@@ -19,14 +19,16 @@ const toCents = (n) => Math.round(round2(n) * 100);
 const fmt = (n) => require('./reservationLedger').formatEuros(n);
 
 /**
- * What a link of `type` would be minted for today on this stored row — the same columns
- * `paymentsController.resolveAmountCents` reads for a reservation.
+ * What a link of `type` would be minted for today on this stored row (or engine quote) — the figures
+ * `paymentsController.resolveAmountCents` reads. A `full` link charges what its payment records: the
+ * acompte plus the solde, i.e. the pre-arrival amount, tourist tax included and the arrival complement
+ * excluded (specs/deposit-blocks-the-dates.md rule 18, decided 2026-10-27).
  */
 function linkAmountCents(type, row = {}) {
   switch (String(type)) {
     case 'deposit': return toCents(row.depositAmount);
     case 'balance': return toCents(row.balanceAmount);
-    case 'full': return toCents(row.finalPrice);
+    case 'full': return toCents(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
     case 'complement': return toCents(row.complementAmount);
     default: return null;
   }
