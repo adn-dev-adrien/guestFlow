@@ -37,9 +37,16 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(hashA, hashB);
 }
 
-/** What Roostview may call: GET under /properties, and POST /quote (computes, never persists). */
+/**
+ * What Roostview may call: GET under /properties, and POST /quote (computes, never persists).
+ *
+ * Judged on the path under `/public/v1`, rebuilt from `baseUrl` + `path`: the chain is mounted once per
+ * prefix (routes/index.js), so `req.path` alone is only what follows the prefix — `/` or `/1` — and
+ * matched nothing (fixed at the 2026-10-27 spec review: the key answered 403 everywhere).
+ */
 function roostviewMayCall(req) {
-  const path = String(req.path || '').replace(/\/+$/, '') || '/';
+  const full = `${req.baseUrl || ''}${req.path || ''}`.replace(/^\/public\/v1(?=\/|$)/, '');
+  const path = full.replace(/\/+$/, '') || '/';
   if (req.method === 'GET' && (path === '/properties' || path.startsWith('/properties/'))) return true;
   return req.method === 'POST' && path === '/quote';
 }

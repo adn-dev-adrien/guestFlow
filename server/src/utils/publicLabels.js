@@ -125,6 +125,11 @@ const FR = Object.freeze({
     requestsPendingForEmail: 'Plusieurs demandes sont déjà en cours pour cette adresse. Elles seront traitées rapidement.',
     // Rule 22.
     messageTooLong: 'Message trop long : 2 000 caractères au plus.',
+    // The CGV refusals of a booking request (specs/terms-acceptance-record.md rules 13, 15-16),
+    // bilingual since the 2026-10-27 spec review.
+    termsUnavailableForBooking: 'Les réservations en ligne sont momentanément indisponibles.',
+    termsNotAccepted: 'Vous devez accepter les conditions générales de location.',
+    termsOutdated: 'Les conditions générales ont été mises à jour. Merci de les relire et de les accepter à nouveau.',
   }),
 
   // One short sentence per refused contact field, printed by the site UNDER that field
@@ -221,6 +226,9 @@ const EN = Object.freeze({
     challengeMissing: 'The form needs updating: please reload the page.',
     requestsPendingForEmail: 'Several requests are already in progress for this address. They will be handled shortly.',
     messageTooLong: 'Message too long: 2,000 characters at most.',
+    termsUnavailableForBooking: 'Online booking is temporarily unavailable.',
+    termsNotAccepted: 'You must accept the terms and conditions of rental.',
+    termsOutdated: 'The terms and conditions have been updated. Please read and accept them again.',
   }),
 
   fieldErrors: Object.freeze({

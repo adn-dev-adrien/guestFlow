@@ -18,6 +18,13 @@ const MAX_AVAILABILITY_DAYS = 365;
 // synchronously: an unbounded endDate (9999-12-31) is millions of iterations that block the server.
 const MAX_STAY_NIGHTS = 365;
 const MAX_BOOKING_HORIZON_DAYS = 730;
+// The most one option or resource line may ask for (fixed at the 2026-10-27 spec review: 1e9 was
+// accepted, priced and printed). One unit per guest per hour of the stay, counting the departure day:
+// above any real need — hours of a resource, portions, sessions — and still bounded by the party.
+const HOURS_PER_DAY = 24;
+function maxLineQuantity({ persons, nights }) {
+  return Math.max(1, persons) * (Math.max(0, nights) + 1) * HOURS_PER_DAY;
+}
 
 function isValidIsoDate(value) {
   if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
@@ -165,6 +172,18 @@ function validateStayInput(body = {}, { todayIso } = {}) {
     }
   }
 
+  // A line asking for more than the stay could ever use (see maxLineQuantity).
+  if (isValidIsoDate(body.startDate) && isValidIsoDate(body.endDate) && body.endDate > body.startDate
+    && ['adults', 'children', 'teens', 'babies'].every((k) => Number.isFinite(counts[k]))) {
+    const cap = maxLineQuantity({
+      persons: counts.adults + counts.children + counts.teens + counts.babies,
+      nights: daysBetween(body.startDate, body.endDate),
+    });
+    [['options', options], ['resources', resources]].forEach(([field, list]) => list.forEach((line, i) => {
+      if (line.quantity > cap) errors.push({ field: `${field}[${i}].quantity`, issue: `must not exceed ${cap} for this stay` });
+    }));
+  }
+
   if (errors.length) return { ok: false, errors };
   return {
     ok: true,
@@ -246,6 +265,7 @@ function validateAttribution(raw) {
 }
 
 module.exports = {
+  maxLineQuantity,
   MAX_AVAILABILITY_DAYS,
   MAX_STAY_NIGHTS,
   MAX_BOOKING_HORIZON_DAYS,

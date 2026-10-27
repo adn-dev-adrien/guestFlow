@@ -99,13 +99,16 @@ or **[CREATE]** (genuinely new logic).
    `calculateReservationQuote(db, …)` with a sanitized parameter set and returns a **public
    projection** of its output. The public API may pass **only the engine's pricing inputs** (dates,
    guest counts, and `optionId`+`quantity`); it can never **set, adjust, discount, or offer** a
-   price, nor choose a platform, nor touch resources. Concretely, `validateStayInput` rebuilds the
+   price, nor choose a platform. Concretely, `validateStayInput` rebuilds the
    value from a strict whitelist, so the following from the body are **always dropped before the
    engine and before persistence**: `customPrice`, `discountPercent`, `platform` (forced to
    `direct`), `clientGrossAmount`, `depositAmount`, `cautionAmount`, `finalPrice`, `priceOverride`,
-   `adjustedPrice`, `offeredOptionIds`, any per-option `offered`/`free`/`unitPrice`/`price`, and
-   `selectedResources`/`resources` (resources are not a public concept at all). Each option is
-   reduced to `{ optionId, quantity }`. Locked by
+   `adjustedPrice`, `offeredOptionIds`, any per-option or per-resource
+   `offered`/`free`/`unitPrice`/`price`, and `selectedResources`. Each option is reduced to
+   `{ optionId, quantity }` and each resource to `{ resourceId, quantity }`: **resources are public**
+   (the property's applicable resources, `GET /properties/:id/resources`, priced server-side at the
+   per-property price — corrected at the 2026-10-27 spec review, this rule used to say they were not a
+   public concept). Locked by
    `tests/public-input-validation.unit.test.js` (price-immutability case).
 7. **Booking request is pending, never confirmed.** A successful `POST
    /public/v1/booking-requests` creates a **draft devis** (`kind='devis'`, `devisStatus='draft'` —
@@ -181,6 +184,20 @@ or **[CREATE]** (genuinely new logic).
 16. **One line per option or resource** (fixed at the 2026-10-27 audit). The same `optionId` or
     `resourceId` twice in one stay is `422 VALIDATION_FAILED` (`details` names the repeated line);
     the quantity says how many. It used to reach the booking lines' unique index and answer a 500.
+17. **A line's quantity is bounded by the stay** (fixed at the 2026-10-27 spec review). An option or
+    resource `quantity` above `persons × (nights + 1) × 24` — one unit per guest per hour of the stay,
+    departure day included (`publicInputValidation.maxLineQuantity`) — is `422 VALIDATION_FAILED` on
+    `options[i].quantity` / `resources[i].quantity`, on `/quote` and `/booking-requests`. Above any real
+    need (hours, portions, sessions) and still bounded: `1e9` used to be priced, saved and printed
+    clipped on the PDF. Per-person card options keep their tighter portion cap
+    ([site-meal-portions.md](site-meal-portions.md)).
+18. **The cot is never a resource line** (same review). The « Lit bébé » resource (`isBabyBed`) is
+    driven by `babyBeds`, capped at the number of babies (rule 8); sent in `resources[]` it is refused
+    like a resource the property does not offer (`422 VALIDATION_FAILED`, « Ressource non disponible
+    pour ce logement. »), on both routes. It used to bypass the cap.
+19. **The quote checks the capacity** (same review). `POST /quote` refuses a party over the property's
+    public capacity exactly as the booking request does (`publicGuestCap`, babies over `maxBabies`):
+    `409 OVER_CAPACITY`. It used to answer `available: true` for a party the request would refuse.
 
 **Edge cases:**
 
@@ -226,6 +243,7 @@ or **[CREATE]** (genuinely new logic).
 | `plugins/website-booking/` | `publicProjections.js`, `publicArrivalWindows.js`, controllers | T (2026-10-27) | `stayRuleBreach` + the quote's `maxNights`/`maxNightsBreached`/`changeoverBreached`/`stayRefusal`, `hasUnpricedNights`; arrival windows run `stayRulesPredicate`; the booking request refuses `MAX_NIGHTS`/`CHANGEOVER`, never edits an existing client and notes the typed identity (rules 12-13); duplicate lines refused by `validateStayInput` (rule 16). |
 | `utils/` | `blockedDates.js`, `publicLabels.js` | T (2026-10-27) | Reservations read one day wider so a neighbour's late check-out / early check-in counts (rule 15); `maxNights` + `changeover` refusals in FR/EN. |
 | `controllers/` | `optionsController.js`, `public/publicPaymentController.js` | T (2026-10-27) | Negative option price refused (rule 14); `pay` re-checks the stay rules (rule 12). |
+| `plugins/website-booking/` | `publicInputValidation.js`, `controllers/publicQuoteController.js` | T (2026-10-27 spec review) | `maxLineQuantity` bounds a line by the stay (rule 17); `checkResourceApplicability` leaves the cot out (rule 18); the quote checks the capacity on the property row the engine read (rule 19). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T (only if hold enabled) | Releases expired holds (see §8). |
 | `database.js` | `database.js` | T | Idempotent migration: add `reservations.requestOrigin TEXT` (NULL); if hold enabled, add hold columns/table. |
 | `index.js` | `index.js` | T | Mount `app.use('/public/v1', require('./routes/public'))` **before** the `/api` guard block; add `trust proxy` already present. |
@@ -495,7 +513,8 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     `minNightsBreached`/`requiredMinNights`). `available` is added by cross-checking the
     requested range against availability (#6).
   - **Excluded:** VAT net breakdowns, accounting contribution buckets, `engineFinalPrice`/override
-    flags, resource lines unless a public resource concept is in scope (it is not — see §8).
+    flags. Resource lines ARE included (`resources[]`, `resourcesTotal`, see the endpoint table): the
+    resources are public since the site sells supplements (corrected at the 2026-10-27 spec review).
 - **Errors:** `404 PROPERTY_NOT_FOUND`, `422 VALIDATION_FAILED`, `401`, `429`.
 
 ##### POST `/public/v1/booking-requests`
@@ -661,6 +680,10 @@ follow-up.
       (3), `src/tests/options-negative-price.unit.test.js` (2). Real modules over a temporary database.
       The suites of this folder whose mocks still let the SDK open the real `database.js` now require
       `tests/isolatedDb.js` first, so none of them touches the checkout's `guestflow.db`.
+- [x] 2026-10-27 spec review (rules 17-19): `plugins/website-booking/tests/public-stay-guards-review.unit.test.js`
+      (4: the bound, `1e9` refused on both routes with nothing created, the cot refused as a resource,
+      the quote over capacity → 409). Failed on the code before the fix. The progressive-participants
+      fixture gained a capacity (4 participants on a property that had none).
 
 ### Manual / integration verification (all ✅ 2026-06-08, curl against `localhost:4000`)
 - [x] Happy path (server-to-server `curl`): list → detail → options → availability → quote →
@@ -689,8 +712,8 @@ follow-up.
   `/public/v1`; a future `/public/v2` is additive and won't touch v1 or the SPA.
 - Online payment / firm reservation via the public API (a request is always pending; the admin
   converts it through the existing devis→reservation flow).
-- Exposing resources/extras catalog publicly (only `options` are in scope; resources stay internal
-  unless a later spec adds them).
+- ~~Exposing resources/extras catalog publicly~~ — **in scope since**: the property's resources are
+  read, quoted and requested publicly (rule 6, endpoint table; corrected at the 2026-10-27 spec review).
 - Webhooks/notifications back to WordPress on request status change (could be a later spec).
 - **Encryption of the public API key at rest** beyond `.env.local` handling (the key is an env
   secret, not DB data).

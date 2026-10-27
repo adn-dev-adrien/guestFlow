@@ -1352,9 +1352,9 @@
       return true;
     }
 
-    // ── Proof of work (GuestFlow specs/public-request-abuse-and-grouping.md rules 1-5) ──────────────
-    // A challenge is fetched as soon as the form opens and solved in a Web Worker while the guest
-    // fills it in. A challenge is spent by one request, so a fresh one is prepared after every send.
+    // ── Proof of work (GuestFlow specs/public-request-abuse-and-grouping.md rules 1-5, 29) ──────────
+    // A challenge is fetched once the contact form is in view (armProof) and solved in a Web Worker
+    // while the guest fills it in. A challenge is spent by one request, so a fresh one is prepared after every send.
     // GuestFlow refuses a request sent less than 3 s after its challenge was issued, and one older than
     // 15 min: the first is waited out, the second re-fetched. Without a challenge (an older GuestFlow,
     // a network error) the request goes without one, and GuestFlow decides.
@@ -1399,6 +1399,22 @@
       }).then(function (p) { entry.solved = true; return p; });
       proof = entry;
       return entry;
+    }
+
+    // Rule 2 — the work starts when the contact form is in front of the guest (the drawer opened on
+    // it, the page scrolled to it) or touched, never on a mere page view; seen again once its 15
+    // minutes are over, it is fetched afresh. A send before any of that fetches it then (currentProof).
+    function armProof() {
+      function wake() {
+        if (!proof || Date.now() - proof.receivedAt > CHALLENGE_REFRESH_MS) prepareProof();
+      }
+      contact.addEventListener('focusin', wake);
+      contact.addEventListener('pointerdown', wake);
+      if (window.IntersectionObserver) {
+        new IntersectionObserver(function (entries) {
+          if (entries.some(function (en) { return en.isIntersecting; })) wake();
+        }).observe(contact);
+      }
     }
 
     function currentProof() {
@@ -1478,9 +1494,11 @@
           // Rules 20-21 — a request for a stay GuestFlow already has may come back without any quote:
           // no id, no token, so nothing to pay here. The guest reads what happened to their request.
           var noQuote = !data.publicToken;
+          // Rules 27 + 30 — a quote GuestFlow already handled answers `messageAdded` (true, or false past
+          // the message cap): such an answer never pays here.
+          var messageOnly = typeof data.messageAdded === 'boolean';
           GF.track('booking-requested', { lodging: lodging, nights: nightsOf(body.startDate, body.endDate), guests: persons(), mode: paying ? 'pay' : 'request' });
-          // Rule 27 — a message-only answer (a quote GuestFlow already handled) never pays here.
-          if (paying && !noQuote && !data.messageAdded) {
+          if (paying && !noQuote && !messageOnly) {
             pendingRequest = {
               key: requestKey, requestId: res.body.data.requestId, token: res.body.data.publicToken, reference: res.body.data.reference || '',
             };
@@ -1492,6 +1510,7 @@
           var askedOn = data.requestedOn ? GF.date(data.requestedOn + 'T00:00:00') : '';
           var sentText;
           if (data.messageAdded) sentText = GF.t('messageAdded', askedOn);
+          else if (messageOnly) sentText = GF.t('requestReceived');
           else if (data.updated) sentText = GF.t('requestUpdated', askedOn);
           else sentText = data.reference ? GF.t('requestSent', data.reference) : GF.t('requestReceived');
           container.appendChild(GF.el('div', { class: 'gf-success' }, sentText));
@@ -1566,8 +1585,7 @@
     renderSupplements();
     renderCal();
     recompute();
-    // The form is open: start the proof of work now, so it is done before the guest is.
-    prepareProof();
+    armProof();
   }
 
   document.querySelectorAll('[data-gf-booking]').forEach(init);

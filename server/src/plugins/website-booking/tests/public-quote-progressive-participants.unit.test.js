@@ -46,7 +46,7 @@ function createDb() {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE properties (
-      id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+      id INTEGER PRIMARY KEY, name TEXT NOT NULL, maxGuests INTEGER DEFAULT 0, maxBabies INTEGER DEFAULT 0,
       depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 30, balanceDaysBefore INTEGER DEFAULT 7,
       defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00',
       touristTaxPerDayPerPerson REAL DEFAULT 0, touristTaxMode TEXT DEFAULT 'per_day_per_person',
@@ -75,7 +75,8 @@ function createDb() {
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
   `);
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 20)').run();
-  db.prepare(`INSERT INTO properties (id, name) VALUES (1, 'Le Gite')`).run();
+  // Room for the four participants: the public quote checks the capacity (public-api rule 8).
+  db.prepare(`INSERT INTO properties (id, name, maxGuests) VALUES (1, 'Le Gite', 6)`).run();
   db.prepare(`INSERT INTO pricing_rules (id, propertyId, pricePerNight, pricingMode, minNights) VALUES (1, 1, 120, 'fixed', 1)`).run();
 
   // "Animation enfants + bain nordique": 1->55, 2->100 (55+45), 3->135 (55+45+35), 4->170 (+35).

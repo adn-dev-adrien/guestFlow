@@ -206,6 +206,16 @@ exact version accepted.
       the delete would cascade the stay's proof away. An unconverted request is deleted with its
       acceptance, as before.
 
+### 3.10 Refusals in the visitor's language (fixed at the 2026-10-27 spec review)
+
+30. The three CGV refusals of a booking request — `503 TERMS_NOT_CONFIGURED` (rule 16), `422
+    TERMS_NOT_ACCEPTED` (rule 15), `409 TERMS_OUTDATED` (rule 13) — are answered in the visitor's
+    language like every other public error (`publicLabels` keys `termsUnavailableForBooking`,
+    `termsNotAccepted`, `termsOutdated`; `failT`). An English page used to read them in French. Codes,
+    statuses and `details[0].currentVersion` unchanged. English: « Online booking is temporarily
+    unavailable. », « You must accept the terms and conditions of rental. », « The terms and conditions
+    have been updated. Please read and accept them again. »
+
 **Edge cases:**
 - Honeypot filled → fake success, nothing stored.
 - Request fails later (dates taken, capacity, min nights) → no acceptance (one transaction, after all
@@ -231,7 +241,7 @@ exact version accepted.
 | `index.js` | `index.js` | T | Mounts `/api/terms` (admin-only through the deny-by-default role guard). |
 | `controllers/` | `controllers/termsController.js` | C | Overview (can publish? unknown variables, stale facts, outdated plugin), publication of the saved draft, fiche block (rules 21-22), Paris-time labels. |
 | `controllers/` | `controllers/public/publicTermsController.js` | C | Public reads (rule 7). |
-| `controllers/` | `controllers/public/publicBookingRequestController.js` | T | `checkTermsAcceptance` (rules 13, 15-17); client + devis + origin marker + acceptance written in one `db.transaction`; last plugin version stored. |
+| `controllers/` | `controllers/public/publicBookingRequestController.js` | T | `checkTermsAcceptance` (rules 13, 15-17; its refusals name a `publicLabels` key, answered in the visitor's language — rule 30); client + devis + origin marker + acceptance written in one `db.transaction`; last plugin version stored. |
 | `controllers/` | `controllers/reservationsController.js`, `controllers/devisController.js` | T | Add the `cgv` fiche block to `GET /api/reservations/:id` and `GET /api/devis/:id`. |
 | `models/` | `models/termsModel.js` | C | Draft, versions (insert-only, number allocated in a transaction), acceptances (insert-only, with their `terms_accepted` history entry). Statements prepared lazily so controllers stay loadable on test schemas. |
 | `models/` | `models/settingsModel.js` | T | `requireTermsAcceptance` (default 1), `lastSeenPluginVersion`, accessor `termsSettings()`. |
@@ -388,6 +398,8 @@ interactive mock-up validated on 2026-09-22.
 - [x] `tests/public-booking-request-controller.unit.test.js` — fixtures accept version 1.
 - [x] `tests/cgv-acceptance-follows-conversion.unit.test.js` (3) — rule 29: the converted stay's fiche
       block, its `{{cgvUrl}}` pinned to the accepted version, the converted devis's delete refused.
+- [x] `plugins/website-booking/tests/public-terms-refusal-language.unit.test.js` (3) — rule 30: 503 / 422 /
+      409 in English and French, `currentVersion` kept. Failed (French on an English page) before the fix.
 
 ### Client (Vitest, +13)
 - [x] `pages/settings/__tests__/TermsSettingsPage.test.jsx` (9)
