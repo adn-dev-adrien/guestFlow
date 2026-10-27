@@ -17,6 +17,7 @@ const BUCKET_FIELDS = {
 };
 
 const { day } = require('./dates');
+const { platformAcompteNet } = require('./expectedReceipts');
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
@@ -54,7 +55,9 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       let payout = null;
       let commission = null;
       if (String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
-        payout = round2(got / 100);
+        // Rule 46 — the credit pays the solde only when the platform took an acompte: the payout is the
+        // whole stay's net, so the commission is not inflated by the acompte.
+        payout = round2(got / 100 + platformAcompteNet(before));
         const gross = before.platformGrossAmount != null && before.platformGrossAmount !== ''
           ? Number(before.platformGrossAmount) : Number(before.depositAmount || 0) + Number(before.balanceAmount || 0);
         commission = computePlatformCommission({

@@ -3,9 +3,9 @@
  *
  * The engine is the single source of truth (specs/online-payments-qonto.md, public-online-payment.md):
  * stored `finalPrice`/`depositAmount` columns can be stale, so payment amounts are always re-run from
- * the saved devis graph. `finalPrice` is tax-EXCLUSIVE (accommodation + options + resources);
- * `totalStayPrice` adds the tourist tax. The public full payment charges the tax-inclusive total EXCEPT
- * when the tourist tax is collected on arrival (decision 2026-06-30).
+ * the saved devis graph. The public full payment charges the stored acompte + solde — the pre-arrival
+ * amount, tourist tax included unless it is collected on arrival (decision 2026-06-30), arrival
+ * complement excluded (decision 2026-10-27).
  *
  * Every dependency is injected so this is unit-testable without the prod DB.
  */
@@ -14,8 +14,8 @@
 //
 // NOT the full replay of the sold state: this mapping drops `offeredOptionIds` and the price-lock
 // snapshot, so its AMOUNTS can drift from the fiche (specs/devis-pdf-total-parity.md §1). That is
-// harmless here and here only — the two callers below read exactly one boolean from the result
-// (`touristTaxCollectedOnArrival`, a property-config flag) and take every euro from the stored row.
+// harmless here and here only — the caller below reads exactly one boolean from the result
+// (`touristTaxCollectedOnArrival`, a property-config flag) and takes every euro from the stored row.
 // Any consumer that needs the devis's actual quote must call `devisModel.recomputeQuote(id)`.
 function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
   const full = devisModel.findById(devisId);
@@ -55,27 +55,26 @@ function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
   });
 }
 
-// Cents to charge for a FULL online payment of a public devis = exactly what the guest agreed to on
-// the quote: the **stored** `finalPrice` (accommodation + the options/resources THEY selected) + the
-// **stored** `touristTaxTotal`, EXCEPT when the tax is collected on arrival → then `finalPrice` only.
+// What a FULL online payment of a public devis charges = exactly what the payment then records: the
+// **stored** acompte plus the **stored** solde, i.e. the pre-arrival amount the guest agreed to on the
+// quote — tourist tax included unless it is paid on arrival, and any line routed to the arrival
+// complement excluded (specs/deposit-blocks-the-dates.md rule 18, decided 2026-10-27). It used to be
+// `finalPrice + touristTaxTotal`, which also charged the complement lines the stay then asks for again
+// on arrival.
 //
 // IMPORTANT: the amount must come from the SAVED devis, NOT a fresh engine recompute — a recompute can
 // drift from the quote (e.g. the engine auto-adds a "Linge de lit" auto-option the public quote never
-// showed), which would over-charge the guest. We re-run the engine ONLY to read the `collectedOnArrival`
-// flag (a property-config boolean, never an amount). Falls back to the passed row on any failure.
-function fullPaymentCents({ database, devisModel, calc }, devisId, fallbackRow) {
-  const devis = (devisModel && typeof devisModel.findById === 'function' && devisModel.findById(devisId)) || fallbackRow || {};
-  const finalPrice = Number(devis.finalPrice != null ? devis.finalPrice : (fallbackRow && fallbackRow.finalPrice) || 0);
-  const tax = Number(devis.touristTaxTotal || 0);
+// showed), which would over-charge the guest. Falls back to the passed row on any failure.
+function savedDevis({ devisModel }, devisId, fallbackRow) {
+  return (devisModel && typeof devisModel.findById === 'function' && devisModel.findById(devisId)) || fallbackRow || {};
+}
 
-  let collectedOnArrival = false;
-  try {
-    const q = recomputeDevisQuote({ database, devisModel, calc }, devisId);
-    if (q) collectedOnArrival = Boolean(q.touristTaxCollectedOnArrival);
-  } catch { /* default: tax included */ }
+function preArrivalCents(devis) {
+  return Math.round((Number(devis.depositAmount || 0) + Number(devis.balanceAmount || 0)) * 100);
+}
 
-  const euros = finalPrice + (collectedOnArrival ? 0 : tax);
-  return Math.round(euros * 100);
+function fullPaymentCents({ devisModel }, devisId, fallbackRow) {
+  return preArrivalCents(savedDevis({ devisModel }, devisId, fallbackRow));
 }
 
 // Global VAT rate (single-rate model, specs/single-vat-rate.md). Falls back to 10 on any read failure.
@@ -86,25 +85,27 @@ function globalVatRate(database) {
   } catch { return 10; }
 }
 
-// VAT basket components for a public FULL payment (specs/payment-links-vat.md): the stay (accommodation
-// + options + resources = the stored `finalPrice`, VAT-liable at the global rate) as one taxable line,
-// plus the tourist tax as a 0 %-VAT line (VAT-exempt) — unless collected on arrival (then no tax line).
-// Sum of components === fullPaymentCents by construction, so the charged total is unchanged.
+// VAT basket components for a public FULL payment (specs/payment-links-vat.md): the stay part of the
+// pre-arrival amount (VAT-liable at the global rate) as one taxable line, plus the tourist tax as a
+// 0 %-VAT line (VAT-exempt) — unless it is paid on arrival (collected there, or forced to the
+// complement), then no tax line. The engine is re-run ONLY to read the `collectedOnArrival` flag (a
+// property-config boolean, never an amount). Sum of components === fullPaymentCents by construction.
 function fullPaymentComponents({ database, devisModel, calc }, devisId, fallbackRow) {
-  const devis = (devisModel && typeof devisModel.findById === 'function' && devisModel.findById(devisId)) || fallbackRow || {};
-  const finalPrice = Number(devis.finalPrice != null ? devis.finalPrice : (fallbackRow && fallbackRow.finalPrice) || 0);
-  const tax = Number(devis.touristTaxTotal || 0);
+  const devis = savedDevis({ devisModel }, devisId, fallbackRow);
+  const totalCents = preArrivalCents(devis);
 
-  let collectedOnArrival = false;
-  try {
-    const q = recomputeDevisQuote({ database, devisModel, calc }, devisId);
-    if (q) collectedOnArrival = Boolean(q.touristTaxCollectedOnArrival);
-  } catch { /* default: tax included */ }
-
-  const components = [{ title: 'Séjour et prestations', grossCents: Math.round(finalPrice * 100), taxable: true }];
-  if (!collectedOnArrival && tax > 0) {
-    components.push({ title: 'Taxe de séjour', grossCents: Math.round(tax * 100), taxable: false });
+  let collectedOnArrival = Number(devis.touristTaxInComplement || 0) === 1;
+  if (!collectedOnArrival) {
+    try {
+      const q = recomputeDevisQuote({ database, devisModel, calc }, devisId);
+      if (q) collectedOnArrival = Boolean(q.touristTaxCollectedOnArrival);
+    } catch { /* default: tax included */ }
   }
+
+  const taxCents = collectedOnArrival ? 0 : Math.round(Number(devis.touristTaxTotal || 0) * 100);
+  if (taxCents > totalCents) return null;
+  const components = [{ title: 'Séjour et prestations', grossCents: totalCents - taxCents, taxable: true }];
+  if (taxCents > 0) components.push({ title: 'Taxe de séjour', grossCents: taxCents, taxable: false });
   return { components, vatRatePercent: globalVatRate(database) };
 }
 

@@ -42,7 +42,9 @@ function enrichStayComponent(database, id, type, components) {
   if (description) components[0].description = description;
 }
 
-const LINK_TYPES   = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' };
+// The stored columns a link of each type charges. A full payment is the acompte plus the solde — what
+// its payment marks paid (specs/deposit-blocks-the-dates.md rule 18).
+const LINK_TYPES   = { deposit: ['depositAmount'], balance: ['balanceAmount'], full: ['depositAmount', 'balanceAmount'] };
 const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour', installment: 'Échéance séjour' };
 // Template per request type. Deposit (use case 1), balance (online-deposit solde,
 // specs/public-online-deposit.md) and full (a last-minute stay owes one payment,

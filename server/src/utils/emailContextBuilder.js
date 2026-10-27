@@ -423,10 +423,10 @@ function buildContext({ reservation, client, property, options = [], resources =
       // `extraContext` (the link is created on demand, it is not a reservation column).
       paymentLink:     '',
       // specs/deposit-blocks-the-dates.md rule 11 — what THIS request asks the guest to pay: the
-      // acompte when there is one, the stay otherwise (a last-minute stay owes a single payment). The
-      // sender overrides it per-send with the amount the payment link actually charges (tourist tax
-      // included); this default keeps template previews meaningful.
-      paymentAmount:   money(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.finalPrice || 0)),
+      // acompte when there is one, the solde otherwise (a last-minute stay owes a single payment, tourist
+      // tax included and arrival complement excluded — rule 18). The sender overrides it per-send with the
+      // amount the payment link actually charges; this default keeps template previews meaningful.
+      paymentAmount:   money(Number(r.depositAmount || 0) > 0 ? Number(r.depositAmount || 0) : Number(r.balanceAmount || 0)),
       // specs/direct-installments.md rule 21 — the installment this request asks for, and the whole plan.
       // Empty outside an installment request (the plan is read by the sender, never derived here).
       installmentNumber:   installment ? String(installment.number) : '',

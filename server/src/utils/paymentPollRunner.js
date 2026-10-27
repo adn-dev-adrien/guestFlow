@@ -35,7 +35,7 @@ function recordOn(database) {
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
 function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, recordPayment = recordOn(database), settledAlready = false }) {
-  const row = database.prepare('SELECT id, kind, convertedReservationId FROM reservations WHERE id = ?').get(link.reservationId);
+  const row = database.prepare('SELECT id, kind, convertedReservationId, depositAmount FROM reservations WHERE id = ?').get(link.reservationId);
   if (!row) return { effect: 'no-reservation' };
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
   if (row.kind === 'cancelled') return { effect: 'reservation-cancelled' };
@@ -76,9 +76,11 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect: 'deposit-marked' };
   }
 
-  // balance / full on an existing reservation → the stay is fully paid pre-arrival.
+  // balance / full on an existing reservation → the stay is fully paid pre-arrival. A full link charged
+  // the acompte too when there is one (specs/deposit-blocks-the-dates.md rule 18): both buckets.
   if (link.type === 'balance' || isFull) {
-    recordPayment({ reservationId: link.reservationId, bucket: 'balance', paidDate });
+    const coversDeposit = isFull && Number(row.depositAmount || 0) > 0;
+    recordPayment({ reservationId: link.reservationId, bucket: coversDeposit ? 'full' : 'balance', paidDate });
     return { effect: 'balance-marked' };
   }
   return { effect: 'noop' };
@@ -105,7 +107,7 @@ function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
   const { linkAmountCents, bookPaidAfterAmountChange } = require('./ledgerLinks');
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
   if (!row || String(row.kind) !== 'reservation') return null;
-  const column = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' }[link.type];
+  const column = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'balanceAmount' }[link.type];
   if (row[column] == null) return null;
   const expected = linkAmountCents(link.type, row);
   if (expected == null || Number(link.amountCents) === expected) return null;

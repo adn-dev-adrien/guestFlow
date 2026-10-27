@@ -44,7 +44,8 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
    in favor of the fallback (rule 6).
 2. **Items per link type** (amounts TTC, VAT extracted at the global `vatRate` read from
    `settingsModel` at link-creation time):
-   - `full` (public UC2): item « Séjour et prestations » = `finalPrice` at `vatRate` + item
+   - `full` (public UC2, amended by rule 10 on 2026-10-27: the stay part is now the acompte + solde
+     minus the tax): item « Séjour et prestations » = `finalPrice` at `vatRate` + item
      « Taxe de séjour » = `touristTaxTotal` at `"0"` (only when the tax is part of the charge;
      omitted when `collectedOnArrival` or zero).
    - `deposit`: single item « Acompte séjour » at `vatRate` (deposit base is accommodation-only —
@@ -106,6 +107,13 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
    the stay. The residual cannot ride on the taxable stay item instead — Qonto derives that item's
    TTC from its HT, so the floored-HT TTC is exactly the unreachable figure.
 
+10. **A full payment is split like the solde** (2026-10-27 audit, decided by the operator). The admin and
+    public `full` links charge the acompte plus the solde ([deposit-blocks-the-dates.md](deposit-blocks-the-dates.md)
+    rule 18), so their basket is the stay part at the global rate plus the « Taxe de séjour » 0 % line
+    when the tax rides on the solde — for a devis (engine replay), a reservation (stored columns, rule 8)
+    and the public payment alike. A tax paid on arrival (collected there or forced to the Complément)
+    leaves no tax line.
+
 ---
 
 ## 4. Architecture
@@ -120,7 +128,8 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
 | `utils/` | `qontoClient.js` | T | `createPaymentLink` accepts an `items[]` param (title/amountCents/vatRate each); keeps the single-item signature as sugar; stringifies `vat_rate`. |
 | `utils/` | `paymentLinkItems.js` | C | Pure builder: `(type, { amountCents, taxCents, vatRate })` → items array per rule 2 + HT/adjustment math per rule 3. Unit-tested exhaustively (rounding table). |
 | `utils/` | `paymentRequestService.js` | T | `ensurePaymentLink` resolves the tax component alongside the amount (new optional `resolveTaxCents` dep) and passes the built items to `createLink`. |
-| `controllers/` | `paymentsController.js` | T | Wire vatRate (settingsModel) + tax component into the createLink dep (admin flows). |
+| `controllers/` | `paymentsController.js` | T | Wire vatRate (settingsModel) + tax component into the createLink dep (admin flows). Rule 10: `full` split like `balance`. |
+| `utils/` | `storedLinkComponents.js`, `devisQuote.js` | T | Rule 10: the reservation and public `full` baskets = (acompte + solde − tax) taxable + tax at 0 %. |
 | `controllers/public/` | `publicPaymentController.js` | T | Ditto for the public flow (full: finalPrice vs touristTaxTotal split — data already at hand in `fullPaymentCents`'s row). |
 | `models/` | `settingsModel.js` | — | (none — `vatRate` already exposed) |
 
@@ -163,6 +172,7 @@ None. (`payment_links.amountCents` stays the single source of the charged total.
 - [x] `payment-link-items.unit.test.js` — items per type (rule 2), integer half-up rounding matching the live probe, floor-HT + residual folding, deposit-only Ajustement, vatRate 0, tax 0/on-arrival, **two exhaustive 1-cent sweeps** proving `Σ Qonto line totals == charged amount` for every total 1–2000 € (9 tests).
 - [x] `payment-link-tax-line-exact.unit.test.js` — rule 9: the Gîte solde 465,60 € with 21,60 € of tax, a devis solde with 7,20 €, and a 1–2000 € sweep keep the « Taxe de séjour » item exact while the total stays exact (3 tests).
 - [x] `qonto-client.unit.test.js` — multi-item VAT basket payload pinned (HT unit prices, string `vat_rate`) + money guard throws on amount mismatch / passes on match (+3 tests).
+- [x] `full-payment-link-pre-arrival.unit.test.js` and `devis-quote.unit.test.js` — rule 10: the admin, reservation and public `full` baskets carry the tax on its 0 % line and sum to acompte + solde.
 - [x] Full suite green (1973 tests). Existing `payment-request-service` / `public-payment-controller` tests still pass (items are opt-in; no-items → legacy single line).
 
 ### Manual UI verification (sandbox — done 2026-07-03)
@@ -175,8 +185,6 @@ None. (`payment_links.amountCents` stays the single source of the charged total.
 - Multi-rate VAT (the app is single-rate by design — [single-vat-rate.md](single-vat-rate.md)).
 - Retro-editing existing open links.
 - VAT on the WordPress-side display (site shows TTC totals only, unchanged).
-- Fixing the pre-existing admin-`full` inconsistency (admin `full` links charge `finalPrice` WITHOUT
-  tourist tax while public `full` includes it — noted during exploration; separate decision needed).
 
 ## 9. Open questions
 
@@ -188,3 +196,7 @@ None. (`payment_links.amountCents` stays the single source of the charged total.
 - Q2 (**RESOLVED 2026-07-03**): `vat_rate` accepted as a decimal **string**; Qonto echoes it as
   `"10.00"`. We send `String(rate)` (e.g. `"10"`); `"0"` for exempt lines. Numbers are rejected
   (existing guard comment stands).
+- Q3 (**RESOLVED 2026-10-27, audit**): the admin `full` link charged `finalPrice` (tax excluded) while
+  the public one charged `finalPrice + tax`, and both ignored the arrival complement. Decided by the
+  operator: every `full` link charges what its payment records — acompte + solde, tax included,
+  complement excluded — with the solde's basket (rule 10).
