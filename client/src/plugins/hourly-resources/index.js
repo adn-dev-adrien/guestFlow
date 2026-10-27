@@ -15,6 +15,9 @@ export default {
   contributes: {
     routes: [{ path: '/resource-planning', Component: lazy(() => import('./ResourcePlanningPage')), roles: ['admin'] }],
     'calendar.menu': [{ path: '/resource-planning', label: 'Ressources' }],
+    // What the settings search finds Options & ressources by while hours are sold
+    // (specs/platform-settings-relay-and-review.md rule 10).
+    'settings.keywords': [{ key: 'hourly', path: '/parametres/options-ressources', keywords: ['Ressources à l’heure', 'Créneaux', 'Sauna', 'Spa'] }],
     'resources.fields': [{
       key: 'hourly', appliesTo: isPerHour, Component: lazy(() => import('./HourlyResourceFields')),
     }],

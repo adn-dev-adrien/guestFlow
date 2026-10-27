@@ -12,7 +12,9 @@
  */
 
 const db = require('../database');
-const { formatPlatformName, isDirectChannel, refreshDirectChannels, refreshChoreFreeChannels } = require('../utils/platformNameFormat');
+const {
+  formatPlatformName, isDirectChannel, refreshDirectChannels, refreshChoreFreeChannels, refreshGuestContactChannels,
+} = require('../utils/platformNameFormat');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
 const { describeIcalSync } = require('../utils/icalSyncStatus');
@@ -377,12 +379,38 @@ function createPlatformsModel(database) {
       refreshChoreFreeChannels(database);
     },
 
+    // « Adresse e-mail relais » and « Où laisser un avis » (specs/platform-settings-relay-and-review.md
+    // rules 1-4). Guarded like `choreFreeIds`: a database without the columns has neither.
+    guestContactById() {
+      try {
+        return new Map(database.prepare('SELECT id, relaysGuestEmail, reviewWhereFr, reviewWhereEn FROM platforms').all()
+          .map((r) => [Number(r.id), r]));
+      } catch {
+        return new Map();
+      }
+    },
+
+    setRelaysGuestEmail(id, on) {
+      database.prepare('UPDATE platforms SET relaysGuestEmail = ? WHERE id = ?').run(on ? 1 : 0, Number(id));
+    },
+
+    setReviewWhere(id, { fr, en }) {
+      const clean = (v) => (String(v ?? '').trim() || null);
+      database.prepare('UPDATE platforms SET reviewWhereFr = ?, reviewWhereEn = ? WHERE id = ?').run(clean(fr), clean(en), Number(id));
+    },
+
+    /** The cached set and map `isRelayChannel` / `platformReviewWhere` read, re-read after a save. */
+    refreshGuestContactChannels() {
+      refreshGuestContactChannels(database);
+    },
+
     // Every per-platform COMMERCIAL setting in one list, for the « Plateformes » settings page
     // (specs/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
     // `direct` has no deposit / tourist-tax / payout notion, and an own channel (Lodgify) no payout.
     listSettings() {
       const counted = this.countsAsDirectIds();
       const choreFree = this.choreFreeIds();
+      const contact = this.guestContactById();
       return stmts.listAll.all().map((p) => {
         const isDirect = platformSlug(p.name) === DIRECT_NAME;
         const ownChannel = isDirectChannel(p.name);
@@ -393,6 +421,9 @@ function createPlatformsModel(database) {
           countsAsDirect: isDirect || counted.has(Number(p.id)),
           // The own channels ask what the operator decides: never a platform rule.
           forbidsGuestChores: ownChannel ? null : choreFree.has(Number(p.id)),
+          relaysGuestEmail: ownChannel ? null : Number((contact.get(Number(p.id)) || {}).relaysGuestEmail) === 1,
+          reviewWhereFr: ownChannel ? null : ((contact.get(Number(p.id)) || {}).reviewWhereFr || ''),
+          reviewWhereEn: ownChannel ? null : ((contact.get(Number(p.id)) || {}).reviewWhereEn || ''),
           color: resolveColor(p.name, p.color),
           commissionPercent: Number(p.commissionPercent) || 0,
           takesDeposit: isDirect ? null : this.getDepositMode(p.name) === 1,

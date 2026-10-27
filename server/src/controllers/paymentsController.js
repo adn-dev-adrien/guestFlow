@@ -150,13 +150,13 @@ function resolveInstallmentComponents(id, installment, plan, db = database) {
 
 const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
 
-// Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; anything
-// else is a provider/transport failure, never leaked as is.
+// Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; an error the
+// provider knows is answered as the provider words it (`describeError`, specs/platform-settings-relay-and-review.md
+// rule 9); anything else is a provider/transport failure, never leaked as is.
 function sendError(res, err, provider) {
   if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
-  if (err && err.code === 'QONTO_NOT_CONNECTED') {
-    return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Qonto à connecter d'abord (OAuth), avant le provider." });
-  }
+  const known = provider && typeof provider.describeError === 'function' ? provider.describeError(err) : null;
+  if (known) return res.status(known.httpStatus).json({ error: known.error, message: known.message });
   const label = provider ? provider.label : 'du prestataire';
   return res.status(502).json({ error: provider ? provider.errorCode : 'PAYMENT_PROVIDER_ERROR', status: (err && err.status) || null, message: `Erreur de l'API ${label} : à réessayer, détail dans les journaux.` });
 }
@@ -256,4 +256,4 @@ module.exports = {
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };
+module.exports.__test = { sendError, runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };

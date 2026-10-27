@@ -73,7 +73,7 @@ function CollectedTable({ data, onOpenReservation }) {
         head={(
           <TableRow>
             <TableCell>Date</TableCell><TableCell>Client</TableCell><TableCell>Logement</TableCell>
-            <TableCell>Canal</TableCell><TableCell>Paiement</TableCell><TableCell align="right">Montant</TableCell>
+            <TableCell>Plateforme</TableCell><TableCell>Paiement</TableCell><TableCell align="right">Montant</TableCell>
           </TableRow>
         )}
         renderRow={(r) => (
@@ -180,7 +180,7 @@ function StaysTable({ data, emptyText, onOpenReservation }) {
         onItemClick={(r) => onOpenReservation(r.id)}
         head={(
           <TableRow>
-            <TableCell>Client</TableCell><TableCell>Logement</TableCell><TableCell>Dates</TableCell><TableCell>Canal</TableCell>
+            <TableCell>Client</TableCell><TableCell>Logement</TableCell><TableCell>Dates</TableCell><TableCell>Plateforme</TableCell>
             <TableCell align="right">Nuits</TableCell><TableCell align="right">Total de séjour</TableCell><TableCell>Suivi paiement</TableCell>
           </TableRow>
         )}

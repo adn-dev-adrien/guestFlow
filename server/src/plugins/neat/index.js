@@ -58,6 +58,10 @@ function register(ctx) {
     settings: store, cacheModel: subscriptions, buildClient: buildNeatClient,
   }));
 
+  // Rule 13 — its push toggle in « Notifications push », declared here so the core never names it
+  // (specs/platform-settings-relay-and-review.md rule 8).
+  ctx.pushChannel({ key: 'neat', label: 'Souscriptions Neat' });
+
   // Rule 8 — the Réglages card and the fiche actions, at their current URLs.
   ctx.mount('/api/neat', buildRouter(controller));
 

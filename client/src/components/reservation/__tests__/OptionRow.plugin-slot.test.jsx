@@ -44,10 +44,10 @@ test('a contribution renders under the line it applies to, and only there', asyn
 });
 
 test('a frozen option shows its price, a disabled switch and no quantity control', () => {
-  renderExtras([CLEANING, { ...INSURANCE, readOnly: true, readOnlyReason: 'Lecture seule : plugin Neat inactif' }]);
+  renderExtras([CLEANING, { ...INSURANCE, readOnly: true, readOnlyReason: 'Lecture seule : aucun plugin d’assurance actif' }]);
   const insurance = card('Assurance annulation');
   expect(within(insurance).getByText('Prix figé : 23,00 €')).toBeInTheDocument();
-  expect(within(insurance).getByText('Lecture seule : plugin Neat inactif')).toBeInTheDocument();
+  expect(within(insurance).getByText('Lecture seule : aucun plugin d’assurance actif')).toBeInTheDocument();
   expect(within(insurance).getAllByRole('switch')).toHaveLength(1);
   expect(within(insurance).getByRole('switch')).toBeDisabled();
   expect(within(insurance).queryByText(/Total/)).not.toBeInTheDocument();

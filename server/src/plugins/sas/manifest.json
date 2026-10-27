@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.5.0",
+  "sdk": "^2.6.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -59,6 +59,10 @@
       "Sur une plateforme « Sans corvées de départ », le sas ne rappelle plus la vaisselle ni les poubelles.",
       "Au départ, le ménage non fait n’est plus facturé sur ces plateformes.",
       "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.7.0": [
+      "Le champ « Code portail » de Paramètres › Établissement est dessiné par le plugin, avec sa recherche.",
+      "Compatible avec le SDK 2.6 de GuestFlow."
     ]
   }
 }

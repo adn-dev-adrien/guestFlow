@@ -20,6 +20,7 @@ const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFo
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 const platformsModel = require('./platformsModel');
+const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
 
@@ -392,7 +393,15 @@ function createPropertiesModel(database) {
       // new palette wins. Built-in defaults stay in `knownColors` (the client merges both).
       Object.assign(customColors, platformsModel.create(database).colorMap());
 
-      return { knownColors: KNOWN_PLATFORM_COLORS, customColors };
+      // specs/platform-settings-relay-and-review.md rule 12 — the one name each platform reads as, so a
+      // chip says « Gîtes de France » like the server's own labels, never the stored key.
+      const displayNames = {};
+      for (const p of platformsModel.create(database).listAll()) {
+        const label = platformDisplay(p.name);
+        if (label) displayNames[p.name] = label;
+      }
+
+      return { knownColors: KNOWN_PLATFORM_COLORS, customColors, displayNames };
     },
 
     getByIdWithDetails(id) {

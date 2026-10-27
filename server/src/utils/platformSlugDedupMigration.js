@@ -27,7 +27,7 @@ const { DEFAULT_PAYOUT_DUE_DAYS } = require('./platformPayout');
 const OPTIONAL_COLS = [
   'commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent',
   'color', 'collectsTouristTax', 'touristTaxRemittedByPlatform', 'platformTakesDeposit',
-  'payoutDueDays', 'countsAsDirect', 'forbidsGuestChores',
+  'payoutDueDays', 'countsAsDirect', 'forbidsGuestChores', 'relaysGuestEmail', 'reviewWhereFr', 'reviewWhereEn',
 ];
 
 // Columns merged by `isCustomScalar`, in the order they are applied to the surviving row.
@@ -37,6 +37,8 @@ const MERGED_SCALAR_COLS = [
   // Operator switches (specs/plugins-phase-p-productisation.md rule 19, specs/airbnb-no-checkout-chores.md
   // rule 8): ticked on any duplicate means ticked on the survivor.
   'countsAsDirect', 'forbidsGuestChores',
+  // specs/platform-settings-relay-and-review.md rule 6 — the guest-contact settings, like the switches.
+  'relaysGuestEmail', 'reviewWhereFr', 'reviewWhereEn',
 ];
 
 function tableExists(database, name) {
@@ -52,7 +54,7 @@ function isCustomTax(row) {
 
 // A scalar setting is "customised" when it differs from its column default (0 / NULL / '').
 function isCustomScalar(col, val) {
-  if (col === 'color' || col === 'commissionAccountNumber') return val != null && String(val).trim() !== '';
+  if (col === 'color' || col === 'commissionAccountNumber' || col === 'reviewWhereFr' || col === 'reviewWhereEn') return val != null && String(val).trim() !== '';
   // specs/platform-payout-due-date.md — this one's default is 10, not 0: a platform genuinely set to
   // 0 days ("pays on the departure day") is a customisation and must survive a dedup.
   if (col === 'payoutDueDays') return val != null && Number(val) !== DEFAULT_PAYOUT_DUE_DAYS;

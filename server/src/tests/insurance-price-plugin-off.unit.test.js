@@ -108,7 +108,7 @@ test('rule 5 — nothing new gets it: a stay without the line, or a new one, is 
   for (const bookingId of [id, 0]) {
     const refused = price(db, bookingId, { selectedOptions: [{ optionId: INSURANCE, quantity: 1 }] });
     assert.deepEqual(refused.error, {
-      status: 422, code: 'INSURANCE_NOT_OFFERED', error: 'L’assurance annulation n’est pas proposée sans le plugin Neat.',
+      status: 422, code: 'INSURANCE_NOT_OFFERED', error: 'L’assurance annulation n’est pas proposée sans plugin d’assurance actif.',
     });
   }
   assert.deepEqual(insuranceOffer.dropInsurance(db, [{ optionId: INSURANCE }, { optionId: 3 }]), [{ optionId: 3 }], 'a property default is not added');

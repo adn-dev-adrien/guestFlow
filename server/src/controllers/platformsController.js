@@ -74,6 +74,7 @@ function setPayoutDueDays(req, res) {
 const TOURIST_TAX_MODES = ['platform', 'platform_reversed', 'owner'];
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const MAX_COMMISSION_PERCENT = 99.99;
+const MAX_REVIEW_WHERE = 80;
 
 // GET /api/platforms/settings — the « Plateformes » settings page (specs/settings-rationalization.md
 // rule 17): every per-platform commercial setting, in one list.
@@ -115,6 +116,17 @@ function planRow(row, current) {
   if (!isDirectChannel(current.name) && has('forbidsGuestChores')) {
     apply.push(() => platformsModel.setForbidsGuestChores(current.id, row.forbidsGuestChores === true));
   }
+  // specs/platform-settings-relay-and-review.md rules 1-4 — guest-contact settings, never on an own channel.
+  if (!isDirectChannel(current.name) && has('relaysGuestEmail')) {
+    apply.push(() => platformsModel.setRelaysGuestEmail(current.id, row.relaysGuestEmail === true));
+  }
+  if (!isDirectChannel(current.name) && (has('reviewWhereFr') || has('reviewWhereEn'))) {
+    const fr = has('reviewWhereFr') ? String(row.reviewWhereFr ?? '').trim() : current.reviewWhereFr;
+    const en = has('reviewWhereEn') ? String(row.reviewWhereEn ?? '').trim() : current.reviewWhereEn;
+    if (fr.length > MAX_REVIEW_WHERE) errors.reviewWhereFr = `${MAX_REVIEW_WHERE} caractères au plus.`;
+    if (en.length > MAX_REVIEW_WHERE) errors.reviewWhereEn = `${MAX_REVIEW_WHERE} caractères au plus.`;
+    if (fr.length <= MAX_REVIEW_WHERE && en.length <= MAX_REVIEW_WHERE) apply.push(() => platformsModel.setReviewWhere(current.id, { fr, en }));
+  }
   if (!isDirectChannel(current.name) && has('payoutDueDays')) {
     const days = parsePayoutDueDaysInput(row.payoutDueDays);
     if (days === null) errors.payoutDueDays = 'Un nombre entier de jours (0 à 365).';
@@ -124,7 +136,8 @@ function planRow(row, current) {
 }
 
 // PUT /api/platforms/settings — body `{ platforms: [{ id, color?, commissionPercent?, takesDeposit?,
-// touristTaxCollection?, payoutDueDays?, countsAsDirect?, forbidsGuestChores? }] }`. All rows are validated first; one invalid field
+// touristTaxCollection?, payoutDueDays?, countsAsDirect?, forbidsGuestChores?, relaysGuestEmail?,
+// reviewWhereFr?, reviewWhereEn? }] }`. All rows are validated first; one invalid field
 // refuses the whole save with `{ code: 'PLATFORMS_INVALID', errors: { [id]: { field: message } } }`.
 function saveSettings(req, res) {
   const rows = req.body && Array.isArray(req.body.platforms) ? req.body.platforms : null;
@@ -146,6 +159,7 @@ function saveSettings(req, res) {
   actions.forEach((run) => run());
   platformsModel.refreshDirectChannels();
   platformsModel.refreshChoreFreeChannels();
+  platformsModel.refreshGuestContactChannels();
   return res.json({ platforms: platformsModel.listSettings() });
 }
 

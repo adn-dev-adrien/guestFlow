@@ -49,7 +49,7 @@ import SupportAccessPage from './pages/settings/SupportAccessPage';
 import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
-import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
+import { PLATFORM_COLORS, normalizePlatformKey, setPlatformDisplayNames } from './constants/platforms';
 import {
   visibleSettingsGroups, settingsGroupOf, SETTINGS_HOME_PATH, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected,
 } from './constants/settingsMenu';
@@ -639,6 +639,7 @@ function AppShell() {
           const key = normalizePlatformKey(rawKey);
           if (key) PLATFORM_COLORS[key] = color;
         }
+        setPlatformDisplayNames(data?.displayNames);
       })
       .catch(() => {
         // Keep static colors when custom colors cannot be loaded.

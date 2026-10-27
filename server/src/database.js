@@ -2211,6 +2211,13 @@ db.exec(`
   const pcols = db.prepare('PRAGMA table_info(user_push_prefs)').all().map((c) => c.name);
   if (!pcols.includes('neat')) db.exec('ALTER TABLE user_push_prefs ADD COLUMN neat INTEGER NOT NULL DEFAULT 1');
 }
+// The push channels of the plugins (specs/platform-settings-relay-and-review.md rule 8): their toggles
+// live in a table of their own; the `neat` column above is only read once, by the migration.
+{
+  const { applyPushChannelPrefsSchema, runPushChannelPrefsMigration } = require('./utils/pushChannelPrefsMigration');
+  applyPushChannelPrefsSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runPushChannelPrefsMigration(db);
+}
 // The two Neat tables are the `neat` plugin's (specs/plugins-phase-3b-neat.md rule 11): its migration
 // `tables_v1` creates them, and keeps an existing database's rows.
 
@@ -2520,6 +2527,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   applyChoreFreeChannelsSchema(db);
   if (process.env.SKIP_MIGRATIONS !== 'true') runChoreFreeChannelsMigration(db);
   require('./utils/platformNameFormat').refreshChoreFreeChannels(db);
+}
+
+// ---------- GUEST-CONTACT CHANNELS — specs/platform-settings-relay-and-review.md rules 1-6 ----------
+{
+  const { applyPlatformGuestContactSchema, runPlatformGuestContactMigration } = require('./utils/platformGuestContactMigration');
+  applyPlatformGuestContactSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runPlatformGuestContactMigration(db);
+  require('./utils/platformNameFormat').refreshGuestContactChannels(db);
 }
 
 // ---------- TRANSLATION CATALOGUE ----------

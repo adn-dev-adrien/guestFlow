@@ -1,0 +1,11 @@
+- Paramètres › Plateformes: new « E-mails aux voyageurs » settings per platform — « Adresse e-mail relais » (no season e-mail to a relay address) and « Où laisser un avis » (FR / EN wording of the J+1 review sentence). The guest e-mail sequence no longer recognises Airbnb, Booking or Gîtes de France by name.
+- Push notification toggles are served by the server with their labels; a plugin declares its own with `ctx.pushChannel` (SDK 2.6.0).
+- A payment provider words its own errors (`describeError`); the insurance refusals no longer name Neat.
+- Platform chips read the server's display name (« Gîtes de France »); `reservation.platform` is titled « Plateforme » everywhere.
+- The settings search words and the « Code portail » field of plugin features come from their plugins; the start assistant's options question uses neutral examples.
+- plugin:neat Declares its « Souscriptions Neat » push toggle itself.
+- plugin:online-payment Words « Qonto à connecter d'abord » itself, and brings its settings search words.
+- plugin:sas Draws the « Code portail » field of Établissement, with its search word.
+- plugin:hourly-resources Brings its settings search words to Options & ressources.
+- plugin:tariff-recipes Brings its settings search words.
+- plugin:linen Brings its settings search words.

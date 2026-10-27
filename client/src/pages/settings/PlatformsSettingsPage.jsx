@@ -5,6 +5,10 @@
  * who collects the tourist tax, payout delay. They apply to every property, so the property page
  * only shows them read-only. The accounting columns stay on Plan comptable (rule 20).
  *
+ * The second table, « E-mails aux voyageurs », holds what the guest e-mails need to know of a platform:
+ * whether it relays the guest's address, and where its guests leave a review
+ * (specs/platform-settings-relay-and-review.md rules 1-5). An own channel has neither.
+ *
  * A value that does not apply to a channel arrives as null from the server (`direct` has no
  * deposit / tax / payout notion, an own channel no payout) and is shown as « — ».
  * Desktop: one table. Mobile: one card per platform.
@@ -32,7 +36,10 @@ const TAX_OPTIONS = [
   { value: 'platform_reversed', label: 'Plateforme → établissement' },
   { value: 'owner', label: "À l'arrivée" },
 ];
-const EDITABLE = ['color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays', 'countsAsDirect', 'forbidsGuestChores'];
+const EDITABLE = [
+  'color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays', 'countsAsDirect', 'forbidsGuestChores',
+  'relaysGuestEmail', 'reviewWhereFr', 'reviewWhereEn',
+];
 
 // The rows as the form edits them: numbers become strings so a half-typed value stays as typed.
 function toDraft(platforms) {
@@ -165,6 +172,34 @@ export default function PlatformsSettingsPage() {
       slotProps={{ input: { 'aria-label': `Sans corvées de départ ${formatPlatformLabel(p.name)}` } }}
     />
   ));
+  // specs/platform-settings-relay-and-review.md rules 1-5 — what the guest e-mails need to know.
+  const relayCell = (p) => (p.relaysGuestEmail === null ? '—' : (
+    <Switch
+      checked={Boolean(p.relaysGuestEmail)}
+      onChange={(e) => setField(p.id, 'relaysGuestEmail', e.target.checked)}
+      disabled={saving}
+      slotProps={{ input: { 'aria-label': `Adresse e-mail relais ${formatPlatformLabel(p.name)}` } }}
+    />
+  ));
+  const reviewCell = (p, lang) => {
+    const key = lang === 'en' ? 'reviewWhereEn' : 'reviewWhereFr';
+    if (p[key] === null) return '—';
+    return (
+      <TextField
+        value={p[key]}
+        onChange={(e) => setField(p.id, key, e.target.value)}
+        size="small"
+        fullWidth
+        disabled={saving}
+        placeholder={lang === 'en' ? (p.reviewWhereFr || formatPlatformLabel(p.name)) : formatPlatformLabel(p.name)}
+        error={Boolean(fieldError(p.id, key))}
+        helperText={fieldError(p.id, key) || ''}
+        slotProps={{ htmlInput: { maxLength: 80, 'aria-label': `Où laisser un avis${lang === 'en' ? ' (anglais)' : ''} ${formatPlatformLabel(p.name)}` } }}
+      />
+    );
+  };
+  const contactRows = rows.filter((p) => p.relaysGuestEmail != null);
+
   const taxCell = (p) => (p.touristTaxCollection === null ? '—' : (
     <TextField
       select
@@ -244,6 +279,39 @@ export default function PlatformsSettingsPage() {
             </TableContainer>
           </Card>
         )}
+        {draft && !isMobile && contactRows.length > 0 && (
+          <Card variant="outlined" sx={{ mt: 3 }}>
+            <CardContent sx={{ pb: 0 }}>
+              <Typography variant="sectionHeader" component="h2">E-mails aux voyageurs</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Adresse relais : aucun mail après le séjour. Avis : la fin de « quelques mots sur … » dans le
+                mail du lendemain du départ ; vide, le nom de la plateforme.
+              </Typography>
+            </CardContent>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Plateforme</TableCell>
+                    <TableCell>Adresse e-mail relais</TableCell>
+                    <TableCell sx={{ minWidth: 240 }}>Où laisser un avis</TableCell>
+                    <TableCell sx={{ minWidth: 240 }}>En anglais</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {contactRows.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</TableCell>
+                      <TableCell>{relayCell(p)}</TableCell>
+                      <TableCell>{reviewCell(p, 'fr')}</TableCell>
+                      <TableCell>{reviewCell(p, 'en')}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Card>
+        )}
         {draft && isMobile && rows.map((p) => (
           <Card key={p.id} variant="outlined" sx={{ mb: 1.5 }}>
             <CardContent sx={{ p: 2 }}>
@@ -277,6 +345,19 @@ export default function PlatformsSettingsPage() {
                 <FormControlLabel control={directCell(p)} label="Compté comme vente directe" sx={{ minHeight: 44 }} />
                 {p.forbidsGuestChores !== null && (
                   <FormControlLabel control={choresCell(p)} label="Sans corvées de départ" sx={{ minHeight: 44 }} />
+                )}
+                {p.relaysGuestEmail != null && (
+                  <>
+                    <FormControlLabel control={relayCell(p)} label="Adresse e-mail relais" sx={{ minHeight: 44 }} />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Où laisser un avis</Typography>
+                      {reviewCell(p, 'fr')}
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Où laisser un avis, en anglais</Typography>
+                      {reviewCell(p, 'en')}
+                    </Box>
+                  </>
                 )}
               </Stack>
             </CardContent>
