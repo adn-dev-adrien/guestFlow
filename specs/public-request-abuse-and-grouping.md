@@ -6,7 +6,7 @@
 | **Branch** | `feature/public-request-abuse-and-grouping` |
 | **Created** | 2026-10-27 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #805 |
 
 ---
 
