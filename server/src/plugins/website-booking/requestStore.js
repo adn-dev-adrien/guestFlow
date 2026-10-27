@@ -47,9 +47,9 @@ const TABLES_V2_SQL = `
   CREATE INDEX IF NOT EXISTS idx_public_request_issued_ip ON public_request_issued (ipKey, at);
 `;
 
-function migrateV2(db) {
+function migrateV2(db, { withIssued = true } = {}) {
   db.exec(TABLES_SQL);
-  db.exec(TABLES_V2_SQL);
+  if (withIssued) db.exec(TABLES_V2_SQL);
   const cols = db.prepare('PRAGMA table_info(public_request_stays)').all().map((c) => c.name);
   if (!cols.includes('appendCount')) db.exec('ALTER TABLE public_request_stays ADD COLUMN appendCount INTEGER NOT NULL DEFAULT 0');
   // When the guest last wrote this quote, `YYYY-MM-DD HH:MM:SS` UTC like `reservations.createdAt`: the
@@ -69,7 +69,8 @@ const ready = new WeakSet();
 function database(db) {
   const handle = db || sdk.coreModule('database');
   if (!ready.has(handle)) {
-    migrateV2(handle);
+    // On first use the v2 columns are wanted, never the issued log v3 drops (rule 29).
+    migrateV2(handle, { withIssued: false });
     migrateV3(handle);
     ready.add(handle);
   }

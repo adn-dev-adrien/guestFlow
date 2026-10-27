@@ -92,7 +92,9 @@ export default function PaymentDeadlinesAlert({ attention }) {
       const done = result?.retainedDepositAmount > 0
         ? `Séjour annulé — acompte de ${formatCurrency(result.retainedDepositAmount)} conservé en indemnité.`
         : 'Séjour annulé — les dates sont remises à la vente.';
-      if (result?.paymentLinksWarning) showError(`${done} ${result.paymentLinksWarning}`);
+      // specs/email-language-fr-en.md rule 12 — a notice asked for and not sent is a warning too.
+      const warnings = [result?.paymentLinksWarning, result?.emailWarning].filter(Boolean);
+      if (warnings.length) showError([done, ...warnings].join(' '));
       else showSuccess(done);
       setCancelRow(null);
       await refresh();

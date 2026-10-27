@@ -12,6 +12,9 @@
 
 const ENGLISH_VERSION_MISSING = 'ENGLISH_VERSION_MISSING';
 const ENGLISH_VERSION_MISSING_MESSAGE = 'Version anglaise manquante pour ce modèle.';
+// Rule 12 — what a refused send tells the operator to do, where the short message only names the cause.
+const ENGLISH_VERSION_MISSING_ACTION = 'Version anglaise manquante pour ce modèle : la rédiger dans Emails › Modèles, ou passer le mail en français.';
+const ENGLISH_VERSION_MISSING_PAYMENT_ACTION = 'Version anglaise manquante pour ce modèle : la rédiger dans Emails › Modèles, ou passer la langue de la fiche en français.';
 
 function normaliseLang(v) {
   return String(v || '').toLowerCase() === 'en' ? 'en' : 'fr';
@@ -48,5 +51,5 @@ function englishMissing(template, lang) {
 
 module.exports = {
   normaliseLang, pickTemplateSide, hasEnglishVersion, englishMissing,
-  ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_MESSAGE,
+  ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_MESSAGE, ENGLISH_VERSION_MISSING_ACTION, ENGLISH_VERSION_MISSING_PAYMENT_ACTION,
 };

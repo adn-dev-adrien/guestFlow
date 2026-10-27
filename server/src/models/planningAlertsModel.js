@@ -20,15 +20,15 @@ function buildModel(database) {
       LEFT JOIN clients c ON c.id = r.clientId
      WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.startDate <= ?
   `);
-  const propertiesStmt = database.prepare('SELECT id, cleaningHours FROM properties');
+  const propertiesStmt = database.prepare('SELECT id, cleaningHours, defaultCheckIn, defaultCheckOut FROM properties');
 
   return {
     alertsInRange({ from, to }) {
       const stays = staysStmt.all(addDays(from, -MARGIN_DAYS), addDays(to, MARGIN_DAYS));
-      const cleaningHoursByProperty = Object.fromEntries(
-        propertiesStmt.all().map((p) => [p.id, p.cleaningHours]),
-      );
-      return computePlanningAlerts({ stays, cleaningHoursByProperty, from, to });
+      const properties = propertiesStmt.all();
+      const cleaningHoursByProperty = Object.fromEntries(properties.map((p) => [p.id, p.cleaningHours]));
+      const propertyTimes = Object.fromEntries(properties.map((p) => [p.id, { checkIn: p.defaultCheckIn, checkOut: p.defaultCheckOut }]));
+      return computePlanningAlerts({ stays, cleaningHoursByProperty, propertyTimes, from, to });
     },
   };
 }

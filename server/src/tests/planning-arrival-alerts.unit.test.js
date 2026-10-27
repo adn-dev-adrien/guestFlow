@@ -10,7 +10,7 @@ const { computePlanningAlerts } = require('../utils/planningArrivalAlerts');
 // kind. Reproduces the 2026-10-27 spec-review findings F1–F4.
 
 const DDL = `
-  CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, cleaningHours REAL DEFAULT 3);
+  CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, cleaningHours REAL DEFAULT 3, defaultCheckIn TEXT, defaultCheckOut TEXT);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', propertyId INTEGER, clientId INTEGER,
@@ -105,7 +105,7 @@ test('rule 1 — exact fit is fine, an overrun is red; days apart never conflict
   assert.equal(run(3, '2026-01-10', '10:00'), undefined);
 });
 
-test('rule 1 — half hours read « 1h5 »; cancelled stays and devis are ignored; a stay with no client uses its iCal summary', () => {
+test('rule 1 — half hours read « 1h30 » (rule 11); cancelled stays and devis are ignored; a stay with no client uses its iCal summary', () => {
   const db = freshDb();
   db.prepare('UPDATE properties SET cleaningHours = 1.5 WHERE id = ?').run(STUDIO);
   db.prepare(`INSERT INTO reservations (id, kind, propertyId, startDate, endDate, checkInTime, checkOutTime, icalOriginalSummary)
@@ -114,6 +114,6 @@ test('rule 1 — half hours read « 1h5 »; cancelled stays and devis are ignore
   stay(db, { id: 12, propertyId: TENTE, start: '2026-10-26', end: '2026-10-30', kind: 'cancelled' });
   stay(db, { id: 13, propertyId: TENTE, start: '2026-10-30', end: '2026-11-01', inTime: '11:45' });
   const { arrivals } = buildModel(db).alertsInRange(WINDOW);
-  assert.equal(arrivals[11].explanation, 'Airbnb (Not available) part le 30/10/2026 à 10:00, ménage: 1h5');
+  assert.equal(arrivals[11].explanation, 'Airbnb (Not available) part le 30/10/2026 à 10:00, ménage: 1h30');
   assert.equal(arrivals[13], undefined);
 });

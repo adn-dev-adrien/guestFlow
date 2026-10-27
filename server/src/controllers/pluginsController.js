@@ -492,6 +492,23 @@ function createController(model = defaultModel, deps = {}) {
     return true;
   }
 
+  // Rule 37 — the mirror of rule 36: a plugin is activated only once every plugin it requires is
+  // installed and active, else it would run without what it is built on.
+  function refuseIfRequirementInactive(entry, res) {
+    const row = model.get(entry.id);
+    const manifest = (row && row.manifest) || entry;
+    const inactive = (manifest.requires || []).map((r) => r.id).filter((id) => {
+      const required = model.get(id);
+      return !required || !required.enabled;
+    });
+    if (!inactive.length) return false;
+    const names = inactive.map(nameOf).join(', ');
+    res.status(409).json({
+      error: 'REQUIREMENT_INACTIVE', requires: inactive, message: `Nécessite ${names} : à activer d’abord.`,
+    });
+    return true;
+  }
+
   function refuseIfBlocked(entry, res) {
     const blocker = blockerFor(entry.id, model);
     if (!blocker) return false;
@@ -627,6 +644,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!entry) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       if (refuseIfOutOfPlan(entry, res)) return undefined;
+      if (refuseIfRequirementInactive(entry, res)) return undefined;
       model.setEnabled(entry.id, true);
       return res.json(view(entry));
     },

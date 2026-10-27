@@ -17,6 +17,7 @@ const { MAIL, planStayMails } = require('./guestEmailSequence');
 const { sendSequenceMail } = require('./guestEmailSequenceRunner');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { guestEmailMessage } = require('./guestEmailHtml');
+const { emailAmount } = require('./emailMoney');
 
 // `installment` (the plan context of utils/installmentPlan.requestContext) and `occurrenceKey` make this the
 // request of ONE installment (specs/direct-installments.md rules 19-21).
@@ -62,9 +63,12 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   });
   // Per-send overrides (e.g. the payment link, which isn't a reservation column) are merged over the
   // built context's vars/flags so callers can inject values without touching emailContextBuilder.
+  // `amounts` carries euros, written here like every other amount of the mail, in the guest's language
+  // (specs/email-language-fr-en.md rule 10): a caller never pre-formats money.
   const extra = extraContext || {};
+  const amounts = Object.fromEntries(Object.entries(extra.amounts || {}).map(([k, v]) => [k, emailAmount(Number(v || 0), lang)]));
   const merged = {
-    vars:  { ...context.vars,  ...(extra.vars || {}) },
+    vars:  { ...context.vars,  ...(extra.vars || {}), ...amounts },
     flags: { ...context.flags, ...(extra.flags || {}) },
   };
   const side = pickTemplateSide(template, lang);

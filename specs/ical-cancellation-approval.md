@@ -182,6 +182,15 @@ dropped the UID.
     now leaves its history behind as orphan rows by design; readers only ever read a history by the id
     of a stay they hold, and reservation ids are AUTOINCREMENT, so no later stay inherits it. The purge
     of an untouched public request (`purgeUntouchedPublicRequest`) still deletes its rows explicitly.
+15. **Orphan history rows are intended, on every delete path** *(stated at the adversarial review of the
+    2026-10-27 fixes, operator decision 2026-10-27)*. Every path that deletes a reservation — the
+    operator's « Supprimer » (`DELETE /api/reservations/:id`), the iCal sync's stale clean-up, an approved
+    iCal cancellation (rule 5), a devis deleted from Devis — leaves the stay's `reservation_history` rows
+    in place, with no stay to read them from. This is the decision, not a leak: nothing reads a history
+    without holding its stay's id, ids are never reused, and the audit trail of a deleted stay stays
+    available to a database read. The **only** path that deletes history rows is the purge of an untouched
+    website request (`devisModel.purgePublicRequest`, specs/public-request-abuse-and-grouping.md rule 10):
+    that quote was never acted on by anyone, so its trail carries nothing worth keeping.
 
 **Edge cases:**
 - **The same UID disappears AND a new UID at the same dates/name appears in the same

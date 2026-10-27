@@ -31,7 +31,7 @@ beforeEach(() => {
 test('the dialog says the English version is missing and keeps « Envoyer » disabled', async () => {
   render(<EmailManualSendDialog open reservationId={5} defaultTemplateId={20} onClose={() => {}} />);
   await screen.findByDisplayValue('Sujet FR');
-  expect(screen.getByRole('alert')).toHaveTextContent('Version anglaise manquante pour ce modèle.');
+  expect(screen.getByRole('alert')).toHaveTextContent('Version anglaise manquante pour ce modèle : la rédiger dans Emails › Modèles, ou passer le mail en français.');
   expect(screen.getByRole('button', { name: /Envoyer/ })).toBeDisabled();
   expect(api.sendEmail).not.toHaveBeenCalled();
 });

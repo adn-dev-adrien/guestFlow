@@ -2654,6 +2654,8 @@ export default function ReservationPage() {
             : 'Les dates sont remises à la vente. Aucun acompte n\'avait été encaissé : rien n\'est conservé.',
           // specs/plugins-phase-3a-online-payment.md rule 9 — worded by the server.
           result?.paymentLinksWarning,
+          // specs/email-language-fr-en.md rule 12 — the notice asked for and not sent, worded by the server.
+          result?.emailWarning,
         ].filter(Boolean).join(' '),
       });
       navigateBackWithFrom(navigate, from);

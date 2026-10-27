@@ -58,7 +58,9 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 4. **Adaptive, never global.** The difficulty is chosen per requester when the challenge is issued:
    base for a visitor IP (or IPv6 /64) with no recent request, then +2 bits (×4 work) for each request
    that IP made in the last hour (requests sent, not challenges fetched — rule 29). One person sending 3 requests waits a second or two more; a bot
-   sending 50 from the same address needs hours. A guest on another IP is never affected by an attack.
+   sending 50 from the same address needs hours: the per-visitor limit (rule 6) lets 5 through an hour,
+   and from its fifth request on each one is solved at the cap, a challenge fetched ahead at a lower
+   difficulty being refused (rule 32). A guest on another IP is never affected by an attack.
    Implemented with a base of **12 bits** and a total cap of **22 bits** (≈ 4 million hashes, about ten
    seconds on a phone); the address is part of the signature, so a challenge is spent from the address
    it was issued to.
@@ -218,6 +220,18 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     ajouté : limite atteinte » when one was dropped); the subject counts quotes, new when one of its
     requests created it in the window. One stay sent 13 times used to read as 13 lines. The immediate
     e-mail writes the stay `du 01/07/2027 au 11/07/2027`, like the summary (it printed ISO dates).
+32. **A challenge fetched ahead is spent at what the address owes now** (adversarial review of the
+    2026-10-27 fixes). Rule 29 judged a challenge only at its signed difficulty, so a bot could fetch
+    five challenges at the base 12 bits and spend them all (reproduced: 5 fetched, 5 accepted). At
+    verification the signed difficulty must now be at least base + 2 bits × the requests this same
+    address **sent** in the hour (the current one excluded) + the flood surcharge of the moment minus
+    one 2-bit step, capped at 22 bits; below, `403 CHALLENGE_INVALID` / `tooEasy` (the challenge stays
+    spent). Per address only: another address's flood never refuses a challenge issued just before it,
+    and the one-step grace lets a challenge issued just before the hour crosses a threshold through. A
+    real guest is never refused: the drawer fetches a fresh challenge after every send (issued at what
+    the address owes then) and retries once on `CHALLENGE_INVALID`, so 2-3 requests in a row pass at
+    12, 14, 16 bits, and a second tab whose challenge predates the first tab's send passes on its retry.
+    Spent-before-judged: a challenge sent twice still reads `used`.
 
 ## 4. Architecture
 
@@ -225,14 +239,14 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `plugins/website-booking/` | `challenge.js` | C | Issue / verify signed challenges, adaptive difficulty (rules 1–5b). Pure. |
-| `plugins/website-booking/` | `requestStore.js` | C | The plugin tables: spent challenges, request log (per address, 24 h), per-devis fingerprint, created client, appended messages, last request; `migrateV3` drops the issued-challenge log (rule 29). |
-| `plugins/website-booking/controllers/` | `publicChallengeController.js` | C | `GET /challenge` handler (difficulty from the requests made, rule 29), `requireProof` middleware (a challenge judged at its signed difficulty), the sticky transition switch (rule 24). |
+| `plugins/website-booking/` | `challenge.js` | C | Issue / verify signed challenges, adaptive difficulty (rules 1–5b), the least difficulty a challenge must carry when spent (`requiredDifficulty`, rule 32). Pure. |
+| `plugins/website-booking/` | `requestStore.js` | C | The plugin tables: spent challenges, request log (per address, 24 h), per-devis fingerprint, created client, appended messages, last request; `migrateV3` drops the issued-challenge log (rule 29) and opening the store on first use never creates it. |
+| `plugins/website-booking/controllers/` | `publicChallengeController.js` | C | `GET /challenge` handler (difficulty from the requests made, rule 29), `requireProof` middleware (a challenge judged at its signed difficulty, which must cover what the address owes now — rule 32), the sticky transition switch (rule 24). |
 | `plugins/website-booking/` | `settings.js` | T | `proofEnforcedSince` (rule 24). |
 | `plugins/website-booking/routes/` | `bookingRequests.js` | T | `GET /challenge`; verification before the controller. |
 | `plugins/website-booking/controllers/` | `publicBookingRequestController.js` | T | Per-e-mail limit (7), same-stay lookup and update in place (12–16); the boolean `messageAdded` of a message-only answer (30). |
 | `plugins/website-booking/` | `requestPurge.js` | C | Daily purge of unhandled requests (10), registered with `ctx.jobs`. |
-| `plugins/website-booking/` | `index.js`, `manifest.json` | T | Migrations (v3 drops the issued-challenge log, rule 29), secret, job, connection payload, version 1.8.0 (SDK ^2.5.0), 1.8.1 after the 2026-10-27 spec review. |
+| `plugins/website-booking/` | `index.js`, `manifest.json` | T | Migrations (v3 drops the issued-challenge log, rule 29), secret, job, connection payload, version 1.8.0 (SDK ^2.5.0), 1.8.1 after the 2026-10-27 spec review, 1.8.2 after its adversarial review (rule 32). |
 | `plugins/website-booking/` | `siteConnectionController.js`, `pendingController.js`, `attention.js` | T | `antiBot` in the connection payload; `requestsLastHour` and the « trafic inhabituel » line (11). |
 | `utils/` | `notificationService.js` | T | 15-minute grouping of site-request e-mails (9, 16): `notifyNewSiteDevis(id, { updated })`, `flushDueDigests()`; one summary line per quote and French dates (31). |
 | `utils/` | `notificationDigest.js` | C | Generic window store (admit / takeDue) in the database. |
@@ -257,7 +271,7 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 | Method | Endpoint | Change |
 |---|---|---|
 | GET | `/public/v1/booking-requests/challenge` | New. `{ data: { challengeId, salt, difficulty, issuedAt, expiresAt, signature } }`, `Cache-Control: no-store`. Records the plugin version the proxy reports. |
-| POST | `/public/v1/booking-requests` | Carries `challenge` (the object received, verbatim) and `nonce` (base 36). May carry `publicToken` (the quote the drawer created). Returns `updated` (boolean), `messageAdded` (rule 21; a boolean on every message-only answer, `false` past the cap — rule 30) and `requestedOn` (`YYYY-MM-DD` of the first request); for an existing quote, `requestId` / `reference` / `finalPrice` / `publicToken` only to the token's holder (rule 20). New errors `403 CHALLENGE_INVALID` (`details[0].issue` ∈ missing · forged · expired · tooFast · wrong · used; `tooEasy` removed by rule 29), `429 TOO_MANY_REQUESTS` per e-mail, `422 VALIDATION_FAILED` on a message over 2 000 characters. |
+| POST | `/public/v1/booking-requests` | Carries `challenge` (the object received, verbatim) and `nonce` (base 36). May carry `publicToken` (the quote the drawer created). Returns `updated` (boolean), `messageAdded` (rule 21; a boolean on every message-only answer, `false` past the cap — rule 30) and `requestedOn` (`YYYY-MM-DD` of the first request); for an existing quote, `requestId` / `reference` / `finalPrice` / `publicToken` only to the token's holder (rule 20). New errors `403 CHALLENGE_INVALID` (`details[0].issue` ∈ missing · forged · expired · tooFast · wrong · used · tooEasy; `tooEasy` removed by rule 29, back with rule 32), `429 TOO_MANY_REQUESTS` per e-mail, `422 VALIDATION_FAILED` on a message over 2 000 characters. |
 | GET | `/api/settings/website-connection` | Gains `antiBot: { active, pluginVersion, requiredVersion }`. |
 | GET | `/api/dashboard/public-devis-pending` | Gains `requestsLastHour`. |
 | GET | `/api/devis/:id` | Stamps `operatorSeenAt` the first time. The devis rows carry `publicUpdatedAfterSendAt`. |
@@ -300,6 +314,13 @@ See the interactive mock-up `docs/specs/2026-10-27-public-request-abuse-and-grou
 - Manual: drawer on a phone (390 px), request sent before / after the check completes.
 
 ### Results (2026-10-27)
+
+After the adversarial review of the 2026-10-27 fixes (rule 32; the suite failed on the code before):
+- `public-request-challenge-ahead.unit.test.js` — 7 tests (five challenges fetched ahead: the first
+  passes, the four others `tooEasy`; the drawer's protocol — fresh challenge after every send, one retry
+  — sends three requests in a row, and a second tab whose challenge predates the first tab's send passes
+  on its retry; the one-step flood grace; another address's flood refuses nothing; the cap; opening the
+  store never creates `public_request_issued`).
 
 After the spec review of 2026-10-27 (rules 29-31; each new suite failed on the code before the fix):
 - `public-request-challenge-cost.unit.test.js` — 4 tests (six page views stay at 12 bits; a request

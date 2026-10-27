@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -90,6 +90,10 @@
       "Au-delà de 10 messages sur un devis déjà traité, la réponse au site ne dit plus que le message a été ajouté.",
       "Les refus liés aux CGV s’affichent dans la langue de la page.",
       "Site : quantité d’une option ou d’une ressource bornée par le séjour, lit bébé commandable seulement par le nombre de lits bébé, devis refusé au-delà de la capacité du logement.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.8.2": [
+      "Vérification anti-robot : une vérification obtenue d’avance ne sert plus après d’autres demandes envoyées depuis la même adresse ; le site en reprend une à jour sans que le client s’en aperçoive.",
       "Compatible avec le SDK 2.5 de GuestFlow."
     ]
   }

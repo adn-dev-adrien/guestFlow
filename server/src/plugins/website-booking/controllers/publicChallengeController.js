@@ -53,8 +53,8 @@ function issueChallenge(req, res) {
   const now = Date.now();
   const ipKey = challenge.ipKeyOf(req.visitor && req.visitor.ip);
   // Rule 4 as written, restored by rule 29: the requests the address MADE in the hour raise the
-  // difficulty, never the challenges it was handed — a page view costs a guest nothing. Fetching
-  // challenges ahead is bounded elsewhere: 15 minutes of validity, the per-visitor limiters.
+  // difficulty, never the challenges it was handed — a page view costs a guest nothing. A challenge
+  // fetched ahead and spent after later sends of the same address is refused (rule 32).
   const difficulty = challenge.difficultyFor({
     addressRequestsLastHour: store.countRecent({ ipKey, windowMs: HOUR_MS, now }),
     requestsLastHour: store.countRecent({ windowMs: HOUR_MS, now }),
@@ -81,11 +81,20 @@ function requireProof(req, res, next) {
   if (!result.ok) {
     return failT(res, req, 403, 'CHALLENGE_INVALID', 'challengeInvalid', [{ field: 'challenge', issue: result.reason }]);
   }
-  // Rule 29 — judged at the difficulty signed into it when it was issued: the HMAC is what makes that
-  // number trustworthy. A challenge fetched just before a flood or before the address's previous send
-  // stays valid; nobody is refused because the hour's total moved under them.
   if (!store.spendChallenge(result.challengeId, result.expiresAt, { now })) {
     return failT(res, req, 403, 'CHALLENGE_INVALID', 'challengeInvalid', [{ field: 'challenge', issue: 'used' }]);
+  }
+  // Rules 29 + 32 — a challenge is judged at the difficulty signed into it (the HMAC vouches for the
+  // number), which must still cover what this address owes now: its own sends of the hour (excluding
+  // this one) in full, the flood surcharge with a one-step grace. One fetched ahead of the address's
+  // previous sends is refused `tooEasy` (and stays spent); the drawer fetches a fresh one and retries
+  // once. Another address's flood never refuses a challenge issued just before it.
+  const required = challenge.requiredDifficulty({
+    addressRequestsLastHour: store.countRecent({ ipKey, windowMs: HOUR_MS, now }),
+    requestsLastHour: store.countRecent({ windowMs: HOUR_MS, now }),
+  });
+  if (Number(body.challenge.difficulty) < required) {
+    return failT(res, req, 403, 'CHALLENGE_INVALID', 'challengeInvalid', [{ field: 'challenge', issue: 'tooEasy' }]);
   }
   store.logRequest(ipKey, { now });
   return next();

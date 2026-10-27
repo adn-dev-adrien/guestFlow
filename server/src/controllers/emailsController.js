@@ -17,7 +17,7 @@ const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
 const {
-  normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_MESSAGE,
+  normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_MESSAGE, ENGLISH_VERSION_MISSING_ACTION,
 } = require('../utils/emailTemplateLanguage');
 
 // A stored failure reason as the history shows it: the known codes, else the transport's text read
@@ -232,7 +232,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // English-speaking guest, operator text or not; checked before any payment link is minted.
     const wantedGraph = wanted ? loadReservationGraph(database, reservationId) : null;
     if (wantedGraph && englishMissing(wanted, guestLangOf(wantedGraph, lang))) {
-      return res.status(422).json({ error: ENGLISH_VERSION_MISSING, message: ENGLISH_VERSION_MISSING_MESSAGE });
+      return res.status(422).json({ error: ENGLISH_VERSION_MISSING, message: ENGLISH_VERSION_MISSING_ACTION });
     }
     // An installment request goes out with its own link, minted (or reused) at its exact amount.
     let paymentLink = null;

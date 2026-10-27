@@ -20,6 +20,17 @@ const toMinutes = (time) => {
   return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : NaN;
 };
 
+// The most intervals running at the same instant ([start, end), an end before a start at the same minute).
+function peakConcurrency(intervals) {
+  const events = [];
+  intervals.forEach((iv) => { if (iv.end > iv.start) events.push([iv.start, 1], [iv.end, -1]); });
+  events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  let running = 0;
+  let peak = 0;
+  events.forEach(([, step]) => { running += step; peak = Math.max(peak, running); });
+  return peak;
+}
+
 const sessionKey = (date, start, end) => `${date}|${formatTimeShort(start)}|${formatTimeShort(end)}`;
 
 /**
@@ -57,19 +68,29 @@ function firstSessionConflict(resources, capacityOf, { occupiedOn = () => [], tu
     };
     for (let i = 0; i < sessions.length; i += 1) {
       const current = sessions[i];
+      // The stay's own earlier sessions, while the current one runs.
       const own = sessions.slice(0, i)
-        .filter((s) => s.date === current.date && s.start < current.end && current.start < s.end).length;
+        .filter((s) => s.date === current.date && s.start < current.end && current.start < s.end)
+        .map((s) => ({ start: Math.max(s.start, current.start), end: Math.min(s.end, current.end) }));
       const judged = !stored.has(sessionKey(current.date, current.raw.start, current.raw.end));
+      // Every use keeps the resource for its turnover after it: an outside use overlaps the current one
+      // when it starts before the current one is reset and is not yet reset when it starts.
       const outside = judged
-        ? others(current.date).filter((o) => o.start < current.end + buffer && o.end + buffer > current.start).length
-        : 0;
-      if (own + outside >= capacity) {
+        ? others(current.date)
+          .map((o) => ({ start: o.start, end: o.end + buffer }))
+          .filter((o) => o.start < current.end + buffer && o.end > current.start)
+          .map((o) => ({ start: Math.max(o.start, current.start), end: Math.min(o.end, current.end + buffer) }))
+        : [];
+      // Rule 35 — the peak of simultaneous uses, never the count of uses touching the slot: two
+      // bookings one after the other take one unit, not two.
+      const ownPeak = peakConcurrency(own);
+      if (ownPeak >= capacity || peakConcurrency([...own, ...outside]) >= capacity) {
         return {
           resourceId,
           date: current.date,
           start: formatTimeShort(current.raw.start),
           end: formatTimeShort(current.raw.end),
-          ...(own < capacity ? { elsewhere: true } : {}),
+          ...(ownPeak < capacity ? { elsewhere: true } : {}),
         };
       }
     }
@@ -93,4 +114,4 @@ function conflictError(conflict) {
   };
 }
 
-module.exports = { firstSessionConflict, conflictError, sessionKey };
+module.exports = { firstSessionConflict, conflictError, sessionKey, peakConcurrency };
