@@ -287,7 +287,6 @@ the property table becomes one card per property, the log becomes a list; action
 - Q3: Exact XML shape of LOS-based amounts and of the tourist tax (per adult per night) — to be
   confirmed with the ARI reference and the Technical Account Manager before the XML module is frozen.
 - Q4: Which production IP is allowlisted in Hotel Center (the public IP of the host running GuestFlow).
-</content>
 
 ## 10. Implementation notes (2026-10-26)
 
@@ -314,3 +313,68 @@ the property table becomes one card per property, the log becomes a list; action
 - **Days past the horizon** (rule 8): `maxLos` more days are sent closed, so no stay reaches an unsent
   date.
 
+## 11. Go-live runbook — resume when Google answers
+
+Everything on GuestFlow's side is done; the only thing left is Google. This section is the
+checklist to pick the work up again the day Google replies.
+
+### 11.1 Where things stand (2026-10-27)
+
+- **Google**: the *Vacation Rentals interest form* was sent on 2026-10-26 (legal name Solio, trade
+  name Domaine Solio, contact address `contact@domainesolio.com`). No answer yet. Google may also
+  decline: individual owners are onboarded case by case.
+- **Plugin**: `google-vacation-rentals` merged into `inte/plugins` (#787), Simulation mode by default.
+  Not on `master`, so not in any release and not in production (production runs the `master` line,
+  v3.17.0 / v3.18.0).
+- **WordPress plugin 1.17.0** (booking block opened with the stay of its address, rule 18): also only
+  on `inte/plugins`. The site runs 1.14.3, the latest published. Decision of 2026-10-27: no backport,
+  it ships with the `inte/plugins` → `master` integration — nothing needs it before Google opens the
+  account.
+- **Lodgify**: cancelled, both listings delisted from Google on 2026-10-26
+  (`specs/lodgify-decommission.md`). Until go-live, Google shows no price for Solio.
+
+### 11.2 Prerequisite — get the code into production
+
+1. `inte/plugins` integrated into `master` (the user's merge), then a release (`/guestflow-release`).
+2. Operator installs the release (Réglages → Système et mises à jour), then updates the WordPress
+   plugin to ≥ 1.17.0 from the WordPress admin.
+3. Check on the live site: `/la-granja/?checkin=DD%2FMM%2FYYYY&checkout=DD%2FMM%2FYYYY&guests=4`
+   opens the booking block prefilled; an invalid date opens it empty.
+
+### 11.3 When Google answers — the questions to settle with the Technical Account Manager
+
+- **Q3** — the exact XML shape of length-of-stay amounts and of the tourist tax (per adult and
+  night, currently inside `AmountAfterTax`, §10). The answer only touches
+  `ariXml.losAmountMessage` and its golden test.
+- **Q4** — the production public IP to allowlist in Hotel Center: measure it from the production
+  host (`curl -s https://ifconfig.me`), do not guess it from the router.
+- The **partner id** and Hotel Center access; whether Google assigns the `HotelCode` of each
+  property or lets us choose it (rule 3 accepts `^[a-z0-9-]{3,40}$`).
+- Confirm the **crawled listing feed** (structured data on `/la-granja/` and the tente page) is
+  enough, or whether an XML listing feed is required (§8 — out of scope until asked).
+- The **landing page template** to register: rule 18,
+  `https://domainesolio.com/<slug>/?checkin=DD%2FMM%2FYYYY&checkout=DD%2FMM%2FYYYY&guests=N`.
+
+### 11.4 Go-live steps, in order
+
+1. Réglages → Intégrations → Google Vacation Rentals: enter the partner id, enable both properties
+   with their `HotelCode` and page slug. Mode stays **Simulation**.
+2. « Tout renvoyer » then « Vérifier les prix »: 0 mismatch expected; read the simulated XML in the
+   plugin's data directory against the ARI reference.
+3. Apply the Q3 answer to `ariXml.losAmountMessage` if Google wants another shape (PR, spec §10
+   updated, release).
+4. Allowlist the Q4 IP in Hotel Center.
+5. Switch the mode to **Envoi** (confirmation dialog), then « Tout renvoyer ». The push log and the
+   Hotel Center feed status must show no error.
+6. Watch the price accuracy score in Hotel Center: *Excellent* three days in a row, then Google
+   turns the listings live. A mismatch reported by Google → « Vérifier les prix » on those dates, and
+   the cause goes into this spec.
+7. After go-live: the nightly full re-send (rule 13) runs at `fullResendHour`; check the push log the
+   first week, then the Hotel Center status after any recipe change.
+
+### 11.5 If Google declines
+
+The lodging Business Profile has no free booking-link field (§1), so there is no direct fallback:
+Solio stays out of the « Locations de vacances » results unless it goes back through an approved
+connectivity partner. That would be a new decision and a new spec; the plugin stays installed in
+Simulation, harmless.
