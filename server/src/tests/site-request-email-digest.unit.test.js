@@ -116,3 +116,26 @@ test('rule 9: a failed summary stays for the next flush, then goes once', async 
   assert.deepEqual(await svc.flushDueDigests(), { sent: 0 });
   assert.equal(sent.filter((m) => /du site/.test(m.subject)).length, 1);
 });
+
+// Re-review of PR #805 — an operator who reads pushes only (e-mail off) still gets the summary.
+test('rule 9: with e-mail off, the summary is still pushed, once', async () => {
+  const db = seedDb();
+  const pushes = [];
+  const clock = { now: Date.parse('2027-03-01T10:00:00Z') };
+  const svc = buildNotificationService({
+    db,
+    settingsModel: { ...settingsModel, notificationSettings: () => ({ ...settingsModel.notificationSettings(), enabled: false }) },
+    emailServiceFactory: () => ({ isConfigured: true, send: async () => { throw new Error('no e-mail expected'); } }),
+    pushService: { sendToPref: async (pref, payload) => { pushes.push(payload.title); } },
+    logger: { warn() {} },
+    digest: buildNotificationDigest({ db, now: () => clock.now }),
+  });
+  await svc.notifyNewSiteDevis(1);
+  clock.now += 60 * 1000;
+  await svc.notifyNewSiteDevis(2);
+  await svc.notifyNewSiteDevis(3);
+  clock.now = Date.parse('2027-03-01T10:16:00Z');
+  await svc.flushDueDigests();
+  await svc.flushDueDigests();
+  assert.deepEqual(pushes, ['Nouvelle demande de devis', '2 nouvelles demandes du site']);
+});

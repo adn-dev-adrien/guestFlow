@@ -247,7 +247,8 @@ remaining the single source of truth for prices, availability, and validation.
     block sends the token of the quote it created (`publicToken`); an answer without a token is a
     receipt — no payment is offered, the page reads « Votre demande du <date> a déjà été transmise :
     votre message a été ajouté. » (`messageAdded`), « … a été mise à jour. » or « Demande reçue. Nous
-    vous recontactons rapidement. »; the message field stops at 2 000 characters.
+    vous recontactons rapidement. »; the message field stops at 2 000 characters. A `messageAdded`
+    answer never starts a payment, even with a token (rule 27 of the same spec).
 
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings

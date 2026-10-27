@@ -180,6 +180,16 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 26. **A summary leaves before it is forgotten** (review). The rows of a 15-minute summary are marked
     while it is sent and deleted only once it left; a failed send keeps them for the next flush; a
     mark older than 10 minutes (a crash mid-send) is taken again.
+27. **Paying again after changing the stay** (re-review of PR #805). A payment link on a quote the
+    operator never touched (draft, never opened, sent, edited or e-mailed) can only come from the
+    guest's own drawer. For a request that carries the quote's token, such links do not make it
+    « touched »: the quote is updated and re-priced (rule 13), and the next payment retires the old link
+    at the provider before minting one at the new amount (`ensurePaymentLink`, unchanged). Without the
+    token, or once the operator touched it, rule 21 applies. The drawer never starts a payment on a
+    `messageAdded` answer.
+28. **The summary is pushed even without e-mail** (re-review). Like the immediate notification, the
+    15-minute summary is pushed whatever the e-mail settings, once, before its e-mail; with e-mail off
+    or SMTP unconfigured the rows are then cleared, and a retried e-mail never pushes twice.
 
 ## 4. Architecture
 
@@ -269,7 +279,11 @@ After the review of PR #805 (rules 20-26):
   run first against the pre-review code and failed there.
 - Adjusted: `public-request-grouping` (the drawer sends the token; a sent quote only gains the
   message), migration count 3, `DevisPage.public-update-flag` (new label).
-- Full suites: server **6 476 / 6 476**, client Vitest **2 190 / 2 190**, E2E 148 passed, 1 skipped.
+- Re-review (rules 27-28): `public-request-pay-retry.unit.test.js` — 3 tests (the full scenario:
+  first payment link, new party with the token, re-priced quote, old link cancelled then a new one at
+  the new amount); `site-request-email-digest` +1 → 4; `wordpress-plugin-proof-of-work` +1 → 10. The
+  scenario and the two others failed on `d0005113` first.
+- Full suites: server **6 476 / 6 476** after the review, **6 481 / 6 481** after the re-review; client Vitest **2 190 / 2 190**; E2E 148 passed, 1 skipped.
 - Manual at 390 px (same isolated stack): the stay of a quote already sent, sent again with another
   message → « Votre demande du 27 octobre 2026 a déjà été transmise : votre message a été ajouté. »,
   the quote keeps its party and gains the dated message and the flag; an untouched draft sent again

@@ -48,8 +48,9 @@ const MAX_APPENDED_MESSAGES = 10;
 /**
  * Rule 12 — the website quote of the same stay: same normalised e-mail, same property, same dates,
  * neither converted nor paid. Only a request from the site is ever found: a quote the operator typed is
- * theirs. `touched` (rule 21) is 1 once the operator did anything with it — a status other than draft,
- * an opening, an edit, a guest e-mail, a payment link of any status: such a quote only gains messages.
+ * theirs. `operatorTouched` (rule 21) is 1 once the operator did anything with it — a status other
+ * than draft, an opening, an edit, a guest e-mail; `hasLinks` once a payment link of any status exists.
+ * Either makes the quote message-only, except a guest link for the holder of the token (rule 27).
  */
 function findOpenSameStay(email, { propertyId, startDate, endDate }) {
   return db.prepare(`
@@ -59,8 +60,8 @@ function findOpenSameStay(email, { propertyId, startDate, endDate }) {
                   OR EXISTS (SELECT 1 FROM reservation_history h WHERE h.reservationId = r.id
                               AND h.eventType NOT IN ('create', 'public_update', 'public_message', 'terms_accepted'))
                   OR EXISTS (SELECT 1 FROM email_log l WHERE l.reservationId = r.id)
-                  OR EXISTS (SELECT 1 FROM payment_links p WHERE p.reservationId = r.id)
-                THEN 1 ELSE 0 END AS touched
+                THEN 1 ELSE 0 END AS operatorTouched,
+           CASE WHEN EXISTS (SELECT 1 FROM payment_links p WHERE p.reservationId = r.id) THEN 1 ELSE 0 END AS hasLinks
       FROM reservations r
       JOIN clients c ON c.id = r.clientId
      WHERE r.kind = 'devis' AND r.requestOrigin = 'public'
@@ -392,7 +393,10 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
   const client = clientsModel.findByEmail(guest.email);
   const identityNote = client ? submittedIdentityNote(client, guest, langStated(req) ? langOf(req) : null) : '';
   const todayIso = sdk.coreModule('reservationHelpers').getTodayIsoDate();
-  const messageOnly = Number(sameStay.touched) === 1;
+  // Rule 27 — a payment link on a quote the operator never touched was made by the guest's own
+  // drawer (an operator link needs the fiche): for the holder of the token, the quote is still theirs
+  // to change; the next payment retires that link at the provider and mints one at the new price.
+  const messageOnly = Number(sameStay.operatorTouched) === 1 || (Number(sameStay.hasLinks) === 1 && !holdsToken);
   const appendsLeft = (stay ? Number(stay.appendCount || 0) : 0) < MAX_APPENDED_MESSAGES;
   const note = updateNote(message, identityNote, todayIso, { messageOnly });
   const messageDropped = !appendsLeft;

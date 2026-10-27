@@ -1479,7 +1479,8 @@
           // no id, no token, so nothing to pay here. The guest reads what happened to their request.
           var noQuote = !data.publicToken;
           GF.track('booking-requested', { lodging: lodging, nights: nightsOf(body.startDate, body.endDate), guests: persons(), mode: paying ? 'pay' : 'request' });
-          if (paying && !noQuote) {
+          // Rule 27 — a message-only answer (a quote GuestFlow already handled) never pays here.
+          if (paying && !noQuote && !data.messageAdded) {
             pendingRequest = {
               key: requestKey, requestId: res.body.data.requestId, token: res.body.data.publicToken, reference: res.body.data.reference || '',
             };
