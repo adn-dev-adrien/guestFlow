@@ -465,6 +465,11 @@ const api = {
   sendBalanceRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'balance' } }),
   // specs/reservation-payment-ledger.md rule 28 — « Renvoyer la demande » of a ledger row.
   sendPaymentRequestOfType: (id, type) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type } }),
+  // Échéancier d'une réservation directe (specs/direct-installments.md §4.3). Each answers `{ installmentPlan }`.
+  putInstallments: (id, body) => request(`/reservations/${id}/installments`, { method: 'PUT', body }),
+  deleteInstallments: (id) => request(`/reservations/${id}/installments`, { method: 'DELETE' }),
+  markInstallmentPaid: (id, installmentId, body) => request(`/reservations/${id}/installments/${installmentId}/payment`, { method: 'POST', body }),
+  sendInstallmentRequest: (id, installmentId) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'installment', installmentId } }),
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),
@@ -775,21 +780,22 @@ const api = {
 
   // `lang` overrides the language for THIS preview only (specs/site-english-version.md §6). Absent,
   // the server resolves it as a real send would: the client's language, then the reservation's.
-  previewEmail: ({ reservationId, templateId, lang }) =>
-    request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}`),
+  // `occurrenceKey` names which installment an installment request is for (specs/direct-installments.md rule 19).
+  previewEmail: ({ reservationId, templateId, lang, occurrenceKey }) =>
+    request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}${occurrenceKey ? `&occurrenceKey=${encodeURIComponent(occurrenceKey)}` : ''}`),
   // `confirmResend` — explicit resend of a guest-sequence email already sent (specs/guest-email-sequence.md
   // rule 13bis); without it the server answers 409 ALREADY_SENT.
-  sendEmail:    ({ reservationId, templateId, overrides, confirmResend, lang }) =>
-    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides, confirmResend: Boolean(confirmResend), ...(lang ? { lang } : {}) } }),
+  sendEmail:    ({ reservationId, templateId, overrides, confirmResend, lang, occurrenceKey }) =>
+    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides, confirmResend: Boolean(confirmResend), ...(lang ? { lang } : {}), ...(occurrenceKey ? { occurrenceKey } : {}) } }),
   // Guest email sequence simulation (specs/guest-email-sequence.md §4.3) — nothing sent, nothing written.
   getEmailSequenceSimulation: ({ from, to }) =>
     request(`/email-sequence/simulation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   getPendingEmails:          () => request('/emails/pending'),
-  acknowledgePendingEmail:   ({ templateId, reservationId }) =>
-    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge`, { method: 'POST' }),
+  acknowledgePendingEmail:   ({ templateId, reservationId, occurrenceKey }) =>
+    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge${occurrenceKey ? `?occurrenceKey=${encodeURIComponent(occurrenceKey)}` : ''}`, { method: 'POST' }),
   // Mark a pending email as sent outside GuestFlow (specs/mark-email-sent-manually.md).
-  markEmailSent:             ({ templateId, reservationId }) =>
-    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/mark-sent`, { method: 'POST' }),
+  markEmailSent:             ({ templateId, reservationId, occurrenceKey }) =>
+    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/mark-sent${occurrenceKey ? `?occurrenceKey=${encodeURIComponent(occurrenceKey)}` : ''}`, { method: 'POST' }),
   // Manual email compose (specs/manual-email-from-template.md)
   getEmailEligibleReservations: (q) =>
     request(`/emails/eligible-reservations${q ? `?q=${encodeURIComponent(q)}` : ''}`),

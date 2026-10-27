@@ -37,7 +37,7 @@ function formatTargetDate(startDateIso, dayOffset) {
 }
 
 export default function EmailManualSendDialog({
-  open, reservationId, reservationStartDate, defaultTemplateId, onClose, onSent,
+  open, reservationId, reservationStartDate, defaultTemplateId, occurrenceKey, onClose, onSent,
 }) {
   // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
   const theme = useTheme();
@@ -91,7 +91,7 @@ export default function EmailManualSendDialog({
     setLoading(true);
     setError('');
     try {
-      const res = await api.previewEmail({ reservationId, templateId, lang: langOverride || undefined });
+      const res = await api.previewEmail({ reservationId, templateId, lang: langOverride || undefined, occurrenceKey });
       setSubject(res.subject || '');
       setBody(res.body || '');
       setTo(res.to || '');
@@ -103,7 +103,7 @@ export default function EmailManualSendDialog({
     } finally {
       setLoading(false);
     }
-  }, [templateId, reservationId, langOverride]);
+  }, [templateId, reservationId, langOverride, occurrenceKey]);
 
   useEffect(() => { if (open) refreshPreview(); }, [open, refreshPreview]);
 
@@ -130,6 +130,7 @@ export default function EmailManualSendDialog({
         overrides: { subject, body, ...(to ? {} : { to: manualEmail.trim() }) },
         confirmResend,
         lang: langOverride || undefined,
+        occurrenceKey,
       });
       if (onSent) onSent(res);
       if (onClose) onClose();

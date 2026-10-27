@@ -117,6 +117,7 @@ export default function EmailTemplatesPage() {
     templateId: row.templateId,
     reservationId: row.reservationId,
     reservationStartDate: row.startDate,
+    occurrenceKey: row.occurrenceKey || '',
   });
 
   const handleOpenReservation = (row) => navigate(`/reservations/${row.reservationId}`);
@@ -167,7 +168,7 @@ export default function EmailTemplatesPage() {
     });
     if (!ok) return;
     try {
-      await api.acknowledgePendingEmail({ templateId: row.templateId, reservationId: row.reservationId });
+      await api.acknowledgePendingEmail({ templateId: row.templateId, reservationId: row.reservationId, occurrenceKey: row.occurrenceKey });
       await reloadPending();
     } catch (e) {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible d\'acquitter l\'email.' });
@@ -183,7 +184,7 @@ export default function EmailTemplatesPage() {
     });
     if (!ok) return;
     try {
-      await api.markEmailSent({ templateId: row.templateId, reservationId: row.reservationId });
+      await api.markEmailSent({ templateId: row.templateId, reservationId: row.reservationId, occurrenceKey: row.occurrenceKey });
       await reloadPending();
     } catch (e) {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible de marquer l\'email comme envoyé.' });
@@ -447,6 +448,7 @@ export default function EmailTemplatesPage() {
         reservationId={sending?.reservationId}
         reservationStartDate={sending?.reservationStartDate}
         defaultTemplateId={sending?.templateId}
+        occurrenceKey={sending?.occurrenceKey}
         onClose={() => setSending(null)}
         onSent={() => { setSending(null); reloadPending(); }}
       />

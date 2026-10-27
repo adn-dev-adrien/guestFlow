@@ -12,6 +12,8 @@ export const DEADLINE_STATE_LABELS = {
   balance_to_request: 'Solde à demander',
   deposit_overdue: 'Acompte en retard',
   balance_overdue: 'Solde en retard',
+  // specs/direct-installments.md rule 22 — an installment of the plan, three days past its due date.
+  installment_overdue: 'Échéance en retard',
   cancel_due: 'Solde impayé',
   unpaid_at_arrival: 'Arrivée non réglée',
   // specs/platform-payout-due-date.md — the platform's transfer, not the guest's money.
@@ -25,6 +27,7 @@ export const DEADLINE_STATE_BADGE = {
   balance_to_request: 'warning',
   deposit_overdue: 'warning',
   balance_overdue: 'warning',
+  installment_overdue: 'warning',
   cancel_due: 'error',
   unpaid_at_arrival: 'error',
   platform_payout_overdue: 'warning',
@@ -49,6 +52,8 @@ export function deadlineHeadline(row) {
       return 'Le séjour commence et le règlement n’est pas complet';
     case 'balance_overdue':
       return `Solde en retard — ${late}`;
+    case 'installment_overdue':
+      return `${row.installmentsDue > 1 ? `${row.installmentsDue} échéances en retard` : 'Échéance en retard'} — ${late}`;
     case 'platform_payout_overdue':
       return days <= 0
         ? 'Virement plateforme attendu aujourd’hui'
