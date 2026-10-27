@@ -1,3 +1,4 @@
+require('./isolatedDb');
 // specs/option-categories.md §3 rules 13-15, §4.4 — the grouped shape of the public options payload.
 //
 // Same harness as public-catalog-sort-by-price.unit.test.js: real projections + real grouping,

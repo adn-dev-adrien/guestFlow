@@ -6,7 +6,7 @@ import RefundDialog from '../RefundDialog';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 // specs/reservation-refunds.md rule 34 — le trop-perçu calculé par le serveur : alerte sur la fiche
 // avec « Rembourser », et la fenêtre de remboursement pré-remplie sur ce montant.

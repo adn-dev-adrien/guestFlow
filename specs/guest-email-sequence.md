@@ -197,6 +197,11 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     venir » block carries the gate code and link. Whichever branch merges second wires it.
     > **Sans test** — nothing to test here yet: the rule commits the branch that merges second to
     > wire the two together, and the test lands with that wiring, in the J-2 render suite.
+35. **Fixed at the 2026-10-27 audit — no platform name in the sequence.** « Relay address » (rule 7) is
+    the platform's « Adresse e-mail relais » switch, and the platform of the J+1 review sentence is its
+    « Où laisser un avis » wording, both set in Paramètres › Plateformes; a migration wrote Solio's
+    Airbnb / Booking / Gîtes de France knowledge onto its database, so its e-mails are byte-identical
+    (specs/platform-settings-relay-and-review.md rules 1–7).
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not

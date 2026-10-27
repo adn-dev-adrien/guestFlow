@@ -1,0 +1,1 @@
+- specs/public-api.md rule 9 no longer claims a per-API-key limit on booking requests: the code never had one, and a limit shared by every visitor is refused.

@@ -5,7 +5,7 @@ import { render } from '@testing-library/react';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 const NONE = { editable: false, mode: 'none', min: null, max: null, reason: null };
 

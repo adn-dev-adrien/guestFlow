@@ -9,11 +9,15 @@
 
 const reservationsModel = require('../models/reservationsModel');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
-const { buildOccupiedDatesFromReservations } = require('./occupancy');
+const { buildOccupiedDatesFromReservations, addIsoDays } = require('./occupancy');
 
 function computeBlockedDates(propertyId, from, to) {
-  const reservations = reservationsModel.getOccupiedReservations(Number(propertyId), from, to);
-  const occupied = buildOccupiedDatesFromReservations(reservations);
+  // A neighbour's late check-out blocks the night of its departure day, an early check-in the night
+  // before its arrival: both reach one night past their own dates. The reservations are therefore read
+  // one day wider on each side, and what they block is kept inside [from, to) only (fixed at the
+  // 2026-10-27 audit: an exact-window re-check of a stay starting on such a departure day missed it).
+  const reservations = reservationsModel.getOccupiedReservations(Number(propertyId), addIsoDays(from, -1), addIsoDays(to, 1));
+  const occupied = buildOccupiedDatesFromReservations(reservations).filter((d) => d >= from && d < to);
   const closures = establishmentClosuresModel.list({ propertyId: Number(propertyId), from, to });
   const closureDates = establishmentClosuresModel.expandClosuresToDates(closures);
   return Array.from(new Set([...occupied, ...closureDates])).sort();

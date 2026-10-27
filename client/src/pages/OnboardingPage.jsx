@@ -12,7 +12,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
-  Alert, Box, Chip, Link, Stack, Switch, TextField, Typography,
+  Alert, Box, Checkbox, Chip, FormControlLabel, Link, Stack, Switch, TextField, Typography,
 } from '@mui/material';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
@@ -63,6 +63,10 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   // Rule 28 — the properties the instance already has, when the assistant did not create them.
   const [existingProperties, setExistingProperties] = useState(0);
   const [loginEmail, setLoginEmail] = useState('');
+  // specs/hosting-h2-account-security.md rule 37 — the login changes only when this is ticked, and
+  // the box is offered only over the bootstrap login (the server says which).
+  const [canAdoptLogin, setCanAdoptLogin] = useState(false);
+  const [useAsLogin, setUseAsLogin] = useState(false);
   const [pluginsSummary, setPluginsSummary] = useState('');
   // Rule 42 — a plugin installed from a package is not in the open bundle: leaving loads the app again.
   const [needsLoad, setNeedsLoad] = useState(false);
@@ -77,6 +81,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     api.getOnboarding()
       .then((data) => {
         setCompany((c) => ({ ...c, ...data.company }));
+        setCanAdoptLogin(Boolean(data.login && data.login.canAdopt));
         // Rule 28 — the property the assistant created comes back to be edited, never doubled.
         if (data.property && data.property.draft) {
           setProperty({ ...EMPTY_PROPERTY, ...data.property.draft });
@@ -100,7 +105,9 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       if (errors[key]) setErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
     },
     error: Boolean(errors[key]),
-    helperText: errors[key] || ' ',
+    // No reserved blank line under each field: it made the gaps uneven (a reserved line + the stack's
+    // gap, a hint, or the grid's own gap). The message appears when there is one (2026-10-27 audit).
+    helperText: errors[key] || undefined,
   });
 
   // Rule 21 — the capacity follows what the server proposes for the beds until it is typed by hand.
@@ -170,11 +177,12 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     setFailure('');
     try {
       if (step === 1) {
-        // specs/hosting-h2-account-security.md rule 27 — the company email becomes the login of the
-        // bootstrap account; the step says so once.
-        const saved = await api.saveOnboardingCompany(company);
+        // specs/hosting-h2-account-security.md rules 27, 37 — the company email becomes the login of
+        // the bootstrap account only when the box is ticked; the step says so once.
+        const saved = await api.saveOnboardingCompany({ ...company, useAsLogin: canAdoptLogin && useAsLogin });
         if (saved && saved.loginChanged) {
           setLoginEmail(saved.loginEmail);
+          setCanAdoptLogin(false);
           await refresh();
         }
       }
@@ -245,9 +253,16 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       {failure && <Alert severity="error" sx={{ mb: 2 }}>{failure}</Alert>}
 
       {step === 1 && (
-        <Stack spacing={1}>
+        <Stack spacing={2}>
           <TextField label="Nom de l’entreprise" required {...field(company, setCompany, 'name')} />
           <TextField label="Email" type="email" required {...field(company, setCompany, 'email')} />
+          {canAdoptLogin && (
+            <FormControlLabel
+              sx={{ mt: -1, mb: 2, minHeight: 44 }}
+              control={<Checkbox checked={useAsLogin} onChange={(e) => setUseAsLogin(e.target.checked)} />}
+              label="Utiliser aussi cette adresse pour se connecter"
+            />
+          )}
           <TextField label="Téléphone" {...field(company, setCompany, 'phone')} />
           <TextField label="Adresse" {...field(company, setCompany, 'address')} />
           <TextField label="SIRET" {...field(company, setCompany, 'siret')} helperText={errors.siret || '14 chiffres'} />
@@ -266,11 +281,11 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       )}
 
       {step === 2 && !existingProperties && (
-        <Stack spacing={1}>
+        <Stack spacing={2}>
           <TextField label="Nom du logement" required {...field(property, setProperty, 'name')} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2, rowGap: 2 }}>
-            <TextField label="Lits doubles" type="number" value={property.doubleBeds} onChange={setBeds('doubleBeds')} error={Boolean(errors.doubleBeds)} helperText={errors.doubleBeds || ' '} />
-            <TextField label="Lits simples" type="number" value={property.singleBeds} onChange={setBeds('singleBeds')} error={Boolean(errors.singleBeds)} helperText={errors.singleBeds || ' '} />
+            <TextField label="Lits doubles" type="number" value={property.doubleBeds} onChange={setBeds('doubleBeds')} error={Boolean(errors.doubleBeds)} helperText={errors.doubleBeds || undefined} />
+            <TextField label="Lits simples" type="number" value={property.singleBeds} onChange={setBeds('singleBeds')} error={Boolean(errors.singleBeds)} helperText={errors.singleBeds || undefined} />
             <TextField
               label="Capacité"
               type="number"
@@ -278,8 +293,8 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
               onChange={typeCapacity}
             />
             <TextField label="Prix par nuit (€)" type="number" required {...field(property, setProperty, 'pricePerNight')} />
-            <TextField label="Arrivée à partir de" type="time" {...field(property, setProperty, 'checkIn')} error={Boolean(errors.defaultCheckIn)} helperText={errors.defaultCheckIn || ' '} />
-            <TextField label="Départ avant" type="time" {...field(property, setProperty, 'checkOut')} error={Boolean(errors.defaultCheckOut)} helperText={errors.defaultCheckOut || ' '} />
+            <TextField label="Arrivée à partir de" type="time" {...field(property, setProperty, 'checkIn')} error={Boolean(errors.defaultCheckIn)} helperText={errors.defaultCheckIn || undefined} />
+            <TextField label="Départ avant" type="time" {...field(property, setProperty, 'checkOut')} error={Boolean(errors.defaultCheckOut)} helperText={errors.defaultCheckOut || undefined} />
           </Box>
         </Stack>
       )}

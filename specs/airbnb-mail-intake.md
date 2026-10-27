@@ -200,6 +200,17 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
 16. Applying never sends an e-mail to the guest.
 17. Nothing is read while no property has an Airbnb listing (no feed, no override); a started or past stay is refused by
     `ctx.core.reservations.update` (`PAST_RESERVATION`).
+18. *(Fixed at the 2026-10-27 audit.)* A started or past stay is refused **before** anything is written:
+    the intake becomes `error` « Séjour commencé : fiche à saisir à la main » and no client record is
+    created (rule 12 created the guest's client first, then the core refused the fiche, leaving an orphan
+    client). Same order as Gîtes de France and Booking.
+19. *(Fixed at the 2026-10-27 audit.)* One intake that throws during a pass is recorded as `error`
+    « Erreur inattendue : … » and the pass goes on with the next one; before, the exception aborted the
+    pass and the intake, still `pending` and first in line, blocked every later intake at every pass.
+20. *(Fixed at the 2026-10-27 audit.)* The tax mode of rule 10 is read from **the fiche's own platform**
+    row (`reservations.platform`, e.g. a renamed or second Airbnb channel), not from a hard-coded
+    `airbnb` key. (The Booking intake keeps its `booking` key on purpose: it rewrites the fiche's channel to
+    « Booking », so the fiche's platform before the write is not the one that will hold the tax.)
 
 **Edge cases:**
 - Same mail twice → `Message-ID` dedup; a second mail with the same confirmation code → ignored once the
@@ -320,6 +331,8 @@ horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
   listing, refused save, dedup, other mails skipped, unreadable booking mail, listing id or URL, IMAP
   host deduction (rule 4), listings detected from the iCal feeds, override per property, two listings
   on one property (rule 11).
+- [x] `airbnb-intake/tests/intake-audit-2026-10-27.unit.test.js` (3) — rules 18, 19, 20: no client for a
+  started stay, a throwing intake does not stop the pass, the fiche's platform row is asked for the tax mode.
 - [x] `airbnb-intake/tests/isolation.unit.test.js` (1) — no core file names the plugin outside registration.
 - [x] Gîtes de France suite unchanged (29) on the SDK reader.
 - [x] Client: `components/__tests__/IntakeBanner.test.jsx` (2), `airbnb-intake/__tests__/IntakeBanner.states.test.jsx`

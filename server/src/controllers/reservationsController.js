@@ -28,6 +28,7 @@ const paymentProviders = require('../utils/paymentProviders');
 const { resolveComplementPayment } = require('../utils/complementPayment');
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { sasDetailAmount, sasDetailAmountAuto, storedMidStayLines } = require('../utils/midStayExtras');
+const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const reservationsModel = require('../models/reservationsModel');
@@ -199,7 +200,15 @@ function applyMidStayNoteActions(reservationId, body) {
   const adjust = body.adjustMidStayNote;
   if (!settle && !cancel && !adjust) return null;
   try {
-    if (settle) model.settleMidStayNote(reservationId, { items: settle.items, cash: Boolean(settle.cash) });
+    // Rule 22 — the dialog sends the ticked keys and the remainder it opened on; the amounts are
+    // derived here against the stored remainder (the fiche was saved first), never taken from the client.
+    if (settle) {
+      const row = model.getRow(reservationId) || {};
+      const { items } = planMidStayNote({
+        opening: settle.opening, current: storedMidStayLines(row.endOfStayComplementDetail), checkedKeys: settle.checkedKeys,
+      });
+      model.settleMidStayNote(reservationId, { items, cash: Boolean(settle.cash) });
+    }
     if (cancel) model.cancelMidStayNote(reservationId, cancel.id);
     if (adjust) {
       model.adjustMidStayNote(reservationId, {
@@ -481,6 +490,13 @@ function suggestBeds(req, res) {
 
 // « Calculer la commission » of the fiche (specs/booking-extranet-intake.md §4.1): the rule lives here,
 // the client only shows the figure.
+// specs/mid-stay-notes.md rule 22 — the « Nouvelle note » total while the operator ticks and adds:
+// the dialog prints `items` and `total`, it computes nothing.
+function previewMidStayNote(req, res) {
+  const { opening, current, checkedKeys } = req.body || {};
+  res.json(planMidStayNote({ opening, current, checkedKeys }));
+}
+
 function platformCommission(req, res) {
   const { gross, payout, touristTax, acompteCommission, expectedNet } = req.body || {};
   const commission = computePlatformCommission({ gross, payout, touristTax, acompteCommission });
@@ -696,8 +712,7 @@ function settleArrivalPayment(req, res) {
 
 function storedHeadlineOf(row) {
   if (!row) return null;
-  const { quoteHeadline } = require('../utils/quoteHeadline');
-  const { comptaCollected, remainingToPay } = require('../utils/reservationSettlement');
+  const { quoteHeadline, storedNetTotal } = require('../utils/quoteHeadline');
   const { isDirectChannel } = require('../utils/platformNameFormat');
   let refundsBookTtc = 0;
   try { refundsBookTtc = Number(refundsModel.totalsByReservation(Number(row.id)).book || 0); } catch { refundsBookTtc = 0; }
@@ -708,7 +723,7 @@ function storedHeadlineOf(row) {
     platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : row.platformTouristTaxAmount,
     endOfStayComplementTotal: row.endOfStayComplementAmount,
     midStayRemainingTotal: midStay,
-    sejourNetTotal: round2(comptaCollected({ ...row, refundsBookTtc }) + remainingToPay(row)),
+    sejourNetTotal: storedNetTotal(row, { refundsBookTtc }),
   }, { isPlatform: !isDirectChannel(row.platform) });
 }
 
@@ -2259,7 +2274,7 @@ function remove(req, res) {
 }
 
 module.exports = {
-  suggestBeds, platformCommission, list, search, occupiedDates, getById, getHistory, calculatePrice,
+  suggestBeds, platformCommission, previewMidStayNote, list, search, occupiedDates, getById, getHistory, calculatePrice,
   create, update, performUpdate, updatePayment, settleArrivalPayment, remove,
 };
 

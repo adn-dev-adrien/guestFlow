@@ -1,3 +1,4 @@
+require('./isolatedDb');
 // specs/cancellation-insurance.md §3.3 — what the public API ships to the WordPress widget.
 //
 // The catalogue half runs on stubbed models (like public-options-grouped.unit.test.js). The quote

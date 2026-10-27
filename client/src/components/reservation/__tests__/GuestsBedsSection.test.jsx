@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import GuestsBedsSection from '../GuestsBedsSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 
 // specs/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — the bed counters + the
 // "Suggérer les lits" button + the bedsCapacityMismatch warning moved out of this card
@@ -26,9 +26,9 @@ function renderGuests(overrides) {
 test('renders the 4 guest count inputs', () => {
   renderGuests();
   expect(screen.getByLabelText(/Adultes/)).toBeInTheDocument();
-  expect(screen.getByLabelText('Enfants (2 à 12 ans)')).toBeInTheDocument();
-  expect(screen.getByLabelText('Ados (12 à 18 ans)')).toBeInTheDocument();
-  expect(screen.getByLabelText('Bébés (0 à 2 ans)')).toBeInTheDocument();
+  expect(screen.getByLabelText('Enfants')).toHaveAccessibleDescription('2 à 12 ans');
+  expect(screen.getByLabelText('Ados')).toHaveAccessibleDescription('12 à 18 ans');
+  expect(screen.getByLabelText('Bébés')).toHaveAccessibleDescription('0 à 2 ans');
 });
 
 test('editing the adults count calls updateForm', () => {

@@ -124,7 +124,7 @@ test('platform reservation: an AUTO option (autoEnabled = 1) stays chip-less eve
     ],
     resourceLines: [],
   };
-  renderSummary({ form: { ...BASE_FORM, platform: 'Airbnb' }, quote: quoteWithAuto, propertyOptions: PROPERTY_OPTIONS_WITH_AUTO });
+  renderSummary({ form: { ...BASE_FORM, platform: 'Airbnb' }, quote: { ...quoteWithAuto, platformSale: true }, propertyOptions: PROPERTY_OPTIONS_WITH_AUTO });
   // The regular breakfast keeps its "+ compl." chip; the auto late-checkout (inComplement: 1 →
   // would be a clickable "compl." chip on direct) renders chip-less on platform.
   expect(screen.getAllByText('+ compl.')).toHaveLength(1);

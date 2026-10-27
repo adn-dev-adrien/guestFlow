@@ -4,6 +4,7 @@ const sdk = require('../../sdk');
 const router = express.Router();
 const { bookingRequestLimiter, paymentStartLimiter, paymentStatusLimiter } = sdk.coreModule('rateLimiters');
 const ctrl = require('../controllers/publicBookingRequestController');
+const proof = require('../controllers/publicChallengeController');
 const { closedWhenReadOnly } = sdk.coreModule('enforceSubscription');
 
 // Online payment for a public devis (specs/public-online-payment.md §3) is the core's provider-neutral
@@ -14,7 +15,10 @@ const { closedWhenReadOnly } = sdk.coreModule('enforceSubscription');
 const payCtrl = sdk.coreModule('publicPaymentController');
 const requireOnlinePayment = payCtrl.requireProvider;
 
-router.post('/', bookingRequestLimiter, closedWhenReadOnly(), ctrl.create);
+// The proof of work (specs/public-request-abuse-and-grouping.md rules 1-5b): the drawer fetches a
+// challenge as it opens; the request spends it, checked before anything else is read.
+router.get('/challenge', proof.issueChallenge);
+router.post('/', bookingRequestLimiter, closedWhenReadOnly(), proof.requireProof, ctrl.create);
 router.post('/:id/pay', paymentStartLimiter, requireOnlinePayment, payCtrl.pay);
 router.get('/:id/status', paymentStatusLimiter, requireOnlinePayment, payCtrl.status);
 

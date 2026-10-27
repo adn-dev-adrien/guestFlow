@@ -173,6 +173,16 @@ can either pay now or send a request without paying.
 - A request does **not** block the dates (unchanged GuestFlow rule): two requests on the same weekend
   are possible, the operator answers the second with a refusal.
 
+### Stay rules beyond the minimum (fixed at the 2026-10-27 audit)
+
+22. **An arrival is offered only when a stay from it passes every stay rule.** Rule 10's windows also
+    run the property's changeover days and maximum stay (`nextAvailability.stayRulesPredicate`, the
+    predicate `nextAvailableDate` already used): an arrival on a weekday the season refuses is not
+    listed, and `earliestDeparture` is the first departure that is both long enough and on an allowed
+    weekday (a Saturday-to-Saturday season offers Saturdays only, each with the next Saturday). A stay
+    the visitor still composes outside them is refused by the quote's `stayRefusal`
+    ([public-api.md](public-api.md) rule 12; [wordpress-plugin.md](wordpress-plugin.md) rule 30).
+
 ---
 
 ## 4. Architecture
@@ -277,6 +287,8 @@ The mock-up is the reference: [`docs/specs/2026-10-19-booking-drawer-friction.ht
   rule); an arrival boxed in by a booking → excluded; arrival on the last free night before a
   booking; window edges.
 - `toPublicAvailability` / `toPublicQuote`: the new fields are present and the old ones unchanged.
+- Rule 22 (2026-10-27): `plugins/website-booking/tests/public-stay-rules.unit.test.js` — Saturday-only
+  arrivals, each with a Saturday `earliestDeparture`.
 
 ### Plugin
 

@@ -29,6 +29,14 @@ import { addIsoDays } from '../utils/isoDay';
 
 const addDays = addIsoDays;
 
+// The day lists switch to cards as soon as their CONTAINER cannot hold the arrivals table without a
+// scroller — the drawer eats 240 px, so a viewport breakpoint alone hid Note / Paiements / Caution
+// behind a scroll nobody noticed at 900 and 1280 (2026-10-27 audit). Both lists switch together so
+// the page never mixes a table and cards.
+const DEPARTURES_TABLE_WIDTH = 760;
+const ARRIVALS_TABLE_WIDTH = 940;
+const DAY_LISTS_CARDS_BELOW = ARRIVALS_TABLE_WIDTH;
+
 // Row/card background reflecting the check-in/out status (done = greyed, ready = green tint).
 const statusBgSx = (t, done, ready = false) => {
   if (done) return { bgcolor: alpha(t.palette.grey[500], 0.18) };
@@ -43,6 +51,14 @@ const optionsResourcesText = (r) => {
     ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
   ].join(', ');
   return [optionsText, resourcesText].filter(Boolean).join(' | ') || '—';
+};
+
+// « D:1 / S:2 / B:0 », or null when the stay has no bed at all: the server zeroes the bed counts of a
+// stay without a bed-linen option (specs/bed-config-in-linen-card.md rules 7, 14), so « D:0 / S:0 / B:0 »
+// would only say « nothing to prepare » in a misleading way.
+const bedsLabel = (r) => {
+  const [d, s, b] = [r.doubleBeds, r.singleBeds, r.babyBeds].map((n) => Number(n || 0));
+  return d || s || b ? `D:${d} / S:${s} / B:${b}` : null;
 };
 
 export default function Dashboard() {
@@ -220,7 +236,7 @@ export default function Dashboard() {
         <TableCell>{r.propertyName}</TableCell>
         <TableCell>{r.firstName} {r.lastName}</TableCell>
         <TableCell>
-          {`D:${Number(r.doubleBeds || 0)} / S:${Number(r.singleBeds || 0)} / B:${Number(r.babyBeds || 0)}`}
+          {bedsLabel(r) || '—'}
         </TableCell>
         <TableCell>{optionsResourcesText(r)}</TableCell>
         <TableCell>{r.notes || '—'}</TableCell>
@@ -229,7 +245,7 @@ export default function Dashboard() {
             <CollectionStatusCell collection={r.operationalCollection} side="arrival" />
           </TableCell>
         )}
-        <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+        <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700, whiteSpace: 'nowrap' }}>
           {Number(r.cautionAmount || 0) > 0
             ? (cautionOk ? `OK (${formatCurrency(r.cautionAmount)})` : `NON (${formatCurrency(r.cautionAmount)})`)
             : '—'}
@@ -254,9 +270,9 @@ export default function Dashboard() {
             </Box>
           </Stack>
           <Typography variant="body2">{r.firstName} {r.lastName}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            Lits : D:{Number(r.doubleBeds || 0)} / S:{Number(r.singleBeds || 0)} / B:{Number(r.babyBeds || 0)}
-          </Typography>
+          {bedsLabel(r) && (
+            <Typography variant="caption" color="text.secondary">{`Lits : ${bedsLabel(r)}`}</Typography>
+          )}
           {optionsResourcesText(r) !== '—' && (
             <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
           )}
@@ -366,7 +382,8 @@ export default function Dashboard() {
               <ResponsiveTable
                 items={departuresToday}
                 getKey={(r) => r.id}
-                minWidth={860}
+                minWidth={DEPARTURES_TABLE_WIDTH}
+                cardsBelowWidth={DAY_LISTS_CARDS_BELOW}
                 emptyText="Aucun départ ce jour."
                 head={departuresHead}
                 renderRow={renderDepartureRow}
@@ -380,7 +397,8 @@ export default function Dashboard() {
               <ResponsiveTable
                 items={arrivalsToday}
                 getKey={(r) => r.id}
-                minWidth={1080}
+                minWidth={ARRIVALS_TABLE_WIDTH}
+                cardsBelowWidth={DAY_LISTS_CARDS_BELOW}
                 emptyText="Aucune arrivée ce jour."
                 head={arrivalsHead}
                 renderRow={renderArrivalRow}

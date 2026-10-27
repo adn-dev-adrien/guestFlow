@@ -2,9 +2,9 @@ import React, { Suspense, useEffect, useState, useRef, useCallback } from 'react
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Chip, Divider,
-  TextField, Button, IconButton,
+  TextField, Button, IconButton, useMediaQuery,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
@@ -92,6 +92,11 @@ export default function PlanningPage() {
   // (specs/ds-components.md §3.2).
   const { showError } = useToast();
   const { user } = useAuth();
+  // On a phone the bar's title lives in the top bar and its date navigation is hidden: the plugin
+  // buttons ride with the date strip instead, so the bar is not drawn as an empty band around a lone
+  // laundry icon (2026-10-27 audit; specs/shell-and-home-day-first.md rule 23).
+  const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   // specs/reception-role-checkin-only.md §3.4 — a reception-only user runs the SAS on the Planning
   // but has no client / reservation sheet access: the card body + client-name links are inert and
   // the SAS « Fiche » link is hidden. Everything else (SAS, caution/complement) is unchanged.
@@ -569,24 +574,26 @@ export default function PlanningPage() {
     </Box>
   );
 
+  // Buttons plugins add to the bar (slot `planning.actions`, specs/plugins-phase-2-hosts.md rule 6);
+  // `reload()` reloads that plugin's day cards.
+  const actionNodes = actionContributions.map((c) => (
+    <Suspense key={contributionId(c)} fallback={null}>
+      <c.Component reload={() => reloadContributions(dayContributions.filter((d) => d.pluginId === c.pluginId))} />
+    </Suspense>
+  ));
+
   return (
     <Box>
       <PageActionBar
         title="Planning"
         center={renderDateNav()}
-        // Buttons plugins add to the bar (slot `planning.actions`, specs/plugins-phase-2-hosts.md
-        // rule 6); `reload()` reloads that plugin's day cards.
-        actionsBefore={actionContributions.map((c) => ({
-          node: (
-            <Suspense key={contributionId(c)} fallback={null}>
-              <c.Component reload={() => reloadContributions(dayContributions.filter((d) => d.pluginId === c.pluginId))} />
-            </Suspense>
-          ),
-        }))}
+        actionsBefore={isPhone ? [] : actionNodes.map((node) => ({ node }))}
       />
-      {/* xs fallback for the bar's hidden `center` — same date cluster, compact strip. */}
-      <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
+      {/* xs fallback for the bar's hidden `center` — same date cluster, compact strip, with the
+          plugin buttons the bar would otherwise hold alone. */}
+      <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', alignItems: 'center', gap: 1, mb: 2 }}>
         {renderDateNav()}
+        {isPhone && actionNodes}
       </Box>
 
       {loadError && (

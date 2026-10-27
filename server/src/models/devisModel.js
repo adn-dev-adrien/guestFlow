@@ -663,6 +663,11 @@ function createModel(database) {
     const before = snapshotFromDb(Number(id));
     before.status = existing.devisStatus;
     database.prepare("UPDATE reservations SET devisStatus = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(next, Number(id));
+    // Re-sending is what the « modifiée après envoi » flag asks for (rule 14): a status set by the
+    // operator closes it, like a save.
+    if (hasReservationColumn('publicUpdatedAfterSendAt')) {
+      database.prepare("UPDATE reservations SET publicUpdatedAfterSendAt = NULL WHERE id = ? AND kind = 'devis'").run(Number(id));
+    }
     const after = snapshotFromDb(Number(id));
     const changes = computeAuditChanges(before, after);
     if (changes.length > 0) addHistoryEntry(Number(id), 'update', changes);
@@ -675,13 +680,11 @@ function createModel(database) {
     return Math.max(1, Number(payload.adults || 1) + Number(payload.children || 0) + Number(payload.teens || 0));
   }
 
-  function create(payload) {
-    if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
-      return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
-    }
-    const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
-    if (!property) return { error: 'Logement introuvable', status: 404 };
-
+  // The payload a new devis is priced from: the property's default options merged in, the insurance
+  // dropped unless asked for. Shared by `create` and `updateFromPublicRequest`, so a website request
+  // updated in place is priced exactly as its creation was (specs/public-request-abuse-and-grouping.md
+  // rule 13).
+  function withCreationDefaults(payload) {
     // Server-side enforcement of property option defaults (specs/devis-pdf-and-tourist-tax-fixes.md §3.3
     // rules 11–13). Idempotent: if the client already shipped the default optionId we leave it alone.
     const defaultsModel = propertyOptionDefaultsModel.buildModel(database);
@@ -699,9 +702,19 @@ function createModel(database) {
     // that asks for it keeps it, and the gate refuses it.
     const insuranceId = insuranceOffer.insuranceOptionId(database);
     const askedInsurance = (payload.selectedOptions || []).some((o) => Number(o.optionId) === insuranceId);
-    const payloadWithDefaults = askedInsurance ? mergedDefaults : {
+    return askedInsurance ? mergedDefaults : {
       ...mergedDefaults, selectedOptions: insuranceOffer.dropInsurance(database, mergedDefaults.selectedOptions),
     };
+  }
+
+  function create(payload) {
+    if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
+      return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
+    }
+    const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
+    if (!property) return { error: 'Logement introuvable', status: 404 };
+
+    const payloadWithDefaults = withCreationDefaults(payload);
 
     const quote = computeQuote(payloadWithDefaults, null, property);
     if (quote.code === insuranceOffer.NOT_OFFERED.code || quote.code === resourceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
@@ -779,7 +792,11 @@ function createModel(database) {
     return { ok: true, status: 201, data: findById(devisId) };
   }
 
-  function update(id, payload) {
+  // `source` is 'operator' for the back-office save, 'public' for a website request updated in place
+  // (`updateFromPublicRequest`): the history then says so, and the « modifiée après envoi » flag is set
+  // by the guest and cleared by the operator's next save (specs/public-request-abuse-and-grouping.md
+  // rules 13-14).
+  function update(id, payload, { source = 'operator', flagAfterSend = false } = {}) {
     const numId = Number(id);
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
@@ -894,6 +911,9 @@ function createModel(database) {
         // Written once, at creation, and replayed by every later save — except when the quote had
         // expired and was just re-priced, where the fresh snapshot IS the new promise.
         tariffSnapshot: quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : (existing.tariffSnapshot || null),
+        publicUpdatedAfterSendAt: source === 'public'
+          ? (flagAfterSend ? sqliteNow() : (existing.publicUpdatedAfterSendAt || null))
+          : null,
       };
       const names = Object.keys(columns).filter(hasReservationColumn);
       database
@@ -902,10 +922,123 @@ function createModel(database) {
       persistLines(numId, quote);
       const afterSnapshot = snapshotFromDb(numId);
       const changes = computeAuditChanges(beforeSnapshot, afterSnapshot);
-      if (changes.length > 0) addHistoryEntry(numId, 'update', changes);
+      if (source === 'public') addHistoryEntry(numId, 'public_update', changes);
+      else if (changes.length > 0) addHistoryEntry(numId, 'update', changes);
     });
     tx();
     return { ok: true, data: findById(numId) };
+  }
+
+  /**
+   * A website request sent again for the same stay (specs/public-request-abuse-and-grouping.md rules
+   * 12-14): the open devis takes the new party, times, options and resources, priced by the engine as
+   * a creation would be (today's tariffs, the property's defaults), keeps its number, its token and
+   * its acceptances, and appends `note` to its notes. A devis the operator already sent — status
+   * `sent`/`accepted`, or a guest e-mail logged against it — is flagged « modifiée après envoi ».
+   *
+   * `payload` carries what `create` takes from a request (party, times, options, resources,
+   * planningCardAsQuantity). The beds the operator arranged, the discount and a custom price stay.
+   */
+  function updateFromPublicRequest(id, payload, { note = '' } = {}) {
+    const numId = Number(id);
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
+    if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    const status = existing.devisStatus || 'draft';
+    const emailed = (() => {
+      try {
+        return Boolean(database.prepare("SELECT 1 FROM email_log WHERE reservationId = ? AND status = 'sent' LIMIT 1").get(numId));
+      } catch { return false; }
+    })();
+    const wasSent = status === 'sent' || status === 'accepted' || emailed;
+    const notes = [String(existing.notes || '').trim(), String(note || '').trim()].filter(Boolean).join('\n\n');
+    const prepared = withCreationDefaults({
+      ...payload,
+      propertyId: Number(existing.propertyId),
+      startDate: existing.startDate,
+      endDate: existing.endDate,
+      clientId: Number(existing.clientId),
+    });
+    return update(numId, {
+      ...prepared,
+      refreshPricingToCurrent: true,
+      status,
+      platform: existing.platform,
+      singleBeds: existing.singleBeds,
+      doubleBeds: existing.doubleBeds,
+      notes,
+    }, { source: 'public', flagAfterSend: wasSent });
+  }
+
+  /**
+   * The guest wrote again about a quote the operator already handled
+   * (specs/public-request-abuse-and-grouping.md rule 21): nothing of the quote changes but its notes,
+   * which gain `note` (nothing when empty); a quote already sent is flagged so the operator reads it.
+   */
+  function appendPublicMessage(id, note) {
+    const numId = Number(id);
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
+    if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    const status = existing.devisStatus || 'draft';
+    const emailed = (() => {
+      try {
+        return Boolean(database.prepare("SELECT 1 FROM email_log WHERE reservationId = ? AND status = 'sent' LIMIT 1").get(numId));
+      } catch { return false; }
+    })();
+    const wasSent = status === 'sent' || status === 'accepted' || emailed;
+    const text = String(note || '').trim();
+    database.transaction(() => {
+      const before = snapshotFromDb(numId);
+      if (text) {
+        const notes = [String(existing.notes || '').trim(), text].filter(Boolean).join('\n\n');
+        database.prepare("UPDATE reservations SET notes = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(notes, numId);
+      }
+      if (wasSent && hasReservationColumn('publicUpdatedAfterSendAt')) {
+        database.prepare("UPDATE reservations SET publicUpdatedAfterSendAt = ? WHERE id = ? AND kind = 'devis'").run(sqliteNow(), numId);
+      }
+      addHistoryEntry(numId, 'public_message', computeAuditChanges(before, snapshotFromDb(numId)));
+    })();
+    return { ok: true, data: findById(numId) };
+  }
+
+  // The operator opened the devis (GET /api/devis/:id): the first time is stamped, so the purge of
+  // untouched website requests never deletes one somebody read (rule 10).
+  function markOperatorSeen(id) {
+    if (!hasReservationColumn('operatorSeenAt')) return;
+    database.prepare("UPDATE reservations SET operatorSeenAt = ? WHERE id = ? AND kind = 'devis' AND operatorSeenAt IS NULL")
+      .run(sqliteNow(), Number(id));
+  }
+
+  /**
+   * Delete a website request nobody acted on (specs/public-request-abuse-and-grouping.md rule 10),
+   * with every row that names it (its lines, history, CGV acceptance) and its number retired. Refuses —
+   * `{ deleted: false }` — the moment anything says the operator handled it: a status other than
+   * draft, a conversion, an opening, an edit, a guest e-mail or a payment link. The caller chooses
+   * which rows are old enough; this re-checks that they are untouched, in the same transaction.
+   */
+  function purgePublicRequest(id) {
+    const numId = Number(id);
+    const tx = database.transaction(() => {
+      const row = database.prepare(`
+        SELECT r.id, r.devisNumber, r.clientId FROM reservations r
+         WHERE r.id = ? AND r.kind = 'devis' AND r.requestOrigin = 'public'
+           AND COALESCE(r.devisStatus, 'draft') = 'draft'
+           AND r.convertedReservationId IS NULL
+           AND r.operatorSeenAt IS NULL
+           AND NOT EXISTS (SELECT 1 FROM reservation_history h WHERE h.reservationId = r.id
+                            AND h.eventType NOT IN ('create', 'public_update', 'public_message', 'terms_accepted'))
+           AND NOT EXISTS (SELECT 1 FROM email_log l WHERE l.reservationId = r.id)
+           AND NOT EXISTS (SELECT 1 FROM payment_links p WHERE p.reservationId = r.id)
+      `).get(numId);
+      if (!row) return { deleted: false };
+      const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN ('reservations') AND name NOT LIKE 'sqlite_%'").all()
+        .map((t) => t.name)
+        .filter((name) => database.prepare(`PRAGMA table_info("${name}")`).all().some((c) => c.name === 'reservationId'));
+      tables.forEach((name) => database.prepare(`DELETE FROM "${name}" WHERE reservationId = ?`).run(numId));
+      if (typeof database.retireDevisNumber === 'function') database.retireDevisNumber(row.devisNumber);
+      database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(numId);
+      return { deleted: true, clientId: row.clientId, devisNumber: row.devisNumber };
+    });
+    return tx();
   }
 
   function remove(id) {
@@ -1052,6 +1185,10 @@ function createModel(database) {
     enrichDevis,
     resolvePaymentSchedule,
     list,
+    updateFromPublicRequest,
+    appendPublicMessage,
+    markOperatorSeen,
+    purgePublicRequest,
     findById,
     recomputeQuote,
     getHistory,

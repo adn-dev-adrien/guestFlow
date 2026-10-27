@@ -1,0 +1,1 @@
+- `reservations` gains `publicUpdatedAfterSendAt` and `operatorSeenAt` (NULL on existing rows); new core tables `devis_number_retired`, `notification_digest_windows`, `notification_digest_items`; the website-booking plugin adds `public_request_challenges_used`, `public_request_log`, `public_request_stays`. No data is rewritten.

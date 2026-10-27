@@ -7,6 +7,7 @@ import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
+import api from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 
 /**
@@ -18,14 +19,15 @@ import { formatCurrency } from '../../utils/formatters';
  * (option toggles + quantities) so a catalogue addition IS a normal sale, saved through the standard
  * pipeline — the note never invents its own pricing.
  *
- * Amounts are engine-authoritative: the note total is read from the live quote's mid-stay remainder
- * (`midStayExtrasLines`), never computed here. On validation the dialog only sends per-key
- * INSTRUCTIONS `{ key, amount }`, which the server re-validates against its stored remainder.
+ * Amounts are the server's (rule 22): the dialog sends the ticked keys, the remainder it opened on and
+ * the live quote's remainder (`midStayExtrasLines`) to `POST /reservations/mid-stay-note/preview`, and
+ * prints the total it gets back. On validation it sends only `{ checkedKeys, opening }`: the server
+ * derives the amounts again against its stored remainder.
  *
  * Props:
  *  - `open`, `onClose()`
  *  - `pendingLines` — the current remainder lines (`[{ label, amount, key }]`), before any addition.
- *  - `onSettle(items, cash)` — save (if the form changed) then settle the note.
+ *  - `onSettle({ checkedKeys, opening }, cash)` — save (if the form changed) then settle the note.
  *  - `onSellOnly()` — save only: everything stays due at check-out.
  */
 export default function MidStayNoteDialog({ open, onClose, pendingLines = [], onSettle, onSellOnly }) {
@@ -38,45 +40,38 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
 
   const [checkedKeys, setCheckedKeys] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState({ items: [], total: 0 });
   // Snapshot of the sold options when the dialog opened: « Annuler » must leave the reservation
   // exactly as it was, catalogue additions included (§3.5 edge cases).
   const snapshotRef = useRef(null);
-  // The remainder as it stood on open — the reference for « what did this note add? ».
-  const baseRemainderRef = useRef({});
+  // The remainder as it stood on open — the reference the server measures « what did this note add? » from.
+  const openingRef = useRef([]);
+  const previewSeq = useRef(0);
 
   useEffect(() => {
     if (!open) return;
     snapshotRef.current = JSON.parse(JSON.stringify(form.selectedOptions || []));
-    baseRemainderRef.current = Object.fromEntries(
-      (pendingLines || []).filter((l) => l.key).map((l) => [l.key, Number(l.amount) || 0]),
-    );
+    openingRef.current = (pendingLines || []).filter((l) => l.key)
+      .map((l) => ({ key: l.key, label: l.label, amount: l.amount }));
     setCheckedKeys([]);
     setBusy(false);
+    setPreview({ items: [], total: 0 });
     // Snapshot once per opening; `form.selectedOptions` intentionally not a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Live remainder per key, straight from the engine — includes whatever the dialog just added.
-  const liveRemainder = useMemo(() => Object.fromEntries(
-    (pricingQuote?.midStayExtrasLines || []).filter((l) => l.key).map((l) => [l.key, Number(l.amount) || 0]),
-  ), [pricingQuote]);
+  const liveLines = pricingQuote?.midStayExtrasLines;
+  useEffect(() => {
+    if (!open) return;
+    const seq = previewSeq.current + 1;
+    previewSeq.current = seq;
+    api.previewMidStayNote({ opening: openingRef.current, current: liveLines || [], checkedKeys })
+      .then((r) => { if (previewSeq.current === seq) setPreview({ items: (r && r.items) || [], total: Number(r && r.total) || 0 }); })
+      .catch(() => { if (previewSeq.current === seq) setPreview({ items: [], total: 0 }); });
+  }, [open, checkedKeys, liveLines]);
 
-  // What this note collects, per key: the ticked pending amount + whatever the dialog added on top.
-  const items = useMemo(() => {
-    const keys = new Set([...Object.keys(liveRemainder), ...checkedKeys]);
-    const out = [];
-    for (const key of keys) {
-      const base = Number(baseRemainderRef.current[key] || 0);
-      const live = Number(liveRemainder[key] || 0);
-      const added = Math.max(0, Math.round((live - base) * 100) / 100);
-      const ticked = checkedKeys.includes(key) ? Math.min(base, live) : 0;
-      const amount = Math.round((ticked + added) * 100) / 100;
-      if (amount > 0) out.push({ key, amount, label: labelForKey(key, pendingLines, pricingQuote) });
-    }
-    return out;
-  }, [liveRemainder, checkedKeys, pendingLines, pricingQuote]);
-
-  const noteTotal = items.reduce((s, i) => s + i.amount, 0);
+  const noteTotal = preview.total;
+  const instruction = () => ({ checkedKeys, opening: openingRef.current });
   const hasAdditions = useMemo(() => {
     const before = new Map((snapshotRef.current || []).map((o) => [Number(o.optionId), Number(o.quantity) || 0]));
     return (form.selectedOptions || []).some((o) => (Number(o.quantity) || 0) > (before.get(Number(o.optionId)) || 0));
@@ -231,7 +226,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
         <Button
           variant="outlined"
           disabled={busy || noteTotal <= 0}
-          onClick={() => run(() => onSettle(items, true))}
+          onClick={() => run(() => onSettle(instruction(), true))}
           fullWidth={isMobile}
         >
           Caisse interne
@@ -239,7 +234,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
         <Button
           variant="contained"
           disabled={busy || noteTotal <= 0}
-          onClick={() => run(() => onSettle(items, false))}
+          onClick={() => run(() => onSettle(instruction(), false))}
           fullWidth={isMobile}
         >
           CB / Chèque
@@ -247,12 +242,4 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
       </DialogActions>
     </Dialog>
   );
-}
-
-// A key's label: the pending line it came from, else the live quote line (a fresh catalogue sale).
-function labelForKey(key, pendingLines, quote) {
-  const pending = (pendingLines || []).find((l) => l.key === key);
-  if (pending) return pending.label;
-  const live = (quote?.midStayExtrasLines || []).find((l) => l.key === key);
-  return (live && live.label) || 'Prestation';
 }

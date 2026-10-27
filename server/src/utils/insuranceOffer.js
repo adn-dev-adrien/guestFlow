@@ -13,9 +13,9 @@ const bookingLinesModel = require('../models/bookingLinesModel');
 const NOT_OFFERED = Object.freeze({
   status: 422,
   code: 'INSURANCE_NOT_OFFERED',
-  error: 'L’assurance annulation n’est pas proposée sans le plugin Neat.',
+  error: 'L’assurance annulation n’est pas proposée sans plugin d’assurance actif.',
 });
-const READ_ONLY_REASON = 'Lecture seule : plugin Neat inactif';
+const READ_ONLY_REASON = 'Lecture seule : aucun plugin d’assurance actif';
 
 // A partial schema (test databases, a database older than the insurance) has no insurance to gate.
 function insuranceOptionId(db) {

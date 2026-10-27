@@ -83,7 +83,8 @@ test('specs/plugins-phase-2-hosts.md rule 10 — sas.departure.steps adds a page
   await screen.findByText('Commencer');
   await act(async () => {});
   clickBtn('Commencer');
-  clickBtn('Non');
+  clickBtn('Oui');
+  await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
   expect(await screen.findByText('L\'extincteur est-il en bon état ?')).toBeTruthy();
   clickBtn('Oui');

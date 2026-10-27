@@ -158,16 +158,38 @@ function resolveIcalClientIdentity(guestName, platformLabel) {
   };
 }
 
+const UNAVAILABLE_MARKER = /(blocked|closed[\s-]*period|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i;
+
 function isUnavailableIcalEvent(summary, description) {
-  const text = `${String(summary || '')}\n${String(description || '')}`
-    .replace(/ /g, ' ')
-    .toLowerCase();
+  const clean = (value) => String(value || '').replace(/\u00a0/g, ' ');
   // 2026-06-06 — "closed period" is the Airbnb-side label when the host has blocked a
   // date range (vs. "Not available" which is the Booking.com phrasing). Treating it as
   // an unavailability marker drops these events at parse time, before sync touches the
   // local reservations table. Pairs with the closure-overlap guard in
-  // `propertyIcalModel.syncSource` (which catches conflicts even when the summary lies).
-  return /(blocked|closed[\s-]*period|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i.test(text);
+  // `propertyIcalModel.syncSource`.
+  if (UNAVAILABLE_MARKER.test(clean(summary))) return true;
+  // specs/ical-import-hardening.md rule 16 — the description only decides when the summary names
+  // nobody: « Jean Dupont » with a description saying « non disponible pour le ménage » is a stay.
+  return parseGuestName(summary, '').isFallback && UNAVAILABLE_MARKER.test(clean(description));
+}
+
+// Rule 16 — `DURATION` instead of `DTEND` (RFC 5545 §3.8.2.5): `P5D`, `P1W`, `P4DT18H`…, in minutes.
+function parseIcalDurationMinutes(rawValue) {
+  const match = String(rawValue || '').trim().toUpperCase()
+    .match(/^\+?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+  if (!match) return 0;
+  const [, w, d, h, m] = match.map((v) => Number(v || 0));
+  return ((w * 7 + d) * 24 + h) * 60 + m;
+}
+
+function endDateFromDuration(startDate, dtStartRaw, isDateOnly, durationRaw) {
+  const minutes = parseIcalDurationMinutes(durationRaw);
+  if (!startDate || minutes <= 0) return '';
+  const compact = String(dtStartRaw || '').replace(/[-:]/g, '');
+  const time = !isDateOnly && compact.match(/T(\d{2})(\d{2})/);
+  // A timed start: the departure is the day the duration ends on, counted from the arrival time.
+  const startMinutes = time ? Number(time[1]) * 60 + Number(time[2]) : 0;
+  return addIsoDays(startDate, Math.floor((startMinutes + minutes) / 1440) || 1);
 }
 
 // A 200 response whose body is not an iCalendar document (HTML error page, empty body…) must be
@@ -191,12 +213,15 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
   const events = [];
   let current = null;
 
-  for (const line of lines) {
-    if (line === 'BEGIN:VEVENT') {
+  for (const rawLine of lines) {
+    // Rule 16 — `BEGIN:VEVENT ` with trailing blanks is still an event (isCompleteIcs already says so).
+    const line = rawLine.replace(/[ \t]+$/, '');
+    const marker = line.toUpperCase();
+    if (marker === 'BEGIN:VEVENT') {
       current = {};
       continue;
     }
-    if (line === 'END:VEVENT') {
+    if (marker === 'END:VEVENT') {
       if (current) events.push(current);
       current = null;
       continue;
@@ -222,6 +247,9 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
       const dtEndRaw = event.DTEND?.value || '';
       const startDate = parseIcalDate(dtStartRaw, event.DTSTART?.params?.VALUE === 'DATE');
       let endDate = parseIcalDate(dtEndRaw, event.DTEND?.params?.VALUE === 'DATE');
+      if (!endDate && event.DURATION) {
+        endDate = endDateFromDuration(startDate, dtStartRaw, event.DTSTART?.params?.VALUE === 'DATE', event.DURATION.value);
+      }
       if (!endDate && startDate) endDate = addIsoDays(startDate, 1);
       if (startDate && endDate && endDate <= startDate) endDate = addIsoDays(startDate, 1);
 

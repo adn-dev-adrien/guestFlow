@@ -262,6 +262,10 @@ all-inclusive pricing as the first such recipe.
     `changeoverBreached` with the required weekdays; the save is refused with a machine code and a
     French message; and the same force-override that exists for minimum nights lets the operator save
     anyway. Same plumbing, same UI pattern, same escape hatch — nothing new to learn.
+    *2026-10-27 audit:* the escape hatch is the back-office's alone. The website's public path
+    refuses a maximum-stay or changeover breach like a minimum-stay one (`409 MAX_NIGHTS` /
+    `CHANGEOVER`), its quote and calendar say so first, and its payment re-checks them —
+    [public-api.md](../public-api.md) rule 12. It used to refuse the minimum only.
 24. **iCal imports are never blocked by either rule.** A platform booking that violates the constraint
     is a fact to record, not a request to validate; it imports and is flagged, as today for minimum
     nights.
@@ -536,6 +540,50 @@ all-inclusive pricing as the first such recipe.
 - Changeover rule on a 1-night stay → arrival and departure rules both apply and can be mutually
   impossible; the preview warns when a recipe declares such a combination.
 
+### 3.11 Fixed at the 2026-10-27 audit
+
+56. **A sold option keeps its value over every save, free units included.** A line stores its total
+    net of the free units the rate includes (rule 52bis) while `billedUnits` stays gross. The replay
+    adds back, at the stored unit price, the free units the tariff snapshot says were deducted, before
+    merging the sold line, and deducts the free units once after it (`lockedLineGrossOfFreeUnits`).
+    A row stored without a snapshot predates the free units and holds a gross total: nothing is added
+    back (review of PR #803). Before: « Jus 6 € × 3, 1 offert » went 12 → 8 →
+    5,34 → 3,56 over three saves, and a breakfast at 8 € per person per night with 2 free went
+    32 → 21,32.
+57. **The sold night prices are kept only while the arrival date is unchanged** (operator decision
+    2026-10-27). A progressive tariff prices a night by its rank in the stay, so a locked night that
+    changes rank means nothing any more:
+    - same arrival, departure extended or shortened → every sold night keeps its price, a new night
+      is priced at the current tariff with its real rank;
+    - arrival moved (earlier, later, or the whole stay shifted) → the whole stay is repriced at the
+      current tariff, and that becomes the new lock on save.
+    Before, the lock was by date: arriving a day earlier on a 100 / 60 / 60 stay priced 100 + 100 +
+    60 + 60 = 320 instead of the tariff's 280.
+58. **The per-night extra-guest supplement replays the season it was sold under.** The tariff
+    snapshot (rule 12bis) carries, per night, the season's full price (the ratio's denominator) and
+    its extra-guest unit price (`extraGuestNights: { date: { base, unit } }`, per-night unit only).
+    Every night whose price comes from the lock (rule 57) uses them; a night added later, and every
+    reservation stored before the key existed, read the live season. Before: sold 20 €/night × 3 =
+    60 €, re-saved after the season moved from 100 to 125 → 48 €, to 80 → 75 €.
+59. **A night no season covers is named.** It keeps the historical 100 € fallback price (or, once
+    saved, its locked price), but the quote lists it in `unpricedNights` whether or not it is locked:
+    a stay saved on the default price keeps that price in its lock, and the fiche must keep saying no
+    season covers it. The fiche warns under « Prix hébergement » (« Aucune saison tarifaire ne couvre
+    la nuit du … ») and lets the operator decide. `pricing.hasUnpricedNights(quote)` is the core helper
+    the public quote and booking paths use to refuse such a stay (website-booking plugin, lot 4 of
+    the audit).
+### 3.12 Display fixes (2026-10-27 audit)
+
+60. **The recipe card's degressivity is a server label.** `GET /api/tariff-recipes/:id` returns
+    `labels.lengthOfStayDiscounts` (`labels.js`), « 2 nuits −0 % · … · 7 nuits −42,9 % »: French
+    decimal comma, one decimal at most. A recipe may hold an exact fraction (the gîte's 3/7 =
+    42,857 %); the card printed it raw (« −42.857142857142854 % ») and no longer formats it itself.
+61. **The recipes page lines up with every other page.** Its `PageActionBar` sits outside the padded
+    content (it was 24 px lower and narrower than elsewhere), « Journal des changements » uses the
+    `sectionHeader` role, and a shipped recipe's `label` / `description` never carries Markdown
+    backticks (the gîte's « `welcomePack.cost` » now reads « le levier du pack accueil »; the
+    recipe version is unchanged — no price moves).
+
 ---
 
 ## 4. Architecture
@@ -551,6 +599,13 @@ Full code map in [architecture.md](architecture.md). Summary:
   dialog, changeover and minimum-nights markers plus a legend on the tariff calendar, the widened
   platform grid, and the extra-guest and tax-base lines in `PricingSummary`.
 - **One new feature component** (`TariffRecipeCard`); everything else composes existing generics.
+
+**Audit 2026-10-27 (rules 56-59).** `utils/pricing.js` — `lockedLineGrossOfFreeUnits` (56),
+`mergeNightlyBreakdownWithLocked` gated on the arrival date and returning the locked dates (57),
+`extraGuestNightSeason` + `tariffSnapshot.extraGuestNights` (58), `unpricedNights` /
+`hasUnpricedNights` (59). `client/src/components/PricingSummary.jsx` renders the rule-59 warning.
+- **2026-10-27 audit:** `server/src/plugins/tariff-recipes/labels.js` (new) formats the card's
+  degressivity label; `controller.getOne` adds `labels` to its payload (rule 60).
 
 ## 5. Data model
 
@@ -710,6 +765,15 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - [ ] **Regression:** a platform reservation with a recorded gross amount is unchanged.
 - [ ] Mobile pass: recipe browser, tariff page card and diff dialog, calendar markers and legend,
       property detail form, reservation summary.
+
+**Audit 2026-10-27:** `tests/pricing-free-units-replay.unit.test.js` (4, rule 56),
+`tests/pricing-night-lock-arrival.unit.test.js` (5, rule 57),
+`tests/extra-guest-per-night-sold-season.unit.test.js` (5, rule 58),
+`tests/pricing-unpriced-nights.unit.test.js` (3, rule 59),
+`client/src/components/__tests__/PricingSummary.unpriced-nights.test.jsx` (3, rule 59);
+`tests/tariff-frozen-on-sold-reservation.unit.test.js` now expects `extraGuestNights` in the snapshot.
+- **2026-10-27 audit (rules 60-61):** `tariff-recipe-card-labels.unit.test.js` (5 server tests),
+  `TariffRecipeCard.degressivity-label.test.jsx` (1) and `TariffRecipesPage.layout.test.jsx` (2).
 
 ## 8. Out of scope
 

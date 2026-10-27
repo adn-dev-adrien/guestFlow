@@ -3,7 +3,7 @@ const sdk = require('../sdk');
 const {
   isPerPersonCardOption, portionCap, portionWording,
 } = sdk.coreModule('mealPortions');
-const { labels: rawLabels, normalisePublicLang } = sdk.coreModule('publicLabels');
+const { labels: rawLabels, normalisePublicLang, errorMessage } = sdk.coreModule('publicLabels');
 const { isBabyBedResource } = sdk.coreModule('babyBedResource');
 const { publicGuestCap } = sdk.coreModule('capacity');
 const { resolveExtraGuestPdfRow } = sdk.coreModule('devisHelpers');
@@ -403,6 +403,45 @@ function toPublicExtraGuests(quote) {
   return { count: row.count, total: row.totalTtc, originalTotal: row.originalTtc, offered: row.offered };
 }
 
+/**
+ * The first stay rule the engine says this stay breaks — minimum stay, then maximum stay, then the
+ * changeover days (specs/tariff-recipes/spec.md §3.4 rules 20bis-23) — as the public refusal code and
+ * the wording key + arguments of `publicLabels.errors`. Null when the stay passes every rule. The
+ * public path has no override: what the back-office may force, a visitor may not.
+ */
+function stayRuleBreach(quote) {
+  if (!quote) return null;
+  if (quote.minNightsBreached) return { code: 'MIN_NIGHTS', key: 'minNights', args: [Number(quote.requiredMinNights || 0)] };
+  if (quote.maxNightsBreached) return { code: 'MAX_NIGHTS', key: 'maxNights', args: [Number(quote.requiredMaxNights || 0)] };
+  if (quote.changeoverBreached) {
+    return {
+      code: 'CHANGEOVER',
+      key: 'changeover',
+      args: [
+        quote.changeoverArrivalBreached ? quote.requiredArrivalWeekday : null,
+        quote.changeoverDepartureBreached ? quote.requiredDepartureWeekday : null,
+      ],
+    };
+  }
+  return null;
+}
+
+/**
+ * Whether the engine priced a night no season covers (its `unpricedNights`, a count, a flag or the
+ * nights themselves). Such a night is not for sale on the site (specs/booking-drawer-friction.md
+ * rule 10).
+ */
+function hasUnpricedNights(quote) {
+  const value = quote && quote.unpricedNights;
+  if (Array.isArray(value)) return value.length > 0;
+  return value === true || Number(value) > 0;
+}
+
+function stayRefusalText(quote, lang) {
+  const breach = stayRuleBreach(quote);
+  return breach ? errorMessage(normalisePublicLang(lang), breach.key, ...breach.args) : null;
+}
+
 function toPublicQuote(quote, {
   available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null, optionLimits = [],
   lang = 'fr', translate = null, onlinePaymentReady = false,
@@ -420,6 +459,13 @@ function toPublicQuote(quote, {
     available: Boolean(available),
     minNights: Number(quote.requiredMinNights || 0),
     minNightsBreached: Boolean(quote.minNightsBreached),
+    // Maximum stay and changeover days, beside the minimum (fixed at the 2026-10-27 audit): the
+    // booking request refuses them, so the quote says so first. `stayRefusal` is the sentence the
+    // site prints, in the visitor's language — null when the stay passes every rule.
+    maxNights: quote.requiredMaxNights == null ? null : Number(quote.requiredMaxNights),
+    maxNightsBreached: Boolean(quote.maxNightsBreached),
+    changeoverBreached: Boolean(quote.changeoverBreached),
+    stayRefusal: stayRefusalText(quote, lang),
     currency: 'EUR',
     nightlyBreakdown: (quote.nightlyBreakdown || []).map((n) => ({ date: n.date, price: Number(n.price || 0) })),
     accommodationTotal: Number(quote.totalPrice || 0),
@@ -492,6 +538,8 @@ module.exports = {
   resourceOfferedNote,
   toPublicAvailability,
   toPublicQuote,
+  stayRuleBreach,
+  hasUnpricedNights,
   collapseToRanges,
   perPersonPerNight,
 };

@@ -388,7 +388,8 @@ test('getOperational: pending totals sum the columns; a disabled deposit is excl
   assert.equal(op.pending.totals.depositAmount, 100); // 100 + (disabled 50 excluded)
   assert.equal(op.pending.totals.balanceAmount, 350);
   assert.equal(op.pending.totals.totalSejour, 500);
-  assert.equal(op.pending.totals.remainingDue, 500);
+  // remainingDue is the unpaid buckets (audit 2026-10-27): the disabled acompte is owed by nobody.
+  assert.equal(op.pending.totals.remainingDue, 450);
 });
 
 // specs/finance-operational-remaining-to-pay.md §3 — « reste à payer » = Σ still-owed buckets only.
@@ -402,8 +403,8 @@ test('getOperational: remainingToPay sums only the UNPAID buckets, incl. both co
   });
   const r = model.getOperational().pending.reservations.find((x) => x.id === 1);
   assert.equal(r.remainingToPay, 100, 'only the two unpaid complements remain');
-  // The legacy deposit+balance-only field would wrongly say 0 here.
-  assert.equal(r.remainingDue, 0);
+  // remainingDue now reads the same unpaid buckets (audit 2026-10-27) — it used to say 0 here.
+  assert.equal(r.remainingDue, 100);
 });
 
 test('getOperational: caisse-interne complement + disabled deposit are NOT counted in remainingToPay', () => {

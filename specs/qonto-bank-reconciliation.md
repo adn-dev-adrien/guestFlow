@@ -288,6 +288,23 @@ a short list of the gaps to fix on the fiches.
     comme vente directe » (Lodgify: Stripe batch, commission). The reconciliation never re-derives it
     with `isDirectChannel`, which answers a different question (welcome pack, direct-sale wording).
 
+**Fixed at the 2026-10-27 audit**
+
+44. **A platform that took an acompte.** Its acompte is paid out on its own; the later credit carries
+    the solde only. The balance receipt therefore expects the fiche's payout minus the acompte net of
+    its commission (the solde gross when no payout is recorded yet), and confirming that credit writes
+    the payout as `credit + (acompte − acompte commission)` — the whole stay's net, the figure
+    `computePlatformCommission` reads. *Why:* brut 1000, acompte 300 (commission 15), solde credit 665
+    stored a 320 € commission instead of 35 €.
+45. **The installments are read through the core.** The plan's rows come from the core installments
+    model (`sdk.coreModule('installmentsModel')`, SDK 2.6), never by raw SQL on a core table, and a
+    failing read is an error — it no longer turns into an empty plan that silently expects nothing.
+46. **A platform is matched whatever its spelling.** Patterns, the batch list and the receipts' channel
+    are compared by slug (case, accents and separators ignored): a stay stored as `Gitesdefrance` or
+    `AirBnb` still receives its platform's payout. *Why:* the boot de-duplication of platform rows may
+    keep either spelling (specs/normalize-platform-names.md rule 23), and an exact-name match then
+    proposed nothing (audit 2026-10-27).
+
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay
   stored and its credits reappear as « non rattaché » so the refund question is visible.
@@ -327,10 +344,11 @@ a short list of the gaps to fix on the fiches.
 | `plugins/online-payment/reconciliation/` | `bankTransactionsModel.js` | C | Upsert/list of the stored credits. |
 | `plugins/online-payment/reconciliation/` | `reconciliationModel.js` | C | Reconciliation lines, discarded pairs, « Hors réservation » marks. |
 | `plugins/online-payment/reconciliation/` | `transactionsReader.js` | C | Reads Qonto through `withQonto`, maps a Qonto transaction to the stored shape (rule 6). |
-| `plugins/online-payment/reconciliation/` | `expectedReceipts.js` | C | In-scope reservations → expected receipts from the core ledger (rules 2, 8–10). |
+| `plugins/online-payment/reconciliation/` | `expectedReceipts.js` | C | In-scope reservations → expected receipts from the core ledger (rules 2, 8–10); `platformAcompteNet` and the solde-only platform receipt (rule 44); installments through the injected `listInstallments` / core model (rule 45). |
+| `plugins/sdk/` | `index.js`, `coreModules.json`, `version.js` | T | Rule 45: `installmentsModel` (`buildModel`) exposed to plugins, SDK 2.6.0; the plugin requires `^2.6.0`. |
 | `plugins/online-payment/reconciliation/` | `matcher.js` | C | Pure: credits × receipts × decisions → proposals with confidence (rules 11–17). |
 | `plugins/online-payment/reconciliation/` | `receiptStates.js` | C | Pure: state of each receipt (rule 19) and the counts of rule 22. |
-| `plugins/online-payment/reconciliation/` | `ficheWriter.js` | C | Rules 34–38: builds the mark patch (date, payout), calls `applyPaymentMark`, stores the prior/written values, restores them on « Défaire ». |
+| `plugins/online-payment/reconciliation/` | `ficheWriter.js` | C | Rules 34–38: builds the mark patch (date, payout), calls `applyPaymentMark`, stores the prior/written values, restores them on « Défaire ». Rule 44: adds the platform acompte net to the solde credit. |
 | `plugins/online-payment/reconciliation/` | `controller.js` | C | Orchestrates read → expected → match → states, shapes the page payload, validates writes, runs link + fiche write in one transaction. |
 | `server/scripts/` | `bank-transactions-from-qonto-csv.js` | C | Recette tool: loads a Qonto CSV export into the stored credits of a shadow base (§7). |
 
@@ -460,6 +478,10 @@ The interactive mock-up of the summary page is the reference
 - [ ] `reservation-payment-mark.unit.test.js` — the extracted mark answers as `updatePayment` did
       (fiche regression).
 - [ ] `bank-transactions-from-qonto-csv.unit.test.js` — the recette tool's CSV mapping.
+- [x] `reconciliation-platform-acompte.unit.test.js` (3) — rule 44: acompte net, the 665 € credit
+      writes payout 950 / commission 35, the expected solde credit with a payout recorded.
+- [x] `reconciliation-installments-core-module.unit.test.js` (2) — rule 45: the plan read through the
+      core model, a failing read throws.
 
 ### Client tests
 - [ ] `client/src/plugins/online-payment/__tests__/ReconciliationPage.test.jsx` — renders states,

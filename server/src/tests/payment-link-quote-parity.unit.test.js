@@ -125,7 +125,8 @@ test('a devis carrying a scheduled card option: acompte, solde and total match t
   assert.equal(meal.totalPrice, 50, 'the meal IS on the devis the guest accepted');
 
   const row = { depositAmount: devis.depositAmount, balanceAmount: devis.balanceAmount, finalPrice: devis.finalPrice };
-  assert.equal(resolveAmountCents(devis.id, 'full', row, quoteOf(model)), cents(devis.finalPrice));
+  // A full link charges acompte + solde, tourist tax included (specs/deposit-blocks-the-dates.md rule 18).
+  assert.equal(resolveAmountCents(devis.id, 'full', row, quoteOf(model)), cents(devis.depositAmount + devis.balanceAmount));
   assert.equal(resolveAmountCents(devis.id, 'deposit', row, quoteOf(model)), cents(devis.depositAmount));
   assert.equal(resolveAmountCents(devis.id, 'balance', row, quoteOf(model)), cents(devis.balanceAmount));
 });
@@ -175,7 +176,7 @@ test('an offered option is not re-billed by the payment link', () => {
   assert.equal(linen.totalPrice, 0, 'offered → 0 €');
 
   const row = { finalPrice: devis.finalPrice };
-  assert.equal(resolveAmountCents(devis.id, 'full', row, quoteOf(model)), cents(430), 'not 430 + 60');
+  assert.equal(resolveAmountCents(devis.id, 'full', row, quoteOf(model)), cents(436), 'not 436 + 60');
 });
 
 test('price lock: a tariff rise after the devis was issued never reaches the payment page', () => {
@@ -185,7 +186,7 @@ test('price lock: a tariff rise after the devis was issued never reaches the pay
   db.prepare('UPDATE options SET price = price * 2').run();
 
   const row = { finalPrice: devis.finalPrice, depositAmount: devis.depositAmount };
-  assert.equal(resolveAmountCents(devis.id, 'full', row, quoteOf(model)), cents(430), 'the guest owes what was quoted');
+  assert.equal(resolveAmountCents(devis.id, 'full', row, quoteOf(model)), cents(436), 'the guest owes what was quoted');
 });
 
 test('the VAT basket is built from the same quote (tourist tax on the solde, 0 %)', () => {
@@ -193,8 +194,8 @@ test('the VAT basket is built from the same quote (tourist tax on the solde, 0 %
   const devis = model.create(BASE).data;
 
   const full = resolveVatComponents(devis.id, 'full', quoteOf(model));
-  assert.equal(full.components.length, 1);
-  assert.equal(full.components[0].grossCents, cents(devis.finalPrice));
+  assert.deepEqual(full.components.map((c) => [c.grossCents, c.taxable]), [[cents(430), true], [cents(6), false]],
+    'a full payment carries the tax on a 0 % line, like the solde');
 
   const balance = resolveVatComponents(devis.id, 'balance', quoteOf(model));
   const taxLine = balance.components.find((c) => c.title === 'Taxe de séjour');

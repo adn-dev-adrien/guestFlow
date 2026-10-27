@@ -271,6 +271,12 @@ rules bring it back as its own focused run, and record what that run found.
     « Montants facturés » tab lives there); without it, to `/parametres/options-ressources` with no
     tab, so the address never names a tab the page does not have.
 
+32. **Every active card has its button, and its text never cut** (2026-10-27 audit). The `sas` plugin's
+    settings place is its « Facturables au SAS » tab (`/parametres/options-ressources?tab=sas`), so
+    its card offers « Réglages » like the others instead of looking empty. On every card the version
+    flows on the name's line (it dropped onto its own line when the name and the button filled the
+    row) and the status badge wraps (« Actif · identifiant partenaire manquant » was cut).
+
 ## 4. Architecture
 
 > Fat backend, thin frontend: the server owns the catalogue, the states, the refusal rules and the list
@@ -472,6 +478,9 @@ scroll or a scrollbar drag, re-places after a browser scroll that follows a layo
 again for a new navigation of the same hash, malformed hash, scroll anchoring left out — rule 27; 10);
 E2E `e2e/specs/plugins/plugins-page.spec.js` (« Configurer » on Neat and Vigilance
 Météo-France: the anchor is in the viewport below the bars, at 390 and 1280 px).
+
+- **2026-10-27 audit (rule 32):** `PluginCard.layout.test.jsx` (2 tests); the SAS case of
+  `plugins-setup-state.unit.test.js` now expects « Réglages ».
 
 ## 8. Out of scope
 

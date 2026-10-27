@@ -414,7 +414,7 @@ Decisions taken on 2026-10-06:
 
     | Question | « Oui » turns on | On a fresh instance |
     |---|---|---|
-    | « Des options payantes à l'arrivée : repas, linge, bain nordique ? » | Ressources à l'heure, Linge et blanchisserie, Arrivée et départ guidés (the SAS is where options are sold and paid) | oui |
+    | « Des options payantes à l'arrivée : repas, linge, sauna ou spa ? » (neutral examples since the 2026-10-27 audit, specs/platform-settings-relay-and-review.md rule 10) | Ressources à l'heure, Linge et blanchisserie, Arrivée et départ guidés (the SAS is where options are sold and paid) | oui |
     | « Un site internet qui prend des réservations ? » | Réservation depuis le site | oui |
     | « Encaisser en ligne, par lien de paiement ? » | Paiement en ligne (Qonto) | non |
 
@@ -443,6 +443,48 @@ Decisions taken on 2026-10-06:
     alone left a short step's actions mid-screen; under `sm` the card fills the screen (`100dvh`, a
     flex column) and the actions are pushed to its bottom (`margin-top: auto`), still `sticky` for a
     long step, inside the card's 16 px padding.
+
+### 3.H Fixed at the 2026-10-27 audit
+
+45. **A platform counted as direct is a direct sale in every money path.** Rule 19 made
+    `countsAsDirect` an attribute; the pricing engine still tested the name `direct` by hand, so such
+    a stay was half direct (welcome pack, plan, headline) and half platform (acompte zeroed, extras
+    defaulted to the complement, a brut not covering the extras the operator ticked). One helper,
+    `utils/saleChannel.js`, now answers for every money path:
+    - `ownChannel` (`direct` or counts-as-direct) — a NEW stay takes the acompte and solde on the
+      property's schedule like `direct`; no default extras-to-complement; the ledger shows its
+      acompte row;
+    - `platformSale` (the opposite) — single payout unless the platform takes an acompte, extras
+      default to the complement, « Versement » rows;
+    - `namedChannel` (anything but `direct`) — a platform amount (brut) and commissions can be
+      entered, and the tourist-tax mode is read from the `platforms` row: in mode « owner » the tax
+      is collected on arrival, on a counts-as-direct channel too. The engine, the accounting export
+      (`collectedOnArrival`) and the arrival SAS recap (`touristTaxInComplementAmount`) all read it
+      this way (review of PR #803, 2026-10-27: the engine had moved it to the solde alone).
+    **An existing stay keeps its stored schedule** (review of PR #803, 2026-10-27): a saved
+    reservation on a counts-as-direct channel whose acompte is neither paid nor disabled nor set by
+    hand keeps the acompte it was stored with — 0 for a stay sold as a single payment, paid or not,
+    so no acompte (and no overdue acompte deadline) appears on the next recompute, the net stays the
+    same, and a past fiche can still be saved under the past-reservation lock; a stored acompte stays,
+    even inside the last-minute window. Only a new stay follows the direct rule.
+    A counts-as-direct stay whose platform amount is entered settles like a platform one once paid:
+    the paid solde follows that amount (reservation-refunds.md rule 40) and no arrival complement is
+    asked for the difference. A stay whose single payment is already in (no acompte, solde paid)
+    stays a single payment on every later recompute, on every channel. The fiche reads the server's `platformSale` answer instead of
+    the platform's name. The bank reconciliation is deliberately left on `namedChannel`
+    (qonto-bank-reconciliation.md rule 43: a counts-as-direct engine stay is still paid out by its
+    platform, Stripe batch and commission), and so is the ledger's « Versement » row.
+46. **Once done, `/demarrage` goes home** (audit 2026-10-27). After `POST /api/onboarding/done` the
+    address stayed reachable — typed, bookmarked or reached with « Précédent » — and restarted the
+    assistant at step 1. Now `App.jsx` asks `utils/onboardingRoute.js`: the assistant opens while
+    onboarding is open (rule 20) or when it was reopened on purpose from Réglages › Système, which
+    navigates with the router state `{ reopen: true }` (rule 22); any other visit of `/demarrage` is
+    redirected to `/`. Step 1 no longer changes the login implicitly
+    (`specs/hosting-h2-account-security.md` rule 37).
+47. **The assistant's fields keep even gaps** (2026-10-27 audit). No blank helper line is reserved under
+    a field any more: a message shows when there is one, and steps 1 and 2 use the same 16 px gap as
+    the property grid. The reserved lines, added to the stack's and the grid's own gaps, gave uneven
+    spacing from one field to the next.
 
 ## 4. Architecture
 
@@ -495,19 +537,19 @@ Decisions taken on 2026-10-06:
 | `components/` | `TokenTextField.jsx` | C | **Generic**: a FR/EN text field with its token chips, insertion at the cursor, the server's refusal shown inline. The email template editor can adopt it later |
 | `components/` | `MentionEditor.jsx` | C | Specific: one mention, its options and its price source |
 | `components/` | `StepperPage.jsx` | C | **Generic**: a page-level stepper with the counter, « Plus tard », « Précédent » / « Suivant ». Reusable for any guided flow |
-| `components/property/` | `PropertyStayTexts.jsx` | C | Specific: « Textes propres à ce logement », saved text by text |
-| `pages/settings/` | `SystemSettingsPage.jsx` | T | « Assistant de démarrage » reopens `/demarrage` |
+| `components/property/` | `PropertyStayTexts.jsx` | C | Specific: « Textes propres à ce logement », saved text by text. _Superseded by #693 (`specs/guest-email-texts-made-simple.md`): the file was deleted; the per-property facts live in `PropertyArrivalFacts.jsx`._ |
+| `pages/settings/` | `SystemSettingsPage.jsx` | T | « Assistant de démarrage » reopens `/demarrage` (with the router state `{ reopen: true }` since rule 46) |
 | `components/` | `SettingsPushNotificationsSection.jsx` | T | Says when no address can sign push (rule 18) |
 | `plugins/sas/` | `ExtinguisherCheckCard.jsx` | C | The switch, in the « Facturables au SAS » tab |
 | `plugins/accounting-export/` | `PlatformAccountsPage.jsx` | T | The « Comptes » section |
 | `components/` | `SettingsEmailContentSection.jsx` | T | Pool season may be empty; a link to « Textes des mails » |
-| `components/property/` | `PropertyStayTab.jsx` | T | « Cafetière familiale » replaced by `PropertyStayTexts` (rule 3) |
+| `components/property/` | `PropertyStayTab.jsx` | T | « Cafetière familiale » replaced by `PropertyStayTexts` (rule 3) — itself replaced by `PropertyArrivalFacts` in #693 |
 | `components/` | `PlatformPriceCard.jsx` | T | Rule 19 label |
 | `pages/` | Resource form (`ResourcesPage`) | T | « Phrase dans les mails une fois réservée » (rule 11) |
 | `pages/settings/` | `PlatformsSettingsPage.jsx` | T | « Compté comme vente directe » |
 | `plugins/accounting-export/` | settings section | T | « Plan comptable » (rules 27–28) |
 | `plugins/sas/` | settings + `ReservationSasDialog.jsx` | T | Rule 16 |
-| `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20); a page whose plugin is off renders `NotFoundPage` for an administrator instead of sending home (rule 42) |
+| `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20), and `/demarrage` home once it is done unless reopened on purpose (rule 46, `utils/onboardingRoute.js`); a page whose plugin is off renders `NotFoundPage` for an administrator instead of sending home (rule 42) |
 | `pages/` | `OnboardingPage.jsx` | T | Leaving after an install that asked for `reload` loads the app again (rule 42) |
 | `pages/` | `OnboardingPage.jsx` | T | Rule 43 — step 3 is three switches (MUI `Switch` rows in one bordered list) with their « Active : … » line |
 | `components/` | `NotFoundPage.jsx` | C | **Generic**: the app's 404, or « Plugin inactif » for a plugin's page (rule 40) |
@@ -542,6 +584,14 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 
 **Integrated review of inte/plugins (2026-10-19)** — rule 44: `components/StepperPage.jsx` — the action stack
 is a bottom-sticky bar under `sm`, primary last.
+
+**Audit 2026-10-27 (rule 45).** New `utils/saleChannel.js` (`saleChannel`, `isNamedChannel`) —
+the one reading of a channel for money. Consumers: `utils/pricing.js` (extras routing, brut pin,
+tax on arrival, acompte branch, commissions, paid-solde rule, `platformSale` in the quote),
+`utils/reservationLedger.js` (acompte « Sans objet » only on a platform sale; the « Versement »
+row and the commissions stay on `namedChannel`), `models/reservationsModel.js`
+(`touristTaxInComplementAmount` via `isNamedChannel`). Client: `ReservationPage.jsx` exposes `isPlatformSale` (the quote's answer) in
+the form context; `PricingSummary`, `FinanceSection`, `ExtrasSection` and `OptionRow` read it.
 
 ## 5. Data model
 
@@ -663,6 +713,10 @@ endpoint, a missing capacity filled on save, a typed one kept and validated); cl
 dropped, a failure leaves the field editable, typed by hand stops following) with
 `onboardingCapacityFixtures.jsx`; `OnboardingPage` updated to the server value.
 
+Audit 2026-10-27 (rule 46): client `onboardingRoute.done-redirect` (4: open → assistant, done →
+home, reopened from Réglages › Système → assistant, other pages untouched). `PropertyStayTexts` (1)
+above was deleted with its component in #693.
+
 ### E2E
 
 `e2e/specs/onboarding/onboarding.spec.js` (2): the four steps with a refused step, ending on the
@@ -681,6 +735,13 @@ rest of the suite, and `option-categories.spec.js` seeds the catering catalogue 
 
 **Integrated review of inte/plugins (2026-10-19)** — rule 44: `components/__tests__/StepperPage.phone-actions.test.jsx` (1: order and variants);
 the onboarding suites keep passing unchanged.
+
+**Audit 2026-10-27:** `tests/sale-channel-counts-as-direct.unit.test.js` (6, rule 45);
+`tests/counts-as-direct-keeps-stored-schedule.unit.test.js` (5, rule 45: single payment kept, net
+kept, stored acompte kept, new stay direct, past fiche saved);
+`tests/counts-as-direct-tourist-tax-routing.unit.test.js` (3, rule 45: engine = export = SAS);
+`client/src/components/__tests__/PricingSummary.counts-as-direct.test.jsx` (2, rule 45).
+- **2026-10-27 audit (rule 47):** `OnboardingPage.spacing.test.jsx` (1 test).
 
 ## 8. Out of scope
 

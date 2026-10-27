@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { create: createModel } = require('../models/pushSubscriptionsModel');
+const { applyPushChannelPrefsSchema } = require('../utils/pushChannelPrefsMigration');
 
 // specs/pwa-push-notifications.md §5 — per-(user,device) subscriptions + per-user prefs (default ON).
 
@@ -20,6 +21,8 @@ function freshModel() {
       neat INTEGER NOT NULL DEFAULT 1
     );
   `);
+  db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY); INSERT INTO users (id) VALUES (1), (2);');
+  applyPushChannelPrefsSchema(db);
   return { db, model: createModel(db) };
 }
 
@@ -52,11 +55,13 @@ test('unsubscribe / removeByEndpoint delete the row (idempotent)', () => {
 
 test('preferences default to all-ON with no row; setPreferences is a partial update', () => {
   const { model } = freshModel();
-  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true });
+  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: true, departures: true, breakfast: true });
   model.setPreferences(1, { arrivals: false });
-  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: false, departures: true, breakfast: true, neat: true });
-  model.setPreferences(1, { newReservation: false, breakfast: false, neat: false });
-  assert.deepEqual(model.getPreferences(1), { newReservation: false, arrivals: false, departures: true, breakfast: false, neat: false });
+  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: false, departures: true, breakfast: true });
+  // A plugin channel is read and written only when the caller names it (the live plugins' channels).
+  model.setPreferences(1, { newReservation: false, breakfast: false, neat: false }, ['neat']);
+  assert.deepEqual(model.getPreferences(1, ['neat']), { newReservation: false, arrivals: false, departures: true, breakfast: false, neat: false });
+  assert.deepEqual(model.getPreferences(1), { newReservation: false, arrivals: false, departures: true, breakfast: false });
 });
 
 test('subscriptionsForPref returns subs of users whose pref is ON (default ON when no prefs row)', () => {

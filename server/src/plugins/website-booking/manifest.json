@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.4.0",
+  "sdk": "^2.5.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -67,6 +67,22 @@
     ],
     "1.7.1": [
       "Le devis du site est calculé par le cœur de GuestFlow, le même que celui envoyé à Google Vacation Rentals (SDK 2.4)."
+    ],
+    "1.7.2": [
+      "Durée maximale et jours d’arrivée / de départ : le devis du site les signale, la demande les refuse (MAX_NIGHTS, CHANGEOVER), le calendrier ne propose plus une arrivée qu’ils interdisent, et le paiement les revérifie.",
+      "Seules les options du catalogue public sont acceptées : ni option interne, ni option offerte par défaut, ni prix négatif. La même option deux fois dans une demande est refusée au lieu d’une erreur 500.",
+      "Une demande dont l’e-mail correspond à un client existant ne modifie plus sa fiche (nom, téléphone, langue) : l’identité saisie est notée sur le devis.",
+      "La vérification des disponibilités voit le départ tardif ou l’arrivée anticipée d’une réservation voisine.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.8.0": [
+      "Demandes du site : une vérification anti-robot (preuve de travail calculée par le navigateur, sans service extérieur) précède chaque demande. Elle s’allonge pour une adresse qui renvoie souvent et un peu pour tous lors d’un afflux, sans jamais refuser un client.",
+      "Au plus 3 nouveaux devis par adresse e-mail sur 24 h ; au-delà, seule la mise à jour d’une demande en cours passe.",
+      "La même demande renvoyée (même e-mail, même logement, mêmes dates) met à jour un devis encore brouillon et jamais touché au lieu d’en créer un second (même numéro, ligne dans l’historique) ; un devis déjà ouvert, modifié ou envoyé ne change pas, seul le message du client s’ajoute à ses notes (« Message du client après envoi » s’il était envoyé). Le numéro et le lien de paiement ne sont jamais renvoyés à une demande qui ne les détient pas déjà.",
+      "Message limité à 2 000 caractères, et 10 messages ajoutés au plus par devis.",
+      "Les demandes jamais ouvertes ni traitées sont supprimées 30 jours après leur arrivée, avec le client créé pour elles quand il n’a rien d’autre.",
+      "Accueil : au-delà de 20 demandes en une heure, la carte le signale. Paramètres › Intégrations › Site : « Protection anti-robot inactive » tant que l’extension WordPress n’est pas à jour.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
     ]
   }
 }

@@ -9,8 +9,9 @@
  *      operational query in the app already filters `kind = 'reservation'` (availability, calendar,
  *      planning, laundry, linen, SAS, iCal export, Google Calendar, email queues), so the row leaves
  *      all of them at once — no query to hunt down, and none that can be forgotten;
- *   3. the requalification pair, when an acompte had actually been collected: an avoir reversing the
- *      séjour revenue + VAT, and an indemnity crediting the same sum VAT-free, both dated today;
+ *   3. the requalification pair, when an acompte — or installments of a plan — had actually been
+ *      collected: an avoir reversing the séjour revenue + VAT, and an indemnity crediting the same sum
+ *      VAT-free, both dated today;
  *   4. open payment links are cancelled — a dead stay must not stay payable. They are returned as
  *      `cancelledLinks`: deactivating them at the provider is network, so it happens after the commit
  *      (specs/plugins-phase-3a-online-payment.md rule 7).
@@ -23,6 +24,7 @@
 
 const { buildCancellationRequalification } = require('./cancellationRequalification');
 const { isDirectChannel } = require('./platformNameFormat');
+const { taxShares } = require('./installmentPlan');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -30,19 +32,42 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 // words travel separately, in `reason`.
 function resolveCancellationReason(row) {
   const depositUnpaid = Number(row.depositAmount || 0) > 0 && !Number(row.depositPaid);
-  const balanceUnpaid = Number(row.balanceAmount || 0) > 0 && !Number(row.balancePaid);
+  // An installment plan replaces the solde (specs/direct-installments.md rule 5): what it still owes is one.
+  const balanceUnpaid = (Number(row.balanceAmount || 0) > 0 && !Number(row.balancePaid))
+    || Number(row.installmentsUnpaidAmount || 0) > 0;
   if (balanceUnpaid) return 'unpaid_balance';
   if (depositUnpaid) return 'unpaid_deposit';
   return 'manual';
 }
 
+// specs/direct-installments.md rule 46 — what the installments of a plan collected, and the tourist tax
+// inside it: the shares of the whole plan, exactly as the accounting booked each one (rule 39).
+function installmentsRetainedOf(installmentsModel, id, row) {
+  const plan = installmentsModel ? installmentsModel.listFor(id) : [];
+  if (!plan.length) return null;
+  // A plan is a direct sale: when the tax rides on the arrival complement, no installment carried it
+  // (paymentsController.resolveInstallmentComponents, accountingModel.buildInstallmentEntry), so the
+  // avoir reverses none (specs/direct-installments.md rule 46).
+  const taxOnArrival = Number(row.touristTaxInComplement) === 1;
+  const taxCents = taxOnArrival ? 0 : Math.round(Number(row.touristTaxTotal || 0) * 100);
+  const shares = taxShares(taxCents, plan.map((i) => Number(i.amountCents)));
+  let amountCents = 0;
+  let retainedTaxCents = 0;
+  plan.forEach((installment, index) => {
+    if (Number(installment.paid) !== 1) return;
+    amountCents += Number(installment.amountCents);
+    retainedTaxCents += shares[index];
+  });
+  return { amountTtc: amountCents / 100, touristTaxTtc: retainedTaxCents / 100 };
+}
+
 /**
- * @param {object} deps { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel }
+ * @param {object} deps { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel? }
  * @param {number} reservationId
  * @param {object} input { reason?, cancelledBy?, today, vatRate }
  */
 function cancelReservation(deps, reservationId, { reason = '', cancelledBy = null, today, vatRate = 0 } = {}) {
-  const { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel } = deps;
+  const { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel = null } = deps;
   const id = Number(reservationId);
   const row = reservationsModel.getForCancellation(id);
 
@@ -61,12 +86,13 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
   const requalification = buildCancellationRequalification({
     reservation: row,
     depositBuckets: reservationsModel.depositContribBuckets(id),
+    installmentsRetained: installmentsRetainedOf(installmentsModel, id, row),
     cancellationDate: today,
     vatRate,
     reason: trimmedReason,
   });
-  const retainedDepositAmount = requalification ? requalification.depositTtc : 0;
-  const writtenOffBalance = Number(row.balancePaid) ? 0 : round2(row.balanceAmount);
+  const retainedDepositAmount = requalification ? requalification.retainedTtc : 0;
+  const writtenOffBalance = round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount));
 
   let refundId = null;
   let compensationId = null;

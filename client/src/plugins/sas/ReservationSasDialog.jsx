@@ -1436,7 +1436,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       }
       case 'missingAsk':
-        return <Typography variant="body1">Des serviettes ou des draps sont-ils manquants ?</Typography>;
+        return <Typography variant="body1">Les serviettes et les draps sont-ils tous là{'\u00a0'}?</Typography>;
       case 'missingItems':
         return (
           <Stack spacing={0.5} divider={<Divider />}>
@@ -1759,12 +1759,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         </>;
       case 'cateringItems': return <>{quit}{next()}</>;
       case 'missingAsk':
-        // « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed.
-        // « Oui » opens the conditional missing-items page — navigate explicitly (see linen above).
+        // Asked the positive way round so « Oui » sits at the same place as on every other yes/no page
+        // (2026-10-27 audit: it used to jump sides, « Oui » left here and right on the keys page).
+        // « Oui » = all there → clear any (re-edit) pre-filled items so they aren't billed.
+        // « Non » opens the conditional missing-items page — navigate explicitly (see linen above).
         return <>{quit}
           <AnswerButtons
-            goodLabel="Non" onGood={() => { setMissingAsk(false); setMissingDep({}); goNext(); }}
-            badLabel="Oui" onBad={() => { setMissingAsk(true); setStepKey('missingItems'); }}
+            goodLabel="Oui" onGood={() => { setMissingAsk(false); setMissingDep({}); goNext(); }}
+            badLabel="Non" onBad={() => { setMissingAsk(true); setStepKey('missingItems'); }}
           />
         </>;
       case 'missingItems': return <>{quit}{next()}</>;

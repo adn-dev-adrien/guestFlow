@@ -19,7 +19,7 @@ import PageActionBar from '../../components/PageActionBar';
 import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../hooks/useAuth';
 import { canSeeRoute } from '../../constants/roles';
-import { visibleSettingsGroups, SETTINGS_KEYWORDS, INTEGRATIONS_PATH } from '../../constants/settingsMenu';
+import { visibleSettingsGroups, settingsKeywordsOf, INTEGRATIONS_PATH } from '../../constants/settingsMenu';
 import { useSlot } from '../../plugins/sdk/useSlot';
 import { matchSettingsRow } from '../../utils/settingsSearch';
 import api from '../../api';
@@ -50,7 +50,8 @@ export default function SettingsHomePage() {
   const integrationSections = useSlot('settings.integrations');
   const integrationWords = useMemo(() => new Map(integrationSections
     .flatMap((section) => (section.keywords || []).map((word) => [word, section.pluginId]))), [integrationSections]);
-  const keywordsOf = (path) => (path === INTEGRATIONS_PATH ? [...integrationWords.keys()] : SETTINGS_KEYWORDS[path]);
+  const contributedWords = useSlot('settings.keywords');
+  const keywordsOf = (entry) => (entry.path === INTEGRATIONS_PATH ? [...integrationWords.keys()] : settingsKeywordsOf(entry, contributedWords));
   const targetOf = (path, keyword) => {
     const owner = path === INTEGRATIONS_PATH && keyword ? integrationWords.get(keyword) : null;
     return owner ? `${path}?tab=${owner}` : path;
@@ -60,7 +61,7 @@ export default function SettingsHomePage() {
     ...group,
     rows: group.entries.map((entry) => {
       const line = lines[entry.path] || null;
-      const hit = matchSettingsRow({ label: entry.label, line: line && line.text, keywords: keywordsOf(entry.path) }, query);
+      const hit = matchSettingsRow({ label: entry.label, line: line && line.text, keywords: keywordsOf(entry) }, query);
       return hit ? { entry, line, keyword: hit.keyword, to: targetOf(entry.path, hit.keyword) } : null;
     }).filter(Boolean),
   })).filter((group) => group.rows.length > 0);

@@ -216,6 +216,21 @@ ait été réglé ou non.
   fiche et le SAS présentent une seule collecte, la part « en cours de séjour » s'ajoute simplement au
   bucket fin de séjour de ce bloc fusionné.
 
+### 3.6 Corrigé à l'audit du 2026-10-27
+
+20. **Ce qui est routé vers un complément d'arrivée déjà encaissé part au complément de fin de
+    séjour, même sans base de référence.** La base posée à l'encaissement (règle 3) couvre le parcours
+    de la fiche ; le moteur ne s'y fie plus seul. Quand le complément d'arrivée est encaissé, que
+    l'opérateur ne l'a pas ajusté et que le complément de fin de séjour n'est pas encore encaissé,
+    l'excédent des éléments routés vers lui (extras « en complément », taxe, voyageurs ajoutés) sur le
+    montant encaissé devient une ligne de fin de séjour à part, « Ajouté après l'encaissement du
+    complément d'arrivée » (clé `arrivalComplementExcess`). Seuls les éléments routés comptent, jamais
+    l'écart automatique : la ligne peut réclamer moins, jamais inventer un dû sur un séjour dont les
+    seaux ne concordaient pas déjà. Une note en séjour peut l'encaisser comme une autre ligne ; une
+    fois le complément de fin de séjour encaissé, la ligne figée compte comme « forcée » (hors acompte
+    et solde). Avant : complément de 80 € encaissé avant le séjour, 30 € de bois ajoutés en
+    complément → facturés nulle part.
+
 ---
 
 ## 4. Architecture
@@ -269,6 +284,10 @@ que de fonctions pures (aucun accès DB) — testables unitairement sans base.
 | GET | `/api/accounting/sales[.csv]` | — | inchangé | L'écriture `complement` exclut la part vendue en cours de séjour ; l'écriture `endOfStayComplement` la porte. |
 
 Auth : inchangée (les endpoints existants gardent leurs contrôles de rôle).
+
+**Audit du 2026-10-27 (règle 20).** `utils/pricing.js` — `arrivalComplementExcess`, ajoutée aux
+lignes de fin de séjour et au total ; `utils/midStayExtras.js` — `ARRIVAL_COMPLEMENT_EXCESS_KEY` /
+`_LABEL`, clé toujours « forcée » dans `splitFromStoredLines`.
 
 ---
 
@@ -373,6 +392,10 @@ leur couverture existante suffit, aucun test ajouté.
       responsives), la suite E2E couvre le rendu mobile des pages concernées.
 - [ ] Edge « complément de fin de séjour déjà encaissé » : couvert par les tests unitaires (modèle +
       moteur), non rejoué à la main.
+
+**Audit du 2026-10-27 :** `tests/arrival-complement-excess-to-checkout.unit.test.js` (4, règle 20) ;
+`tests/settled-complement-closes-bucket.unit.test.js` — le témoin « sans base de référence » attend
+désormais les 30 € au départ.
 
 ## 8. Out of scope
 

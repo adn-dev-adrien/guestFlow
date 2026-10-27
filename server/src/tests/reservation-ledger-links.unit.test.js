@@ -103,7 +103,8 @@ test('rule 29 — provider down: retired locally with the remote-deactivation ma
 
 test('rule 29 — every link type maps to its row amount: deposit, balance, full, complement', () => {
   const row = { depositAmount: 90, balanceAmount: 217.2, finalPrice: 300, complementAmount: 24 };
-  assert.deepEqual(['deposit', 'balance', 'full', 'complement'].map((t) => linkAmountCents(t, row)), [9000, 21720, 30000, 2400]);
+  // A full link charges acompte + solde (specs/deposit-blocks-the-dates.md rule 18), never finalPrice.
+  assert.deepEqual(['deposit', 'balance', 'full', 'complement'].map((t) => linkAmountCents(t, row)), [9000, 21720, 30720, 2400]);
   const links = [
     { id: 1, type: 'deposit', status: 'open', amountCents: 9000 },
     { id: 2, type: 'balance', status: 'open', amountCents: 20000 },

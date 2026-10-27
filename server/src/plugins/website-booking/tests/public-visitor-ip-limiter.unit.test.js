@@ -1,3 +1,4 @@
+require('./isolatedDb');
 // specs/terms-acceptance-record.md §3.6 — the public limiters count per website VISITOR (relayed by
 // the WordPress proxy), not per caller: every call comes from the one WordPress host. The relayed
 // address is honoured only once the API key is checked, and an unauthenticated call is refused before

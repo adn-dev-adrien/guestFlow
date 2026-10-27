@@ -82,7 +82,7 @@ test('rule 9: no fiche yet → pending, applied on a later pass once the iCal cr
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 9: a gîte number tied to no property is an error, shown on the dashboard', async () => {
+test('rule 18: a gîte number tied to no property waits (pending), shown on the dashboard after a day with its reason', async () => {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const service = createIntakeService({
@@ -90,9 +90,10 @@ test('rule 9: a gîte number tied to no property is an error, shown on the dashb
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => ({ 2: '400100' }), autoApply: () => true },
     readMails: async () => [{ messageId: '<x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }],
     findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => null,
-    core: {}, now: () => new Date('2026-10-15T10:00:00Z'),
+    core: {}, now: () => new Date('2026-10-16T10:00:00Z'),
   });
-  assert.equal((await service.runPass()).error, 1);
+  assert.equal((await service.runPass()).pending, 1);
+  assert.equal(service.attention()[0].status, 'pending');
   assert.match(service.attention()[0].error, /gîte n°309700/);
 });
 

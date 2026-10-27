@@ -66,18 +66,18 @@ function CollectedTable({ data, onOpenReservation }) {
     <>
       <ResponsiveTable
         items={data.rows}
-        getKey={(r) => `${r.reservationId}-${r.kind}-${r.date}-${r.amount}`}
+        getKey={(r) => `${r.reservationId}-${r.kind}-${r.label}-${r.date}-${r.amount}`}
         emptyText="Aucun paiement reçu pour les séjours de la période."
         minWidth={760}
         onItemClick={(r) => onOpenReservation(r.reservationId)}
         head={(
           <TableRow>
             <TableCell>Date</TableCell><TableCell>Client</TableCell><TableCell>Logement</TableCell>
-            <TableCell>Canal</TableCell><TableCell>Paiement</TableCell><TableCell align="right">Montant</TableCell>
+            <TableCell>Plateforme</TableCell><TableCell>Paiement</TableCell><TableCell align="right">Montant</TableCell>
           </TableRow>
         )}
         renderRow={(r) => (
-          <TableRow key={`${r.reservationId}-${r.kind}-${r.date}-${r.amount}`} hover sx={{ cursor: 'pointer' }} onClick={() => onOpenReservation(r.reservationId)}>
+          <TableRow key={`${r.reservationId}-${r.kind}-${r.label}-${r.date}-${r.amount}`} hover sx={{ cursor: 'pointer' }} onClick={() => onOpenReservation(r.reservationId)}>
             <TableCell sx={TAB}>{displayDate(r.date)}</TableCell>
             <TableCell>{r.clientName}</TableCell>
             <TableCell>{r.propertyName}</TableCell>
@@ -180,7 +180,7 @@ function StaysTable({ data, emptyText, onOpenReservation }) {
         onItemClick={(r) => onOpenReservation(r.id)}
         head={(
           <TableRow>
-            <TableCell>Client</TableCell><TableCell>Logement</TableCell><TableCell>Dates</TableCell><TableCell>Canal</TableCell>
+            <TableCell>Client</TableCell><TableCell>Logement</TableCell><TableCell>Dates</TableCell><TableCell>Plateforme</TableCell>
             <TableCell align="right">Nuits</TableCell><TableCell align="right">Total de séjour</TableCell><TableCell>Suivi paiement</TableCell>
           </TableRow>
         )}

@@ -59,10 +59,11 @@ test('rule 19 — the WordPress plugin version moved, in its header, its constan
   const php = fs.readFileSync(path.join(PLUGIN, 'guestflow-booking.php'), 'utf8');
   const readme = fs.readFileSync(path.join(PLUGIN, 'readme.txt'), 'utf8');
   const version = (php.match(/\* Version:\s+(\S+)/) || [])[1];
-  assert.equal(version, '1.17.0');
+  // 1.17.0 shipped the landing link; later versions keep it, so only the release note is pinned.
+  assert.ok(version && version.localeCompare('1.17.0', undefined, { numeric: true }) >= 0, version);
   assert.match(php, new RegExp(`define\\('GF_BOOKING_VERSION', '${version}'\\)`));
   assert.match(readme, new RegExp(`Stable tag: ${version}`));
-  assert.match(readme, new RegExp(`= ${version} =\\n\\* Lien d'arrivée de Google Vacation Rentals`));
+  assert.match(readme, /= 1\.17\.0 =\n\* Lien d'arrivée de Google Vacation Rentals/);
 });
 
 test('rule 18 — the landing link given to Google: the property page with the dates, the party size and the campaign', () => {

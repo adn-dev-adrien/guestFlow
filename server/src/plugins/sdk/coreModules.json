@@ -218,11 +218,16 @@
     "formatPlatformName",
     "isChoreFreeChannel",
     "isDirectChannel",
+    "isRelayChannel",
+    "platformReviewWhere",
     "refreshChoreFreeChannels",
     "refreshDirectChannels",
+    "refreshGuestContactChannels",
     "registerDirectChannelSql",
     "setChoreFreeChannels",
-    "setDirectChannels"
+    "setDirectChannels",
+    "setPlatformReviewWhere",
+    "setRelayChannels"
   ],
   "receptionView": [
     "PLANNING_EVENT_KEEP",
@@ -323,10 +328,13 @@
     "findById",
     "getHistory",
     "list",
+    "markOperatorSeen",
+    "purgePublicRequest",
     "recomputeQuote",
     "remove",
     "resolvePaymentSchedule",
     "update",
+    "updateFromPublicRequest",
     "updateStatus"
   ],
   "termsModel": [
@@ -521,6 +529,7 @@
   "notificationService": [
     "__test",
     "buildNotificationService",
+    "flushDueDigests",
     "notifyBookingConflict",
     "notifyNewIcalReservation",
     "notifyNewSiteDevis",
@@ -565,6 +574,7 @@
     "getDepositMode",
     "getPayoutDueDays",
     "getTouristTaxCollection",
+    "guestContactById",
     "listAll",
     "listForProperty",
     "listNames",
@@ -572,6 +582,7 @@
     "listWithCommission",
     "refreshChoreFreeChannels",
     "refreshDirectChannels",
+    "refreshGuestContactChannels",
     "rescan",
     "setColor",
     "setCommissionPercent",
@@ -579,6 +590,8 @@
     "setDepositMode",
     "setForbidsGuestChores",
     "setPayoutDueDays",
+    "setRelaysGuestEmail",
+    "setReviewWhere",
     "setTouristTaxCollection",
     "update",
     "upsertByName"
@@ -742,5 +755,8 @@
   ],
   "installmentPlan": [
     "taxShares"
+  ],
+  "installmentsModel": [
+    "buildModel"
   ]
 }

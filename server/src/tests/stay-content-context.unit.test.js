@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildStayContent, classifyOptions, roleOf } = require('../utils/stayContentContext');
+const { setPlatformReviewWhere } = require('../utils/platformNameFormat');
 const { legacyRoleOf } = require('../utils/productisationMigration');
 const { withSolioWording } = require('./solioWordingFixture');
 
@@ -152,7 +153,10 @@ test('J+1 review: Google only in direct; the platform first, Google as an extra,
   const direct = content({ settings }).vars.reviewParagraph;
   assert.match(direct, /notre page Google/);
   assert.doesNotMatch(direct, /Airbnb|Gîtes/);
+  // The wording is the platform's « Où laisser un avis » (specs/platform-settings-relay-and-review.md rule 3).
+  setPlatformReviewWhere({ GitesDeFrance: { fr: 'votre espace Gîtes de France', en: 'your Gîtes de France account' } });
   const gdf = content({ settings, reservation: { platform: 'GitesDeFrance' } }).vars.reviewParagraph;
+  setPlatformReviewWhere({});
   assert.match(gdf, /^Si ce n'est pas déjà fait, quelques mots sur votre espace Gîtes de France/);
   assert.match(gdf, /aussi le bienvenu sur notre page Google/);
   assert.match(content({ settings, reservation: { platform: 'Airbnb' } }).vars.reviewParagraph, /quelques mots sur Airbnb/);

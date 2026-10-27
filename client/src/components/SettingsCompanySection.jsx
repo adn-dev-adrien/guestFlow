@@ -4,7 +4,8 @@
  * Composes LogoUpload + identity fields + bank details.
  *
  * Props:
- *   values:      { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath }
+ *   values:      { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath, … }
+ *                (plugin fields of the `settings.etablissement` slot read and write the same object)
  *   errors:      { companyEmail?, companySiret?, companyTva?, companyIban?, companyBic? }
  *   onChange:    (key, value) => void   — key is one of the `values` field names
  *   onUploadLogo: (file: File) => Promise
@@ -15,8 +16,7 @@ import React from 'react';
 import { Card, CardContent, Stack, Typography, TextField, Divider, Box } from '@mui/material';
 import LogoUpload from './LogoUpload';
 import HelpedTextField from './HelpedTextField';
-import PluginGate from './PluginGate';
-import { SAS } from '../constants/plugins';
+import Slot from '../plugins/sdk/Slot';
 
 export default function SettingsCompanySection({
   values,
@@ -145,16 +145,9 @@ export default function SettingsCompanySection({
             disabled={disabled}
           />
 
-          <PluginGate id={SAS}>
-            <Divider />
-            <TextField
-              label="Code portail"
-              value={v.portalCode || ''}
-              onChange={setEvt('portalCode')}
-              helperText="Code du portail du domaine, communiqué au client à l'arrivée (SAS)."
-              disabled={disabled}
-            />
-          </PluginGate>
+          {/* Fields plugins add to the card (`settings.etablissement`), e.g. the SAS's « Code portail »
+              (specs/platform-settings-relay-and-review.md rule 11). */}
+          <Slot name="settings.etablissement" values={v} onChange={onChange} disabled={disabled} />
         </Stack>
       </CardContent>
     </Card>

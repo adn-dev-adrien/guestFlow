@@ -10,6 +10,9 @@ const propertyIcalModel = require('../models/propertyIcalModel');
 // an operator-declared establishment closure with a new reservation. The guard fires
 // `findCoveringClosure` on every event before any insert/update, and silently drops
 // the event when a closure covers its date range.
+// Narrowed at the 2026-10-27 audit (specs/lodgify-decommission.md §3 rule 17): only a NEW event whose
+// every night is closed is dropped; a partial overlap or a known stay moved onto a closure follows the
+// normal path, flagged — pinned by ical-closure-guard-scope.unit.test.js.
 
 const DDL = `
   CREATE TABLE properties (
@@ -125,7 +128,7 @@ test('iCal event fully outside the closure → imported normally', () => {
   });
 });
 
-test('Mixed feed — overlapping events dropped, non-overlapping ones still imported in the same sync', () => {
+test('Mixed feed — an event inside the closure dropped, the others imported in the same sync', () => {
   const { db, model, source } = freshModel();
   db.prepare(
     "INSERT INTO establishment_closures (propertyId, label, startDate, endDate) VALUES (1, 'Vacances été', '2026-07-13', '2026-07-20')",
@@ -133,14 +136,14 @@ test('Mixed feed — overlapping events dropped, non-overlapping ones still impo
   stubFetch([
     { uid: 'evt-A', start: '20260714', end: '20260716', summary: 'Booking A (skipped)' },
     { uid: 'evt-B', start: '20260801', end: '20260805', summary: 'Booking B (imported)' },
-    { uid: 'evt-C', start: '20260719', end: '20260722', summary: 'Booking C (skipped, straddles end)' },
+    { uid: 'evt-C', start: '20260719', end: '20260722', summary: 'Booking C (straddles the end: a real booking)' },
   ]);
 
   return model.syncSource(source).then((result) => {
-    assert.equal(result.skippedClosureCount, 2);
-    assert.equal(result.createdCount, 1);
+    assert.equal(result.skippedClosureCount, 1);
+    assert.equal(result.createdCount, 2);
     const reservations = db.prepare('SELECT sourceIcalEventUid FROM reservations').all().map((r) => r.sourceIcalEventUid);
-    assert.deepEqual(reservations, ['evt-B'], 'only the non-overlapping event landed');
+    assert.deepEqual(reservations, ['evt-B', 'evt-C'], 'only the event entirely inside the closure is dropped');
   });
 });
 

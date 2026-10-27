@@ -3,7 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import StaySection from '../StaySection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 import { vi } from 'vitest';
 
 // Vitest factory must return an object with `default` for default-export modules

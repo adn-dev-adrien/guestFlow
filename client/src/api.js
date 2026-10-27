@@ -212,13 +212,6 @@ const api = {
   // property's iCal-source config + global colour) and the global per-platform colour setter.
   getPropertyPlatforms: (propId) => request(`/properties/${propId}/platforms`),
   setPlatformColor: (platformKey, color) => request(`/platforms/${encodeURIComponent(platformKey)}/color`, { method: 'PUT', body: { color } }),
-  // Global per-platform tourist-tax mode ('platform' | 'platform_reversed' | 'owner') — applies to every property.
-  setPlatformTouristTax: (platformKey, touristTaxCollection) => request(`/platforms/${encodeURIComponent(platformKey)}/tourist-tax`, { method: 'PUT', body: { touristTaxCollection } }),
-  // specs/platform-deposit-toggle.md — global per-platform « acompte » flag (applies to every property).
-  setPlatformDepositMode: (platformKey, takesDeposit) => request(`/platforms/${encodeURIComponent(platformKey)}/deposit-mode`, { method: 'PUT', body: { takesDeposit } }),
-  // specs/platform-payout-due-date.md — days after departure before the platform's transfer is late.
-  setPlatformPayoutDueDays: (platformKey, days) => request(`/platforms/${encodeURIComponent(platformKey)}/payout-due-days`, { method: 'PUT', body: { days } }),
-  getPropertyIcalSources: (propId) => request(`/properties/${propId}/ical-sources`),
   createPropertyIcalSource: (propId, data) => request(`/properties/${propId}/ical-sources`, { method: 'POST', body: data }),
   updatePropertyIcalSource: (propId, sourceId, data) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'PUT', body: data }),
   deletePropertyIcalSource: (propId, sourceId) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'DELETE' }),
@@ -234,10 +227,8 @@ const api = {
   // a season (existing/new) with a minimum-nights; the server carves/splits the covering season(s).
   assignPricingDateRange: (propId, data) => request(`/properties/${propId}/pricing/assign-dates`, { method: 'POST', body: data }),
   previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data }),
-  // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up)
-  // + the per-platform commission % editor (global per platform).
+  // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up).
   getPlatformPrices: (propId) => request(`/properties/${propId}/platform-prices`),
-  setPlatformCommission: (platformId, commissionPercent) => request(`/platforms/${platformId}/commission`, { method: 'PUT', body: { commissionPercent } }),
   // Tariff recipes (specs/tariff-recipes/spec.md §3.5)
   getTariffRecipes: () => request('/tariff-recipes'),
   getTariffRecipe: (recipeId) => request(`/tariff-recipes/${recipeId}`),
@@ -266,12 +257,8 @@ const api = {
   uploadDocument: (propId, formData) => request(`/properties/${propId}/documents`, { method: 'POST', body: formData }),
   deleteDocument: (propId, docId) => request(`/properties/${propId}/documents/${docId}`, { method: 'DELETE' }),
 
-  // Property options
-  updatePropertyOptions: (propId, optionIds) => request(`/properties/${propId}/options`, { method: 'PUT', body: { optionIds } }),
-
   // Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7,
-  // specs/reservation-option-immutability.md). Independent of updatePropertyOptions, which only
-  // manages the availability filter. `getPropertyOptionDefaults` feeds the reservation form
+  // specs/reservation-option-immutability.md). `getPropertyOptionDefaults` feeds the reservation form
   // (forced-option detection when CREATING a reservation) and the read-only mirror on the Options
   // page. The defaults are edited from the Options page (the per-property grid on an option); the
   // former PropertyDetail "Options incluses" card was removed, so no per-property write endpoint is
@@ -367,6 +354,8 @@ const api = {
   regenerateWebsiteKey: () => request('/settings/website-connection/regenerate', { method: 'POST' }),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
+  // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » items and total, derived by the server.
+  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data }),
   computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
@@ -382,7 +371,6 @@ const api = {
 
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation
   // payload, so the fiche only calls these two on a mutation.
-  getReservationRefunds: (id) => request(`/reservations/${id}/refunds`),
   createReservationRefund: (id, data) => request(`/reservations/${id}/refunds`, { method: 'POST', body: data }),
   deleteReservationRefund: (id, refundId) => request(`/reservations/${id}/refunds/${refundId}`, { method: 'DELETE' }),
   getOccupiedDates: (propertyId, from, to, excludeReservationId) => {
@@ -430,7 +418,6 @@ const api = {
 
   // iCal Export
   getIcalToken: (propertyId) => request(`/ical/token/${propertyId}`),
-  regenerateIcalToken: (propertyId) => request(`/ical/regenerate-token/${propertyId}`, { method: 'POST' }),
 
   // App settings
   getSettings: () => request('/settings'),
@@ -450,15 +437,12 @@ const api = {
   getQontoStatus: () => request('/payments/qonto/status'),
   // The Qonto application settings + the connection test (specs/qonto-settings-in-app.md §4.3).
   // Secrets travel one way only: written here, never read back.
-  getQontoCredentials: () => request('/payments/qonto/credentials'),
   updateQontoCredentials: (payload) => request('/payments/qonto/credentials', { method: 'PUT', body: payload }),
   testQontoConnection: () => request('/payments/qonto/test', { method: 'POST' }),
   getQontoBankAccounts: () => request('/payments/qonto/bank-accounts'),
   connectQontoProvider: (payload) => request('/payments/qonto/connect-provider', { method: 'POST', body: payload }),
   refreshQontoConnection: () => request('/payments/qonto/refresh-connection'),
   // Payment links on a reservation/devis + manual poll (specs/online-payments-qonto.md §3.4/§7).
-  createReservationPaymentLink: (id, type = 'deposit') => request(`/payments/reservations/${id}/payment-links`, { method: 'POST', body: { type } }),
-  getReservationPaymentLinks: (id) => request(`/payments/reservations/${id}/payment-links`),
   // specs/deposit-blocks-the-dates.md rule 10 — no type: the server asks for the acompte when there
   // is one, for the whole stay otherwise, and says which in its response.
   sendPaymentRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: {} }),
@@ -482,14 +466,12 @@ const api = {
   getDevisById: (id) => request(`/devis/${id}`),
   createDevis: (data) => request('/devis', { method: 'POST', body: data }),
   updateDevis: (id, data) => request(`/devis/${id}`, { method: 'PUT', body: data }),
-  updateDevisStatus: (id, status) => request(`/devis/${id}/status`, { method: 'PATCH', body: { status } }),
   // specs/ui-review-2026-10-19-operations.md rule 20 — what « prolonger » would change, then do it.
   getDevisExtension: (id) => request(`/devis/${id}/extension`),
   extendDevis: (id) => request(`/devis/${id}/extend`, { method: 'POST' }),
   deleteDevis: (id) => request(`/devis/${id}`, { method: 'DELETE' }),
   convertDevisToReservation: (id) => request(`/devis/${id}/convert-to-reservation`, { method: 'POST' }),
   createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),
-  getDevisPdfUrl: (id) => `${API}/devis/${id}/pdf`,
   // Fetch the devis PDF as a blob. Uses credentials so the session cookie is sent — required because
   // VITE_API_URL can be absolute (cross-origin in dev), where a default fetch would omit the cookie.
   getDevisPdfBlob: async (id) => {
@@ -497,7 +479,6 @@ const api = {
     if (!res.ok) throw new Error('Impossible de générer le PDF.');
     return res.blob();
   },
-  getDevisHistory: (id) => request(`/devis/${id}/history`),
 
   // Accounting (read-only; admin + accountant)
   getAccountingSales: (month, year) => request(`/accounting/sales?month=${month}&year=${year}`),
@@ -534,7 +515,6 @@ const api = {
   // User management (admin-only). resetUserPassword no longer takes a password — the server
   // generates the temp password and emails it (specs/admin-account-management.md M2).
   listUsers: () => request('/users'),
-  getCurrentUser: () => request('/users/me'),
   // Self-service profile update — every authenticated role can call this on their own row.
   // Email IS editable since 2026-06-02 (the bootstrap admin must be able to replace the
   // `admin@guestflow.local` seed). Roles stay locked server-side (privilege guard).
@@ -655,9 +635,6 @@ const api = {
   // Stays numbered by the boot repair, listed until checked (specs/reservation-number-and-search.md rule 15).
   getRepairedReservationNumbers: () => request('/dashboard/repaired-reservation-numbers'),
   acknowledgeRepairedReservationNumber: (id) => request(`/dashboard/repaired-reservation-numbers/${id}/acknowledge`, { method: 'POST' }),
-  // Dashboard "pending site devis" — booking requests submitted from the public website that are
-  // still awaiting handling (specs/site-booking-notifications.md §3 rule 5).
-  getPendingPublicDevis: () => request('/dashboard/public-devis-pending'),
 
   // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4 / §3.5). Rows arrive
   // ready to render — the client decides nothing about states, amounts or available actions.

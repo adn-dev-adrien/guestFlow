@@ -57,6 +57,17 @@ host.
    logs nothing user-visible — a broken API must never break the site's admin.
 8. The manifest endpoint is public (it advertises nothing more than a published version number and
    a public download link), rate-limited like the other public endpoints, and cached.
+9. **The archive's name carries the manifest's version, newer than the installed one** (2026-10-27
+   audit, plugin 1.17.1). A manifest whose `download_url` file name (`guestflow-booking-A.B.C.zip`)
+   does not carry its `version` is treated as no manifest; and the download itself
+   (`upgrader_pre_download`) refuses an archive whose version is not above `GF_BOOKING_VERSION`.
+10. **The installed archive is the published one** (2026-10-27 audit, plugin 1.17.1). For a GuestFlow
+    Booking package, the plugin downloads the archive itself in `upgrader_pre_download`, reads the
+    `SHA256SUMS` asset of the same release (the file the release workflow publishes beside every
+    archive, `sha256sum` format), and hands WordPress the file only when its SHA-256 equals the listed
+    one (`hash_equals`). No listed checksum, an unreachable `SHA256SUMS` or a mismatch → a `WP_Error`
+    with a French message, the temporary file deleted, nothing installed. Other plugins' packages pass
+    through untouched.
 
 **Edge cases**
 
@@ -83,7 +94,7 @@ host.
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `includes/class-gf-updater.php` | C | Hooks `pre_set_site_transient_update_plugins`, `plugins_api`, `upgrader_process_complete`; transient cache; host validation |
+| `includes/class-gf-updater.php` | C | Hooks `pre_set_site_transient_update_plugins`, `plugins_api`, `upgrader_process_complete`, `upgrader_pre_download`; transient cache; host validation; version-in-name and SHA-256 checks (rules 9-10) |
 | `guestflow-booking.php` | T | Requires and boots the updater |
 | `readme.txt` | T | Keeps the `Stable tag` in sync with the version |
 
@@ -117,12 +128,19 @@ responsive — it is WordPress's own admin.
       is published, refusal of any asset hosted off-GitHub or served over plain HTTP, and the
       changelog HTML escaping what it renders.
 
+- [x] `tests/wordpress-plugin-update-integrity.unit.test.js` (2026-10-27, rules 9-10) — no PHP
+      harness, so the updater's source is read: version in the file name, refusal of a version not
+      newer, `SHA256SUMS` of the same release, `hash_equals`, deletion on mismatch, other packages
+      untouched; the two patterns run on sample lines. **(4 tests)** `php -l` not run (no PHP here).
+
 ### Manual verification
 
 - [ ] Publish a release with a bumped plugin version → the WordPress admin shows the update within
       12 h (or immediately after clearing the transient) and installs it successfully.
 - [ ] The site keeps working after the update (blocks render, availability + quote calls succeed).
 - [ ] GuestFlow stopped → the WordPress plugins page still loads normally, no update offered.
+- [ ] Rules 9-10: updating to the next release installs; an archive altered by hand on a test release
+      (or a `SHA256SUMS` without its line) is refused with « Mise à jour refusée : … ».
 
 ## 8. Out of scope
 

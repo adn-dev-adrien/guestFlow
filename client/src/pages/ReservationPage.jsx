@@ -51,6 +51,7 @@ import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
 import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPrefill';
+import { COARSE_POINTER, TOUCH_TARGET } from '../utils/touchHitArea';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
 import useWelcomePack from '../hooks/useWelcomePack';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
@@ -482,7 +483,12 @@ export default function ReservationPage() {
   const platformOptions = form.platform && !platforms.includes(form.platform)
     ? [...platforms, form.platform]
     : platforms;
-  const isPlatformReservation = Boolean(form.platform) && String(form.platform).toLowerCase() !== 'direct';
+  // specs/plugins-phase-p-productisation.md rule 45 — whether the stay is a platform SALE is the
+  // server's answer (a channel « Compté comme vente directe » is not one); before its first quote
+  // comes back, any named channel reads as a platform so the panels do not flicker.
+  const isPlatformReservation = pricingQuote
+    ? Boolean(pricingQuote.platformSale)
+    : Boolean(form.platform) && String(form.platform).toLowerCase() !== 'direct';
   // A cancelled stay is read-only (specs/payment-schedule-and-cancellation.md §3.5 rule 25): the
   // server refuses every write on it, so the fiche must not offer any.
   const isCancelledReservation = Boolean(form.cancelledAt);
@@ -575,19 +581,13 @@ export default function ReservationPage() {
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
     platform: form.platform,
     touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
-    // On a platform reservation, every auto-enabled option is also in Complément — union the
-    // explicit operator set with the catalog's auto-enabled ids so the engine preview matches
-    // what the server will write on save.
-    autoOptionsInComplement: isPlatformReservation
-      ? Array.from(new Set([
-          ...((form.autoOptionsInComplement || []).map(Number)),
-          ...propertyOptions.filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)),
-        ])).sort((a, b) => a - b)
-      : [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
+    // The explicit operator set only — on a platform sale the engine routes every auto-option to
+    // Complément by itself, exactly as on save.
+    autoOptionsInComplement: [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
     // specs/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, isPlatformReservation, refreshTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   // Review of #727 (H2) — a mark re-reads what the server wrote, then the quote re-prices the form on
   // that state: neither is an edit. A fiche that was clean takes its baseline again once that quote has
@@ -980,6 +980,7 @@ export default function ReservationPage() {
           setForm({
             clientId: devis.clientId,
             requestOrigin: devis.requestOrigin || null,
+            publicUpdatedAfterSendAt: devis.publicUpdatedAfterSendAt || null,
             originLabel: devis.originLabel || null,
             originDetail: devis.originDetail || null,
             adults: devis.adults || 1,
@@ -3334,6 +3335,8 @@ export default function ReservationPage() {
     formSectionCardSx, lockedSectionSx, formSectionContentSx, sectionGridSx,
     // core
     form, updateForm,
+    // specs/plugins-phase-p-productisation.md rule 45 — the server's « platform sale » answer.
+    isPlatformSale: isPlatformReservation,
     // catalogs
     properties, propertyOptions, propertyOptionGroups, displayableResources,
     // stay
@@ -3590,6 +3593,8 @@ export default function ReservationPage() {
                       sx={{
                         display: 'inline-flex', alignItems: 'center', gap: 0.75, width: 'fit-content', maxWidth: '100%',
                         cursor: 'pointer', px: 1.25, py: 0.75, borderRadius: 2, mt: -0.25,
+                        // 35 px tall: a finger needs 44 (specs/ds-components.md rule 21, 2026-10-27 audit).
+                        [COARSE_POINTER]: { minHeight: TOUCH_TARGET },
                         bgcolor: (t) => alpha(t.palette.primary.main, 0.08),
                         border: '1px solid',
                         borderColor: (t) => alpha(t.palette.primary.main, 0.22),
@@ -3619,6 +3624,12 @@ export default function ReservationPage() {
                           <span>
                             <StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} />
                           </span>
+                        </Tooltip>
+                      )}
+                      {/* specs/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
+                      {form.publicUpdatedAfterSendAt && (
+                        <Tooltip title="Le client a écrit depuis le site après l’envoi du devis : son message est dans les notes">
+                          <span><StatusBadge status="warning" label="Message du client après envoi" /></span>
                         </Tooltip>
                       )}
                       <OriginBadge label={form.originLabel} detail={form.originDetail} />
@@ -3662,7 +3673,7 @@ export default function ReservationPage() {
 
           <Card variant="outlined" sx={formSectionCardSx}>
             <CardContent sx={formSectionContentSx}>
-              <Typography variant="sectionHeader" sx={{ mb: 2 }}>Canal</Typography>
+              <Typography variant="sectionHeader" sx={{ mb: 2 }}>Plateforme</Typography>
               <FormControl fullWidth>
                 <InputLabel id="reservation-platform-label">Plateforme</InputLabel>
                 <Select labelId="reservation-platform-label" value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>

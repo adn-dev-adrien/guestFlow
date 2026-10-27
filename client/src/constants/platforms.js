@@ -60,8 +60,32 @@ export function getPlatformColor(platform) {
   return PLATFORM_COLORS[key] || DEFAULT_PLATFORM_COLOR;
 }
 
+// specs/platform-settings-relay-and-review.md rule 12 — the display names the server serves with the
+// platform colours (`displayNames`, keyed by slug here), loaded once by App. A component that must
+// re-render when they arrive subscribes with `subscribePlatformDisplayNames` (PlatformChip does).
+const PLATFORM_DISPLAY_NAMES = new Map();
+const displayListeners = new Set();
+let displayVersion = 0;
+
+export function setPlatformDisplayNames(map = {}) {
+  Object.entries(map || {}).forEach(([name, label]) => {
+    const key = normalizePlatformKey(name);
+    if (key && label) PLATFORM_DISPLAY_NAMES.set(key, String(label));
+  });
+  displayVersion += 1;
+  displayListeners.forEach((listener) => listener());
+}
+
+export function subscribePlatformDisplayNames(listener) {
+  displayListeners.add(listener);
+  return () => displayListeners.delete(listener);
+}
+
+export const platformDisplayNamesVersion = () => displayVersion;
+
 /**
- * Display label for a stored platform value. The DB stores canonical UpperCamelCase
+ * Display label for a stored platform value: the server's display name (« Gîtes de France ») once
+ * loaded, else the stored value read as below. The DB stores canonical UpperCamelCase
  * ('Airbnb', 'GitesDeFrance') which already reads fine; the lowercase 'direct' enum value is
  * capitalised here for display, and so is any value whose stored spelling drifted to lowercase
  * ('abracadaroom' → 'Abracadaroom'). Only the FIRST character is touched: the inner capitals of
@@ -70,6 +94,8 @@ export function getPlatformColor(platform) {
 export function formatPlatformLabel(platform) {
   const raw = String(platform || '').trim();
   if (!raw) return '';
+  const served = PLATFORM_DISPLAY_NAMES.get(normalizePlatformKey(raw));
+  if (served) return served;
   if (normalizePlatformKey(raw) === 'direct') return 'Direct';
   // A mixed-case spelling carries word boundaries in its inner capitals ('GitesDeFrance'), so only
   // the first character is touched. An all-caps one ('BOOKING') carries none, so its tail is
@@ -112,13 +138,3 @@ export function mergePlatformVariants(platforms) {
     .sort((a, b) => a.label.localeCompare(b.label, 'fr'));
 }
 
-/**
- * Predicate: is `platform` one of the well-known platforms (with a defined
- * brand colour)? Slug-normalises the input first so 'Airbnb', 'airbnb' and
- * 'AIRBNB' all answer `true`. Used by callers that need to distinguish
- * "iCal source uses a well-known platform" from "custom platform name".
- */
-export function isKnownPlatformKey(platform) {
-  const key = normalizePlatformKey(platform);
-  return Boolean(key && PLATFORM_COLORS[key]);
-}

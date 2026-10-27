@@ -819,10 +819,51 @@ function generateDevisNumber() {
     const parts = existing.devisNumber.split('-');
     increment = parseInt(parts[2] || '0', 10) + 1;
   }
+  // A number retired by the purge of untouched website requests is never handed out again
+  // (specs/public-request-abuse-and-grouping.md rule 10): a quote number may have gaps, not repeats.
+  const retired = db.prepare('SELECT lastIncrement FROM devis_number_retired WHERE prefix = ?').get(prefix);
+  if (retired && Number(retired.lastIncrement) >= increment) increment = Number(retired.lastIncrement) + 1;
   return `${prefix}${String(increment).padStart(3, '0')}`;
 }
 
+/** Remember a devis number about to be deleted, so `generateDevisNumber` skips past it. */
+function retireDevisNumber(devisNumber) {
+  const m = /^(\d{4}-\d{2}-)(\d+)$/.exec(String(devisNumber || ''));
+  if (!m) return;
+  db.prepare(`INSERT INTO devis_number_retired (prefix, lastIncrement) VALUES (?, ?)
+    ON CONFLICT(prefix) DO UPDATE SET lastIncrement = MAX(lastIncrement, excluded.lastIncrement)`)
+    .run(m[1], parseInt(m[2], 10));
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_number_retired (
+    prefix        TEXT PRIMARY KEY,
+    lastIncrement INTEGER NOT NULL
+  );
+  -- Operator notifications grouped by window (utils/notificationDigest.js,
+  -- specs/public-request-abuse-and-grouping.md rule 9): the first event of a window is mailed at once,
+  -- the next ones wait here for the summary. In the database so a restart neither loses nor repeats it.
+  CREATE TABLE IF NOT EXISTS notification_digest_windows (
+    digestKey       TEXT PRIMARY KEY,
+    windowStartedAt TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS notification_digest_items (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    digestKey TEXT NOT NULL,
+    refId     INTEGER,
+    kind      TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    takenAt   TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_notification_digest_items_key ON notification_digest_items (digestKey, id);
+`);
+// `takenAt`: a summary being sent; the rows go only once it left (review of PR #805).
+if (!db.prepare('PRAGMA table_info(notification_digest_items)').all().some((c) => c.name === 'takenAt')) {
+  db.exec('ALTER TABLE notification_digest_items ADD COLUMN takenAt TEXT');
+}
+
 db.generateDevisNumber = generateDevisNumber;
+db.retireDevisNumber = retireDevisNumber;
 
 // Initialize default timed options for existing properties when schema supports it.
 // Silent when the schema isn't ready or the property table is empty; surfaces a count line
@@ -978,6 +1019,12 @@ db.exec(`
   // trusted (→ soft-cancellation sweep) from the 2nd consecutive empty fetch.
   if (!icalSourceCols.includes('emptyFeedStreak')) {
     db.exec('ALTER TABLE ical_sources ADD COLUMN emptyFeedStreak INTEGER NOT NULL DEFAULT 0');
+  }
+  // specs/lodgify-decommission.md §3 rule 16 — the feed marks every stay « CLOSED - Not available »
+  // (Booking.com). 1/0 = the operator's choice on the platforms tab; NULL = not chosen yet, the platform's
+  // spelling decides (`utils/icalClosedFeed.js`). The one-shot migration below ticks existing Booking rows.
+  if (!icalSourceCols.includes('feedMarksStaysClosed')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN feedMarksStaysClosed INTEGER');
   }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
@@ -1329,6 +1376,23 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     }
   } catch (e) {
     console.error('[platform-slug-dedup] failed (non-fatal):', e && e.message);
+  }
+}
+
+// specs/lodgify-decommission.md §3 rule 16 — one-shot: every existing source whose platform reads
+// « booking… » (`booking`, `booking-com`, `BookingTente`…) gets the « séjours en CLOSED » setting, which
+// used to be inferred from the exact slug `booking` only.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'ical_feed_marks_stays_closed_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runClosedFeedMigration } = require('./utils/icalClosedFeed');
+    const tx = db.transaction(() => {
+      const ticked = runClosedFeedMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return ticked;
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[migration:ical-feed-marks-stays-closed] ${tx()} source(s) ticked`);
   }
 }
 
@@ -2109,6 +2173,13 @@ db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey =
   if (!rcols.includes('attributionLabel')) db.exec('ALTER TABLE reservations ADD COLUMN attributionLabel TEXT');
   if (!rcols.includes('attribution')) db.exec('ALTER TABLE reservations ADD COLUMN attribution TEXT');
   if (!rcols.includes('attributionAt')) db.exec('ALTER TABLE reservations ADD COLUMN attributionAt TEXT');
+  // specs/public-request-abuse-and-grouping.md §5 — `publicUpdatedAfterSendAt`: the guest changed a
+  // website request the operator had already sent (rule 14), cleared by the operator's next save;
+  // `operatorSeenAt`: the first time the operator opened the devis, so the 30-day purge of untouched
+  // requests (rule 10) never deletes one somebody read. NULL on every existing row: an old request
+  // counts as unread only while nothing else (status, edit, e-mail, payment) says it was handled.
+  if (!rcols.includes('publicUpdatedAfterSendAt')) db.exec('ALTER TABLE reservations ADD COLUMN publicUpdatedAfterSendAt TEXT');
+  if (!rcols.includes('operatorSeenAt')) db.exec('ALTER TABLE reservations ADD COLUMN operatorSeenAt TEXT');
   // specs/platform-extra-guest-complement.md §5 — the persons the platform billed, and the part of the
   // extra-guest supplement collected on arrival (real price, kept when offered). Reservations whose
   // brut is already entered take their current composition as the paid base: their totals do not move.
@@ -2187,6 +2258,13 @@ db.exec(`
 {
   const pcols = db.prepare('PRAGMA table_info(user_push_prefs)').all().map((c) => c.name);
   if (!pcols.includes('neat')) db.exec('ALTER TABLE user_push_prefs ADD COLUMN neat INTEGER NOT NULL DEFAULT 1');
+}
+// The push channels of the plugins (specs/platform-settings-relay-and-review.md rule 8): their toggles
+// live in a table of their own; the `neat` column above is only read once, by the migration.
+{
+  const { applyPushChannelPrefsSchema, runPushChannelPrefsMigration } = require('./utils/pushChannelPrefsMigration');
+  applyPushChannelPrefsSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runPushChannelPrefsMigration(db);
 }
 // The two Neat tables are the `neat` plugin's (specs/plugins-phase-3b-neat.md rule 11): its migration
 // `tables_v1` creates them, and keeps an existing database's rows.
@@ -2497,6 +2575,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   applyChoreFreeChannelsSchema(db);
   if (process.env.SKIP_MIGRATIONS !== 'true') runChoreFreeChannelsMigration(db);
   require('./utils/platformNameFormat').refreshChoreFreeChannels(db);
+}
+
+// ---------- GUEST-CONTACT CHANNELS — specs/platform-settings-relay-and-review.md rules 1-6 ----------
+{
+  const { applyPlatformGuestContactSchema, runPlatformGuestContactMigration } = require('./utils/platformGuestContactMigration');
+  applyPlatformGuestContactSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runPlatformGuestContactMigration(db);
+  require('./utils/platformNameFormat').refreshGuestContactChannels(db);
 }
 
 // ---------- TRANSLATION CATALOGUE ----------

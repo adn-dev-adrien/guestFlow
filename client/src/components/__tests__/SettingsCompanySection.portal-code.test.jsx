@@ -1,5 +1,6 @@
 // specs/plugins-phase-1-sdk.md rule 17 — the keypad code is a SAS fact: its field in Établissement
-// follows the `sas` plugin, not Sowel's.
+// follows the `sas` plugin, not Sowel's. Since specs/platform-settings-relay-and-review.md rule 11 the SAS
+// draws it itself, through the `settings.etablissement` slot.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -13,10 +14,10 @@ const renderSection = () => render(<SettingsCompanySection values={{ portalCode:
 
 beforeEach(() => enabled.clear());
 
-test('rule 17: the portal code field shows with the SAS plugin, without Sowel', () => {
+test('rule 17: the portal code field shows with the SAS plugin, without Sowel', async () => {
   enabled.add('sas');
   renderSection();
-  expect(screen.getByLabelText('Code portail')).toBeTruthy();
+  expect(await screen.findByLabelText('Code portail')).toHaveValue('4719');
 });
 
 test('rule 17: without the SAS plugin there is no portal code, Sowel or not', () => {

@@ -11,14 +11,16 @@
  * work: « Réactiver » is filled and « Retirer » keeps its colour; only « Synchroniser » is greyed.
  * A stopped calendar (`isActive = 0`, specs/ical-import-hardening.md rule 2) carries « Arrêté » and has
  * no « Synchroniser ». The status line is the server's `syncStatus` (rule 9): when, and what changed;
- * the engine's full sentence is its tooltip.
+ * the engine's full sentence is its tooltip. The URL editor also carries the « séjours en CLOSED »
+ * switch (specs/lodgify-decommission.md §3 rule 16): a feed that names every stay « CLOSED - Not
+ * available », as Booking.com does, whatever the platform is called.
  *
  * Props: propertyId, propertyName, canManage
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import {
-  Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Link, Stack, TextField, Tooltip, Typography,
+  Alert, Box, Button, Card, CardContent, Chip, CircularProgress, FormControlLabel, Link, Stack, Switch, TextField, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -45,6 +47,10 @@ const STATUS_ICON = {
   success: { Icon: CheckCircleIcon, color: 'success.main' },
 };
 
+// specs/lodgify-decommission.md §3 rule 16 — Booking.com's wording, kept as the feed writes it.
+const CLOSED_LABEL = 'Séjours en « CLOSED »';
+const CLOSED_SWITCH_LABEL = 'Chaque séjour est noté « CLOSED - Not available »';
+
 const statusOf = (row) => row.syncStatus || { tone: 'never', text: 'Jamais synchronisé', detail: '' };
 const isStopped = (row) => Boolean(row.sourceId) && row.isActive === false;
 
@@ -55,6 +61,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
   const [editingKey, setEditingKey] = useState(null);
   const [urlDraft, setUrlDraft] = useState('');
   const [urlError, setUrlError] = useState('');
+  const [closedDraft, setClosedDraft] = useState(false);
   const [busyKey, setBusyKey] = useState(null);
   const [syncingAll, setSyncingAll] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -95,6 +102,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
       platformLabel: row.platformLabel,
       url: changes.url !== undefined ? changes.url : (row.url || ''),
       disabled: changes.disabled !== undefined ? changes.disabled : Boolean(row.disabled),
+      feedMarksStaysClosed: changes.feedMarksStaysClosed !== undefined ? changes.feedMarksStaysClosed : Boolean(row.feedMarksStaysClosed),
     };
     return row.sourceId
       ? api.updatePropertyIcalSource(propertyId, row.sourceId, payload)
@@ -107,7 +115,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
       setUrlError('Un lien complet (https://…), ou vide pour une saisie manuelle.');
       return;
     }
-    await run(row.platformKey, () => upsert(row, { url }), 'Calendrier enregistré.');
+    await run(row.platformKey, () => upsert(row, { url, feedMarksStaysClosed: closedDraft }), 'Calendrier enregistré.');
     setEditingKey(null);
   };
 
@@ -163,6 +171,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                     {!row.isDirect && <Chip size="small" label={`Acompte : ${row.platformTakesDeposit ? 'oui' : 'non'}`} />}
                     {!row.isDirect && <Chip size="small" label={TAX_SHORT[row.touristTaxCollection] || TAX_SHORT.platform} />}
                     {!row.isDirectChannel && <Chip size="small" label={`Virement ${row.payoutDueDays ?? 10} j`} />}
+                    {!row.isDirect && row.feedMarksStaysClosed && <Chip size="small" label={CLOSED_LABEL} data-testid={`platform-closed-${row.platformKey}`} />}
                     {Boolean(row.disabled) && <Chip size="small" label="Désactivé" />}
                     {isStopped(row) && <Chip size="small" label="Arrêté" data-testid={`platform-stopped-${row.platformKey}`} />}
                   </Box>
@@ -193,6 +202,11 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                       error={Boolean(urlError)}
                       helperText={urlError || 'Vide = saisie manuelle (pas de synchronisation iCal).'}
                     />
+                    <FormControlLabel
+                      control={<Switch checked={closedDraft} onChange={(e) => setClosedDraft(e.target.checked)} />}
+                      label={CLOSED_SWITCH_LABEL}
+                      sx={{ minHeight: 44 }}
+                    />
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <Button size="small" variant="contained" onClick={() => saveUrl(row)} disabled={busy}>Enregistrer</Button>
                       <Button size="small" onClick={() => setEditingKey(null)} disabled={busy}>Annuler</Button>
@@ -202,7 +216,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                 {!editing && (
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
                     {!row.isDirect && (
-                      <Button size="small" variant="outlined" onClick={() => { setEditingKey(row.platformKey); setUrlDraft(row.url || ''); setUrlError(''); }} disabled={!canManage || busy}>
+                      <Button size="small" variant="outlined" onClick={() => { setEditingKey(row.platformKey); setUrlDraft(row.url || ''); setUrlError(''); setClosedDraft(Boolean(row.feedMarksStaysClosed)); }} disabled={!canManage || busy}>
                         Modifier l&apos;URL
                       </Button>
                     )}

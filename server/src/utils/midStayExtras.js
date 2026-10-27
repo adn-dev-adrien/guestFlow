@@ -23,6 +23,13 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 // mid-stay line survive a check-out commit.
 const MID_STAY_SOURCE = 'midStayExtra';
 
+// specs/mid-stay-extras-to-end-of-stay-complement.md rule 20 — what the stay gained after its arrival
+// complement was collected, billed at check-out on a line of its own. It was routed to the arrival
+// complement, so once frozen it counts as « forced » (out of the acompte/solde split), like the
+// complement it could not join.
+const ARRIVAL_COMPLEMENT_EXCESS_KEY = 'arrivalComplementExcess';
+const ARRIVAL_COMPLEMENT_EXCESS_LABEL = "Ajouté après l'encaissement du complément d'arrivée";
+
 /**
  * Stable key of an extra line, shared by the baseline and the current state.
  * Custom lines have no stable id (they are deleted + re-inserted on every save), so they are keyed
@@ -217,6 +224,7 @@ function splitFromStoredLines(storedLines, currentLines, notesRaw) {
     const key = extraLineKey(line);
     if (key) forcedKeys.add(key);
   }
+  forcedKeys.add(ARRIVAL_COMPLEMENT_EXCESS_KEY);
   const result = {
     total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
   };
@@ -300,6 +308,8 @@ function mergeMidStayIntoDetail(detailRaw, midStayLines) {
 
 module.exports = {
   MID_STAY_SOURCE,
+  ARRIVAL_COMPLEMENT_EXCESS_KEY,
+  ARRIVAL_COMPLEMENT_EXCESS_LABEL,
   extraLineKey,
   buildExtrasBaseline,
   splitMidStayExtras,

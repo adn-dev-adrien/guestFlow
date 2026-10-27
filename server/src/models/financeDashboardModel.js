@@ -325,6 +325,16 @@ function createDashboardModel(database, finance) {
     const refunds = ids.length && hasTable('reservation_refunds')
       ? database.prepare(`SELECT reservationId, refundDate, totalTtc FROM reservation_refunds WHERE method <> 'internal' AND reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)
       : [];
+    // specs/direct-installments.md rule 45 — a stay paid through a plan has no acompte / solde: each
+    // collected installment is a payment of its own, on the day it was received.
+    const planned = reservations.filter((r) => round2(r.installmentsPaidAmount) > 0).map((r) => r.id);
+    const installments = planned.length && hasTable('reservation_installments')
+      ? database.prepare(`SELECT i.reservationId, i.number, i.paidDate, i.amountCents,
+                                 (SELECT COUNT(*) FROM reservation_installments a WHERE a.reservationId = i.reservationId) AS count
+                            FROM reservation_installments i
+                           WHERE i.paid = 1 AND i.reservationId IN (${planned.map(() => '?').join(',')})
+                           ORDER BY i.reservationId, i.number`).all(...planned)
+      : [];
     const rows = [];
     for (const r of reservations) {
       const base = {
@@ -337,6 +347,9 @@ function createDashboardModel(database, finance) {
       if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0));
       if (r.complementPaid && !r.complementPaidCash) add(r.complementPaidDate, 'complement', 'Complément', Number(r.complementAmount || 0));
       if (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) add(r.endOfStayComplementPaidDate, 'endOfStay', 'Complément fin de séjour', Number(r.endOfStayComplementAmount || 0));
+      for (const i of installments.filter((x) => x.reservationId === r.id)) {
+        add(i.paidDate, 'installment', `Échéance ${i.number}/${i.count}`, Number(i.amountCents || 0) / 100);
+      }
       for (const n of parseNotes(r.midStaySettledNotes)) {
         if (Number(n.paidCash || 0) === 0) add(n.paidDate, 'note', 'Note en séjour', Number(n.total) || 0);
       }

@@ -1,3 +1,4 @@
+require('./isolatedDb');
 // specs/terms-acceptance-record.md §3.3-§3.5 — the public booking request and the CGV: refused without
 // acceptance (422), with an outdated version (409), while nothing is published (503); the emergency
 // switch; the acceptance written with the server clock and the relayed visitor, in the same

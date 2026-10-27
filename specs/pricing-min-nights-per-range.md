@@ -108,6 +108,14 @@ the price or the minimum of the rest of the season.
   explicit-range seasons (`create` seeds a full-year *range*), so this is a legacy-data edge only.
 - Zero-night quote (same-day) → `requiredMinNights=1`, not breached (unchanged).
 
+10. **The tariff page fits a phone and the 1280 column** (2026-10-27 audit). Below `sm` the year
+    calendar shows one month with « Mois précédent » / « Mois suivant » (crossing into the previous
+    or next year) — the twelve stacked grids pushed the recipe card and the price grid ~4000 px
+    down. The bar title is « Gestion tarifaire » with the property name as a caption beside it (it
+    read « Gestion tarifaire - La Granja — gîte… », cut, two kinds of dash). The seasons table's
+    floor drops from 980 to 860 px, its two figures align right, and Modifier / Supprimer stack in a
+    narrow column — « Supprimer » was clipped by 36 px at 1280.
+
 ---
 
 ## 4. Architecture
@@ -253,6 +261,9 @@ existing "Appliquer à un autre logement" + "Nouvelle saison", **plus** new "Aff
 - [ ] Mobile (`xs`): use "Définir un minimum sur une période" + date pickers (no drag).
 - [ ] Regression: season CRUD, cross-season overlap validation, apply-to-another-property (min carried
       over), progressive pricing preview, `PlatformPriceCard` grid, public quote min-nights.
+
+- **2026-10-27 audit (rule 10):** `PropertyPricingSeasonsPage.phone-month.test.jsx` (2) and
+  `PropertyPricingSeasonsPage.title-and-table.test.jsx` (2).
 
 ## 8. Out of scope
 

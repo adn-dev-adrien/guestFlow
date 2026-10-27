@@ -260,7 +260,7 @@ const EDITOR_LABELS = { deposit: "Montant de l'acompte (€)", balance: 'Montant
 export default function FinanceSection() {
   const {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
-    form, updateForm, pricingQuote, accommodationBasePriceDisplay,
+    form, updateForm, pricingQuote, accommodationBasePriceDisplay, isPlatformSale,
     isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
     saveThenRun, reloadReservationFinance,
     midStayNoteOpen, setMidStayNoteOpen, midStayNote,
@@ -378,7 +378,8 @@ export default function FinanceSection() {
     </Tooltip>
   ) : null;
 
-  const isPlatform = String(form.platform || 'direct').toLowerCase() !== 'direct';
+  // specs/plugins-phase-p-productisation.md rule 45 — the server's answer, never the platform's name.
+  const isPlatform = Boolean(isPlatformSale);
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
   const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const showMidStayNotes = Boolean(midStayNote?.visible);
@@ -873,9 +874,9 @@ export default function FinanceSection() {
             open={Boolean(midStayNoteOpen)}
             onClose={() => setMidStayNoteOpen(false)}
             pendingLines={pendingMidStayLines}
-            onSettle={(items, cash) => saveThenRun(async () => {
+            onSettle={({ checkedKeys, opening }, cash) => saveThenRun(async () => {
               await api.markPayment(editingReservationId, {
-                settleMidStayNote: { items: items.map(({ key, amount }) => ({ key, amount })), cash },
+                settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
               });
               await reloadReservationFinance();
             })}

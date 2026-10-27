@@ -58,10 +58,13 @@ export default function GuestsBedsSection() {
           )}
         </Box>
         <Stack spacing={2}>
+          {/* The age range is helper text, not part of the label: « Enfants (2 à 12 ans) » was cut to
+              « Enfants (2 à 12 a… » in a quarter-width column (2026-10-27 audit). */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
               <TextField
                 label="Adultes"
+                helperText="18 ans et plus"
                 type="number"
                 value={form.adults}
                 onChange={(e) => updateForm({ adults: Number(e.target.value) })}
@@ -74,7 +77,8 @@ export default function GuestsBedsSection() {
             </Box>
             <Box>
               <TextField
-                label={`Enfants (2 à 12 ans)`}
+                label="Enfants"
+                helperText="2 à 12 ans"
                 type="number"
                 value={form.children}
                 onChange={(e) => updateForm({ children: Number(e.target.value) })}
@@ -87,7 +91,8 @@ export default function GuestsBedsSection() {
             </Box>
             <Box>
               <TextField
-                label={`Ados (12 à 18 ans)`}
+                label="Ados"
+                helperText="12 à 18 ans"
                 type="number"
                 value={form.teens}
                 onChange={(e) => updateForm({ teens: Number(e.target.value) })}
@@ -100,7 +105,8 @@ export default function GuestsBedsSection() {
             </Box>
             <Box>
               <TextField
-                label={`Bébés (0 à 2 ans)`}
+                label="Bébés"
+                helperText="0 à 2 ans"
                 type="number"
                 value={form.babies}
                 onChange={(e) => updateForm({ babies: Number(e.target.value) })}

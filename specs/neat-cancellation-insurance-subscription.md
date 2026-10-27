@@ -201,6 +201,14 @@ through.
 
 ## 4. Architecture
 
+> **Moved to plugin `neat` (phase 3b, `specs/plugins-phase-3b-neat.md`) — current file map (audit
+> 2026-10-27).** The tables below are the map at implementation time. The code lives in
+> `server/src/plugins/neat/`: `client.js` (partner API client) · `controller.js` · `routes.js` (thin) ·
+> `fieldMapping.js` (rule 4) · `pricing.js` (guest pricing, rule 13, a quote post-processor) ·
+> `subscriptionRunner.js` (worker, §3.2) · `subscriptionsModel.js` (jobs + premium cache, §5) ·
+> `settingsStore.js` (settings in `plugin_settings`) · `migrations.js` · `index.js`. Client
+> `client/src/plugins/neat/`: `NeatInsuranceStatus.jsx`, `SettingsNeatSection.jsx`, `index.js`.
+
 > **Fat backend, thin frontend — holds.** Discovery, mapping validation, payload construction,
 > pricing, retries, idempotency and status derivation are all server-side. The client renders
 > settings forms and a status chip, and calls action endpoints.

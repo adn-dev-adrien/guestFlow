@@ -6,15 +6,15 @@
 const model = require('../models/pushSubscriptionsModel');
 const vapid = require('../utils/vapid');
 const pushService = require('../utils/pushService');
-const registry = require('../plugins/sdk/registry');
-const PLUGINS = require('../constants/plugins');
+const { availablePushChannels, pluginPushChannels } = require('../utils/pushChannels');
 
-// specs/plugins-phase-3b-neat.md rule 13 — the toggles a user can set: a plugin's channel only while
-// that plugin is live. A stored preference is kept as it is either way.
-const PLUGIN_CHANNELS = { neat: PLUGINS.NEAT };
+// specs/plugins-phase-3b-neat.md rule 13, specs/platform-settings-relay-and-review.md rule 8 — the
+// toggles a user can set: the core's, then each live plugin's own, served with its label. A stored
+// preference of an inactive plugin is kept as it is.
+const pluginKeys = () => pluginPushChannels().map((c) => c.key);
 function withAvailable(prefs) {
-  const available = Object.keys(prefs).filter((key) => !PLUGIN_CHANNELS[key] || registry.isLive(PLUGIN_CHANNELS[key]));
-  return { ...prefs, available };
+  const channels = availablePushChannels();
+  return { ...prefs, available: channels.map((c) => c.key), channels };
 }
 
 function getPublicKey(req, res) {
@@ -37,13 +37,13 @@ function unsubscribe(req, res) {
 function getPreferences(req, res) {
   const userId = req.user && req.user.id;
   if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
-  return res.json(withAvailable(model.getPreferences(userId)));
+  return res.json(withAvailable(model.getPreferences(userId, pluginKeys())));
 }
 
 function updatePreferences(req, res) {
   const userId = req.user && req.user.id;
   if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
-  return res.json(withAvailable(model.setPreferences(userId, req.body || {})));
+  return res.json(withAvailable(model.setPreferences(userId, req.body || {}, pluginKeys())));
 }
 
 // Send a test push to every device of the current user (ignores preferences). Returns the fan-out

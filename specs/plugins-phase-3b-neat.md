@@ -332,6 +332,12 @@ arrives.
     set, it replaces the environment's base URL (trailing slash dropped); an explicit `baseUrl` (tests)
     still wins. *Why:* the plugin could not be exercised end to end without the real API.
 
+### Fixed at the 2026-10-27 audit
+
+25. **The core names no Neat.** The « Souscriptions Neat » push toggle (rule 13) is declared by the plugin
+    with `ctx.pushChannel` (SDK 2.6.0) and served with its label; the insurance refusals (rules 21–22)
+    read « plugin d’assurance actif » (specs/platform-settings-relay-and-review.md rules 8–9).
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

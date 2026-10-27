@@ -122,8 +122,64 @@ function refreshChoreFreeChannels(database) {
   setChoreFreeChannels(names);
 }
 
+/**
+ * Channels that relay the guest's e-mail — `isRelayChannel(platform)`.
+ *
+ * Some platforms hand out a relay address instead of the guest's own: nothing sent there after the
+ * stay reaches anyone who asked for it. The operator ticks « Adresse e-mail relais » on such a platform
+ * (`platforms.relaysGuestEmail`) and the guest e-mail sequence reads this set instead of a platform
+ * name (specs/platform-settings-relay-and-review.md rules 1-2).
+ */
+let relayChannels = new Set();
+
+function isRelayChannel(platform) {
+  return relayChannels.has(channelKey(platform));
+}
+
+function setRelayChannels(names = []) {
+  relayChannels = new Set(names.map(channelKey));
+}
+
+/**
+ * Where a platform's guests leave a review — `platformReviewWhere(platform, lang)`, as the J+1 e-mail
+ * words it (`platforms.reviewWhereFr` / `reviewWhereEn`, specs/platform-settings-relay-and-review.md
+ * rules 3-4). '' when the operator wrote nothing; an empty English answers the French.
+ */
+let reviewWhere = new Map();
+
+function platformReviewWhere(platform, lang = 'fr') {
+  const entry = reviewWhere.get(channelKey(platform));
+  if (!entry) return '';
+  return (lang === 'en' && entry.en) ? entry.en : entry.fr;
+}
+
+/** `{ [platformName]: { fr, en } }`. */
+function setPlatformReviewWhere(map = {}) {
+  reviewWhere = new Map(Object.entries(map)
+    .map(([name, v]) => [channelKey(name), { fr: String((v && v.fr) || '').trim(), en: String((v && v.en) || '').trim() }])
+    .filter(([, v]) => v.fr || v.en)
+    .map(([key, v]) => [key, { fr: v.fr || v.en, en: v.en }]));
+}
+
+/**
+ * Re-reads both guest-contact settings: at boot and after every platform save. An own channel never
+ * counts, whatever it stored: the settings page shows it neither the switch nor the wording.
+ */
+function refreshGuestContactChannels(database) {
+  let rows = [];
+  try {
+    rows = database.prepare('SELECT name, relaysGuestEmail, reviewWhereFr, reviewWhereEn FROM platforms').all()
+      .filter((r) => !isDirectChannel(r.name));
+  } catch {
+    rows = [];
+  }
+  setRelayChannels(rows.filter((r) => Number(r.relaysGuestEmail) === 1).map((r) => r.name));
+  setPlatformReviewWhere(Object.fromEntries(rows.map((r) => [r.name, { fr: r.reviewWhereFr, en: r.reviewWhereEn }])));
+}
+
 module.exports = {
   formatPlatformName, isDirectChannel, setDirectChannels, refreshDirectChannels, registerDirectChannelSql,
   isChoreFreeChannel, setChoreFreeChannels, refreshChoreFreeChannels,
+  isRelayChannel, setRelayChannels, platformReviewWhere, setPlatformReviewWhere, refreshGuestContactChannels,
 };
 

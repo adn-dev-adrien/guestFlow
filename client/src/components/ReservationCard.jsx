@@ -46,6 +46,7 @@ import FlightLandIcon from '@mui/icons-material/FlightLand';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import BedIcon from './BedIcon';
 import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
+import { softChipSx } from './StatusBadge';
 import { formatCurrency } from '../utils/formatters';
 import { sasLockTooltip, statusLockTooltip } from '../constants/receptionSasLock';
 
@@ -182,21 +183,19 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
               />
             </span>
           </Tooltip>
-          {/* ARRIVÉE badge — FlightLand (plane touching down) for the universal
-              "arrival" semantic. Bigger height + solid bg + white text for max pop. */}
+          {/* ARRIVÉE badge — FlightLand (plane touching down) for the universal "arrival" semantic.
+              Soft semantic background + dark text (design-system §3.1, 2026-10-27 audit). */}
           <Chip
             icon={<FlightLandIcon sx={{ fontSize: 18 }} />}
             label="ARRIVÉE"
             size="small"
-            sx={{
+            sx={[softChipSx(done ? 'success' : 'warning'), {
               height: 26,
               fontSize: 12,
               fontWeight: 800,
-              color: 'common.white',
-              bgcolor: done ? 'success.main' : 'warning.main',
               px: 0.5,
-              '& .MuiChip-icon': { ml: 1, mr: -0.25, color: 'common.white' },
-            }}
+              '& .MuiChip-icon': { ml: 1, mr: -0.25 },
+            }]}
           />
           {/* Time pill — promoted to the top row (Adrien 2026-06-06: "met moi l'heure
               juste à droite du de Arrivée [...] avec un encadrement arrondi et en gras
@@ -206,17 +205,15 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             icon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
             label={r.checkInTime || '15:00'}
             size="small"
-            sx={{
+            sx={[softChipSx(done ? 'success' : 'warning'), {
               height: 22,
               fontSize: 13,
               fontWeight: 800,
               borderRadius: 1.5,
-              color: 'common.white',
-              bgcolor: done ? 'success.main' : 'warning.main',
-              '& .MuiChip-icon': { ml: 0.5, mr: -0.25, color: 'common.white' },
-            }}
+              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
+            }]}
           />
-          {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
+          {done && <Chip label="Prêt" size="small" sx={[softChipSx('success'), { height: 20, fontSize: 11, fontWeight: 600 }]} />}
           <Box sx={{ flexGrow: 1 }} />
           {/* Actions top-right on tablet/desktop; on mobile they move to the bottom row below. */}
           {!isMobile && (
@@ -333,9 +330,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
                   ? 'Linge de lit non pris'
                   : `Linge de lit insuffisant : ${r.bedLinenAlert.capacity} couchage${r.bedLinenAlert.capacity > 1 ? 's' : ''} pour ${r.bedLinenAlert.required} pers.`}
                 size="small"
-                color="warning"
-                variant="filled"
-                sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
+                sx={[softChipSx('warning'), { height: 22, fontSize: 12, fontWeight: 700 }]}
               />
             </Box>
           )}
@@ -373,9 +368,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
                    → collected at the door, with the end-of-stay complement. */
                 label={`${r.complementDeferredToCheckout && !r.complementPaid ? 'Complément (fin de séjour)' : 'Complément à percevoir'} : ${formatCurrency(r.complementAmount)}${r.complementPaid ? ' (perçu)' : ''}`}
                 size="small"
-                color={r.complementPaid ? 'success' : 'error'}
-                variant={r.complementPaid ? 'outlined' : 'filled'}
-                sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
+                sx={[softChipSx(r.complementPaid ? 'success' : 'error'), { height: 22, fontSize: 12, fontWeight: 700 }]}
               />
             </Box>
           )}
@@ -390,9 +383,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
               <Chip
                 label={`Caution à percevoir : ${formatCurrency(r.cautionAmount)}`}
                 size="small"
-                color="warning"
-                variant="filled"
-                sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
+                sx={[softChipSx('warning'), { height: 22, fontSize: 12, fontWeight: 700 }]}
               />
             </Box>
           )}

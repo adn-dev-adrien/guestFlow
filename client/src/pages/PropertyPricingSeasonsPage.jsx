@@ -317,6 +317,16 @@ export default function PropertyPricingSeasonsPage() {
   // button row and a 980 px table are both unusable on a phone.
   const theme = useTheme();
   const isCompact = useMediaQuery(theme.breakpoints.down('md'));
+  // On a phone the year shows ONE month, browsed with its own arrows: twelve stacked grids pushed the
+  // recipe card and the price grid ~4000 px down (2026-10-27 audit).
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
+  const [phoneMonth, setPhoneMonth] = useState(new Date().getMonth());
+  const stepPhoneMonth = (delta) => {
+    const next = phoneMonth + delta;
+    if (next < 0) { setDisplayStartYear((y) => y - 1); setPhoneMonth(11); }
+    else if (next > 11) { setDisplayStartYear((y) => y + 1); setPhoneMonth(0); }
+    else setPhoneMonth(next);
+  };
 
   const seasons = property?.pricingRules || [];
   // Computed once per render: today in ISO, and the per-season upcoming ranges the table shows.
@@ -790,9 +800,13 @@ export default function PropertyPricingSeasonsPage() {
   return (
     <Box>
       <PageActionBar
-        // On a phone the property name costs the whole title (« Gesti… ») — the sidebar and the
-        // recipe card both name the property anyway.
-        title={isCompact ? 'Gestion tarifaire' : `Gestion tarifaire - ${property.name}`}
+        // The property name is a caption beside the title, never glued to it: « Gestion tarifaire -
+        // La Granja — gîte… » was cut at 1280 and mixed two dashes (2026-10-27 audit). On a phone the
+        // sidebar and the recipe card name the property anyway.
+        title="Gestion tarifaire"
+        subtitle={isCompact ? undefined : (
+          <Typography variant="body2" color="text.secondary">{property.name}</Typography>
+        )}
         backTo={`/properties/${id}`}
         // Compact: ICON actions, which PageActionBar collapses into its « … » overflow menu past two
         // items. As custom `node` buttons they stayed inline by design and stacked into a staircase
@@ -857,8 +871,33 @@ export default function PropertyPricingSeasonsPage() {
                     <ChevronRightIcon fontSize="inherit" />
                   </IconButton>
                 </Box>
+                {isPhone && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <IconButton
+                      onClick={() => stepPhoneMonth(-1)}
+                      disabled={phoneMonth === 0 && displayStartYear <= minYear - 1}
+                      aria-label="Mois précédent"
+                      sx={{ width: 44, height: 44 }}
+                    >
+                      <ChevronLeftIcon />
+                    </IconButton>
+                    <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
+                      {new Date(year, phoneMonth, 1).toLocaleDateString('fr-FR', { month: 'long' })}
+                    </Typography>
+                    <IconButton
+                      onClick={() => stepPhoneMonth(1)}
+                      disabled={phoneMonth === 11 && displayStartYear >= maxYear + 2}
+                      aria-label="Mois suivant"
+                      sx={{ width: 44, height: 44 }}
+                    >
+                      <ChevronRightIcon />
+                    </IconButton>
+                  </Box>
+                )}
                 <Grid container spacing={1.5}>
-                  {Array.from({ length: 12 }, (_, month) => {
+                  {Array.from({ length: 12 }, (_, month) => month)
+                    .filter((month) => !isPhone || month === phoneMonth)
+                    .map((month) => {
                     const first = new Date(year, month, 1);
                     const last = new Date(year, month + 1, 0);
                     const startGrid = getMondayStart(first);
@@ -1071,14 +1110,16 @@ export default function PropertyPricingSeasonsPage() {
               {seasons.length === 0 && <EmptyState message="Aucune saison. Créez votre première saison." py={4} />}
             </Box>
           ) : (
-          <TableCard minWidth={980}>
+          // 860, not 980: at 1280 next to the drawer the 980 floor overflowed by 36 px and cut
+          // « Supprimer » (2026-10-27 audit). The actions stack in their own narrow column.
+          <TableCard minWidth={860}>
               <TableHead>
                 <TableRow>
                   <TableCell>Saison</TableCell>
                   <TableCell>Dates</TableCell>
                   <TableCell>Type</TableCell>
-                  <TableCell>Tarif base 1 nuit</TableCell>
-                  <TableCell>Min – max nuits</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>Tarif base 1 nuit</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>Min – max nuits</TableCell>
                   <TableCell></TableCell>
                 </TableRow>
               </TableHead>
@@ -1092,11 +1133,13 @@ export default function PropertyPricingSeasonsPage() {
                       </Box>
                     </TableCell>
                     <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
-                    <TableCell>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
-                    <TableCell>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
-                    <TableCell>
-                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
-                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
+                    <TableCell sx={{ width: 1 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
+                        <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}

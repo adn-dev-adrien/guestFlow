@@ -125,6 +125,16 @@ that ship generic summaries.
 6. **`removedCount` semantics stay correct.** When step 3.5 fires, no cancellation alert
    is raised for the old UID (its mapping is gone before stale cleanup runs).
    `removedCount` increments **only** for genuinely abandoned bookings.
+7. **Never on a summary that names nobody** *(fixed at the 2026-10-27 audit)*. Step 3.5 is skipped
+   when `parseGuestName(event.summary, event.description).isFallback` is true — Airbnb's « Reserved »,
+   Gîtes de France's « BOOKED », any summary made only of the platform words of
+   `specs/ical-import-hardening.md` rules 8 and 11. Such a summary is shared by every stay of the feed,
+   so guard (b) does not protect it: when guest A cancels and guest B books in the same sync, A is the
+   one stale candidate and B inherited A's fiche — moved to B's dates without a word when unlocked;
+   when locked, B was never created (its nights stayed open in the export to every other channel) and
+   only a misleading date-drift alert appeared. Now B is created and A goes to the cancellation
+   approval; a nameless stay moved under a new UID takes the same path, which loses nothing. The
+   Booking feed already had this exclusion (`specs/lodgify-decommission.md` rule 4bis).
 
 **Edge cases:**
 - **Summary normalisation collision**: two real bookings with the SAME numeric ID across
@@ -134,7 +144,8 @@ that ship generic summaries.
   IDs, which it does not do on the timescales we care about.
 - **Empty / generic summary** (`'booked ical'`, `'closed period'`): the multi-row count
   ≥ 2 case → step 3.5 skips → falls through to INSERT + soft cancellation alert (PR #106).
-  The user can manually intervene from the Dashboard.
+  The user can manually intervene from the Dashboard. A summary that names nobody is skipped
+  even with a single stale candidate (rule 7).
 - **The platform issues a new UID AND changes the summary** (e.g. it now embeds the new
   reservation number): step 3.5 can't match (different `summaryNormalized`). Falls
   through to INSERT + soft cancellation alert. Acceptable v1 — this would require the
@@ -156,7 +167,7 @@ that ship generic summaries.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `models/` | [models/propertyIcalModel.js](server/src/models/propertyIcalModel.js) | T | Adds one prepared statement (`listSameSourceMappingsBySummary`) + step 3.5 in `syncSource`'s per-event loop. ~15 lines of code. |
+| `models/` | [models/propertyIcalModel.js](server/src/models/propertyIcalModel.js) | T | Adds one prepared statement (`listSameSourceMappingsBySummary`) + step 3.5 in `syncSource`'s per-event loop. ~15 lines of code. Rule 7: skipped when the summary names nobody (`parseGuestName` from `utils/icalParser.js`). |
 
 No model rename / signature change; no new dependencies; no schema change; no client-side
 work; no controller / route additions; no migration.
@@ -229,6 +240,11 @@ No client surface touched. Behaviourally, the user sees:
   pass.
 
 No new test file; no rename.
+
+- [x] `tests/ical-nameless-summary-matching.unit.test.js` (rule 7, 2026-10-27 audit, 6 cases shared with
+  `specs/ical-import-hardening.md` rule 15): Airbnb « Reserved » and GdF « BOOKED » — a cancelled stay
+  keeps its dates, the new one is created, the old one gets its cancellation alert; locked: the new stay
+  is created and exported, no drift alert; a named summary still re-claims a moved stay.
 
 ### Manual UI verification
 

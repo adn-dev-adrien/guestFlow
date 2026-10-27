@@ -22,7 +22,8 @@ const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
 const { fullPaymentCents, fullPaymentComponents } = require('../../utils/devisQuote');
 const { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents } = require('../../utils/publicPaymentMode');
 const { tokensMatch } = require('../../utils/publicDevisToken');
-const { calculateReservationQuote } = require('../../utils/pricing');
+const { calculateReservationQuote, calculateBaseStayPrice } = require('../../utils/pricing');
+const { checkChangeover } = require('../../utils/changeover');
 const settingsModel = require('../../models/settingsModel');
 const { computeBlockedDates, rangeHasBlockedNight } = require('../../utils/blockedDates');
 const { ok, fail, failT } = require('./publicHttp');
@@ -51,6 +52,27 @@ function loadPublicDevis(id, token) {
   return { row };
 }
 
+/**
+ * The stay rule the saved devis breaks today, as `[code, messageKey, ...args]` for `failT`, or null.
+ * Same order and wording as the booking request (website-booking publicProjections.stayRuleBreach):
+ * the rules may have changed since the request, and nothing is paid yet (fixed at the 2026-10-27
+ * audit). An exception the operator grants is sent as a payment link from the fiche, never through
+ * this route.
+ */
+function stayRuleRefusal(row) {
+  const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(row.propertyId);
+  const base = calculateBaseStayPrice(rules, row.startDate, row.endDate);
+  if (base.minNightsBreached) return ['MIN_NIGHTS', 'minNights', Number(base.requiredMinNights || 0)];
+  if (base.maxNightsBreached) return ['MAX_NIGHTS', 'maxNights', Number(base.requiredMaxNights || 0)];
+  const changeover = checkChangeover(rules, row.startDate, row.endDate);
+  if (changeover.breached) {
+    return ['CHANGEOVER', 'changeover',
+      changeover.arrivalBreached ? changeover.requiredArrivalWeekday : null,
+      changeover.departureBreached ? changeover.requiredDepartureWeekday : null];
+  }
+  return null;
+}
+
 // Without a provider plugin the routes answer the envelope they answered while online payment was off
 // (rule 5). A provider that is live but not connected still answers, and fails like it always did.
 function requireProvider(req, res, next) {
@@ -71,6 +93,11 @@ async function pay(req, res) {
   const blocked = computeBlockedDates(row.propertyId, row.startDate, row.endDate);
   if (rangeHasBlockedNight(row.startDate, row.endDate, blocked)) {
     return failT(res, req, 409, 'DATES_UNAVAILABLE', 'datesUnavailable');
+  }
+  const ruleRefusal = stayRuleRefusal(row);
+  if (ruleRefusal) {
+    const [code, key, ...args] = ruleRefusal;
+    return failT(res, req, 409, code, key, undefined, ...args);
   }
 
   // Server-decided mode (specs/public-online-deposit.md): 'deposit' charges the stored acompte now (solde

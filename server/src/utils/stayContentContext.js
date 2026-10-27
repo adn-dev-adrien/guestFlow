@@ -25,7 +25,8 @@
 const { formatDateLong } = require('./dateFr');
 const { isCleaningOption, normalizeOptionName } = require('./cleaningOption');
 const { isClientVisibleOption } = require('./optionVisibility');
-const { isDirectChannel, isChoreFreeChannel } = require('./platformNameFormat');
+const { isDirectChannel, isChoreFreeChannel, platformReviewWhere } = require('./platformNameFormat');
+const { platformDisplay } = require('./platformDisplay');
 const { renderStayText, renderText } = require('./stayTextCatalogue');
 const { format: formatWithArticle } = require('./propertyArticle');
 const { pendingFactsOf } = require('./propertyFacts');
@@ -347,13 +348,9 @@ function buildStayContent({ reservation, client, property, options = [], facts =
 
   // --- J+1
   const googleReviewUrl = safe(settings.googleReviewUrl).trim();
-  const platformName = (() => {
-    const pf = safe(r.platform).toLowerCase().replace(/[^a-z]/g, '');
-    if (pf.startsWith('gitesdefrance') || pf.startsWith('gite')) return t('votre espace Gîtes de France', 'your Gîtes de France account');
-    if (pf.startsWith('airbnb')) return 'Airbnb';
-    if (pf.startsWith('booking')) return 'Booking';
-    return safe(r.platform).trim();
-  })();
+  // Where the platform's guests leave a review, as the operator wrote it in Paramètres › Plateformes,
+  // else the platform's display name (specs/platform-settings-relay-and-review.md rules 3-4).
+  const platformName = platformReviewWhere(r.platform, L) || platformDisplay(r.platform);
   let reviewParagraph = '';
   if (isDirectChannel(r.platform)) {
     if (googleReviewUrl) reviewParagraph = say('review.direct', { link: googleReviewUrl });

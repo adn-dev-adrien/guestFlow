@@ -169,7 +169,7 @@ export default function OptionRow({ opt }) {
     setOptionInComplement, setAutoOptionInComplement,
     setOptionCardPersons, maxGuestsAllowed,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
-    isDevisMode,
+    isDevisMode, isPlatformSale,
     // specs/plugins-phase-3b-neat.md rule 16 — what live plugins draw under a line, fed by the
     // payload's `pluginBlocks`.
     pluginBlocks, setPluginBlock, pluginLineContext,
@@ -191,7 +191,7 @@ export default function OptionRow({ opt }) {
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). Only engine-derived auto-options keep their toggle hidden — their routing
   // is the algorithm's, not the operator's (rule 5).
-  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+  const isPlatformReservation = Boolean(isPlatformSale);
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
   // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
@@ -244,6 +244,11 @@ export default function OptionRow({ opt }) {
   const servedPersons = Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1);
   const servedPersonsMax = Math.max(servedPersons, Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1);
 
+  let switchCaption = '';
+  if (readOnly) switchCaption = opt.readOnlyReason || 'Lecture seule';
+  else if (isAutoTimedOption) switchCaption = 'Ajout automatique';
+  else if (isForcedByPropertyDefault) switchCaption = 'Inclus';
+
   return (
     <Card
       variant="outlined"
@@ -279,23 +284,27 @@ export default function OptionRow({ opt }) {
                   : `${isPercentOfStay ? `${Number(opt.price) || 0} %` : formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
             </Typography>
           </Box>
-          <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
-            <Tooltip title={readOnly ? opt.readOnlyReason || '' : ''}>
-              <FormControlLabel
-                sx={{ m: 0 }}
-                control={<Switch checked={enabled} disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault || Boolean(arrivalLine)} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
-              />
-            </Tooltip>
-            {readOnly && (
-              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right' }}>{opt.readOnlyReason || 'Lecture seule'}</Typography>
-            )}
-            {isAutoTimedOption && (
-              <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
-            )}
-            {!isAutoTimedOption && isForcedByPropertyDefault && (
-              <Typography variant="caption" color="text.secondary">Inclus</Typography>
-            )}
-          </Stack>
+          {/* The switch and the word saying why it is set sit on ONE row — on a phone the switch
+              floated alone with « Ajout automatique » stacked under it (2026-10-27 audit). */}
+          <Tooltip title={readOnly ? opt.readOnlyReason || '' : ''}>
+            <FormControlLabel
+              labelPlacement="start"
+              sx={{ m: 0, gap: 1, alignSelf: { xs: 'stretch', sm: 'flex-start' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}
+              label={(
+                <Typography variant="caption" color="text.secondary" sx={{ textAlign: { sm: 'right' } }}>
+                  {switchCaption}
+                </Typography>
+              )}
+              control={(
+                <Switch
+                  checked={enabled}
+                  disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault || Boolean(arrivalLine)}
+                  onChange={(e) => setOptionEnabled(opt.id, e.target.checked)}
+                  slotProps={{ input: { 'aria-label': opt.title } }}
+                />
+              )}
+            />
+          </Tooltip>
         </Stack>
 
         {lineContributions.map(({ key, pluginId, Component }) => (

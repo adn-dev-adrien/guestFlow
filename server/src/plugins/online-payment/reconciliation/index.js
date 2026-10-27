@@ -30,6 +30,7 @@ function mountReconciliation(ctx, { store }) {
     const { getTodayIsoDate } = sdk.coreModule('reservationHelpers');
     const paymentLinks = sdk.coreModule('paymentLinksModel');
     const reservations = sdk.coreModule('reservationsModel');
+    const installments = sdk.coreModule('installmentsModel').buildModel(ctx.db);
 
     const transactions = createBankTransactionsModel(ctx.db);
     const model = createReconciliationModel(ctx.db);
@@ -44,7 +45,7 @@ function mountReconciliation(ctx, { store }) {
         withQonto: qonto, model: transactions, settings: ctx.settings,
         startDate: String(ctx.settings.get('reconciliationStartDate') || getTodayIsoDate()),
       }),
-      core: { buildLedger, parseGroup, listLinks: (id) => { try { return links.listForReservation(id); } catch { return []; } }, platformDisplay, todayIso: getTodayIsoDate },
+      core: { buildLedger, parseGroup, listLinks: (id) => { try { return links.listForReservation(id); } catch { return []; } }, listInstallments: (id) => installments.listFor(id), platformDisplay, todayIso: getTodayIsoDate },
     });
     return controller;
   };

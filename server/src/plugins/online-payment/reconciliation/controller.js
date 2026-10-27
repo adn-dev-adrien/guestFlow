@@ -77,7 +77,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
     const discarded = model.discardedKeys();
 
     const receipts = expectedReceipts({
-      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks,
+      db, startDate, today, buildLedger: core.buildLedger, parseGroup: core.parseGroup, listLinks: core.listLinks, listInstallments: core.listInstallments,
     });
 
     const allocatedOf = new Map();

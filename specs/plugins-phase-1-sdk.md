@@ -245,11 +245,26 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-27 — SDK 2.6.0 (audit fixes): `coreModule('installmentsModel')` (the installment plan read by
+> the bank reconciliation, `specs/qonto-bank-reconciliation.md` rule 45); `platformNameFormat` gains
+> `isRelayChannel`, `setRelayChannels`, `platformReviewWhere`, `setPlatformReviewWhere`,
+> `refreshGuestContactChannels` and `platformsModel` gains `guestContactById`, `setRelaysGuestEmail`,
+> `setReviewWhere`, `refreshGuestContactChannels` (`specs/platform-settings-relay-and-review.md`);
+> `ctx.pushChannel({ key, label })` lets a plugin declare its push channel. Recorded in
+> `coreModuleHistory.json`.
+
 > 2026-10-27 — SDK 2.5.0 (master v3.18.0 merged into `inte/plugins`): `coreModule('platformNameFormat')`
 > gains `isChoreFreeChannel` / `setChoreFreeChannels` / `refreshChoreFreeChannels`
 > (`specs/airbnb-no-checkout-chores.md` rule 8); `coreModule('platformsModel')` gains `choreFreeIds`,
 > `setForbidsGuestChores`, `refreshChoreFreeChannels`; `propertiesModel` gains `setPlatformCleaningFees`
 > (`specs/tariff-recipe-platform-cleaning-fee.md`). `sas` 1.6.0 and `tariff-recipes` 1.3.0 require it.
+> `coreModule('installmentPlan')` (`utils/installmentPlan.js`, `specs/direct-installments.md` rule 39) also
+> ships in 2.5.0: #794 added it without the SDK bump, while `accounting-export` kept `^2.0.0` — fixed at the
+> 2026-10-27 audit, `accounting-export` 1.0.13 declares `^2.5.0`. Since then `server/src/plugins/sdk/coreModuleHistory.json`
+> records what each SDK minor added to `coreModule()` (2.1.0 `departureSasPlan`, 2.4.0 `directQuote`, 2.5.0
+> `installmentPlan` and the chore-free / `setPlatformCleaningFees` names), and
+> `tests/plugins-sdk-core-module-floor.unit.test.js` refuses a plugin that calls a module or a name newer than
+> the floor of its `sdk` range, or a contract module the history does not date.
 
 > 2026-10-26 — SDK 2.4.0 (`specs/google-vacation-rentals-feed.md` rule 12): `ctx.events.emit(name, payload)`
 > lets a plugin announce `pricing.changed`, and only that event; `coreModule('directQuote')` exposes the
@@ -538,6 +553,8 @@ full width (44 px). Nothing else moves.
   (moved from `settings-model-encryption`, which now tests the SMTP secret).
 - `plugins/school-holidays/tests/school-holidays-sync-dates.unit.test.js` (5) — rule 27.
 - Rule 19 is cited on the moved OAuth flow tests (`google-oauth-flow`), whose redirect assertions changed.
+- `plugins-sdk-core-module-floor.unit.test.js` (3, audit 2026-10-27) — every `coreModule()` module and dated
+  name a plugin uses exists at the floor of its `sdk` range; the history dates every contract module.
 
 ### Moved tests
 The tests of the five plugins moved with their code into `server/src/plugins/<id>/tests/` and

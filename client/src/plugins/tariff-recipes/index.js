@@ -8,6 +8,7 @@ export default {
     routes: [{ path: '/parametres/recettes', Component: lazy(() => import('./TariffRecipesPage')), roles: ['admin'] }],
     'settings.menu': [{
       path: '/parametres/recettes', label: 'Recettes tarifaires', Icon: MenuBookIcon, after: '/parametres/options-ressources',
+      keywords: ['Tarifs', 'Prix', 'Saisons', 'Dégressivité', 'Durée minimale'],
     }],
     'dashboard.alerts': [{ key: 'recipe-runs', order: 10, Component: lazy(() => import('./TariffRecipeRunsAlert')) }],
     // The recipe card of Logement › Tarifs & saisons.

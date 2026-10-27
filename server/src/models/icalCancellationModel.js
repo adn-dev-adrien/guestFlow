@@ -143,7 +143,7 @@ function buildModel(database) {
       FROM ical_cancellation_alerts
      WHERE id = ?
   `);
-  const reservationExists = database.prepare('SELECT id FROM reservations WHERE id = ?');
+  const reservationExists = database.prepare('SELECT * FROM reservations WHERE id = ?');
   // Everything a cancellation compensation needs to survive the reservation it came from
   // (specs/cancellation-compensation.md §3.1 rule 1). Read INSIDE the approve transaction, before
   // the DELETE — after it there is nothing left to snapshot. Prepared LAZILY: it reaches for columns
@@ -193,6 +193,11 @@ function buildModel(database) {
        SET acknowledgedAt = datetime('now'), outcome = 'reservation_gone'
      WHERE id = ? AND acknowledgedAt IS NULL
   `);
+  const ackAlreadyCancelled = database.prepare(`
+    UPDATE ical_cancellation_alerts
+       SET acknowledgedAt = datetime('now'), outcome = 'already_cancelled'
+     WHERE id = ? AND acknowledgedAt IS NULL
+  `);
   const ackRejected = database.prepare(`
     UPDATE ical_cancellation_alerts
        SET acknowledgedAt = datetime('now'), outcome = 'rejected'
@@ -214,6 +219,13 @@ function buildModel(database) {
       // reservationId still returned so the Google event (if any) gets cleaned up too.
       ackReservationGone.run(id);
       return { ok: true, outcome: 'reservation_gone', reservationId: cancellation.reservationId, compensationId: null };
+    }
+    // specs/ical-cancellation-approval.md rule 13 — a stay already cancelled in GuestFlow is kept: deleting
+    // it would cascade its refunds (the credit note owed to the guest). Its mappings go, the alert closes.
+    if ((r.kind || 'reservation') !== 'reservation') {
+      deleteImportEvents.run(cancellation.reservationId);
+      ackAlreadyCancelled.run(id);
+      return { ok: true, outcome: 'already_cancelled', reservationId: null, compensationId: null };
     }
     // Snapshot BEFORE delete — same reason as the history row below.
     const snapshot = compensation ? selectReservationSnapshot().get(cancellation.reservationId) : null;

@@ -13,7 +13,7 @@ const {
 const ONBOARDING_QUESTIONS = Object.freeze([
   {
     id: 'options',
-    label: 'Des options payantes à l’arrivée : repas, linge, bain nordique ?',
+    label: 'Des options payantes à l’arrivée : repas, linge, sauna ou spa ?',
     // The arrival SAS is where the options are sold and paid.
     plugins: [HOURLY_RESOURCES, LINEN, SAS],
     recommended: true,

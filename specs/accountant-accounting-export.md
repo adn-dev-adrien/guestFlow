@@ -303,6 +303,15 @@ standard).
 
 ## 4. Architecture
 
+> **Moved to plugin `accounting-export` (phase 2, `specs/plugins-phase-2-hosts.md`) — current file map
+> (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
+> `server/src/plugins/accounting-export/`: `controller.js` (CSV export, commissions) · `accountingModel.js`
+> (read-only DB layer) · `accountingExport.js` (pure engine) · `accountPlan.js` (buckets → accounts) ·
+> `latin1.js` (rule 31) · `platformAccountsController.js` / `platformAccountsModel.js`
+> (`/api/accounting/platform-accounts`) · `settings.js` (account and VAT settings in `plugin_settings`) ·
+> `index.js`. Client `client/src/plugins/accounting-export/`: `AccountingPage.jsx`,
+> `PlatformAccountsPage.jsx`, `PlatformAccountsLink.jsx`, `index.js`.
+
 > **Fat backend, thin frontend.** All journal-line generation, pro-rata splitting, rounding, VAT
 > extraction, account mapping and CSV serialization live on the server. The Comptabilité page only picks a
 > month and downloads the file. The reservation form only renders the new fields and submits them.

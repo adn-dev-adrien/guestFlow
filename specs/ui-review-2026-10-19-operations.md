@@ -237,6 +237,22 @@ guessing; and the quote the guest receives looks like the house that sends it.
 - A fiche before its first quote → no bar (nothing to render yet).
 - A calendar week where two logements close → two bands, two labels, still no lane.
 
+31. **One headline, live or stored (audit 2026-10-27).** « Total du séjour » counts the tourist tax as
+    the books know it: the amount the platform withheld when the operator stated it, else the tax the
+    stay carries (0 when the platform handles it). The engine's estimate of a tax the platform
+    handles is not a stored fact: reading it live printed 506 on an Airbnb brut of 500 that the
+    stored row printed 500. « Total perçu » is the engine's `sejourNetTotal` on both sides: the stored
+    row adds every bucket — caisse interne included — net of the commissions, plus the mid-stay
+    notes, minus the book refunds, plus the arrival payment adjustment (`quoteHeadline.storedNetTotal`).
+    A complement collected in caisse interne made the stored headline show « Total perçu 306 » where
+    the live one showed nothing. The finance pages keep their own caisse-interne carve-out.
+32. **The pricing summary's closing cascade is served (audit 2026-10-27).** The quote carries
+    `summaryCascade = { grossTotal, offeredTaxDeduction, onSiteTotal, commissionBase }`; the panel
+    prints it and computes none of it. `grossTotal` is rule 31's gross; the « Taxe de séjour
+    (plateforme) » deduction is the withheld amount only (an estimate is no longer added then taken
+    back); `onSiteTotal` = arrival + end-of-stay complements + mid-stay notes; `commissionBase` = the
+    pre-arrival amount.
+
 ---
 
 ## 4. Architecture
@@ -319,6 +335,11 @@ devis, options), `SegmentedSelect` (every short exclusive filter). Page-specific
 - Client `hooks/useDirtyFormGuard.js`, `pages/ReservationPage.jsx`, `pages/PropertyDetail.jsx`: the
   Back guard re-pushes the page's state; `PropertyDetail` falls back to `/properties` (rule 26).
 
+**Audit 2026-10-27 (rules 31-32).** `utils/quoteHeadline.js` — `stayGross` reads the stored-fact tax,
+new `storedNetTotal` and `summaryCascade`; `utils/pricing.js` sets `quote.summaryCascade`;
+`controllers/reservationsController.js` `storedHeadlineOf` uses `storedNetTotal`;
+`client/src/components/PricingSummary.jsx` renders `summaryCascade`.
+
 ## 5. Data model
 
 None. Binary assets: four embedded fonts (Source Serif 4 Semibold; Source Sans 3 Regular, Semibold,
@@ -391,6 +412,10 @@ rewrites its rule-17 cases for the single serif file and the sans fallback (rule
 licence notices. Manual: `qlmanage -t` page 1 and every page through PDFKit (Swift) of sample quotes
 before and after — Latin Extended, Vietnamese, Greek + Cyrillic, CJK + RTL, and a 30-line quote with a
 long company and logement name.
+
+**Audit 2026-10-27:** `tests/quote-headline-live-stored-parity.unit.test.js` (3, rules 31-32);
+`tests/ui-review-operations-headline.unit.test.js` adjusted to the rule-31 tax; the
+`PricingSummary.commission` / `.platform-tourist-tax` client suites feed `summaryCascade`.
 
 ## 8. Out of scope
 

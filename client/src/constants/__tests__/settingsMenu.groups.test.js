@@ -2,7 +2,7 @@
 // becomes four groups, the families of SETTINGS_MENU; every entry (plugins' included) belongs to one;
 // the group of the open page is the one the sidebar unfolds.
 import {
-  SETTINGS_MENU, SETTINGS_GROUPS, visibleSettingsGroups, settingsGroupOf, isSettingsPath, SETTINGS_KEYWORDS, INTEGRATIONS_PATH,
+  SETTINGS_MENU, SETTINGS_GROUPS, visibleSettingsGroups, settingsGroupOf, isSettingsPath, settingsKeywordsOf, INTEGRATIONS_PATH,
 } from '../settingsMenu';
 
 const all = () => true;
@@ -48,6 +48,6 @@ test('rule 27: every page of the summary has its words', () => {
   visibleSettingsGroups(all, all, { withExtras: true }).flatMap((g) => g.entries)
     .filter((e) => e.path !== INTEGRATIONS_PATH)
     .forEach((e) => {
-      expect(SETTINGS_KEYWORDS[e.path], e.path).toBeTruthy();
+      expect(settingsKeywordsOf(e).length, e.path).toBeGreaterThan(0);
     });
 });

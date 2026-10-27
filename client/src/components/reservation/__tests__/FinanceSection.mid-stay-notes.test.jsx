@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 import { vi } from 'vitest';
 import { dueRow, editable, ledgerOf } from './ledgerFixtures';
 

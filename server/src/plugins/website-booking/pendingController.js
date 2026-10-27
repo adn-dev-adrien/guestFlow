@@ -5,11 +5,12 @@
  * was off.
  */
 
-// listPendingPublicDevis: () => [{ … }] — the core reservations model's read.
-function buildPendingController({ listPendingPublicDevis }) {
+// listPendingPublicDevis: () => [{ … }] — the core reservations model's read; requestsLastHour: () →
+// the website requests of the last hour (specs/public-request-abuse-and-grouping.md rule 11).
+function buildPendingController({ listPendingPublicDevis, requestsLastHour = () => 0 }) {
   return {
     list(req, res) {
-      return res.json({ alerts: listPendingPublicDevis() });
+      return res.json({ alerts: listPendingPublicDevis(), requestsLastHour: requestsLastHour() });
     },
   };
 }
