@@ -387,8 +387,7 @@ CREATE TABLE IF NOT EXISTS reservation_history (
     reservationId INTEGER NOT NULL,
     eventType TEXT NOT NULL DEFAULT 'update',
     changedFields TEXT NOT NULL DEFAULT '[]',
-    createdAt TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
+    createdAt TEXT DEFAULT (datetime('now'))
   );
 
 CREATE TABLE IF NOT EXISTS reservation_nights (

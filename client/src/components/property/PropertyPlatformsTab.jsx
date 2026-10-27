@@ -31,7 +31,7 @@ import PauseCircleIcon from '@mui/icons-material/PauseCircle';
 import api from '../../api';
 import IcalExportCard from '../IcalExportCard';
 import { useToast } from '../DialogProvider';
-import { DEFAULT_PLATFORM_COLOR, normalizePlatformKey } from '../../constants/platforms';
+import { DEFAULT_PLATFORM_COLOR, formatPlatformLabel, normalizePlatformKey } from '../../constants/platforms';
 
 const TAX_SHORT = {
   platform: 'Taxe : plateforme → commune',
@@ -166,7 +166,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                 <Box sx={row.disabled ? { opacity: 0.45, filter: 'grayscale(1)' } : undefined}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
                     <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: row.color || DEFAULT_PLATFORM_COLOR, flex: '0 0 auto' }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mr: 0.5 }}>{row.platformLabel}</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mr: 0.5 }}>{formatPlatformLabel(row.platformLabel)}</Typography>
                     {commission != null && <Chip size="small" label={`${commission} %`} />}
                     {!row.isDirect && <Chip size="small" label={`Acompte : ${row.platformTakesDeposit ? 'oui' : 'non'}`} />}
                     {!row.isDirect && <Chip size="small" label={TAX_SHORT[row.touristTaxCollection] || TAX_SHORT.platform} />}

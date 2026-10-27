@@ -2677,6 +2677,17 @@ try {
   console.warn('[ical-clients] séparation des clients iCal partagés impossible :', err.message);
 }
 
+// ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------
+// `reservation_history` no longer cascades with `reservations`: the audit trail of a deleted stay —
+// the « Suppression iCal approuvée » row first — must survive the delete. Table rebuild, every row kept.
+{
+  const migrationName = 'reservation_history_outlives_reservation_v1';
+  const { keepHistoryBeyondReservation } = require('./utils/reservationHistoryKeepMigration');
+  const copied = keepHistoryBeyondReservation(db);
+  if (copied !== null) console.log(`[history] ${copied} ligne(s) d'historique conservée(s) au-delà de la suppression du séjour.`);
+  db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

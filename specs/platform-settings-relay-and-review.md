@@ -96,6 +96,10 @@ display name, so a GreenGo guest's J+1 reads « GreenGo » (the brand's spelling
 13. **« Plateforme »** names `reservation.platform` everywhere: the « Encaissé » and « Réservations »
     tables of the Suivi financier and the fiche's section. « Canal » stays the « Canaux de réservation »
     tile's own concept.
+14. *(Fixed at the 2026-10-27 spec review.)* The logement's « Plateformes » tab names each platform with
+    the display name of rule 12 (`formatPlatformLabel`), like Paramètres › Plateformes — never the stored
+    key (« GitesDeFrance », « BookingCom », « direct »). Test:
+    `components/property/__tests__/PropertyPlatformsTab.display-names.test.jsx`.
 
 **Edge cases:**
 - A platform counted as a direct sale after being ticked relay → not a relay, no switch shown.

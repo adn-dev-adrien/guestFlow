@@ -62,7 +62,6 @@ function register(ctx) {
       .get(clientId, reservationId == null ? -1 : reservationId)),
     core: {
       updateReservation: ctx.core.reservations.update,
-      findOrCreateClient: ctx.core.clients.findOrCreate,
       updateClient: ctx.core.clients.update,
       suggestBeds: ctx.core.reservations.suggestBeds,
       platformCommission: ctx.core.reservations.platformCommission,

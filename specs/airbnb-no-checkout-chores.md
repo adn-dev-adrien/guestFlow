@@ -93,6 +93,12 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
    operator unticks stays unticked. The column itself is added on every boot when missing. The boot
    de-duplication of platform rows (`platformSlugDedupMigration.js`) merges the switch like
    `countsAsDirect`: ticked on any duplicate means ticked on the row it keeps.
+10. *(Fixed at the 2026-10-27 spec review.)* The « Plateformes » save judges a row's own-channel status on
+    the state **after** the save: a row ticked « Compté comme vente directe » in the same batch takes no
+    platform rule — `forbidsGuestChores`, the relay address, the review wording and the payout delay are not
+    written — and a row unticked in the same batch takes them. Before, the check read the state before the
+    save and stored a hidden « Sans corvées » flag that would wake up the day the row stopped counting as
+    direct. Test: `tests/platform-settings-post-save-own-channel.unit.test.js`.
 
 **Edge cases:**
 - Airbnb stay, cleaning not included (booking made before the fee existed) → ménage offer page as

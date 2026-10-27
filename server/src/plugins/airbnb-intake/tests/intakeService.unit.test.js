@@ -41,11 +41,16 @@ function setup({
       { optionId: 12, quantity: 1, offered: 0, inComplement: 1 },
     ] }),
     core: {
-      updateReservation: (id, patch, opts) => { calls.updates.push({ id, patch, opts }); return { status: updateStatus, body: updateStatus === 200 ? { ok: true } : { error: 'Séjour commencé ou passé' } }; },
+      // Like the core: the client of `opts.client` is found or created with the update (SDK 2.7.0), and only kept on success.
+      updateReservation: (id, patch, opts) => {
+        const own = opts.client ? { id: 141, ...opts.client } : null;
+        if (own && updateStatus === 200) calls.clients.push(opts.client);
+        calls.updates.push({ id, patch: own ? { ...patch, clientId: own.id } : patch, opts });
+        return { status: updateStatus, clientId: own && updateStatus === 200 ? own.id : undefined, body: updateStatus === 200 ? { ok: true } : { error: 'Séjour commencé ou passé' } };
+      },
       suggestBeds: () => ({ singleBeds: 5, doubleBeds: 4 }),
       platformCommission: ({ gross, payout, touristTax }) => Math.round((gross - payout - touristTax) * 100) / 100,
       withholdsTouristTax: () => withholds,
-      findOrCreateClient: (c) => { calls.clients.push(c); return { id: 141, ...c }; },
     },
     now: () => new Date(now),
   });

@@ -69,7 +69,6 @@ function register(ctx) {
     core: {
       updateReservation: ctx.core.reservations.update,
       suggestBeds: ctx.core.reservations.suggestBeds,
-      findOrCreateClient: ctx.core.clients.findOrCreate,
     },
   });
 

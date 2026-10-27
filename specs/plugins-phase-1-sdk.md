@@ -245,6 +245,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-27 — SDK 2.7.0 (spec review): `ctx.core.reservations.update(id, patch, { label, client })` takes
+> the guest's find-or-create payload and creates the client in the same transaction as the update, so a
+> fiche the core refuses leaves no orphan client (`specs/airbnb-mail-intake.md` rule 21,
+> `gites-de-france-mail-intake.md` rule 19, `booking-extranet-intake.md` rule 32); the result then carries
+> `clientId`. No `coreModule` change.
+
 > 2026-10-27 — SDK 2.6.0 (audit fixes): `coreModule('installmentsModel')` (the installment plan read by
 > the bank reconciliation, `specs/qonto-bank-reconciliation.md` rule 45); `platformNameFormat` gains
 > `isRelayChannel`, `setRelayChannels`, `platformReviewWhere`, `setPlatformReviewWhere`,

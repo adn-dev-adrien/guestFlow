@@ -77,7 +77,6 @@ function register(ctx) {
       platformCommission: ctx.core.reservations.platformCommission,
       // Rule 20 — the mode of the fiche's own platform row (« Airbnb », or a renamed / second Airbnb channel).
       withholdsTouristTax: (propertyId, platform) => ctx.core.reservations.platformWithholdsTouristTax(propertyId, platform),
-      findOrCreateClient: ctx.core.clients.findOrCreate,
     },
   });
 

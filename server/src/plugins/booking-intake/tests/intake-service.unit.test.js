@@ -35,10 +35,11 @@ function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1
     getReservation: () => state.reservation,
     clientShared: shared,
     core: {
-      findOrCreateClient: (payload) => { calls.found = payload; return { id: 700 }; },
+      // Like the core: the client of `opts.client` is found or created with the update (SDK 2.7.0), and only kept on success.
       updateReservation: (id, patch, opts) => {
-        calls.reservation.push({ id, patch, opts });
-        return updateStatus === 200 ? { status: 200, body: { ok: true } } : { status: updateStatus, body: { error: 'Capacité dépassée', code: 'CAPACITY' } };
+        if (updateStatus === 200 && opts.client) calls.found = opts.client;
+        calls.reservation.push({ id, patch: opts.client ? { ...patch, clientId: 700 } : patch, opts });
+        return updateStatus === 200 ? { status: 200, clientId: 700, body: { ok: true } } : { status: updateStatus, body: { error: 'Capacité dépassée', code: 'CAPACITY' } };
       },
       updateClient: (id, patch) => { calls.client.push({ id, patch }); return { id, ...patch }; },
       suggestBeds: (propertyId, party) => { calls.beds = { propertyId, party }; return { singleBeds: 6, doubleBeds: 4 }; },

@@ -93,6 +93,19 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
     refuses it for built-ins.
 14. The platform **name** is rendered as a **colour-filled chip** (its background = the platform's calendar
     colour); clicking the chip opens the palette (there is no separate grey swatch).
+15. *(Fixed at the 2026-10-27 spec review.)* **One platform, one catalogue row, one source per property,
+    however its name is sent.** `platformsModel.canonicalName` maps a typed or posted name to the catalogue
+    row or built-in name with the same slug, also when the input carries the brand's « .com »
+    (« Booking.com », `BookingCom` → `Booking`; `gites-de-france` → `GitesDeFrance`). `POST
+    /api/properties/:id/ical-sources` stores that label, keys a new source by it, and updates the property's
+    existing source of the same platform (matched by slug on its key or its label) instead of creating a
+    second one; « Ajouter une plateforme » (`setColor`) registers no duplicate either. A genuinely new name
+    keeps its own canonical form (« Vrbo tente » → `VrboTente`, key `vrbotente`).
+16. *(Fixed at the 2026-10-27 spec review.)* **A platform is on Paramètres › Plateformes the moment it
+    exists.** `GET /api/platforms/settings` first registers (`platformsModel.rescan`, in canonical spelling,
+    skipping any slug a row already covers) every platform a reservation or an iCal source names. A
+    platform first used by a reservation or an intake used to appear only after a restart or the accounting
+    « refresh ». Test (rules 15-16): `tests/platform-catalogue-canonical-names.unit.test.js`.
 
 **Edge cases:**
 - Empty URL + tax left at default + default colour → no source row persisted (nothing to store).

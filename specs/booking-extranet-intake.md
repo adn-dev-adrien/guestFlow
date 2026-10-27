@@ -260,6 +260,11 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     A filled fiche carrying a withheld tax that the mode no longer explains gets a proposal to clear it
     (rule 17); an empty tax on both sides is not a difference. The mode is read through
     `ctx.core.reservations.platformWithholdsTouristTax(propertyId, 'booking')`.
+32. *(Fixed at the 2026-10-27 spec review.)* The guest's client is created **in the same transaction as the
+    fiche's update**: the plugin hands its find-or-create payload to `ctx.core.reservations.update(id, patch,
+    { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first; the client it got back (`result.clientId`) is the one rule 27 refreshes. A fiche the core
+    refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
+    no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
 
 ---
 

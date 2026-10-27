@@ -584,6 +584,14 @@ all-inclusive pricing as the first such recipe.
     backticks (the gîte's « `welcomePack.cost` » now reads « le levier du pack accueil »; the
     recipe version is unchanged — no price moves).
 
+### 3.13 Clarified at the 2026-10-27 spec review
+
+62. **The seasons table of « Gestion tarifaire » shows only what can still be sold**, the Tarifs tab of the
+    logement shows the stored ranges. A season stored 01/01/2026 → 31/12/2026 therefore reads 29/10/2026 →
+    31/12/2026 in « Gestion tarifaire » on 27/10/2026 when 27-28/10 are closed: its past dates are hidden
+    (`upcomingRangesFrom`, ranges ending before today) and its closed days cut out (rule 25ter). Intended,
+    not a bug; the stored range is unchanged and the Tarifs tab is where the full span is read.
+
 ---
 
 ## 4. Architecture

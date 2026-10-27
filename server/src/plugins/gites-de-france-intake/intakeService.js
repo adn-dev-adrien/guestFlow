@@ -93,14 +93,14 @@ function createIntakeService(deps) {
       }
     });
 
-    const client = core.findOrCreateClient({
-      firstName: booking.firstName, lastName: booking.lastName, email: booking.email, phone: booking.phone, emailLanguage: 'fr',
-    });
     const beds = core.suggestBeds(reservation.propertyId, { adults: booking.adults, children: booking.children, teens: 0 });
 
     return {
+      // Created by the core in the same transaction as the update: a refused fiche leaves no client behind.
+      client: {
+        firstName: booking.firstName, lastName: booking.lastName, email: booking.email, phone: booking.phone, emailLanguage: 'fr',
+      },
       patch: {
-        clientId: client.id,
         reservationNumber: booking.dossierNumber,
         checkInTime: booking.checkInTime,
         checkOutTime: booking.checkOutTime,
@@ -137,9 +137,9 @@ function createIntakeService(deps) {
       return { status: 'error', error };
     }
 
-    const { patch } = stayPatch(booking, reservation);
+    const { patch, client } = stayPatch(booking, reservation);
     const full = chosen != null ? { ...patch, ...paymentPatch(booking, chosen) } : patch;
-    const result = core.updateReservation(reservation.id, full, { label: `Mail Gîtes de France du ${frDate(intake.receivedAt)}` });
+    const result = core.updateReservation(reservation.id, full, { label: `Mail Gîtes de France du ${frDate(intake.receivedAt)}`, client });
     if (result.status !== 200) {
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error: (result.body && result.body.error) || `Erreur ${result.status}` });
       return { status: 'error', error: result.body && result.body.error };
