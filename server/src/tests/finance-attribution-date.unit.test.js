@@ -65,7 +65,8 @@ const DDL = `
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidCash INTEGER DEFAULT 0,
     endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0, endOfStayComplementPaidCash INTEGER DEFAULT 0,
     midStaySettledNotes TEXT,
-    platformCommissionAmount REAL, acompteCommissionAmount REAL
+    platformCommissionAmount REAL, acompteCommissionAmount REAL,
+    installmentsLastPaidDate TEXT
   );
 `;
 
@@ -76,6 +77,11 @@ const ROWS = [
   { id: 3, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 500, balancePaid: 1, balancePaidDate: '' },
   { id: 4, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 500, balancePaid: 1, balancePaidDate: '2026-09-28 14:32:00' },
   { id: 5, startDate: '2026-08-14', endDate: '2026-08-20', balanceAmount: 0, balancePaid: 0, balancePaidDate: null },
+  // specs/direct-installments.md rule 37 — a plan with every installment collected: the day of the last one.
+  { id: 6, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 0, balancePaid: 0, balancePaidDate: null, installmentsLastPaidDate: '2026-07-02' },
+  { id: 7, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 0, balancePaid: 0, balancePaidDate: null, installmentsLastPaidDate: '2026-07-02 09:15:00' },
+  // …and a plan still open (no last date stored) keeps the departure.
+  { id: 8, startDate: '2026-09-25', endDate: '2026-10-03', balanceAmount: 0, balancePaid: 0, balancePaidDate: null, installmentsLastPaidDate: null },
 ];
 
 test('SQL and JS agree on every attribution case', () => {
@@ -86,8 +92,8 @@ test('SQL and JS agree on every attribution case', () => {
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
   for (const r of ROWS) {
     db.prepare(`INSERT INTO reservations
-      (id, clientId, propertyId, startDate, endDate, balanceAmount, balancePaid, balancePaidDate)
-      VALUES (@id, 1, 1, @startDate, @endDate, @balanceAmount, @balancePaid, @balancePaidDate)`).run(r);
+      (id, clientId, propertyId, startDate, endDate, balanceAmount, balancePaid, balancePaidDate, installmentsLastPaidDate)
+      VALUES (@id, 1, 1, @startDate, @endDate, @balanceAmount, @balancePaid, @balancePaidDate, @installmentsLastPaidDate)`).run({ installmentsLastPaidDate: null, ...r });
   }
 
   // The model exposes its window key as `attributionDate` on every summary row; a period wide enough
@@ -106,4 +112,7 @@ test('SQL and JS agree on every attribution case', () => {
   assert.equal(bySql.get(3), '2026-10-03');
   assert.equal(bySql.get(4), '2026-09-28');
   assert.equal(bySql.get(5), '2026-08-20');
+  assert.equal(bySql.get(6), '2026-07-02');
+  assert.equal(bySql.get(7), '2026-07-02');
+  assert.equal(bySql.get(8), '2026-10-03');
 });

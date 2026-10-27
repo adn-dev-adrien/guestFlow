@@ -20,6 +20,9 @@ function createDb({ balanceDaysBefore = 30 } = {}) {
   db.pragma('foreign_keys = ON');
   db.exec(fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8'));
   migrateInstallmentsSchema(db);
+  // Columns the boot migrations add after the baseline, read by the alert and the books.
+  db.exec('ALTER TABLE reservations ADD COLUMN reservationNumber TEXT');
+  db.exec('ALTER TABLE app_settings ADD COLUMN fiscalYearEndMonth INTEGER NOT NULL DEFAULT 12');
   registerDirectChannelSql(db);
   db.prepare("INSERT INTO properties (id, name, balanceDaysBefore) VALUES (1, 'La Granja', ?)").run(balanceDaysBefore);
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Camille', 'Martin', 'camille@example.com')").run();
@@ -45,7 +48,7 @@ function fakeQuote(preArrivalAmount = 1001.5, extra = {}) {
 function createHarness({ preArrival = 1001.5, stay = {}, balanceDaysBefore = 30, providerReady = true, today = TODAY } = {}) {
   const db = createDb({ balanceDaysBefore });
   const reservationId = addStay(db, stay);
-  const state = { quote: fakeQuote(preArrival), deactivated: [], events: [], today };
+  const state = { quote: fakeQuote(preArrival), deactivated: [], events: [], today, paidLinkIds: new Set() };
   const installmentsModel = buildInstallmentsModel(db);
   const paymentLinksModel = buildLinksModel(db);
   const controller = buildController({
@@ -54,7 +57,12 @@ function createHarness({ preArrival = 1001.5, stay = {}, balanceDaysBefore = 30,
     paymentLinksModel,
     quoteOf: () => state.quote,
     providerReady: () => providerReady,
-    deactivateLinks: async (links) => { state.deactivated.push(...links); },
+    deactivateLinks: async (links) => {
+      if (state.deactivationFails) throw new Error('provider down');
+      state.deactivated.push(...links);
+      links.forEach((l) => paymentLinksModel.clearRemoteCancelPending(l.id));
+    },
+    assertLinkNotPaid: async (link) => { if (state.paidLinkIds.has(link.id)) throw { message: 'paid' }; },
     emit: (name, payload) => state.events.push([name, payload]),
     todayOf: () => state.today,
   });

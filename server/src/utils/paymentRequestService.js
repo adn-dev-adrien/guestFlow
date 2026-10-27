@@ -128,7 +128,22 @@ async function ensurePaymentLink(deps, id, type) {
 // that installment is reused while it bills the current amount; a stale one is retired and deactivated at
 // the provider before the new one is minted, so the old URL can no longer be paid.
 //   deps: ensurePaymentLink deps + { installmentsModel }
-async function ensureInstallmentLink(deps, id, installmentId) {
+// Rule 40 — one installment is asked for at a time: two clicks (or a click and a queue entry) on the same
+// installment run one after the other, so the second finds the first's link and mints nothing.
+const installmentLocks = new Map();
+async function withInstallmentLock(installmentId, work) {
+  const previous = installmentLocks.get(installmentId) || Promise.resolve();
+  const run = previous.catch(() => {}).then(work);
+  const tail = run.catch(() => {});
+  installmentLocks.set(installmentId, tail);
+  try { return await run; } finally { if (installmentLocks.get(installmentId) === tail) installmentLocks.delete(installmentId); }
+}
+
+function ensureInstallmentLink(deps, id, installmentId) {
+  return withInstallmentLock(Number(installmentId), () => mintInstallmentLink(deps, id, installmentId));
+}
+
+async function mintInstallmentLink(deps, id, installmentId) {
   const { database, paymentLinksModel, provider, installmentsModel } = deps;
   const deactivateLinks = deps.deactivateLinks
     || ((links) => require('./paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider }));
@@ -154,12 +169,35 @@ async function ensureInstallmentLink(deps, id, installmentId) {
     await deactivateLinks([paymentLinksModel.updateStatus(existing.id, 'cancelled')]);
   }
 
-  const count = installmentsModel.listFor(id).length;
-  const single = [{ title: `${LINK_TITLES.installment} ${installment.number}/${count}` }];
-  enrichStayComponent(database, id, 'installment', single);
-  const linkArgs = { title: single[0].title, amountCents };
+  const plan = installmentsModel.listFor(id);
+  const title = `${LINK_TITLES.installment} ${installment.number}/${plan.length}`;
+  const linkArgs = { title, amountCents };
+  // Rule 39 — the VAT basket of a share of the stay, the tourist tax exempt; only trusted when it sums to the charge.
+  let built = null;
+  if (typeof deps.resolveInstallmentItems === 'function') {
+    try { built = deps.resolveInstallmentItems(id, installment, plan); } catch { built = null; }
+  }
+  if (built && Array.isArray(built.components)) {
+    enrichStayComponent(database, id, 'installment', built.components);
+    const { items, expectedTotalCents } = buildVatItems(built);
+    if (expectedTotalCents === amountCents && items.length) {
+      linkArgs.items = items;
+      linkArgs.expectedTotalCents = expectedTotalCents;
+    }
+  }
+  if (!linkArgs.items) {
+    const single = [{ title }];
+    enrichStayComponent(database, id, 'installment', single);
+    linkArgs.title = single[0].title;
+  }
   if (deps.redirectUrl) linkArgs.redirectUrl = deps.redirectUrl;
   const link = await provider.createLink(linkArgs, { origin: deps.origin || 'manual-link' });
+  // Rule 35 — the plan was resized or removed while the provider answered: that link bills nothing real.
+  const still = installmentsModel.findById(installmentId);
+  if (!still || Number(still.paid) === 1 || Number(still.amountCents) !== amountCents) {
+    try { await provider.cancelLink(link.id); } catch { /* nothing references it: at worst a stray link */ }
+    throw { httpStatus: 409, error: 'INSTALLMENT_CHANGED', message: 'L’échéance a changé pendant la création du lien : réessayer.' };
+  }
   const row = paymentLinksModel.create({
     reservationId: id, type: 'installment', installmentId: Number(installmentId), amountCents,
     provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, expiresAt: link.expiresAt || null,
@@ -170,6 +208,20 @@ async function ensureInstallmentLink(deps, id, installmentId) {
 // Create/reuse the installment's link AND email the `installment_request` template with it (rule 20: the
 // click on the fiche is the validation). `sendTemplate` also receives the installment and its occurrence key.
 async function sendInstallmentRequest(deps, id, installmentId) {
+  // Rule 40 — a request already leaving for this installment is not sent twice.
+  if (sendingNow.has(Number(installmentId))) {
+    return { httpStatus: 409, body: { error: 'REQUEST_IN_PROGRESS', message: 'Une demande est déjà en cours pour cette échéance.' } };
+  }
+  sendingNow.add(Number(installmentId));
+  try {
+    return await doSendInstallmentRequest(deps, id, installmentId);
+  } finally {
+    sendingNow.delete(Number(installmentId));
+  }
+}
+const sendingNow = new Set();
+
+async function doSendInstallmentRequest(deps, id, installmentId) {
   const link = await ensureInstallmentLink(deps, id, installmentId);
   const installment = deps.installmentsModel.findById(installmentId);
   const result = await deps.sendTemplate({

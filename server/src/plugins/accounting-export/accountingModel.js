@@ -22,6 +22,7 @@
  */
 
 const sdk = require('../sdk');
+const { taxShares } = sdk.coreModule('installmentPlan');
 const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT } = require('./accountPlan');
 const { createAccountSettings } = require('./settings');
 
@@ -187,11 +188,13 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         // replaces the acompte and the solde, so these are the pre-arrival money of such a stay.
         if (hasInstallments) {
           const plan = database.prepare('SELECT number, amountCents, paidDate, paid FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(row.id);
-          for (const installment of plan) {
+          // The tax shares are those of the whole plan, so they add up to the tax once every installment is in.
+          const shares = taxShares(Math.round(Number(row.touristTaxTotal || 0) * 100), plan.map((i) => Number(i.amountCents)));
+          plan.forEach((installment, index) => {
             if (Number(installment.paid) === 1 && inMonth(1, installment.paidDate)) {
-              entries.push(buildInstallmentEntry(row, installment, plan.length, perLineData, commissionContext, taxContext));
+              entries.push(buildInstallmentEntry(row, installment, plan.length, shares[index] / 100, perLineData, commissionContext, taxContext));
             }
-          }
+          });
         }
         // Cash complements are settled off the books → never emitted as an encaissement.
         if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0) {
@@ -532,10 +535,8 @@ function splitByDestination({ optionLines, customOptionLines, resourceLines }, m
 // One installment collected → one encaissement, booked like the solde it stands for: the stored-money
 // split (a plan never captured per-line contribs), with the tourist tax shared out in proportion to the
 // plan's scheduled total (the solde used to carry all of it). specs/direct-installments.md.
-function buildInstallmentEntry(row, installment, count, perLineData, commissionContext, taxContext) {
+function buildInstallmentEntry(row, installment, count, taxShare, perLineData, commissionContext, taxContext) {
   const amount = round2(Number(installment.amountCents) / 100);
-  const scheduled = round2(Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0));
-  const taxShare = scheduled > 0 ? round2(Number(row.touristTaxTotal || 0) * Math.min(1, amount / scheduled)) : 0;
   const standIn = {
     ...row,
     depositAmount: 0,

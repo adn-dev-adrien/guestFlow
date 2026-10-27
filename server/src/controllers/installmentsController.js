@@ -34,6 +34,8 @@ function buildController({
   quoteOf,
   providerReady = () => false,
   deactivateLinks = async () => {},
+  // Resolves, or throws `{ message }` when the guest has paid that open link meanwhile.
+  assertLinkNotPaid = async () => {},
   emit = () => {},
   todayOf,
 }) {
@@ -112,6 +114,27 @@ function buildController({
     try { await deactivateLinks(retired); } catch { /* the marker stays: the poll retries */ }
   }
 
+  // Rule 35 — the open links a change is about to abandon: refused when the guest paid one meanwhile.
+  async function paidLinkRefusal(links) {
+    for (const link of links) {
+      try { await assertLinkNotPaid(link); } catch (err) {
+        return fail(409, 'LINK_ALREADY_PAID', (err && err.message) || 'Un lien de paiement vient d’être payé : rien n’est modifié.');
+      }
+    }
+    return null;
+  }
+
+  const openLinksOf = (reservationId, types) => paymentLinksModel.listForReservation(reservationId)
+    .filter((l) => l.status === 'open' && types.includes(l.type));
+
+  // Rule 35 — the acompte / solde / full links of the stay die with the buckets they billed.
+  async function retireBucketLinks(reservationId) {
+    const retired = ['deposit', 'balance', 'full']
+      .flatMap((type) => paymentLinksModel.retireForAmountChange(reservationId, type, -1));
+    if (retired.length === 0) return;
+    try { await deactivateLinks(retired); } catch { /* the marker stays: the poll retries */ }
+  }
+
   // Rule 17 — an open link that no longer bills its installment's amount is abandoned at once; the returned
   // promise (null when there is nothing to deactivate) settles once the provider has been asked.
   function retireChangedLinks(reservationId) {
@@ -119,6 +142,9 @@ function buildController({
     for (const row of installmentsModel.listFor(reservationId)) {
       stale.push(...paymentLinksModel.retireForAmountChange(reservationId, 'installment', row.amountCents, row.id));
     }
+    // …and the links of a plan that no longer exists, still waiting to be deactivated at the provider.
+    stale.push(...paymentLinksModel.listRemoteCancelPending()
+      .filter((l) => l.type === 'installment' && Number(l.reservationId) === Number(reservationId) && !stale.some((s) => s.id === l.id)));
     if (stale.length === 0) return null;
     return Promise.resolve(deactivateLinks(stale)).catch(() => { /* the marker stays: the poll retries */ });
   }
@@ -129,6 +155,10 @@ function buildController({
     if (rows.some((r) => Number(r.paid) === 1) || collected(row)) {
       return fail(409, 'INSTALLMENTS_LOCKED', 'Un paiement est enregistré : le nombre d’échéances est figé.');
     }
+    const stalePaid = await paidLinkRefusal(rows.length > 0
+      ? openLinksOf(row.id, ['installment'])
+      : openLinksOf(row.id, ['deposit', 'balance', 'full']));
+    if (stalePaid) return stalePaid;
     const context = contextOf(row);
     const max = plan.maxCountFor(context);
     if (!Number.isInteger(count) || count < plan.MIN_COUNT || count > max) {
@@ -144,7 +174,10 @@ function buildController({
 
     installmentsModel.replacePlan(row.id, dates.map((dueDate, i) => ({ number: i + 1, dueDate, amountCents: amounts[i] })), targetCents);
     await retireLinksOf(row.id, rows.map((r) => r.id));
-    if (rows.length === 0) restampBuckets(row.id);
+    if (rows.length === 0) {
+      await retireBucketLinks(row.id);
+      restampBuckets(row.id);
+    }
     return null;
   }
 
@@ -180,7 +213,7 @@ function buildController({
         : Math.round(Number(row.installmentsTarget || 0) * 100);
       const checked = plan.validateAmount({ installments: current, index, amountEuros: item.amount, targetCents: basis });
       if (checked.error) return fail(400, 'INVALID_AMOUNT', checked.error, { field: 'amount', installmentId: current[index].id });
-      const shares = plan.spreadCents(checked.rest, checked.others.length);
+      const shares = plan.spreadCents(checked.rest, checked.others.length, { minLast: plan.MIN_SHARE_CENTS });
       database.transaction(() => {
         installmentsModel.updateRow(current[index].id, { amountCents: checked.cents, amountEdited: 1 });
         installmentsModel.applyAmounts(row.id, new Map(checked.others.map((o, k) => [o.number, shares[k]])), {});
@@ -218,6 +251,8 @@ function buildController({
     if (rows.some((r) => Number(r.paid) === 1)) {
       return res.status(409).json({ error: 'INSTALLMENTS_LOCKED', message: 'Un paiement est enregistré : l’échéancier ne peut plus être supprimé.' });
     }
+    const stalePaid = await paidLinkRefusal(openLinksOf(id, ['installment']));
+    if (stalePaid) return res.status(stalePaid.status).json(stalePaid.body);
     installmentsModel.deletePlan(id);
     await retireLinksOf(id, rows.map((r) => r.id));
     restampBuckets(id);
@@ -254,6 +289,8 @@ function buildController({
     if (rows.length === 0) return;
     const row = stay(reservationId);
     if (row.kind !== 'reservation' || !isDirectChannel(row.platform)) {
+      // Retired locally with the deactivation marker first: the poll deactivates them at the provider.
+      for (const installment of rows) paymentLinksModel.retireForAmountChange(reservationId, 'installment', -1, installment.id);
       installmentsModel.deletePlan(reservationId);
       return;
     }
@@ -275,7 +312,7 @@ function buildController({
 
   // Rule 22 — the unpaid installments three days past their due date, for the collection alert.
   function lateInstallments(today) {
-    return installmentsModel.listLate({ cutoff: addDaysToIsoDate(today, -plan.LATE_AFTER_DAYS) });
+    return installmentsModel.listLate({ cutoff: addDaysToIsoDate(today, -plan.LATE_AFTER_DAYS), today });
   }
 
   return { eligibilityOf, planFor, put, remove, markPaid, syncAfterSave, platformChangeRefusal, retireChangedLinks, lateInstallments };
@@ -304,6 +341,7 @@ function bind() {
     }),
     providerReady: () => Boolean(paymentProviders.active()),
     deactivateLinks: (links) => require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel }),
+    assertLinkNotPaid: (link) => require('../utils/paymentLinkDeactivation').assertNotPaid(link, paymentProviders.active()),
     emit: require('../plugins/sdk/eventBus').emit,
     todayOf: require('../utils/localDate').todayIso,
   });

@@ -34,7 +34,7 @@ function recordOn(database) {
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
-function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, recordPayment = recordOn(database) }) {
+function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, recordPayment = recordOn(database), settledAlready = false }) {
   const row = database.prepare('SELECT id, kind, convertedReservationId FROM reservations WHERE id = ?').get(link.reservationId);
   if (!row) return { effect: 'no-reservation' };
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
@@ -44,7 +44,13 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   if (link.type === 'installment') {
     const { recordInstallmentPayment } = require('./installmentPayment');
     const { emit } = require('../plugins/sdk/eventBus');
-    recordInstallmentPayment({ db: database, emit }, { installmentId: link.installmentId, paidDate, method: 'link' });
+    // Booked at what the link really charged: a link retired by a rebalance and paid anyway keeps its amount.
+    const booked = recordInstallmentPayment({ db: database, emit }, {
+      installmentId: link.installmentId, paidDate, method: 'link', amountCents: link.amountCents,
+    });
+    // Rule 34 — money with no installment to land on, or on one already collected, is the admin's to sort out.
+    if (!booked.found) return { effect: 'installment-unallocated' };
+    if (!booked.flipped && !settledAlready) return { effect: 'installment-double-payment' };
     return { effect: 'installment-marked' };
   }
 
@@ -131,7 +137,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   const paidDate = require('./stayPaymentRecorder').paidDayOf(p.paidAt);
   const effect = bookIfAmountChanged({ database, link, paidDate, recordPayment })
     || applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
-  if (effect.effect === 'reservation-cancelled') {
+  if (effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated' || effect.effect === 'installment-double-payment') {
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }
@@ -209,8 +215,8 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   }
   paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
   if (!database) return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'settled-elsewhere' };
-  const effect = applyPaidEffect({ database, devisModel, link, paidDate: paidDay, recordPayment: recordPayment || recordOn(database) });
-  if (effect.effect === 'reservation-cancelled' && notifyPaidAfterCancel) {
+  const effect = applyPaidEffect({ database, devisModel, link, paidDate: paidDay, recordPayment: recordPayment || recordOn(database), settledAlready: true });
+  if ((effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated') && notifyPaidAfterCancel) {
     try { await notifyPaidAfterCancel(link); } catch { /* best effort */ }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
@@ -255,7 +261,8 @@ async function bookInstallmentPaidAfterAmountChange({ paymentLinksModel, notifyP
   if (booked.flipped) paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: pay.paymentId || null, paidAt, reason: 'amount-changed' });
   else paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
   if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
-  return { id: link.id, reservationId: link.reservationId, type: link.type, status: booked.flipped ? 'paid' : 'paid-after-cancel', effect: booked.flipped ? 'installment-booked' : 'double-payment' };
+  const effect = booked.flipped ? 'installment-booked' : (booked.found ? 'double-payment' : 'installment-unallocated');
+  return { id: link.id, reservationId: link.reservationId, type: link.type, status: booked.flipped ? 'paid' : 'paid-after-cancel', effect };
 }
 
 // One pass (specs/payment-polling-fair-use.md): retry the owed deactivations, retire links past a known

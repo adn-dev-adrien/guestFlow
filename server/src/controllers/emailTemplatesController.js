@@ -22,7 +22,7 @@
 const { templateAutoSends } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { todayIso } = require('../utils/localDate');
-const { PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
+const { PLUGIN_OF_TEMPLATE, PAYMENT_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
 const { templateWhenLabel, templateWhen, describeWhen } = require('../utils/templateWhen');
 const { displayNameOf, timeline } = require('../utils/emailTimeline');
 const { weekdayLabel } = require('../utils/dateFr');
@@ -214,6 +214,10 @@ function buildController(model, settingsModel, deps = {}) {
     req.body = read.body;
     const errors = validateForUpdate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    // specs/payment-schedule-and-cancellation.md rule 44 — a template that asks for money is never « auto ».
+    if (PAYMENT_STABLE_KEYS.includes(existing.stableKey) && String(req.body.sendMode || '').toLowerCase() === 'auto') {
+      return res.status(409).json({ error: 'PAYMENT_TEMPLATE_STAYS_MANUAL', message: 'Un email qui demande de l’argent ne part jamais tout seul : il reste en validation manuelle.' });
+    }
     const unknown = templateTokenError(req.body);
     if (unknown) return res.status(422).json(unknown);
     const row = model.update(req.params.id, {

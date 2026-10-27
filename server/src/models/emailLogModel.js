@@ -163,6 +163,7 @@ function buildModel(database) {
       JOIN reservations r
         ON r.id = i.reservationId
        AND COALESCE(r.kind, 'reservation') = 'reservation'
+       AND NOT (r.installmentsTarget > 0 AND ROUND(r.installmentsPaidAmount * 100) >= ROUND(r.installmentsTarget * 100))
        AND date(r.endDate) >= date(?)
       LEFT JOIN clients    c ON c.id = r.clientId
       LEFT JOIN properties p ON p.id = r.propertyId

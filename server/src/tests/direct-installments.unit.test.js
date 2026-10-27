@@ -409,3 +409,49 @@ test('rule 12 — the payload flags the dates and amounts the operator edited, s
   assert.deepEqual(payload.map((i) => i.dateEdited), [false, true, false]);
   assert.deepEqual(payload.map((i) => i.amountEdited), [true, false, false]);
 });
+
+// ── Rule 32 — rounding that never starves or lowers an installment ────────────────────────────────
+test('rule 32 — a rise of 1,50 € over 3 unpaid installments lowers none and is never negative', () => {
+  const rows = [row(1, 30000, { paid: 1 }), row(2, 30000), row(3, 30000), row(4, 30000)];
+  const result = plan.rebalance({ installments: rows, targetCents: 120150 });
+  assert.deepEqual(amountsOf(result), [30000, 30000, 30000, 30150], 'rounded shares would have been 1 + 1 − 0,50: floored instead');
+  assert.deepEqual([...result.added.values()], [0, 0, 150]);
+});
+
+test('rule 32 — a rise of 6 € over 4 floating installments (one pinned) keeps every share ≥ 0 and adds up', () => {
+  const rows = [row(1, 20000, { paid: 1 }), row(2, 20000, { amountEdited: 1 }), row(3, 20000), row(4, 20000), row(5, 20000), row(6, 20000)];
+  const result = plan.rebalance({ installments: rows, targetCents: 120600 });
+  const added = [...result.added.values()];
+  assert.equal(added.length, 4);
+  assert.ok(added.every((cents) => cents >= 0));
+  assert.equal(added.reduce((a, b) => a + b, 0), 600);
+  const before = rows.map((r) => r.amountCents);
+  amountsOf(result).forEach((cents, i) => assert.ok(cents >= before[i], `installment ${i + 1} was not lowered`));
+});
+
+test('rule 32 — a spread whose rounded last share would fall under 1 € floors every share instead', () => {
+  assert.deepEqual(plan.spreadCents(25000, 3, { minLast: 100 }), [8300, 8300, 8400], 'ordinary rounding keeps its example');
+  assert.deepEqual(plan.spreadCents(450, 3, { minLast: 100 }), [100, 100, 250], '4,50 € over 3: the rounded last would be 0,50 €');
+});
+
+test('rule 32 — the validated example is unchanged: 1 001,50 € in 3 is 334 + 334 + 333,50', () => {
+  assert.deepEqual(plan.splitEuros(100150, 3), [33400, 33400, 33350]);
+});
+
+test('rule 33 — what was collected covers the stay: the rest of the plan is not due (aggregates, payload)', async () => {
+  const h = createHarness();
+  h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 0, balanceAmount: 0, depositDueDate: null, balanceDueDate: null };
+  await createPlan(h);
+  const [first] = h.installmentsModel.listFor(h.reservationId);
+  await call(h.controller.markPaid, { params: { id: h.reservationId, installmentId: first.id }, body: { paidDate: TODAY, method: 'transfer' } });
+  h.controller.syncAfterSave(h.reservationId, { preArrivalAmount: 300 });
+  const stay = h.db.prepare('SELECT installmentsPaidAmount, installmentsUnpaidAmount FROM reservations WHERE id = ?').get(h.reservationId);
+  assert.deepEqual([stay.installmentsPaidAmount, stay.installmentsUnpaidAmount], [334, 0], 'nothing more is owed');
+  const payload = h.controller.planFor(h.reservationId);
+  assert.equal(payload.settled, true);
+  assert.equal(payload.canRequest, false, 'no request for money that is not owed');
+  assert.equal(payload.remaining, 0);
+  assert.equal(h.controller.lateInstallments('2030-01-01').length, 0, 'not in the collection alert');
+  const { remainingToPay } = require('../utils/reservationSettlement');
+  assert.equal(remainingToPay(h.db.prepare('SELECT * FROM reservations WHERE id = ?').get(h.reservationId)), 0);
+});

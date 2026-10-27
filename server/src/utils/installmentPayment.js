@@ -16,12 +16,13 @@ const { todayIso } = require('./localDate');
  * @param {{ installmentId: number, paidDate?: string, method: string, amountCents?: number }} payment
  *   `amountCents` is the money really received when it differs from the installment (a link retired for an
  *   amount change, paid anyway): the installment then takes that amount, pinned.
- * @returns {{ flipped: boolean, reservationId?: number }}
+ * @returns {{ found: boolean, flipped: boolean, reservationId?: number }}  `found: false` — the installment
+ *   is gone (plan removed or resized): the money has no row to land on.
  */
 function recordInstallmentPayment({ db, emit }, { installmentId, paidDate, method, amountCents = null }) {
   const model = buildModel(db);
   const row = model.findById(installmentId);
-  if (!row) return { flipped: false };
+  if (!row) return { found: false, flipped: false };
   let flipped = false;
   db.transaction(() => {
     if (Number(row.paid) === 1) return;
@@ -34,7 +35,7 @@ function recordInstallmentPayment({ db, emit }, { installmentId, paidDate, metho
     buildLinksModel(db).retireSettled();
     if (emit) emit('reservation.paid', { reservationId: row.reservationId, bucket: 'installment' });
   }
-  return { flipped, reservationId: row.reservationId };
+  return { found: true, flipped, reservationId: row.reservationId };
 }
 
 module.exports = { recordInstallmentPayment };

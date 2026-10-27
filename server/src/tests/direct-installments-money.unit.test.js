@@ -299,17 +299,17 @@ test('accounting — each paid installment is an encaissement of its own, at its
   assert.equal(round2(credit), 200, 'the entry balances');
 });
 
-test('accounting — the tourist tax rides every installment in proportion, and the entries add up to the tax', () => {
-  const db = plannedStay(booksDb(), { tax: 30 });
-  db.prepare('UPDATE reservations SET installmentsTarget = 630, installmentsUnpaidAmount = 430 WHERE id = 1').run();
-  db.prepare('UPDATE reservation_installments SET amountCents = 21000 WHERE reservationId = 1').run();
+test('accounting — the tourist tax rides every installment in proportion; the last one takes what is left, so the books add up to the tax', () => {
+  const db = plannedStay(booksDb(), { tax: 31 });
+  db.prepare('UPDATE reservation_installments SET amountCents = 21000, paid = 1, paidDate = ? WHERE reservationId = 1').run('2027-01-10');
+  db.prepare('UPDATE reservation_installments SET paidDate = ? WHERE reservationId = 1 AND number = 2').run('2027-03-10');
+  db.prepare('UPDATE reservation_installments SET paidDate = ? WHERE reservationId = 1 AND number = 3').run('2027-05-10');
+  db.prepare('UPDATE reservations SET installmentsTarget = 631, installmentsPaidAmount = 630, installmentsUnpaidAmount = 0 WHERE id = 1').run();
   const accounting = createAccountingModel(db);
-  const entries = [1, 3].flatMap((month) => accounting.encaissementsByMonth({ month, year: 2027 }));
-  assert.equal(entries.length, 2);
-  for (const entry of entries) {
-    assert.equal(entry.encaissementTtc, 210);
-    assert.equal(entry.taxTtc, 10, '30 € of tax over a 630 € plan: 10 € per 210 € installment');
-  }
+  const entries = [1, 3, 5].flatMap((month) => accounting.encaissementsByMonth({ month, year: 2027 }));
+  assert.deepEqual(entries.map((e) => e.encaissementTtc), [210, 210, 210]);
+  assert.deepEqual(entries.map((e) => e.taxTtc), [10.33, 10.33, 10.34], 'the share of the last installment closes the tax');
+  assert.equal(round2(entries.reduce((sum, e) => sum + e.taxTtc, 0)), 31);
 });
 
 // ── The collection alert ────────────────────────────────────────────────────────────────────────────

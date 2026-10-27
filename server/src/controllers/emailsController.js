@@ -313,7 +313,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // Manually-queued pairs are shown unconditionally (they bypass the sent/ack filter — that is
     // what allows a deliberate resend, specs/manual-email-from-template.md §3 rule 6). Merge +
     // dedup by (templateId, reservationId): the manual flag wins so the UI can badge the row.
-    const manual = manualQueueModel ? manualQueueModel.listEnriched() : [];
+    const manual = (manualQueueModel ? manualQueueModel.listEnriched() : [])
+      .filter((row) => !row.occurrenceKey || (installmentRequests && installmentRequests.available()));
     const key = (r) => `${r.templateId}:${r.reservationId}:${r.occurrenceKey || ''}`;
     const manualKeys = new Set(manual.map(key));
     const merged = [
@@ -504,15 +505,24 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const graph = loadReservationGraph(database, reservationId);
     if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
 
+    // An installment request queued by hand is queued for the installment it will ask for: its key is stored,
+    // so sending (which closes the entry under that key) really removes it.
+    let occurrenceKey = '';
+    if (template.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests) {
+      const target = installmentRequests.resolve(Number(reservationId), '');
+      if (!target) return res.status(404).json({ error: 'INSTALLMENT_NOT_FOUND', message: 'Aucune échéance à demander.' });
+      occurrenceKey = target.occurrenceKey;
+    }
+
     // Already-sent guard: warn (with the last send date) unless the operator forces a resend.
     if (!force) {
-      const lastSent = logModel.lastSentAt(Number(templateId), Number(reservationId));
+      const lastSent = logModel.lastSentAt(Number(templateId), Number(reservationId), occurrenceKey);
       if (lastSent) {
         return res.json({ ok: false, alreadySent: true, lastSentAt: lastSent });
       }
     }
 
-    manualQueueModel.add(Number(templateId), Number(reservationId));
+    manualQueueModel.add(Number(templateId), Number(reservationId), occurrenceKey);
     return res.json({ ok: true, queued: true });
   }
 

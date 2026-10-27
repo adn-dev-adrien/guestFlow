@@ -86,6 +86,8 @@ const CORE_MODULES = Object.freeze({
   reservationLedger: '../../utils/reservationLedger', // the payments ledger the expected receipts are read from (rule 10)
   reservationPaymentMark: '../../utils/reservationPaymentMark', // « Marquer perçu » without a request, same guards
   platformDisplay: '../../utils/platformDisplay', // the platform's display name on a reconciliation line
+  // accounting-export — the tourist tax shared over the installments of a plan (direct-installments rule 39)
+  installmentPlan: '../../utils/installmentPlan', // pure plan rules, shared with the books
   // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
   reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
   pushService: '../../utils/pushService', // « Souscriptions Neat » push

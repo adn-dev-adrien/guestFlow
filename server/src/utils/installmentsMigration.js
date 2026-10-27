@@ -52,17 +52,18 @@ const tableSql = (db, table) => {
 };
 
 // Rebuild `table` as `ddl` (declared as `<table>__new`), copying the columns both shapes share.
-function rebuild(db, table, ddl) {
+function rebuild(db, table, ddl, { where = '' } = {}) {
   const oldColumns = columnsOf(db, table);
   db.exec(ddl);
   const shared = columnsOf(db, `${table}__new`).filter((c) => oldColumns.includes(c)).join(', ');
-  db.exec(`INSERT INTO ${table}__new (${shared}) SELECT ${shared} FROM ${table}`);
+  db.exec(`INSERT INTO ${table}__new (${shared}) SELECT ${shared} FROM ${table}${where ? ` WHERE ${where}` : ''}`);
   const seq = db.prepare('SELECT seq FROM sqlite_sequence WHERE name = ?').get(table);
   db.exec(`DROP TABLE ${table}`);
   db.exec(`ALTER TABLE ${table}__new RENAME TO ${table}`);
   if (seq) {
-    const updated = db.prepare('UPDATE sqlite_sequence SET seq = ? WHERE name = ?').run(seq.seq, table);
-    if (updated.changes === 0) db.prepare('INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)').run(table, seq.seq);
+    // CAST: a JS number is bound as a REAL, and `seq` has no column affinity to turn it back.
+    const updated = db.prepare('UPDATE sqlite_sequence SET seq = CAST(? AS INTEGER) WHERE name = ?').run(seq.seq, table);
+    if (updated.changes === 0) db.prepare('INSERT INTO sqlite_sequence (name, seq) VALUES (?, CAST(? AS INTEGER))').run(table, seq.seq);
   }
 }
 
@@ -81,7 +82,13 @@ function migrateInstallmentsSchema(db) {
         CREATE INDEX IF NOT EXISTS idx_payment_links_provider ON payment_links(provider, providerLinkId);
       `);
     }
-    if (rebuildQueue) rebuild(db, 'email_manual_queue', MANUAL_QUEUE_DDL);
+    // A queue row whose reservation or template is gone (the table had no enforced FK on old databases) is
+    // dropped rather than failing the boot on the new foreign keys.
+    if (rebuildQueue) {
+      rebuild(db, 'email_manual_queue', MANUAL_QUEUE_DDL, {
+        where: 'reservationId IN (SELECT id FROM reservations) AND templateId IN (SELECT id FROM email_templates)',
+      });
+    }
 
     if (tableSql(db, 'email_log') && !columnsOf(db, 'email_log').includes('occurrenceKey')) {
       db.exec("ALTER TABLE email_log ADD COLUMN occurrenceKey TEXT NOT NULL DEFAULT ''");
@@ -94,6 +101,8 @@ function migrateInstallmentsSchema(db) {
       for (const column of ['installmentsPaidAmount', 'installmentsUnpaidAmount', 'installmentsTarget']) {
         if (!reservationColumns.includes(column)) db.exec(`ALTER TABLE reservations ADD COLUMN ${column} REAL NOT NULL DEFAULT 0`);
       }
+      // The day the last installment was collected, once every one is: the fiscal attribution date.
+      if (!reservationColumns.includes('installmentsLastPaidDate')) db.exec('ALTER TABLE reservations ADD COLUMN installmentsLastPaidDate TEXT');
     }
   })();
 }

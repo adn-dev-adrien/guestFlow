@@ -2495,7 +2495,8 @@ function calculateReservationQuote({
   // pre-arrival amount (`preArrivalAmount`) is handed to the plan, which the caller rebalances after the
   // save. Read by the saved booking's id; a booking that does not exist yet has no plan, and neither does
   // one on a platform (rule 1: a switch away from the own channels ends the plan with the save).
-  const installmentPlan = isDirectChannel(platform) ? readInstallmentSummary(db, bookingId) : null;
+  // A bucket already collected is never zeroed (rule 35): such a stay keeps its acompte / solde.
+  const installmentPlan = isDirectChannel(platform) && !depositPaid && !balancePaid ? readInstallmentSummary(db, bookingId) : null;
   if (installmentPlan) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = 0;

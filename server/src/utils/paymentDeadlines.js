@@ -292,11 +292,13 @@ function buildInstallmentDeadlineRows(rows = [], today) {
     const first = late[0];
     const dueDate = toIsoDay(first.dueDate);
     const totalDue = round2(late.reduce((sum, r) => sum + Number(r.amountCents) / 100, 0));
+    // Rule 36 — the guest is at the door and the plan is not paid: the same red state as acompte / solde.
+    const state = toIsoDay(first.startDate) <= today ? 'unpaid_at_arrival' : 'installment_overdue';
     return {
       reservationId: Number(first.reservationId),
       reservationNumber: first.reservationNumber || null,
-      state: 'installment_overdue',
-      severity: SEVERITY_BY_STATE.installment_overdue,
+      state,
+      severity: SEVERITY_BY_STATE[state],
       clientName: clientNameOf(first),
       clientEmail: first.email || '',
       propertyName: first.propertyName || '',

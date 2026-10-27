@@ -110,12 +110,15 @@ function remainingToPay(r) {
  *          settled, due }` — `due` is the part this step would collect (0 when already settled).
  */
 function stayDueAtArrival(r = {}) {
-  const { deposit, balance } = bucketStates(r);
+  const { deposit, balance, installments } = bucketStates(r);
   const due = (b) => (b.applicable && !b.settled ? b.amount : 0);
+  // Rule 36 — what an installment plan still owes is due at the door too; it is what the row says is unpaid.
+  const installmentsDue = round2(r.installmentsUnpaidAmount);
   return {
-    total: round2(due(deposit) + due(balance)),
+    total: round2(due(deposit) + due(balance) + installmentsDue),
     deposit: { ...deposit, due: due(deposit) },
     balance: { ...balance, due: due(balance) },
+    installments: { ...installments, due: installmentsDue },
   };
 }
 
@@ -129,6 +132,9 @@ function stayDueAtArrival(r = {}) {
 // Mirrored in SQL by financeModel's ATTRIBUTION_DATE_SQL; the two are pinned together by
 // tests/finance-attribution-date.unit.test.js.
 function attributionDate(r = {}) {
+  // A plan fully collected: the day its last installment was (rule 37).
+  const planDone = String(r.installmentsLastPaidDate == null ? '' : r.installmentsLastPaidDate).trim();
+  if (planDone) return planDone.slice(0, 10);
   const paidDate = String(r.balancePaidDate == null ? '' : r.balancePaidDate).trim();
   if (r.balancePaid && paidDate) return paidDate.slice(0, 10);
   return String(r.endDate == null ? '' : r.endDate).slice(0, 10);

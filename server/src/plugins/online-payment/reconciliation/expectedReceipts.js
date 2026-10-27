@@ -37,10 +37,11 @@ const reservationBrief = (row) => ({
  * @param {Function} deps.buildLedger  the core's ledger
  * @param {Function} deps.parseGroup   the core's single-payment parser
  * @param {object[]} deps.links        the reservation's payment links
+ * @param {object[]} [deps.installments] the reservation's installments (specs/direct-installments.md rule 38)
  * @param {string} deps.today
  * @returns {object[]} receipts
  */
-function receiptsOfReservation(row, { buildLedger, parseGroup, links, today }) {
+function receiptsOfReservation(row, { buildLedger, parseGroup, links, installments = [], today }) {
   const ledger = buildLedger({ row, links, today });
   const brief = reservationBrief(row);
   const platform = String(row.platform || 'direct');
@@ -78,6 +79,25 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, today }) {
       expectedDate: group.at, dueDate: group.at, paid: true, paidDate: group.at, reservation: brief,
     });
   }
+  // An installment of a plan is a receipt of its own — the plan replaced the acompte and the solde rows.
+  // What the plan no longer owes (the stay is covered) expects nothing; paid in espèces never reaches the bank.
+  const owed = !(Number(row.installmentsTarget || 0) > 0 && Number(row.installmentsPaidAmount || 0) >= Number(row.installmentsTarget));
+  installments.forEach((i) => {
+    const paid = Number(i.paid) === 1;
+    if (!paid && !owed) return;
+    if (paid && ['cash', 'internal'].includes(String(i.paidMethod))) return;
+    const paidLink = links.find((l) => l.status === 'paid' && l.type === 'installment' && Number(l.installmentId) === Number(i.id));
+    out.push({
+      reservationId: row.id, ledgerKey: `installment-${i.number}`, installmentId: i.id,
+      label: `Échéance ${i.number}/${installments.length}`,
+      channel: paidLink ? 'link' : 'direct', platform,
+      expectedCents: Number(i.amountCents), grossCents: Number(i.amountCents), payoutRecorded: true,
+      expectedDate: paid ? day(i.paidDate) : day(i.dueDate),
+      dueDate: day(i.dueDate), paid, paidDate: paid ? day(i.paidDate) : null,
+      linkPaidAt: paidLink ? day(paidLink.paidAt) : null,
+      reservation: brief,
+    });
+  });
   ledger.rows.forEach((r) => {
     const meta = DIRECT_ROWS[r.key];
     if (!meta) return;
@@ -109,12 +129,19 @@ const RESERVATION_SQL = `
   LEFT JOIN properties p ON p.id = r.propertyId
   WHERE COALESCE(r.kind, 'reservation') = 'reservation' AND r.cancelledAt IS NULL AND r.endDate >= ?`;
 
+// The plan's rows, read like the reservation: a core table. A database without it has no plan.
+function installmentsOf(db, reservationId) {
+  try {
+    return db.prepare('SELECT id, number, dueDate, amountCents, paid, paidDate, paidMethod FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(Number(reservationId));
+  } catch { return []; }
+}
+
 /** Rule 2 — every in-scope reservation with its receipts. */
 function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks }) {
   const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
   const receipts = [];
   rows.forEach((row) => {
-    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), today })
+    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(db, row.id), today })
       .forEach((rc) => receipts.push(rc));
   });
   return receipts;
@@ -124,7 +151,7 @@ function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listL
 function expectedReceiptsOfReservation({ db, reservationId, startDate, today, buildLedger, parseGroup, listLinks }) {
   const row = db.prepare(`${RESERVATION_SQL} AND r.id = ?`).get(startDate, Number(reservationId));
   if (!row) return null;
-  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), today });
+  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(db, row.id), today });
 }
 
 module.exports = { expectedReceipts, expectedReceiptsOfReservation, receiptsOfReservation, reservationBrief };

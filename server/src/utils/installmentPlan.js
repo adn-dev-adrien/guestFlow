@@ -34,16 +34,20 @@ function euros(cents) {
 }
 
 // Rule 6 — `count` shares of `cents`: each but the last rounds to the whole euro (half up), the last takes
-// what is left.
-function spreadCents(cents, count) {
+// what is left. Rule 32 — when that would leave the last share under `minLast` (a negative share on a
+// rise), the shares are floored to the euro instead: the last then takes the remainder and is never
+// smaller than the others.
+function spreadCents(cents, count, { minLast = 0 } = {}) {
   if (count <= 0) return [];
-  const each = Math.round(cents / count / 100) * 100;
-  return Array.from({ length: count }, (_, i) => (i < count - 1 ? each : cents - each * (count - 1)));
+  const build = (each) => Array.from({ length: count }, (_, i) => (i < count - 1 ? each : cents - each * (count - 1)));
+  const rounded = build(Math.round(cents / count / 100) * 100);
+  if (rounded[count - 1] >= minLast) return rounded;
+  return build(Math.max(0, Math.floor(cents / count / 100) * 100));
 }
 
 // Rule 6 plus the floor of the edge case « total below N euros »: null when a share would fall under 1 €.
 function splitEuros(totalCents, count) {
-  const shares = spreadCents(totalCents, count);
+  const shares = spreadCents(totalCents, count, { minLast: MIN_SHARE_CENTS });
   return shares.length > 0 && shares.every((c) => c >= MIN_SHARE_CENTS) ? shares : null;
 }
 
@@ -111,7 +115,7 @@ function rebalance({ installments, targetCents }) {
       floating = unpaid;
       pinnedSum = 0;
     }
-    spreadCents(targetCents - pinnedSum, floating.length).forEach((cents, k) => amounts.set(floating[k].number, cents));
+    spreadCents(targetCents - pinnedSum, floating.length, { minLast: MIN_SHARE_CENTS }).forEach((cents, k) => amounts.set(floating[k].number, cents));
     return { amounts, clearPins, gapCents: 0, added, frozen };
   }
 
@@ -171,6 +175,17 @@ function validateAmount({ installments, index, amountEuros, targetCents }) {
   return { cents, rest, others };
 }
 
+// Rule 39 — the tourist tax rides every installment in proportion to its amount; the last installment takes
+// what is left, so the shares add up to the tax exactly.
+function taxShares(taxCents, amountsCents) {
+  const scheduled = amountsCents.reduce((sum, c) => sum + c, 0);
+  if (!(taxCents > 0) || !(scheduled > 0)) return amountsCents.map(() => 0);
+  const shares = amountsCents.map((c) => Math.min(c, Math.round((taxCents * c) / scheduled)));
+  const early = shares.slice(0, -1).reduce((sum, c) => sum + c, 0);
+  shares[shares.length - 1] = Math.max(0, taxCents - early);
+  return shares;
+}
+
 // Rule 14 — one status per installment. « En retard » = unpaid three days after the due date.
 function statusOf(installment, today) {
   if (isPaid(installment)) return 'paid';
@@ -213,6 +228,8 @@ function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, star
     maxCount: 0,
     count: 0,
     canRequest: Boolean(canRequest),
+    arrivalDate: String(startDate || '').slice(0, 10) || null,
+    settled: false,
     installments: [],
   };
   if (!eligibility.eligible) return base;
@@ -226,6 +243,8 @@ function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, star
   const lastUnpaid = unpaid[unpaid.length - 1];
   const paidCents = sumCents(rows.filter(isPaid));
   const scheduled = sumCents(rows);
+  // Rule 33 — the stay is covered by what was collected: the rest of the plan is not due.
+  const settled = targetCents > 0 && paidCents >= targetCents && unpaid.length > 0;
   return {
     ...base,
     countLocked: frozen,
@@ -233,7 +252,9 @@ function buildPlanPayload({ eligibility, rows = [], targetCents = 0, today, star
     count: rows.length,
     total: targetCents / 100,
     paid: paidCents / 100,
-    remaining: Math.max(0, scheduled - paidCents) / 100,
+    remaining: settled ? 0 : Math.max(0, scheduled - paidCents) / 100,
+    settled,
+    canRequest: Boolean(canRequest) && !settled,
     gap: frozen ? Math.max(0, scheduled - targetCents) / 100 : 0,
     installments: rows.map((row) => {
       const status = statusOf(row, today);
@@ -275,7 +296,7 @@ function requestContext(installment, rows) {
 
 module.exports = {
   MIN_COUNT, MAX_COUNT, LATE_AFTER_DAYS, MIN_SHARE_CENTS,
-  spreadCents, splitEuros, lastDueDate, maxCountFor, defaultDates, floatingOf,
+  spreadCents, splitEuros, taxShares, lastDueDate, maxCountFor, defaultDates, floatingOf,
   rebalance, validateDate, validateAmount, statusOf, statusLabel, buildPlanPayload, requestContext,
   euros, frDate,
 };

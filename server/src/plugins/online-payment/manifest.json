@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -45,6 +45,10 @@
     ],
     "1.2.3": [
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.4": [
+      "Le rapprochement bancaire attend et inscrit chaque échéance d’un échéancier comme un virement à part.",
+      "Compatible avec le SDK 2.0 de GuestFlow."
     ]
   }
 }

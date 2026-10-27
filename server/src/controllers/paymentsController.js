@@ -39,6 +39,7 @@ function requestServiceDeps(provider) {
     resolveItems: (id, type) => resolveVatComponents(id, type),
     provider,
     installmentsModel,
+    resolveInstallmentItems: (id, installment, plan) => resolveInstallmentComponents(id, installment, plan),
     sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents, installment = null }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
@@ -122,6 +123,26 @@ function storedReservationComponents(id, type, db = database) {
     taxOnArrival: Boolean(row.taxOnArrival),
     titles: LINK_TITLES,
   });
+}
+
+// specs/direct-installments.md rule 39 — the basket of ONE installment: the tourist tax (when it rides the
+// pre-arrival money) shared in proportion over the plan and exempt of VAT, the rest at the global rate.
+function resolveInstallmentComponents(id, installment, plan, db = database) {
+  let row = null;
+  try {
+    row = db.prepare(`
+      SELECT r.touristTaxTotal, ${financeModel.helpers.TAX_ON_ARRIVAL_SQL} AS taxOnArrival
+        FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
+  } catch { row = null; }
+  if (!row) return null;
+  const taxCents = row.taxOnArrival ? 0 : Math.round(Number(row.touristTaxTotal || 0) * 100);
+  const shares = require('../utils/installmentPlan').taxShares(taxCents, plan.map((p) => p.amountCents));
+  const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;
+  const taxable = Number(installment.amountCents) - share;
+  if (taxable <= 0) return null;
+  const components = [{ title: `${LINK_TITLES.installment} ${installment.number}/${plan.length}`, grossCents: taxable, taxable: true }];
+  if (share > 0) components.push({ title: 'Taxe de séjour', grossCents: share, taxable: false });
+  return { components, vatRatePercent: financeModel.helpers.getVatRate(db) };
 }
 
 const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
@@ -232,4 +253,4 @@ module.exports = {
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents };
+module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };

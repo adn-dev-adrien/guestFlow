@@ -70,13 +70,15 @@ test('rule 17 — retireChangedLinks (after a save) abandons only the links that
   const kept = await ensureInstallmentLink(h.deps, h.reservationId, h.rows[0].id);
   const stale = await ensureInstallmentLink(h.deps, h.reservationId, h.rows[1].id);
   h.installmentsModel.updateRow(h.rows[1].id, { amountCents: 12345 });
-  const pending = h.controller.retireChangedLinks(h.reservationId);
-  await pending;
+  h.state.deactivationFails = true;
+  await h.controller.retireChangedLinks(h.reservationId);
   assert.equal(h.paymentLinksModel.findById(kept.id).status, 'open');
   const retired = h.paymentLinksModel.findById(stale.id);
   assert.deepEqual([retired.status, retired.cancelReason], ['cancelled', 'amount-changed']);
   assert.ok(retired.remoteCancelPendingAt, 'the poll retries the deactivation should the provider be down');
-  assert.deepEqual(h.state.deactivated.map((l) => l.id), [stale.id]);
+  h.state.deactivationFails = false;
+  await h.controller.retireChangedLinks(h.reservationId);
+  assert.deepEqual(h.state.deactivated.map((l) => l.id), [stale.id], 'asked again, deactivated once');
   assert.equal(h.controller.retireChangedLinks(h.reservationId), null, 'nothing left to do: no promise to wait for');
 });
 
@@ -158,6 +160,7 @@ test('rule 17 — a link retired for an amount change and paid anyway books the 
   const h = await withPlan();
   const old = await ensureInstallmentLink(h.deps, h.reservationId, h.rows[0].id);
   h.installmentsModel.updateRow(h.rows[0].id, { amountCents: 40000 });
+  h.state.deactivationFails = true;
   await h.controller.retireChangedLinks(h.reservationId);
   const provider = {
     ...h.provider,

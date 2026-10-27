@@ -33,20 +33,22 @@ function buildModel(database) {
     const totals = database.prepare(`
       SELECT COALESCE(SUM(CASE WHEN paid = 1 THEN amountCents END), 0) AS paid,
              COALESCE(SUM(CASE WHEN paid = 0 THEN amountCents END), 0) AS unpaid,
-             COUNT(*) AS n
+             COUNT(*) AS n, SUM(CASE WHEN paid = 0 THEN 1 ELSE 0 END) AS unpaidCount
         FROM reservation_installments WHERE reservationId = ?`).get(Number(reservationId));
     if (totals.n === 0) {
-      database.prepare('UPDATE reservations SET installmentsPaidAmount = 0, installmentsUnpaidAmount = 0, installmentsTarget = 0 WHERE id = ?')
+      database.prepare('UPDATE reservations SET installmentsPaidAmount = 0, installmentsUnpaidAmount = 0, installmentsTarget = 0, installmentsLastPaidDate = NULL WHERE id = ?')
         .run(Number(reservationId));
       return;
     }
-    if (targetCents === undefined) {
-      database.prepare('UPDATE reservations SET installmentsPaidAmount = ?, installmentsUnpaidAmount = ? WHERE id = ?')
-        .run(totals.paid / 100, totals.unpaid / 100, Number(reservationId));
-      return;
-    }
-    database.prepare('UPDATE reservations SET installmentsPaidAmount = ?, installmentsUnpaidAmount = ?, installmentsTarget = ? WHERE id = ?')
-      .run(totals.paid / 100, totals.unpaid / 100, targetCents / 100, Number(reservationId));
+    const stored = database.prepare('SELECT installmentsTarget FROM reservations WHERE id = ?').get(Number(reservationId));
+    const target = targetCents === undefined ? Math.round(Number(stored && stored.installmentsTarget || 0) * 100) : targetCents;
+    // Rule 33 — once what was collected covers the stay, what remains unpaid on the plan is not owed.
+    const owed = target > 0 && totals.paid >= target ? 0 : totals.unpaid;
+    const last = totals.unpaidCount === 0
+      ? database.prepare('SELECT MAX(paidDate) AS d FROM reservation_installments WHERE reservationId = ?').get(Number(reservationId)).d
+      : null;
+    database.prepare('UPDATE reservations SET installmentsPaidAmount = ?, installmentsUnpaidAmount = ?, installmentsTarget = ?, installmentsLastPaidDate = ? WHERE id = ?')
+      .run(totals.paid / 100, owed / 100, target / 100, last, Number(reservationId));
   }
 
   function replacePlan(reservationId, rows, targetCents) {
@@ -113,9 +115,9 @@ function buildModel(database) {
     refreshAggregates(reservationId, targetCents);
   }
 
-  // The unpaid installments due on or before `cutoff`, with the stay and its guest — the collection alert's
-  // candidates (rule 22). Own channels only: a plan never lives elsewhere (rule 1).
-  function listLate({ cutoff }) {
+  // The unpaid installments due on or before `cutoff` — or whose guest has arrived (`today` ≥ arrival) — with
+  // the stay and its guest: the collection alert's candidates (rules 22, 36). Own channels only: a plan never lives elsewhere (rule 1).
+  function listLate({ cutoff, today }) {
     return database.prepare(`
       SELECT i.id, i.reservationId, i.number, i.dueDate, i.amountCents,
              r.reservationNumber, r.startDate, r.endDate, r.paymentAlertSnoozedUntil,
@@ -124,8 +126,9 @@ function buildModel(database) {
         JOIN reservations r ON r.id = i.reservationId AND r.kind = 'reservation'
         JOIN clients c ON c.id = r.clientId
         JOIN properties p ON p.id = r.propertyId
-       WHERE i.paid = 0 AND i.dueDate <= ?
-       ORDER BY i.dueDate, i.reservationId, i.number`).all(String(cutoff));
+       WHERE i.paid = 0 AND (i.dueDate <= ? OR r.startDate <= ?)
+         AND NOT (r.installmentsTarget > 0 AND ROUND(r.installmentsPaidAmount * 100) >= ROUND(r.installmentsTarget * 100))
+       ORDER BY i.dueDate, i.reservationId, i.number`).all(String(cutoff), String(today));
   }
 
   return {

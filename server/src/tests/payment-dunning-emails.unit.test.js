@@ -32,6 +32,7 @@ const DDL = `
     dateEdited INTEGER NOT NULL DEFAULT 0, amountEdited INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE reservations (
+    installmentsTarget REAL NOT NULL DEFAULT 0, installmentsPaidAmount REAL NOT NULL DEFAULT 0,
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT,
     checkInTime TEXT, checkOutTime TEXT,
@@ -114,28 +115,6 @@ const runPass = (db, sent) => performAutoEmailPass({
 // Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
-test('the acompte reminder fires on the acompte deadline, not on the arrival', async () => {
-  const db = fixture();
-  addReservation(db, { id: 100, depositDueDate: TODAY });          // due today → chased
-  addReservation(db, { id: 101, depositDueDate: '2026-09-01' });   // not due yet
-  const sent = [];
-  const out = await runPass(db, sent);
-  assert.equal(out.sentCount, 1);
-  assert.equal(db.prepare("SELECT reservationId FROM email_log WHERE status = 'sent'").get().reservationId, 100);
-  db.close();
-});
-
-test('the solde reminder fires 3 days after the solde deadline', async () => {
-  const db = fixture();
-  addReservation(db, { id: 100, balanceDueDate: '2026-08-16' });   // +3 = today
-  addReservation(db, { id: 101, balanceDueDate: '2026-08-17' });   // +3 = tomorrow
-  const sent = [];
-  const out = await runPass(db, sent);
-  assert.equal(out.sentCount, 1);
-  assert.equal(db.prepare("SELECT reservationId FROM email_log WHERE status = 'sent'").get().reservationId, 100);
-  db.close();
-});
-
 test('money that arrived is never chased, even on the exact deadline', async () => {
   const db = fixture();
   addReservation(db, { id: 100, depositDueDate: TODAY, depositPaid: 1 });
@@ -158,28 +137,6 @@ test('a devis is never dunned by the reservation anchors', async () => {
 });
 
 // specs/payment-schedule-and-cancellation.md rule 42
-test('one send per template × reservation, ever', async () => {
-  const db = fixture();
-  addReservation(db, { id: 100, depositDueDate: TODAY });
-  const sent = [];
-  assert.equal((await runPass(db, sent)).sentCount, 1);
-  const second = await runPass(db, sent);
-  assert.equal(second.sentCount, 0);
-  assert.equal(second.skippedCount, 1);
-  db.close();
-});
-
-test('an anchor the cron cannot query is skipped, not silently mailed to everyone', async () => {
-  const db = fixture();
-  db.prepare("UPDATE email_templates SET anchor = 'validUntil' WHERE id = 10").run();
-  addReservation(db, { id: 100, depositDueDate: TODAY, balanceDueDate: null });
-  const sent = [];
-  const out = await runPass(db, sent);
-  assert.equal(out.sentCount, 0);
-  assert.ok(out.results.some((r) => r.status === 'skipped-unsupported-anchor'));
-  db.close();
-});
-
 test('manual mode: the same anchors drive the pending queue', () => {
   const db = fixture({ sendMode: 'manual' });
   addReservation(db, { id: 100, depositDueDate: TODAY });
@@ -236,27 +193,15 @@ test('a reservation with no deadline on the anchor is never scheduled', async ()
 // ── Channel filter (specs/platform-payout-due-date.md §3.3 rules 33-34) ───────────────────────
 
 // specs/platform-payout-due-date.md rules 33 + 34
-test('a money template never leaves for a platform booking — its solde is the platform\'s', async () => {
-  const db = fixture();
-  addReservation(db, { id: 100, balanceDueDate: '2026-08-16', platform: 'Airbnb' });
-  addReservation(db, { id: 101, depositDueDate: TODAY, platform: 'Booking' });
-  // Same deadlines on our own channels: those DO get chased.
-  addReservation(db, { id: 102, balanceDueDate: '2026-08-16', platform: 'direct' });
-  addReservation(db, { id: 103, balanceDueDate: '2026-08-16', platform: 'Lodgify' });
-  const sent = [];
-  const out = await runPass(db, sent);
-  assert.equal(out.sentCount, 2);
-  const chased = db.prepare("SELECT reservationId FROM email_log WHERE status = 'sent' ORDER BY reservationId").all();
-  assert.deepEqual(chased.map((r) => r.reservationId), [102, 103]);
-  db.close();
-});
 
-test('an empty platform reads as direct, and is chased like one', async () => {
+// specs/direct-installments.md rule 43 (hard guard of rule 44) — whatever its stored mode, a template that
+// asks for money is never sent by the 08:00 pass: the reminders only ever wait in the « à valider » queue.
+test('a payment template in « auto » mode is never sent by the pass, on any anchor', async () => {
   const db = fixture();
-  addReservation(db, { id: 100, balanceDueDate: '2026-08-16', platform: '' });
-  addReservation(db, { id: 101, balanceDueDate: '2026-08-16', platform: '   ' });
+  addReservation(db, { id: 100, depositDueDate: TODAY, balanceDueDate: '2026-08-16' });
   const sent = [];
   const out = await runPass(db, sent);
-  assert.equal(out.sentCount, 2, 'a blank channel is a direct booking, not a platform one');
+  assert.equal(out.sentCount, 0);
+  assert.deepEqual(sent, []);
   db.close();
 });

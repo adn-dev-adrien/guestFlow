@@ -1344,10 +1344,6 @@ async function update(req, res) {
     }
     const result = performUpdate(id, req.body, { unlockPast });
     if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
-    if (result.status === 200) {
-      const deactivation = installments.retireChangedLinks(id);
-      if (deactivation) await deactivation;
-    }
     return res.status(result.status).json(result.body);
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -1390,7 +1386,11 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   const res = createResultRecorder();
   if (!dryRun) {
     applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
-    return res.result();
+    const result = res.result();
+    // specs/direct-installments.md rule 17 — whoever saved (the fiche, a plugin, the SAS), the links that bill
+    // an amount the save just changed are abandoned and deactivated; the poll retries should the provider fail.
+    if (result.status === 200) installments.retireChangedLinks(reservationId);
+    return result;
   }
   let preview = null;
   try {
@@ -1912,6 +1912,11 @@ const PAID_DATE_FIELDS = [
  * Returns `{ status, body }` or null.
  */
 function paymentMarkRefusal(row, body, today) {
+  // specs/direct-installments.md rule 35 — a stay with a plan is collected installment by installment.
+  const hasPlan = Number(row.installmentsTarget || 0) > 0;
+  if (hasPlan && (body.depositPaid === true || body.depositPaid === 1 || body.balancePaid === true || body.balancePaid === 1)) {
+    return { status: 409, body: { error: 'Un échéancier remplace l’acompte et le solde : marquer les échéances.', code: 'INSTALLMENTS_IN_PLACE' } };
+  }
   for (const [flagField, dateField] of PAID_DATE_FIELDS) {
     if (!body[flagField] || body[dateField] === undefined || body[dateField] === null || body[dateField] === '') continue;
     const checked = validateCollectionDate(body[dateField], { today, invalidReason: 'Date invalide.' });
@@ -2257,3 +2262,6 @@ module.exports = {
   suggestBeds, platformCommission, list, search, occupiedDates, getById, getHistory, calculatePrice,
   create, update, performUpdate, updatePayment, settleArrivalPayment, remove,
 };
+
+// Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
+module.exports.__test = { paymentMarkRefusal };
