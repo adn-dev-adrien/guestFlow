@@ -70,6 +70,16 @@ For each reservation, Adrien can flip a single switch in the reservation page to
     (`quote.depositDueDate || depositDueDate`), so switching the acompte off (here or with the property
     switch) kept the old deadline. Insert and update now store NULL whenever the acompte is 0, and the
     history shows the deadline going.
+11. **Fixed at the adversarial review of the 2026-10-27 fixes — a legacy 0 € acompte deadline is read as
+    none, then cleared.** Rule 10 nulled the deadline on the payload side of the audit snapshot only;
+    `getAuditSnapshotFromDb` returned the stored date, and production holds rows with a 0 € acompte and
+    a deadline. Every save of such a PAST fiche was refused (400 `PAST_RESERVATION_LOCKED`, the deadline
+    looked edited) and an unlocked one wrote a phantom « Date acompte … → — » history row. Both sides of
+    the snapshot now read a 0 € acompte as « no deadline », and a one-shot boot cleanup
+    (`zero_deposit_deadline_cleared_v1`, `utils/zeroDepositDeadlineCleanup.js`) sets `depositDueDate =
+    NULL` on reservations (not devis) whose acompte rounds to 0 and on which nothing was ever paid
+    (`depositPaid = 0`, no `depositPaidDate`), logging the count. It also stops `computePaymentStatus`
+    reading an overdue acompte of 0 €.
 
 **Edge cases:**
 
@@ -93,6 +103,7 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 | `utils/` | `reservationAudit.js` | T | Add `depositDisabled` to `buildAuditSnapshotFromPayload` + the diff fields so the reservation history surfaces toggles. |
 | `models/` | `accountingModel.js` | — | No change — the existing `WHERE depositPaid = 1 AND depositPaidDate ...` filter is exactly what we need (no `depositPaid=1` → no journal entry). |
 | `tests/` | `pricing-deposit-disabled.unit.test.js` | C | New unit test file covering: `depositDisabled=0` (regression), `=1` (deposit collapses to 0, balance absorbs), the engine respects the flag across multiple recomputes (regression for the bug Variant A would have produced), the override doesn't break `complementAmount` math. |
+| `utils/` | `zeroDepositDeadlineCleanup.js` | C | Rule 11 — one-shot cleanup of the deadline a 0 € unpaid acompte still stores (`zero_deposit_deadline_cleared_v1`, run from `database.js`). `reservationsModel.getAuditSnapshotFromDb` reads a 0 € acompte as « no deadline », like `buildAuditSnapshotFromPayload`. |
 | `tests/` | `accounting-deposit-disabled.unit.test.js` | C | New: insert a reservation with `depositDisabled=1` + `balancePaid=1`, run the month export, assert exactly one journal entry (the balance) and zero deposit entries. |
 
 ### 4.2 Client side (`client/src/`)
@@ -203,6 +214,7 @@ No empty / loading / error states unique to this section — handled by the pare
 
 ---
 - Spec review 2026-10-27 (rule 10): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — deadline cleared on save and at creation.
+- Adversarial review of the 2026-10-27 fixes (rule 11): `server/src/tests/zero-deposit-deadline-legacy-rows.unit.test.js` (3 tests — past locked fiche with a legacy deadline saves, no phantom history row, boot cleanup limited to unpaid 0 € acomptes and idempotent).
 
 ## 8. Out of scope
 

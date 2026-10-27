@@ -1139,7 +1139,9 @@ function createReservationsModel(database) {
         customPrice: row.customPrice == null ? null : Number(row.customPrice),
         finalPrice: Number(row.finalPrice || 0),
         depositAmount: Number(row.depositAmount || 0),
-        depositDueDate: row.depositDueDate || null,
+        // Same reading as the payload side (disable-deposit-per-reservation rule 11): a 0 € acompte has
+        // no deadline, whatever a row stored before rule 10 still holds.
+        depositDueDate: round2(row.depositAmount) > 0 ? (row.depositDueDate || null) : null,
         depositAmountOverride: row.depositAmountOverride == null ? null : Number(row.depositAmountOverride),
         depositPaidDate: row.depositPaidDate || null,
         balanceAmount: Number(row.balanceAmount || 0),
@@ -1637,21 +1639,11 @@ function createReservationsModel(database) {
 
     // specs/tariff-recipes/spec.md §3 rule 62 — the snapshot a save priced with becomes the stored one,
     // so the nights it added and the reprice of a moved arrival carry their season into the next save.
-    // `replayed` = the save ran on the stored snapshot: its property-level half (included guests, unit
-    // price, tiers) came from there and is kept as it was when the quote carries no tier table of its
-    // own (a party at or under the included guests prices no tier, which is not « sold without »).
-    refreshTariffSnapshot(reservationId, snapshot, { replayed = false } = {}) {
+    // The engine already wrote the sold property-level half (tiers verbatim, rule 67) and the sold
+    // free-unit grants (rule 66) into it: nothing is merged here.
+    refreshTariffSnapshot(reservationId, snapshot) {
       if (!snapshot) return;
-      let next = snapshot;
-      if (replayed) {
-        const row = database.prepare('SELECT tariffSnapshot FROM reservations WHERE id = ?').get(reservationId);
-        let stored = null;
-        try { stored = row && row.tariffSnapshot ? JSON.parse(row.tariffSnapshot) : null; } catch { stored = null; }
-        if (stored && next.extraGuestTiers == null && stored.extraGuestTiers != null) {
-          next = { ...next, extraGuestTiers: stored.extraGuestTiers };
-        }
-      }
-      database.prepare('UPDATE reservations SET tariffSnapshot = ? WHERE id = ?').run(JSON.stringify(next), reservationId);
+      database.prepare('UPDATE reservations SET tariffSnapshot = ? WHERE id = ?').run(JSON.stringify(snapshot), reservationId);
     },
 
     /**

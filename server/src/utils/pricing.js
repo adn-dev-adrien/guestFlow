@@ -1012,6 +1012,8 @@ function applyOfferedToLine(realTotal, offered) {
   };
 }
 
+const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
+
 // specs/tariff-recipes/spec.md §3.9 rules 52bis-52ter — the first N units of an option are covered
 // by the rate (the direct welcome pack's two breakfasts). The operator orders the FULL quantity and
 // only the units beyond the free ones are billed; `billedUnits` — what the Planning and SAS cards
@@ -1584,13 +1586,39 @@ function calculateReservationQuote({
   // specs/plugins-phase-p-productisation.md rule 45 — the one reading of the channel every money
   // decision below shares.
   const channel = saleChannel(platform);
-  // Units the reservation was granted when it was sold, per option id (rule 12bis).
-  const lockedFreeUnitsFor = (optionId) => {
-    if (!lockedTariff) return null;                       // no snapshot → live
-    const map = lockedTariff.freeUnitsByOption || {};
-    // Absent from the map = this option was granted NOTHING when the reservation was sold. Falling
-    // back to the live value there would let a widened pack reach the very bookings this protects.
-    return Number(map[String(optionId)] || 0);
+  // specs/tariff-recipes/spec.md §3 rules 12bis + 66 — the free units of an option are read from two
+  // maps of the tariff snapshot, never one:
+  //   - `grantedFreeUnitsByOption`: what the stay was GRANTED per option (0 included). It survives
+  //     every save, the option removed, its quantity lowered or the stay moved to a platform, so a
+  //     re-added welcome pack is not billed. An option absent from it was never on the stay: it gets
+  //     today's catalogue.
+  //   - `freeUnitsByOption`: what the stored lines were CONSUMED net of at the last save — only the
+  //     add-back of a sold line reads it (rule 56).
+  // A snapshot written before rule 66 only has the consumed map: it stands in for the grant (the best
+  // lower bound we have), an option already on the stay but absent from it was granted nothing, and an
+  // option new to the stay gets the catalogue.
+  const soldGrantMap = lockedTariff && isPlainObject(lockedTariff.grantedFreeUnitsByOption)
+    ? lockedTariff.grantedFreeUnitsByOption
+    : null;
+  const consumedMap = lockedTariff && isPlainObject(lockedTariff.freeUnitsByOption)
+    ? lockedTariff.freeUnitsByOption
+    : {};
+  const grantedFreeUnitsFor = (optionId) => {
+    const key = String(optionId);
+    const live = Math.max(0, Number(optionsById.get(Number(optionId))?.freeUnits || 0));
+    if (!lockedTariff) return live;                       // no snapshot → sold now, at the catalogue
+    if (soldGrantMap) return Object.prototype.hasOwnProperty.call(soldGrantMap, key)
+      ? Math.max(0, Number(soldGrantMap[key] || 0))
+      : live;
+    if (Object.prototype.hasOwnProperty.call(consumedMap, key)) return Math.max(0, Number(consumedMap[key] || 0));
+    return lockedOptionsById.has(Number(optionId)) ? 0 : live;
+  };
+  // What a stored line is net of. A legacy snapshot recorded it at the creation only, for a direct
+  // sale: on a platform save it has nothing to add back.
+  const consumedFreeUnitsFor = (optionId) => {
+    if (!lockedTariff) return 0;
+    const consumed = Math.max(0, Number(consumedMap[String(optionId)] || 0));
+    return soldGrantMap || isDirectBooking ? consumed : 0;
   };
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
@@ -1768,7 +1796,7 @@ function calculateReservationQuote({
             cardPersons: selected?.cardPersons, persons, maxGuests: property.maxGuests,
           });
           const billedUnits = roundMoney(occurrences.length * (perPerson ? covers.served : 1));
-          const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
+          const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: grantedFreeUnitsFor(optionId) });
           return {
             optionId,
             title: option.title,
@@ -1815,7 +1843,7 @@ function calculateReservationQuote({
         const qty = portions.quantity;
         if (qty <= 0) return null;
         const billedUnits = roundMoney(qty);
-        const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
+        const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: grantedFreeUnitsFor(optionId) });
         return {
           optionId,
           title: option.title,
@@ -1915,11 +1943,9 @@ function calculateReservationQuote({
         : (neatOverride !== null
           ? 1
           : roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights)));
-      // The units the sold line was granted free — the ones its stored total is net of.
-      const lockedGranted = lockedFreeUnitsFor(optionId);
       // Only what a snapshot says was deducted is added back: a row stored without one predates the
       // free units and holds a gross total (rule 56).
-      const soldFreeUnits = isDirectBooking && lockedGranted != null ? lockedGranted : 0;
+      const soldFreeUnits = consumedFreeUnitsFor(optionId);
       const merged = mergeLineWithLockedSnapshot({
         lockedLine: lockedInsuranceLine
           || reconstructLockedRealTotal(lockedLineGrossOfFreeUnits(locked, soldFreeUnits), unitBase),
@@ -1928,7 +1954,7 @@ function calculateReservationQuote({
       });
       const free = applyFreeUnitsToLine({
         option, isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
-        lockedFreeUnits: lockedFreeUnitsFor(optionId),
+        lockedFreeUnits: grantedFreeUnitsFor(optionId),
       });
       return {
         optionId,
@@ -2956,7 +2982,11 @@ function calculateReservationQuote({
       extraGuestPriceUnit,
       // `[]` = sold without tiers, an explicit answer; `null` only survives in snapshots written
       // before the 2026-10-27 spec review, and replays as « no tiers » too (rule 12ter backfill).
-      extraGuestTiers: extraGuestCalc.tiers || [],
+      // A replay stores the table it replayed, verbatim (rule 67): the engine priced with it, and a
+      // legacy `null` is how the operator still finds the stays sold before the fix.
+      extraGuestTiers: lockedTariff
+        ? (lockedTariff.extraGuestTiers ?? null)
+        : (extraGuestCalc.tiers || []),
       // Rule 58 — the season each night was sold under, for the per-night supplement.
       extraGuestNights: extraGuestPriceUnit === 'per_night'
         ? Object.fromEntries(nightlyBreakdown.map((night) => {
@@ -2969,11 +2999,21 @@ function calculateReservationQuote({
           return [date, { base: live.nightlyBase, unit: live.seasonUnit }];
         }))
         : null,
+      // Rule 66 — consumed by the lines this quote stores (the add-back of the next save)…
       freeUnitsByOption: Object.fromEntries(
         finalOptionLines
           .filter((line) => line && Number(line.freeUnits || 0) > 0)
           .map((line) => [String(line.optionId), Number(line.freeUnits)]),
       ),
+      // …and granted: every grant the stay ever had, kept when its line goes, plus the lines it holds.
+      grantedFreeUnitsByOption: {
+        ...(soldGrantMap || (lockedTariff ? consumedMap : {})),
+        ...Object.fromEntries(
+          finalOptionLines
+            .filter((line) => line && line.optionId != null)
+            .map((line) => [String(line.optionId), grantedFreeUnitsFor(line.optionId)]),
+        ),
+      },
     },
     // specs/tourist-tax-included-services-deduction.md §4.3 — the accommodation the tax is computed
     // on, plus the two halves it comes from, so the summary can render « Base : X − Y de prestations

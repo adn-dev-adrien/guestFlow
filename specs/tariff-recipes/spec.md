@@ -591,7 +591,9 @@ all-inclusive pricing as the first such recipe.
     their entry, new and repriced nights carry the live season — so a save replays exactly what the
     previous one stored. The property-level half stays the one the reservation was sold under
     (`lockedTariff`), and a stored tier table is kept when the current party prices no tier. A legacy
-    row with no snapshot gets one at its next save.
+    row with no snapshot gets one at its next save. _(Refined 2026-10-27 by rules 66-67: the snapshot a
+    replay stores carries the sold tier table verbatim and the sold free-unit grants; nothing is merged
+    by the model any more.)_
 
 ### 3.13 Clarified at the 2026-10-27 spec review
 
@@ -618,6 +620,37 @@ all-inclusive pricing as the first such recipe.
     2026 Très haute in four ranges (07-11→13, 07-14→08-14, 08-15, 08-16→21) around the 14-juillet block
     and the Saturday 15 August. It is now one range, `2026-07-11 → 2026-08-21, minNights 4`; a block
     minimum stronger than the night's (Lodge, 14 juillet, 3 nights over a 1-night season) still splits.
+
+### 3.14 Fixed at the adversarial review of the 2026-10-27 spec-review fixes
+
+66. **The free units a stay was granted survive every save; « granted » and « consumed » are two maps.**
+    Rule 62 made every save store the snapshot it priced with, and the snapshot's `freeUnitsByOption`
+    was built from the units the current lines CONSUMED, while rule 12bis reads an option absent from
+    it as « granted nothing ». Removing the welcome-pack option, lowering its quantity or moving the
+    stay to a platform for one save erased the grant, and putting it back billed it (300 → 380 €). The
+    snapshot now carries:
+    - `grantedFreeUnitsByOption` — what the stay was granted, per option, `0` included (an explicit
+      « nothing »). It is what `applyFreeUnitsToLine` replays. An option already in it keeps its sold
+      grant whatever the catalogue says now, and stays in it when its line is removed, its quantity
+      lowered, or the stay saved on a platform (the grant is the stay's; the channel only decides
+      whether it applies, rule 53). An option absent from it was never on the stay: added later, it is
+      granted today's catalogue, which is then stored.
+    - `freeUnitsByOption` — what the stored lines are net of (consumed at the last save, `{}` on a
+      platform). Only the add-back of a sold line reads it (rule 56).
+    A snapshot written before this rule has the consumed map only: it stands in for the grant (an
+    option in it keeps that value, an option already on the stay but absent from it was granted
+    nothing, an option new to the stay gets the catalogue), its add-back applies on an own-channel save
+    only, and the first save writes the granted map. A past-locked fiche whose mid-stay window rewrites
+    its extras stores the snapshot too, since its lines changed (its nights come from the lock).
+67. **A replay stores the tier table it replayed, verbatim.** Since the 2026-10-27 spec review the
+    engine emitted `extraGuestTiers: tiers || []`, so a legacy `null` (stays sold before that review,
+    replayed as « no tiers ») became `[]` at the first save — and `null` is how the operator finds the
+    Lodge stays sold at ≤ 2 guests before the fix (PR #814). A quote built on a `lockedTariff` now
+    stores `lockedTariff.extraGuestTiers` as it was (`null` stays `null`, `[]` stays `[]`, a table
+    stays that table); only a fresh sale stores the season's table. This is the table the engine priced
+    with: moving the arrival reprices the nights (rule 57) and the per-night seasons (rule 58), not the
+    property-level half (rule 62), so it re-sells nothing here. `reservationsModel.refreshTariffSnapshot`
+    no longer merges anything (its « keep stored tiers » branch was dead code).
 
 ---
 
@@ -647,6 +680,11 @@ Full code map in [architecture.md](architecture.md). Summary:
   `plugins/tariff-recipes/store.js` refuses tiers on a per-stay unit; `seasonPlan.js` keeps a block
   night's period override when the block adds nothing (rule 65);
   `client/src/plugins/tariff-recipes/TariffRecipeCard.jsx` lists `extraGuestChanges` in the preview.
+- **Adversarial review of the 2026-10-27 fixes (rules 66-67):** `utils/pricing.js` —
+  `grantedFreeUnitsFor` / `consumedFreeUnitsFor` and the snapshot's `grantedFreeUnitsByOption` (66), the
+  replayed tier table stored verbatim (67); `models/reservationsModel.js` — `refreshTariffSnapshot`
+  stores the engine's snapshot as is; `controllers/reservationsController.js` refreshes it whenever the
+  save writes the extras (66).
 
 ## 5. Data model
 
@@ -820,6 +858,8 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - **2026-10-27 audit (rules 60-61):** `tariff-recipe-card-labels.unit.test.js` (5 server tests),
   `TariffRecipeCard.degressivity-label.test.jsx` (1) and `TariffRecipesPage.layout.test.jsx` (2).
 - Spec review 2026-10-27 (rule 62): `server/src/tests/tariff-snapshot-refreshed-on-save.unit.test.js` (3 tests — no-op save after extension + arrival move keeps the price, sold tariff kept, stored tiers kept).
+- Adversarial review of the 2026-10-27 fixes (rule 66): `server/src/tests/free-units-grant-survives-saves.unit.test.js` (6 tests — option removed then re-added, quantity lowered then raised, platform and back, catalogue widened after the sale vs option new to the stay, a sold « 0 » kept, legacy consumed-only snapshot converted); `tariff-frozen-on-sold-reservation` expects `grantedFreeUnitsByOption`, `tariff-snapshot-backfill` replays with the stay's stored line.
+- Adversarial review of the 2026-10-27 fixes (rule 67): `server/src/tests/extra-guest-tiers-legacy-null-kept.unit.test.js` (2 tests — legacy `null` kept over two saves, `[]` and a sold table kept).
 
 ## 8. Out of scope
 

@@ -1954,10 +1954,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:
     // a night added, or a stay repriced because its arrival moved (rule 57), is stored with the season
-    // it was priced under, so the next save replays exactly what this one stored.
-    if (!pastReservationLocked) {
-      model.refreshTariffSnapshot(id, quote.tariffSnapshot, { replayed: Boolean(lockedPricing.lockedTariff) });
-    }
+    // it was priced under, so the next save replays exactly what this one stored. Rule 66: it also
+    // follows the option lines (their consumed free units), so a locked fiche whose mid-stay window
+    // rewrites its extras refreshes it too — its nights come from the lock either way.
+    if (writesExtras) model.refreshTariffSnapshot(id, quote.tariffSnapshot);
 
     if (writesExtras && reservationResources) {
       model.deleteResources(id);
