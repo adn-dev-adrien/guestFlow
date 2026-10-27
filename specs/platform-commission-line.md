@@ -7,6 +7,17 @@
 | **Created** | 2026-06-20 |
 | **Author** | Adrien |
 
+> **Updated 2026-10-27 (spec review) — rule 5, rule 6 and the « solde = net » part of the 2026-06-22
+> revision are superseded.** The engine no longer stores the net in the solde:
+> [platform-per-echeance-commission.md](platform-per-echeance-commission.md) rule 2 made the acompte and
+> the solde store the **gross**, guest-facing amounts, with the commission tracked separately per échéance
+> (`acompteCommissionAmount` + `platformCommissionAmount`) and never subtracted from them. In
+> `server/src/utils/pricing.js` the non-direct platform branch splits the gross `preArrivalAmount`
+> (`resolvedBalanceAmount = preArrivalAmount − resolvedDepositAmount`), and the auto-gap baseline is
+> `ownerStayTotal = totalStayPrice` (no commission deducted). Only the displayed **net perçu**
+> (`platformNetReceivedAmount = preArrivalAmount − totalPlatformCommission`) is net. Rules 1–4 and 7
+> (the commission field, the brut / commission / net display, live recompute) still hold.
+
 ---
 
 ## 1. Context
@@ -56,13 +67,16 @@ Both the commission and the net are **engine-authoritative** (`quote.platformCom
    0, the single « Total du séjour TTC » line is shown exactly as before.
 4. **Tax is a pass-through**, untouched by the commission: it sits in `totalStayPrice` (the brut); the
    commission is then deducted from that.
-5. **The solde IS the net perçu (2026-06-21).** On a non-direct platform reservation the engine deducts
+5. _(Superseded 2026-10-27 — the solde stores the gross; see the note at the top and
+   platform-per-echeance-commission.md rule 2.)_ **The solde IS the net perçu (2026-06-21).** On a non-direct platform reservation the engine deducts
    the commission from the **balance**: `balanceAmount = max(0, preArrivalAmount − commission)`. The
    commission is **not** a complement — the auto-gap baseline is reduced to the owner's net
    (`ownerStayTotal = totalStayPrice − commission`) so it can't re-surface there. So for a stay with no
    on-arrival complement, **solde = net perçu**; with a complement, `solde + complément = net perçu`
    (the owner's total receipts). Direct reservations are untouched.
-6. **Accounting reads the solde.** `accountingModel.encaissementsByMonth` books `row.balanceAmount` as
+6. _(Superseded 2026-10-27 — the solde is the gross, so « which is now the net » no longer holds; the
+   accounting books the commission from the entered per-échéance fields, see the 2026-06-22 revision and
+   platform-per-echeance-commission.md.)_ **Accounting reads the solde.** `accountingModel.encaissementsByMonth` books `row.balanceAmount` as
    the balance encaissement — which is now the **net** — so the compta records what the operator actually
    banked. The existing gross-based CA recognition (on `clientGrossAmount`) is **unchanged** (kept per the
    2026-06-21 questionnaire): when no gross is entered the commission journal is inert and the net solde is
@@ -131,6 +145,11 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 - [x] `PricingSummary.commission.test.js` (2) — commission > 0 → brut = total séjour / « Commission
   plateforme » / net perçu = total − commission; commission 0 → the plain single total line.
 
+> _(Note 2026-10-27: in the revision below, « the engine already stores the NET in the solde » and
+> « net perçu (= solde = total − commission) » are superseded — the solde stores the gross since
+> platform-per-echeance-commission.md rule 2. The `finalPrice / storedSum` ratio is what keeps the
+> accounting right for both shapes of stored solde.)_
+>
 > **Revision 2026-06-22 — « Prix payé par le client » retired + accounting wired to the commission field.**
 > The `clientGrossAmount` input was removed from the fiche (it was redundant now that the commission is
 > entered directly). The accounting no longer derives the commission from a gross; instead, for a platform

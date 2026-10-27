@@ -32,6 +32,7 @@ function addRes(db, { kind = 'reservation', reservationNumber = null, clientId =
   ).run(kind, reservationNumber, clientId, startDate, endDate).lastInsertRowid;
 }
 
+// specs/reservation-number-and-search.md rule 11 — a blank query lists nothing.
 test('blank query returns []', () => {
   const { db, model } = freshModel();
   addRes(db, { reservationNumber: '2026-07-001' });

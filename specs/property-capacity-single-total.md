@@ -104,6 +104,13 @@ site, WordPress widget) without a forced override.
   - `maxGuests = 0` (never set) → "capacity not configured": the guest guard is off and the section
     shows no capacity caption, so a half-configured property is never unbookable — precisely the
     failure mode this spec exists to kill.
+    _(Updated 2026-10-27, spec review: the branch exists in `server/src/utils/capacity.js`
+    `checkGuestCapacity` (`maxGuests > 0 && …`), but a property cannot reach `maxGuests = 0` through
+    the product. The column defaults to `2` (`server/src/schema.sql`, and the `ALTER TABLE … DEFAULT 2`
+    + `COALESCE(NULLIF(maxAdults, 0), 2)` backfill in `server/src/database.js`); `propertiesModel`
+    create/update write `body.maxGuests || 2`; `utils/propertyValidation.js` rejects a value below 1
+    (« Au moins 1 voyageur. ») and the start assistant requires 1–50. So "never set" means `2`, not `0`,
+    and the guard is always on in practice; `0` only survives a row written outside the app.)_
   - `maxBabies = 0` → an explicit "no babies accepted" (no cot), enforced exactly as before. Reading
     it as "not configured" would have silently lifted a guard properties rely on today.
 - Occupancy exactly at `maxGuests` → accepted, no warning.

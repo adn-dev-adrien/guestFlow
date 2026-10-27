@@ -428,6 +428,7 @@ test('default lang (fr) is unchanged — English path never leaks into French ou
 
 // ── Reservation number recall (specs/reservation-number-and-search.md §4) ────────
 
+// specs/reservation-number-and-search.md rule 12 — the token and its gate.
 test('reservationNumber var + hasReservationNumber flag follow the reservation column', () => {
   const withNumber = buildContext(baseInput({ reservation: { reservationNumber: '2026-07-042' } }));
   assert.equal(withNumber.vars.reservationNumber, '2026-07-042');
