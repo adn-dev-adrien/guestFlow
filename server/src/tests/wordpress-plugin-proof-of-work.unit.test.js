@@ -85,7 +85,6 @@ test('rule 20: the drawer sends the token of the quote it created, and pays only
   const view = read('blocks', 'booking', 'view.js');
   assert.match(view, /if \(pendingRequest && pendingRequest\.token\) body\.publicToken = pendingRequest\.token;/);
   assert.match(view, /var noQuote = !data\.publicToken;/);
-  assert.match(view, /if \(paying && !noQuote\) \{/);
 });
 
 test('rules 21-22: « message ajouté », a reference-free receipt, and the 2 000-character textarea', () => {
@@ -100,4 +99,10 @@ test('rules 21-22: « message ajouté », a reference-free receipt, and the 2 00
       assert.ok(blocks.includes(`'${key}'`) && blocks.includes(`__('${fr}'`), key);
       assert.match(po, new RegExp(`msgid "${fr.replace(/[.%]/g, '\\$&')}"\nmsgstr "[^"]+"`));
     });
+});
+
+// Re-review of PR #805 — rule 27: a message-only answer never starts a payment, token or not.
+test('rule 27: the drawer pays only a quote that came back with a token and was not message-only', () => {
+  const view = read('blocks', 'booking', 'view.js');
+  assert.match(view, /if \(paying && !noQuote && !data\.messageAdded\) \{/);
 });

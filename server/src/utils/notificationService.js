@@ -62,6 +62,8 @@ function buildNotificationService({
 } = {}) {
   // Built lazily: a suite that injects a minimal database without the digest tables never reaches it.
   let digestStore = digest;
+  // The summaries already pushed (by their first row id), so a retried e-mail never pushes again.
+  const pushed = new Set();
   const siteDigest = () => {
     if (!digestStore) digestStore = buildNotificationDigest({ db });
     return digestStore;
@@ -268,11 +270,17 @@ function buildNotificationService({
       try {
         const ctx = resolveContext();
         const email = buildSiteDigestEmail(items, ctx.publicUrl || '');
+        // The push has its own gating, as on the immediate path: an operator who reads pushes only
+        // still gets the summary. Sent once, before the e-mail, which alone may be retried.
+        if (!pushed.has(ids[0])) {
+          if (pushed.size > 1000) pushed.clear();
+          pushed.add(ids[0]);
+          await pushNewReservation({ title: email.subject, body: 'Demandes de devis du site', url: '/devis' });
+        }
         if (ctx.skip) { siteDigest().settle(ids, true); continue; }
         const result = await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
         siteDigest().settle(ids, true);
         if (result.sent) sent += 1;
-        await pushNewReservation({ title: email.subject, body: 'Demandes de devis du site', url: '/devis' });
       } catch (err) {
         try { siteDigest().settle(ids, false); } catch { /* the stale mark frees them later */ }
         logger.warn('[notificationService.flushDueDigests]', err && err.message ? err.message : err);
