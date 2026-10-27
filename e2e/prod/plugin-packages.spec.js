@@ -16,7 +16,9 @@ function trackErrors(page) {
   return errors;
 }
 
-const card = (page, name) => page.locator('.MuiCard-root').filter({ has: page.getByText(name, { exact: true }) });
+// The card title carries the version next to the name (« Vigilance Météo-France1.2.1 »): match the name at the start.
+const card = (page, name) => page.locator('.MuiCard-root')
+  .filter({ has: page.getByRole('heading', { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) }) });
 
 test('rule 19: the app renders with plugins loaded from their bundles, without a console error', async ({ page }) => {
   const errors = trackErrors(page);
@@ -59,7 +61,7 @@ test('rules 13, 16, 20: an update shows its changelog, restarts the instance and
   await dialog.getByRole('button', { name: 'Mettre à jour' }).click();
   await expect(page.getByText('Redémarrage en cours')).toBeVisible();
   await expect(card(page, 'Vigilance Météo-France').getByText(next('weather-alerts'))).toBeVisible({ timeout: 45_000 });
-  await card(page, 'Vigilance Météo-France').getByText('Vigilance Météo-France', { exact: true }).click();
+  await card(page, 'Vigilance Météo-France').getByRole('heading', { name: /^Vigilance Météo-France/ }).click();
   await expect(page.getByRole('button', { name: 'Revenir à la version précédente' })).toBeVisible();
 });
 
