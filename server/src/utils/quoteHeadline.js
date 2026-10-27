@@ -7,11 +7,14 @@
  * perçu » as soon as the two differ by a cent, whatever the reason.
  *
  * « Total du séjour » is the same gross as the first line of the pricing summary's cascade: the stay
- * price, the real tourist tax (the amount the platform withheld when the operator stated it) and the
- * part of the end-of-stay complement billed by the departure SAS — the mid-stay part is already
- * inside `finalPrice`.
+ * price, the tourist tax as the books know it — the amount the platform withheld when the operator
+ * stated it, else the tax the stay carries (0 when the platform handles it) — and the part of the
+ * end-of-stay complement billed by the departure SAS — the mid-stay part is already inside `finalPrice`.
+ * specs/ui-review-2026-10-19-operations.md rule 31: one definition for the live quote and the stored
+ * row. The engine's own estimate of a tax the platform handles is not a stored fact, and reading it
+ * here made the same fiche print 506 live and 500 stored.
  *
- * Pure: takes the quote `calculateReservationQuote` is about to return.
+ * Pure: takes the quote `calculateReservationQuote` is about to return, or the stored row's figures.
  */
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -19,7 +22,7 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 function stayGross(q = {}) {
   const tax = q.platformTouristTaxWithheld != null
     ? Number(q.platformTouristTaxWithheld)
-    : Number(q.touristTaxOriginalTotal ?? q.touristTaxTotal ?? 0);
+    : Number(q.touristTaxTotal ?? 0);
   const midStay = Number(q.midStayRemainingTotal ?? q.midStayExtrasTotal ?? 0);
   const endOfStaySas = Math.max(0, Number(q.endOfStayComplementTotal || 0) - midStay);
   return round2(Number(q.finalPrice || 0) + tax + endOfStaySas);
@@ -45,4 +48,45 @@ function quoteHeadline(quote = {}, { isPlatform = false } = {}) {
   };
 }
 
-module.exports = { quoteHeadline, stayGross };
+/**
+ * « Total perçu » of a STORED row, on the engine's definition (`sejourNetTotal`, rule 31): every
+ * bucket the stay carries — collected or not, caisse interne included — net of the platform
+ * commissions, plus the mid-stay notes, minus the book refunds, plus the arrival payment adjustment.
+ * The finance pages keep their own caisse-interne carve-out (fiche-total-sejour-net-of-commission.md
+ * rule 10); the fiche's headline does not, live or stored.
+ */
+function storedNetTotal(row = {}, { refundsBookTtc = 0 } = {}) {
+  const { midStayNotesTotal, arrivalPaymentAdjustment } = require('./reservationSettlement');
+  const deposit = Number(row.depositDisabled || 0) === 1 ? 0 : Number(row.depositAmount || 0);
+  return round2(
+    deposit + Number(row.balanceAmount || 0)
+    + Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0)
+    - Number(row.acompteCommissionAmount || 0) - Number(row.platformCommissionAmount || 0)
+    + Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0)
+    + midStayNotesTotal(row, { withCash: true })
+    - Number(refundsBookTtc || 0)
+    + arrivalPaymentAdjustment(row).net,
+  );
+}
+
+/**
+ * The pricing summary's closing cascade, shaped by the server so the panel only prints it
+ * (specs/ui-review-2026-10-19-operations.md rule 32): « Total du séjour » (the headline's gross), the
+ * tourist tax the platform kept out of it, what is collected on site, and the amount the platform
+ * commissions on.
+ */
+function summaryCascade(q = {}) {
+  const offeredTaxDeduction = q.touristTaxOfferedByPlatform && q.platformTouristTaxWithheld != null
+    ? round2(q.platformTouristTaxWithheld)
+    : 0;
+  const onSiteTotal = round2(Number(q.complementAmount || 0) + Number(q.endOfStayComplementTotal || 0)
+    + Number(q.midStaySettledTotal || 0));
+  return {
+    grossTotal: stayGross(q),
+    offeredTaxDeduction,
+    onSiteTotal,
+    commissionBase: round2(q.preArrivalAmount),
+  };
+}
+
+module.exports = { quoteHeadline, stayGross, storedNetTotal, summaryCascade };

@@ -260,7 +260,7 @@ const EDITOR_LABELS = { deposit: "Montant de l'acompte (€)", balance: 'Montant
 export default function FinanceSection() {
   const {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
-    form, updateForm, pricingQuote, accommodationBasePriceDisplay,
+    form, updateForm, pricingQuote, accommodationBasePriceDisplay, isPlatformSale,
     isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
     saveThenRun, reloadReservationFinance,
     midStayNoteOpen, setMidStayNoteOpen, midStayNote,
@@ -378,7 +378,8 @@ export default function FinanceSection() {
     </Tooltip>
   ) : null;
 
-  const isPlatform = String(form.platform || 'direct').toLowerCase() !== 'direct';
+  // specs/plugins-phase-p-productisation.md rule 45 — the server's answer, never the platform's name.
+  const isPlatform = Boolean(isPlatformSale);
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
   const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const showMidStayNotes = Boolean(midStayNote?.visible);

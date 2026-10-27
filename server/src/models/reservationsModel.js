@@ -21,6 +21,7 @@ const { computePaymentStatus } = require('../utils/paymentStatus');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
+const { isNamedChannel } = require('../utils/saleChannel');
 const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
 const {
@@ -1009,8 +1010,10 @@ function createReservationsModel(database) {
       // at arrival (case 3 `owner` = the platform does NOT charge the guest). Case 1 (platform collects
       // then reverses it to us) charges it in the BALANCE → NOT in the complement. Direct (balance) and
       // offered platforms (touristTaxTotal = 0) → 0.
+      // Same reading as the engine (specs/plugins-phase-p-productisation.md rule 45): any named
+      // channel, counted as direct or not, follows its platform's tax mode.
       const taxPlatform = String(reservation.platform || 'direct').toLowerCase();
-      const weCollectAtArrival = taxPlatform !== 'direct'
+      const weCollectAtArrival = isNamedChannel(taxPlatform)
         && Number(reservation.touristTaxTotal || 0) > 0
         && !isPlatformCollectingTouristTax(database, reservation.propertyId, taxPlatform);
       reservation.touristTaxInComplementAmount = (

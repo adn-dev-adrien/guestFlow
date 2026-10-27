@@ -128,6 +128,13 @@ pricing engine from current settings).
   per-line contrib capture (force-item-to-complement) preserves the persisted
   acompte/solde amounts and only the new entry (Complément) absorbs the delta.
 
+13. **The extra-guest supplement is in the accommodation's VAT base (audit 2026-10-27).** The live
+    quote computed « Total HT / TVA » on the accommodation alone, while the stored summary and the
+    accounting export include the supplement (a supplement on the nights): 345,46 + 34,54 = 380 on a
+    stay of 500 € with 120 € of supplement. `accommodationVatAmount` / `accommodationNetPrice` are
+    now computed on `accommodationAdjustedPrice + extraGuestSurcharge`: 454,55 + 45,45 = 500, as
+    stored.
+
 ---
 
 ## 4. Architecture
@@ -184,6 +191,8 @@ Settings payload changes:
 
 Quote payload (`/api/reservations/:id/quote` etc.) — **unchanged shape**, just the three
 `vatPercentage*` fields now always hold the same value.
+
+**Audit 2026-10-27 (rule 13).** `utils/pricing.js` — `accommodationVatBase`.
 
 ---
 
@@ -325,6 +334,8 @@ assertion delta: ~80 assertions adapted across the 18 files.
 - [ ] Set the rate to 20 % temporarily → export emits a VAT line on `44571200`
       (STANDARD_20), proving the `vatAccountForRate` resolver still works.
 - [ ] Mobile (`xs`): Settings field reachable; PricingSummary totals stack cleanly.
+
+**Audit 2026-10-27:** `tests/pricing-vat-extra-guest.unit.test.js` (1, rule 13).
 
 ---
 

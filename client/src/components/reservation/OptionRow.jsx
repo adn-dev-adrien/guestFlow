@@ -169,7 +169,7 @@ export default function OptionRow({ opt }) {
     setOptionInComplement, setAutoOptionInComplement,
     setOptionCardPersons, maxGuestsAllowed,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
-    isDevisMode,
+    isDevisMode, isPlatformSale,
     // specs/plugins-phase-3b-neat.md rule 16 — what live plugins draw under a line, fed by the
     // payload's `pluginBlocks`.
     pluginBlocks, setPluginBlock, pluginLineContext,
@@ -191,7 +191,7 @@ export default function OptionRow({ opt }) {
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). Only engine-derived auto-options keep their toggle hidden — their routing
   // is the algorithm's, not the operator's (rule 5).
-  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+  const isPlatformReservation = Boolean(isPlatformSale);
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
   // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
