@@ -869,3 +869,31 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     is a direct Google Vacation Rentals connection. The interest form was sent on 2026-10-26, and
     GuestFlow's feed is the `google-vacation-rentals` plugin (`specs/google-vacation-rentals-feed.md`,
     §11 holds the steps to resume when Google answers).
+
+- 2026-10-27 — **Abritel: the tent found online with no calendar import, then switched over.**
+  - *Found.* The operator had reactivated the tent (AB 2622643, « Formule à la commission », « En
+    ligne »). Its calendar had **no iCal import and no event**: every night up to 2028-12-31 was
+    bookable, the winter closure and the stays sold on the other channels included, at a flat
+    250 €, minimum 1 night, no discount. Abritel's own export was empty: nothing had been booked
+    in the meantime.
+  - *Calendar, both ways.* GuestFlow's L'Estiva export imported into the tent's Abritel calendar
+    (« GuestFlow », status SUCCESS; the two winter closures and every L'Estiva stay read back as
+    blocked). GuestFlow source **#16** « Abritel » on L'Estiva, the listing's export
+    (`abritel.fr/icalendar/<hash>.ics?nonTentative`), same tourist-tax settings as the gîte's #15;
+    first sync 0 events.
+  - *Grid, straight at 12 %* (operator's choice, two days ahead of the switch): 182 / 222 / 256 €
+    (net 160 / 195 / 225), the recipe's minimum stays, **−45 % from 7 nights** — Abritel offers no
+    2-to-6-night discount, so the tent's degressivity does not exist there and shorter stays cost
+    more than on the other channels (operator's choice). Written with `ratesAndDiscountsOverride` +
+    `minStayOverride`, read back: 431 days to 2027-12-31, 0 difference. 2028 keeps the flat 250 €:
+    GuestFlow has no tent price beyond 2027, and its first months are closed anyway.
+  - *Extra guest:* **16 € per guest and night above 2** (the recipe's first-night tier at 12 %;
+    Abritel cannot express the 8 € from the second night, the operator chose never to undershoot).
+    There was no extra-guest fee at all before.
+  - *Public quotes, 2 adults unless stated:* 2 nights in Haute 2027 = 512 € of rent (531 € with
+    taxes), 4 guests 608 € (+ 2 × 16 € × 2), a week in May 1 394 € − 627 € (−45 %), November 2026
+    unavailable.
+  - *Gîte, re-checked the same day:* 431 days, 0 difference from the 8 % grid (no dynamic-pricing
+    drift), extra guest 28 € above 10, no cleaning fee; GuestFlow's `Abritel` platform still at 8 %.
+  - ⚠️ *Still due on 2026-10-29:* `Abritel` → 12 in Paramètres → Plateformes, and the gîte's grid
+    at 12 % (328 / 344 / 388 / 470 / 958 / 1032 €, extra guest 29 €). The tent is already there.
