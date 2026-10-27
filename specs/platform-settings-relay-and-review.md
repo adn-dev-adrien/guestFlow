@@ -37,7 +37,9 @@ today's knowledge onto an existing database only.
 
 Another operator configures how each of its platforms treats guest e-mails, and no core screen, message
 or e-mail names Solio's platforms, resources or plugins — while every e-mail Solio's guests receive stays
-byte-identical.
+byte-identical, with one accepted exception: a platform without a review wording is now named by its
+display name, so a GreenGo guest's J+1 reads « GreenGo » (the brand's spelling) instead of the stored
+« Greengo » (reviewed 2026-10-27).
 
 ## 3. Functional rules
 
