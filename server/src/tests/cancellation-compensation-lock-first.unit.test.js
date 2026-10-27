@@ -1,4 +1,4 @@
-// specs/cancellation-compensation.md rule 6 (spec review of 2026-10-27, agent 3 F7) — a received
+// specs/cancellation-compensation.md rule 6 and rule 29 (spec review of 2026-10-27, agent 3 F7) — a received
 // compensation is an accounting entry: any PUT on it answers 409 COMPENSATION_LOCKED, whatever its body.
 // A body without platform used to be judged first and answered 400 PLATFORM_REQUIRED.
 
@@ -24,7 +24,7 @@ function build(status) {
   return { controller: createController(model, { today: () => '2026-10-27' }), updates };
 }
 
-test('rule 6 — PUT without platform on a received compensation: 409 COMPENSATION_LOCKED, not 400', () => {
+test('rules 6 + 29 — PUT without platform on a received compensation: 409 COMPENSATION_LOCKED, not 400', () => {
   const { controller, updates } = build('received');
   const res = fakeRes();
   controller.update({ params: { id: '3' }, body: { expectedAmount: 84 } }, res);

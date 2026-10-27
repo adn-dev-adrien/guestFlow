@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { buildController } = require('../controllers/upcomingReservationsController');
 
-// specs/upcoming-reservations-cards.md rule 8 — fixed at the 2026-10-27 spec review (F14): a `?day=`
+// specs/upcoming-reservations-cards.md rule 10 — fixed at the 2026-10-27 spec review (F14): a `?day=`
 // with the right shape but no calendar day behind it (`2026-13-01`, `2026-02-30`) answered 200 with no
 // day instead of 400 « Date invalide. ».
 

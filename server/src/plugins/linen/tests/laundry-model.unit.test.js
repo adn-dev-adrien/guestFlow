@@ -516,6 +516,7 @@ test('dropOffForWindow: property default DOES NOT count a reservation of a diffe
   assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
 });
 
+// specs/laundry-counts-explicit-option-only.md rule 1 — the ticked row brings the beds, its includes flags gate each type.
 test('dropOffForWindow: explicit row WINS over the property default (operator intent preserved)', () => {
   // The property has a default that says "include all bed types". The reservation has an
   // explicit row pointing at an option with linenIncludesBaby = 0 (operator unticked baby).
@@ -628,6 +629,7 @@ test('dropOffBathroomForWindow: property default of an INTERNAL option still cou
   );
 });
 
+// specs/laundry-counts-explicit-option-only.md rule 2 — the ticked bathroom row, scaled by its quantity.
 test('dropOffBathroomForWindow: explicit quantity (sub-occupation factor) WINS over the property default', () => {
   // Reservation has the option with qty 0.6667 (= "2 of 3 want towels"); property also has it
   // as default. Source 1 wins → 3 × 0.6667 ≈ 2.0001 → ROUND = 2. NOT 3 × 1.0 = 3.
@@ -669,6 +671,7 @@ test('dropOffBathroomForWindow: property default DOES NOT cross properties', () 
 // Now that the ticked option is the only signal, a stay that declares bed linen with no quantity
 // saved yet contributes a silent zero. These pin the list the Planning card uses to say so.
 
+// specs/laundry-counts-explicit-option-only.md rules 7 + 8 — flagged, `clientName` falling back to `#<id>`.
 test('incompleteBedConfigForWindow: flags a ticked-option stay whose bed counts are all zero', () => {
   const db = makeDb();
   const opt = makeOption(db);
@@ -697,6 +700,7 @@ test('incompleteBedConfigForWindow: a stay WITH bed counts is not flagged', () =
   assert.deepEqual(model.incompleteBedConfigForWindow('2026-05-26', '2026-06-02'), []);
 });
 
+// specs/laundry-counts-explicit-option-only.md rule 7 — no ticked option, no contract, nothing to flag.
 test('incompleteBedConfigForWindow: a stay WITHOUT the option is not flagged (it declares no linen)', () => {
   const db = makeDb();
   const opt = makeOption(db);

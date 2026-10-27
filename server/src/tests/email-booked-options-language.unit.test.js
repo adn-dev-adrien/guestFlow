@@ -1,4 +1,4 @@
-// specs/email-client-language-and-fiche-polish.md rule 4 and rule 7 (2026-10-27 spec review): the
+// specs/email-client-language-and-fiche-polish.md rule 4 and rule 9 (2026-10-27 spec review): the
 // options listed in a guest e-mail (`reservedOptionsLabel`) read in the guest's language — the
 // catalogue's English title when there is one, else the French title.
 

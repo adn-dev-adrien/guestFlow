@@ -74,6 +74,7 @@ command, and bring a crashed/replaced Raspberry Pi back to that exact state with
     archives (`specs/self-update-and-releases.md`), and `git rev-parse` of a missing ref printed the
     ref name plus a stray `n/a`. The line is now `current ->` (the `readlink` of `~/guestflow/current`,
     i.e. `releases/X.Y.Z`), next to the app version read from that release's `package.json`.
+    > **Sans test** — an ops script that reads the production host over SSH; verified by reading `manifest.txt` after a backup run (`current -> releases/X.Y.Z`).
 
 **Edge cases:**
 - Pi unreachable / SSH key not set up → clear error, exit 1, no empty backup directory advertised.

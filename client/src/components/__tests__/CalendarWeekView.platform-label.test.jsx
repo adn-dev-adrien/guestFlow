@@ -38,7 +38,7 @@ test('rule 21 — arrival and departure lines carry the display label, not the s
   expect(screen.queryByText(/· direct$/)).toBeNull();
 });
 
-// 2026-10-27 spec review (F13) — the mid-stay lines printed the stored « direct » in lowercase.
+// specs/calendar-mobile-view.md rule 8 (2026-10-27 spec review, F13) — the mid-stay lines printed the stored « direct » in lowercase.
 test('rule 21 — a mid-stay line carries the display label too', () => {
   render(
     <CalendarWeekView

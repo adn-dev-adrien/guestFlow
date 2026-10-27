@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 30, fixed at the 2026-10-27 spec review: a property
+// specs/guest-email-texts-made-simple.md rules 30 + 47, fixed at the 2026-10-27 spec review: a property
 // created or renamed from the property page whose name holds its own article (« La Bergerie »)
 // takes that article, confirmed — never « au La Bergerie »; the page offers that one only; and the
 // one-shot repair corrects the rows already stored with the wrong article.

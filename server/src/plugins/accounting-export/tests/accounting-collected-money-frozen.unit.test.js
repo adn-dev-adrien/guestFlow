@@ -93,6 +93,8 @@ function seedPlan() {
   return db;
 }
 
+// specs/direct-installments.md rule 47 + specs/accounting-books-the-money-collected.md rule 14 — the
+// installment keeps the split it was booked with.
 test('rule 14 — an installment of a past month does not move when the fiche is saved later', () => {
   const db = seedPlan();
   const { flipped } = recordInstallmentPayment({ db }, { installmentId: 1, paidDate: '2026-10-27', method: 'transfer' });
@@ -108,6 +110,8 @@ test('rule 14 — an installment of a past month does not move when the fiche is
   assert.deepEqual(journal(db), before);
 });
 
+// specs/direct-installments.md rule 47 + specs/accounting-books-the-money-collected.md rule 14 — the
+// stored split adds up and keeps the plan's tax share.
 test('rule 14 — the frozen split adds up to the installment and keeps the plan’s tax share', () => {
   const db = seedPlan();
   recordInstallmentPayment({ db }, { installmentId: 1, paidDate: '2026-10-27', method: 'transfer' });

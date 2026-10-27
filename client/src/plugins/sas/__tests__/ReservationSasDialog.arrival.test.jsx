@@ -125,6 +125,8 @@ test('arrival SAS intro: property photo, centred blue client name, platform badg
 
 // specs/arrival-departure-sas.md rule 6
 test('arrival SAS reopen: caution hidden once received, ménage reminder rides on recap, complement reconstructed once', async () => {
+  // specs/reopen-completed-sas.md rules 2 + 5 — the handover note is pre-filled, and the SAS-origin
+  // pillow line is mapped back to its priced item by label and re-sent exactly once.
   // specs/sas-hide-settled-steps.md §3 — reopening a completed SAS no longer shows the arrival caution
   // page once received (the commit leaves the marker untouched → undefined). Cleaning included → no ménage
   // page; its client reminder rides on the recap. The SAS-origin complement is reconstructed + re-sent once.

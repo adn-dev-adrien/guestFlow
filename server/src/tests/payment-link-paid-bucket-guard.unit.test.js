@@ -1,6 +1,6 @@
 // Spec review of 2026-10-27 (agent 3, item 8) — `ensurePaymentLink` had no guard against an échéance
 // already collected: a link could be minted for a paid acompte or solde and charge the guest twice. The
-// service now refuses with 409 ALREADY_PAID before any provider call (specs/online-payments-qonto.md).
+// service now refuses with 409 ALREADY_PAID before any provider call (specs/online-payments-qonto.md rule 21).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

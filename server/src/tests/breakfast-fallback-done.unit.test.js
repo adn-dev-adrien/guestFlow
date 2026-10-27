@@ -6,7 +6,7 @@ const { buildModel: buildBreakfastModel } = require('../models/breakfastModel');
 const { buildModel: buildOptionCardsModel } = require('../models/planningOptionCardsModel');
 const { buildController } = require('../controllers/planningController');
 
-// specs/breakfast-option-planning-card.md — rule added at the 2026-10-27 spec review (F5): a breakfast
+// specs/breakfast-option-planning-card.md rule 8 — added at the 2026-10-27 spec review (F5): a breakfast
 // sold without chosen mornings shows a card every morning (fallback) and its « préparé » toggle must
 // work; it used to answer 404 OCCURRENCE_NOT_FOUND.
 

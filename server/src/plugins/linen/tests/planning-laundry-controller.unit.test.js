@@ -371,6 +371,7 @@ test('laundrySummary: `from` malformed → still 400 even when `to` is omitted',
 
 // --- specs/laundry-counts-explicit-option-only.md §3.2 — incompleteness list on the drop-off ---
 
+// specs/laundry-counts-explicit-option-only.md rule 8 — drop-off side only, `{ id, clientName, propertyName, endDate }`.
 test('laundrySummary: the drop-off carries the stays that declare linen with no quantity yet', () => {
   const stay = { id: 22212, clientName: 'Jean Dupont', propertyName: 'Aventura lodge', endDate: '2026-06-01' };
   const { settingsModel, laundryModel, laundryTripSkipsModel, laundryExtraTripsModel, linenInventoryModel, calls } = makeFake({
@@ -387,6 +388,26 @@ test('laundrySummary: the drop-off carries the stays that declare linen with no 
   // Queried on the DROP-OFF window only, exactly once.
   const incompleteCalls = calls.filter((cc) => cc.fn === 'incomplete').map(({ fn, ...rest }) => rest);
   assert.deepEqual(incompleteCalls, [{ start: '2026-05-26', end: '2026-06-02' }]);
+});
+
+// specs/laundry-counts-explicit-option-only.md rule 10 — the warning is informational: the counts stay
+// exactly what the window says.
+test('laundrySummary: a flagged stay leaves the drop-off counts untouched', () => {
+  const stay = { id: 22212, clientName: 'Jean Dupont', propertyName: 'Aventura lodge', endDate: '2026-06-01' };
+  const { settingsModel, laundryModel, laundryTripSkipsModel, laundryExtraTripsModel, linenInventoryModel } = makeFake({
+    laundryWeekday: 2,
+    windowFn: (start, end) => ((start === '2026-05-26' && end === '2026-06-02')
+      ? { singleBeds: 2, doubleBeds: 3, babyBeds: 1 }
+      : { singleBeds: 0, doubleBeds: 0, babyBeds: 0 }),
+    incompleteFn: () => [stay],
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel, laundryExtraTripsModel, linenInventoryModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
+
+  const { dropOff } = res.body.laundryDays[0];
+  assert.deepEqual(dropOff.incomplete, [stay]);
+  assert.deepEqual([dropOff.singleBeds, dropOff.doubleBeds, dropOff.babyBeds], [2, 3, 1]);
 });
 
 test('laundrySummary: a skipped trip emits an empty incompleteness list and queries nothing', () => {

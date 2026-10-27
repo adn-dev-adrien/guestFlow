@@ -1,4 +1,4 @@
-// specs/hourly-resource-quantity-and-sas-scheduling.md rule 28 « and vice versa » — fixed at the
+// specs/hourly-resource-quantity-and-sas-scheduling.md rules 28 + 34 « and vice versa » — fixed at the
 // 2026-10-27 spec review (F6): a fiche session placed on a slot an external booking (or another stay's
 // session) already holds on a resource that exists once was saved; it is now refused 409.
 

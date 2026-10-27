@@ -1,4 +1,4 @@
-// specs/platform-payout-due-date.md rule 20 (2026-10-27 spec review) — a platform stay is refused with
+// specs/platform-payout-due-date.md rules 20 + 39 (2026-10-27 spec review) — a platform stay is refused with
 // 400 PLATFORM_RESERVATION even when no payment provider is connected: the reason it gets no reminder
 // does not depend on the configuration, and 409 NO_PAYMENT_PROVIDER would tell the operator to connect
 // a provider for a reminder that must never be sent.

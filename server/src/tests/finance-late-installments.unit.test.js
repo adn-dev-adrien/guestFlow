@@ -1,4 +1,4 @@
-// specs/finance-dashboard-redesign.md rule 34 + specs/direct-installments.md rule 14 (spec review of
+// specs/finance-dashboard-redesign.md rules 34 + 49, specs/direct-installments.md rules 14 + 48 (spec review of
 // 2026-10-27, agent 3 F3) — an installment the fiche calls « En retard » is late on the Finance page too:
 // the « En retard » tile, its insight and its detail list it, and « Marquer payé » records it through its
 // own endpoint. Before, `overdueOf` only knew the acompte, the solde and the platform payout, so a stay

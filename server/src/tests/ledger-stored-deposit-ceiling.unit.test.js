@@ -1,4 +1,4 @@
-// specs/reservation-payment-ledger.md rule 16 (spec review of 2026-10-27, agent 3 F7) — the acompte row of
+// specs/reservation-payment-ledger.md rules 16 + 49 (spec review of 2026-10-27, agent 3 F7) — the acompte row of
 // the STORED ledger (`GET /api/reservations/:id`) names the ceiling the server enforces: the
 // accommodation of the pre-arrival schedule. It read `max: null` without a live quote, while a save above
 // the accommodation is refused.

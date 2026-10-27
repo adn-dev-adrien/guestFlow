@@ -171,12 +171,18 @@ No new generic component (this is a behavioral change to existing wizard + two p
 - [ ] `commitDepartureSas` caution returned: symmetric set / clear.
 - [ ] `commitDepartureSas` end-of-stay re-commit overwrites amount + detail (no accumulation).
 - [ ] `getByIdWithDetails` surfaces `sasArrivalOrigin` on custom-option lines.
+- [x] `sas-commit.unit.test.js` (+2, 2026-10-27 spec review) — rule 6: a re-ticked caution keeps its first
+  date (arrival and departure); rule 7: a re-commit refreshes both `…SasDoneAt` and never clears them.
 
 ### Client unit tests (`client/src/components/__tests__/`)
 
 - [ ] `ReservationCard`: when `arrivalSasDoneAt` set, the SAS button is **enabled** (not
   `disabled`), green ✓, tooltip « Revoir / modifier le check-in », fires `onOpenSas`.
 - [ ] `DepartureMiniRow`: symmetric (enabled, « Revoir / modifier le check-out »).
+
+- [x] `client/src/plugins/sas/__tests__/ReservationSasDialog.reopen.test.jsx` (3, 2026-10-27 spec review) —
+  rules 2-3: a re-opened departure shows the caution-return step pre-ticked, a first run does not; rule 8:
+  « Quitter » commits nothing.
 
 ### Manual UI verification (dev server)
 

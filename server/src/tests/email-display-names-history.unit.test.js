@@ -1,4 +1,4 @@
-// specs/guest-email-texts-made-simple.md rule 44, fixed at the 2026-10-27 spec review: the history and
+// specs/guest-email-texts-made-simple.md rules 44 + 48, fixed at the 2026-10-27 spec review: the history and
 // the pending list name a shipped e-mail as every other page does (« Merci et avis »), never by its
 // stored name (« Séquence — J+1 merci et avis »); the templates list (history filter, send dialog) is
 // in stay order.

@@ -128,6 +128,7 @@ counted stay has **no quantity filled in yet**, instead of silently contributing
     that made it unfixable), and rule 9 surfaces the two stays — #22208 (28/06) and #22212 (13/08) —
     that should carry the lodge's post-June mandatory linen option but were booked before the
     default was introduced.
+    > **Sans test** — a one-off measurement on the 2026-08-11 production snapshot, not a behaviour; rules 1-11 carry the tests.
 
 ---
 
@@ -239,6 +240,8 @@ The laundry card gains a third line, only when relevant:
       default; unchanged for internal options.
 - [ ] `planningController.laundrySummary`: `incomplete` present on drop-off, absent/empty on
       pick-up, `[]` on a skipped day.
+- [x] `planningController.laundrySummary` (+1, 2026-10-27 spec review) — rule 10: a flagged stay leaves the
+      drop-off counts exactly what the window says.
 
 ### 7.2 Client tests
 

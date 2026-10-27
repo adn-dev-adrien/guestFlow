@@ -1,4 +1,5 @@
-// specs/airbnb-mail-intake.md rule 21, gites-de-france-mail-intake.md rule 19, booking-extranet-intake.md rule 32
+// specs/airbnb-mail-intake.md rule 21, specs/gites-de-france-mail-intake.md rule 19,
+// specs/booking-extranet-intake.md rule 32
 // (2026-10-27 spec review) — an intake's guest client is found or created by the core IN THE SAME
 // TRANSACTION as the fiche's update (`ctx.core.reservations.update(id, patch, { client })`, SDK 2.7.0):
 // a fiche the core refuses leaves no client behind holding the guest's personal data.

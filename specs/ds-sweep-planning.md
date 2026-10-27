@@ -224,6 +224,7 @@ business behavior, figure, or calendar geometry**.
     unit that wraps together: a long name breaks inside itself next to its icon instead of leaving the
     icon alone on a line (seen at 390 px with « Studio Avec Un Nom De Logement Vraiment Très Long »). The
     platform badge and the alert caption still wrap after it.
+    > **Sans test** — line wrapping is CSS; jsdom computes no layout, so it is checked visually at 390 px.
 
 **Edge cases:**
 - No computed figure, occupancy math, drag-and-drop behavior, or calendar geometry changes.

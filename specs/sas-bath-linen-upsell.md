@@ -134,6 +134,7 @@ option step.
 10. This spec plus [arrival-departure-sas.md](arrival-departure-sas.md) (add the new page to §3.1 and the
     complement wiring to §3.3) are updated in the same PR. The page-order list, the API payload, and the
     end-of-stay recap fix are recorded there.
+    > **Sans test** — a documentation obligation on the PR that shipped the spec, not a behaviour.
 
 **Edge cases:**
 - No `bathroom_linen` option in the catalogue, or `amount ≤ 0` → `available = false` → page skipped.
