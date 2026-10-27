@@ -15,6 +15,8 @@ const { getTodayIsoDate } = sdk.coreModule('reservationHelpers');
 const optionsModel = sdk.coreModule('optionsModel');
 const resourcesModel = sdk.coreModule('resourcesModel');
 const { hideUnoffered } = sdk.coreModule('resourceOffer');
+const { isBabyBedResource } = sdk.coreModule('babyBedResource');
+const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
 const { validateStayInput } = require('../publicInputValidation');
 const {
   toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits, hasUnpricedNights,
@@ -56,11 +58,19 @@ function checkOptionApplicability(propertyId, options) {
   return errors.length ? errors : null;
 }
 
-/** Reject any resource id that is not applicable to the property. Returns an error list or null. */
+/**
+ * Reject any resource id that is not applicable to the property. Returns an error list or null.
+ *
+ * The cot is never a line here (fixed at the 2026-10-27 spec review): it is couchage, driven by
+ * `babyBeds` and capped at the number of babies (public-api rule 8); ordered as a resource it bypassed
+ * that cap.
+ */
 function checkResourceApplicability(propertyId, resources) {
   if (!resources || !resources.length) return null;
   // Phase 3c rule 18 — a resource sold by the hour is not on sale while no plugin offers it.
-  const applicable = new Set(hideUnoffered(resourcesModel.list(propertyId)).map((r) => Number(r.id)));
+  const applicable = new Set(hideUnoffered(resourcesModel.list(propertyId))
+    .filter((r) => !isBabyBedResource(r))
+    .map((r) => Number(r.id)));
   const errors = resources
     .filter((r) => !applicable.has(Number(r.resourceId)))
     .map((r) => ({ field: 'resources', issue: `resource ${r.resourceId} is not available for this property` }));
@@ -135,6 +145,14 @@ async function quote(req, res) {
   if (engineQuote.error) {
     if (engineQuote.status === 404) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
     return failT(res, req, 422, 'VALIDATION_FAILED', 'quoteRefused', [{ field: 'quote', issue: engineQuote.error }]);
+  }
+
+  // Public-api rule 8 — the party within the property's capacity, checked like the booking request
+  // checks it, on the property row the engine read (fixed at the 2026-10-27 spec review: a party over
+  // capacity was quoted `available: true`).
+  const property = engineQuote.property || {};
+  if (checkGuestCapacity({ ...property, maxGuests: publicGuestCap(property) }, v.value)) {
+    return failT(res, req, 409, 'OVER_CAPACITY', 'overCapacity');
   }
 
   // The insurance price a plugin sets for this stay (specs/plugins-phase-3b-neat.md rule 2), priced

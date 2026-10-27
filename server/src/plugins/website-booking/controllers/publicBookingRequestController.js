@@ -170,7 +170,7 @@ function create(req, res) {
   }
 
   const terms = checkTermsAcceptance(req.body.termsVersion);
-  if (terms.error) return fail(res, terms.status, terms.code, terms.message, terms.details);
+  if (terms.error) return failT(res, req, terms.status, terms.code, terms.messageKey, terms.details);
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
   if (optErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'optionUnavailable', optErrors);
@@ -369,13 +369,15 @@ function create(req, res) {
  */
 function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint, terms, visitor }) {
   const holdsToken = Boolean(sameStay.publicToken) && tokensMatch(sameStay.publicToken, req.body.publicToken);
-  const respond = ({ updated, messageAdded = false, finalPrice = sameStay.finalPrice }) => ok(res, {
+  const respond = ({ updated, messageAdded = false, messageOnly = false, finalPrice = sameStay.finalPrice }) => ok(res, {
     status: 'pending',
     propertyId: value.propertyId,
     startDate: value.startDate,
     endDate: value.endDate,
     updated,
-    ...(messageAdded ? { messageAdded: true } : {}),
+    // Present on every answer for a quote the operator touched (rules 21, 30): true once the message
+    // was appended, false past the cap.
+    ...(messageOnly ? { messageAdded } : {}),
     // The date the guest first asked, for « Votre demande du <date> a été mise à jour. »
     requestedOn: String(sameStay.createdAt || '').slice(0, 10) || null,
     ...(holdsToken ? {
@@ -448,12 +450,17 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
   if (visitor.pluginVersion) settings.recordPluginVersion(visitor.pluginVersion);
   Promise.resolve(notificationService.notifyNewSiteDevis(sameStay.id, messageDropped ? { updated: true, messageDropped: true } : { updated: true }))
     .catch(() => {});
-  return respond({ updated: true, messageAdded: messageOnly, finalPrice: devis && devis.finalPrice });
+  // Rule 30 — past the cap of rule 22 a touched quote gained nothing: neither « mise à jour » nor
+  // « message ajouté » would be true. `messageAdded: false` still marks the answer message-only, so the
+  // drawer never pays it (rule 27).
+  if (messageOnly) return respond({ updated: !messageDropped, messageAdded: !messageDropped, messageOnly: true });
+  return respond({ updated: true, finalPrice: devis && devis.finalPrice });
 }
 
 /**
  * Rules 13, 15-17. `version` is the current published version when the guest accepted it, null when
- * the emergency switch is off and nothing (valid) was sent.
+ * the emergency switch is off and nothing (valid) was sent. A refusal names its sentence by
+ * `messageKey` (publicLabels), answered in the visitor's language like every other public error.
  */
 function checkTermsAcceptance(termsVersion) {
   const { requireTermsAcceptance } = settings.termsSettings();
@@ -461,10 +468,10 @@ function checkTermsAcceptance(termsVersion) {
   const sent = termsVersion === undefined || termsVersion === null || termsVersion === '' ? null : Number(termsVersion);
   if (requireTermsAcceptance) {
     if (!current) {
-      return { error: true, status: 503, code: 'TERMS_NOT_CONFIGURED', message: 'Les réservations en ligne sont momentanément indisponibles.' };
+      return { error: true, status: 503, code: 'TERMS_NOT_CONFIGURED', messageKey: 'termsUnavailableForBooking' };
     }
     if (sent === null) {
-      return { error: true, status: 422, code: 'TERMS_NOT_ACCEPTED', message: 'Vous devez accepter les conditions générales de location.' };
+      return { error: true, status: 422, code: 'TERMS_NOT_ACCEPTED', messageKey: 'termsNotAccepted' };
     }
   }
   if (sent === null || !current) return { version: null };
@@ -473,7 +480,7 @@ function checkTermsAcceptance(termsVersion) {
       error: true,
       status: 409,
       code: 'TERMS_OUTDATED',
-      message: 'Les conditions générales ont été mises à jour. Merci de les relire et de les accepter à nouveau.',
+      messageKey: 'termsOutdated',
       details: [{ field: 'termsVersion', issue: 'outdated', currentVersion: current.version }],
     };
   }

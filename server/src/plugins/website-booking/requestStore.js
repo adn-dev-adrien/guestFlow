@@ -6,8 +6,8 @@
  * - `public_request_log` — one line per request that passed the proof, with the visitor's address key,
  *   kept 24 h: the per-address difficulty (rule 4), the flood surcharge (rule 5b) and the home's
  *   « trafic inhabituel » line (rule 11) count it;
- * - `public_request_issued` — one line per challenge handed out, per address key, kept 24 h: a
- *   challenge fetched ahead raises the next one's difficulty (review of PR #805, rule 23);
+ * - `public_request_issued` — created by the v2 migration for rule 23 and dropped by v3: since rule
+ *   29 a challenge handed out costs nothing, only a request made does;
  * - `public_request_stays` — per site devis, the fingerprint of the last request that wrote it (a
  *   double click finds the same stay unchanged, edge case of rule 13), the client created for it,
  *   which the purge may delete with it (rule 10), and how many messages were appended (rule 22).
@@ -57,7 +57,12 @@ function migrateV2(db) {
   if (!cols.includes('lastRequestAt')) db.exec('ALTER TABLE public_request_stays ADD COLUMN lastRequestAt TEXT');
 }
 
-const TABLES = ['public_request_challenges_used', 'public_request_log', 'public_request_issued', 'public_request_stays'];
+// Rule 29 (2026-10-27 spec review) — the issued challenges no longer count: their table goes.
+function migrateV3(db) {
+  db.exec('DROP TABLE IF EXISTS public_request_issued');
+}
+
+const TABLES = ['public_request_challenges_used', 'public_request_log', 'public_request_stays'];
 const LOG_KEPT_MS = 24 * 60 * 60 * 1000;
 
 const ready = new WeakSet();
@@ -65,6 +70,7 @@ function database(db) {
   const handle = db || sdk.coreModule('database');
   if (!ready.has(handle)) {
     migrateV2(handle);
+    migrateV3(handle);
     ready.add(handle);
   }
   return handle;
@@ -85,18 +91,6 @@ function logRequest(ipKey, { db, now = Date.now() } = {}) {
   const d = database(db);
   d.prepare('DELETE FROM public_request_log WHERE at < ?').run(iso(now - LOG_KEPT_MS));
   d.prepare('INSERT INTO public_request_log (at, ipKey) VALUES (?, ?)').run(iso(now), String(ipKey || ''));
-}
-
-function logIssued(ipKey, { db, now = Date.now() } = {}) {
-  const d = database(db);
-  d.prepare('DELETE FROM public_request_issued WHERE at < ?').run(iso(now - LOG_KEPT_MS));
-  d.prepare('INSERT INTO public_request_issued (at, ipKey) VALUES (?, ?)').run(iso(now), String(ipKey || ''));
-}
-
-/** Challenges handed out to one address in the last `windowMs` (rule 23). */
-function countIssued({ ipKey, windowMs = 60 * 60 * 1000, db, now = Date.now() } = {}) {
-  return Number(database(db).prepare('SELECT COUNT(*) AS n FROM public_request_issued WHERE ipKey = ? AND at >= ?')
-    .get(String(ipKey || ''), iso(now - windowMs)).n || 0);
 }
 
 /** Requests of the last `windowMs`, all addresses or one. */
@@ -127,6 +121,6 @@ function recordStay(reservationId, fingerprint, { createdClientId = null, append
 }
 
 module.exports = {
-  TABLES_SQL, TABLES, migrateV2, ensureTables: (db) => database(db),
-  spendChallenge, logRequest, logIssued, countIssued, countRecent, getStay, recordStay,
+  TABLES_SQL, TABLES, migrateV2, migrateV3, ensureTables: (db) => database(db),
+  spendChallenge, logRequest, countRecent, getStay, recordStay,
 };

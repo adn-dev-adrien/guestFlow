@@ -34,6 +34,8 @@ function register(ctx) {
     { name: 'public_request_tables_v1', up: (db) => db.exec(requestStore.TABLES_SQL) },
     // Review of PR #805 — issued challenges and the appended-message count.
     { name: 'public_request_tables_v2', up: requestStore.migrateV2 },
+    // Rule 29 (2026-10-27 spec review) — issued challenges no longer count: their table goes.
+    { name: 'public_request_tables_v3', up: requestStore.migrateV3 },
   ]);
 
   // Rule 24 — the key exists only once the plugin is installed. Never logged: the operator copies it
