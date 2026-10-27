@@ -45,15 +45,20 @@ function resolveCancellationReason(row) {
 function installmentsRetainedOf(installmentsModel, id, row) {
   const plan = installmentsModel ? installmentsModel.listFor(id) : [];
   if (!plan.length) return null;
-  const shares = taxShares(Math.round(Number(row.touristTaxTotal || 0) * 100), plan.map((i) => Number(i.amountCents)));
+  // A plan is a direct sale: when the tax rides on the arrival complement, no installment carried it
+  // (paymentsController.resolveInstallmentComponents, accountingModel.buildInstallmentEntry), so the
+  // avoir reverses none (specs/direct-installments.md rule 46).
+  const taxOnArrival = Number(row.touristTaxInComplement) === 1;
+  const taxCents = taxOnArrival ? 0 : Math.round(Number(row.touristTaxTotal || 0) * 100);
+  const shares = taxShares(taxCents, plan.map((i) => Number(i.amountCents)));
   let amountCents = 0;
-  let taxCents = 0;
+  let retainedTaxCents = 0;
   plan.forEach((installment, index) => {
     if (Number(installment.paid) !== 1) return;
     amountCents += Number(installment.amountCents);
-    taxCents += shares[index];
+    retainedTaxCents += shares[index];
   });
-  return { amountTtc: amountCents / 100, touristTaxTtc: taxCents / 100 };
+  return { amountTtc: amountCents / 100, touristTaxTtc: retainedTaxCents / 100 };
 }
 
 /**

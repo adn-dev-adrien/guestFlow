@@ -239,8 +239,10 @@ its due date, after the operator validates it.
     the paid installments like a retained acompte (payment-schedule spec §3.6): one avoir (method
     `retained`) reversing the stay part at the sales VAT rate and the tourist-tax shares at 0 % (the
     shares of rule 39, as the accounting booked them), and one VAT-free indemnity for the same sum.
-    The unpaid installments are the abandoned solde. *Why:* the cancellation booked nothing, the
-    installments stayed séjour revenue for a stay that never happened.
+    The unpaid installments are the abandoned solde. When the tourist tax rides on the arrival
+    complement (`touristTaxInComplement`), no installment carried it, so the avoir reverses none.
+    *Why:* the cancellation booked nothing, the installments stayed séjour revenue for a stay that
+    never happened.
 
 **Edge cases:**
 
@@ -458,7 +460,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `tests/direct-installments-guards.unit.test.js` (17) — link paid at a moved amount, `performUpdate` retire, plan creation / removal / resize / platform switch, unallocated and double payments, concurrency, VAT basket, hand-queued request, queue availability, rule 43, boot migration on orphan rows (rules 17, 34, 35, 39–43)
 - [x] `tests/direct-installments-arrival.unit.test.js` (7) — due at arrival, SAS settlement, bank receipts, paid buckets never zeroed (rules 35, 36, 38); rule 37 extends `finance-attribution-date.unit.test.js`
 - [x] `tests/direct-installments-finance-revenue.unit.test.js` (4) — rule 45: the invariant on a plan, summary per property, pace and projection, one « Encaissé » row per installment
-- [x] `tests/direct-installments-cancellation.unit.test.js` (2) — rule 46: avoir 400 @ 10 % + 8 @ 0 %, indemnity 408, nothing collected → nothing booked
+- [x] `tests/direct-installments-cancellation.unit.test.js` (3) — rule 46: avoir 400 @ 10 % + 8 @ 0 %, indemnity 408, nothing collected → nothing booked, tax at arrival → no tax reversed
 
 ### Client tests
 Baseline 2 153 → **2 176** (+23, all green).

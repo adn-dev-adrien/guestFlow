@@ -84,3 +84,12 @@ test('a plan nothing was collected on books nothing', () => {
   assert.equal(out.compensationId, null);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_refunds').get().n, 0);
 });
+
+test('tax paid at arrival: the installments carried none, so the avoir reverses no tourist tax', () => {
+  const { db, deps } = seed();
+  db.prepare('UPDATE reservations SET touristTaxInComplement = 1 WHERE id = 10').run();
+  const out = cancel(deps);
+  assert.equal(out.retainedDepositAmount, 408);
+  const lines = db.prepare('SELECT bucket, amountTtc, vatRate FROM reservation_refund_lines WHERE refundId = ? ORDER BY id').all(out.refundId);
+  assert.deepEqual(lines.map((l) => [l.bucket, l.amountTtc, l.vatRate]), [['accommodation', 408, 10]]);
+});
