@@ -82,6 +82,8 @@ test('the email_log rolling-window purge never reopens a ledger key', () => {
   const log = emailLogModel.buildModel(db);
   const templateId = db.prepare("SELECT id FROM email_templates WHERE stableKey = 'guest_thanks_j1'").get().id;
   const row = log.insert({ templateId, reservationId: rid, status: 'sent', renderedSubject: 's', renderedBody: 'b', recipientEmail: 'c@x.fr' });
+  // Written the day after the stay, as a J+1 is (specs/email-history-rolling-window.md rule 9).
+  db.prepare("UPDATE email_log SET sentAt = '2026-01-13 08:00:00' WHERE id = ?").run(row.id);
   ledger.claim({ ...KEY, dedupKey: `guest_thanks_j1:r${rid}`, reservationId: rid });
   ledger.markSent(`guest_thanks_j1:r${rid}`, { emailLogId: row.id });
 

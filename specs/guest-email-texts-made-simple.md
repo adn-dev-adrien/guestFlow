@@ -541,6 +541,22 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     click, a tap or a key in it), « + Variable » appends the variable at the end of the text, after a
     space when the text does not already end in one; once it has, the variable lands at the caret.
 
+47. **The property page applies rule 30 too** (fixed at the 2026-10-27 spec review). Only the start
+    assistant derived the article: a property created from Logements as « La Bergerie » was stored « au »,
+    unconfirmed, and its guests read « votre séjour au La Bergerie »; the page's select offered the five
+    articles (« à l'La Bergerie », « aux La Bergerie »…). Now `propertiesModel.create` / `update` set a name's
+    own article, confirmed, whatever the form sent; a create without an article starts from the guess of
+    `propertyArticle.derive`, unconfirmed. `GET /api/properties/article-labels` returns
+    `propertyArticle.choices(name)` — the one article of « La Bergerie », the four or five of any other
+    name — and the select shows that single choice selected. A one-shot boot repair
+    (`property_own_article_v1`, `utils/propertyOwnArticleRepair.js`) corrects every stored property whose
+    name holds its article and whose article differs or was never confirmed.
+48. **The history and the pending list use the names of rule 44** (fixed at the 2026-10-27 spec review).
+    `GET /api/emails/history` and `GET /api/emails/pending` named a shipped email by its stored name
+    (« Séquence — J+1 merci et avis »); they now carry its display name (« Merci et avis »). The plain
+    `GET /api/email-templates` list is in stay order (`emailTimeline.compare`), so the history filter and
+    the send dialog list the emails as the guest receives them, no longer by day offset and name.
+
 ---
 
 ## 4. Architecture
@@ -558,6 +574,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `utils/` | `emailTemplateRenderer.js` | T | `structureError`: what the renderer cannot read, refused by the shared validator (rule 27, 2026-10-18) |
 | `utils/` | `propertyFacts.js` | C | The facts left unsaid by the assistant and their answers (rule 28, 2026-10-18) |
 | `utils/` | `propertyArticle.js` | C | The article derived from the name, its contraction, the chips worth offering (rule 30, 2026-10-18) |
+| `utils/` | `propertyOwnArticleRepair.js` | C | Rule 47: the one-shot repair of a stored article its name contradicts |
 | `utils/` | `migrateCgvLinkCondition.js` | C | One-shot wrap of a hand-written CGV sentence in its condition (rule 36, 2026-10-18) |
 | `utils/` | `guestEmailHtml.js` | C | The HTML part derived from the rendered text, `guestEmailMessage` (rules 37–39, 2026-10-19) |
 | `utils/` | `emailService.js` | T | Sends `html` beside `text` when given (rule 37) |
@@ -580,7 +597,9 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `utils/` | `translationCsv.js` | T | Exposes `cell`, `splitRows`, `detectSeparator` (rule 18); formula-safe cells, encoding check (rules 22–23) |
 | `controllers/` | `translationsController.js` | T | Refuses a badly encoded file (rule 23) |
 | `models/` | `emailTextsModel.js` | C | The one key space of every editable sentence: list, validate, apply in one transaction, marks |
-| `models/` | `stayFactsModel.js`, `propertiesModel.js` | T | Arrival facts in the email context; an article sent by a form is confirmed |
+| `models/` | `stayFactsModel.js`, `propertiesModel.js` | T | Arrival facts in the email context; an article sent by a form is confirmed; a name holding its article sets it, confirmed (rule 47) |
+| `controllers/` | `propertiesController.js` | T | Rule 47: `article-labels` returns the choices worth offering |
+| `controllers/` | `emailsController.js`, `emailTemplatesController.js` | T | Rule 48: display names in the history and the pending list; the template list in stay order |
 | `controllers/` | `propertyArrivalFactsController.js` | C | `GET/PUT /api/properties/:id/arrival-facts` |
 | `controllers/` | `emailTemplatesController.js` | T | Shared validation (rule 11), `GET /:id/variables`, `textsSection` (rule 12) |
 | `controllers/` | `onboardingController.js` | T | `emails` block and `PUT /api/onboarding/emails` (rule 21) |
@@ -749,6 +768,10 @@ See the summary page.
 ## 7. Test plan
 
 **Server unit tests:**
+- `property-own-article.unit.test.js` (new, 5, 2026-10-27) — rule 47: « La Bergerie » created from the
+  page reads « à la », confirmed; a guess stays unconfirmed; a rename to « Les Pins »; the choices; the
+  one-shot repair. `property-article-ambiguous-initial` now asserts the choices the page receives.
+- `email-display-names-history.unit.test.js` (new, 3, 2026-10-27) — rule 48;
 - paragraph composition and omission;
 - encryption of the two secrets;
 - the readiness checks, one test per check;

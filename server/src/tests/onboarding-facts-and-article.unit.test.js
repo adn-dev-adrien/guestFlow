@@ -83,7 +83,7 @@ test('rule 28: what is still unsaid is listed, and answering it in « Vos emails
   assert.equal(p.pendingFacts, '');
   assert.ok(!readiness().some((i) => /^property\.(caution|cleaning|towels|linen):/.test(i)));
   const j2 = render(db, id, 'arrival_reminder_1d').body;
-  assert.match(j2, /caution de 300,00 €/);
+  assert.match(j2, /caution de 300 €/);
   assert.match(j2, /ménage/i);
   const emails = (await call(controller.get, {})).body.emails.properties[0];
   assert.deepEqual([emails.caution, emails.cleaningIncluded, emails.towelsProvided, emails.bedLinenProvided, emails.pending], [300, false, false, false, []]);
@@ -104,7 +104,7 @@ test('rule 28: a property that existed before keeps every sentence (nothing pend
   db.prepare("INSERT INTO properties (id, name, nameArticle, defaultCautionAmount) VALUES (1, 'La Granja', 'à', 400)").run();
   const p = db.prepare('SELECT * FROM properties WHERE id = 1').get();
   assert.equal(p.pendingFacts, '');
-  assert.match(render(db, 1, 'arrival_reminder_1d').body, /caution de 400,00 €/);
+  assert.match(render(db, 1, 'arrival_reminder_1d').body, /caution de 400 €/);
 });
 
 test('rule 28: saving the property page answers only the facts it sends', async () => {

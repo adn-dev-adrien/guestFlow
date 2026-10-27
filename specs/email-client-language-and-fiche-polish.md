@@ -67,6 +67,13 @@ number on one row** on wide screens (the now-redundant email-language selector i
 - Option with an empty `titleEn` in an EN email → its French `title` is used (no blank, no `()` artefact).
 - Devis fiche → no reservation-number field, no language selector; Logement stays full-width.
 
+
+9. **The booked options read in the guest's language too** (fixed at the 2026-10-27 spec review). The
+   `{{reservedOptionsLabel}}` token of the shipped Confirmation (« Option(s) booked: … ») is composed by
+   `utils/stayContentContext.js`, which listed the French `title` whatever the language: an English
+   guest read « Planche du terroir ». It now follows rule 4 — the catalogue's English title, else the
+   French one.
+
 ---
 
 ## 4. Architecture
@@ -126,6 +133,8 @@ is identical to today.
 ## 7. Test plan
 
 ### Server unit tests
+- [x] `tests/email-booked-options-language.unit.test.js` (new, 2) — rule 9: `reservedOptionsLabel` in
+  English with the French fallback; French unchanged.
 - [ ] `tests/email-context-builder.unit.test.js` (extend) — `lang='en'`: `optionsList`/`reservedOptionsList`
   use `titleEn`, `resourcesList` uses `nameEn`; empty English value falls back to the French name; `fr`
   unchanged.

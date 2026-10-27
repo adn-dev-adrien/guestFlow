@@ -32,8 +32,10 @@ export default function PropertyGeneralTab({
       slotProps={{ htmlInput: inputProps }}
     />
   );
-  const article = form.nameArticle || '';
-  const options = articleLabels.length ? articleLabels : (article ? [{ value: article, label: article }] : []);
+  const typedArticle = form.nameArticle || '';
+  const options = articleLabels.length ? articleLabels : (typedArticle ? [{ value: typedArticle, label: typedArticle }] : []);
+  // Rule 30 — a name that holds its own article is offered that one only: it is the article.
+  const article = articleLabels.length === 1 ? articleLabels[0].value : typedArticle;
   const preview = String(form.name || '').trim() ? (options.find((o) => o.value === article) || {}).label : '';
 
   return (

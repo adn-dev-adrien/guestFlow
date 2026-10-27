@@ -291,6 +291,8 @@ test('history: keeps in-window stays (incl. exactly arrival+3), drops past-windo
   for (const rid of [300, 301, 302, 999]) {
     model.insert({ templateId: null, reservationId: rid, status: 'sent', renderedSubject: 'S', renderedBody: 'B' });
   }
+  // Written before every arrival: the arrival is what the window counts from (rule 9).
+  db.prepare("UPDATE email_log SET sentAt = '2026-06-01 08:00:00'").run();
   const today = '2026-06-18';
   const res = model.history({ limit: 50, today });
   const ids = res.rows.map((r) => r.reservationId).sort();

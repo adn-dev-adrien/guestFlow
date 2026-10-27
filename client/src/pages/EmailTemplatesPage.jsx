@@ -345,6 +345,8 @@ export default function EmailTemplatesPage() {
             <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{row.displayName}</Typography>
             {!row.shipped && <Chip label="personnalisé" size="small" variant="outlined" />}
             {row.sendMode === 'auto' && <StatusBadge status="success" label="Auto" />}
+            {/* specs/email-language-fr-en.md rule 9 — never sent to an English-speaking guest. */}
+            {row.hasEnglish === false && <StatusBadge status="warning" label="EN manquant" />}
           </Stack>
           <Typography variant="body2" color="text.secondary">{row.when ? row.when.label : row.whenLabel}</Typography>
         </Box>

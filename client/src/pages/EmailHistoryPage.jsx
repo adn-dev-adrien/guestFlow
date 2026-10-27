@@ -71,6 +71,28 @@ export default function EmailHistoryPage() {
 
   const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
 
+  const rowActions = (r) => (
+    <Box sx={{ display: 'inline-flex', whiteSpace: 'nowrap' }}>
+      <Tooltip title="Voir l'email">
+        <IconButton aria-label="Voir l'email" onClick={() => setViewing(r)} sx={{ minWidth: 44, minHeight: 44 }}>
+          <VisibilityIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={r.templateId ? 'Renvoyer cet email' : 'Modèle supprimé — renvoi impossible'}>
+        <span>
+          <IconButton
+            aria-label="Renvoyer cet email"
+            disabled={!r.templateId}
+            onClick={() => setResending(r)}
+            sx={{ minWidth: 44, minHeight: 44 }}
+          >
+            <ReplayIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+    </Box>
+  );
+
   const tabs = (
     <PageTabs
       value={view}
@@ -94,8 +116,8 @@ export default function EmailHistoryPage() {
           <Box>
             <Box sx={{ mb: 1.5 }}>{tabs}</Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              Historique des emails pour les séjours en cours et à venir. Les envois sont automatiquement
-              retirés 3 jours après la date d&apos;arrivée.
+              Historique des emails pour les séjours en cours et à venir. Chaque envoi est retiré 3 jours
+              après l&apos;arrivée, ou après son envoi s&apos;il part plus tard.
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
             <FormControl size="small" sx={{ minWidth: 160 }}>
@@ -143,8 +165,12 @@ export default function EmailHistoryPage() {
         hasItems={rows.length > 0}
         emptyColSpan={6}
         emptyText={loading ? 'Chargement…' : 'Aucun email dans l\'historique'}
-      >
-        {rows.map((r) => (
+        /* specs/email-history-rolling-window.md rule 10 — cards whenever the table would be clipped. */
+        items={rows}
+        cardsBelow="md"
+        cardsBelowWidth={920}
+        getKey={(r) => r.id}
+        renderRow={(r) => (
           <TableRow key={r.id} hover>
             {/* Europe/Paris, worded by the server (specs/email-history-rolling-window.md rule 8). */}
             <TableCell>{r.sentAtLabel || displayDateTime(r.sentAt)}</TableCell>
@@ -161,28 +187,32 @@ export default function EmailHistoryPage() {
             <TableCell sx={{ maxWidth: 260, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               {r.renderedSubject}
             </TableCell>
-            <TableCell align="right">
-              <Tooltip title="Voir l'email">
-                <IconButton size="small" aria-label="Voir l'email" onClick={() => setViewing(r)}>
-                  <VisibilityIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={r.templateId ? 'Renvoyer cet email' : 'Modèle supprimé — renvoi impossible'}>
-                <span>
-                  <IconButton
-                    size="small"
-                    aria-label="Renvoyer cet email"
-                    disabled={!r.templateId}
-                    onClick={() => setResending(r)}
-                  >
-                    <ReplayIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </TableCell>
+            <TableCell align="right">{rowActions(r)}</TableCell>
           </TableRow>
-        ))}
-      </DataPageScaffold>
+        )}
+        renderMobileCard={(r) => (
+          <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>
+                {r.templateName || <em>(modèle supprimé)</em>}
+              </Typography>
+              <EmailStatusBadge status={r.status} channel={r.channel} />
+            </Stack>
+            {r.clientFullName ? (
+              <Typography variant="caption" color="text.secondary">{r.clientFullName} · {r.propertyName}</Typography>
+            ) : null}
+            <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{r.recipientEmail || '—'}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{r.renderedSubject}</Typography>
+            {r.status === 'failed' && r.errorLabel ? (
+              <Typography variant="caption" color="error.main">{r.errorLabel}</Typography>
+            ) : null}
+            <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="caption" color="text.secondary">{r.sentAtLabel || displayDateTime(r.sentAt)}</Typography>
+              <Box>{rowActions(r)}</Box>
+            </Stack>
+          </Stack>
+        )}
+      />
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 2 }}>
         <Typography variant="body2" color="text.secondary">

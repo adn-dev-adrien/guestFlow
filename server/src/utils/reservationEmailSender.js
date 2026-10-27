@@ -11,7 +11,7 @@
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
 const { loadTermsVersion } = require('./reservationEmailGraph');
-const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING } = require('./emailTemplateLanguage');
 const { stableKeyAutoSends } = require('./autoSendPolicy');
 const { MAIL, planStayMails } = require('./guestEmailSequence');
 const { sendSequenceMail } = require('./guestEmailSequenceRunner');
@@ -69,6 +69,15 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   };
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, merged);
+
+  // specs/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking guest.
+  if (englishMissing(template, lang)) {
+    logModel.insert({
+      templateId: template.id, reservationId: reservation.id, status: 'failed',
+      errorMessage: ENGLISH_VERSION_MISSING, renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
+    });
+    return { sent: false, reason: ENGLISH_VERSION_MISSING };
+  }
 
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());

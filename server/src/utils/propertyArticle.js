@@ -15,7 +15,6 @@
  *   choices(name)                  [{ value, label }] — the articles worth offering for this name
  *                                  (a name holding its own article offers that one only; a name
  *                                  starting with « y » or « h » offers the five, the guess first)
- *   labels(name)                   [{ value, label }] — the five articles as the guest reads them
  */
 
 const ARTICLES = Object.freeze(['au', 'à la', "à l'", 'aux', 'à']);
@@ -69,8 +68,4 @@ function choices(name) {
   return values.map((value) => ({ value, label: format(name, value) }));
 }
 
-function labels(name) {
-  return ARTICLES.map((value) => ({ value, label: format(name, value) || value }));
-}
-
-module.exports = { ARTICLES, format, derive, choices, labels };
+module.exports = { ARTICLES, format, derive, choices };

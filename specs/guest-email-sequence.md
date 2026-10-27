@@ -174,6 +174,9 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
       matin* offered to the whole family.
     GuestFlow does not apply them automatically: the operator adds the option as offered on the
     reservation (Out of scope).
+    _Superseded for the shipped copy (noted at the 2026-10-27 spec review): since phase P (#672,
+    specs/plugins-phase-p-productisation.md) the shipped season templates are neutral and announce no
+    gift; Solio's gifts, if any, are the operator's own wording in « Textes des emails »._
 29. The complement to collect on site, when any, is one sentence with the amount (« Un complément
     de 45 € reste à régler sur place à votre arrivée ») — no itemised list, no total line.
 30. The emails are rendered in the client's language (FR/EN), as today. The EN copy is a translation
@@ -348,7 +351,13 @@ proper names: « La Granja » stayed « La granja » before), and « à » joins
 
 ## 6. UI / UX
 
-### 6.1 The emails (FR copy — source of truth for the registry)
+### 6.1 The emails (FR copy — history)
+
+> _Noted at the 2026-10-27 spec review:_ this copy is no longer the source of truth. Since phase P
+> (#672) the registry ships neutral templates (`utils/defaultEmailTemplatesRegistry.js`) whose sentences
+> come from « Textes des emails » (specs/guest-email-texts-made-simple.md); the Solio wording below —
+> the planche du terroir, the first-morning breakfast, the Solio-specific lines — is what Solio typed,
+> not what GuestFlow ships. The registry and the shipped texts win over this section.
 
 Rendered examples; `[…]` marks a server-composed, conditional paragraph. The exact rendering on real
 cases is in the decision record.

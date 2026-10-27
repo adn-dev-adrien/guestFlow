@@ -22,10 +22,10 @@ const input = (lang) => ({
 test('rule 8: English amounts read €963.39, French ones 963,39 €', () => {
   const en = buildContext(input('en')).vars;
   assert.equal(en.finalPrice, '€963.39');
-  assert.equal(en.depositAmount, '€300.00');
+  assert.equal(en.depositAmount, '€300');
   assert.equal(en.balanceAmount, '€663.39');
-  assert.equal(en.cautionAmount, '€400.00');
+  assert.equal(en.cautionAmount, '€400');
   const fr = buildContext(input('fr')).vars;
   assert.equal(fr.finalPrice, '963,39 €');
-  assert.equal(fr.cautionAmount, '400,00 €');
+  assert.equal(fr.cautionAmount, '400 €');
 });

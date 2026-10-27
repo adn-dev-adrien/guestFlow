@@ -2433,6 +2433,21 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// One-shot (2026-10-27 spec review): a name holding its own article takes it, confirmed — properties
+// created from the property page were stored « au » (specs/guest-email-texts-made-simple.md rule 30).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'property_own_article_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { repairPropertyOwnArticles } = require('./utils/propertyOwnArticleRepair');
+    const repaired = db.transaction(() => {
+      const n = repairPropertyOwnArticles(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return n;
+    })();
+    if (repaired) console.log(`[migration:property-own-article] ${repaired} property article(s) corrected`);
+  }
+}
+
 // ---------- SETTINGS RATIONALIZATION ----------
 // Derived email identity, per-template automatic sending, dropped settings
 // (specs/settings-rationalization.md §5). Idempotent.

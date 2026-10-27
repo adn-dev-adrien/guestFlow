@@ -8,6 +8,13 @@
 | **Author** | Adrien |
 | **Related PR** | [#339](https://github.com/adn-dev-adrien/guestFlow/pull/339) |
 
+
+> **Superseded for the shipped copy** (noted at the 2026-10-27 spec review). The default templates this
+> spec wrote — the static Nespresso line and the itemised complement list with its « Total » — are no longer shipped: the guest-email-sequence rewrite (rule 29: the complement
+> is one sentence, no list) and the neutral templates of phase P (#672,
+> specs/plugins-phase-p-productisation.md, specs/guest-email-texts-made-simple.md) replaced them. The
+> mechanics stay: `complementNotice` still exists for a template of the operator's own. Read the rules below as
+> history for the copy.
 ---
 
 ## 1. Context

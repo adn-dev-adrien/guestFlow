@@ -17,7 +17,7 @@ import api from '../api';
 import ConfirmDialog from './ConfirmDialog';
 import LanguageBadge from './LanguageBadge';
 import { displayDateTime } from '../utils/formatters';
-import { NO_RECIPIENT, sendErrorMessage } from '../constants/emailSendErrors';
+import { ENGLISH_MISSING, ENGLISH_MISSING_TAG, NO_RECIPIENT, sendErrorMessage } from '../constants/emailSendErrors';
 
 function offsetLabel(n) {
   const num = Number(n);
@@ -61,6 +61,9 @@ export default function EmailManualSendDialog({
   // (specs/site-english-version.md §6).
   const [resolvedLang, setResolvedLang] = useState('fr');
   const [langOverride, setLangOverride] = useState(null);
+  // specs/email-language-fr-en.md rule 9 — the server says this template has no English version for
+  // an English-speaking guest: it is shown, never sent.
+  const [englishMissing, setEnglishMissing] = useState(false);
 
   // Load template list once when the dialog opens.
   useEffect(() => {
@@ -96,10 +99,11 @@ export default function EmailManualSendDialog({
       setBody(res.body || '');
       setTo(res.to || '');
       setResolvedLang(res.lang || 'fr');
+      setEnglishMissing(Boolean(res.englishMissing));
       setMissingVariables(res.missingVariables || []);
     } catch (e) {
       setError(e?.message || 'Impossible de générer l\'aperçu.');
-      setSubject(''); setBody(''); setTo(''); setMissingVariables([]);
+      setSubject(''); setBody(''); setTo(''); setMissingVariables([]); setEnglishMissing(false);
     } finally {
       setLoading(false);
     }
@@ -147,7 +151,7 @@ export default function EmailManualSendDialog({
   };
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient);
-  const sendDisabled = sending || loading || !templateId || !emailValid;
+  const sendDisabled = sending || loading || !templateId || !emailValid || englishMissing;
 
   return (
     <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
@@ -220,6 +224,7 @@ export default function EmailManualSendDialog({
               {templates.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
                   {t.displayName || t.name} ({t.whenLabel || offsetLabel(t.dayOffset)})
+                  {resolvedLang === 'en' && t.hasEnglish === false ? ` — ${ENGLISH_MISSING_TAG}` : ''}
                 </MenuItem>
               ))}
             </Select>
@@ -269,6 +274,9 @@ export default function EmailManualSendDialog({
       </DialogContent>
       <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
         {/* Next to the buttons, so a failure is seen without scrolling back through the body. */}
+        {englishMissing && !error ? (
+          <Typography role="alert" variant="body2" color="warning.main" sx={{ flex: '1 1 100%', px: 1 }}>{ENGLISH_MISSING}</Typography>
+        ) : null}
         {error ? (
           <Typography role="alert" variant="body2" color="error.main" sx={{ flex: '1 1 100%', px: 1 }}>{error}</Typography>
         ) : null}

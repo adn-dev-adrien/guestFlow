@@ -32,9 +32,12 @@ const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDat
 // switch (specs/settings-rationalization.md rule 17b). Literal constant, never user input.
 const SEND_MODE_MANUAL_ONLY = "t.sendMode = 'manual'";
 
-// specs/email-history-rolling-window.md §3 rule 1 — an email_log row is "current" (shown + kept) while
-// today ≤ reservation.startDate + this many days; past that it is hidden by history() AND purged.
+// specs/email-history-rolling-window.md §3 rules 1 and 9 — an email_log row is "current" (shown + kept)
+// while today ≤ the later of the arrival and the day it was written, + this many days; past that it is
+// hidden by history() AND purged. The later of the two keeps a J+1 or a season e-mail, written after
+// the arrival, visible as long as any other (rule 9, 2026-10-27 spec review).
 const STAY_RETENTION_DAYS = 3;
+const CURRENT_ROW_SQL = (log) => `date(max(r.startDate, COALESCE(date(${log}.sentAt), r.startDate)), '+' || ? || ' days') >= date(?)`;
 
 function buildModel(database) {
   // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
@@ -290,7 +293,7 @@ function buildModel(database) {
   function history({ limit = 50, offset = 0, reservationId, templateId, status, today } = {}) {
     const day = resolveToday(today);
     // Window predicate first → its two params lead the positional list.
-    const where = ["date(r.startDate, '+' || ? || ' days') >= date(?)"];
+    const where = [CURRENT_ROW_SQL('l')];
     const params = [STAY_RETENTION_DAYS, day];
     if (reservationId != null) { where.push('l.reservationId = ?'); params.push(Number(reservationId)); }
     if (templateId    != null) { where.push('l.templateId    = ?'); params.push(Number(templateId)); }
@@ -336,7 +339,7 @@ function buildModel(database) {
       WHERE NOT EXISTS (
         SELECT 1 FROM reservations r
         WHERE r.id = email_log.reservationId
-          AND date(r.startDate, '+' || ? || ' days') >= date(?)
+          AND ${CURRENT_ROW_SQL('email_log')}
       )
     `).run(STAY_RETENTION_DAYS, day);
     return info.changes;

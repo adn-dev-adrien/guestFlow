@@ -38,7 +38,7 @@ function getOne(req, res) {
 // (« au Fournil »: the server contracts), so the property page shows what is sent
 // (specs/guest-email-texts-made-simple.md rule 30, 2026-10-18).
 function articleLabels(req, res) {
-  res.json({ labels: propertyArticle.labels(String((req.query && req.query.name) || '').slice(0, 200)) });
+  res.json({ labels: propertyArticle.choices(String((req.query && req.query.name) || '').slice(0, 200)) });
 }
 
 function platformColors(req, res) {

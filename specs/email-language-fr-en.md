@@ -42,6 +42,7 @@ render in that language. The two shipped default reminders (J-7, J-2) ship with 
    `emailLanguage`. When `en`:
    - use `subjectEn`/`bodyEn` **if non-empty**, else **fall back** to the French `subject`/`body` (an
      operator template without an English version still sends, in French — never blank);
+     _superseded on 2026-10-27 by rule 9: the French fallback is what a preview shows, never what is sent._
    - build the email context in English (rule 4).
 3b. The API accepts an optional `lang` override on preview/send (the authoritative default stays the
     reservation's `emailLanguage`). The **client FR/EN override toggle in the preview dialog is deferred**
@@ -55,7 +56,8 @@ render in that language. The two shipped default reminders (J-7, J-2) ship with 
    - `propertyWithArticle` → `en` drops the French article (just the property name, or "the &lt;name&gt;");
    - `nordicBathReminder`, `complementNotice`, `babyBedNotice` → English compositions;
    - pure data (names, counts, amounts, option/resource names, `reservationNumber`) is identical in both
-     languages. Money keeps the `1 234,56 €` format (the property is in the euro zone).
+     languages. Money keeps the `1 234,56 €` format (the property is in the euro zone) — the separators
+     are written by rule 10.
    - `senderName`, `companyPhone`, etc. unchanged.
 5. **Default templates translated.** `arrival_reminder_7d` and `arrival_reminder_1d` ship `subjectEn`/`bodyEn`
    — faithful English translations of the validated French copy (same tokens + `{{#if}}` flags, English
@@ -70,9 +72,32 @@ render in that language. The two shipped default reminders (J-7, J-2) ship with 
    prices of the stay texts (« €8 per person »); it used to read « 963,39 € » beside them. French is
    unchanged (« 963,39 € »).
 
+9. **No English version, no e-mail to an English-speaking guest** (operator decision of 2026-10-27). A
+   template whose `bodyEn` is empty is never sent to a guest whose resolved language is `en` — it used to
+   leave in French with English dates and amounts (« Corps FR … €1234.56 10 January 2027 »):
+   - **manual send / compose**: `POST /api/emails/send` answers `422 { error: 'ENGLISH_VERSION_MISSING',
+     message: 'Version anglaise manquante pour ce modèle.' }`, whatever text the operator typed, before any
+     payment link is minted. The preview returns `englishMissing: true`; the send dialog shows the message
+     and keeps « Envoyer » disabled. « Passer en FR » (the `lang=fr` override of rule 3b) still sends it in
+     French, deliberately;
+   - **template lists**: `GET /api/email-templates` carries `hasEnglish`; Emails › Modèles badges a
+     template without it « EN manquant », and the send dialog suffixes it « — version anglaise manquante »
+     while the guest reads English;
+   - **automatic passes** (the 08:00 dayOffset pass, the guest sequence, the event-triggered sends such as
+     the payment confirmation): the e-mail is skipped and an `email_log` row `failed` /
+     `ENGLISH_VERSION_MISSING` is written, which the history words « Version anglaise manquante pour ce
+     modèle. ». The sequence releases its ledger claim as `failed`, so the mail leaves once the English
+     version exists (within its catch-up window).
+   Every shipped template carries its English version, so this only stops operator templates.
+10. **One amount format across every template** (2026-10-27 spec review). Every amount of the e-mail
+    context and of the stay texts goes through `utils/emailMoney.emailAmount`: French « 1 234,56 € »
+    (thousands grouped with a narrow no-break space U+202F, a space before « € »),
+    English « €1,234.56 »; a whole amount drops its decimals in both (« caution de 500 € » beside
+    « 45,50 € », where the caution used to read « 500,00 € » next to « 45 € »).
+
 **Edge cases:**
-- `emailLanguage = 'en'` but the template has no `bodyEn` → French body sent (logged language = the body
-  actually used? No — we record the requested language; the body is the FR fallback). Documented; no blank.
+- `emailLanguage = 'en'` but the template has no `bodyEn` → nothing is sent (rule 9); the preview shows the
+  French side with `englishMissing: true`.
 - A reservation created before the migration → `emailLanguage` defaults to `fr` (column default).
 - Unknown/empty `emailLanguage` value → treated as `fr`.
 - `{{nordicBathReminder}}` etc. always match the context language — never a French sentence in an EN email.
@@ -93,6 +118,13 @@ render in that language. The two shipped default reminders (J-7, J-2) ship with 
 | `utils/` | `utils/emailContextBuilder.js` | T | Accept `lang`. English variants for `formatBedConfig`, `formatPropertyWithArticle`, `nordicBathReminder`, `complementNotice`, `babyBedNotice`, and the date vars. Default `fr` (every existing caller keeps today's output). |
 | `utils/` | `utils/defaultEmailTemplatesRegistry.js` | T | Add `subjectEn` + `bodyEn` to both default entries (English translations). |
 | `utils/` | `utils/emailTemplateLanguage.js` | C | Pure `pickTemplateSide(template, lang)` → `{ subject, body, usedLang }` (EN if present, else FR fallback) + `normaliseLang(v)`. Unit-testable. |
+| `utils/` | `utils/emailTemplateLanguage.js` | T | Rule 9: `englishMissing(template, lang)`, `hasEnglishVersion(template)`, the `ENGLISH_VERSION_MISSING` code and its French message. |
+| `utils/` | `utils/emailMoney.js` | C | Rule 10: `emailAmount(amount, lang)` — the one amount format of the guest e-mails. |
+| `utils/` | `utils/emailContextBuilder.js`, `utils/stayContentContext.js` | T | Rule 10: every amount through `emailAmount`. |
+| `utils/` | `utils/emailAutoSendRunner.js`, `utils/guestEmailSequenceRunner.js`, `utils/reservationEmailSender.js` | T | Rule 9: skip and log `ENGLISH_VERSION_MISSING`. |
+| `controllers/` | `controllers/emailsController.js` | T | Rule 9: the send refused 422, `englishMissing` on the preview, the history label. |
+| `controllers/` | `controllers/emailTemplatesController.js` | T | Rule 9: `hasEnglish` on every listed template. |
+| client | `components/EmailManualSendDialog.jsx`, `pages/EmailTemplatesPage.jsx`, `constants/emailSendErrors.js` | T | Rule 9: the message, the disabled send, the « EN manquant » badge and the list suffix. |
 | `controllers/` | `controllers/emailsController.js` | T | preview/send resolve `lang` from the reservation (`emailLanguage`, optional request override), call `pickTemplateSide` + `buildContext({ …, lang })`. |
 | `utils/` | `utils/emailAutoSendRunner.js` | T | Same language resolution for the cron path (reads the reservation's `emailLanguage`). |
 | `models/` | `models/emailTemplatesModel.js` | T | Persist/return `subjectEn`/`bodyEn` (insert/update/list/get). |
@@ -156,6 +188,11 @@ per reservation. Default behavior (no English filled, `emailLanguage='fr'`) is b
 ## 7. Test plan
 
 ### Server unit tests (all green — 1675 total)
+- [x] `tests/email-english-version-missing.unit.test.js` (new, 7) — rule 9: the manual send refused 422
+  with the French message and nothing logged; the preview flag; `lang=fr` sends; `hasEnglish` on the list;
+  the dayOffset pass, the sequence (claim released `failed`) and the event-triggered sender skip and log.
+- [x] `tests/email-money-format.unit.test.js` (new) — rule 10: French and English separators, whole amounts,
+  negatives, the context amounts and the stay-text prices share the format.
 - [x] `tests/email-template-language.unit.test.js` (new, +6) — `pickTemplateSide`: EN present → EN; EN empty
   → FR fallback `usedLang='fr'`; partial (EN body, empty EN subject) → EN body + FR subject; `normaliseLang`.
 - [x] `tests/email-context-builder.unit.test.js` (extend, +4) — `lang='en'`: dates "10 July 2026", English
@@ -172,6 +209,10 @@ per reservation. Default behavior (no English filled, `emailLanguage='fr'`) is b
   to English with no French leakage; the fiche surfaces the language selector showing "English". Full E2E
   suite green (27).
 
+### Client (Vitest)
+- [x] `components/__tests__/EmailManualSendDialog.english-missing.test.jsx` (new, 3) — rule 9: the message,
+  « Envoyer » disabled, the list suffix; a template with English sends as before.
+
 ### Manual UI verification
 - [x] Editor shows the EN subject/body fields; chips insert into the focused (FR or EN) field. (E2E renders
   the editor; render verified.)
@@ -184,7 +225,7 @@ per reservation. Default behavior (no English filled, `emailLanguage='fr'`) is b
 - Unifying `emailLanguage` with `pdfLanguage` (kept separate for now).
 - Translating operator-customised templates automatically (we ship EN for the 2 defaults; operators fill
   their own EN via the editor).
-- Localising money/number formats (euro `1 234,56 €` kept in both languages).
+- Localising the currency (euro in both languages; the separators follow rule 10).
 
 ## 9. Open questions
 
@@ -192,3 +233,9 @@ Resolved during scoping (2026-06-19):
 - **Where is the language chosen?** → Per reservation (`emailLanguage`, like `pdfLanguage`), with an optional
   ad-hoc FR/EN override at preview/send.
 - **How are translations stored?** → `subjectEn`/`bodyEn` columns on `email_templates` (one bilingual row).
+
+Resolved at the 2026-10-27 spec review:
+- **A template without English, for an English-speaking guest?** → Not sent (operator decision): refused
+  by hand with « Version anglaise manquante pour ce modèle. », skipped and logged by the automatic passes
+  (rule 9).
+- **Which amount format?** → One for every template: « 1 234,56 € » / « €1,234.56 », no « ,00 » (rule 10).
