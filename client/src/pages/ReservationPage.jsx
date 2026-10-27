@@ -980,6 +980,7 @@ export default function ReservationPage() {
           setForm({
             clientId: devis.clientId,
             requestOrigin: devis.requestOrigin || null,
+            publicUpdatedAfterSendAt: devis.publicUpdatedAfterSendAt || null,
             originLabel: devis.originLabel || null,
             originDetail: devis.originDetail || null,
             adults: devis.adults || 1,
@@ -3623,6 +3624,12 @@ export default function ReservationPage() {
                           <span>
                             <StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} />
                           </span>
+                        </Tooltip>
+                      )}
+                      {/* specs/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
+                      {form.publicUpdatedAfterSendAt && (
+                        <Tooltip title="Le client a écrit depuis le site après l’envoi du devis : son message est dans les notes">
+                          <span><StatusBadge status="warning" label="Message du client après envoi" /></span>
                         </Tooltip>
                       )}
                       <OriginBadge label={form.originLabel} detail={form.originDetail} />

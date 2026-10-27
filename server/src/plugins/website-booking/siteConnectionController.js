@@ -26,12 +26,15 @@ function siteApiAddress({ publicUrl, req }) {
  * @param {() => string} deps.ensureKey  the key, created when missing
  * @param {() => string} deps.rotateKey  a new key; throws `SECRET_FROM_ENVIRONMENT` when the real
  *                                       environment sets it
+ * @param {() => object} [deps.antiBot]  { active, pluginVersion, requiredVersion } — whether the site's
+ *                                       plugin solves the proof of work
+ *                                       (specs/public-request-abuse-and-grouping.md, edge case)
  */
-function buildSiteConnectionController({ publicUrl, ensureKey, rotateKey }) {
+function buildSiteConnectionController({ publicUrl, ensureKey, rotateKey, antiBot = () => null }) {
   return {
     get(req, res) {
       res.set('Cache-Control', 'no-store');
-      return res.json({ address: siteApiAddress({ publicUrl: publicUrl(), req }), apiKey: ensureKey() });
+      return res.json({ address: siteApiAddress({ publicUrl: publicUrl(), req }), apiKey: ensureKey(), antiBot: antiBot() });
     },
 
     regenerate(req, res) {

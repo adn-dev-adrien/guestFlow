@@ -313,7 +313,9 @@ function buildBookingController({ options, captures }) {
   const origRequire = Module.prototype.require;
   const dbMock = {
     transaction: (fn) => (...args) => fn(...args),
-    prepare: () => ({ get: () => ({ maxGuests: 10, maxBabies: 2 }), run: () => ({ changes: 1 }) }),
+    // Only the property read answers: no open quote of the same stay, no earlier request for the
+    // e-mail (specs/public-request-abuse-and-grouping.md rules 7, 12).
+    prepare: (sql) => ({ get: () => (/FROM properties/i.test(sql) ? { maxGuests: 10, maxBabies: 2 } : undefined), run: () => ({ changes: 1 }) }),
   };
   const mocks = {
     '../../database': dbMock,

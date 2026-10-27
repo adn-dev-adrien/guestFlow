@@ -878,7 +878,8 @@
     f.lastName = GF.el('input', { type: 'text', autocomplete: 'family-name', enterkeyhint: 'next' });
     f.email = GF.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', autocapitalize: 'none', enterkeyhint: 'next' });
     f.phone = GF.el('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', enterkeyhint: 'next' });
-    f.message = GF.el('textarea', { rows: '3' });
+    // GuestFlow refuses a message over 2 000 characters (specs/public-request-abuse-and-grouping.md rule 22).
+    f.message = GF.el('textarea', { rows: '3', maxlength: '2000' });
     f.hp = GF.el('input', { type: 'text', tabindex: '-1', autocomplete: 'off' });
 
     // Refused on the field (specs/wordpress-plugin.md rule 28): each required input has its own line
@@ -1351,6 +1352,60 @@
       return true;
     }
 
+    // ── Proof of work (GuestFlow specs/public-request-abuse-and-grouping.md rules 1-5) ──────────────
+    // A challenge is fetched as soon as the form opens and solved in a Web Worker while the guest
+    // fills it in. A challenge is spent by one request, so a fresh one is prepared after every send.
+    // GuestFlow refuses a request sent less than 3 s after its challenge was issued, and one older than
+    // 15 min: the first is waited out, the second re-fetched. Without a challenge (an older GuestFlow,
+    // a network error) the request goes without one, and GuestFlow decides.
+    var CHALLENGE_MIN_MS = 3200;
+    var CHALLENGE_REFRESH_MS = 14 * 60 * 1000;
+    var proof = null;
+
+    function solveChallenge(c) {
+      return new Promise(function (resolve) {
+        var done = false;
+        function finish(nonce) { if (!done) { done = true; resolve(nonce); } }
+        try {
+          var worker = new Worker(GF.powWorkerUrl);
+          worker.onmessage = function (e) { worker.terminate(); finish(e.data && e.data.nonce); };
+          worker.onerror = function () { worker.terminate(); solveOnPage(c, finish); };
+          worker.postMessage({ salt: c.salt, difficulty: c.difficulty });
+        } catch (e) {
+          solveOnPage(c, finish);
+        }
+      });
+    }
+
+    // Fallback when no Worker can start (an asset host on another origin): small slices on the page.
+    function solveOnPage(c, finish) {
+      if (!window.GFPow) { finish(null); return; }
+      var start = 0;
+      (function slice() {
+        var nonce = window.GFPow.search(String(c.salt), Number(c.difficulty), start, 4000);
+        if (nonce !== null) { finish(nonce); return; }
+        start += 4000;
+        setTimeout(slice, 0);
+      })();
+    }
+
+    function prepareProof() {
+      var entry = { receivedAt: Date.now(), solved: false };
+      entry.promise = GF.api('GET', '/booking-requests/challenge').then(function (res) {
+        var c = res.status >= 200 && res.status < 300 && res.body && res.body.data;
+        if (!c || !c.salt) return null;
+        entry.receivedAt = Date.now();
+        return solveChallenge(c).then(function (nonce) { return nonce ? { challenge: c, nonce: nonce } : null; });
+      }).then(function (p) { entry.solved = true; return p; });
+      proof = entry;
+      return entry;
+    }
+
+    function currentProof() {
+      if (!proof || Date.now() - proof.receivedAt > CHALLENGE_REFRESH_MS) prepareProof();
+      return proof;
+    }
+
     // `mode` is 'request' from the « sans payer » button; any other call (the button, the bar, the
     // summary card, which pass their click event) pays when a payment is possible.
     function submit(mode) {
@@ -1365,6 +1420,9 @@
         _hp: f.hp.value,
       });
       if (terms) body.termsVersion = terms.version;
+      // The quote this drawer already created: only its token lets GuestFlow answer with that quote's
+      // id and payment link (specs/public-request-abuse-and-grouping.md rule 20).
+      if (pendingRequest && pendingRequest.token) body.publicToken = pendingRequest.token;
       var paying = mode !== 'request' && paysNow();
       // The stay alone decides a retry (rule 27): a corrected message or phone keeps the same devis.
       var requestKey = JSON.stringify(stay);
@@ -1377,16 +1435,51 @@
       // request reads « Origine inconnue », it is never refused.
       var attribution = GF.attribution();
       if (attribution) body.attribution = attribution;
-      if (mode === 'request' && f.submitAlt) {
-        setSubmit(true);
-        f.submitAlt.textContent = GF.t('sending');
-      } else {
-        setSubmit(true, paying ? GF.t('preparingPayment') : GF.t('sending'));
+      send(body, mode, paying, requestKey, false);
+    }
+
+    function send(body, mode, paying, requestKey, retried) {
+      function busy(text) {
+        if (mode === 'request' && f.submitAlt) {
+          setSubmit(true);
+          f.submitAlt.textContent = text;
+        } else {
+          setSubmit(true, text);
+        }
       }
-      GF.api('POST', '/booking-requests', body).then(function (res) {
+      var entry = currentProof();
+      // « Vérification… » only when the guest is faster than the worker.
+      if (!entry.solved) busy(GF.t('verifying'));
+      entry.promise.then(function (p) {
+        delete body.challenge;
+        delete body.nonce;
+        if (p) {
+          body.challenge = p.challenge;
+          body.nonce = p.nonce;
+        }
+        busy(paying ? GF.t('preparingPayment') : GF.t('sending'));
+        var wait = p ? Math.max(0, entry.receivedAt + CHALLENGE_MIN_MS - Date.now()) : 0;
+        return new Promise(function (resolve) { setTimeout(resolve, wait); });
+      }).then(function () {
+        return GF.api('POST', '/booking-requests', body);
+      }).then(function (res) {
+        // The challenge is spent whatever the answer: the next send gets a fresh one.
+        prepareProof();
+        var refusal = res.body && res.body.error;
+        // A challenge refused once (expired while the tab slept, a network change) is retried once
+        // with a fresh one, without the guest doing anything.
+        if (!retried && refusal && refusal.code === 'CHALLENGE_INVALID' && refusal.details && refusal.details[0]
+          && refusal.details[0].issue !== 'missing') {
+          send(body, mode, paying, requestKey, true);
+          return;
+        }
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
-          GF.track('booking-requested', { lodging: lodging, nights: nightsOf(stay.startDate, stay.endDate), guests: persons(), mode: paying ? 'pay' : 'request' });
-          if (paying) {
+          var data = res.body.data;
+          // Rules 20-21 — a request for a stay GuestFlow already has may come back without any quote:
+          // no id, no token, so nothing to pay here. The guest reads what happened to their request.
+          var noQuote = !data.publicToken;
+          GF.track('booking-requested', { lodging: lodging, nights: nightsOf(body.startDate, body.endDate), guests: persons(), mode: paying ? 'pay' : 'request' });
+          if (paying && !noQuote) {
             pendingRequest = {
               key: requestKey, requestId: res.body.data.requestId, token: res.body.data.publicToken, reference: res.body.data.reference || '',
             };
@@ -1394,7 +1487,13 @@
             return;
           }
           container.innerHTML = '';
-          container.appendChild(GF.el('div', { class: 'gf-success' }, GF.t('requestSent', res.body.data.reference || '')));
+          // Rule 13 — the same stay sent again updated the guest's open request.
+          var askedOn = data.requestedOn ? GF.date(data.requestedOn + 'T00:00:00') : '';
+          var sentText;
+          if (data.messageAdded) sentText = GF.t('messageAdded', askedOn);
+          else if (data.updated) sentText = GF.t('requestUpdated', askedOn);
+          else sentText = data.reference ? GF.t('requestSent', data.reference) : GF.t('requestReceived');
+          container.appendChild(GF.el('div', { class: 'gf-success' }, sentText));
           return;
         }
         setSubmit(false, submitLabel());
@@ -1466,6 +1565,8 @@
     renderSupplements();
     renderCal();
     recompute();
+    // The form is open: start the proof of work now, so it is done before the guest is.
+    prepareProof();
   }
 
   document.querySelectorAll('[data-gf-booking]').forEach(init);

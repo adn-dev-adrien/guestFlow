@@ -119,6 +119,12 @@ const FR = Object.freeze({
     resourceUnavailable: 'Ressource non disponible pour ce logement.',
     paymentProviderError: 'Erreur du fournisseur de paiement.',
     termsNotConfigured: 'Les conditions générales ne sont pas encore publiées.',
+    // specs/public-request-abuse-and-grouping.md rules 3, 7 and the transition edge case.
+    challengeInvalid: 'La vérification anti-robot a échoué. Merci de renvoyer la demande.',
+    challengeMissing: 'Le formulaire doit être mis à jour : merci de recharger la page.',
+    requestsPendingForEmail: 'Plusieurs demandes sont déjà en cours pour cette adresse. Elles seront traitées rapidement.',
+    // Rule 22.
+    messageTooLong: 'Message trop long : 2 000 caractères au plus.',
   }),
 
   // One short sentence per refused contact field, printed by the site UNDER that field
@@ -211,6 +217,10 @@ const EN = Object.freeze({
     resourceUnavailable: 'This resource is not available for this property.',
     paymentProviderError: 'Payment provider error.',
     termsNotConfigured: 'The terms and conditions have not been published yet.',
+    challengeInvalid: 'The anti-robot check failed. Please send the request again.',
+    challengeMissing: 'The form needs updating: please reload the page.',
+    requestsPendingForEmail: 'Several requests are already in progress for this address. They will be handled shortly.',
+    messageTooLong: 'Message too long: 2,000 characters at most.',
   }),
 
   fieldErrors: Object.freeze({

@@ -5,7 +5,7 @@
  * here waits for the page's Save.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
 import { ErrorAlert, SecretRevealField, api, useAppDialogs } from '../sdk';
 
 export default function SettingsWebsiteSection() {
@@ -36,6 +36,9 @@ export default function SettingsWebsiteSection() {
   if (!connection) return null;
 
   const address = connection.address || { value: '', source: 'none' };
+  // specs/public-request-abuse-and-grouping.md, edge case: the proof of work is only required once
+  // the site's plugin solves it.
+  const antiBotInactive = connection.antiBot && !connection.antiBot.active;
 
   const regenerate = async () => {
     const ok = await confirm({
@@ -67,6 +70,13 @@ export default function SettingsWebsiteSection() {
               Ces deux valeurs se collent dans WordPress, Réglages › GuestFlow, dans les champs du même nom.
             </Typography>
           </Box>
+
+          {antiBotInactive ? (
+            <Alert severity="warning" role="status">
+              Protection anti-robot inactive : mettre à jour l’extension WordPress
+              {` (${connection.antiBot.requiredVersion} ou plus ; vue : ${connection.antiBot.pluginVersion || 'aucune'}).`}
+            </Alert>
+          ) : null}
 
           <SecretRevealField
             label="URL de l’API GuestFlow"

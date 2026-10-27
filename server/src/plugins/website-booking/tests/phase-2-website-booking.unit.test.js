@@ -153,7 +153,8 @@ test('specs/plugins-phase-2-hosts.md rule 25 — the pending website requests an
   app = boot({ installed: [ID] });
   const on = await call(app, 'GET', '/api/dashboard/public-devis-pending');
   assert.equal(on.status, 200);
-  assert.deepEqual(on.body, { alerts: [] });
+  // specs/public-request-abuse-and-grouping.md rule 11 — the requests of the last hour ride along.
+  assert.deepEqual(on.body, { alerts: [], requestsLastHour: 0 });
 }));
 
 test('specs/plugins-phase-2-hosts.md rule 25 — the enforcement reads and writes plugin_settings, not app_settings', () => withSecretsSpy(async () => {
@@ -189,7 +190,8 @@ test('specs/plugins-phase-2-hosts.md rule 28 — the plugin copies its two app_s
   db.prepare("DELETE FROM migrations WHERE name LIKE 'plugin:website-booking:%'").run();
   db.prepare("UPDATE app_settings SET requireTermsAcceptance = 0, lastSeenPluginVersion = '' WHERE id = 1").run();
   boot({ installed: [] });
-  assert.equal(loader.migrate(db, ID), 1);
+  // The copy, then the request tables of specs/public-request-abuse-and-grouping.md §5 (v1, v2).
+  assert.equal(loader.migrate(db, ID), 3);
   assert.equal(settingsModel.raw(ID, 'requireTermsAcceptance'), '0');
   assert.equal(settingsModel.raw(ID, 'lastSeenPluginVersion'), '', 'an empty value is not copied');
 

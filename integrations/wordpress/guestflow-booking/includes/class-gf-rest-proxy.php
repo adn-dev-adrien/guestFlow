@@ -108,6 +108,14 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'post_quote'],
         ]);
+        // The proof-of-work challenge the drawer solves before sending (GuestFlow
+        // specs/public-request-abuse-and-grouping.md rule 2). A fixed upstream path: nothing the browser
+        // sends reaches the URL. Never cached — each challenge is single-use and bound to the visitor.
+        register_rest_route(self::NS, '/booking-requests/challenge', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_booking_challenge'],
+        ]);
         register_rest_route(self::NS, '/booking-requests', [
             'methods'             => 'POST',
             'permission_callback' => [$this, 'verify_nonce'],
@@ -203,6 +211,14 @@ final class GF_Rest_Proxy
         unset($body['termsAcceptance'], $body['acceptedAt']);
         $res = GF_Api_Client::instance()->post('/booking-requests', $body);
         return $this->relay($res);
+    }
+
+    public function get_booking_challenge(WP_REST_Request $request): WP_REST_Response
+    {
+        $res = GF_Api_Client::instance()->get('/booking-requests/challenge');
+        $response = $this->relay($res);
+        $response->header('Cache-Control', 'no-store');
+        return $response;
     }
 
     public function post_pay(WP_REST_Request $request): WP_REST_Response

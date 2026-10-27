@@ -22,6 +22,7 @@ const breakfastModel = require('./models/breakfastModel');
 
 // Self-update version check (specs/self-update-and-releases.md §3.B rule 12).
 const systemController = require('./controllers/systemController');
+const notificationService = require('./utils/notificationService');
 
 let syncInProgress = false;
 let arrivalDeparturePushInProgress = false;
@@ -167,6 +168,12 @@ function startScheduledTasks() {
   const UPDATE_CHECK_TICK = 60 * 60 * 1000;
   setInterval(() => { systemController.runVersionCheck().catch(() => {}); }, UPDATE_CHECK_TICK);
   setTimeout(() => { systemController.runVersionCheck().catch(() => {}); }, 60 * 1000);
+
+  // Website requests mailed by window (specs/public-request-abuse-and-grouping.md rule 9): the summary
+  // of a 15-minute window leaves within a minute of its end, and a restart sends what was pending.
+  const DIGEST_TICK = 60 * 1000;
+  setInterval(() => { notificationService.flushDueDigests().catch(() => {}); }, DIGEST_TICK);
+  setTimeout(() => { notificationService.flushDueDigests().catch(() => {}); }, 45 * 1000);
 }
 
 module.exports = {

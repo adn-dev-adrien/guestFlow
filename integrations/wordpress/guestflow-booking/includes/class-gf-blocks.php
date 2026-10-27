@@ -52,6 +52,9 @@ final class GF_Blocks
         // Runtime holder for the localized config; every block script depends on it.
         wp_register_script('gf-runtime', GF_BOOKING_URL . 'assets/runtime.js', [], $this->asset_ver('assets/runtime.js'), true);
         wp_localize_script('gf-runtime', 'GFBooking', $this->runtime_config());
+        // The proof of work of the booking request (GuestFlow specs/public-request-abuse-and-grouping.md
+        // rule 2): solved in a Web Worker (assets/pow-worker.js), this copy only as the page's fallback.
+        wp_register_script('gf-pow', GF_BOOKING_URL . 'assets/pow.js', [], $this->asset_ver('assets/pow.js'), true);
 
         foreach (self::BLOCKS as $name) {
             wp_register_script(
@@ -64,7 +67,7 @@ final class GF_Blocks
             wp_register_script(
                 "guestflow-{$name}-view",
                 GF_BOOKING_URL . "blocks/{$name}/view.js",
-                ['gf-runtime'],
+                $name === 'booking' ? ['gf-runtime', 'gf-pow'] : ['gf-runtime'],
                 $this->asset_ver("blocks/{$name}/view.js"),
                 true
             );
@@ -90,6 +93,8 @@ final class GF_Blocks
             // specs/terms-acceptance-record.md rule 10 — the page the CGV checkbox links to.
             'cgvPageUrl'        => esc_url_raw($s->get_cgv_page_url()),
             'configured'        => $s->is_configured(),
+            // Same origin as the page, as a Worker requires.
+            'powWorkerUrl'      => esc_url_raw(GF_BOOKING_URL . 'assets/pow-worker.js?ver=' . $this->asset_ver('assets/pow-worker.js')),
             // The language the page is being read in, and the locale the browser should format
             // DATES with. Amounts are deliberately not included: rule 10 keeps « 1 234,56 € » in
             // both languages, because the quote PDF attached to the confirmation already writes it
@@ -130,6 +135,11 @@ final class GF_Blocks
                 'sendRequest'     => __('Envoyer la demande', 'guestflow-booking'),
                 'sending'         => __('Envoi…', 'guestflow-booking'),
                 'requestSent'     => __('Demande envoyée ! Référence : %s. Nous vous recontactons rapidement.', 'guestflow-booking'),
+                // GuestFlow specs/public-request-abuse-and-grouping.md rules 2 and 13.
+                'verifying'       => __('Vérification…', 'guestflow-booking'),
+                'requestUpdated'  => __('Votre demande du %s a été mise à jour.', 'guestflow-booking'),
+                'messageAdded'    => __('Votre demande du %s a déjà été transmise : votre message a été ajouté.', 'guestflow-booking'),
+                'requestReceived' => __('Demande reçue. Nous vous recontactons rapidement.', 'guestflow-booking'),
                 'bookNow'         => __('Réserver', 'guestflow-booking'),
                 'capacity'        => __('Capacité', 'guestflow-booking'),
                 'persons'         => __('personnes', 'guestflow-booking'),

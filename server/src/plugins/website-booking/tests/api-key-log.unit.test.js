@@ -21,6 +21,7 @@ test('rule 24: the key is created at boot and the log line does not claim server
     route() {},
     secretRoutes() {},
     attention() {},
+    jobs: { every() {} },
     data() {},
     log: { info: (line) => infos.push(line), warn() {} },
   };
@@ -30,8 +31,9 @@ test('rule 24: the key is created at boot and the log line does not claim server
   } finally {
     localEnv.getOrCreateSecret = original;
   }
-  // specs/roostview-api-key.md rule 1 — Roostview's read-only key is created beside it.
-  assert.deepEqual(created, ['PUBLIC_API_KEY', 'ROOSTVIEW_API_KEY']);
+  // specs/roostview-api-key.md rule 1 — Roostview's read-only key is created beside it, and the key
+  // that signs the proof-of-work challenges (specs/public-request-abuse-and-grouping.md rule 1).
+  assert.deepEqual(created, ['PUBLIC_API_KEY', 'ROOSTVIEW_API_KEY', 'PUBLIC_REQUEST_CHALLENGE_SECRET']);
   assert.equal(infos.length, 2);
   assert.match(infos[0], /PUBLIC_API_KEY ready/);
   assert.doesNotMatch(infos[0], /server\/\.env\.local/);

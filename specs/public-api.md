@@ -128,9 +128,13 @@ or **[CREATE]** (genuinely new logic).
    array.
 9. **Rate limiting + anti-spam on writes.** `/public/v1/*` reads use a dedicated
    `publicApiLimiter` (default 600/15 min/IP). `POST /public/v1/booking-requests` adds a stricter
-   `bookingRequestLimiter` (default 5/hour/IP **and** 20/hour/API-key) plus a honeypot field
-   (`_hp` must be empty). No CAPTCHA: the WordPress proxy owns bot filtering; GuestFlow relies on
-   honeypot + rate limit only. Over limit → `429 TOO_MANY_REQUESTS`.
+   `bookingRequestLimiter` (default 5/hour per **visitor** IP) plus a honeypot field (`_hp` must be
+   empty). Over limit → `429 TOO_MANY_REQUESTS`. **Corrected 2026-10-27**: this rule used to also say
+   « 20/hour/API-key ». The code never had such a limit, and it must not: the whole site shares one
+   key, so it would lock every guest out together
+   ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 8 — no limit is
+   ever shared by all visitors). No third-party CAPTCHA: since 2026-10-27 the request also carries an
+   internal proof of work, a per-e-mail cap on new quotes and one quote per stay (same spec).
 10. **Uniform error envelope.** Every public error is `{ "error": { "code", "message", "details"? } }`
     (see §4.3). `message` is generic/non-fingerprinting; `code` is a stable machine string.
 11. **No temporary hold (this version).** A booking request does **not** block the calendar; dates
