@@ -114,6 +114,27 @@
           "setPlatformCleaningFees"
         ]
       }
+    },
+    {
+      "version": "2.6.0",
+      "modules": [
+        "installmentsModel"
+      ],
+      "names": {
+        "platformNameFormat": [
+          "isRelayChannel",
+          "platformReviewWhere",
+          "refreshGuestContactChannels",
+          "setPlatformReviewWhere",
+          "setRelayChannels"
+        ],
+        "platformsModel": [
+          "guestContactById",
+          "refreshGuestContactChannels",
+          "setRelaysGuestEmail",
+          "setReviewWhere"
+        ]
+      }
     }
   ]
 }

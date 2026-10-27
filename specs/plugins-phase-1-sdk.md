@@ -245,6 +245,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-27 — SDK 2.6.0 (audit fixes): `coreModule('installmentsModel')` (the installment plan read by
+> the bank reconciliation, `specs/qonto-bank-reconciliation.md` rule 45); `platformNameFormat` gains
+> `isRelayChannel`, `setRelayChannels`, `platformReviewWhere`, `setPlatformReviewWhere`,
+> `refreshGuestContactChannels` and `platformsModel` gains `guestContactById`, `setRelaysGuestEmail`,
+> `setReviewWhere`, `refreshGuestContactChannels` (`specs/platform-settings-relay-and-review.md`);
+> `ctx.pushChannel({ key, label })` lets a plugin declare its push channel. Recorded in
+> `coreModuleHistory.json`.
+
 > 2026-10-27 — SDK 2.5.0 (master v3.18.0 merged into `inte/plugins`): `coreModule('platformNameFormat')`
 > gains `isChoreFreeChannel` / `setChoreFreeChannels` / `refreshChoreFreeChannels`
 > (`specs/airbnb-no-checkout-chores.md` rule 8); `coreModule('platformsModel')` gains `choreFreeIds`,
