@@ -200,8 +200,8 @@ its due date, after the operator validates it.
     acompte / solde perçu » is refused on a stay with a plan). A link minted while the plan was changing is
     cancelled at once.
 36. **Unpaid installments are due at arrival.** `stayDueAtArrival` counts them (`installments.due`), the SAS
-    stay step offers them, and « CB / Chèque » marks every remaining installment paid today by `cash` (espèces:
-    an installment has no caisse interne); « Pas maintenant » leaves them as they are. The payment-deadline
+    stay step offers them, and settling there marks every remaining installment paid today with the mode chosen
+    at the door (« CB / Chèque » → `card`, « Espèces » → `cash`); « Pas maintenant » leaves them as they are. The payment-deadline
     card shows `unpaid_at_arrival` for a plan unpaid once the guest has arrived.
 37. **Fiscal attribution.** When every installment is paid, the stay attaches to the day of the last one
     (`reservations.installmentsLastPaidDate`, in JS `attributionDate` and its SQL twin).

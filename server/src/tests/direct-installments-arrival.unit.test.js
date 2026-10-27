@@ -35,7 +35,7 @@ test('rule 36 — a guest at the door with an unpaid plan is « unpaid_at_arriva
   assert.deepEqual([rows[0].state, rows[0].severity, rows[0].totalDue], ['unpaid_at_arrival', 'error', 334]);
 });
 
-test('rule 36 — « CB / Chèque » at the SAS marks every remaining installment paid today; « Pas maintenant » leaves them', async () => {
+test('rule 36 — settling at the SAS marks every remaining installment paid today with the chosen mode; « Pas maintenant » leaves them', async () => {
   const h = createHarness({ stay: { startDate: '2027-06-14', endDate: '2027-06-16' } });
   h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 0, balanceAmount: 0, depositDueDate: null, balanceDueDate: null };
   await call(h.controller.put, { params: { id: h.reservationId }, body: { count: 3 } });
@@ -48,9 +48,18 @@ test('rule 36 — « CB / Chèque » at the SAS marks every remaining installmen
   model.commitArrivalSas(h.reservationId, { stayPaid: true, stayPaidCash: false });
   const rows = h.installmentsModel.listFor(h.reservationId);
   assert.ok(rows.every((i) => Number(i.paid) === 1));
-  assert.deepEqual(rows.slice(1).map((i) => [i.paidMethod, i.paidDate.length]), [['cash', 10], ['cash', 10]]);
+  assert.deepEqual(rows.slice(1).map((i) => [i.paidMethod, i.paidDate.length]), [['card', 10], ['card', 10]]);
   const after = h.db.prepare('SELECT installmentsUnpaidAmount, installmentsPaidAmount, depositPaid, balancePaid FROM reservations WHERE id = ?').get(h.reservationId);
   assert.deepEqual([after.installmentsUnpaidAmount, after.installmentsPaidAmount, after.depositPaid, after.balancePaid], [0, 1001.5, 0, 0], 'the buckets stay untouched');
+});
+
+test('rule 36 — « Espèces » at the SAS records the remaining installments as cash', async () => {
+  const h = createHarness({ stay: { startDate: '2027-06-14', endDate: '2027-06-16' } });
+  h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 0, balanceAmount: 0, depositDueDate: null, balanceDueDate: null };
+  await call(h.controller.put, { params: { id: h.reservationId }, body: { count: 3 } });
+
+  createReservationsModel(h.db).commitArrivalSas(h.reservationId, { stayPaid: true, stayPaidCash: true });
+  assert.deepEqual(h.installmentsModel.listFor(h.reservationId).map((i) => i.paidMethod), ['cash', 'cash', 'cash']);
 });
 
 // ── Rule 38 — bank reconciliation ───────────────────────────────────────────────────────────────────

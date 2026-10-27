@@ -3278,13 +3278,13 @@ function createReservationsModel(database) {
               },
             },
           ];
-          // specs/direct-installments.md rule 36 — a plan is settled by marking its remaining installments paid
-          // (espèces: an installment has no caisse interne). « Pas maintenant » leaves them as they are.
+          // specs/direct-installments.md rule 36 — a plan is settled by marking its remaining installments paid,
+          // by the mode chosen at the door. « Pas maintenant » leaves them as they are.
           if (stayPaid && Number(row.installmentsUnpaidAmount || 0) > 0) {
             const { recordInstallmentPayment } = require('../utils/installmentPayment');
             const { buildModel: buildInstallmentsModel } = require('./installmentsModel');
             for (const installment of buildInstallmentsModel(database).listFor(reservationId).filter((i) => Number(i.paid) === 0)) {
-              recordInstallmentPayment({ db: database, emit: require('../plugins/sdk/eventBus').emit }, { installmentId: installment.id, paidDate: today, method: 'cash' });
+              recordInstallmentPayment({ db: database, emit: require('../plugins/sdk/eventBus').emit }, { installmentId: installment.id, paidDate: today, method: stayPaidCash ? 'cash' : 'card' });
             }
           }
           for (const target of targets) {
