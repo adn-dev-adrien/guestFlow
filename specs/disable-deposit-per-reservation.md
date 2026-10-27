@@ -8,6 +8,19 @@
 | **Author** | Adrien |
 | **Related PR** | (same PR as `admin-unlock-past-reservations`) |
 
+> **Updated 2026-10-27 (spec review — drift only).** The code is shipped, but the Status line stays
+> `Approved`: moving it to `Implemented` requires every §3 rule to be cited by a test or declared
+> « Sans test » ([spec-rule-coverage.md](spec-rule-coverage.md) rule 14), and only rule 4 is today
+> (`pricing-deposit-disabled.unit.test.js`). That coverage pass is left to a code PR. The flag, the engine consolidation and the past-lock
+> allowlist (rule 6) behave as written. Two things moved: the « unlock past reservations » toggle rule 6
+> refers to is now a per-fiche action ([settings-rationalization.md](settings-rationalization.md) rule 17a),
+> and the fiche no longer has an « Acompte » block (rule 8, §6). The switch is **« Sans acompte »**, in the
+> row of split settings at the bottom of the « Paiements » section of `FinanceSection`
+> (`client/src/components/reservation/FinanceSection.jsx`), hidden when an instalment plan replaces the
+> acompte and on a platform stay whose platform does not take a deposit. With the switch on, the acompte
+> row of the payment ledger reads « Sans objet · acompte désactivé »
+> (`server/src/utils/reservationLedger.js`).
+
 ---
 
 ## 1. Context
@@ -42,8 +55,13 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 4. The switch is shown only in the reservation page (`FinanceSection`) next to the "Acompte" title. No confirmation dialog; the toggle is reversible (flip OFF restores the standard pricing computation; the engine will recompute deposit from `property.depositPercent` like for a brand-new reservation, since the original deposit value isn't preserved by Adrien's choice).
 5. **Reversibility caveat (documented in the UI hint):** flipping OFF→ON loses the original deposit/balance split because Variant A was chosen over a flag-plus-preserved-values design. Going back ON→OFF re-derives the split from the property's `depositPercent`, which may differ from what was there originally if it was a manual override. Acceptable for the platform-handles-deposit use case where the original split was irrelevant anyway.
 6. The flag is included in the existing 14-field allowlist of `pastReservationLocked` so that an admin who realises *after the fact* that a past reservation was a platform booking can still disable the deposit without needing the broader "unlock past reservations" toggle (the two features compose).
+   _(Updated 2026-10-27: that global toggle is gone — the broader unlock is now the per-fiche, admin-only
+   « Déverrouiller cette fiche » action, [settings-rationalization.md](settings-rationalization.md) rule 17a.
+   `depositDisabled` is still in the past-lock allowlist, `server/src/controllers/reservationsController.js`
+   `allowedLockedFields`, so the rule holds without unlocking.)_
 7. The flag is captured in `reservationAudit.buildAuditSnapshotFromPayload` + diffed by `computeAuditChanges` so the reservation history surfaces the toggle changes.
-8. UI behaviour when ON:
+8. _(Superseded 2026-10-27 for the layout — see the note at the top: the ledger's acompte row reads
+   « Sans objet · acompte désactivé »; the consolidation into the solde is unchanged.)_ UI behaviour when ON:
    - The whole Acompte block (montant + date d'échéance + bouton "Marquer payé" + date paiement) collapses to a single line in `text.secondary` : *"Acompte désactivé — ajouté au solde"*, with the Switch still visible to flip back.
    - The Solde block displays its amount as usual; that amount is now the full pre-arrival total because the pricing engine has already done the consolidation.
 9. **Access**: same as any other reservation edit — admin and accountant cannot edit reservations today (accountant is read-only on reservations); admin handles this exclusively. No role-specific UI gating needed.
@@ -120,6 +138,9 @@ ALTER TABLE reservations ADD COLUMN depositDisabled INTEGER NOT NULL DEFAULT 0
 
 ### Reservation page → FinanceSection — Acompte block
 
+> _Superseded 2026-10-27: the block below predates the payment ledger. Today: a « Sans acompte » switch
+> at the bottom of « Paiements », and a « Sans objet · acompte désactivé » acompte row when it is on._
+
 **State A — `depositDisabled = 0` (default):**
 
 ```
@@ -151,8 +172,8 @@ No change. ReservationPage already uses `PageActionBar`. The toggle change is ca
 
 | Where | String |
 |---|---|
-| Switch label / aria-label | `Désactiver l'acompte (encaissé directement au solde)` |
-| Collapsed-state line | `Acompte désactivé — ajouté au solde` |
+| Switch label / aria-label | `Désactiver l'acompte (encaissé directement au solde)` — _shipped as `Sans acompte` (noted 2026-10-27)_ |
+| Collapsed-state line | `Acompte désactivé — ajouté au solde` — _now the ledger row `Sans objet · acompte désactivé` (noted 2026-10-27)_ |
 
 No empty / loading / error states unique to this section — handled by the parent ReservationPage.
 
@@ -172,7 +193,7 @@ No empty / loading / error states unique to this section — handled by the pare
 - [ ] Marquer le solde payé → export comptable du mois → **une seule ligne** (le solde au montant total), pas de ligne acompte.
 - [ ] Re-flipper OFF → bloc Acompte revient avec montant recalculé par le moteur (depositPercent de la propriété).
 - [ ] Régression : créer une réservation normale (sans toucher le Switch) → 2 lignes dans l'export comme avant.
-- [ ] Régression : flipper sur une réservation passée (avec `allowEditPastReservations=0` car le flag est dans l'allowlist) → Save accepté.
+- [ ] Régression : flipper sur une réservation passée (without « Déverrouiller cette fiche », the flag being on the allowlist — the former `allowEditPastReservations` setting no longer exists, noted 2026-10-27) → Save accepté.
 - [ ] Mobile (`xs`) : titre "Acompte" + Switch tiennent sur une ligne, ou label/Switch stack vertical proprement.
 
 ---

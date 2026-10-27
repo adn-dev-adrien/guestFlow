@@ -2,11 +2,29 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented _(status corrected at the 2026-10-27 spec review)_ |
 | **Branch** | `feature/admin-account-management` |
 | **Created** | 2026-05-30 |
 | **Author** | Adrien |
 | **Related PR** | _(filled after push)_ |
+
+> **Updated 2026-10-27 (spec review — drift only, no behaviour change).** The feature shipped; the
+> status moves to `Implemented`. Three things changed since and carry inline notes:
+> - **Pages split (rule 5, §6.1).** [settings-rationalization.md](settings-rationalization.md) rules 6 and 8
+>   split the unified `/account` page: « Mon compte » (my information, my password, second code — every
+>   role) lives at **`/mon-compte`** (`client/src/pages/AccountPage.jsx`, sidebar entry at the bottom), and
+>   the admin user table lives at **`/settings/utilisateurs`**, Paramètres → Utilisateurs
+>   (`client/src/pages/UserManagementPage.jsx`). `/account`, `/comptes` and `/settings/password` redirect to
+>   `/mon-compte` (`client/src/App.jsx`).
+> - **No « Réactiver » action (rule 10).** There is no activate/deactivate endpoint (`server/src/routes/users.js`)
+>   and no such button: deactivation is the soft delete of rule 11, and **a password reset (rule 9)
+>   reactivates** the account (`usersModel` sets `isActive = 1` with the new temporary password; the
+>   controller checks the plan's user quota first, `usersController.resetPassword`).
+> - **`smtpPort` is no longer stored (§3.4, §5.3, §6.4).** The column was dropped by the
+>   settings-rationalization migration (`server/src/utils/settingsRationalizationMigration.js`); the port is
+>   derived from `smtpSecure` at read time — 587 STARTTLS / 465 implicit TLS
+>   (`server/src/models/settingsModel.js` → `smtpPortForSecure`, settings-rationalization rule 11). The
+>   « non-standard port kept until the next save » case no longer exists.
 
 ---
 
@@ -155,7 +173,9 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 
 ### 3.2 Unified "Gestion utilisateur" page (`/account`)
 
-5. The page is reachable by every authenticated user (sidebar entry **"Gestion utilisateur"**,
+5. _(Updated 2026-10-27: split into `/mon-compte` (every role) and `/settings/utilisateurs` (admin user
+   table) — see the note at the top. `/account` now redirects to `/mon-compte`.)_
+   The page is reachable by every authenticated user (sidebar entry **"Gestion utilisateur"**,
    `<AdminPanelSettingsIcon />`). Route `/account`. The legacy `/settings/password` and `/comptes`
    paths redirect to `/account` for back-compat. Content is role-gated **client + server**:
    - **Section "Mon mot de passe"** — always visible. Wraps `ChangePasswordForm`. On a forced
@@ -194,6 +214,9 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
    shown on screen.
 10. **Toggle active** (icon button per row, label "Désactiver" / "Réactiver"): flips `isActive`.
     A deactivated user cannot log in (`verifyCredentials` already enforces this).
+    _(Updated 2026-10-27: not shipped as a toggle. There is no « Réactiver » button and no endpoint
+    flipping `isActive`; deactivating is the soft delete of rule 11, and the « Réinitialiser le mot de
+    passe » action of rule 9 reactivates the account (`isActive = 1`, subject to the plan's user quota).)_
 11. **Delete account** (trash icon per row, ConfirmDialog):
     - **Soft delete (default)** — sets `isActive=0` and labels the chip "Désactivé". Always
       available except on self (rule 13).
@@ -239,7 +262,8 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 
 16. `app_settings` gains six fields:
     - **`smtpHost`** TEXT DEFAULT `''`
-    - **`smtpPort`** INTEGER DEFAULT `587`
+    - **`smtpPort`** INTEGER DEFAULT `587` _(dropped by settings-rationalization; the port is derived
+      from `smtpSecure` at read time — noted 2026-10-27)_
     - **`smtpSecure`** INTEGER DEFAULT `0` (`1` = implicit TLS on port 465, `0` = STARTTLS)
     - **`smtpUsername`** TEXT DEFAULT `''`
     - **`smtpPasswordEncrypted`** TEXT DEFAULT `''` (AES-256-GCM at rest, same key as the
@@ -417,7 +441,7 @@ support a row-count CHECK on a referencing table); the migration backfills one r
 
 **Added columns** (all DEFAULTs so old rows stay valid):
 - `smtpHost TEXT DEFAULT ''`
-- `smtpPort INTEGER DEFAULT 587`
+- `smtpPort INTEGER DEFAULT 587` _(dropped by settings-rationalization, noted 2026-10-27)_
 - `smtpSecure INTEGER NOT NULL DEFAULT 0` (`0` = STARTTLS, `1` = implicit TLS)
 - `smtpUsername TEXT DEFAULT ''`
 - `smtpPasswordEncrypted TEXT DEFAULT ''` (AES-256-GCM payload, **never** logged)
@@ -446,6 +470,9 @@ SMTP fields start empty — the new account-creation endpoint returns
 ## 6. UI / UX
 
 ### 6.1 `/account` — Gestion utilisateur (admin's accounts-list view)
+
+> _Updated 2026-10-27: the accounts list is now Paramètres → Utilisateurs at `/settings/utilisateurs`;
+> « Mes informations » / « Mon mot de passe » moved to `/mon-compte` (see the note at the top)._
 
 - **PageActionBar:**
   - `title`: "Comptes"
@@ -482,7 +509,7 @@ SMTP fields start empty — the new account-creation endpoint returns
 
 - New card titled **Envoi d'emails (SMTP)**, in the same column flow as the other settings cards, *above* the "Sauvegarde" group.
 - Fields: SMTP Host, Sécurité (`Select` with options *STARTTLS (port 587)* / *TLS implicite (port 465)*), Utilisateur, Mot de passe (MaskedTextField), Adresse expéditeur, Nom expéditeur, URL publique.
-  - **(2026-09-16)** The **Port** field is gone: it was the security mode said twice. The server derives `smtpPort` from `smtpSecure` on every save of this card — 587 for STARTTLS, 465 for implicit TLS — and a port sent by a client is ignored (`specs/settings-one-save-and-automatic-webhook.md` rule 5). An installation on a non-standard port keeps it until this card is saved again.
+  - **(2026-09-16)** The **Port** field is gone: it was the security mode said twice. The server derives `smtpPort` from `smtpSecure` on every save of this card — 587 for STARTTLS, 465 for implicit TLS — and a port sent by a client is ignored (`specs/settings-one-save-and-automatic-webhook.md` rule 5). An installation on a non-standard port keeps it until this card is saved again. _(Updated 2026-10-27: the column is gone — the port is derived at read time, never stored, so there is no stored non-standard port left to keep; settings-rationalization rule 11.)_
 - A help caption under URL publique: *"Cette URL est insérée dans les emails envoyés aux utilisateurs (ex. https://guestflow.adn-dev.fr)."*
 - "Envoyer un mail de test" button, disabled while any required SMTP field is empty. On click: calls `POST /api/settings/smtp-test`, shows success (*"Mail de test envoyé à <adminEmail>."*) or the error detail in a snackbar.
 - **(2026-08-17)** Server validation errors land **under their field**, replacing its helper text — *Adresse expéditeur* (`smtpFromEmail`) and, since rule 16b, *Nom expéditeur* (`smtpFromName`). Editing the field clears its error, so the mapping `smtp.fromName → smtpFromName` must exist in `mapClientKeyToErrorKey`, otherwise a stale message sticks until the next save.

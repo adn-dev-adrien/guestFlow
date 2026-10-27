@@ -2,11 +2,23 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/reservation-number-and-search` _(user-managed)_ |
 | **Created** | 2026-06-18 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+
+> **Updated 2026-10-27 (spec review — drift only, no behaviour change).** The feature shipped long ago;
+> the status moves to `Implemented` (rule 10 declared « Sans test » — it is covered by the E2E suite —
+> and rules 6, 7, 11 and 12 now cited by the tests that already proved them, as
+> [spec-rule-coverage.md](spec-rule-coverage.md) rule 14 requires). Five statements had fallen behind the
+> code and carry an inline note below: the J-7 / J-2 no longer recall the number — the Confirmation email
+> does (rule 12); the search lives in the global header, not on Calendrier + Dashboard (§8, §9 — mounted in
+> `client/src/App.jsx`); results include cancelled stays and carry `cancelled` / `cancelledAt` instead of
+> `status` (rules 8–9, §4.3 — `server/src/models/reservationsModel.js` `search()`); the collision 400 body
+> is `{ error: <French message>, code: 'RESERVATION_NUMBER_TAKEN' }` (§4.3 —
+> `server/src/controllers/reservationsController.js` `reservationNumberOverrideError`); the email example
+> uses the current `AAAAMM###` format (§6).
 
 ---
 
@@ -64,16 +76,34 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 8. A search matches `kind = 'reservation'` rows by, case-insensitively, ANY of:
    `reservationNumber`, `firstName`, `lastName`, `firstName || ' ' || lastName`,
    `lastName || ' ' || firstName`, `email` — each as a substring (`LIKE %q%`).
+   _(Updated 2026-10-27: the search also matches `kind = 'cancelled'` rows — search is the one path that
+   must still find a cancelled stay, per `specs/payment-schedule-and-cancellation.md` §3.5 rule 26. Code:
+   `reservationsModel.search()`.)_
 9. Search results are **shaped server-side** (fat backend): `{ id, reservationNumber, clientFullName,
    propertyName, startDate, endDate, status }`, ordered by `startDate DESC`, capped at 20 rows.
+   _(Updated 2026-10-27: there is no `status` field. The shape is `{ id, reservationNumber, clientFullName,
+   propertyName, startDate, endDate, cancelled, cancelledAt }` — `cancelled` is `kind === 'cancelled'`,
+   `cancelledAt` the cancellation timestamp or `null` — ordered by `startDate DESC, id DESC`.)_
 10. The search is **live**: the client queries the server as the operator types (debounced ~250 ms); the
     dropdown updates on each response. Selecting a result navigates to the reservation fiche
     (`/reservations/:id`).
+    > **Sans test** — no unit test: the behaviour is browser interaction (debounce, dropdown, navigation),
+    > pinned end to end by the Playwright suite `e2e/specs/reservations/reservation-search.spec.js` (the
+    > five query forms, and a selected result opening its fiche), which the coverage script does not read.
+    > Declared at the 2026-10-27 spec review when the Status moved to `Implemented`.
 11. An empty/blank query returns no rows (the box shows a hint, not the whole table).
 
 ### Number on the guest emails
 
-12. The J-7 (`arrival_reminder_7d`) and J-2 (`arrival_reminder_1d`) reminder emails recall the number in
+12. _(Updated 2026-10-27: the shipped J-7 / J-2 copy no longer carries the line. The guest-email
+    sequence rewrite ([guest-email-sequence.md](guest-email-sequence.md) §6.1, neutral copy of
+    plugins-phase-p rule 13) moved the recall to the **Confirmation** email
+    (`server/src/utils/guestEmailSequenceTemplates.js` `CONFIRMATION_BODY`); the deposit reminder also
+    carries it (`utils/defaultEmailTemplatesRegistry.js`), and
+    `server/src/tests/default-email-templates-registry.unit.test.js` asserts the J-2 has **no** number
+    recap. The 2026-06 content migration in `database.js` still injects the line into a stored J-7 / J-2
+    whose recap header matches the original anchor. The token and its gate are unchanged.)_
+    The J-7 (`arrival_reminder_7d`) and J-2 (`arrival_reminder_1d`) reminder emails recall the number in
     the stay recap, via a new `{{reservationNumber}}` token gated by `{{#if hasReservationNumber}}` (the
     line is omitted when a reservation has no number yet — e.g. a freshly-imported iCal booking before the
     number is assigned). Every reservation receives a number (manual create, devis→reservation conversion,
@@ -175,8 +205,8 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/reservations/search?q=<str>` | — | `[{ id, reservationNumber, clientFullName, propertyName, startDate, endDate, status }]` | `kind='reservation'` only; ≤20 rows; blank `q` → `[]`. Auth: same as other reservation reads. |
-| POST | `/api/reservations` | existing body **+ optional `reservationNumber`** | `{ id, reservationNumber }` | Number generated if absent; 400 `{ error: 'RESERVATION_NUMBER_TAKEN' }` on collision. |
+| GET | `/api/reservations/search?q=<str>` | — | `[{ id, reservationNumber, clientFullName, propertyName, startDate, endDate, cancelled, cancelledAt }]` | `kind IN ('reservation','cancelled')`; ≤20 rows; blank `q` → `[]`. Auth: same as other reservation reads. _(Updated 2026-10-27: was `status`, reservations only — see rules 8–9.)_ |
+| POST | `/api/reservations` | existing body **+ optional `reservationNumber`** | `{ id, reservationNumber }` | Number generated if absent; 400 `{ error: 'Ce numéro est déjà utilisé par une autre réservation.', code: 'RESERVATION_NUMBER_TAKEN' }` on collision (same body on PUT). _(Updated 2026-10-27: the code rides in `code`; `error` holds the French message.)_ |
 | PUT | `/api/reservations/:id` | existing body **+ optional `reservationNumber`** | `{ id, reservationNumber }` | Empty → keep existing; non-empty → override (unique-checked). |
 | GET | `/api/dashboard/repaired-reservation-numbers` | — | `{ alerts: [{ reservationId, reservationNumber, clientName, propertyName, startDate, endDate, repairedAt }] }` | Rule 15. Admin. |
 | POST | `/api/dashboard/repaired-reservation-numbers/:id/acknowledge` | — | `{ ok: true }` | Rule 15. 404 `NOT_FOUND` when not listed, 400 `INVALID_ID`. |
@@ -230,10 +260,11 @@ numbers, never a value that would collide). Devis rows are never touched.
 
 ### Number recall in the J-7 / J-2 emails
 
-- The stay recap of both reminder emails gains a line *« - N° de réservation : 2026-06-001 »* (gated by
+- The stay recap of both reminder emails gains a line *« - N° de réservation : 202606001 »* (gated by
   `{{#if hasReservationNumber}}`). No new UI; the operator sees it in the email preview/editor like any
   other recap line. Existing installs are upgraded by an idempotent content migration (the seed is
-  insert-only and the J-2 force-overwrite already ran).
+  insert-only and the J-2 force-overwrite already ran). _(Updated 2026-10-27: the example used the
+  original `AAAA-MM-###` format, dropped on 2026-06-19.)_
 
 ### Search box (`ReservationSearchBox`) — global, in the top bar (2026-06-19)
 
@@ -292,9 +323,9 @@ numbers, never a value that would collide). Devis rows are never touched.
 ### Manual UI verification
 - [ ] Create a reservation → number `AAAAMM###` appears on the fiche after save; a second one increments.
 - [ ] Override the number → saved; reopen → persisted. Override to an existing number → save-error dialog, not saved.
-- [ ] Calendrier search: type a number fragment → matches; type a last name → matches; type "prénom nom" and
-  "nom prénom" → both match; click a result → fiche opens.
-- [ ] Dashboard search behaves identically (same component).
+- [ ] Header search (any page): type a number fragment → matches; type a last name → matches; type "prénom nom" and
+  "nom prénom" → both match; click a result → fiche opens. _(Updated 2026-10-27: was « Calendrier search »
+  + « Dashboard search » before the box moved to the header on 2026-06-19.)_
 - [ ] Email preview: J-7 and J-2 show the « N° de réservation » recap line for a numbered reservation.
 - [ ] Mobile (`xs`): search box full-width, dropdown usable; number field full-width on the fiche.
 - [ ] Regression: devis still show `devisNumber`; the `/reservations` list + calendar render unchanged.
@@ -303,7 +334,9 @@ numbers, never a value that would collide). Devis rows are never touched.
 
 - **Accent-insensitive** search (é = e). Mirrors the existing `LOWER`+`LIKE` behavior; a later `unaccent`-style
   normalization could be added globally.
-- A **global header / Cmd-K** command palette (search lives on Calendrier + Dashboard, per decision).
+- A **Cmd-K** command palette. _(Updated 2026-10-27: this line also excluded a global header search « per
+  decision »; that decision was reversed on 2026-06-19 and the box lives in the top bar — §4.2,
+  `client/src/App.jsx`. Only the keyboard palette stays out of scope.)_
 - Searching **devis** or clients by this box (reservations only).
 - Changing the **devisNumber** scheme or the reservation number **format** (fixed at `AAAAMM###`).
 - Showing the reservation number on **PDFs** (devis/invoice PDFs keep `devisNumber`; not in this spec).
@@ -314,6 +347,7 @@ numbers, never a value that would collide). Devis rows are never touched.
 Resolved during scoping (2026-06-18):
 - **Number format?** → `AAAAMM###` (no separators), independent sequence from devis. (Originally `AAAA-MM-###`; separators dropped 2026-06-19 with a reformat migration.)
 - **Where does the search live?** → Top of the Calendrier and Dashboard pages (shared component), not a global
-  header bar.
+  header bar. **Superseded 2026-06-19:** moved to the global top `AppBar` (every page); the per-page boxes were
+  removed (noted 2026-10-27).
 - **Override semantics?** → Editable on the fiche; empty keeps the existing number; non-empty must be unique
   (400 on collision); server is the authority.

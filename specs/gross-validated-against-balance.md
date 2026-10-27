@@ -2,11 +2,26 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Superseded — the validated field was removed on 2026-06-22 (noted 2026-10-27) |
 | **Branch** | `fix/gross-vs-balance` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
 | **Related** | [force-extras-complement-on-platform.md](force-extras-complement-on-platform.md) |
+
+> **Superseded — noted 2026-10-27 (spec review).** The « Prix payé par le client » input and its
+> validation were **removed on 2026-06-22**: the platform commission is now entered by the operator and
+> the accounting recognises the revenue on the total stay, so there is no gross input left to validate
+> (`server/src/tests/reservations-controller-platform-normalisation.unit.test.js`, header comment — the
+> `GROSS_BELOW_NET` tests were deleted then). Neither `reservationsController.js` nor `devisController.js`
+> calls `validateClientGrossAmount` any more (both import only `validateFinanceInputs`), and the client
+> has no `clientGrossAmount` field. Rules 1–2 and §4 are therefore historical.
+>
+> **Dead code left behind (not removed in this docs-only pass):** `validateClientGrossAmount` and
+> `ERROR_GROSS_BELOW_NET` in `server/src/utils/financeValidation.js` are referenced only by their own
+> test, `server/src/tests/client-gross-amount.unit.test.js`, and by inert stubs in the mocks of a few
+> controller tests (`validateClientGrossAmount: () => null`). They can go in a later code clean-up. The
+> `reservations.clientGrossAmount` **column** is not dead: the accounting-export plugin still reads it as a
+> legacy fallback for rows saved before the change (`server/src/plugins/accounting-export/accountingModel.js`).
 
 ---
 

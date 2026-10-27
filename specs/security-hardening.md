@@ -9,6 +9,25 @@
 | **Related PR** | (link once opened) |
 | **Bloc** | Bloc S — Security hardening (PR 2 of 2). See `specs/ROADMAP.md`. |
 
+> **Updated 2026-10-27 (spec review — drift only, no behaviour change).** Four statements no longer
+> match the code; each carries an inline note:
+> - **HTTPS gating (rules 2–4).** HSTS, the CSP's `upgrade-insecure-requests` and the session cookie's
+>   `Secure` flag are driven by **`HTTPS_ENABLED`**, not by `NODE_ENV`. `NODE_ENV=production` enables the
+>   CSP; `HTTPS_ENABLED=true` (TLS really at the edge) adds HSTS + `upgrade-insecure-requests` + Secure
+>   cookies. The CSP is written with `useDefaults: false`, so helmet's default upgrade is never emitted
+>   implicitly (`server/src/utils/securityConfig.js` `buildHelmetOptions` / `buildSessionCookieOptions`,
+>   wired in `server/src/index.js`). The split came from the first Raspberry Pi deploy, where
+>   `NODE_ENV=production` without TLS broke every asset in Safari.
+> - **Build (rule 3, §4.2).** The client is built by **Vite** (`client/package.json` `"build": "vite build"`),
+>   not CRA: the entry is an external `<script type="module">` and there is no inlined runtime chunk, so
+>   `INLINE_RUNTIME_CHUNK` is gone and `script-src 'self'` holds without it. Fonts are self-hosted via
+>   `@fontsource` (`client/src/index.jsx`), not loaded from Google Fonts (the CSP still allows the Google
+>   Fonts origins).
+> - **Login limiter (rule 5).** Only **failed** logins count toward the 10 / 15 min
+>   (`skipSuccessfulRequests: true`, `server/src/middleware/rateLimiters.js` `loginLimiter`).
+> - **Edge case « 300/15min »** contradicted rule 6: the global cap is **3000** / 15 min
+>   (`apiLimiter`, `API_RATELIMIT_MAX` default 3000).
+
 ---
 
 ## 1. Context
@@ -42,7 +61,9 @@ uploads, and authoritative money validation at every write boundary.
 
 **Security headers (helmet + adapted CSP)**
 2. `helmet()` is enabled (`X-Content-Type-Options: nosniff`, `X-Frame-Options`, `Referrer-Policy`, etc.).
-   **HSTS and CSP are enforced in production only** (`NODE_ENV === 'production'`). Both assume HTTPS: HSTS
+   **HSTS and CSP are enforced in production only** (`NODE_ENV === 'production'`).
+   _(Updated 2026-10-27: CSP follows `NODE_ENV=production`; HSTS, `upgrade-insecure-requests` and Secure
+   cookies follow `HTTPS_ENABLED=true` — see the note at the top.)_ Both assume HTTPS: HSTS
    pins the host to `https`, and helmet's default CSP includes `upgrade-insecure-requests`. Over a
    plain-HTTP dev session they upgrade `http://localhost` asset requests to `https://localhost`, which
    fails with a TLS error (observed in Safari: the document loads but `main.<hash>.js` fails). Production
@@ -55,6 +76,8 @@ uploads, and authoritative money validation at every write boundary.
    default `upgrade-insecure-requests`. To keep `script-src 'self'` (no `unsafe-inline`), the client is
    built with `INLINE_RUNTIME_CHUNK=false` so CRA does not inline its runtime script. (The Inter web font
    is loaded from Google Fonts in `client/public/index.html`.)
+   _(Updated 2026-10-27: Vite build, no inline runtime, no flag needed; fonts self-hosted via `@fontsource`;
+   `upgrade-insecure-requests` only when `HTTPS_ENABLED` — see the note at the top.)_
 4. CSP must not break the running app — verified against a **production build served by Express** with
    `NODE_ENV=production`. In dev (`npm run dev`), CSP/HSTS are off, so opening the Express-served build at
    `:4000` over HTTP no longer triggers the TLS upgrade; the dev CRA server (`:3000`) is unaffected.
@@ -62,6 +85,7 @@ uploads, and authoritative money validation at every write boundary.
 **Rate limiting (`express-rate-limit`)**
 5. **Login**: max **10 attempts / 15 min / IP** on `POST /api/auth/login` → `429 TOO_MANY_ATTEMPTS`.
    Replaces the PR 1 in-memory throttle.
+   _(Updated 2026-10-27: only failed attempts count — `skipSuccessfulRequests: true`.)_
 6. **Global API**: max **3000 requests / 15 min / IP** across `/api` → `429`. The SPA fires many calls per
    navigation (lists, pricing recalculations on each form change, …), so a lower cap throttled legitimate
    active use; 3000 only catches abusive bursts. Both limits configurable via env (`LOGIN_RATELIMIT_MAX`,
@@ -95,7 +119,8 @@ uploads, and authoritative money validation at every write boundary.
     (review 2026-10-18, F7). The origin is exact (scheme + host, no wildcard).
 
 **Edge cases**
-- Legitimate burst (saving a reservation with many sub-requests) stays well under 300/15min.
+- Legitimate burst (saving a reservation with many sub-requests) stays well under 3000/15min.
+  _(Corrected 2026-10-27: read « 300/15min », contradicting rule 6.)_
 - iCal export polled frequently by an external service is not throttled out.
 - An upload with a spoofed extension but disallowed MIME (or vice-versa) is rejected.
 - CSP: an uploaded image renders (`img-src data:`/`'self'`); MUI styles render (`style-src 'unsafe-inline'`).
@@ -106,6 +131,7 @@ uploads, and authoritative money validation at every write boundary.
 
 > All enforcement is server-side middleware/validation. The only client change is a build flag
 > (`INLINE_RUNTIME_CHUNK=false`) to keep the CSP strict; no UI change.
+> _(Updated 2026-10-27: obsolete since the move to Vite — no client change is needed any more.)_
 
 ### 4.1 Server side (`server/src/`)
 
@@ -127,7 +153,7 @@ uploads, and authoritative money validation at every write boundary.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `package.json` | `client/package.json` | T | Build script sets `INLINE_RUNTIME_CHUNK=false` so the prod build keeps `script-src 'self'` (committed; `client/.env` is git-ignored and dev-only). |
+| `package.json` | `client/package.json` | T | ~~Build script sets `INLINE_RUNTIME_CHUNK=false` so the prod build keeps `script-src 'self'`~~ — _obsolete (noted 2026-10-27): the build is `vite build`, which inlines no runtime script._ |
 
 No component changes.
 
@@ -167,7 +193,7 @@ No new screens. Existing flows must keep working under the new CSP and limits:
 ### Manual verification
 - [ ] **Production build** (`cd client && npm run build`, run server with the build): app loads, no CSP
       violations in the console; images, MUI styles, navigation, login all work.
-- [ ] Rapidly hit `/api/auth/login` >10× → `429`; normal usage never hits the global 300 limit.
+- [ ] Rapidly hit `/api/auth/login` >10× with a wrong password → `429`; normal usage never hits the global 3000 limit. _(Corrected 2026-10-27: failed attempts only; global cap 3000.)_
 - [ ] Upload a `.pdf`/`.png` document → OK; upload a `.exe`/oversized file → rejected `400`.
 - [ ] Upload company logo (png) → OK; spoofed extension → rejected.
 - [ ] Create/edit a reservation with a negative amount or >100% discount via API → `400`.
