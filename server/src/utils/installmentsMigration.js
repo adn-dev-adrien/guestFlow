@@ -96,6 +96,10 @@ function migrateInstallmentsSchema(db) {
     if (tableSql(db, 'payment_links')) {
       db.exec('CREATE INDEX IF NOT EXISTS idx_payment_links_installment ON payment_links(installmentId)');
     }
+    // specs/direct-installments.md rule 47 — the accounting split frozen when the installment is collected.
+    if (tableSql(db, 'reservation_installments') && !columnsOf(db, 'reservation_installments').includes('paidSplit')) {
+      db.exec('ALTER TABLE reservation_installments ADD COLUMN paidSplit TEXT');
+    }
     if (tableSql(db, 'reservations')) {
       const reservationColumns = columnsOf(db, 'reservations');
       for (const column of ['installmentsPaidAmount', 'installmentsUnpaidAmount', 'installmentsTarget']) {

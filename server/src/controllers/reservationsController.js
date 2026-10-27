@@ -122,9 +122,25 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     midStayNotes: parseMidStayNotes(row && row.midStaySettledNotes),
     cautionAmount,
     installmentPlan: id ? installments.planFor(id) : null,
+    storedAccommodationPreArrival: quote ? null : storedAccommodationPreArrivalOf(row),
     canRequest: Boolean(paymentProviders.summary()),
     today: getTodayIsoDate(),
   });
+}
+
+// specs/reservation-payment-ledger.md rule 16 — the accommodation of the stored pre-arrival schedule:
+// acompte + solde minus the tourist tax they carry (none when it is collected on arrival). The ceiling
+// of the acompte the stored ledger names, the one the save refuses beyond.
+function storedAccommodationPreArrivalOf(row) {
+  if (!row || !row.id) return null;
+  let taxOnArrival = Number(row.touristTaxInComplement || 0) === 1;
+  try {
+    const { TAX_ON_ARRIVAL_SQL } = require('../utils/touristTaxFreeze');
+    const hit = db.prepare(`SELECT ${TAX_ON_ARRIVAL_SQL} AS onArrival FROM reservations r WHERE r.id = ?`).get(Number(row.id));
+    if (hit) taxOnArrival = Boolean(hit.onArrival);
+  } catch { /* the stored flag decides */ }
+  const preArrival = Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
+  return round2(Math.max(0, preArrival - (taxOnArrival ? 0 : Number(row.touristTaxTotal || 0))));
 }
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the

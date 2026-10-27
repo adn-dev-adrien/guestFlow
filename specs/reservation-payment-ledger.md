@@ -471,6 +471,20 @@ decimals is rounded and shown rounded.
   date) are displayed as they are, with a `warning` detail (« Restituée sans réception
   enregistrée »); the guards apply to new writes only.
 
+**Fixed at the 2026-10-27 spec review**
+
+48. **« Total perçu » of a plan counts the stay, not a plan left above it.** After a price drop the plan
+    keeps its amounts (direct-installments rule 8) and the ledger shows the gap. The headline's net counts
+    the plan for every installment once all are paid, otherwise for the stay's pre-arrival amount — or for
+    what was already collected, when that is more. The live quote (`pricing.js` `planCarries`) and the
+    stored row (`quoteHeadline.storedNetTotal`, from `installmentsTarget` and the paid / unpaid aggregates)
+    compute the same figure (rules 39, 44, 45). *Why:* a 515 € plan on a stay dropped to 415 € with 172 €
+    collected read « Total du séjour 415 · Total perçu 515 » stored and « 415 » live.
+49. **The stored ledger names the acompte ceiling too.** Without a live quote (`GET /api/reservations/:id`),
+    the acompte row's `amountEdit.max` is the accommodation of the stored pre-arrival schedule — acompte +
+    solde minus the tourist tax they carry (none when it is collected on arrival) — the ceiling the save
+    refuses beyond (rule 16). It read `null`.
+
 ---
 
 ## 4. Architecture
@@ -623,6 +637,8 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
 ## 7. Test plan
 
 ### Server unit tests (76)
+- [x] `tests/installment-headline-after-price-drop.unit.test.js` (3, spec review 2026-10-27) — rule 48: live and stored headlines agree on the stay after a drop, money above the stay stays counted, a plan without drop unchanged
+- [x] `tests/ledger-stored-deposit-ceiling.unit.test.js` (1, spec review 2026-10-27) — rule 49: the stored acompte row carries `max` 500 on a 515 € stay
 - [x] `reservation-ledger.unit.test.js` (15) — rules 1-7, 12, 24, 27-28: direct with acompte, without
   acompte, last-minute, platform without and with acompte, single arrival payment, refunds, caution
   states, cancelled stay, devis, stored rows breaking the guards; `remaining` equals `remainingToPay`.

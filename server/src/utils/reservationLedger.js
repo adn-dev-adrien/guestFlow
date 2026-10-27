@@ -124,6 +124,7 @@ function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
 function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
+  storedAccommodationPreArrival = null,
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -174,7 +175,11 @@ function buildLedger({
   const depositDueDate = fromQuote('depositDueDate');
   const balanceDueDate = fromQuote('balanceDueDate');
   const preArrival = quote && quote.preArrivalAmount != null ? round2(quote.preArrivalAmount) : round2(depositAmount + balanceAmount);
-  const accommodation = quote && quote.accommodationPreArrival != null ? round2(quote.accommodationPreArrival) : null;
+  // Rule 16 — the stored ledger names the same ceiling the server enforces (fixed at the 2026-10-27 spec
+  // review: `max` read null without a quote).
+  const accommodation = quote && quote.accommodationPreArrival != null
+    ? round2(quote.accommodationPreArrival)
+    : (!quote && storedAccommodationPreArrival != null ? round2(storedAccommodationPreArrival) : null);
   const touristTaxOnSolde = accommodation == null ? null : round2(preArrival - accommodation);
   const platformTakesDeposit = quote && quote.platformTakesDeposit != null ? Boolean(quote.platformTakesDeposit) : depositAmount > 0;
   const overrideRaw = has('depositAmountOverride') ? live.depositAmountOverride : r.depositAmountOverride;

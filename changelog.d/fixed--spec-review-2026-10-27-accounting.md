@@ -1,0 +1,9 @@
+- **Accounting: money already collected never moves.** A tourist tax that rises after the solde was paid no longer rewrites the solde entry already exported; the arrival complement that collects the difference books it on 46710000 in its own month (it appeared in no journal before, so Finance « Encaissé » and the journal disagreed). A collected installment now books the split stored when it was paid, so a later save of the fiche no longer moves an installment entry of a past month (specs/accounting-books-the-money-collected.md rules 13-14, specs/direct-installments.md rule 47).
+- **Finance « En retard » lists late installments** — tile, insight and detail — like the fiche and the payment deadlines; « Marquer payé » records each through its own endpoint (specs/direct-installments.md rule 48, specs/finance-dashboard-redesign.md rule 49).
+- **Installment plan after a price drop:** the fiche's « Total perçu » counts the stay (or what was already collected, when more), the same figure live and stored, instead of the plan left above the stay (specs/reservation-payment-ledger.md rule 48).
+- The stored ledger's acompte row names its ceiling (`amountEdit.max`, the accommodation) like the live one (rule 49).
+- Cancelling a stay with nothing paid records `unpaid_deposit`, not `unpaid_balance` (specs/payment-schedule-and-cancellation.md rule 47).
+- The cancellation insurance can no longer be deleted (`409`, it was archived), and a percentage with more than 2 decimals is refused (`422`) (specs/cancellation-insurance.md rule 28).
+- A `PUT` on a received cancellation compensation answers `409 COMPENSATION_LOCKED` whatever its body (specs/cancellation-compensation.md rule 29).
+- A payment link is never minted for an échéance already paid: `409 ALREADY_PAID` before any provider call (specs/online-payments-qonto.md rule 21).
+- plugin:accounting-export 1.0.14 — tax rise booked with the complement; installment entries frozen at payment.

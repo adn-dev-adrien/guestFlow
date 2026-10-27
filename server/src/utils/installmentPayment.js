@@ -10,6 +10,7 @@ const { buildModel } = require('../models/installmentsModel');
 const { buildModel: buildLinksModel } = require('../models/paymentLinksModel');
 const { rebalanceStored } = require('./installmentSync');
 const { todayIso } = require('./localDate');
+const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
 
 /**
  * @param {{ db: object, emit?: Function }} deps
@@ -30,6 +31,8 @@ function recordInstallmentPayment({ db, emit }, { installmentId, paidDate, metho
     if (differs) model.updateRow(installmentId, { amountCents: Number(amountCents), amountEdited: 1 });
     flipped = model.markPaid(installmentId, { paidDate: paidDate || todayIso(), method }).flipped;
     if (flipped && differs) rebalanceStored(db, row.reservationId);
+    // Rule 47 — the books read this split, never a live one: a later save cannot move the entry.
+    if (flipped) model.setPaidSplit(installmentId, computeInstallmentPaidSplit(db, installmentId));
   })();
   if (flipped) {
     buildLinksModel(db).retireSettled();

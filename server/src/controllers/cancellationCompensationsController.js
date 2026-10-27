@@ -73,6 +73,10 @@ function createController(model = defaultModel, { today = getTodayIsoDate } = {}
     update(req, res) {
       const id = parseId(req);
       if (!id) return res.status(400).json({ error: 'INVALID_ID' });
+      // Rule 6 — a received compensation is locked whatever the body: the lock answers before the
+      // payload is judged (a PUT without platform used to read 400 PLATFORM_REQUIRED).
+      const current = model.getById(id);
+      if (current && current.status === 'received') return fail(res, { error: 'COMPENSATION_LOCKED', status: 409 });
       const parsed = validateDraft(req.body);
       if (!parsed.ok) return fail(res, parsed);
       const result = model.update(id, parsed.value);

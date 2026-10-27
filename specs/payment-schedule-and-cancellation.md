@@ -362,6 +362,10 @@ acompte is kept as an indemnity, and the books say so correctly.
 - Cancelling a stay whose acompte was paid **in the current month** → the avoir + indemnity land in the
   same month as the encaissement; the three entries coexist and net to the correct result.
 
+47. **Nothing collected reads `unpaid_deposit`** (fixed at the 2026-10-27 spec review). When the acompte
+    is due and unpaid, the derived `cancellationReason` is `unpaid_deposit` even though the solde is unpaid
+    too — the first money missing names the cancellation, as rule 27 says. It read `unpaid_balance`.
+
 ---
 
 ## 4. Architecture
@@ -542,6 +546,7 @@ One line per reservation:
 ## 7. Test plan
 
 ### Server unit tests — **53 new, suite at 3157 green**
+- [x] `tests/reservation-cancellation.unit.test.js` — rule 47: the « acompte never collected » case now expects `unpaid_deposit` (spec review 2026-10-27)
 - [x] `tests/payment-schedule.unit.test.js` (9) — deposit due = booking + N and frozen across
       recomputes; devis → `validUntil`; balance = `max(start − 30, booking)`; late booking clamps to
       the booking day; nothing-to-collect → NULL; `cancelOn = balance + 7`; an absent setting falls

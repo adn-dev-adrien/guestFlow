@@ -78,8 +78,13 @@ async function ensurePaymentLink(deps, id, type) {
 
   // touristTaxTotal is carried so the full-payment amount resolver has the tax even on the fallback row
   // (specs/public-online-payment.md — avoids a silent tax-free undercharge if the devis lookup misses).
-  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal FROM reservations WHERE id = ?').get(id);
+  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal, depositPaid, balancePaid FROM reservations WHERE id = ?').get(id);
   if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
+  // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
+  // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
+  const paidBucket = { deposit: ['depositPaid'], balance: ['balancePaid'], full: ['depositPaid', 'balancePaid'] }[type]
+    .some((flag) => Number(r[flag] || 0) === 1);
+  if (paidBucket) throw { httpStatus: 409, error: 'ALREADY_PAID', message: 'Cette échéance est déjà perçue : aucun lien à créer.' };
   const amountCents = resolveAmountCents(id, type, r);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type : devis ou réservation à vérifier.' };
 

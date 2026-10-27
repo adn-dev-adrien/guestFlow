@@ -127,10 +127,20 @@ export default function FinancePage() {
     await markPayment(r.id, payload);
   };
   // Rule 38 — « Marquer payé » on a late row ticks exactly the elements its chips list.
+  // A late installment has no payment flag: it is recorded through its own endpoint.
   const handleSettleOverdue = async (r) => {
-    const payload = Object.fromEntries((r.overdueItems || []).map((item) => [item.paidField, true]));
-    if (Object.keys(payload).length === 0) return;
-    await markPayment(r.id, payload);
+    const items = r.overdueItems || [];
+    const payload = Object.fromEntries(items.filter((item) => item.paidField).map((item) => [item.paidField, true]));
+    const installmentIds = items.filter((item) => item.installmentId != null).map((item) => item.installmentId);
+    if (Object.keys(payload).length === 0 && installmentIds.length === 0) return;
+    setPaymentError(null);
+    try {
+      if (Object.keys(payload).length > 0) await api.markPayment(r.id, payload);
+      for (const installmentId of installmentIds) await api.markInstallmentPaid(r.id, installmentId, {});
+    } catch (e) {
+      setPaymentError(e.message || 'Le paiement n\'a pas pu être enregistré.');
+    }
+    await refreshAll();
   };
 
   const d = dashboard;

@@ -16,9 +16,13 @@
  *   applyAmounts(reservationId, amounts, { clearPins, added }) → amounts: Map number → cents
  *   markPaid(id, { paidDate, method })            → flips unpaid→paid (idempotent), returns { flipped, row }
  *   markRequested(id, at)
+ *   paidSplitOf(id)                               → that frozen split (parsed), or null — none stored / older schema
+ *   setPaidSplit(id, split)                       → freezes the accounting split of a collected installment (rule 47)
  *   setTarget(reservationId, targetCents)
  *   listLate({ cutoff })                          → unpaid installments due on or before `cutoff`, with the stay and its guest
  */
+
+const { parsePaidSplit } = require('../utils/installmentPaidSplit');
 
 function buildModel(database) {
   const COLS = 'id, reservationId, number, dueDate, amountCents, paid, paidDate, paidMethod, requestedAt, dateEdited, amountEdited, addedCents';
@@ -107,6 +111,19 @@ function buildModel(database) {
     return { flipped: Number(info.changes) > 0, row: findById(id) };
   }
 
+  function paidSplitOf(id) {
+    try {
+      const row = database.prepare('SELECT paidSplit FROM reservation_installments WHERE id = ?').get(Number(id));
+      return parsePaidSplit(row && row.paidSplit);
+    } catch {
+      return null;
+    }
+  }
+
+  function setPaidSplit(id, split) {
+    database.prepare('UPDATE reservation_installments SET paidSplit = ? WHERE id = ?').run(split ? JSON.stringify(split) : null, Number(id));
+  }
+
   function markRequested(id, at) {
     database.prepare('UPDATE reservation_installments SET requestedAt = ? WHERE id = ?').run(at, Number(id));
   }
@@ -120,6 +137,7 @@ function buildModel(database) {
   function listLate({ cutoff, today }) {
     return database.prepare(`
       SELECT i.id, i.reservationId, i.number, i.dueDate, i.amountCents,
+             (SELECT COUNT(*) FROM reservation_installments a WHERE a.reservationId = i.reservationId) AS count,
              r.reservationNumber, r.startDate, r.endDate, r.paymentAlertSnoozedUntil,
              c.firstName, c.lastName, c.email, p.name AS propertyName
         FROM reservation_installments i
@@ -132,7 +150,7 @@ function buildModel(database) {
   }
 
   return {
-    listFor, findById, replacePlan, deletePlan, updateRow, applyAmounts, markPaid, markRequested, setTarget, listLate,
+    listFor, findById, replacePlan, deletePlan, updateRow, applyAmounts, markPaid, markRequested, paidSplitOf, setPaidSplit, setTarget, listLate,
   };
 }
 
