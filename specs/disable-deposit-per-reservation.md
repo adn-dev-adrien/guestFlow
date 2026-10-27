@@ -65,6 +65,11 @@ For each reservation, Adrien can flip a single switch in the reservation page to
    - The whole Acompte block (montant + date d'échéance + bouton "Marquer payé" + date paiement) collapses to a single line in `text.secondary` : *"Acompte désactivé — ajouté au solde"*, with the Switch still visible to flip back.
    - The Solde block displays its amount as usual; that amount is now the full pre-arrival total because the pricing engine has already done the consolidation.
 9. **Access**: same as any other reservation edit — admin and accountant cannot edit reservations today (accountant is read-only on reservations); admin handles this exclusively. No role-specific UI gating needed.
+10. **Fixed at the 2026-10-27 spec review — a 0 € acompte has no deadline.** Rule 2 said
+    `depositDueDate = NULL`, but the model fell back to the date the fiche posted back
+    (`quote.depositDueDate || depositDueDate`), so switching the acompte off (here or with the property
+    switch) kept the old deadline. Insert and update now store NULL whenever the acompte is 0, and the
+    history shows the deadline going.
 
 **Edge cases:**
 
@@ -197,6 +202,7 @@ No empty / loading / error states unique to this section — handled by the pare
 - [ ] Mobile (`xs`) : titre "Acompte" + Switch tiennent sur une ligne, ou label/Switch stack vertical proprement.
 
 ---
+- Spec review 2026-10-27 (rule 10): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — deadline cleared on save and at creation.
 
 ## 8. Out of scope
 

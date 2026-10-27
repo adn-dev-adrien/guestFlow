@@ -67,6 +67,12 @@ routes, mêmes codes de statut, mêmes charges utiles, mêmes sessions.
 - Le corps d'une requête sans `Content-Type` n'est plus deviné de la même façon ; les endpoints
   publics (webhook Qonto, API publique) doivent être re-testés avec leurs vrais en-têtes.
 - `express.urlencoded({ extended })` n'a plus la même valeur par défaut — à expliciter si utilisé.
+7. **Corrigé à la revue du 2026-10-27 — un corps JSON illisible est une erreur du client.** Le
+   middleware global répondait « Erreur interne du serveur » et journalisait un crash `[unhandled]`
+   pour un corps que `express.json()` refuse. `utils/bodyParserRefusal.js` traduit les erreurs du parseur :
+   corps mal formé → 400 `INVALID_JSON` « Requête invalide : le corps JSON est mal formé. », corps trop
+   gros → 413 `PAYLOAD_TOO_LARGE`, encodage / jeu de caractères → 415 ; rien n'est journalisé comme crash.
+   Toute autre erreur reste un 500 opaque.
 
 ---
 
@@ -132,6 +138,7 @@ Aucun changement visible. Le client ne sait pas quelle version d'express le sert
 - [x] `/api/inconnue` sans session → **401 JSON**, et non 404 : `requireAuth` est monté sur `/api`
       (ligne 144) **avant** le 404 (ligne 223). Comportement voulu, identique en v4 — c'était
       l'attente du contrôle qui était fausse, pas le serveur.
+- Revue du 2026-10-27 (règle 7) : `server/src/tests/malformed-json-body.unit.test.js` (4 tests — 400 INVALID_JSON sans journal de crash, 413, autres erreurs inchangées, montage dans `index.js`).
 
 ## 8. Out of scope
 

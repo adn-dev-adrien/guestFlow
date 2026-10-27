@@ -63,6 +63,10 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    and their UX helper `utils/reservationConflicts.js` are untouched here (see Out of scope).
 8. **Tests.** The extracted occupancy + audit utils and the model get unit tests; the existing suite
    stays green.
+9. **Fixed at the 2026-10-27 spec review — default times on create.** A `POST /reservations` without
+   `checkInTime` / `checkOutTime` stored 15:00 / 10:00, not the property's `defaultCheckIn` /
+   `defaultCheckOut`; on a 16:00 tent the first re-save then billed an « Arrivée anticipée ». The
+   controller fills the missing times from the property before pricing (`getPropertyDefaultTimes`).
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -137,6 +141,7 @@ prove behavior is preserved.)
 - [ ] Min-nights breach → same rejection.
 - [ ] `PATCH payment` → flags/amounts update; `DELETE` → removed; archived-reservation error unchanged.
 - [ ] `GET /occupied-dates` and `GET /:id/history` return the same shapes as before.
+- Spec review 2026-10-27 (rule 9): `server/src/tests/create-without-times-and-linen.unit.test.js` — default times stored, no early-arrival fee on the re-save.
 
 ## 8. Out of scope
 

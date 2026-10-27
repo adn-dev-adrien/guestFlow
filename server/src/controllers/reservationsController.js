@@ -10,7 +10,7 @@ const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
 const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
-const { validateFinanceInputs } = require('../utils/financeValidation');
+const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
@@ -838,6 +838,43 @@ function isDevisPricingExpired(devisId) {
   return isDevisExpired(row.validUntil, getTodayIsoDate());
 }
 
+// specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's call,
+// not the client's: it depends on whether the instalment carrying the tax has been collected, which
+// the fiche cannot know better than the database. The client only ever asks for the opposite, through
+// « Recalculer la taxe de séjour » (`refreshTouristTax`). No reservation → nothing stored to pin, so a
+// fresh fiche always prices live. Shared by the preview and the save (rule 17): a save that ignored it
+// re-priced a tax the guest had already paid.
+function frozenTouristTaxInputs(reservationId, refreshTouristTax) {
+  let frozen = null;
+  if (Number(reservationId) > 0 && !refreshTouristTax) {
+    const stored = db.prepare(`
+      SELECT id, touristTaxTotal, touristTaxRate, touristTaxInComplement, touristTaxDeclaredAt,
+             touristTaxFrozenAt, touristTaxFrozenBaseHt, touristTaxFrozenOccupants,
+             balancePaid, complementPaid
+      FROM reservations WHERE id = ?
+    `).get(Number(reservationId));
+    if (stored && isTouristTaxFrozen(db, stored)) frozen = stored;
+  }
+  return {
+    freezeTouristTax: Boolean(frozen),
+    frozenTouristTaxTotal: frozen ? frozen.touristTaxTotal : 0,
+    frozenTouristTaxRate: frozen ? frozen.touristTaxRate : 0,
+    frozenTouristTaxBaseHt: frozen ? frozen.touristTaxFrozenBaseHt : null,
+    frozenTouristTaxOccupants: frozen ? frozen.touristTaxFrozenOccupants : null,
+    frozenTouristTaxAt: frozen ? frozen.touristTaxFrozenAt : null,
+  };
+}
+
+// Does the payload keep the stay the tax was computed on — logement, dates and party?
+function sameStayAsSold(stored, body) {
+  if (!stored) return false;
+  const num = (v) => Number(v || 0);
+  return num(stored.propertyId) === num(body.propertyId)
+    && String(stored.startDate) === String(body.startDate) && String(stored.endDate) === String(body.endDate)
+    && num(stored.adults) === num(body.adults) && num(stored.children) === num(body.children)
+    && num(stored.teens) === num(body.teens) && num(stored.babies) === num(body.babies);
+}
+
 async function calculatePrice(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
@@ -850,7 +887,7 @@ async function calculatePrice(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
-  if (financeError) return res.status(400).json({ error: financeError });
+  if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
   const propertyId = Number(req.body.propertyId);
   if (typeof db.ensureDefaultTimedOptionsForProperty === 'function' && Number.isFinite(propertyId) && propertyId > 0) {
@@ -882,17 +919,6 @@ async function calculatePrice(req, res) {
   // which the fiche cannot know better than the database. The client only ever asks for the opposite,
   // through « Recalculer la taxe de séjour » (`refreshTouristTax`). No reservationId → nothing stored
   // to pin, so a fresh fiche always prices live.
-  let frozenTouristTax = null;
-  if (reservationId > 0 && !req.body.refreshTouristTax) {
-    const stored = db.prepare(`
-      SELECT id, touristTaxTotal, touristTaxRate, touristTaxInComplement, touristTaxDeclaredAt,
-             touristTaxFrozenAt, touristTaxFrozenBaseHt, touristTaxFrozenOccupants,
-             balancePaid, complementPaid
-      FROM reservations WHERE id = ?
-    `).get(reservationId);
-    if (stored && isTouristTaxFrozen(db, stored)) frozenTouristTax = stored;
-  }
-
   const engineInput = {
     db,
     propertyId,
@@ -942,12 +968,7 @@ async function calculatePrice(req, res) {
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
     autoOptionsInComplement: req.body.autoOptionsInComplement,
-    freezeTouristTax: Boolean(frozenTouristTax),
-    frozenTouristTaxTotal: frozenTouristTax ? frozenTouristTax.touristTaxTotal : 0,
-    frozenTouristTaxRate: frozenTouristTax ? frozenTouristTax.touristTaxRate : 0,
-    frozenTouristTaxBaseHt: frozenTouristTax ? frozenTouristTax.touristTaxFrozenBaseHt : null,
-    frozenTouristTaxOccupants: frozenTouristTax ? frozenTouristTax.touristTaxFrozenOccupants : null,
-    frozenTouristTaxAt: frozenTouristTax ? frozenTouristTax.touristTaxFrozenAt : null,
+    ...frozenTouristTaxInputs(reservationId, req.body.refreshTouristTax),
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(reservationId),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
@@ -1080,7 +1101,7 @@ function createStay(req, res) {
     platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
-  if (financeError) return res.status(400).json({ error: financeError });
+  if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
   // Reservation number override collision guard (specs/reservation-number-and-search.md §3 rule 4).
   const numberError = reservationNumberOverrideError(req.body.reservationNumber, null);
@@ -1088,6 +1109,16 @@ function createStay(req, res) {
 
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
   req.body.platform = normalisePlatform(req.body.platform);
+
+  // specs/reservations-backend-mvc.md rule 9 — a stay posted without times takes the PROPERTY's
+  // defaults, never the model's 15:00 / 10:00 fallback: the engine prices an early arrival or a late
+  // departure against those defaults, so a 16:00 property stored at 15:00 billed an « Arrivée
+  // anticipée » on its first re-save.
+  if (req.body.propertyId && (!req.body.checkInTime || !req.body.checkOutTime)) {
+    const defaultTimes = model.getPropertyDefaultTimes(req.body.propertyId) || {};
+    if (!req.body.checkInTime) req.body.checkInTime = defaultTimes.checkInTime;
+    if (!req.body.checkOutTime) req.body.checkOutTime = defaultTimes.checkOutTime;
+  }
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -1115,20 +1146,11 @@ function createStay(req, res) {
   const askedInsurance = (rawReservationOptions || []).some((o) => Number(o.optionId) === insuranceOffer.insuranceOptionId(db));
   const reservationOptions = askedInsurance ? optionsWithDefaults : insuranceOffer.dropInsurance(db, optionsWithDefaults);
 
-  // specs/bed-config-in-linen-card.md §3 rule 7 — single/double bed counts are only meaningful
-  // when the saved reservation carries at least one `countsAsBedLinen = 1` option, so we zero them
-  // when no bed-linen option applies. BABY BEDS are exempt (§10 follow-up 2026-06-08): a baby bed is
-  // an independent physical resource needed whenever there are babies, regardless of the bed-linen
-  // option — the laundry aggregation already gates baby-bed linen on the option separately. We coerce
-  // BEFORE `checkCapacity` so a misbehaving client can't trip the "exceeds capacity" error on values
-  // that won't be persisted. Mutating `req.body` is intentional: the model reads from it.
-  const bedLinenIncluded = hasBedLinenOption(reservationOptions);
-  const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
-  const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
-  const effectiveBabyBeds   = babyBeds;
-  req.body.singleBeds = effectiveSingleBeds;
-  req.body.doubleBeds = effectiveDoubleBeds;
-  req.body.babyBeds   = effectiveBabyBeds;
+  // BABY BEDS are exempt from the bed-linen invariant below (specs/bed-config-in-linen-card.md §10
+  // follow-up 2026-06-08): a baby bed is an independent physical resource needed whenever there are
+  // babies, and the engine prices it, so it is settled before the quote.
+  const effectiveBabyBeds = babyBeds;
+  req.body.babyBeds = effectiveBabyBeds;
 
   // Forward the offered flag of every property default into `offeredOptionIds` (rule 11 in §3.3).
   const propertyDefaultsOffered = propertyId
@@ -1213,6 +1235,18 @@ function createStay(req, res) {
   if (quote.changeoverBreached && !forceChangeover) {
     return res.status(409).json(changeoverErrorPayload(quote));
   }
+
+  // specs/bed-config-in-linen-card.md §3 rules 7 and 12 — single/double bed counts are only meaningful
+  // when the saved reservation carries at least one `countsAsBedLinen = 1` option, so they are zeroed
+  // otherwise. Read on the lines the engine kept (what is persisted), not on the payload: an option
+  // not offered on this property is dropped by the engine, and the beds must go with it. Coerced
+  // BEFORE `checkCapacity` so values that won't be persisted cannot trip the capacity error.
+  // Mutating `req.body` is intentional: the model reads from it.
+  const bedLinenIncluded = hasBedLinenOption(quote.optionLines);
+  const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
+  const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
+  req.body.singleBeds = effectiveSingleBeds;
+  req.body.doubleBeds = effectiveDoubleBeds;
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
   // The model rejects `startDate < today` by default. An admin who unlocked the fiche lifts that
@@ -1499,7 +1533,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
-  if (financeError) return res.status(400).json({ error: financeError });
+  if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
   req.body.platform = normalisePlatform(req.body.platform);
@@ -1516,8 +1550,11 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // specs/reservation-payment-ledger.md rule 13 — the save never writes a payment state: the four
   // caution columns are re-read from the database like the paid flags (single-payment-from-the-fiche
   // rule 11bis). The payment PATCH, with its guards, is the only way to change them.
+  // The caution AMOUNT too (specs/caution-live-from-property.md rule 9): the fiche displays the live
+  // property amount, so echoing it back rewrote the stored one — a phantom « Caution 0 € → 500 € » in
+  // the history, and a 400 on every started stay once the property's default had moved.
   const storedCaution = model.getRow(id) || {};
-  for (const col of ['cautionReceived', 'cautionReceivedDate', 'cautionReturned', 'cautionReturnedDate']) {
+  for (const col of ['cautionAmount', 'cautionReceived', 'cautionReceivedDate', 'cautionReturned', 'cautionReturnedDate']) {
     req.body[col] = storedCaution[col] ?? null;
   }
 
@@ -1566,17 +1603,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // persists the submitted list.
   req.body.options = reservationOptions;
 
-  // specs/bed-config-in-linen-card.md §3 rule 7 — invariant on save: zero single/double bed
-  // counts when the submitted option set carries no bed-linen option (no linen contract).
-  // BABY BEDS are exempt (§10 follow-up 2026-06-08): kept regardless — they track an
-  // independent resource.
-  const bedLinenIncluded = hasBedLinenOption(reservationOptions);
-  const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
-  const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
-  const effectiveBabyBeds   = babyBeds;
-  req.body.singleBeds = effectiveSingleBeds;
-  req.body.doubleBeds = effectiveDoubleBeds;
-  req.body.babyBeds   = effectiveBabyBeds;
+  // BABY BEDS are exempt from the bed-linen invariant (specs/bed-config-in-linen-card.md §10 follow-up
+  // 2026-06-08): kept regardless — they track an independent resource, priced by the engine.
+  const effectiveBabyBeds = babyBeds;
+  req.body.babyBeds = effectiveBabyBeds;
 
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
   // `pastReservationLocked` gates the 14-field allowlist below. An admin drops it for this request
@@ -1674,6 +1704,11 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
     // at `endDate + N` instead of the guest-facing J-30.
     platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
+    // specs/tourist-tax-matches-the-office-calculation.md rule 17 — a save that leaves the stay as it
+    // was sold (logement, dates, party) pins a collected tax like the preview does: a rate moved since
+    // never rewrites what the guest paid. A save that changes the stay re-prices it, so the difference
+    // surfaces as a trop-perçu or an amount owed (specs/reservation-refunds.md rules 34-36).
+    ...frozenTouristTaxInputs(id, req.body.refreshTouristTax || !sameStayAsSold(existingReservation, req.body)),
     ...midStayQuoteInputs(id),
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(id),
@@ -1700,6 +1735,15 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const ledgerRefusal = ledgerAmountRefusal({ body: req.body, stored: storedPaymentForQuote, quote, engineInput });
   if (ledgerRefusal) return res.status(400).json({ error: ledgerRefusal, code: 'LEDGER_AMOUNT_REFUSED' });
 
+  // specs/bed-config-in-linen-card.md §3 rules 7 and 12 — invariant on save: zero single/double bed
+  // counts when the lines the engine kept carry no bed-linen option (no linen contract). Read on the
+  // persisted lines, not the payload, so an option the engine drops takes the beds with it.
+  const bedLinenIncluded = hasBedLinenOption(quote.optionLines);
+  const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
+  const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
+  req.body.singleBeds = effectiveSingleBeds;
+  req.body.doubleBeds = effectiveDoubleBeds;
+
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
   if (midStayWindow) {
     const violations = arrivalExtrasViolations(
@@ -1713,6 +1757,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
       'extraGuestSurchargeOffered', 'platformPaidGuests', 'depositAmount', 'balanceAmount', 'depositPaid', 'balancePaid',
+      // The acompte typed in the ledger moves `depositAmount`, which is allowed; the override that
+      // carries it is audited since the 2026-10-27 review (reservation-history-granular-diff rule 13).
+      'depositAmountOverride',
       // The caution columns left this list with specs/reservation-payment-ledger.md rule 13: the save
       // carries the stored values back, only the payment PATCH changes them.
       // `depositDisabled` is allowed on past reservations too — an admin may realise after
@@ -1774,18 +1821,23 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     const prev = existingReservation || {};
     const sameNum = (a, b) => Number(a || 0) === Number(b || 0);
     const sameStr = (a, b) => String(a == null ? '' : a) === String(b == null ? '' : b);
-    // Compare on the fields that genuinely define "did the reservation move / who occupies it" AND that
-    // are always stored as real values — property + dates, and the guest counts. We deliberately do NOT
-    // compare check-in/out TIMES or bed counts here: iCal imports store those as NULL and the fiche fills
-    // them from the property defaults on load, so a naive equality would see a phantom "change" on every
-    // edit of an imported reservation — exactly the case we must unblock (specs/edit-reservation-blocked-by-overlap.md).
+    // Rule 5 — the check-in/out TIMES and the baby-bed count are part of the comparison, on their
+    // EFFECTIVE value: older iCal imports stored NULL times (and NULL bed counts) and the fiche fills
+    // them from the property defaults on load, so a NULL time compares as the property's default and a
+    // NULL baby-bed count as « not set ». A phantom change on every edit of an imported reservation is
+    // what the comparison must not see; a departure moved to 18:00 is what it must.
+    const defaultTimes = model.getPropertyDefaultTimes(propertyId) || {};
+    const sameTime = (stored, posted, fallback) => sameStr(stored || fallback, posted || fallback);
     const placementUnchanged = existingReservation
       && sameNum(prev.propertyId, propertyId)
-      && sameStr(prev.startDate, startDate) && sameStr(prev.endDate, endDate);
+      && sameStr(prev.startDate, startDate) && sameStr(prev.endDate, endDate)
+      && sameTime(prev.checkInTime, checkInTime, defaultTimes.checkInTime)
+      && sameTime(prev.checkOutTime, checkOutTime, defaultTimes.checkOutTime);
     const occupancyUnchanged = existingReservation
       && sameNum(prev.propertyId, propertyId)
       && sameNum(prev.adults, adults) && sameNum(prev.children, children)
-      && sameNum(prev.teens, teens) && sameNum(prev.babies, babies);
+      && sameNum(prev.teens, teens) && sameNum(prev.babies, babies)
+      && (prev.babyBeds == null || sameNum(prev.babyBeds, effectiveBabyBeds));
 
     // Same logic as the `create` flow: lift the model-level "no past startDate" guard when the
     // admin unlocked the fiche, so a past startDate can be kept while editing unrelated fields.
@@ -1854,6 +1906,12 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels);
     }
     if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
+    // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:
+    // a night added, or a stay repriced because its arrival moved (rule 57), is stored with the season
+    // it was priced under, so the next save replays exactly what this one stored.
+    if (!pastReservationLocked) {
+      model.refreshTariffSnapshot(id, quote.tariffSnapshot, { replayed: Boolean(lockedPricing.lockedTariff) });
+    }
 
     if (writesExtras && reservationResources) {
       model.deleteResources(id);
@@ -2049,7 +2107,7 @@ function updatePayment(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
   });
-  if (financeError) return res.status(400).json({ error: financeError });
+  if (financeError) return res.status(400).json(financeErrorBody(financeError));
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
   const cancelledPayment = cancelledGuard(Number(req.params.id));

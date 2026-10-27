@@ -56,6 +56,11 @@ the automatic calculation.
    **not** clear the override — per the operator's decision the deposit stays frozen; only the solde
    reflects the refreshed total. (To return to auto, clear the field.)
 8. The override survives reload: it is persisted on the reservation and rehydrated into the form.
+9. **Fixed at the 2026-10-27 spec review — refusals in French.** A negative (or non-numeric) amount
+   answered the raw code `{"error":"NEGATIVE_AMOUNT"}`. Every money / percentage refusal of the
+   reservation endpoints now answers `{ error: <French>, code }` (`financeErrorBody` in
+   `utils/financeValidation.js`): « Un montant ne peut pas être négatif. », « Montant invalide : saisir
+   un nombre. », « Pourcentage invalide : entre 0 et 100. ».
 
 **Edge cases:**
 - Override set, then platform changed to non-direct → engine ignores the override (platform branch
@@ -165,6 +170,7 @@ page-level action.
 - [ ] Clear the field → deposit returns to the percentage calculation.
 - [ ] Regression: platform reservation still shows "Pas d'acompte"; `depositDisabled` toggle still shows "Acompte désactivé".
 - [ ] Mobile (`xs`): field stacks full-width, no horizontal scroll.
+- Spec review 2026-10-27 (rule 9): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — negative acompte refused in French with its code; `complement-override-validation.unit.test.js` now asserts `code`.
 
 ## 8. Out of scope
 

@@ -1,0 +1,1 @@
+- One-shot boot repair `created_complement_amount_repaired_v1`: restores the arrival complement of reservations created with a line routed to it and never saved since (unpaid, not adjusted, SAS not done, and only when `finalPrice − acompte − solde` equals the routed lines). Each repaired stay is listed in the boot log and gets a history entry.

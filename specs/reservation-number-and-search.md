@@ -148,6 +148,11 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
     be a ghost is cancelled from its fiche like any other. *Why: the second review of 2026-10-18 noted
     that the boot log is the only place rule 14 reported its repairs, that the operator never reads it,
     and that a ghost keeps blocking its dates and leaves in the iCal export.*
+16. **Fixed at the 2026-10-27 spec review — the « taken » check matches the index.** The unique
+    index on `reservationNumber` covers every row, but `isReservationNumberTaken` only looked at
+    `kind = 'reservation'`: a number carried by a devis row passed the check and failed on the index
+    instead of answering the French 400 `RESERVATION_NUMBER_TAKEN`. The check now covers every row
+    (cancelled stays were already refused: they keep `kind = 'reservation'`).
 
 ---
 
@@ -329,6 +334,7 @@ numbers, never a value that would collide). Devis rows are never touched.
 - [ ] Email preview: J-7 and J-2 show the « N° de réservation » recap line for a numbered reservation.
 - [ ] Mobile (`xs`): search box full-width, dropdown usable; number field full-width on the fiche.
 - [ ] Regression: devis still show `devisNumber`; the `/reservations` list + calendar render unchanged.
+- Spec review 2026-10-27 (rule 16): `server/src/tests/reservation-number-taken-by-any-row.unit.test.js` (2 tests — cancelled stay, devis row).
 
 ## 8. Out of scope
 

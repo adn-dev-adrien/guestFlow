@@ -2692,6 +2692,30 @@ try {
   console.warn('[ical-clients] séparation des clients iCal partagés impossible :', err.message);
 }
 
+// ---------- ARRIVAL COMPLEMENT LOST AT CREATION ----------
+// specs/force-item-to-complement.md rule 18. `insertReservation` used to drop `complementAmount`, so a
+// stay created with a line routed to the complement asked for nothing at the SAS until its first save.
+// Restores it on the rows never saved since, and only where the row's own totals prove the gap; each
+// repair is logged here and written to the reservation's history. Placed after every guarded column
+// migration, and idempotent via `migrations.created_complement_amount_repaired_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'created_complement_amount_repaired_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runCreatedComplementRepair } = require('./utils/createdComplementRepair');
+    const tx = db.transaction(() => {
+      const result = runCreatedComplementRepair(db);
+      if (!result) return;
+      const { repaired } = result;
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      const detail = repaired.map((r) => `${r.reservationNumber || `#${r.id}`} → ${r.amount} €`).join(', ');
+      // eslint-disable-next-line no-console
+      console.log(`[migration:created-complement-amount] repaired ${repaired.length} reservation(s)${detail ? ` : ${detail}` : ''}`);
+    });
+    tx();
+  }
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

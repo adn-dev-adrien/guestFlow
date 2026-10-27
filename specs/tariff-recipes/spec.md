@@ -583,6 +583,15 @@ all-inclusive pricing as the first such recipe.
     `sectionHeader` role, and a shipped recipe's `label` / `description` never carries Markdown
     backticks (the gîte's « `welcomePack.cost` » now reads « le levier du pack accueil »; the
     recipe version is unchanged — no price moves).
+62. **The tariff snapshot follows the nights it describes** (spec review 2026-10-27). Rule 12bis wrote
+    `tariffSnapshot` at creation only, so the nights added later had no entry and a stay repriced
+    because its arrival moved (rule 57) kept the old season bases: the next notes-only save moved the
+    price (423,40 → 430,60 on a per-night supplement without tiers). Every save that rewrites the
+    nights (not a past-locked fiche) now stores the snapshot the engine priced with — sold nights keep
+    their entry, new and repriced nights carry the live season — so a save replays exactly what the
+    previous one stored. The property-level half stays the one the reservation was sold under
+    (`lockedTariff`), and a stored tier table is kept when the current party prices no tier. A legacy
+    row with no snapshot gets one at its next save.
 
 ---
 
@@ -774,6 +783,7 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 `tests/tariff-frozen-on-sold-reservation.unit.test.js` now expects `extraGuestNights` in the snapshot.
 - **2026-10-27 audit (rules 60-61):** `tariff-recipe-card-labels.unit.test.js` (5 server tests),
   `TariffRecipeCard.degressivity-label.test.jsx` (1) and `TariffRecipesPage.layout.test.jsx` (2).
+- Spec review 2026-10-27 (rule 62): `server/src/tests/tariff-snapshot-refreshed-on-save.unit.test.js` (3 tests — no-op save after extension + arrival move keeps the price, sold tariff kept, stored tiers kept).
 
 ## 8. Out of scope
 
