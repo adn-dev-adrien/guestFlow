@@ -38,6 +38,7 @@ const settingsModel = require('./settingsModel');
 const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
 const resourceOffer = require('../utils/resourceOffer');
+const { provenComplementAmount } = require('../utils/createdComplementRepair');
 
 /**
  * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -777,6 +778,9 @@ function createModel(database) {
         touristTaxInComplement: payloadWithDefaults.touristTaxInComplement ? 1 : 0,
         // The tariff this devis is quoted under — replayed for as long as it stays valid (rule 13).
         tariffSnapshot: quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
+        // specs/force-item-to-complement.md rule 19 — the arrival complement the engine priced, carried
+        // to the reservation at conversion.
+        complementAmount: roundMoney(quote.complementAmount || 0),
       };
       const names = Object.keys(columns).filter(hasReservationColumn);
       const info = database
@@ -911,6 +915,7 @@ function createModel(database) {
         // Written once, at creation, and replayed by every later save — except when the quote had
         // expired and was just re-priced, where the fresh snapshot IS the new promise.
         tariffSnapshot: quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : (existing.tariffSnapshot || null),
+        complementAmount: roundMoney(quote.complementAmount || 0),
         publicUpdatedAfterSendAt: source === 'public'
           ? (flagAfterSend ? sqliteNow() : (existing.publicUpdatedAfterSendAt || null))
           : null,
@@ -1079,6 +1084,22 @@ function createModel(database) {
       .run(...names.map((name) => values[name]), targetId);
   }
 
+  function provenComplementOf(reservationId) {
+    const sum = (table, amount) => {
+      try {
+        return Number(database.prepare(`SELECT COALESCE(SUM(${amount}), 0) AS t FROM ${table}
+          WHERE reservationId = ? AND COALESCE(offered, 0) = 0 AND COALESCE(inComplement, 0) = 1`).get(reservationId).t || 0);
+      } catch { return 0; }
+    };
+    const row = database.prepare('SELECT finalPrice, touristTaxTotal, touristTaxInComplement, depositAmount, balanceAmount FROM reservations WHERE id = ?').get(reservationId);
+    return provenComplementAmount({
+      ...row,
+      optionsTotal: sum('reservation_options', 'totalPrice'),
+      customTotal: sum('reservation_custom_options', 'amount'),
+      resourcesTotal: sum('reservation_resources', 'totalPrice'),
+    }) || 0;
+  }
+
   function convertToReservation(id) {
     const numId = Number(id);
     const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
@@ -1125,6 +1146,14 @@ function createModel(database) {
         attribution: devisRow.attribution || null,
         attributionAt: devisRow.attributionAt || null,
       });
+      // specs/force-item-to-complement.md rule 19 — the arrival complement travels with the lines it is
+      // made of (written after the routing columns above). A devis stored before it kept that amount
+      // is given the one its own totals prove.
+      if (hasReservationColumn('complementAmount')) {
+        const stored = roundMoney(devisRow.complementAmount || 0);
+        const proven = stored > 0 ? stored : provenComplementOf(reservationId);
+        if (proven > 0) database.prepare('UPDATE reservations SET complementAmount = ? WHERE id = ?').run(proven, reservationId);
+      }
       // Newly-real reservation → give it a number (specs/reservation-number-and-search.md §3 rule 5).
       assignReservationNumberIfMissing(database, reservationId);
 

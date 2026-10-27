@@ -2735,6 +2735,23 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- A 0 € ACOMPTE HAS NO DEADLINE (specs/disable-deposit-per-reservation.md rule 11) ----------
+// Rows stored before rule 10 kept the deadline of an acompte switched off. Cleared once, where nothing
+// was ever paid on the acompte, with the count logged. Idempotent via `migrations`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'zero_deposit_deadline_cleared_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runZeroDepositDeadlineCleanup } = require('./utils/zeroDepositDeadlineCleanup');
+    db.transaction(() => {
+      const cleared = runZeroDepositDeadlineCleanup(db);
+      if (cleared == null) return;
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:zero-deposit-deadline] cleared the deadline of ${cleared} reservation(s) with a 0 € acompte`);
+    })();
+  }
+}
+
 // ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------
 // `reservation_history` no longer cascades with `reservations`: the audit trail of a deleted stay —
 // the « Suppression iCal approuvée » row first — must survive the delete. Table rebuild, every row kept.
