@@ -27,13 +27,16 @@ const { DEFAULT_PAYOUT_DUE_DAYS } = require('./platformPayout');
 const OPTIONAL_COLS = [
   'commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent',
   'color', 'collectsTouristTax', 'touristTaxRemittedByPlatform', 'platformTakesDeposit',
-  'payoutDueDays',
+  'payoutDueDays', 'countsAsDirect', 'forbidsGuestChores',
 ];
 
 // Columns merged by `isCustomScalar`, in the order they are applied to the surviving row.
 const MERGED_SCALAR_COLS = [
   'commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent', 'color',
   'platformTakesDeposit', 'payoutDueDays',
+  // Operator switches (specs/plugins-phase-p-productisation.md rule 19, specs/airbnb-no-checkout-chores.md
+  // rule 8): ticked on any duplicate means ticked on the survivor.
+  'countsAsDirect', 'forbidsGuestChores',
 ];
 
 function tableExists(database, name) {
@@ -53,7 +56,7 @@ function isCustomScalar(col, val) {
   // specs/platform-payout-due-date.md — this one's default is 10, not 0: a platform genuinely set to
   // 0 days ("pays on the departure day") is a customisation and must survive a dedup.
   if (col === 'payoutDueDays') return val != null && Number(val) !== DEFAULT_PAYOUT_DUE_DAYS;
-  return Number(val) !== 0; // hasVatOnCommission, commissionPercent, platformTakesDeposit
+  return Number(val) !== 0; // hasVatOnCommission, commissionPercent, platformTakesDeposit, the switches
 }
 
 function runPlatformSlugDedup(database) {

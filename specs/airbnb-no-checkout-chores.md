@@ -90,7 +90,9 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
 9. **Migration `chore_free_channels_v1`, once.** On the first boot after this change, every existing
    platform row the code used to recognise as Airbnb (slugged name starting with `airbnb`, so
    `AirbnbTente` too) is ticked; then the migration is recorded and never runs again, so a platform the
-   operator unticks stays unticked. The column itself is added on every boot when missing.
+   operator unticks stays unticked. The column itself is added on every boot when missing. The boot
+   de-duplication of platform rows (`platformSlugDedupMigration.js`) merges the switch like
+   `countsAsDirect`: ticked on any duplicate means ticked on the row it keeps.
 
 **Edge cases:**
 - Airbnb stay, cleaning not included (booking made before the fee existed) → ménage offer page as
@@ -113,6 +115,7 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `platformNameFormat.js` | T | `isChoreFreeChannel` / `setChoreFreeChannels` / `refreshChoreFreeChannels`, next to `isDirectChannel` (rules 2, 8). |
+| `utils/` | `platformSlugDedupMigration.js` | T | Merges `countsAsDirect` and `forbidsGuestChores` across duplicates (rule 9). |
 | `utils/` | `choreFreeChannelsMigration.js` | C | The column on every boot; the one-shot `chore_free_channels_v1` (rule 9). |
 | `database.js` | — | T | Runs the column + migration after the productisation block, then fills the cache. |
 | `models/` | `platformsModel.js` | T | `choreFreeIds`, `setForbidsGuestChores`, `refreshChoreFreeChannels`; `listSettings` serves `forbidsGuestChores`. |
@@ -170,7 +173,7 @@ départ » switch under « Compté comme vente directe », absent on an own chan
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `airbnb-no-checkout-chores.unit.test.js` (5 tests) — `isChoreFreeChannel` case/whitespace
+- [x] `airbnb-no-checkout-chores.unit.test.js` (6 tests; the 6th: the boot de-duplication keeps both switches) — `isChoreFreeChannel` case/whitespace
   (rules 2, 8), nothing forbidden when nobody ticked (rule 8), migration once (rule 9), e-mails (rule 6),
   departure commit guard (rule 7).
 - [x] `platform-chore-free-setting.unit.test.js` (4 tests) — rule 8 end to end: `listSettings` (`null` on

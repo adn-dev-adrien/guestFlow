@@ -159,3 +159,20 @@ test('departure commit: the ménage line is dropped on a chore-free channel', ()
   assert.equal(commit('Airbnb'), 0, 'the line is dropped whatever the client sends');
   assert.equal(commit('Booking'), 80);
 });
+
+// specs/airbnb-no-checkout-chores.md rule 8 — the boot de-duplication of platform rows keeps the switch:
+// ticked on the duplicate it deletes means ticked on the row it keeps (countsAsDirect likewise).
+test('platform slug de-duplication keeps « Sans corvées de départ » and « Compté comme vente directe »', () => {
+  const { runPlatformSlugDedup } = require('../utils/platformSlugDedupMigration');
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE platforms (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
+    countsAsDirect INTEGER NOT NULL DEFAULT 0, forbidsGuestChores INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE reservations (id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT);`);
+  db.prepare("INSERT INTO platforms (id, name, forbidsGuestChores) VALUES (3, 'Airbnb', 0), (9, 'airbnb', 1)").run();
+  db.prepare("INSERT INTO platforms (id, name, countsAsDirect) VALUES (4, 'Lodgify', 0), (10, 'lodgify', 1)").run();
+  runPlatformSlugDedup(db);
+  const rows = db.prepare('SELECT name, countsAsDirect, forbidsGuestChores FROM platforms ORDER BY id').all();
+  assert.equal(rows.length, 2);
+  assert.equal(rows.find((r) => r.name === 'Airbnb').forbidsGuestChores, 1);
+  assert.equal(rows.find((r) => r.name === 'Lodgify').countsAsDirect, 1);
+});
