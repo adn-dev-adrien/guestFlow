@@ -204,7 +204,7 @@ test('J-7 body: towels are proposed at La Granja, never at L\'Estiva where they 
 
 test('J-2 body: caution cheque asked while not received, never said to be returned', () => {
   const owed = render(ARRIVAL_REMINDER_1D_BODY);
-  assert.match(owed.body, /chèque de caution de 500,00 €, que nous vous demanderons à l'arrivée/);
+  assert.match(owed.body, /chèque de caution de 500 €, que nous vous demanderons à l'arrivée/);
   assert.doesNotMatch(owed.body, /rendu/);
   const received = render(ARRIVAL_REMINDER_1D_BODY, { reservation: { cautionReceived: 1 } });
   assert.doesNotMatch(received.body, /chèque de caution/);

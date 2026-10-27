@@ -135,7 +135,7 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   // planning half of this file must stay free of it so the CLI simulation opens its target read-only.
   const { renderTemplate } = require('./emailTemplateRenderer');
   const { buildContext } = require('./emailContextBuilder');
-  const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+  const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING } = require('./emailTemplateLanguage');
   const { loadReservationGraph } = require('./reservationEmailGraph');
   const { sequenceContextFor } = require('./sequenceRenderContext');
   const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
@@ -168,6 +168,17 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   });
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, context);
+
+  // specs/email-language-fr-en.md rule 9 — no English version, nothing leaves for an English-speaking
+  // guest. The claim is released as failed, so the mail goes once the translation exists.
+  if (englishMissing(template, lang)) {
+    logModel.insert({
+      templateId: template.id, reservationId: graph.reservation.id, status: 'failed',
+      errorMessage: ENGLISH_VERSION_MISSING, renderedSubject: subject, renderedBody: body, recipientEmail: to,
+    });
+    ledger.markFailed(plan.dedupKey, ENGLISH_VERSION_MISSING);
+    return { sent: false, reason: ENGLISH_VERSION_MISSING };
+  }
 
   try {
     const service = emailServiceFactory(settingsModel.decryptedSmtpSettings());

@@ -17,7 +17,7 @@ const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
 const { loadTermsVersion } = require('./reservationEmailGraph');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
-const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { registerDirectChannelSql } = require('./platformNameFormat');
 const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
@@ -187,6 +187,23 @@ async function performAutoEmailPass(deps) {
         context,
       );
       const to = String(client?.email || '').trim();
+
+      // specs/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking
+      // guest: the pass skips it and the history says why.
+      if (englishMissing(template, lang)) {
+        const row = logModel.insert({
+          templateId:      template.id,
+          reservationId:   reservation.id,
+          status:          'failed',
+          errorMessage:    ENGLISH_VERSION_MISSING,
+          renderedSubject: subject,
+          renderedBody:    body,
+          recipientEmail:  to,
+        });
+        failedCount += 1;
+        results.push({ templateId: template.id, reservationId: reservation.id, status: 'failed', errorMessage: ENGLISH_VERSION_MISSING, emailLogId: row.id });
+        continue;
+      }
 
       if (!to) {
         const row = logModel.insert({

@@ -120,6 +120,11 @@ to the address configured in the SMTP settings.
 - `appPublicUrl` empty → email sent without a link.
 - `notificationsEnabled` OFF → devis/reservation created, no email.
 
+17. **The platform reads as on every page** (fixed at the 2026-10-27 spec review). When the iCal source
+    has no name, the new-reservation e-mail (subject and « Plateforme : » line) and the push title used
+    the stored platform key raw: « Nouvelle réservation Greengo », « GitesDeFrance ». They now use
+    `platformDisplay` (« GreenGo », « Gîtes de France »); a named source keeps its own name.
+
 ---
 
 ## 4. Architecture
@@ -137,7 +142,7 @@ to the address configured in the SMTP settings.
 | `controllers/` | `public/publicBookingRequestController.js` | T | After the devis is created + marked `requestOrigin='public'`, fire the new-site-devis notification (best-effort). |
 | `controllers/` | `dashboardController.js` | T | Add `publicDevisPending` handler returning `listPendingPublicDevis()`. |
 | `routes/` | `dashboard.js` | T | Add `GET /api/dashboard/public-devis-pending`. |
-| `utils/` | `notificationService.js` | T | (existing) `notifyNewSiteDevis` / `notifyNewIcalReservation`. **2026-06-13:** `notifyNewIcalReservation` now also short-circuits (skip `'ical_disabled'`) when `notificationSettings().icalReservationEnabled` is false — before `resolveContext`/load, so a disabled platform email never even reads the row. `notifyNewSiteDevis` unchanged. |
+| `utils/` | `notificationService.js` | T | (existing) `notifyNewSiteDevis` / `notifyNewIcalReservation`. **2026-06-13:** `notifyNewIcalReservation` now also short-circuits (skip `'ical_disabled'`) when `notificationSettings().icalReservationEnabled` is false — before `resolveContext`/load, so a disabled platform email never even reads the row. `notifyNewSiteDevis` unchanged. **2026-10-27:** the platform name through `platformDisplay` (rule 17). |
 | `utils/` | `emailService.js` | — | Reused as-is (`createEmailService`, `send`). |
 | `models/` | `settingsModel.js` | T | (existing) `notificationsEnabled`, `notificationRecipientEmail`. **2026-06-13:** add `notifyIcalReservationEnabled` to `COLUMNS` + `NUMERIC_DEFAULTS` (=1); `notificationSettings()` returns `icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0`. |
 | `controllers/` | `settingsController.js` | T | (existing) notif fields. **2026-06-13:** add `{ input: 'icalReservationEnabled', column: 'notifyIcalReservationEnabled' }` to `NOTIFICATIONS_FIELDS` and the column to `BOOLEAN_INT_COLUMNS`. |
@@ -244,6 +249,8 @@ falls back to the SMTP sender). No backfill, no loss.
 ## 7. Test plan
 
 ### Server unit tests
+- [x] `tests/notification-platform-display-name.unit.test.js` (new, 1, 2026-10-27) — rule 17: GreenGo and
+      Gîtes de France in the e-mail subject, its body and the push title.
 - [ ] `tests/public-devis-options-persist.unit.test.js` — booking-request/devis with breakfast +
       linen selected → both persist in `reservation_options`; an engine-managed early-check-in option
       is **not** duplicated (rules 1, 2). Resources persist (rule 3).

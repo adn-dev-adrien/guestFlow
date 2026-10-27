@@ -22,6 +22,7 @@
  *                           (specs/guest-email-texts-made-simple.md rules 1–5)
  */
 
+const { emailAmount } = require('./emailMoney');
 const { formatDateLong } = require('./dateFr');
 const { isCleaningOption, normalizeOptionName } = require('./cleaningOption');
 const { isClientVisibleOption } = require('./optionVisibility');
@@ -39,10 +40,7 @@ const safe = (v) => (v == null ? '' : String(v));
 // ---------------------------------------------------------------- formatting
 
 function euro(amount, lang) {
-  const n = Math.round(Number(amount || 0) * 100) / 100;
-  const whole = Number.isInteger(n);
-  if (lang === 'en') return `€${whole ? n : n.toFixed(2)}`;
-  return `${whole ? n : n.toFixed(2).replace('.', ',')} €`;
+  return emailAmount(amount, lang);
 }
 
 function weekdayDate(iso, lang) {
@@ -110,7 +108,7 @@ function roleOf(option) {
  * Rule 20 — included / booked / proposable, per typed role and per mention.
  * `lines` are the reservation's option rows (`optionId`, `offered`, title…); `facts` as documented above.
  */
-function classifyOptions(lines, facts) {
+function classifyOptions(lines, facts, lang = 'fr') {
   const meta = (facts && facts.optionMeta) || {};
   const withMeta = (o) => ({ ...(meta[o.optionId != null ? o.optionId : o.id] || {}), ...o });
 
@@ -161,7 +159,11 @@ function classifyOptions(lines, facts) {
   return {
     included,
     booked,
-    bookedTitles: bookedLines.map((o) => safe(o.title).trim()).filter(Boolean),
+    // In the guest's language: the English title when the catalogue has one, else the French one
+    // (specs/email-client-language-and-fiche-polish.md rule 4).
+    bookedTitles: bookedLines
+      .map((o) => (lang === 'en' && safe(o.titleEn).trim()) || safe(o.title).trim())
+      .filter(Boolean),
     proposable,
     priceOf,
     mentionBooked,
@@ -189,7 +191,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   const r = reservation || {};
   const p = property || {};
   const c = client || {};
-  const cls = classifyOptions(options, facts);
+  const cls = classifyOptions(options, facts, L);
   const t = (fr, e) => (en ? e : fr);
   const say = (key, tokens = {}, flags = {}) => renderStayText(key, L, tokens, flags, facts.texts);
   const priced = (amount) => ({ price: amount == null ? '' : euro(amount, L) });

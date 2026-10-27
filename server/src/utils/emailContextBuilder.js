@@ -13,7 +13,7 @@ const propertyArticle = require('./propertyArticle');
 const { pendingFactsOf } = require('./propertyFacts');
 const { formatDateLong, formatTimeShort } = require('./dateFr');
 const { renderText } = require('./stayTextCatalogue');
-const { formatCurrency } = require('./devisHelpers');
+const { emailAmount } = require('./emailMoney');
 const { isClientVisibleOption } = require('./optionVisibility');
 const { isCleaningOption } = require('./cleaningOption');
 const { isChoreFreeChannel } = require('./platformNameFormat');
@@ -128,7 +128,8 @@ function buildContext({ reservation, client, property, options = [], resources =
   const isEn = L === 'en';
   // An English email writes every amount the English way, « €963.39 », like the prices of its stay
   // texts (« €8 per person »), never « 963,39 € » beside them (specs/email-language-fr-en.md rule 8).
-  const money = (n) => (isEn ? `€${Number(n || 0).toFixed(2)}` : formatCurrency(n));
+  // specs/email-language-fr-en.md rule 10 — one amount format across every template and stay text.
+  const money = (n) => emailAmount(n, isEn ? 'en' : 'fr');
   // Localised catalog names (specs/email-client-language-and-fiche-polish.md §3 rule 4): in English use
   // the option/resource English name, falling back to the French one when it's empty (never blanks an item).
   const optionName = (o) => {

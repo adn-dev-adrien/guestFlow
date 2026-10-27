@@ -58,6 +58,10 @@ reservation's **check-out time** is reached (departure) — only to the users (a
    bad). The default is now `mailto:contact@domainesolio.com` (a real, routable domain), overridable per
    deployment via `VAPID_SUBJECT` in `.env.local`. *(Root cause of the 2026-06-23 incident: every push to
    both iPhones failed silently with `403 BadJwtToken`.)*
+   *Superseded on the default (noted at the 2026-10-27 spec review):* there is no hard-coded subject any
+   more. `utils/vapid.js` resolves it in the order of specs/plugins-phase-p-productisation.md rule 18 —
+   `VAPID_SUBJECT`, then the `vapidSubject` setting, then `mailto:` the company e-mail, then `mailto:` the
+   SMTP sender — and with none of them push stays off. The routable-subject requirement above stands.
 3.quater. **Self-test push.** From the push settings card, an operator with notifications enabled can send a
    **test notification** to all of their own devices (ignoring preferences). This is the only way to verify
    the full pipeline without waiting for a real business event; it surfaces the fan-out result
@@ -151,7 +155,7 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | deps | `server/package.json` | T | Add `web-push`. |
-| `utils/` | `vapid.js` | C | Load/generate the VAPID keypair from `.env.local` (`web-push.generateVAPIDKeys()` on first run); expose `{ publicKey, configured }` + configure `web-push`. The `sub` subject must be a routable URL/mailto (default `mailto:contact@domainesolio.com`; `VAPID_SUBJECT` overrides) — see rule 3.ter. |
+| `utils/` | `vapid.js` | C | Load/generate the VAPID keypair from `.env.local` (`web-push.generateVAPIDKeys()` on first run); expose `{ publicKey, configured }` + configure `web-push`. The `sub` subject must be a routable URL/mailto, resolved `VAPID_SUBJECT` → `vapidSubject` setting → company e-mail → SMTP sender, else push off (phase-P rule 18) — see rule 3.ter. |
 | `utils/` | `pushService.js` | C | `sendToPref(prefKey, payload)`: gather subscriptions of users whose `prefKey` is ON, `web-push.sendNotification` each, prune 404/410, count `failed`. `sendToUser(userId, payload)`: same fan-out to one user's own devices (test push). Both injectable for tests, never throw. |
 | `models/` | `pushSubscriptionsModel.js` | C | CRUD on `push_subscriptions` (add/list-by-user/list-for-pref/remove-by-endpoint/prune); per-user prefs read/write (`user_push_prefs`). |
 | `controllers/` | `pushController.js` | C | `getPublicKey`, `subscribe`, `unsubscribe`, `getPreferences`, `updatePreferences` (all scoped to `req.user`). |

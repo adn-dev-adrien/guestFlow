@@ -4,7 +4,12 @@ const BY_CODE = Object.freeze({
   EMAIL_NOT_CONFIGURED: 'Envoi non configuré : Paramètres › Emails.',
   CLIENT_NO_EMAIL: 'Adresse destinataire manquante.',
   INVALID_EMAIL: 'Adresse email invalide.',
+  // specs/email-language-fr-en.md rule 9.
+  ENGLISH_VERSION_MISSING: 'Version anglaise manquante pour ce modèle.',
 });
+
+export const ENGLISH_MISSING = BY_CODE.ENGLISH_VERSION_MISSING;
+export const ENGLISH_MISSING_TAG = 'version anglaise manquante';
 
 export const NO_RECIPIENT = BY_CODE.CLIENT_NO_EMAIL;
 export const SEND_FALLBACK = 'Envoi impossible : réessayer plus tard.';

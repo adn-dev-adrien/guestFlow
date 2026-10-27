@@ -105,7 +105,10 @@ function buildSolioDb() {
   db.pragma('foreign_keys = OFF');
   for (const t of ['reservation_options', 'reservation_resources', 'property_options', 'property_option_defaults',
     'property_option_prices', 'property_resource_prices', 'options', 'resources', 'reservations', 'clients', 'properties',
-    'email_mention_options', 'email_mentions', 'stay_texts']) {
+    'email_mention_options', 'email_mentions', 'stay_texts',
+    // The catalogue's English belongs to the options the boot seeded, which are replaced here: kept, it
+    // would name these by the ids of others (« Ménage » read « Bath mat »).
+    'translation_values', 'translation_entries']) {
     if (tableExists(db, t)) db.prepare(`DELETE FROM ${t}`).run();
   }
   db.pragma('foreign_keys = ON');

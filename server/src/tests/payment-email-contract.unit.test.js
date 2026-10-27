@@ -76,7 +76,7 @@ test('rule 43 — les jetons d’annulation sont fournis par le contexte, calcul
     client: null, property: null, options: [], settings: {},
   });
   assert.ok('cancelOnDate' in vars);
-  assert.equal(vars.retainedDepositAmount, '300,00 €');
+  assert.equal(vars.retainedDepositAmount, '300 €');
 });
 
 test('rule 43 — un acompte non encaissé n’est pas annoncé comme conservé', () => {
@@ -84,7 +84,7 @@ test('rule 43 — un acompte non encaissé n’est pas annoncé comme conservé'
     reservation: { depositAmount: 300, depositPaid: 0 },
     client: null, property: null, options: [], settings: {},
   });
-  assert.equal(vars.retainedDepositAmount, '0,00 €');
+  assert.equal(vars.retainedDepositAmount, '0 €');
 });
 
 // specs/payment-schedule-and-cancellation.md rule 46 — la restriction s'arrête au chemin de l'argent.

@@ -20,6 +20,13 @@ const realSettingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
 const realPushService = require('./pushService');
 const { buildNotificationDigest } = require('./notificationDigest');
+const { platformDisplay } = require('./platformDisplay');
+
+// The iCal source's own name, else the platform as every page writes it (« GreenGo », « Gîtes de
+// France »), never the stored key (2026-10-27 spec review).
+function platformNameOf(resa) {
+  return String(resa.sourceName || '').trim() || platformDisplay(resa.platform || resa.sourcePlatformKey);
+}
 
 // specs/public-request-abuse-and-grouping.md rule 9 — website requests are mailed one at a time only
 // for the first of a 15-minute window; the following ones wait for one summary.
@@ -178,7 +185,7 @@ function buildNotificationService({
   function buildReservationEmail(resa, publicUrl) {
     const guest = String(resa.icalOriginalSummary || '').trim()
       || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
-    const platform = String(resa.sourceName || '').trim() || String(resa.platform || resa.sourcePlatformKey || '').trim();
+    const platform = platformNameOf(resa);
     const subject = `Nouvelle réservation ${platform} — ${resa.propertyName || ''}`.trim();
     const nights = nightsBetween(resa.startDate, resa.endDate);
     const lines = [
@@ -327,7 +334,7 @@ function buildNotificationService({
       if (!resa) return { sent: false, skipped: 'not_found' };
       // Push (independent of the email settings + the iCal email channel toggle). Body shows the
       // guest + property + start date (specs/pwa-push-notifications.md §3.3 rule 11).
-      const platform = String(resa.sourceName || '').trim() || String(resa.platform || resa.sourcePlatformKey || '').trim();
+      const platform = platformNameOf(resa);
       const guest = String(resa.icalOriginalSummary || '').trim()
         || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
       const guestProperty = [guest, resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · ');

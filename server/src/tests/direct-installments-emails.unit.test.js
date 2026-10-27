@@ -126,7 +126,7 @@ test('rule 21 — the variables name the installment and list the whole plan', a
     reservation: f.db.prepare('SELECT * FROM reservations WHERE id = ?').get(f.reservationId),
     client: { firstName: 'Camille' }, property: { name: 'La Granja' }, installment: requestContext(rows[1], rows), lang: 'en',
   });
-  assert.match(english.vars.installmentAmount, /^€334\.00$/);
+  assert.match(english.vars.installmentAmount, /^€334$/);
   assert.match(english.vars.installmentSchedule.split('\n')[0], /^Instalment 1 .* paid$/);
 
   const plain = buildContext({ reservation: {}, client: {}, property: {}, lang: 'fr' });
