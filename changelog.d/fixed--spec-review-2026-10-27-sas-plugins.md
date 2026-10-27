@@ -1,0 +1,10 @@
+- `scripts/restore-to-pi.sh` no longer dies under macOS bash 3.2 in a UTF-8 locale right after stopping PM2 (`"$STAMP…"` read as a variable named `STAMP…`); a unit test now scans every `*.sh` for a non-ASCII character glued to an unbraced variable.
+- `scripts/backup-from-pi.sh` records the release `current` points at instead of the retired `origin/release` branch (the manifest line was garbled); the backup/restore runbook no longer mentions a CI runner or pushing `release`.
+- Reception planning cards show the billed quantity of an option or resource (« ×3 », was « ×1 »): the reception view keeps `billedUnits`.
+- A reception (or any non-admin) account no longer logs a 403 on `GET /api/settings` on every page: the favicon hook only asks for the settings as an admin.
+- « Voir l’option » / « Voir l’autre » instead of « Voir les 1 option » on the reservation page.
+- The « Logement », « Heure d'arrivée » and « Heure de départ » selects of the fiche have an accessible name.
+- No more React DOM-nesting warning on the Options page at phone width.
+- plugin:sas The arrival recap says « Caution non perçue : reportée au départ. » after « Reporter au départ ».
+- plugin:sas A non-integer linen quantity (1.5) is refused with 400 `INVALID_QUANTITY` at the preview and the commit, arrival and departure, instead of being rounded and billed.
+- plugin:sas A linen element billed in several pieces keeps its count (« Taie d'oreiller ×2 » on the planning card, the SAS reopens on 2).

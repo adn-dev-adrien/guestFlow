@@ -982,12 +982,13 @@ Writes `~/GuestFlowBackups/guestflow-YYYYMMDD-HHMMSS/` (mode `0700` — it conta
 secrets in clear) plus a `latest` symlink, and keeps the 30 most recent backups (`--keep N`).
 The database is snapshotted with `sqlite3 .backup`, so the WAL is folded in and the copy is
 consistent even while PM2 is serving; the script aborts if `PRAGMA integrity_check` is not `ok`.
-Each backup carries a `manifest.txt` (date, source, deployed commit, node/app version) and a
+Each backup carries a `manifest.txt` (date, source, the release `current` points at, node/app version) and a
 `checksums.sha256`.
 
 ### Restore onto a Pi
 
-Deploy the code **first** (push `release`, let the workflow rebuild `~/guestflow/current/`), then:
+Install the code **first** — the published release named in the backup's `manifest.txt`, by hand as
+in « Installing one manually » above — then:
 
 ```bash
 scripts/restore-to-pi.sh --host pi@<pi-host> --from ~/GuestFlowBackups/latest

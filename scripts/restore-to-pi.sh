@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Restores a GuestFlow backup (produced by scripts/backup-from-pi.sh) onto a Raspberry Pi.
 #
-# Order of operations matters: the app code must already be deployed (push the `release` branch,
-# let GitHub Actions run) BEFORE restoring data, because the deploy recreates `current/` and the
-# symlinks that point it at `data/guestflow.db` and `data/.env.local`.
+# Order of operations matters: the app code must already be installed (the published release
+# archive of the version named in the backup's manifest, laid out as `current -> releases/<v>`)
+# BEFORE restoring data, because that install creates `current/` and the symlinks that point it
+# at `data/guestflow.db`, `data/.env.local` and `data/uploads`.
 #
-# Full disaster-recovery sequence on a fresh Pi — see specs/backup-restore.md §4:
-#   1. Reinstall Raspberry Pi OS + node + pm2 + the GitHub Actions runner.
-#   2. Push `release` so the deploy workflow installs the app.
+# Full disaster-recovery sequence on a fresh host — see specs/backup-restore.md §4.4:
+#   1. Reinstall the OS + node + pm2 (no CI runner: production makes outbound calls only).
+#   2. Install the published release by hand (README « Installing one manually »).
 #   3. Run this script — it stops PM2, drops the data in place, restarts PM2.
 #
 # Usage:
@@ -80,7 +81,7 @@ ssh "$SSH_HOST" 'pm2 stop guestflow >/dev/null 2>&1 || true'
 
 # Move the current data aside rather than deleting it: if the backup turns out to be the wrong
 # one, the operator still has the pre-restore state on the Pi.
-echo "  · archiving current data as *.pre-restore-$STAMP…"
+echo "  · archiving current data as *.pre-restore-${STAMP}…"
 ssh "$SSH_HOST" "
   cd '$REMOTE_DIR/data'
   [ -f guestflow.db ] && mv guestflow.db guestflow.db.pre-restore-$STAMP
@@ -107,8 +108,8 @@ if [ -d "$FROM/uploads" ]; then
   rsync -aq "$FROM/uploads/" "$SSH_HOST:$REMOTE_DIR/current/server/uploads/"
 fi
 
-# The deploy workflow symlinks current/server/{guestflow.db,.env.local} → data/. On a fresh Pi the
-# app may not be deployed yet; only re-link when the deployment directory exists.
+# A release links current/server/{guestflow.db,.env.local} → data/ (releaseLinks.js, rule 25b). On a
+# fresh host the app may not be installed yet; only re-link when the release directory exists.
 ssh "$SSH_HOST" "
   if [ -d '$REMOTE_DIR/current/server' ]; then
     ln -sfn '$REMOTE_DIR/data/guestflow.db' '$REMOTE_DIR/current/server/guestflow.db'
@@ -117,6 +118,6 @@ ssh "$SSH_HOST" "
 "
 
 echo "  · restarting PM2…"
-ssh "$SSH_HOST" 'pm2 restart guestflow --update-env >/dev/null 2>&1 || echo "  ! guestflow not registered in PM2 — deploy the release branch first"'
+ssh "$SSH_HOST" 'pm2 restart guestflow --update-env >/dev/null 2>&1 || echo "  ! guestflow not registered in PM2 — install the release first"'
 
 echo "✓ Restore done. Check: ssh $SSH_HOST 'pm2 logs guestflow --lines 30'"

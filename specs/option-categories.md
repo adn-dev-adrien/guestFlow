@@ -97,6 +97,8 @@ regular catalogue options, editable afterwards like any other.
     option is never folded.
 10. The toggle states what it hides: « Voir les 7 autres » when collapsed, « Réduire » when open.
     A section with nothing pinned shows only its header + « Voir les 9 options » — zero cards.
+    One hidden line reads in the singular: « Voir l’autre » / « Voir l’option » (fixed at the
+    2026-10-27 spec review — the code wrote « Voir les 1 option »).
 11. The section header shows the label and, when > 0, a soft `success` chip with the number of
     **selected** options, e.g. « Boissons ③ ». An `alwaysVisible` option the operator hasn't ticked
     is visible but does **not** count — the chip answers « what am I billing? », not « what is on

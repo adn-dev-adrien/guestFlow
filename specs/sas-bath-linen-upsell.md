@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/sas-bath-linen-upsell` _(user-managed)_ |
 | **Created** | 2026-07-20 |
 | **Author** | Adrien |
@@ -103,7 +103,9 @@ option step.
    spec [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)), which opens **pre-selected on
    « En fin de séjour »**. **« En fin de séjour »** leaves the complement unpaid so it is recalled at check-out
    ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)) — this
-   is how bath linen is now deferred, without a dedicated end-of-stay routing.
+   is how bath linen is now deferred, without a dedicated end-of-stay routing. *(2026-10-27 spec review:
+   when the recap settles the stay in the same payment, that button reads « Plus tard » —
+   [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md) rule 1.)*
 8. **Retired end-of-stay routing + idempotency.** The arrival SAS **no longer writes** a
    `source='arrivalBathLinen'` line into `endOfStayComplementDetail`. `commitArrivalSas` still receives
    `endOfStayBathLinen`, but the client always sends **`false`** when the step is shown, so any **legacy**

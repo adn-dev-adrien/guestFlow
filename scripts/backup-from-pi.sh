@@ -8,9 +8,11 @@
 #     Without it the encrypted columns of the DB are unreadable, so a DB-only backup is useless;
 #   - `certs/` — the self-signed TLS cert + key (restoring them avoids re-trusting the cert on
 #     every device);
-#   - `server/uploads/` — user-uploaded files (logos, photos), which live outside the DB.
+#   - `uploads/` — user-uploaded files (logos, photos), which live outside the DB
+#     (`data/uploads`, linked into the release as `current/server/uploads`).
 #
-# Everything else (client build, node_modules, server code) is rebuilt by the `release` deploy.
+# Everything else (client build, node_modules, server code) comes from the published release
+# archive of the same version — the manifest records which one (specs/self-update-and-releases.md).
 #
 # Usage:
 #   scripts/backup-from-pi.sh --host pi@<pi-host>
@@ -96,7 +98,7 @@ scp -q "$SSH_HOST:$REMOTE_DIR/certs/server.crt" "$SSH_HOST:$REMOTE_DIR/certs/ser
   || echo "  ! no TLS cert found on the Pi — skipped (it can be regenerated)"
 chmod 600 "$DEST/certs/server.key" 2>/dev/null || true
 
-# `--exclude` drops the deploy workflow's own scratch copy so we don't nest uploads in uploads.
+# `--exclude` drops the retired deploy workflow's scratch copy so we don't nest uploads in uploads.
 rsync -aq --exclude '_guestflow_uploads_backup' \
   "$SSH_HOST:$REMOTE_DIR/current/server/uploads/" "$DEST/uploads/" \
   || echo "  ! no uploads directory on the Pi — skipped"
@@ -108,7 +110,7 @@ rsync -aq --exclude '_guestflow_uploads_backup' \
   echo "source:          $SSH_HOST:$REMOTE_DIR"
   echo "taken from:      $(hostname)"
   echo "local repo HEAD: $(git -C "$(dirname "$0")/.." rev-parse HEAD 2>/dev/null || echo n/a)"
-  echo "origin/release:  $(git -C "$(dirname "$0")/.." rev-parse origin/release 2>/dev/null || echo n/a)"
+  echo "current ->       $(ssh "$SSH_HOST" "readlink '$REMOTE_DIR/current'" 2>/dev/null || echo n/a)"
   echo "remote node:     $(ssh "$SSH_HOST" 'node -v' 2>/dev/null || echo n/a)"
   echo "remote app ver:  $(ssh "$SSH_HOST" "node -p \"require('$REMOTE_DIR/current/server/package.json').version\"" 2>/dev/null || echo n/a)"
   echo "integrity_check: $(cat "$DEST/integrity_check.txt")"

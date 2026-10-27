@@ -125,11 +125,12 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
    line items, settlement buttons) and commits, exactly like an admin. The SAS payload
    (`GET /reservations/:id/sas`) is already finance-free (caution / options / cleaning price /
    complement / repair prices) — it is served to reception unchanged.
-   **Narrowed 2026-08-04 by [reception-sas-lock-after-commit.md](reception-sas-lock-after-commit.md):**
-   only a SAS that has **never been committed**. Once `arrivalSasDoneAt` (resp. `departureSasDoneAt`)
-   is set, the planning ✓ is disabled for reception and the commit endpoint answers **403
-   `SAS_ALREADY_COMMITTED`** — the re-edit of [reopen-completed-sas.md](reopen-completed-sas.md)
-   stays admin-only.
+   **Narrowed 2026-08-04, then folded into [reception-sas-today-only.md](reception-sas-today-only.md)**
+   (corrected at the 2026-10-27 spec review — the `reception-sas-lock-after-commit.md` spec this
+   rule used to cite never existed under that name): only a SAS that has **never been committed**.
+   Once `arrivalSasDoneAt` (resp. `departureSasDoneAt`) is set, the planning ✓ is disabled for
+   reception and the commit endpoint answers **403 `{ error: 'SAS_LOCKED', reason: 'done' }`** —
+   the re-edit of [reopen-completed-sas.md](reopen-completed-sas.md) stays admin-only.
 9. Completing a SAS still validates the status flags per specs/arrival-departure-sas.md §3.6
    (arrival → `checkInReady=1` + `checkInDone=1`; departure → `checkOutDone=1`). Reception commits
    set them identically.
@@ -206,6 +207,18 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     single-threaded CPU/SQL denial of service. The ceiling is deliberately generous so it never
     rejects a real planning or laundry horizon.
 
+13. **Option and resource lines keep `billedUnits`** (fixed at the 2026-10-27 spec review). The
+    reception view whitelisted `quantity` but not `billedUnits`, the count the planning card renders
+    as « title ×N »: a reception card read « ×1 » where the admin card read « ×3 ». `billedUnits` is
+    a count, not money, so it joins the line whitelist of rule 12bis; prices stay stripped.
+    Pinned by `tests/reception-view-billed-units.unit.test.js`.
+14. **No request reception is refused by design** (fixed at the 2026-10-27 spec review). The app
+    shell fetched `GET /api/settings` for the favicon on every page, for every role; the endpoint is
+    admin-only, so a reception account logged a 403 on each page, the arrival SAS included.
+    `useDynamicFavicon` now runs only for an admin (`enabled`); other roles keep the default favicon
+    (production serves the logo on `/favicon.ico` anyway). Pinned by
+    `hooks/__tests__/useDynamicFavicon.role.test.jsx`.
+
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
   no confinement (rule 1).
@@ -249,6 +262,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 | `tests/` | `tests/reception-view.unit.test.js` | C | `toReceptionReservationView` keeps caution/complement + operational fields and **drops** deposit/balance/total/remainingDue/commission/tourist-tax/contribs/client-PII; `toReceptionPropertyView` drops pricing. |
 | `tests/` | `tests/reservations-controller.unit.test.js` (or the payment test file) | T | `updatePayment` as reception writes only the 3 status flags; a payload also carrying `depositPaid`/`balancePaid` leaves those untouched (field guard). `list`/`getById` strip for reception-only, full for admin. |
 | `tests/` | `tests/roles.unit.test.js` (cross-side snapshot) | T | Extended to assert the 3-role taxonomy stays in sync between server + client. |
+| `utils/` | `utils/receptionView.js` | T | _(2026-10-27, rule 13)_ option and resource lines keep `billedUnits` (a count). |
 
 **Notes:**
 - No new dependency.
@@ -264,6 +278,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 | `pages/` | `pages/Dashboard.js` | T | Reception-only branch (`const isReceptionOnly = userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN)`): render only the Arrivées / Départs lists + date nav; drop the Paiements column, KPI tiles, alert banners, month calendar; row click → `/planning?sas=…&reservationId=…`. Uses `useAuth()`. |
 | `components/` | `components/ReservationCard.js` | T | Accept `canOpenClientFiche` / `canOpenReservation` (default `true`); when false, render the client name as plain text and hide the fiche link. Caution/complement unchanged. |
 | `components/` | `components/DepartureMiniRow.js` | T | Same `canOpen*` gating for the departure row. |
+| `hooks/` | `hooks/useDynamicFavicon.js` + `App.jsx` | T | _(2026-10-27, rule 14)_ `enabled` flag; the app shell passes « is admin », so no other role requests `GET /api/settings`. |
 | `components/sas/` | `components/sas/ReservationSasDialog.js` | T | Accept `canOpenReservation` / `canOpenClientFiche` (default `true`); hide « Ouvrir la fiche » + the client-name link when false. |
 | `pages/` | `pages/PlanningPage.js` | T | Compute `receptionMode = userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN)`; pass `canOpenClientFiche={!receptionMode}` / `canOpenReservation={!receptionMode}` to the cards + SAS dialog. Data-loading path unchanged (server strips the payloads). |
 | `api.js` | — | — | No new methods — reception reuses `getReservations` / `getReservation` / `getProperties` (server-stripped) + the existing SAS + planning methods. |
@@ -363,6 +378,8 @@ added, no migration, no backfill.
       contribs, client email/phone/address}`; a complement option line keeps its
       `unitPrice`/`totalPrice` while a séjour line stays price-free (both stripped of contribution
       splits); `toReceptionPropertyView` drops pricing fields.
+- [x] `tests/reception-view-billed-units.unit.test.js` (rule 13, 2026-10-27) — option and resource
+      lines keep `billedUnits`, still without a price.
 - [x] `tests/reception-view.unit.test.js` — the `PATCH /reservations/:id/payment` field guard is a
       pure helper `toReceptionPaymentPatch(body)` (used by `updatePayment`): it keeps only
       `{checkInReady, checkInDone, checkOutDone}` and drops `depositPaid`/`balancePaid`/

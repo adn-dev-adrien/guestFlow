@@ -127,15 +127,21 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     | `hourly-resources` | Calendrier › Ressources; « à l'heure » price type of resources (rule 20); a per-hour resource not already on the stay, and the sessions picker, on the reservation page; resource cards of the planning; the scheduling step of the SAS |
     | `linen` | Paramètres › Linge; linen shortage alert; laundry button, cards and dialogs of the planning; the linen, linen-items and bath-linen steps of the SAS |
     | `website-booking` | « Demandes du site » alert; « Site internet » badge and filter of the quotes; CGV acceptance line of the reservation page |
-    | `gate-access` | Intégrations › Accès portail; portal code field of Établissement; gate keys alert; gate card of the reservation page; portal step of the SAS |
+    | `gate-access` | Intégrations › Accès portail; gate keys alert; gate card of the reservation page; the connected-gate variant of the SAS portal step |
     | `neat` | Intégrations › Neat; Neat chip, retry and void on the insurance option row |
     | `online-payment` | Paramètres › Paiements en ligne; « Envoyer la demande de paiement » and « … de solde » buttons |
     | `google-calendar` | Intégrations › Google Agenda |
     | `accounting-export` | Suivi financier › Comptabilité and › Plateformes comptables; « Comptable » in the role picker |
-    | `sas` | the SAS buttons of the planning cards and the `?sas=` deep links; the « Facturables au SAS » tab; lost items card; « Accueil » in the role picker; the reception home |
+    | `sas` | the SAS buttons of the planning cards and the `?sas=` deep links; the « Facturables au SAS » tab; lost items card; « Accueil » in the role picker; the reception home; the « Code portail » field of Établissement |
     | `tariff-recipes` | Paramètres › Recettes tarifaires; recipe runs alert; recipe card and recipe column of the property tariff |
     | `school-holidays` | « Vacances scolaires » tab (the entry stays for Fermetures); zone bands and A/B/C legend of the calendar |
     | `weather-alerts` | Intégrations › Météo; weather step of the SAS |
+
+    > _2026-10-27 (spec review): the « Code portail » field of Établissement belongs to `sas`
+    > (`client/src/plugins/sas/SettingsPortalCodeField.jsx`, slot `settings.etablissement`), not to
+    > `gate-access`: the code is what the arrival SAS hands the guest, connected gate or not. With
+    > `gate-access` off the SAS still shows its portal step with the typed code (`SasKeypadCode`);
+    > only the connected-gate variant (`sas.portal` slot) goes._
 
 17. A settings entry that only holds plugin sections disappears when none of them is active:
     **Intégrations** (Google, Neat, Météo, Portail) — empty → hidden.

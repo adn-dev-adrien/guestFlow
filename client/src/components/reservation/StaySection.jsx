@@ -35,8 +35,9 @@ export default function StaySection() {
               (specs/review-2026-10-18-reservations.md rule 7). */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: isDevisMode ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
             <FormControl fullWidth sx={{ minWidth: 0 }}>
-              <InputLabel>Logement</InputLabel>
+              <InputLabel id="stay-property-label">Logement</InputLabel>
               <Select
+                labelId="stay-property-label"
                 value={selectedProp}
                 label="Logement"
                 onChange={(e) => handleReservationPropertyChange(e.target.value)}
@@ -109,8 +110,9 @@ export default function StaySection() {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
               <FormControl fullWidth error={Boolean(liveTimeConflictState.arrivalMessage)}>
-                <InputLabel>{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
+                <InputLabel id="stay-check-in-time-label">{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
                 <Select
+                  labelId="stay-check-in-time-label"
                   value={form.checkInTime}
                   label={`Heure d'arrivée (défaut ${defaultCheckInTime})`}
                   onChange={(e) => updateForm({ checkInTime: e.target.value })}
@@ -121,8 +123,9 @@ export default function StaySection() {
             </Box>
             <Box>
               <FormControl fullWidth error={Boolean(liveTimeConflictState.departureMessage)}>
-                <InputLabel>{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
+                <InputLabel id="stay-check-out-time-label">{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
                 <Select
+                  labelId="stay-check-out-time-label"
                   value={form.checkOutTime}
                   label={`Heure de départ (défaut ${defaultCheckOutTime})`}
                   onChange={(e) => updateForm({ checkOutTime: e.target.value })}
