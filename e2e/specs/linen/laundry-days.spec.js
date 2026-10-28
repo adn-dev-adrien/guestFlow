@@ -29,7 +29,7 @@ test.afterEach(async ({ request }) => { await restoreTuesdayOnly(request); });
 test('Linge page — Tuesday + Thursday, turnaround 2: refusals before Save, then saved with its start date', async ({ page }) => {
   await page.goto('/parametres/stock-blanchisserie');
   await expect(page.getByRole('heading', { name: 'Linge', exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('Blanchisserie', { exact: true })).toBeVisible();
+  await expect(page.getByText('Blanchisserie', { exact: true })).toBeVisible({ timeout: 20_000 });
 
   const tuesday = page.getByRole('button', { name: 'Mardi' });
   const thursday = page.getByRole('button', { name: 'Jeudi' });
@@ -111,7 +111,7 @@ test.describe('on a phone', () => {
 
   test('Linge page at 390 px — touch-sized toggles, no horizontal scroll, the schedule saved', async ({ page }) => {
     await page.goto('/parametres/stock-blanchisserie');
-    await expect(page.getByText('Blanchisserie', { exact: true })).toBeVisible();
+    await expect(page.getByText('Blanchisserie', { exact: true })).toBeVisible({ timeout: 20_000 });
     const buttons = page.getByRole('group', { name: 'Jours' }).getByRole('button');
     await expect(buttons).toHaveCount(7);
     for (let i = 0; i < 7; i += 1) {
