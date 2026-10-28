@@ -40,6 +40,8 @@ test('a switch from today: the next reservation prints the mention, the old one 
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('radio', { name: /Réservations prises à partir du/ })).toBeChecked();
   await expect(dialog.getByText('Prix inchangés.')).toBeVisible();
+  // Rule 24: reservations of other specs booked today may carry money — the dialog then asks first.
+  if (await dialog.getByRole('checkbox').count()) await dialog.getByRole('checkbox').check();
   await dialog.getByRole('button', { name: 'Passer sans TVA' }).click();
   await expect(dialog).toBeHidden();
 
