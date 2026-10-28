@@ -102,6 +102,11 @@ website — and the property page stops asking for acompte settings that mean no
     solde — ou du paiement unique quand l'acompte est désactivé. »
 13. Revealing or hiding the acompte fields is **local UI state only**. Nothing is computed on the
     client: the values keep being sent as they are and the server decides what they are worth.
+14. **The « Annulation » helper follows the switch** (2026-10-28, Adrien). ON: « Délai avant de pouvoir
+    annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre
+    d'indemnité. » OFF: « Délai avant de pouvoir annuler un séjour dont le paiement n'est pas réglé.
+    Sans acompte, l'annulation suit les conditions des CGV. » — a property without an acompte has no
+    acompte to keep.
 
 **Edge cases:**
 
@@ -296,7 +301,7 @@ Other labels and helper texts are carried over unchanged (`% acompte`,
   settings. Do they disappear with the card?
   - A (2026-09-20, Adrien): **no** — they move out into their own card, always visible. Hiding a
     setting that still takes effect is a bug, not a simplification.
-- **Open (found at the 2026-10-27 spec review — UI copy bug, not fixed in this docs-only pass).** With
+- **Resolved 2026-10-28 (Adrien: « Selon les CGV », rule 14) — found at the 2026-10-27 spec review.** With
   the switch OFF, the helper under « Annulation (jours après échéance du solde) » still says
   « … L'acompte encaissé est alors conservé à titre d'indemnité. »
   (`client/src/components/property/PropertyPaymentTab.jsx`, the `cancelAfterBalanceDueDays` field). A
