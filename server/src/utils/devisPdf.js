@@ -759,8 +759,11 @@ function generateDevisPdf(full, settings, quote) {
     doc.font(F.bold).fillColor(TEXT_DARK)
       .text(formatCurrency(line.amount), SCHED_X + SCHED_W * 0.34, ly, { width: SCHED_W * 0.26, align: 'right', lineBreak: false });
     if (line.dueDate) {
-      doc.font(F.regular).fillColor(TEXT_LIGHT)
-        .text(L.summaryBefore(fmtDate(line.dueDate)), SCHED_X + SCHED_W * 0.64, ly, { width: SCHED_W * 0.36, align: 'right', lineBreak: false });
+      const dueText = L.summaryBefore(fmtDate(line.dueDate));
+      doc.font(F.regular).fillColor(TEXT_LIGHT);
+      // « due by 25 September 2026 » is wider than its column in English: it shrinks to fit rather than run over the amount.
+      if (doc.widthOfString(dueText) > SCHED_W * 0.36) fitFontSize(doc, F.regular, dueText, SCHED_W * 0.36, 9, 6.5);
+      doc.text(dueText, SCHED_X + SCHED_W * 0.64, ly, { width: SCHED_W * 0.36, align: 'right', lineBreak: false });
     }
   });
   if (typeof full.__trace === 'function') {
