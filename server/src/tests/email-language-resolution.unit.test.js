@@ -54,6 +54,7 @@ test('rule 2: an English client gets the English side, a French client the Frenc
   assert.match(fr.body, /Corps FR/);
 });
 
+// specs/email-language-fr-en.md rule 3b
 test('rule 3b: an explicit lang wins over the client language, in both directions', async () => {
   const forced = await previewLang({ emailLanguage: 'fr', lang: 'en' });
   assert.equal(forced.lang, 'en');
