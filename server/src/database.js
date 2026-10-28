@@ -1697,6 +1697,17 @@ require('./utils/paymentLinksProviderMigration').migratePaymentLinksToProviders(
 // installmentId, the manual queue's occurrence key, the stay's installment aggregates.
 require('./utils/installmentsMigration').migrateInstallmentsSchema(db);
 
+// After the rebuild above (it drops the triggers): the v3.18 column names stay in step (rule 31 of
+// specs/self-update-and-releases.md — an automatic rollback runs the previous code on this schema).
+require('./utils/paymentLinksProviderMigration').syncLegacyQontoColumns(db);
+
+// payment_links has no foreign key (a rebuild of a table other code reads is not worth it): surface the
+// paid links whose stay was deleted, which are money records without a stay. Nothing is deleted.
+{
+  const orphans = require('./utils/paidPaymentLinks').countOrphanPaidLinks(db);
+  if (orphans > 0) console.warn(`[integrity] ${orphans} lien(s) de paiement payé(s) sans séjour (supprimé avant le garde-fou) : conservés tels quels`);
+}
+
 // Bilingual templates (specs/email-language-fr-en.md): optional English subject/body. Additive +
 // idempotent; must run BEFORE the seed so fresh installs insert the EN side too.
 {
@@ -1909,18 +1920,7 @@ db.prepare(`
 // ran (guarded), so reach already-seeded rows with a targeted, idempotent REPLACE — insert the gated
 // `{{#if hasReservationNumber}}` line between the recap header and "- Logement". Idempotent (skipped once
 // the token is present); a no-op when the operator rewrote the recap header (the anchor won't match).
-for (const [stableKey, header] of [
-  ['arrival_reminder_7d', 'Rappel des informations de votre séjour :'],
-  ['arrival_reminder_1d', 'Votre séjour :'],
-]) {
-  const anchor = `${header}\n- Logement : {{propertyName}}`;
-  const replacement = `${header}\n{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}\n{{/if}}- Logement : {{propertyName}}`;
-  db.prepare(`
-    UPDATE email_templates
-       SET body = REPLACE(body, ?, ?), updatedAt = datetime('now')
-     WHERE stableKey = ? AND body NOT LIKE '%{{reservationNumber}}%'
-  `).run(anchor, replacement, stableKey);
-}
+require('./utils/reservationNumberRecapMigration').addReservationNumberToRecaps(db);
 
 // Backfill reservation numbers (specs/reservation-number-and-search.md §5). Existing reservations
 // predate the `reservationNumber` column, so give each one a number once — grouped by the month of

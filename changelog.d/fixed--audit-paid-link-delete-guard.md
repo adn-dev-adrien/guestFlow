@@ -1,0 +1,1 @@
+- **A stay or devis with a paid online payment cannot be deleted** (`plugins-phase-3a-online-payment.md` rule 27): the deletion answers 409, and the boot logs the paid payment links already left without a stay (nothing is deleted).

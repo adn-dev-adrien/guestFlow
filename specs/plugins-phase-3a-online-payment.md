@@ -347,6 +347,12 @@ Other facts the design rests on:
     recorded and its row warns — unless the bucket was meanwhile perceived another way (double payment,
     admin told, as rule 8). [reservation-payment-ledger.md](reservation-payment-ledger.md) rules 29-31
     (§9 Q3).
+27. **A stay or a devis with a paid link cannot be deleted (2026-10-28, database audit).** `payment_links`
+    carries no foreign key, so deleting the stay orphaned the money record (5 of 8 orphan links on the
+    production copy were paid). `DELETE` of a reservation or a devis answers 409 when a link is `paid`
+    or carries a `paidAt` (a link retired after the guest paid it, rule 8). A foreign key was not added
+    (it needs a rebuild of a table other code reads); instead the boot logs `[integrity] N lien(s) de
+    paiement payé(s) sans séjour` and deletes nothing.
 
 ## 4. Architecture
 

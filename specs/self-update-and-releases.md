@@ -300,7 +300,8 @@ signed-off releases over HTTPS, when the operator asks for it.
     for health again, and record the status `rolled_back` with the last 50 log lines. The database
     is **not** auto-restored — migrations are additive-only (CLAUDE.md §8), so the previous code
     runs fine against the migrated schema, and auto-restoring would destroy every write made since
-    the backup. The backup stays on disk for a manual restore.
+    the backup. The backup stays on disk for a manual restore. (That premise was not true of the
+    payment-link rename until 2026-10-28; rule 39 makes it true and keeps it so.)
 32. The helper writes every transition to `data/update-status.json` (survives the restart, read
     back by the new process) and a full log to `logs/update-X.Y.Z-<timestamp>.log`.
 33. After a successful update, the helper prunes old releases, keeping the **3 most recent**
@@ -321,6 +322,17 @@ signed-off releases over HTTPS, when the operator asks for it.
     `rolled_back`, plus a French human-readable label, the target version, and — on failure — the
     error and the log tail.
 38. The last 5 update outcomes are kept and shown in the settings section (version, date, result).
+39. **A migration only adds (2026-10-28, database audit).** Rule 31 restores no database, so the release
+    it rolls back to must run on the migrated schema: a migration may add tables and columns, never
+    rename or drop one the previous release reads. `payment_links.qontoPaymentLinkId` / `qontoPaymentId`
+    had been renamed to `providerLinkId` / `providerPaymentId`, which broke every payment-link path of
+    v3.18 after a rollback (no cancellation, no webhook booking, no poll). They are now twin columns:
+    both exist, `syncLegacyQontoColumns` keeps each pair equal in both directions (triggers, re-created
+    after every rebuild of the table) and copies at boot the rows the previous release wrote. The legacy
+    names stay for at least one release after the last release that reads them. A test
+    (`rollback-additive-schema.unit.test.js`) fails when any column of the v3.18.0 schema
+    (`fixtures/rollback-floor-v3.18.0-schema.json`) disappears from a current install: when a release
+    ships, the floor moves to that release's schema.
 
 **Edge cases**
 

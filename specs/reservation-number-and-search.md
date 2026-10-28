@@ -269,7 +269,9 @@ numbers, never a value that would collide). Devis rows are never touched.
   `{{#if hasReservationNumber}}`). No new UI; the operator sees it in the email preview/editor like any
   other recap line. Existing installs are upgraded by an idempotent content migration (the seed is
   insert-only and the J-2 force-overwrite already ran). _(Updated 2026-10-27: the example used the
-  original `AAAA-MM-###` format, dropped on 2026-06-19.)_
+  original `AAAA-MM-###` format, dropped on 2026-06-19.)_ _(Updated 2026-10-28: the migration writes a
+  template only when it carries neither the token nor lacks the anchor, so an operator-edited reminder keeps its
+  « last modified » date across boots.)_
 
 ### Search box (`ReservationSearchBox`) — global, in the top bar (2026-06-19)
 
