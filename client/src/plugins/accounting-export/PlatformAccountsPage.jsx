@@ -42,6 +42,7 @@ const PLAN_LABELS = {
   commissionVatAccount: 'TVA déductible (commissions)',
   discountAccount: 'Rabais accordés',
   tipAccount: 'Pourboires',
+  platformPenaltyAccount: 'Pénalités plateformes',
   journalCode: 'Code journal des ventes',
 };
 

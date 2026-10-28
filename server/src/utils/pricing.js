@@ -1475,6 +1475,9 @@ function calculateReservationQuote({
   // only subtracts it from the displayed « total de séjour »: the sale, the échéances and the buckets
   // are deliberately untouched by a refund.
   refundsTotal = 0,
+  // specs/reconciliation-assisted-matching.md rule 27 — what the platform kept on the payout besides its
+  // commission: lowers « Vous percevez » exactly like a commission, without ever being one (read from the stored row).
+  platformPenaltyAmount = 0,
   // specs/arrival-payment-detail-and-adjustment.md rules 20-21 — the single arrival payment was made
   // for LESS than its buckets add up to (a réduction accordée on the accommodation) or for more (a
   // pourboire). Like a refund, the engine only moves the displayed « total du séjour » with it: no
@@ -2892,7 +2895,8 @@ function calculateReservationQuote({
   // acompte and solde kept at what they collected, so it stays in the total until a refund returns it.
   const sejourNetTotal = roundMoney(
     netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal + midStaySettledAll
-    - resolvedRefundsTotal - resolvedArrivalReduction + resolvedArrivalTip,
+    - resolvedRefundsTotal - resolvedArrivalReduction + resolvedArrivalTip
+    - roundMoney(Math.max(0, Number(platformPenaltyAmount) || 0)),
   );
 
   // specs/tariff-recipes/spec.md §3.4 rules 21-23 — changeover-day check, exposed beside the

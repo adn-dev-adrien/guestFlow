@@ -54,6 +54,11 @@ const DISCOUNT_ACCOUNT = '70900000';
 // courante, hors TVA. Même compte que l'indemnité d'annulation, pour la même raison.
 const TIP_ACCOUNT = DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT;
 
+// specs/reconciliation-assisted-matching.md rule 28 — what a platform keeps on a payout besides its
+// commission and the tourist tax (host cancellation fee, relocation costs…): autres charges de gestion
+// courante. A PLACEHOLDER until the accountant gives the number: editable in the Plan comptable.
+const PLATFORM_PENALTY_ACCOUNT = '658000';
+
 // Well-known commission accounts the accountant uses. Adrien's accountant gave these by
 // email 2026-06-04; new platforms get a generic `622600` fallback until the operator
 // configures the right number on `/comptabilite/plateformes`.
@@ -84,6 +89,7 @@ const ACCOUNT_LABELS = {
   [DISCOUNT_ACCOUNT]: 'Rabais accordé',
   [VAT_DEDUCTIBLE_COMMISSION_ACCOUNT]: 'TVA déductible commission',
   [DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT]: "Indemnité d'annulation",
+  [PLATFORM_PENALTY_ACCOUNT]: 'Pénalité plateforme',
 };
 
 function accountLabel(account) {
@@ -151,6 +157,7 @@ const PLAN_DEFAULTS = Object.freeze({
   commissionVatAccount: VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
   discountAccount: DISCOUNT_ACCOUNT,
   tipAccount: TIP_ACCOUNT,
+  platformPenaltyAccount: PLATFORM_PENALTY_ACCOUNT,
   journalCode: SALES_JOURNAL_CODE,
 });
 const MAPPED_ROLES = Object.freeze([
@@ -192,6 +199,7 @@ module.exports = {
   DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   DISCOUNT_ACCOUNT,
   TIP_ACCOUNT,
+  PLATFORM_PENALTY_ACCOUNT,
   BUCKET_TO_ACCOUNT,
   REFUND_BUCKET_TO_ACCOUNT,
   vatAccountForRate,

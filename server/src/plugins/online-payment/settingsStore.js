@@ -79,6 +79,8 @@ const RECONCILIATION_DECLARED = [
     },
   },
   { key: 'reconciliationCardFeePercent', validate: (v) => (v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 20) ? null : 'Frais de carte invalides.') },
+  { key: 'reconciliationAutoConfirm', validate: (v) => (['', '0', '1'].includes(String(v)) ? null : 'Réglage invalide.') },
+  { key: 'reconciliationAutoConfirmed', validate: () => 'Réglé par la lecture du compte.' },
   { key: 'reconciliationLastReadAt', validate: () => 'Réglé par la lecture du compte.' },
   { key: 'reconciliationLastError', validate: () => 'Réglé par la lecture du compte.' },
 ];

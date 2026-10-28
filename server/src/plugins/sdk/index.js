@@ -90,6 +90,8 @@ const CORE_MODULES = Object.freeze({
   installmentPlan: '../../utils/installmentPlan', // pure plan rules, shared with the books
   // online-payment, bank reconciliation — each installment of a plan is a receipt of its own (direct-installments rule 38)
   installmentsModel: '../../models/installmentsModel', // the plan's rows, read through the core model
+  // accounting-export — a platform penalty is an entry of its own, dated on the penalty (reconciliation-assisted-matching rule 28)
+  platformPenaltiesModel: '../../models/platformPenaltiesModel', // the penalty lines of a stay
   // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
   reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
   pushService: '../../utils/pushService', // « Souscriptions Neat » push

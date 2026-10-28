@@ -2029,7 +2029,7 @@ function createReservationsModel(database) {
       return database.prepare(`
         SELECT r.id, r.reservationNumber, r.platform, r.startDate, r.endDate, r.finalPrice,
                r.depositAmount, r.depositPaid, r.depositDueDate,
-               r.balanceAmount, r.balancePaid, r.balanceDueDate, r.platformCommissionAmount,
+               r.balanceAmount, r.balancePaid, r.balanceDueDate, r.platformCommissionAmount, r.platformPenaltyAmount,
                r.paymentAlertSnoozedUntil,
                c.firstName, c.lastName, c.email,
                p.name AS propertyName, p.cancelAfterBalanceDueDays,

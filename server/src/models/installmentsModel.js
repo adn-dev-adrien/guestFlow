@@ -15,6 +15,7 @@
  *   updateRow(id, { dueDate?, dateEdited?, amountCents?, amountEdited? })
  *   applyAmounts(reservationId, amounts, { clearPins, added }) → amounts: Map number → cents
  *   markPaid(id, { paidDate, method })            → flips unpaid→paid (idempotent), returns { flipped, row }
+ *   markUnpaid(id)                                → takes a payment back (the bank reconciliation's « Défaire »), returns { flipped, row }
  *   markRequested(id, at)
  *   paidSplitOf(id)                               → that frozen split (parsed), or null — none stored / older schema
  *   setPaidSplit(id, split)                       → freezes the accounting split of a collected installment (rule 47)
@@ -111,6 +112,16 @@ function buildModel(database) {
     return { flipped: Number(info.changes) > 0, row: findById(id) };
   }
 
+  function markUnpaid(id) {
+    const row = findById(id);
+    if (!row) return { flipped: false, row: null };
+    const info = database.prepare(
+      'UPDATE reservation_installments SET paid = 0, paidDate = NULL, paidMethod = NULL, paidSplit = NULL WHERE id = ? AND paid = 1',
+    ).run(Number(id));
+    if (Number(info.changes) > 0) refreshAggregates(row.reservationId);
+    return { flipped: Number(info.changes) > 0, row: findById(id) };
+  }
+
   function paidSplitOf(id) {
     try {
       const row = database.prepare('SELECT paidSplit FROM reservation_installments WHERE id = ?').get(Number(id));
@@ -150,7 +161,7 @@ function buildModel(database) {
   }
 
   return {
-    listFor, findById, replacePlan, deletePlan, updateRow, applyAmounts, markPaid, markRequested, paidSplitOf, setPaidSplit, setTarget, listLate,
+    listFor, findById, replacePlan, deletePlan, updateRow, applyAmounts, markPaid, markUnpaid, markRequested, paidSplitOf, setPaidSplit, setTarget, listLate,
   };
 }
 
