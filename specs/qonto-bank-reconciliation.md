@@ -8,6 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Summary page** | `docs/specs/2026-10-22-qonto-bank-reconciliation.html` |
+| **Extended by** | [reconciliation-assisted-matching.md](reconciliation-assisted-matching.md) (Draft 2026-10-28) — fiche linking dialog, bulk confirmation, split and grouped payments, automatic confirmation, platform penalties |
 
 ---
 
@@ -109,7 +110,8 @@ a short list of the gaps to fix on the fiches.
 
 11. Matching produces **proposals**; a proposal is never a decision. Only the operator turns a
     proposal into a **reconciliation** (« Confirmer ») or discards it (« Écarter »). A discarded
-    pair is never proposed again.
+    pair is never proposed again. *(Revised 2026-10-28, Draft: « sûr » single exact matches may confirm
+    themselves — reconciliation-assisted-matching.md rules 20–21.)*
 12. A transaction can be reconciled with several expected receipts (a batch payout), and an expected
     receipt with several transactions (a payment in two transfers). Each reconciliation line stores
     the amount allocated; a transaction's lines never exceed its amount.
@@ -144,7 +146,8 @@ a short list of the gaps to fix on the fiches.
     interest, refund from a supplier…) is listed only under « Autres crédits », where the operator can
     link it by hand or mark it « Hors réservation ».
 18. Manual linking: from any credit, the operator picks one or more in-scope reservations and the
-    échéance; the allocated amount defaults to the remainder of both sides.
+    échéance; the allocated amount defaults to the remainder of both sides. *(Revised 2026-10-28, Draft:
+    several credits or several receipts in one gesture — reconciliation-assisted-matching.md rules 1–8, 14.)*
 
 ### 3.5 Discrepancies
 
@@ -172,7 +175,8 @@ a short list of the gaps to fix on the fiches.
     the receipt moves to `amount_gap` instead of silently losing its reconciliation.
 22. The home's « À traiter » shows one item « Écarts de règlement » with the count of receipts in
     `amount_gap`, `received_not_recorded`, `recorded_not_received`, `late` and `date_gap`, plus the
-    count of credits « non rattachés ». No item when both are zero.
+    count of credits « non rattachés ». No item when both are zero. *(Revised 2026-10-28, Draft: `late`
+    leaves this count, the home « Échéances » card shows it — reconciliation-assisted-matching.md rule 22.)*
 
 ### 3.6 Settings
 
@@ -194,7 +198,8 @@ a short list of the gaps to fix on the fiches.
     proposal (alternatives folded under it), « Rattacher un virement » (manual linking restricted to
     this reservation's receipts), « Défaire » a reconciliation. A gap's line says what to fix on the
     fiche in words (« Le virement fait 596,58 €, la fiche attend 610,02 € »), and fixing the fiche
-    clears it on the next load (rule 20).
+    clears it on the next load (rule 20). *(Revised 2026-10-28, Draft: the dialog lists plausible credits
+    first and no longer comes with the fiche — reconciliation-assisted-matching.md rules 1–10.)*
 27. Out of scope (departure before the start date, cancelled) or Qonto not connected → no card. The
     card never delays the fiche: its data comes with `GET /api/reservations/:id` as a plugin block
     computed from the stored transactions only, never from a call to Qonto.

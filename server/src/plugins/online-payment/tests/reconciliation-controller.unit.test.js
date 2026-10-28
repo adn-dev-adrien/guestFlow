@@ -202,7 +202,7 @@ test('rule 18 — manual linking: the candidates of the dialog, an allocation sp
   const b = addReservation({ clientId: 2, balanceAmount: 300, finalPrice: 300 });
   const { controller, transactions } = build();
   transactions.upsertMany([credit('t1', 70000)], { bankAccountId: 'acc-1' });
-  const found = controller.candidates({ q: 'rossi' }).body.items;
+  const found = controller.candidates({ q: 'rossi' }).body.others.items;
   assert.deepEqual(found.map((i) => i.reservation.id), [b], 'the dialog filters by client');
   const answer = controller.confirm({ transactionId: 't1', allocations: [
     { reservationId: a, ledgerKey: 'balance', amountCents: 40000 },

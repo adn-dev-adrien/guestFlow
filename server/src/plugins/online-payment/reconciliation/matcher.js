@@ -282,4 +282,4 @@ function buildProposals({ transactions, receipts, discarded = new Set(), setting
   return { byTransaction };
 }
 
-module.exports = { buildProposals, classify, smallestSubset, normalize, DEFAULT_PATTERNS, DEFAULT_BATCH_PLATFORMS, CONFIDENCE_RANK };
+module.exports = { buildProposals, classify, smallestSubset, normalize, textOf, nameMatches, daysBetween, DEFAULT_PATTERNS, DEFAULT_BATCH_PLATFORMS, CONFIDENCE_RANK };

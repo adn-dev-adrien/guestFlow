@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import DialogProvider from '../../../components/DialogProvider';
 import ReservationReconciliationCard from '../ReservationReconciliationCard';
-import { item, proposed, gap, done, bankSide, credit } from './reconciliationFixtures';
+import { item, proposed, gap, done, bankSide } from './reconciliationFixtures';
 
 // specs/qonto-bank-reconciliation.md rules 25–27, 33, 39 — the fiche's card draws the server's block,
 // confirms / discards / undoes on the spot and reloads the fiche after a write; nothing without a block.
@@ -18,7 +18,7 @@ vi.mock('../../../api', () => ({
 import api from '../../../api';
 
 const block = (over = {}) => ({
-  lastReadAt: '2026-10-23T08:00:00.000Z', lastError: null, allReconciled: false, lines: [item()], credits: [], unclaimedCount: 0, ...over,
+  lastReadAt: '2026-10-23T08:00:00.000Z', lastError: null, allReconciled: false, lines: [item()], unclaimedCount: 0, ...over,
 });
 const renderCard = (props = {}) => render(
   <DialogProvider>
@@ -81,24 +81,4 @@ test('rule 39 — unsaved edits refuse the writes with the reason', () => {
   renderCard({ formDirty: true, pluginBlocks: { 'online-payment': block({ lines: [proposed()] }) } });
   expect(screen.getByRole('button', { name: 'Confirmer' }).disabled).toBe(true);
   expect(screen.getByText('Enregistrer ou annuler les modifications avant de rapprocher.')).toBeTruthy();
-});
-
-test('manual linking: the amount is refused inline above what the credit has left', async () => {
-  const c = credit({ transactionId: 'tx-9', remainingCents: 30000, amountCents: 30000, status: 'other' });
-  renderCard({ pluginBlocks: { 'online-payment': block({ lines: [item()], credits: [c] }) } });
-  fireEvent.click(screen.getByRole('button', { name: 'Rattacher un virement' }));
-  const field = await screen.findByLabelText('Montant rattaché (€)');
-  fireEvent.change(field, { target: { value: '999' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Rattacher' }));
-  expect(await screen.findByText(/n'a plus que 300,00 €/)).toBeTruthy();
-  expect(api.confirmReconciliation).not.toHaveBeenCalled();
-  fireEvent.change(field, { target: { value: 'abc' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Rattacher' }));
-  expect(await screen.findByText(/Montant invalide/)).toBeTruthy();
-  fireEvent.change(field, { target: { value: '120,50' } });
-  api.confirmReconciliation.mockResolvedValue({ ok: true, marked: [] });
-  fireEvent.click(screen.getByRole('button', { name: 'Rattacher' }));
-  await waitFor(() => expect(api.confirmReconciliation).toHaveBeenCalledWith({
-    transactionId: 'tx-9', allocations: [{ reservationId: 7, ledgerKey: 'balance', amountCents: 12050 }],
-  }));
 });

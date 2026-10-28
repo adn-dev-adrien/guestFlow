@@ -301,6 +301,15 @@ standard).
 
 ---
 
+### Platform penalties (Draft 2026-10-28)
+
+36. **A platform penalty is its own entry** (`reconciliation-assisted-matching.md` rule 28): dated on the
+    penalty's date, debit the « Pénalités plateformes » account (setting `platformPenaltyAccount`, default
+    `658000` until the accountant confirms it), credit the client's auxiliary account, no VAT, no 70xxx line.
+    The balance entry keeps its commission, or carries the lowered one when the declaration moved the penalty
+    out of the payout's commission. *Why:* a penalty kept on a payout was booked as commission, with
+    deductible VAT, whenever the operator typed the bank amount as the payout.
+
 ## 4. Architecture
 
 > **Moved to plugin `accounting-export` (phase 2, `specs/plugins-phase-2-hosts.md`) — current file map

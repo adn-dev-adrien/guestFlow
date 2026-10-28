@@ -43,3 +43,28 @@ export const credit = (over = {}) => ({
   counterparty: 'Booking.com B.V.', reference: 'NO.Pq71/ID.00000002', currency: 'EUR', status: 'unmatched', kind: 'platform', platform: 'Booking',
   note: 'Versement attendu d\'une plateforme qu\'aucune fiche ne réclame : fiche manquante ou montant mal saisi.', ...over,
 });
+
+export const BULK = {
+  proposalIds: ['tx-1:7|balance'], count: 1, totalCents: 59658, amounts: { 'tx-1:7|balance': 59658 },
+  toVerify: { proposalIds: [], count: 0, totalCents: 0, amounts: {} },
+};
+
+export const ficheCredit = (over = {}) => ({
+  transactionId: 'tx-1', amountCents: 30000, remainingCents: 30000, dateLabel: '12/03', counterparty: 'M. OU MME ROSSI',
+  reference: 'ACOMPTE', partlyUsed: false, partlyUsedLabel: null, proposedElsewhere: false, reasons: ['exact'], fitsKey: '7|deposit', ...over,
+});
+
+export const ficheCreditsPayload = (over = {}) => ({
+  receipts: [{ key: '7|deposit', label: 'Acompte', openCents: 30000, anchorDateLabel: 'avant le 14/03' }],
+  likely: [ficheCredit()],
+  others: { total: 1, offset: 0, items: [ficheCredit({ transactionId: 'tx-2', amountCents: 5000, remainingCents: 5000, dateLabel: '03/06', counterparty: 'Intérêts', reference: '', reasons: [] })] },
+  query: { tokens: [] },
+  ...over,
+});
+
+export const previewPayload = (over = {}) => ({
+  valid: true,
+  pairs: [{ transactionId: 'tx-1', reservationId: 7, ledgerKey: 'deposit', amountCents: 30000 }],
+  receipts: [{ key: '7|deposit', label: 'Acompte', expectedCents: 30000, coveredCents: 30000, after: 'covered', statusLabel: 'couvert' }],
+  leftover: [], totalCents: 30000, creditCount: 1, summaryLabel: '1 virement · 300,00 €', errors: [], ...over,
+});

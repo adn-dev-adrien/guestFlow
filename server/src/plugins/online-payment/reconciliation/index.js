@@ -53,6 +53,8 @@ function mountReconciliation(ctx, { store }) {
   ctx.mount('/api/payments/reconciliation', buildRouter({
     list: (...a) => build().list(...a), readNow: (...a) => build().readNow(...a), confirm: (...a) => build().confirm(...a),
     undo: (...a) => build().undo(...a), discard: (...a) => build().discard(...a), setOutside: (...a) => build().setOutside(...a),
+    linkBatch: (...a) => build().linkBatch(...a), previewAllocation: (...a) => build().previewAllocation(...a),
+    confirmAll: (...a) => build().confirmAll(...a), ficheCredits: (...a) => build().ficheCredits(...a),
     candidates: (...a) => build().candidates(...a), bankAccounts: (...a) => build().bankAccounts(...a),
   }));
 

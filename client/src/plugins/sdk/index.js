@@ -51,3 +51,5 @@ export { isReceptionOnly } from '../../constants/roles';
 export { default as HelpedTextField } from '../../components/HelpedTextField';
 // The debounced, latest-wins server preview hook (specs/resource-supplements-total-server-side.md Q5) — SDK 2.1.0.
 export { default as useLatestPreview } from '../../hooks/useLatestPreview';
+// reconciliation-assisted-matching (rule 11) — the active-filter chip — SDK 2.8.0.
+export { default as FilterChip } from '../../components/FilterChip';

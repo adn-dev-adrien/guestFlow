@@ -29,6 +29,29 @@ export default function useReconciliationActions({ onChanged }) {
     () => api.confirmReconciliation({ transactionId, allocations }),
     (answer) => (answer && answer.marked && answer.marked.length > 0 ? 'Rapproché. La fiche est marquée reçue.' : 'Rapproché.')), [run]);
 
+  const linkBatch = useCallback((key, pairs) => run(key, () => api.linkReconciliationBatch({ pairs }),
+    (answer) => (answer && answer.marked && answer.marked.length > 0 ? 'Rapproché. La fiche est marquée reçue.' : 'Rapproché.')), [run]);
+
+  const confirmAll = useCallback(async ({ proposalIds, amounts }) => {
+    setBusy('bulk');
+    try {
+      const answer = await api.confirmAllReconciliation({ proposalIds, amounts });
+      const n = answer.confirmed.length;
+      const skipped = answer.skipped.length;
+      const word = (k) => `${k} rapprochement${k > 1 ? 's' : ''} confirmé${k > 1 ? 's' : ''}`;
+      if (skipped === 0) showSuccess(word(n));
+      else showError(`${n} confirmé${n > 1 ? 's' : ''} · ${skipped} non confirmé${skipped > 1 ? 's' : ''} — voir la liste`);
+      if (onChanged) await onChanged();
+      return answer;
+    } catch (err) {
+      showError(err?.message || 'Action impossible.');
+      if (onChanged) { try { await onChanged(); } catch { /* the error is already shown */ } }
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }, [onChanged, showError, showSuccess]);
+
   const confirm = useCallback((item) => link(item.key, item.proposal.bank.transactionId,
     item.proposal.allocations.map((a) => ({ reservationId: a.reservationId, ledgerKey: a.ledgerKey, amountCents: a.amountCents }))), [link]);
 
@@ -49,5 +72,5 @@ export default function useReconciliationActions({ onChanged }) {
 
   const setOutside = useCallback((credit, outside) => run(credit.transactionId, () => api.setReconciliationOutside(credit.transactionId, outside)), [run]);
 
-  return { busy, link, confirm, discard, undo, setOutside };
+  return { busy, link, linkBatch, confirmAll, confirm, discard, undo, setOutside };
 }
