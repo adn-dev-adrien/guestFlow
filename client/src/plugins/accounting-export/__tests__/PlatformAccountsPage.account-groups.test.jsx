@@ -1,3 +1,4 @@
+// Review amendments: rule 50 — « TVA sur indemnités (%) » is its own cell.
 // specs/settings-input-guards.md rules 32-34 — every account sits in the one « Comptes » card, in labelled groups.
 import { vi } from 'vitest';
 import React from 'react';
@@ -73,4 +74,14 @@ test('rule 33: a plan row the page does not know yet goes at the end of « Vente
   expect(sales.label).toBe('Ventes');
   expect(sales.fields.map((f) => f.label)).toEqual(['Hébergement', 'penaltyAccount']);
   expect(sales.fields[1].helper).toBe('Par défaut : 75800000');
+});
+
+test('rule 32: Commission | Indemnités, then TVA sur indemnités | Pourboires — four separate cells of one grid', async () => {
+  api.getPlatformAccounts.mockResolvedValue(GET(FULL_PLAN));
+  renderPage();
+  const card = await cardOf();
+  const cellOf = (label) => within(card).getByLabelText(label).closest('.MuiTextField-root');
+  const grid = cellOf('Commission par défaut').parentElement;
+  for (const label of ["Indemnités d'annulation", 'TVA sur indemnités (%)', 'Pourboires']) expect(cellOf(label).parentElement).toBe(grid);
+  expect(within(card).getByText('0 % = hors champ de TVA.')).toBeInTheDocument();
 });

@@ -144,6 +144,7 @@ export default function PropertyDetail() {
   const [originalForm, setOriginalForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [errors, setErrors] = useState({});
   const [limits, setLimits] = useState(null);
+  const [limitsError, setLimitsError] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = PROPERTY_TABS.some((t) => t.key === searchParams.get('tab')) ? searchParams.get('tab') : 'general';
   const selectTab = (next) => setSearchParams((prev) => {
@@ -304,7 +305,11 @@ export default function PropertyDetail() {
   }, [canManageExtras, timedOptions, id, load]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { api.getPropertyLimits().then(setLimits).catch(() => setLimits(null)); }, []);
+  const loadLimits = useCallback(() => {
+    setLimitsError(false);
+    api.getPropertyLimits().then(setLimits).catch(() => setLimitsError(true));
+  }, []);
+  useEffect(() => { loadLimits(); }, [loadLimits]);
 
   // Rule 30 (2026-10-18) — the articles as the emails write them, from the server (it contracts
   // « au Le Fournil » into « au Fournil »), following the name as it is typed.
@@ -582,7 +587,11 @@ export default function PropertyDetail() {
             onOpenTariffs={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
           />
         )}
-        {tab === 'paiement' && limits && <PropertyPaymentTab {...common} />}
+        {tab === 'paiement' && (limits ? <PropertyPaymentTab {...common} /> : (
+          limitsError
+            ? <ErrorAlert message="Impossible de charger les réglages de paiement." onRetry={loadLimits} />
+            : <LoadingState label="Chargement…" />
+        ))}
         {tab === 'sejour' && (
           <PropertyStayTab
             {...common}

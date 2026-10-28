@@ -276,6 +276,39 @@ were written then withdrawn the same day; their numbers stay reserved._
 44. **Nowhere else, yet.** The links feed the J+1 e-mail only. Exposing them to the website footer through
     the public API is out of scope (§8).
 
+### 3.8 Review amendments (2026-10-28, after the first review)
+
+45. **What is written is what was validated.** The three delays are written as the validator parsed them
+    (`45,0` is 45, never replaced), and only an ABSENT or empty field (null / undefined / '') keeps the
+    STORED value on update — the policy default (7 / 30 / 7) applies to a creation only. With the acompte
+    off, `depositDueDays` is hidden, not validated, and not overwritten: the stored one stays.
+46. **A lone pool bound is completed from the stored season** before the checks: `{ poolSeasonEnd }` alone
+    is compared with the stored opening (reversed → refused on the end), and a bound with no stored
+    counterpart is a half season, refused « Les deux dates. ».
+47. **The pool pair is judged on what changes (rule 11's approach).** The order and « both dates » checks
+    run only when the payload changes a bound or turns the pool into a season; a legacy reversed season
+    sent back unchanged never blocks an unrelated save. Both bounds empty with the legacy payload stays
+    « no pool ».
+48. **The model refuses too.** `platformsModel.setCommissionPercent` (reachable by plugins) returns `null`
+    and writes nothing outside 0–99.99; a commission with more than two decimals is refused (« Au plus 2
+    décimales. »), never rounded, and `-0` reads as 0. The payout bound derives from
+    `MAX_PAYOUT_DUE_DAYS`.
+49. **Social links, details.** Two links or more start on a new line, so the J+1 sentence reads
+    « Pour suivre nos nouvelles : » then one « Network : url » per line (rule 39 otherwise unchanged); a URL
+    containing a space is refused (« URL invalide. »); the legacy `emails.instagramUrl` input is held to
+    the Instagram host like a list entry (rule 43). The 8-link cap guards the raw API: with 7 networks and
+    one entry per network the form reaches 7.
+50. **Field behaviour, details.** `BoundedNumberField`: the arrows step from the typed number (else from the
+    committed value), stop at the bounds from inside them, and never snap a refused value (↑ on 45 in a
+    0–30 field does nothing, ↓ gives 44); only `-` and `−` (U+2212) are stripped as a minus, a pasted « — »
+    is « Nombre attendu. »; the 2 s messages are announced through a polite live region; more decimals
+    than the field holds are shown « Au plus 2 décimales. ». The pool « Saison » starts with both dates
+    empty; the paiement tab shows a loading state, or an error with « Réessayer », while the property
+    limits load; after « Retirer » focus moves to the next row (or « Ajouter un réseau »); the ↑ ↓ ✕
+    buttons name their network; the list-level error reads in the error colour. The « TVA sur
+    indemnités (%) » field is its own cell, after « Indemnités d'annulation » (helper « 0 % = hors champ de
+    TVA. »).
+
 **Edge cases:**
 - Deposit days `0` on a property whose acompte is **off** → hidden field, not validated (rule 9), no guard
   (A1 = label only).
@@ -333,7 +366,7 @@ were written then withdrawn the same day; their numbers stay reserved._
 | `components/property/` | `PropertyStayTab.jsx` | T | Pool: switch + `SegmentedSelect` (Toute l'année / Saison) + the two `MonthDayField`s; sends `poolSeasonMode` (rules 22–27). |
 | `pages/` | `PropertyDetail.jsx` | T | Loads the limits (`api.getPropertyLimits`), carries `poolSeasonMode` in the form; drops `poolOpen`. |
 | `pages/settings/` | `PlatformsSettingsPage.jsx` | T | Commission and payout cells → `BoundedNumberField` (rules 28–29). |
-| `components/` | `SocialLinksField.jsx` | C | Specific to the e-mail settings: rows of network `Select` + `HelpedTextField` URL + up/down/remove, « Ajouter un réseau » (rules 35, 38). A network already used is disabled in the other rows' pickers. |
+| `components/` | `SocialLinksField.jsx` | C | Specific to the e-mail settings: rows of network `Select` + a plain `TextField` URL (the helper line carries only the server's error) + up/down/remove, « Ajouter un réseau » (rules 35, 38). A network already used is disabled in the other rows' pickers. |
 | `components/` | `SettingsEmailContentSection.jsx` | T | Replaces « Lien Instagram » by `SocialLinksField`. |
 | `hooks/` | `useSettingsForm.js` | T | Carries `socialLinks` (array) and its indexed errors; `instagramUrl` and `socialNetworks` are read-only for the page. |
 | `plugins/accounting-export/` | `PlatformAccountsPage.jsx` | T | One « Comptes » card, groups of rule 32. |
@@ -425,24 +458,25 @@ Every new rule is cited by at least one test (`check-spec-coverage`).
 
 | File | Cases | Rules |
 |---|---|---|
-| `settings-input-guards-limits.unit.test.js` | 7 — descriptors, bounds inclusive, comma/dot, non-numbers, integer vs decimal, message per descriptor | 1, 5, 6, 8 |
-| `settings-input-guards-property-days.unit.test.js` | 9 — each field in and out of bounds; deposit off skips; stored 90 untouched passes, edited to 91 refused; absent field keeps the default; one message per field | 9–13 |
+| `settings-input-guards-limits.unit.test.js` | 9 — descriptors, bounds inclusive, comma/dot, non-numbers, integer vs decimal, message per descriptor | 1, 5, 6, 8 |
+| `settings-input-guards-property-days.unit.test.js` | 13 — each field in and out of bounds; deposit off skips; stored 90 untouched passes, edited to 91 refused; absent field keeps the default; one message per field | 9–13, 45 |
 | `settings-input-guards-deposit-at-booking.unit.test.js` | 6 — 0 days = booking day; rule 47 cap; nothing blocked; platform never concerned; devis ignores the delay; website payment converts | 15, 21 |
-| `settings-input-guards-pool-season.unit.test.js` | 9 — allYear / none / legacy dates / mode derived; order, equal, missing bound, unknown mode; J-7 overlap all year incl. New Year | 22–27 |
-| `settings-input-guards-platform-commission.unit.test.js` | 5 — bulk refusals write nothing, comma accepted, payout message, legacy PUT refuses, limits in GET | 28–31 |
-| `settings-input-guards-social-links.unit.test.js` | 21 — migration (copy / empty / idempotent / odd URL / no column), catalogue, hosts, each message, 8 max, trim and drop, order, instagramUrl sync, legacy merge, J+1 golden FR/EN, no link, several links, template identities, nowhere else | 35–44 |
+| `settings-input-guards-pool-season.unit.test.js` | 13 — allYear / none / legacy dates / mode derived; order, equal, missing bound, unknown mode; J-7 overlap all year incl. New Year | 22–27, 46–47 |
+| `settings-input-guards-platform-commission.unit.test.js` | 6 — bulk refusals write nothing, comma accepted, payout message, legacy PUT refuses, limits in GET | 28–31, 48 |
+| `settings-input-guards-social-links.unit.test.js` | 24 — migration (copy / empty / idempotent / odd URL / no column), catalogue, hosts, each message, 8 max, trim and drop, order, instagramUrl sync, legacy merge, J+1 golden FR/EN, no link, several links, template identities, nowhere else | 35–44, 49 |
 
 ### Client unit tests (Vitest)
 
 | File | Cases | Rules |
 |---|---|---|
-| `components/__tests__/BoundedNumberField.input-guards.test.jsx` | 16 | 1–7 |
+| `components/__tests__/BoundedNumberField.input-guards.test.jsx` | 22 | 1–7, 50 |
 | `components/property/__tests__/PropertyPaymentTab.day-bounds.test.jsx` | 5 | 9–14 |
-| `components/property/__tests__/PropertyStayTab.pool-mode.test.jsx` | 6 | 22–27 |
+| `components/property/__tests__/PropertyStayTab.pool-mode.test.jsx` | 8 | 22–27, 50 |
+| `pages/__tests__/PropertyDetail.limits-loading.test.jsx` | 2 | 8, 50 |
 | `pages/settings/__tests__/PlatformsSettingsPage.commission-guard.test.jsx` | 4 | 28–29 |
-| `components/__tests__/SocialLinksField.test.jsx` | 8 | 35–38 |
+| `components/__tests__/SocialLinksField.test.jsx` | 11 | 35–38, 50 |
 | `pages/settings/__tests__/EmailSettingsPage.social-links.test.jsx` | 2 | 35, 37, 42 |
-| `plugins/accounting-export/__tests__/PlatformAccountsPage.account-groups.test.jsx` | 5 | 32–34 |
+| `plugins/accounting-export/__tests__/PlatformAccountsPage.account-groups.test.jsx` | 6 | 32–34, 50 |
 
 ### E2E (Playwright)
 

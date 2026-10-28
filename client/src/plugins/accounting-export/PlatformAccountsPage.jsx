@@ -263,20 +263,19 @@ export default function PlatformAccountsPage() {
   );
   function accountField(field) {
     if (field.source === 'default') return accountInput(field, defaultAccount, handleDefaultAccountChange, 'defaultAccount');
-    if (field.source === 'compensation') {
+    if (field.source === 'compensation') return accountInput(field, compensationAccount, handleCompensationAccountChange, 'compensationAccount');
+    if (field.source === 'vatCompensation') {
       return (
-        <Stack key={field.key} spacing={2}>
-          {accountInput(field, compensationAccount, handleCompensationAccountChange, 'compensationAccount')}
-          <TextField
-            label="TVA sur indemnités (%)"
-            value={vatRateCompensation}
-            onChange={(e) => handleVatChange(setVatRateCompensation, 'vatRateCompensation')(e.target.value)}
-            error={Boolean(errors.vatRateCompensation)}
-            helperText={errors.vatRateCompensation || '0 % = hors champ de TVA (recommandé). À changer seulement à la demande du cabinet comptable.'}
-            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            disabled={saving}
-          />
-        </Stack>
+        <TextField
+          key={field.key}
+          label={field.label}
+          value={vatRateCompensation}
+          onChange={(e) => handleVatChange(setVatRateCompensation, 'vatRateCompensation')(e.target.value)}
+          error={Boolean(errors.vatRateCompensation)}
+          helperText={errors.vatRateCompensation || field.helper}
+          slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+          disabled={saving}
+        />
       );
     }
     return accountInput(field, plan[field.key] ?? '', (value) => updatePlanField(field.key, value), `plan-${field.key}`);
@@ -322,7 +321,7 @@ export default function PlatformAccountsPage() {
                 </Box>
                 {accountGroupsFor(planRows).map((group) => (
                   <Box key={group.key}>
-                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>{group.label}</Typography>
+                    <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1.5 }}>{group.label}</Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                       {group.fields.map((field) => accountField(field))}
                     </Box>

@@ -1,3 +1,4 @@
+// Review amendments: rule 50 — arrows from the typed number, never snap a refused value, live region, dash is not a minus.
 import React, { useState } from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -30,9 +31,9 @@ test('rule 2: a typed minus is removed and the helper says why for 2 s', () => {
   render(<Harness />);
   type('-5');
   expect(field()).toHaveValue('5');
-  expect(screen.getByText('Positif uniquement.')).toBeInTheDocument();
+  expect(screen.getAllByText('Positif uniquement.').length).toBeGreaterThan(0);
   act(() => { vi.advanceTimersByTime(2100); });
-  expect(screen.queryByText('Positif uniquement.')).toBeNull();
+  expect(screen.queryAllByText('Positif uniquement.')).toHaveLength(0);
   vi.useRealTimers();
 });
 
@@ -78,7 +79,7 @@ test('rule 4: a non-number restores the previous value and says « Nombre attend
     type(bad);
     fireEvent.blur(field());
     expect(field()).toHaveValue('7');
-    expect(screen.getByText('Nombre attendu.')).toBeInTheDocument();
+    expect(screen.getAllByText('Nombre attendu.').length).toBeGreaterThan(0);
   }
   expect(onCommit).not.toHaveBeenCalled();
 });
@@ -167,4 +168,63 @@ test('rule 7: focusing selects the content', () => {
   const selected = vi.spyOn(field(), 'select');
   fireEvent.focus(field());
   expect(selected).toHaveBeenCalled();
+});
+
+test('rule 7: ArrowUp steps from the typed number, not from the last saved value', () => {
+  const onCommit = vi.fn();
+  render(<Harness initial={7} onCommit={onCommit} />);
+  type('12');
+  fireEvent.keyDown(field(), { key: 'ArrowUp' });
+  expect(onCommit).toHaveBeenLastCalledWith(13);
+  expect(field()).toHaveValue('13');
+});
+
+test('rule 7: from a non-number the arrows step from the committed value', () => {
+  const onCommit = vi.fn();
+  render(<Harness initial={7} onCommit={onCommit} />);
+  type('abc');
+  fireEvent.keyDown(field(), { key: 'ArrowUp' });
+  expect(onCommit).toHaveBeenLastCalledWith(8);
+});
+
+test('rule 5, 7: a refused 45 is never snapped to 30 by the arrows — ArrowUp does nothing, ArrowDown moves one step', () => {
+  const onCommit = vi.fn();
+  render(<Harness initial={45} onCommit={onCommit} />);
+  act(() => field().focus());
+  fireEvent.keyDown(field(), { key: 'ArrowUp' });
+  expect(onCommit).not.toHaveBeenCalled();
+  expect(field()).toHaveValue('45');
+  fireEvent.keyDown(field(), { key: 'ArrowDown' });
+  expect(onCommit).toHaveBeenLastCalledWith(44);
+});
+
+test('rule 4: a dash is not a minus — « — » is « Nombre attendu. », and the minus sign U+2212 is stripped', () => {
+  render(<Harness />);
+  type('—');
+  expect(field()).toHaveValue('—');
+  expect(screen.queryAllByText('Positif uniquement.')).toHaveLength(0);
+  act(() => field().blur());
+  expect(field()).toHaveValue('7');
+  expect(screen.getAllByText('Nombre attendu.').length).toBeGreaterThan(0);
+  type('\u22125');
+  expect(field()).toHaveValue('5');
+});
+
+test('rule 5: more decimals than the field holds are refused, not rounded', () => {
+  const onCommit = vi.fn();
+  render(<Harness limits={RATE} onCommit={onCommit} />);
+  type('12,345');
+  fireEvent.blur(field());
+  expect(onCommit).toHaveBeenLastCalledWith(12.345);
+  expect(field()).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByText('Au plus 2 décimales.')).toBeInTheDocument();
+});
+
+test('rule 2, 4: the short messages are announced through a polite live region', () => {
+  render(<Harness />);
+  const live = screen.getByRole('status');
+  expect(live).toHaveAttribute('aria-live', 'polite');
+  expect(live).toHaveTextContent('');
+  type('-5');
+  expect(live).toHaveTextContent('Positif uniquement.');
 });

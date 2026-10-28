@@ -6,7 +6,8 @@
  * A field `source` says where its value lives on the page:
  *   - 'plan'         — a row of the account plan the server sends (`plan: [{ key, value, default }]`)
  *   - 'default'      — the default commission account
- *   - 'compensation' — the cancellation-compensation account (its VAT rate is shown right under it)
+ *   - 'compensation' — the cancellation-compensation account
+ *   - 'vatCompensation' — the VAT rate (%) on cancellation compensations, shown right after it
  */
 
 // specs/plugins-phase-p-productisation.md rules 27–28 — the account plan, one field per role.
@@ -50,6 +51,7 @@ export const ACCOUNT_GROUPS = [
     fields: [
       { key: 'defaultAccount', source: 'default', label: 'Commission par défaut', helper: 'Pour les plateformes sans compte propre.' },
       { key: 'compensationAccount', source: 'compensation', label: "Indemnités d'annulation", helper: "Crédité quand une plateforme indemnise une annulation." },
+      { key: 'vatRateCompensation', source: 'vatCompensation', label: 'TVA sur indemnités (%)', helper: '0 % = hors champ de TVA.' },
       { key: 'tipAccount' },
     ],
   },

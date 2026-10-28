@@ -1,3 +1,4 @@
+// Review amendments: rule 50 — focus after « Retirer », named buttons, list error colour.
 // specs/settings-input-guards.md rules 35, 37, 38 — the ordered social links of the e-mail settings.
 import React, { useState } from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
@@ -31,16 +32,16 @@ test('rule 35: adding a row takes the first network not yet used; the URL stays 
 test('rule 38: up and down reorder, the first cannot go up and the last cannot go down', () => {
   const onChange = vi.fn();
   render(<Harness initial={[{ network: 'instagram', url: 'a' }, { network: 'facebook', url: 'b' }]} onChange={onChange} />);
-  expect(within(rows()[0]).getByRole('button', { name: 'Monter' })).toBeDisabled();
-  expect(within(rows()[1]).getByRole('button', { name: 'Descendre' })).toBeDisabled();
-  fireEvent.click(within(rows()[1]).getByRole('button', { name: 'Monter' }));
+  expect(within(rows()[0]).getByRole('button', { name: /^Monter/ })).toBeDisabled();
+  expect(within(rows()[1]).getByRole('button', { name: /^Descendre/ })).toBeDisabled();
+  fireEvent.click(within(rows()[1]).getByRole('button', { name: /^Monter/ }));
   expect(onChange).toHaveBeenLastCalledWith([{ network: 'facebook', url: 'b' }, { network: 'instagram', url: 'a' }]);
 });
 
 test('rule 35: a row is removed', () => {
   const onChange = vi.fn();
   render(<Harness initial={[{ network: 'instagram', url: 'a' }, { network: 'facebook', url: 'b' }]} onChange={onChange} />);
-  fireEvent.click(within(rows()[0]).getByRole('button', { name: 'Retirer' }));
+  fireEvent.click(within(rows()[0]).getByRole('button', { name: /^Retirer/ }));
   expect(onChange).toHaveBeenLastCalledWith([{ network: 'facebook', url: 'b' }]);
   expect(rows()).toHaveLength(1);
 });
@@ -73,4 +74,26 @@ test('rule 37: a server error lands under the right row, the list error under th
   expect(within(rows()[1]).getByText("Lien d'un autre réseau.")).toBeInTheDocument();
   expect(within(rows()[0]).queryByText("Lien d'un autre réseau.")).toBeNull();
   expect(screen.getByText('8 liens au plus.')).toBeInTheDocument();
+});
+
+test('rule 38: each icon button names its network', () => {
+  render(<Harness initial={[{ network: 'instagram', url: 'a' }, { network: 'facebook', url: 'b' }]} />);
+  expect(within(rows()[0]).getByRole('button', { name: 'Descendre Instagram' })).toBeInTheDocument();
+  expect(within(rows()[1]).getByRole('button', { name: 'Monter Facebook' })).toBeInTheDocument();
+  expect(within(rows()[1]).getByRole('button', { name: 'Retirer Facebook' })).toBeInTheDocument();
+});
+
+test('rule 38: after « Retirer », focus moves to the next row, the previous one for the last, then to « Ajouter un réseau »', () => {
+  render(<Harness initial={[{ network: 'instagram', url: 'a' }, { network: 'facebook', url: 'b' }, { network: 'tiktok', url: 'c' }]} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Retirer Instagram' }));
+  expect(screen.getByRole('button', { name: 'Retirer Facebook' })).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Retirer Tiktok' }));
+  expect(screen.getByRole('button', { name: 'Retirer Facebook' })).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Retirer Facebook' }));
+  expect(screen.getByRole('button', { name: 'Ajouter un réseau' })).toHaveFocus();
+});
+
+test('rule 37: the list-level error is shown in the error colour', () => {
+  render(<Harness errors={{ socialLinks: '8 liens au plus.' }} />);
+  expect(screen.getByText('8 liens au plus.')).toHaveStyle({ color: 'rgb(211, 47, 47)' });
 });

@@ -24,14 +24,19 @@
  *   - showUnit?: boolean (default true) — the unit as an end adornment; off where a column header says it.
  *   - ...rest — forwarded to MUI <TextField> (label, size, fullWidth, disabled, sx…).
  *
+ * The 2 s messages are also announced through a polite live region.
+ *
  * It renders `type="text"` with a numeric `inputMode`, so there is no native spinner and no
  * browser-specific parsing; the unit sits as an end adornment.
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { InputAdornment, TextField } from '@mui/material';
+import { Box, InputAdornment, TextField } from '@mui/material';
 import { parseLocaleNumber, rangeError, stripMinus, toDisplay } from '../utils/numberInput';
 
 const FLASH_MS = 2000;
+const VISUALLY_HIDDEN = {
+  position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
+};
 
 export default function BoundedNumberField({
   value,
@@ -69,7 +74,7 @@ export default function BoundedNumberField({
 
   const forbidsMinus = limits.min >= 0;
   const stepSize = limits.integer || !Number.isInteger(limits.decimals) ? 1 : 10 ** -limits.decimals;
-  const rounded = (n) => (Number.isInteger(limits.decimals) ? Number(n.toFixed(limits.decimals)) : n);
+  const stepped = (n) => (Number.isInteger(limits.decimals) ? Number(n.toFixed(limits.decimals)) : n);
 
   const change = (event) => {
     const typed = event.target.value;
@@ -95,15 +100,20 @@ export default function BoundedNumberField({
       say('Nombre attendu.');
       return;
     }
-    const next = rounded(parsed);
-    setDraft(toDisplay(next));
-    onCommit(next);
+    setDraft(toDisplay(parsed));
+    onCommit(parsed);
   };
 
+  // Steps from what is typed when it is a number, else from the committed value. From inside the bounds it
+  // stops at them; from a refused value outside them it only moves one step (never snapped, rule 5).
   const step = (direction) => {
-    const base = Number(value);
-    const start = Number.isFinite(base) ? base : limits.min;
-    const next = rounded(Math.min(limits.max, Math.max(limits.min, start + direction * stepSize)));
+    const typed = parseLocaleNumber(draft);
+    const committed = Number(value);
+    const start = !Number.isNaN(typed) ? typed : (Number.isFinite(committed) ? committed : limits.min);
+    const inside = start >= limits.min && start <= limits.max;
+    if (direction > 0 ? start >= limits.max : start <= limits.min) return;
+    const raw = stepped(start + direction * stepSize);
+    const next = inside ? Math.min(limits.max, Math.max(limits.min, raw)) : raw;
     setDraft(toDisplay(next));
     onCommit(next);
   };
@@ -120,28 +130,31 @@ export default function BoundedNumberField({
   const shownHelper = refusal || flash || helperText;
 
   return (
-    <TextField
-      {...rest}
-      inputRef={inputRef}
-      type="text"
-      value={focused ? draft : toDisplay(value)}
-      onChange={change}
-      onFocus={(e) => { setFocused(true); e.target.select(); }}
-      onBlur={() => { setFocused(false); commit(); }}
-      onKeyDown={handleKeyDown}
-      error={Boolean(refusal)}
-      color={flash && !refusal ? 'warning' : undefined}
-      focused={flash && !refusal ? true : undefined}
-      helperText={shownHelper || undefined}
-      sx={{ '& fieldset': { transition: 'border-color 160ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }, ...rest.sx }}
-      slotProps={{
-        ...slotProps,
-        htmlInput: { inputMode: limits.integer ? 'numeric' : 'decimal', 'aria-invalid': Boolean(refusal), ...slotProps?.htmlInput },
-        input: {
-          ...slotProps?.input,
-          endAdornment: showUnit && limits.unit ? <InputAdornment position="end">{limits.unit}</InputAdornment> : slotProps?.input?.endAdornment,
-        },
-      }}
-    />
+    <>
+      <TextField
+        {...rest}
+        inputRef={inputRef}
+        type="text"
+        value={focused ? draft : toDisplay(value)}
+        onChange={change}
+        onFocus={(e) => { setFocused(true); e.target.select(); }}
+        onBlur={() => { setFocused(false); commit(); }}
+        onKeyDown={handleKeyDown}
+        error={Boolean(refusal)}
+        color={flash && !refusal ? 'warning' : undefined}
+        focused={flash && !refusal ? true : undefined}
+        helperText={shownHelper || undefined}
+        sx={{ '& fieldset': { transition: 'border-color 160ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }, ...rest.sx }}
+        slotProps={{
+          ...slotProps,
+          htmlInput: { inputMode: limits.integer ? 'numeric' : 'decimal', 'aria-invalid': Boolean(refusal), ...slotProps?.htmlInput },
+          input: {
+            ...slotProps?.input,
+            endAdornment: showUnit && limits.unit ? <InputAdornment position="end">{limits.unit}</InputAdornment> : slotProps?.input?.endAdornment,
+          },
+        }}
+      />
+      <Box component="span" role="status" aria-live="polite" sx={VISUALLY_HIDDEN}>{flash}</Box>
+    </>
   );
 }

@@ -4,7 +4,8 @@
 
 const NUMBER_PATTERN = /^[+-]?(\d+([.,]\d+)?|[.,]\d+)$/;
 
-export const stripMinus = (text) => String(text).replace(/[-−–—]/g, '');
+// Only the hyphen-minus and the real minus sign: a dash pasted from elsewhere is « not a number », not « a minus ».
+export const stripMinus = (text) => String(text).replace(/[-\u2212]/g, '');
 
 /** Reads « 12,5 » and « 12.5 » alike; NaN for anything that is not a number. */
 export function parseLocaleNumber(text) {
@@ -25,6 +26,9 @@ export function rangeError(value, limits) {
   if (value === '' || value == null || Number.isNaN(Number(value))) return '';
   const n = Number(value);
   if (limits.integer && !Number.isInteger(n)) return limits.unit === 'jours' ? 'Nombre entier de jours.' : 'Nombre entier.';
+  if (!limits.integer && Number.isInteger(limits.decimals) && (String(value).split('.')[1] || '').length > limits.decimals) {
+    return `Au plus ${limits.decimals} décimale${limits.decimals > 1 ? 's' : ''}.`;
+  }
   return n < limits.min || n > limits.max ? limitMessage(limits) : '';
 }
 

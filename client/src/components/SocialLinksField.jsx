@@ -16,7 +16,7 @@
  *       or when every network is already in the list.
  *   - disabled?: boolean
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Box, Button, FormControl, FormHelperText, IconButton, InputLabel, MenuItem, Select, TextField, Tooltip, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -36,17 +36,31 @@ export default function SocialLinksField({ links = [], networks = [], onChange, 
     [next[index], next[index + delta]] = [next[index + delta], next[index]];
     onChange(next);
   };
-  const remove = (index) => onChange(links.filter((_, i) => i !== index));
+  const removeButtons = useRef([]);
+  const addButton = useRef(null);
+  const focusAfterRemove = useRef(null);
+  const remove = (index) => {
+    focusAfterRemove.current = index;
+    onChange(links.filter((_, i) => i !== index));
+  };
+  // Focus goes to the next row's « Retirer » (the previous one when the last row left), or to the add button.
+  useEffect(() => {
+    if (focusAfterRemove.current === null) return;
+    const target = removeButtons.current[Math.min(focusAfterRemove.current, links.length - 1)] || addButton.current;
+    focusAfterRemove.current = null;
+    if (target) target.focus();
+  }, [links]);
 
   return (
     <Box>
       <Typography variant="subtitle2" component="h3">Réseaux sociaux</Typography>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: errors.socialLinks ? 'error.main' : 'text.secondary' }}>
         {errors.socialLinks || 'Proposés dans le mail de remerciement (J+1).'}
       </Typography>
       <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {links.map((link, index) => {
           const networkError = errors[`socialLinks.${index}.network`];
+          const name = (networks.find((n) => n.value === link.network) || { label: link.network }).label;
           return (
             <Box
               component="li"
@@ -85,14 +99,14 @@ export default function SocialLinksField({ links = [], networks = [], onChange, 
                 sx={{ gridArea: 'url' }}
               />
               <Box sx={{ gridArea: 'actions', display: 'flex' }}>
-                <Tooltip title="Monter">
-                  <span><IconButton aria-label="Monter" onClick={() => move(index, -1)} disabled={disabled || index === 0} sx={iconButtonSx}><ArrowUpwardIcon fontSize="small" /></IconButton></span>
+                <Tooltip title={`Monter ${name}`}>
+                  <span><IconButton aria-label={`Monter ${name}`} onClick={() => move(index, -1)} disabled={disabled || index === 0} sx={iconButtonSx}><ArrowUpwardIcon fontSize="small" /></IconButton></span>
                 </Tooltip>
-                <Tooltip title="Descendre">
-                  <span><IconButton aria-label="Descendre" onClick={() => move(index, 1)} disabled={disabled || index === links.length - 1} sx={iconButtonSx}><ArrowDownwardIcon fontSize="small" /></IconButton></span>
+                <Tooltip title={`Descendre ${name}`}>
+                  <span><IconButton aria-label={`Descendre ${name}`} onClick={() => move(index, 1)} disabled={disabled || index === links.length - 1} sx={iconButtonSx}><ArrowDownwardIcon fontSize="small" /></IconButton></span>
                 </Tooltip>
-                <Tooltip title="Retirer">
-                  <span><IconButton aria-label="Retirer" onClick={() => remove(index)} disabled={disabled} sx={iconButtonSx}><CloseIcon fontSize="small" /></IconButton></span>
+                <Tooltip title={`Retirer ${name}`}>
+                  <span><IconButton ref={(el) => { removeButtons.current[index] = el; }} aria-label={`Retirer ${name}`} onClick={() => remove(index)} disabled={disabled} sx={iconButtonSx}><CloseIcon fontSize="small" /></IconButton></span>
                 </Tooltip>
               </Box>
             </Box>
@@ -101,6 +115,7 @@ export default function SocialLinksField({ links = [], networks = [], onChange, 
       </Box>
       <Button
         startIcon={<AddIcon />}
+        ref={addButton}
         onClick={() => onChange([...links, { network: nextFree.value, url: '' }])}
         disabled={!canAdd}
         sx={{ mt: links.length ? 1.5 : 0, minHeight: 44 }}

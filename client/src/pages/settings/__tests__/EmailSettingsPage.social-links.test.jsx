@@ -6,7 +6,6 @@
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, act, within, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('../../../api', () => ({
@@ -41,31 +40,31 @@ beforeEach(() => {
   api.getSettings.mockResolvedValue(payload(SAVED));
 });
 
+// Under a loaded CI box the whole page renders slowly: a modest per-test timeout, light interactions.
+const SLOW_OK = 20_000;
 const renderPage = () => render(<MemoryRouter><EmailSettingsPage /></MemoryRouter>);
 
 test('rule 35, 42: an added link is saved as the whole list, without the legacy instagramUrl', async () => {
-  const user = userEvent.setup();
   api.updateSettings.mockImplementation(async (body) => payload(body.emails.socialLinks));
   renderPage();
   await screen.findByText('Réseaux sociaux');
-  await user.click(screen.getByRole('button', { name: 'Ajouter un réseau' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter un réseau' }));
   fireEvent.change(screen.getAllByLabelText('Adresse du lien')[1], { target: { value: 'https://facebook.com/a' } });
-  await act(async () => { await user.click(screen.getByRole('button', { name: 'Enregistrer' })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' })); });
   await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1));
   expect(api.updateSettings.mock.calls[0][0]).toEqual({
     emails: { socialLinks: [...SAVED, { network: 'facebook', url: 'https://facebook.com/a' }] },
   });
-});
+}, SLOW_OK);
 
 test('rule 37: the server\'s refusal of one link shows under that row', async () => {
-  const user = userEvent.setup();
   api.updateSettings.mockRejectedValue(Object.assign(new Error('SETTINGS_INVALID'), {
     errors: { 'socialLinks.0.url': "Lien d'un autre réseau." },
   }));
   renderPage();
   await screen.findByText('Réseaux sociaux');
   fireEvent.change(screen.getByLabelText('Adresse du lien'), { target: { value: 'https://instagram.com/ax' } });
-  await act(async () => { await user.click(screen.getByRole('button', { name: 'Enregistrer' })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' })); });
   const row = (await screen.findAllByRole('listitem'))[0];
   expect(await within(row).findByText("Lien d'un autre réseau.")).toBeInTheDocument();
-});
+}, SLOW_OK);

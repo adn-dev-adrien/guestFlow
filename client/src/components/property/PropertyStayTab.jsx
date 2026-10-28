@@ -111,7 +111,11 @@ export default function PropertyStayTab({
                 label="Période d'ouverture"
                 options={[{ value: 'allYear', label: "Toute l'année" }, { value: 'season', label: 'Saison' }]}
                 value={poolMode}
-                onChange={(next) => updateField('poolSeasonMode', next)}
+                onChange={(next) => {
+                  updateField('poolSeasonMode', next);
+                  // « Saison » starts empty: prefilled with the all-year bounds it would save back as all year.
+                  if (next === 'season' && poolMode !== 'season') { updateField('poolSeasonStart', ''); updateField('poolSeasonEnd', ''); }
+                }}
               />
             )}
             {poolMode === 'season' && (
