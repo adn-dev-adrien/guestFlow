@@ -1049,3 +1049,13 @@ None left. **Resolved 2026-10-19** — Adrien took the recommended option on all
   the server (rule 63).
 - **Q-F. Dismissing an alert — Resolved 2026-10-28:** (a) not dismissable — it is rare by construction
   and goes away when the channel is fixed or the stay starts. Rejected: (b) « Ignorer » per fiche.
+
+## 10. Implementation progress — amendment of 2026-10-28
+
+Implemented on `feature/clients-directory-and-fiche-tariff` (commits `feat(reservations): stored summary in the usual card, platform price alert` and `fix(reservations): skip the platform price check on nights the tariff has left behind`).
+
+- Server: `utils/storedSummary.js`, `utils/platformPriceCheck.js`, `tariffChangeJournalModel.hasEventAfter`, `calculate-price` → `platformPriceCheck`; 6 + 16 new unit cases.
+- Client: `PricingSummary` `mode` / `topNotice`, `PlatformPriceAlert`, `StoredPricingSummary` deleted; 7 + 5 + 2 new Vitest cases; E2E `reservations/stored-summary.spec.js` (4).
+- Deviations: `lines[]` replaced by quote-shaped `optionLines` / `resourceLines` (rule 51 note); no `gridCellOf` extraction (rule 59 reads `platformPrices()`); the eight channel totals of tariff recipes rule 54 were not replayed (rule 59 test note); rule 61 gained the « replayed nights differ from today's seasons » clause.
+- Real-data pass (shadow copy of 2026-10-22): of the 6 upcoming platform fiches, **1 raises the alert** — 22308 (Gîtes de France, Granja, 504,00 € paid against 640,00 € on the grid, −21 %; the ménage of 80 € and the withheld tax are out of « paid »). The first run raised 2: 22270 (Booking, Estiva, 2027) read +43 % because it was sold in August 2026 on the 100 € fallback nights of a season that did not exist yet; rule 61's new clause silences it. The Booking fiches 22324, 22282, 22301 and 22304 show no alert and the usual card. Checked at 390 (sheet from the total bar: alert, 44 px link, no horizontal scroll) and 1280.
+- Suites: server 7113 pass in the full run (+1 case added afterwards, its file green), client Vitest 2607 pass, vite build and bundle budget (286.2 kB gzip of 313.3 kB) pass, E2E 165 pass + 1 skipped (one load-only failure, `devis-property-switch-offered`, passes alone), prod E2E 4, bare E2E 6; `check-spec-coverage --changed` and `check-plugin-versions --base origin/inte/plugins` pass.

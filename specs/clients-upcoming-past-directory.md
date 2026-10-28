@@ -394,3 +394,12 @@ Resolved during scoping (2026-08-17, issue #19):
   with « Nettoyer les clients » in it. Rejected: (b) with « Passés »; (c) unchanged in « À venir ».
 - **Q-B. The row delete icon. — Resolved 2026-10-28:** (a) removed; deletion through the client sheet
   only. Rejected: (b) a « ⋯ » menu per row.
+
+## 10. Implementation progress
+
+**Amendment 2026-10-28 — implemented** on `feature/clients-directory-and-fiche-tariff` (commit `feat(clients): directory with À venir / Passés / Sans séjour views`).
+
+- Server: `clientsModel.directory` (views, groups, `stay`, `stayCount`, `whenLabel`, `elsewhere`, `orphanCount`), `utils/clientWhenLabel.js`; 15 + 6 new unit cases, `clients-directory.unit.test.js` updated.
+- Client: `ClientsPage` (view in `?vue=`, `SearchField`, « Trier » select, `GroupedList`), `ClientDirectoryRow`, `DataPageScaffold.body`, `GroupedList` unlabelled group; 11 + 1 + 2 new Vitest cases and the four existing `ClientsPage.*` suites updated; E2E `clients/clients-directory.spec.js` (3).
+- Deviations: `GroupedList` (#824) reused instead of a new `GroupedListCard`; group headings do not stick (§6); cancellation is `kind = 'cancelled'` (no `cancelledAt` read); a `?clientId=` of a client outside the open view is fetched so its sheet still opens.
+- Real-data pass (shadow copy of 2026-10-22, 390 and 1280 px): « À venir (9) · Passés (48) · Sans séjour (21) », no horizontal scroll on any of the three views, search miss offers the other view, « Nettoyer les clients » only in « Sans séjour » (18 clients offered). A first run showed the stay line truncating on phones; the year is now said once and the platform chip sits beside the property below `md`.
