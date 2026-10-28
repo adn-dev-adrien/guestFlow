@@ -331,6 +331,7 @@ below are the recommended ones; each is reversible in a later spec.
     back to the licence key, handled by the control plane) and packages must be sandboxed.
     `tar` refuses links but lets FIFO and device members through, and a gzip can expand without
     limit: both need a signed package to be reached.
+    **Sans test** — a statement of the trust model, not a behaviour.
 
 ---
 
