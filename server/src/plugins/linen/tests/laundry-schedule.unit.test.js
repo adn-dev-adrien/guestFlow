@@ -15,6 +15,16 @@ const ERR = {
   turnaround: { code: 'LAUNDRY_TURNAROUND_INVALID', message: 'Entre 1 et 14 jours.', field: 'turnaroundDays' },
 };
 
+// --- Rule 1: what a schedule is -----------------------------------------------------------------
+
+test('specs/linen-laundry-days.md §3.1 rule 1: a schedule is one to seven distinct weekdays and a turnaround from 1 to 14 days', () => {
+  assert.ok(validateSchedule({ weekdays: [0], turnaroundDays: 1 }).value);
+  assert.ok(validateSchedule({ weekdays: [0, 1, 2, 3, 4, 5, 6], turnaroundDays: 14 }).value);
+  assert.ok(validateSchedule({ weekdays: [0, 1, 2, 3, 4, 5, 6, 0], turnaroundDays: 14 }).error, 'eight days cannot be distinct');
+  const { cycle } = describeCycle({ weekdays: [2], turnaroundDays: 14 });
+  assert.equal(cycle.length, 1, 'one cycle line per weekday');
+});
+
 // --- Rule 3: validation, nothing rounded -------------------------------------------------------
 
 test('specs/linen-laundry-days.md §3.1 rule 3: a valid schedule is accepted and its weekdays sorted', () => {

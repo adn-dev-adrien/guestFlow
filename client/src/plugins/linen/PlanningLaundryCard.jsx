@@ -7,7 +7,8 @@
  * reloads the laundry of the window shown: a skip or a manual line moves the next trips and the stock
  * line too.
  *
- * Props: date (ISO), entry ({ data, inventoryAfter, isSkipped, manualAddition, extraTrip }), reload().
+ * Props: date (ISO), entry (the card of `GET /api/planning/laundry/days`: kind, isSkipped, dropOff, pickUp,
+ * stillAtLaundry, inventoryAfter, manualAddition, extraTrip, leftAtLaundry), reload().
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -83,7 +84,7 @@ export default function PlanningLaundryCard({ date, entry, reload }) {
   return (
     <>
       <LaundryDayCard
-        data={entry.data}
+        data={entry}
         inventoryAfter={entry.inventoryAfter}
         date={date}
         isSkipped={skipped}

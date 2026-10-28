@@ -2,7 +2,7 @@
  * Bounded date-range validation for the reception-reachable planning queries.
  *
  * DATA-1 (2026-10-08 infrastructure audit): several admin/reception endpoints accepted an
- * arbitrary `from`/`to` span and iterated it. `GET /planning/laundry` in particular walks every
+ * arbitrary `from`/`to` span and iterated it. `GET /planning/laundry/days` in particular walks every
  * date of the window and runs ~10 prepared queries per date, so `?from=0001-01-01&to=9999-12-31`
  * (~521 000 dates) is a single-threaded CPU/SQL denial of service reachable by the low-privilege
  * reception role.

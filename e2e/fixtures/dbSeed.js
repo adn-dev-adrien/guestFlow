@@ -70,6 +70,31 @@ function setLinenStock({ single = 0, double = 0, baby = 0, large = 0, medium = 0
 }
 
 /**
+ * A bed-linen option ticked on the given stays `{ id, singleBeds }`, with their single beds written, so
+ * their sheets reach the laundry cards (specs/linen-laundry-days.md §7.3). Returns the option id, to hand
+ * back to `removeBedLinenOption`.
+ */
+function seedBedLinenOption(stays) {
+  return withDb((db) => {
+    const res = db.prepare("INSERT INTO options (title, price, priceType, countsAsBedLinen) VALUES ('Linge de lit (E2E blanchisserie)', 0, 'per_stay', 1)").run();
+    const optionId = Number(res.lastInsertRowid);
+    const link = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, 1)');
+    stays.forEach(({ id, singleBeds }) => {
+      link.run(id, optionId);
+      db.prepare('UPDATE reservations SET singleBeds = ? WHERE id = ?').run(singleBeds, id);
+    });
+    return optionId;
+  });
+}
+
+function removeBedLinenOption(optionId) {
+  return withDb((db) => {
+    db.prepare('DELETE FROM reservation_options WHERE optionId = ?').run(optionId);
+    db.prepare('DELETE FROM options WHERE id = ?').run(optionId);
+  });
+}
+
+/**
  * Insert an establishment closure (specs/establishment-closures.md). Used to verify the
  * reservation form rejects dates inside a closure.
  */
@@ -248,6 +273,8 @@ module.exports = {
   seedPendingDateDrift,
   seedPendingCancellation,
   setLinenStock,
+  seedBedLinenOption,
+  removeBedLinenOption,
   seedClosure,
   setAllowEditPastReservations,
   lockIcalReservation,

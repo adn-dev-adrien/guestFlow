@@ -52,3 +52,11 @@ export function formatDayShort(iso) {
   if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
 }
+
+// "mar. 21" — the day a batch was dropped, on the pick-up side of a laundry card.
+export function formatDropDay(iso) {
+  if (!iso) return '';
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+}

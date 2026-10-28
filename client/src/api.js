@@ -524,17 +524,12 @@ const api = {
   getMyEmailStatus: () => request('/users/me/email-status'),
   // specs/control-plane-plans-and-access.md — the admin subscription banner.
   getSubscription: () => request('/subscription'),
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
-  // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
-  // `to` is OPTIONAL: when omitted the server projects to the inventory horizon (= last
-  // reservation endDate). Use the explicit form when paginating an infinite-scroll viewport;
-  // omit it for "give me everything that matters" calls like a post-toggle refetch
-  // (specs/skip-laundry-trip.md §4.3 — hotfix 2026-06-05 follow-up #3).
-  getLaundryPlanningSummary: ({ from, to } = {}) => {
-    const params = [`from=${encodeURIComponent(from)}`];
-    if (to) params.push(`to=${encodeURIComponent(to)}`);
-    return request(`/planning/laundry?${params.join('&')}`);
-  },
+  // The laundry cards of the Planning for [from, to] (specs/linen-laundry-days.md §4.3): `{ days: { date: card } }`
+  // holding only the dates to draw, each card ready to render — the weekly bed-linen summary, the
+  // « disponible après ce dépôt » projection, the skips, manual lines and extra trips in one answer.
+  // Both bounds are required; any window, past or future.
+  getLaundryPlanningDays: ({ from, to }) =>
+    request(`/planning/laundry/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.3). Returns the
   // dates in [from, to] where ≥1 reservation has the breakfast option AND the customer is
   // present in the morning (= `startDate < D AND endDate >= D`). Payload:
@@ -567,9 +562,6 @@ const api = {
       method: 'POST',
       body: { reservationId, resourceId, date, start, done, ...(kind ? { kind } : {}) },
     }),
-  // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
-  // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
-  getLinenInventory: () => request('/planning/linen-inventory'),
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),

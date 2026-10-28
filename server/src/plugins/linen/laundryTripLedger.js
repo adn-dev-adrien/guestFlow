@@ -43,7 +43,7 @@ function emptyBlock() {
 
 /**
  * Assemble the two SQL-backed builders the ledger needs from the models. Moved here from
- * `planningController.laundrySummary` so the summary and the extra-trip preview share one
+ * `planningController` so the Planning cards and the extra-trip preview share one
  * definition of « what a window holds ».
  */
 function makeBlockBuilders({ laundryModel, laundryManualAdditionsModel }) {

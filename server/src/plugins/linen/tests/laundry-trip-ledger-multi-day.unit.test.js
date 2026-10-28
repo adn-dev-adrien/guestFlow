@@ -33,6 +33,16 @@ function makeLedger({ schedule, drops = {}, skipped = [], extras = [], incomplet
 
 const tueThu = (turnaroundDays = 1) => constantSchedule([TUE, THU], turnaroundDays);
 
+// --- Rule 2: every laundry day is one visit ----------------------------------------------------
+
+test('specs/linen-laundry-days.md §3.1 rule 2: every laundry day brings the dirty linen AND collects what is ready — no drop-only or pick-up-only day', () => {
+  const { ledger } = makeLedger({ schedule: tueThu(1), drops: { '2026-06-09': { singleBeds: 2 }, '2026-06-11': { doubleBeds: 3 } } });
+  const thu = ledger.entryFor('2026-06-11');
+  assert.deepEqual(thu.dropOff, { ...zeros({ doubleBeds: 3 }), incomplete: [] });
+  assert.deepEqual(counts(thu.pickUp), zeros({ singleBeds: 2 }));
+  assert.deepEqual(ledger.entryFor('2026-06-16').pickUp.fromTrips, ['2026-06-11']);
+});
+
 // --- Rule 8: the trip sequence of several weekdays ---------------------------------------------
 
 test('specs/linen-laundry-days.md §3.2 rule 8: with Tuesday + Thursday a trip window runs back to the previous laundry day, 2 or 5 days', () => {

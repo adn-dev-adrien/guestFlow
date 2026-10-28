@@ -8,13 +8,15 @@
  *
  * UX: one `AttentionCard` (title, count and « N types en rupture à partir du … » from the server,
  * specs/shell-and-home-day-first.md rule 6), body grouped by linen type. Each type
- * shows: first shortage date, max missing quantity, clickable reservation chips that navigate
- * to the reservation page on click.
+ * shows: first shortage date, the date the laundry brings the linen back (`recoversOn`, when within the
+ * horizon — specs/linen-laundry-days.md rule 18), max missing quantity, clickable reservation chips
+ * that navigate to the reservation page on click.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Typography, Stack, Chip } from '@mui/material';
 import { useNavigate } from 'react-router';
 import { api, displayDateLong, AttentionCard } from '../sdk';
+import { formatDayShort } from './formatLinen';
 
 export default function LinenShortageAlert({ attention }) {
   const navigate = useNavigate();
@@ -45,6 +47,7 @@ export default function LinenShortageAlert({ attention }) {
             <Typography variant="body2" color="text.secondary">
               <strong>{entry.label}</strong> : jusqu&apos;à <strong>{entry.maxMissing} manquant{entry.maxMissing > 1 ? 's' : ''}</strong>
               {' · '}première rupture le <strong>{displayDateLong(entry.firstShortageDate)}</strong>
+              {entry.recoversOn && <>{' · '}jusqu&apos;au <strong>{formatDayShort(entry.recoversOn)}</strong></>}
             </Typography>
             {entry.impactedReservations.length > 0 && (
               <Box sx={{ mt: 0.75 }}>

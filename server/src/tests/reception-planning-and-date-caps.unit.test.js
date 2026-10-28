@@ -97,7 +97,7 @@ test('planning-events rejects a pathological span before hitting the DB', () => 
   assert.equal(called, false, 'the model must not be queried for an out-of-bounds range');
 });
 
-test('laundrySummary rejects a pathological span before the ledger walks it', () => {
+test('laundryDays rejects a pathological span before the ledger walks it', () => {
   let touched = false;
   const trap = new Proxy({}, { get() { touched = true; return () => { throw new Error('ledger should not run'); }; } });
   const c = buildPlanning({
@@ -106,7 +106,7 @@ test('laundrySummary rejects a pathological span before the ledger walks it', ()
     laundryManualAdditionsModel: trap, laundryExtraTripsModel: trap,
   });
   const r = res();
-  c.laundrySummary({ query: { from: '0001-01-01', to: '9999-12-31' } }, r);
+  c.laundryDays({ query: { from: '0001-01-01', to: '9999-12-31' } }, r);
   assert.equal(r.statusCode, 400);
   assert.equal(r.body.error, 'DATE_RANGE_TOO_WIDE');
   assert.equal(touched, false);

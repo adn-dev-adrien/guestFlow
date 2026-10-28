@@ -91,6 +91,7 @@ test('linenShortage: returns grouped-by-type shortages with resolved client name
     label: 'Drap simple',
     firstShortageDate: '2026-06-12',
     maxMissing: 2,
+    recoversOn: null,
     impactedReservations: [
       { id: 10, clientName: 'Claire Notin', startDate: '2026-06-12', endDate: '2026-06-15' },
       { id: 11, clientName: 'Jean Dupont', startDate: '2026-06-14', endDate: '2026-06-17' },
@@ -101,6 +102,7 @@ test('linenShortage: returns grouped-by-type shortages with resolved client name
     label: 'Serviette grande',
     firstShortageDate: '2026-06-12',
     maxMissing: 4,
+    recoversOn: null,
     impactedReservations: [
       { id: 10, clientName: 'Claire Notin', startDate: '2026-06-12', endDate: '2026-06-15' },
     ],

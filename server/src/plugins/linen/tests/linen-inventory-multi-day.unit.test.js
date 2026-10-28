@@ -6,7 +6,7 @@ const { createSchedule } = require('../laundrySchedule');
 const { constantSchedule } = require('./laundry-schedule-fixtures');
 
 // specs/linen-laundry-days.md §3.3 rules 15, 16 and 18 — the stock engine with several laundry days and a
-// laundry turnaround. It also carries the appended rule 18 of specs/linen-inventory-shortage-tracking.md
+// laundry turnaround. It also carries the appended specs/linen-inventory-shortage-tracking.md rule 18
 // (the "week" of the initial state is the warm-up replay, whatever the rhythm).
 //
 // Calendar (June 2026): Tuesdays 02, 09, 16, 23, 30 — Thursdays 04, 11, 18, 25. 06-10 is a Wednesday.

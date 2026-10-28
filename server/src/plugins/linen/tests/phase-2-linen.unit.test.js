@@ -77,10 +77,10 @@ function fakeRes() {
 
 test.afterEach(() => registry.reset());
 
-test('specs/plugins-phase-2-hosts.md rule 4: the two laundry planning endpoints answer 404 while linen is off; breakfast and option cards stay core', async () => {
+test('specs/plugins-phase-2-hosts.md rule 4: the laundry planning endpoint answers 404 while linen is off; breakfast and option cards stay core', async () => {
   const db = freshDb();
   const { app, plugins } = boot(db, { installed: [] });
-  for (const url of ['/api/planning/laundry?from=2026-10-01&to=2026-10-14', '/api/planning/linen-inventory']) {
+  for (const url of ['/api/planning/laundry/days?from=2026-10-01&to=2026-10-14']) {
     const res = await request(app, 'GET', url);
     assert.equal(res.status, 404, url);
     assert.deepEqual(res.body, { error: 'PLUGIN_INACTIVE', plugin: 'linen' });
@@ -91,10 +91,12 @@ test('specs/plugins-phase-2-hosts.md rule 4: the two laundry planning endpoints 
 
   plugins.install('linen');
   applyPluginSchema(db, 'linen');
-  const laundry = await request(app, 'GET', '/api/planning/laundry?from=2026-10-01&to=2026-10-14');
+  const laundry = await request(app, 'GET', '/api/planning/laundry/days?from=2026-10-01&to=2026-10-14');
   assert.equal(laundry.status, 200);
-  assert.equal(laundry.body.laundryDays.length, 2);
-  assert.deepEqual((await request(app, 'GET', '/api/planning/linen-inventory')).body, { horizon: null, byLaundryDay: {} });
+  assert.deepEqual(laundry.body, { days: {} });
+  // The two former endpoints are gone (specs/linen-laundry-days.md rule 13).
+  assert.equal((await request(app, 'GET', '/api/planning/laundry?from=2026-10-01&to=2026-10-14')).status, 404);
+  assert.equal((await request(app, 'GET', '/api/planning/linen-inventory')).status, 404);
   assert.equal((await request(app, 'GET', '/api/laundry/skips')).status, 200);
 
   const src = fs.readFileSync(path.join(SRC, 'routes/planning.js'), 'utf8');

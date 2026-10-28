@@ -10,6 +10,7 @@ const TYPE_LABELS = Object.freeze({
   large:  'Serviette grande',
   medium: 'Serviette moyenne',
   small:  'Serviette petite',
+  bathMat: 'Tapis de bain',
 });
 
 function buildController({
@@ -31,6 +32,7 @@ function buildController({
      *         type: 'single', label: 'Drap simple',
      *         firstShortageDate: 'YYYY-MM-DD',
      *         maxMissing: 3,
+     *         recoversOn: 'YYYY-MM-DD' | null,   // first date with a clean sheet for everyone again
      *         impactedReservations: [{ id, clientName, startDate, endDate }, ...],
      *       },
      *       ...
@@ -71,6 +73,7 @@ function buildController({
         label: TYPE_LABELS[type] || type,
         firstShortageDate: agg.firstDate,
         maxMissing: agg.maxMissing,
+        recoversOn: agg.recoversOn || null,
         impactedReservations: agg.impactedReservationIds.map(resolveReservation),
       }));
 

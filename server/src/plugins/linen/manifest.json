@@ -49,7 +49,8 @@
       "Plusieurs jours de blanchisserie par semaine.",
       "Délai de la blanchisserie : le linge revient quand il est prêt, et le stock le sait.",
       "Une rupture de linge dit jusqu’à quand.",
-      "Le tapis de bain a son nom dans l’alerte de manque de linge."
+      "Le tapis de bain a son nom dans l’alerte de manque de linge.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

@@ -84,9 +84,8 @@ function register(ctx) {
       remove: handler('extraTrips', 'remove'),
     },
   }));
-  // Rule 4 — under the core /api/planning prefix, at their URLs.
-  ctx.route('get', '/api/planning/laundry', handler('planning', 'laundrySummary'));
-  ctx.route('get', '/api/planning/linen-inventory', handler('planning', 'linenInventory'));
+  // Rule 4 — under the core /api/planning prefix, at its URL: the cards of a window, past or future.
+  ctx.route('get', '/api/planning/laundry/days', handler('planning', 'laundryDays'));
   // Gap 1 — the shortage alert answered while the plugin was off.
   ctx.route('get', '/api/dashboard/linen-shortage', handler('shortage', 'linenShortage'));
   ctx.attention({ key: 'linen-shortage', rank: 30, handler: handler('shortage', 'linenShortage'), summarize: require('./attention').summarize });

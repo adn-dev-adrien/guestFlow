@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/linen-laundry-days` _(user-managed)_ |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -361,68 +361,60 @@ Same `LaundryDayCard`, on every laundry day of the schedule:
 
 ### 6.3 Dashboard — shortage alert
 
-« Drap double : jusqu'à 2 manquants · du ven. 24 au mar. 28 » — the end date from `recoversOn`; without
-it, today's wording.
+« Drap double : jusqu'à 2 manquants · première rupture le 24 juin 2026 · jusqu'au mar. 30 juin » — the end
+date is `recoversOn` as served (no date arithmetic on the client, so no « day before » shown); without it,
+today's wording.
 
 ## 7. Test plan
 
-Every new rule is cited by at least one test (`specs/linen-laundry-days.md §3.x rule N`). The four
-appended rules are cited too: `weekly-bed-linen-tracking.md rule 37`, `skip-laundry-trip.md rule 15`
-and `laundry-extra-trip.md rule 21` by the multi-day ledger file, `linen-inventory-shortage-tracking.md
-rule 18` by the multi-day inventory file.
+Every rule is cited by at least one test (`specs/linen-laundry-days.md §3.x rule N`, checked by
+`node scripts/check-spec-coverage.mjs`). The four appended rules are cited too:
+`weekly-bed-linen-tracking.md rule 37`, `skip-laundry-trip.md rule 15` and `laundry-extra-trip.md rule 21`
+by the multi-day ledger file, `linen-inventory-shortage-tracking.md rule 18` by the multi-day inventory file.
 
-### 7.1 Server unit tests (`server/src/plugins/linen/tests/`)
+### 7.1 Server unit tests (`server/src/plugins/linen/tests/`) — done
 
-- [ ] `laundry-schedule.unit.test.js` — rules 1, 3, 5, 6, 7: validation matrix (empty, 7, duplicate, −1,
-  7, 0, 15, 2.5, `"abc"`), `versionOn` across versions, `readyFrom` fixed at drop, `describeCycle` for
-  Tue/Thu × 1/2/3, single day × 10, all days × 1. **~24 cases.**
-- [ ] `laundry-schedule-model.unit.test.js` — rules 4, 5, 24: seed from `laundryWeekday` (2, 5, absent,
-  invalid), idempotent rerun, pending upsert/overwrite/delete, purge drops the table. **~10.**
-- [ ] `laundry-schedule-endpoint.unit.test.js` — rules 3, 5, 22, 23: GET shape, PUT tomorrow, PUT same as
-  current deletes pending, each 400 with `code` + `field`, preview has no side effect, reception refused
-  on PUT/preview. **~12.**
-- [ ] `laundry-trip-ledger-multi-day.unit.test.js` — rules 8-12: Tue/Thu windows, turnaround 1/2/3,
-  `fromTrips`, `stillAtLaundry.readyOn`, partial extra trip oldest-first, skip on Tuesday, extra trip on a
-  regular day refused and inert after a change, version change mid-month. **~18.**
-- [ ] `linen-inventory-multi-day.unit.test.js` — rules 15-16, 18: conservation every day of every
-  scenario, linen unavailable before `readyFrom` → shortage, warm-up equals the former engine on the
-  single-weekday fixtures, `recoversOn`. **~16.**
-- [ ] `planning-laundry-days-endpoint.unit.test.js` — rules 13, 17: `shown` decision (each reason), past
-  window without `inventoryAfter`, bounds required + `DATE_RANGE_TOO_WIDE`, card ↔ engine agreement over
-  the Tue/Thu month. **~12.**
-- [ ] `linen-shortage-recovers.unit.test.js` — rule 18: `recoversOn`, `null` beyond horizon, bath-mat
-  label. **~4.**
+- [x] `laundry-schedule.unit.test.js` — rules 1, 3, 5, 6, 7 (21 cases). `laundry-schedule-model.unit.test.js` —
+  rules 4, 5, 24 (8). `laundry-schedule-endpoint.unit.test.js` — rules 3, 5, 7, 22 (9).
+  `laundry-schedule-wiring.unit.test.js` — plugin routes as mounted, rule 25 (4). `laundry-batches.unit.test.js` —
+  rules 10, 11, 15 (7).
+- [x] `laundry-trip-ledger-multi-day.unit.test.js` — rules 2, 5, 6, 8-12 (23).
+- [x] `linen-inventory-multi-day.unit.test.js` — rules 5, 6, 12, 15, 16, 18 (19).
+- [x] `planning-laundry-days-endpoint.unit.test.js` — rules 5, 11, 13, 17: bounds, every reason of the `shown`
+  decision, past/future windows, card ↔ engine agreement over a Tuesday + Thursday month with a skip, two extra
+  trips (one partial), manual lines and a turnaround change (18).
+- [x] `linen-shortage-recovers.unit.test.js` — rule 18 (5).
+- Reception: `server/src/tests/reception-role-access.unit.test.js` (rule 23).
 
-### 7.2 Client tests (Vitest, `client/src/plugins/linen/__tests__/`)
+### 7.2 Client tests (Vitest, `client/src/plugins/linen/__tests__/`) — done
 
-- [ ] `LaundryScheduleSection.weekdays.test.jsx` — rules 19-20, 22: toggle, last day refused + message,
-  stepper bounds, typed invalid disables Save, server message replaces the client's, pending caption. **~9.**
-- [ ] `LaundryDayCard.provenance.test.jsx` — rule 11: one / two `fromTrips`, `stillAtLaundry`, none. **~4.**
-- [ ] `planningDays.days-endpoint.test.js` — rule 13: one request, payload passed through untouched. **~2.**
-- [ ] `LinenShortageAlert.recovers.test.jsx` — rule 18. **~2.**
-- [ ] `LinenStockPage.phase-2.test.jsx` — updated: saves stock and schedule, Cancel restores both (rule 21).
+- [x] `LaundryScheduleSection.weekdays.test.jsx` (13), `laundryScheduleDraft.caption.test.js` (8),
+  `LinenStockPage.schedule.test.jsx` (9) + `LinenStockPage.phase-2.test.jsx` updated, `LaundryDayCard.provenance.test.jsx` (10),
+  `planningDays.days-endpoint.test.js` (3), `LinenShortageAlert.recovers.test.jsx` (2).
 
-### 7.3 E2E (Playwright)
+### 7.3 E2E (Playwright) — done
 
-- [ ] `e2e/specs/linen/laundry-days.spec.js` — set Tuesday + Thursday, turnaround 2 → Save; Planning shows
-  a card on both days with « déposé mar. … » on Thursday; untick the last day → refusal. One run at
-  390 px (mobile).
-- [ ] `skip-laundry-trip.spec.js`, `laundry-extra-trip.spec.js`, `linen/stock-roundtrip.spec.js` — moved
-  to the new endpoints, assertions unchanged.
+- [x] `e2e/specs/linen/laundry-days.spec.js` — Linge page refusals and save (desktop), Planning cards with
+  « déposé mar. » through a seeded bed-linen stay, one run at 390 px. `skip-laundry-trip.spec.js`,
+  `laundry-extra-trip.spec.js` moved to the new endpoint, `stock-roundtrip.spec.js` unchanged.
 
 ### 7.4 Existing suites
 
-Run unchanged against the migrated `{ [W], 1 }` schedule (rule 4). Expected to change, and only these:
-the extra-trip « known approximation » case of `linen-inventory-extra-trip.unit.test.js` (rule 16 makes it
-exact) and the cases of `linen-inventory-manual-additions.unit.test.js` that pin « past manual lines stay
-out of the initial state ». Each changed assertion is commented with the rule that changed it.
+Run against the migrated `{ [W], 1 }` schedule (rule 4). Result: every engine suite
+(`linen-inventory*.unit.test.js`, `laundry-bath-mat`, `linen-inventory-skipped-trip`,
+`linen-inventory-manual-additions`, `linen-inventory-model-skip-propagation`) passes with **assertions
+unchanged** — only the config argument changed (`laundryWeekday: W` → `schedule: constantSchedule(W)`), and
+the ledger suites only gained the new `fromTrips` / `stillAtLaundry` fields. The one assertion that changed
+is the extra-trip « known approximation » case (rule 16 makes it exact). The manual-additions suite needed
+no change. `laundry-window.unit.test.js` lost the single-weekday helpers it tested and gained
+`previousMatchingDay`; `planning-laundry-controller.unit.test.js` and `laundry-end-to-end.regression.test.js`
+moved from the removed summary endpoint to `laundryDays` (a day with nothing on either side is no longer
+drawn: rule 13).
 
-### 7.5 Manual
+### 7.5 Manual — done on a copy of the shadow
 
-- [ ] Shadow copy: Tue + Thu, turnaround 2; walk four weeks of the Planning, past and future; compare one
-  Thursday by hand with the stays that left Wednesday/Thursday.
-- [ ] Turnaround 3 on the same data: Thursday shows « Encore à la blanchisserie », the shortage alert moves.
-- [ ] Mobile 390 px: Linge page toggles and stepper, Planning card.
+Tuesday + Thursday saved at 1280 and 390 px, the Planning shows the Thursday card with « déposé mar. 27 »
+(« Disponible après ce dépôt » intact); refusals (last day, stepper bounds) checked.
 
 ## 8. Out of scope
 
@@ -457,3 +449,17 @@ out of the initial state ». Each changed assertion is commented with the rule t
    `recoversOn` + bath-mat label + « jusqu'au ». Plugin 1.2.1 or folded into 1.2.0 if both lots ship in
    the same release. **~10 files.** Lands after or alongside `dashboard-planning-scroll`; it does not
    depend on it.
+
+## 11. Implementation progress
+
+Implemented 2026-10-28 on `feature/linen-laundry-days` in two commits (lot 1 « the rhythm », lot 2 « the
+per-day payload »), plugin `linen` 1.2.0 for both. Deviations from the draft, all reflected above:
+
+- The ledger replays the batches from the last non-skipped regular trip before the date (that trip collected
+  everything ready) instead of 42 days back — same result, far fewer SQL windows; the engine keeps the 42-day
+  warm-up.
+- A manual line is applied by the engine on its own date whatever that date is, like the Planning window sums.
+- The extra-trip preview's `atLaundry` is what is **ready** on that date.
+- `GET /api/laundry/schedule` serves `cycle` and `longestWaitDays` inside `current` / `pending`.
+- Shortage alert wording (§6.3): `recoversOn` as served, no « day before ».
+- The Linge « Blanchisserie » card uses 10 px side padding at `xs` so the seven toggles reach 44 px.

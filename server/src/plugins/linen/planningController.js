@@ -1,6 +1,6 @@
 /**
- * Planning endpoints of the laundry (specs/weekly-bed-linen-tracking.md,
- * specs/linen-inventory-shortage-tracking.md), served at their core URLs under /api/planning by the
+ * Planning endpoint of the laundry (specs/weekly-bed-linen-tracking.md, specs/linen-laundry-days.md,
+ * specs/linen-inventory-shortage-tracking.md), served at its core URL under /api/planning by the
  * `linen` plugin (specs/plugins-phase-2-hosts.md rule 4).
  *
  * `settingsModel.read()` returns the linen settings (`settings.js`), shaped like the former
@@ -8,14 +8,8 @@
  */
 
 const sdk = require('../sdk');
-const { createTripLedger, makeBlockBuilders } = require('./laundryTripLedger');
+const { createTripLedger, makeBlockBuilders, BLOCK_KEYS } = require('./laundryTripLedger');
 const { createSchedule } = require('./laundrySchedule');
-
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function isIsoDate(value) {
-  return typeof value === 'string' && ISO_DATE_RE.test(value);
-}
 
 function buildController({
   laundryModel: injectedLaundryModel,
@@ -25,78 +19,69 @@ function buildController({
   laundryTripSkipsModel: injectedLaundryTripSkipsModel,
   laundryManualAdditionsModel: injectedLaundryManualAdditionsModel,
   laundryExtraTripsModel: injectedLaundryExtraTripsModel,
+  today = () => sdk.coreModule('reservationHelpers').getTodayIsoDate(),
 }) {
+  // « Disponible après ce dépôt » (specs/linen-inventory-shortage-tracking.md §3.5): the clean stock at
+  // the end of each laundry day, for the TRACKED types only (stock > 0) — an untracked type with demand
+  // (bath mats at stock 0) would surface a misleading negative figure. From today to the horizon;
+  // nothing is projected for the past (specs/linen-laundry-days.md rule 13).
+  const inventoryByDate = (from, to, schedule) => {
+    const now = today();
+    if (to < now) return {};
+    const result = injectedLinenInventoryModel.simulate({ today: now });
+    if (!result) return {};
+    const row = injectedSettingsModel.read();
+    const stock = {
+      single: row.bedLinenStockSingle, double: row.bedLinenStockDouble, baby: row.bedLinenStockBaby,
+      large: row.towelStockLarge, medium: row.towelStockMedium, small: row.towelStockSmall,
+      bathMat: row.towelStockBathMat,
+    };
+    const tracked = Object.keys(stock).filter((t) => Number(stock[t] || 0) > 0);
+    const byDate = {};
+    for (const day of result.days) {
+      if (day.date < from || day.date > to) continue;
+      if (!day.isTripDay && !schedule.isRegularDay(day.date)) continue;
+      byDate[day.date] = Object.fromEntries(tracked.map((t) => [t, day.clean[t]]));
+    }
+    return byDate;
+  };
+
+  const total = (side) => BLOCK_KEYS.reduce((sum, k) => sum + (Number(side[k]) || 0), 0);
+
+  // specs/linen-laundry-days.md rule 13 — the server decides which dates carry a card: an extra trip
+  // (the operator's own decision), a skipped trip (so it can be reverted), a day with linen on either
+  // side, a stay declaring linen without a quantity yet, or batches still at the laundry.
+  const isDrawn = (entry, isSkipped) => entry.kind === 'extra'
+    || isSkipped
+    || total(entry.dropOff) + total(entry.pickUp) > 0
+    || entry.dropOff.incomplete.length > 0
+    || entry.stillAtLaundry !== null;
+
   return {
     /**
-     * GET /api/planning/laundry?from=YYYY-MM-DD[&to=YYYY-MM-DD]
+     * GET /api/planning/laundry/days?from=YYYY-MM-DD&to=YYYY-MM-DD
      *
-     * Returns the laundry summary for every laundry day of the schedule
-     * in the requested range, plus every extra laundry trip in the range
-     * (specs/laundry-extra-trip.md). Drop-off counts sheets used by reservations whose endDate
-     * is in `(previous trip, T]`; pick-up is what sits at the laundry before T — with weekly
-     * trips only, exactly the previous laundry day's drop-off (which may itself be outside the
-     * requested range — we still compute it).
+     * The laundry cards of the Planning for a window, past or future (specs/linen-laundry-days.md §3.2
+     * rule 13): `{ days: { 'YYYY-MM-DD': card } }` holding only the dates to draw. A card is ready to
+     * render — kind, skip flag, drop-off (with the stays that still lack a quantity), pick-up (with the
+     * drop dates it comes from), what still waits at the laundry, the projected stock after the drop,
+     * the manual line and the extra trip of the date. Both bounds are required and bounded
+     * (`checkPlanningRange`): the ledger runs ~10 queries per card and the reception can reach this.
      *
-     * `to` is OPTIONAL. When omitted the server defaults it to the inventory horizon
-     * (= the last reservation's endDate, same business concept that drives the linen
-     * simulation). This keeps the client from having to derive the "right" upper bound
-     * from UI state (scroll position, page size, etc.) — the business horizon is a server
-     * concern (specs/skip-laundry-trip.md §4.1 hotfix 2026-06-05 follow-up #3,
-     * CLAUDE.md §6.0). The client passes `to` only when it explicitly wants a slice (e.g.
-     * incremental loading of a future window via infinite scroll).
-     *
-     * The client filters out silent laundry days (both sides zero) — the server emits them
-     * uniformly so the contract stays predictable.
-     *
-     * Each drop-off also carries `incomplete: [{ id, clientName, propertyName, endDate }]` — the
-     * stays of the window that declare bed linen but have no quantity saved yet
-     * (specs/laundry-counts-explicit-option-only.md §3.2), so the card can flag a figure it knows
-     * is short instead of under-reporting in silence.
+     * The ledger walks the trip sequence — every non-skipped regular laundry day of the schedule in
+     * force on its date plus every active extra trip — so the cards and the stock projection tell the
+     * same story (they share the batches logic).
      */
-    laundrySummary(req, res) {
-      const from = (req.query && req.query.from) || '';
-      const rawTo = (req.query && req.query.to) || '';
-      if (!isIsoDate(from)) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      if (rawTo && !isIsoDate(rawTo)) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      const schedule = createSchedule(injectedLaundryScheduleModel.listAll());
-      // Compute `to`. Explicit query param wins; otherwise derive from the inventory horizon.
-      // No horizon (no future reservations) AND no explicit `to` → emit nothing: there's
-      // nothing to project against.
-      let to = rawTo;
-      if (!to) {
-        const sim = injectedLinenInventoryModel.simulate();
-        to = sim?.horizon || null;
-        if (!to) {
-          return res.json({ laundryDays: [] });
-        }
-      }
-      if (from > to) {
-        // Explicit slice that ends before it starts → still a 400 (operator error).
-        // The horizon fallback never trips this because horizon ≥ today by construction.
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      // Bound the span before the ledger walks it date by date (DATA-1): reception can reach this
-      // endpoint, and the ledger runs ~10 queries per date — an unbounded `from` is a CPU/SQL DoS.
-      // The ceiling is generous enough never to reject a real laundry horizon (see planningDateRange).
+    laundryDays(req, res) {
+      const from = req.query && req.query.from;
+      const to = req.query && req.query.to;
       const rangeError = sdk.coreModule('planningDateRange').checkPlanningRange(from, to);
       if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error });
-      // specs/laundry-extra-trip.md §3.2 — the summary is a ledger over the TRIP SEQUENCE: every
-      // non-skipped regular laundry day plus every active extra trip, chronologically. A skipped
-      // trip (specs/skip-laundry-trip.md §3.1 rule 6) is simply absent from the sequence, so the
-      // next trip's drop-off window widens backward across it; an extra trip takes the dirty pile
-      // (and all or part of the pool) with it, so the next trip only carries what came after.
-      // The ledger's buildBlock merges bed + bathroom + bath-mat sums + the signed manual lines into
-      // one block per side (the client renders both under a unified "À apporter / À récupérer").
-      //
-      // The "Disponible après ce dépôt" line (via `linenInventoryModel.simulate`) follows the same
-      // sequence — the two paths must agree (PR #126 hotfix 2026-06-05 taught us what happens when
-      // they don't).
+
+      const schedule = createSchedule(injectedLaundryScheduleModel.listAll());
       const skippedDates = new Set(injectedLaundryTripSkipsModel.listAll());
       const extraTrips = injectedLaundryExtraTripsModel.listAll();
+      const manualLines = injectedLaundryManualAdditionsModel.listAll();
       const ledger = createTripLedger({
         schedule,
         skippedDates,
@@ -106,58 +91,32 @@ function buildController({
           laundryManualAdditionsModel: injectedLaundryManualAdditionsModel,
         }),
       });
-      const regularDates = schedule.regularDaysInRange(from, to);
-      const extraDates = ledger.extraDates.filter((d) => d >= from && d <= to);
-      const tripDates = Array.from(new Set([...regularDates, ...extraDates])).sort();
-      // Each entry: { date, kind, dropOff (+ incomplete), pickUp } and, for an extra trip,
-      // { pickUpAll, leftAtLaundry }. A skipped regular trip emits zeros — the client masks them with
-      // the "Voyage non réalisé" caption.
-      const laundryDays = tripDates.map((date) => ledger.entryFor(date)).filter(Boolean);
-      return res.json({ laundryDays });
-    },
+      const tripDates = Array.from(new Set([
+        ...schedule.regularDaysInRange(from, to),
+        ...ledger.extraDates.filter((d) => d >= from && d <= to),
+      ])).sort();
+      const projection = inventoryByDate(from, to, schedule);
 
-    /**
-     * GET /api/planning/linen-inventory
-     *
-     * Returns the per-laundry-day inventory snapshot (post-day-end clean per type) so the
-     * client can render "Disponible après ce dépôt" on each laundry card
-     * (specs/linen-inventory-shortage-tracking.md §3.5 / §4.3).
-     *
-     * Payload shape:
-     *   { horizon: 'YYYY-MM-DD', byLaundryDay: { 'YYYY-MM-DD': { single, double, baby, large, medium, small }, ... } }
-     *
-     * Empty `byLaundryDay` when no horizon (no future reservation) or no stock tracked.
-     */
-    linenInventory(req, res) {
-      const result = injectedLinenInventoryModel.simulate();
-      if (!result) return res.json({ horizon: null, byLaundryDay: {} });
-      const row = injectedSettingsModel.read();
-      const schedule = createSchedule(injectedLaundryScheduleModel.listAll());
-      // Emit only the TRACKED types (stock > 0) in the « Disponible après ce dépôt » snapshot —
-      // a type with stock 0 is "not tracked" (no availability figure, no shortage) per
-      // specs/linen-inventory-shortage-tracking.md §3.1 + specs/laundry-bath-mat.md §3 rule 7.
-      // Without this, an untracked type with demand (e.g. bath mats at stock 0) would surface a
-      // misleading negative figure on the card.
-      const trackedTypes = {
-        single: row.bedLinenStockSingle, double: row.bedLinenStockDouble, baby: row.bedLinenStockBaby,
-        large: row.towelStockLarge, medium: row.towelStockMedium, small: row.towelStockSmall,
-        bathMat: row.towelStockBathMat,
-      };
-      const tracked = Object.keys(trackedTypes).filter((t) => Number(trackedTypes[t] || 0) > 0);
-      const projectClean = (clean) => {
-        const out = {};
-        for (const t of tracked) out[t] = clean[t];
-        return out;
-      };
-      // Keyed by every regular laundry day (skipped or not) AND every extra trip day
-      // (specs/laundry-extra-trip.md §3.3 rule 15), so the extra card shows its own line.
-      const byLaundryDay = {};
-      for (const day of result.days) {
-        if (schedule.isRegularDay(day.date) || day.isTripDay) {
-          byLaundryDay[day.date] = projectClean(day.clean);
-        }
+      const days = {};
+      for (const date of tripDates) {
+        const entry = ledger.entryFor(date);
+        if (!entry) continue;
+        const isSkipped = entry.kind === 'regular' && skippedDates.has(date);
+        if (!isDrawn(entry, isSkipped)) continue;
+        const trip = entry.kind === 'extra' ? extraTrips.find((t) => t.date === date) : null;
+        days[date] = {
+          kind: entry.kind,
+          isSkipped,
+          dropOff: entry.dropOff,
+          pickUp: entry.pickUp,
+          stillAtLaundry: entry.stillAtLaundry,
+          inventoryAfter: projection[date] || null,
+          manualAddition: manualLines[date] || null,
+          extraTrip: trip ? { pickUpAll: trip.pickUpAll !== false, pickUp: trip.pickUp || {} } : null,
+          leftAtLaundry: entry.kind === 'extra' && entry.pickUpAll === false ? entry.leftAtLaundry : null,
+        };
       }
-      return res.json({ horizon: result.horizon, byLaundryDay });
+      return res.json({ days });
     },
   };
 }
