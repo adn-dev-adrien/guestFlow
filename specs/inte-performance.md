@@ -422,8 +422,8 @@ on the production-build shadow (calls, kB), and what was done:
 Not changed, with the reason: the home's `GET /planning/today` (5 kB) feeds tables that read most columns;
 the three overlapping `GET /calendar` windows are 1–2 kB each; `GET /today` is read twice on the home (two
 `useServerToday` instances, 0.1 kB); the options pages read `/properties` a second time after the shell's
-(not concurrent); the server still answers `GET /options?view=catalogue` (a test covers it) although no client
-screen calls it since the catalogue view replaced it.
+(not concurrent); the dead `GET /options?view=catalogue` server branch (no client, plugin, SDK or E2E caller since the
+catalogue view replaced it) was removed, with its test case rewritten on the catalogue's own filter.
 
 ### Bundle redundancy pass (2026-10-28)
 

@@ -404,12 +404,12 @@ function listed(controller, query) {
   return body.map((o) => o.id);
 }
 
-test('rule 15: the catalogue view hides early arrival / late departure; every other caller gets them', () => {
+test('rule 15: the catalogue leaves out early arrival / late departure; the plain list gets them all', () => {
   const controller = optionsControllerWith([
     { id: 1, autoOptionType: null },
     { id: 2, autoOptionType: 'early_check_in' },
     { id: 3, autoOptionType: 'late_check_out' },
   ]);
-  assert.deepEqual(listed(controller, { view: 'catalogue' }), [1]);
+  assert.deepEqual(controller.catalogueOptions().map((o) => o.id), [1]);
   assert.deepEqual(listed(controller, {}), [1, 2, 3]);
 });
