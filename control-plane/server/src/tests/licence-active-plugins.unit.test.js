@@ -75,7 +75,7 @@ test('rule 25: the console\'s minute tick seeds the customers it could not read 
   const env = await existingCustomer();
   writeSpace(env, { active: ['sas'] });
   const scheduler = createScheduler(env.ctx, () => {});
-  assert.equal(scheduler.seedModules(), 1);
+  assert.equal(scheduler.syncModules().seeded, 1);
   assert.deepEqual(licenceOf(env).activePlugins, ['sas']);
   env.cleanup();
 });

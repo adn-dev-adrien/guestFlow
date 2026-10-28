@@ -11,6 +11,9 @@ function buildCustomerPluginsModel(db) {
   const unseededStmt = db.prepare('SELECT id FROM customers WHERE pluginsSeededAt IS NULL AND erasedAt IS NULL AND archivedAt IS NULL');
   const insertOrderStmt = db.prepare('INSERT INTO customer_erase_orders (orderId, customerId, pluginId, createdAt, operator) VALUES (?, ?, ?, ?, ?)');
   const pendingStmt = db.prepare('SELECT orderId, pluginId, createdAt FROM customer_erase_orders WHERE customerId = ? AND acknowledgedAt IS NULL ORDER BY createdAt, orderId');
+  const orderStmt = db.prepare('SELECT orderId, customerId, pluginId FROM customer_erase_orders WHERE orderId = ?');
+  const withOrdersStmt = db.prepare('SELECT DISTINCT customerId FROM customer_erase_orders WHERE acknowledgedAt IS NULL');
+  const cancelStmt = db.prepare('UPDATE customer_erase_orders SET acknowledgedAt = ? WHERE customerId = ? AND pluginId = ? AND acknowledgedAt IS NULL');
   const ackStmt = db.prepare('UPDATE customer_erase_orders SET acknowledgedAt = ? WHERE orderId = ? AND acknowledgedAt IS NULL');
 
   return {
@@ -28,6 +31,9 @@ function buildCustomerPluginsModel(db) {
     unseededIds: () => unseededStmt.all().map((r) => r.id),
     addOrder: (order) => insertOrderStmt.run(order.orderId, order.customerId, order.pluginId, order.createdAt, order.operator),
     pendingOrders: (customerId) => pendingStmt.all(customerId),
+    customersWithPendingOrders: () => withOrdersStmt.all().map((r) => r.customerId),
+    orderOf: (orderId) => orderStmt.get(orderId) || null,
+    cancelOrdersOf: (customerId, pluginId, at) => cancelStmt.run(at, customerId, pluginId).changes,
     acknowledge: (orderId, at) => ackStmt.run(at, orderId).changes > 0,
   };
 }

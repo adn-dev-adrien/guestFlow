@@ -4,6 +4,7 @@
  * the signed licence, and the lines tell what the space reports back. Payloads are ready to render.
  */
 
+const crypto = require('crypto');
 const { allowedPlugins } = require('../utils/licenceIssuer');
 const { moduleState, headerText } = require('../utils/moduleStates');
 const { httpError } = require('../utils/httpError');
@@ -50,7 +51,7 @@ function createCustomerModulesController(ctx, customersController) {
     };
   }
 
-  function lineOf(c, id, { allowed, chosen, facts, writtenAt }) {
+  function lineOf(c, id, { allowed, chosen, facts, writtenAt, erasing }) {
     const entry = entryOf(id);
     if (!allowed.has(id)) {
       return {
@@ -60,8 +61,12 @@ function createCustomerModulesController(ctx, customersController) {
     }
     const on = chosen.has(id);
     const state = moduleState({ id, on, facts, licenceWrittenAt: writtenAt, now: now() });
+    // Rule 22 — only an inactive module with something to erase, and not while an order is on its way.
+    const reported = facts && facts.provisioning ? facts.provisioning.moduleFacts[id] : null;
+    const canErase = !on && state.state === 'inactive' && !erasing.has(id) && Boolean(reported && reported.erasable && reported.data.length);
     return {
-      id, name: entry.name, on, switchable: true, ...state, canErase: false, eraseLines: [], planChip: null,
+      id, name: entry.name, on, switchable: true, ...state, detail: erasing.has(id) ? 'Effacement des données en cours.' : state.detail,
+      canErase, eraseLines: canErase ? reported.data : [], planChip: null,
     };
   }
 
@@ -77,7 +82,8 @@ function createCustomerModulesController(ctx, customersController) {
     const chosen = new Set(customerPlugins.chosen(c.id).filter((id) => allowed.has(id)));
     const facts = instances.readFacts(customersController.servedSlug(c));
     const writtenAt = meta.get(`licenceIssuedAt:${c.id}`);
-    const lines = gfPlugins.PLUGIN_IDS.map((id) => lineOf(c, id, { allowed, chosen, facts, writtenAt }));
+    const erasing = new Set(customerPlugins.pendingOrders(c.id).map((o) => o.pluginId));
+    const lines = gfPlugins.PLUGIN_IDS.map((id) => lineOf(c, id, { allowed, chosen, facts, writtenAt, erasing }));
     const included = lines.filter((l) => l.switchable);
     const counts = {
       active: included.filter((l) => l.state === 'active').length,
@@ -108,11 +114,59 @@ function createCustomerModulesController(ctx, customersController) {
     if (chosen.has(pluginId) === on) return view(c.id);
     const refused = refusal(chosen, pluginId, on);
     if (refused) throw refused;
-    if (on) customerPlugins.add(c.id, pluginId, day(), operator);
-    else customerPlugins.remove(c.id, pluginId);
+    if (on) {
+      customerPlugins.add(c.id, pluginId, day(), operator);
+      // An order still on its way must not fire the next time the module is switched off.
+      if (customerPlugins.cancelOrdersOf(c.id, pluginId, now().toISOString())) {
+        customersController.journal(c.id, operator, 'module', `Effacement des données de ${nameOf(pluginId)} annulé`);
+      }
+    } else {
+      customerPlugins.remove(c.id, pluginId);
+    }
     customersController.journal(c.id, operator, 'module', `${nameOf(pluginId)} ${on ? 'activé' : 'désactivé'}`);
     customersController.issueLicence(c.id);
     return view(c.id);
+  }
+
+  // Rule 22 — the operator orders the erasure of an inactive module's data; the order travels in the
+  // licence and the space runs it once (rule 23).
+  function erase(customerId, pluginId, confirmSlug, operator) {
+    const c = customersController.mustGet(customerId);
+    if (!entryOf(pluginId)) throw httpError(404, 'UNKNOWN_PLUGIN', 'Module inconnu.');
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    if (!c.pluginsSeededAt) throw httpError(409, 'NOT_SEEDED', UNREADABLE);
+    if (customerPlugins.chosen(c.id).includes(pluginId)) throw httpError(409, 'MODULE_ACTIVE', 'Module actif : à désactiver d’abord.');
+    if (String(confirmSlug || '') !== c.slug) throw httpError(400, 'SLUG_MISMATCH', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    if (customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId)) return view(c.id);
+    const line = view(c.id).included.find((l) => l.id === pluginId);
+    if (!line || !line.canErase) throw httpError(409, 'NOTHING_TO_ERASE', 'Rien à effacer : le module est encore actif sur l’espace, ou sans données.');
+    customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator });
+    customersController.journal(c.id, operator, 'module', `Effacement des données de ${nameOf(pluginId)} demandé`);
+    customersController.issueLicence(c.id);
+    return view(c.id);
+  }
+
+  // Once the space reports an order executed, it leaves the licence (rule 23).
+  function acknowledgeErasures() {
+    let acknowledged = 0;
+    customerPlugins.customersWithPendingOrders().forEach((customerId) => {
+      const c = customers.get(customerId);
+      const facts = c && !c.erasedAt ? instances.readFacts(customersController.servedSlug(c)) : null;
+      if (!facts || !facts.provisioning) return;
+      const done = customerPlugins.pendingOrders(customerId).filter((o) => facts.provisioning.erasedOrders.includes(o.orderId));
+      done.forEach((o) => {
+        customerPlugins.acknowledge(o.orderId, now().toISOString());
+        customersController.journal(customerId, 'système', 'module', `Données de ${nameOf(o.pluginId)} effacées`);
+        acknowledged += 1;
+      });
+      if (done.length) customersController.issueLicence(customerId);
+    });
+    return acknowledged;
+  }
+
+  // The console's minute tick: seeds what can now be read, and closes the orders the space ran.
+  function sweep() {
+    return { seeded: seedPending(), acknowledged: acknowledgeErasures() };
   }
 
   // « Réessayer » and « Relever maintenant »: a new licence is a new attempt (rule 18).
@@ -183,7 +237,7 @@ function createCustomerModulesController(ctx, customersController) {
     return dropped;
   }
 
-  return { view, toggle, retry, seedCustomer, seedPending, licenceChoice, creationChoices, seedAtCreation, dropNotAllowed };
+  return { view, toggle, retry, erase, sweep, acknowledgeErasures, seedCustomer, seedPending, licenceChoice, creationChoices, seedAtCreation, dropNotAllowed };
 }
 
 module.exports = { createCustomerModulesController };

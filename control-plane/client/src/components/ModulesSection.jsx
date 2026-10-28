@@ -4,11 +4,18 @@
  * at once; each line says what the space actually runs. Switching off asks first. A refused switch
  * snaps back and shows the server's sentence under the line. Everything shown is the server's.
  *
- * Props: customerId, onChanged() (the page reloads its journal).
+ * An inactive module that still holds data has a menu « Effacer les données… » (rule 22): the dialog
+ * lists what will be erased, as the space counts it, and asks to type the customer's address.
+ *
+ * Props: customerId, slug (typed to confirm an erasure), onChanged() (the page reloads its journal).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Button, Card, CardContent, Collapse, Stack, Switch, Typography } from '@mui/material';
+import {
+  Box, Button, Card, CardContent, Collapse, IconButton, Menu, MenuItem, Stack, Switch, TextField, Typography,
+} from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import FormDialog from '@gf/components/FormDialog';
 import StatusBadge from '@gf/components/StatusBadge';
 import ErrorAlert from '@gf/components/ErrorAlert';
 import LoadingState from '@gf/components/LoadingState';
@@ -21,7 +28,7 @@ function badgeStatus(line) {
   return line.needsSetup ? 'warning' : BADGE[line.state] || 'neutral';
 }
 
-export default function ModulesSection({ customerId, onChanged }) {
+export default function ModulesSection({ customerId, slug, onChanged }) {
   const { confirm } = useAppDialogs();
   const { showError } = useToast();
   const [view, setView] = useState(null);
@@ -30,6 +37,9 @@ export default function ModulesSection({ customerId, onChanged }) {
   const [refusal, setRefusal] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showOut, setShowOut] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [erasing, setErasing] = useState(null);
+  const [typed, setTyped] = useState('');
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -70,6 +80,19 @@ export default function ModulesSection({ customerId, onChanged }) {
     }
   }
 
+  async function erase() {
+    setBusy(true);
+    try {
+      setView(await api.eraseModule(customerId, erasing.id, typed));
+      setErasing(null);
+      if (onChanged) onChanged();
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function retry() {
     setRefusal(null);
     setBusy(true);
@@ -95,8 +118,14 @@ export default function ModulesSection({ customerId, onChanged }) {
             {line.planChip && <StatusBadge status="neutral" label={line.planChip} />}
             {line.canRetry && <Button size="small" sx={{ minHeight: 44 }} disabled={busy} onClick={retry}>Réessayer</Button>}
           </Box>
+          {line.detail && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{line.detail}</Typography>}
           {refused && <Typography variant="caption" color="error.main" role="alert" sx={{ display: 'block', mt: 0.5 }}>{refused}</Typography>}
         </Box>
+        {line.canErase && (
+          <IconButton aria-label={`Plus d’actions pour ${line.name}`} sx={{ minWidth: 44, minHeight: 44 }} onClick={(e) => setMenu({ anchor: e.currentTarget, line })}>
+            <MoreVertIcon />
+          </IconButton>
+        )}
         {line.switchable && (
           <Switch checked={checked} disabled={busy} onChange={(e) => change(line, e.target.checked)} slotProps={{ input: { 'aria-label': line.name } }} sx={{ flexShrink: 0 }} />
         )}
@@ -143,6 +172,22 @@ export default function ModulesSection({ customerId, onChanged }) {
           </>
         )}
       </CardContent>
+      <Menu anchorEl={menu && menu.anchor} open={Boolean(menu)} onClose={() => setMenu(null)}>
+        <MenuItem sx={{ minHeight: 44 }} onClick={() => { setErasing(menu.line); setTyped(''); setMenu(null); }}>Effacer les données…</MenuItem>
+      </Menu>
+      <FormDialog open={Boolean(erasing)} onClose={() => setErasing(null)} title={erasing ? `Effacer les données de ${erasing.name} ?` : ''}
+        submitLabel="Effacer" submitColor="error" submitDisabled={typed !== slug} submitBusy={busy} onSubmit={erase}>
+        {erasing && (
+          <Stack spacing={1.5}>
+            <Typography variant="body2">Seront effacées de l’espace :</Typography>
+            <Box component="ul" sx={{ m: 0, pl: 3 }}>
+              {erasing.eraseLines.map((l) => <li key={l}><Typography variant="body2">{l}</Typography></li>)}
+            </Box>
+            <Typography variant="body2" color="text.secondary">Une restauration reste possible depuis la sauvegarde de l’hébergement.</Typography>
+            <TextField label={`Pour confirmer, tapez « ${slug} »`} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+          </Stack>
+        )}
+      </FormDialog>
     </Card>
   );
 }

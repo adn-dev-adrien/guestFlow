@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/plugin-operator-provisioning` (from `inte/plugins` at 714ed5e4) |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -187,8 +187,10 @@ screen or endpoint: the customer sees only the features themselves.
     de paiement ouverts : à clôturer d'abord. »). It is retried every hour (the blocker can clear by
     itself), and the plugin stays active meanwhile.
 20. **The console reads the outcome, read-only.** `instances.readFacts()` also reads
-    `plugin_provisioning` and the applied licence's `issuedAt`; the customer page and the fleet show
-    rule 14's states from it. Nothing is ever sent to the console by the space.
+    `plugin_provisioning`, the applied licence's `issuedAt`, the erase orders the space ran, and the
+    setup and data lines the space publishes for each installed plugin (rule 28); the customer page
+    shows rule 14's states from it. (The fleet table is unchanged: its « Plugins » column still shows
+    the installed versions.) Nothing is ever sent to the console by the space.
 21. **A plugin outside `plugins[]` stays governed by the licence downgrade rule**
     (`control-plane-plans-and-access.md` rule 12): treated inactive, data untouched. `activePlugins`
     never revives it (rule 11 keeps it a subset; the space intersects it with `plugins` anyway).
@@ -233,6 +235,16 @@ screen or endpoint: the customer sees only the features themselves.
     console's code writes it. Shipping the space first then the console, or both in one release, never
     leaves a hosted customer with plugins switched by surprise.
     > **Sans test** — règle de processus de publication ; l'invariant qu'elle protège (aucun changement tant qu'aucune licence ne porte `activePlugins`) est testé par les règles 15 et 25.
+27. **A pending erase order is cancelled when the module is switched back on.** The order is dropped
+    from the licence and the journal says « Effacement des données de X annulé »: otherwise it would
+    fire the next time the module is switched off (rule 23 only executes an order for a plugin the
+    operator no longer wants). _Added at implementation._
+28. **The space publishes what the console cannot compute.** Each reconciliation pass writes, for
+    every installed plugin, `facts:<id>` in `plugin_provisioning_meta` — `{ setup, erasable, data }`:
+    the setup the plugin still lacks (`ctx.setupStatus`, rule 14) and the lines `data.describe`
+    returns (rule 22) — and removes it for a plugin that is not installed. The console reads them with
+    the rest of rule 20. The ids of the erase orders executed are kept as `erase:<order>` (rule 23).
+    _Added at implementation._
 
 **Edge cases:**
 
@@ -277,10 +289,12 @@ screen or endpoint: the customer sees only the features themselves.
 | `controllers/` | `pluginsController.js` | T | Rule 5: `list` narrows to live `{ id, name, icon, setup }` when operator-managed; expose `install/activate/deactivate/uninstall` internals for the reconciler (no HTTP round-trip) |
 | `controllers/` | `authController.js` | T | Rule 3: `pluginsManageable` in `login`/`me` (admin && !operatorManaged) |
 | `controllers/` | `onboardingController.js` | T | Rule 8: `pluginStep` in `GET`, 404 on `PUT /plugins` when operator-managed; `pluginsSummary` omitted |
-| `models/` | `pluginProvisioningModel.js` | C | Read/write `plugin_provisioning` and `plugin_provisioning_meta` |
+| `models/` | `pluginProvisioningModel.js` | C | Read/write `plugin_provisioning` and `plugin_provisioning_meta` (applied licence, `facts:<id>`, `erase:<order>`) |
+| `utils/` | `captureHandler.js` | C | Runs an Express handler and resolves its answer, shared by the start assistant and the reconciler (extracted from `onboardingController`) |
 | `utils/` | `pluginsSchema.js` | T | Idempotent `CREATE TABLE IF NOT EXISTS` for the two tables (§5) |
 | `tasks/` | `pluginProvisioning.js` | C | Rule 16: at boot (after plugins load) and every minute; hourly retry of `blocked` (rule 19) |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Registers the task |
+| `controllers/` | `settingsSummary`, `routes/onboarding.js`, `routes/settings.js` | — | Unchanged: the summary still reads `views()` (the Plugins row is hidden with its menu entry) |
 | `database.js` | — | — | Unchanged: the plugin tables are created by `pluginsSchema.js`, already called at boot |
 
 ### 4.2 Server side — console (`control-plane/server/src/`)
@@ -288,14 +302,14 @@ screen or endpoint: the customer sees only the features themselves.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `database.js` | `database.js` | T | `customer_plugins`, `customer_erase_orders`, column `customers.pluginsSeededAt` (§5) |
-| `models/` | `customerPluginsModel.js` | C | The operator's choice, the erase orders, the seed marker |
 | `controllers/` | `customerModulesController.js` | C | Rules 10–14, 22: the « Modules » view (lines, states, counts, refusals), switch, erase, retry; audit lines; licence re-issue |
 | `controllers/` | `customersController.js` | T | Rule 13: modules at creation; edge case: plan change drops modules no longer allowed |
 | `routes/` | `console.js` | T | The four endpoints of §4.4 |
-| `utils/` | `licenceIssuer.js` | T | `buildPayload` adds `activePlugins` (seeded customers only) and `eraseOrders` (rules 15, 23) |
+| `utils/` | `licenceIssuer.js` | T | `buildPayload` adds `activePlugins` (seeded customers only) and `eraseOrders` (rules 15, 23); `allowedPlugins` is shared with the modules view |
+| `models/` | `customerPluginsModel.js` | C | The operator's choice, the erase orders, the seed marker |
 | `utils/` | `instances.js` | T | `readFacts` also reads `plugin_provisioning`, `plugin_provisioning_meta`, and each inactive plugin's data lines (rules 20, 22) |
 | `utils/` | `moduleStates.js` | C | Rule 14: one line's state from (choice, facts, licence issuedAt, now) — pure |
-| `tasks/` | `scheduler.js` | T | Rule 25: one-time seed per customer; « Relever maintenant » reuses it |
+| `tasks/` | `scheduler.js` | T | Rule 25: every minute, `syncModules` seeds the customers that became readable and closes the erase orders the space ran (rule 23); « Relever maintenant » reuses the seed |
 
 ### 4.3 Client side
 
@@ -325,11 +339,11 @@ rules 31, 36):
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/customers/:id/modules` | — | `{ counts: { active, toConfigure, failed }, header: "7 actifs · 1 à configurer", seeded, seedLabel, included: [Line], outOfPlan: [Line] }` | `Line = { id, name, icon, on, switchable, state: 'active'\|'inactive'\|'pending'\|'failed'\|'blocked', stateLabel, detail, canRetry, canErase, eraseLines: [string], planChip }` |
+| GET | `/api/customers/:id/modules` | — | `{ seeded, seedLabel, counts: { active, toConfigure, failed, blocked }, header: "7 actifs · 1 à configurer", empty, included: [Line], outOfPlan: [Line] }` | `Line = { id, name, on, switchable, state: 'active'\|'inactive'\|'pending'\|'failed'\|'blocked'\|'unknown'\|'outOfPlan', stateLabel, detail, needsSetup, canRetry, canErase, eraseLines: [string], planChip }` — an unseeded customer gets `seeded: false`, `seedLabel` and empty lists |
 | POST | `/api/customers/:id/modules/:pluginId` | `{ on: boolean }` | the GET payload | 422 `{ error: 'OUT_OF_PLAN' \| 'REQUIREMENT_OFF' \| 'REQUIRED_BY', message }`; re-issues the licence |
 | POST | `/api/customers/:id/modules/retry` | — | the GET payload | Re-issues the licence (rule 18); also « Relever maintenant » when unseeded |
-| POST | `/api/customers/:id/modules/:pluginId/erase` | `{ confirmSlug }` | the GET payload | 409 `MODULE_ACTIVE`, 400 `SLUG_MISMATCH` |
-| POST | `/api/customers/preview` (existing) | `+ modules: [id]` | `+ moduleChoices: [{ id, name, ticked, allowed }]` | Rule 13 |
+| POST | `/api/customers/:id/modules/:pluginId/erase` | `{ confirmSlug }` | the GET payload | 409 `MODULE_ACTIVE` / `NOTHING_TO_ERASE` / `NOT_SEEDED`, 400 `SLUG_MISMATCH`; one pending order per plugin |
+| POST | `/api/customers/preview` (existing) | `+ modules: [id]` | `+ moduleChoices: [{ id, name, ticked, allowed }], moduleSummary` | Rule 13 |
 | POST | `/api/customers` (existing) | `+ modules: [id]` | unchanged | Refuses a module outside the allowed set (422) |
 
 **Licence payload** (added fields): `activePlugins: string[]` (optional), `eraseOrders: [{ order: string, id: string }]` (optional, default `[]`).
@@ -361,7 +375,7 @@ CREATE TABLE IF NOT EXISTS plugin_provisioning (
   at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS plugin_provisioning_meta (
-  key TEXT PRIMARY KEY,      -- 'appliedLicenceIssuedAt'
+  key TEXT PRIMARY KEY,      -- 'appliedLicenceIssuedAt', 'facts:<pluginId>', 'erase:<orderId>'
   value TEXT NOT NULL
 );
 ```
@@ -407,10 +421,10 @@ Skills loaded for the mockups: `apple-design`, `impeccable`. Interactive mockups
   creating the space.
 - Header: section title « Modules » (serif `sectionHeader`), counts on the right « 7 actifs · 1 à
   configurer » (`text.secondary`, a failed count in `error.main`).
-- « Inclus » list: icon, name, one state line under it (rule 14) as a soft `StatusBadge`
+- « Inclus » list: name (no icon: the catalogue's icon names have no mapping in the console), one state line under it (rule 14) as a soft `StatusBadge`
   (success « Actif · 1.2.0 », neutral « Inactif », info « En attente », warning « à configurer » and
   « Bloqué », error « Échec »), a `Switch` on the right (44 px target). « Échec » adds « Réessayer »;
-  an inactive line adds a « ⋯ » menu with « Effacer les données… ».
+  an inactive line that still holds data adds a « ⋯ » menu with « Effacer les données… ». The switch-off dialog is a `ConfirmDialog` (« Désactiver » in the primary colour: the data is kept).
 - A refused switch (rule 11) snaps back and shows the server's sentence under the line in
   `error.main`, until the next action.
 - « Hors forfait (n) »: a disclosure, closed at first; lines with the plan chip and no switch.
@@ -447,31 +461,31 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
 
 - [ ] `server/src/tests/plugin-operator-governance.unit.test.js` — rules 1, 2, 15, 21 (operator-managed
   by env, by licence, neither; `activePlugins` ∩ `plugins`; absent field = no desire; expired licence
-  keeps its `activePlugins`) — **9 cases**
+  keeps its `activePlugins`) — **9 cases (done: 9)**
 - [ ] `server/src/tests/plugin-operator-hidden-surface.unit.test.js` — rules 3–9 (each lifecycle route
   404 with the unknown-path body, for admin and support session; `GET /api/plugins` narrowed shape;
   settings routes still answer; `pluginsManageable`; `pluginStep` and `PUT /onboarding/plugins` 404;
-  unmanaged space unchanged) — **16 cases**
+  unmanaged space unchanged) — **16 cases (done: 15)**
 - [ ] `server/src/tests/plugin-reconciler.unit.test.js` — rules 16–19 (install + requirements,
   activate, deactivate keeps data, ordering both ways, no restart path → failure message, failure not
   retried for the same `issuedAt`, retried on a new one, blocked by open links then retried hourly,
-  one failure does not stop the others) — **14 cases**
+  one failure does not stop the others) — **14 cases (done: 17, incl. the facts publication)**
 - [ ] `server/src/tests/plugin-erase-orders.unit.test.js` — rule 23 (executed once, refused while
-  desired active, not installed = acknowledged no-op, recorded order id) — **5 cases**
+  desired active, not installed = acknowledged no-op, recorded order id) — **5 cases (done: 6)**
 
 ### Server unit tests — console
 
 - [ ] `control-plane/server/src/tests/customer-modules.unit.test.js` — rules 10–14, 22 (allowed subset
   refusals with their French text, requirement both ways, audit lines, licence re-issued, state lines
-  from facts incl. pending after 5 min, erase slug check, plan downgrade drops a module) — **15 cases**
+  from facts incl. pending after 5 min, erase slug check, plan downgrade drops a module) — **15 cases (done: 17, plus `customer-modules-erase.unit.test.js`, 7 cases, rules 22–23)**
 - [ ] `control-plane/server/src/tests/licence-active-plugins.unit.test.js` — rules 15, 23, 25
   (payload fields, unseeded customer has none, seed from active ∩ allowed, unreadable space stays
-  unseeded, acknowledged order dropped) — **8 cases**
+  unseeded, acknowledged order dropped) — **8 cases (done: 8)**
 
 ### Client Vitest
 
 - [ ] `client/src/constants/__tests__/roles.plugins-managed.test.js` — rule 3 (route condition,
-  settings menu without « Plugins », search words gone) — **3 cases**
+  settings menu without « Plugins », search words gone) — **3 cases (done: 3)**
 - [ ] `client/src/components/__tests__/NotFoundPage.plugins-managed.test.jsx` — rule 7 — **2 cases**
 - [ ] `client/src/pages/__tests__/OnboardingPage.plugins-managed.test.jsx` — rule 8 (no step, numbering,
   no last link) — **3 cases**

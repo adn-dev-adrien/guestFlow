@@ -241,7 +241,7 @@ export default function CustomerPage() {
               : <ProvisioningSteps steps={c.steps} onAction={stepAction} busy={busyStep} />}
           </Section>
         </Box>
-        {!c.archivedAt && <ModulesSection customerId={c.id} onChanged={load} />}
+        {!c.archivedAt && <ModulesSection customerId={c.id} slug={c.slug} onChanged={load} />}
         {c.hosting && (
           <Section title="Hébergement" action={(
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, width: { xs: '100%', sm: 'auto' } }}>

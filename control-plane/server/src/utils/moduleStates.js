@@ -19,7 +19,7 @@ function moduleState({ id, on, facts, licenceWrittenAt, now }) {
     const missing = reported && reported.moduleFacts[id] ? reported.moduleFacts[id].setup : null;
     const version = facts.versions[id];
     if (missing) {
-      return { state: 'active', stateLabel: `Actif · à configurer : ${missing}`, detail: version || null, canRetry: false, needsSetup: true };
+      return { state: 'active', stateLabel: `Actif · à configurer : ${missing}`, detail: null, canRetry: false, needsSetup: true };
     }
     return { state: 'active', stateLabel: version ? `Actif · ${version}` : 'Actif', detail: null, canRetry: false, needsSetup: false };
   }
