@@ -12,7 +12,7 @@ test('property delays: -5 becomes 5, 45 is refused in red and the server refuses
   const days = page.getByRole('textbox', { name: /Acompte \(jours après réservation\)/ });
   await days.fill('-5');
   await expect(days).toHaveValue('5');
-  await expect(page.getByText('Positif uniquement.')).toBeVisible();
+  await expect(page.getByText('Positif uniquement.').first()).toBeVisible();
 
   await days.fill('45');
   await days.blur();
