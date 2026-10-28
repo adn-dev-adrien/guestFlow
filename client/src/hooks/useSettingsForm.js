@@ -140,6 +140,13 @@ export default function useSettingsForm({ groups, navigate }) {
     try {
       if (Object.keys(payload).length > 0) {
         const updated = await api.updateSettings(payload);
+        // Rule 27 — stays whose tourist tax the new rate would also have moved the price of keep their figures.
+        if (updated && updated.vatNotRepriced && updated.vatNotRepriced.length) {
+          const n = updated.vatNotRepriced.length;
+          showError(n === 1
+            ? '1 séjour garde sa taxe de séjour enregistrée : le recalcul changerait aussi le prix.'
+            : `${n} séjours gardent leur taxe de séjour enregistrée : le recalcul changerait aussi le prix.`);
+        }
         const shaped = pickGroups(updated, groups);
         setSaved(shaped);
         setDraft(shaped);

@@ -256,12 +256,10 @@ async function updateSettings(req, res) {
     }
   }
 
+  let notRepriced = [];
   db.transaction(() => {
-    if (vatChange.rate !== undefined) {
-      vatRegimeModel.setRateInForce(db, vatChange.rate);
-      // Rule 27 — the stored tourist tax of the period's stays follows the rate the same way a switch's does.
-      require('../models/vatRegimeSwitchModel').repriceStaysOfPeriod(db, vatRegimeModel.inForce(db).id);
-    }
+    // Rule 27 — the stored tourist tax of the period's stays follows the rate the same way a switch's does.
+    if (vatChange.rate !== undefined) notRepriced = require('../models/vatRegimeSwitchModel').editRateInForce(db, vatChange.rate).notRepriced;
     if (vatChange.legalMention !== undefined) vatRegimeModel.setMentionInForce(db, vatChange.legalMention);
     settingsModel.upsert(payload);
   })();
@@ -269,7 +267,7 @@ async function updateSettings(req, res) {
   const row = settingsModel.read();
   // The push subject follows the company and sender addresses (specs/plugins-phase-p-productisation.md rule 18).
   if (company || smtp) require('../utils/vapid').ensureVapid(row);
-  return res.json(shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)));
+  return res.json({ ...shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)), vatNotRepriced: notRepriced });
 }
 
 function uploadLogo(req, res) {

@@ -27,14 +27,16 @@ function runVatRegimeMigration(db) {
       createdBy INTEGER REFERENCES users(id),
       note TEXT,
       movedFrom TEXT,
+      repriced TEXT,
       CHECK ((regime = 'subject' AND legalMention IS NULL) OR (regime = 'not_subject' AND rate = 0 AND legalMention IS NOT NULL)),
       CHECK ((basis = 'all') = (effectiveFrom IS NULL))
     )`);
 
   // Rule 26 — the period each reservation had before a switch moved it, so an unstarted switch undoes exactly.
-  if (!db.prepare('PRAGMA table_info(vat_periods)').all().some((c) => c.name === 'movedFrom')) {
-    db.exec('ALTER TABLE vat_periods ADD COLUMN movedFrom TEXT');
-  }
+  const periodColumns = db.prepare('PRAGMA table_info(vat_periods)').all().map((c) => c.name);
+  if (!periodColumns.includes('movedFrom')) db.exec('ALTER TABLE vat_periods ADD COLUMN movedFrom TEXT');
+  // Rule 27 — the stays a switch re-priced, with the figures it wrote, so an undo restores exactly those.
+  if (!periodColumns.includes('repriced')) db.exec('ALTER TABLE vat_periods ADD COLUMN repriced TEXT');
 
   const columns = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
   if (!columns.includes('vatPeriodId')) {

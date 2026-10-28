@@ -127,3 +127,17 @@ test('rule 14: the history carries a name, never an email (the accountant reads 
   assert.deepEqual([state.periods[0].createdByName, state.periods[1].createdByName], ['Ada Lovelace', 'Un administrateur']);
   assert.ok(!JSON.stringify(state).includes('@'));
 });
+
+test('rule 33: a rate is a plain decimal — « 0x10 », « 1e1 », a blank are refused, never a 500', async () => {
+  for (const bad of ['0x10', '1e1', ' ', '5,5,5', '-3', '.']) {
+    assert.ok(Number.isNaN(rules.parseRate(bad)), bad);
+    assert.equal(rules.validateSwitch({ regime: 'subject', rate: bad, basis: 'all' }, vatRegimeModel.listPeriods(db)).errors.rate, 'Taux entre 0 et 100', bad);
+  }
+  const { updateSettings } = require('../controllers/settingsController');
+  for (const bad of ['0x10', ' ']) {
+    const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+    await updateSettings({ body: { vat: { rate: bad } }, user: { id: 1 } }, res);
+    assert.equal(res.statusCode, 400, bad);
+    assert.ok(res.body.errors.vatRate);
+  }
+});

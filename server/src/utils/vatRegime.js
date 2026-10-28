@@ -89,11 +89,11 @@ function targetRate(input) {
   return input.rate == null ? 10 : parseRate(input.rate);
 }
 
-/** A rate as an operator types it: « 5,5 » is 5.5. NaN when it is not a number. */
+/** A rate as an operator types it: « 5,5 » is 5.5. NaN when it is not a plain decimal (« 0x10 », « 1e1 », a blank). */
 function parseRate(value) {
   if (typeof value === 'number') return value;
   const text = String(value).trim().replace(',', '.');
-  return text === '' ? NaN : Number(text);
+  return /^\d+(\.\d+)?$/.test(text) ? Number(text) : NaN;
 }
 
 /**
@@ -168,26 +168,35 @@ function regimeLabel(period) {
 
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
-const euros = (n) => `${Math.abs(n).toFixed(2).replace('.', ',')} €`;
+const euros = (n) => `${Math.abs(n).toFixed(2).replace('.', ',')}\u00a0€`;
 
 function monthLabel(ym) {
   const [year, month] = ym.split('-');
   return `${MONTHS[Number(month) - 1]} ${year}`;
 }
 
-/** « juin, août et octobre 2026 », « décembre 2025 et janvier 2026 » — the months, never a range that hides a gap. */
+/**
+ * « juin, août et octobre 2026 », « décembre 2025 et janvier à octobre 2026 »: runs of consecutive months
+ * become « a à b », the year closes the last item of its group, one « et » ends the sentence.
+ */
 function monthList(months) {
   const byYear = new Map();
   months.forEach((ym) => {
     const [year, month] = ym.split('-');
-    byYear.set(year, [...(byYear.get(year) || []), MONTHS[Number(month) - 1]]);
+    byYear.set(year, [...(byYear.get(year) || []), Number(month)]);
   });
-  const parts = [...byYear.entries()].map(([year, names]) => {
-    const head = names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names[names.length - 1]}` : names[0];
-    return `${head} ${year}`;
-  });
-  if (parts.length === 1) return parts[0];
-  return `${parts.slice(0, -1).join(', ')} et ${parts[parts.length - 1]}`;
+  const items = [];
+  for (const [year, numbers] of byYear) {
+    const runs = [];
+    numbers.forEach((n) => {
+      const last = runs[runs.length - 1];
+      if (last && last[last.length - 1] === n - 1) last.push(n); else runs.push([n]);
+    });
+    const labels = runs.map((run) => (run.length === 1 ? MONTHS[run[0] - 1] : `${MONTHS[run[0] - 1]} à ${MONTHS[run[run.length - 1] - 1]}`));
+    labels[labels.length - 1] += ` ${year}`;
+    items.push(...labels);
+  }
+  return items.length === 1 ? items[0] : `${items.slice(0, -1).join(', ')} et ${items[items.length - 1]}`;
 }
 
 /**
@@ -227,8 +236,8 @@ function previewLines(input, preview, { accountingExportActive = false, today = 
   }
   if (preview.linksReplaced) {
     lines.push(preview.linksReplaced === 1
-      ? '1 lien de paiement ouvert est abandonné : son montant change.'
-      : `${preview.linksReplaced} liens de paiement ouverts sont abandonnés : leur montant change.`);
+      ? '1 lien de paiement ouvert est abandonné : son montant change. Envoyer un nouveau lien depuis la fiche.'
+      : `${preview.linksReplaced} liens de paiement ouverts sont abandonnés : leur montant change. Envoyer un nouveau lien depuis la fiche.`);
   }
   if (preview.notRepriced) {
     lines.push(preview.notRepriced === 1

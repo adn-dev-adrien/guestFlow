@@ -1,18 +1,23 @@
 /**
  * Switching the VAT regime (specs/vat-optional-mode.md rules 14-19, 24-28): the preview of a switch, the
  * switch itself, and the undo of an unused or not-yet-started one. A switch is one transaction that
- * inserts a period, moves the reservations its scope names, and re-saves the stays whose proportional
- * tourist tax the regime moves, through the fiche's own save path; the preview is that same work played
- * inside a savepoint and rolled back, so what the dialog announces is what the switch does.
+ * inserts a period, moves the reservations its scope names, and re-prices the stays whose proportional
+ * tourist tax the regime moves with a TARGETED write (rule 27): the engine's figures under the old and
+ * the new period are compared, the stay is accepted only when every non-tax figure is unchanged, and only
+ * an allowlist of columns is written. The preview is the same computation played in a savepoint, so what
+ * the dialog announces is what the switch does.
  *
  * Every function takes the database. The leaf `vatRegimeModel` reads; this module writes, and so may
- * call the pricing engine and the fiche's save.
+ * call the pricing engine.
  */
 
 const vatRegimeModel = require('./vatRegimeModel');
 const rules = require('../utils/vatRegime');
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { comptaCollected } = require('../utils/reservationSettlement');
+const { calculateReservationQuote } = require('../utils/pricing');
+const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
+const { staleLinks } = require('../utils/ledgerLinks');
 const { todayIso, localIsoDate } = require('../utils/localDate');
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
@@ -81,36 +86,118 @@ function repriceable(db, rows) {
   return rows.filter((row) => row.kind === 'reservation' && !isTouristTaxFrozen(db, row) && proportionalTax(db, row));
 }
 
-/**
- * Rule 27 — one stay re-saved through the fiche's own save path (it keeps the freeze, the locked prices
- * and the schedule, and writes the stay's history). `dryRun` answers what the save would store, writing
- * nothing. → { status, row } ; a refused save leaves the stay as it was.
- */
-function resaveStay(db, id, { dryRun = false } = {}) {
-  const controller = require('../controllers/reservationsController');
-  const { toUpdateBody } = require('../utils/reservationUpdateBody');
-  const current = require('./reservationsModel').getByIdWithDetails(Number(id));
-  if (!current || current.kind !== 'reservation') return { status: 404 };
-  const autoEnabled = new Set(db.prepare('SELECT id FROM options WHERE COALESCE(autoEnabled, 0) = 1').all().map((o) => o.id));
-  const result = controller.performUpdate(Number(id), toUpdateBody(current, autoEnabled), { unlockPast: true, dryRun });
-  return { status: result.status, row: result.row || db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id)) };
+// Rule 27 — what the regime must leave alone: if any of these moves between the engine's figures under
+// the old and the new period, the stay was priced under another rule and keeps its stored figures.
+const NON_TAX_FIGURES = ['finalPrice', 'totalPrice', 'depositAmount', 'discountAmount', 'optionsTotal', 'resourcesTotal',
+  'accommodationAdjustedPrice', 'engineFinalPrice', 'platformCommissionAmount', 'acompteCommissionAmount',
+  'extraGuestSurcharge', 'depositDueDate', 'balanceDueDate'];
+// The only columns a re-price writes (besides updatedAt and the history line): the tax and the amounts it rides on.
+const ALLOWLIST = ['touristTaxTotal', 'balanceAmount', 'complementAmount'];
+const FIGURE_OF = { touristTaxTotal: 'touristTaxTotal', balanceAmount: 'balanceAmount', complementAmount: 'complementAmount' };
+
+const engineQuote = (db, row) => {
+  const quote = calculateReservationQuote(buildReservationEngineInput(db, row));
+  return quote && !quote.error ? quote : null;
+};
+
+/** The engine's quotes of these stays under their CURRENT period: call it before moving them. */
+function quotesBefore(db, rows) {
+  return new Map(rows.map((row) => [row.id, engineQuote(db, row)]));
 }
 
 /**
- * Rule 27 — re-saves a stay only when the save changes nothing but what the regime moves: the price paid
- * must hold (« Prix inchangés »). A stay whose save would also move its price (priced under an earlier
- * rule) keeps its stored figures and is reported. → true when the stay was re-saved (or only previewed).
+ * Rule 27 — what re-pricing a stay would write, given its quote before the move and the stay as it now is
+ * (already under its new period). → { id, ok: false } when the stay keeps its figures (a figure other than
+ * the tax moved, or no quote), else { id, ok: true, before, after } over the allowlisted columns, each
+ * stored figure shifted by what the engine's own figure shifted by.
  */
-function resaveKeepingPrice(db, row, { dryRun = false } = {}) {
-  const probe = resaveStay(db, row.id, { dryRun: true });
-  if (probe.status !== 200 || Math.abs(Number(probe.row.finalPrice || 0) - Number(row.finalPrice || 0)) > TAX_EPSILON) return { ok: false };
-  return dryRun ? { ok: true, row: probe.row } : { ok: resaveStay(db, row.id).status === 200 };
+function planReprice(db, row, quoteBefore) {
+  const stored = db.prepare('SELECT * FROM reservations WHERE id = ?').get(row.id);
+  const after = engineQuote(db, stored);
+  if (!quoteBefore || !after) return { id: row.id, ok: false };
+  if (NON_TAX_FIGURES.some((key) => JSON.stringify(quoteBefore[key]) !== JSON.stringify(after[key]))) return { id: row.id, ok: false };
+  const before = {};
+  const next = {};
+  for (const column of ALLOWLIST) {
+    const shift = round2(Number(after[FIGURE_OF[column]] || 0) - Number(quoteBefore[FIGURE_OF[column]] || 0));
+    if (Math.abs(shift) <= TAX_EPSILON) continue;
+    before[column] = Number(stored[column] || 0);
+    next[column] = round2(Number(stored[column] || 0) + shift);
+  }
+  return { id: row.id, ok: true, before, after: next };
 }
 
-/** Rule 27, also for the retroactive rate edit (rule 9): re-saves the re-priceable stays of a period. */
-function repriceStaysOfPeriod(db, periodId) {
-  const rows = db.prepare("SELECT * FROM reservations WHERE kind = 'reservation' AND vatPeriodId = ?").all(Number(periodId));
-  return repriceable(db, rows).filter((row) => !resaveKeepingPrice(db, row).ok).map((row) => row.id);
+/** Rule 27 — writes a plan: the allowlisted columns, updatedAt, and one history line. */
+function writePlan(db, plan) {
+  const columns = Object.keys(plan.after);
+  if (!columns.length) return;
+  db.prepare(`UPDATE reservations SET ${columns.map((c) => `${c} = ?`).join(', ')}, updatedAt = datetime('now') WHERE id = ?`)
+    .run(...columns.map((c) => plan.after[c]), plan.id);
+  db.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, ?, ?)').run(plan.id, 'update', JSON.stringify(
+    columns.map((c) => ({ field: c, label: c === 'touristTaxTotal' ? 'Taxe de séjour' : (c === 'balanceAmount' ? 'Solde' : 'Complément'), from: plan.before[c], to: plan.after[c] })),
+  ));
+}
+
+/**
+ * Rule 32 — the open links whose amount no longer matches their bucket once these stays carry the planned
+ * figures: the stays' own links and those of their converted devis. `figures` maps a stay id to the figures
+ * written (or about to be). Pure read.
+ */
+function linksOutOfDate(db, plans) {
+  if (!plans.length || !tableExists(db, 'payment_links')) return [];
+  const out = [];
+  for (const plan of plans.filter((p) => p.ok && Object.keys(p.after).length)) {
+    const stay = { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(plan.id), ...plan.after };
+    const devisIds = db.prepare("SELECT id FROM reservations WHERE kind = 'devis' AND convertedReservationId = ?").all(plan.id).map((r) => r.id);
+    const owners = [plan.id, ...devisIds];
+    const open = db.prepare(`SELECT * FROM payment_links WHERE status = 'open' AND reservationId IN (${placeholders(owners)}) ORDER BY id`).all(...owners);
+    out.push(...staleLinks(open, stay));
+  }
+  return out;
+}
+
+/** Rule 32 — retires those links (inside the transaction); the provider is told after the commit. */
+function retireLinks(db, links) {
+  const retire = db.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'amount-changed' WHERE id = ? AND status = 'open'");
+  const at = new Date().toISOString();
+  return links.filter((link) => retire.run(link.providerLinkId ? at : null, link.id).changes > 0)
+    .map((link) => ({ ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null, cancelReason: 'amount-changed' }));
+}
+
+/** After the commit: tell each provider (never inside a transaction); a refusal is retried by the poll. */
+function deactivateAfterCommit(links) {
+  if (!links.length) return;
+  setImmediate(() => {
+    try {
+      const { deactivateAbandonedLinks } = require('../utils/paymentLinkDeactivation');
+      Promise.resolve(deactivateAbandonedLinks(links, { paymentLinksModel: require('./paymentLinksModel') })).catch((err) => {
+        console.error('[vat-regime] link deactivation:', err && err.message ? err.message : err);
+      });
+    } catch (err) {
+      console.error('[vat-regime] link deactivation:', err && err.message ? err.message : err);
+    }
+  });
+}
+
+/**
+ * Rule 9 + 27 — the retroactive rate edit: the rate of the period in force is written, and the stays of that
+ * period whose tax the rate moves are re-priced like a switch's. → { notRepriced: [ids] }.
+ */
+function editRateInForce(db, rate) {
+  let retired = [];
+  const result = db.transaction(() => {
+    const current = vatRegimeModel.inForce(db);
+    const rows = current ? repriceable(db, db.prepare("SELECT * FROM reservations WHERE kind = 'reservation' AND vatPeriodId = ?").all(current.id)) : [];
+    const before = quotesBefore(db, rows);
+    const written = vatRegimeModel.setRateInForce(db, rate);
+    if (!written.ok) return { ...written, notRepriced: [] };
+    const plans = rows.map((row) => planReprice(db, row, before.get(row.id)));
+    retired = retireLinks(db, linksOutOfDate(db, plans));
+    plans.filter((p) => p.ok).forEach((p) => writePlan(db, p));
+    return { ok: true, notRepriced: plans.filter((p) => !p.ok).map((p) => p.id) };
+  })();
+  deactivateAfterCommit(retired);
+  return result;
 }
 
 function openLinksOf(db, ids) {
@@ -120,7 +207,7 @@ function openLinksOf(db, ids) {
 
 /**
  * Rule 17 — the exact effects of a switch, without making it. → { errors } or { preview: { fingerprint,
- * reassigned, collected, touristTaxChanged, touristTaxDelta, touristTaxKept, openLinks, linksReplaced,
+ * reassigned, collected, touristTaxChanged, touristTaxDelta, touristTaxKept, openLinks, linksReplaced (open links whose amount no longer matches),
  * exportMonths, devisDrafts, needsAcknowledgement, notRepriced, fromRegime, ids, changedIds } }.
  */
 function previewSwitch(db, input, { today = todayIso() } = {}) {
@@ -137,25 +224,28 @@ function previewSwitch(db, input, { today = todayIso() } = {}) {
 
   const draftIds = db.prepare("SELECT id FROM reservations WHERE kind = 'devis' AND COALESCE(devisStatus, 'draft') != 'converted'").all().map((r) => r.id);
   const devisBefore = new Map(draftIds.map((id) => [id, vatRegimeModel.forRow(db, { id })]));
-  const taxBefore = new Map(movable.map((row) => [row.id, Number(row.touristTaxTotal || 0)]));
+  const before = quotesBefore(db, movable);
 
   let taxDelta = 0;
   let devisDrafts = 0;
   const taxChangedIds = [];
   let notRepriced = 0;
+  let plans = [];
+  let staleOnes = [];
   db.exec('SAVEPOINT vat_regime_preview');
   try {
     const periodId = Number(db.prepare(`INSERT INTO vat_periods (regime, rate, legalMention, basis, effectiveFrom)
       VALUES (@regime, @rate, @legalMention, @basis, @effectiveFrom)`).run(candidate).lastInsertRowid);
     if (changed.length) db.prepare(`UPDATE reservations SET vatPeriodId = ? WHERE id IN (${placeholders(changed.map((r) => r.id))})`).run(periodId, ...changed.map((r) => r.id));
-    for (const row of movable) {
-      const saved = resaveKeepingPrice(db, row, { dryRun: true });
-      if (!saved.ok) { notRepriced += 1; continue; }
-      const delta = Number(saved.row.touristTaxTotal || 0) - taxBefore.get(row.id);
+    plans = movable.map((row) => planReprice(db, row, before.get(row.id)));
+    for (const plan of plans) {
+      if (!plan.ok) { notRepriced += 1; continue; }
+      const delta = plan.after.touristTaxTotal == null ? 0 : plan.after.touristTaxTotal - plan.before.touristTaxTotal;
       if (Math.abs(delta) <= TAX_EPSILON) continue;
-      taxChangedIds.push(row.id);
+      taxChangedIds.push(plan.id);
       taxDelta += delta;
     }
+    staleOnes = linksOutOfDate(db, plans);
     for (const id of draftIds) {
       const now = vatRegimeModel.forRow(db, { id });
       const was = devisBefore.get(id);
@@ -169,7 +259,8 @@ function previewSwitch(db, input, { today = todayIso() } = {}) {
   const changedIds = changed.map((r) => r.id);
   const collected = changed.filter((row) => comptaCollected(row) > 0).length;
   const exportMonths = monthsOfPayments(db, changedIds);
-  const replaced = openLinksOf(db, taxChangedIds);
+  const replaced = staleOnes.length;
+  const replacedIds = new Set(staleOnes.map((l) => l.id));
   const latest = periods[periods.length - 1];
   return {
     preview: {
@@ -181,7 +272,7 @@ function previewSwitch(db, input, { today = todayIso() } = {}) {
       touristTaxChanged: taxChangedIds.length,
       touristTaxDelta: round2(taxDelta),
       touristTaxKept: frozen,
-      openLinks: openLinksOf(db, changedIds) - replaced,
+      openLinks: Math.max(0, openLinksOf(db, changedIds) - replacedIds.size),
       linksReplaced: replaced,
       exportMonths,
       devisDrafts,
@@ -203,7 +294,8 @@ function applySwitch(db, input, { userId = null, fingerprint, acknowledged = fal
   const checked = rules.validateSwitch(input, vatRegimeModel.listPeriods(db), { today });
   if (Object.keys(checked.errors).length) return { errors: checked.errors };
 
-  return db.transaction(() => {
+  let retired = [];
+  const result = db.transaction(() => {
     const { preview, errors } = previewSwitch(db, input, { today });
     if (errors) return { errors };
     if (!fingerprint || preview.fingerprint !== fingerprint) return { stale: true };
@@ -211,6 +303,8 @@ function applySwitch(db, input, { userId = null, fingerprint, acknowledged = fal
 
     const periods = vatRegimeModel.listPeriods(db);
     const candidate = rules.periodFromInput(input);
+    const repricedRows = repriceable(db, db.prepare(`SELECT * FROM reservations WHERE id IN (${placeholders(preview.changedIds.length ? preview.changedIds : [0])})`).all(...(preview.changedIds.length ? preview.changedIds : [0])));
+    const repriced = { rows: repricedRows, before: quotesBefore(db, repricedRows) };
     const previousOf = new Map(db.prepare("SELECT id, vatPeriodId FROM reservations WHERE kind IN ('reservation', 'cancelled')").all()
       .filter((r) => preview.ids.includes(r.id)).map((r) => [r.id, r.vatPeriodId]));
     const periodId = Number(db.prepare(`INSERT INTO vat_periods (regime, rate, legalMention, basis, effectiveFrom, createdBy, movedFrom)
@@ -238,11 +332,16 @@ function applySwitch(db, input, { userId = null, fingerprint, acknowledged = fal
         AND refundId IN (SELECT id FROM reservation_refunds WHERE reservationId IN (${placeholders(preview.changedIds)}))`)
         .run(candidate.rate, ...preview.changedIds);
     }
-    const moved = db.prepare(`SELECT * FROM reservations WHERE id IN (${placeholders(preview.changedIds.length ? preview.changedIds : [0])})`).all(...(preview.changedIds.length ? preview.changedIds : [0]));
-    const notRepriced = repriceable(db, moved).filter((row) => !resaveKeepingPrice(db, row).ok).map((row) => row.id);
+    const plans = repriced.rows.map((row) => planReprice(db, row, repriced.before.get(row.id)));
+    retired = retireLinks(db, linksOutOfDate(db, plans));
+    plans.filter((p) => p.ok).forEach((p) => writePlan(db, p));
+    db.prepare('UPDATE vat_periods SET repriced = ? WHERE id = ?').run(JSON.stringify(Object.fromEntries(plans.filter((p) => p.ok && Object.keys(p.after).length).map((p) => [p.id, { before: p.before, after: p.after }]))), periodId);
+    const notRepriced = plans.filter((p) => !p.ok).map((p) => p.id);
     vatRegimeModel.syncMirror(db);
-    return { ok: true, period: { ...period }, reassigned: preview.reassigned, notRepriced };
+    return { ok: true, period: { ...period }, reassigned: preview.reassigned, notRepriced, retiredLinks: retired };
   })();
+  deactivateAfterCommit(result.retiredLinks || []);
+  return result;
 }
 
 const userName = (row) => `${row.firstName || ''} ${row.lastName || ''}`.trim() || 'Un administrateur';
@@ -298,23 +397,24 @@ function deletePeriod(db, id, { today = todayIso() } = {}) {
   if (target.id !== periods[periods.length - 1].id) return { error: 'not_latest' };
   const used = db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE vatPeriodId = ? AND kind IN ('reservation', 'cancelled')").get(target.id).n;
   if (used && !hasNotStarted(target, today)) return { error: 'period_in_use' };
-  const stored = db.prepare('SELECT movedFrom FROM vat_periods WHERE id = ?').get(target.id);
-  let movedFrom = {};
-  try { movedFrom = JSON.parse((stored && stored.movedFrom) || '{}') || {}; } catch { movedFrom = {}; }
+  const stored = db.prepare('SELECT movedFrom, repriced FROM vat_periods WHERE id = ?').get(target.id);
+  const parse = (text) => { try { return JSON.parse(text || '{}') || {}; } catch { return {}; } };
+  const movedFrom = parse(stored && stored.movedFrom);
+  const repricedBy = parse(stored && stored.repriced);
+  let retired = [];
   const remaining = periods.filter((p) => p.id !== target.id);
 
   db.transaction(() => {
     const rows = db.prepare("SELECT * FROM reservations WHERE vatPeriodId = ? AND kind IN ('reservation', 'cancelled')").all(target.id);
+    const movedIds = rows.map((r) => r.id);
     const put = db.prepare('UPDATE reservations SET vatPeriodId = ? WHERE id = ?');
     const insertHistory = db.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, ?, ?)');
-    const restored = [];
     for (const row of rows) {
       const before = movedFrom[row.id] != null && remaining.some((p) => p.id === Number(movedFrom[row.id]))
         ? remaining.find((p) => p.id === Number(movedFrom[row.id]))
         : rules.pickPeriod(remaining, { bookingDay: rules.bookingDayOf(row.createdAt), startDate: row.startDate });
       put.run(before.id, row.id);
       if (before.regime !== target.regime || Number(before.rate) !== Number(target.rate)) {
-        restored.push({ row, before });
         insertHistory.run(row.id, 'update', JSON.stringify([{
           field: 'vatRegime',
           label: 'Régime de TVA',
@@ -330,11 +430,27 @@ function deletePeriod(db, id, { today = todayIso() } = {}) {
     const previous = remaining[remaining.length - 1];
     db.prepare("UPDATE reservations SET vatPeriodId = ? WHERE vatPeriodId = ? AND kind = 'devis'").run(previous.id, target.id);
     db.prepare('DELETE FROM vat_periods WHERE id = ?').run(target.id);
-    repriceable(db, db.prepare(`SELECT * FROM reservations WHERE id IN (${placeholders(restored.length ? restored.map((r) => r.row.id) : [0])})`)
-      .all(...(restored.length ? restored.map((r) => r.row.id) : [0]))).forEach((row) => resaveKeepingPrice(db, row));
+    // Rule 26 — exactly the stays the switch re-priced get their figures back (what they hold now, less what the
+    // switch added); a stay it skipped is not touched.
+    const plans = [];
+    for (const id of movedIds) {
+      const record = repricedBy[id];
+      if (!record) continue;
+      const current = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+      const before = {};
+      const after = {};
+      for (const column of Object.keys(record.after)) {
+        before[column] = Number(current[column] || 0);
+        after[column] = round2(Number(current[column] || 0) - (record.after[column] - record.before[column]));
+      }
+      plans.push({ id, ok: true, before, after });
+    }
+    retired = retireLinks(db, linksOutOfDate(db, plans));
+    plans.forEach((plan) => writePlan(db, plan));
     vatRegimeModel.syncMirror(db);
   })();
+  deactivateAfterCommit(retired);
   return { ok: true };
 }
 
-module.exports = { previewSwitch, applySwitch, readState, deletePeriod, repriceStaysOfPeriod };
+module.exports = { previewSwitch, applySwitch, readState, deletePeriod, editRateInForce, __test: { planReprice, ALLOWLIST } };

@@ -115,8 +115,8 @@ test('rule 17: the lines of « Ce qui change » are phrased by the server, only 
   const back = preview({ regime: 'subject', rate: 20, basis: 'all' });
   assert.match(back.lines[0], /^\d+ réservations passent à la TVA, dont \d+ déjà encaissées?\.$/);
   assert.equal(back.lines[1], 'Prix inchangés. Le chiffre d’affaires HT baisse d’autant.');
-  assert.ok(back.lines.some((l) => /^Taxe de séjour recalculée sur 1 séjour \([+−]\d,\d\d €\)\.$/.test(l)));
-  assert.ok(back.lines.some((l) => /^\d+ liens? de paiement ouverts? gardent? (leur|son) montant\.$/.test(l)));
+  assert.ok(back.lines.some((l) => /^Taxe de séjour recalculée sur 1 séjour \([+−]\d,\d\d\u00a0€\)\.$/.test(l)));
+  assert.ok(back.lines.some((l) => /^\d+ liens? de paiement ouverts? (gardent? (leur|son) montant|sont? abandonnés? : (leur|son) montant change)\./.test(l)));
   assert.equal(back.lines[back.lines.length - 1], 'Devis et résumés : TVA 20 %.');
   const none = preview({ regime: 'subject', rate: 20, basis: 'booking', effectiveFrom: '2028-01-01' });
   assert.deepEqual(none.lines, [
@@ -131,11 +131,25 @@ test('rule 17: the months of the books are told only when the accounting export 
   const base = { reassigned: 3, collected: 0, touristTaxChanged: 0, touristTaxDelta: 0, touristTaxKept: 0, openLinks: 1, exportMonths: ['2026-05', '2026-06', '2026-10'] };
   const ALL_NO = { regime: 'not_subject', basis: 'all' };
   assert.ok(!previewLines(ALL_NO, base, { accountingExportActive: false }).some((l) => l.startsWith('Écritures')));
-  assert.ok(previewLines(ALL, base, { accountingExportActive: true }).includes('Écritures comptables modifiées : mai, juin et octobre 2026.'));
+  assert.ok(previewLines(ALL, base, { accountingExportActive: true }).includes('Écritures comptables modifiées : mai à juin et octobre 2026.'));
   assert.ok(previewLines(ALL, { ...base, exportMonths: ['2026-12', '2027-02'] }, { accountingExportActive: true }).includes('Écritures comptables modifiées : décembre 2026 et février 2027.'));
   assert.ok(previewLines(ALL, { ...base, exportMonths: ['2026-06', '2026-08', '2026-10'] }, { accountingExportActive: true }).includes('Écritures comptables modifiées : juin, août et octobre 2026.'), 'a gap is never hidden by a range');
   assert.ok(previewLines(ALL, { ...base, exportMonths: ['2026-05'] }, { accountingExportActive: true }).includes('Écritures comptables modifiées : mai 2026.'));
   assert.ok(previewLines(ALL, base).includes('1 lien de paiement ouvert garde son montant.'));
   assert.equal(previewLines(ALL, base)[0], '3 réservations passent sans TVA.');
   assert.equal(previewLines(ALL, { ...base, reassigned: 1, collected: 1 })[0], '1 réservation passe sans TVA, dont 1 déjà encaissée.');
+});
+
+test('rule 17: the months are grouped in runs per year, with one final « et »', () => {
+  const { previewLines } = require('../utils/vatRegime');
+  const base = { reassigned: 3, collected: 0, touristTaxChanged: 0, touristTaxDelta: 0, touristTaxKept: 0, openLinks: 0 };
+  const lineOf = (exportMonths) => previewLines({ regime: 'not_subject', basis: 'all' }, { ...base, exportMonths }, { accountingExportActive: true }).find((l) => l.startsWith('Écritures'));
+  assert.equal(lineOf(['2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']), 'Écritures comptables modifiées : décembre 2025 et janvier à octobre 2026.');
+  assert.equal(lineOf(['2026-01', '2026-02', '2026-03', '2026-05', '2026-09']), 'Écritures comptables modifiées : janvier à mars, mai et septembre 2026.');
+});
+
+test('rule 17: an amount in the lines keeps its euro sign on the same line (no-break space)', () => {
+  const { previewLines } = require('../utils/vatRegime');
+  const line = previewLines({ regime: 'not_subject', basis: 'all' }, { reassigned: 1, collected: 0, touristTaxChanged: 1, touristTaxDelta: 0.95, touristTaxKept: 0, openLinks: 0, exportMonths: [] }).find((l) => l.startsWith('Taxe'));
+  assert.equal(line, 'Taxe de séjour recalculée sur 1 séjour (+0,95\u00a0€).');
 });

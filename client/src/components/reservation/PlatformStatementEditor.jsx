@@ -15,7 +15,6 @@
  *   computeCommission(figures) → { commission } — « Calculer la commission » (server)
  */
 import React, { useState } from 'react';
-import useVatRegime from '../../hooks/useVatRegime';
 import { Box, Button, Stack, Tooltip, Typography } from '@mui/material';
 import ArithmeticTextField from '../ArithmeticTextField';
 import { formatCurrency } from '../../utils/formatters';
@@ -25,7 +24,8 @@ const blank = (v) => v === '' || v == null;
 export default function PlatformStatementEditor({
   form, pricingQuote, withDepositCommission, locked, onApply, onCancel, computeCommission, onError,
 }) {
-  const { notSubject } = useVatRegime();
+  // « Sans TVA » follows the stay's own regime, which its live quote carries.
+  const notSubject = pricingQuote?.vatRegime?.regime === 'not_subject';
   const [draft, setDraft] = useState({
     platformGrossAmount: form.platformGrossAmount ?? '',
     platformTouristTaxAmount: form.platformTouristTaxAmount ?? '',

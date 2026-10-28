@@ -12,7 +12,6 @@ import OptionRow from './OptionRow';
 import OptionCategorySection from './OptionCategorySection';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 import { useSlot } from '../../plugins/sdk/useSlot';
-import useVatRegime from '../../hooks/useVatRegime';
 import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
 import { resourceLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 
@@ -23,8 +22,6 @@ const NO_ARRIVAL_LINES = {};
  * Reads everything from the reservation form context — no props.
  */
 export default function ExtrasSection() {
-  // « Sans TVA »: a price is simply what the guest pays (specs/vat-optional-mode.md §6.3).
-  const { notSubject } = useVatRegime();
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
     form, propertyOptions, propertyOptionGroups, displayableResources, pricingQuote,
@@ -173,7 +170,7 @@ export default function ExtrasSection() {
                                 live recompute dropped the line entirely (bug 2026-07-20). */}
                             <ArithmeticTextField
                               size="small"
-                              label={notSubject ? 'Prix' : 'Prix TTC'}
+                              label={pricingQuote?.vatRegime?.regime === 'not_subject' ? 'Prix' : 'Prix TTC'}
                               value={line.amount ?? 0}
                               onCommit={(v) => updateCustomOption(line.customKey, { amount: v === '' ? 0 : v })}
                               disabled={lineLocked}

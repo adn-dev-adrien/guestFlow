@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import useVatRegime from '../hooks/useVatRegime';
 import { Link, useNavigate } from 'react-router';
 import {
   Box, Typography, Stack, FormControl, InputLabel, Select, MenuItem,
@@ -40,11 +39,12 @@ const STATUS_BADGE = {
 const AMOUNT = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 
 export default function DevisPage() {
-  const { notSubject } = useVatRegime();
   const navigate = useNavigate();
   const { confirm } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [devisList, setDevisList] = useState([]);
+  // « Sans TVA »: each quote carries the regime it is quoted under; the column says TTC while one of them has VAT.
+  const notSubject = devisList.length > 0 && devisList.every((d) => d.vatRegimeKind === 'not_subject');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');

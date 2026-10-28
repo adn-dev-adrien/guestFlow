@@ -634,7 +634,7 @@ function createModel(database) {
     // specs/ui-review-2026-10-19-operations.md rules 5, 9, 21 — total, origin and validity shaped for
     // the list.
     const today = sqliteNow().slice(0, 10);
-    return database.prepare(sql).all(...params).map((row) => devisListRow(row, today));
+    return database.prepare(sql).all(...params).map((row) => ({ ...devisListRow(row, today), vatRegimeKind: vatRegimeModel.forRow(database, row).regime }));
   }
 
   function findById(id) {

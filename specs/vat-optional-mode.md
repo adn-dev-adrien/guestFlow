@@ -238,17 +238,25 @@ Appended, never renumbered; each narrows or completes a rule above.
 26. **A switch that has not started is undone exactly.** The period stores, per reservation it moved, the
     period it had (`vat_periods.movedFrom`). While its date is still ahead, « Annuler ce changement » is
     offered even though reservations moved: each goes back to its previous period (its refund lines re-rated,
-    a history line « changement annulé », its tourist tax re-saved under rule 27); a reservation born under
+    a history line « changement annulé »); the stays the switch re-priced get back exactly the figures it
+    wrote (the period stores them, `vat_periods.repriced`: what each column held before and after; undo takes
+    the switch's shift out of what the column holds now, so a later edit is kept), a stay the switch skipped is
+    not touched; a reservation born under
     the period since falls to the period the others give it; its devis go to the previous period. Once the
     date has come, rule 18 applies again.
-27. **The tourist tax and totals are re-saved, not just previewed.** Inside the switch transaction — and
-    inside the retroactive rate edit of rule 9 — each moved stay of a proportional-tax property whose tax is
-    neither frozen nor declared is re-saved through the fiche's own save (`performUpdate`: it keeps the
-    freeze, the locked prices and the schedule, and writes the stay's history). The preview is that same
-    save played in a savepoint, so the stored tax equals the announced line. A stay whose save would also
-    move its price keeps its stored figures and is reported (« garde sa taxe de séjour enregistrée »);
-    « Prix inchangés » never lies. Open links on a stay whose amount changes are abandoned by the save
-    (told in the preview); the others keep theirs.
+27. **The tourist tax and totals are re-priced by a targeted write, not by re-saving the fiche.** Inside the
+    switch transaction — and inside the retroactive rate edit of rule 9 — each moved stay of a
+    proportional-tax property whose tax is neither frozen nor declared gets the engine's figures computed
+    twice: under its old period (before the move) and under its new one. The stay is accepted only when every
+    non-tax figure is identical in both (`finalPrice`, `totalPrice`, `depositAmount`, discounts, options,
+    resources, commissions, due dates…). Then ONLY an allowlist is written — `touristTaxTotal`,
+    `balanceAmount`, `complementAmount`, each moved by exactly what the engine's own figure moved, plus
+    `updatedAt`, `vatPeriodId` and one `reservation_history` line. Every other column and every child row
+    (options, custom options, resources, nights, installments, snapshots, iCal lock, stored due dates) stays
+    byte for byte; the fiche's full save is never used (it rewrites too much). The preview is the same
+    computation played in a savepoint, so the stored tax equals the announced line. A stay that is not
+    accepted keeps its stored figures and is reported (« garde sa taxe de séjour enregistrée »), in the
+    preview, in the switch's response (`notRepriced`) and after a rate edit (`vatNotRepriced`).
 28. **The identity check compares with the latest period**, not with today's: after a switch dated ahead,
     the way back is offered and the same target is refused. The dialog builds its target from the latest
     period (`state.latest`), and still shows the period in force as the current regime.
@@ -261,6 +269,16 @@ Appended, never renumbered; each narrows or completes a rule above.
     content plus the settings mirror: a rate edited between the preview and the switch gives a 409. The
     months of the books are those of the journal's own predicates (paid, not in cash, a real amount; a
     refund that is not internal; a compensation received).
+
+32. **Open payment links follow the amount.** After the write, every open deposit, balance, full or
+    complement link — of the stay and of its converted devis — whose amount no longer matches its bucket is
+    retired inside the transaction (status `cancelled`, reason `amount-changed`, deactivation owed to the
+    provider); the provider is told AFTER the commit (the poll retries a refusal). The preview's
+    `linksReplaced` is exactly that set, and its line says « Envoyer un nouveau lien depuis la fiche ». A link
+    whose amount does not move stays open. The same holds for an undo and for a rate edit.
+33. **A rate is a plain decimal.** `5`, `5.5`, `5,5` — never `0x10`, `1e1`, a blank, a sign: refused (the
+    settings field answers 400 `SETTINGS_INVALID`, the switch 422), never a 500. The rate edit reports the
+    stays that kept their figures.
 
 **Edge cases:**
 - Booking at 00:30 on the switch day (Paris) → the booking date is that day (rule 5 uses Europe/Paris,

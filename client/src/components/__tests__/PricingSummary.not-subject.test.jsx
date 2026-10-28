@@ -88,3 +88,21 @@ test('rule 12 (d): the properties table drops the HT column, and TTC reads « Re
   expect(screen.queryByRole('columnheader', { name: 'TTC' })).toBeNull();
   expect(screen.getByRole('columnheader', { name: 'Revenu' })).toBeInTheDocument();
 });
+
+test('rule 12 (a): the price labels of the fiche follow the regime of the stay, read from its quote', async () => {
+  const { default: PlatformStatementEditor } = await import('../reservation/PlatformStatementEditor');
+  const draw = (regime) => render(
+    <ThemeProvider theme={theme}>
+      <PlatformStatementEditor
+        form={{ platformGrossAmount: '500', platformTouristTaxAmount: '10', acompteCommissionAmount: '', platformCommissionAmount: '' }}
+        pricingQuote={{ touristTaxOfferedByPlatform: true, vatRegime: { regime } }}
+        withDepositCommission={false} locked={false} onApply={() => {}} onCancel={() => {}} computeCommission={() => ({})} onError={() => {}}
+      />
+    </ThemeProvider>,
+  );
+  const { unmount } = draw('not_subject');
+  expect(screen.queryByText(/base TVA et base de commission/)).not.toBeInTheDocument();
+  unmount();
+  draw('subject');
+  expect(screen.getByText(/base TVA et base de commission/)).toBeInTheDocument();
+});
