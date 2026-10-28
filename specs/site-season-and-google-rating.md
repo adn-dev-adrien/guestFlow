@@ -172,12 +172,15 @@ would have shipped undeployed work. Measured live that day: « Saison » reads �
 2027-04-01 → 2027-10-14 period, and `/llms.txt` has the rating line. Backups of the previous files:
 `/tmp/bak-season-rating-20261028-092416/` in the container.
 
-**Page contents (§4.3) — to be run by Adrien.** Writing to the production database from a
-session was refused by the safety check. `rapports/season-rating-2026-10-28/deploy-pages.sh` in
-the private repository replaces the six snippets by exact match (it stops before any write if a
-page does not hold exactly one occurrence), saves each page to `/tmp/bak-page-<id>-<ts>.txt`,
-rebuilds the Polylang language cache, and prints the live checks. Until it runs, the four pages
-still show 11 and 22 reviews and the hero kicker still reads « avril à mi-octobre ».
+**Page contents (§4.3) — live since 2026-10-28, run by Adrien.** Writing to the production
+database from a session was refused by the safety check, so Adrien ran
+`rapports/season-rating-2026-10-28/deploy-pages.sh` from the private repository. It replaces the
+six snippets by exact match (it stops before any write if a page does not hold exactly one
+occurrence), saves each page to `/tmp/bak-page-<id>-<ts>.txt` (run of `20261028-103234`), rebuilds
+the Polylang language cache, and prints the live checks. Measured that day: `/`, `/le-domaine/`
+read « Note 5,0 sur Google — 25 avis », `/en/`, `/en/the-estate/` « Rated 5.0 on Google — 25
+reviews »; the Estiva hero reads « Tente safari · dès le 1er avril 2027 » / « Safari tent · from
+1 April 2027 »; `/en/` answers 200 with no redirect and the home page holds no internal IP.
 
 ## 8. Out of scope
 
