@@ -9,17 +9,19 @@
  *   busy        boolean — a write on this line is in flight
  *   blocked?    string — why a write is refused right now (unsaved fiche); disables the actions
  *   onConfirm, onDiscard, onUndo   (item) => void
+ *   onDeclarePenalty?  (item) => void — « Déclarer une pénalité de … » on a platform credit below the payout
+ *   onShares?   (item) => void — a grouped payout whose shares are typed (« Répartir et confirmer »)
  *   showReservation?  boolean — name the client and the platform (the page; the fiche knows its stay)
  *   onOpenFiche?      (item) => void — « Ouvrir la fiche » on a gap (the page)
  */
 import React from 'react';
-import { Box, Button, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Stack, Typography } from '@mui/material';
 import { PlatformChip, StatusBadge } from '../sdk';
 import { money, CONFIDENCE_STATUS } from './reconciliationShared';
 
 const BANK_ROW_SX = { display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'baseline', mt: 0.75, fontSize: 13 };
 
-function BankRow({ label, side, amountCents }) {
+function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
   return (
     <Box sx={BANK_ROW_SX}>
       <Typography component="span" variant="caption" color="text.secondary" sx={{ minWidth: { sm: 120 } }}>{label}</Typography>
@@ -28,12 +30,14 @@ function BankRow({ label, side, amountCents }) {
       </Typography>
       <Typography component="span" variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
         {side.counterparty}{side.reference ? ` · « ${side.reference} »` : ''}
+        {alsoCovers.length > 0 && ` · couvre aussi ${alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
       </Typography>
+      {auto && <Chip size="small" variant="outlined" label="auto" />}
     </Box>
   );
 }
 
-export default function ReconciliationLine({ item, busy = false, blocked = '', onConfirm, onDiscard, onUndo, showReservation = false, onOpenFiche }) {
+export default function ReconciliationLine({ item, busy = false, blocked = '', onConfirm, onDiscard, onUndo, onShares, onDeclarePenalty, showReservation = false, onOpenFiche }) {
   const { proposal } = item;
   const disabled = busy || Boolean(blocked);
   const buttonSx = { minHeight: 44, textTransform: 'none', width: { xs: '100%', sm: 'auto' } };
@@ -54,12 +58,14 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       </Stack>
 
       {item.bank.map((b) => (
-        <BankRow key={b.transactionId} label={`Sur le compte le ${b.dateLabel}`} side={b} amountCents={b.allocatedCents} />
+        <BankRow key={b.transactionId} label={`Sur le compte le ${b.dateLabel}`} side={b} amountCents={b.allocatedCents} auto={b.auto} alsoCovers={b.alsoCovers} />
       ))}
 
       {proposal && (
         <>
-          <BankRow label={`Proposé · ${proposal.bank.dateLabel}`} side={proposal.bank} />
+          {proposal.parts
+            ? proposal.parts.map((part) => <BankRow key={part.transactionId} label={`Proposé · ${part.dateLabel}`} side={part} />)
+            : <BankRow label={`Proposé · ${proposal.bank.dateLabel}`} side={proposal.bank} />}
           <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
             <StatusBadge status={CONFIDENCE_STATUS[proposal.confidence] || 'neutral'} label={proposal.confidenceLabel} />
             {' '}{proposal.reason}
@@ -90,11 +96,18 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ mt: 1.25 }}>
         {proposal && (
           <>
-            <Button variant="contained" disabled={disabled} onClick={() => onConfirm(item)} sx={buttonSx}>Confirmer</Button>
+            <Button variant="contained" disabled={disabled} onClick={() => (proposal.needsShares ? onShares(item) : onConfirm(item))} sx={buttonSx}>
+              {proposal.needsShares ? 'Répartir et confirmer' : 'Confirmer'}
+            </Button>
             <Button variant="text" color="inherit" disabled={disabled} onClick={() => onDiscard(item)} sx={buttonSx}>Écarter</Button>
           </>
         )}
         {item.canUndo && <Button variant="text" color="inherit" disabled={disabled} onClick={() => onUndo(item)} sx={buttonSx}>Défaire</Button>}
+        {onDeclarePenalty && item.declarePenalty && (
+          <Button variant="outlined" disabled={disabled} onClick={() => onDeclarePenalty(item)} sx={buttonSx}>
+            Déclarer une pénalité de {money(item.declarePenalty.amountCents)}
+          </Button>
+        )}
         {onOpenFiche && item.isGap && <Button variant="outlined" onClick={() => onOpenFiche(item)} sx={buttonSx}>Ouvrir la fiche</Button>}
       </Stack>
       {blocked && proposal && <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>{blocked}</Typography>}

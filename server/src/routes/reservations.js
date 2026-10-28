@@ -4,6 +4,7 @@ const refundsController = require('../controllers/refundsController');
 const cancellationController = require('../controllers/reservationCancellationController');
 const upcomingController = require('../controllers/upcomingReservationsController');
 const installmentsController = require('../controllers/installmentsController');
+const platformPenalties = require('../controllers/platformPenaltiesController');
 const { isReceptionOnly } = require('../constants/roles');
 
 // Reception sees no money (specs/reception-role-checkin-only.md): the plan is never theirs to change.
@@ -37,6 +38,13 @@ router.post('/:id/cancel', cancellationController.cancel);
 router.put('/:id/installments', notReception(installmentsController.put));
 router.delete('/:id/installments', notReception(installmentsController.remove));
 router.post('/:id/installments/:installmentId/payment', notReception(installmentsController.markPaid));
+
+// Pénalités plateforme (specs/reconciliation-assisted-matching.md §4.3).
+const send = (res, answer) => res.status(answer.status).json(answer.body);
+router.get('/:id/platform-penalties', notReception((req, res) => send(res, platformPenalties.list(req.params.id))));
+router.post('/:id/platform-penalties/preview', notReception((req, res) => send(res, platformPenalties.preview(req.params.id, req.body))));
+router.post('/:id/platform-penalties', notReception((req, res) => send(res, platformPenalties.declare(req.params.id, req.body, req.user))));
+router.delete('/:id/platform-penalties/:penaltyId', notReception((req, res) => send(res, platformPenalties.remove(req.params.id, req.params.penaltyId))));
 router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
 router.put('/:id', controller.update);

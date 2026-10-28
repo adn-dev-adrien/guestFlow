@@ -16,6 +16,10 @@
  * `remindByEmail` with the template to use: « Envoyer la demande » then opens that email in the send
  * dialog, for the operator to read before it leaves.
  *
+ * When the online-payment plugin reads the bank account (specs/reconciliation-assisted-matching.md rule 22),
+ * an overdue row may carry a `bank` line — « Virement trouvé : … » with « Confirmer », or « Rien sur le
+ * compte »; the card draws it and nothing otherwise.
+ *
  * No business rule here: the state, the amounts, the days late, whether cancelling is offered — all
  * of it arrives ready to render from the server; the card's title, count, « N en retard · M à
  * demander » and severity come with `attention` (specs/shell-and-home-day-first.md rules 3, 6).
@@ -68,6 +72,21 @@ export default function PaymentDeadlinesAlert({ attention }) {
       setBusyId(null);
     }
   }, [showSuccess, showError]);
+
+  const handleBankConfirm = useCallback(async (row) => {
+    setBusyId(row.reservationId);
+    try {
+      const { proposalId, amountCents } = row.bank;
+      const answer = await api.confirmAllReconciliation({ proposalIds: [proposalId], amounts: { [proposalId]: amountCents } });
+      if (answer.skipped.length > 0) showError(answer.skipped[0].message);
+      else showSuccess('Rapproché. La fiche est marquée reçue.');
+      await refresh();
+    } catch (err) {
+      showError(err.message || 'Rapprochement impossible.');
+    } finally {
+      setBusyId(null);
+    }
+  }, [refresh, showSuccess, showError]);
 
   const handleSnooze = useCallback(async (row) => {
     setBusyId(row.reservationId);
@@ -139,6 +158,16 @@ export default function PaymentDeadlinesAlert({ attention }) {
                     ? <> · acompte conservé si annulation : <strong>{formatCurrency(row.retainedDepositAmount)}</strong></>
                     : null}
                 </Typography>
+              ) : null}
+              {row.bank ? (
+                <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Typography variant="body2" color={row.bank.state === 'proposed' ? 'success.main' : 'text.secondary'}>{row.bank.label}</Typography>
+                  {row.bank.proposalId ? (
+                    <Button size="small" variant="text" onClick={() => handleBankConfirm(row)} disabled={busyId === row.reservationId} sx={{ minHeight: 44 }}>
+                      Confirmer
+                    </Button>
+                  ) : null}
+                </Stack>
               ) : null}
               <Box sx={{ mt: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
                 {row.remindType ? (

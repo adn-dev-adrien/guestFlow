@@ -11,6 +11,9 @@ const { stateOfReceipt, fixText, isGap, euros } = require('./receiptStates');
 const { expectedReceipts } = require('./expectedReceipts');
 const { ficheCredits, creditReceipts, anchorOf } = require('./ficheCredits');
 const { allocateFifo, summarize, validatePairs } = require('./allocation');
+const { runAutoConfirm } = require('./autoConfirm');
+const { decorateRows } = require('./deadlineDecorator');
+const { randomUUID } = require('crypto');
 
 const MIN_READ_GAP_MS = 60 * 1000;
 const CREDIT_WINDOW_DAYS = 31;
@@ -130,6 +133,11 @@ function createReconciliationController({ db, settings, transactions, model, wri
     });
     const receiptByKey = new Map(receipts.map((r) => [keyOf(r), r]));
 
+    // Rule 19 — the other receipts confirmed together with a line (same credit, same group).
+    const labelOf = (l) => { const o = receiptByKey.get(`${l.reservationId}|${l.ledgerKey}`); return o ? { reservationId: l.reservationId, ledgerKey: l.ledgerKey, label: o.label, clientName: o.reservation.clientName } : null; };
+    const coveredWith = (line) => (line.groupId ? lineRows.filter((o) => o.groupId === line.groupId && o.transactionId === line.transactionId && o.id !== line.id
+      && `${o.reservationId}|${o.ledgerKey}` !== `${line.reservationId}|${line.ledgerKey}`).map(labelOf).filter(Boolean) : []);
+
     const items = receipts.map((r) => {
       const k = keyOf(r);
       const lines = linesByReceipt.get(k) || [];
@@ -152,18 +160,26 @@ function createReconciliationController({ db, settings, transactions, model, wri
         state: st.state, stateLabel: st.stateLabel, tone: st.tone, isGap: isGap(st.state),
         gapCents: st.gapCents, receivedCents: st.receivedCents,
         fixText: fixText({ ...st, receipt: r }),
-        bank: lines.map((l) => ({ ...bankSide(txById.get(l.transactionId) || { id: l.transactionId, amountCents: l.amountCents, settledAt: l.settledAt }), allocatedCents: l.amountCents })),
+        bank: lines.map((l) => ({
+          ...bankSide(txById.get(l.transactionId) || { id: l.transactionId, amountCents: l.amountCents, settledAt: l.settledAt }),
+          allocatedCents: l.amountCents, auto: Number(l.auto) === 1, alsoCovers: coveredWith(l),
+        })),
         allocatedCents: lines.reduce((sum, l) => sum + l.amountCents, 0),
         proposal: showProposal && proposalTx ? {
           id: primary.id, confidence: primary.confidence, confidenceLabel: CONFIDENCE_LABELS[primary.confidence], reason: primary.reason,
           source: primary.source, allocations: primary.allocations, amountCents: mine ? mine.amountCents : primary.allocations[0].amountCents,
           bank: bankSide(proposalTx), alsoCovers,
+          parts: primary.parts ? primary.parts.map((x) => ({ ...bankSide(txById.get(x.transactionId)), amountCents: x.amountCents })) : null,
+          needsShares: Boolean(primary.needsShares), pairs: pairsOfProposal(primary),
         } : null,
         alternatives: lines.length === 0 ? alts.filter((p) => !primary || p.id !== primary.id).slice(0, 4).map((p) => {
           const t = txById.get(p.transactionId);
           return { proposalId: p.id, confidence: p.confidence, confidenceLabel: CONFIDENCE_LABELS[p.confidence], allocations: p.allocations, bank: bankSide(t) };
         }) : [],
         canUndo: lines.length > 0,
+        // Rule 24 — a platform credit below the expected payout: the gap can be declared as a penalty.
+        declarePenalty: st.state === 'amount_gap' && r.channel.startsWith('platform:') && r.ledgerKey === 'balance' && r.payoutRecorded && st.gapCents < 0
+          ? { amountCents: -st.gapCents, amount: -st.gapCents / 100 } : null,
       };
     });
 
@@ -218,7 +234,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
   /** The primary proposal of every credit, by id (rule 13). */
   const proposalsOf = (data) => new Map(Object.values(data.byTransaction).filter((slot) => slot.proposal).map((slot) => [slot.proposal.id, slot.proposal]));
-  const pairsOfProposal = (p) => p.allocations.map((a) => ({ transactionId: p.transactionId, reservationId: a.reservationId, ledgerKey: a.ledgerKey, amountCents: a.amountCents }));
+  const pairsOfProposal = (p) => p.pairs || p.allocations.map((a) => ({ transactionId: p.transactionId, reservationId: a.reservationId, ledgerKey: a.ledgerKey, amountCents: a.amountCents }));
 
   /** A refusal that is really « out of scope » says so (v1 wording). */
   function explainErrors(data, pairs, errors) {
@@ -232,7 +248,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
   }
 
   /** The one write path of every confirmation: validate everything, then store every pair and mark the fiches, all or nothing. */
-  function linkPairs({ pairs, user, legacy = false, enforceCap = false }) {
+  function linkPairs({ pairs, user, legacy = false, enforceCap = false, auto = false, proposalId = null }) {
     const data = compute();
     const list = pairs.map((p) => ({ ...p, transactionId: String(p.transactionId) }));
     if (new Set(list.map((p) => p.transactionId)).size > MAX_BATCH_CREDITS) {
@@ -244,19 +260,37 @@ function createReconciliationController({ db, settings, transactions, model, wri
       const status = first.code === 'UNKNOWN_TRANSACTION' ? 404 : (first.code === 'INVALID_ALLOCATION' && legacy ? 400 : 422);
       return { status, body: { error: first.message, code: first.code, errors } };
     }
-    return writePairs({ data, list, user });
+    const shares = proposalId ? sharesRefusal(data, proposalId, list) : null;
+    if (shares) return { status: 422, body: { error: shares, code: 'SHARES_DO_NOT_SUM' } };
+    return writePairs({ data, list, user, auto });
   }
 
-  function writePairs({ data, list, user }) {
+  /** Rule 18 — a grouped payout confirmed with typed shares: they must make the credit to the cent, and cover its receipts only. */
+  function sharesRefusal(data, proposalId, list) {
+    const found = proposalsOf(data).get(String(proposalId));
+    if (!found || !found.needsShares) return null;
+    const credit = data.txById.get(found.transactionId);
+    const remaining = credit.amountCents - (data.allocatedOf.get(credit.id) || 0);
+    const keys = new Set(found.allocations.map((a) => `${a.reservationId}|${a.ledgerKey}`));
+    if (list.some((p) => p.transactionId !== found.transactionId || !keys.has(`${p.reservationId}|${p.ledgerKey}`))) {
+      return 'Les parts doivent porter sur les séjours de ce versement.';
+    }
+    const sum = list.reduce((t, p) => t + p.amountCents, 0);
+    if (sum === remaining) return null;
+    return sum < remaining ? `Il manque ${euros(remaining - sum)} : les parts doivent faire ${euros(remaining)}.` : `Les parts dépassent le versement de ${euros(sum - remaining)} : elles doivent faire ${euros(remaining)}.`;
+  }
+
+  function writePairs({ data, list, user, auto = false }) {
     const marked = [];
     const notWritten = [];
     const cfg = matcherSettings();
     const netOf = (c) => c - Math.round(c * (Number(cfg.acquiringFee.percent) || 0) / 100) - (Number(cfg.acquiringFee.fixedCents) || 0);
     try {
       db.transaction(() => {
+        const groupId = list.length > 1 ? randomUUID() : null;
         list.forEach((a) => model.addLine({
           transactionId: a.transactionId, reservationId: Number(a.reservationId), ledgerKey: String(a.ledgerKey),
-          amountCents: a.amountCents, createdBy: user && user.id ? user.id : null,
+          amountCents: a.amountCents, createdBy: auto ? null : (user && user.id ? user.id : null), auto, groupId,
         }));
         new Set(list.map((a) => `${a.reservationId}|${a.ledgerKey}`)).forEach((k) => {
           const receipt = data.receiptsByKey.get(k);
@@ -267,7 +301,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
           const covered = lines.reduce((sum, l) => sum + l.amountCents, 0);
           const result = writer.writeIfComplete({
             receipt, lines, expectedBankCents: receipt.unbounded ? covered : (isLink ? netOf(receipt.expectedCents) : receipt.expectedCents),
-            tolerance: isLink ? lines.length : 0, user,
+            tolerance: isLink ? lines.length : 0, user, auto,
           });
           if (result.error) { const err = new Error('FICHE_REFUSED'); err.refusal = result.error; throw err; }
           if (result.written) marked.push({ reservationId: receipt.reservationId, ledgerKey: receipt.ledgerKey, date: result.date, warning: result.warning || null });
@@ -282,7 +316,18 @@ function createReconciliationController({ db, settings, transactions, model, wri
   }
 
   const lastError = () => parseJson(settings.get('reconciliationLastError'), null);
+  const SYSTEM_USER = Object.freeze({ id: null, role: 'admin' });
+
+  /** Rules 20–21 — after a read, the certain matches confirm themselves (unless switched off). */
+  function afterRead() {
+    const { count } = settings.get('reconciliationAutoConfirm') === '0'
+      ? { count: 0 }
+      : runAutoConfirm({ compute, confirm: ({ pairs }) => linkPairs({ pairs, user: SYSTEM_USER, auto: true }) });
+    settings.set('reconciliationAutoConfirmed', JSON.stringify({ count, at: new Date().toISOString() }));
+  }
+
   const envelope = (data) => ({
+    autoConfirmed: parseJson(settings.get('reconciliationAutoConfirmed'), null),
     lastReadAt: settings.get('reconciliationLastReadAt') || null,
     lastError: lastError(),
     startDate: data.startDate,
@@ -342,7 +387,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
       if (now - lastAttemptAt < MIN_READ_GAP_MS) return { status: 429, body: { error: 'Lecture trop rapprochée : réessayer dans une minute.', code: 'READ_TOO_SOON' } };
       lastAttemptAt = now;
       compute();
-      await read();
+      const result = await read();
+      if (result && result.ok) afterRead();
       return this.list({ view });
     },
 
@@ -350,7 +396,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
     async runJob() {
       if (!connected() || !day(settings.get('reconciliationStartDate'))) return { skipped: true };
       lastAttemptAt = Date.now();
-      return read();
+      const result = await read();
+      if (result && result.ok) afterRead();
+      return result;
     },
 
     /** POST /links — « Confirmer » and manual linking of one credit (rules 12, 18, 34). */
@@ -361,13 +409,13 @@ function createReconciliationController({ db, settings, transactions, model, wri
     },
 
     /** POST /links/batch — several credits over several receipts, one transaction (rules 5–8, 14). */
-    linkBatch({ pairs, user }) {
+    linkBatch({ pairs, user, proposalId }) {
       if (!connected()) return notConnected();
-      return linkPairs({ pairs: Array.isArray(pairs) ? pairs : [], user, enforceCap: true });
+      return linkPairs({ pairs: Array.isArray(pairs) ? pairs : [], user, enforceCap: true, proposalId });
     },
 
     /** POST /allocation-preview — what the ticked credits would do, written nowhere (rules 5–7). */
-    previewAllocation({ reservationId, transactionIds, receiptKeys, pairs }) {
+    previewAllocation({ reservationId, transactionIds, receiptKeys, pairs, proposalId }) {
       if (!connected()) return notConnected();
       const data = compute();
       const index = creditIndex(data);
@@ -384,6 +432,10 @@ function createReconciliationController({ db, settings, transactions, model, wri
         chosen = allocateFifo({ credits: ids.map((id) => index.get(id)).filter((c) => c.remainingCents > 0), receipts: pool });
       }
       const errors = explainErrors(data, chosen, validatePairs({ pairs: chosen, creditsById: index, receiptsByKey: data.receiptsByKey }));
+      if (errors.length === 0 && proposalId) {
+        const refusal = sharesRefusal(data, proposalId, chosen.map((p) => ({ ...p, transactionId: String(p.transactionId) })));
+        if (refusal) errors.push({ code: 'SHARES_DO_NOT_SUM', field: 'shares', message: refusal });
+      }
       const usable = chosen.filter((p) => index.has(String(p.transactionId)) && data.receiptsByKey.has(`${p.reservationId}|${p.ledgerKey}`));
       const credits = [...new Set(usable.map((p) => String(p.transactionId)))].map((id) => index.get(id));
       const receiptsInUse = [...new Set(usable.map((p) => `${p.reservationId}|${p.ledgerKey}`))].map((k) => data.receiptsByKey.get(k));
@@ -418,7 +470,11 @@ function createReconciliationController({ db, settings, transactions, model, wri
       ids.forEach((id) => {
         const found = proposalsOf(compute()).get(id);
         const sum = found ? found.allocations.reduce((s, a) => s + a.amountCents, 0) : null;
-        if (!found || found.needsShares || (expected[id] != null && Number(expected[id]) !== sum)) {
+        if (found && found.needsShares) {
+          skipped.push({ proposalId: id, reason: 'refused', message: 'Les parts de ce versement groupé sont à saisir.' });
+          return;
+        }
+        if (!found || (expected[id] != null && Number(expected[id]) !== sum)) {
           skipped.push({ proposalId: id, reason: 'changed', message: 'Cette proposition a changé : elle reste dans la liste.' });
           return;
         }
@@ -439,14 +495,24 @@ function createReconciliationController({ db, settings, transactions, model, wri
       let result = { restored: [], untouched: [] };
       db.transaction(() => {
         result = writer.restoreForTransaction({ transactionId: String(transactionId), user });
-        model.removeLinesOfTransaction(transactionId);
+        // Rule 21 — what the server confirmed alone and the operator took back is never confirmed again.
+        model.removeLinesOfTransaction(transactionId).filter((l) => Number(l.auto) === 1)
+          .forEach((l) => model.discard({ transactionId: l.transactionId, reservationId: l.reservationId, ledgerKey: l.ledgerKey }));
       })();
       return { status: 200, body: { ok: true, ...result } };
     },
 
+    /** Rule 19 — discarding one fiche of a group proposal discards the whole pairing of that credit. */
     discard({ transactionId, reservationId, ledgerKey }) {
       if (!connected()) return notConnected();
-      model.discard({ transactionId, reservationId, ledgerKey });
+      const txIdsOf = (p) => (p.parts ? p.parts.map((x) => x.transactionId) : [p.transactionId]);
+      const shown = Object.values(compute().byTransaction).map((slot) => slot.proposal)
+        .find((p) => p && txIdsOf(p).includes(String(transactionId))
+          && p.allocations.some((a) => String(a.reservationId) === String(reservationId) && a.ledgerKey === ledgerKey));
+      const pairs = shown
+        ? shown.allocations.flatMap((a) => txIdsOf(shown).map((id) => ({ transactionId: id, reservationId: a.reservationId, ledgerKey: a.ledgerKey })))
+        : [{ transactionId, reservationId, ledgerKey }];
+      db.transaction(() => pairs.forEach((pair) => model.discard(pair)))();
       return { status: 201, body: { ok: true } };
     },
 
@@ -498,13 +564,21 @@ function createReconciliationController({ db, settings, transactions, model, wri
       };
     },
 
+    /** The home's « Échéances » rows, decorated from the stored reconciliation (rule 22) — unchanged when it is off. */
+    decorateDeadlines(rows) {
+      if (!connected() || !day(settings.get('reconciliationStartDate'))) return rows;
+      return decorateRows(rows, compute().items);
+    },
+
     /** The home's « À traiter » payload (rule 22). */
     attention() {
       if (!connected() || !day(settings.get('reconciliationStartDate'))) return { gaps: 0, unmatched: 0, items: [] };
       const data = compute();
+      // The home's « Échéances » card already shows a late receipt (rule 22): it is not counted twice.
+      const gaps = data.items.filter((i) => i.isGap && i.state !== 'late');
       return {
-        gaps: data.counts.gaps, unmatched: data.counts.unmatched,
-        items: data.items.filter((i) => i.isGap).slice(0, 8).map((i) => ({
+        gaps: gaps.length, unmatched: data.counts.unmatched,
+        items: gaps.slice(0, 8).map((i) => ({
           key: i.key, reservationId: i.reservation.id, clientName: i.reservation.clientName, label: i.label, stateLabel: i.stateLabel, fixText: i.fixText,
         })),
       };

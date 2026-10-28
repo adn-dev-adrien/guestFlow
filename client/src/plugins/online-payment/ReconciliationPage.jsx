@@ -17,13 +17,14 @@ import SyncIcon from '@mui/icons-material/Sync';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-  api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip, FilterChip,
+  api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip, FilterChip, PlatformPenaltyDialog,
 } from '../sdk';
 import ReconciliationLine from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
 import BulkConfirmDialog from './BulkConfirmDialog';
+import SplitSharesDialog from './SplitSharesDialog';
 import useReconciliationActions from './useReconciliationActions';
-import { money, lastReadLabel, readFailureLabel } from './reconciliationShared';
+import { money, lastReadLabel, readFailureLabel, shareLabels } from './reconciliationShared';
 
 const TABS = [
   { view: 'todo', label: 'À traiter', count: (c) => c.todo },
@@ -58,6 +59,8 @@ export default function ReconciliationPage() {
   const [reading, setReading] = useState(false);
   const [linkCredit, setLinkCredit] = useState(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [sharesItem, setSharesItem] = useState(null);
+  const [penaltyItem, setPenaltyItem] = useState(null);
 
   const setView = useCallback((next) => {
     setViewState(next);
@@ -103,6 +106,14 @@ export default function ReconciliationPage() {
     const ok = await actions.linkBatch('manual', pairs);
     if (ok) setLinkCredit(null);
   };
+  const submitShares = async ({ pairs, proposalId }) => {
+    const ok = await actions.linkBatch(sharesItem.key, pairs, proposalId);
+    if (ok) setSharesItem(null);
+  };
+  const showAutomatic = () => {
+    setViewState('done');
+    setParams({ filter: 'reconciled' }, { replace: true });
+  };
   const confirmAll = async (payload) => {
     const answer = await actions.confirmAll(payload);
     if (answer) setBulkOpen(false);
@@ -147,6 +158,14 @@ export default function ReconciliationPage() {
     <>
       {bar}
       {error && <ErrorAlert message={error.message} onRetry={refresh} />}
+      {data.autoConfirmed && data.autoConfirmed.count > 0 && (
+        <Stack direction="row" gap={1} sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 1.5, px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'info.soft', color: 'info.text' }}>
+          <Typography variant="body2">
+            {data.autoConfirmed.count} rapprochement{data.autoConfirmed.count > 1 ? 's' : ''} automatique{data.autoConfirmed.count > 1 ? 's' : ''}
+          </Typography>
+          <Button size="small" color="inherit" onClick={showAutomatic} sx={{ textTransform: 'none', minHeight: 44, fontWeight: 600 }}>Voir</Button>
+        </Stack>
+      )}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.25, mb: 1.5 }}>
         {COUNTERS.map((c) => {
           const pressed = filter === c.key;
@@ -185,7 +204,7 @@ export default function ReconciliationPage() {
               {items.map((item) => (
                 <ReconciliationLine
                   key={item.key} item={item} showReservation busy={actions.busy === item.key}
-                  onConfirm={actions.confirm} onDiscard={actions.discard} onUndo={actions.undo} onOpenFiche={openFiche}
+                  onConfirm={actions.confirm} onDiscard={actions.discard} onUndo={actions.undo} onShares={setSharesItem} onDeclarePenalty={setPenaltyItem} onOpenFiche={openFiche}
                 />
               ))}
             </Box>
@@ -224,9 +243,10 @@ export default function ReconciliationPage() {
                         {item.fixText && <Typography variant="caption" color="text.secondary" component="div" sx={{ maxWidth: 260 }}>{item.fixText}</Typography>}
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        {item.proposal && <Button size="small" variant="contained" disabled={busy} onClick={() => actions.confirm(item)} sx={{ mr: 0.5, textTransform: 'none' }}>Confirmer</Button>}
+                        {item.proposal && <Button size="small" variant="contained" disabled={busy} onClick={() => (item.proposal.needsShares ? setSharesItem(item) : actions.confirm(item))} sx={{ mr: 0.5, textTransform: 'none' }}>{item.proposal.needsShares ? 'Répartir et confirmer' : 'Confirmer'}</Button>}
                         {item.proposal && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.discard(item)} sx={{ textTransform: 'none' }}>Écarter</Button>}
                         {item.canUndo && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.undo(item)} sx={{ textTransform: 'none' }}>Défaire</Button>}
+                        {item.declarePenalty && <Button size="small" variant="outlined" onClick={() => setPenaltyItem(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Déclarer une pénalité</Button>}
                         {item.isGap && <Button size="small" variant="outlined" onClick={() => openFiche(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Ouvrir la fiche</Button>}
                       </TableCell>
                     </TableRow>
@@ -269,6 +289,16 @@ export default function ReconciliationPage() {
       <LinkTransactionDialog
         open={Boolean(linkCredit)} onClose={() => setLinkCredit(null)} credit={linkCredit}
         busy={actions.busy === 'manual'} onSubmit={submitLink}
+      />
+      {penaltyItem && (
+        <PlatformPenaltyDialog
+          open onClose={() => setPenaltyItem(null)} reservationId={penaltyItem.reservation.id} source="reconciliation"
+          initialAmount={penaltyItem.declarePenalty.amount} onDone={reload}
+        />
+      )}
+      <SplitSharesDialog
+        open={Boolean(sharesItem)} onClose={() => setSharesItem(null)} proposal={sharesItem ? sharesItem.proposal : null}
+        labels={sharesItem ? shareLabels(sharesItem) : {}} busy={Boolean(sharesItem) && actions.busy === sharesItem.key} onSubmit={submitShares}
       />
       <BulkConfirmDialog open={bulkOpen} onClose={() => setBulkOpen(false)} bulk={data.bulk} busy={actions.busy === 'bulk'} onConfirm={confirmAll} />
     </>

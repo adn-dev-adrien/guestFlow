@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/reconciliation-assisted-matching` (PR → `inte/plugins`, one PR per lot) |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -93,8 +93,8 @@ on the right account, on the fiche, in the finance pages and in the accounting e
    120,00 € sur 450,00 € ». Debits are never stored (v1 rule 3), so every row is money in.
 2. **Plausible first.** The server splits the available credits into « Correspondances probables » and the
    rest. A credit is plausible for the fiche when it is settled within **±15 days** of the anchor date of one
-   of the fiche's open receipts (its due date, else its expected date, else the stay's departure for a
-   platform payout) **and** at least one of:
+   of the fiche's open receipts (its due date, else its expected date, else the stay's departure) **and**
+   at least one of:
    - its remaining amount is within **±5,00 €** of one open receipt's open amount, or of the sum of all the
      fiche's open receipts;
    - its counterparty, label, reference or note contains the client's last name (v1 rule 16 normalisation).
@@ -111,8 +111,9 @@ on the right account, on the fiche, in the finance pages and in the accounting e
    - **text** otherwise → contained in counterparty, label, reference or note (case, accents ignored).
    No match → « Aucun virement ne correspond à « … » » with « Effacer la recherche ».
 5. **Several credits at once.** Credits are ticked (checkboxes, any number up to 10). The server allocates
-   the ticked credits over the fiche's open receipts, **oldest credit first onto the earliest due receipt**
-   (FIFO), and answers the allocation before anything is written. The dialog shows it live: per receipt
+   the ticked credits over the fiche's open receipts and answers the allocation before anything is written:
+   a credit that equals one open receipt to the cent goes to that receipt (the earliest due when several
+   have the same amount); the rest is **oldest credit first onto the earliest due receipt** (FIFO). The dialog shows it live: per receipt
    « couvert » / « 300,00 € sur 700,00 € » and, under the list, « 2 virements · 1 000,00 € ». Rule 37 of v1
    applies: a receipt is marked received only once fully covered.
 6. **Over and under.** Ticked credits that exceed what the fiche still expects are allowed: the surplus
@@ -127,8 +128,10 @@ on the right account, on the fiche, in the finance pages and in the accounting e
    writes (v1 rules 34–37) succeed together or none is stored, and the core's refusal passes through (v1
    rule 34).
 9. **An installment plan follows its order.** When several open receipts of a plan have the same amount, an
-   allocation (FIFO, rule 5) and a proposal (rule 13) always take the **earliest due unpaid installment**
-   first, whatever the credit's date. A paid installment never takes money (direct-installments rule 9).
+   allocation (rule 5) and a proposal (rule 16) always take the **earliest due unreconciled installment**
+   first, whatever the credit's date. « Unreconciled » means no bank line covers it yet (an installment
+   ticked received by hand but not yet matched to a credit is still the one a credit lands on); a
+   reconciled installment takes no more money.
 10. **The fiche no longer ships the credits.** The fiche's `pluginBlocks['online-payment']` drops `credits`
     (v1 controller); the dialog asks for them when it opens. The fiche payload stays light and never depends
     on the size of the account.
@@ -147,7 +150,8 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     « Inclure aussi les 7 à vérifier (2 310,00 €) »; ticking it updates the count and total. Proposals whose
     confirmation would need typed shares (rule 18) are never included.
 13. **Bulk confirmation is per proposal and guarded.** The client sends the proposal ids it showed. The
-    server recomputes, confirms each id still present **with the same allocations**, each in its own
+    server recomputes, confirms each id still present **with the same allocations** (the client also sends
+    each proposal's total, `amounts`; a different total is `changed`), each in its own
     transaction (one fiche's refusal never blocks the others), and answers `confirmed`, `skipped`
     (`changed` | `refused` with the core's message). The page then reloads and a toast says « 33
     rapprochements confirmés » or « 31 confirmés · 2 non confirmés — voir la liste ». « Défaire » stays per
@@ -170,10 +174,12 @@ on the right account, on the fiche, in the finance pages and in the accounting e
 17. **Grouped platform payouts include estimated rows.** For a recognised platform credit with no single
     exact row, the combination search (v1 rule 14) runs over the platform's open payout rows whose recorded
     payout is known **and** those whose payout is not recorded yet, counted at `gross × (1 − commission
-    rate of the platform)`, with a tolerance of 1 % of each estimated row. Constraints: at most 6 rows; every
-    row's expected date between 3 days after and 30 days before `settled_at` (400 days for a platform that
-    pays at booking time, as v1 rule 14); all rows' expected dates within **14 days** of each other (one
-    payout run). The smallest combination wins; ties → the one whose expected dates are the closest together.
+    rate of the platform)`, with a tolerance of 1 % of each estimated row. Constraints: at least 2 and at most
+    6 rows (a single estimated row is v1 rule 32); every row's expected date between 3 days after and 30 days
+    before `settled_at` (400 days before for a platform that pays at booking time — Abracadaroom — as v1
+    rule 14); all rows' expected dates within **14 days** of each other (one payout run). The smallest
+    combination wins; ties → the one whose expected dates are the closest together. It runs only when no
+    exact single row and no combination of recorded rows matches the credit.
 18. **Confidence of a group.** All rows recorded and exact → « probable » (v1). One estimated row →
     « probable », its share is the credit minus the exact rows. Two or more estimated rows → « à vérifier »,
     reason « Versement groupé de 3 séjours · montants estimés », and « Confirmer » opens the split dialog
@@ -182,11 +188,12 @@ on the right account, on the fiche, in the finance pages and in the accounting e
 19. **A group is shown as one.** Every fiche of a group proposal shows « Versement groupé · couvre aussi
     Dupont (Versement Booking), Martin (Versement Booking) »; confirming it from any of them confirms the
     whole group; « Écarter » discards the group pairing for that credit (v1 rule 11).
-20. **Automatic confirmation of certain matches.** After each read of the account (the 8-hour job or
-    « Actualiser », never on a page load), every « sûr » proposal is confirmed by the server **when** it is a
-    single credit to a single receipt, the receipt's expected bank amount is known (recorded payout, direct
-    échéance or link), the amounts are equal to the cent, the fiche is not cancelled, and the confirmation
-    writes only the paid flag and the date (never a payout, never an amount). The setting « Confirmer
+20. **Automatic confirmation of certain matches.** After each successful read of the account (the 8-hour job
+    or « Actualiser », never on a page load), every « sûr » proposal is confirmed by the server **when** it is
+    a single credit to a single receipt, the receipt's expected bank amount is known (recorded payout, direct
+    échéance or link — never a payout the fiche does not carry yet), the amounts are equal to the cent, the
+    credit is entirely consumed, the fiche is not cancelled, and the confirmation writes only the paid flag
+    and the date (never a payout, never an amount, never the commission). The setting « Confirmer
     automatiquement les correspondances sûres » (on by default — arbitration A1) turns it off. *(Revises
     v1 rule 11 for that case only.)*
 21. **An automatic confirmation is visible and undoable.** It is stored like a manual one with `auto = 1`
@@ -201,9 +208,14 @@ on the right account, on the fiche, in the finance pages and in the accounting e
       as v1 rule 34; the row leaves the card on reload);
     - nothing on the account → « Rien sur le compte » under the row (unchanged actions);
     - the échéance was in fact reconciled after the card was computed → the row is dropped.
+    The decoration concerns the overdue states only (`*_overdue`, `cancel_due`, `unpaid_at_arrival`,
+    `platform_payout_overdue`); a row about the acompte and the solde is decorated from the first one still
+    open. « Confirmer » calls `confirm-all` with the proposal; a proposal that needs typed shares is shown
+    without the button (the shares are typed on the reconciliation page).
     Without the plugin the card is unchanged. No new home card: one alert per échéance (no duplicate with
     « Écarts de règlement », whose count excludes `late` receipts that the « Échéances » card already shows).
-    *(Revises v1 rule 22: `late` leaves the « Écarts de règlement » count.)*
+    *(Revises v1 rule 22: `late` leaves the « Écarts de règlement » count of the home; the reconciliation
+    page's « Écarts » counter still lists it, as work to do there.)*
 
 ### 3.4 Platform penalties (Lot 3 — E)
 
@@ -293,18 +305,19 @@ on the right account, on the fiche, in the finance pages and in the accounting e
 | 2 | `plugins/online-payment/reconciliation/` | `schema.js` | T | `reconciliation_v2`: `bank_reconciliation_lines.auto`, `bank_reconciliation_lines.groupId` (§5). |
 | 2 | `plugins/online-payment/reconciliation/` | `deadlineDecorator.js` | C | Overdue row × reconciliation → `bank: { state: 'proposed'|'nothing'|'reconciled', label, proposalId }` (rule 22). |
 | 2 | `plugins/online-payment/reconciliation/` | `receiptStates.js` | T | `late` leaves the gap count used by « Écarts de règlement » (rule 22). |
-| 2 | `plugins/online-payment/` | `settingsStore.js`, `manifest.json` | T | Setting `reconciliationAutoConfirm` (default `true`); version 1.4.0 (lot 1: 1.3.1). |
-| 2 | `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | `ctx.paymentDeadlineDecorator(fn)` — generic, inert without a plugin; SDK 2.8.0 (minor). |
-| 2 | `controllers/` | `dashboardController.js` | T | `paymentDeadlines` passes its rows through the registered decorators (rule 22); a decorator's failure leaves the rows undecorated (logged). |
+| 2 | `plugins/online-payment/` | `settingsStore.js`, `manifest.json` | T | Setting `reconciliationAutoConfirm` (`''`/`1` = on, the default; `0` = off); version 1.4.0 (lot 1: 1.3.1). |
+| 2 | `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | `ctx.paymentDeadlineDecorator(fn)` — generic, inert without a plugin; SDK 2.9.0 (lot 1 already took 2.8.0 for the client `FilterChip` export). |
+| 2 | `utils/` | `pluginPaymentDeadlineDecorators.js` | C | Applies the live plugins' decorators to the card's rows; a throwing one changes nothing. |
+| 2 | `controllers/` | `dashboardController.js` | T | `paymentDeadlines` passes its rows through `decorateDeadlineRows` (rule 22). |
 | 3 | `database.js` | `database.js` | T | Table `reservation_platform_penalties`, column `reservations.platformPenaltyAmount` (§5). |
 | 3 | `models/` | `platformPenaltiesModel.js` | C | CRUD of penalty lines; keeps `reservations.platformPenaltyAmount` = Σ lines in the same transaction. |
 | 3 | `controllers/` | `platformPenaltiesController.js` | C | Guards (rules 23, 26), preview (rule 25, 29), declare / remove with the payout adjustment and its undo condition (rules 25, 30), history entries (rule 27). |
 | 3 | `routes/` | `reservations.js` | T | Thin routes `…/:id/platform-penalties` (§4.3). |
 | 3 | `utils/` | `reservationLedger.js` | T | Penalty detail lines on the platform balance row, net figures net of penalties (rule 27). |
-| 3 | `models/` | `financeModel.js` (L84, L248), `financeDashboardModel.js` (L64, L347) | T | Net received − penalties (rule 27). |
+| 3 | `models/`, `utils/` | `financeModel.js`, `financeDashboardModel.js`, `reservationSettlement.js` (`platformPenalty`), `paymentDeadlines.js`, `reservationsModel.js` (deadline candidates) | T | Net received − penalties (rule 27): « total de séjour », « encaissé », « reste à percevoir », a late payout, the cash-flow line. The fiche's headline « Total perçu » (the engine's quote) is not a finance reader and is unchanged: the penalty shows as its own line of the payout row. |
 | 3 | `plugins/online-payment/reconciliation/` | `expectedReceipts.js`, `ficheWriter.js`, `receiptStates.js` | T | Expected bank amount and written payout account for penalties (rules 25, 31); `amount_gap` below the payout carries the `declarePenalty` action with the gap (rule 24). |
 | 3 | `plugins/accounting-export/` | `accountingModel.js`, `accountPlan.js`, `settings.js`, `manifest.json` | T | One penalty entry per line (rule 28); setting `platformPenaltyAccount` (default `658000`); Plan comptable row; version 1.0.15. |
-| 3 | `plugins/sdk/` | `coreModules.json` | T | Expose `platformPenaltiesModel` (read) to plugins (accounting, reconciliation) — included in SDK 2.8.0 if lot 3 ships with lot 2, else 2.9.0. |
+| 3 | `plugins/sdk/` | `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | Expose `platformPenaltiesModel` to the accounting plugin; SDK 2.10.0 (client export of `PlatformPenaltyDialog`). The reconciliation reads `reservations.platformPenaltyAmount` only. |
 | — | `scheduledTasks.js` | — | — | (none — the job is the plugin's) |
 | — | `middleware/` | — | — | (none — existing `admin` role check) |
 
@@ -341,15 +354,16 @@ Reconciliation routes: role `admin`, 404 `PLUGIN_INACTIVE` when the plugin is of
 
 | Method | Endpoint | Request | Response |
 |---|---|---|---|
+| GET | `/api/payments/reconciliation/candidates?transactionId=&q=&offset=` | — | Rule 14: `{ likely: [Receipt], others: { total, offset, items }, query }`, `Receipt = { key, reservationId, ledgerKey, reservation, label, expectedCents, openCents, anchorDateLabel }`. |
 | GET | `/api/payments/reconciliation/reservations/:id/credits?q=&offset=` | — | `{ receipts: [{ key, label, openCents, anchorDateLabel }], likely: [Credit], others: { total, offset, items: [Credit] }, query: { tokens: [{ kind: 'date'\|'amount'\|'text', value }] } }`, `Credit = { transactionId, amountCents, remainingCents, dateLabel, counterparty, reference, reasons: ['exact'\|'amount'\|'name'], fitsKey, proposedElsewhere, partlyUsed }`. 422 `RESERVATION_OUT_OF_SCOPE`. |
-| POST | `/api/payments/reconciliation/allocation-preview` | `{ reservationId?, transactionIds: [id], receiptKeys?: [key], pairs?: [{ transactionId, reservationId, ledgerKey, amountCents }] }` | `{ valid, pairs: [...], receipts: [{ key, label, expectedCents, coveredCents, after: 'covered'\|'partial' }], leftover: [{ transactionId, cents, dateLabel }], errors: [{ field, message }] }` — never writes. |
-| POST | `/api/payments/reconciliation/links/batch` | `{ pairs: [{ transactionId, reservationId, ledgerKey, amountCents }] }` (≤ 10 credits) | 201 `{ ok, marked, notWritten }`; 422 `ALLOCATION_EXCEEDS_TRANSACTION`, `ALLOCATION_EXCEEDS_RECEIPT`, `SHARES_DO_NOT_SUM`, `INVALID_ALLOCATION`; core refusals pass through; nothing stored on any error. |
-| GET | `/api/payments/reconciliation?view=&filter=` | — | v1 payload + `filter` echoed + `bulk: { proposalIds, count, totalCents, toVerify: { proposalIds, count, totalCents } }` + `autoConfirmed: { count, at }` (last read). |
-| POST | `/api/payments/reconciliation/confirm-all` | `{ proposalIds: [id] }` | 200 `{ confirmed: [{ proposalId, keys }], skipped: [{ proposalId, reason: 'changed'\|'refused', message }], totalCents }`. |
-| GET | `/api/dashboard/payment-deadlines` (core) | — | Each row may carry `bank: { state, label, proposalId? }` when a decorator is registered. |
+| POST | `/api/payments/reconciliation/allocation-preview` | `{ reservationId?, transactionIds: [id], receiptKeys?: [key], pairs?: [{ transactionId, reservationId, ledgerKey, amountCents }], proposalId? }` — `reservationId` allocates over that fiche's open receipts, `receiptKeys` alone over those receipts (credit → fiches); `pairs` validates typed amounts; `proposalId` also checks the shares of a group (rule 18) | `{ valid, pairs: [...], receipts: [{ key, label, expectedCents, coveredCents, after: 'covered'\|'partial', statusLabel }], leftover: [{ transactionId, cents, dateLabel, message }], totalCents, creditCount, summaryLabel, errors: [{ code, field, message }] }` — never writes. |
+| POST | `/api/payments/reconciliation/links/batch` | `{ pairs: [{ transactionId, reservationId, ledgerKey, amountCents }], proposalId? }` (≤ 10 credits; `proposalId` of a group = its shares must sum to the credit) | 201 `{ ok, marked, notWritten }`; 422 `ALLOCATION_EXCEEDS_TRANSACTION`, `ALLOCATION_EXCEEDS_RECEIPT`, `SHARES_DO_NOT_SUM`, `INVALID_ALLOCATION`; core refusals pass through; nothing stored on any error. |
+| GET | `/api/payments/reconciliation?view=&filter=` | — | v1 payload + `filter` echoed (null when unknown) + `bulk: { proposalIds, count, totalCents, amounts, toVerify: { same shape } }` + `autoConfirmed: { count, at }` (last read). A proposal item gains `parts[]` (several credits), `pairs[]` and `needsShares`; a reconciled line gains `auto` and `alsoCovers`. |
+| POST | `/api/payments/reconciliation/confirm-all` | `{ proposalIds: [id], amounts?: { [id]: totalCents } }` | 200 `{ confirmed: [{ proposalId, keys }], skipped: [{ proposalId, reason: 'changed'\|'refused', message }], totalCents }`. |
+| GET | `/api/dashboard/payment-deadlines` (core) | — | Each row may carry `bank: { state: 'proposed'\|'nothing', label, proposalId, amountCents }` when a decorator is registered. |
 | GET | `/api/reservations/:id/platform-penalties` (core) | — | `{ items: [{ id, amount, reason, date, dateLabel, payoutAdjusted }], total, canDeclare, suggestions: [string] }` |
 | POST | `/api/reservations/:id/platform-penalties/preview` | `{ amount, reason, date, payoutIncludesPenalty? , source? }` | `{ valid, needsChoice, before: { payout, commission, netReceived }, after: {…}, warnings: [string], errors: [{ field, message }] }` |
-| POST | `/api/reservations/:id/platform-penalties` | same body | 201 `{ item, reservation: { platformPayoutAmount, platformCommissionAmount, platformPenaltyAmount } }`; 422 `PENALTY_NOT_PLATFORM`, `PENALTY_EXCEEDS_PAYOUT`, `COMMISSION_NEGATIVE`, `INVALID_PENALTY`; 409 on a cancelled stay. |
+| POST | `/api/reservations/:id/platform-penalties` | same body | 201 `{ item, reservation: { platformPayoutAmount, platformCommissionAmount, platformPenaltyAmount }, warnings }`; 422 `PENALTY_NOT_PLATFORM`, `PENALTY_EXCEEDS_PAYOUT`, `COMMISSION_NEGATIVE`, `INVALID_PENALTY`; 409 on a cancelled stay. |
 | DELETE | `/api/reservations/:id/platform-penalties/:penaltyId` | — | 200 `{ ok, payoutRestored: boolean, message? }` |
 
 ---
@@ -375,6 +389,8 @@ CREATE TABLE IF NOT EXISTS reservation_platform_penalties (
   source TEXT NOT NULL DEFAULT 'fiche',      -- fiche | reconciliation
   payoutAdjustedFrom REAL,                   -- payout before the declaration, case « after » (rule 30)
   payoutAdjustedTo REAL,                     -- payout the declaration wrote
+  commissionAdjustedFrom REAL,               -- commission before / after the declaration (case « after »): « Supprimer » restores
+  commissionAdjustedTo REAL,                 --   both only if both still are what the declaration wrote
   createdAt TEXT NOT NULL DEFAULT (datetime('now')), createdBy INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_platform_penalties_res ON reservation_platform_penalties (reservationId);
@@ -522,3 +538,14 @@ All resolved by Adrien on 2026-10-28.
 | 1 | Fiche dialog (plausible, search, folded list, multi-credit, manual split), page filters, bulk confirmation, linking a credit to several receipts | 1–14 | Yes — plugin only, no core change | ~10 files, ~55 tests |
 | 2 | Split-payment and grouped-payout proposals, plan order, automatic confirmation, due-date card decoration (SDK 2.8.0) | 15–22 | Yes, after lot 1 (uses its batch path and split dialog) | ~12 files, ~40 tests |
 | 3 | Platform penalties: core table + column, fiche dialog, ledger + finance readers, accounting entry, reconciliation link | 23–31 | Yes — core + 2 plugins; the reconciliation link needs lot 1 | ~16 files, ~35 tests |
+
+## 11. Implementation progress
+
+Implemented 2026-10-28 on `feature/reconciliation-assisted-matching`, three commits (lot 1; lots 2 and 3 together).
+
+- **Lot 1** (rules 1–14): `ficheCredits.js`, `allocation.js`, controller (`ficheCredits`, `previewAllocation`, `linkBatch`, `confirmAll`, filters, `candidates`), `LinkTransactionDialog` rewrite, `BulkConfirmDialog`, `FilterChip`, page counters as filters. Plugin 1.3.1, SDK 2.8.0.
+- **Lot 2** (rules 15–22): split payments, equal installments, estimated grouped payouts + `SplitSharesDialog`, `autoConfirm.js`, `deadlineDecorator.js`, `ctx.paymentDeadlineDecorator`, setting `reconciliationAutoConfirm`, migration `reconciliation_v2`. Plugin 1.4.0, SDK 2.9.0.
+- **Lot 3** (rules 23–31): core table + column, `platformPenaltiesModel/Controller`, routes, readers, accounting entry, reconciliation link, `PlatformPenaltyDialog`. Plugins 1.4.1 / accounting 1.0.15, SDK 2.10.0.
+- Clarified while implementing: rule 5 (a credit equal to one receipt goes to it), rule 9 (« unreconciled »), rule 2 (anchor fallback), rule 13 (`amounts`), rule 17 (single estimated row stays rule 32), rule 22 (overdue states only; `late` leaves the home count, not the page counter), rule 30 (the commission is restored with the payout, hence the two `commissionAdjusted*` columns).
+- Tests: server unit files listed in §7 (plus `finance-platform-penalty-totals`), client files likewise; recette on the shadow in the PR notes.
+- **A3 reminder:** the penalty account `658000` is a placeholder — confirm it with the accountant before the first real penalty is booked.

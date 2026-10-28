@@ -166,11 +166,12 @@ test('rules 25–27 — the fiche block: in scope only, stored data only, folded
 });
 
 test('rule 22 — the home subject counts the gaps and the unmatched credits', () => {
-  addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: '2026-09-01' });
+  const id = addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: '2026-09-01' });
   const { controller, transactions } = build();
-  transactions.upsertMany([bookingCredit('t1', 12345)], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([bookingCredit('t1', 12345), credit('t2', 75000)], { bankAccountId: 'acc-1' });
+  controller.confirm({ transactionId: 't2', allocations: [{ reservationId: id, ledgerKey: 'balance', amountCents: 75000 }], user: USER });
   const payload = controller.attention();
-  assert.equal(payload.gaps, 1, 'late');
+  assert.equal(payload.gaps, 1, 'an amount gap');
   assert.equal(payload.unmatched, 1);
   const { summarize } = require('../reconciliation/attention');
   assert.deepEqual(summarize(payload), { count: 2, title: 'Écarts de règlement', detail: '1 écart · 1 virement non rattaché', severity: 'todo' });

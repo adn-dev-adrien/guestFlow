@@ -10,7 +10,7 @@ console.log = () => {};
 const db = require('../../../database');
 console.log = silent;
 
-const { up } = require('../reconciliation/schema');
+const { up, upV2 } = require('../reconciliation/schema');
 const { createBankTransactionsModel } = require('../reconciliation/bankTransactionsModel');
 const { createReconciliationModel } = require('../reconciliation/reconciliationModel');
 const { createFicheWriter } = require('../reconciliation/ficheWriter');
@@ -23,6 +23,7 @@ const reservations = require('../../../models/reservationsModel');
 const paymentLinks = require('../../../models/paymentLinksModel');
 
 up(db);
+upV2(db);
 db.prepare("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Gîte')").run();
 db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@x.fr')").run();
 db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName, email) VALUES (2, 'Lucia', 'Rossi', 'lucia@x.fr')").run();
@@ -52,7 +53,7 @@ function credit(id, cents, over = {}) {
   };
 }
 
-function build({ connected = true, startDate = '2026-10-01', mark = applyPaymentMark, withQonto } = {}) {
+function build({ connected = true, startDate = '2026-10-01', mark = applyPaymentMark, withQonto, read } = {}) {
   const store = new Map([['reconciliationBankAccountId', 'acc-1'], ['reconciliationStartDate', startDate]]);
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
@@ -61,7 +62,7 @@ function build({ connected = true, startDate = '2026-10-01', mark = applyPayment
   const calls = { qonto: 0, read: 0 };
   const controller = createReconciliationController({
     db, settings, transactions, model, writer,
-    read: async () => { calls.read += 1; return { ok: true }; },
+    read: read || (async () => { calls.read += 1; return { ok: true }; }),
     connected: () => connected,
     withQonto: withQonto || (async () => { calls.qonto += 1; throw new Error('no Qonto call expected'); }),
     core: {

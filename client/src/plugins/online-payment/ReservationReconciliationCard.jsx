@@ -10,11 +10,12 @@
  */
 import React, { useCallback, useState } from 'react';
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
-import { StatusBadge } from '../sdk';
+import { StatusBadge, PlatformPenaltyDialog } from '../sdk';
 import ReconciliationLine from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
+import SplitSharesDialog from './SplitSharesDialog';
 import useReconciliationActions from './useReconciliationActions';
-import { lastReadLabel, readFailureLabel } from './reconciliationShared';
+import { lastReadLabel, readFailureLabel, shareLabels } from './reconciliationShared';
 
 const UNSAVED = 'Enregistrer ou annuler les modifications avant de rapprocher.';
 
@@ -22,6 +23,8 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
   const block = pluginBlocks ? pluginBlocks['online-payment'] : null;
   const [expanded, setExpanded] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [sharesItem, setSharesItem] = useState(null);
+  const [penaltyItem, setPenaltyItem] = useState(null);
   const reload = useCallback(async () => { if (reloadFinance) await reloadFinance(); }, [reloadFinance]);
   const actions = useReconciliationActions({ onChanged: reload });
 
@@ -32,6 +35,11 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
   const submitLink = async (pairs) => {
     const ok = await actions.linkBatch('manual', pairs);
     if (ok) setLinking(false);
+  };
+
+  const submitShares = async ({ pairs, proposalId }) => {
+    const ok = await actions.linkBatch(sharesItem.key, pairs, proposalId);
+    if (ok) setSharesItem(null);
   };
 
   return (
@@ -64,6 +72,8 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
                   onConfirm={actions.confirm}
                   onDiscard={actions.discard}
                   onUndo={actions.undo}
+                  onShares={setSharesItem}
+                  onDeclarePenalty={setPenaltyItem}
                 />
               ))}
             </Box>
@@ -80,6 +90,16 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
       <LinkTransactionDialog
         open={linking} onClose={() => setLinking(false)} reservationId={block.lines[0].reservation.id}
         busy={actions.busy === 'manual'} onSubmit={submitLink}
+      />
+      {penaltyItem && (
+        <PlatformPenaltyDialog
+          open onClose={() => setPenaltyItem(null)} reservationId={penaltyItem.reservation.id} source="reconciliation"
+          initialAmount={penaltyItem.declarePenalty.amount} onDone={reload}
+        />
+      )}
+      <SplitSharesDialog
+        open={Boolean(sharesItem)} onClose={() => setSharesItem(null)} proposal={sharesItem ? sharesItem.proposal : null}
+        labels={sharesItem ? shareLabels(sharesItem) : {}} busy={Boolean(sharesItem) && actions.busy === sharesItem.key} onSubmit={submitShares}
       />
     </Card>
   );

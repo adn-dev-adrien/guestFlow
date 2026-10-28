@@ -197,7 +197,7 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settin
   // …plus the account plan of specs/plugins-phase-p-productisation.md rule 27.
   assert.deepEqual(Object.keys(res.body).sort(), [
     'accommodationAccount', 'activitiesAccount', 'cancellationCompensationAccount', 'commissionVatAccount',
-    'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'journalCode', 'tipAccount',
+    'complementaryAccount', 'defaultCommissionAccountNumber', 'discountAccount', 'journalCode', 'platformPenaltyAccount', 'tipAccount',
     'touristTaxAccount', 'vat10Account', 'vat20Account', 'vatRateCancellationCompensation', 'vatRateCommission',
   ]);
   assert.equal(res.body.defaultCommissionAccountNumber, '62260002');

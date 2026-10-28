@@ -8,8 +8,13 @@ const { buildReservationEngineInput } = require('../utils/reservationEngineInput
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
+
+// The column of the platform penalties (specs/reconciliation-assisted-matching.md rule 27). Named in an
+// explicit column list, so a hand-built reservations table of a unit suite without it still reads 0.
+const penaltyColumn = (database) => (database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'platformPenaltyAmount')
+  ? 'r.platformPenaltyAmount' : '0 AS platformPenaltyAmount');
 const {
-  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment,
+  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, platformPenalty,
 } = require('../utils/reservationSettlement');
 const fiscalYearUtil = require('../utils/fiscalYear');
 const { bookingChannelOf, platformDisplayName } = require('../utils/attributionChannel');
@@ -81,7 +86,7 @@ function totalSejour(r) {
   // A bucket that left the turnover takes ITS OWN commission with it, otherwise a cash-collected
   // OTA solde would leave a lone negative commission behind and break the invariant.
   const deposit = r.depositPaidCash ? 0 : Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0);
-  const balance = r.balancePaidCash ? 0 : Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0);
+  const balance = r.balancePaidCash ? 0 : Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r);
   const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
   const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
   // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée at the door lowers
@@ -245,7 +250,7 @@ function createFinanceModel(database) {
     if (!dueDate || dueDate >= today) return null;
     // specs/finance-dashboard-redesign.md rule 41 — the platform owes its payout, not what the guest paid it: the solde net of the
     // platform's commission, the solde part of what « À encaisser » counts (`remainingToPay` adds the compléments).
-    const payout = round2(Math.max(0, balance - Number(r.platformCommissionAmount || 0)));
+    const payout = round2(Math.max(0, balance - Number(r.platformCommissionAmount || 0) - platformPenalty(r)));
     // Rule 41 — a commission that eats the whole solde leaves nothing to wait for.
     if (!(payout > 0)) return null;
     return {
@@ -528,7 +533,7 @@ function createFinanceModel(database) {
                endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes,
                r.startDate, r.endDate,
                ${ATTRIBUTION_DATE_SQL} AS attributionDate,
-               finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
+               finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount, ${penaltyColumn(database)},
                r.propertyId, p.name AS propertyName,
                r.platform, r.requestOrigin, r.attributionChannel,
                ${ARRIVAL_ADJUSTMENT_COLS},

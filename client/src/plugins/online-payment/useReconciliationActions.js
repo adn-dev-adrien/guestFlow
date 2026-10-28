@@ -29,7 +29,7 @@ export default function useReconciliationActions({ onChanged }) {
     () => api.confirmReconciliation({ transactionId, allocations }),
     (answer) => (answer && answer.marked && answer.marked.length > 0 ? 'Rapproché. La fiche est marquée reçue.' : 'Rapproché.')), [run]);
 
-  const linkBatch = useCallback((key, pairs) => run(key, () => api.linkReconciliationBatch({ pairs }),
+  const linkBatch = useCallback((key, pairs, proposalId) => run(key, () => api.linkReconciliationBatch({ pairs, proposalId }),
     (answer) => (answer && answer.marked && answer.marked.length > 0 ? 'Rapproché. La fiche est marquée reçue.' : 'Rapproché.')), [run]);
 
   const confirmAll = useCallback(async ({ proposalIds, amounts }) => {
@@ -52,8 +52,10 @@ export default function useReconciliationActions({ onChanged }) {
     }
   }, [onChanged, showError, showSuccess]);
 
-  const confirm = useCallback((item) => link(item.key, item.proposal.bank.transactionId,
-    item.proposal.allocations.map((a) => ({ reservationId: a.reservationId, ledgerKey: a.ledgerKey, amountCents: a.amountCents }))), [link]);
+  const confirm = useCallback((item) => (item.proposal.parts
+    ? linkBatch(item.key, item.proposal.pairs)
+    : link(item.key, item.proposal.bank.transactionId,
+      item.proposal.allocations.map((a) => ({ reservationId: a.reservationId, ledgerKey: a.ledgerKey, amountCents: a.amountCents })))), [link, linkBatch]);
 
   const discard = useCallback((item) => run(item.key, () => api.discardReconciliation({
     transactionId: item.proposal.bank.transactionId, reservationId: item.reservation.id, ledgerKey: item.ledgerKey,

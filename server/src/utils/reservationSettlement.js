@@ -22,6 +22,12 @@ function platformCommission(r) {
   return round2(Number(r.acompteCommissionAmount || 0) + Number(r.platformCommissionAmount || 0));
 }
 
+// What the platform kept on the payout besides its commission (specs/reconciliation-assisted-matching.md
+// rule 27): lost to the operator like a commission, but never counted as one. 0 without a declared penalty.
+function platformPenalty(r = {}) {
+  return round2(Math.max(0, Number(r.platformPenaltyAmount || 0)));
+}
+
 /**
  * @param {object} r reservation row carrying the amount + paid columns of the four buckets.
  * @returns {{deposit:object, balance:object, complement:object, endOfStay:object}} each
@@ -88,7 +94,7 @@ function remainingToPay(r) {
   const soldeComm = Number(r.platformCommissionAmount || 0);
   const deposit = (!r.depositDisabled && !r.depositPaid && !r.depositPaidCash)
     ? Number(r.depositAmount || 0) - acompteComm : 0;
-  const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm : 0;
+  const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm - platformPenalty(r) : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
   return round2(deposit + balance + complement + endOfStay + round2(r.installmentsUnpaidAmount));
@@ -179,7 +185,7 @@ function comptaCollected(r) {
   const soldeComm = Number(r.platformCommissionAmount || 0);
   return round2(
     (r.depositPaid && !r.depositPaidCash ? Number(r.depositAmount || 0) - acompteComm : 0)
-    + (r.balancePaid && !r.balancePaidCash ? Number(r.balanceAmount || 0) - soldeComm : 0)
+    + (r.balancePaid && !r.balancePaidCash ? Number(r.balanceAmount || 0) - soldeComm - platformPenalty(r) : 0)
     + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
     + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
     + round2(r.installmentsPaidAmount)
@@ -194,6 +200,6 @@ function comptaCollected(r) {
 }
 
 module.exports = {
-  bucketStates, isSettled, remainingToPay, platformCommission, attributionDate, stayDueAtArrival,
+  bucketStates, isSettled, remainingToPay, platformCommission, platformPenalty, attributionDate, stayDueAtArrival,
   midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, round2,
 };

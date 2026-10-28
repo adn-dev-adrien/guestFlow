@@ -50,6 +50,8 @@ function emptyRecord(id) {
     setupStatus: null,
     // specs/platform-settings-relay-and-review.md rule 8 — [{ key, label }] push toggles (SDK 2.6.0).
     pushChannels: [],
+    // specs/reconciliation-assisted-matching.md rule 22 — (rows) → rows, applied to the home's « Échéances » card (SDK 2.9.0).
+    paymentDeadlineDecorator: null,
   };
 }
 

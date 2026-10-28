@@ -34,10 +34,11 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
 
   return {
     /**
-     * Marks the receipt received when its confirmed lines now cover it (rules 34–37).
+     * Marks the receipt received when its confirmed lines now cover it (rules 34–37). `auto` = the server
+     * confirmed it alone (reconciliation-assisted-matching.md rules 20–21).
      * @returns {{ written: boolean, reason?: string, error?: { status: number, body: object } }}
      */
-    writeIfComplete({ receipt, lines, expectedBankCents, tolerance = 0, user }) {
+    writeIfComplete({ receipt, lines, expectedBankCents, tolerance = 0, user, auto = false }) {
       const fields = receipt.installmentId ? { installment: true } : BUCKET_FIELDS[receipt.ledgerKey];
       if (!fields) return { written: false, reason: 'no-bucket' };
       if (receipt.paid) return { written: false, reason: 'already-received' };
@@ -54,10 +55,12 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
         : { [fields.flag]: true, [fields.date]: settled };
       let payout = null;
       let commission = null;
-      if (String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
+      // An automatic confirmation writes the flag and the date only (rules 20–21): never a payout, never an amount.
+      if (!auto && String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
         // Rule 46 — the credit pays the solde only when the platform took an acompte: the payout is the
         // whole stay's net, so the commission is not inflated by the acompte.
-        payout = round2(got / 100 + platformAcompteNet(before));
+        // …and what the platform kept as a penalty (reconciliation-assisted-matching.md rule 25).
+        payout = round2(got / 100 + platformAcompteNet(before) + Math.max(0, Number(before.platformPenaltyAmount || 0)));
         const gross = before.platformGrossAmount != null && before.platformGrossAmount !== ''
           ? Number(before.platformGrossAmount) : Number(before.depositAmount || 0) + Number(before.balanceAmount || 0);
         commission = computePlatformCommission({
@@ -80,7 +83,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
         written: { paid: true, date: settled, payout, commission },
         createdBy: user && user.id ? user.id : null,
       });
-      history(receipt.reservationId, 'Rapprochement bancaire', 'à percevoir', `reçu le ${frDate(settled)} (virement)`);
+      history(receipt.reservationId, auto ? 'Rapprochement bancaire automatique' : 'Rapprochement bancaire', 'à percevoir', `reçu le ${frDate(settled)} (virement)`);
       return { written: true, date: settled, payout, warning: answer.body && answer.body.warning };
     },
 

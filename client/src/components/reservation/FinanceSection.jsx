@@ -627,6 +627,9 @@ export default function FinanceSection() {
           withDepositCommission={Boolean(pricingQuote?.platformTakesDeposit)}
           locked={isReservationLocked}
           computeCommission={api.computePlatformCommission}
+          reservationId={editingReservationId || null}
+          canDeclarePenalty={Boolean(editingReservationId) && fichePristine}
+          onPenaltiesChanged={reloadReservationFinance}
           onError={showError}
           onApply={(patch) => { updateForm(patch); close(); }}
           onCancel={close}

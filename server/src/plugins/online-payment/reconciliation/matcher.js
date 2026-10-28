@@ -12,6 +12,13 @@ const MAX_SUBSET = 6;
 const MAX_CANDIDATES = 22;
 const MAX_NODES = 250000;
 const MAX_EARLY_DAYS = 400;
+const GROUP_RUN_DAYS = 14;
+const GROUP_EARLY_DAYS = 3;
+const SPLIT_WINDOW_DAYS = 30;
+const MAX_SPLIT_CREDITS = 3;
+const ESTIMATE_TOLERANCE = 0.01;
+// Platforms that pay at booking time, months before the stay (v1 rule 14).
+const PAYS_AT_BOOKING = Object.freeze(['Abracadaroom']);
 const MS_DAY = 24 * 60 * 60 * 1000;
 
 const DEFAULT_PATTERNS = Object.freeze({
@@ -28,6 +35,7 @@ const DEFAULT_BATCH_PLATFORMS = Object.freeze(['Lodgify']);
 const normalize = (s) => String(s == null ? '' : s)
   .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9.=+]+/g, ' ').trim();
 const { day } = require('./dates');
+const { allocateFifo } = require('./allocation');
 
 // A platform is the same whatever its stored spelling (`Airbnb` / `AirBnb`, `GitesDeFrance` /
 // `Gitesdefrance`): patterns, batch list and receipts are compared by slug, never by exact name.
@@ -90,6 +98,53 @@ const proposal = (tx, items, confidence, source, reason, extra = {}) => ({
   ...extra,
 });
 
+/**
+ * Rules 17–18 of specs/reconciliation-assisted-matching.md — a grouped payout that includes payouts the
+ * fiches do not carry yet, counted at gross minus the platform's commission. One payout run: every row's
+ * expected date within 14 days of the others, and within the platform's window of the credit.
+ * One estimated row → « probable », its share is what the exact rows leave. Two or more → « à vérifier »,
+ * the shares are typed by the operator (`needsShares`).
+ */
+function estimatedGroup(tx, platform, rows, settings) {
+  const settled = day(tx.settledAt);
+  const rate = (Number((settings.commissionRates || {})[platform]) || 0) / 100;
+  const early = PAYS_AT_BOOKING.some((p) => platformSlug(p) === platformSlug(platform)) ? MAX_EARLY_DAYS : GROUP_EARLY_DAYS;
+  const items = rows.map((r) => {
+    const at = day(r.expectedDate || r.dueDate);
+    return {
+      receipt: r, at, estimated: !r.payoutRecorded,
+      cents: r.payoutRecorded ? r.openCents : Math.round(r.grossCents * (1 - rate)),
+    };
+  }).filter((i) => {
+    if (!i.at || !(i.cents > 0)) return false;
+    const delta = settled ? daysBetween(i.at, settled) : 0;
+    return delta <= 30 && delta >= -early;
+  });
+  if (!items.some((i) => i.estimated)) return null;
+  const tolerance = (chosen) => chosen.reduce((s, c) => s + (c.estimated ? Math.round(c.cents * ESTIMATE_TOLERANCE) : 0), 0);
+
+  let best = null;
+  [...new Set(items.map((i) => i.at))].forEach((from) => {
+    const run = items.filter((i) => daysBetween(from, i.at) >= 0 && daysBetween(from, i.at) <= GROUP_RUN_DAYS);
+    const found = smallestSubset(run, tx.remainingCents, tolerance);
+    if (!found || found.length < 2 || !found.some((f) => f.estimated)) return;
+    const dates = found.map((f) => f.at).sort();
+    const span = daysBetween(dates[0], dates[dates.length - 1]);
+    if (!best || found.length < best.found.length || (found.length === best.found.length && span < best.span)) best = { found, span };
+  });
+  if (!best) return null;
+
+  const { found } = best;
+  const estimatedRows = found.filter((f) => f.estimated);
+  const exactSum = found.filter((f) => !f.estimated).reduce((s, f) => s + f.cents, 0);
+  if (estimatedRows.length === 1) {
+    return proposal(tx, found.map((f) => ({ receipt: f.receipt, allocCents: f.estimated ? tx.remainingCents - exactSum : f.cents })), 'probable', 'platform-group',
+      `Versement groupé de ${found.length} séjours ${platform}`, { groupSize: found.length, unrecordedPayout: true });
+  }
+  return proposal(tx, found.map((f) => ({ receipt: f.receipt, allocCents: f.cents })), 'verifier', 'platform-group',
+    `Versement groupé de ${found.length} séjours · montants estimés`, { groupSize: found.length, needsShares: true, unrecordedPayout: true });
+}
+
 /** Rules 13, 14, 32 — a recognised platform payout. */
 function platformProposals(tx, platform, receipts, settings) {
   const settled = day(tx.settledAt);
@@ -136,6 +191,10 @@ function platformProposals(tx, platform, receipts, settings) {
         `Versement groupé de ${subset.length} séjours ${platform}`));
     }
   }
+  if (exact.length === 0 && out.length === 0) {
+    const grouped = estimatedGroup(tx, platform, mine, settings);
+    if (grouped) out.push(grouped);
+  }
   // Rule 32 — a payout the fiche does not carry yet is still a candidate, behind the recorded ones.
   const rate = (Number((settings.commissionRates || {})[platform]) || 0) / 100;
   candidates.filter((r) => !r.payoutRecorded).forEach((r) => {
@@ -176,6 +235,17 @@ function cardBatchProposals(tx, date, receipts) {
     'Paiements par carte sur place du jour')] : [];
 }
 
+const dueKey = (r) => String(r.dueDate || r.expectedDate || '9999');
+
+/** Rules 9, 16 — among receipts of the same amount, only the earliest due one is a candidate (an installment plan follows its order). */
+function earliestPerAmount(list) {
+  const first = new Map();
+  [...list].sort((a, b) => dueKey(a).localeCompare(dueKey(b)) || (a.order || 0) - (b.order || 0)).forEach((r) => {
+    if (!first.has(r.openCents)) first.set(r.openCents, r);
+  });
+  return [...first.values()];
+}
+
 const nameMatches = (lastName, tx) => {
   const tokens = normalize(lastName).split(' ').filter((t) => t.length >= 3);
   return tokens.length > 0 && tokens.every((t) => textOf(tx).includes(t));
@@ -195,9 +265,10 @@ function directProposals(tx, receipts) {
     const first = list[0];
     const number = normalize(first.reservation.reservationNumber);
     if (number.length >= 4 && text.includes(` ${number} `)) {
-      const match = list.find((r) => Math.abs(r.openCents - tx.remainingCents) <= 1) || list[0];
+      const match = earliestPerAmount(list.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= 1))[0] || list[0];
       out.push(proposal(tx, [{ receipt: match, allocCents: Math.min(match.openCents, tx.remainingCents) }],
-        Math.abs(match.openCents - tx.remainingCents) <= 1 ? 'sur' : 'probable', 'identifier', 'Numéro de réservation dans le virement'));
+        Math.abs(match.openCents - tx.remainingCents) <= 1 ? 'sur' : 'probable', 'identifier', 'Numéro de réservation dans le virement',
+        { exact: Math.abs(match.openCents - tx.remainingCents) <= 1 }));
     }
   });
   if (out.length > 0) return out;
@@ -210,9 +281,9 @@ function directProposals(tx, receipts) {
   byReservation.forEach((list) => {
     const candidates = list.filter(near);
     const named = nameMatches(candidates[0] ? candidates[0].reservation.lastName : '', tx);
-    const single = candidates.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= toleranceOf(r));
+    const single = earliestPerAmount(candidates.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= toleranceOf(r)));
     single.forEach((r) => out.push(proposal(tx, [{ receipt: r, allocCents: tx.remainingCents }], named ? 'probable' : 'verifier', 'direct',
-      named ? 'Montant exact et nom du client dans le virement' : 'Montant exact, nom différent')));
+      named ? 'Montant exact et nom du client dans le virement' : 'Montant exact, nom différent', { exact: true })));
     if (single.length === 0 && named && candidates.length > 0) {
       const next = [...candidates].sort((a, b) => String(a.dueDate || a.expectedDate || '').localeCompare(String(b.dueDate || b.expectedDate || '')))[0];
       const known = out.some((p) => p.allocations.some((a) => a.reservationId === next.reservationId && a.ledgerKey === next.ledgerKey));
@@ -228,6 +299,58 @@ function directProposals(tx, receipts) {
           'Tout le séjour réglé en un virement'));
       }
     }
+  });
+  return out;
+}
+
+/**
+ * Rule 15 — a guest who pays in two or three transfers: credits that all carry the client's name, settled
+ * within 30 days of the receipts' anchor, whose sum is exactly one open receipt or all of them. Only for a
+ * reservation no single credit matches exactly. Allocation follows the dialog's (oldest credit onto the
+ * earliest due receipt).
+ */
+function splitProposals(transactions, receipts, singleExact) {
+  const out = [];
+  const byReservation = new Map();
+  receipts.filter((r) => (r.channel === 'direct' || r.channel === 'link') && r.openCents > 0).forEach((r) => {
+    if (!byReservation.has(r.reservationId)) byReservation.set(r.reservationId, []);
+    byReservation.get(r.reservationId).push(r);
+  });
+  byReservation.forEach((open, reservationId) => {
+    if (singleExact.has(reservationId)) return;
+    const near = (tx) => open.some((r) => {
+      const anchor = r.expectedDate || r.dueDate;
+      return !anchor || !tx.settledAt || Math.abs(daysBetween(anchor, day(tx.settledAt))) <= SPLIT_WINDOW_DAYS;
+    });
+    const named = transactions.filter((tx) => (!tx.currency || tx.currency === 'EUR') && tx.remainingCents > 0
+      && nameMatches(open[0].reservation.lastName, tx) && near(tx))
+      .sort((a, b) => String(a.settledAt).localeCompare(String(b.settledAt))).slice(0, 12);
+    if (named.length < 2) return;
+    const targets = [...[...open].sort((a, b) => dueKey(a).localeCompare(dueKey(b)) || (a.order || 0) - (b.order || 0)).map((r) => ({ receipts: [r], cents: r.openCents })),
+      ...(open.length > 1 ? [{ receipts: open, cents: open.reduce((s, r) => s + r.openCents, 0) }] : [])];
+    const combos = [];
+    for (let i = 0; i < named.length; i += 1) {
+      for (let j = i + 1; j < named.length; j += 1) {
+        combos.push([named[i], named[j]]);
+        for (let k = j + 1; k < named.length && MAX_SPLIT_CREDITS >= 3; k += 1) combos.push([named[i], named[j], named[k]]);
+      }
+    }
+    const found = combos.map((c) => ({ credits: c, target: targets.find((t) => c.reduce((s, x) => s + x.remainingCents, 0) === t.cents) }))
+      .filter((c) => c.target)
+      .sort((a, b) => a.credits.length - b.credits.length || targets.indexOf(a.target) - targets.indexOf(b.target));
+    if (found.length === 0) return;
+    const { credits, target } = found[0];
+    const pairs = allocateFifo({ credits: credits.map((c) => ({ ...c, transactionId: c.id })), receipts: target.receipts });
+    const allocations = [];
+    pairs.forEach((p) => {
+      const hit = allocations.find((a) => a.reservationId === p.reservationId && a.ledgerKey === p.ledgerKey);
+      if (hit) hit.amountCents += p.amountCents; else allocations.push({ reservationId: p.reservationId, ledgerKey: p.ledgerKey, amountCents: p.amountCents });
+    });
+    out.push({
+      id: `${credits.map((c) => c.id).join('+')}:${allocations.map((a) => `${a.reservationId}|${a.ledgerKey}`).join(',')}`,
+      transactionId: credits[0].id, confidence: 'probable', source: 'direct-split', reason: `${credits.length} virements du client`,
+      allocations, parts: credits.map((c) => ({ transactionId: c.id, amountCents: c.remainingCents })), pairs, exact: true,
+    });
   });
   return out;
 }
@@ -258,6 +381,14 @@ function buildProposals({ transactions, receipts, discarded = new Set(), setting
     });
   });
 
+  const singleExact = new Set();
+  all.filter((p) => p.exact).forEach((p) => p.allocations.forEach((a) => singleExact.add(a.reservationId)));
+  splitProposals(transactions.filter((t) => classify(t, settings).kind === 'other'), receipts, singleExact).forEach((p) => {
+    const txIds = p.parts.map((x) => x.transactionId);
+    if (p.allocations.some((a) => txIds.some((id) => discarded.has(`${id}|${a.reservationId}|${a.ledgerKey}`)))) return;
+    all.push(p);
+  });
+
   const dist = (p) => {
     const tx = transactions.find((t) => t.id === p.transactionId);
     const first = receipts.find((r) => keyOf(r) === `${p.allocations[0].reservationId}|${p.allocations[0].ledgerKey}`);
@@ -273,9 +404,9 @@ function buildProposals({ transactions, receipts, discarded = new Set(), setting
   ordered.forEach((p) => {
     const slot = byTransaction[p.transactionId];
     const keys = p.allocations.map((a) => `${a.reservationId}|${a.ledgerKey}`);
-    if (!chosenTx.has(p.transactionId) && keys.every((k) => !taken.has(k))) {
-      slot.proposal = p;
-      chosenTx.add(p.transactionId);
+    const txIds = p.parts ? p.parts.map((x) => x.transactionId) : [p.transactionId];
+    if (txIds.every((id) => !chosenTx.has(id)) && keys.every((k) => !taken.has(k))) {
+      txIds.forEach((id) => { byTransaction[id].proposal = p; chosenTx.add(id); });
       keys.forEach((k) => taken.add(k));
     } else slot.alternatives.push(p);
   });

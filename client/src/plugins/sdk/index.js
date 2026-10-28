@@ -53,3 +53,5 @@ export { default as HelpedTextField } from '../../components/HelpedTextField';
 export { default as useLatestPreview } from '../../hooks/useLatestPreview';
 // reconciliation-assisted-matching (rule 11) — the active-filter chip — SDK 2.8.0.
 export { default as FilterChip } from '../../components/FilterChip';
+// reconciliation-assisted-matching (rule 24) — the platform penalty dialog, opened from a gap — SDK 2.10.0.
+export { default as PlatformPenaltyDialog } from '../../components/reservation/PlatformPenaltyDialog';

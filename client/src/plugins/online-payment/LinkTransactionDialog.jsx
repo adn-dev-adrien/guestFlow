@@ -17,11 +17,11 @@ import {
 import {
   api, FormDialog, PlatformChip, LoadingState, useLatestPreview,
 } from '../sdk';
+import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
 
 const MAX_TICKED = 10;
 const REASON_LABELS = { exact: 'montant exact', amount: '±5 €', name: 'nom' };
-const INVALID_AMOUNT = 'Montant invalide : chiffres et virgule, deux décimales au plus.';
 
 function Row({ checked, disabled, onToggle, children }) {
   return (
@@ -41,7 +41,7 @@ function Row({ checked, disabled, onToggle, children }) {
 function CreditRow({ credit, checked, disabled, onToggle }) {
   return (
     <Row checked={checked} disabled={disabled} onToggle={onToggle}>
-      <Stack direction="row" gap={1} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <Stack direction="row" sx={{ alignItems: 'baseline', flexWrap: 'wrap', columnGap: 1 }}>
         <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(credit.remainingCents)}</b>
         <Typography component="span" variant="body2" color="text.secondary">{credit.dateLabel}</Typography>
       </Stack>
@@ -230,21 +230,11 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
             </>
           ) : <Typography variant="caption" color="text.secondary">Calcul de la répartition…</Typography>}
           {manual && (
-            <Stack gap={1} sx={{ mt: 1 }}>
-              {manual.map((m, i) => {
-                const refusal = errorFor(i);
-                const local = parseEuroInput(m.text) == null ? INVALID_AMOUNT : '';
-                return (
-                  <TextField
-                    key={`${m.transactionId}|${m.reservationId}|${m.ledgerKey}`} size="small" fullWidth
-                    label={`${nameOfPair(m)} (€)`} value={m.text}
-                    onChange={(e) => setManual((cur) => cur.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
-                    error={Boolean(local || refusal)} helperText={local || (refusal && refusal.message) || ' '}
-                    slotProps={{ htmlInput: { inputMode: 'decimal', autoComplete: 'off', style: { fontSize: 16 } } }}
-                  />
-                );
-              })}
-            </Stack>
+            <AmountPairFields
+              pairs={manual.map((m) => ({ id: `${m.transactionId}|${m.reservationId}|${m.ledgerKey}`, label: nameOfPair(m), text: m.text }))}
+              onChange={(i, text) => setManual((cur) => cur.map((x, j) => (j === i ? { ...x, text } : x)))}
+              refusalFor={errorFor}
+            />
           )}
         </Box>
       )}

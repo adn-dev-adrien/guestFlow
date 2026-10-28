@@ -5,7 +5,7 @@
  */
 
 const sdk = require('../../sdk');
-const { up, TABLES } = require('./schema');
+const { up, upV2, TABLES } = require('./schema');
 const { createBankTransactionsModel } = require('./bankTransactionsModel');
 const { createReconciliationModel } = require('./reconciliationModel');
 const { readTransactions } = require('./transactionsReader');
@@ -17,7 +17,7 @@ const { summarize } = require('./attention');
 const READ_INTERVAL_MS = 8 * 60 * 60 * 1000;
 
 function mountReconciliation(ctx, { store }) {
-  ctx.migrations([{ name: 'reconciliation_v1', up }]);
+  ctx.migrations([{ name: 'reconciliation_v1', up }, { name: 'reconciliation_v2', up: upV2 }]);
 
   let controller = null;
   const build = () => {
@@ -59,6 +59,7 @@ function mountReconciliation(ctx, { store }) {
   }));
 
   ctx.reservationBlock('online-payment', (reservation) => build().buildFicheBlock(reservation));
+  ctx.paymentDeadlineDecorator((rows) => build().decorateDeadlines(rows));
 
   ctx.jobs.every({
     name: 'bank-reconciliation-read',

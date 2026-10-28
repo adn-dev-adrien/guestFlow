@@ -17,12 +17,15 @@ function createReconciliationModel(db) {
       return db.prepare('SELECT * FROM bank_reconciliation_lines WHERE reservationId = ? AND ledgerKey = ? ORDER BY id')
         .all(Number(reservationId), String(ledgerKey));
     },
-    addLine({ transactionId, reservationId, ledgerKey, amountCents, createdBy = null }) {
-      return db.prepare(`INSERT INTO bank_reconciliation_lines (transactionId, reservationId, ledgerKey, amountCents, createdAt, createdBy)
-        VALUES (?, ?, ?, ?, ?, ?)`).run(String(transactionId), Number(reservationId), String(ledgerKey), Math.round(amountCents), nowIso(), createdBy).lastInsertRowid;
+    addLine({ transactionId, reservationId, ledgerKey, amountCents, createdBy = null, auto = false, groupId = null }) {
+      return db.prepare(`INSERT INTO bank_reconciliation_lines (transactionId, reservationId, ledgerKey, amountCents, createdAt, createdBy, auto, groupId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(String(transactionId), Number(reservationId), String(ledgerKey), Math.round(amountCents), nowIso(), createdBy, auto ? 1 : 0, groupId).lastInsertRowid;
     },
+    /** Deletes the credit's lines and returns them, so « Défaire » can discard what was confirmed automatically. */
     removeLinesOfTransaction(transactionId) {
-      return db.prepare('DELETE FROM bank_reconciliation_lines WHERE transactionId = ?').run(String(transactionId)).changes;
+      const removed = db.prepare('SELECT * FROM bank_reconciliation_lines WHERE transactionId = ?').all(String(transactionId));
+      db.prepare('DELETE FROM bank_reconciliation_lines WHERE transactionId = ?').run(String(transactionId));
+      return removed;
     },
 
     discardedKeys() {

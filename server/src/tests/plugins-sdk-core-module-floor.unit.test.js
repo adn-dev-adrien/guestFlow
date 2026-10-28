@@ -63,5 +63,5 @@ test('every plugin calls only core modules and names that exist at the floor of 
 
 test('the audit case: accounting-export reaches installmentPlan, so it declares SDK 2.5 at least', () => {
   assert.match(pluginSources('accounting-export'), /coreModule\('installmentPlan'\)/);
-  assert.equal(semver.minVersion(readSourceManifest('accounting-export').sdk).version, '2.5.0');
+  assert.ok(semver.gte(semver.minVersion(readSourceManifest('accounting-export').sdk), '2.5.0'));
 });

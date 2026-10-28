@@ -35,3 +35,10 @@ export const readFailureLabel = (lastError) => {
   const when = Number.isNaN(d.getTime()) ? '' : ` le ${pad(d.getDate())}/${pad(d.getMonth() + 1)} à ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return `Lecture du compte impossible${when} · ${lastError.message}`;
 };
+
+/** The names of the stays of a group proposal, by `reservationId|ledgerKey`, for the shares dialog. */
+export const shareLabels = (item) => {
+  const labels = { [`${item.reservation.id}|${item.ledgerKey}`]: `${item.reservation.clientName || 'Client'} · ${item.label}` };
+  (item.proposal ? item.proposal.alsoCovers : []).forEach((c) => { labels[`${c.reservationId}|${c.ledgerKey}`] = `${c.clientName || 'Client'} · ${c.label}`; });
+  return labels;
+};

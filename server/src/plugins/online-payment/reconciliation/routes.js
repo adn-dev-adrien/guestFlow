@@ -25,10 +25,10 @@ function buildRouter(controller) {
   })));
   router.post('/transactions/:id/outside', wrap((req) => controller.setOutside({ transactionId: req.params.id, outside: true, user: req.user })));
   router.delete('/transactions/:id/outside', wrap((req) => controller.setOutside({ transactionId: req.params.id, outside: false, user: req.user })));
-  router.post('/links/batch', wrap((req) => controller.linkBatch({ pairs: req.body && req.body.pairs, user: req.user })));
+  router.post('/links/batch', wrap((req) => controller.linkBatch({ pairs: req.body && req.body.pairs, proposalId: req.body && req.body.proposalId, user: req.user })));
   router.post('/allocation-preview', wrap((req) => controller.previewAllocation({
     reservationId: req.body && req.body.reservationId, transactionIds: req.body && req.body.transactionIds,
-    receiptKeys: req.body && req.body.receiptKeys, pairs: req.body && req.body.pairs,
+    receiptKeys: req.body && req.body.receiptKeys, pairs: req.body && req.body.pairs, proposalId: req.body && req.body.proposalId,
   })));
   router.post('/confirm-all', wrap((req) => controller.confirmAll({
     proposalIds: req.body && req.body.proposalIds, amounts: req.body && req.body.amounts, user: req.user,

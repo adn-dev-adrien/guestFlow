@@ -301,7 +301,7 @@ standard).
 
 ---
 
-### Platform penalties (Draft 2026-10-28)
+### Platform penalties (Implemented 2026-10-28)
 
 36. **A platform penalty is its own entry** (`reconciliation-assisted-matching.md` rule 28): dated on the
     penalty's date, debit the « Pénalités plateformes » account (setting `platformPenaltyAccount`, default
