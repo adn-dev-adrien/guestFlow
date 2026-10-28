@@ -20,6 +20,8 @@ const db = require('../database');
 const settingsModel = require('../models/settingsModel');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const vatRegime = require('../utils/vatRegime');
+const vatFranchise = require('../utils/vatFranchise');
+const { todayIso } = require('../utils/localDate');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
@@ -73,6 +75,12 @@ function readVatGroup(vat, errors) {
       if (err) errors.vatRate = err;
       else change.rate = vatRegime.parseRate(vat.rate);
     }
+  }
+  // Rule 36 — the franchise threshold the operator types; the same value sent back says nothing new.
+  if (Object.prototype.hasOwnProperty.call(vat, 'franchiseThreshold')) {
+    const parsed = vatFranchise.parseThreshold(vat.franchiseThreshold);
+    if (!parsed.ok) errors.vatFranchiseThreshold = parsed.error;
+    else change.franchiseThreshold = parsed.value;
   }
   const mention = vat.legalMention;
   if (mention != null && mention !== '') {
@@ -250,6 +258,16 @@ async function updateSettings(req, res) {
   }
 
   const stored = settingsModel.read();
+  if (vatChange.franchiseThreshold !== undefined) {
+    const next = vatChange.franchiseThreshold;
+    const before = stored.vatFranchiseThreshold == null || stored.vatFranchiseThreshold === '' ? null : Number(stored.vatFranchiseThreshold);
+    const mentionAfter = vatChange.legalMention !== undefined ? vatChange.legalMention : inForce && inForce.legalMention;
+    const applies = vatFranchise.franchiseApplies(inForce && { regime: inForce.regime, legalMention: mentionAfter });
+    if (next === before) delete vatChange.franchiseThreshold;
+    else if (next !== null && !applies) {
+      return res.status(422).json({ code: 'SETTINGS_INVALID', errors: { vatFranchiseThreshold: vatFranchise.MESSAGES.notApplicable } });
+    }
+  }
   // Rule 28 — host and password both emptied: back to no server of its own, security included.
   if (payload.smtpHost === '' && (payload.smtpPasswordEncrypted === '' || (!stored.smtpPasswordSet && payload.smtpPasswordEncrypted === undefined))) {
     payload.smtpSecure = 0;
@@ -273,6 +291,7 @@ async function updateSettings(req, res) {
       retiredLinks = edited.retiredLinks || [];
     }
     if (vatChange.legalMention !== undefined) vatRegimeModel.setMentionInForce(db, vatChange.legalMention);
+    if (vatChange.franchiseThreshold !== undefined) settingsModel.setVatFranchiseThreshold(vatChange.franchiseThreshold, todayIso());
     settingsModel.upsert(payload);
   })();
   require('../models/vatRegimeSwitchModel').deactivateAfterCommit(retiredLinks);

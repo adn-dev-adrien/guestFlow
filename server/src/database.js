@@ -248,6 +248,10 @@ tryAddAppSettingsCol('fiscalYearEndMonth', "ALTER TABLE app_settings ADD COLUMN 
 // Annual revenue goal per exercise, JSON `{ "<exercise key>": amount }` (specs/finance-dashboard-redesign.md
 // §5). NULL = no goal anywhere, which is what every existing install starts with.
 tryAddAppSettingsCol('revenueGoals', "ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT");
+// The franchise threshold the operator types (specs/vat-optional-mode.md rule 36): euros, NULL = not set,
+// and the day it was last changed. Nothing is shipped: every existing install starts without one.
+tryAddAppSettingsCol('vatFranchiseThreshold', "ALTER TABLE app_settings ADD COLUMN vatFranchiseThreshold REAL");
+tryAddAppSettingsCol('vatFranchiseThresholdSetAt', "ALTER TABLE app_settings ADD COLUMN vatFranchiseThresholdSetAt TEXT");
 // SMTP for the account-management password-by-email flow (specs/admin-account-management.md).
 // Password stored encrypted (AES-256-GCM via utils/encryption.js) — never logged or returned in cleartext.
 tryAddAppSettingsCol('smtpHost',              "ALTER TABLE app_settings ADD COLUMN smtpHost TEXT DEFAULT ''");

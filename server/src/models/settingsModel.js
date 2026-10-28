@@ -68,6 +68,10 @@ const COLUMNS = [
   // Revenue goal per exercise, JSON (specs/finance-dashboard-redesign.md §3.8). Validated and merged
   // by the settings controller through utils/revenueGoals.js.
   'revenueGoals',
+  // The franchise threshold, typed by the operator (specs/vat-optional-mode.md rule 36). Read through
+  // `read()`; written only by `setVatFranchiseThreshold`, which keeps NULL and the day of the change.
+  'vatFranchiseThreshold',
+  'vatFranchiseThresholdSetAt',
   // SMTP for the account-management flow (specs/admin-account-management.md). The password column
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.
@@ -198,6 +202,18 @@ function createSettingsModel(databaseInstance) {
       databaseInstance
         .prepare(`UPDATE app_settings SET ${setClauses}, updatedAt = datetime('now') WHERE id = 1`)
         .run(...values);
+    },
+
+    // Rule 36 — NULL clears it; the day is stamped only when the amount really changes.
+    setVatFranchiseThreshold(amount, today) {
+      if (!actualCols.has('vatFranchiseThreshold')) return;
+      const next = amount == null ? null : Number(amount);
+      const current = databaseInstance.prepare('SELECT vatFranchiseThreshold AS v FROM app_settings WHERE id = 1').get();
+      const before = current && current.v != null ? Number(current.v) : null;
+      if (before === next) return;
+      databaseInstance
+        .prepare("UPDATE app_settings SET vatFranchiseThreshold = ?, vatFranchiseThresholdSetAt = ?, updatedAt = datetime('now') WHERE id = 1")
+        .run(next, next == null ? null : today);
     },
 
     updateLogoPath(path) {
