@@ -167,6 +167,10 @@ the new invariant.
     sent by API for a logement that does not carry it was dropped, yet its bed counts were stored
     (`bedLinenAlert: no_linen`). Create and update now zero the single/double counts on the lines the
     engine kept (`quote.optionLines`).
+13. **An explicit 0 stays 0 (audit 2026-10-28).** The fiche loaded `singleBeds / doubleBeds / babyBeds` with
+    `|| ''`, so a stored 0 became an empty field and every save sent `null` (« Lits bébé 0 → null » in the
+    history). The form now reads them with `??`: 0 is a value, only `null` is empty. The server already keeps
+    the number it receives.
 
 **Edge cases:**
 - Operator enters `4` doubles, then turns the Switch OFF → form
