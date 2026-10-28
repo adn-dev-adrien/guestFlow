@@ -324,6 +324,9 @@ including the ones added later.
 | `plugins/sdk/` | `testing.js` | T | Rules 4, 13 — `listPlugins`, `missingPlugins`, `requirePlugins`, `skipWithout` |
 | `plugins/<id>/tests/` | `removalSeed.js` (×16) | C | Rule 11 — the plugin's part of the seed, or `seed: null` and a reason |
 | `plugins/<id>/tests/` | `mount-wiring`, `inactive-plugin`, `attention-summary` | C | Rule 3 — assertions that read one plugin's sources, moved out of core suites |
+| `plugins/google-calendar/tests/`, `plugins/neat/tests/` | `catch-up-after-reactivation` | C | Rule 17 — a change made while the plugin was off is handled by its next pass |
+| `plugins/google-vacation-rentals/` | `pushService.js`, `manifest.json` (1.0.2) | T | Rule 17 — the hourly tick re-sends everything after a silence of more than 90 minutes |
+| `constants/plugins.js`, `controllers/pluginsController.js` | `PLUGIN_DISPLAY_NAMES` | T | Rule 1 — a page names a plugin this release never shipped and no row remembers |
 | `tests/` | ~45 existing files | T | Rules 3–5 — `requirePlugins` / `skipWithout`; catalogue and module counts read from the folders |
 | `tests/` | `plugin-removal-fixes`, `plugin-removal-matrix`, `plugin-removal-workflow`, `plugin-engine-fixture` | C | Rules 1, 2, 6 · 3, 4, 13, 14 · 7, 18 · 5 |
 | `scripts/` (server) | `seed-plugin-data.js` | C | Rule 11 — runs every shipped plugin's seed on the E2E database, writes `seed.json` |
@@ -458,8 +461,7 @@ All three lots are implemented. Deviations from the draft, each written into the
 rule 3 (core tests name the plugins they need instead of moving or being rewritten on a fixture), rule 5
 (engine suites keep real subjects but name them; one fixture suite added), rules 9, 11, 12 (a child-process
 pass runner instead of an in-process trigger; row counts taken from the erasure declarations; a
-pre-removal money snapshot), rule 16 (blockers cleared in the sweep's database), rule 17 (the « changed while
-off » proofs per plugin are not written), rule 18 (no per-process database preload: the suite is serial and
+pre-removal money snapshot), rule 16 (blockers cleared in the sweep's database), rule 18 (no per-process database preload: the suite is serial and
 takes ~3½ minutes on a free machine). Qonto and Neat are pointed at a dead local port (`QONTO_API_BASE`,
 `NEAT_API_BASE`); Google and Météo-France have no credentials in the seeded database, so no cell reaches them.
 The wave's operator-managed mode hides the plugin lifecycle routes; the matrix removes code, not rows, and the
