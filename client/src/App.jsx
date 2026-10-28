@@ -22,6 +22,7 @@ import { onboardingRoute } from './utils/onboardingRoute';
 import LoginPage from './pages/LoginPage';
 import ForcedPasswordChangePage from './pages/ForcedPasswordChangePage';
 import LazyPage, { lazyPage } from './components/LazyPage';
+import { preloadRoute, prefetchOnIdle } from './utils/pagePreload';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import EventIcon from '@mui/icons-material/Event';
@@ -96,6 +97,46 @@ const DevisPage = lazyPage(() => import('./pages/DevisPage'));
 const CompensationsPage = lazyPage(() => import('./pages/CompensationsPage'));
 const EmailTemplatesPage = lazyPage(() => import('./pages/EmailTemplatesPage'));
 const EmailHistoryPage = lazyPage(() => import('./pages/EmailHistoryPage'));
+
+// The page behind each route, to start its chunk before the router asks for it (rule 10).
+const PAGE_ROUTES = [
+  ['/', Dashboard],
+  ['/clients', ClientsPage],
+  ['/properties', PropertiesPage],
+  ['/properties/:id', PropertyDetail],
+  ['/properties/:id/pricing-seasons', PropertyPricingSeasonsPage],
+  ['/options', OptionsPage],
+  ['/resources', ResourcesPage],
+  ['/calendar', CalendarPage],
+  ['/reservations/new', ReservationPage],
+  ['/reservations/upcoming', ReservationsUpcomingPage],
+  ['/reservations/:reservationId', ReservationPage],
+  ['/devis', DevisPage],
+  ['/finance', FinancePage],
+  ['/finance/tourist-tax', TouristTaxPage],
+  ['/planning', PlanningPage],
+  ['/establishment-closures', EstablishmentClosuresPage],
+  ['/settings', SettingsHomePage],
+  ['/settings/etablissement', EstablishmentSettingsPage],
+  ['/settings/plateformes', PlatformsSettingsPage],
+  ['/settings/tva-exercice', VatFiscalSettingsPage],
+  ['/settings/emails', EmailSettingsPage],
+  ['/settings/emails/textes', EmailTextsSettingsPage],
+  ['/settings/integrations', IntegrationsSettingsPage],
+  ['/settings/systeme', SystemSettingsPage],
+  ['/settings/utilisateurs', UserManagementPage],
+  ['/parametres/vacances-fermetures', SeasonsClosuresPage],
+  ['/parametres/options-ressources', OptionsResourcesPage],
+  ['/parametres/conditions-generales', TermsSettingsPage],
+  ['/parametres/plugins', PluginsPage],
+  ['/parametres/acces-support', SupportAccessPage],
+  ['/mon-compte', AccountPage],
+  ['/emails', EmailTemplatesPage],
+  ['/emails/historique', EmailHistoryPage],
+];
+// Opened all day: fetched when the browser is idle. The heavy ones (finance charts) and the settings wait for a visit.
+const IDLE_PAGES = [Dashboard, PlanningPage, CalendarPage, ReservationPage, ClientsPage, EmailTemplatesPage, DevisPage];
+preloadRoute(PAGE_ROUTES, window.location.pathname);
 
 const MODULE_PAGES = allContributions('routes');
 
@@ -567,6 +608,7 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  useEffect(() => prefetchOnIdle(IDLE_PAGES), []);
   // A page of an inactive plugin is never mounted (rule 18); in its place the 404, which an
   // administrator reads as « Plugin inactif » (specs/plugins-phase-p-productisation.md rule 42).
   const pluginRoute = (path, element) => (isRouteEnabled(user, path) ? element : <NotFoundPage />);

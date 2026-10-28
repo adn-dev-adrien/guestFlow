@@ -10,7 +10,8 @@
  * `ErrorAlert` « Page indisponible. » with « Recharger ».
  *
  * Props of `LazyPage`: children (the lazy element, a core page or a plugin's). `lazyPage(loader)`
- * returns a component taking the page's own props.
+ * returns a component taking the page's own props, with `.preload()` to start its import early
+ * (specs/inte-performance.md rule 10).
  */
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import LoadingState from './LoadingState';
@@ -73,9 +74,20 @@ export default function LazyPage({ children }) {
 }
 
 export function lazyPage(loader) {
-  const Page = lazy(() => loader().then((module) => { flag.clear(); return module; }));
+  let loading = null;
+  let loaded = null;
+  // One import for the whole life of the page: the boot preload, the idle prefetch and React.lazy share it.
+  const preload = () => {
+    if (!loading) loading = loader().then((module) => { loaded = module; flag.clear(); return module; });
+    return loading;
+  };
+  const Lazy = lazy(preload);
   function LazyRoute(props) {
+    // A chunk already loaded renders at once: going through React.lazy would suspend once more and React
+    // holds back a boundary that showed a fallback for 300 ms, which is what the preload is meant to avoid.
+    const [Page] = useState(() => (loaded ? loaded.default : Lazy));
     return <LazyPage><Page {...props} /></LazyPage>;
   }
+  LazyRoute.preload = () => preload().catch(() => { loading = null; });
   return LazyRoute;
 }
