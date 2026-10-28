@@ -1,18 +1,47 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { useLocation } from 'react-router';
 import api from '../api';
 
 /**
  * App-wide authentication state.
  *
  * Bootstraps the current user via `GET /api/auth/me` on mount, exposes `login` / `logout` /
- * `changePassword`, and listens for the global `guestflow:unauthenticated` event (fired by api.js on a
+ * `changePassword`, re-reads `/api/auth/me` when the route changes or the tab comes back (at most once
+ * every 30 s) so a module the operator switched off leaves the menu
+ * (specs/plugin-operator-provisioning.md rule 36), and listens for the global `guestflow:unauthenticated` event (fired by api.js on a
  * 401) to drop the session and send the user back to the login screen.
  */
 const AuthContext = createContext(null);
+const REVALIDATE_MS = 30 * 1000;
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { pathname } = useLocation();
+  const lastRead = useRef(Date.now());
+  const signedIn = Boolean(user);
+
+  // A failed re-read changes nothing: a 401 already fires `guestflow:unauthenticated`, and a network
+  // error must not sign anyone out.
+  const revalidate = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastRead.current < REVALIDATE_MS) return;
+    lastRead.current = now;
+    try {
+      const me = await api.getMe();
+      setUser((current) => (current && JSON.stringify(current) === JSON.stringify(me) ? current : me));
+    } catch { /* keep the session as it is */ }
+  }, []);
+
+  useEffect(() => {
+    if (signedIn) revalidate();
+  }, [pathname, signedIn, revalidate]);
+
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible' && signedIn) revalidate(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [signedIn, revalidate]);
 
   const refresh = useCallback(async () => {
     try {
@@ -27,6 +56,7 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         const me = await api.getMe();
+        lastRead.current = Date.now();
         if (active) setUser(me);
       } catch {
         if (active) setUser(null);
@@ -47,12 +77,14 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const me = await api.login(email, password);
     if (me && me.step) return me;
+    lastRead.current = Date.now();
     setUser(me);
     return me;
   }, []);
 
   const completeSecondFactor = useCallback(async (code, trustDevice) => {
     const me = await api.verifySecondFactor(code, trustDevice);
+    lastRead.current = Date.now();
     setUser(me);
     return me;
   }, []);

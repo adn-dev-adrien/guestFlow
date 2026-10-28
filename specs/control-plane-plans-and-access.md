@@ -131,6 +131,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - A plugin **added** to a plan becomes available to that plan's customers at their next licence
      refresh (rule 9). It is *available*, not installed: installing stays the customer's action
      (plugins phase 0).
+     > **2026-10-28:** installing is now the operator's: the customer page's « Modules » section
+     > switches the plugins on, within the allowed set, and the licence carries the choice as
+     > `activePlugins` ([`plugin-operator-provisioning.md`](plugin-operator-provisioning.md) rules 10–16).
    - A plugin **removed** from a plan stays allowed, as *grandfathered*, for customers who have
      already installed it. It is withdrawn only when they change plan. New customers do not get it.
    - The editor shows how many customers each change affects before it saves.
@@ -236,6 +239,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       « Installer » button, with « Inclus dans le forfait Pro, sur demande. » (« En option, sur
       demande. ») written under it — not in a tooltip, unreadable on a phone (2026-10-04). The server
       sends that text as `planHint`, and the 402 carries the same `message`.
+    - _2026-10-28:_ on an operator-managed space these routes and this page no longer exist
+      (404, [`plugin-operator-provisioning.md`](plugin-operator-provisioning.md) rules 3–4, 9); the
+      « Hors forfait » state is shown to the operator only, in the console.
 12. **Downgrade.**
     - When the licence drops a plugin that is installed, the instance **treats it as inactive** from
       the next read: `isLive` answers false, so its routes, jobs, screens and `enabledPlugins` entry

@@ -31,7 +31,7 @@ function isSupportSession(req) {
   return Boolean(session.supportAccessId || (session.user && session.user.isSupport));
 }
 
-function createSupportAudit({ controller, isSecretSetting, now = () => Date.now() }) {
+function createSupportAudit({ controller, isSecretSetting, isHidden = () => false, now = () => Date.now() }) {
   const lastRead = new Map();
   const policyDeps = isSecretSetting ? { isSecretSetting } : undefined;
 
@@ -57,7 +57,8 @@ function createSupportAudit({ controller, isSecretSetting, now = () => Date.now(
     }
     const method = String(req.method).toUpperCase();
     const path = normalizePath(req.path);
-    const reason = forbiddenReason(method, req.path, req.body, policyDeps);
+    // A route the space hides answers and is logged like an unknown one: no 403 to tell it apart.
+    const reason = isHidden(req) ? null : forbiddenReason(method, req.path, req.body, policyDeps);
     if (reason) {
       controller.record(access.id, { method, path: `/api${path}`, summary: '403' });
       return res.status(403).json({ error: 'SUPPORT_FORBIDDEN', message: MESSAGES[reason] });

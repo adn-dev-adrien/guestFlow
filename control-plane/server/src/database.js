@@ -211,6 +211,21 @@ CREATE TABLE IF NOT EXISTS registry_packages (
   withdrawn_at TEXT,
   PRIMARY KEY (id, version)
 );
+CREATE TABLE IF NOT EXISTS customer_plugins (
+  customerId INTEGER NOT NULL REFERENCES customers(id),
+  pluginId TEXT NOT NULL,
+  since TEXT NOT NULL,
+  operator TEXT NOT NULL,
+  PRIMARY KEY (customerId, pluginId)
+);
+CREATE TABLE IF NOT EXISTS customer_erase_orders (
+  orderId TEXT PRIMARY KEY,
+  customerId INTEGER NOT NULL REFERENCES customers(id),
+  pluginId TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  operator TEXT NOT NULL,
+  acknowledgedAt TEXT
+);
 CREATE TABLE IF NOT EXISTS payment_failures (
   providerPaymentId TEXT PRIMARY KEY,
   invoiceId INTEGER NOT NULL REFERENCES invoices(id),
@@ -229,6 +244,9 @@ const ADDED_COLUMNS = {
     billingCountry: "TEXT NOT NULL DEFAULT 'FR'",
     vatNumber: "TEXT NOT NULL DEFAULT ''",
     qontoClientId: 'TEXT',
+    // specs/plugin-operator-provisioning.md rule 25: set once the operator's module choice has been
+    // seeded from what the space runs; until then the customer's licence carries no `activePlugins`.
+    pluginsSeededAt: 'TEXT',
   },
   invoices: {
     months: 'INTEGER',

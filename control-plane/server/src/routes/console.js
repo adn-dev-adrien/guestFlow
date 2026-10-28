@@ -41,6 +41,11 @@ function consoleRoutes(ctx) {
   router.get('/customers/:id/support', (req, res) => res.json(ctx.controllers.support.state(req.params.id)));
   router.post('/customers/:id/support/request', (req, res) => res.json(ctx.controllers.support.request(req.params.id, body(req), who(req))));
   router.post('/customers/:id/support/link', (req, res) => res.json(ctx.controllers.support.link(req.params.id, who(req))));
+  // specs/plugin-operator-provisioning.md rules 10–14 — the customer's modules.
+  router.get('/customers/:id/modules', (req, res) => res.json(ctx.controllers.modules.view(req.params.id)));
+  router.post('/customers/:id/modules/retry', (req, res) => res.json(ctx.controllers.modules.retry(req.params.id, who(req))));
+  router.post('/customers/:id/modules/:pluginId/erase', (req, res) => res.json(ctx.controllers.modules.erase(req.params.id, req.params.pluginId, body(req).confirmSlug, who(req))));
+  router.post('/customers/:id/modules/:pluginId', (req, res) => res.json(ctx.controllers.modules.toggle(req.params.id, req.params.pluginId, body(req).on, who(req))));
   router.get('/customers/:id/licence', (req, res) => {
     const { filename, token } = customers.licenceDownload(req.params.id);
     res.set('Content-Disposition', `attachment; filename="${filename}"`).type('application/jose').send(token);

@@ -17,6 +17,7 @@ const { buildEmailsModel } = require('./models/emailsModel');
 const { buildQontoSettingsModel } = require('./models/qontoSettingsModel');
 const { buildDirectoryModel } = require('./models/directoryModel');
 const { buildHostingModel } = require('./models/hostingModel');
+const { buildCustomerPluginsModel } = require('./models/customerPluginsModel');
 const { createQontoBilling, BILLING_SCOPES } = require('./utils/qontoBilling');
 const { qontoSettingsController } = require('./utils/gf');
 const { createInstances } = require('./utils/instances');
@@ -30,6 +31,7 @@ const { createBillingController } = require('./controllers/billingController');
 const { createTemplatesController } = require('./controllers/templatesController');
 const { createLoginController } = require('./controllers/loginController');
 const { createFleetController } = require('./controllers/fleetController');
+const { createCustomerModulesController } = require('./controllers/customerModulesController');
 const { createDrivers } = require('./utils/drivers');
 const { createReleases } = require('./utils/releases');
 const { createProvisioner } = require('./utils/provisioner');
@@ -63,6 +65,7 @@ function createContext({
     qontoSettings: buildQontoSettingsModel(db, { secrets, publicUrl }),
     directory: buildDirectoryModel(db),
     hosting: buildHostingModel(db),
+    customerPlugins: buildCustomerPluginsModel(db),
   };
   const instances = createInstances({ root: instancesRoot, envsDir: hostingEnv.CP_ENVS_DIR });
   const releasesRoot = releasesDir || path.join(path.dirname(path.resolve(instancesRoot)), 'releases');
@@ -153,6 +156,8 @@ function createContext({
     templates: createTemplatesController(ctx),
     login: createLoginController(ctx, customers),
     fleet: createFleetController(ctx, customers),
+    // specs/plugin-operator-provisioning.md — the modules the operator switches on per customer.
+    modules: createCustomerModulesController(ctx, customers),
     // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
     support: createSupportController(ctx, customers),
     // GuestFlow's own Qonto settings handlers, over the console's settings (rule 32).

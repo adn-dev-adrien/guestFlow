@@ -378,6 +378,8 @@ Decisions taken on 2026-10-06:
     not installed. Any other address, and every other role, keeps « Page introuvable ».
     _2026-10-18: only while the plugin is off, and on the pages of an installed, disabled plugin
     too — see rule 42._
+    _2026-10-28: unmanaged spaces only — on an operator-managed space the address reads « Page
+    introuvable » for every role ([`plugin-operator-provisioning.md`](plugin-operator-provisioning.md) rule 7)._
 
 41. **Settings texts are impersonal and plain** (final display sweep of 2026-10-18, R-3). The
     settings, account and accounting texts lose their « vous / votre / nous » (« Informations sur
@@ -435,6 +437,8 @@ Decisions taken on 2026-10-06:
     without an `answers` object is refused: 400 `ONBOARDING_ANSWERS_REQUIRED`. Under the questions:
     « Le reste se règle plus tard dans Paramètres › Plugins. » The other plugins (Neat, Google Agenda, Sowel, the intakes,
     the export…) are left to the Plugins page.
+    _2026-10-28: unmanaged spaces only — an operator-managed space has no « Plugins » step and no
+    « Plugins : … » link ([`plugin-operator-provisioning.md`](plugin-operator-provisioning.md) rule 8)._
 
 44. **On a phone the assistant's primary action sits at the bottom, under the thumb** (integrated review
     of inte/plugins, 2026-10-19, L4 — the SAS rule of UI/UX review 2026-10-18, decision 5, now a

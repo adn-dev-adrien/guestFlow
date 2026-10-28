@@ -96,6 +96,7 @@ function createController(model = defaultModel, deps = {}) {
   const coreVersion = deps.coreVersion || (() => require('../utils/appVersion').getAppVersion());
   const sdkVersion = deps.sdkVersion || require('../plugins/sdk/version').SDK_VERSION;
   const now = deps.now || (() => new Date());
+  const operatorManaged = deps.operatorManaged || (() => require('../utils/pluginGovernance').isOperatorManaged());
 
   const packages = () => host().mode() === 'packages';
   const env = () => ({ coreVersion: coreVersion(), sdkVersion, hostExports: host().hostExports() });
@@ -222,7 +223,7 @@ function createController(model = defaultModel, deps = {}) {
         missing = null;
       }
     }
-    if (missing && path) return { needed: true, label: `Actif · ${missing}`, path, action: 'Configurer' };
+    if (missing && path) return { needed: true, label: `Actif · ${missing}`, missing, path, action: 'Configurer' };
     return { needed: false, label: 'Actif', path, action: path ? 'Réglages' : null };
   }
 
@@ -428,6 +429,10 @@ function createController(model = defaultModel, deps = {}) {
     // A version other than the one still loaded needs a restart (rule 13): refused up front without a
     // supervisor, like an update.
     const needsRestart = steps.some((st) => state.loaded[st.id] && state.loaded[st.id] !== st.candidate.version);
+    // The reconciliation never restarts the process (specs/plugin-operator-provisioning.md rule 17).
+    if (needsRestart && req.noRestart) {
+      return res.status(409).json({ error: 'RESTART_REQUIRED', message: 'Redémarrage nécessaire — passer par Versions › Plugins.' });
+    }
     if (needsRestart && !state.restart.supervised) {
       return res.status(412).json({ error: 'RESTART_UNAVAILABLE', message: MESSAGES.RESTART_UNAVAILABLE });
     }
@@ -480,8 +485,11 @@ function createController(model = defaultModel, deps = {}) {
 
   // specs/plugins-phase-4-registry.md rule 12 — a plugin another installed plugin requires stays
   // installed; rule 36 — and stays active while an ACTIVE plugin requires it.
-  function refuseIfRequiredBy(entry, res, { activeOnly = false } = {}) {
-    const others = model.list().filter((r) => r.id !== entry.id && (!activeOnly || r.enabled));
+  // The reconciliation (`req.reconciling`) ignores the dependants the licence does not allow: they sit
+  // out of the plan with their state kept (rule 21), and the operator cannot act on them.
+  function refuseIfRequiredBy(entry, res, { activeOnly = false, reconciling = false } = {}) {
+    const others = model.list().filter((r) => r.id !== entry.id && (!activeOnly || r.enabled)
+      && (!reconciling || licence().allowsPlugin(r.id)));
     const dependents = dependentsOf(entry.id, Object.fromEntries(others.map((r) => [r.id, r.manifest || findPlugin(r.id)])));
     if (!dependents.length) return false;
     const names = dependents.map((m) => m.name || nameOf(m.id)).join(', ');
@@ -517,9 +525,15 @@ function createController(model = defaultModel, deps = {}) {
   }
 
   return {
-    // GET /api/plugins
+    // GET /api/plugins — on an operator-managed space only what a feature needs: the live plugins,
+    // each as { id, name, icon, setup } (specs/plugin-operator-provisioning.md rule 5).
     list(req, res) {
-      return res.json(PLUGIN_CATALOG.map(view));
+      if (!operatorManaged()) return res.json(PLUGIN_CATALOG.map(view));
+      const live = PLUGIN_CATALOG.filter((entry) => {
+        const row = model.get(entry.id);
+        return Boolean(row && row.enabled && reg.isLive(entry.id));
+      });
+      return res.json(live.map(view).map(({ id, name, icon, setup }) => ({ id, name, icon, setup })));
     },
 
     /** The same views, for the core's own readers (the Paramètres summary, rule 25). */
@@ -654,7 +668,7 @@ function createController(model = defaultModel, deps = {}) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
-      if (refuseIfRequiredBy(entry, res, { activeOnly: true })) return undefined;
+      if (refuseIfRequiredBy(entry, res, { activeOnly: true, reconciling: Boolean(req.reconciling) })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       model.setEnabled(entry.id, false);
       return res.json(view(entry));
@@ -668,7 +682,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       const wantsPurge = req.query && (req.query.purge === '1' || req.query.purge === 'true');
       if (wantsPurge && !erasable(entry.id)) return res.status(409).json({ error: 'NOT_ERASABLE' });
-      if (refuseIfRequiredBy(entry, res)) return undefined;
+      if (refuseIfRequiredBy(entry, res, { reconciling: Boolean(req.reconciling) })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       if (wantsPurge) {
         try {

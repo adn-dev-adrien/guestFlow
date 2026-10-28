@@ -55,7 +55,7 @@ test('rule 25: « Actif · à connecter » + « Configurer » while the plugin l
   const ctrl = controllerWith({ 'google-calendar': { enabled: 1 } }, records);
   let card = ctrl.views().find((p) => p.id === 'google-calendar');
   assert.deepEqual(card.setup, {
-    needed: true, label: 'Actif · à connecter', path: '/settings/integrations?tab=google-calendar', action: 'Configurer',
+    needed: true, label: 'Actif · à connecter', missing: 'à connecter', path: '/settings/integrations?tab=google-calendar', action: 'Configurer',
   });
   connected = true;
   card = ctrl.views().find((p) => p.id === 'google-calendar');

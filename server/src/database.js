@@ -2573,9 +2573,10 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 
 // ---------- PLUGINS — specs/plugins-phase-0-foundation.md §5 ----------
 {
-  const { ensurePluginsTable, seedBuiltinPlugins, ensurePluginSettingsTable, copyAppSettingsToPlugins, resyncAfterRollback } = require('./utils/pluginsSchema');
+  const { ensurePluginsTable, seedBuiltinPlugins, ensurePluginSettingsTable, ensureProvisioningTables, copyAppSettingsToPlugins, resyncAfterRollback } = require('./utils/pluginsSchema');
   ensurePluginsTable(db);
   ensurePluginSettingsTable(db);
+  ensureProvisioningTables(db);
   if (process.env.SKIP_MIGRATIONS !== 'true') {
     seedBuiltinPlugins(db);
     // specs/plugins-phase-1-sdk.md §5 — the moved plugins read their settings from plugin_settings.

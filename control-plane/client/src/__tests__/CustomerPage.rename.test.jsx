@@ -6,7 +6,7 @@ import CustomerPage from '../pages/CustomerPage';
 import api from '../api';
 import { renderAt, setWidth, customerFixture } from './consoleFixtures';
 
-vi.mock('../api', () => ({ default: { customer: vi.fn(), renamePreview: vi.fn(), rename: vi.fn(), licenceUrl: (id) => `/api/customers/${id}/licence` } }));
+vi.mock('../api', () => ({ default: { customerModules: () => new Promise(() => {}), customer: vi.fn(), renamePreview: vi.fn(), rename: vi.fn(), licenceUrl: (id) => `/api/customers/${id}/licence` } }));
 
 const CHECKLIST = [{ key: 'wordpress', label: 'Réglage du plugin WordPress' }, { key: 'ical', label: 'Flux iCal' }];
 
