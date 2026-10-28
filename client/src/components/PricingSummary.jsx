@@ -130,6 +130,11 @@ function getLineSplit(line, totalPrice) {
  *   onToggleCustomOptionInComplement(customKey, next)
  *   onToggleResourceInComplement(resourceId, next)
  *   onToggleTouristTaxInComplement(next)
+ *   mode                           'live' (default) | 'stored' — the quote is then the server's `storedSummary`
+ *                                  (specs/reservation-payment-ledger.md rules 50-52): the same sections,
+ *                                  labels and rows, with every per-line control left out, since a value
+ *                                  shown as stored is never edited in place
+ *   topNotice                      node rendered above « Prix hébergement » (the platform price alert)
  */
 export default function PricingSummary({
   quote,
@@ -158,9 +163,12 @@ export default function PricingSummary({
   // refresh button next to the label to force a live recompute.
   isTouristTaxFrozen = false,
   onRefreshTouristTax,
+  mode = 'live',
+  topNotice = null,
 }) {
+  const stored = mode === 'stored';
   const lockChip = (chip) => {
-    if (!routingLocked) return chip;
+    if (!routingLocked && !stored) return chip;
     return chip === 'on' ? 'readonly' : (chip === 'off' ? null : chip);
   };
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
@@ -267,6 +275,8 @@ export default function PricingSummary({
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
           {selectedProperty?.label || selectedProperty?.name || 'Logement non sélectionné'}
         </Typography>
+
+        {topNotice}
 
         <Stack spacing={1.5}>
           {/* Prix hébergement */}
@@ -456,7 +466,7 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine(isCustom ? 'custom' : 'option', so);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen });
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
                 const renderRowRaw = ({ label, amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -498,6 +508,11 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {stored && isOffered && (
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>
+                          {isIncludedInRate ? 'Comprise' : '✓ Offert'}
+                        </Typography>
+                      )}
                       {withOfferedToggle && (
                         <Button
                           size="small"
@@ -605,7 +620,7 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine('resource', sr);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen });
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
                 const renderRowRaw = ({ amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -630,6 +645,9 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {stored && isOffered && (
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>✓ Offert</Typography>
+                      )}
                       {withOfferedToggle && (
                         <Button
                           size="small"
@@ -687,7 +705,7 @@ export default function PricingSummary({
                     {/* specs/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax the
                         guest has paid, or one already declared, is frozen; this button forces a live
                         recompute (then Save persists it). */}
-                    {isTouristTaxFrozen && onRefreshTouristTax && (
+                    {!stored && isTouristTaxFrozen && onRefreshTouristTax && (
                       <Tooltip title="Recalculer la taxe de séjour (figée — déjà encaissée ou déclarée)">
                         <IconButton size="small" onClick={onRefreshTouristTax} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
                           <RefreshIcon sx={{ fontSize: 16 }} />
@@ -703,7 +721,9 @@ export default function PricingSummary({
                           - otherwise (direct or platform-collect): the chip is clickable,
                             mirrors the Switch in FinanceSection.
                         Hidden when the tax is offered (no money to route). */}
-                    {!isTouristTaxOffered && Number(touristTaxTotal) > 0 && (
+                    {!isTouristTaxOffered && Number(touristTaxTotal) > 0 && (stored ? (
+                      (isTouristTaxCollectedOnArrival || quote?.touristTaxInComplement) && <ComplementChip active readOnly />
+                    ) : (
                       isTouristTaxCollectedOnArrival ? (
                         <ComplementChip active readOnly />
                       ) : (
@@ -712,7 +732,7 @@ export default function PricingSummary({
                           onClick={onToggleTouristTaxInComplement}
                         />
                       )
-                    )}
+                    ))}
                     {/* Case 2 — the platform collects + remits the tax to the commune. NOT « offert »
                         (it isn't free) : a short « Plateforme » tag says it's handled platform-side. */}
                     {isTouristTaxOffered && (
@@ -724,16 +744,18 @@ export default function PricingSummary({
                       />
                     )}
                   </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant="text"
-                      onClick={() => setShowTouristTaxDetail((prev) => !prev)}
-                      sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12, ...touchHitArea }}
-                    >
-                      {showTouristTaxDetail ? 'Masquer détail' : 'Afficher détail'}
-                    </Button>
-                  </Box>
+                  {!stored && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setShowTouristTaxDetail((prev) => !prev)}
+                        sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12, ...touchHitArea }}
+                      >
+                        {showTouristTaxDetail ? 'Masquer détail' : 'Afficher détail'}
+                      </Button>
+                    </Box>
+                  )}
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {/* Case 2 (platform collects AND remits to the commune): struck through, beside the

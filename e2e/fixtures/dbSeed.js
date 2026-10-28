@@ -126,6 +126,17 @@ function setReservationAmounts(reservationId, fields) {
   });
 }
 
+// specs/reservation-payment-ledger.md §3.8 — a property with one season (so the « Prix plateformes » grid
+// has a cell) and a commissioned platform: the grid then lists the night at ceil(price / (1 − c)).
+function seedPlatformChannel({ propertyId, platform, commissionPercent, pricePerNight }) {
+  return withDb((db) => {
+    db.prepare('INSERT INTO platforms (name, commissionPercent) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET commissionPercent = excluded.commissionPercent')
+      .run(platform, commissionPercent);
+    db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight, minNights) VALUES (?, 'Standard', ?, 1)")
+      .run(propertyId, pricePerNight);
+  });
+}
+
 function setReservationDates(reservationId, startDate, endDate) {
   return withDb((db) => {
     db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?')
@@ -240,6 +251,7 @@ function setPlatformPayout(reservationId, amount) {
 module.exports = {
   enablePropertyDeposit,
   setReservationAmounts,
+  seedPlatformChannel,
   setCompanySetting,
   seedCateringOptions,
   setPublicUrl,
