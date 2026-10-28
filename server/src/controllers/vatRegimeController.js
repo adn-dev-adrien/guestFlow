@@ -50,7 +50,7 @@ function remove(req, res) {
     });
   }
   if (result.error) return res.status(409).json({ error: result.error });
-  return res.status(204).end();
+  return res.json({ ok: true, notRepriced: result.notRepriced || [] });
 }
 
 module.exports = { getState, preview, makeSwitch, remove };

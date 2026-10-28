@@ -52,7 +52,7 @@ test('rule 26: the unstarted period is deletable although reservations moved, an
   const moved = db.prepare('SELECT id FROM reservations WHERE vatPeriodId = ? ORDER BY id').all(state.periods[0].id).map((r) => r.id);
   assert.ok(moved.includes(105));
   const res = call(controller.remove, { params: { id: state.periods[0].id } });
-  assert.equal(res.statusCode, 204);
+  assert.equal(res.statusCode, 200);
   moved.forEach((id) => assert.equal(periodOf(id), 1, `reservation ${id} is back`));
   assert.equal(vatRegimeModel.listPeriods(db).length, 1);
 });
@@ -62,10 +62,10 @@ test('rule 26: each reservation returns to the period it had BEFORE, not to the 
   const before105 = periodOf(105);
   const second = send({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-12-01' });
   assert.notEqual(periodOf(105), before105);
-  assert.equal(call(controller.remove, { params: { id: second.body.period.id } }).statusCode, 204);
+  assert.equal(call(controller.remove, { params: { id: second.body.period.id } }).statusCode, 200);
   assert.equal(periodOf(105), before105, 'back on the 12 % period, not on period 1');
   const first = vatRegimeModel.listPeriods(db)[1];
-  assert.equal(call(controller.remove, { params: { id: first.id } }).statusCode, 204);
+  assert.equal(call(controller.remove, { params: { id: first.id } }).statusCode, 200);
   assert.equal(periodOf(105), 1);
 });
 
@@ -74,7 +74,7 @@ test('rule 26: a reservation born under the unstarted period falls to the period
   db.prepare("INSERT INTO reservations (kind, clientId, propertyId, startDate, endDate, finalPrice) VALUES ('reservation', 1, 1, '2028-01-10', '2028-01-12', 100)").run();
   const born = db.prepare('SELECT id, vatPeriodId FROM reservations ORDER BY id DESC LIMIT 1').get();
   assert.equal(born.vatPeriodId, made.id);
-  assert.equal(call(controller.remove, { params: { id: made.id } }).statusCode, 204);
+  assert.equal(call(controller.remove, { params: { id: made.id } }).statusCode, 200);
   assert.equal(periodOf(born.id), 1);
 });
 
@@ -84,7 +84,7 @@ test('rule 26: the history says the change was cancelled, and the refund lines f
   const made = send(FUTURE);
   assert.equal(made.statusCode, 201);
   assert.equal(db.prepare('SELECT vatRate FROM reservation_refund_lines WHERE refundId = ?').get(refund).vatRate, 0);
-  assert.equal(call(controller.remove, { params: { id: made.body.period.id } }).statusCode, 204);
+  assert.equal(call(controller.remove, { params: { id: made.body.period.id } }).statusCode, 200);
   assert.equal(db.prepare('SELECT vatRate FROM reservation_refund_lines WHERE refundId = ?').get(refund).vatRate, 10);
   const entry = JSON.parse(db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = 105 AND changedFields LIKE '%changement annulé%'").get().changedFields)[0];
   assert.equal(entry.toText.replace(/ du .*/, ''), 'Assujetti 10 % (changement annulé');

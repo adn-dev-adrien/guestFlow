@@ -3,6 +3,7 @@
  * (period in force, history, mentions), and the three calls a switch needs. The server decides everything
  * (validation, preview, effects); this hook only carries the calls.
  *
+ * deletePeriod(id) → { state, notRepriced } — the stays the undo left on their stored tax.
  * Returns: { state, loading, error, reload, notSubject, preview(input), switchRegime(input), deletePeriod(id) }
  *   notSubject — the regime in force is « Sans TVA » (false while loading or when the role cannot read it)
  */
@@ -37,8 +38,8 @@ export default function useVatRegime() {
   }, [reload]);
 
   const deletePeriod = useCallback(async (id) => {
-    await api.deleteVatPeriod(id);
-    return reload();
+    const result = await api.deleteVatPeriod(id);
+    return { state: await reload(), notRepriced: (result && result.notRepriced) || [] };
   }, [reload]);
 
   const notSubject = Boolean(state && state.inForce && state.inForce.regime === 'not_subject');

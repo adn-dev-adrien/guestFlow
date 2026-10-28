@@ -205,7 +205,7 @@ test('rule 26: undo is refused (409, with the stays) once a re-priced stay was p
   db.prepare("UPDATE reservations SET balancePaid = 0, balancePaidDate = NULL, touristTaxDeclaredAt = '2027-10-22 10:00:00' WHERE id = 110").run();
   assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 409, 'a declared tax too');
   db.prepare('UPDATE reservations SET touristTaxDeclaredAt = NULL WHERE id = 110').run();
-  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 204, 'and again possible once nothing is settled');
+  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 200, 'and again possible once nothing is settled');
 });
 
 test('rule 26: a stay born under the unstarted period is re-priced back by the same targeted write', () => {
@@ -218,7 +218,7 @@ test('rule 26: a stay born under the unstarted period is re-priced back by the s
   db.prepare('UPDATE reservations SET totalPrice = ?, finalPrice = ?, depositAmount = ?, balanceAmount = ?, touristTaxRate = ?, touristTaxTotal = ? WHERE id = 111')
     .run(q.totalPrice, q.finalPrice, q.depositAmount, q.balanceAmount, q.touristTaxRate, q.touristTaxTotal);
   const born = snapshot().reservations[111];
-  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 204);
+  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 200);
   assert.equal(row(111).vatPeriodId, 1);
   const moved = Object.keys(row(111)).filter((c) => JSON.stringify(row(111)[c]) !== JSON.stringify(born[c]));
   assert.deepEqual(moved.filter((c) => !ALLOWED.has(c)), []);
@@ -239,7 +239,7 @@ test('rule 26: undoing a change that has not started restores exactly what it re
   assert.ok(diff(before, during)[110].includes('touristTaxTotal'));
   // A stay the switch skipped keeps whatever it holds, undo or not.
   const skippedAfterSwitch = JSON.stringify(row(105));
-  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 204);
+  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 200);
   const after = snapshot();
   const moved = diff(before, after);
   for (const [id, columns] of Object.entries(moved)) assert.deepEqual(columns.filter((c) => c !== 'updatedAt'), [], `stay ${id} is identical to before the switch, but updatedAt`);
@@ -256,4 +256,24 @@ test('rule 26: a stay edited after the switch keeps its edit; only the switch\'s
   db.prepare('UPDATE reservations SET touristTaxTotal = touristTaxTotal + 1 WHERE id = 110').run();
   call(controller.remove, null, { id: made.body.period.id });
   assert.equal(Math.round(Number(row(110).touristTaxTotal) * 100), Math.round((beforeSwitch + 1) * 100));
+});
+
+test('rule 26: a balance paid BEFORE the switch, on a tax that rides the complement, does not block the undo', () => {
+  db.prepare("UPDATE reservations SET touristTaxInComplement = 1, balancePaid = 1, balancePaidDate = '2027-10-01' WHERE id = 110").run();
+  const made = call(controller.makeSwitch, { ...FUTURE, fingerprint: call(controller.preview, FUTURE).body.fingerprint, acknowledged: true });
+  const stored = JSON.parse(db.prepare('SELECT repriced FROM vat_periods WHERE id = ?').get(made.body.period.id).repriced || '{}');
+  if (stored[110]) assert.ok(!('balanceAmount' in stored[110].after), 'the balance was not the re-priced bucket');
+  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 200, 'no false refusal');
+  db.prepare('UPDATE reservations SET touristTaxInComplement = 0, balancePaid = 0, balancePaidDate = NULL WHERE id = 110').run();
+});
+
+test('rule 26: the undo answers 200 with the born stays it left alone — a frozen one included', () => {
+  const made = call(controller.makeSwitch, { ...FUTURE, fingerprint: call(controller.preview, FUTURE).body.fingerprint, acknowledged: true });
+  db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, adults, children, babies, doubleBeds, singleBeds, platform,
+      createdAt, finalPrice, reservationNumber, checkInTime, checkOutTime, touristTaxDeclaredAt)
+    VALUES (112, 'reservation', 1, 2, '2027-12-20', '2027-12-24', 2, 0, 0, 1, 0, 'direct', '2027-10-20 10:00:00', 1, 'GF-2027-112', '16:00', '10:00', '2027-12-25 10:00:00')`).run();
+  const res = call(controller.remove, null, { id: made.body.period.id });
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.body.notRepriced.includes(112), 'a declared (frozen) born stay is reported');
+  assert.equal(row(112).vatPeriodId, 1);
 });

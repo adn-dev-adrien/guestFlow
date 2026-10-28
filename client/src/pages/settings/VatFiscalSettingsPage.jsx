@@ -85,8 +85,11 @@ export default function VatFiscalSettingsPage() {
           const period = undoing;
           setUndoing(null);
           try {
-            adoptRegime(await vat.deletePeriod(period.id));
-            showSuccess('Changement annulé.');
+            const undone = await vat.deletePeriod(period.id);
+            adoptRegime(undone.state);
+            const n = undone.notRepriced.length;
+            if (n) showError(n === 1 ? 'Changement annulé. 1 séjour garde sa taxe de séjour enregistrée.' : `Changement annulé. ${n} séjours gardent leur taxe de séjour enregistrée.`);
+            else showSuccess('Changement annulé.');
           } catch (err) {
             showError((err && err.message) || 'Annulation impossible.');
           }

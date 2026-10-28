@@ -181,8 +181,8 @@ test('rule 18: the latest period, unused, can be undone; a used one, the initial
   const used = send({ regime: 'subject', rate: 5, basis: 'arrival', effectiveFrom: '2028-04-01' });
   assert.equal(call(controller.remove, { params: { id: future.id } }).body.error, 'not_latest');
   assert.equal(call(controller.remove, { params: { id: 1 } }).body.error, 'initial_period');
-  assert.equal(call(controller.remove, { params: { id: used.body.period.id } }).statusCode, 204);
-  assert.equal(call(controller.remove, { params: { id: future.id } }).statusCode, 204);
+  assert.equal(call(controller.remove, { params: { id: used.body.period.id } }).statusCode, 200);
+  assert.equal(call(controller.remove, { params: { id: future.id } }).statusCode, 200);
   assert.equal(periods().length, 1);
   assert.equal(call(controller.remove, { params: { id: 999 } }).statusCode, 404);
 });
@@ -199,7 +199,7 @@ test('rule 18: undoing a period hands its devis back to the previous one', () =>
   reset();
   const future = send({ regime: 'not_subject', basis: 'booking', effectiveFrom: '2028-03-01' }).body.period;
   db.prepare("UPDATE reservations SET vatPeriodId = ? WHERE id = 201").run(future.id);
-  assert.equal(call(controller.remove, { params: { id: future.id } }).statusCode, 204);
+  assert.equal(call(controller.remove, { params: { id: future.id } }).statusCode, 200);
   assert.equal(periodOf(201), 1);
 });
 

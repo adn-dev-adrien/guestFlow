@@ -147,3 +147,12 @@ test('rule 33: a null or blank rate on the switch is refused, only an ABSENT one
   for (const bad of [null, '', ' ']) assert.equal(rules.validateSwitch({ regime: 'subject', rate: bad, basis: 'all' }, periods).errors.rate, 'Taux entre 0 et 100', JSON.stringify(bad));
   assert.deepEqual(rules.validateSwitch({ regime: 'subject', basis: 'all' }, periods).errors, {});
 });
+
+test('rule 33: under « Sans TVA » the page\'s echo of a blank rate says nothing: ignored, no « Taux requis. »', async () => {
+  const { updateSettings } = require('../controllers/settingsController');
+  db.prepare("INSERT INTO vat_periods (regime, rate, legalMention, basis) VALUES ('not_subject', 0, 'art_293_b', 'all')").run();
+  const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  await updateSettings({ body: { vat: { rate: '' } }, user: { id: 1 } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.vat.regime, 'not_subject');
+});

@@ -65,9 +65,14 @@ function readVatGroup(vat, errors) {
   if (Object.prototype.hasOwnProperty.call(vat, 'rate')) {
     // Rule 33 — a blank or null rate is refused, never turned into 10 % behind the operator's back.
     const blank = vat.rate == null || String(vat.rate).trim() === '';
-    const err = blank ? 'Taux requis.' : validation.validateVatRate(vat.rate);
-    if (err) errors.vatRate = err;
-    else change.rate = vatRegime.parseRate(vat.rate);
+    const current = vatRegimeModel.inForce(db);
+    if (blank && current && current.regime === vatRegime.REGIMES.NOT_SUBJECT) {
+      // « Sans TVA »: there is no rate to edit, the page's echo of a blank one says nothing.
+    } else {
+      const err = blank ? 'Taux requis.' : validation.validateVatRate(vat.rate);
+      if (err) errors.vatRate = err;
+      else change.rate = vatRegime.parseRate(vat.rate);
+    }
   }
   const mention = vat.legalMention;
   if (mention != null && mention !== '') {

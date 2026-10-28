@@ -419,9 +419,15 @@ function deletePeriod(db, id, { today = todayIso() } = {}) {
 
   // Rule 26 — a re-priced stay that was paid or declared since cannot be taken back: the books and the
   // tourist-tax return would disagree with the money. The way back is a new switch.
+  // Only the bucket the switch RE-PRICED counts: a balance paid before the switch, on a stay whose tax rode on
+  // the complement, takes nothing from the undo.
   const settled = Object.keys(repricedBy).map(Number).map((stayId) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(stayId))
-    .filter((row) => row && row.vatPeriodId === target.id
-      && (isTouristTaxFrozen(db, row) || Number(row.balancePaid || 0) === 1 || Number(row.complementPaid || 0) === 1));
+    .filter((row) => row && row.vatPeriodId === target.id && (() => {
+      const after = repricedBy[row.id].after || {};
+      return isTouristTaxFrozen(db, row)
+        || ('balanceAmount' in after && Number(row.balancePaid || 0) === 1)
+        || ('complementAmount' in after && Number(row.complementPaid || 0) === 1);
+    })());
   if (settled.length) {
     return { error: 'stay_settled', stays: settled.map((row) => row.reservationNumber || String(row.id)) };
   }
@@ -473,7 +479,9 @@ function deletePeriod(db, id, { today = todayIso() } = {}) {
       plans.push({ id, ok: true, before, after });
     }
     const born = bornRows.map((row) => planReprice(db, row, bornBefore.get(row.id)));
-    notRepriced.push(...born.filter((plan) => !plan.ok).map((plan) => plan.id));
+    // Every stay born under the period that keeps the tax it holds is reported: refused by the write, or frozen.
+    const accepted = new Set(born.filter((plan) => plan.ok).map((plan) => plan.id));
+    notRepriced.push(...rows.filter((r) => movedFrom[r.id] == null && r.kind === 'reservation' && proportionalTax(db, r) && !accepted.has(r.id)).map((r) => r.id));
     plans.push(...born.filter((plan) => plan.ok));
     retired = retireLinks(db, linksOutOfDate(db, plans));
     plans.forEach((plan) => writePlan(db, plan));
