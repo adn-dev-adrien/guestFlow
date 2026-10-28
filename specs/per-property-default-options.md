@@ -139,7 +139,7 @@ until the operator sets a default; all writes are idempotent upserts/deletes on 
   full-width inputs; ≥44px toggles.
 - **PageActionBar:** N/A (content inside existing pages/forms).
 
-> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Draft).** The Inclus / Offert switches move into the same per-property table as the scope and the price (editor panel, « Logements et prix »); on `xs` the table stacks one block per property instead of scrolling. The list shows « Offert · <logements> » / « Inclus · <logements> » traits. Rules unchanged.
+> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The Inclus / Offert switches move into the same per-property table as the scope and the price (editor panel, « Logements et prix »); on `xs` the table stacks one block per property instead of scrolling. The list shows « Offert · <logements> » / « Inclus · <logements> » traits. Rules unchanged.
 
 ## 7. Test plan
 

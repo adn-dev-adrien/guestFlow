@@ -66,6 +66,14 @@ test('rule 18: a per-property price gets its own line, and the base price disapp
   assert.equal(lineOf(every, 'Granja'), '40 € / h');
 });
 
+test('rule 18: a property line that only repeats the base price (a free hour, say) is not a price of its own', () => {
+  const [item] = buildResourceItems([
+    resource({ priceType: 'per_hour', price: 30, basePrice: 30, propertyPricing: { 1: { price: 30, freeMinutes: 60 }, 2: { price: 30, freeMinutes: 60 } } }),
+  ], PROPS);
+  assert.equal(lineOf(item, 'Prix'), '30 € / h');
+  assert.equal(lineOf(item, 'Granja'), undefined);
+});
+
 test('rule 18: only the baby bed is not deletable', () => {
   const [bed, bath] = buildResourceItems([resource({ name: 'Lit bébé' }), resource({ id: 2, name: 'Bain nordique' })], PROPS);
   assert.equal(bed.deletable, false);

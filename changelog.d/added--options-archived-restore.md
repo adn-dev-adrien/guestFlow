@@ -1,0 +1,1 @@
+- **Restore an archived option** (spec `options-resources-ux.md` rules 26-27). A folded « Archivées » section at the bottom of the options list shows what was archived, with « Restaurer » (`POST /api/options/:id/restore`); the per-property defaults the archive dropped are not brought back.

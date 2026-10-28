@@ -29,11 +29,12 @@ function priceLines(resource, properties) {
   if (resource.priceType === 'free') return [{ label: 'Prix', value: 'Gratuit' }];
   const selling = sellingProperties(resource, properties);
   const overrides = resource.propertyPricing || {};
-  const hasOverride = (p) => Boolean(overrides[String(p.id)]);
+  const base = Number(resource.basePrice ?? resource.price ?? 0);
+  const hasOverride = (p) => Boolean(overrides[String(p.id)]) && Number(overrides[String(p.id)].price) !== base;
   const overriding = selling.filter(hasOverride);
   const lines = [];
   if (overriding.length < selling.length || selling.length === 0) {
-    lines.push({ label: 'Prix', value: priceLabel(resource, resource.basePrice ?? resource.price) });
+    lines.push({ label: 'Prix', value: priceLabel(resource, base) });
   }
   overriding.forEach((p) => {
     lines.push({ label: p.name, value: priceLabel(resource, overrides[String(p.id)].price) });

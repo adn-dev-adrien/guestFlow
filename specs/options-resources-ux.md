@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved _(2026-10-28)_ |
+| **Status** | Implemented _(2026-10-28)_ |
 | **Branch** | `feature/options-resources-ux` _(user-managed)_ |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -237,11 +237,12 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
 | `controllers/` | `resourcesController.js` | T | `catalogueView`; 422 validation of rule 21. |
 | `models/` | `optionsModel.js` | T | `persistPropertyPrices` no longer skips invalid values silently (validated upstream); scope clean-up of overrides / defaults / bath mats on save (rule 15); `listArchived()`, `restore(id)`; `scopePayload` (`utils/optionPayloadScope.js`). |
 | `models/` | `resourcesModel.js` | — | Read as today. |
-| `utils/` | `optionCatalogueView.js` | C | Pure: `(options, properties, { propertyId, insuranceOffered }) → { groups, chips, total }` — price summary (rule 3), traits (rule 5), archivability (rule 6). |
+| `utils/` | `optionCatalogueView.js` | C | Pure: `(options, properties, { propertyId, insuranceDynamic }) → { groups, chips, total }` — price summary (rule 3), traits (rule 5), archivability (rule 6); `buildArchivedItems` (rule 26). |
+| `utils/` | `catalogueFormat.js`, `optionValidation.js`, `optionPayloadScope.js`, `resourceCatalogueContributors.js` | C | French amounts / durations / property phrases; rule-16 validation; rule-15 payload clean-up; the live plugins' resource-card builders. |
 | `utils/` | `resourceCatalogueView.js` | C | Pure: `(resources, properties, contributors) → items` (rules 18-19). |
 | `utils/` | `optionArchiveGuard.js` | C | One function shared by `optionsModel.remove` and the view: `archiveBlockedReason(option)`. |
-| `plugins/sdk/` | `createContext.js`, `registry.js` | T | Inert brick `resourceCatalogueLines(build)` + registry accessor. |
-| `plugins/hourly-resources/` | `index.js`, `catalogueLines.js` (C) | T/C | Contributes the hourly lines and footer of rule 19. |
+| `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | Inert brick `resourceCatalogueLines(build)` (SDK 2.8.0); the record holds the builder, `resourceCatalogueContributors()` lists the live ones. |
+| `plugins/hourly-resources/` | `index.js`, `catalogueLines.js` (C), `manifest.json` | T/C | Contributes the hourly lines and footer of rule 19 (plugin 1.3.0, SDK ^2.8.0). Its own small formatters: a plugin never imports the core outside the SDK. |
 | `middleware/` | — | — | (none — existing auth/admin guard) |
 | `scheduledTasks.js` | — | — | (none) |
 | `database.js` | — | — | (none) |
@@ -250,20 +251,22 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `OptionsResourcesPage.jsx` | T | One fixed title; passes the « Nouvelle … » action per tab. |
-| `pages/` | `OptionsPage.jsx` | T (rewrite) | Toolbar + grouped list (A) or grid (B) from `catalogue-view`; opens `OptionEditorPanel`. |
-| `pages/` | `ResourcesPage.jsx` | T (rewrite) | Cards from `resources/catalogue-view`; opens `ResourceEditorPanel`. |
-| `pages/options/` | `OptionEditorPanel.jsx` (C), `OptionPropertyTable.jsx` (C) | C | The option form split into the sections of rule 13; the per-property table of rule 14. Existing sub-forms (`BreakfastTimeField`, `PlanningCardSection`, linen blocks, `ProgressivePricingFields`, `CategoryField`) move here unchanged. |
-| `pages/options/` | `ResourceEditorPanel.jsx` (C) | C | Resource form in sections; mounts the `resources.fields` slot as « Horaires ». |
+| `pages/` | `OptionsResourcesPage.jsx` | T | Tabs handed to the active child, which renders the bar (title « Options & ressources » and the « Nouvelle … » action). |
+| `pages/` | `OptionsPage.jsx` | T (rewrite) | Toolbar (search, property filter, category chips) + grouped list + « Archivées » from `catalogue-view`; opens `OptionEditorPanel`; archive / restore. |
+| `pages/` | `ResourcesPage.jsx` | T (rewrite) | Cards from `resources/catalogue-view`; opens `ResourceEditorPanel`; delete with impact. |
+| `pages/options/` | `OptionEditorPanel.jsx`, `OptionPropertyTable.jsx`, `CategoryField.jsx`, `OptionRow.jsx`, `ArchivedRow.jsx`, `optionForm.js` (C) | C | The option form split into the sections of rule 13; the per-property table of rule 14; the row; the form model and its inline checks. |
+| `pages/options/` | `OptionSpecialSections.jsx` (C) | C | The former sub-forms (`BreakfastTimeField`, `PlanningCardSection`, linen blocks, bath mats, `ProgressivePricingFields`) moved unchanged. |
+| `pages/options/` | `ResourceEditorPanel.jsx`, `resourceForm.js` (C) | C | Resource form in sections; mounts the `resources.fields` slot as « Horaires ». `toResourcePayload` moved to `resourceForm.js`. |
 | `components/` | `SidePanel.jsx` | C | Generic (see below). |
 | `components/` | `GroupedList.jsx` | C | Generic (see below). |
 | `components/` | `SearchField.jsx` | C | Generic (see below). |
+| `components/` | `RowActionsMenu.jsx` | T | Items gain `disabled` and `hint` (the reason under a disabled item). |
 | `components/` | `PricedItemsPage.jsx` | Removed | No consumer left (only Options and Resources used it). |
 | `hooks/` | `useCollapsedGroups.js` | C | Folded sections per browser (`localStorage`, try/catch). |
-| `services/` / `api.js` | `api.js` | T | `getOptionsCatalogueView(propertyId?)`, `getResourcesCatalogueView()`, `setOptionPropertyPrice(...)` (B). `getCatalogueOptions` kept for the editor's suggestions only if still needed. |
-| `constants/` | `optionsResourcesTexts.js` | C | French strings of rules 10, 11, 16, 17, 22. |
+| `services/` / `api.js` | `api.js` | T | `getOptionsCatalogueView(propertyId?)`, `getOption(id)`, `restoreOption(id)`, `getResourcesCatalogueView()`, `getResource(id)`; `getCatalogueOptions` removed (the editor's suggestions are the chips). |
+| `constants/` | `optionsResourcesTexts.js` | C | French strings of rules 10, 11, 16, 17, 22, 26, 27. |
 | `App.jsx` | `App.jsx` | T | `/options` and `/resources` redirect (rule 1). |
-| `plugins/hourly-resources/` | `HourlyResourceFields.jsx` | T | Laid out as a two-column grid inside the « Horaires » section; fields unchanged. |
+| `plugins/hourly-resources/` | `HourlyResourceFields.jsx` | — | Unchanged: its paired fields already sit side by side from `sm`, which fits the panel. |
 
 **Component reuse declaration:**
 
@@ -277,25 +280,25 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/options/catalogue-view` | `?propertyId=` optional | `{ total, chips: [{ key, label, count }], groups: [{ key, label, count, items: [Item] }] }` | Admin. 404 on unknown `propertyId`. |
+| GET | `/api/options/catalogue-view` | `?propertyId=` optional | `{ total, chips: [{ key, label, count }], groups: [{ key, label, count, items: [Item] }], archived: [{ id, title, category, archivedAt }] }` | Admin. 404 on unknown `propertyId`. |
 | PUT | `/api/options/:id` | unchanged shape | unchanged | 422 `{ error: 'VALIDATION_FAILED', details: [{ field, message }] }` per rule 16 (`field` = `title`, `price`, `propertyPrices.<id>`, …). Existing `NEGATIVE_OPTION_PRICE` 400 kept for the base price. |
 | POST | `/api/options` | unchanged | unchanged | Same validation. |
-| PUT | `/api/options/:id/property-prices/:propertyId` | `{ price: number \| null }` | the updated `Item` | **Direction B only.** 422 per rule 16; 409 when the property is not in the option's scope or the type is free / progressive. Emits `pricingChanged` like an update. |
+| POST | `/api/options/:id/restore` | — | `{ ok: true }` | Rule 27. 404 unknown, 409 `OPTION_NOT_ARCHIVED`. Emits `pricingChanged`. |
 | GET | `/api/resources/catalogue-view` | — | `{ items: [ResourceItem] }` | Admin. |
 
 ```jsonc
 // Item
-{ "id": 6, "title": "Petit déjeuner", "descriptionLine": "Pain frais et croissant, …",
-  "price": { "value": "10 €", "unit": "/ pers. / jour", "byProperty": [{ "propertyId": 1, "value": "10 €", "override": true }] },
+{ "id": 6, "title": "Petit déjeuner", "description": "Pain frais et croissant, …", "category": "",
+  "price": { "value": "10 €", "unit": "/ pers. / jour", "note": "" },
   "traits": [{ "key": "planning", "label": "Planning 09:00", "tone": "info" }],
   "archivable": false, "archiveBlockedReason": "Option système" }
 // ResourceItem
-{ "id": 2, "name": "Bain nordique", "description": "", "stock": { "value": 1, "label": "en service" },
+{ "id": 2, "name": "Bain nordique", "description": "", "deletable": true, "stock": { "value": 1, "label": "en service" },
   "lines": [{ "label": "Prix", "value": "30 € / h" }, { "label": "Soir", "value": "50 € / h après 20:00" }],
   "footer": "À l’heure · 11:00–22:00 · 1 h minimum · remise en état 15 min · carte au planning" }
 ```
 
-`price.byProperty` is what direction B renders; direction A ignores it.
+`price.note` is « selon logement » when the properties differ, else empty. `description` is the whole text; the row ellipses it on one line.
 
 ---
 
@@ -317,7 +320,7 @@ Interactive mockup: [docs/specs/2026-10-28-options-resources-ux.html](../docs/sp
 - **Sections:** serif `sectionHeader`, count pill, chevron; rows inside one white card per section
   (radius 14, Maison shadow), hairline dividers, 12 px vertical padding, ≥ 44 px row height.
 - **Row typography:** name 600 / 0.95 rem; description `text.secondary` 0.84 rem one line; traits
-  `StatusBadge` soft chips 0.72 rem; price 700 / 1 rem tabular, unit 0.76 rem `text.secondary`.
+  soft chips (`softChipSx`, the `StatusBadge` treatment) 0.72 rem; price 700 / 1 rem tabular, unit 0.76 rem `text.secondary`.
 - **Panel:** header with the option's name (serif) and a 44 px close button; section chips; body
   scrolls on its own (`overscroll-behavior: contain`); footer sticky with the state text left
   (« Modifié », « 2 champs à corriger » in error colour), « Annuler » text button, « Enregistrer »
@@ -335,9 +338,10 @@ Interactive mockup: [docs/specs/2026-10-28-options-resources-ux.html](../docs/sp
     `env(safe-area-inset-bottom)`; resource cards one column. No horizontal page scroll.
   - `md` (~900 px): list full width; panel 560 px over the list.
   - `lg` (≥ 1200 px): list max-width 1240; panel 560 px, the list stays readable on its left.
-- **Direction B** (if chosen): grid in a card with internal scroll (max ~540 px high), sticky header
-  row and first column, legend above (« • prix propre au logement », « — : non proposée », « Vide à la
-  saisie : reprend le prix de base »).
+- **Archived** (rules 26-27): a muted « Archivées » section at the bottom, folded by default; each row
+  names the option and its category, with « Restaurer » (44 px).
+- **Panel dirty guard:** the browser back, a reload and the sidebar are guarded while the panel has
+  unsaved changes (`useDirtyFormGuard`), as the close button is.
 
 ## 7. Test plan
 
@@ -345,52 +349,37 @@ Rule citations use `specs/options-resources-ux.md rule N` so `check-spec-coverag
 
 ### Server unit tests (`cd server && npm test`)
 
-- [ ] `tests/options-catalogue-view.unit.test.js` — rules 2, 3, 4, 5, 6, 7 (~22 cases: grouping and
-      order incl. insurance pin and excluded early/late options; summary single / range / all
-      overridden / free / progressive / percent; property filter + 404; every trait and its absence;
-      « tous les logements »; archivability = `remove` guard; chips over the unfiltered catalogue).
-- [ ] `tests/options-validation.unit.test.js` — rules 15, 16 (~12 cases: empty / blank title, negative
-      and 3-decimal base price, negative / non-numeric / 3-decimal override → 422 with field, percent
-      > 100, clean-up of overrides / defaults / bath mats outside the scope, a valid payload unchanged).
-- [ ] `tests/resources-catalogue-view.unit.test.js` — rules 18, 19, 21 (~10 cases: stock label, price
-      lines, legacy « Tous », hourly hidden when plugin off, contributor lines/footer, no contributor,
-      validation 422).
-- [ ] `plugins/hourly-resources/tests/catalogue-lines.unit.test.js` — rule 19 (~4 cases).
-- [ ] `tests/options-property-price-put.unit.test.js` — rule 24, **direction B only** (~7 cases).
-- [ ] Existing suites stay green (`options-model`, `option-categories`, `per-property-option-prices`,
-      `cancellation-insurance`, `resources`, `hourly-resources`).
+- [x] `tests/options-catalogue-view.unit.test.js` — rules 2-7, 26 (19 cases).
+- [x] `tests/options-validation.unit.test.js` — rules 2, 4, 15, 16, 26, 27 (17 cases, with the controller
+      and the model on a temporary database).
+- [x] `tests/resources-catalogue-view.unit.test.js` — rules 18, 19, 21 (14 cases).
+- [x] `plugins/hourly-resources/tests/catalogue-lines.unit.test.js` — rule 19 (5 cases).
+- [x] Existing suites updated where the rule changed: `options-model` (a default outside an explicit
+      scope is dropped, rule 15), `resources-controller` (422 instead of 400, rule 21); the rest green.
+- ~~`options-property-price-put`~~ — withdrawn with direction B.
 
 ### Client (`cd client && npx vitest run`)
 
-- [ ] `pages/__tests__/OptionsPage.catalogue.test.jsx` — rules 8, 9, 10, 11 (~10 cases: sections
-      and fold, search across title/description/category and unfold, category chip, property filter
-      refetch, empty-filter state, row opens panel, menu archive confirm, disabled archive reason).
-- [ ] `pages/options/__tests__/OptionEditorPanel.sections.test.jsx` — rules 12, 13, 17 (~8 cases).
-- [ ] `pages/options/__tests__/OptionEditorPanel.property-table.test.jsx` — rule 14 (~8 cases:
-      scope switch clears default, Offert gated, blank = base placeholder, help line when all override,
-      free hides price, progressive shows tiers).
-- [ ] `pages/options/__tests__/OptionEditorPanel.validation.test.jsx` — rule 16 (~6 cases incl. a
-      422 detail landing on its field).
-- [ ] `pages/options/__tests__/OptionEditorPanel.specials.test.jsx` — every type-specific block of
-      today still reachable (breakfast time + notice, planning card, bed linen, towels, bath mats,
-      insurance note, « Visible du client ») — replaces `OptionsPage.percent`, `.category`,
-      `.no-english-field` (ported, not dropped).
-- [ ] `pages/__tests__/ResourcesPage.cards.test.jsx` — rules 18, 20, 21 (~6 cases);
-      `resourceToPayload.test.js` kept.
-- [ ] `components/__tests__/SidePanel.test.jsx`, `GroupedList.test.jsx`, `SearchField.test.jsx` —
-      generic contracts (fullScreen on `xs`, dirty guard, Escape, section nav error state; fold; clear).
-- [ ] `components/__tests__/PricedItemsPage.mobile-nesting.test.jsx` — removed with the component.
-- [ ] Rule 22 states covered in the page tests (loading, error + retry, empty + CTA).
+- [x] `pages/__tests__/OptionsPage.catalogue.test.jsx` — rules 8-12, 17, 22, 26, 27 (21 cases).
+- [x] `pages/options/__tests__/OptionEditorPanel.sections.test.jsx` — rules 12, 13, 17 (10 cases).
+- [x] `pages/options/__tests__/OptionEditorPanel.property-table.test.jsx` — rule 14 (10 cases).
+- [x] `pages/options/__tests__/OptionEditorPanel.validation.test.jsx` — rule 16 (10 cases).
+- [x] `pages/options/__tests__/OptionEditorPanel.specials.test.jsx` — every type-specific setting still
+      reachable (16 cases); replaces `OptionsPage.percent` and `.category` (ported); `.no-english-field`
+      now reads the new files.
+- [x] `pages/__tests__/ResourcesPage.cards.test.jsx` — rules 18-22 (15 cases);
+      `pages/options/__tests__/resourceToPayload.test.js` moved with `toResourcePayload`.
+- [x] `components/__tests__/SidePanel.test.jsx` (13), `GroupedList.test.jsx` (8), `SearchField.test.jsx` (5)
+      — the generic contracts.
+- [x] `components/__tests__/PricedItemsPage.mobile-nesting.test.jsx` removed with the component.
 
 ### E2E (`npm run test:e2e`)
 
-- [ ] `e2e/specs/settings/options-catalogue.spec.js` — rules 1, 8-17: open the page, fold « Boissons »,
-      search « jus », open « Ménage », type « -5 » in Granja's price → refused, fix to 85 → saved, the
-      row shows « 30 € – 85 € ».
-- [ ] `e2e/specs/settings/options-mobile-cards.spec.js` — rewritten for the 390 px list + sheet
+- [x] `e2e/specs/settings/options-catalogue.spec.js` — rules 1, 8-17: fold « Boissons », search « jus »,
+      open an option, `-5` refused, `85` saved, the row shows « 30 € – 85 € »; the old addresses redirect.
+- [x] `e2e/specs/settings/options-mobile-cards.spec.js` — rewritten for the 390 px list and the sheet
       (mobile check).
-- [ ] `settings-redirects.spec.js`, `page-tabs.spec.js`, `bare-install.spec.js` updated for the new
-      title / redirects.
+- [x] `e2e/specs/mobile/page-tabs.spec.js` — the new title.
 
 ### Manual UI verification
 
@@ -416,26 +405,34 @@ Rule citations use `specs/options-resources-ux.md rule N` so `check-spec-coverag
 
 ## 9. Open questions
 
-- **Q1 — Direction of the list.** A · Catalogue (recommended: scales with properties, same on a phone)
-  · B · Grille par logement (instant comparison and in-cell editing; horizontal scroll from 4
-  properties) · A with the grid as a secondary view. → Rules 23-25 and the PUT endpoint ship only with B.
-- **Q2 — Where to edit.** Side panel (recommended: the list stays visible, full-screen on a phone) ·
-  centred dialog split into sections (less change, hides the list).
-- **Q3 — Archived options.** A folded « Archivées » section at the bottom with « Restaurer »
-  (recommended: an option archived by mistake never comes back today) · no change. If yes, two rules
-  are appended (archived list in the payload; `POST /api/options/:id/restore` clearing `archivedAt`,
-  without restoring the property defaults that the archive dropped — `option-soft-delete.md` rule 5),
-  and the mockup already shows it.
+All three resolved on 2026-10-28 (the recommendations were taken):
 
-## 10. Implementation — three lots, each shippable
+- **Q1 — Direction of the list.** _Resolved 2026-10-28: A · Catalogue._ Rules 23-25 and the per-cell PUT
+  are withdrawn, not built.
+- **Q2 — Where to edit.** _Resolved 2026-10-28: a side panel_ (a full-screen sheet on a phone).
+- **Q3 — Archived options.** _Resolved 2026-10-28: yes_ — a folded « Archivées » section with « Restaurer »
+  (rules 26-27).
 
-1. **Lot 1 — server.** `optionCatalogueView`, `resourceCatalogueView`, archive guard, validation
-   (rules 2-7, 15-16, 18-19, 21), SDK brick + hourly contributor. Inert for the current client (new
-   endpoints; stricter validation the current form already respects except the silent override).
-2. **Lot 2 — options.** `SidePanel`, `GroupedList`, `SearchField`, `OptionEditorPanel`,
-   `OptionPropertyTable`, rewrite of `OptionsPage` (rules 1, 8-14, 17, 22; 23-25 if B), redirects,
-   E2E.
-3. **Lot 3 — resources.** `ResourceEditorPanel`, cards (rules 20-22), removal of `PricedItemsPage`.
+## 10. Implementation progress
 
-Estimated size: server ~6 files touched / 5 created; client ~6 touched / 12 created / 1 removed;
-~90 new test cases.
+Three lots, one commit each, on `feature/options-resources-ux`:
+
+1. **Lot 1 — server.** Done: `optionCatalogueView`, `resourceCatalogueView`, archive guard, validation, scope
+   clean-up, restore, SDK 2.8.0 brick + hourly contributor (plugin 1.3.0).
+2. **Lot 2 — options.** Done: `SidePanel`, `GroupedList`, `SearchField`, `useCollapsedGroups`,
+   `OptionEditorPanel`, `OptionPropertyTable`, `OptionsPage`, redirects, E2E.
+3. **Lot 3 — resources.** Done: `ResourceEditorPanel`, cards, removal of `PricedItemsPage`.
+
+Deviations from the draft, decided while building:
+
+- A property line of a resource that only repeats the base price (a free first hour, no price of its own)
+  is not listed as a price line; the plugin's « Offert » line carries the free hour.
+- A resource property line with a free hour and no typed price is saved with the base price as its price
+  (the model reads a stored row as an override), so only the hour differs.
+- A default outside an option's explicit scope is now dropped on save instead of widening the scope
+  (rule 15); a payload without `propertyIds` keeps « a default implies applicability ».
+- The negative base price keeps its legacy `400 NEGATIVE_OPTION_PRICE` (it runs before the 422 checks).
+- The panel sits on the modal layer, above the app bar, so its header is never covered.
+
+Verification: server suite, client suite, `check-spec-coverage`, `vite build`, E2E (full suite and the new
+specs), and a browser pass on a copy of the shadow data at 1280 and 390 px.

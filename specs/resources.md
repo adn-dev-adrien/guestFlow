@@ -159,7 +159,7 @@ note in `CHANGELOG.md`. The drop is irreversible but lossless given the backfill
   not deletable.
 - **Responsive:** unchanged (no new layout).
 
-> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Draft).** The resources list becomes cards (stock, all rates, plugin lines) and the form an editor panel in sections; delete moves to the card's « ⋯ » menu with the same impact confirmation. Scope semantics (« empty = all ») unchanged.
+> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The resources list becomes cards (stock, all rates, plugin lines) and the form an editor panel in sections; delete moves to the card's « ⋯ » menu with the same impact confirmation. Scope semantics (« empty = all ») unchanged.
 
 ## 7. Test plan
 
