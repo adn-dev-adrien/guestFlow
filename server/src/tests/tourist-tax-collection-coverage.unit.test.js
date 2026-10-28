@@ -13,7 +13,8 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const financeModel = require('../models/financeModel');
-const { __test: { buildEntry } } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const accountingModel = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
 const { CSV_HEADERS, buildRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 const { serializeCsv } = require('../utils/csv');
 

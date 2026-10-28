@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
-const { __test: { buildEntry } } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const accountingModel = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
 const { entryToRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 
 // specs/platform-deposit-toggle.md — a platform flagged « acompte = Oui » uses the normal acompte/solde

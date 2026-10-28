@@ -135,6 +135,27 @@ test('rules 3, 4: a test or fixture that reads a plugin folder loads it with opt
   assert.deepEqual(violations, []);
 });
 
+// An optionalPlugin load lets a file load without the plugin; the tests that then fail must say so, or the
+// file would be green with a plugin that is absent only because nothing exercised it.
+test('rules 3, 4: a file that loads a plugin with optionalPlugin marks the tests that need it', () => {
+  const ids = listPlugins();
+  const unmarked = [];
+  const scan = (dir, ownerOf) => testFiles(dir).filter((file) => file.endsWith('.test.js')).forEach((file) => {
+    const source = fs.readFileSync(file, 'utf8');
+    const guarded = guardedIn(source);
+    [...source.matchAll(/optionalPlugin\(\(\) => require\(['"]([^'"]+)['"]\)\)/g)].forEach((m) => {
+      const id = ids.concat(CATALOG_ORDER).find((p) => m[1].includes(`/${p}/`) || m[1].endsWith(`/${p}`));
+      if (id && id !== ownerOf(file) && !guarded.includes(id)) unmarked.push(`${path.relative(ROOT, file)} → ${id}`);
+    });
+  });
+  scan(path.join(SERVER_PLUGINS, '..', 'tests'), () => null);
+  ids.forEach((id) => {
+    const dir = path.join(SERVER_PLUGINS, id, 'tests');
+    if (fs.existsSync(dir)) scan(dir, () => id);
+  });
+  assert.deepEqual(unmarked, []);
+});
+
 test('rule 4: a missing plugin is named, a shipped one is not', () => {
   const present = listPlugins()[0];
   assert.deepEqual(missingPlugins([present, 'not-a-plugin']), ['not-a-plugin']);

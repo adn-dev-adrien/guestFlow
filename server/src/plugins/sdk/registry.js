@@ -32,6 +32,7 @@ function emptyRecord(id) {
     sasProviders: [],
     onInstall: [],
     onBoot: [],
+    onActivate: [],
     data: null,
     // specs/plugins-phase-3a-online-payment.md rules 4, 12.
     paymentProvider: null,

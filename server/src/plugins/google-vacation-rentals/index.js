@@ -82,6 +82,9 @@ function register(ctx) {
     run: () => get().pushService.nightlyTick(),
   });
 
+  // Rule 17 of specs/plugin-removal-resilience.md — what changed while it was off reaches Google now.
+  ctx.onActivate(() => get().pushService.catchUp());
+
   ctx.data({
     tables: TABLES,
     describe: (db) => {

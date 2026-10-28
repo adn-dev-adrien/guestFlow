@@ -75,6 +75,16 @@ for (const id of MINE) {
       expect(await smoke(page, [...new Set(places)]), label).toEqual([]);
     };
 
+    // Google Vacation Rentals re-sends everything when it comes back (rule 17): the push log says so.
+    const catchUps = () => {
+      const db = writable();
+      try { return db.prepare("SELECT COUNT(*) AS n FROM gvr_push_log WHERE reason = 'catch-up'").get().n; } finally { db.close(); }
+    };
+    const expectCatchUp = async (before, label) => {
+      if (!group.includes('google-vacation-rentals')) return;
+      await expect.poll(catchUps, { message: label, timeout: 30_000 }).toBeGreaterThan(before);
+    };
+
     const blocker = BLOCKERS[id];
     if (blocker) {
       blocker.cause();
@@ -98,7 +108,9 @@ for (const id of MINE) {
     db.prepare("UPDATE reservations SET notes = 'changed while off' WHERE id = ?").run(SEED.stays.direct.id);
     db.close();
     // (b) back: the plugin first, then its dependants; its pages render, its data is untouched.
+    const beforeActivation = group.includes('google-vacation-rentals') ? catchUps() : 0;
     for (const p of group) await call('POST', `/api/plugins/${p}/activate`, 200, `activate ${p}`);
+    await expectCatchUp(beforeActivation, `${id}: the feed re-sends everything after a reactivation`);
     await ownPagesRender(group, `${id} reactivated: its own pages`);
     expectKept(`${id}: rows after the round trip`);
     const fiche = await (await request.get(`/api/reservations/${SEED.stays.direct.id}`)).json();
@@ -111,7 +123,9 @@ for (const id of MINE) {
     await restart(request);
     await coreSmoke(`${id} uninstalled`);
     expectKept(`${id}: rows kept while uninstalled`);
+    const beforeReinstall = group.includes('google-vacation-rentals') ? catchUps() : 0;
     for (const p of group) await call('POST', `/api/plugins/${p}/install`, 200, `reinstall ${p}`);
+    await expectCatchUp(beforeReinstall, `${id}: the feed re-sends everything after a reinstall`);
     await restart(request);
     await ownPagesRender(group, `${id} reinstalled: its own pages`);
     expectKept(`${id}: rows after the reinstall`);

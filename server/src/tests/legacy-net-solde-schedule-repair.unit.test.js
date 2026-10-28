@@ -17,7 +17,8 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { runLegacyNetSoldeRepair } = require('../utils/legacyNetSoldeRepair');
-const { __test: { buildEntry } } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const accountingModel = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
 const { buildRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 
 const COMMISSION_CONTEXT = {

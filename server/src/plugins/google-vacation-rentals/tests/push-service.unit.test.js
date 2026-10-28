@@ -224,22 +224,18 @@ test('rule 13 — the hourly job runs the full re-send at the configured hour, o
   assert.equal(await w.push.nightlyTick(), true);
 });
 
-test('rule 17 of the removal spec — a plugin switched off and on again re-sends everything at its next tick', async () => {
-  let clock = new Date('2027-03-01T10:10:00');
-  const w = world({ values: { partnerId: 'solio_partner' }, now: () => clock });
-  assert.equal(await w.push.nightlyTick(), false, 'the first tick of a process has nothing to compare to');
-  clock = new Date('2027-03-01T11:10:00');
-  assert.equal(await w.push.nightlyTick(), false, 'an hourly cadence is no silence');
-  assert.equal(w.loads.length, 0);
-  // Switched off at 11:30: its ticks and its triggers are skipped. Back on, the next tick is at 15:10.
+test('specs/plugin-removal-resilience.md rule 17 — catchUp re-sends everything now, and only once a partner id is set', async () => {
+  const w = world({ values: { partnerId: 'solio_partner' } });
+  // A price changed while the plugin was off: no trigger reached it. Activated or reinstalled, a restart in
+  // between or not, an off window of a minute or a day, the hook runs the same catch-up.
   w.state = stateOf([...BASE_RATES.slice(0, 3), rate('2027-03-07', 2, 2, 700)], BASE_DAYS);
-  clock = new Date('2027-03-01T15:10:00');
-  assert.equal(await w.push.nightlyTick(), true);
+  assert.equal(await w.push.catchUp(), true);
   assert.deepEqual(w.loads.map((l) => l.id), [1, 2]);
   assert.ok(w.model.listLog(5).every((r) => r.full === 1 && r.reason === 'catch-up'));
   assert.equal(w.model.rateSnapshot(1).get('2027-03-07|2|2'), 70000, 'the price changed while off reached the snapshot');
-  clock = new Date('2027-03-01T16:10:00');
-  assert.equal(await w.push.nightlyTick(), false);
+  const bare = world();
+  assert.equal(await bare.push.catchUp(), false, 'no partner id, nothing to send');
+  assert.equal(bare.loads.length, 0);
 });
 
 test('runs of a property never overlap', async () => {

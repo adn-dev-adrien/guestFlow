@@ -27,11 +27,12 @@ const fixture = {
     ctx.mount('/api/engine-fixture', router);
     ctx.jobs.every({ name: 'tick', intervalMs: 1000, run: () => { ran.push('tick'); } });
     ctx.events.on('reservation.updated', () => { ran.push('event'); });
+    ctx.onActivate(() => { ran.push('activate'); });
     ctx.data({ tables: ['engine_fixture_rows'], describe: () => [{ label: 'rows', count: 1 }] });
   },
 };
 
-function boot({ active = true } = {}) {
+function boot({ active = true, installed = true } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE migrations (name TEXT PRIMARY KEY, ran_at TEXT NOT NULL DEFAULT (datetime('now')));
@@ -42,7 +43,7 @@ function boot({ active = true } = {}) {
   ensurePluginsTable(db);
   ensurePluginSettingsTable(db);
   const plugins = buildPluginsModel(db);
-  plugins.install(ID);
+  if (installed) plugins.install(ID);
   if (!active) plugins.setEnabled(ID, false);
   registry.reset();
   registry.configure({ isActive: (id) => plugins.isActive(id), allows: () => true });
@@ -101,6 +102,38 @@ test('rule 17: the bus drops an event while the module is off — it is never re
   assert.deepEqual(ran, []);
   await eventBus.dispatch('reservation.updated', { reservationId: 1 });
   assert.deepEqual(ran, ['event']);
+  registry.reset();
+});
+
+test('rule 17: onActivate runs when the module is activated or installed, never at boot or on deactivation', async () => {
+  const { plugins, settingsModel, db } = boot();
+  const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel, licence: () => ({ allowsPlugin: () => true, planFor: () => null }) });
+  ran.length = 0;
+  controller.deactivate({ params: { id: ID }, query: {} }, fakeRes());
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(ran, []);
+  controller.activate({ params: { id: ID }, query: {} }, fakeRes());
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(ran, ['activate']);
+  registry.reset();
+});
+
+test('rule 17: an install of a catalogued plugin runs its activation hooks after its install hooks', async () => {
+  const { listPlugins } = require('../plugins/sdk/testing');
+  const id = listPlugins()[0];
+  const { plugins, settingsModel, db } = boot({ installed: false });
+  plugins.uninstall(ID);
+  const mod = { ...fixture, id };
+  registry.reset();
+  registry.configure({ isActive: (x) => plugins.isActive(x), allows: () => true });
+  loader.registerAll({ db, modules: [mod], settingsModel: () => settingsModel, isInstalled: (x) => Boolean(plugins.get(x)) });
+  ran.length = 0;
+  const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel, licence: () => ({ allowsPlugin: () => true, planFor: () => null }) });
+  const res = fakeRes();
+  await controller.install({ params: { id }, query: {}, body: {} }, res);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(ran, ['activate']);
   registry.reset();
 });
 

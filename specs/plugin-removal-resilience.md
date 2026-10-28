@@ -155,7 +155,9 @@ including the ones added later.
    explicitly. Consequently `/api/auth/me` never lists a plugin whose module is not loaded.
 3. **A core test never needs a plugin it does not name — and never loses a test it does not need to.** A
    test or fixture under `server/src/tests/` that reads a `plugins/<id>/` folder loads it with
-   `optionalPlugin(() => require(...))` (the folder absent reads as an empty module, the file still loads)
+   `optionalPlugin(() => require(...))` (a folder that is not shipped reads as `{}`, so the file still loads
+   and a fixture can test a name for `undefined`; any other error — a file missing inside a plugin that is
+   there — is rethrown, and a test file with such a load must mark the tests that need it)
    and the tests that really use it are marked `skipWithout(['<id>'])`; a whole file is guarded with
    `requirePlugins` only when every test in it needs the plugin (the recipes' fixtures, the Google Vacation
    Rentals data builders). A plugin's own tests import its own folder freely. The static guard
@@ -279,16 +281,14 @@ including the ones added later.
     changed or missing stay) and `neat` (the 5-minute pass subscribes every stay that qualifies) already
     do, and a fake-backed case per plugin proves it (`catch-up-after-reactivation`).
     `google-vacation-rentals` did not: its triggers were lost and only the nightly pass would have re-sent
-    the prices, up to 24 hours stale on Google. Its hourly tick now re-sends everything (`reason:
-    'catch-up'`) when it arrives after more than 90 minutes of silence — the tick is skipped while the
-    plugin is off — so the next tick after a reactivation catches up (plugin 1.0.2). In the sweep, step (b)
-    changes a stay while the group is off, then asserts the change is still on the fiche after the
-    reactivation, and the scheduled passes and jobs run once without a throw.
-18. **Fast enough to run nightly in parallel.** A removal cell stays under 12 minutes and a sweep shard
-    under 15 on GitHub-hosted runners (`ubuntu-latest`, never `self-hosted`). The server suite of a cell
-    runs as `npm test` does today — serial, about 3½ minutes for 7 700 tests — so no per-process
-    database preload is needed; the matrix runs with `max-parallel: 8`. Nothing in it queues behind, or
-    starves, the pull-request checks, since it does not run on them.
+    the prices, up to 24 hours stale on Google. The SDK had no activation hook, so SDK 2.11.0 adds
+    `ctx.onActivate(fn)`: it runs, in the background, each time a plugin goes from off to live — activated
+    through the Plugins API (or the reconciler), or installed, after its install hooks — never at boot. The
+    feed's hook re-sends everything (`reason: 'catch-up'`) once a partner id is set, which covers an off window
+    of any length, a restart while off, and an uninstall → restart → reinstall (plugin 1.0.2, `sdk ^2.11.0`).
+    In the sweep, the Google Vacation Rentals seed carries a partner id and an enabled property; step (b) and
+    the reinstall of step (c) assert that its push log gains a `catch-up` run, and the scheduled passes and
+    jobs run once without a throw.
 
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard

@@ -144,6 +144,7 @@ const allowAll = { allowsPlugin: () => true, planFor: () => null };
 const fakeLoader = (calls = []) => ({
   migrate: (db, id) => { calls.push(['migrate', id]); return 0; },
   runInstallHooks: async (id) => { calls.push(['hooks', id]); },
+  runActivateHooks: () => {},
   requirePackage: (id) => ({ id, register() {} }),
   registerLive: (mod) => { calls.push(['live', mod.id]); return true; },
 });

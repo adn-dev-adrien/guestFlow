@@ -367,7 +367,10 @@ function createController(model = defaultModel, deps = {}) {
     }
     model.install(id, { version: candidate.version, source: candidate.source, manifest: pkg.manifest, sha256: pkg.sha256 });
     undo.push(() => model.uninstall(id));
-    if (!restart) await loader().runInstallHooks(id);
+    if (!restart) {
+      await loader().runInstallHooks(id);
+      loader().runActivateHooks(id);
+    }
     return { restart };
   }
 
@@ -580,7 +583,10 @@ function createController(model = defaultModel, deps = {}) {
         }
       }
       model.install(entry.id);
-      if (reg.get(entry.id)) await loader().runInstallHooks(entry.id);
+      if (reg.get(entry.id)) {
+        await loader().runInstallHooks(entry.id);
+        loader().runActivateHooks(entry.id);
+      }
       return res.json(view(entry));
     },
 
@@ -682,6 +688,7 @@ function createController(model = defaultModel, deps = {}) {
       if (refuseIfOutOfPlan(entry, res)) return undefined;
       if (refuseIfRequirementInactive(entry, res)) return undefined;
       model.setEnabled(entry.id, true);
+      if (reg.get(entry.id)) loader().runActivateHooks(entry.id);
       return res.json(view(entry));
     },
 

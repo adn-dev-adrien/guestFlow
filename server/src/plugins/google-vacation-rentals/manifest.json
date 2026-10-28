@@ -14,7 +14,7 @@
     }
   ],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.4.0",
+  "sdk": "^2.11.0",
   "changelog": {
     "1.0.0": [
       "Première version : prix des séjours, disponibilités et restrictions calculés par le moteur du site, en simulation tant que Google n’a pas ouvert le compte (SDK 2.4)."
@@ -24,7 +24,7 @@
       "Compatible avec le SDK 2 de GuestFlow."
     ],
     "1.0.2": [
-      "Remis en marche, le plugin renvoie tout à Google dès son prochain passage, au lieu d’attendre la nuit.",
+      "Remis en marche ou réinstallé, le plugin renvoie tout à Google tout de suite, au lieu d’attendre la nuit.",
       "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
