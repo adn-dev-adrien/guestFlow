@@ -114,6 +114,9 @@ test.describe('on a phone', () => {
     await expect(page.getByText('Blanchisserie', { exact: true })).toBeVisible({ timeout: 20_000 });
     const buttons = page.getByRole('group', { name: 'Jours' }).getByRole('button');
     await expect(buttons).toHaveCount(7);
+    // The frame shows first (disabled, placeholder lines): measure the loaded card.
+    await expect(page.getByTestId('laundry-cycle-skeleton')).toBeHidden({ timeout: 20_000 });
+    await expect(buttons.first()).toBeEnabled();
     for (let i = 0; i < 7; i += 1) {
       const box = await buttons.nth(i).boundingBox();
       expect(box && box.width).toBeGreaterThanOrEqual(40);
@@ -137,6 +140,8 @@ for (const [width, rows] of [[375, 2], [340, 2], [390, 1]]) {
       await page.goto('/parametres/stock-blanchisserie');
       const buttons = page.getByRole('group', { name: 'Jours' }).getByRole('button');
       await expect(buttons).toHaveCount(7, { timeout: 20_000 });
+      await expect(page.getByTestId('laundry-cycle-skeleton')).toBeHidden({ timeout: 20_000 });
+      await expect(buttons.first()).toBeEnabled();
       const boxes = [];
       for (let i = 0; i < 7; i += 1) boxes.push(await buttons.nth(i).boundingBox());
       const rowYs = [...new Set(boxes.map((b) => Math.round(b.y)))];

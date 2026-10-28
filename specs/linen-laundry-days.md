@@ -197,7 +197,7 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
 25. **Plugin release.** `linen` 1.2.0, changelog lines in French, impersonal, short: « Plusieurs jours de
     blanchisserie par semaine. », « Délai de la blanchisserie : le linge revient quand il est prêt, et le
     stock le sait. », « Une rupture de linge dit jusqu'à quand. » (and one line for the bath-mat label). The
-    manifest's `guestflow` floor is raised to `>=3.19.0` (§4).
+    manifest's `guestflow` range is `>=3.18.0 <4.0.0`, the current core: the host names and api methods ship in the same core build as `linen` 1.2.0 (§4).
 26. **`laundryWeekday` is frozen.** The generic `PUT /api/plugins/linen/settings` refuses any non-empty
     `laundryWeekday` with its `INVALID_SETTING` error (`400`, as every setting validation) whose message
     points to `PUT /api/laundry/schedule`; nothing reads it any more, it stays stored for a rollback.
@@ -236,7 +236,7 @@ core is touched in four small, generic places: the SDK `api` of `client/src/api.
 wrappers `getLaundryPlanningSummary` / `getLinenInventory` stay, thin, for a `linen` 1.1.x still installable from
 the registry); `client/src/plugins/hostModules.*` exports three more MUI components (`InputBase`,
 `ToggleButton`, `ToggleButtonGroup`); `utils/planningDateRange.js` rejects non-calendar dates
-(`9999-99-99` used to slip under the cap); and the manifest's `guestflow` floor is raised to `>=3.19.0` — the
+(`9999-99-99` used to slip under the cap); and the manifest's `guestflow` range is `>=3.18.0 <4.0.0` (the core this repository is at) — the
 release that ships these host names and api methods.
 
 ### 4.1 Server side (`server/src/plugins/linen/`)
@@ -505,7 +505,7 @@ per-day payload »), plugin `linen` 1.2.0 for both. Deviations from the draft, a
 ### Review fixes (2026-10-28, two Opus reviewers)
 
 `planningDateRange` rejects non-calendar dates; the SDK `api` keeps the two old wrappers and the manifest floor
-is `>=3.19.0`; one rule for negative manual lines (rule 28); bath mats alone draw no card while untracked
+is `>=3.18.0 <4.0.0` (a `>=3.19.0` floor hid linen from the registry on the current core, 3.18.0); one rule for negative manual lines (rule 28); bath mats alone draw no card while untracked
 (rule 27); `laundryWeekday` refused by the generic settings write (rule 26); the shortage alert serves the first
 spell and a later-spell flag (rule 18); `stillAtLaundry` is one entry per ready date (rule 11); the pending
 caption says what stays in force (rule 22); the preview refuses strings (rule 3); the cycle is ordered Monday
