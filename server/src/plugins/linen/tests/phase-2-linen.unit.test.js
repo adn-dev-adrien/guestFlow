@@ -76,7 +76,7 @@ function fakeRes() {
 
 test.afterEach(() => registry.reset());
 
-test('specs/plugins-phase-2-hosts.md rule 4: the two laundry planning endpoints answer 404 while linen is off; breakfast and option cards stay core', async () => {
+test('specs/plugins-phase-2-hosts.md rule 4: the two laundry planning endpoints answer 404 while linen is off; breakfast and the days stay core', async () => {
   const db = freshDb();
   const { app, plugins } = boot(db, { installed: [] });
   for (const url of ['/api/planning/laundry?from=2026-10-01&to=2026-10-14', '/api/planning/linen-inventory']) {
@@ -86,7 +86,7 @@ test('specs/plugins-phase-2-hosts.md rule 4: the two laundry planning endpoints 
   }
   // The core planning router still answers its own endpoints (a bad range is its own 400).
   assert.deepEqual((await request(app, 'GET', '/api/planning/breakfast?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
-  assert.deepEqual((await request(app, 'GET', '/api/planning/option-cards?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
+  assert.deepEqual((await request(app, 'GET', '/api/planning/days?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
 
   plugins.install('linen');
   applyPluginSchema(db, 'linen');
