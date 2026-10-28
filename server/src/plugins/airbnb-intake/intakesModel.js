@@ -15,17 +15,20 @@ const TABLE_SQL = `
     reservationId INTEGER,
     appliedAt     TEXT,
     dismissedAt   TEXT,
-    senderVerified INTEGER NOT NULL DEFAULT 1,
+    senderVerified INTEGER NOT NULL DEFAULT 0,
     createdAt     TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_airbnb_intakes_reservation ON airbnb_intakes(reservationId);
 `;
 
-// Intakes tables created before the sender check have no `senderVerified` column; their rows were all
-// processed under the old rules and stay `1`.
+// Intakes tables created before the sender check have no `senderVerified` column. A mail already applied
+// was applied under the old rules and stays trusted; every row still open (pending, proposed) was never
+// checked and is `0`, so the next pass proposes it with the warning instead of applying it.
 function addSenderVerifiedColumn(db) {
   const has = db.prepare(`PRAGMA table_info(airbnb_intakes)`).all().some((c) => c.name === 'senderVerified');
-  if (!has) db.exec('ALTER TABLE airbnb_intakes ADD COLUMN senderVerified INTEGER NOT NULL DEFAULT 1');
+  if (has) return;
+  db.exec('ALTER TABLE airbnb_intakes ADD COLUMN senderVerified INTEGER NOT NULL DEFAULT 0');
+  db.exec('UPDATE airbnb_intakes SET senderVerified = 1 WHERE appliedAt IS NOT NULL');
 }
 
 function hydrate(row) {
@@ -69,9 +72,11 @@ function buildModel(db) {
       return hydrate(db.prepare(`SELECT * FROM airbnb_intakes WHERE reservationId = ? AND dismissedAt IS NULL
         ORDER BY senderVerified DESC, id DESC LIMIT 1`).get(Number(reservationId)));
     },
-    // Dashboard: unreadable mails, and bookings still without a fiche after a day.
+    // Dashboard: unreadable mails, bookings still without a fiche after a day, and mails from a sender that
+    // could not be verified (rule 22).
     listAttention(nowIso) {
       return db.prepare(`SELECT * FROM airbnb_intakes WHERE dismissedAt IS NULL AND (status = 'error'
+        OR (status = 'proposed' AND senderVerified = 0)
         OR (status = 'pending' AND datetime(receivedAt) <= datetime(?, '-1 day'))) ORDER BY receivedAt DESC`).all(nowIso).map(hydrate);
     },
     count() {

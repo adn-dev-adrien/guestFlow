@@ -15,17 +15,20 @@ const TABLE_SQL = `
     reservationId INTEGER,
     appliedAt     TEXT,
     dismissedAt   TEXT,
-    senderVerified INTEGER NOT NULL DEFAULT 1,
+    senderVerified INTEGER NOT NULL DEFAULT 0,
     createdAt     TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_gdf_intakes_reservation ON gdf_intakes(reservationId);
 `;
 
-// Intakes tables created before the sender check have no `senderVerified` column; their rows were all
-// processed under the old rules and stay `1`.
+// Intakes tables created before the sender check have no `senderVerified` column. A mail already applied
+// was applied under the old rules and stays trusted; every row still open (pending, proposed) was never
+// checked and is `0`, so the next pass proposes it with the warning instead of applying it.
 function addSenderVerifiedColumn(db) {
   const has = db.prepare(`PRAGMA table_info(gdf_intakes)`).all().some((c) => c.name === 'senderVerified');
-  if (!has) db.exec('ALTER TABLE gdf_intakes ADD COLUMN senderVerified INTEGER NOT NULL DEFAULT 1');
+  if (has) return;
+  db.exec('ALTER TABLE gdf_intakes ADD COLUMN senderVerified INTEGER NOT NULL DEFAULT 0');
+  db.exec('UPDATE gdf_intakes SET senderVerified = 1 WHERE appliedAt IS NOT NULL');
 }
 
 function hydrate(row) {
@@ -73,6 +76,7 @@ function buildModel(db) {
     // operator to choose the rent (rule 14, amended 2026-10-18: the banner alone was easy to miss).
     listAttention(nowIso) {
       return db.prepare(`SELECT * FROM gdf_intakes WHERE dismissedAt IS NULL AND (status IN ('error', 'needs_rent')
+        OR (status = 'proposed' AND senderVerified = 0)
         OR (status = 'pending' AND datetime(receivedAt) <= datetime(?, '-1 day'))) ORDER BY receivedAt DESC`).all(nowIso).map(hydrate);
     },
     count() {

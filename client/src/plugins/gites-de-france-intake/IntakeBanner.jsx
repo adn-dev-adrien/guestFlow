@@ -72,7 +72,7 @@ export default function IntakeBanner({ reservationId, onReservationChanged }) {
         ]}
       >
         {intake.senderUnverified
-          ? `Le ${mail} (dossier ${intake.dossierNumber}) n’est pas signé par la centrale : rien n’est rempli sans accord.`
+          ? `Le ${mail} (dossier ${intake.dossierNumber}) n’est pas signé par la centrale. Rien n’est rempli tant qu’il n’est pas appliqué.`
           : `Le ${mail} (dossier ${intake.dossierNumber}) concerne cette fiche${intake.reason ? '.' : ', déjà modifiée à la main.'}`}
       </Banner>
     );

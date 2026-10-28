@@ -3,7 +3,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const Database = require('better-sqlite3');
 const { setup, PLACEHOLDER } = require('./serviceFixtures');
+const { buildModel, TABLE_SQL, addSenderVerifiedColumn } = require('../intakesModel');
 const { BOOKING_MAIL, withTotals } = require('./fixtures');
 
 const ONE_RENT = withTotals(BOOKING_MAIL, { net: '455.00', options: '80.00', total: '535.00' });
@@ -78,4 +80,26 @@ test('rule 20: the authentication settings reach the mailbox reader', async () =
   assert.equal(calls.readWith.sender, 'resa@gdf07.com');
   assert.equal(calls.readWith.allowedDomains, 'gdf07.com');
   assert.equal(calls.readWith.trustedAuthservId, 'mx.test');
+});
+
+test('rule 20: an unverified proposal reaches the dashboard, a verified one does not', async () => {
+  const forged = setup({ mails: [mail({ authenticated: false })] });
+  await forged.service.runPass();
+  assert.deepEqual(forged.service.attention().map((i) => i.status), ['proposed']);
+  const edited = setup({ reservations: [{ ...PLACEHOLDER, email: 'client@real.test' }], mails: [mail({ authenticated: true })] });
+  await edited.service.runPass();
+  assert.deepEqual(edited.service.attention(), []);
+});
+
+test('rule 20: an intakes table created before the check gets the column: applied rows stay verified, open rows are not', () => {
+  const db = new Database(':memory:');
+  db.exec(TABLE_SQL.replace('    senderVerified INTEGER NOT NULL DEFAULT 0,\n', ''));
+  const insert = db.prepare("INSERT INTO gdf_intakes (messageId, receivedAt, status, appliedAt) VALUES (?, '2026-10-01T00:00:00Z', ?, ?)");
+  insert.run('<applied>', 'applied', '2026-10-01 10:00:00');
+  insert.run('<proposed>', 'proposed', null);
+  insert.run('<pending>', 'pending', null);
+  addSenderVerifiedColumn(db);
+  addSenderVerifiedColumn(db);
+  const model = buildModel(db);
+  assert.deepEqual([1, 2, 3].map((id) => model.get(id).senderVerified), [true, false, false]);
 });

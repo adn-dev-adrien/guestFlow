@@ -16,7 +16,7 @@ test('an unauthenticated sender: « Expéditeur non vérifié », still appliabl
   api.getGdfIntakeForReservation.mockResolvedValue({ intake: { ...BASE, status: 'proposed', senderUnverified: true } });
   render(<IntakeBanner reservationId={22308} />);
   expect(await screen.findByText('Expéditeur non vérifié')).toBeInTheDocument();
-  expect(screen.getByText(/n’est pas signé par la centrale/)).toBeInTheDocument();
+  expect(screen.getByText(/n’est pas signé par la centrale\. Rien n’est rempli tant qu’il n’est pas appliqué\./)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Appliquer' })).toBeInTheDocument();
 });
 

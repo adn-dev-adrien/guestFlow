@@ -218,23 +218,30 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
 22. *(Added 2026-10-28, audit finding F2.)* **The sender is proven, not read.** IMAP `SEARCH FROM` is a substring
     match over the whole From field, display name included; the SDK reader (`mailAuthentication.js`) therefore
-    keeps a mail only when its envelope's first From address **equals** the configured sender
+    keeps a mail only when its header From address **equals** the configured sender
     (case-insensitive), and flags it `authenticated` only when the `Authentication-Results` header written by the
     mailbox's own server reports `dkim=pass` with a signing domain (`header.d`, or the domain of `header.i`) equal
     to the sender's domain or listed in the `senderDomains` setting. Only one such header is trusted: the one
-    whose `authserv-id` is the `trustedAuthservId` setting, or, when empty, the first (topmost) one. A mail that
-    fails is stored (`senderVerified = 0`) and, once matched, becomes a **proposal** whose banner is
+    whose `authserv-id` is the `trustedAuthservId` setting (« Serveur de réception »), or, when empty, the provider's
+    known name (`smtp.gmail.com` → `mx.google.com`); for any other provider with the setting empty, no mail is
+    authenticated, so every one is a proposal. The header is read with an RFC 8601 tokenizer (quoted strings and
+    nested comments never split a result) and only the `dkim` result's `header.d` / `header.i` count. A mail that
+    fails is stored (`senderVerified = 0`) and, once matched, becomes a **proposal** — also listed on the dashboard
+    (rule 15 / 14) so it never sits unseen — whose banner is
     « Expéditeur non vérifié » — it is never auto-applied, whatever `autoApply` says; the operator can still
     apply it by hand. A forged proposal never counts as « already handled » for rule 8's dedup, so it cannot
     shadow the genuine mail, and an unauthenticated mail that does not parse leaves no row. Tests:
     `server/src/tests/mail-sender-authentication.unit.test.js`, `airbnb-intake/tests/sender-verification.unit.test.js`,
     `IntakeBanner.sender-verification.test.jsx`.
 23. *(Added 2026-10-28, audit finding H1 of authz.)* **The mailbox password has one destination.** The reader
-    connects over implicit TLS on 993 and requires STARTTLS on any other port (never plaintext); the IMAP host
-    is the SMTP server's own derived host (`smtp.x` → `imap.x`) or a host of the same domain
-    (`ctx` `sdk.mailbox.resolveImapHost`), a configured host elsewhere being refused at save and ignored at use.
+    connects over implicit TLS on 993 and requires STARTTLS on any other port (never plaintext); **the SDK pins the
+    host itself** (`sdk.mailbox.resolveImapHost`, applied inside `readMailsFrom` / `testConnection` against the core's
+    SMTP host, whatever the caller passes — so it holds for any plugin version): the SMTP server's own host, its
+    `imap.` counterpart, or a host one label away under the same parent (never two labels, a public suffix or an
+    IP), a configured host elsewhere being refused at save and ignored at use. The card shows the host used.
     `imapHost`, `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId` are declared `supportLocked`:
-    refused to a support session like a secret setting (`specs/hosting-h2-account-security.md` rule 18). Test:
+    refused to a support session when changed (`specs/hosting-h2-account-security.md` rule 18, which also refuses a
+    plugin rollback). Test:
     `server/src/tests/mail-intake-credential-destination.unit.test.js`.
 
 **Edge cases:**

@@ -104,32 +104,23 @@ function SettingsSection({ onDirtyChange }, ref) {
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
-              label="Domaines de signature acceptés"
-              value={draft.senderDomains || ''}
-              onChange={set('senderDomains')}
-              helperText="Vide : le domaine de l’expéditeur."
-              fullWidth
-            />
-            <TextField
-              label="Serveur de la boîte (authserv-id)"
-              value={draft.trustedAuthservId || ''}
-              onChange={set('trustedAuthservId')}
-              helperText="Vide : premier en-tête d’authentification."
-              fullWidth
-            />
-          </Stack>
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
               label="Serveur IMAP"
               value={draft.imapHost || ''}
               onChange={set('imapHost')}
               error={Boolean(errors.imapHost)}
-              helperText={errors.imapHost || `Vide : déduit du serveur d’envoi${mailbox && mailbox.defaultHost ? ` (${mailbox.defaultHost})` : ''}.`}
+              helperText={errors.imapHost || `Vide : déduit du serveur d’envoi.${mailbox && mailbox.host ? ` Utilisé : ${mailbox.host}.` : ''}`}
               fullWidth
             />
             <TextField label="Port IMAP" type="number" value={draft.imapPort || ''} onChange={set('imapPort')} helperText=" " sx={{ minWidth: { sm: 140 } }} />
           </Stack>
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Avancé</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="Domaines d’envoi acceptés" value={draft.senderDomains || ''} onChange={set('senderDomains')} helperText="Vide : celui de l’expéditeur." fullWidth />
+              <TextField label="Serveur de réception" value={draft.trustedAuthservId || ''} onChange={set('trustedAuthservId')} helperText=" " fullWidth />
+            </Stack>
+          </Box>
 
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>N° de gîte de chaque logement</Typography>

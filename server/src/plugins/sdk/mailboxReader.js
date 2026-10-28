@@ -7,16 +7,20 @@
  * Returns `[{ messageId, receivedAt, sentAt, subject, text, authenticated, authReason }]`, the text being
  * the plain-text part, or the HTML part reduced to text when the mail has no plain part.
  *
- * A mail is returned only when its envelope's first From address IS the sender (the IMAP search is a
+ * A mail is returned only when its header From address IS the sender (the IMAP search is a
  * substring match over the display name too). `authenticated` is true only when the receiving server's
  * `Authentication-Results` reports `dkim=pass` for the sender's domain (or `allowedDomains`); an
  * unauthenticated mail is still returned, flagged, for the caller to propose and never auto-apply
  * (specs/airbnb-mail-intake.md rule 22). `trustedAuthservId` names the mailbox server whose header counts
- * (default: the first Authentication-Results header).
+ * (default: the provider's own name when the SMTP host is known, e.g. Gmail; otherwise nothing is
+ * authenticated).
+ *
+ * The host is pinned here, whatever the caller passes (see `resolveImapHost`): the SMTP account's password
+ * only ever reaches a host of the SMTP server's domain, for any version of any plugin.
  */
 
 const { ImapFlow } = require('imapflow');
-const { addressMatches, verifyDkim, domainOf, toList } = require('./mailAuthentication');
+const { addressMatches, verifyDkim, defaultAuthservId, domainOf, toList } = require('./mailAuthentication');
 
 function htmlToText(html) {
   return String(html || '')
@@ -59,25 +63,38 @@ function connectionOptions({ host, port = 993, user, password }) {
   return { host, port: Number(port), secure: implicit, doSTARTTLS: implicit ? undefined : true, auth: { user, pass: password }, logger: false };
 }
 
-// The password of the SMTP account is only ever offered to a host of the same domain as the SMTP server
-// (smtp.example.com → imap.example.com, mail.example.com, example.com). A configured host elsewhere is
-// ignored: the derived one is used.
+const MULTI_LABEL_SUFFIXES = new Set(['co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au', 'net.au', 'org.au', 'co.nz', 'co.jp', 'com.br', 'com.mx', 'co.za', 'co.in', 'com.tr', 'com.pl', 'com.es']);
+const IP_LITERAL = /^(\d{1,3}(\.\d{1,3}){3}|\[?[0-9a-f:]*:[0-9a-f:]*\]?)$/i;
+
+// The password of the SMTP account is only ever offered to the SMTP host itself, its imap. counterpart, or a
+// host one label away from it under the same parent (smtp.example.com → imap.example.com, mail.example.com,
+// example.com). Two labels away is another machine of a shared domain (ssl0.ovh.net must not accept
+// vps-x.vps.ovh.net); a public suffix is never a parent; an IP address only matches itself. A configured
+// host elsewhere is ignored: the derived one is used.
 function resolveImapHost(smtpHost, configured) {
   const smtp = String(smtpHost || '').trim().toLowerCase();
   const wanted = String(configured || '').trim().toLowerCase();
   const derived = imapHostFor(smtp);
   if (!wanted) return derived;
+  if (wanted === smtp || wanted === derived) return wanted;
+  if (IP_LITERAL.test(smtp) || IP_LITERAL.test(wanted)) return derived;
   const labels = smtp.split('.');
-  const parent = labels.length >= 3 ? labels.slice(1).join('.') : smtp;
-  return wanted === smtp || wanted === parent || wanted.endsWith(`.${parent}`) ? wanted : derived;
+  const parent = labels.length >= 3 ? labels.slice(1).join('.') : '';
+  if (!parent || MULTI_LABEL_SUFFIXES.has(parent)) return derived;
+  const sibling = wanted.endsWith(`.${parent}`) && !wanted.slice(0, -parent.length - 1).includes('.');
+  return wanted === parent || sibling ? wanted : derived;
 }
+
+const coreSmtpHost = () => require('./coreServices').settings.mailbox().host;
 
 async function readMailsFrom({
   host, port = 993, user, password, sender, allowedDomains = null, trustedAuthservId = '',
-  sinceDays = 30, now = new Date(), ImapClient = ImapFlow,
+  sinceDays = 30, now = new Date(), ImapClient = ImapFlow, smtpHostOf = coreSmtpHost,
 }) {
+  const smtpHost = smtpHostOf();
   const domains = toList(allowedDomains).length ? allowedDomains : domainOf(sender);
-  const client = new ImapClient(connectionOptions({ host, port, user, password }));
+  const trusted = trustedAuthservId || defaultAuthservId(smtpHost);
+  const client = new ImapClient(connectionOptions({ host: resolveImapHost(smtpHost, host), port, user, password }));
   let lock = null;
   try {
     // Inside the try: a refused lock (or a connect that half-opened the socket) still logs out.
@@ -89,7 +106,7 @@ async function readMailsFrom({
     for (const uid of uids || []) {
       const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, internalDate: true, headers: ['authentication-results'] }, { uid: true });
       if (!msg || !addressMatches(msg.envelope, sender)) continue;
-      const auth = verifyDkim(msg.headers, { domains, trustedAuthservId });
+      const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
       const plainPart = findPart(msg.bodyStructure, 'text/plain');
       const htmlPart = plainPart ? null : findPart(msg.bodyStructure, 'text/html');
       const raw = plainPart ? await readPart(client, uid, plainPart) : htmlPart ? await readPart(client, uid, htmlPart) : '';
@@ -117,8 +134,8 @@ function imapHostFor(smtpHost) {
   return /^smtp\./i.test(host) ? `imap.${host.slice(5)}` : host;
 }
 
-async function testConnection({ host, port = 993, user, password, ImapClient = null }) {
-  const client = new (ImapClient || ImapFlow)(connectionOptions({ host, port, user, password }));
+async function testConnection({ host, port = 993, user, password, ImapClient = null, smtpHostOf = coreSmtpHost }) {
+  const client = new (ImapClient || ImapFlow)(connectionOptions({ host: resolveImapHost(smtpHostOf(), host), port, user, password }));
   try {
     await client.connect();
     await client.logout();

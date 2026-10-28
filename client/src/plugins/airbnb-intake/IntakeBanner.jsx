@@ -71,7 +71,7 @@ export default function IntakeBanner({ reservationId, onReservationChanged }) {
       ]}
     >
       {intake.senderUnverified
-        ? `Le ${mail} (${intake.code}) n’a pas été signé par Airbnb : rien n’est rempli sans accord.`
+        ? `Le ${mail} (${intake.code}) n’est pas signé par Airbnb. Rien n’est rempli tant qu’il n’est pas appliqué.`
         : `Le ${mail} (${intake.code}) concerne cette fiche, déjà modifiée à la main.`}
     </Banner>
   );

@@ -222,6 +222,7 @@ function createIntakeService(deps) {
     return intakes.listAttention(now().toISOString()).map((intake) => {
       const booking = intake.parsed || {};
       let text = intake.error;
+      if (intake.status === 'proposed') text = 'Expéditeur non vérifié';
       if (intake.status === 'pending') {
         text = propertyIdsForListing(booking.listingId).length === 0
           ? `Annonce inconnue : ${booking.listingTitle || 'sans titre'} (${booking.listingId})`

@@ -16,7 +16,7 @@ test('an unauthenticated sender: « Expéditeur non vérifié », still appliabl
   api.getAirbnbIntakeForReservation.mockResolvedValue({ intake: { ...BASE, status: 'proposed', senderUnverified: true } });
   render(<IntakeBanner reservationId={22326} />);
   expect(await screen.findByText('Expéditeur non vérifié')).toBeInTheDocument();
-  expect(screen.getByText(/n’a pas été signé par Airbnb/)).toBeInTheDocument();
+  expect(screen.getByText(/n’est pas signé par Airbnb\. Rien n’est rempli tant qu’il n’est pas appliqué\./)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Appliquer' })).toBeInTheDocument();
 });
 

@@ -154,16 +154,21 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       uninstalling or turning off a plugin (`DELETE /api/plugins/:id`, `POST …/deactivate`), which
       erases or strands its credentials — installing, activating and updating stay allowed; and the
       whole SMTP group, the sender name and address included.
-    - Widened 2026-10-28 (audit authz H1): a plugin setting declared `supportLocked` is refused like a `secret`
-      one while staying readable — the intake plugins' `imapHost`, `imapPort`, `senderAddress`, `senderDomains`
-      and `trustedAuthservId`, which decide where the SMTP password is sent and who vouches for a sender
-      (`specs/airbnb-mail-intake.md` rules 22–23). Test: `mail-intake-credential-destination.unit.test.js`.
     - Widened 2026-10-23 (inte/plugins review): the sender name written by the start assistant
       (`senderName` on `PUT /api/onboarding/emails`), and a property's access code and Wi-Fi
       password, whether the start assistant (a non-empty `accessCode` / `wifiPassword` in
       `properties[]`) or the property page (`accessCode` / `wifiPassword` present on
       `PUT /api/properties/:id/arrival-facts`, clearing included) writes them. The other fields of
       those two forms stay open.
+    - Widened 2026-10-28 (audit authz H1, PR #840 review): a plugin setting declared `supportLocked` stays
+      readable, and is refused to a support session only when the value sent **differs from the stored one**
+      (the card's form sends every key, so an unchanged save passes) — the intake plugins' `imapHost`,
+      `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId`, which decide where the SMTP password
+      is sent and who vouches for a sender (`specs/airbnb-mail-intake.md` rules 22–23). Also refused:
+      `POST /api/plugins/:id/rollback` and `POST /api/plugins/:id/update` with a chosen `version`, since a
+      support session must not bring back code from before a security fix (the newest-version update stays
+      allowed). Test: `mail-intake-credential-destination.unit.test.js`.
+
 19. **The server logs what the support reads too** (added 2026-10-17, review). Every `GET` of a
     support session is written to `support_access_log`, once per path and per minute, besides the
     pages the client reports (rule 15). What the application polls by itself (`/api/auth/*`,

@@ -76,10 +76,24 @@ test('rule 22: the operator can apply a proposal from the banner', async () => {
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 22: a forged mail that does not parse leaves no row', async () => {
-  const { service, intakes } = setup([mail({ authenticated: false, text: 'Réservation confirmée : rien de lisible' })]);
-  await service.runPass();
-  assert.equal(intakes.count(), 0);
+test('rule 22: a forged mail that does not parse leaves no row, the same mail from a verified sender is recorded as an error', async () => {
+  const unreadable = mail({ text: 'Code de confirmation : illisible. Vous gagnez : rien.' });
+  const forged = setup([{ ...unreadable, authenticated: false }]);
+  assert.deepEqual(await forged.service.runPass(), { read: 1 });
+  assert.equal(forged.intakes.count(), 0);
+  const verified = setup([{ ...unreadable, authenticated: true }]);
+  await verified.service.runPass();
+  assert.equal(verified.intakes.count(), 1, 'the branch under test is reached: a parse failure of a verified mail is kept');
+  assert.equal(verified.intakes.get(1).status, 'error');
+});
+
+test('rule 22: an unverified proposal reaches the dashboard, a verified one does not', async () => {
+  const forged = setup([mail({ authenticated: false })]);
+  await forged.service.runPass();
+  assert.deepEqual(forged.service.attention().map((i) => [i.text, i.reservationId]), [['Expéditeur non vérifié', PLACEHOLDER.id]]);
+  const edited = setup([mail({ authenticated: true })]);
+  edited.intakes.insert({ messageId: 'x', receivedAt: SENT_AT, status: 'proposed', senderVerified: true });
+  assert.deepEqual(edited.service.attention(), []);
 });
 
 test('rule 22: the authentication settings reach the mailbox reader', async () => {
@@ -89,11 +103,15 @@ test('rule 22: the authentication settings reach the mailbox reader', async () =
   assert.equal(calls.readWith.trustedAuthservId, 'mx.test');
 });
 
-test('rule 22: an intakes table created before the check gets the column, its rows stay verified', () => {
+test('rule 22: an intakes table created before the check gets the column: applied rows stay verified, open rows are not', () => {
   const db = new Database(':memory:');
-  db.exec(TABLE_SQL.replace('    senderVerified INTEGER NOT NULL DEFAULT 1,\n', ''));
-  db.prepare("INSERT INTO airbnb_intakes (messageId, receivedAt, status) VALUES ('<old>', '2026-10-01T00:00:00Z', 'applied')").run();
+  db.exec(TABLE_SQL.replace('    senderVerified INTEGER NOT NULL DEFAULT 0,\n', ''));
+  const insert = db.prepare("INSERT INTO airbnb_intakes (messageId, receivedAt, status, appliedAt) VALUES (?, '2026-10-01T00:00:00Z', ?, ?)");
+  insert.run('<applied>', 'applied', '2026-10-01 10:00:00');
+  insert.run('<proposed>', 'proposed', null);
+  insert.run('<pending>', 'pending', null);
   addSenderVerifiedColumn(db);
   addSenderVerifiedColumn(db);
-  assert.equal(buildModel(db).get(1).senderVerified, true);
+  const model = buildModel(db);
+  assert.deepEqual([1, 2, 3].map((id) => model.get(id).senderVerified), [true, false, false]);
 });
