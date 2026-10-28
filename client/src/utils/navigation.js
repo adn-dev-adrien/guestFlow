@@ -7,16 +7,15 @@ export function withFrom(path, from) {
 export function getFromParam(searchSource) {
   if (!searchSource) return '';
 
+  let raw = '';
   if (typeof searchSource.get === 'function') {
-    return searchSource.get('from') || '';
+    raw = searchSource.get('from') || '';
+  } else if (typeof searchSource === 'string') {
+    const query = searchSource.startsWith('?') ? searchSource.slice(1) : searchSource;
+    raw = new URLSearchParams(query).get('from') || '';
   }
 
-  if (typeof searchSource === 'string') {
-    const raw = searchSource.startsWith('?') ? searchSource.slice(1) : searchSource;
-    return new URLSearchParams(raw).get('from') || '';
-  }
-
-  return '';
+  return isInAppPath(raw) ? raw : '';
 }
 
 // Where a page opened directly goes back to: the planning (specs/ui-review-2026-10-19-operations.md
@@ -39,7 +38,12 @@ export function navigateBack(navigate, fallback = DEFAULT_BACK_PATH) {
   else navigate(fallback, { replace: true });
 }
 
+/** An in-app path: `/…` but not `//…`, `/\\…` or a URL, which React Router refuses to navigate to. */
+export function isInAppPath(target) {
+  return typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\');
+}
+
 export function navigateBackWithFrom(navigate, from, fallback = DEFAULT_BACK_PATH) {
-  if (from) navigate(from);
+  if (isInAppPath(from)) navigate(from);
   else navigateBack(navigate, fallback);
 }
