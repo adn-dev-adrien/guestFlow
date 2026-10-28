@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
@@ -19,11 +19,9 @@ import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
 import OnboardingPage from './pages/OnboardingPage';
 import { onboardingRoute } from './utils/onboardingRoute';
-import EmailTextsSettingsPage from './pages/settings/EmailTextsSettingsPage';
 import LoginPage from './pages/LoginPage';
 import ForcedPasswordChangePage from './pages/ForcedPasswordChangePage';
-import LoadingState from './components/LoadingState';
-import UserManagementPage from './pages/UserManagementPage';
+import LazyPage, { lazyPage } from './components/LazyPage';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import EventIcon from '@mui/icons-material/Event';
@@ -46,7 +44,6 @@ import SupportAccessBanner from './components/SupportAccessBanner';
 import SupportSessionBar, { SUPPORT_BAR_HEIGHT } from './components/SupportSessionBar';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import SupportAccessPage from './pages/settings/SupportAccessPage';
 import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
@@ -54,47 +51,51 @@ import { PLATFORM_COLORS, normalizePlatformKey, setPlatformDisplayNames } from '
 import {
   visibleSettingsGroups, settingsGroupOf, SETTINGS_HOME_PATH, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected,
 } from './constants/settingsMenu';
-import SettingsHomePage from './pages/settings/SettingsHomePage';
 import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
 import { isPluginEnabled, isRouteEnabled, SAS } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
 import { allContributions } from './plugins/sdk/registry';
-
-import Dashboard from './pages/Dashboard';
-import ClientsPage from './pages/ClientsPage';
-import PropertiesPage from './pages/PropertiesPage';
-import PropertyDetail from './pages/PropertyDetail';
-import PropertyPricingSeasonsPage from './pages/PropertyPricingSeasonsPage';
-import OptionsPage from './pages/OptionsPage';
-import CalendarPage from './pages/CalendarPage';
-import ReservationPage from './pages/ReservationPage';
-import ReservationsUpcomingPage from './pages/ReservationsUpcomingPage';
-import FinancePage from './pages/FinancePage';
-import TouristTaxPage from './pages/TouristTaxPage';
-import ResourcesPage from './pages/ResourcesPage';
-import PlanningPage from './pages/PlanningPage';
-import EstablishmentSettingsPage from './pages/settings/EstablishmentSettingsPage';
-import PlatformsSettingsPage from './pages/settings/PlatformsSettingsPage';
-import VatFiscalSettingsPage from './pages/settings/VatFiscalSettingsPage';
-import EmailSettingsPage from './pages/settings/EmailSettingsPage';
-import IntegrationsSettingsPage from './pages/settings/IntegrationsSettingsPage';
-import SystemSettingsPage from './pages/settings/SystemSettingsPage';
-import TermsSettingsPage from './pages/settings/TermsSettingsPage';
-import PluginsPage from './pages/PluginsPage';
-import AccountPage from './pages/AccountPage';
-import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
-import OptionsResourcesPage from './pages/OptionsResourcesPage';
-import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
-import DevisPage from './pages/DevisPage';
-import CompensationsPage from './pages/CompensationsPage';
-import EmailTemplatesPage from './pages/EmailTemplatesPage';
-import EmailHistoryPage from './pages/EmailHistoryPage';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import AppVersionBadge, { AppVersionFooter } from './components/AppVersionBadge';
 import { PageTitleProvider, TopBarActionSlot, usePageTitle, useSetTopBarTitleRoom } from './hooks/usePageTitle';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import NotFoundPage from './components/NotFoundPage';
+
+// Every page is loaded on demand (specs/inte-performance.md rule 2); the shell stays eager.
+const EmailTextsSettingsPage = lazyPage(() => import('./pages/settings/EmailTextsSettingsPage'));
+const UserManagementPage = lazyPage(() => import('./pages/UserManagementPage'));
+const SupportAccessPage = lazyPage(() => import('./pages/settings/SupportAccessPage'));
+const SettingsHomePage = lazyPage(() => import('./pages/settings/SettingsHomePage'));
+const Dashboard = lazyPage(() => import('./pages/Dashboard'));
+const ClientsPage = lazyPage(() => import('./pages/ClientsPage'));
+const PropertiesPage = lazyPage(() => import('./pages/PropertiesPage'));
+const PropertyDetail = lazyPage(() => import('./pages/PropertyDetail'));
+const PropertyPricingSeasonsPage = lazyPage(() => import('./pages/PropertyPricingSeasonsPage'));
+const OptionsPage = lazyPage(() => import('./pages/OptionsPage'));
+const CalendarPage = lazyPage(() => import('./pages/CalendarPage'));
+const ReservationPage = lazyPage(() => import('./pages/ReservationPage'));
+const ReservationsUpcomingPage = lazyPage(() => import('./pages/ReservationsUpcomingPage'));
+const FinancePage = lazyPage(() => import('./pages/FinancePage'));
+const TouristTaxPage = lazyPage(() => import('./pages/TouristTaxPage'));
+const ResourcesPage = lazyPage(() => import('./pages/ResourcesPage'));
+const PlanningPage = lazyPage(() => import('./pages/PlanningPage'));
+const EstablishmentSettingsPage = lazyPage(() => import('./pages/settings/EstablishmentSettingsPage'));
+const PlatformsSettingsPage = lazyPage(() => import('./pages/settings/PlatformsSettingsPage'));
+const VatFiscalSettingsPage = lazyPage(() => import('./pages/settings/VatFiscalSettingsPage'));
+const EmailSettingsPage = lazyPage(() => import('./pages/settings/EmailSettingsPage'));
+const IntegrationsSettingsPage = lazyPage(() => import('./pages/settings/IntegrationsSettingsPage'));
+const SystemSettingsPage = lazyPage(() => import('./pages/settings/SystemSettingsPage'));
+const TermsSettingsPage = lazyPage(() => import('./pages/settings/TermsSettingsPage'));
+const PluginsPage = lazyPage(() => import('./pages/PluginsPage'));
+const AccountPage = lazyPage(() => import('./pages/AccountPage'));
+const SeasonsClosuresPage = lazyPage(() => import('./pages/SeasonsClosuresPage'));
+const OptionsResourcesPage = lazyPage(() => import('./pages/OptionsResourcesPage'));
+const EstablishmentClosuresPage = lazyPage(() => import('./pages/EstablishmentClosuresPage'));
+const DevisPage = lazyPage(() => import('./pages/DevisPage'));
+const CompensationsPage = lazyPage(() => import('./pages/CompensationsPage'));
+const EmailTemplatesPage = lazyPage(() => import('./pages/EmailTemplatesPage'));
+const EmailHistoryPage = lazyPage(() => import('./pages/EmailHistoryPage'));
 
 const MODULE_PAGES = allContributions('routes');
 
@@ -790,7 +791,7 @@ function AppShell() {
           <Route path="/" element={<Dashboard />} />
           {/* Pages of plugin modules (specs/plugins-phase-1-sdk.md rule 15), lazily loaded. */}
           {MODULE_PAGES.map(({ path, Component }) => (
-            <Route key={path} path={path} element={pluginRoute(path, <Suspense fallback={<LoadingState />}><Component /></Suspense>)} />
+            <Route key={path} path={path} element={pluginRoute(path, <LazyPage><Component /></LazyPage>)} />
           ))}
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/properties" element={<PropertiesPage />} />
