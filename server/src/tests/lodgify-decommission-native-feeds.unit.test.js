@@ -119,7 +119,7 @@ test('rule 5/9 — a CLOSED event on free dates is a real Booking reservation, n
   assert.equal(resa.bookingConflictAt, null);
 });
 
-test('rule 6 (amended 2026-10-28) — a Booking event wholly over a GreenGo stay is created and flagged, never dropped', async () => {
+test('rules 6 and 18 (amended 2026-10-28) — a Booking event wholly over a GreenGo stay is created and flagged, never dropped', async () => {
   const { db, model } = fresh();
   stubFetch([{ uid: 'G1', start: '20270703', end: '20270706', summary: 'Jean Dupont' }]);
   await model.syncSource(GREENGO);

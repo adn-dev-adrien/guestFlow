@@ -1,9 +1,9 @@
 // @ts-check
-// specs/reservation-fiche-concurrency.md — a fiche saved after a background write is refused, not
+// specs/reservation-fiche-concurrency.md rules 1-5 — a fiche saved after a background write is refused, not
 // allowed to revert it. « Garder ma saisie » leaves the draft on screen; « Recharger » shows the write.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
-import { simulateBackgroundWrite } from '../../fixtures/dbSeed.js';
+import { enablePropertyDeposit, simulateBackgroundWrite } from '../../fixtures/dbSeed.js';
 
 test('a save on an out-of-date fiche is refused; the draft is kept, then reload shows the background write', async ({ page }) => {
   const property = await createProperty({ name: 'E2E stale villa' });
@@ -49,6 +49,28 @@ test('a fiche that only the operator touched saves without any refusal', async (
   await notes.fill('Une note');
   const statuses = [];
   page.on('response', (r) => { if (r.request().method() === 'PUT' && /\/api\/reservations\/\d+$/.test(r.url())) statuses.push(r.status()); });
+  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await expect.poll(() => statuses.length).toBeGreaterThan(0);
+  expect(statuses).toEqual([200]);
+});
+
+test('rule 4 — a payment marked from the fiche does not make the next save look stale', async ({ page }) => {
+  const property = await createProperty({ name: 'E2E twice villa' });
+  enablePropertyDeposit(property.id);
+  const client = await createClient({ firstName: 'Fiche', lastName: 'Deux' });
+  const reservation = await createReservation({
+    propertyId: property.id, clientId: client.id, startDate: '2099-09-05', endDate: '2099-09-08', adults: 2,
+  });
+  await page.goto(`/reservations/${reservation.id}`);
+  const deposit = page.locator('[data-row="deposit"]');
+  await deposit.getByRole('button', { name: 'Marquer perçu : Acompte' }).click();
+  await deposit.getByLabel('Perçu le').fill(new Date().toLocaleDateString('sv-SE'));
+  await deposit.getByRole('button', { name: 'Valider' }).click();
+  await expect(deposit.getByText(/^Perçu le /)).toBeVisible({ timeout: 10_000 });
+
+  const statuses = [];
+  page.on('response', (r) => { if (r.request().method() === 'PUT' && /\/api\/reservations\/\d+$/.test(r.url())) statuses.push(r.status()); });
+  await page.getByLabel('Notes').first().fill('Après encaissement');
   await page.getByRole('button', { name: 'Enregistrer' }).first().click();
   await expect.poll(() => statuses.length).toBeGreaterThan(0);
   expect(statuses).toEqual([200]);
