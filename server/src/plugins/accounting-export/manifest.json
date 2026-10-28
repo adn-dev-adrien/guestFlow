@@ -67,6 +67,8 @@
     ],
     "1.0.15": [
       "Le taux de TVA de chaque écriture est celui du régime de la réservation.",
+      "Une réservation « Sans TVA » n’écrit ni TVA collectée, ni TVA déductible sur la commission ; l’indemnité d’annulation et l’avoir restent à 0 %.",
+      "Le plan comptable masque les taux de TVA qui ne peuvent pas s’appliquer sous « Sans TVA ».",
       "Compatible avec le SDK 2.8 de GuestFlow."
     ]
   }

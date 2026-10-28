@@ -370,7 +370,15 @@ function createFinanceModel(database) {
         ORDER BY ${ATTRIBUTION_DATE_SQL}
       `).all(start, end, ...scope.params);
 
-      const vatOf = (r) => vatRegimeModel.rateForRow(database, r);
+      // Rule 12d — the HT figures only mean something while a stay of the view is under VAT, or the
+      // regime in force is: a view of « Sans TVA » stays alone drops them.
+      const inForceVat = vatRegimeModel.inForceBlock(database);
+      let showHt = !inForceVat || inForceVat.regime === 'subject';
+      const vatOf = (r) => {
+        const regime = vatRegimeModel.forRow(database, r);
+        if (regime.regime === 'subject') showHt = true;
+        return regime.rate;
+      };
       let revenueTotal = 0;
       let totalCollected = 0;
       let revenueTotalHt = 0;
@@ -584,6 +592,7 @@ function createFinanceModel(database) {
       return {
         revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by attribution date)
         revenueTotalHt: round2(revenueTotalHt), // …its element-by-element HT (tax excluded, ÷ vat)
+        showHt,                                 // false when no stay of the view is under VAT (HT = TTC)
         revenueTotalNights,                     // …and the nights sold over that same set
         totalCollected: round2(totalCollected), // accounting total (encaissé)
         totalCollectedHt: round2(totalCollectedHt),

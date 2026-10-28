@@ -11,10 +11,10 @@
 
 const crypto = require('crypto');
 
-// Timestamps SQLite stamps with the real clock say nothing about a VAT reader. `vatRegime` and
-// `vatPeriodId` are what the regime ADDED to the payloads (rule 23 compares what already existed; the
+// Timestamps SQLite stamps with the real clock say nothing about a VAT reader. `vatRegime`,
+// `vatPeriodId` and `showHt` are what the regime ADDED to the payloads (rule 23 compares what already existed; the
 // new keys have their own suites).
-const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 'vatPeriodId']);
+const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 'vatPeriodId', 'showHt']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

@@ -7,6 +7,7 @@
  *
  * Props:
  *   hero:          dashboard.hero
+ *   showHt:        dashboard.showHt — false when no stay of the view is under VAT (the HT figure is dropped)
  *   windowLabel:   string   « Exercice 2026 », « septembre 2026 »…
  *   asOf:          'YYYY-MM-DD' | null   « au <date> » while the window is running
  *   propertyName?: string
@@ -45,7 +46,7 @@ function Figure({ value, label }) {
   );
 }
 
-export default function FinanceHero({ hero, windowLabel, asOf, propertyName, fiscalYearLabel, format }) {
+export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, propertyName, fiscalYearLabel, format }) {
   const hasPrevious = hero.cumulative.some((p) => p.previous != null);
   const dash = '—';
   const labels = new Map(hero.axis.map((t) => [t.x, t.label]));
@@ -68,7 +69,7 @@ export default function FinanceHero({ hero, windowLabel, asOf, propertyName, fis
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
             {hero.yoy && <YearOverYearBadge change={hero.yoy.change} months={hero.yoy.months} totalMonths={hero.yoy.totalMonths} onDark />}
-            <Box component="span" sx={{ color: MUTED }}>{format.amount(hero.revenueHt)} HT · net de commissions · {hero.stays} séjour{hero.stays > 1 ? 's' : ''}</Box>
+            <Box component="span" sx={{ color: MUTED }}>{showHt ? `${format.amount(hero.revenueHt)} HT · ` : ''}net de commissions · {hero.stays} séjour{hero.stays > 1 ? 's' : ''}</Box>
           </Box>
           {hero.goal && (
             <Box sx={{ mt: 1.75, maxWidth: 520 }}>

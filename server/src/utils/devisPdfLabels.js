@@ -45,6 +45,8 @@ const FR = Object.freeze({
   colUnitPriceHt:  'Total HT',
   colVatRate:      'TVA %',
   colTotalTtc:     'Total TTC',
+  // « Sans TVA » (specs/vat-optional-mode.md rule 12b): one amount column, no HT / TTC wording.
+  colTotal:        'Total',
 
   // ── Accommodation row ─────────────────────────────────────────────────────
   accommodation:           (nights) => `Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`,
@@ -79,13 +81,16 @@ const FR = Object.freeze({
   // ── Totals ────────────────────────────────────────────────────────────────
   subtotalHt:      'Sous-total HT',
   subtotalTtc:     'Sous-total TTC',
+  subtotal:        'Sous-total',
   touristTax:      'Taxe de séjour',
   touristTaxBreakdown: (persons, nights, rate) => (
     `${persons} pers. × ${nights} nuit${nights > 1 ? 's' : ''} × ${rate} / pers./nuit`
   ),
   grandTotal:      'TOTAL TTC',
+  grandTotalNoVat: 'TOTAL',
   // specs/ui-review-2026-10-19-operations.md rule 19 — the page-1 summary block.
   summaryTotal:    'Total du séjour TTC',
+  summaryTotalNoVat: 'Total du séjour',
   summaryDeposit:  'Acompte',
   summaryBalance:  'Solde',
   summaryFull:     'Paiement intégral',
@@ -145,6 +150,7 @@ const EN = Object.freeze({
   colUnitPriceHt:  'Total excl. VAT',
   colVatRate:      'VAT %',
   colTotalTtc:     'Total incl. VAT',
+  colTotal:        'Total',
 
   // ── Accommodation row ─────────────────────────────────────────────────────
   accommodation:           (nights) => `Accommodation — ${nights} night${nights > 1 ? 's' : ''}`,
@@ -177,12 +183,15 @@ const EN = Object.freeze({
   // ── Totals ────────────────────────────────────────────────────────────────
   subtotalHt:      'Subtotal excl. VAT',
   subtotalTtc:     'Subtotal incl. VAT',
+  subtotal:        'Subtotal',
   touristTax:      'Tourist tax',
   touristTaxBreakdown: (persons, nights, rate) => (
     `${persons} guest${persons > 1 ? 's' : ''} × ${nights} night${nights > 1 ? 's' : ''} × ${rate} / guest / night`
   ),
   grandTotal:      'TOTAL incl. VAT',
+  grandTotalNoVat: 'TOTAL',
   summaryTotal:    'Total for the stay incl. VAT',
+  summaryTotalNoVat: 'Total for the stay',
   summaryDeposit:  'Deposit',
   summaryBalance:  'Balance',
   summaryFull:     'Full payment',

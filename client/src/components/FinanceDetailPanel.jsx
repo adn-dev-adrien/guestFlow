@@ -226,7 +226,9 @@ function PropertiesTable({ data, onSelectProperty }) {
           <TableRow>
             <TableCell>Logement</TableCell><TableCell align="right">Nuits</TableCell><TableCell align="right">Occupation</TableCell>
             <TableCell align="right">Revenu / nuit</TableCell><TableCell align="right">RevPAR</TableCell>
-            <TableCell align="right">TTC</TableCell><TableCell align="right">HT</TableCell><TableCell align="right">vs N-1</TableCell>
+            <TableCell align="right">{data.showHt === false ? 'Revenu' : 'TTC'}</TableCell>
+            {data.showHt !== false && <TableCell align="right">HT</TableCell>}
+            <TableCell align="right">vs N-1</TableCell>
           </TableRow>
         )}
         renderRow={(r) => (
@@ -237,7 +239,7 @@ function PropertiesTable({ data, onSelectProperty }) {
             <TableCell align="right" sx={TAB}>{money(r.revenuePerNight)}</TableCell>
             <TableCell align="right" sx={TAB}>{money(r.revPar)}</TableCell>
             <TableCell align="right" sx={{ ...TAB, fontWeight: 700 }}>{formatCurrencyRounded(r.revenue)}</TableCell>
-            <TableCell align="right" sx={TAB}>{formatCurrencyRounded(r.revenueHt)}</TableCell>
+            {data.showHt !== false && <TableCell align="right" sx={TAB}>{formatCurrencyRounded(r.revenueHt)}</TableCell>}
             <TableCell align="right">{r.change == null ? <Typography variant="caption" color="text.secondary">—</Typography> : badge(r.change)}</TableCell>
           </TableRow>
         )}

@@ -47,8 +47,14 @@ export default function StoredPricingSummary({ summary, form, propertyLabel, isP
         {Number(s.resourcesTotal) > 0 && <Row label="Ressources" value={s.resourcesTotal} />}
         {Number(s.touristTaxTotal) > 0 && <Row label="Taxe de séjour" value={s.touristTaxTotal} />}
         <Divider />
-        <Row label="Total HT" value={s.totalNetPrice} caption />
-        <Row label={`TVA ${s.vatRate}%`} value={s.totalVatAmount} caption />
+        {s.vatRegime?.regime === 'not_subject' ? (
+          <Typography variant="caption" color="text.secondary" data-testid="vat-mention">{s.vatRegime.legalMentionText}</Typography>
+        ) : (
+          <>
+            <Row label="Total HT" value={s.totalNetPrice} caption />
+            <Row label={`TVA ${s.vatRate}%`} value={s.totalVatAmount} caption />
+          </>
+        )}
         <Divider />
         <Row label="Total du séjour" value={totalStay} strong />
         {isPlatform && Number(s.totalPlatformCommission) > 0 && (

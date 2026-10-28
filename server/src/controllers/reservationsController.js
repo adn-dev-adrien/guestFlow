@@ -777,7 +777,8 @@ function storedSummaryOf(row) {
     + sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE amount END),0) AS total FROM reservation_custom_options WHERE reservationId = ?'));
   const resourcesTotal = sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_resources WHERE reservationId = ?');
   const accommodation = round2(Math.max(0, Number(row.finalPrice || 0) - optionsTotal - resourcesTotal));
-  const vatRate = vatRegimeModel.rateForRow(db, row);
+  const vatRegime = vatRegimeModel.forRow(db, row);
+  const vatRate = vatRegime.rate;
   const vatOf = (ttc) => round2(ttc * (vatRate / (100 + vatRate)));
   const totalVatAmount = round2(vatOf(accommodation) + vatOf(optionsTotal) + vatOf(resourcesTotal));
   return {
@@ -786,6 +787,7 @@ function storedSummaryOf(row) {
     optionsTotal,
     resourcesTotal,
     vatRate,
+    vatRegime,
     totalVatAmount,
     totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),
     depositDueDate: row.depositDueDate || null,

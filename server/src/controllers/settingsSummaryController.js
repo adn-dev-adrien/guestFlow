@@ -67,6 +67,7 @@ function buildSummary(deps, user) {
   put('/settings/tva-exercice', () => {
     const month = MONTHS[(Number(row.fiscalYearEndMonth) || 12) - 1];
     const vat = vatRegimeModel.inForceBlock(deps.db);
+    if (vat && vat.regime === 'not_subject') return neutral(`Sans TVA · exercice clos fin ${month}`);
     return neutral(`TVA ${vat ? vat.rate : Number(row.vatRate)} % · exercice clos fin ${month}`);
   });
   put('/settings/emails', () => {

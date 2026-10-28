@@ -172,7 +172,8 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         : entry);
 
       return reservations.flatMap((row) => {
-        const rowContext = { ...commissionContext, vatRate: vatRegimeModel.rateForRow(database, row) };
+        const salesRegime = vatRegimeModel.forRow(database, row);
+        const rowContext = { ...commissionContext, vatRate: salesRegime.rate, salesRegime: salesRegime.regime };
         const perLineData = buildPerLineData(database, row);
         // Tax collected at check-in (→ complement) only when WE charge the guest directly, i.e. a
         // non-direct platform that does NOT collect the tax from the guest (case 3 « owner » of
@@ -274,8 +275,11 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       // Read from the INJECTED database, not the module-level settings model: an export run built
       // on a test/replica DB must use that DB's chart of accounts, never production's.
       const { account, vatRatePercent } = compensationSettings(settings.read());
+      // An indemnity for a stay sold « Sans TVA » carries no VAT, whatever rate the plan names.
+      const rateOf = (row) => (row.reservationId
+        && vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : vatRatePercent);
       return compensations.listReceivedByMonth({ from, nextMonth })
-        .map((row) => buildCompensationEntry(row, { account, vatRatePercent }))
+        .map((row) => buildCompensationEntry(row, { account, vatRatePercent: rateOf(row) }))
         .filter(Boolean);
     },
   };
@@ -405,7 +409,10 @@ function resolveCommissionConfig(row, commissionContext) {
   if (platform === 'direct') return null;
   const platformRow = commissionContext.platformByName.get(platform);
   const account = (platformRow && platformRow.commissionAccountNumber) || commissionContext.defaultAccount;
-  const hasVat = platformRow ? Boolean(Number(platformRow.hasVatOnCommission)) : false;
+  // Under « Sans TVA » the platform's VAT on its commission is not deductible: it is a cost, booked TTC
+  // on the commission account (vat-optional-mode rule 12g), whatever the platform row says.
+  const deductible = commissionContext.salesRegime !== 'not_subject';
+  const hasVat = platformRow ? Boolean(Number(platformRow.hasVatOnCommission)) && deductible : false;
   return { account, hasVat };
 }
 
