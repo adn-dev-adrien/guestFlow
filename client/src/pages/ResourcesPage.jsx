@@ -1,268 +1,176 @@
-import React from 'react';
-import {
-  Box, Typography, FormControlLabel, TextField, Checkbox,
-} from '@mui/material';
-import { alpha } from '@mui/material/styles';
+/**
+ * ResourcesPage — the « Ressources » tab of Options & ressources (specs/options-resources-ux.md
+ * rules 18-22): one card per resource, shaped by the server (`/resources/catalogue-view`, with the
+ * lines a plugin adds), opened in a side panel. Deleting stays in the card's « ⋯ » menu with the
+ * existing impact confirmation.
+ */
+import React, { useCallback, useEffect, useState } from 'react';
+import { Box, ButtonBase, Typography } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import api from '../api';
-import PricedItemsPage, { PRICE_TYPES } from '../components/PricedItemsPage';
-import TokenTextField from '../components/TokenTextField';
-import { usePlugin } from '../hooks/usePlugins';
-import { HOURLY_RESOURCES } from '../constants/plugins';
-import { useSlot } from '../plugins/sdk';
+import PageActionBar from '../components/PageActionBar';
+import RowActionsMenu from '../components/RowActionsMenu';
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
+import ErrorAlert from '../components/ErrorAlert';
+import { useAppDialogs, useToast } from '../components/DialogProvider';
+import { PAGE_TITLE, TEXTS } from '../constants/optionsResourcesTexts';
+import ResourceEditorPanel from './options/ResourceEditorPanel';
 
-// Without the hourly-resources plugin, nothing is sold by the hour: « À l'heure » is not offered and
-// the resources that have it are hidden (specs/plugins-phase-3c-hourly-resources.md rules 18, 20).
-const PRICE_TYPES_WITHOUT_HOURLY = PRICE_TYPES.filter((t) => t.value !== 'per_hour');
-
-const emptyResource = {
-  name: '', quantity: 1, price: 0, priceType: 'per_stay', propertyIds: [], description: '',
-  propertyPricing: {},
-  isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
-  // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1).
-  showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
-  // Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3). 0 = not applicable.
-  heatUpMinutes: 0, heatRetentionMinutes: 0,
-  // The sentence of the guest emails once booked (specs/plugins-phase-p-productisation.md rule 11).
-  emailBookedText: '', emailBookedTextEn: '',
-};
-
-// The per-property price of any resource. For one sold by the hour, the price is per hour and the
-// first hour can be offered.
-function PropertyPricingFields({ form, setForm, properties }) {
-  const hourly = form.priceType === 'per_hour';
-  const normalizedPropertyIds = Array.isArray(form.propertyIds) ? form.propertyIds.map((id) => Number(id)) : [];
-  const targetProperties = normalizedPropertyIds.length > 0
-    ? (properties || []).filter((p) => normalizedPropertyIds.includes(Number(p.id)))
-    : (properties || []);
-
-  const getPropertyPricingLine = (propertyId) => {
-    const raw = (form.propertyPricing || {})[String(propertyId)] || {};
-    return {
-      price: raw.price ?? '',
-      freeMinutes: Math.max(0, Number(raw.freeMinutes || 0)),
-    };
-  };
-
-  const updatePropertyPrice = (propertyId, value) => {
-    const nextPricing = { ...(form.propertyPricing || {}) };
-    const trimmed = String(value || '').trim();
-    const existing = nextPricing[String(propertyId)] || {};
-    if (trimmed === '') {
-      if (Number(existing.freeMinutes || 0) > 0) {
-        nextPricing[String(propertyId)] = { price: '', freeMinutes: Number(existing.freeMinutes || 0) };
-      } else {
-        delete nextPricing[String(propertyId)];
-      }
-    } else {
-      const parsed = Number(trimmed);
-      nextPricing[String(propertyId)] = {
-        price: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
-        freeMinutes: Number(existing.freeMinutes || 0),
-      };
-    }
-    setForm({ ...form, propertyPricing: nextPricing });
-  };
-
-  const updatePropertyFirstHourFree = (propertyId, enabled) => {
-    const nextPricing = { ...(form.propertyPricing || {}) };
-    const existing = nextPricing[String(propertyId)] || {};
-    const nextLine = {
-      price: existing.price ?? '',
-      freeMinutes: enabled ? 60 : 0,
-    };
-    if ((nextLine.price === '' || nextLine.price === null || nextLine.price === undefined) && nextLine.freeMinutes === 0) {
-      delete nextPricing[String(propertyId)];
-    } else {
-      nextPricing[String(propertyId)] = nextLine;
-    }
-    setForm({ ...form, propertyPricing: nextPricing });
-  };
-
+function ResourceCard({ item, onOpen, onDelete }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-      <Typography variant="body2" fontWeight={600}>Prix spécifique par logement (optionnel)</Typography>
-      <Typography variant="caption" color="text.secondary">Vide : prix général.</Typography>
-      {targetProperties.length === 0 && (
-        <Typography variant="caption" color="text.secondary">Aucun logement disponible.</Typography>
-      )}
-      {targetProperties.map((property) => (
-        <Box key={property.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
-          <TextField
-            label={`Prix ${property.name}${hourly ? ' (EUR/h)' : ''}`}
-            type="number"
-            size="small"
-            value={getPropertyPricingLine(property.id).price}
-            onChange={(e) => updatePropertyPrice(property.id, e.target.value)}
-            fullWidth
-            slotProps={{
-              htmlInput: { min: 0, step: '0.01' }
+    <Box
+      sx={{
+        position: 'relative', bgcolor: 'background.paper', borderRadius: '14px', p: { xs: 1.75, sm: 2.25 },
+        boxShadow: '0 1px 2px rgba(39,37,31,.06), 0 4px 14px rgba(39,37,31,.05)',
+        border: '1px solid transparent', display: 'flex', flexDirection: 'column', gap: 1,
+        transition: 'border-color 150ms', '@media (hover: hover) and (pointer: fine)': { '&:hover': { borderColor: 'primary.light' } },
+        '&:active': { transform: 'scale(.995)' },
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5, alignItems: 'flex-start' }}>
+        {/* The name is the card's one button, stretched over the whole card; the rest stays plain text. */}
+        <Typography variant="sectionHeader" component="h2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+          <ButtonBase
+            onClick={() => onOpen(item)}
+            sx={{
+              position: 'static', display: 'block', textAlign: 'left', font: 'inherit', overflowWrap: 'anywhere', borderRadius: 1,
+              '&::after': { content: '""', position: 'absolute', inset: 0, borderRadius: '14px' },
+              '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
             }}
-          />
-          {hourly && (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  size="small"
-                  checked={getPropertyPricingLine(property.id).freeMinutes >= 60}
-                  onChange={(e) => updatePropertyFirstHourFree(property.id, e.target.checked)}
-                />
-              }
-              label={<Typography variant="caption">1ère heure offerte pour {property.name}</Typography>}
-              sx={{ m: 0 }}
+          >
+            {item.name}
+          </ButtonBase>
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, flex: 'none' }}>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '1.4rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+              {item.stock.value.toLocaleString('fr-FR')}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">{item.stock.label}</Typography>
+          </Box>
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <RowActionsMenu
+              label={TEXTS.actionsOf(item.name)}
+              items={[
+                { label: TEXTS.edit, onClick: () => onOpen(item) },
+                {
+                  label: TEXTS.delete, danger: true, onClick: () => onDelete(item),
+                  disabled: Boolean(item.deleteBlockedReason), hint: item.deleteBlockedReason || undefined,
+                },
+              ]}
             />
-          )}
+          </Box>
         </Box>
-      ))}
+      </Box>
+      {item.description && <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.description}</Typography>}
+      <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: '0.86rem' }}>
+        {item.lines.map((line) => (
+          <React.Fragment key={`${line.label}:${line.value}`}>
+            <Box component="dt" sx={{ color: 'text.secondary' }}>{line.label}</Box>
+            <Box component="dd" sx={{ m: 0, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{line.value}</Box>
+          </React.Fragment>
+        ))}
+      </Box>
+      {item.footer && (
+        <Typography variant="caption" color="text.secondary" sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 1 }}>
+          {item.footer}
+        </Typography>
+      )}
     </Box>
   );
 }
 
-// What plugins draw under the base fields (specs/plugins-phase-3c-hourly-resources.md rule 21): the
-// hourly block of a resource sold by the hour.
-function PluginResourceFields({ form, setForm }) {
-  const contributions = useSlot('resources.fields').filter((c) => c.appliesTo(form));
-  return contributions.map(({ key, pluginId, Component }) => (
-    <React.Suspense key={`${pluginId}:${key}`} fallback={null}>
-      <Component draft={form} onChange={(patch) => setForm({ ...form, ...patch })} />
-    </React.Suspense>
-  ));
-}
-
-const DEFAULT_HOURLY_SETTINGS = {
-  isComplex: 0, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00',
-  openDays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]), turnoverMinutes: 0, showsPlanningCard: 0,
-  hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
-  heatUpMinutes: 0, heatRetentionMinutes: 0,
-};
-
-function hourlySettings(form) {
-  if (form.priceType !== 'per_hour') return DEFAULT_HOURLY_SETTINGS;
-  const slotted = Boolean(form.isComplex);
-  const card = Boolean(form.showsPlanningCard);
-  return {
-    isComplex: slotted ? 1 : 0,
-    slotDuration: slotted ? (Number(form.slotDuration) || 5) : 5,
-    minimumUsageMinutes: Number(form.minimumUsageMinutes) || 60,
-    openTime: slotted ? (form.openTime || '08:00') : '08:00',
-    closeTime: slotted ? (form.closeTime || '22:00') : '22:00',
-    openDays: JSON.stringify(slotted ? (form.openDays || [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]),
-    turnoverMinutes: slotted ? (Number(form.turnoverMinutes) || 0) : 0,
-    showsPlanningCard: card ? 1 : 0,
-    hourlyEveningStart: card && form.hourlyEveningStart ? form.hourlyEveningStart : null,
-    hourlyEveningRate: card ? (Number(form.hourlyEveningRate) || 0) : 0,
-    hourlyExternalDayRate: card ? (Number(form.hourlyExternalDayRate) || 0) : 0,
-    hourlyExternalEveningRate: card ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
-    heatUpMinutes: Math.max(0, Number(form.heatUpMinutes) || 0),
-    heatRetentionMinutes: Math.max(0, Number(form.heatRetentionMinutes) || 0),
-  };
-}
-
-/**
- * Maps the resource editor form to the API payload. Exported for the unit test — the hourly
- * scheduling fields (specs/resource-hourly-scheduling.md) must survive the save, and be cleared when
- * the resource isn't a per_hour planning resource.
- */
-export function toResourcePayload(form) {
-  return {
-    name: form.name,
-    quantity: Number(form.quantity) || 0,
-    price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
-    priceType: form.priceType || 'per_stay',
-    propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
-    propertyPricing: Object.entries(form.propertyPricing || {})
-      .reduce((acc, [propertyId, rawPrice]) => {
-        const parsedPrice = Number(rawPrice?.price);
-        const parsedFreeMinutes = Number(rawPrice?.freeMinutes || 0);
-        const hasPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0;
-        // A free hour exists only on a resource sold by the hour (rule 4).
-        const freeMinutes = form.priceType === 'per_hour' && Number.isFinite(parsedFreeMinutes) ? Math.max(0, Math.round(parsedFreeMinutes)) : 0;
-        if (hasPrice || freeMinutes > 0) acc[String(propertyId)] = { price: hasPrice ? parsedPrice : 0, freeMinutes };
-        return acc;
-      }, {}),
-    note: form.description || '',
-    emailBookedText: form.emailBookedText || '',
-    emailBookedTextEn: form.emailBookedTextEn || '',
-    // Hours, slots and the planning card are for a resource sold by the hour only
-    // (specs/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise, so switching the price
-    // type away leaves no stale setting behind.
-    ...hourlySettings(form),
-  };
-}
-
 export default function ResourcesPage({ barTabs }) {
-  const hourlyOn = usePlugin(HOURLY_RESOURCES);
+  const { confirm } = useAppDialogs();
+  const { showSuccess, showError } = useToast();
+  const [items, setItems] = useState(null);
+  const [properties, setProperties] = useState([]);
+  const [error, setError] = useState(false);
+  const [editor, setEditor] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.getResourcesCatalogueView();
+      setItems(data.items);
+      setError(false);
+    } catch {
+      setError(true);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { api.getProperties().then(setProperties).catch(() => setProperties([])); }, []);
+
+  const handleSaved = async ({ isNew }) => {
+    setEditor(null);
+    showSuccess(isNew ? TEXTS.resourceAdded : TEXTS.resourceSaved);
+    await load();
+  };
+
+  const handleDelete = async (item) => {
+    let impact = null;
+    try { impact = await api.getResourceDeleteImpact(item.id); } catch { impact = null; }
+    const reservations = Number(impact && impact.reservationsCount) || 0;
+    const bookings = Number(impact && impact.bookingsCount) || 0;
+    const inUse = reservations > 0 || bookings > 0;
+    const parts = [];
+    if (reservations > 0) parts.push(TEXTS.reservationsCount(reservations));
+    if (bookings > 0) parts.push(TEXTS.slotsCount(bookings));
+    const ok = await confirm({
+      title: TEXTS.confirmDeleteTitle,
+      message: inUse ? TEXTS.confirmDeleteInUse(parts.join(' et ')) : TEXTS.confirmDelete(item.name),
+      confirmLabel: TEXTS.delete,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteResource(item.id, inUse ? { force: true } : undefined);
+      showSuccess(TEXTS.resourceDeleted);
+      await load();
+    } catch (err) {
+      showError(err.message || TEXTS.deleteFailed);
+    }
+  };
+
+  let body;
+  if (error && !items) body = <ErrorAlert onRetry={load} />;
+  else if (!items) body = <LoadingState variant="skeleton" rows={4} />;
+  else if (items.length === 0) {
+    body = (
+      <EmptyState
+        icon={<DevicesOtherIcon />}
+        title={TEXTS.emptyResourcesTitle}
+        message={TEXTS.emptyResourcesMessage}
+        actionLabel={TEXTS.emptyResourcesAction}
+        onAction={() => setEditor({ id: null })}
+      />
+    );
+  } else {
+    body = (
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(320px, 1fr))' }, gap: { xs: 1.5, sm: 2 } }}>
+        {items.map((item) => (
+          <ResourceCard key={item.id} item={item} onOpen={(it) => setEditor({ id: it.id })} onDelete={handleDelete} />
+        ))}
+      </Box>
+    );
+  }
+
   return (
-    <PricedItemsPage
-      barTabs={barTabs}
-      priceTypes={hourlyOn ? PRICE_TYPES : PRICE_TYPES_WITHOUT_HOURLY}
-      pageTitle="Ressources"
-      itemLabel="ressource"
-      emptyForm={emptyResource}
-      loadItems={async () => {
-        const [items, properties] = await Promise.all([api.getResources(), api.getProperties()]);
-        return { items, properties };
-      }}
-      createItem={(data) => api.createResource(data)}
-      updateItem={(id, data) => api.updateResource(id, data)}
-      deleteItem={(id, options) => api.deleteResource(id, options)}
-      getDeleteImpact={(id) => api.getResourceDeleteImpact(id)}
-      fromItem={(item) => ({
-        ...item,
-        propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
-        propertyPricing: item.propertyPricing && typeof item.propertyPricing === 'object'
-          ? item.propertyPricing
-          : Object.entries(item.propertyPrices || {}).reduce((acc, [pid, price]) => {
-            acc[String(pid)] = { price: Number(price || 0), freeMinutes: 0 };
-            return acc;
-          }, {}),
-        description: item.note || item.description || '',
-        isComplex: Boolean(item.isComplex),
-        showsPlanningCard: Boolean(item.showsPlanningCard),
-        hourlyEveningStart: item.hourlyEveningStart || '',
-        hourlyEveningRate: Number(item.hourlyEveningRate || 0),
-        hourlyExternalDayRate: Number(item.hourlyExternalDayRate || 0),
-        hourlyExternalEveningRate: Number(item.hourlyExternalEveningRate || 0),
-        slotDuration: item.slotDuration || 5,
-        minimumUsageMinutes: Number(item.minimumUsageMinutes || 0),
-        openTime: item.openTime || '08:00',
-        closeTime: item.closeTime || '22:00',
-        openDays: (() => {
-          try {
-            if (item.openDays) return JSON.parse(item.openDays);
-            const closed = JSON.parse(item.closedDays || '[]');
-            return [0, 1, 2, 3, 4, 5, 6].filter((d) => !closed.includes(d));
-          } catch {
-            return [0, 1, 2, 3, 4, 5, 6];
-          }
-        })(),
-        turnoverMinutes: Number(item.turnoverMinutes || 0),
-        heatUpMinutes: Number(item.heatUpMinutes || 0),
-        heatRetentionMinutes: Number(item.heatRetentionMinutes || 0),
-        emailBookedText: item.emailBookedText || '',
-        emailBookedTextEn: item.emailBookedTextEn || '',
-      })}
-      toPayload={toResourcePayload}
-      formNameKey="name"
-      formDescriptionKey="description"
-      showQuantity={true}
-      isDeleteDisabled={(item) => {
-        const n = (item.name || '').toLowerCase();
-        return n.includes('lit') && (n.includes('bébé') || n.includes('bebe'));
-      }}
-      getRowSx={(item) => (item.isComplex ? { bgcolor: (t) => alpha(t.palette.info.main, 0.05) } : {})}
-      renderExtraFormFields={(form, setForm, { properties }) => (
-        <>
-          <PropertyPricingFields form={form} setForm={setForm} properties={properties} />
-          <PluginResourceFields form={form} setForm={setForm} />
-          <TokenTextField
-            label="Phrase dans les mails une fois réservée"
-            fr={form.emailBookedText || ''}
-            en={form.emailBookedTextEn || ''}
-            onChange={(lang, value) => setForm((f) => ({ ...f, [lang === 'fr' ? 'emailBookedText' : 'emailBookedTextEn']: value }))}
-            tokens={[{ name: 'slots', label: 'Créneaux' }]}
-          />
-        </>
-      )}
-    />
+    <>
+      <PageActionBar
+        title={PAGE_TITLE}
+        tabs={barTabs}
+        actionsBefore={[{ icon: <AddIcon />, tooltip: TEXTS.newResource, onClick: () => setEditor({ id: null }), color: 'primary' }]}
+      />
+      <Box sx={{ mt: 2, maxWidth: 1240, mx: 'auto' }}>{body}</Box>
+      <ResourceEditorPanel
+        open={Boolean(editor)}
+        resourceId={editor ? editor.id : null}
+        properties={properties}
+        onClose={() => setEditor(null)}
+        onSaved={handleSaved}
+      />
+    </>
   );
 }

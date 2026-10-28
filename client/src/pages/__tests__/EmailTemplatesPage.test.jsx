@@ -16,7 +16,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getEmailTemplates: vi.fn(),
-    getEmailTemplatesTimeline: vi.fn(),
+    getEmailTemplatesTimeline: vi.fn(), getEmailTemplate: vi.fn(),
     describeTemplateWhen: vi.fn(),
     getEmailTemplateVariables: vi.fn(),
     createEmailTemplate: vi.fn(),
@@ -87,6 +87,7 @@ beforeEach(() => {
   dialogs.confirm.mockResolvedValue(true);
   navigate.mockReset();
   api.getEmailTemplatesTimeline.mockResolvedValue(TIMELINE);
+  api.getEmailTemplate.mockImplementation(async (id) => [REGISTRY_ROW, CUSTOM_ROW].find((t) => t.id === id));
   api.getEmailTemplates.mockResolvedValue([REGISTRY_ROW, CUSTOM_ROW]);
   api.describeTemplateWhen.mockResolvedValue({ offsetDays: -2, sentence: 'Envoyé 2 jours avant l’arrivée', example: 'Prochain séjour (Gite, vendredi 23 octobre au lundi 26 octobre) : envoyé le mercredi 21 octobre.' });
   api.getEmailTemplateVariables.mockResolvedValue({ variables: [{ name: 'clientFirstName', label: 'Prénom du voyageur' }, { name: 'propertyName', label: 'Logement' }], conditions: [{ name: 'hasBedLinenOption', label: 'Si linge de lit' }] });

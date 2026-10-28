@@ -8,6 +8,8 @@
 
 const router = require('express').Router();
 const controller = require('../controllers/dashboardController');
+const db = require('../database');
+const { guardReadOnly } = require('../utils/reservationReadOnly');
 
 router.get('/ical-date-drift', controller.icalDateDrift);
 router.post('/ical-date-drift/:id/approve', controller.approveIcalDateDrift);
@@ -27,8 +29,10 @@ router.post('/repaired-reservation-numbers/:id/acknowledge', controller.acknowle
 // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4). Admin-only: the reception
 // allowlist is deny-by-default, so these three are already out of that role's reach.
 router.get('/payment-deadlines', controller.paymentDeadlines);
-router.post('/payment-deadlines/:id/snooze', controller.snoozePaymentDeadline);
-router.post('/payment-deadlines/:id/remind', controller.remindPaymentDeadline);
+// A duplicate set aside is never snoozed nor reminded; a cancelled stay is not reminded either
+// (specs/calendar-property-parity.md rule 25).
+router.post('/payment-deadlines/:id/snooze', guardReadOnly(db, { cancelled: false }), controller.snoozePaymentDeadline);
+router.post('/payment-deadlines/:id/remind', guardReadOnly(db, { cancelled: true }), controller.remindPaymentDeadline);
 
 // « À traiter » and the pinned cards of the home (specs/shell-and-home-day-first.md §3.B). Each core
 // subject is read through the handler of its own card; the plugins add theirs with ctx.attention.

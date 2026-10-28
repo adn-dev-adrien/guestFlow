@@ -18,7 +18,8 @@ const {
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFormat');
 const { normalizePlatformKey } = require('../utils/icalParser');
-const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
+const { KNOWN_PLATFORM_COLORS, isBuiltinColor } = require('../constants/platformColors');
+const { textColorFor } = require('../utils/colorContrast');
 const platformsModel = require('./platformsModel');
 const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
@@ -395,7 +396,9 @@ function createPropertiesModel(database) {
       const customColors = {};
       customRows.forEach((row) => {
         const key = normalizePlatformKey(row.platformKey);
-        if (!key || customColors[key]) return;
+        // A per-source colour that is only a built-in default (the pre-2026-10-28 palette included) is not
+        // a choice: it must not mask the current palette.
+        if (!key || customColors[key] || isBuiltinColor(key, row.platformColor)) return;
         customColors[key] = row.platformColor;
       });
 
@@ -412,7 +415,14 @@ function createPropertiesModel(database) {
         if (label) displayNames[p.name] = label;
       }
 
-      return { knownColors: KNOWN_PLATFORM_COLORS, customColors, displayNames };
+      // specs/calendar-property-parity.md rule 5 — the text colour each bar carries, so the client
+      // never does contrast math.
+      const textColors = {};
+      for (const [slug, color] of Object.entries({ ...KNOWN_PLATFORM_COLORS, ...customColors })) {
+        if (/^#[0-9a-f]{6}$/i.test(color)) textColors[slug] = textColorFor(color);
+      }
+
+      return { knownColors: KNOWN_PLATFORM_COLORS, customColors, displayNames, textColors };
     },
 
     getByIdWithDetails(id) {

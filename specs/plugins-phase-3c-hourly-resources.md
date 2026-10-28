@@ -515,6 +515,8 @@ The interactive mock shows each screen in both states, plugin on and off.
   - the read-only tile wraps its two lines;
   - the warning wraps.
 
+> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The plugin also contributes the resource card's lines (« Soir », « Extérieurs », « Offert ») and footer through the new inert SDK brick `ctx.resourceCatalogueLines`; its `resources.fields` block becomes the « Horaires » section of the editor panel. Plugin off: no line, no section, per-hour resources hidden as before.
+
 ## 7. Test plan
 
 ### Server — new tests (27)

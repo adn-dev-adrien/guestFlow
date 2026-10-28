@@ -35,6 +35,7 @@ function createAuthController(users, {
   twoFactor = null,
   passwordReset = null,
   supportAccess = null,
+  passwordGuard = null,
   cookieOptions = {},
   now = () => new Date(),
 } = {}) {
@@ -179,7 +180,8 @@ function createAuthController(users, {
   const gate = createRequireAuth(users);
   const self = (fn) => (req, res, next) => gate(req, res, async () => {
     try {
-      return res.json(await fn(req.user, req.body || {}));
+      const out = await fn(req.user, req.body || {}, req);
+      return out === undefined ? res.status(204).end() : res.json(out);
     } catch (err) {
       return sendError(res, err, next);
     }
@@ -227,7 +229,14 @@ function createAuthController(users, {
     if (String(newPassword).length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
     if (newPassword === currentPassword) return res.status(400).json({ error: 'PASSWORD_UNCHANGED' });
 
-    const verified = users.verifyCredentials(sessionUser.email, currentPassword);
+    // Rule 49 — the same limit as the second step's confirmation password: a stolen session cannot guess
+    // the current password here either.
+    let verified;
+    try {
+      verified = passwordGuard ? passwordGuard.check(sessionUser, currentPassword) : users.verifyCredentials(sessionUser.email, currentPassword);
+    } catch (err) {
+      return sendError(res, err);
+    }
     if (!verified) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
 
     // Capture the "this was a forced first-login change" state BEFORE running the update — the safe
@@ -268,6 +277,8 @@ function createAuthController(users, {
     supportLogin,
     twoFactorStatus: self((user) => twoFactor.status(user)),
     twoFactorStart: self((user, body) => twoFactor.start(user, body)),
+    twoFactorCancel: self((user) => twoFactor.cancel(user)),
+    twoFactorCode: self((user) => twoFactor.sendCode(user)),
     twoFactorConfirm: self((user, body) => twoFactor.confirm(user, body)),
     twoFactorDisable: self((user, body) => twoFactor.disable(user, body)),
     twoFactorRegenerate: self((user, body) => twoFactor.regenerate(user, body)),
@@ -281,6 +292,7 @@ const defaultController = createAuthController(defaultUsersModel, {
   twoFactor: services.twoFactor,
   passwordReset: services.passwordReset,
   supportAccess: services.supportAccess,
+  passwordGuard: services.passwordGuard,
   cookieOptions: services.trustCookieOptions,
   // The registry's answer: a plugin outside the licence (specs/control-plane-plans-and-access.md
   // rule 12) or one that failed to start (specs/plugins-phase-1-sdk.md rule 4) reads as off everywhere.

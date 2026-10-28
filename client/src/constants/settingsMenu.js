@@ -134,7 +134,7 @@ export const SETTINGS_KEYWORDS = Object.freeze({
   '/parametres/acces-support': ['Support', 'Assistance', 'Accès temporaire'],
   '/settings/systeme': ['Mise à jour', 'Version', 'URL publique', 'Adresse de l’application', 'Traductions', 'Sauvegarde'],
   '/parametres/plugins': ['Plugin', 'Extension', 'Module', 'Activer', 'Désactiver'],
-  '/mon-compte': ['Mot de passe', 'Second code', '2FA', 'Double authentification', 'Code par email', 'Appli d’authentification', 'Prénom', 'Email de connexion'],
+  '/mon-compte': ['Mot de passe', 'Validation en deux étapes', 'Second code', '2FA', 'Double authentification', 'Code par email', 'Appli d’authentification', 'Prénom', 'Email de connexion'],
 });
 
 /**

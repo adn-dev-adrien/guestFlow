@@ -2,6 +2,7 @@ const router = require('express').Router();
 const controller = require('../controllers/resourcesController');
 
 router.get('/', controller.list);
+router.get('/catalogue-view', controller.catalogueView);
 router.get('/availability', controller.availability);
 router.get('/baby-bed-availability', controller.babyBedAvailability);
 router.get('/:id/delete-impact', controller.getDeleteImpact);

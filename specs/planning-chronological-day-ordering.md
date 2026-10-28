@@ -124,8 +124,9 @@ No schema change. No migration. No data impact.
 - No visual restyle of any card — same backgrounds, chips, spacing, alerts. Only vertical order
   changes.
 - Responsive: unchanged. The page is a normally-flowing window-scrolled list; card ordering is
-  identical across `xs` / `md` / `lg`. The sticky `<PageActionBar title="Planning">` + date cluster
-  are untouched.
+  identical across `xs` / `md` / `lg`. The sticky `<PageActionBar title="Planning">` is untouched
+  (its date cluster left on 2026-10-28: the timeline scrolls over the loaded windows,
+  dashboard-planning-scroll.md rules 11–22).
 - Empty/loading/error states: unchanged.
 
 ## 7. Test plan

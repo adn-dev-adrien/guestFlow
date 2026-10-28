@@ -76,7 +76,7 @@ if [ ! -d client/dist ]; then
   echo "Error: client/dist does not exist. Run 'cd client && npm run build' first."
   exit 1
 fi
-rsync -av --mkpath client/dist/ "$RELEASE_DIR/client/build/"
+rsync -av --mkpath --exclude '.vite' client/dist/ "$RELEASE_DIR/client/build/"
 
 # Copy root files
 cp package.json "$RELEASE_DIR/"

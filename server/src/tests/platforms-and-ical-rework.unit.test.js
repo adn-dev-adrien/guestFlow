@@ -4,9 +4,10 @@
 //      property's source config + global colour.
 //   2. propertyIcalModel — URL iCal is OPTIONAL (empty allowed, http(s) when present); sync skips
 //      empty-URL sources; createSource upserts one row per (property, platform); the per-property
-//      `disabled` flag persists; disabledPlatformLabels returns the hidden set.
-//   3. reservationsModel.list({propertyId}) hides a disabled-platform reservation (DISPLAY only) while
-//      getOccupiedReservations (availability) still counts it — no double-booking regression.
+//      `disabled` flag persists (it no longer hides stays).
+//   3. reservationsModel.list({propertyId}) KEEPS a disabled-platform reservation — rule 10's display
+//      filter was superseded by specs/calendar-property-parity.md rule 2 — and getOccupiedReservations
+//      (availability) counts it as before.
 //   4. The calendar colour endpoint (propertiesModel.getPlatformColors) is backed by platforms.color.
 
 const test = require('node:test');
@@ -43,8 +44,8 @@ test('listNames offers the plural "GitesDeFrance" built-in, not the legacy singu
   assert.ok(!names.includes('Gitesdefrance'), 'no one-word fallback spelling leaks in');
   // The colour still resolves to the brand gold for BOTH legacy and plural slugs (back-compat).
   const platforms = platformsModel.create(db);
-  assert.equal(platforms.getColor('Gitedefrance'), '#e6c832');
-  assert.equal(platforms.getColor('GitesDeFrance'), '#e6c832');
+  assert.equal(platforms.getColor('Gitedefrance'), '#F2CC3D');
+  assert.equal(platforms.getColor('GitesDeFrance'), '#F2CC3D');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -56,8 +57,8 @@ test('platformsModel.setColor/getColor: custom override, built-in fallback, clea
   const platforms = platformsModel.create(db);
 
   // Unconfigured built-in → its brand colour. Unknown platform → grey default.
-  assert.equal(platforms.getColor('Airbnb'), '#FF5A5F');
-  assert.equal(platforms.getColor('TotallyUnknown'), '#757575');
+  assert.equal(platforms.getColor('Airbnb'), '#C93848');
+  assert.equal(platforms.getColor('TotallyUnknown'), '#6E6A5E');
 
   // A custom colour overrides + upserts the platform row (works for a never-used built-in).
   platforms.setColor('Airbnb', '#123456');
@@ -65,8 +66,8 @@ test('platformsModel.setColor/getColor: custom override, built-in fallback, clea
   assert.deepEqual(platforms.colorMap(), { airbnb: '#123456' });
 
   // Setting the colour back to the built-in brand colour CLEARS the override (stored NULL).
-  platforms.setColor('Airbnb', '#FF5A5F');
-  assert.equal(platforms.getColor('Airbnb'), '#FF5A5F');
+  platforms.setColor('Airbnb', '#C93848');
+  assert.equal(platforms.getColor('Airbnb'), '#C93848');
   assert.deepEqual(platforms.colorMap(), {}, 'no override left once it matches the built-in');
 
   // Empty colour also clears.
@@ -212,16 +213,16 @@ test('propertyIcalModel: sync skips empty-URL sources (no fetch, status untouche
   assert.equal(after.lastSyncStatus, null);
 });
 
-test('propertyIcalModel: disabled flag persists + disabledPlatformLabels returns the hidden set', () => {
+test('propertyIcalModel: the disabled flag persists per source', () => {
   const db = freshDb();
   const pim = propertyIcalModel.buildModel(db);
 
   pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '', disabled: true });
   pim.createSource(1, { platformKey: 'booking', platformLabel: 'Booking', url: '' }); // not disabled
 
-  const labels = pim.disabledPlatformLabels(1);
-  assert.ok(labels.includes('airbnb'), 'the disabled platform label is returned (lowercased)');
-  assert.ok(!labels.includes('booking'), 'a non-disabled platform is not returned');
+  const flags = Object.fromEntries(db.prepare('SELECT platformKey, disabled FROM ical_sources WHERE propertyId = 1').all().map((r) => [r.platformKey, r.disabled]));
+  assert.equal(flags.airbnb, 1);
+  assert.equal(flags.booking, 0);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ function seedStay(db, { id, platform }) {
               VALUES (?, 'reservation', 1, 1, '2026-07-10', '2026-07-12', ?, 2, 300, 300)`).run(id, platform);
 }
 
-test('reservationsModel.list hides a disabled-platform reservation; availability still counts it', () => {
+test('reservationsModel.list keeps a disabled-platform reservation (rule 2 of calendar-property-parity); availability counts it too', () => {
   const db = freshDb();
   const pim = propertyIcalModel.buildModel(db);
   const rm = reservationsModel.create(db);
@@ -244,7 +245,7 @@ test('reservationsModel.list hides a disabled-platform reservation; availability
   pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '', disabled: true });
 
   const listed = rm.list({ propertyId: 1 }).map((r) => r.id).sort((a, b) => a - b);
-  assert.deepEqual(listed, [2], 'the disabled-platform (Airbnb) reservation is hidden from the property list');
+  assert.deepEqual(listed, [1, 2], 'a disabled platform never hides a stay that occupies dates');
 
   const occupied = rm.getOccupiedReservations(1, '2026-07-01', '2026-07-31');
   assert.equal(occupied.length, 2, 'availability STILL sees both stays — a disabled platform never frees dates');
@@ -261,7 +262,7 @@ test('propertiesModel.getPlatformColors is backed by platforms.color', () => {
 
   platforms.setColor('Booking', '#0a0b0c');
   const { knownColors, customColors } = props.getPlatformColors();
-  assert.equal(knownColors.airbnb, '#FF5A5F', 'built-in defaults are still exposed');
+  assert.equal(knownColors.airbnb, '#C93848', 'built-in defaults are still exposed');
   assert.equal(customColors.booking, '#0a0b0c', 'the global override wins for the calendar');
 });
 

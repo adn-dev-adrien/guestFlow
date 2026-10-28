@@ -218,7 +218,7 @@ export default function TokenTextField({
               onClick={() => openPicker(language || focused)}
               disabled={disabled}
               aria-haspopup="listbox"
-              sx={{ flexShrink: 0, minHeight: 32, '@media (pointer: coarse)': { minHeight: 44 } }}
+              sx={{ flexShrink: 0, minHeight: { xs: 44, sm: 32 }, '@media (pointer: coarse)': { minHeight: 44 } }}
             >
               Variable
             </Button>

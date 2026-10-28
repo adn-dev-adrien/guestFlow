@@ -11,11 +11,16 @@ const express = require('express');
 
 const router = express.Router();
 const ctrl = require('../controllers/paymentsController');
+const db = require('../database');
+const { guardReadOnly } = require('../utils/reservationReadOnly');
+
+// No link, no request on a cancelled stay or on a duplicate set aside (specs/calendar-property-parity.md rule 22).
+const noWriteOnClosedStay = guardReadOnly(db, { cancelled: true });
 
 // Payment links on a reservation/devis + the manual poll trigger (specs/online-payments-qonto.md §3.4 / §7).
-router.post('/reservations/:id/payment-links', ctrl.createReservationPaymentLink);
+router.post('/reservations/:id/payment-links', noWriteOnClosedStay, ctrl.createReservationPaymentLink);
 router.get('/reservations/:id/payment-links', ctrl.listReservationPaymentLinks);
-router.post('/reservations/:id/payment-emails', ctrl.sendPaymentRequestEmail);
+router.post('/reservations/:id/payment-emails', noWriteOnClosedStay, ctrl.sendPaymentRequestEmail);
 router.post('/poll', ctrl.pollPaymentsNow);
 
 module.exports = router;

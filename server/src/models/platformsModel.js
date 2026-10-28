@@ -230,6 +230,13 @@ function createPlatformsModel(database) {
       return resolveColor(name, row && row.color);
     },
 
+    // One-pass resolver for a list of stays: platform name → resolved colour, a single read of the
+    // registry instead of one per row (specs/calendar-property-parity.md rule 3).
+    colorResolver() {
+      const customBySlug = new Map(stmts.listAll.all().map((p) => [platformSlug(p.name), p.color]));
+      return (name) => resolveColor(name, customBySlug.get(platformSlug(name)));
+    },
+
     // Set (or clear) a platform's global colour. Upserts the platform row by canonical name so a
     // never-used built-in can still be recoloured. A colour equal to the built-in brand colour (or
     // empty) clears the override (stored NULL) so the platform tracks the built-in default again.

@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendriers alignés</title>
+<style>
+:root{
+  --sapin:#2F5D46; --sapin-soft:#E6EFE7; --miel:#C99038; --paper:#F8F5EF; --card:#FFFFFF;
+  --ink:#27251F; --ink2:#6E6A5E; --line:#E4DED2; --grey:#F1EEE7; --error:#A8433A; --error-soft:#F7E8E5;
+  --warn-soft:#F6EDD7; --radius:14px;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+main{max-width:1120px;margin:0 auto;padding:32px 16px 80px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 6px}
+h2{font:600 1.4rem/1.2 var(--serif);margin:48px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+h3{font:600 1.05rem/1.3 var(--serif);margin:24px 0 8px}
+p{margin:0 0 10px;max-width:72ch}
+.lede{color:var(--ink2);font-size:1.02rem;max-width:70ch}
+.meta{font-size:.85rem;color:var(--ink2);margin-bottom:20px}
+code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--grey);padding:1px 5px;border-radius:5px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.card b{display:block;font-family:var(--serif);font-size:1rem;margin-bottom:4px}
+.card .num{font:600 1.6rem/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--error)}
+.card .num.ok{color:var(--sapin)}
+.card small{color:var(--ink2)}
+ul.tight{margin:6px 0 10px;padding-left:20px}ul.tight li{margin:3px 0;max-width:72ch}
+.demo{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin:14px 0 6px;position:relative}
+.demo-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.demo-bar .label{font-size:.8rem;color:var(--ink2);margin-right:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--paper)}
+.seg button{border:0;background:transparent;font:500 .82rem var(--sans);color:var(--ink2);padding:7px 12px;min-height:34px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:#fff}
+.seg button:focus-visible,.btn:focus-visible,input:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--sapin);font:600 .82rem var(--sans);border-radius:999px;padding:7px 14px;min-height:34px;cursor:pointer}
+.btn.primary{background:var(--sapin);color:#fff;border-color:var(--sapin)}
+.btn:active,.seg button:active{transform:scale(.97)}
+.caption{font-size:.8rem;color:var(--ink2);margin:4px 2px 0}
+.hint{font-size:.8rem;color:var(--ink2)}
+/* ---------- general calendar ---------- */
+.gc-head{display:grid;grid-template-columns:repeat(7,1fr);font-size:.72rem;font-weight:700;color:var(--ink2);text-align:center;margin:6px 0 4px}
+.gc-week{position:relative;margin-bottom:4px}
+.gc-days{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.gc-day{border:1px solid var(--line);border-radius:6px;background:#fff;position:relative;overflow:hidden}
+.gc-day.out{background:var(--grey)}
+.gc-day.today{border:2px solid var(--sapin)}
+.gc-day .n{position:absolute;top:2px;right:5px;font-size:.72rem;font-weight:500}
+.gc-day.today .n{color:var(--sapin);font-weight:800}
+.gc-day.out .n{color:#B5AFA2}
+.hatch{background-image:repeating-linear-gradient(135deg,rgba(39,37,31,.05) 0 6px,rgba(39,37,31,.14) 6px 12px)}
+.bar{position:absolute;height:18px;font-size:11px;font-weight:600;display:flex;align-items:center;padding:0 6px;white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .12s ease-out}
+.bar span{overflow:hidden;text-overflow:ellipsis}
+.bar:hover{filter:brightness(.92)}
+.bar.closure{cursor:default;color:var(--ink);border:1px solid rgba(39,37,31,.25);background-color:#fff}
+.bar.closure:hover{filter:none}
+.band{position:absolute;height:16px;font-size:10.5px;font-weight:600;color:var(--ink2);padding-left:6px;display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px}
+.legend i{display:inline-block;width:14px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+.legend span{font-size:.76rem;color:var(--ink2)}
+.tip{position:fixed;z-index:50;pointer-events:none;background:var(--ink);color:#fff;font-size:.75rem;padding:6px 9px;border-radius:7px;max-width:260px;opacity:0;transition:opacity .1s}
+.tip.on{opacity:1}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:9px 16px;border-radius:999px;font-size:.84rem;opacity:0;transition:opacity .18s,transform .18s;z-index:60}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+/* ---------- colour field ---------- */
+.color-row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:.78rem;color:var(--ink2)}
+.field input{font:500 .95rem ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:140px;background:#fff;color:var(--ink)}
+.field input.bad{border-color:var(--error)}
+.field .err{font-size:.78rem;color:var(--error);min-height:1.1em;max-width:260px}
+.swatches{display:flex;flex-wrap:wrap;gap:6px;max-width:300px}
+.swatches button{width:26px;height:26px;border-radius:7px;border:1px solid rgba(0,0,0,.12);cursor:pointer}
+.preview{flex:1;min-width:240px}
+.preview .pbar{height:28px;border-radius:7px;display:flex;align-items:center;padding:0 10px;font-size:12.5px;font-weight:600;margin:6px 0}
+.ratio{font-size:.78rem;color:var(--ink2);font-variant-numeric:tabular-nums}
+/* ---------- property calendar ---------- */
+.scroller{height:520px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;background:#fff;padding:0 8px 8px;overscroll-behavior:contain}
+.mblock{margin-bottom:14px}
+.mtitle{position:sticky;top:0;z-index:6;background:#fff;font:600 1.02rem var(--serif);padding:8px 0 4px;border-bottom:2px solid #9DBBAA;text-transform:capitalize;display:flex;justify-content:space-between;align-items:center}
+.mtitle .loading{height:2px;width:60px;background:linear-gradient(90deg,var(--sapin),transparent);border-radius:2px;opacity:0}
+.mtitle .loading.on{opacity:1;animation:slide .8s linear infinite}
+@keyframes slide{from{background-position:0}to{background-position:60px}}
+@media (prefers-reduced-motion:reduce){.mtitle .loading.on{animation:none}.bar,.toast,.tip{transition:none}}
+.pc-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:.72rem;font-weight:700;color:var(--ink2);text-align:center;margin:6px 0 4px}
+.pc-week{position:relative;display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.pc-day{height:64px;border-radius:7px;background:var(--grey);background-origin:border-box;position:relative;overflow:hidden;border:1px solid transparent}
+.pc-day.out{opacity:.55}
+.pc-day.past{filter:saturate(.45);opacity:.6}
+.pc-day.today{border:3px solid var(--sapin)}
+.pc-day .top{position:absolute;top:3px;left:6px;right:6px;display:flex;justify-content:space-between;align-items:center;font-size:.74rem;z-index:3}
+.pc-day .top .ferie{color:var(--error);font-size:.68rem;font-weight:600}
+.pc-day .dots{position:absolute;bottom:3px;right:5px;display:flex;gap:2px;z-index:3}
+.pc-day .dots i{width:6px;height:6px;border-radius:50%}
+.pc-day.free{cursor:pointer}.pc-day.free:hover{background:#DCE8DF}
+.pc-day.sel{background:#9DBBAA}
+.oldname{position:absolute;inset:0;padding:24px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2}
+.oldname .nm{font-size:14px;font-weight:700;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;color:#fff}
+.oldname .pf{font-size:11px;line-height:1.1;color:rgba(255,255,255,.85)}
+.slabel{position:absolute;top:22px;height:34px;border-radius:7px;box-shadow:0 1px 2px rgba(0,0,0,.12);z-index:4;display:flex;flex-direction:column;justify-content:center;padding:0 8px;pointer-events:auto;cursor:pointer;overflow:hidden}
+.slabel .nm{font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slabel .pf{font-size:10.5px;font-weight:500;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85}
+.slabel:focus-visible{outline:2px solid var(--ink);outline-offset:1px;border-radius:4px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
+.pill{font-size:.78rem;border-radius:999px;padding:4px 10px;background:var(--sapin-soft);color:var(--sapin);font-weight:600;font-variant-numeric:tabular-nums}
+.pill.bad{background:var(--error-soft);color:var(--error)}
+.appbar{display:flex;align-items:center;gap:10px;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px}
+.appbar .t{font:600 1.1rem var(--serif)}
+.iconbtn{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:#fff;display:inline-grid;place-items:center;color:var(--ink2);font-size:16px}
+.iconbtn.dead{position:relative}
+/* ---------- phone ---------- */
+.phones{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.phone{width:360px;max-width:100%;border:10px solid #1d1c19;border-radius:38px;background:var(--paper);overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.12)}
+.phone .ph-top{background:#fff;padding:12px 14px 10px;border-bottom:1px solid var(--line)}
+.phone .ph-top .t{font:600 1.1rem var(--serif);margin-bottom:8px}
+.phone .seg{width:100%}.phone .seg button{flex:1;min-height:40px}
+.phone .scroller{height:540px;border:0;border-radius:0;background:var(--paper);padding:0 10px 10px}
+.phone .mtitle{background:var(--paper)}
+.row{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;min-height:56px}
+.row.today{border:2px solid var(--sapin);background:#F3F7F4}
+.row .d{width:44px;flex-shrink:0;text-align:center;line-height:1.05}
+.row .d small{display:block;font-size:.7rem;color:var(--ink2)}
+.row .d b{font:600 1.3rem var(--sans);font-variant-numeric:tabular-nums}
+.row .c{flex:1;min-width:0;font-size:.82rem}
+.row .c .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .c .add{color:var(--ink2)}
+.row .note{width:44px;height:44px;border-radius:10px;border:0;background:transparent;color:var(--ink2);font-size:18px;cursor:pointer}
+.row.past{opacity:.55}
+.track{position:relative;height:30px}
+.rib{position:absolute;top:0;height:30px;border-radius:8px;display:flex;align-items:center;gap:6px;padding:0 9px;justify-content:space-between;font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;cursor:pointer}
+.rib span{overflow:hidden;text-overflow:ellipsis}
+.rib em{font-style:normal;font-weight:500;opacity:.85;font-size:.72rem;flex-shrink:0}
+.rib.full{left:0;right:0}
+.rib.arr{left:calc(50% + 2px);right:0;border-top-left-radius:14px;border-bottom-left-radius:14px}
+.rib.dep{left:0;right:calc(50% + 2px);border-top-right-radius:14px;border-bottom-right-radius:14px}
+.side{position:absolute;top:-4px;height:38px;display:flex;flex-direction:column;justify-content:center;min-width:0;font-size:.78rem;line-height:1.2}
+.side b,.side small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.side small{color:var(--ink2);font-size:.7rem}
+.side.l{left:0;right:calc(50% + 6px)}.side.r{left:calc(50% + 6px);right:0;text-align:right}
+.rib.cl{color:var(--ink);border:1px solid rgba(39,37,31,.25);background-color:#fff;cursor:default;font-weight:600}
+.row.stay{border-left:5px solid var(--c)}
+.chip{display:inline-block;font-size:.7rem;font-weight:600;border-radius:999px;padding:1px 8px}
+/* ---------- sections ---------- */
+.no{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.no div{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:10px 14px;font-size:.9rem}
+.risk{background:var(--warn-soft);border-radius:var(--radius);padding:14px 16px}
+.arb{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin:12px 0}
+.arb h3{margin-top:0}
+.opt{display:flex;gap:10px;align-items:flex-start;margin:6px 0;font-size:.92rem}
+.opt .tag{flex-shrink:0;font-size:.7rem;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--grey);color:var(--ink2);margin-top:2px}
+.opt .tag.rec{background:var(--sapin);color:#fff}
+.lots{width:100%;border-collapse:collapse;font-size:.88rem;margin:8px 0}
+.lots th,.lots td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+.lots th{font-weight:600;color:var(--ink2);font-size:.78rem}
+.wide{overflow-x:auto}
+.wide>.inner{min-width:560px}
+@media (max-width:640px){h1{font-size:1.6rem}.demo{padding:10px}.scroller{height:460px}}
+</style>
+</head>
+<body>
+<main>
+<h1>Calendriers alignés</h1>
+<p class="meta">Spec <code>specs/calendar-property-parity.md</code> · validée le 28/10/2026 · retour du 28/10 sur le shadow</p>
+<p class="lede">Les deux calendriers — « Tous » et celui d'un logement — lisent les mêmes séjours, défilent de la même façon, et chaque séjour se lit d'un coup d'œil. Les noms de clients ci-dessous sont inventés.</p>
+
+<h2>Le constat</h2>
+<div class="cards">
+  <div class="card"><b>Séjours manquants</b><span class="num">33 → 4</span><br><small>Séjours Granja en 2026-2027 : 33 dans « Tous », 4 dans « Granja ». Un filtre « plateforme désactivée » ne s'applique qu'au calendrier du logement. Sur le shadow, toutes les sources iCal sont désactivées ; en prod, seules les 2 sources Lodgify : 10 séjours Lodgify y sont cachés.</small></div>
+  <div class="card"><b>Ces 10 séjours cachés</b><span class="num">1 doublon</span><br><small>Vérifiés un par un sur la copie de prod du 22/10. Un seul chevauche un autre séjour du même logement : n° 22279 (0 €, sans paiement) sur le n° 14. Les 9 autres ne chevauchent rien : ce sont de vrais séjours passés, soldés, déjà visibles dans « Tous » et en finance.</small></div>
+  <div class="card"><b>Noms illisibles</b><span class="num">3,9 px</span><br><small>Hauteur mesurée du nom dans la case du 31/12. Ce n'est pas la longueur : un correctif du 27/10 (<code>overflow: hidden</code>) laisse la case écraser la ligne du nom. Tous les noms au milieu d'un séjour sont touchés, même les courts.</small></div>
+  <div class="card"><b>Couleurs effacées</b><span class="num">14 %</span><br><small>Les barres sont teintées à 14 % de la couleur de leur plateforme. Et la palette a deux doublons : direct et Gîtes de France (deux ors), Booking et Abritel (deux bleus).</small></div>
+  <div class="card"><b>Défilement différent</b><span class="num">‹ ›</span><br><small>Le défilement marche, mais les flèches ‹ › du logement ajoutent un mois hors de vue sans bouger l'écran : elles semblent mortes. Pas de titre de mois, tout est rechargé à chaque mois, et sur téléphone c'est un pager à la semaine.</small></div>
+  <div class="card"><b>Fermeture sous la ligne</b><span class="num">rang +1</span><br><small>Depuis le 19/10, une fermeture est une bande hachurée sous tous les séjours de la semaine, sur des jours entiers. Sur master, c'était une barre sur la ligne du logement, avec des demi-journées.</small></div>
+  <div class="card"><b>Données du shadow</b><span class="num ok">22/10</span><br><small>Dernière vraie réservation de la copie : 22/10 à 12:32. Les deux réservations cherchées n'y sont pas du tout : prises après la copie, rien n'est perdu.</small></div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+
+<h3>1. « Tous » : des barres pleines, la fermeture sur sa ligne</h3>
+<p>Une couleur franche par plateforme, et un texte blanc ou encre choisi par le serveur pour rester lisible (au moins 4,5:1). Un séjour passé garde la teinte douce : l'œil va vers ce qui arrive. La fermeture d'un logement rejoint sa ligne, avec les mêmes demi-journées qu'un séjour.</p>
+<div class="demo" id="gc">
+  <div class="demo-bar">
+    <span class="label">Version</span>
+    <div class="seg" data-k="v"><button aria-pressed="false" data-v="before">Actuel</button><button aria-pressed="true" data-v="after">Proposé</button></div>
+    <span class="label">Fin de fermeture</span>
+    <div class="seg" data-k="geo"><button aria-pressed="true" data-v="reopen">Milieu du jour de réouverture</button><button aria-pressed="false" data-v="last">Milieu du dernier jour fermé</button></div>
+    <span class="label">Couleur</span>
+    <div class="seg" data-k="by"><button aria-pressed="true" data-v="platform">Par plateforme</button><button aria-pressed="false" data-v="property">Par logement</button></div>
+  </div>
+  <div class="wide"><div class="inner" id="gc-grid"></div></div>
+  <div class="legend" id="gc-legend"></div>
+</div>
+<p class="caption">Survoler une barre affiche son nom complet et ses dates. Exemple : séjour Granja du 9 au 11/10, fermeture du 11 (réouverture le 13). Les deux choix de fin de fermeture sont l'arbitrage n° 1.</p>
+
+<h3>2. Une couleur choisie doit rester lisible</h3>
+<p>Dans Paramètres → Plateformes, le serveur refuse une couleur sur laquelle ni le blanc ni l'encre n'atteignent 4,5:1, ou trop pâle pour se voir sur le blanc. La couleur précédente reste.</p>
+<div class="demo">
+  <div class="color-row">
+    <div class="field">
+      <label for="hex">Couleur de Gîtes de France</label>
+      <input id="hex" value="#F2CC3D" spellcheck="false" autocomplete="off" aria-describedby="hex-err">
+      <div class="err" id="hex-err" role="status"></div>
+      <div style="display:flex;gap:8px;margin-top:4px"><button class="btn primary" id="hex-save">Enregistrer</button><button class="btn" id="hex-try">Essayer #8F8F8F</button></div>
+    </div>
+    <div>
+      <div class="hint" style="margin-bottom:6px">Palette proposée</div>
+      <div class="swatches" id="sw"></div>
+    </div>
+    <div class="preview">
+      <div class="hint">Aperçu sur le calendrier</div>
+      <div class="pbar" id="pv">Granja · Léa Garnier</div>
+      <div class="ratio" id="pv-ratio"></div>
+      <div class="hint" style="margin-top:6px">Couleur enregistrée : <code id="saved">#F2CC3D</code></div>
+    </div>
+  </div>
+</div>
+<p class="caption">Taper une valeur : l'aperçu suit. « Enregistrer » montre la réponse du serveur, y compris le refus.</p>
+
+<h3>3. Le calendrier d'un logement : mêmes séjours, même défilement, noms lisibles</h3>
+<p>Un seul composant de défilement pour les deux calendriers : mois empilés, titre du mois qui reste en haut, chargement mois par mois, « Aujourd'hui ». Les flèches ‹ › disparaissent. Le nom s'écrit une fois par semaine, sur toute la largeur du séjour, et se coupe proprement avec « … » s'il manque de place ; le nom complet s'affiche au survol.</p>
+<div class="demo" id="pc">
+  <div class="demo-bar">
+    <span class="label">Version</span>
+    <div class="seg" data-k="v"><button aria-pressed="false" data-v="before">Actuel</button><button aria-pressed="true" data-v="after">Proposé</button></div>
+  </div>
+  <div class="appbar"><span class="t">Calendrier</span>
+    <div class="seg"><button aria-pressed="false" tabindex="-1">Tous</button><button aria-pressed="false" tabindex="-1">Estiva</button><button aria-pressed="true" tabindex="-1">Granja</button></div>
+    <span id="pc-arrows"></span>
+  </div>
+  <div class="toolbar"><button class="btn" id="pc-today">Aujourd'hui</button><span class="pill" id="pc-parity"></span></div>
+  <div class="wide"><div class="inner"><div class="scroller" id="pc-scroll"></div></div></div>
+</div>
+<p class="caption">Faire défiler vers le haut ou le bas : les mois s'ajoutent sans fin. Cliquer-glisser sur des jours libres sélectionne une période ; un séjour ou une fermeture arrête la sélection. Fin décembre : un nom long, et le 25/12 férié qui ne le recouvre plus.</p>
+
+<h3>4. Sur téléphone : le même défilement vertical</h3>
+<p>« Tous » garde sa liste de séjours. Le logement passe d'un pager à la semaine à un agenda jour par jour qui défile comme « Tous », et aussi visuel que l'ordinateur : chaque séjour est un ruban de sa couleur, sur la moitié droite le jour d'arrivée, en entier pendant le séjour, sur la moitié gauche le jour du départ.</p>
+<div class="phones">
+  <div class="phone" id="ph">
+    <div class="ph-top"><div class="t">Calendrier</div>
+      <div class="seg" data-k="p"><button aria-pressed="false" data-v="all">Tous</button><button aria-pressed="false" data-v="E">Estiva</button><button aria-pressed="true" data-v="G">Granja</button></div>
+      <div style="margin-top:8px"><button class="btn" id="ph-today">Aujourd'hui</button></div>
+    </div>
+    <div class="scroller" id="ph-scroll"></div>
+  </div>
+  <div style="flex:1;min-width:240px">
+    <ul class="tight">
+      <li>Même palette et même lisibilité que sur ordinateur : la couleur du texte vient du serveur.</li>
+      <li>Jour de rotation (9/11) : le départ à gauche, l'arrivée à droite, sur la même ligne.</li>
+      <li>Fermeture : ruban hachuré, coupé en deux le premier jour et le jour de réouverture.</li>
+      <li>Séjour passé : teinte douce. Jour libre à venir : « + Nouvelle réservation ».</li>
+      <li>Le bouton de note fait 44 × 44 px.</li>
+      <li>Le titre du mois reste collé en haut pendant le défilement.</li>
+      <li>À l'ouverture, aujourd'hui est en haut.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<div class="no">
+  <div>Le défilement du Planning : il a sa propre spec, et il devra reprendre ce composant au lieu d'en refaire un.</div>
+  <div>Le glisser pour créer une réservation dans « Tous », ni les devis et notes dans « Tous ».</div>
+  <div>Un réglage dans l'interface pour « arrêter » une source iCal (<code>isActive</code>) : arbitrage déjà ouvert ailleurs.</div>
+  <div>Le calcul des rangées côté serveur : c'est de la mise en page, testée côté client.</div>
+  <div>Aucune migration : seules les plateformes sans couleur personnalisée prennent la nouvelle palette (en prod, Lodgify garde son jaune).</div>
+</div>
+
+<h2>Le risque</h2>
+<div class="risk">
+  <ul class="tight">
+    <li><b>Aucun doublon ne réapparaît, rien à faire au déploiement.</b> Au démarrage, une migration automatique écarte une seule fois chaque séjour caché qui chevauche un séjour visible du même logement. Ce séjour passe en « Doublon écarté » : hors calendriers, disponibilités, finance et export comptable, toujours trouvable par la recherche, tracé dans l'historique, avec « Rétablir » dans la fiche. Elle ne touche jamais un séjour qui porte un paiement, et aucun nom de plateforme n'est écrit dans le code.</li>
+    <li><b>9 vrais séjours passés reviennent</b> dans le calendrier de leur logement (n° 22201, 22224, 22226, 22227, 22229, 22242, 22269, 22271, 22272) : rien ne se trouve à leurs dates, ils étaient déjà dans « Tous » et en finance.</li>
+    <li><b>Les couleurs changent.</b> L'œil devra réapprendre la palette, et le direct passe de l'or au vert sapin. La légende reste dépliable.</li>
+    <li><b>Le calendrier du logement est le plus gros morceau</b> : dégradés, glisser pour sélectionner, notes, devis, liens profonds. Le lot 3 refait sa structure ; les 3 suites de tests de la vue semaine sont déplacées, pas perdues.</li>
+    <li><b>Taille :</b> environ 20 fichiers, 3 lots livrables séparément. Le lot 1 (mêmes séjours + noms lisibles) est petit et règle les deux plaintes les plus gênantes.</li>
+  </ul>
+</div>
+<table class="lots">
+  <tr><th>Logement (copie du 22/10)</th><th>« Tous » aujourd'hui</th><th>Logement aujourd'hui</th><th>Écarté</th><th>Les deux après</th></tr>
+  <tr><td>Granja</td><td>32</td><td>30</td><td>22279</td><td>31</td></tr>
+  <tr><td>Estiva</td><td>25</td><td>17</td><td>—</td><td>25</td></tr>
+</table>
+<table class="lots">
+  <tr><th>Lot</th><th>Contenu</th><th>Règles</th></tr>
+  <tr><td>1</td><td>Migration des doublons puis une seule source côté serveur, filtre retiré, « Rétablir », nom plus écrasé</td><td>1-3, 20, 22-24</td></tr>
+  <tr><td>2</td><td>Palette, couleur du texte, refus des couleurs illisibles, barres pleines, fermeture sur sa ligne</td><td>4-11</td></tr>
+  <tr><td>3</td><td>Défilement partagé, mois par mois, nom sur toute la semaine, fermetures en demi-journée, agenda téléphone en rubans</td><td>12-19, 21</td></tr>
+</table>
+
+<h2>Les arbitrages — tranchés le 28/10</h2>
+<div class="arb"><h3>1. Où finit une fermeture ?</h3>
+  <div class="opt"><span class="tag rec">Retenu</span><span><b>Au milieu du jour de réouverture</b> (11 → 13). Même dessin qu'un séjour aux mêmes dates : on voit d'un coup d'œil que la nuit du 12 est fermée et qu'on peut arriver le 13 à midi.</span></div>
+  <div class="opt"><span class="tag">Écarté</span><span><b>Au milieu du dernier jour fermé</b> (11 → 12, comme sur master). C'est ce qui a été décrit, mais la nuit du 12 a l'air libre, et une fermeture d'une seule nuit n'a plus de largeur du tout.</span></div>
+</div>
+<div class="arb"><h3>2. Couleur des barres</h3>
+  <div class="opt"><span class="tag rec">Retenu</span><span><b>Par plateforme</b>, nouvelle palette. Pareil dans les deux calendriers et la légende ; le logement se lit déjà par le regroupement et le nom.</span></div>
+  <div class="opt"><span class="tag">Écarté</span><span><b>Par logement</b>. Les logements se distinguent mieux dans « Tous », mais la plateforme n'est plus visible que dans l'infobulle, et le calendrier d'un logement serait d'une seule couleur.</span></div>
+</div>
+<div class="arb"><h3>3. « Désactiver » une plateforme sur un logement</h3>
+  <div class="opt"><span class="tag rec">Retenu</span><span><b>Ne plus jamais masquer ses séjours.</b> Un calendrier qui cache un séjour qui bloque des dates induit en erreur. « Désactiver » arrête seulement l'import et grise la ligne. Les doublons que le filtre cachait sont écartés une fois pour toutes par la migration.</span></div>
+  <div class="opt"><span class="tag">Écarté</span><span><b>Les masquer dans les deux calendriers.</b> Les vues restent identiques, mais des jours bloqués apparaissent vides et la fiche ne signale plus le conflit de dates.</span></div>
+</div>
+<div class="arb"><h3>4. Calendrier d'un logement sur téléphone</h3>
+  <div class="opt"><span class="tag rec">Retenu</span><span><b>Agenda jour par jour</b>, défilement vertical, en rubans de couleur comme sur ordinateur. On garde les notes et la création d'une réservation sur un jour libre.</span></div>
+  <div class="opt"><span class="tag">Écarté</span><span><b>La liste de séjours de « Tous », filtrée sur le logement.</b> Une seule vue à apprendre, mais sans les jours libres ni les notes.</span></div>
+</div>
+</main>
+<div class="tip" id="tip" role="tooltip"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+'use strict';
+var TODAY='2026-10-28';
+var INK='#27251F', WHITE='#FFFFFF';
+var MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+var DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+var PAL_NEW={direct:'#2F5D46',Airbnb:'#C93848',Booking:'#1B3F8B',Abritel:'#4FA3E0',Abracadaroom:'#8A55B2',GreenGo:'#8BC34A','Gîtes de France':'#F2CC3D',Pitchup:'#EF7D22'};
+var PAL_OLD={direct:'#c9a227',Airbnb:'#FF5A5F',Booking:'#003580',Abritel:'#1565c0',Abracadaroom:'#00bcd4',GreenGo:'#4CAF50','Gîtes de France':'#e6c832',Pitchup:'#f57c00'};
+var PROP_COL={G:'#B07F2E',E:'#31556E'};
+var PROP_NAME={G:'Granja',E:'Estiva'};
+var STAYS=[
+ {id:1,p:'E',n:'Paul Mercier',pl:'Airbnb',s:'2026-09-18',e:'2026-09-21'},
+ {id:2,p:'G',n:'Sarah Girard',pl:'Booking',s:'2026-09-26',e:'2026-09-29'},
+ {id:3,p:'E',n:'Emma Dubois',pl:'direct',s:'2026-10-02',e:'2026-10-05'},
+ {id:4,p:'G',n:'Jules Lambert',pl:'Gîtes de France',s:'2026-10-02',e:'2026-10-04'},
+ {id:5,p:'G',n:'Camille Martin',pl:'Airbnb',s:'2026-10-09',e:'2026-10-11'},
+ {id:6,p:'E',n:'Lucas Bernard',pl:'Abracadaroom',s:'2026-10-10',e:'2026-10-11'},
+ {id:7,p:'G',n:'Hugo Lefèvre',pl:'GreenGo',s:'2026-10-23',e:'2026-10-26'},
+ {id:8,p:'G',n:'Inès Moreau',pl:'Booking',s:'2026-11-06',e:'2026-11-09'},
+ {id:9,p:'G',n:'Léa Garnier',pl:'Gîtes de France',s:'2026-11-13',e:'2026-11-15'},
+ {id:10,p:'G',n:'Thomas Petit',pl:'Abritel',s:'2026-11-27',e:'2026-11-29'},
+ {id:11,p:'G',n:'Bastien Noël',pl:'direct',s:'2026-12-24',e:'2026-12-26'},
+ {id:12,p:'G',n:'Marie-Charlotte Delacroix-Vasseur',pl:'direct',s:'2026-12-29',e:'2027-01-02'},
+ {id:13,p:'G',n:'Nathan Roux',pl:'Abritel',s:'2027-01-15',e:'2027-01-18'},
+ {id:14,p:'G',n:'Chloé Fournier',pl:'Pitchup',s:'2027-02-12',e:'2027-02-15'},
+ {id:15,p:'G',n:'Zoé Blanc',pl:'Airbnb',s:'2026-08-14',e:'2026-08-21'},
+ {id:16,p:'G',n:'Adam Faure',pl:'GreenGo',s:'2027-04-03',e:'2027-04-10'},
+ {id:17,p:'G',n:'Rose Chevalier',pl:'Airbnb',s:'2026-11-09',e:'2026-11-11'}
+];
+var CLOSURES=[
+ {id:'c1',p:'G',l:'Fermeture établissement',s:'2026-10-11',e:'2026-10-13'},
+ {id:'c2',p:'E',l:'Fermeture hivernale',s:'2026-10-15',e:'2027-03-31'},
+ {id:'c3',p:'G',l:'Fermeture établissement',s:'2026-10-29',e:'2026-10-31'}
+];
+var FERIES={'2026-11-01':1,'2026-11-11':1,'2026-12-25':1,'2027-01-01':1};
+// stays the current logement view hides (platform « désactivé ») — the bug, for the « Aujourd'hui » toggle
+var HIDDEN_BEFORE={2:1,4:1,5:1,7:1,8:1,9:1,10:1,13:1,14:1,15:1,16:1};
+
+function lum(h){h=h.replace('#','');var c=[0,2,4].map(function(i){var x=parseInt(h.substr(i,2),16)/255;return x<=0.03928?x/12.92:Math.pow((x+0.055)/1.055,2.4);});return .2126*c[0]+.7152*c[1]+.0722*c[2];}
+function ratio(a,b){var x=lum(a),y=lum(b);var hi=Math.max(x,y),lo=Math.min(x,y);return (hi+.05)/(lo+.05);}
+function textFor(c){return ratio(c,WHITE)>=ratio(c,INK)?WHITE:INK;}
+function tint(c,a){var h=c.replace('#','');var r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);return 'rgba('+r+','+g+','+b+','+a+')';}
+function d(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2],12);}
+function iso(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
+function add(s,n){var x=d(s);x.setDate(x.getDate()+n);return iso(x);}
+function diff(a,b){return Math.round((d(b)-d(a))/864e5);}
+function mon(s){return (d(s).getDay()+6)%7;}
+function frDay(s){var x=d(s);return x.getDate()+' '+MONTHS[x.getMonth()];}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+var tip=document.getElementById('tip'),toastEl=document.getElementById('toast'),toastT;
+function toast(m){toastEl.textContent=m;toastEl.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){toastEl.classList.remove('on');},1800);}
+document.addEventListener('mouseover',function(e){var t=e.target.closest('[data-tip]');if(!t){tip.classList.remove('on');return;}tip.textContent=t.getAttribute('data-tip');tip.classList.add('on');});
+document.addEventListener('mousemove',function(e){if(!tip.classList.contains('on'))return;var x=Math.min(e.clientX+12,innerWidth-270);tip.style.left=x+'px';tip.style.top=(e.clientY+16)+'px';});
+document.addEventListener('focusin',function(e){var t=e.target.closest('[data-tip]');if(!t)return;var r=t.getBoundingClientRect();tip.textContent=t.getAttribute('data-tip');tip.style.left=Math.min(r.left,innerWidth-270)+'px';tip.style.top=(r.bottom+6)+'px';tip.classList.add('on');});
+document.addEventListener('focusout',function(){tip.classList.remove('on');});
+
+function wireSeg(root,state,render){root.querySelectorAll('.seg[data-k]').forEach(function(seg){var k=seg.getAttribute('data-k');seg.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;state[k]=b.getAttribute('data-v');seg.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});render();});});}
+
+/* ================= 1. General calendar ================= */
+var gs={v:'after',geo:'reopen',by:'platform'};
+function colorOf(st,pal){return gs.by==='property'?PROP_COL[st.p]:pal[st.pl];}
+function renderGC(){
+  var pal=gs.v==='after'?PAL_NEW:PAL_OLD;
+  var weeks=['2026-10-05','2026-10-12','2026-10-19','2026-10-26'];
+  var html='<div style="font:600 1.02rem var(--serif);border-bottom:2px solid #9DBBAA;padding:4px 0">Octobre 2026</div><div class="gc-head">'+DAYS.map(function(x){return '<div>'+x+'</div>';}).join('')+'</div>';
+  weeks.forEach(function(ws){
+    var we=add(ws,6), items=[];
+    STAYS.forEach(function(s){var last=s.e; if(last>=ws&&s.s<=we)items.push({k:'s'+s.id,kind:'s',g:s.p,st:s,s:s.s,last:last,round:true});});
+    CLOSURES.forEach(function(c){
+      var lastFull=add(c.e,-1);
+      if(gs.v==='before'){ if(lastFull>=ws&&c.s<=we) items.push({k:c.id,kind:'band',g:c.p,c:c,s:c.s,last:lastFull}); return; }
+      var last=gs.geo==='reopen'?c.e:lastFull;
+      if(last>=ws&&c.s<=we) items.push({k:c.id,kind:'c',g:c.p,c:c,s:c.s,last:last});
+    });
+    var segs=[],bands=[],bandKeys=[];
+    items.forEach(function(it){
+      var ss=it.s>ws?it.s:ws, se=it.last<we?it.last:we;
+      var sc=Math.max(0,Math.min(6,diff(ws,ss))), ec=Math.max(0,Math.min(6,diff(ws,se)));
+      if(it.kind==='band'){var b=bandKeys.indexOf(it.g);if(b<0){b=bandKeys.length;bandKeys.push(it.g);}bands.push({it:it,sc:sc,ec:ec,b:b});return;}
+      var rs=ss===it.s, re=se===it.last;
+      var le=sc+(rs?.5:0), ri=ec+1-(re?.5:0);
+      if(it.kind==='c'&&gs.geo==='last'&&rs&&re&&ri<=le){ri=le;}
+      segs.push({it:it,sc:sc,ec:ec,rs:rs,re:re,le:le,ri:ri});
+    });
+    var groups={};segs.forEach(function(s){(groups[s.it.g]=groups[s.it.g]||[]).push(s);});
+    var lane=0;Object.keys(groups).sort(function(a,b){return PROP_NAME[a].localeCompare(PROP_NAME[b]);}).forEach(function(g){
+      var ends=[];groups[g].sort(function(a,b){return a.le-b.le;}).forEach(function(s){var i=-1;for(var j=0;j<ends.length;j++){if(ends[j]<=s.le){i=j;break;}}if(i<0){i=ends.length;ends.push(s.ri);}else ends[i]=s.ri;s.lane=lane+i;});lane+=ends.length;});
+    var H=24+Math.max(1,lane)*22+bandKeys.length*18+6;
+    html+='<div class="gc-week" style="height:'+H+'px"><div class="gc-days">';
+    for(var i=0;i<7;i++){var ds=add(ws,i);var out=ds.slice(5,7)!=='10';
+      var bh=bands.filter(function(b){return i>=b.sc&&i<=b.ec;}).map(function(b){return '<div class="hatch" style="position:absolute;left:0;right:0;bottom:'+(b.b*18)+'px;height:16px"></div>';}).join('');
+      html+='<div class="gc-day'+(out?' out':'')+(ds===TODAY?' today':'')+'"><span class="n">'+(+ds.slice(8))+'</span>'+bh+'</div>';}
+    html+='</div>';
+    bands.forEach(function(b){html+='<div class="band" tabindex="0" style="left:calc('+(b.sc/7*100)+'% + 4px);width:calc('+((b.ec-b.sc+1)/7*100)+'% - 8px);bottom:'+(3+b.b*18)+'px" data-tip="'+esc(b.it.c.l+' ('+frDay(b.it.c.s)+' → '+frDay(add(b.it.c.e,-1))+')')+'">'+PROP_NAME[b.it.g]+' fermé</div>';});
+    segs.forEach(function(s){
+      var left='calc('+(s.le/7*100)+'% + 1px)', width='calc('+((s.ri-s.le)/7*100)+'% - 2px)', top=24+s.lane*22;
+      var r='border-radius:'+(s.rs?6:0)+'px '+(s.re?6:0)+'px '+(s.re?6:0)+'px '+(s.rs?6:0)+'px;';
+      if(s.it.kind==='c'){
+        var c=s.it.c;var w=Math.max(0,s.ri-s.le);
+        html+='<div class="bar closure hatch" tabindex="0" style="left:'+left+';width:'+width+';top:'+top+'px;'+r+(w===0?'border:0;':'')+'" data-tip="'+esc(PROP_NAME[c.p]+' fermé — '+c.l+', '+frDay(c.s)+' → réouverture '+frDay(c.e))+'"><span>Fermé · '+esc(c.l)+'</span></div>';
+        return;
+      }
+      var st=s.it.st, col=colorOf(st,pal), past=st.e<=TODAY, style;
+      if(gs.v==='before'){style='background:'+tint(col,.14)+';color:'+INK+';box-shadow:inset 3px 0 0 '+col+';'+(TODAY>st.e?'opacity:.65;':'');}
+      else if(past){style='background:'+tint(col,.14)+';color:'+INK+';box-shadow:inset 3px 0 0 '+col+';';}
+      else style='background:'+col+';color:'+textFor(col)+';';
+      html+='<div class="bar" tabindex="0" data-open="'+st.id+'" style="left:'+left+';width:'+width+';top:'+top+'px;'+r+style+'" data-tip="'+esc(PROP_NAME[st.p]+' · '+st.n+' — '+st.pl+', '+frDay(st.s)+' → '+frDay(st.e))+'"><span>'+PROP_NAME[st.p]+' · '+esc(st.n)+'</span></div>';
+    });
+    html+='</div>';
+  });
+  document.getElementById('gc-grid').innerHTML=html;
+  var lg='';
+  if(gs.by==='property'){Object.keys(PROP_COL).forEach(function(k){lg+='<span><i style="background:'+PROP_COL[k]+'"></i>'+PROP_NAME[k]+'</span>';});}
+  else Object.keys(pal).forEach(function(k){var c=pal[k];lg+='<span><i style="'+(gs.v==='after'?'background:'+c:'background:'+tint(c,.14)+';box-shadow:inset 3px 0 0 '+c)+'"></i>'+(k==='direct'?'Direct':k)+'</span>';});
+  lg+='<span><i class="hatch" style="border:1px solid var(--line)"></i>Fermeture</span>';
+  document.getElementById('gc-legend').innerHTML=lg;
+}
+var gcRoot=document.getElementById('gc');wireSeg(gcRoot,gs,renderGC);
+gcRoot.addEventListener('click',function(e){var b=e.target.closest('[data-open]');if(b)toast('Ouvre la fiche de la réservation');});
+renderGC();
+
+/* ================= 2. Colour field ================= */
+var hex=document.getElementById('hex'),err=document.getElementById('hex-err'),pv=document.getElementById('pv'),pvr=document.getElementById('pv-ratio'),saved=document.getElementById('saved');
+var savedVal='#F2CC3D';
+function validate(v){
+  if(!/^#[0-9a-fA-F]{6}$/.test(v))return 'Couleur invalide.';
+  if(Math.max(ratio(v,WHITE),ratio(v,INK))<4.5)return 'Couleur peu lisible : choisir plus clair ou plus foncé.';
+  if(ratio(v,WHITE)<1.4)return 'Couleur trop claire pour le calendrier.';
+  return '';
+}
+function preview(){
+  var v=hex.value.trim();var ok=/^#[0-9a-fA-F]{6}$/.test(v);
+  if(!ok){pv.style.background='repeating-linear-gradient(135deg,#eee 0 6px,#f7f7f7 6px 12px)';pv.style.color=INK;pvr.textContent='Format attendu : #RRGGBB';return;}
+  var t=textFor(v);pv.style.background=v;pv.style.color=t;
+  pvr.textContent='Texte '+(t===WHITE?'blanc':'encre')+' : '+ratio(v,t).toFixed(1).replace('.',',')+':1 · sur fond blanc : '+ratio(v,WHITE).toFixed(1).replace('.',',')+':1';
+  err.textContent='';hex.classList.remove('bad');
+}
+hex.addEventListener('input',preview);
+hex.addEventListener('keydown',function(e){if(e.key==='Enter')save();});
+function save(){
+  var v=hex.value.trim();var m=validate(v);
+  if(m){err.textContent=m;hex.classList.add('bad');setTimeout(function(){hex.value=savedVal;preview();err.textContent=m;hex.classList.add('bad');},900);return;}
+  savedVal=v.toUpperCase();saved.textContent=savedVal;err.textContent='';hex.classList.remove('bad');toast('Couleur enregistrée');
+}
+document.getElementById('hex-save').addEventListener('click',save);
+document.getElementById('hex-try').addEventListener('click',function(){hex.value='#8F8F8F';preview();save();});
+var sw=document.getElementById('sw');Object.keys(PAL_NEW).forEach(function(k){var b=document.createElement('button');b.style.background=PAL_NEW[k];b.title=(k==='direct'?'Direct':k)+' '+PAL_NEW[k];b.setAttribute('aria-label',b.title);b.addEventListener('click',function(){hex.value=PAL_NEW[k];preview();});sw.appendChild(b);});
+['#EEEEEE','#8F8F8F'].forEach(function(c){var b=document.createElement('button');b.style.background=c;b.title=c+' (sera refusée)';b.setAttribute('aria-label',b.title);b.addEventListener('click',function(){hex.value=c;preview();});sw.appendChild(b);});
+preview();
+
+/* ================= shared infinite month scroller ================= */
+function Scroller(el,renderMonth,opts){
+  var months=[];var self=this;var busy=false;
+  function key(m){return m.y+'-'+m.m;}
+  function block(m){var b=document.createElement('div');b.className='mblock';b.setAttribute('data-month',key(m));
+    b.innerHTML='<div class="mtitle"><span>'+MONTHS[m.m]+' '+m.y+'</span><span class="loading on"></span></div><div class="mbody"></div>';
+    var body=b.querySelector('.mbody');renderMonth(body,m.y,m.m);
+    setTimeout(function(){var l=b.querySelector('.loading');if(l)l.classList.remove('on');},250+Math.random()*250);
+    return b;}
+  function shift(m,n){var x=new Date(m.y,m.m+n,1);return {y:x.getFullYear(),m:x.getMonth()};}
+  this.reset=function(y,m){el.innerHTML='';months=[];for(var i=-1;i<=2;i++){var mm=shift({y:y,m:m},i);months.push(mm);el.appendChild(block(mm));}
+    var a=el.querySelector('[data-month="'+y+'-'+m+'"]');el.scrollTop=a.offsetTop-el.offsetTop;};
+  this.today=function(){var t=d(TODAY);self.reset(t.getFullYear(),t.getMonth());};
+  this.rerender=function(){var top=el.scrollTop;el.querySelectorAll('.mblock').forEach(function(b){var p=b.getAttribute('data-month').split('-');var body=b.querySelector('.mbody');body.innerHTML='';renderMonth(body,+p[0],+p[1]);});el.scrollTop=top;};
+  el.addEventListener('scroll',function(){if(busy)return;busy=true;requestAnimationFrame(function(){
+    var n=0;
+    while(el.scrollTop<200&&n<3){var first=el.firstElementChild;var before=first.getBoundingClientRect().top;var mm=shift(months[0],-1);months.unshift(mm);el.insertBefore(block(mm),first);el.scrollTop+=first.getBoundingClientRect().top-before;n++;}
+    while(el.scrollHeight-el.scrollTop-el.clientHeight<200&&n<6){var mm2=shift(months[months.length-1],1);months.push(mm2);el.appendChild(block(mm2));n++;}
+    busy=false;});},{passive:true});
+}
+function monthGrid(y,m){var first=iso(new Date(y,m,1,12));var start=add(first,-mon(first));var dim=new Date(y,m+1,0).getDate();var wk=Math.ceil((mon(first)+dim)/7);var out=[];for(var w=0;w<wk;w++)out.push(add(start,w*7));return out;}
+
+/* ================= 3. Property calendar ================= */
+var ps={v:'after'};var PROP='G';
+function propStays(){return STAYS.filter(function(s){return s.p===PROP&&(ps.v==='after'||!HIDDEN_BEFORE[s.id]);});}
+function propClosures(){return CLOSURES.filter(function(c){return c.p===PROP;});}
+var drag=null;
+function renderPropMonth(body,y,m){
+  var pal=ps.v==='after'?PAL_NEW:PAL_OLD;var stays=propStays(),cls=propClosures();
+  var html='<div class="pc-head">'+DAYS.map(function(x){return '<div>'+x+'</div>';}).join('')+'</div>';
+  monthGrid(y,m).forEach(function(ws){
+    html+='<div class="pc-week">';
+    for(var i=0;i<7;i++){
+      var ds=add(ws,i);var inM=d(ds).getMonth()===m;var arr=null,dep=null,mid=null,cs=null,ce=null,cm=null;
+      stays.forEach(function(s){if(s.s===ds)arr=s;if(s.e===ds)dep=s;if(ds>s.s&&ds<s.e)mid=s;});
+      cls.forEach(function(c){if(c.s===ds)cs=c;if(c.e===ds)ce=c;if(ds>c.s&&ds<c.e)cm=c;});
+      var bg='',cls2='pc-day';var H='repeating-linear-gradient(135deg,rgba(39,37,31,.07) 0 6px,rgba(39,37,31,.18) 6px 12px)';
+      if(ps.v==='before'){ if(cs||cm){bg='background-image:'+H+';';} }
+      else { if(cm){bg='background-image:'+H+';';}
+        else if(cs&&!dep){bg='background-image:linear-gradient(135deg,transparent 50%,rgba(255,255,255,0) 50%),'+H+';-webkit-mask:none;';bg='background-image:linear-gradient(135deg,var(--grey) 0 50%,transparent 50%),'+H+';';}
+        else if(ce&&!arr){bg='background-image:linear-gradient(135deg,transparent 0 50%,var(--grey) 50%),'+H+';';} }
+      if(mid){bg='background-color:'+pal[mid.pl]+';';}
+      else if(arr||dep){var st=[];if(dep){st.push(pal[dep.pl]+' 0%',pal[dep.pl]+' 30%','#e53935 30%','#e53935 45%');}else if(ce&&ps.v==='after'){st.push('rgba(39,37,31,.16) 0%','rgba(39,37,31,.16) 45%');}else st.push('transparent 0%');
+        if(arr){st.push('transparent 45%','transparent 55%',pal[arr.pl]+' 55%',pal[arr.pl]+' 100%');}else st.push('transparent 45%','transparent 100%');
+        bg='background-image:linear-gradient(135deg,'+st.join(',')+');';}
+      var free=!mid&&!arr&&!cm&&!cs&&ds>=TODAY;
+      if(!inM)cls2+=' out';if(ds===TODAY)cls2+=' today';else if(ds<TODAY)cls2+=' past';if(free)cls2+=' free';
+      if(drag&&drag.a&&ds>=drag.lo&&ds<=drag.hi)cls2+=' sel';
+      var light=(mid||arr)?textFor(pal[(mid||arr).pl]):INK;
+      var top='<div class="top"><span style="font-weight:'+(ds===TODAY?800:500)+';color:'+(mid&&ps.v==='after'?light:INK)+'">'+(+ds.slice(8))+'</span>'+(FERIES[ds]?'<span class="ferie" style="'+(mid&&ps.v==='after'?'color:'+light:'')+'">férié</span>':'')+'</div>';
+      if(ps.v==='before'){top='<div style="position:absolute;inset:0;display:grid;place-items:center;font-size:14px;color:'+(mid?'rgba(255,255,255,.7)':INK)+'">'+(+ds.slice(8))+'</div>'+(FERIES[ds]?'<div style="position:absolute;top:1px;left:0;right:0;text-align:center;color:#A8433A;font-size:14px;opacity:.7;z-index:3">férié</div>':'');}
+      var old='';
+      if(ps.v==='before'&&mid){var tot=diff(mid.s,mid.e);var lab=add(mid.s,Math.round(tot/2));if(lab===ds)old='<div class="oldname"><div class="nm" style="height:3.9px">'+esc(mid.n)+'</div><div class="pf">'+(mid.pl==='direct'?'Direct':mid.pl)+'</div></div>';}
+      var cl=(ps.v==='before'&&(cs||cm))?'<div style="position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-style:italic;color:#9a958a">Fermeture</div>':'';
+      html+='<div class="'+cls2+'" data-d="'+ds+'" style="'+bg+'">'+top+old+cl+(ds>='2026-10-17'&&ds<='2026-11-01'?'<div class="dots"><i style="background:#1E88E5"></i><i style="background:#43A047"></i><i style="background:#FB8C00"></i></div>':'')+'</div>';
+    }
+    if(ps.v==='after'){
+      var we=add(ws,6);
+      stays.forEach(function(s){ if(s.e<ws||s.s>we)return;
+        var ss=s.s>ws?s.s:ws, se=s.e<we?s.e:we;var sc=diff(ws,ss),ec=diff(ws,se);var le=sc+(ss===s.s?.5:0),ri=ec+(se===s.e?.5:1);if(ri-le<=0)return;
+        var col=pal[s.pl];var dates=frDay(s.s)+' → '+frDay(s.e);var plat=s.pl==='direct'?'Direct':s.pl;
+        html+='<div class="slabel" role="button" tabindex="0" data-open="'+s.id+'" aria-label="'+esc(s.n+', '+plat+', '+dates)+'" data-tip="'+esc(s.n+' — '+plat+', '+dates)+'" style="left:calc('+(le/7*100)+'% + 6px);width:calc('+((ri-le)/7*100)+'% - 12px);background:'+col+';color:'+textFor(col)+'"><span class="nm">'+esc(s.n)+'</span><span class="pf">'+plat+'</span></div>';
+      });
+    }
+    html+='</div>';
+  });
+  body.innerHTML=html;
+}
+var pcEl=document.getElementById('pc-scroll');var pcS=new Scroller(pcEl,renderPropMonth);
+function updParity(){var all=STAYS.filter(function(s){return s.p===PROP;}).length;var shown=propStays().length;var p=document.getElementById('pc-parity');p.textContent='Tous : '+all+' séjours Granja · ce calendrier : '+shown;p.className='pill'+(all===shown?'':' bad');
+  document.getElementById('pc-arrows').innerHTML=ps.v==='before'?'<span style="display:inline-flex;gap:6px"><button class="iconbtn" id="arrL" aria-label="Mois précédent">‹</button><button class="iconbtn" id="arrR" aria-label="Mois suivant">›</button></span>':'';
+  var L=document.getElementById('arrL');if(L){[L,document.getElementById('arrR')].forEach(function(b){b.addEventListener('click',function(){toast('Un mois ajouté hors de vue : l\'écran ne bouge pas');});});}}
+var pcRoot=document.getElementById('pc');wireSeg(pcRoot,ps,function(){pcS.rerender();updParity();});
+document.getElementById('pc-today').addEventListener('click',function(){pcS.today();});
+pcEl.addEventListener('click',function(e){var b=e.target.closest('[data-open]');if(b){toast('Ouvre la fiche de la réservation');}});
+pcEl.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest('[data-open]')){e.preventDefault();toast('Ouvre la fiche de la réservation');}});
+pcEl.addEventListener('mousedown',function(e){var c=e.target.closest('.pc-day.free');if(!c||e.target.closest('[data-open]'))return;var ds=c.getAttribute('data-d');drag={a:ds,lo:ds,hi:ds};pcS.rerender();e.preventDefault();});
+pcEl.addEventListener('mouseover',function(e){if(!drag)return;var c=e.target.closest('.pc-day');if(!c)return;var ds=c.getAttribute('data-d');var lo=drag.a<ds?drag.a:ds,hi=drag.a<ds?ds:drag.a;var x=lo,stop=null;while(x<=hi){var el=pcEl.querySelector('.pc-day[data-d="'+x+'"]');if(!el||!el.classList.contains('free')){stop=x;break;}x=add(x,1);}
+  if(stop){if(ds>drag.a)hi=add(stop,-1);else lo=add(stop,1);}drag.lo=lo;drag.hi=hi;pcEl.querySelectorAll('.pc-day').forEach(function(el){var v=el.getAttribute('data-d');el.classList.toggle('sel',v>=lo&&v<=hi);});});
+document.addEventListener('mouseup',function(){if(!drag)return;var n=diff(drag.lo,drag.hi)+1;toast('Nouvelle réservation : '+frDay(drag.lo)+' → '+frDay(add(drag.hi,1))+' ('+n+' nuit'+(n>1?'s':'')+')');drag=null;pcS.rerender();});
+pcS.today();updParity();
+
+/* ================= 4. Phone ================= */
+var phs={p:'G'};
+function stayRow(it){var col=PAL_NEW[it.pl];var past=it.e<=TODAY;
+  return '<div class="row stay'+(past?' past':'')+'" style="--c:'+col+'" data-open="1"><div class="c"><div class="ln"><b>'+PROP_NAME[it.p]+'</b></div><div class="ln" style="color:var(--ink2)">'+esc(it.n)+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:.74rem;font-weight:600">'+frDay(it.s)+' → '+frDay(it.e)+'</div><span class="chip" style="background:'+(past?tint(col,.14):col)+';color:'+(past?INK:textFor(col))+'">'+(it.pl==='direct'?'Direct':it.pl)+'</span></div></div>';}
+function closureRow(c){return '<div class="row hatch"><div class="c"><div class="ln"><b>'+PROP_NAME[c.p]+' fermé</b></div><div class="ln">'+esc(c.l)+'</div></div><div style="font-size:.74rem;font-weight:600;flex-shrink:0">'+frDay(c.s)+' → '+frDay(c.e)+'</div></div>';}
+function renderPhoneMonth(body,y,m){
+  var ms=iso(new Date(y,m,1,12)),me=iso(new Date(y,m+1,0,12));var html='';
+  if(phs.p==='all'){
+    var list=[];STAYS.forEach(function(s){if(s.s<=me&&s.e>=ms)list.push({k:'s',v:s,s:s.s});});CLOSURES.forEach(function(c){if(c.s<=me&&c.e>ms)list.push({k:'c',v:c,s:c.s});});
+    list.sort(function(a,b){return a.s.localeCompare(b.s);});
+    if(!list.length)html='<div class="hint" style="padding:8px 2px">Aucune réservation.</div>';
+    list.forEach(function(x){html+=x.k==='s'?stayRow(x.v):closureRow(x.v);});
+  } else {
+    var dim=new Date(y,m+1,0).getDate();
+    for(var i=1;i<=dim;i++){var ds=iso(new Date(y,m,i,12));var parts=[];
+      var past=ds<TODAY, ribs=[], halves=[];
+      STAYS.forEach(function(s){if(s.p!==phs.p)return;var col=PAL_NEW[s.pl];var plat=s.pl==='direct'?'Direct':s.pl;var pst=s.e<=TODAY;
+        var sty=pst?'background:'+tint(col,.14)+';color:'+INK+';box-shadow:inset 3px 0 0 '+col:'background:'+col+';color:'+textFor(col);
+        var tipt=esc(s.n+' — '+plat+', '+frDay(s.s)+' → '+frDay(s.e));
+        if(s.e===ds){ribs.push('<div class="rib dep" data-open="1" data-tip="'+tipt+'" aria-label="'+tipt+'" style="'+sty+'"><span>'+esc(s.n)+'</span><em>↑ 10:00</em></div>');halves.push({side:'dep',n:s.n,pl:plat});}
+        if(s.s===ds){ribs.push('<div class="rib arr" data-open="1" data-tip="'+tipt+'" aria-label="'+tipt+'" style="'+sty+'"><span>'+esc(s.n)+'</span><em>↓ 16:00</em></div>');halves.push({side:'arr',n:s.n,pl:plat});}
+        if(ds>s.s&&ds<s.e)ribs.push('<div class="rib full" data-open="1" data-tip="'+tipt+'" style="'+sty+'"><span>'+esc(s.n)+'</span><em>'+plat+'</em></div>');});
+      CLOSURES.forEach(function(c){if(c.p!==phs.p)return;var tipc=esc(c.l+', réouverture '+frDay(c.e));
+        if(c.s===ds)ribs.push('<div class="rib arr hatch cl" data-tip="'+tipc+'"><span>Fermé · '+esc(c.l)+'</span></div>');
+        else if(ds>c.s&&ds<c.e)ribs.push('<div class="rib full hatch cl" data-tip="'+tipc+'"><span>Fermé · '+esc(c.l)+'</span></div>');
+        else if(c.e===ds)ribs.push('<div class="rib dep hatch cl" data-tip="'+tipc+'"><span>Fermé</span></div>');});
+      if(halves.length===1&&ribs.length===1){var h=halves[0];ribs[0]=ribs[0].replace(/<span>[^<]*<\/span>/,'');ribs.push('<div class="side '+(h.side==='arr'?'l':'r')+'"><b>'+esc(h.n)+'</b><small>'+(h.side==='arr'?'Arrivée':'Départ')+' · '+h.pl+'</small></div>');}
+      var free=!ribs.length;
+      var parts=[free?(ds>=TODAY?'<div class="ln add">+ Nouvelle réservation</div>':'<div class="ln add">—</div>'):'<div class="track">'+ribs.join('')+'</div>'];
+      var dt=d(ds);
+      html+='<div class="row'+(ds===TODAY?' today':'')+(ds<TODAY&&free?' past':'')+'"'+(free&&ds>=TODAY?' data-new="'+ds+'"':'')+'><div class="d"><small>'+DAYS[mon(ds)]+'</small><b>'+dt.getDate()+'</b>'+(FERIES[ds]?'<small style="color:var(--error)">férié</small>':'')+'</div><div class="c">'+parts.join('')+'</div><button class="note" aria-label="Note du '+frDay(ds)+'">✎</button></div>';
+    }
+  }
+  body.innerHTML=html;
+}
+var phEl=document.getElementById('ph-scroll');var phS=new Scroller(phEl,renderPhoneMonth);
+function phToday(){phS.today();if(phs.p!=='all'){var t=phEl.querySelector('.row.today');if(t)phEl.scrollTop=t.offsetTop-phEl.offsetTop-44;}}
+wireSeg(document.getElementById('ph'),phs,phToday);
+document.getElementById('ph-today').addEventListener('click',phToday);
+phEl.addEventListener('click',function(e){if(e.target.closest('.note')){toast('Note du jour');return;}var n=e.target.closest('[data-new]');if(n){toast('Nouvelle réservation le '+frDay(n.getAttribute('data-new')));return;}if(e.target.closest('[data-open]'))toast('Ouvre la fiche de la réservation');});
+phToday();
+})();
+</script>
+</body>
+</html>

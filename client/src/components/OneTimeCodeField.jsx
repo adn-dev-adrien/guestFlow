@@ -19,10 +19,15 @@
  * The code is taken out of whatever arrives (rule 35, `extractCode`): « Votre code : 123 456 », a
  * backup code without its dash. `incompleteCodeMessage(value)` says why a value cannot be sent yet.
  *
+ * A complete code is selected whole when the field takes focus or is clicked, and when a refused complete
+ * code receives more digits only what was just typed or pasted is kept: after a refusal the next code
+ * replaces the refused one instead of being cut to its first 6 digits. `readOnly` (rather than
+ * `disabled`) holds the field while a check is in flight, so a phone keeps the focus and its keyboard.
+ *
  * Props: value, onChange(value: string), onComplete(code), label ('Code à 6 chiffres', the input's
  *        accessible name), allowBackup (false), primaryLinkLabel ('Utiliser le code de l’application'),
  *        error (string — the refusal, shown under the cells), helperText (shown when there is no error),
- *        autoFocus, disabled, id.
+ *        autoFocus, disabled, readOnly, id.
  */
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Link, Typography } from '@mui/material';
@@ -79,6 +84,7 @@ export default function OneTimeCodeField({
   helperText,
   autoFocus,
   disabled,
+  readOnly,
   id,
 }) {
   const [backupMode, setBackupMode] = useState(false);
@@ -108,10 +114,22 @@ export default function OneTimeCodeField({
   }, [error]);
 
   const handleChange = (e) => {
-    const next = clean(e.target.value);
+    const raw = e.target.value;
+    // A REFUSED complete code that receives more: keep what was just inserted (it ends at the caret), not
+    // the first characters of the refused code followed by the new ones. Without a refusal an extra digit
+    // after a complete code is still dropped (rule 35): the code may already be on its way.
+    const grew = raw.length - value.length;
+    const caret = e.target.selectionStart;
+    const inserted = error && isCompleteCode(value, allowBackup) && grew > 0 && Number.isInteger(caret) && caret >= grew ? raw.slice(caret - grew, caret) : raw;
+    const next = clean(inserted);
     setAllSelected(false);
     onChange(next);
     if (onComplete && next !== value && isCompleteCode(next, allowBackup)) onComplete(next);
+  };
+
+  const selectWhole = () => {
+    const input = inputRef.current;
+    if (input && isCompleteCode(input.value, allowBackup)) input.select();
   };
 
   const handleSelect = (e) => {
@@ -195,10 +213,12 @@ export default function OneTimeCodeField({
           value={value}
           onChange={handleChange}
           onSelect={handleSelect}
-          onFocus={() => setFocused(true)}
+          onFocus={() => { setFocused(true); setTimeout(selectWhole, 0); }}
+          onClick={selectWhole}
           onBlur={() => { setFocused(false); setAllSelected(false); }}
           autoFocus={autoFocus}
           disabled={disabled}
+          readOnly={readOnly}
           inputMode={textMode ? 'text' : 'numeric'}
           autoComplete="one-time-code"
           autoCapitalize="off"

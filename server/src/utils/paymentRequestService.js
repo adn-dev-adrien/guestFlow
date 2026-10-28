@@ -11,6 +11,7 @@
  */
 
 const { buildVatItems } = require('./paymentLinkItems');
+const { refusalForKind } = require('./reservationReadOnly');
 const { buildStayLineLabel } = require('./paymentLinkLabel');
 const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = require('./emailTemplateLanguage');
 
@@ -81,6 +82,10 @@ async function ensurePaymentLink(deps, id, type) {
   // (specs/public-online-payment.md — avoids a silent tax-free undercharge if the devis lookup misses).
   const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal, depositPaid, balancePaid FROM reservations WHERE id = ?').get(id);
   if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
+  // Defence in depth behind the route guards (specs/calendar-property-parity.md rule 25): no link, so no
+  // provider call, for a cancelled stay or a duplicate set aside — whoever the caller is (a devis is fine).
+  const closed = refusalForKind(r.kind);
+  if (closed) throw { httpStatus: closed.status, error: closed.body.code, message: closed.body.error };
   // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
   // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
   const paidBucket = { deposit: ['depositPaid'], balance: ['balancePaid'], full: ['depositPaid', 'balancePaid'] }[type]
@@ -266,8 +271,10 @@ async function doSendInstallmentRequest(deps, id, installmentId) {
 // `requestedType` may be omitted: the type is then resolved from the record (rule 10). The resolved
 // type travels back in the body so the UI can name what it actually sent.
 async function sendPaymentRequest(deps, id, requestedType) {
-  const row = deps.database.prepare('SELECT id, depositAmount FROM reservations WHERE id = ?').get(id);
+  const row = deps.database.prepare('SELECT id, kind, depositAmount FROM reservations WHERE id = ?').get(id);
   if (!row) return { httpStatus: 404, body: { error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' } };
+  const closed = refusalForKind(row.kind);
+  if (closed) return { httpStatus: closed.status, body: { error: closed.body.code, message: closed.body.error } };
 
   const type = resolveRequestType(row, requestedType);
   const stableKey = REQUEST_TEMPLATES[type];

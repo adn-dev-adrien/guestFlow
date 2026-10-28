@@ -15,12 +15,8 @@ vi.mock('../../components/DialogProvider', () => ({ useToast: () => ({ showError
 vi.mock('../../components/sas/ReservationSasDialog', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getPlanningAlerts: vi.fn().mockResolvedValue({ arrivals: {}, departures: {} }),
-    getReservations: vi.fn().mockResolvedValue([]),
-    getReservation: vi.fn(),
-    getBreakfastPlanningSummary: vi.fn().mockResolvedValue({ breakfastByDate: {} }),
-    getPlanningOptionCards: vi.fn().mockResolvedValue({ optionCardsByDate: {} }),
-    // The server's date, in the week the clocks go back: the window must still end 13 days later,
+    getPlanningDays: vi.fn(async (range) => (await import('./planningDaysFixtures')).daysPayload(range)),
+    // The server's date, in the week the clocks go back: the windows must still be 14 days long,
     // whatever the time zone the suite runs in (specs/ds-sweep-planning.md rule 28).
     getToday: vi.fn().mockResolvedValue({ today: '2026-10-25' }),
   },
@@ -28,6 +24,7 @@ vi.mock('../../api', () => ({
 
 import PlanningPage from '../PlanningPage';
 import { addIsoDays } from '../../utils/isoDay';
+import { stubWindowScroll } from './planningDaysFixtures';
 
 const iso = (offset) => addIsoDays('2026-10-25', offset);
 const TODAY = iso(0);
@@ -67,11 +64,19 @@ function renderPage() {
 // against them.
 async function settled(...contributions) {
   await waitFor(() => contributions.forEach((c) => expect(c.load).toHaveBeenCalled()));
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  return contributions.map((c) => c.load.mock.calls.length);
+  // The windows chain while the (empty) timeline is short: wait until the loads stop coming.
+  let counts = [];
+  for (let stable = 0; stable < 3;) {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const now = contributions.map((c) => c.load.mock.calls.length);
+    stable = now.join() === counts.join() ? stable + 1 : 0;
+    counts = now;
+  }
+  return counts;
 }
 
 beforeEach(() => {
+  stubWindowScroll();
   vi.clearAllMocks();
   Object.keys(slots).forEach((k) => delete slots[k]);
 });
@@ -84,7 +89,10 @@ test('specs/plugins-phase-2-hosts.md rule 5: planning.days dates join the day se
 
   // LATER has no arrival, departure or core card: it renders because a contribution returned it.
   expect(await screen.findByText(new RegExp(`^laundry ${LATER} `))).toBeInTheDocument();
+  // Each window of the timeline asks the contribution for its own range (specs/dashboard-planning-scroll.md rule 11).
   expect(laundry.load).toHaveBeenCalledWith({ from: TODAY, to: iso(13) });
+  expect(laundry.load).toHaveBeenCalledWith({ from: iso(-14), to: iso(-1) });
+  expect(laundry.load).toHaveBeenCalledWith({ from: iso(14), to: iso(27) });
   // On TODAY, the lower rank comes first whatever the order of the contributions.
   const today = screen.getAllByTestId('contributed').filter((el) => el.textContent.includes(TODAY));
   expect(today.map((el) => el.querySelector('span').textContent.split(' ')[0])).toEqual(['notes', 'laundry']);
@@ -98,10 +106,10 @@ test('specs/plugins-phase-2-hosts.md rule 5: reload() reloads that contribution 
   const [l, o] = await settled(laundry, other);
 
   fireEvent.click(await screen.findByText('Recharger laundry'));
-  expect(await screen.findByText(`laundry ${TODAY} ${l + 1}`)).toBeInTheDocument();
-  expect(laundry.load).toHaveBeenCalledTimes(l + 1);
+  // That contribution again over every loaded window (specs/dashboard-planning-scroll.md rule 21).
+  await waitFor(() => expect(laundry.load).toHaveBeenCalledTimes(l * 2));
+  expect(await screen.findByText(new RegExp(`^laundry ${TODAY} (${[...Array(l)].map((_, i) => l + i + 1).join('|')})$`))).toBeInTheDocument();
   expect(other.load).toHaveBeenCalledTimes(o);
-  expect(screen.getByText(`notes ${TODAY} ${o}`)).toBeInTheDocument();
 });
 
 test('specs/plugins-phase-2-hosts.md rule 5: a failed load says so with the contribution message, and the other cards render', async () => {
@@ -113,7 +121,7 @@ test('specs/plugins-phase-2-hosts.md rule 5: a failed load says so with the cont
   slots['planning.days'] = [broken, other];
   renderPage();
 
-  expect(await screen.findByText(`notes ${TODAY} 1`)).toBeInTheDocument();
+  expect(await screen.findByText(new RegExp(`^notes ${TODAY} \\d+$`))).toBeInTheDocument();
   await waitFor(() => expect(showError).toHaveBeenCalledWith("Le linge n'a pas pu être chargé."));
   expect(screen.queryByText(/^laundry /)).not.toBeInTheDocument();
 });
@@ -132,7 +140,8 @@ test('specs/plugins-phase-2-hosts.md rule 6: planning.actions renders in the act
 
   const bar = container.querySelector('.MuiBox-root');
   fireEvent.click(within(bar).getByText('Voyage exceptionnel'));
-  expect(await screen.findByText(`laundry ${TODAY} ${l + 1}`)).toBeInTheDocument();
+  await waitFor(() => expect(laundry.load).toHaveBeenCalledTimes(l * 2));
+  expect(await screen.findByText(new RegExp(`^laundry ${TODAY} (${[...Array(l)].map((_, i) => l + i + 1).join('|')})$`))).toBeInTheDocument();
   expect(other.load).toHaveBeenCalledTimes(o);
 });
 

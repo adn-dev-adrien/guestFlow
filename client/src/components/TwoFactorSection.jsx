@@ -1,42 +1,43 @@
 /**
- * TwoFactorSection — « Second code » in « Mon compte » (specs/hosting-h2-account-security.md
- * rules 6, 9): turn it on with an authenticator app (QR code) or a code by email, confirmed by a
- * first code; then the backup codes; turn it off or renew the backup codes with the password; and
- * the account's history (who turned it on or off).
+ * TwoFactorSection — « Validation en deux étapes » in « Mon compte » (specs/hosting-h2-account-security.md
+ * rules 38–39, 46–48, 51): a status card and its actions, nothing to fill in the card itself.
  *
- * Everything shown comes from GET /api/auth/2fa/status. Props: account (the user's email, written in
- * the downloaded backup codes).
+ * - Off: a « Désactivée » badge, one sentence and « Activer », which opens the three-step
+ *   TwoFactorSetupDialog (rule 40).
+ * - On: an « Activée » badge, the method and its date, the backup codes left (warning colour and
+ *   « Nouveaux codes » from 3 left), « Changer d’appli » / « Nouveaux codes de secours » /
+ *   « Désactiver » — each asking the password and a current code (ReauthDialog, rule 47) — and the
+ *   account's history folded under « Historique (n) ».
+ *
+ * Everything shown, including the sentences with numbers and dates, comes from GET /api/auth/2fa/status.
+ * Focus goes back to the card's first action when a dialog ends on « Terminé ».
+ * Props: account (the user's email, written in the downloaded backup codes), startOpen (open the
+ * activation as soon as the status is read, rule 51), onStartHandled(), notify(message) (a success
+ * toast, e.g. after « Désactiver »).
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Alert, Box, Button, Card, CardContent, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Box, Button, Card, CardContent, Collapse, Link, Stack, Typography, useMediaQuery } from '@mui/material';
 import api from '../api';
 import StatusBadge from './StatusBadge';
-import PasswordField from './PasswordField';
-import OneTimeCodeField from './OneTimeCodeField';
 import BackupCodesDialog from './BackupCodesDialog';
-import FormDialog from './FormDialog';
+import TwoFactorSetupDialog from './TwoFactorSetupDialog';
+import ReauthDialog from './ReauthDialog';
 import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
+import { REAUTH_TEXTS, TWO_FACTOR_EXPLAINER, TWO_FACTOR_NAME } from '../constants/twoFactor';
 
 const errorText = (err, fallback) => (err && err.message && err.message !== err.error ? err.message : fallback);
 
-export default function TwoFactorSection({ account }) {
-  const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
+export default function TwoFactorSection({ account, startOpen = false, onStartHandled, notify }) {
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const card = useRef(null);
+  const [refocus, setRefocus] = useState(0);
   const [status, setStatus] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [method, setMethod] = useState('totp');
-  const [password, setPassword] = useState('');
-  const [enrolment, setEnrolment] = useState(null);
-  const [code, setCode] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [setup, setSetup] = useState(null);
+  const [reauth, setReauth] = useState(null);
   const [codes, setCodes] = useState(null);
-  const [passwordDialog, setPasswordDialog] = useState(null);
-  const [dialogPassword, setDialogPassword] = useState('');
-  const [dialogError, setDialogError] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError('');
@@ -48,169 +49,128 @@ export default function TwoFactorSection({ account }) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const start = async () => {
-    setError('');
-    setBusy(true);
-    try {
-      setEnrolment(await api.startTwoFactor(method, password));
-      setPassword('');
-      setCode('');
-    } catch (err) {
-      setError(errorText(err, 'Activation impossible.'));
-    } finally {
-      setBusy(false);
+  useEffect(() => {
+    if (!startOpen || !status) return;
+    if (!status.enabled) setSetup({ enrolment: null });
+    if (onStartHandled) onStartHandled();
+  }, [startOpen, status, onStartHandled]);
+
+  useEffect(() => {
+    if (!refocus || !card.current) return;
+    const first = card.current.querySelector('button:not([aria-expanded])');
+    if (first) first.focus();
+  }, [refocus]);
+
+  const toApp = status && status.method === 'email';
+  const replaceKey = toApp ? 'toApp' : 'replace';
+
+  const submitReauth = async ({ password, code }) => {
+    if (reauth === 'disable') {
+      setStatus(await api.disableTwoFactor(password, code));
+      setReauth(null);
+      if (notify) notify(`${TWO_FACTOR_NAME} désactivée.`);
+    } else if (reauth === 'codes') {
+      const out = await api.regenerateBackupCodes(password, code);
+      setStatus(out.status);
+      setReauth(null);
+      setCodes(out.backupCodes);
+    } else {
+      const enrolment = await api.startTwoFactor('totp', password, code);
+      setReauth(null);
+      setSetup({ enrolment });
     }
   };
 
-  const confirm = async () => {
-    setError('');
-    setBusy(true);
-    try {
-      const r = await api.confirmTwoFactor(code);
-      setEnrolment(null);
-      setStatus(r.status);
-      setCodes(r.backupCodes);
-    } catch (err) {
-      setError(errorText(err, 'Code incorrect.'));
-      if (err && err.error === 'TOO_MANY_CODES') setEnrolment(null);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitDialog = async () => {
-    setDialogError('');
-    setBusy(true);
-    try {
-      if (passwordDialog === 'disable') {
-        setStatus(await api.disableTwoFactor(dialogPassword));
-      } else {
-        const r = await api.regenerateBackupCodes(dialogPassword);
-        setStatus(r.status);
-        setCodes(r.backupCodes);
-      }
-      setPasswordDialog(null);
-      setDialogPassword('');
-    } catch (err) {
-      setDialogError(errorText(err, 'Mot de passe incorrect.'));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const reauthTexts = reauth && REAUTH_TEXTS[reauth === 'replace' ? replaceKey : reauth];
 
   return (
-    <Card variant="outlined" sx={{ mb: 3 }}>
+    <Card variant="outlined" sx={{ mb: 3 }} ref={card}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack spacing={2}>
           <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-            <Typography variant="sectionHeader">Second code</Typography>
+            <Typography variant="sectionHeader">{TWO_FACTOR_NAME}</Typography>
             {status && (
-              <StatusBadge status={status.enabled ? 'success' : 'neutral'} label={status.enabled ? 'Activé' : 'Désactivé'} />
+              <StatusBadge status={status.enabled ? 'success' : 'neutral'} label={status.enabled ? 'Activée' : 'Désactivée'} />
             )}
           </Stack>
           {loadError && <ErrorAlert message={loadError} onRetry={load} />}
           {!status && !loadError && <LoadingState />}
-          {error && !enrolment && <Alert severity="error">{error}</Alert>}
+
+          {status && !status.enabled && (
+            <>
+              <Typography variant="body2">{TWO_FACTOR_EXPLAINER}</Typography>
+              <Box>
+                <Button variant="contained" onClick={() => setSetup({ enrolment: null })} sx={{ minHeight: 44 }}>Activer</Button>
+              </Box>
+            </>
+          )}
 
           {status && status.enabled && (
             <>
-              <Typography variant="body2">
-                {status.methodLabel} · codes de secours restants : <b>{status.backupCodesLeft}</b>
-              </Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button variant="outlined" onClick={() => setPasswordDialog('codes')}>Nouveaux codes de secours</Button>
-                <Button variant="outlined" color="error" onClick={() => setPasswordDialog('disable')}>Désactiver</Button>
-              </Stack>
-            </>
-          )}
-
-          {status && !status.enabled && !enrolment && (
-            <>
-              {/* One column on a phone, one row above: never a broken staircase (rule 25). */}
-              <ToggleButtonGroup
-                exclusive
-                value={method}
-                onChange={(e, v) => v && setMethod(v)}
-                size="small"
-                orientation={phone ? 'vertical' : 'horizontal'}
-                fullWidth={phone}
-                aria-label="Méthode du second code"
-                sx={{ alignSelf: phone ? 'stretch' : 'flex-start' }}
-              >
-                <ToggleButton value="totp" sx={{ minHeight: 44, textTransform: 'none' }}>Appli d’authentification</ToggleButton>
-                <ToggleButton value="email" disabled={!status.emailAvailable} sx={{ minHeight: 44, textTransform: 'none' }}>Code par email</ToggleButton>
-              </ToggleButtonGroup>
-              <PasswordField
-                label="Mot de passe (confirmation)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                fullWidth
-              />
-              <Box>
-                <Button variant="contained" onClick={start} disabled={busy || !password}>Activer</Button>
-              </Box>
-            </>
-          )}
-
-          {enrolment && (
-            <>
-              {enrolment.method === 'totp' ? (
-                <Stack spacing={1} sx={{ alignItems: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">Scanner ce code avec l’appli, puis saisir le code affiché.</Typography>
-                  <Box component="img" src={enrolment.qrDataUrl} alt="QR code de l’appli d’authentification" sx={{ width: 220, height: 220, bgcolor: '#fff', p: 1, borderRadius: 1 }} />
-                  <Typography variant="caption" sx={{ fontFamily: 'ui-monospace, Menlo, monospace', overflowWrap: 'anywhere', textAlign: 'center' }}>
-                    {enrolment.secret}
+              <Stack spacing={0.5}>
+                <Typography variant="body2">{`${status.methodLabel} · ${status.enabledLabel}`}</Typography>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Typography variant="body2" color={status.backupCodesLow ? 'warning.main' : 'text.primary'} sx={status.backupCodesLow ? { fontWeight: 600 } : undefined}>
+                    {status.backupCodesLow ? status.backupCodesWarning : status.backupCodesLabel}
                   </Typography>
+                  {status.backupCodesLow && (
+                    <Link component="button" type="button" variant="body2" onClick={() => setReauth('codes')} sx={{ minHeight: 44 }}>
+                      Nouveaux codes
+                    </Link>
+                  )}
                 </Stack>
-              ) : (
-                <Alert severity="info">{`Code envoyé à ${enrolment.sentTo}.`}</Alert>
-              )}
-              <OneTimeCodeField value={code} onChange={(v) => { setCode(v); setError(''); }} error={error} autoFocus />
+              </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                <Button variant="contained" onClick={confirm} disabled={busy || code.length !== 6}>Confirmer</Button>
-                <Button onClick={() => { setEnrolment(null); setError(''); }}>Annuler</Button>
+                <Button variant="outlined" onClick={() => setReauth('replace')} sx={{ minHeight: 44 }}>
+                  {toApp ? 'Passer à une appli' : 'Changer d’appli'}
+                </Button>
+                <Button variant="outlined" onClick={() => setReauth('codes')} sx={{ minHeight: 44 }}>Nouveaux codes de secours</Button>
+                <Button variant="outlined" color="error" onClick={() => setReauth('disable')} sx={{ minHeight: 44 }}>Désactiver</Button>
               </Stack>
             </>
           )}
 
-          {status && status.events.length > 0 && (
+          {status && status.eventsCount > 0 && (
             <Box>
-              <Typography variant="overline" color="text.secondary">Journal du compte</Typography>
-              <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {status.events.map((e) => (
-                  <Typography component="li" variant="body2" key={`${e.at}-${e.label}`}>{`${e.atLabel} — ${e.label}`}</Typography>
-                ))}
-              </Box>
+              <Link component="button" type="button" variant="body2" onClick={() => setHistoryOpen((o) => !o)} aria-expanded={historyOpen}
+                sx={{ minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>
+                {`Historique (${status.eventsCount})`}
+              </Link>
+              <Collapse in={historyOpen} unmountOnExit timeout={reduceMotion ? 0 : 'auto'}>
+                <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                  {status.events.map((e) => (
+                    <Typography component="li" variant="body2" key={`${e.at}-${e.label}`}>{`${e.atLabel} — ${e.label}`}</Typography>
+                  ))}
+                </Box>
+              </Collapse>
             </Box>
           )}
         </Stack>
       </CardContent>
 
-      <BackupCodesDialog open={Boolean(codes)} codes={codes || []} account={account} onClose={() => setCodes(null)} />
-      <FormDialog
-        open={Boolean(passwordDialog)}
-        onClose={() => { setPasswordDialog(null); setDialogPassword(''); setDialogError(''); }}
-        title={passwordDialog === 'disable' ? 'Désactiver le second code' : 'Nouveaux codes de secours'}
-        submitLabel={passwordDialog === 'disable' ? 'Désactiver' : 'Générer'}
-        submitColor={passwordDialog === 'disable' ? 'error' : undefined}
-        submitDisabled={!dialogPassword}
-        submitBusy={busy}
-        onSubmit={submitDialog}
-      >
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          {passwordDialog === 'codes' && <Typography variant="body2">Les anciens codes ne marcheront plus.</Typography>}
-          {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          <PasswordField
-            label="Mot de passe (confirmation)"
-            value={dialogPassword}
-            onChange={(e) => setDialogPassword(e.target.value)}
-            autoComplete="current-password"
-            autoFocus
-            fullWidth
-          />
-        </Stack>
-      </FormDialog>
+      {setup && (
+        <TwoFactorSetupDialog
+          open
+          account={account}
+          emailAvailable={Boolean(status && status.emailAvailable)}
+          initialEnrolment={setup.enrolment}
+          onClose={() => { setSetup(null); load(); }}
+          onRestart={() => setReauth('replace')}
+          onDone={(next) => { setStatus(next); setSetup(null); setRefocus((n) => n + 1); }}
+        />
+      )}
+      <ReauthDialog
+        open={Boolean(reauth)}
+        onClose={() => setReauth(null)}
+        title={reauthTexts ? reauthTexts.title : ''}
+        text={reauthTexts ? reauthTexts.text : ''}
+        submitLabel={reauthTexts ? reauthTexts.submitLabel : ''}
+        submitColor={reauthTexts ? reauthTexts.submitColor : undefined}
+        needsCode={Boolean(status && status.reauthNeedsCode)}
+        onSendCode={status && status.method === 'email' ? api.sendTwoFactorActionCode : undefined}
+        onSubmit={submitReauth}
+      />
+      <BackupCodesDialog open={Boolean(codes)} codes={codes || []} account={account} onClose={() => { setCodes(null); setRefocus((n) => n + 1); }} />
     </Card>
   );
 }

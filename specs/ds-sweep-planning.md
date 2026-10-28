@@ -78,8 +78,12 @@ business behavior, figure, or calendar geometry**.
 1. **Dashboard** — bar title « Tableau de bord ». The date cluster (prev/next arrows + date picker
    + « Aujourd'hui ») moves to the bar `center` on `sm+`; on `xs` it renders as a compact strip
    directly under the bar (phase-3 tabs pattern — `center` is hidden on xs).
+   > **Superseded 2026-10-28 (dashboard-planning-scroll.md rule 6):** the home's bar is « Tableau de
+   > bord » alone — no date cluster, no phone strip.
 2. **PlanningPage** — bar title « Planning ». Same date-cluster treatment (prev/next + date +
    « Aujourd'hui » in `center`, xs strip under the bar).
+   > **Superseded 2026-10-28 (dashboard-planning-scroll.md rule 22):** the planning's bar carries
+   > « Aujourd'hui » and the plugin buttons as bar actions — no date cluster, no phone strip.
 3. **CalendarPage** — bar title « Calendrier ». `CalendarToolbar`'s controls split: month prev/next
    + « Aujourd'hui » become bar actions; the property `Select` + view toggle (« Vue logements » /
    vue mensuelle) go to `center` (xs: strip under the bar). The cleaning/zones legend stays
@@ -208,7 +212,8 @@ business behavior, figure, or calendar geometry**.
 
 28. **« Today » is the server's date.** The Dashboard and the Planning read `GET /api/today`
     (`{ today: 'YYYY-MM-DD' }`, the Europe/Paris date every engine uses, any signed-in role) and load
-    nothing before it is known; the date arrows stay disabled until then. Days are counted on the
+    nothing before it is known (the date arrows are gone, dashboard-planning-scroll.md rules 6, 22).
+    Days are counted on the
     calendar (`utils/isoDay.js`), so a window keeps its length across a clock change. Between midnight
     and 2 a.m. the pages used to open on the previous day (the browser's UTC date). If the server cannot
     be asked, the browser's own local date is used.
@@ -216,6 +221,8 @@ business behavior, figure, or calendar geometry**.
     code review). `useServerToday` reads `GET /api/today` again each time the page comes back to the
     foreground (window focus, tab visible again). A Dashboard or Planning left open overnight moves to
     the new day on return, and « Aujourd'hui » leads to it; a date the operator picked stays picked.
+    > **Amended 2026-10-28 (dashboard-planning-scroll.md rules 7, 23):** no date can be picked any more
+    > — a new server day reloads the home's lists and rebuilds the planning's timeline on the new today.
 
 ### 3.13 Planning cards on a phone (added 2026-10-27, spec review)
 

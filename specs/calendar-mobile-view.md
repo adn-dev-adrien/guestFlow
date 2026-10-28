@@ -32,6 +32,9 @@ changing the desktop experience**.
    **vertical rows** (so they're readable), not the diagonal grid. Horizontal **scroll-snap**
    between weeks: swipe left/right moves to the previous/next week. A header shows the
    centered week's range + prev/next chevrons + an « Aujourd'hui » button.
+   **Superseded 2026-10-28** (rules 1-2) by `calendar-property-parity.md` rule 17, pending its open
+   question 4: on `xs` the logement calendar becomes a vertical day agenda in the shared month scroller;
+   rule 3's per-day content is kept row for row.
 3. **Per-day content** (for the selected property), as plain labels:
    - `↑ Départ — <nom> <heure> · <plateforme>` (reservation ending that day — arrow points *out*/up),
    - `↓ Arrivée — <nom> <heure> · <plateforme>` (reservation starting that day — arrow points *in*/down),
