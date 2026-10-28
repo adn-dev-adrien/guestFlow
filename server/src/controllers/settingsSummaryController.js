@@ -89,7 +89,7 @@ function buildSummary(deps, user) {
     if (place && !place.startsWith(INTEGRATIONS)) lines[place] = warning('À configurer');
   });
   put('/mon-compte', () => (user && user.id && deps.twoFactorEnabled(user.id)
-    ? neutral('Second code activé') : neutral('Second code non activé')));
+    ? neutral('Validation en deux étapes activée') : neutral('Validation en deux étapes non activée')));
   return { lines };
 }
 
