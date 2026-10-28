@@ -24,6 +24,7 @@ const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
 const propertyArticle = require('../utils/propertyArticle');
+const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
 // coerced explicitly to a 0/1 bit for INTEGER columns.
@@ -77,8 +78,9 @@ function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
 }
 
 // specs/payment-schedule-and-cancellation.md §3 — the three delays that drive the payment schedule.
-// A blank / non-numeric / negative input falls back to the policy default rather than persisting a
-// value that would produce a nonsensical deadline. 0 is legitimate ("due the same day").
+// Only an ABSENT field falls back to the policy default; a negative, non-numeric or out-of-range value
+// is refused at the boundary (specs/settings-input-guards.md rule 12) and never reaches here from a
+// form. 0 is legitimate ("due the same day").
 function dayCountOr(value, fallback) {
   // Absent (null / undefined / '') means "not provided" — `Number(null)` is 0, which would persist a
   // same-day deadline on any payload that simply omits the field. A real 0 is kept.
@@ -292,7 +294,9 @@ function createPropertiesModel(database) {
     database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(own.article, Number(id));
   }
 
-  function writeEmailFacts(id, body = {}) {
+  function writeEmailFacts(id, payload = {}) {
+    // specs/settings-input-guards.md rules 23-24 — the pool mode is mapped to the two stored bounds.
+    const body = { ...payload, ...resolvePoolSeason(payload) };
     for (const { key, coerce } of EMAIL_FACT_FIELDS) {
       if (!propertyCols.has(key) || !Object.prototype.hasOwnProperty.call(body, key)) continue;
       database.prepare(`UPDATE properties SET ${key} = ? WHERE id = ?`).run(coerce(body[key]), Number(id));
@@ -418,6 +422,7 @@ function createPropertiesModel(database) {
     getByIdWithDetails(id) {
       const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(id);
       if (!property) return null;
+      property.poolSeasonMode = poolSeasonModeOf(property.poolSeasonStart, property.poolSeasonEnd);
 
       if (typeof database.ensureDefaultTimedOptionsForProperty === 'function') {
         database.ensureDefaultTimedOptionsForProperty(Number(id));

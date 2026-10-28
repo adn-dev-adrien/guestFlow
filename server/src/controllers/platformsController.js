@@ -7,6 +7,7 @@
 const platformsModel = require('../models/platformsModel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { parsePayoutDueDaysInput } = require('../utils/platformPayout');
+const { PLATFORM_LIMITS, parseBoundedNumber, limitMessage } = require('../utils/inputLimits');
 
 function listNames(req, res) {
   res.json({ platforms: platformsModel.listNames() });
@@ -17,9 +18,12 @@ function listWithCommission(req, res) {
   res.json({ platforms: platformsModel.listWithCommission() });
 }
 
-// Set a platform's global commission % (clamped server-side to [0, 99.99]; Direct is rejected).
+// Set a platform's global commission % (refused outside [0, 99.99], never clamped —
+// specs/settings-input-guards.md rule 30).
 function setCommission(req, res) {
-  const updated = platformsModel.setCommissionPercent(req.params.id, req.body && req.body.commissionPercent);
+  const parsed = parseBoundedNumber(req.body && req.body.commissionPercent, PLATFORM_LIMITS.commissionPercent);
+  if (parsed.error) return res.status(400).json({ error: limitMessage(PLATFORM_LIMITS.commissionPercent) });
+  const updated = platformsModel.setCommissionPercent(req.params.id, parsed.value);
   if (!updated) return res.status(404).json({ error: 'PLATFORM_NOT_FOUND_OR_DIRECT' });
   return res.json({ id: updated.id, name: updated.name, commissionPercent: Number(updated.commissionPercent) || 0 });
 }
@@ -73,7 +77,6 @@ function setPayoutDueDays(req, res) {
 
 const TOURIST_TAX_MODES = ['platform', 'platform_reversed', 'owner'];
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
-const MAX_COMMISSION_PERCENT = 99.99;
 const MAX_REVIEW_WHERE = 80;
 
 // GET /api/platforms/settings — the « Plateformes » settings page (specs/settings-rationalization.md
@@ -82,7 +85,7 @@ const MAX_REVIEW_WHERE = 80;
 // so it is on the page the moment it exists — not after a restart (specs/platforms-and-ical-rework.md rule 16).
 function listSettings(req, res) {
   platformsModel.rescan();
-  res.json({ platforms: platformsModel.listSettings() });
+  res.json({ platforms: platformsModel.listSettings(), limits: PLATFORM_LIMITS });
 }
 
 /**
@@ -99,10 +102,9 @@ function planRow(row, current) {
     else apply.push(() => platformsModel.setColor(current.name, color));
   }
   if (has('commissionPercent')) {
-    const pct = Number(String(row.commissionPercent).replace(',', '.'));
-    if (String(row.commissionPercent).trim() === '' || !Number.isFinite(pct) || pct < 0 || pct > MAX_COMMISSION_PERCENT) {
-      errors.commissionPercent = 'Entre 0 et 99,99 %.';
-    } else apply.push(() => platformsModel.setCommissionPercent(current.id, pct));
+    const parsed = parseBoundedNumber(row.commissionPercent, PLATFORM_LIMITS.commissionPercent);
+    if (parsed.error) errors.commissionPercent = limitMessage(PLATFORM_LIMITS.commissionPercent);
+    else apply.push(() => platformsModel.setCommissionPercent(current.id, parsed.value));
   }
   if (!current.isDirect && has('takesDeposit')) {
     apply.push(() => platformsModel.setDepositMode(current.name, row.takesDeposit === true));

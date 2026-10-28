@@ -42,7 +42,7 @@ test('rule 34: an instance without a pool gets none on its properties', () => {
 test('rule 34: both dates or none, each a real day of the year', () => {
   assert.deepEqual(validatePropertyInput({ poolSeasonStart: '06-15', poolSeasonEnd: '08-31' }), {});
   assert.deepEqual(validatePropertyInput({ poolSeasonStart: '', poolSeasonEnd: '' }), {});
-  assert.equal(validatePropertyInput({ poolSeasonStart: '06-15', poolSeasonEnd: '' }).poolSeasonEnd, 'Les deux dates, ou aucune.');
+  assert.equal(validatePropertyInput({ poolSeasonStart: '06-15', poolSeasonEnd: '' }).poolSeasonEnd, 'Les deux dates.');
   assert.ok(validatePropertyInput({ poolSeasonStart: '13-40', poolSeasonEnd: '08-31' }).poolSeasonStart);
 });
 
