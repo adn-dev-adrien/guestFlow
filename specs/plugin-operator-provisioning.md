@@ -321,6 +321,14 @@ screen or endpoint: the customer sees only the features themselves.
     walks: it ignores it, whatever `activePlugins` says, and an erase order naming it is settled without
     touching anything (rule 23). The row stays — never live, never listed by the managed `GET /api/plugins`
     (rule 5) — until a release ships the plugin again or the row is removed from the database.
+40. **A removal order never purges, and an unknown data count is not « no data »** (audit 2026-10-28,
+    console H2). Each erase order of the licence is `{ order, id, removal }`. `removal: true` is the
+    console's « Désinstaller » of a module it showed with no data to lose: the space uninstalls it
+    **without** `purge`, whatever the plugin keeps (data stays for a later reinstall). `removal` absent
+    or false is the data erase of rule 23 (purge, then plain uninstall for a plugin keeping no data).
+    When a plugin's own data count (`describe`) throws, the plugin view carries `dataUnknown: true`
+    with `data: []`, logged, and the facts published to the console carry `dataUnknown: true`: the
+    console must offer neither erase nor removal on it. Test: `plugin-removal-order-no-purge.unit.test.js`.
 
 **Edge cases:**
 

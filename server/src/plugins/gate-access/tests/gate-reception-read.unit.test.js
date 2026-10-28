@@ -9,6 +9,7 @@ const enforceRoleAccess = require('../../../middleware/enforceRoleAccess');
 
 // Plugin modules declare their own reception entries (specs/plugins-phase-1-sdk.md rule 5).
 require('../../loader').registerAll({ db: null, isInstalled: () => false });
+require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
 
 function call({ roles, method, path }) {
   const req = { user: { roles }, method, path };

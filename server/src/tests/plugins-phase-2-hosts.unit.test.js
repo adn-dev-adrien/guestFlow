@@ -26,7 +26,10 @@ test('rule 2 — a plugin reaches only the core modules of the reviewed list', (
 
 test('rule 3 — roleAccess entries join the guard of their role only; reception() is its shorthand', () => {
   registry.reset();
+  registry.configure({ isActive: () => true, allows: () => true });
   const ctx = createContext('accounting-export', {});
+  ctx.route('get', '/api/phase2-probe', () => {});
+  ctx.route('get', '/api/phase2-reception-probe', () => {});
   ctx.roleAccess('accountant', [{ method: 'GET', re: /^\/phase2-probe$/ }]);
   ctx.reception([{ method: 'GET', re: /^\/phase2-reception-probe$/ }]);
   assert.throws(() => ctx.roleAccess('admin', []), /unknown role/);

@@ -92,16 +92,19 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
   }
 
   async function eraseOrders(issuedAt, wantedSet) {
-    for (const { order: orderId, id } of pendingEraseOrders(licence)) {
+    for (const { order: orderId, id, removal } of pendingEraseOrders(licence)) {
       const row = model.get(id);
       if (provisioning.erased(orderId) || !order.includes(id)) continue;
       if (wantedSet.has(id)) continue;
       if (!row) { provisioning.markErased(orderId, now().toISOString()); continue; }
       if (row.enabled) continue;
       if (settled(provisioning.get(id), 'inactive', issuedAt)) continue;
-      let answer = await capture(controller.uninstall, { params: { id }, query: { purge: '1' }, body: {}, reconciling: true }); // eslint-disable-line no-await-in-loop
+      // A removal order (`removal: true`) is the console's « Désinstaller » of a module it showed with no
+      // data to lose: it never purges, whatever the plugin keeps (rule 40).
+      const query = removal === true ? {} : { purge: '1' };
+      let answer = await capture(controller.uninstall, { params: { id }, query, body: {}, reconciling: true }); // eslint-disable-line no-await-in-loop
       // A plugin that keeps no data has nothing to erase: the order is settled by leaving it uninstalled.
-      if (answer.body && answer.body.error === 'NOT_ERASABLE') {
+      if (removal !== true && answer.body && answer.body.error === 'NOT_ERASABLE') {
         answer = await capture(controller.uninstall, { params: { id }, query: {}, body: {}, reconciling: true }); // eslint-disable-line no-await-in-loop
       }
       const { status, body } = answer;
@@ -126,7 +129,9 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
       controller.views().forEach((view) => {
         const installed = view.state !== 'available';
         provisioning.setFacts(view.id, installed
-          ? { setup: view.setup.needed ? view.setup.missing : null, erasable: view.erasable, data: view.data }
+          ? {
+            setup: view.setup.needed ? view.setup.missing : null, erasable: view.erasable, data: view.data, ...(view.dataUnknown ? { dataUnknown: true } : {}),
+          }
           : null);
       });
     } catch (err) {

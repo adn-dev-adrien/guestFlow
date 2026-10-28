@@ -135,14 +135,16 @@ function createController(model = defaultModel, deps = {}) {
 
   const erasable = (id) => Boolean(reg.get(id) && reg.get(id).data);
 
-  // Rule 12 — what « Effacer aussi ses données » would erase, as the server counts it.
+  // Rule 12 — what « Effacer aussi ses données » would erase, as the server counts it. `null` when the
+  // plugin's own count threw: unknown is not « nothing » (rule 40), a reader must not offer a removal on it.
   function dataLines(id) {
     const record = reg.get(id);
     if (!record || !record.data || !record.data.describe) return [];
     try {
       return record.data.describe(getDb()) || [];
-    } catch {
-      return [];
+    } catch (err) {
+      console.error(`[plugin:${id}] data description failed:`, err && err.message ? err.message : err);
+      return null;
     }
   }
 
@@ -253,6 +255,7 @@ function createController(model = defaultModel, deps = {}) {
     const row = model.get(entry.id);
     const record = reg.get(entry.id);
     const pkg = packageView(entry, row);
+    const lines = row && erasable(entry.id) ? dataLines(entry.id) : [];
     let state = !row ? 'available' : row.enabled ? 'active' : 'inactive';
     if (row && record && record.failed) state = 'failed';
     if (row && pkg.incompatible) state = 'incompatible';
@@ -276,7 +279,8 @@ function createController(model = defaultModel, deps = {}) {
       setup: setupView(entry.id, state),
       hasModule: Boolean(record) || Boolean(copy),
       erasable: erasable(entry.id),
-      data: row && erasable(entry.id) ? dataLines(entry.id) : [],
+      data: lines || [],
+      dataUnknown: lines === null,
       ...pkg,
     };
   }
@@ -346,7 +350,14 @@ function createController(model = defaultModel, deps = {}) {
     let restart = false;
     if (loaded && loaded !== candidate.version) {
       restart = true;
-    } else if (!loaded) {
+    } else if (loaded) {
+      try {
+        loader().migrate(getDb(), id);
+      } catch (err) {
+        console.error(`[plugin:${id}] install migration failed:`, err && err.message ? err.message : err);
+        return { status: 500, body: { error: 'PLUGIN_MIGRATION_FAILED', plugin: id } };
+      }
+    } else {
       let mod;
       try {
         mod = loader().requirePackage(id, pkg.dir);
@@ -442,6 +453,7 @@ function createController(model = defaultModel, deps = {}) {
     }
     const { plan, refusal } = requirementPlan(offer.manifest, planCtx());
     if (refusal) return res.status(409).json({ error: refusal.code, message: refusal.message });
+    if (refuseIfRequirementInactive(entry, res, { manifest: offer.manifest, installedOnly: true })) return undefined;
     const withRequirements = Boolean(req.body && req.body.withRequirements);
     if (plan.length && !withRequirements) {
       return res.status(409).json({
@@ -536,12 +548,14 @@ function createController(model = defaultModel, deps = {}) {
 
   // Rule 37 — the mirror of rule 36: a plugin is activated only once every plugin it requires is
   // installed and active, else it would run without what it is built on.
-  function refuseIfRequirementInactive(entry, res) {
+  // An install (rule 38) only refuses a requirement that is installed yet switched off: one not
+  // installed is the install plan's business.
+  function refuseIfRequirementInactive(entry, res, { manifest: given, installedOnly = false } = {}) {
     const row = model.get(entry.id);
-    const manifest = (row && row.manifest) || entry;
+    const manifest = given || (row && row.manifest) || entry;
     const inactive = (manifest.requires || []).map((r) => r.id).filter((id) => {
       const required = model.get(id);
-      return !required || !required.enabled;
+      return required ? !required.enabled : !installedOnly;
     });
     if (!inactive.length) return false;
     const names = inactive.map(nameOf).join(', ');
@@ -583,6 +597,7 @@ function createController(model = defaultModel, deps = {}) {
       if (model.get(entry.id)) return res.status(409).json({ error: 'ALREADY_INSTALLED' });
       if (refuseIfOutOfPlan(entry, res)) return undefined;
       if (packages()) return installFromPackages(entry, req, res);
+      if (refuseIfRequirementInactive(entry, res, { installedOnly: true })) return undefined;
       if (reg.get(entry.id)) {
         try {
           loader().migrate(getDb(), entry.id);
@@ -729,15 +744,24 @@ function createController(model = defaultModel, deps = {}) {
       if (refuseIfRequiredBy(entry, res, { reconciling: Boolean(req.reconciling) })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       if (wantsPurge) {
+        let databaseErased = false;
         try {
           purge(entry.id);
+          databaseErased = true;
           // Rule 15 — the plugin's own files go with its tables.
           host().store().eraseData(entry.id);
         } catch (err) {
           console.error(`[plugin:${entry.id}] erasure failed:`, err && err.message ? err.message : err);
-          // Rule 12: a failed erasure leaves the plugin installed and inactive.
+          // Rule 12: a failed erasure leaves the plugin installed and inactive. The message says what is
+          // true: the database step is one transaction, the files step comes after it.
           model.setEnabled(entry.id, false);
-          return res.status(500).json({ error: 'PLUGIN_PURGE_FAILED', message: 'Échec de l’effacement : rien n’a été effacé.' });
+          loader().markInactive(entry.id);
+          return res.status(500).json({
+            error: 'PLUGIN_PURGE_FAILED',
+            message: databaseErased
+              ? 'Effacement incomplet : les données sont effacées, pas les fichiers. À relancer.'
+              : 'Échec de l’effacement : rien n’a été effacé.',
+          });
         }
       }
       model.uninstall(entry.id);

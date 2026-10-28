@@ -297,6 +297,40 @@ below are the recommended ones; each is reversible in a later spec.
     with `requires` (those ids) and « Nécessite <nom> : à activer d’abord. », which the Plugins page
     shows on the card. Found when Google Vacation Rentals could be re-activated while
     `website-booking` was off.
+38. **Install refuses an installed but inactive requirement** (audit 2026-10-28, mirror of rule 37).
+    `POST /api/plugins/:id/install` — install is install-and-activate (rule 4) — answers 409
+    `REQUIREMENT_INACTIVE` (`requires`, « Nécessite <nom> : à activer d’abord. ») when a requirement
+    is installed yet switched off. A requirement not installed is the install plan's business (rule
+    12), not a refusal. Test: `plugin-install-requirement-inactive.unit.test.js`.
+39. **Reinstall, retry, erasure and slots tell the truth** (audit 2026-10-28):
+    - an install always runs the plugin's migrations, also when the same version is still loaded in
+      the process (the ledger makes it idempotent). Without it, « Effacer aussi ses données » then
+      a reinstall without a restart left the plugin active with no tables. The loaded record is
+      deliberately kept on uninstall: it names the code the process holds, and a different version
+      still restarts (rule 13);
+    - a plugin whose live `register` failed is registered afresh by the next install: its failed
+      record, its mounted layers and its job schedule are dropped first, so the retry either comes up
+      whole or answers 500 `PLUGIN_REGISTER_FAILED` again;
+    - an erasure runs the database step (one transaction) then the files step. A failure of the
+      first answers « rien n’a été effacé » (true: it rolled back); a failure of the second answers
+      « Effacement incomplet : les données sont effacées, pas les fichiers. À relancer. », leaves the
+      plugin installed and inactive, and a retry finishes the job;
+    - on the client each slot contribution sits in its own error boundary
+      (`client/src/plugins/sdk/Slot.jsx`): a throwing one renders nothing and is logged; a lazy chunk
+      that 404s after a plugin update (another tab) shows « Module mis à jour. Recharger ».
+    Tests: `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`,
+    `Slot.isolation.test.jsx`.
+40. **The trust root is the registry signing key, and a package is fully trusted code** (audit
+    2026-10-28). A package runs in-process with the server's full `require` (any core file, raw SQL
+    through `ctx.db`, the decrypted SMTP settings, `secrets.getOrCreate` on any environment name) and
+    its client bundle runs same-origin with the administrator's session. `coreModule()`'s allowlist is
+    a contract and a lint aid, not a security boundary. This is acceptable for first-party packages
+    only (§8: third-party plugins are out of scope): whoever holds the key that signs the index can
+    run arbitrary code on every instance that clicks « Installer » or « Mettre à jour ». Before any
+    third-party plugin is considered, the registry must have its own dedicated key (it still falls
+    back to the licence key, handled by the control plane) and packages must be sandboxed.
+    `tar` refuses links but lets FIFO and device members through, and a gzip can expand without
+    limit: both need a signed package to be reached.
 
 ---
 
@@ -402,6 +436,7 @@ word per line (seen in the browser check of 2026-10-17).
   `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
 - _(added 2026-10-27)_ `plugins-deactivate-required-by.unit.test.js` (rule 36, 4 tests).
 - _(added 2026-10-27, adversarial review)_ `plugins-activate-requires-active.unit.test.js` (rule 37, 3 tests; the refusal failed on the code before the fix).
+- _(added 2026-10-28, audit)_ rules 38–39: `plugin-install-requirement-inactive.unit.test.js`, `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`, `Slot.isolation.test.jsx`.
 
 ## 8. Out of scope
 

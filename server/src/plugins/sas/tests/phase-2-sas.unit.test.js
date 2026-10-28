@@ -137,7 +137,7 @@ test('specs/plugins-phase-2-hosts.md rule 8 — the core declares no SAS route a
   assert.equal(fs.existsSync(path.join(SRC, 'controllers/sasController.js')), false);
   assert.equal(fs.existsSync(path.join(SRC, 'utils/sasAudit.js')), false);
 
-  useLive();
+  useLive('sas');
   bootRoutes();
   const entries = loader.roleMatchers('reception').filter((m) => m.pluginId === 'sas');
   assert.deepEqual(entries.map((m) => m.method), ['GET', 'POST', 'POST', 'POST', 'POST']);

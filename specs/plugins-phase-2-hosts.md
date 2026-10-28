@@ -395,6 +395,13 @@ without the core knowing it.
       remains for a key only the real environment sets.
     Test: `website-booking/tests/site-key-rotation-restart.unit.test.js` (rotate, restart with the old
     key inherited, the new key is still served; the helper's environment leaves `.env.local` out).
+33. **Role entries and webhook exemptions count only while the plugin is live, and the entries only on
+    the plugin's own routes** (audit 2026-10-28, authz L4; amends rule 3). `loader.roleMatchers` skips a
+    plugin that is not live and applies an entry only to a path the plugin serves itself (one of its
+    `ctx.route` paths, below one of its `/api` mounts, or its webhook): an entry aimed at a core route
+    (`/clients`) stays inert. `loader.isWebhook` skips a plugin that is not live. A webhook path itself
+    is the plugin's declaration; keeping it off core routes stays a matter of review.
+    Test: `plugin-role-entries-own-routes.unit.test.js`.
 
 ## 4. Architecture
 

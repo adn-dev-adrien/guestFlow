@@ -1,0 +1,3 @@
+- Plugins: installing a plugin again after erasing its data no longer leaves it active without its tables, a plugin whose live start failed once now starts or fails cleanly on the next install, and a failed erasure reports what was really erased.
+- Plugins: installing a plugin on top of an installed but deactivated requirement is refused, like activating it.
+- Plugins: one failing plugin contribution no longer takes the whole page down; an outdated plugin bundle shows a "Recharger" prompt.

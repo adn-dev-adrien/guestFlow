@@ -188,12 +188,36 @@ const gate = (id) => requirePlugin(id, { isActive: registry.isLive });
 let publicDispatcher = null;
 let apiDispatcher = null;
 const mountedIds = new Set();
+const mountedLayers = new Map();
+
+// The layers a record added to a dispatcher, kept so a re-registered plugin replaces them.
+function trackLayers(router, id, mount) {
+  const before = router.stack.length;
+  mount();
+  const layers = mountedLayers.get(id) || [];
+  layers.push({ router, added: router.stack.slice(before) });
+  mountedLayers.set(id, layers);
+}
+
+function unmountRecord(id) {
+  (mountedLayers.get(id) || []).forEach(({ router, added }) => {
+    router.stack = router.stack.filter((layer) => !added.includes(layer));
+  });
+  mountedLayers.delete(id);
+  mountedIds.delete(id);
+}
 
 function mountRecordPublic(router, record) {
-  record.mounts.filter((m) => m.public).forEach((m) => router.use(m.path, gate(record.id), m.router));
+  trackLayers(router, record.id, () => {
+    record.mounts.filter((m) => m.public).forEach((m) => router.use(m.path, gate(record.id), m.router));
+  });
 }
 
 function mountRecordApi(router, record) {
+  trackLayers(router, record.id, () => mountRecordApiLayers(router, record));
+}
+
+function mountRecordApiLayers(router, record) {
   record.webhooks.forEach((w) => router.post(w.path, gate(record.id), w.handler));
   record.routes.forEach((r) => router[r.method](r.path, gate(record.id), ...r.handlers));
   record.mounts.filter((m) => !m.public).forEach((m) => router.use(m.path, gate(record.id), m.router));
@@ -241,10 +265,18 @@ function startJobs({ setIntervalFn = setInterval, setTimeoutFn = setTimeout } = 
 /**
  * Rule 13 — a package installed while the app runs: its routes, jobs and handlers take effect at
  * once. The migrations and the install hooks stay the controller's (install order: migrate, row,
- * hooks). Returns false when `register` threw (the plugin is then failed, rule 4 of phase 1).
+ * hooks). Returns false when `register` threw (the plugin is then failed, rule 4 of phase 1). A plugin
+ * already failed is registered afresh: its failed record, its mounts and its job schedule are dropped
+ * first, so a retry either comes up whole or fails again (audit 2026-10-28).
  */
 function registerLive(mod, { db, settingsModel = defaultSettingsModel } = {}) {
-  if (registry.has(mod.id) && !registry.get(mod.id).failed) return true;
+  const existing = registry.get(mod.id);
+  if (existing && !existing.failed) return true;
+  if (existing) {
+    registry.discard(mod.id);
+    unmountRecord(mod.id);
+    scheduledIds.delete(mod.id);
+  }
   const ok = registerOne(mod, { db, settingsModel });
   const record = registry.get(mod.id);
   if (!record || mountedIds.has(mod.id)) return ok;
@@ -327,17 +359,34 @@ function requirePackage(id, dir) {
   return mod;
 }
 
+const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Whether `path` (below /api) falls on a route, a mount or a webhook the plugin declared itself.
+function ownsPath(record, method, path) {
+  const full = `/api${path}`;
+  const verb = String(method).toLowerCase();
+  if (record.routes.some((r) => r.method === verb && new RegExp(`^${escapeRe(r.path).replace(/:[A-Za-z_]+/g, '[^/]+')}$`).test(full))) return true;
+  if (record.mounts.some((m) => !m.public && (full === m.path || full.startsWith(`${m.path}/`)))) return true;
+  return record.webhooks.some((w) => w.path === full);
+}
+
+// Authz L4 (audit 2026-10-28) — a plugin's allowlist entries count while it is live, and only on
+// paths it serves itself: an entry aimed at a core route stays inert, whatever its pattern.
 function roleMatchers(role) {
-  return registry.all().flatMap((record) => (record.roleAccess[role] || []).map((m) => ({ ...m, pluginId: record.id })));
+  return registry.all().filter((record) => registry.isLive(record.id)).flatMap((record) => (record.roleAccess[role] || []).map((m) => ({
+    ...m,
+    pluginId: record.id,
+    re: { source: m.re.source, test: (path) => m.re.test(path) && ownsPath(record, m.method, path) },
+  })));
 }
 
 const receptionMatchers = () => roleMatchers('reception');
 
-// Whether `path` (below /api, as the guards see it) is a webhook a plugin declared — the guards let it
-// through to the plugin's own authentication (specs/plugins-phase-3a-online-payment.md rule 12).
+// Whether `path` (below /api, as the guards see it) is a webhook a live plugin declared — the guards
+// let it through to the plugin's own authentication (specs/plugins-phase-3a-online-payment.md rule 12).
 function isWebhook(method, path) {
   if (method !== 'POST') return false;
-  return registry.all().some((record) => record.webhooks.some((w) => w.path === `/api${path}`));
+  return registry.all().some((record) => registry.isLive(record.id) && record.webhooks.some((w) => w.path === `/api${path}`));
 }
 
 module.exports = {
