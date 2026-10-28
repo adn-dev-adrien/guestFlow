@@ -90,7 +90,8 @@ export default function FinancePage() {
   }, [tile, paramsKey, until, staysScope]);
 
   // specs/vat-optional-mode.md rule 35 — the franchise card, whatever the window; a failed read hides it.
-  const [franchise, setFranchise] = useState(null);
+  // `undefined` until the first read has settled: the page waits for it, so the card never pops in late.
+  const [franchise, setFranchise] = useState(undefined);
   const loadFranchise = useCallback(async () => {
     try { setFranchise(await api.getVatFranchise()); } catch { setFranchise(null); }
   }, []);
@@ -170,8 +171,8 @@ export default function FinancePage() {
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
-        {!d && !loadError && <LoadingState label="Chargement du suivi financier…" />}
-        {d && (
+        {(!d || franchise === undefined) && !loadError && <LoadingState label="Chargement du suivi financier…" />}
+        {d && franchise !== undefined && (
           <>
             {/* Toolbar — exercise + window (rules 1-2). A filter, so it stays in the page, visible on xs. */}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, mb: 1.75 }}>

@@ -70,6 +70,25 @@ test('rule 38: an unpriced stay adds 0, and the projection is the collected figu
 test('rule 38: an acompte without a due date is expected on the arrival', () => {
   const stay = { id: 1, startDate: '2026-12-01', endDate: '2026-12-04', depositAmount: 80 };
   const share = (id, amount) => amount;
-  assert.equal(expectedOf({ stay, yearEnd: '2026-12-31', share }), 80);
-  assert.equal(expectedOf({ stay: { ...stay, startDate: '2027-01-01' }, yearEnd: '2026-12-31', share }), 0);
+  assert.equal(expectedOf({ stay, yearStart: '2026-01-01', yearEnd: '2026-12-31', share }), 80);
+  assert.equal(expectedOf({ stay: { ...stay, startDate: '2027-01-01' }, yearStart: '2026-01-01', yearEnd: '2026-12-31', share }), 0);
+});
+
+test('rule 38: unpaid money older than 1 January of the year is not projected — it stays in « En retard »', () => {
+  const { db, model } = franchiseDb();
+  insert(db, { startDate: '2023-03-01', endDate: '2023-03-04', finalPrice: 900, balanceAmount: 900, balanceDueDate: '2023-02-20' });
+  insert(db, { startDate: '2025-12-20', endDate: '2025-12-24', finalPrice: 100, balanceAmount: 100, balanceDueDate: '2025-12-31' });
+  insert(db, { startDate: '2026-01-01', endDate: '2026-01-04', finalPrice: 40, balanceAmount: 40, balanceDueDate: '2026-01-01' });
+  assert.equal(project(model).expected, 40);
+  assert.equal(project(model, '2027-03-01').expected, 0);
+});
+
+test('rule 38: a pending compensation expected within the year is projected at face value, other years are not', () => {
+  const { db, model } = franchiseDb();
+  const put = db.prepare("INSERT INTO cancellation_compensations (reservationId, status, expectedAmount, expectedDate) VALUES (NULL, 'pending', ?, ?)");
+  put.run(120, '2026-11-30');
+  put.run(70, '2026-01-01');
+  put.run(500, '2027-01-02');
+  put.run(300, '2025-12-31');
+  assert.equal(project(model).expected, 190);
 });

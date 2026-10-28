@@ -13,6 +13,7 @@ const EXTRA_DDL = `
   ALTER TABLE reservations ADD COLUMN vatPeriodId INTEGER;
   ALTER TABLE reservations ADD COLUMN installmentsPaidAmount REAL DEFAULT 0;
   ALTER TABLE reservations ADD COLUMN installmentsUnpaidAmount REAL DEFAULT 0;
+  ALTER TABLE reservations ADD COLUMN platformPenaltyAmount REAL DEFAULT 0;
   CREATE TABLE vat_periods (
     id INTEGER PRIMARY KEY AUTOINCREMENT, regime TEXT NOT NULL, rate REAL NOT NULL DEFAULT 0, legalMention TEXT,
     basis TEXT NOT NULL, effectiveFrom TEXT, createdAt TEXT DEFAULT (datetime('now')), createdBy INTEGER, note TEXT
@@ -22,7 +23,8 @@ const EXTRA_DDL = `
     paid INTEGER DEFAULT 0, paidDate TEXT
   );
   CREATE TABLE cancellation_compensations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, receivedAmount REAL, receivedDate TEXT, status TEXT
+    id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, receivedAmount REAL, receivedDate TEXT, status TEXT,
+    expectedAmount REAL, expectedDate TEXT, origin TEXT
   );
 `;
 

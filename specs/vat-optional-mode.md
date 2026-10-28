@@ -355,9 +355,10 @@ Appended, never renumbered; each narrows or completes a rule above.
 37. **What counts — « chiffre d'affaires encaissé » of the calendar year.** The figure is the sum, over
     every payment row of `paymentsLedger` dated **1 January – 31 December** of the year (Europe/Paris,
     the row's own date — a December acompte for a March stay counts in December), of:
-    - a. the amount **gross of platform commission** — the row's commission share
-      (`acompteCommissionAmount` on the acompte, `platformCommissionAmount` on the solde / payout) is
-      added back; _(Q8)_
+    - a. the amount **gross of what the platform took out** — the row's commission
+      (`acompteCommissionAmount` on the acompte, `platformCommissionAmount` on the solde / payout) **and the
+      platform penalty** (`platformPenaltyAmount`, deducted from the payout) are added back: both are costs,
+      the guest paid the full price; _(Q8)_
     - b. **without tourist tax** — multiplied by the stay's non-tax share, the `htAmount` ratio of the
       finance dashboard taken with the row's own period rate (0 under `not_subject`, so the ratio is
       `finalPrice ÷ (finalPrice + touristTaxTotal)`; under a `subject` period of the same year it also
@@ -365,8 +366,12 @@ Appended, never renumbered; each narrows or completes a rule above.
     - c. **refunds** (non-`internal`) subtract on their refund date, with the same ratio;
     - d. **caisse interne** buckets and `internal` refunds are **left out**, exactly as in « Encaissé »;
       _(Q9)_
-    - e. a **cancellation compensation** kept by the operator counts on its payment date (it is money
-      received); a cancelled stay's refunded acompte counts as received then refunded.
+    - e. a **cancellation compensation** received by the operator counts on its received date, **at face
+      value** — an indemnity carries neither VAT nor tourist tax, so no share is taken out of it, even when
+      it is linked to a stay; a cancelled stay's acompte counts as received then refunded (the `retained`
+      avoir of a cancellation that keeps the acompte included), and the compensation that replaces it
+      counts once it is received. A stay whose client or logement was deleted is left out, as in
+      « Encaissé » (the ledger's own joins).
     The calendar year is used whatever the exercise of Paramètres (the exercise drives the books, the
     franchise is judged per calendar year). Every reservation of every logement counts; the Suivi
     financier's window and logement filter do not apply to the card. _(Q7: encaissé, not séjours.)_
@@ -374,8 +379,11 @@ Appended, never renumbered; each narrows or completes a rule above.
     amount **still expected before 31 December** on a reservation of kind `reservation` (never
     `cancelled`, never a devis): each unpaid bucket whose expected date — acompte / solde due date,
     installment due date, platform payout `endDate + payoutDueDays`, arrival complement on `startDate`,
-    end-of-stay complement on `endDate` — is ≤ 31 December, **including** dates already past (late
-    money is still expected). Same treatment a–d as rule 37. Unpriced stays add 0. The past year has
+    end-of-stay complement on `endDate` — falls **between 1 January and 31 December** of the year,
+    **including** dates of the year already past (late money is still expected). Money expected before 1
+    January stays visible in « En retard », not in this projection: an old unticked solde must not inflate
+    every year's projection for ever. The pending cancellation compensations whose expected date is in the
+    same range are added, at face value. Same treatment a–d as rule 37. Unpriced stays add 0. The past year has
     no projection: its figure is final.
 39. **Levels**, derived on the server from `collected`, `projected` and `threshold` (constant
     `NEAR_RATIO = 0.8`):
@@ -385,7 +393,7 @@ Appended, never renumbered; each narrows or completes a rule above.
     - `near` — collected ≥ 80 % of the threshold → tone warning, « Seuil proche », « Reste {montant}
       avant le seuil. »;
     - `projected_over` — collected < 80 % but projected > threshold → tone warning, « Projection
-      au-delà du seuil », « {montant} attendus d'ici le 31/12 avec les réservations en cours. »;
+      au-delà » (short, so the badge does not wrap on a phone), « {montant} attendus d'ici le 31/12 avec les réservations en cours. »;
     - `ok` — otherwise → tone neutral, « Sous le seuil », « Reste {montant} avant le seuil. ».
     Ratios are rounded to the whole percent for display only; comparisons use cents. `= threshold`
     exactly is `near`, not `over`.
@@ -637,17 +645,28 @@ mention. The switch has its own confirmation and never dirties the form.
 - Helper: empty → « Montant fixé par la loi pour l'activité. À vérifier avant saisie. »; set →
   « Saisi le 12/03/2026 ». An invalid value → red message of rule 36 under the field, Save disabled
   (mirror), the server re-validates.
+- The field exists only while the draft shows « Sans TVA · art. 293 B ». When it is hidden — another mention
+  picked, or a switch of regime — it gives back the stored amount, blocks Save for nothing and sends nothing,
+  so the server's « Seuil sans objet hors franchise » can never land on a field the operator cannot see.
+- « Saisir le seuil » of the Suivi financier opens this page on `#seuil-franchise`: the field takes focus.
 
 ### 6.7 Suivi financier — card « Seuil de franchise »
 
 - Between the hero and the « Faits marquants », full width, white card (not ink: the hero stays the
   only dark block).
-- Header: « Seuil de franchise » + `StatusBadge` of the level; caption « Année civile 2026 · tous
-  logements ».
+- Header: « Seuil de franchise » + `StatusBadge` of the level (« Sous le seuil », « Seuil proche »,
+  « Projection au-delà », « Seuil dépassé »); caption « Année civile 2026 · tous logements · au 28/10 »,
+  without the date when no threshold is set.
 - Two figures side by side: « Encaissé » {collected} and « Projection au 31/12 » {projected}; under
   them the `ThresholdMeter` (solid = encaissé, hatched = projection, tick = seuil) and one line
   « 75 % du seuil de 30 000 € ». Level text (rule 39) in the level's tone. Caption « 2025 : 31 204 € ».
-- No threshold: one line « Encaissé 2026 : 22 510 € » + text button « Saisir le seuil ».
+- No threshold: one line « Encaissé 2026 : 22 510 € » + text button « Saisir le seuil », which opens
+  Paramètres › TVA & exercice on `#seuil-franchise`: the field is focused and centred.
+- A negative figure (a January refund of a December acompte) shows its signed amount; the percentage shows
+  0 % and the meter draws 0. The meter's reading for assistive tech is the server's sentence; its maximum
+  follows the value once the threshold is crossed.
+- The page waits for the card's read before drawing (no late pop-in pushing the insights down); a failed
+  read hides the card, nothing else.
 - `over`: card border in error, action button « Passer à la TVA… » → Paramètres › TVA & exercice.
 - Motion: the meter fills from 0 on first render, 400 ms ease-out, `prefers-reduced-motion` → none.
 
@@ -710,7 +729,7 @@ Each test file opens with the spec and rules it covers. Counts are targets.
       follow-up, the attention payload does not declare the subject for a `subject`-only database.
 
 
-≈ 90 server cases, 14 files; Lot 5 adds 50 cases in 5 new files (and +2 golden cases).
+≈ 90 server cases, 14 files; Lot 5 adds 57 cases in 5 new files (and +2 golden cases).
 
 ### Client tests (Vitest)
 
@@ -886,6 +905,12 @@ caisse interne excluded). Server: `vatFranchise` (pure) + `vatFranchiseModel` (r
 /api/finance/vat-franchise`, the two `app_settings` columns, the settings field, the `vat-franchise` home
 subject. Client: `ThresholdMeter` (generic), `VatFranchiseCard`, the field of `SettingsVatSection`,
 `VatFranchiseAlert`. No plugin touched, no SDK bump.
+
+Review fixes of 2026-10-28 (two Opus reviews), written back into rules 37, 38, 39 and §6.6-6.7: the platform
+penalty is added back with the commission; the projection ignores unpaid money older than 1 January and
+adds the pending compensations of the year; compensations count at face value; a hidden threshold field
+blocks and sends nothing; the meter's reading is valid past the limit and for a negative figure; the page
+waits for the card's read; « Saisir le seuil » focuses the field.
 
 Deviations from the amendment, written back above: the Suivi financier is admin-only, so the accountant
 audience of rules 29/40 and the null `settingsPath` are gone; `paymentsLedger` gets an opt-in

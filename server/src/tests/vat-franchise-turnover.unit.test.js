@@ -112,3 +112,29 @@ test('rule 41: a year with only a stay and no payment shows its 0 €', () => {
   insert(db, { startDate: '2025-06-01', endDate: '2025-06-04', finalPrice: 400, balanceAmount: 400 });
   assert.deepEqual(model.getFollowUp({ today: TODAY }).previousYear, { year: 2025, collected: 0 });
 });
+
+test('rule 37 (a): the platform penalty is a cost like the commission — the guest\'s full price counts', () => {
+  const { db, model } = franchiseDb();
+  insert(db, {
+    platform: 'Booking', startDate: '2026-05-01', endDate: '2026-05-04', finalPrice: 1000,
+    balanceAmount: 1000, balancePaid: 1, balancePaidDate: '2026-05-06', platformCommissionAmount: 150, platformPenaltyAmount: 50,
+  });
+  assert.equal(collected(model), 1000);
+});
+
+test('rule 37 (e): a compensation counts at face value — no VAT, no tourist tax taken out, even when linked to a stay', () => {
+  const { db, model } = franchiseDb({ regime: 'subject' });
+  const franchise = addPeriod(db, 'not_subject', 0, 'art_293_b');
+  const stay = insert(db, { vatPeriodId: 1, kind: 'cancelled', startDate: '2026-09-01', endDate: '2026-09-04', finalPrice: 900, touristTaxTotal: 100 });
+  db.prepare("INSERT INTO cancellation_compensations (reservationId, receivedAmount, receivedDate, status) VALUES (?, 110, '2026-07-01', 'received')").run(stay);
+  assert.equal(franchise > 1, true);
+  assert.equal(collected(model), 110);
+});
+
+test('rule 37 (e): a cancellation that retains the acompte counts it once — acompte, avoir `retained`, compensation', () => {
+  const { db, model } = franchiseDb();
+  const id = insert(db, { kind: 'cancelled', startDate: '2026-09-01', endDate: '2026-09-04', finalPrice: 800, depositAmount: 200, depositPaid: 1, depositPaidDate: '2026-03-01' });
+  addRefund(db, id, '2026-05-30', 200, 'retained');
+  db.prepare("INSERT INTO cancellation_compensations (reservationId, receivedAmount, receivedDate, status, origin) VALUES (?, 200, '2026-05-30', 'received', 'retained_deposit')").run(id);
+  assert.equal(collected(model), 200);
+});

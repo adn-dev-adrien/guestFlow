@@ -6,7 +6,7 @@
  *
  * Props:
  *   data:   the payload (`{ applies: false }` renders nothing)
- *   onOpen: (path) => void   opens Paramètres › TVA & exercice
+ *   onOpen: (path) => void   opens Paramètres › TVA & exercice (« Saisir le seuil » adds #seuil-franchise: the field is focused)
  */
 import React from 'react';
 import { Box, Button, Card, CardContent, Typography } from '@mui/material';
@@ -14,7 +14,7 @@ import StatusBadge from './StatusBadge';
 import ThresholdMeter from './ThresholdMeter';
 import { formatCurrencyRounded } from '../utils/formatters';
 
-const percent = (x) => `${Math.round(x * 100)} %`;
+const percent = (x) => `${Math.max(0, Math.round(x * 100))} %`;
 const dayMonth = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const TEXT_COLOR = { neutral: 'text.primary', warning: 'warning.text', error: 'error.text' };
 
@@ -39,13 +39,13 @@ export default function VatFranchiseCard({ data, onOpen }) {
           {hasThreshold && <StatusBadge status={data.tone} label={data.title} />}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Année civile {data.year} · tous logements · au {dayMonth(data.asOf)}
+          Année civile {data.year} · tous logements{hasThreshold ? ` · au ${dayMonth(data.asOf)}` : ''}
         </Typography>
 
         {!hasThreshold ? (
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography>Encaissé {data.year} : <b>{formatCurrencyRounded(data.collected)}</b></Typography>
-            <Button onClick={() => onOpen(data.settingsPath)} sx={{ minHeight: 44, textTransform: 'none', width: { xs: '100%', sm: 'auto' } }}>Saisir le seuil</Button>
+            <Button onClick={() => onOpen(`${data.settingsPath}#seuil-franchise`)} sx={{ minHeight: 44, textTransform: 'none', width: { xs: '100%', sm: 'auto' } }}>Saisir le seuil</Button>
           </Box>
         ) : (
           <>
@@ -58,7 +58,9 @@ export default function VatFranchiseCard({ data, onOpen }) {
               projected={data.projected}
               limit={data.threshold}
               tone={data.tone}
+              limitLabel="seuil"
               ariaLabel="Encaissé par rapport au seuil"
+              ariaValueText={data.text}
             />
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', color: 'text.secondary', fontSize: 13 }}>
               <span><b>{percent(data.ratio)}</b> du seuil de {formatCurrencyRounded(data.threshold)}</span>

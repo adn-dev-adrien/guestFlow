@@ -71,5 +71,6 @@ test('emptying the field turns the card into an invitation, and the card fits a 
   expect(overflow).toBeLessThanOrEqual(0);
 
   await card(page).getByRole('button', { name: 'Saisir le seuil' }).click();
-  await expect(page).toHaveURL(/\/settings\/tva-exercice$/);
+  await expect(page).toHaveURL(/\/settings\/tva-exercice#seuil-franchise$/);
+  await expect(page.getByLabel('Seuil de franchise (€)')).toBeFocused();
 });

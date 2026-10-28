@@ -1,1 +1,1 @@
-- Deux colonnes ajoutées à `app_settings` (`vatFranchiseThreshold`, `vatFranchiseThresholdSetAt`), vides pour toute installation existante : aucune donnée n'est modifiée.
+- Two columns added to `app_settings` (`vatFranchiseThreshold`, `vatFranchiseThresholdSetAt`), empty for every existing installation: no data is modified.

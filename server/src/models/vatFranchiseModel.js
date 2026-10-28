@@ -54,6 +54,10 @@ function createModel(database) {
     ? database.prepare("SELECT reservationId, receivedAmount AS amount, SUBSTR(receivedDate, 1, 10) AS date FROM cancellation_compensations WHERE status = 'received'").all()
     : []);
 
+  const pendingCompensations = () => (hasTable('cancellation_compensations')
+    ? database.prepare("SELECT expectedAmount AS amount, SUBSTR(expectedDate, 1, 10) AS date FROM cancellation_compensations WHERE status = 'pending'").all()
+    : []);
+
   /** Rule 37 — a payment's turnover: its HT share at the rate of the period its stay was sold under. */
   const shareOf = (stays) => {
     const byId = new Map(stays.map((s) => [s.id, s]));
@@ -78,6 +82,7 @@ function createModel(database) {
 
     const collected = collectedIn(year);
     const installments = unpaidInstallments();
+    const yearStart = `${year}-01-01`;
     const yearEnd = `${year}-12-31`;
     const expected = stays
       .filter((s) => s.kind === 'reservation')
@@ -86,9 +91,10 @@ function createModel(database) {
         installments: installments.get(stay.id),
         isPlatform: dashboardModel.isPlatformStay(stay),
         payoutDays: payoutDaysOf(stay.platform),
+        yearStart,
         yearEnd,
         share,
-      }), 0);
+      }), 0) + rules.expectedCompensationsOf({ compensations: pendingCompensations(), from: yearStart, to: yearEnd });
     const projected = Math.round((collected + expected) * 100) / 100;
 
     const stored = storedThreshold();

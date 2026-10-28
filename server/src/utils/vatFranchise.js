@@ -58,21 +58,23 @@ function turnoverOf({ rows, compensations = [], from, to, share }) {
       ? share(row.reservationId, amount + (Number(row.commission) || 0))
       : -share(row.reservationId, -amount);
   }
+  // An indemnity carries neither VAT nor tourist tax: it counts at face value (rule 37 (e)).
   for (const c of compensations) {
-    if (inRange(c.date)) total += share(c.reservationId, Number(c.amount) || 0);
+    if (inRange(c.date)) total += Number(c.amount) || 0;
   }
   return euros(total);
 }
 
 /**
  * Rule 38 — what is still to be collected on a stay of kind `reservation`, expected on or before
- * `yearEnd`, past dates included. `installments`: the unpaid rows of its plan `{ dueDate, amountCents }`;
+ * `yearEnd` and not before `yearStart` (older unpaid money stays in « En retard », never in the
+ * projection). `installments`: the unpaid rows of its plan `{ dueDate, amountCents }`;
  * `payoutDays` the delay of its platform; `isPlatform` whether the solde is a platform payout.
  */
-function expectedOf({ stay, installments = [], payoutDays, isPlatform, yearEnd, share }) {
+function expectedOf({ stay, installments = [], payoutDays, isPlatform, yearStart, yearEnd, share }) {
   let total = 0;
   const due = (date, amount) => {
-    if (amount > 0 && date && date <= yearEnd) total += share(stay.id, amount);
+    if (amount > 0 && date && date >= yearStart && date <= yearEnd) total += share(stay.id, amount);
   };
   const unpaid = (paid, paidCash) => !paid && !paidCash;
   if (!stay.depositDisabled && unpaid(stay.depositPaid, stay.depositPaidCash)) {
@@ -88,6 +90,13 @@ function expectedOf({ stay, installments = [], payoutDays, isPlatform, yearEnd, 
   }
   for (const i of installments) due(i.dueDate, (Number(i.amountCents) || 0) / 100);
   return euros(total);
+}
+
+/** Rule 38 — the pending compensations expected within the year, at face value. */
+function expectedCompensationsOf({ compensations, from, to }) {
+  return euros(compensations
+    .filter((c) => c.date && c.date >= from && c.date <= to)
+    .reduce((sum, c) => sum + (Number(c.amount) || 0), 0));
 }
 
 /** Rule 39 — comparisons use cents; « near » starts at 80 % of the threshold, and `= threshold` is « near », never « over ». */
@@ -115,7 +124,7 @@ function formatAmount(amount) {
 const LEVELS = {
   ok: { tone: 'neutral', title: 'Sous le seuil' },
   near: { tone: 'warning', title: 'Seuil proche' },
-  projected_over: { tone: 'warning', title: 'Projection au-delà du seuil' },
+  projected_over: { tone: 'warning', title: 'Projection au-delà' },
   over: { tone: 'error', title: 'Seuil dépassé' },
 };
 
@@ -154,5 +163,5 @@ function attentionSummary(payload) {
 }
 
 module.exports = {
-  MESSAGES, parseThreshold, franchiseApplies, turnoverOf, expectedOf, levelOf, wordsOf, attentionSummary, formatAmount, percent,
+  MESSAGES, parseThreshold, franchiseApplies, turnoverOf, expectedOf, expectedCompensationsOf, levelOf, wordsOf, attentionSummary, formatAmount, percent,
 };

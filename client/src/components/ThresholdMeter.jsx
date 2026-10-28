@@ -9,8 +9,11 @@
  *   projected?: number            the hatched part (≥ value); omitted → none
  *   limit:      number            where the tick stands (> 0)
  *   tone?:      'neutral' | 'warning' | 'error'   colour of the bars (default 'neutral' = primary)
- *   limitLabel?: string           caption above the tick (default « seuil »)
+ *   limitLabel: string            caption above the tick (« seuil »)
  *   ariaLabel:  string
+ *   ariaValueText?: string        the reading in words for assistive tech (e.g. the server's sentence)
+ *
+ * A negative value is drawn as 0 (nothing to fill).
  */
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
@@ -19,7 +22,9 @@ import { alpha } from '@mui/material/styles';
 const TONE_COLOR = { neutral: 'primary.main', warning: 'warning.main', error: 'error.main' };
 const pct = (n, scale) => `${Math.min(100, Math.max(0, (n / scale) * 100)).toFixed(2)}%`;
 
-export default function ThresholdMeter({ value, projected, limit, tone = 'neutral', limitLabel = 'seuil', ariaLabel }) {
+export default function ThresholdMeter({ value: rawValue, projected: rawProjected, limit, tone = 'neutral', limitLabel, ariaLabel, ariaValueText }) {
+  const value = Math.max(0, rawValue);
+  const projected = rawProjected == null ? rawProjected : Math.max(0, rawProjected);
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true));
@@ -33,8 +38,9 @@ export default function ThresholdMeter({ value, projected, limit, tone = 'neutra
       role="meter"
       aria-label={ariaLabel}
       aria-valuemin={0}
-      aria-valuemax={limit}
+      aria-valuemax={Math.max(limit, value)}
       aria-valuenow={value}
+      aria-valuetext={ariaValueText}
       sx={{ position: 'relative', height: 12, borderRadius: 99, bgcolor: 'action.hover', mt: 3, mb: 1 }}
     >
       {projected != null && projected > value && (

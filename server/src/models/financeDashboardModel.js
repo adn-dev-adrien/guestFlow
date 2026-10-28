@@ -343,14 +343,14 @@ function createDashboardModel(database, finance) {
         propertyName: r.propertyName, platform: r.platform,
       };
       const day = (d) => (d ? String(d).slice(0, 10) : r.attributionDate);
-      // `withCommission` adds the platform's share already taken out of `amount`, for the figures that
-      // count the guest's full price (specs/vat-optional-mode.md rule 37 (a)); « Encaissé » never shows it.
+      // `withCommission` adds what the platform already took out of `amount` (commission and penalty), for
+      // the figures that count the guest's full price (specs/vat-optional-mode.md rule 37 (a)); « Encaissé » never shows it.
       const add = (date, kind, label, amount, commission = 0) => {
         if (round2(amount) === 0) return;
         rows.push({ ...base, date: day(date), kind, label, amount: round2(amount), ...(withCommission ? { commission: round2(commission) } : {}) });
       };
       if (r.depositPaid && !r.depositPaidCash) add(r.depositPaidDate, 'deposit', 'Acompte', Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0), r.acompteCommissionAmount);
-      if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r), r.platformCommissionAmount);
+      if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r), Number(r.platformCommissionAmount || 0) + platformPenalty(r));
       if (r.complementPaid && !r.complementPaidCash) add(r.complementPaidDate, 'complement', 'Complément', Number(r.complementAmount || 0));
       if (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) add(r.endOfStayComplementPaidDate, 'endOfStay', 'Complément fin de séjour', Number(r.endOfStayComplementAmount || 0));
       for (const i of installments.filter((x) => x.reservationId === r.id)) {

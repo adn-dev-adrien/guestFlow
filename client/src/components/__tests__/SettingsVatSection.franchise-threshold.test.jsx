@@ -30,26 +30,27 @@ const draw = (values = FRANCHISE, props = {}) => render(
 
 test('the field exists only under the franchise mention', () => {
   const { unmount } = draw();
-  expect(screen.getByLabelText('Seuil de franchise')).toBeInTheDocument();
+  expect(screen.getByLabelText('Seuil de franchise (€)')).toBeInTheDocument();
   unmount();
   draw({ ...FRANCHISE, legalMention: 'art_261_d_4' });
-  expect(screen.queryByLabelText('Seuil de franchise')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Seuil de franchise (€)')).not.toBeInTheDocument();
 });
 
 test('the field is absent under VAT', () => {
   draw({ regime: 'subject', rate: 10, legalMention: null, franchiseThreshold: '', franchise: { applies: false, threshold: null, setAt: null } });
-  expect(screen.queryByLabelText('Seuil de franchise')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Seuil de franchise (€)')).not.toBeInTheDocument();
 });
 
 test('empty: no figure suggested, the hint says to check the legal amount; set: the day it was typed', () => {
   const { unmount } = draw();
-  const field = screen.getByLabelText('Seuil de franchise');
+  const field = screen.getByLabelText('Seuil de franchise (€)');
   expect(field).toHaveValue('');
   expect(field).not.toHaveAttribute('placeholder');
+  expect(field).toHaveAttribute('id', 'seuil-franchise');
   expect(screen.getByText('Montant fixé par la loi pour l’activité. À vérifier avant saisie.')).toBeInTheDocument();
   unmount();
   draw({ ...FRANCHISE, franchiseThreshold: 30000, franchise: { applies: true, threshold: 30000, setAt: '2026-03-12' } });
-  expect(screen.getByLabelText('Seuil de franchise').value.replace(/\s/g, '')).toBe('30000');
+  expect(screen.getByLabelText('Seuil de franchise (€)').value.replace(/\s/g, '')).toBe('30000');
   expect(screen.getByText('Saisi le 12/03/2026')).toBeInTheDocument();
 });
 
@@ -62,13 +63,13 @@ test.each([
 ])('« %s » is refused under the field with the server\'s message', (typed, message) => {
   draw({ ...FRANCHISE, franchiseThreshold: typed });
   expect(screen.getByText(message)).toBeInTheDocument();
-  expect(screen.getByLabelText('Seuil de franchise')).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByLabelText('Seuil de franchise (€)')).toHaveAttribute('aria-invalid', 'true');
 });
 
 test('typing is reported as typed; leaving a valid amount reports it as a number', async () => {
   const onChange = vi.fn();
   draw({ ...FRANCHISE, franchiseThreshold: '30 000,5' }, { onChange });
-  await userEvent.type(screen.getByLabelText('Seuil de franchise'), '0');
+  await userEvent.type(screen.getByLabelText('Seuil de franchise (€)'), '0');
   expect(onChange).toHaveBeenLastCalledWith('franchiseThreshold', '30 000,50');
   await userEvent.tab();
   expect(onChange).toHaveBeenLastCalledWith('franchiseThreshold', 30000.5);
@@ -77,7 +78,22 @@ test('typing is reported as typed; leaving a valid amount reports it as a number
 test('leaving an invalid amount reports nothing more', async () => {
   const onChange = vi.fn();
   draw({ ...FRANCHISE, franchiseThreshold: '12,345' }, { onChange });
-  screen.getByLabelText('Seuil de franchise').focus();
+  screen.getByLabelText('Seuil de franchise (€)').focus();
   await userEvent.tab();
   expect(onChange).not.toHaveBeenCalled();
+});
+
+test('arriving with #seuil-franchise focuses the field (« Saisir le seuil » of the Suivi financier)', () => {
+  window.location.hash = '#seuil-franchise';
+  try {
+    draw();
+    expect(screen.getByLabelText('Seuil de franchise (€)')).toHaveFocus();
+  } finally {
+    window.location.hash = '';
+  }
+});
+
+test('without the hash the field is not focused', () => {
+  draw();
+  expect(screen.getByLabelText('Seuil de franchise (€)')).not.toHaveFocus();
 });

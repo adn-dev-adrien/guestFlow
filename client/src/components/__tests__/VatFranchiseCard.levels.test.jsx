@@ -38,8 +38,8 @@ test('near and projected: a warning badge with the server\'s sentence', () => {
 });
 
 test('projection beyond the threshold: its own title and sentence', () => {
-  draw({ ...BASE, level: 'projected_over', tone: 'warning', title: 'Projection au-delà du seuil', text: '5 800 € attendus d’ici le 31/12 avec les réservations en cours.' });
-  expect(screen.getByText('Projection au-delà du seuil', { selector: '.MuiChip-label' })).toBeInTheDocument();
+  draw({ ...BASE, level: 'projected_over', tone: 'warning', title: 'Projection au-delà', text: '5 800 € attendus d’ici le 31/12 avec les réservations en cours.' });
+  expect(screen.getByText('Projection au-delà', { selector: '.MuiChip-label' })).toBeInTheDocument();
   expect(screen.getByText(/5 800 € attendus d’ici le 31\/12/)).toBeInTheDocument();
 });
 
@@ -57,8 +57,9 @@ test('no threshold: the figure of the year and « Saisir le seuil », no gauge, 
   expect(normal(screen.getByText(/^Encaissé 2026 :/).textContent)).toBe('Encaissé 2026 : 22 510 €');
   expect(screen.queryByRole('meter')).not.toBeInTheDocument();
   expect(document.querySelector('.MuiChip-root')).toBeNull();
+  expect(screen.getByText('Année civile 2026 · tous logements')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Saisir le seuil' }));
-  expect(onOpen).toHaveBeenCalledWith('/settings/tva-exercice');
+  expect(onOpen).toHaveBeenCalledWith('/settings/tva-exercice#seuil-franchise');
 });
 
 test('outside the franchise, or without a payload, nothing is drawn; no last year, no caption', () => {
@@ -68,4 +69,16 @@ test('outside the franchise, or without a payload, nothing is drawn; no last yea
   expect(container).toBeEmptyDOMElement();
   rerender(<ThemeProvider theme={theme}><VatFranchiseCard data={{ ...BASE, previousYear: null }} onOpen={() => {}} /></ThemeProvider>);
   expect(screen.queryByText(/^2025 :/)).not.toBeInTheDocument();
+});
+
+test('a negative year (a January refund of a December acompte) shows its signed amount, 0 % and a meter at 0', () => {
+  draw({ ...BASE, collected: -450, projected: 0, ratio: -0.015, projectedRatio: 0 });
+  expect(normal(screen.getByText('Encaissé').nextSibling.textContent)).toMatch(/^[-−]450 €$/);
+  expect(screen.getByText('0 %')).toBeInTheDocument();
+  expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
+});
+
+test('the meter is read aloud with the server\'s sentence', () => {
+  draw(BASE);
+  expect(screen.getByRole('meter')).toHaveAttribute('aria-valuetext', 'Reste 7 490 € avant le seuil.');
 });

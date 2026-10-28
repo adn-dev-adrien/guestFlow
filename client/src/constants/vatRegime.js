@@ -32,11 +32,14 @@ export const VAT_TEXTS = Object.freeze({
   ackDocuments: 'Les documents déjà envoyés ne changent pas.',
   regimeStale: 'Le régime a changé entre-temps. Écran mis à jour.',
   stale: 'Les réservations ont changé. Aperçu mis à jour.',
-  thresholdLabel: 'Seuil de franchise',
+  thresholdLabel: 'Seuil de franchise (€)',
   thresholdHint: 'Montant fixé par la loi pour l’activité. À vérifier avant saisie.',
   thresholdSetOn: (date) => `Saisi le ${date}`,
   scheduledHelp: 'Changement prévu, annulable tant qu’aucune réservation ne l’utilise.',
 });
+
+// Rule 35 — only the franchise en base has a threshold; the draft decides, so the field follows the select.
+export const showsFranchiseField = (vat) => Boolean(vat) && vat.regime === 'not_subject' && vat.legalMention === 'art_293_b';
 
 export const switchTitle = (toNotSubject) => (toNotSubject ? 'Passer sans TVA' : 'Passer à la TVA');
 export const switchSubmit = (toNotSubject, correction) => {

@@ -29,7 +29,7 @@ test('rule 39: each level has its tone, title and text; only « over » carries 
   assert.deepEqual(words('ok', 5000, 6000), { tone: 'neutral', title: 'Sous le seuil', text: 'Reste 5 000 € avant le seuil.', action: null });
   assert.deepEqual(words('near', 8400, 9000), { tone: 'warning', title: 'Seuil proche', text: 'Reste 1 600 € avant le seuil.', action: null });
   assert.deepEqual(words('projected_over', 5000, 10800), {
-    tone: 'warning', title: 'Projection au-delà du seuil', text: '5 800 € attendus d’ici le 31/12 avec les réservations en cours.', action: null,
+    tone: 'warning', title: 'Projection au-delà', text: '5 800 € attendus d’ici le 31/12 avec les réservations en cours.', action: null,
   });
   assert.deepEqual(words('over', 11240, 12000), {
     tone: 'error',
