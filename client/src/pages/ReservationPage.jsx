@@ -4,7 +4,7 @@ import {
   Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
   MenuItem, Typography, Chip, Stack, Card, CardContent,
   useMediaQuery,
-  ToggleButton, ToggleButtonGroup, Tooltip, Alert
+  ToggleButton, ToggleButtonGroup, Tooltip, Alert, Link
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -224,6 +224,9 @@ export default function ReservationPage() {
   const [pluginBlocks, setPluginBlocks] = useState({});
   // Bumped by a plugin banner that changed the reservation server-side: re-runs the page load.
   const [reloadToken, setReloadToken] = useState(0);
+  const [restoring, setRestoring] = useState(false);
+  // Where a cancelled fiche keeps its « Nouveau remboursement » button, outside the disabled fieldset.
+  const [refundHost, setRefundHost] = useState(null);
   const setPluginBlock = useCallback((pluginId, block) => {
     setPluginBlocks((prev) => ({ ...prev, [pluginId]: block }));
   }, []);
@@ -405,6 +408,9 @@ export default function ReservationPage() {
     // non-payment. The fiche then opens read-only: the dates are back on sale and the amounts are
     // history the accounting still reads.
     cancelledAt: null,
+    // specs/calendar-property-parity.md rule 22 — a duplicate set aside opens read-only, naming the stay it
+    // duplicates; an admin can put it back.
+    kind: 'reservation', supersededByReservationId: null, supersededByReservationNumber: null,
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
@@ -490,6 +496,9 @@ export default function ReservationPage() {
   // A cancelled stay is read-only (specs/payment-schedule-and-cancellation.md §3.5 rule 25): the
   // server refuses every write on it, so the fiche must not offer any.
   const isCancelledReservation = Boolean(form.cancelledAt);
+  const isSupersededReservation = form.kind === 'superseded';
+  // A cancelled stay and a duplicate set aside are history: the fiche only shows them (the server answers 409).
+  const isClosedFiche = isCancelledReservation || isSupersededReservation;
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
@@ -832,6 +841,9 @@ export default function ReservationPage() {
             originDetail: res.originDetail || null,
             bookingConflictAt: res.bookingConflictAt || null,
             cancelledAt: res.cancelledAt || null,
+            kind: res.kind || 'reservation',
+            supersededByReservationId: res.supersededByReservationId || null,
+            supersededByReservationNumber: res.supersededByReservationNumber || null,
             adults: res.adults || 1,
             children: res.children || 0,
             teens: res.teens || 0,
@@ -2093,7 +2105,7 @@ export default function ReservationPage() {
   };
 
   const getDateRangeConflictInfo = useCallback((startDate, endDate) => {
-    if (!selectedProp || !startDate || !endDate) return null;
+    if (!selectedProp || !startDate || !endDate || isClosedFiche) return null;
     const excludeId = editingReservationId || excludeReservationIdForDevis;
     return getRangeOccupancyConflictInfo({
       startDate,
@@ -2102,7 +2114,7 @@ export default function ReservationPage() {
       reservations,
       excludeReservationId: excludeId,
     });
-  }, [selectedProp, occupiedDates, editingReservationId, excludeReservationIdForDevis, reservations]);
+  }, [selectedProp, occupiedDates, editingReservationId, excludeReservationIdForDevis, reservations, isClosedFiche]);
 
   // ==================== SAVE & DELETE ====================
   const refreshToCurrentPricing = async () => {
@@ -3251,7 +3263,7 @@ export default function ReservationPage() {
     today: todayStr,
   });
 
-  const actionBarBefore = [
+  const actionBarBefore = isClosedFiche ? [] : [
     ...(midStayNote.visible ? [{
       icon: <PointOfSaleIcon />,
       tooltip: midStayNote.disabled ? midStayNote.reason : 'Nouvelle note (encaissement en séjour)',
@@ -3321,11 +3333,26 @@ export default function ReservationPage() {
       ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
   ];
 
+  // specs/calendar-property-parity.md rules 22, 24 — « Rétablir » a duplicate set aside; the server refuses
+  // when its dates were booked since.
+  const handleRestoreSuperseded = async () => {
+    setRestoring(true);
+    try {
+      await api.restoreSupersededReservation(reservationId);
+      setReloadToken((token) => token + 1);
+      showSuccess('Réservation rétablie.');
+    } catch (e) {
+      showError(e.message || 'Rétablissement impossible.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const actionBarAfter = [
     // specs/payment-schedule-and-cancellation.md §3.5 rule 21 — cancelling from the fiche, for the
     // phone call that never turns into a payment. Direct channels only: a platform booking is
     // cancelled through the iCal alert flow (specs/cancellation-compensation.md).
-    ...(!isDevisMode && reservationId && !isPlatformReservation && !isCancelledReservation
+    ...(!isDevisMode && reservationId && !isPlatformReservation && !isClosedFiche
       ? [{ icon: <EventBusyIcon />, tooltip: 'Annuler le séjour', onClick: () => setCancelDialogOpen(true), color: 'error', disabled: isReservationLocked }] : []),
     ...(!isDevisMode && reservationId
       ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked }] : []),
@@ -3353,6 +3380,7 @@ export default function ReservationPage() {
     datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
+    refundHost: isCancelledReservation ? refundHost : null,
     // guests / beds
     maxGuestsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
     exceedsGuestsCapacity, exceedsBabiesCapacity,
@@ -3500,7 +3528,7 @@ export default function ReservationPage() {
           </>
         ) : null}
         actionsBefore={actionBarBefore}
-        onSave={isCancelledReservation ? undefined : handleSaveClick}
+        onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
         saveDisabled={saving}
         saveBusy={saving}
@@ -3543,7 +3571,24 @@ export default function ReservationPage() {
             onReservationChanged={() => setReloadToken((token) => token + 1)}
           />
         )}
-        {isReservationLocked && (
+        {isSupersededReservation && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 1.5 }}
+            action={isAdmin ? (
+              <Button color="inherit" size="small" disabled={restoring} onClick={handleRestoreSuperseded}>Rétablir</Button>
+            ) : undefined}
+          >
+            Doublon de la réservation{' '}
+            {form.supersededByReservationId ? (
+              <Link component="button" type="button" onClick={() => navigate(`/reservations/${form.supersededByReservationId}`)} sx={{ verticalAlign: 'baseline' }}>
+                {form.supersededByReservationNumber ? `n° ${form.supersededByReservationNumber}` : `#${form.supersededByReservationId}`}
+              </Link>
+            ) : 'écartée'}
+            .
+          </Alert>
+        )}
+        {isReservationLocked && !isSupersededReservation && (
           <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
             <Typography variant="body2" color="warning.main" sx={{ flex: 1 }}>
               {extrasWindowOpen ? MID_STAY_EXTRAS_BANNER : LOCKED_FICHE_BANNER}
@@ -3571,9 +3616,13 @@ export default function ReservationPage() {
           </Box>
         )}
 
+        {/* A closed fiche is shown, not edited: a disabled fieldset makes every field really read-only
+            (keyboard included), not just unclickable. */}
         <Box
+          component="fieldset"
+          disabled={isClosedFiche}
           sx={{
-            position: 'relative',
+            position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,
           }}
         >
 
@@ -3721,6 +3770,7 @@ export default function ReservationPage() {
         </Box>
         </ReservationFormProvider>
         </Box>
+        {isCancelledReservation && <Box ref={setRefundHost} sx={{ mt: 1 }} />}
         </Box>
 
         {/* Panneau latéral droit : Résumé des prix */}

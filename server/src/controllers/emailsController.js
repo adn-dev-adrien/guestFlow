@@ -38,6 +38,7 @@ const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { loadReservationGraph } = require('../utils/reservationEmailGraph');
+const { refuseIfReadOnly } = require('../utils/reservationReadOnly');
 const {
   SEQUENCE_STABLE_KEYS, SEASON_STABLE_KEYS, stayDedupKey, seasonDedupKey, seasonKeyOf,
   __test: { addDays },
@@ -227,6 +228,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
+    // A duplicate set aside is never written to; a cancelled stay still receives its cancellation mails.
+    if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const wanted = templatesModel.findById(templateId);
     // specs/email-language-fr-en.md rule 9 — a template without its English version never leaves for an
     // English-speaking guest, operator text or not; checked before any payment link is minted.
@@ -360,6 +363,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
     const occurrenceKey = String((req.query && req.query.occurrenceKey) || '');
 
+    if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);
@@ -419,6 +423,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
     const occurrenceKey = String((req.query && req.query.occurrenceKey) || '');
 
+    if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);
@@ -529,6 +534,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!templateId || !reservationId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['templateId', 'reservationId'] });
     }
+    if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);

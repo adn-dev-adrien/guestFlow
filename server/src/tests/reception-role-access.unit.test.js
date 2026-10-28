@@ -31,6 +31,7 @@ const ALLOWED = [
   ['GET', '/reservations/42'],
   ['GET', '/reservations/42/sas'],
   ['GET', '/reservations/42/weather-alerts'],
+  ['GET', '/calendar'],
   ['POST', '/reservations/42/sas/arrival'],
   ['POST', '/reservations/42/sas/departure'],
   ['PATCH', '/reservations/42/payment'],

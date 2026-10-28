@@ -78,6 +78,8 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
       brings them back; iCal sync (if a URL is set) still runs but disabled-platform bookings stay hidden.
     The flag is **per (property, platform)** and persists a source row on demand (like URL/tax).
     `direct` can be disabled too (hides direct bookings from this property's views).
+    **Superseded 2026-10-28** by `calendar-property-parity.md` rule 2: a reservation view never hides a
+    stay that occupies dates. « Désactiver » keeps the greyed row and stops the import, nothing more.
 
 ### Inline editing
 

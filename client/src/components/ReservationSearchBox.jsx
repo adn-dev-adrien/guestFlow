@@ -16,7 +16,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Autocomplete, TextField, InputAdornment, Box, Typography } from '@mui/material';
+import { Autocomplete, TextField, InputAdornment, Box, Typography, Chip } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import api from '../api';
 
@@ -93,6 +93,8 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
           <Box component="li" key={key} {...liProps} sx={{ display: 'block !important', py: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {option.reservationNumber ? `${option.reservationNumber} · ` : ''}{option.clientFullName || '—'}
+              {option.cancelled && <Chip size="small" color="error" variant="outlined" label="Annulée" sx={{ ml: 1, height: 20 }} />}
+              {option.superseded && <Chip size="small" color="warning" variant="outlined" label="Doublon écarté" sx={{ ml: 1, height: 20 }} />}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {[option.propertyName, formatStayRange(option.startDate, option.endDate)].filter(Boolean).join(' · ')}
