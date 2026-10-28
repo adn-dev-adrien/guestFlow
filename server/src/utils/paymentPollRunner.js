@@ -70,12 +70,14 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
       effect = 'converted';
     }
     if (effect === 'already-converted' && secondPaidLink(database, link, reservationId, isFull)) {
-      return { effect: 'double-payment', reservationId, conflict: false };
+      return { effect: 'double-payment', duplicateLink: true, reservationId, conflict: false };
     }
     const conflict = flagConflictIfAny({ database, checkConflict, reservationId });
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
     // charges less than the quote asks: what the guest paid is booked, never the quote's amount.
-    const expectedCents = linkAmountCents(link.type, row);
+    // A legacy devis stored without its split (both NULL) has no amount to compare with.
+    const hasSplit = row.depositAmount != null && row.balanceAmount != null;
+    const expectedCents = hasSplit ? linkAmountCents(link.type, row) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
       return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents, receivedCents: Number(link.amountCents) } };
@@ -108,6 +110,14 @@ function secondPaidLink(database, link, reservationId, isFull) {
   if (!other) return false;
   const flags = database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(Number(reservationId));
   return Boolean(flags) && Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1);
+}
+
+function recordRefundOwed(database, reservationId, link) {
+  const amount = require('./reservationLedger').formatEuros(Number(link.amountCents || 0) / 100);
+  database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+    .run(Number(reservationId), JSON.stringify([{
+      field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés deux fois (lien ${link.id}) : à rembourser depuis l’espace du prestataire`,
+    }]));
 }
 
 function flagConflictIfAny({ database, checkConflict, reservationId }) {
@@ -163,8 +173,20 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   const effect = bookIfAmountChanged({ database, link, paidDate, recordPayment })
     || applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
   if (effect.effect === 'double-payment') {
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true }); } catch { /* best effort */ } }
-    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...effect };
+    // Two live links of one devis both paid: the second money is a refund, kept on the fiche's history.
+    if (effect.duplicateLink) {
+      recordRefundOwed(database, effect.reservationId, link);
+      if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true }); } catch { /* best effort */ } }
+      return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...effect };
+    }
+    // The bucket was settled another way. Settled the very day of the payment (or after), it is the same
+    // money ticked by hand; settled on an earlier day, it may be a second one (ledger rule 24).
+    const settledOn = typeof paymentLinksModel.settledBucketDateOf === 'function' ? paymentLinksModel.settledBucketDateOf(link) : null;
+    if (settledOn && paidDate && settledOn < paidDate) {
+      if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { settledOn }); } catch { /* best effort */ } }
+      return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-settled', settledOn, ...effect };
+    }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect, effect: 'settled-elsewhere' };
   }
   if (effect.amountMismatch) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
@@ -196,7 +218,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 // retired for an amount change, booked at its amount (specs/reservation-payment-ledger.md rule 31): the admin is told,
 // the payment's id stays on the row for the refund. Returns the per-link results, and whether a rate
 // limit stopped the retries.
-async function retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment }) {
+async function retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
   const results = [];
   for (const link of paymentLinksModel.listRemoteCancelPending()) {
     if (link.provider !== provider.id || !link.providerLinkId) continue;
@@ -208,7 +230,7 @@ async function retryPendingCancellations({ paymentLinksModel, provider, notifyPa
       }
       if (pay.paid && link.cancelReason === 'amount-changed' && database) {
         const book = link.type === 'installment' ? bookInstallmentPaidAfterAmountChange : bookAmountChangedPaidLink;
-        results.push(await book({ paymentLinksModel, notifyPaidAfterCancel, database, recordPayment, link, pay }));
+        results.push(await book({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent, link, pay }));
         continue;
       }
       if (pay.paid) {
@@ -263,21 +285,41 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
 // recorded and its ledger row warns). The link becomes `paid` and the admin is told, as for every paid
 // retired link. If the bucket was meanwhile perceived another way it is a double payment: nothing is
 // recorded, the link keeps its payment id for the refund — the behaviour of rule 8.
-async function bookAmountChangedPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, recordPayment, link, pay }) {
+async function bookAmountChangedPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent = require('../plugins/sdk/eventBus').emit, link, pay }) {
   const { paidDayOf } = require('./stayPaymentRecorder');
   const paidAt = pay.paidAt || new Date().toISOString();
+  // A link retired from a devis the guest paid before it was deactivated: the money is real, so the devis
+  // becomes the stay first (the payment is what confirms it) and the link is booked at what was received.
+  const stay = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
+  let mismatch = null;
+  let converted = null;
+  if (stay && stay.kind === 'devis' && !stay.convertedReservationId && devisModel && typeof devisModel.convertToReservation === 'function') {
+    const conv = devisModel.convertToReservation(link.reservationId);
+    if (conv && !conv.error && conv.data) {
+      converted = conv.data.reservationId;
+      mismatch = { expectedCents: linkAmountCents(link.type, stay), receivedCents: Number(link.amountCents) };
+    }
+  }
   const booked = bookPaidAfterAmountChange(
     { database, recordPayment: recordPayment || recordOn(database) },
     link,
     { paidDay: paidDayOf(paidAt) },
   );
-  if (booked.effect === 'double-payment' || booked.effect === 'no-reservation' || booked.effect === 'not-a-reservation') {
+  const unbooked = ['double-payment', 'no-reservation', 'not-a-reservation', 'noop'].includes(booked.effect);
+  if (unbooked) {
     paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
   } else {
     paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: pay.paymentId || null, paidAt, reason: 'amount-changed' });
   }
-  if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
-  return { id: link.id, reservationId: link.reservationId, type: link.type, status: booked.effect === 'double-payment' ? 'paid-after-cancel' : 'paid', ...booked };
+  if (converted) {
+    emitPluginEvent('reservation.created', { reservationId: converted });
+    const conflict = flagConflictIfAny({ database, checkConflict, reservationId: converted });
+    if (conflict && notifyConflict) { try { await notifyConflict(converted); } catch { /* best effort */ } }
+  }
+  if (notifyPaidAfterCancel) {
+    try { await notifyPaidAfterCancel(link, mismatch && !unbooked ? { amountMismatch: mismatch } : {}); } catch { /* best effort */ }
+  }
+  return { id: link.id, reservationId: link.reservationId, type: link.type, status: unbooked ? 'paid-after-cancel' : 'paid', ...booked };
 }
 
 // specs/direct-installments.md rule 17 — the same for an installment: the link retired for an amount change
@@ -307,7 +349,7 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   // specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket was settled another way
   // leaves the polling list and joins the owed deactivations retried just below.
   const settled = typeof paymentLinksModel.retireSettled === 'function' ? paymentLinksModel.retireSettled() : [];
-  const pending = await retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment });
+  const pending = await retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict });
   const retired = paymentLinksModel.retireExpired({ now });
   const results = [
     ...settled.filter((link) => !link.providerLinkId).map((link) => ({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'settled', effect: 'retired-locally' })),

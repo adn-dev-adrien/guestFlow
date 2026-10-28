@@ -456,8 +456,11 @@ function buildNotificationService({
       : amountMismatch
       ? [
         `Un lien de paiement a été payé ${amount} alors que le devis demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
-        'Le séjour est enregistré au montant réellement reçu ; le reste est à percevoir.',
-        'À vérifier : réclamer la différence au client, ou rembourser si le devis a baissé.',
+        'Le séjour est enregistré au montant réellement reçu. Aucun e-mail de confirmation n’a été envoyé au client.',
+        Number(amountMismatch.expectedCents) > Number(link.amountCents || 0)
+          ? `Le reste (${eurosFr(Number(amountMismatch.expectedCents) - Number(link.amountCents || 0))}) est à percevoir : il est porté sur le complément d’arrivée.`
+          : `Le trop-perçu (${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))}) est à rembourser depuis l’espace du prestataire de paiement.`,
+        'À vérifier : envoyer la confirmation au client une fois la différence réglée.',
       ]
       : settledOn
       ? [

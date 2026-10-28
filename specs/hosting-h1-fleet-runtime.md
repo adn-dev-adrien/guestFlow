@@ -271,13 +271,13 @@ These are the recommended options, taken under the owner's instruction to run th
     reaches the process from loopback, so « from the machine itself » let anyone list the installed
     plugins. Only the console asks `?plugin=`, always with the secret; the client and the restart
     probe read `version` and `startedAt`, which stay public.
-35. **Forwarded headers are believed only through a declared proxy** (added 2026-10-28, audit). `trust
-    proxy` is `false` unless `TRUST_PROXY_HOPS` is set to the number of trusted hops (Caddy in front:
-    `1`); a non-numeric or zero value trusts nothing. When `GUESTFLOW_PROXY_SECRET` is set, a request
-    without Caddy's secret header also loses its `X-Forwarded-*` before Express reads them (rule 21).
-    `TRUST_PROXY_HOPS` without the secret is allowed (a proxy that is the only way in) but is spoofable
-    by anyone who can reach the Node port directly: the process logs a `[security]` warning at boot.
-    Production defaults are unchanged. Covered by `tests/proxy-trust-config.unit.test.js`.
+35. **Forwarded headers are believed only through a declared proxy** (added 2026-10-28, audit; a
+    clarification of the existing behaviour, nothing changes in production). `trust proxy` is `false`
+    unless `TRUST_PROXY_HOPS` is set to the number of trusted hops (Caddy in front: `1`). When
+    `GUESTFLOW_PROXY_SECRET` is set, a request without Caddy's secret header also loses its
+    `X-Forwarded-*` before Express reads them (rule 21). `TRUST_PROXY_HOPS` without the secret is
+    allowed (a proxy that is the only way in) but is spoofable by anyone who can reach the Node port
+    directly: the process now logs a `[security]` warning at boot. Covered by `tests/proxy-trust-config.unit.test.js`.
 
 ---
 

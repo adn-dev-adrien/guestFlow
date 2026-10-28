@@ -936,8 +936,8 @@ function createModel(database) {
       else if (changes.length > 0) addHistoryEntry(numId, 'update', changes);
     });
     tx();
-    retireStaleLinks(numId);
-    return { ok: true, data: findById(numId) };
+    const retiredLinks = retireStaleLinks(numId);
+    return { ok: true, data: { ...findById(numId), ...(retiredLinks.length ? { retiredPaymentLinks: retiredLinks.length } : {}) } };
   }
 
   /**
@@ -952,17 +952,30 @@ function createModel(database) {
     const { staleLinks } = require('../utils/ledgerLinks');
     const row = database.prepare("SELECT depositAmount, balanceAmount FROM reservations WHERE id = ? AND kind = 'devis'").get(devisId);
     const open = database.prepare("SELECT * FROM payment_links WHERE reservationId = ? AND status = 'open' ORDER BY id").all(devisId);
-    const stale = row ? staleLinks(open, row) : [];
+    const hasSplit = row && row.depositAmount != null && row.balanceAmount != null;
+    const stale = hasSplit ? staleLinks(open, row) : [];
     if (stale.length === 0) return [];
     const at = new Date().toISOString();
     const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'amount-changed' WHERE id = ? AND status = 'open'");
-    const retired = stale
+    const fmt = (cents) => require('../utils/reservationLedger').formatEuros(Number(cents || 0) / 100);
+    const retired = database.transaction(() => stale
       .filter((link) => retire.run(link.providerLinkId ? at : null, link.id).changes > 0)
-      .map((link) => ({ ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null, cancelReason: 'amount-changed' }));
+      .map((link) => {
+        addHistoryEntry(devisId, 'update', [{ field: 'paymentLinkRetired', label: 'Lien de paiement', from: fmt(link.amountCents), to: 'retiré : montant du devis modifié' }]);
+        return { ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null, cancelReason: 'amount-changed' };
+      }))();
+    if (retired.length === 0) return [];
     setImmediate(() => {
       const paymentLinksModel = require('./paymentLinksModel').buildModel(database);
-      require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(retired, { paymentLinksModel })
-        .catch((err) => console.error('[devis] link deactivation:', err && err.message ? err.message : err));
+      const paymentProviders = require('../utils/paymentProviders');
+      const notificationService = require('../utils/notificationService');
+      const { checkConflict } = require('../utils/paymentEffectDeps');
+      require('../utils/retiredDevisLinks').settleRetiredDevisLinks(retired, {
+        database, paymentLinksModel, devisModel: createModel(database), provider: paymentProviders.active(),
+        notifyPaidAfterCancel: (link, options) => notificationService.notifyPaidAfterCancel(link, options),
+        notifyConflict: (id) => notificationService.notifyBookingConflict(id),
+        checkConflict,
+      }).catch((err) => console.error('[devis] link deactivation:', err && err.message ? err.message : err));
     });
     return retired;
   }
