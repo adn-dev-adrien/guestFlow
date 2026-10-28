@@ -897,9 +897,13 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   // longer fit in the entry (the stay was reduced after it was paid: one guest fewer, breakfast cut)
   // would push the residue onto the last credit, the 46710000 tourist tax, as a negative line. Such an
   // entry is booked like one that never captured contribs: pro-rata of the lines as they stand now.
+  // The same goes the other way (audit 2026-10-28): contribs captured when the échéance was smaller,
+  // or a line that never captured one (a custom option added after the capture), leave a gap that the
+  // export would absorb on the last credit, the VAT line (#13: +182,91 € of VAT; #22298: +17,66 €).
+  // Contribs describe the entry only when they add up to it within the rounding tolerance.
   const contribsOverflow = Boolean(ttcByBucket)
-    && round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc)
-      > round2(encaissementTtc + CONTRIB_RESIDUE_TOLERANCE_TTC);
+    && Math.abs(round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc)
+      - round2(encaissementTtc)) > CONTRIB_RESIDUE_TOLERANCE_TTC;
   // specs/accounting-books-the-money-collected.md rule 12 — contribs only describe an entry whose CA is
   // the stored échéance (ratio 1, rule 10's premise). A historical shape grossed up to what the guest
   // paid (the `clientGrossAmount` era, réservation #13) captures its contribs from the stored NET solde

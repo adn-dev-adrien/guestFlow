@@ -195,6 +195,27 @@ options and resources appear once, at their real amount, only when they were rea
     verbatim; a later save of the fiche moves no installment entry. An installment collected before the
     column existed (none in production) keeps the live split.
 
+### Contribs that under-describe the entry (2026-10-28)
+
+> **Why this was added.** The money audit of 2026-10-28 replayed the journal over the Solio base. Rule 11
+> only refused contribs that EXCEED the entry; contribs that fall SHORT of it passed, and the gap was
+> absorbed on the last credit, the VAT line. Réservation #13 (October 2026: solde saved at 907,20 € after
+> a 706 € contrib was captured, no gross-up any more) booked `44571100 C265,38` on `70600000 C641,82`
+> (+182,91 € of VAT); #22298 (September 2026: a custom option added after the capture, so with no
+> contrib) booked C37,13 on C177,00 (+17,66 €). Rule 12's test modelled #13 with a ratio ≠ 1 and missed
+> the shape the row has today.
+
+15. **Contribs drive an entry only when they add up to it, in both directions.** Σ contribs (accommodation
+    + options + resources) + the entry's tourist tax must equal the entry's encaissement within the
+    2-cent rounding residue; whichever side the gap is on, the entry is booked on the stored-money path
+    (rules 5-7). The rounding residue that remains on the last credit is therefore never more than a few
+    cents, so the VAT line is always the sales rate applied to the revenue. *Effect on the Solio base:*
+    #13 (October 2026) now books `70600000 C824,73 | 44571100 C82,47` and #22298 (September 2026)
+    `C194,66 | C19,47`; the totals per entry do not move, only the revenue / VAT split. The app keeps no
+    record of which months were exported, and rule 33 of `accountant-accounting-export.md` freezes the
+    *cents* of a split, not a ventilation fix: a month the accountant already imported needs a
+    correcting entry on their side (VAT −182,91 € / +182,91 € revenue for October, −17,66 € for September).
+
 ---
 
 ## 4. Architecture
@@ -260,6 +281,9 @@ become the money that actually moved. No new string, no responsive impact, no ac
 - [x] `accounting-gross-up-ignores-contribs.unit.test.js` (4, new, rule 12) — #13's shape books
       `70600000 C824,73 | 44571100 C82,47` with its contribs, exactly as without them; a ratio-1 entry
       still books its contribs; the solde ticked through the payment controller lands at 10 % VAT.
+- [x] `plugins/accounting-export/tests/accounting-contribs-must-describe-entry.unit.test.js` (4, new,
+      rule 15) — #13 with its current shape (solde 907,20, contrib 706), #22298's custom option without
+      a contrib, contribs that add up still driving the entry, a one-cent gap tolerated.
 
 - [x] `plugins/accounting-export/tests/accounting-collected-money-frozen.unit.test.js` (5, new, rules
       13-14) — the October solde unchanged by a tax rise, the 7,50 € complement on 46710000 in its month
