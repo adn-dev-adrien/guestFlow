@@ -90,3 +90,11 @@ test('rule 33: the penalty account sits in « Commissions et produits divers » 
   const misc = accountGroupsFor([row('tipAccount'), row('platformPenaltyAccount', '75800000')]).find((g) => g.key === 'misc');
   expect(misc.fields.map((f) => f.label)).toContain('Pénalités plateformes');
 });
+
+test('rule 32 with specs/vat-optional-mode.md rule 12: « Sans TVA » keeps the indemnity account and drops its VAT cell', async () => {
+  api.getPlatformAccounts.mockResolvedValue({ ...GET(FULL_PLAN), salesVatRegime: 'not_subject' });
+  renderPage();
+  const card = await cardOf();
+  expect(within(card).getByLabelText("Indemnités d'annulation")).toBeInTheDocument();
+  expect(within(card).queryByLabelText('TVA sur indemnités (%)')).toBeNull();
+});

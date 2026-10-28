@@ -1,4 +1,5 @@
 const priceLineContributors = require('./priceLineContributors');
+const vatRegimeModel = require('../models/vatRegimeModel');
 
 // What an option line's `quantity` counts, when the summary has to say it
 // (specs/review-2026-10-18-reservations.md rule 5; review F13:
@@ -1328,17 +1329,6 @@ function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
   return Number(row.r) === 0;
 }
 
-// Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
-// options, resources, custom options. Defaults to 10 % when the column is missing (minimal
-// test DBs) or NULL.
-function getGlobalVatRate(db) {
-  let row = null;
-  try {
-    row = db.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
-  } catch (_) { /* column may not exist in minimal test DBs → fall back to the default */ }
-  return row && row.vatRate != null ? Number(row.vatRate) : 10;
-}
-
 function calculateReservationQuote({
   db,
   propertyId,
@@ -1519,7 +1509,12 @@ function calculateReservationQuote({
   // (vatPercentageAccommodation / Options / Resources) below keep their names but all carry
   // the same value, so downstream readers (devisPdf, accountingModel, PricingSummary)
   // continue working without a wider rename.
-  const vatRate = getGlobalVatRate(db);
+  // One VAT rate per sale, the one of the regime it was sold under (specs/vat-optional-mode.md rule 8):
+  // a stored stay keeps its period, a new stay or a devis is priced under the regime in force today.
+  const vatRegime = vatRegimeModel.forRow(db, {
+    id: bookingId, kind: quoteKind, createdAt: bookingDate, startDate, newSale: !(Number(bookingId) > 0),
+  });
+  const vatRate = vatRegime.rate;
 
   const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
   const calculatedBase = calculateBaseStayPrice(rules, startDate, endDate);
@@ -1571,6 +1566,7 @@ function calculateReservationQuote({
       vatPercentageAccommodation: vatRate,
       vatPercentageOptions: vatRate,
       vatPercentageResources: vatRate,
+      vatRegime,
       accommodationNetPrice: 0,
       accommodationVatAmount: 0,
       optionsNetPrice: 0,
@@ -3100,6 +3096,7 @@ function calculateReservationQuote({
     vatPercentageAccommodation,
     vatPercentageOptions,
     vatPercentageResources,
+    vatRegime,
     accommodationAdjustedPrice,
     accommodationDiscountAmount,
     accommodationDeltaAmount,

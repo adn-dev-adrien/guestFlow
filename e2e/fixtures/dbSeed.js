@@ -262,6 +262,23 @@ function setPlatformPayout(reservationId, amount) {
   });
 }
 
+// specs/vat-optional-mode.md — a stay booked in the past, so a switch « à partir d'aujourd'hui » leaves it alone.
+function backdateReservation(reservationId, createdAt) {
+  return withDb((db) => {
+    db.prepare('UPDATE reservations SET createdAt = ? WHERE id = ?').run(createdAt, reservationId);
+  });
+}
+
+// The shared E2E database carries the VAT regime from one spec to the next: back to period 1 at 10 %.
+function resetVatRegime() {
+  return withDb((db) => {
+    db.prepare('UPDATE reservations SET vatPeriodId = 1').run();
+    db.prepare('DELETE FROM vat_periods WHERE id > 1').run();
+    db.prepare('UPDATE vat_periods SET rate = 10 WHERE id = 1').run();
+    db.prepare('UPDATE app_settings SET vatRate = 10 WHERE id = 1').run();
+  });
+}
+
 /**
  * Make the bank reconciliation readable on the E2E database (specs/reconciliation-assisted-matching.md):
  * a stored Qonto connection marker (no Qonto call is ever made), the start date, and credits loaded
@@ -292,6 +309,8 @@ function clearBankSeed() {
 }
 
 module.exports = {
+  backdateReservation,
+  resetVatRegime,
   seedBankCredits,
   clearBankSeed,
   enablePropertyDeposit,

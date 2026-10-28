@@ -214,6 +214,8 @@ export default function PricingSummary({
   // `totalVatAmount` are still shown.
   const totalVatAmount = Number(quote?.totalVatAmount || 0);
   const totalNetPrice = Number(quote?.totalNetPrice || 0);
+  // « Sans TVA » (specs/vat-optional-mode.md rule 12a): the server's mention replaces the VAT lines.
+  const vatMention = quote?.vatRegime?.regime === 'not_subject' ? quote.vatRegime.legalMentionText : null;
 
   // The engine resolves who collects the tax (per-platform flag on `ical_sources`, see
   // `pricing.js#isPlatformCollectingTouristTax`). The summary mirrors that decision:
@@ -816,16 +818,20 @@ export default function PricingSummary({
               per-bucket breakdown since accommodation / options / resources all share the
               same rate now. Total HT + TVA on two lines under the séjour total. */}
           <Divider />
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">Total HT</Typography>
-              <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalNetPrice)}</Typography>
+          {vatMention ? (
+            <Typography variant="caption" color="text.secondary" data-testid="vat-mention">{vatMention}</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">Total HT</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalNetPrice)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalVatAmount)}</Typography>
+              </Box>
             </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
-              <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalVatAmount)}</Typography>
-            </Box>
-          </Box>
+          )}
 
           {/* Total du séjour — running-subtotal cascade (specs/platform-offered-tax-passthrough-and-
               cascade.md). « Total du séjour » = the gross (hébergement + toutes options/ressources +

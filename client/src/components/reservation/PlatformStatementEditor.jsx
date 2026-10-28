@@ -24,6 +24,8 @@ const blank = (v) => v === '' || v == null;
 export default function PlatformStatementEditor({
   form, pricingQuote, withDepositCommission, locked, onApply, onCancel, computeCommission, onError,
 }) {
+  // « Sans TVA » follows the stay's own regime, which its live quote carries.
+  const notSubject = pricingQuote?.vatRegime?.regime === 'not_subject';
   const [draft, setDraft] = useState({
     platformGrossAmount: form.platformGrossAmount ?? '',
     platformTouristTaxAmount: form.platformTouristTaxAmount ?? '',
@@ -105,7 +107,7 @@ export default function PlatformStatementEditor({
               VAT, no longer the number typed above once the box holds something. */}
           {withheldFilled && !blank(draft.platformGrossAmount) && Number.isFinite(Number(draft.platformGrossAmount)) && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              Montant hors taxe de séjour : <strong>{formatCurrency(Math.round((Number(draft.platformGrossAmount) - Math.max(0, Number(draft.platformTouristTaxAmount) || 0)) * 100) / 100)}</strong> — base TVA et base de commission.
+              Montant hors taxe de séjour : <strong>{formatCurrency(Math.round((Number(draft.platformGrossAmount) - Math.max(0, Number(draft.platformTouristTaxAmount) || 0)) * 100) / 100)}</strong> — {notSubject ? 'base de commission' : 'base TVA et base de commission'}.
             </Typography>
           )}
         </Box>

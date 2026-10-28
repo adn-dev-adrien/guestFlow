@@ -66,6 +66,8 @@ export default function PlatformAccountsPage() {
   const [planRows, setPlanRows] = useState([]);
   const [plan, setPlan] = useState({});
   const [savedPlan, setSavedPlan] = useState({});
+  // « Sans TVA » in force (specs/vat-optional-mode.md rule 12g): the two VAT rates cannot apply, so they are not asked.
+  const [notSubject, setNotSubject] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -73,6 +75,7 @@ export default function PlatformAccountsPage() {
       try {
         const data = await api.getPlatformAccounts();
         if (!mounted) return;
+        setNotSubject(data.salesVatRegime === 'not_subject');
         setSavedDefaultAccount(data.defaultAccount || '622600');
         setDefaultAccount(data.defaultAccount || '622600');
         setSavedVatRateCommission(String(data.vatRateCommission ?? 20));
@@ -265,6 +268,7 @@ export default function PlatformAccountsPage() {
     if (field.source === 'default') return accountInput(field, defaultAccount, handleDefaultAccountChange, 'defaultAccount');
     if (field.source === 'compensation') return accountInput(field, compensationAccount, handleCompensationAccountChange, 'compensationAccount');
     if (field.source === 'vatCompensation') {
+      if (notSubject) return null;
       return (
         <TextField
           key={field.key}
@@ -337,20 +341,22 @@ export default function PlatformAccountsPage() {
                 <Box>
                   <Typography variant="sectionHeader">Par plateforme</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Compte commission et TVA déductible, plateforme par plateforme.
+                    {notSubject ? 'Compte commission, plateforme par plateforme.' : 'Compte commission et TVA déductible, plateforme par plateforme.'}
                   </Typography>
                 </Box>
-                <TextField
-                  label="TVA déductible sur commissions (%)"
-                  value={vatRateCommission}
-                  onChange={(e) => handleVatChange(setVatRateCommission, 'vatRateCommission')(e.target.value)}
-                  error={Boolean(errors.vatRateCommission)}
-                  helperText={errors.vatRateCommission || 'Appliquée aux plateformes cochées « TVA déductible ».'}
-                  size="small"
-                  sx={{ width: { xs: '100%', sm: 260 } }}
-                  slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-                  disabled={saving}
-                />
+                {!notSubject && (
+                  <TextField
+                    label="TVA déductible sur commissions (%)"
+                    value={vatRateCommission}
+                    onChange={(e) => handleVatChange(setVatRateCommission, 'vatRateCommission')(e.target.value)}
+                    error={Boolean(errors.vatRateCommission)}
+                    helperText={errors.vatRateCommission || 'Appliquée aux plateformes cochées « TVA déductible ».'}
+                    size="small"
+                    sx={{ width: { xs: '100%', sm: 260 } }}
+                    slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+                    disabled={saving}
+                  />
+                )}
               </Box>
               {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
               <TableContainer>
@@ -359,7 +365,7 @@ export default function PlatformAccountsPage() {
                   <TableRow>
                     <TableCell>Plateforme</TableCell>
                     <TableCell>Compte commission</TableCell>
-                    <TableCell align="center">TVA déductible</TableCell>
+                    {!notSubject && <TableCell align="center">TVA déductible</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -388,14 +394,16 @@ export default function PlatformAccountsPage() {
                             sx={{ width: { xs: '100%', sm: 180 } }}
                           />
                         </TableCell>
-                        <TableCell align="center">
-                          <Switch
-                            checked={Boolean(p.hasVatOnCommission)}
-                            onChange={(e) => updatePlatformField(p.id, 'hasVatOnCommission', e.target.checked)}
-                            disabled={p.isDirect || saving}
-                            slotProps={{ input: { 'aria-label': `TVA déductible commission ${formatPlatformLabel(p.name)}` } }}
-                          />
-                        </TableCell>
+                        {!notSubject && (
+                          <TableCell align="center">
+                            <Switch
+                              checked={Boolean(p.hasVatOnCommission)}
+                              onChange={(e) => updatePlatformField(p.id, 'hasVatOnCommission', e.target.checked)}
+                              disabled={p.isDirect || saving}
+                              slotProps={{ input: { 'aria-label': `TVA déductible commission ${formatPlatformLabel(p.name)}` } }}
+                            />
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}

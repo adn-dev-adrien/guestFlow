@@ -16,6 +16,13 @@ const summary = require('../controllers/settingsSummaryController').createSettin
   today: () => require('../utils/localDate').localIsoDate(),
 });
 router.get('/summary', summary.get);
+
+// specs/vat-optional-mode.md §4.3 — the VAT regime and its switch.
+const vatRegime = require('../controllers/vatRegimeController');
+router.get('/vat-regime', vatRegime.getState);
+router.post('/vat-regime/preview', vatRegime.preview);
+router.post('/vat-regime/switch', vatRegime.makeSwitch);
+router.delete('/vat-regime/periods/:id', vatRegime.remove);
 // Async since the sending server can be looked up (specs/settings-rationalization.md rule 28).
 const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 

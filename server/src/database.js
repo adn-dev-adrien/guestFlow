@@ -2784,6 +2784,9 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
 }
 
+// ---------- VAT REGIME PERIODS (specs/vat-optional-mode.md rule 22) ----------
+require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

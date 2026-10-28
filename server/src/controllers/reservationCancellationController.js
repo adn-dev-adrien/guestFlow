@@ -18,6 +18,7 @@ const compensationsModel = require('../models/cancellationCompensationsModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const installmentsModel = require('../models/installmentsModel');
 const settingsModel = require('../models/settingsModel');
+const vatRegimeModel = require('../models/vatRegimeModel');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
@@ -48,7 +49,7 @@ async function cancel(req, res) {
       reason: (req.body && req.body.reason) || '',
       cancelledBy: req.user ? req.user.id : null,
       today: getTodayIsoDate(),
-      vatRate: Number(settingsModel.read().vatRate || 0),
+      vatRate: vatRegimeModel.rateForRow(db, { id }),
     },
   );
   if (result.error) return res.status(result.status).json({ error: result.message, code: result.error });

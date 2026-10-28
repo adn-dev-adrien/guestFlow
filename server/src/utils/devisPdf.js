@@ -15,6 +15,7 @@ const {
 const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
 const { uploadsDir } = require("./instancePaths");
+const { DEFAULT_RATE: DEFAULT_VAT_RATE } = require("../models/vatRegimeModel");
 
 // specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
 // fir green, ink, warm paper, honey and the success soft fill. No navy left.
@@ -268,13 +269,18 @@ function generateDevisPdf(full, settings, quote) {
 
   const property = full.property;
   const client = full.client;
-  // Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to every line:
-  // accommodation, options, resources, custom options. The three local bindings stay so the
-  // existing `drawRow(..., rate, ...)` call sites read clearly; they all hold the same value.
-  const vatRate = Number(settings?.vatRate ?? 10);
+  // One VAT rate per sale (specs/single-vat-rate.md §4.1), the one of the regime the devis is quoted
+  // under (specs/vat-optional-mode.md rule 7). The three local bindings stay so the existing
+  // `drawRow(..., rate, ...)` call sites read clearly; they all hold the same value.
+  const vatRate = Number(full.vatRegime ? full.vatRegime.rate : DEFAULT_VAT_RATE);
   const vatAccommodation = vatRate;
   const vatOptions = vatRate;
   const vatResources = vatRate;
+  // « Sans TVA » (specs/vat-optional-mode.md rule 12b): no VAT column, no HT, one legal mention instead.
+  const notSubject = Boolean(full.vatRegime) && full.vatRegime.regime === 'not_subject';
+  const legalMention = notSubject
+    ? (language === 'en' ? full.vatRegime.legalMentionTextEn : full.vatRegime.legalMentionText)
+    : null;
 
   // Client phone (single column since the Clients bloc).
   const phones = client.phone ? [String(client.phone).trim()] : [];
@@ -571,18 +577,21 @@ function generateDevisPdf(full, settings, quote) {
     if (italic) doc.font(F.italic); else doc.font(F.regular);
     doc.text(descText, COL_DESC + 4, lineY, { width: DESC_W });
     doc.font(F.regular).text(String(qty), COL_QTY, lineY, { width: PAGE_W * 0.1, align: 'center' });
-    doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, lineY, { width: PAGE_W * 0.1, align: 'center' });
+    if (!notSubject) doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, lineY, { width: PAGE_W * 0.1, align: 'center' });
 
     if (showOriginal) {
       const originalHt = rate > 0
         ? roundMoney(originalTtc / (1 + (rate / 100)))
         : roundMoney(originalTtc);
-      drawStruckAmount(formatCurrency(originalHt), COL_HT, PAGE_W * 0.16 - RIGHT_PAD, lineY);
+      if (!notSubject) drawStruckAmount(formatCurrency(originalHt), COL_HT, PAGE_W * 0.16 - RIGHT_PAD, lineY);
       drawStruckAmount(formatCurrency(originalTtc), COL_TOTAL, PAGE_W * 0.14 - RIGHT_PAD, lineY);
     }
     const amountY = rowY + amountOffsetY;
-    doc.fontSize(9).fillColor(TEXT_DARK).font(F.regular)
-      .text(formatCurrency(ht), COL_HT, amountY, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+    doc.fontSize(9).fillColor(TEXT_DARK);
+    if (!notSubject) {
+      doc.font(F.regular)
+        .text(formatCurrency(ht), COL_HT, amountY, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+    }
     doc.font(F.bold)
       .text(formatCurrency(totalTtc), COL_TOTAL, amountY, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
     rowY += rowH;
@@ -739,7 +748,7 @@ function generateDevisPdf(full, settings, quote) {
   const schedule = summarySchedule(full, L);
   const SUMMARY_H = Math.max(56, 16 + schedule.length * 16 + 10);
   doc.roundedRect(LEFT, SUMMARY_TOP, PAGE_W, SUMMARY_H, 6).fill(LIGHT_GRAY);
-  doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.regular).text(L.summaryTotal, LEFT + 14, SUMMARY_TOP + 10, { width: PAGE_W * 0.4 });
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font(F.regular).text(notSubject ? L.summaryTotalNoVat : L.summaryTotal, LEFT + 14, SUMMARY_TOP + 10, { width: PAGE_W * 0.4 });
   doc.fontSize(18).fillColor(TEXT_DARK).font(F.bold)
     .text(formatCurrency(grandTotalTtc), LEFT + 14, SUMMARY_TOP + 24, { width: PAGE_W * 0.4, lineBreak: false });
   const SCHED_X = LEFT + PAGE_W * 0.44;
@@ -750,8 +759,11 @@ function generateDevisPdf(full, settings, quote) {
     doc.font(F.bold).fillColor(TEXT_DARK)
       .text(formatCurrency(line.amount), SCHED_X + SCHED_W * 0.34, ly, { width: SCHED_W * 0.26, align: 'right', lineBreak: false });
     if (line.dueDate) {
-      doc.font(F.regular).fillColor(TEXT_LIGHT)
-        .text(L.summaryBefore(fmtDate(line.dueDate)), SCHED_X + SCHED_W * 0.64, ly, { width: SCHED_W * 0.36, align: 'right', lineBreak: false });
+      const dueText = L.summaryBefore(fmtDate(line.dueDate));
+      doc.font(F.regular).fillColor(TEXT_LIGHT);
+      // « due by 25 September 2026 » is wider than its column in English: it shrinks to fit rather than run over the amount.
+      if (doc.widthOfString(dueText) > SCHED_W * 0.36) fitFontSize(doc, F.regular, dueText, SCHED_W * 0.36, 9, 6.5);
+      doc.text(dueText, SCHED_X + SCHED_W * 0.64, ly, { width: SCHED_W * 0.36, align: 'right', lineBreak: false });
     }
   });
   if (typeof full.__trace === 'function') {
@@ -769,9 +781,11 @@ function generateDevisPdf(full, settings, quote) {
   doc.fontSize(8.5).fillColor(TEXT_DARK).font(F.bold);
   doc.text(L.colDesignation, COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
   doc.text(L.colQuantity,    COL_QTY,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text(L.colUnitPriceHt, COL_HT,       TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
-  doc.text(L.colVatRate,     COL_VAT,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text(L.colTotalTtc,    COL_TOTAL,    TH + 5, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
+  if (!notSubject) {
+    doc.text(L.colUnitPriceHt, COL_HT,       TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+    doc.text(L.colVatRate,     COL_VAT,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
+  }
+  doc.text(notSubject ? L.colTotal : L.colTotalTtc, COL_TOTAL, TH + 5, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
   rowY = TH + 18;
   for (const args of pendingRows) paintRow(...args);
 
@@ -823,8 +837,8 @@ function generateDevisPdf(full, settings, quote) {
     totY += 16;
   }
 
-  drawTotalLine(L.subtotalHt, subtotalHt, false);
-  drawTotalLine(L.subtotalTtc, subtotalTtc, false);
+  if (!notSubject) drawTotalLine(L.subtotalHt, subtotalHt, false);
+  drawTotalLine(notSubject ? L.subtotal : L.subtotalTtc, subtotalTtc, false);
   if (liveTaxTotal > 0) {
     drawTotalLine(L.touristTax, liveTaxTotal, false);
     // Rule 8 — the detail follows the amount it explains: the engine breakdown when the quote is what
@@ -852,9 +866,15 @@ function generateDevisPdf(full, settings, quote) {
   // Total line
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
   doc.fontSize(11).fillColor('#ffffff').font(F.bold)
-    .text(L.grandTotal, TOTAL_RX - 4, totY + 4, { width: 120 });
+    .text(notSubject ? L.grandTotalNoVat : L.grandTotal, TOTAL_RX - 4, totY + 4, { width: 120 });
   doc.text(formatCurrency(grandTotalTtc), TOTAL_RX + 120, totY + 4, { width: 80 - RIGHT_PAD, align: 'right' });
   totY += 30;
+  if (legalMention) {
+    doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.italic);
+    const mentionWidth = TOTAL_LW + 10;
+    doc.text(legalMention, TOTAL_RX - 10, totY - 2, { width: mentionWidth, align: 'right' });
+    totY += doc.heightOfString(legalMention, { width: mentionWidth }) + 4;
+  }
   totY = Math.max(totY, bankBottomY);
 
   // ── Payment schedule ──────────────────────────────────────────────────────

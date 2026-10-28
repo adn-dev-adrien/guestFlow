@@ -13,7 +13,8 @@
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
-const defaultSettingsModel = require('../models/settingsModel');
+const database = require('../database');
+const vatRegimeModel = require('../models/vatRegimeModel');
 const { buildRefundableLines, validateRefundPayload } = require('../utils/refunds');
 const { comptaCollected } = require('../utils/reservationSettlement');
 
@@ -32,20 +33,20 @@ function nightsBetween(startDate, endDate) {
 function createRefundsController(deps = {}) {
   const refundsModel = deps.refundsModel || defaultRefundsModel;
   const reservationsModel = deps.reservationsModel || defaultReservationsModel;
-  const settingsModel = deps.settingsModel || defaultSettingsModel;
+  const vatRateOf = deps.vatRateOf || ((reservation) => vatRegimeModel.rateForRow(database, reservation));
 
   // The whole read side of the feature: register + still-refundable lines + both total readings.
   // Reused by the three endpoints AND by the reservation payload, so the fiche never has to ask twice.
   function buildRegister(reservationId, preloadedReservation) {
     const reservation = preloadedReservation || reservationsModel.getByIdWithDetails(reservationId);
     if (!reservation) return null;
-    const settings = settingsModel.read() || {};
+    const vatRate = vatRateOf(reservation);
     const refunds = refundsModel.listByReservation(reservationId);
     const refundTotals = refundsModel.totalsByReservation(reservationId);
     const refundableLines = buildRefundableLines({
       finalPrice: reservation.finalPrice,
       touristTaxTotal: reservation.touristTaxTotal,
-      vatRate: settings.vatRate != null ? Number(settings.vatRate) : 10,
+      vatRate,
       options: reservation.options || [],
       resources: reservation.resources || [],
       refunds,
@@ -54,7 +55,7 @@ function createRefundsController(deps = {}) {
     });
     return {
       reservation,
-      vatRate: settings.vatRate != null ? Number(settings.vatRate) : 10,
+      vatRate,
       payload: {
         refunds,
         refundableLines,
