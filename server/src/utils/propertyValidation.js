@@ -12,15 +12,17 @@
 
 const { validateMonthDay } = require('./settingsValidation');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('./inputLimits');
-const { MODES } = require('./poolSeason');
+const { MODES, poolSeasonModeOf } = require('./poolSeason');
 
 const has = (body, key) => Object.prototype.hasOwnProperty.call(body, key);
 const asNumber = (value) => (value === '' || value === null || value === undefined ? NaN : Number(String(value).replace(',', '.')));
 const isWhole = (n) => Number.isInteger(n) && n >= 0;
 const isTrue = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
-// specs/guest-email-texts-made-simple.md rule 34, amended by specs/settings-input-guards.md rules 22-26.
-function validatePoolSeason(body, errors) {
+// specs/guest-email-texts-made-simple.md rule 34, amended by specs/settings-input-guards.md rules 22-26
+// and 46-47: the pair is judged on what the payload changes, a lone bound is completed from the stored
+// season, and a legacy pair left as it is never blocks an unrelated save.
+function validatePoolSeason(body, errors, existing) {
   const mode = has(body, 'poolSeasonMode') ? body.poolSeasonMode : null;
   if (mode !== null && !MODES.includes(mode)) {
     errors.poolSeasonMode = 'Choix invalide.';
@@ -30,8 +32,10 @@ function validatePoolSeason(body, errors) {
   const hasStart = has(body, 'poolSeasonStart');
   const hasEnd = has(body, 'poolSeasonEnd');
   if (mode === null && !hasStart && !hasEnd) return;
-  const start = String(body.poolSeasonStart || '').trim();
-  const end = String(body.poolSeasonEnd || '').trim();
+  const storedStart = String((existing && existing.poolSeasonStart) || '').trim();
+  const storedEnd = String((existing && existing.poolSeasonEnd) || '').trim();
+  const start = hasStart ? String(body.poolSeasonStart || '').trim() : storedStart;
+  const end = hasEnd ? String(body.poolSeasonEnd || '').trim() : storedEnd;
   if (hasStart) {
     const error = validateMonthDay(start);
     if (error) errors.poolSeasonStart = error;
@@ -41,13 +45,15 @@ function validatePoolSeason(body, errors) {
     if (error) errors.poolSeasonEnd = error;
   }
   if (errors.poolSeasonStart || errors.poolSeasonEnd) return;
-  if (mode === null && !(hasStart && hasEnd)) return;
-  if (Boolean(start) !== Boolean(end) || (mode === 'season' && !start)) {
+  const becomesSeason = mode === 'season' && poolSeasonModeOf(storedStart, storedEnd) !== 'season';
+  if (mode === null && !start && !end) return;
+  if (start === storedStart && end === storedEnd && !becomesSeason) return;
+  if (!start || !end) {
     if (!start) errors.poolSeasonStart = 'Les deux dates.';
     if (!end) errors.poolSeasonEnd = 'Les deux dates.';
     return;
   }
-  if (start && end && end < start) errors.poolSeasonEnd = 'La fermeture suit l\'ouverture.';
+  if (end < start) errors.poolSeasonEnd = 'La fermeture suit l\'ouverture.';
 }
 
 function validatePropertyInput(body = {}, existing = null) {
@@ -118,7 +124,7 @@ function validatePropertyInput(body = {}, existing = null) {
     if (parsed.error) errors[key] = parsed.error;
   }
 
-  validatePoolSeason(body, errors);
+  validatePoolSeason(body, errors, existing);
 
   return errors;
 }

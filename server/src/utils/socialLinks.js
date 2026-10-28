@@ -37,6 +37,14 @@ function parseSocialLinks(raw) {
     .map((e) => ({ network: e.network, url: e.url.trim() }));
 }
 
+/** The refusal a URL deserves for its network, or '' (rule 37; the legacy `instagramUrl` input shares it, rule 43). */
+function validateSocialUrl(url, network) {
+  if (/\s/.test(url)) return 'URL invalide.';
+  const urlError = validatePublicUrl(url);
+  if (urlError) return urlError;
+  return hostMatches(new URL(url).hostname.toLowerCase(), network.hosts) ? '' : 'Lien d\'un autre réseau.';
+}
+
 /**
  * @returns {{ links: Array<{network, url}>, errors: Object<string,string> }}
  * Errors are keyed `socialLinks.<index>.<field>` on the SUBMITTED index, so the form can put each
@@ -56,13 +64,9 @@ function validateSocialLinks(input) {
       return;
     }
     if (!url) return;
-    const urlError = validatePublicUrl(url);
+    const urlError = validateSocialUrl(url, network);
     if (urlError) {
       errors[`socialLinks.${index}.url`] = urlError;
-      return;
-    }
-    if (!hostMatches(new URL(url).hostname.toLowerCase(), network.hosts)) {
-      errors[`socialLinks.${index}.url`] = 'Lien d\'un autre réseau.';
       return;
     }
     if (seen.has(network.value)) {
@@ -104,16 +108,17 @@ function effectiveSocialLinks(settings = {}) {
 
 /**
  * The `{{link}}` of the J+1 paragraph (rule 39): one link is that URL, exactly what `instagramUrl`
- * produced; several expand to one « Network : url » line each, in the operator's order.
+ * produced; several expand to one « Network : url » line each, in the operator's order, starting on a new line so
+ * the sentence « Pour suivre nos nouvelles : » never runs into the first label.
  */
 function renderSocialLinks(links, lang = 'fr') {
   if (!links.length) return '';
   if (links.length === 1) return links[0].url;
   const colon = lang === 'en' ? ':' : ' :';
-  return links.map((l) => `${networkOf(l.network)?.label || l.network}${colon} ${l.url}`).join('\n');
+  return `\n${links.map((l) => `${networkOf(l.network)?.label || l.network}${colon} ${l.url}`).join('\n')}`;
 }
 
 module.exports = {
-  MAX_SOCIAL_LINKS, SOCIAL_NETWORKS, publicNetworks, parseSocialLinks, validateSocialLinks,
-  instagramUrlOf, mergeLegacyInstagram, effectiveSocialLinks, renderSocialLinks,
+  MAX_SOCIAL_LINKS, SOCIAL_NETWORKS, publicNetworks, parseSocialLinks, validateSocialLinks, validateSocialUrl,
+  instagramUrlOf, mergeLegacyInstagram, effectiveSocialLinks, renderSocialLinks, networkOf,
 };

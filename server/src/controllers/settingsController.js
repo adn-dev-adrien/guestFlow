@@ -19,7 +19,7 @@ const fs = require('fs');
 const settingsModel = require('../models/settingsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
-const { validateSocialLinks, instagramUrlOf, mergeLegacyInstagram, parseSocialLinks } = require('../utils/socialLinks');
+const { validateSocialLinks, validateSocialUrl, networkOf, instagramUrlOf, mergeLegacyInstagram, parseSocialLinks } = require('../utils/socialLinks');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
@@ -123,14 +123,15 @@ function applySocialLinks(emails, payload, errors) {
     payload.socialLinks = JSON.stringify(links);
     payload.instagramUrl = instagramUrlOf(links);
   } else if (has('instagramUrl')) {
-    const err = validation.validatePublicUrl(emails.instagramUrl);
+    const legacyUrl = String(emails.instagramUrl == null ? '' : emails.instagramUrl).trim();
+    const err = legacyUrl ? validateSocialUrl(legacyUrl, networkOf('instagram')) : '';
     if (err) {
       errors.instagramUrl = err;
       return;
     }
     const links = mergeLegacyInstagram(parseSocialLinks(settingsModel.read().socialLinks), emails.instagramUrl);
     payload.socialLinks = JSON.stringify(links);
-    payload.instagramUrl = String(emails.instagramUrl == null ? '' : emails.instagramUrl).trim();
+    payload.instagramUrl = legacyUrl;
   }
 }
 

@@ -1,3 +1,4 @@
+// Review amendments: rule 48 — the model refuses too; decimals refused, never rounded.
 // specs/settings-input-guards.md rules 28-31 — platform commissions and payout delays.
 const path = require('path');
 const os = require('os');
@@ -77,4 +78,14 @@ test('rule 31: GET /platforms/settings sends the limits', () => {
   assert.deepEqual(res.body.limits.commissionPercent, { min: 0, max: 99.99, decimals: 2, unit: '%' });
   assert.deepEqual(res.body.limits.payoutDueDays, { min: 0, max: 365, integer: true, unit: 'jours', message: 'Un nombre entier de jours (0 à 365).' });
   assert.ok(Array.isArray(res.body.platforms));
+});
+
+test('rule 48: the model refuses a rate outside the bounds too — plugins reach it without the controller', () => {
+  const platformsModel = require('../models/platformsModel');
+  db.prepare("UPDATE platforms SET commissionPercent = 15 WHERE name = 'Vrbo'").run();
+  for (const bad of [-5, 250, 'abc', 12.345, NaN, null]) {
+    assert.equal(platformsModel.setCommissionPercent(idOf('Vrbo'), bad), null, String(bad));
+    assert.equal(rate(), 15);
+  }
+  assert.equal(platformsModel.setCommissionPercent(idOf('Vrbo'), 7.5).commissionPercent, 7.5);
 });

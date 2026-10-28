@@ -1,3 +1,4 @@
+// Review amendments: rule 49 — several links start on a new line; a space refused; legacy input held to the host.
 // specs/settings-input-guards.md rules 35-44 — the ordered social links of the guest e-mails.
 const path = require('path');
 const os = require('os');
@@ -224,9 +225,10 @@ test('rule 39: no link, no paragraph (and no stray blank line)', () => {
 
 test('rule 39: two links or more expand to one « Network : url » line each, in the operator\'s order', () => {
   const links = [{ network: 'facebook', url: FB }, { network: 'instagram', url: IG }];
-  assert.equal(renderSocialLinks(links, 'fr'), `Facebook : ${FB}\nInstagram : ${IG}`);
-  assert.equal(renderSocialLinks(links, 'en'), `Facebook: ${FB}\nInstagram: ${IG}`);
-  assert.match(renderJ1({ socialLinks: JSON.stringify(links) }), new RegExp(`Pour suivre nos nouvelles : Facebook : ${FB.replace(/[.]/g, '\\.')}\\nInstagram : ${IG.replace(/[.]/g, '\\.')}`));
+  assert.equal(renderSocialLinks(links, 'fr'), `\nFacebook : ${FB}\nInstagram : ${IG}`);
+  assert.equal(renderSocialLinks(links, 'en'), `\nFacebook: ${FB}\nInstagram: ${IG}`);
+  assert.match(renderJ1({ socialLinks: JSON.stringify(links) }), new RegExp(`Pour suivre nos nouvelles : \\nFacebook : ${FB.replace(/[.]/g, '\\.')}\\nInstagram : ${IG.replace(/[.]/g, '\\.')}`));
+  assert.doesNotMatch(renderJ1({ socialLinks: JSON.stringify(links) }), /: Facebook :/);
 });
 
 test('rule 40: the paragraph key and the tokens keep their names', () => {
@@ -253,4 +255,23 @@ test('rule 44: nowhere else yet — only settings, the J+1 context and the migra
     'controllers/settingsController.js', 'database.js', 'models/settingsModel.js', 'utils/guestEmailSequenceSchema.js',
     'utils/settingsResponse.js', 'utils/socialLinks.js', 'utils/socialLinksMigration.js', 'utils/stayContentContext.js',
   ]);
+});
+
+test('rule 37: a URL holding a space is refused, in the list and through the legacy input', async () => {
+  assert.equal(validateSocialLinks([{ network: 'instagram', url: 'https://instagram.com/a b' }]).errors['socialLinks.0.url'], 'URL invalide.');
+  const res = await put({ instagramUrl: 'https://instagram.com/a b' });
+  assert.equal(res.statusCode, 400);
+});
+
+test('rule 43: the legacy instagramUrl is held to the Instagram host like a list entry', async () => {
+  const before = stored();
+  const res = await put({ instagramUrl: 'https://facebook.com/pas-instagram' });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.errors.instagramUrl, 'Lien d\'un autre réseau.');
+  assert.deepEqual(stored(), before);
+});
+
+test('rule 37: the cap of 8 guards the raw API — with one entry per network the form reaches 7', () => {
+  assert.equal(SOCIAL_NETWORKS.length, 7);
+  assert.ok(require('../utils/socialLinks').MAX_SOCIAL_LINKS >= SOCIAL_NETWORKS.length);
 });

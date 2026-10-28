@@ -1,3 +1,4 @@
+// Review amendments: rules 46-47 — a lone bound is completed from the stored season; the pair is judged on change.
 // specs/settings-input-guards.md rules 22-27 — the pool season: off, all year, or a season.
 
 const test = require('node:test');
@@ -89,4 +90,29 @@ test('rule 23: the J-7 pool sentence matches every stay with the all-year bounds
     assert.equal(stay(from, to, ['01-01', '12-31']), true, `${from} → ${to}`);
   }
   assert.equal(stay('2027-01-10', '2027-01-17', ['06-15', '08-31']), false);
+});
+
+test('rule 46: a lone bound is completed from the stored season before the order is checked', () => {
+  const stored = { poolSeasonStart: '06-15', poolSeasonEnd: '08-31' };
+  assert.equal(validatePropertyInput({ poolSeasonEnd: '03-01' }, stored).poolSeasonEnd, 'La fermeture suit l\'ouverture.');
+  assert.equal(validatePropertyInput({ poolSeasonStart: '09-15' }, stored).poolSeasonEnd, 'La fermeture suit l\'ouverture.');
+  assert.deepEqual(validatePropertyInput({ poolSeasonEnd: '09-30' }, stored), {});
+});
+
+test('rule 46: a lone bound with nothing stored for the other is a half season, refused', () => {
+  assert.equal(validatePropertyInput({ poolSeasonStart: '06-15' }, { poolSeasonStart: '', poolSeasonEnd: '' }).poolSeasonEnd, 'Les deux dates.');
+  assert.equal(validatePropertyInput({ poolSeasonEnd: '08-31' }, null).poolSeasonStart, 'Les deux dates.');
+});
+
+test('rule 47: a legacy reversed season left as it is never blocks a save; touching it does', () => {
+  const legacy = { poolSeasonStart: '10-01', poolSeasonEnd: '05-31' };
+  assert.deepEqual(validatePropertyInput({ name: 'x', poolSeasonStart: '10-01', poolSeasonEnd: '05-31' }, legacy), {});
+  assert.deepEqual(validatePropertyInput({ name: 'x', poolSeasonMode: 'season', poolSeasonStart: '10-01', poolSeasonEnd: '05-31' }, legacy), {});
+  assert.deepEqual(validatePropertyInput({ name: 'x' }, legacy), {});
+  assert.ok(validatePropertyInput({ poolSeasonEnd: '05-30' }, legacy).poolSeasonEnd);
+  assert.ok(validatePropertyInput({ poolSeasonMode: 'season', poolSeasonStart: '10-01', poolSeasonEnd: '05-31' }, { poolSeasonStart: '', poolSeasonEnd: '' }).poolSeasonEnd);
+});
+
+test('rule 47: clearing both bounds with the legacy payload stays « no pool »', () => {
+  assert.deepEqual(validatePropertyInput({ poolSeasonStart: '', poolSeasonEnd: '' }, { poolSeasonStart: '06-15', poolSeasonEnd: '08-31' }), {});
 });

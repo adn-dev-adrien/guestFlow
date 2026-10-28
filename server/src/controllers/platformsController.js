@@ -138,7 +138,7 @@ function planRow(row, current) {
   }
   if (!ownChannel && has('payoutDueDays')) {
     const days = parsePayoutDueDaysInput(row.payoutDueDays);
-    if (days === null) errors.payoutDueDays = 'Un nombre entier de jours (0 à 365).';
+    if (days === null) errors.payoutDueDays = limitMessage(PLATFORM_LIMITS.payoutDueDays);
     else apply.push(() => platformsModel.setPayoutDueDays(current.name, days));
   }
   return { errors, apply };

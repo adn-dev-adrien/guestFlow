@@ -6,6 +6,8 @@
  * the server would answer — the client never hardcodes a bound.
  */
 
+const { MAX_PAYOUT_DUE_DAYS } = require('./platformPayout');
+
 const PROPERTY_LIMITS = {
   depositDueDays: { min: 0, max: 30, integer: true, unit: 'jours' },
   balanceDaysBefore: { min: 0, max: 60, integer: true, unit: 'jours' },
@@ -21,7 +23,7 @@ const PROPERTY_LIMITS = {
 
 const PLATFORM_LIMITS = {
   commissionPercent: { min: 0, max: 99.99, decimals: 2, unit: '%' },
-  payoutDueDays: { min: 0, max: 365, integer: true, unit: 'jours', message: 'Un nombre entier de jours (0 à 365).' },
+  payoutDueDays: { min: 0, max: MAX_PAYOUT_DUE_DAYS, integer: true, unit: 'jours', message: `Un nombre entier de jours (0 à ${MAX_PAYOUT_DUE_DAYS}).` },
 };
 
 const NOT_A_NUMBER = 'Nombre attendu.';
@@ -38,6 +40,12 @@ function wholeNumberMessage(limits) {
   return limits.unit === 'jours' ? 'Nombre entier de jours.' : 'Nombre entier.';
 }
 
+const decimalPlaces = (text) => (text.replace(',', '.').split('.')[1] || '').length;
+
+function tooManyDecimalsMessage(limits) {
+  return `Au plus ${limits.decimals} décimale${limits.decimals > 1 ? 's' : ''}.`;
+}
+
 // Both French and English decimal separators are read (`12,5` = `12.5`); nothing else is.
 const NUMBER_PATTERN = /^[+-]?(\d+([.,]\d+)?|[.,]\d+)$/;
 
@@ -52,12 +60,14 @@ function parseBoundedNumber(raw, limits) {
   if (!Number.isFinite(value)) return { error: NOT_A_NUMBER };
   if (limits.integer) {
     if (!Number.isInteger(value)) return { error: wholeNumberMessage(limits) };
-  } else if (Number.isInteger(limits.decimals)) {
-    const factor = 10 ** limits.decimals;
-    value = Math.round(value * factor) / factor;
+  } else if (Number.isInteger(limits.decimals) && decimalPlaces(text) > limits.decimals) {
+    return { error: tooManyDecimalsMessage(limits) };
   }
+  if (value === 0) value = 0;
   if (value < limits.min || value > limits.max) return { error: limitMessage(limits) };
   return { value };
 }
 
-module.exports = { PROPERTY_LIMITS, PLATFORM_LIMITS, NOT_A_NUMBER, limitMessage, wholeNumberMessage, parseBoundedNumber };
+module.exports = {
+  PROPERTY_LIMITS, PLATFORM_LIMITS, NOT_A_NUMBER, limitMessage, wholeNumberMessage, tooManyDecimalsMessage, parseBoundedNumber,
+};
