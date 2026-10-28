@@ -36,7 +36,9 @@
  *   actionsAfter?  Action[]     (inserted AFTER Cancel — destructive zone)
  *
  *   Action shape (icon button):
- *     { icon, tooltip, onClick, color?, disabled?, ariaLabel? }
+ *     { icon, tooltip, onClick, color?, disabled?, ariaDisabled?, ariaLabel? }
+ *     `ariaDisabled`: looks and reads as disabled but stays focusable and inert (an action that has just
+ *     been performed, so keyboard focus does not drop to the page)
  *     color ∈ 'primary' | 'info' | 'success' | 'warning' | 'error' | 'default'
  *   Or a custom node: { node: ReactNode } — rendered as-is (e.g. a <Select>),
  *     always kept inline (never collapsed into the mobile overflow menu).
@@ -128,16 +130,17 @@ function renderCustomAction(action, key) {
   if (action.node) {
     return <React.Fragment key={key}>{action.node}</React.Fragment>;
   }
-  const { icon, tooltip, onClick, color, disabled, ariaLabel } = action;
+  const { icon, tooltip, onClick, color, disabled, ariaDisabled, ariaLabel } = action;
   return (
     <Tooltip key={key} title={tooltip} enterDelay={500} enterNextDelay={500}>
       <span>
         <IconButton
           aria-label={ariaLabel || tooltip}
           color={color && color !== 'default' ? color : 'default'}
-          onClick={onClick}
+          onClick={ariaDisabled ? undefined : onClick}
           disabled={disabled}
-          sx={borderedSx(color)}
+          aria-disabled={ariaDisabled || undefined}
+          sx={{ ...borderedSx(color), ...(ariaDisabled ? { opacity: 0.38, cursor: 'default' } : {}) }}
         >
           {icon}
         </IconButton>

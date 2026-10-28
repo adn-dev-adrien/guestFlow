@@ -101,8 +101,12 @@ test('rule 14 — an empty fortnight never stops the scroll: windows keep coming
   getPlanningDays.mockImplementation(async (range) => cards({ [at(43)]: { arrivals: [december] } })(range));
   renderPage();
   await opened();
-  scrollY = 99000;
-  scrollWindowTo(99100);
+  // Empty windows fold into the run already drawn and push the edge no farther: each pull of the
+  // operator (one gesture) asks one more, until the stays of December.
+  for (let i = 0; i < 12 && askedWindows(3).length === 0; i += 1) {
+    scrollWindowTo(99000 + i);
+    await waitFor(() => expect(asked().length).toBeGreaterThan(3 + i));
+  }
   await waitFor(() => expect(askedWindows(3)).toHaveLength(1));
   expect((await screen.findAllByText(/Client9/)).length).toBeGreaterThan(0);
   expect(screen.getAllByTestId('planning-fold').length).toBeGreaterThan(0);
@@ -125,14 +129,16 @@ test('rule 18 — « Aujourd\'hui » scrolls back smoothly, and is disabled whil
   renderPage();
   await opened();
   const button = screen.getByRole('button', { name: "Aujourd'hui" });
-  expect(button).toBeEnabled();
+  expect(button).not.toHaveAttribute('aria-disabled');
   scrollTo.mockClear();
   scrollY = 5000;
   fireEvent.click(button);
   expect(scrollTo).toHaveBeenCalledWith({ top: 5000 + 3000 - 64, behavior: 'smooth' });
   todayTop = 64;
   scrollWindowTo(7936);
-  await waitFor(() => expect(screen.getByRole('button', { name: "Aujourd'hui" })).toBeDisabled());
+  // Disabled for assistive tech but still focusable, so keyboard focus does not drop to the page.
+  await waitFor(() => expect(screen.getByRole('button', { name: "Aujourd'hui" })).toHaveAttribute('aria-disabled', 'true'));
+  expect(screen.getByRole('button', { name: "Aujourd'hui" })).not.toBeDisabled();
 });
 
 test('rule 19 — a ninth window releases the farthest one on the other side, and it is asked again if the scroll comes back', async () => {
@@ -141,9 +147,9 @@ test('rule 19 — a ninth window releases the farthest one on the other side, an
   renderPage();
   await opened();
   expect((await screen.findAllByText(/Client5/)).length).toBeGreaterThan(0);
-  for (let i = 0; i < 4 && askedWindows(7).length === 0; i += 1) {
+  for (let i = 0; i < 12 && askedWindows(7).length === 0; i += 1) {
     scrollWindowTo(99000 + i);
-    await waitFor(() => expect(asked().length).toBeGreaterThan(3 + 4 * i));
+    await waitFor(() => expect(asked().length).toBeGreaterThan(3 + i));
   }
   await waitFor(() => expect(askedWindows(7)).toHaveLength(1));
   await waitFor(() => expect(screen.queryByText(/Client5/)).not.toBeInTheDocument());
@@ -223,4 +229,16 @@ test('rule 23 — when the server day moves on the timeline is rebuilt on the ne
   act(() => { window.dispatchEvent(new Event('focus')); });
   await waitFor(() => expect(asked().some((r) => r.from === at(1))).toBe(true));
   await waitFor(() => expect(asked().some((r) => r.from === at(15))).toBe(true));
+});
+
+test('rule 29 — the day header keeps the month lowercase (first letter capitalised by style only) and « Aujourd\'hui » stays focusable at today', async () => {
+  todayTop = 64;
+  renderPage();
+  await opened();
+  const label = screen.getByText(/dimanche 25 octobre/);
+  expect(getComputedStyle(label).textTransform).not.toBe('capitalize');
+  await waitFor(() => expect(screen.getByRole('button', { name: "Aujourd'hui" })).toHaveAttribute('aria-disabled', 'true'));
+  const button = screen.getByRole('button', { name: "Aujourd'hui" });
+  button.focus();
+  expect(button).toHaveFocus();
 });

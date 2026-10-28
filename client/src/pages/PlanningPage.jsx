@@ -27,7 +27,7 @@ import useServerToday from '../hooks/useServerToday';
 import useInfiniteEdgeScroll from '../hooks/useInfiniteEdgeScroll';
 import usePlanningTimeline, { contributionId } from '../hooks/usePlanningTimeline';
 import {
-  EDGE_ERROR, NOTHING_PLANNED, NOTHING_PLANNED_TODAY, TODAY_ACTION,
+  EDGE_ERROR, RELOAD_ERROR, NOTHING_PLANNED, NOTHING_PLANNED_TODAY, TODAY_ACTION,
 } from '../constants/planningCopy';
 
 // Day-card palette (PlanningPage). Tuned 2026-06-02 to make arrivals stand out from departures
@@ -102,6 +102,7 @@ export default function PlanningPage() {
     today: todayStr,
     contributions: dayContributions,
     holdAnchor: () => holdAnchorRef.current(),
+    onReloadError: () => showError(RELOAD_ERROR),
     onPluginError: (c) => showError(c.errorMessage || 'Une partie du planning n’a pas pu être chargée.'),
   });
   const { windows, phase, mapDays } = timeline;
@@ -438,7 +439,7 @@ export default function PlanningPage() {
       <PageActionBar
         title="Planning"
         actionsBefore={[
-          { icon: <TodayIcon />, tooltip: TODAY_ACTION, onClick: goToToday, color: 'primary', disabled: atToday },
+          { icon: <TodayIcon />, tooltip: TODAY_ACTION, onClick: goToToday, color: 'primary', ariaDisabled: atToday },
           ...actionNodes.map((node) => ({ node })),
         ]}
       />

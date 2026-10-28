@@ -3,7 +3,8 @@
  * cards scroll beneath it (specs/dashboard-planning-scroll.md rules 16, 17).
  *
  * Props:
- *   label   string   the day, as the server wrote it (« mardi 3 novembre »)
+ *   label   string   the day, as the server wrote it (« mardi 3 novembre »); set in sans (dates are never
+ *                     serif) with its first letter capitalised, the month staying lowercase
  *   isToday boolean  filled `primary`, « — Aujourd'hui » after the label
  *   isPast  boolean  neutral grey with secondary text
  *   done    number   tasks ticked   (specs/planning-day-task-count.md)
@@ -42,7 +43,10 @@ export default function PlanningDayHeader({ label, isToday, isPast, done, total,
         }}
       >
         <TodayIcon sx={{ fontSize: 20 }} />
-        <Typography variant="sectionHeader" sx={{ textTransform: 'capitalize', minWidth: 0 }}>
+        <Typography
+          component="span"
+          sx={{ fontWeight: 600, fontSize: '1.05rem', lineHeight: 1.3, minWidth: 0, display: 'inline-block', '&::first-letter': { textTransform: 'uppercase' } }}
+        >
           {label}
           {isToday && ` — ${TODAY_ACTION}`}
         </Typography>

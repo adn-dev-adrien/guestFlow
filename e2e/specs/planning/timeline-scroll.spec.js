@@ -30,6 +30,10 @@ test('the planning opens on today, scrolls into the past, crosses an empty fortn
   const client = await createClient({ firstName: 'Camille', lastName: 'Timeline' });
   const farArrival = addDays(today, 56);
   await createReservation({ propertyId: property.id, clientId: client.id, startDate: farArrival, endDate: addDays(farArrival, 2), adults: 2 });
+  // Enough cards below today for the page to scroll it up under the bar (a short page cannot).
+  for (const start of [2, 5, 8, 11]) {
+    await createReservation({ propertyId: property.id, clientId: client.id, startDate: addDays(today, start), endDate: addDays(today, start + 2), adults: 2 });
+  }
 
   await page.goto('/planning');
   await expect(page.getByRole('heading', { name: 'Planning' })).toBeVisible({ timeout: 15_000 });
@@ -65,4 +69,61 @@ test('the planning opens on today, scrolls into the past, crosses an empty fortn
   await todayButton.click();
   await expect.poll(() => offBar(page, today), { timeout: 10_000 }).toBeLessThanOrEqual(8);
   await expect(todayButton).toBeDisabled();
+});
+
+// A planning with nothing on it is short: it never fills the screen, so both edges are always « near ».
+// The timeline must not keep asking for windows on its own (specs/dashboard-planning-scroll.md rules 26-27).
+test('an empty planning asks for no more windows while nobody touches it', async ({ page, request }) => {
+  const { today } = await (await request.get('/api/today')).json();
+  let asked = 0;
+  await page.route('**/api/planning/days?*', async (route) => {
+    asked += 1;
+    const url = new URL(route.request().url());
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const days = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      days.push({ date: d, label: d, shortLabel: d, isToday: d === today, isPast: d < today, arrivals: [], departures: [], breakfast: null, optionCards: null });
+    }
+    await route.fulfill({ json: { from, to, today, days, alerts: { arrivals: {}, departures: {} } } });
+  });
+  await page.goto('/planning');
+  await expect(page.getByTestId('planning-timeline')).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(1500);
+  const settled = asked;
+  expect(settled).toBeLessThanOrEqual(10);
+  await page.waitForTimeout(5000);
+  expect(asked).toBe(settled);
+
+  // One pull of the operator asks for more, once per gesture, not without end.
+  await page.mouse.move(400, 400);
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(1500);
+  const pulled = asked;
+  expect(pulled).toBeGreaterThan(settled);
+  expect(pulled).toBeLessThanOrEqual(settled + 6);
+  await page.waitForTimeout(3000);
+  expect(asked).toBe(pulled);
+});
+
+test('scrolling past the last booked stay does not load without end', async ({ page, request }) => {
+  const { today } = await (await request.get('/api/today')).json();
+  const property = await createProperty({ name: 'E2E past the last stay' });
+  const client = await createClient({ firstName: 'Camille', lastName: 'Derniere' });
+  const arrival = addDays(today, 5);
+  await createReservation({ propertyId: property.id, clientId: client.id, startDate: arrival, endDate: addDays(arrival, 2), adults: 2 });
+  let asked = 0;
+  page.on('request', (r) => { if (r.url().includes('/api/planning/days')) asked += 1; });
+  await page.goto('/planning');
+  await expect(page.getByTestId('planning-timeline')).toBeVisible({ timeout: 15_000 });
+  await page.mouse.move(400, 400);
+  for (let i = 0; i < 12; i += 1) {
+    await page.mouse.wheel(0, 3000);
+    await page.waitForTimeout(150);
+  }
+  await page.waitForTimeout(1500);
+  const settled = asked;
+  await page.waitForTimeout(4000);
+  expect(asked).toBe(settled);
+  expect(settled).toBeLessThanOrEqual(40);
 });

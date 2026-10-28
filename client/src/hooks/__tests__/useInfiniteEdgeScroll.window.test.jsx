@@ -208,3 +208,76 @@ test('rule 18 — a smooth scroll that rests off target is corrected once, and o
     vi.useRealTimers();
   }
 });
+
+test('rule 26 — a gesture never chains into the opposite edge', () => {
+  const onNearStart = vi.fn(() => 'started');
+  const onNearEnd = vi.fn((c) => { c.append([`more${onNearEnd.mock.calls.length}`]); return 'started'; });
+  render(<Harness initial={range(1, 3)} onNearStart={onNearStart} onNearEnd={onNearEnd} maxChain={4} />);
+  expect(onNearEnd).toHaveBeenCalled();
+  expect(onNearStart).not.toHaveBeenCalled();
+});
+
+test('rule 26 — a load that pushes the edge no farther ends the chain, and the next gesture asks once more', () => {
+  const onNearEnd = vi.fn((c) => { c.append([]); return 'started'; });
+  render(<Harness initial={range(1, 3)} onNearEnd={onNearEnd} maxChain={4} />);
+  expect(onNearEnd).toHaveBeenCalledTimes(1);
+  act(() => { window.dispatchEvent(new Event('wheel')); });
+  expect(onNearEnd).toHaveBeenCalledTimes(2);
+});
+
+test('rule 26 — the scroll event of a browser clamp after a commit is not a gesture; a real scroll is', () => {
+  const onNearStart = vi.fn(() => 'none');
+  render(<Harness initial={range(10, 49)} onNearStart={onNearStart} />);
+  scroll(300);
+  onNearStart.mockClear();
+  // The feed shrinks and the browser clamps the position: the event that follows carries the clamped position.
+  scrollY = 123;
+  act(() => controls.append([]));
+  act(() => { window.dispatchEvent(new Event('scroll')); });
+  expect(onNearStart).not.toHaveBeenCalled();
+  scroll(50);
+  expect(onNearStart).toHaveBeenCalledTimes(1);
+});
+
+test('rule 26 — only the edge in the direction of travel is extended, so scrolling down never reaches back up', () => {
+  const onNearStart = vi.fn(() => 'started');
+  const onNearEnd = vi.fn(() => 'none');
+  render(<Harness initial={range(1, 3)} onNearStart={onNearStart} onNearEnd={onNearEnd} />);
+  onNearStart.mockClear();
+  onNearEnd.mockClear();
+  act(() => { window.dispatchEvent(new WheelEvent('wheel', { deltaY: 200 })); });
+  expect(onNearEnd).toHaveBeenCalled();
+  expect(onNearStart).not.toHaveBeenCalled();
+  act(() => { window.dispatchEvent(new WheelEvent('wheel', { deltaY: -200 })); });
+  expect(onNearStart).toHaveBeenCalled();
+});
+
+test('rule 26 — only wheel, touch and the scrolling keys are gestures among the inputs', () => {
+  const onNearStart = vi.fn(() => 'none');
+  render(<Harness initial={range(10, 49)} onNearStart={onNearStart} />);
+  onNearStart.mockClear();
+  act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' })); });
+  expect(onNearStart).not.toHaveBeenCalled();
+  act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp' })); });
+  expect(onNearStart).toHaveBeenCalledTimes(1);
+});
+
+test('rule 24 — a scroll the hook did not make, on a feed of unchanged height, ends the pin (a scrollbar drag)', () => {
+  const resizes = [];
+  const original = global.ResizeObserver;
+  global.ResizeObserver = class {
+    constructor(cb) { this.on = true; resizes.push(() => { if (this.on) cb(); }); }
+
+    observe() {}
+
+    disconnect() { this.on = false; }
+  };
+  render(<Harness initial={range(1, 40)} />);
+  act(() => { controls.pinAnchor('k21'); });
+  expect(scrollY).toBe(2000);
+  scrollTo.mockClear();
+  act(() => { scrollY = 900; window.dispatchEvent(new Event('scroll')); });
+  act(() => resizes.at(-1)());
+  expect(scrollTo).not.toHaveBeenCalled();
+  global.ResizeObserver = original;
+});

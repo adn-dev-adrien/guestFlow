@@ -37,6 +37,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 const DEFAULT_THRESHOLD_PX = 800;
 const DEFAULT_MAX_CHAIN = 4;
 const SETTLE_MS = 150;
+const UP_KEYS = new Set(['PageUp', 'Home', 'ArrowUp']);
+const SCROLL_KEYS = new Set(['PageDown', 'PageUp', 'Home', 'End', 'ArrowDown', 'ArrowUp', ' ']);
 
 const reducedMotion = () => typeof window.matchMedia === 'function'
   && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -56,9 +58,20 @@ export default function useInfiniteEdgeScroll({
   const heldAnchorRef = useRef(null);
   const chainingRef = useRef(false);
   const chainCountRef = useRef(0);
-  // Where the hook itself last moved the scroller: the scroll event that follows is not a gesture, so it
-  // must not reset the chain (a short feed would otherwise load without end through its own adjustments).
+  // The edge the current gesture is extending: a gesture never chains into the opposite edge.
+  const chainEdgeRef = useRef(null);
+  // Which way the operator is going ('start' | 'end'): only that edge is extended, so scrolling down
+  // through folded (short) content never reaches back for the window just released above.
+  const directionRef = useRef(null);
+  const lastTopRef = useRef(null);
+  // The last request of the gesture and how far its edge was: a load that did not push the edge farther
+  // away (an empty window folded into what is drawn) ends the chain, so a short feed cannot load without end.
+  const lastAskRef = useRef(null);
+  // Where the scroller is after the hook's own moves and after each commit (the browser clamps it when
+  // the feed shrinks): the scroll event that follows is not a gesture and must not restart the chain.
   const ownScrollRef = useRef(null);
+  // The last position the hook itself set, for the pin.
+  const lastSetRef = useRef(null);
 
   const scroller = () => latest.current.scrollerRef?.current || null;
   const topOffset = () => (latest.current.getTopOffset ? latest.current.getTopOffset() : 0);
@@ -66,7 +79,10 @@ export default function useInfiniteEdgeScroll({
   const anchorNamed = (key) => anchors().find((node) => node.getAttribute('data-scroll-anchor') === key) || null;
 
   const scrollTo = (top, behavior) => {
-    if (behavior === 'instant') ownScrollRef.current = top;
+    if (behavior === 'instant') {
+      ownScrollRef.current = top;
+      lastSetRef.current = top;
+    }
     const el = scroller();
     if (el) el.scrollTo({ top, behavior });
     else window.scrollTo({ top, behavior });
@@ -134,14 +150,25 @@ export default function useInfiniteEdgeScroll({
     releasePin();
     if (!scrollToAnchor(key)) return false;
     const list = anchorNamed(key)?.parentElement;
+    const height = () => (scroller() ? scroller().scrollHeight : document.documentElement.scrollHeight);
+    let seenHeight = height();
     const observer = list && typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => scrollToAnchor(key))
+      ? new ResizeObserver(() => { seenHeight = height(); scrollToAnchor(key); })
       : null;
     if (observer) observer.observe(list);
+    // A scroll the hook did not make, with the feed's height unchanged, is the operator's (a scrollbar
+    // drag fires no pointer or wheel event): the pin ends.
+    const target = scroller() || window;
+    const onScroll = () => {
+      if (height() !== seenHeight) return;
+      if (lastSetRef.current === null || Math.abs(scrollTop() - lastSetRef.current) >= 1) releasePin();
+    };
+    target.addEventListener('scroll', onScroll, { passive: true });
     const unwatch = watchInput(releasePin);
     pinRef.current = {
       stop: () => {
         if (observer) observer.disconnect();
+        target.removeEventListener('scroll', onScroll);
         unwatch();
       },
     };
@@ -149,26 +176,38 @@ export default function useInfiniteEdgeScroll({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { releasePin(); stopSettle(); }, [releasePin, stopSettle]);
 
-  // Asks for content at the nearer edge first; an edge that has nothing to give leaves the other one.
+  // Asks for content at the nearer edge first; an edge that has nothing to give leaves the other one,
+  // unless the gesture already extends one (rule: never into the opposite edge from one gesture).
   const extend = useCallback(() => {
     const el = scroller();
     const top = scrollTop();
     const bottom = (el ? el.scrollHeight - el.clientHeight : document.documentElement.scrollHeight - window.innerHeight) - top;
     const { threshold: limit, onNearStart: start, onNearEnd: end } = latest.current;
     const near = [];
-    if (top < limit && start) near.push({ distance: top, ask: start });
-    if (bottom < limit && end) near.push({ distance: bottom, ask: end });
+    if (top < limit && start) near.push({ edge: 'start', distance: top, ask: start });
+    if (bottom < limit && end) near.push({ edge: 'end', distance: bottom, ask: end });
     near.sort((a, b) => a.distance - b.distance);
     let busy = false;
-    for (const { ask } of near) {
+    for (const { edge, distance, ask } of near) {
+      if (chainEdgeRef.current && chainEdgeRef.current !== edge) continue;
+      if (directionRef.current && directionRef.current !== edge) continue;
+      const last = lastAskRef.current;
+      if (last && last.edge === edge && distance <= last.distance + 1) continue;
       const answer = ask();
-      if (answer === 'started') return 'started';
+      if (answer === 'started') {
+        chainEdgeRef.current = edge;
+        lastAskRef.current = { edge, distance };
+        return 'started';
+      }
       if (answer === 'pending') busy = true;
     }
     return busy ? 'pending' : 'none';
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // One operator gesture: the chain starts again, on whichever edge is near.
   const kick = useCallback(() => {
+    chainEdgeRef.current = null;
+    lastAskRef.current = null;
     const answer = extend();
     chainCountRef.current = answer === 'started' ? 1 : 0;
     chainingRef.current = answer !== 'none';
@@ -179,13 +218,33 @@ export default function useInfiniteEdgeScroll({
     const target = scrollerRef?.current || window;
     const onScroll = () => {
       const own = ownScrollRef.current;
+      const now = scrollTop();
+      const before = lastTopRef.current;
       ownScrollRef.current = null;
-      if (own !== null && Math.abs(scrollTop() - own) < 1) return;
+      lastTopRef.current = now;
+      if (own !== null && Math.abs(now - own) < 1) return;
+      if (before !== null && Math.abs(now - before) >= 1) directionRef.current = now < before ? 'start' : 'end';
+      kick();
+    };
+    // Wheel, touch and the scrolling keys are gestures even when the page cannot move (a short feed
+    // fires no scroll event at all).
+    const onInput = (event) => {
+      if (event.type === 'wheel' && event.deltaY) directionRef.current = event.deltaY < 0 ? 'start' : 'end';
+      if (event.type === 'keydown') {
+        if (!SCROLL_KEYS.has(event.key)) return;
+        directionRef.current = UP_KEYS.has(event.key) ? 'start' : 'end';
+      }
       kick();
     };
     target.addEventListener('scroll', onScroll, { passive: true });
+    const inputs = ['wheel', 'touchstart', 'keydown'];
+    inputs.forEach((name) => window.addEventListener(name, onInput, { passive: true }));
+    lastTopRef.current = scrollTop();
     kick();
-    return () => target.removeEventListener('scroll', onScroll);
+    return () => {
+      target.removeEventListener('scroll', onScroll);
+      inputs.forEach((name) => window.removeEventListener(name, onInput));
+    };
   }, [enabled, scrollerRef, kick]);
 
   // After the feed commits: restore the held anchor, then carry on while the new content leaves the
@@ -198,14 +257,16 @@ export default function useInfiniteEdgeScroll({
       const delta = node ? node.getBoundingClientRect().top - held.top : 0;
       if (Math.abs(delta) >= 1) scrollTo(scrollTop() + delta, 'instant');
     }
-    if (!latest.current.enabled || !chainingRef.current) return;
-    if (chainCountRef.current >= latest.current.maxChain) {
-      chainingRef.current = false;
-      return;
+    if (latest.current.enabled && chainingRef.current) {
+      if (chainCountRef.current >= latest.current.maxChain) {
+        chainingRef.current = false;
+      } else {
+        const answer = extend();
+        if (answer === 'started') chainCountRef.current += 1;
+        else if (answer === 'none') chainingRef.current = false;
+      }
     }
-    const answer = extend();
-    if (answer === 'started') chainCountRef.current += 1;
-    else if (answer === 'none') chainingRef.current = false;
+    ownScrollRef.current = scrollTop();
   }, [version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { holdAnchor, scrollToAnchor, pinAnchor };

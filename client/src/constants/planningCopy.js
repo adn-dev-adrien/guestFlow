@@ -12,3 +12,4 @@ export const NOTHING_PLANNED_TODAY = "Rien de prévu aujourd'hui";
 export const TODAY_ACTION = "Aujourd'hui";
 export const EDGE_ERROR = "Ces jours n'ont pas pu être chargés.";
 export const RETRY = 'Réessayer';
+export const RELOAD_ERROR = "Ces jours n'ont pas pu être actualisés.";

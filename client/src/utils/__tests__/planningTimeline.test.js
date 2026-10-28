@@ -55,3 +55,13 @@ test('rule 14 — a run is keyed by its last day and joins across windows, so pr
   // A run reaching the end of the loaded windows spans both.
   expect(before[before.length - 1]).toMatchObject({ kind: 'fold', from: '2026-11-08', to: '2026-11-14' });
 });
+
+test('rule 15 — a plugin answering outside its window lands on the loaded day it names; the owner window wins; unknown dates are dropped', () => {
+  const first = windowOf('2026-11-01', '2026-11-07', {}, { 'p:k': { '2026-11-09': { from: 'first' }, '2027-01-01': { from: 'first' } } });
+  const second = windowOf('2026-11-08', '2026-11-14', {}, { 'p:k': { '2026-11-09': { from: 'second' } } });
+  const { items, pluginCards } = buildTimeline([first, second]);
+  expect(items.find((i) => i.kind === 'day').day.date).toBe('2026-11-09');
+  expect(items.find((i) => i.kind === 'day').plugin).toEqual({ 'p:k': { from: 'second' } });
+  expect(kinds(items).some((k) => k.includes('2027'))).toBe(false);
+  expect(pluginCards['2027-01-01']).toBeDefined();
+});

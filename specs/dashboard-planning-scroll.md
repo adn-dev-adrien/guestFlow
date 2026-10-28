@@ -175,10 +175,11 @@ any more.
     (`TodayIcon`, `color: 'primary'`). It scrolls today's header back under the bar — smooth, instant
     under `prefers-reduced-motion: reduce`; if windows −1…1 were released (rule 19) they are loaded
     first. The action is disabled while today's header is already at the top (± 8 px).
-19. **Memory stays bounded.** At most **8 windows** (16 weeks) are kept. Loading a ninth releases the
-    window farthest from the viewport on the opposite edge, its days and its plugin cards; releasing
-    above keeps the view in place (rule 13's anchor). A released window is asked again if the scroll
-    comes back to it.
+19. **Memory stays bounded.** At most **8 windows** (16 weeks), loaded or in flight, are kept. Adding a
+    ninth releases the **loaded** window farthest from it (the opposite edge), its days and its plugin
+    cards; an in-flight window is never released, and while the opposite edge is itself in flight the
+    request waits (releasing would leave a gap). Releasing above keeps the view in place (rule 13's
+    anchor). A released window is asked again if the scroll comes back to it.
 20. **Loading and failure at an edge.** While a window is in flight, a skeleton row stands at its
     edge. A failed window shows at its edge « Ces jours n'ont pas pu être chargés. » with « Réessayer »
     (`ErrorAlert`), the loaded days stay usable and the other edge keeps extending; scrolling past the
@@ -203,11 +204,31 @@ any more.
 24. **The opening position holds.** Cards that render late (plugin cards are lazy-loaded) can grow the
     timeline above today after it was scrolled into place. Until the operator scrolls, touches, types or
     clicks, today's header is kept under the bar whenever the timeline's height changes
-    (`pinAnchor` of the shared hook, a `ResizeObserver` on the day list).
+    (`pinAnchor` of the shared hook, a `ResizeObserver` on the day list). A scroll the hook did not make,
+    on a timeline whose height did not change, also ends it (a scrollbar drag fires no pointer event).
 25. **The hook's own scroll is not a gesture.** The scroll event that follows an anchoring or a
     `scrollToAnchor` made by `useInfiniteEdgeScroll` does not restart the chain of rule 13: without it a
     short feed (an empty past, folded into one line) loaded windows without end through its own
     adjustments.
+
+26. **A short feed never loads without end.** One operator gesture (wheel, touch, a scrolling key, or a
+    scroll that is not the hook's own nor the browser's clamp after the feed changed) extends **one**
+    edge and chains at most 4 windows; it never chains into the opposite edge, and only the edge in the
+    direction of travel (wheel sign, scrolling key, or the scroll delta) is extended — scrolling down
+    through folded content never reaches back for the window just released above. The chain also stops
+    when the last load pushed that edge no farther away (an empty window folded into the run already
+    drawn). Decision: stop on « no growth », not on « empty », since a window can be empty of cards yet
+    add days to draw. The next gesture asks again, so pulling through a long empty stretch costs one
+    window per pull. With no input the page asks nothing more.
+27. **The cap counts loaded and in-flight windows** (rule 19) and evicts loaded windows only, farthest
+    first, so both edges in flight cannot grow the timeline nor drop an answer.
+28. **A failed refresh keeps what was drawn.** A loaded window that cannot be refreshed (a committed
+    SAS, a plugin `reload`) keeps its days and shows the toast « Ces jours n'ont pas pu être
+    actualisés. »; only a window that never loaded shows the edge error of rule 20.
+29. **« Aujourd'hui » stays focusable.** At today's position the action is `aria-disabled` (inert,
+    dimmed, still in the tab order) rather than `disabled`, so keyboard focus does not fall to the page.
+    The day header is set in sans, its first letter capitalised and the month lowercase (« Mercredi 28
+    octobre »: dates are never serif).
 
 **Edge cases:**
 - Several arrivals on the next arrival day → all listed (rule 2), one row each.
@@ -315,7 +336,7 @@ None. No migration.
   jour » (table, or one folded line); « Arrivées du jour » (table, or one folded line followed by the
   « Prochaine arrivée » block: « vendredi 6 novembre » in 1.25 rem bold sans, chip « dans 9 jours »,
   rows in a white card with hairline separators); « À traiter »; the month calendar.
-- **Home, phone (≤ 600)**: no page band (no action left); folded lines are 44 px tall; the next-arrival
+- **Home, phone (≤ 600)**: no page band (no action left); folded lines are 48 px tall; the next-arrival
   rows stack hour · logement on the first line, client and beds on the second; long names wrap.
 - **Planning, desktop**: bar « Planning » with « Aujourd'hui » and the laundry button; the timeline opens
   with today's header under the bar; scrolling up reveals past days (muted headers), scrolling down the
@@ -373,6 +394,8 @@ None. No migration.
 - [x] `components/__tests__/PageActionBar.bar-bottom.test.jsx` (2) — rule 16 (variable published,
   removed on unmount).
 - [x] `components/__tests__/FoldedDayList.render.test.jsx` (2) — rule 4.
+- [x] `pages/__tests__/PlanningPage.timeline.test.jsx` gains rule 29 (12 in all).
+- [x] `hooks/__tests__/usePlanningTimeline.windows.test.jsx` (3) — rules 27, 28; `useInfiniteEdgeScroll.window.test.jsx` gains rules 24 and 26 (14 in all).
 
 ### E2E (Playwright)
 - [x] New `e2e/specs/planning/timeline-scroll.spec.js` — opens on today under the bar; wheel up shows
@@ -461,8 +484,8 @@ differs from the draft above:
 - `useInfiniteEdgeScroll` asks its feed through `onNearStart` / `onNearEnd`, which answer `'started'`,
   `'pending'` or `'none'`; it does not own the feed's in-flight state. It also offers `pinAnchor`
   (rule 24) and ignores its own scroll events (rule 25).
-- The 8-window cap (rule 19) releases the opposite-edge window when a ninth **finishes loading**, not
-  when it is requested, so a failed load costs nothing.
+- The 8-window cap (rule 19) releases the opposite-edge loaded window when a ninth is **requested**
+  (reviewed 2026-10-28: releasing at load let both edges in flight grow the timeline).
 - Folds are keyed by their last day (`fold-<to>`): content prepended to a run extends it at the start and
   the anchor key does not change.
 - `PlanningDayHeader` carries `data-tone` (`today` / `past` / `done` / `upcoming`) for the tests.
