@@ -127,20 +127,32 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
     }
   }
 
+  // Rule 25 — a customer whose space could not be read is seeded as soon as it can be. Cheap when
+  // every customer already is.
+  function seedModules() {
+    try {
+      return controllers.modules.seedPending();
+    } catch (err) {
+      log(`[scheduler] module seed failed: ${err.message}`);
+      return 0;
+    }
+  }
+
   function start(intervalMs = 60000) {
     ctx.fleetUpdater.recover();
     ctx.provisioner.recover();
     const live = models.customers.list().filter((c) => !c.archivedAt).map((c) => ctx.provisioner.instanceOf(c));
     ctx.drivers.process.resumeEnabled(live).catch((err) => log(`[process] resume failed: ${err.message}`));
+    seedModules();
     tick();
     readDirectory();
     const timers = [setInterval(tick, intervalMs), setInterval(checkPayments, PAYMENT_CHECK_MS), setInterval(readDirectory, intervalMs),
-      setInterval(probe, intervalMs)];
+      setInterval(probe, intervalMs), setInterval(seedModules, intervalMs)];
     for (const t of timers) t.unref();
     return () => timers.forEach(clearInterval);
   }
 
-  return { runDaily, runHostDaily, copyConsoleDatabase, isDue, tick, checkPayments, readDirectory, probe, start };
+  return { runDaily, runHostDaily, copyConsoleDatabase, isDue, tick, checkPayments, readDirectory, probe, seedModules, start };
 }
 
 module.exports = { createScheduler, RUN_HOUR, PAYMENT_CHECK_MS };

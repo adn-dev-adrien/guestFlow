@@ -42,6 +42,7 @@ import KeyValues from '../components/KeyValues';
 import EmailQueue from '../components/EmailQueue';
 import MailPreview from '../components/MailPreview';
 import SupportAccessSection from '../components/SupportAccessSection';
+import ModulesSection from '../components/ModulesSection';
 import api from '../api';
 
 const DEPROVISION_ORDER = [
@@ -240,6 +241,7 @@ export default function CustomerPage() {
               : <ProvisioningSteps steps={c.steps} onAction={stepAction} busy={busyStep} />}
           </Section>
         </Box>
+        {!c.archivedAt && <ModulesSection customerId={c.id} onChanged={load} />}
         {c.hosting && (
           <Section title="Hébergement" action={(
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, width: { xs: '100%', sm: 'auto' } }}>

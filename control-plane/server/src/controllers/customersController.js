@@ -67,6 +67,7 @@ function createCustomersController(ctx) {
   const { customers, catalogue, invoices, audit, provisioning, emails, directory, hosting } = models;
   // Built after this controller (it calls back into it for the licence and the first admin).
   const host = () => ctx.provisioner;
+  const modules = () => ctx.controllers.modules;
 
   const today = () => parisDay(now());
   const stamp = () => now().toISOString();
@@ -172,10 +173,10 @@ function createCustomersController(ctx) {
     return { state, licence: writeLicence ? issueLicence(id) : null };
   }
 
-  function licenceToken(id) {
+  function licencePayload(id) {
     const c = customers.get(id);
-    const payload = buildPayload({
-      customer: c,
+    return buildPayload({
+      customer: { ...c, modules: modules().licenceChoice(c) },
       state: c.state,
       plans: catalogue.plans(),
       lowest: catalogue.lowest(),
@@ -183,12 +184,16 @@ function createCustomersController(ctx) {
       payUrl: invoices.openPayUrl(id),
       now: now(),
     });
-    return issuer.sign(payload);
   }
+
+  const licenceToken = (id) => issuer.sign(licencePayload(id));
 
   function issueLicence(id) {
     const c = customers.get(id);
-    const result = issuer.write(c.slug, licenceToken(id));
+    const payload = licencePayload(id);
+    const result = issuer.write(c.slug, issuer.sign(payload));
+    // The stamp the space answers to (specs/plugin-operator-provisioning.md rule 14).
+    if (result.written) models.meta.set(`licenceIssuedAt:${id}`, payload.issuedAt);
     provisioning.set(id, 'licence', result.written ? 'ok' : 'failed',
       result.written ? `Écrite dans ${result.path}` : `${result.reason} Téléchargez-la depuis cette page, ou réessayez une fois le dossier créé.`, stamp());
     return result;
@@ -590,6 +595,7 @@ function createCustomersController(ctx) {
     const { unknown, addons } = planRow ? keepSellableAddons(requested, planRow.code) : { unknown: false, addons: [] };
     if (unknown) errors.addons = 'Option inconnue.';
     const billingIdentity = readBilling(body, errors);
+    const moduleChoice = modules().creationChoices({ planCode: planRow && planRow.code, addons, requested: body.modules, errors });
     const trial = Boolean(body.trial);
     const trialEndsAt = trial && startsAt ? addDays(startsAt, TRIAL_DAYS) : null;
 
@@ -610,6 +616,7 @@ function createCustomersController(ctx) {
     return {
       errors,
       summary,
+      moduleChoice,
       record: {
         customer: { slug, companyName, contactName, contactEmail, ...billingIdentity },
         subscription: {
@@ -622,16 +629,19 @@ function createCustomersController(ctx) {
           catalogueVersion: catalogue.currentVersion(),
         },
         addons,
+        modules: moduleChoice.chosen,
       },
     };
   }
 
   function preview(body) {
-    const { errors, summary } = plan(body);
+    const { errors, summary, moduleChoice } = plan(body);
     const planRow = catalogue.plan(body.planCode);
     return {
       errors,
       summary,
+      moduleChoices: moduleChoice.choices,
+      moduleSummary: moduleChoice.summary || null,
       addonChoices: planRow ? addonChoices(planRow.code) : [],
       countries: Object.entries(COUNTRIES).map(([code, name]) => ({ code, name })),
       defaults: { startsAt: today(), billingCountry: 'FR' },
@@ -640,7 +650,10 @@ function createCustomersController(ctx) {
 
   async function create(body, operator, { background = false } = {}) {
     const { errors, record } = plan(body);
-    if (Object.keys(errors).length) throw httpError(400, 'INVALID', Object.values(errors)[0], { errors });
+    if (Object.keys(errors).length) {
+      const onlyModules = errors.modules && Object.keys(errors).length === 1;
+      throw httpError(onlyModules ? 422 : 400, 'INVALID', Object.values(errors)[0], { errors });
+    }
     const day = today();
     const state = stateOf({ ...record.subscription }, day);
     const id = customers.create({
@@ -649,6 +662,7 @@ function createCustomersController(ctx) {
       addons: record.addons,
       since: day,
     });
+    modules().seedAtCreation(id, record.modules, operator);
     const planName = catalogue.plan(record.subscription.planCode).name;
     journal(id, operator, 'created', `Client créé : forfait ${planName}, ${BILLING_LABELS[record.subscription.billing]}${record.subscription.trialEndsAt ? `, essai jusqu’au ${frDay(record.subscription.trialEndsAt)}` : ''}`);
     host().plan(id);
@@ -813,6 +827,7 @@ function createCustomersController(ctx) {
     });
     const lost = c.grandfathered.map(pluginName);
     journal(c.id, operator, 'plan', `Forfait : ${before} → ${planRow.name} (${BILLING_LABELS[billing]})${addons.length ? `, options : ${addons.map(pluginName).join(', ')}` : ''}${lost.length ? ` ; retirés (hors forfait conservés) : ${lost.join(', ')}` : ''}`);
+    modules().dropNotAllowed(c.id, operator);
     refresh(c.id, operator);
     return view(c.id);
   }
@@ -1007,6 +1022,7 @@ function createCustomersController(ctx) {
     purgeExpiredExports,
     assertExpectedEndsAt,
     servedSlug,
+    today,
     monthlyPriceCents,
     priceLines,
     journal,

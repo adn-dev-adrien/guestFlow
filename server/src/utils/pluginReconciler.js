@@ -114,6 +114,21 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
     }
   }
 
+  // What the console reads back but cannot compute (rules 14, 22): the setup a plugin still lacks and
+  // the data it would erase. Published for every installed plugin, dropped for the others.
+  function publishFacts() {
+    try {
+      controller.views().forEach((view) => {
+        const installed = view.state !== 'available';
+        provisioning.setFacts(view.id, installed
+          ? { setup: view.setup.needed ? view.setup.missing : null, erasable: view.erasable, data: view.data }
+          : null);
+      });
+    } catch (err) {
+      console.error('[plugins] facts for the console:', err && err.message ? err.message : err);
+    }
+  }
+
   /** One pass. Returns { skipped: true } when the licence says nothing, else the steps taken. */
   async function run() {
     if (running) return { skipped: true, reason: 'busy' };
@@ -147,6 +162,7 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
           licenceIssuedAt: issuedAt, at: now().toISOString(),
         });
       });
+      publishFacts();
       await eraseOrders(issuedAt, wantedSet);
       if (complete) provisioning.setAppliedLicence(issuedAt);
       return { skipped: false, steps: taken };

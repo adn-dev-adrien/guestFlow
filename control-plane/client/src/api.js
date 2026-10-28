@@ -51,6 +51,10 @@ const api = {
   resetAccess: (id) => request('POST', `/api/customers/${id}/reset-access`, {}),
   restartProcess: (id) => request('POST', `/api/customers/${id}/restart-process`, {}),
   // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
+  // specs/plugin-operator-provisioning.md rules 10–14, 22 — the customer's modules.
+  customerModules: (id) => request('GET', `/api/customers/${id}/modules`),
+  toggleModule: (id, pluginId, on) => request('POST', `/api/customers/${id}/modules/${pluginId}`, { on }),
+  retryModules: (id) => request('POST', `/api/customers/${id}/modules/retry`, {}),
   supportState: (id) => request('GET', `/api/customers/${id}/support`),
   supportRequest: (id, reason) => request('POST', `/api/customers/${id}/support/request`, { reason }),
   supportLink: (id) => request('POST', `/api/customers/${id}/support/link`, {}),

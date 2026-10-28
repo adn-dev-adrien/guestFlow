@@ -27,9 +27,17 @@ function pluginsOfPlan(planCode, plans, lowest) {
   return gfPlugins.PLUGIN_IDS.filter((id) => lowest[id] && rank(lowest[id]) <= r);
 }
 
+// What the customer may run: the plan, the add-ons, and what is kept as grandfathered (rules 11–12).
+function allowedPlugins(customer, plans, lowest) {
+  return new Set([...pluginsOfPlan(customer.planCode, plans, lowest), ...customer.addons, ...customer.grandfathered]);
+}
+
+// `customer.modules` is the operator's choice — `{ chosen: [id], eraseOrders: [{ order, id }] }` —
+// and is carried only once the choice has been seeded (specs/plugin-operator-provisioning.md rules
+// 15, 25): a licence without it changes nothing on the space.
 function buildPayload({ customer, state, plans, lowest, catalogueVersion, payUrl, now }) {
   const plan = plans.find((p) => p.code === customer.planCode);
-  const allowed = new Set([...pluginsOfPlan(customer.planCode, plans, lowest), ...customer.addons, ...customer.grandfathered]);
+  const allowed = allowedPlugins(customer, plans, lowest);
   const planOf = {};
   for (const id of gfPlugins.PLUGIN_IDS) {
     if (allowed.has(id) || !lowest[id]) continue;
@@ -41,6 +49,10 @@ function buildPayload({ customer, state, plans, lowest, catalogueVersion, payUrl
     planName: plan.name,
     catalogueVersion,
     plugins: gfPlugins.PLUGIN_IDS.filter((id) => allowed.has(id)),
+    ...(customer.modules ? {
+      activePlugins: gfPlugins.PLUGIN_IDS.filter((id) => allowed.has(id) && customer.modules.chosen.includes(id)),
+      eraseOrders: customer.modules.eraseOrders,
+    } : {}),
     planOf,
     quotas: { units: plan.maxUnits, users: plan.maxUsers },
     state,
@@ -86,4 +98,4 @@ function createLicenceIssuer({ privateKey, instances }) {
   };
 }
 
-module.exports = { VALIDITY_DAYS, loadPrivateKey, pluginsOfPlan, buildPayload, createLicenceIssuer };
+module.exports = { VALIDITY_DAYS, loadPrivateKey, pluginsOfPlan, allowedPlugins, buildPayload, createLicenceIssuer };

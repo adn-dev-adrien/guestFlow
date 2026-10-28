@@ -18,7 +18,7 @@ const EMPTY = {
   billingStreet: '', billingPostcode: '', billingCity: '', billingCountry: 'FR', vatNumber: '',
 };
 // Checked as typed once filled in; the others once a save was attempted.
-const LIVE = ['slug', 'billingPostcode', 'vatNumber'];
+const LIVE = ['slug', 'billingPostcode', 'vatNumber', 'modules'];
 
 function Toggle({ value, onChange, options, label }) {
   return (
@@ -50,6 +50,9 @@ export default function NewCustomerPage() {
   }, [form]);
 
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
+  // A new plan or add-on set re-ticks the modules it allows (rule 13): the choice restarts from the server's.
+  const withoutModules = ({ modules, ...rest }) => rest;
+  const setAllowed = (key) => (value) => setForm((f) => ({ ...withoutModules(f), [key]: value }));
   const field = (key) => (e) => set(key)(e.target.value);
   // The slug is checked as it is typed; the other fields once a save was attempted.
   const errorOf = (key) => ((submitted || (LIVE.includes(key) && form[key])) ? preview.errors[key] : undefined);
@@ -68,7 +71,11 @@ export default function NewCustomerPage() {
     }
   }
 
-  const toggleAddon = (id) => set('addons')(form.addons.includes(id) ? form.addons.filter((a) => a !== id) : [...form.addons, id]);
+  const toggleAddon = (id) => setAllowed('addons')(form.addons.includes(id) ? form.addons.filter((a) => a !== id) : [...form.addons, id]);
+  const toggleModule = (id) => {
+    const ticked = preview.moduleChoices.filter((m) => m.ticked).map((m) => m.id);
+    set('modules')(ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id]);
+  };
 
   return (
     <>
@@ -127,7 +134,7 @@ export default function NewCustomerPage() {
           <CardContent>
             <Stack spacing={2}>
               {catalogue && (
-                <Toggle label="Forfait" value={form.planCode} onChange={set('planCode')}
+                <Toggle label="Forfait" value={form.planCode} onChange={setAllowed('planCode')}
                   options={catalogue.plans.map((p) => ({ value: p.code, label: p.name }))} />
               )}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -154,6 +161,16 @@ export default function NewCustomerPage() {
                       control={<Checkbox checked={a.included || form.addons.includes(a.pluginId)} onChange={() => toggleAddon(a.pluginId)} />}
                       label={a.included ? `${a.name} — inclus dans le forfait` : `${a.name} — ${a.priceLabel}`} />
                   ))}
+                </Stack>
+              )}
+              {preview.moduleChoices && preview.moduleChoices.length > 0 && (
+                <Stack>
+                  <Typography variant="caption" color="text.secondary">Modules</Typography>
+                  {preview.moduleChoices.map((m) => (
+                    <FormControlLabel key={m.id} sx={{ minHeight: 44 }}
+                      control={<Checkbox checked={m.ticked} onChange={() => toggleModule(m.id)} />} label={m.name} />
+                  ))}
+                  <Typography variant="body2" color={errorOf('modules') ? 'error.main' : 'text.secondary'}>{errorOf('modules') || preview.moduleSummary}</Typography>
                 </Stack>
               )}
             </Stack>

@@ -222,7 +222,7 @@ function createController(model = defaultModel, deps = {}) {
         missing = null;
       }
     }
-    if (missing && path) return { needed: true, label: `Actif · ${missing}`, path, action: 'Configurer' };
+    if (missing && path) return { needed: true, label: `Actif · ${missing}`, missing, path, action: 'Configurer' };
     return { needed: false, label: 'Actif', path, action: path ? 'Réglages' : null };
   }
 

@@ -9,6 +9,8 @@
  *   erased(orderId)                     → true when this erase order already ran (rule 23)
  *   markErased(orderId, at)             → remembers it
  *   appliedLicence() / setAppliedLicence(issuedAt)
+ *   setFacts(id, facts | null)          → what the console cannot compute itself: the setup a plugin still
+ *                                         lacks and the data lines it would erase (rules 14, 22)
  */
 
 function buildModel(database) {
@@ -24,6 +26,8 @@ function buildModel(database) {
   const metaSet = database.prepare(`INSERT INTO plugin_provisioning_meta (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
 
+  const metaDelete = database.prepare('DELETE FROM plugin_provisioning_meta WHERE key = ?');
+
   return {
     get: (id) => getStmt.get(id) || null,
     list: () => listStmt.all(),
@@ -34,6 +38,13 @@ function buildModel(database) {
     markErased: (orderId, at) => { metaSet.run(`erase:${orderId}`, at); },
     appliedLicence: () => (metaGet.get('appliedLicenceIssuedAt') || {}).value || null,
     setAppliedLicence: (issuedAt) => { metaSet.run('appliedLicenceIssuedAt', issuedAt); },
+    setFacts(id, facts) {
+      const key = `facts:${id}`;
+      if (facts === null) { metaDelete.run(key); return; }
+      const value = JSON.stringify(facts);
+      const current = metaGet.get(key);
+      if (!current || current.value !== value) metaSet.run(key, value);
+    },
   };
 }
 

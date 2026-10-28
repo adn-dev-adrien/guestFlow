@@ -22,7 +22,7 @@ function licenceReader({ plugins, active = null, eraseOrders = [], issuedAt = '2
   };
 }
 
-function space({ installed = [], active = null, plugins, eraseOrders = [], data = {}, blockers = {}, now = () => new Date('2026-10-28T08:00:00Z') } = {}) {
+function space({ installed = [], active = null, plugins, eraseOrders = [], data = {}, blockers = {}, setup = {}, now = () => new Date('2026-10-28T08:00:00Z') } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE migrations (name TEXT PRIMARY KEY, ran_at TEXT DEFAULT (datetime('now')));
@@ -44,7 +44,7 @@ function space({ installed = [], active = null, plugins, eraseOrders = [], data 
   });
   const licence = licenceReader({ plugins, active, eraseOrders });
   const registry = {
-    get: (id) => (data[id] ? { data: data[id], settings: [] } : null),
+    get: (id) => (data[id] || setup[id] ? { data: data[id], settings: [], setupStatus: setup[id] ? () => setup[id] : null } : null),
     isLive: () => true,
   };
   const controller = createController(model, {
