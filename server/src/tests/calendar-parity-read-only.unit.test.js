@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 
 const db = require('../database');
+const sasController = require('../plugins/sas/controller');
 
 db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Granja')").run();
 db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Camille', 'Martin', 'camille@example.com')").run();
@@ -27,8 +28,10 @@ app.use((req, _res, next) => { req.user = { id: 1, roles: ['admin'] }; next(); }
 app.use('/api/reservations', require('../routes/reservations'));
 app.use('/api/payments', require('../routes/payments'));
 app.use('/api/emails', require('../routes/emails'));
-// The SAS plugin mounts after the core routes: a stub stands for its handler, reached only by a live stay.
-app.post('/api/reservations/:id/sas/*splat', (req, res) => res.json({ reachedPlugin: true }));
+// The SAS routes belong to a plugin: its controller is mounted here the way the plugin registers it.
+for (const [suffix, handler] of [['arrival', 'commitArrival'], ['arrival/preview', 'previewArrival'], ['departure', 'commitDeparture'], ['departure/preview', 'previewDeparture']]) {
+  app.post(`/api/reservations/:id/sas/${suffix}`, (req, res) => sasController[handler](req, res));
+}
 let server;
 let base;
 test.before(async () => {
@@ -80,7 +83,7 @@ test('rule 22 — the same writes on a live stay are not refused by the guard', 
     assert.notEqual(res.body.code, 'RESERVATION_SUPERSEDED');
   }
   const sas = await call('POST', '/api/reservations/3/sas/arrival', {});
-  assert.deepEqual(sas.body, { reachedPlugin: true }, 'a live stay reaches the SAS handler');
+  assert.notEqual(sas.body.code, 'RESERVATION_SUPERSEDED', 'a live stay is not refused by the SAS');
 });
 
 test('rule 25 — a cancelled stay stays read-only for the fiche, the payment marks, the SAS, the arrival payment and the links', async () => {

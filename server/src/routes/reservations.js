@@ -40,12 +40,6 @@ router.delete('/:id/refunds/:refundId', refundsController.remove);
 // Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
 // nothing in GuestFlow cancels a stay on its own.
 router.post('/:id/cancel', noWriteOnDuplicate, cancellationController.cancel);
-// The SAS belongs to a plugin, mounted after these core routes: the guard answers first, and lets a live stay
-// through to the plugin's handler.
-router.post(
-  ['/:id/sas/arrival', '/:id/sas/departure', '/:id/sas/arrival/preview', '/:id/sas/departure/preview'],
-  noWriteOnClosedStay,
-);
 // « Rétablir » a duplicate set aside (specs/calendar-property-parity.md rule 22). Admin-only through the role guard.
 router.post('/:id/restore', controller.restoreSuperseded);
 // Échéancier d'une réservation directe (specs/direct-installments.md §4.3).
