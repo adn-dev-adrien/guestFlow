@@ -12,6 +12,7 @@ import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsVatSection from '../../components/SettingsVatSection';
 import SettingsFiscalYearSection, { hasInvalidRevenueGoal } from '../../components/SettingsFiscalYearSection';
 import api from '../../api';
+import { vatThresholdInputError } from '../../utils/validation';
 import useVatRegime from '../../hooks/useVatRegime';
 import VatRegimeSwitchDialog from '../../components/VatRegimeSwitchDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -46,7 +47,7 @@ export default function VatFiscalSettingsPage() {
   }, []);
 
   return (
-    <SettingsFormPage title="TVA & exercice" form={form} saveBlocked={hasInvalidRevenueGoal(form.draft.accounting?.revenueGoals) || rateBlank}>
+    <SettingsFormPage title="TVA & exercice" form={form} saveBlocked={hasInvalidRevenueGoal(form.draft.accounting?.revenueGoals) || rateBlank || Boolean(vatThresholdInputError(form.draft.vat?.franchiseThreshold))}>
       <SettingsVatSection
         values={form.draft.vat}
         errors={rateBlank ? { ...form.errors, vatRate: VAT_TEXTS.rateRequired } : form.errors}

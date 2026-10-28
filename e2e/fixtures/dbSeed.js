@@ -276,6 +276,15 @@ function resetVatRegime() {
     db.prepare('DELETE FROM vat_periods WHERE id > 1').run();
     db.prepare('UPDATE vat_periods SET rate = 10 WHERE id = 1').run();
     db.prepare('UPDATE app_settings SET vatRate = 10 WHERE id = 1').run();
+    db.prepare('UPDATE app_settings SET vatFranchiseThreshold = NULL, vatFranchiseThresholdSetAt = NULL WHERE id = 1').run();
+  });
+}
+
+/** The regime in force becomes « Sans TVA · art. 293 B » for every reservation (the switch itself has its own spec). */
+function setFranchiseRegime() {
+  return withDb((db) => {
+    db.prepare("INSERT INTO vat_periods (regime, rate, legalMention, basis) VALUES ('not_subject', 0, 'art_293_b', 'all')").run();
+    db.prepare('UPDATE app_settings SET vatRate = 0 WHERE id = 1').run();
   });
 }
 
@@ -311,6 +320,7 @@ function clearBankSeed() {
 module.exports = {
   backdateReservation,
   resetVatRegime,
+  setFranchiseRegime,
   seedBankCredits,
   clearBankSeed,
   enablePropertyDeposit,

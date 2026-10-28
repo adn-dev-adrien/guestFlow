@@ -445,6 +445,8 @@ const api = {
   getFinancePace: (params = {}) => request(`/finance/pace?${financeQuery(params)}`),
   getFinancePaceMonth: (month, params = {}) => request(`/finance/pace/${encodeURIComponent(month)}?${financeQuery(params)}`),
   getFinanceGoalContext: () => request('/finance/goal-context'),
+  // specs/vat-optional-mode.md rules 35-44 — the franchise threshold card (`{ applies: false }` outside the franchise).
+  getVatFranchise: () => request('/finance/vat-franchise'),
   // specs/vat-optional-mode.md §4.3 — the VAT regime, its switch and the undo of an unused one.
   getVatRegime: () => request('/settings/vat-regime'),
   previewVatSwitch: (input) => request('/settings/vat-regime/preview', { method: 'POST', body: input }),

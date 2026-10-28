@@ -32,6 +32,7 @@ const READ_ONLY = {
   smtp: ['passwordSet', 'derived', 'passwordDraft', 'platform'],
   notifications: ['derivedRecipient'],
   emails: ['sequenceStartDate'],
+  vat: ['franchise'],
 };
 
 // Secret drafts → the payload key the server expects.
@@ -46,7 +47,7 @@ const ERROR_KEYS = {
     siret: 'companySiret', tva: 'companyTva', iban: 'companyIban', bic: 'companyBic', bankName: 'companyBankName',
   },
   quote: { footerText: 'quoteFooterText', footerTextEn: 'quoteFooterTextEn', validityDays: 'quoteValidityDays' },
-  vat: { rate: 'vatRate', legalMention: 'legalMention' },
+  vat: { rate: 'vatRate', legalMention: 'legalMention', franchiseThreshold: 'vatFranchiseThreshold' },
   accounting: { fiscalYearEndMonth: 'fiscalYearEndMonth', revenueGoals: 'revenueGoals' },
   smtp: { host: 'smtpHost', fromEmail: 'smtpFromEmail', fromName: 'smtpFromName', publicUrl: 'publicUrl' },
   notifications: { recipientEmail: 'notificationRecipientEmail' },
@@ -61,6 +62,8 @@ function pickGroups(settings, groups) {
     const value = { ...((settings && settings[group]) || {}) };
     const secret = SECRET_DRAFTS[group];
     if (secret) value[secret.draft] = undefined;
+    // The threshold is edited as a field of its own; the server's block stays read-only.
+    if (group === 'vat') value.franchiseThreshold = value.franchise && value.franchise.threshold != null ? value.franchise.threshold : '';
     out[group] = value;
   }
   return out;

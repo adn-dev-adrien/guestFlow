@@ -14,6 +14,7 @@ import ChoiceCardStrip from '../components/ChoiceCardStrip';
 import InsightCard from '../components/InsightCard';
 import SelectableTile from '../components/SelectableTile';
 import FinanceHero from '../components/FinanceHero';
+import VatFranchiseCard from '../components/VatFranchiseCard';
 import FinanceDetailPanel from '../components/FinanceDetailPanel';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
@@ -88,13 +89,20 @@ export default function FinancePage() {
     }
   }, [tile, paramsKey, until, staysScope]);
 
+  // specs/vat-optional-mode.md rule 35 — the franchise card, whatever the window; a failed read hides it.
+  const [franchise, setFranchise] = useState(null);
+  const loadFranchise = useCallback(async () => {
+    try { setFranchise(await api.getVatFranchise()); } catch { setFranchise(null); }
+  }, []);
+  useEffect(() => { loadFranchise(); }, [loadFranchise]);
+
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
   const [paceRefresh, setPaceRefresh] = useState(0);
   const refreshAll = async () => {
     setPaceRefresh((n) => n + 1);
-    await Promise.all([loadDashboard(), loadDetail()]);
+    await Promise.all([loadDashboard(), loadDetail(), loadFranchise()]);
   };
 
   const openTile = (key) => {
@@ -207,6 +215,8 @@ export default function FinancePage() {
               fiscalYearLabel={d.fiscalYear.label}
               format={FORMAT}
             />
+
+            <VatFranchiseCard data={franchise} onOpen={navigate} />
 
             {d.insights.length > 0 && (
               // Rule 43 — as many columns as 210 px allow (4 / 2 / 1 at 1280 / 900 / 390), never a text cut.

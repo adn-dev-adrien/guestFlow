@@ -32,6 +32,9 @@ export const VAT_TEXTS = Object.freeze({
   ackDocuments: 'Les documents déjà envoyés ne changent pas.',
   regimeStale: 'Le régime a changé entre-temps. Écran mis à jour.',
   stale: 'Les réservations ont changé. Aperçu mis à jour.',
+  thresholdLabel: 'Seuil de franchise',
+  thresholdHint: 'Montant fixé par la loi pour l’activité. À vérifier avant saisie.',
+  thresholdSetOn: (date) => `Saisi le ${date}`,
   scheduledHelp: 'Changement prévu, annulable tant qu’aucune réservation ne l’utilise.',
 });
 
