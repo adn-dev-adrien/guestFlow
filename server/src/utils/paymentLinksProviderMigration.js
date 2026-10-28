@@ -55,13 +55,17 @@ function syncLegacyQontoColumns(db) {
     CREATE TRIGGER IF NOT EXISTS trg_payment_links_legacy_insert AFTER INSERT ON payment_links
     WHEN ${insertWhen}
     BEGIN UPDATE payment_links SET ${insertSet} WHERE id = NEW.id; END`);
+  // One UPDATE changing both names of a pair: the neutral column wins (current code writes it).
   for (const [legacy, neutral] of PAIRS) {
+    const toNeutral = `trg_payment_links_${legacy}_to_${neutral}`;
+    const toLegacy = `trg_payment_links_${neutral}_to_${legacy}`;
+    db.exec(`DROP TRIGGER IF EXISTS ${toNeutral}; DROP TRIGGER IF EXISTS ${toLegacy};`);
     db.exec(`
-      CREATE TRIGGER IF NOT EXISTS trg_payment_links_${legacy}_to_${neutral} AFTER UPDATE OF ${legacy} ON payment_links
-      WHEN NEW.${legacy} IS NOT OLD.${legacy} AND NEW.${neutral} IS NOT NEW.${legacy}
+      CREATE TRIGGER ${toNeutral} AFTER UPDATE OF ${legacy} ON payment_links
+      WHEN NEW.${legacy} IS NOT OLD.${legacy} AND NEW.${neutral} IS OLD.${neutral} AND NEW.${neutral} IS NOT NEW.${legacy}
       BEGIN UPDATE payment_links SET ${neutral} = NEW.${legacy} WHERE id = NEW.id; END`);
     db.exec(`
-      CREATE TRIGGER IF NOT EXISTS trg_payment_links_${neutral}_to_${legacy} AFTER UPDATE OF ${neutral} ON payment_links
+      CREATE TRIGGER ${toLegacy} AFTER UPDATE OF ${neutral} ON payment_links
       WHEN NEW.${neutral} IS NOT OLD.${neutral} AND NEW.${legacy} IS NOT NEW.${neutral}
       BEGIN UPDATE payment_links SET ${legacy} = NEW.${neutral} WHERE id = NEW.id; END`);
   }

@@ -326,11 +326,15 @@ one place.
     iban, smtp… » — the former « Chercher un réglage : … » was clipped at 390 px. The field's
     accessible name stays « Chercher un réglage ».
 
-32. **Property documents are private (2026-10-28, authz L2).** A document is stored in `<uploads>/_private`
-    (`documents.filePath` = `private/<name>`), which the public `/uploads` route answers 404. The property
+32. **Property documents are private (2026-10-28, authz L2).** A document is stored in `private-documents`, a
+    sibling of the uploads directory (`data/private-documents` once the release links `uploads` into `data/`),
+    OUTSIDE the root the public `/uploads` route serves (`documents.filePath` = `private/<name>`). The property
     payload carries `filePath` = `/api/properties/:id/documents/:docId/file`, an authenticated download
     (404 under another property) named after the document; « Retirer » and the removal of the property
-    delete the file. Files uploaded before the audit are moved at boot. Photos, logo and favicon stay in
+    delete the file. Files uploaded before the audit are moved at boot (copy under the final name, never over an existing file,
+    then the row, then the original; a missing file is logged and its row left alone; accepted exception to
+    additive migrations, self-update-and-releases.md rule 39 — production holds no document). The download
+    name appends the extension only when the name lacks it. Photos, logo and favicon stay in
     the public tree: the WordPress site, the emails and the login page link them.
 
 **Edge cases**

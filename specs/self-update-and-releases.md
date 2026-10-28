@@ -332,7 +332,12 @@ signed-off releases over HTTPS, when the operator asks for it.
     names stay for at least one release after the last release that reads them. A test
     (`rollback-additive-schema.unit.test.js`) fails when any column of the v3.18.0 schema
     (`fixtures/rollback-floor-v3.18.0-schema.json`) disappears from a current install: when a release
-    ships, the floor moves to that release's schema.
+    ships, the floor moves to that release's schema. The floor covers the **core tables** only: a table
+    a plugin owns is absent from a fresh core install and is re-created by v3.18 when missing. When one
+    UPDATE changes both names of a pair the neutral column wins. **Accepted exception:** the boot move
+    of property documents out of `/uploads` (settings-rationalization.md rule 32) rewrites
+    `documents.filePath`, which v3.18 cannot follow; the production instance holds no document, and an
+    instance that does must restore the pre-update backup to roll back.
 
 **Edge cases**
 

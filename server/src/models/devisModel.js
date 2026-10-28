@@ -1059,9 +1059,6 @@ function createModel(database) {
     if (existing.convertedReservationId && database.prepare('SELECT 1 FROM terms_acceptances WHERE reservationId = ?').get(existing.id)) {
       return { error: "Ce devis porte l'acceptation des CGV de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409 };
     }
-    if (require('../utils/paidPaymentLinks').hasPaidLink(database, existing.id)) {
-      return { error: 'Un paiement en ligne est enregistré sur ce devis : il ne peut pas être supprimé.', status: 409 };
-    }
     database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(Number(id));
     return { ok: true, data: { success: true } };
   }

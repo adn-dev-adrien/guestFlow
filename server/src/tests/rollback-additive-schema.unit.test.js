@@ -128,3 +128,13 @@ test('rule 39 - a table already renamed by an earlier inte gets the legacy colum
   const row = d.prepare('SELECT qontoPaymentLinkId, qontoPaymentId FROM payment_links').get();
   assert.deepEqual(row, { qontoPaymentLinkId: 'L9', qontoPaymentId: 'P9' });
 });
+
+test('rule 39 - one UPDATE changing both names of a pair: the neutral column wins', () => {
+  const d = v318Db();
+  migrate(d);
+  d.prepare("UPDATE payment_links SET qontoPaymentLinkId = 'Y', providerLinkId = 'Z' WHERE id = 1").run();
+  d.prepare('UPDATE payment_links SET qontoPaymentId = NULL, providerPaymentId = ? WHERE id = 1').run('Q');
+  assert.deepEqual(d.prepare('SELECT qontoPaymentLinkId a, providerLinkId b, qontoPaymentId c, providerPaymentId e FROM payment_links WHERE id = 1').get(), { a: 'Z', b: 'Z', c: 'Q', e: 'Q' });
+  d.prepare('UPDATE payment_links SET qontoPaymentId = NULL, providerPaymentId = NULL WHERE id = 1').run();
+  assert.deepEqual(d.prepare('SELECT qontoPaymentId c, providerPaymentId e FROM payment_links WHERE id = 1').get(), { c: null, e: null });
+});

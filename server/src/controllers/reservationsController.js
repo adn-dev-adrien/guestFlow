@@ -2370,9 +2370,6 @@ function remove(req, res) {
   if (existing.endDate < today && !pastUnlockRequested(req)) {
     return res.status(403).json({ error: 'Cette réservation est archivée (terminée) et ne peut plus être modifiée.' });
   }
-  if (require('../utils/paidPaymentLinks').hasPaidLink(db, req.params.id)) {
-    return res.status(409).json({ error: 'Un paiement en ligne est enregistré sur ce séjour : il ne peut pas être supprimé.' });
-  }
   model.remove(req.params.id);
   res.json({ ok: true });
   emitPluginEvent('reservation.deleted', { reservationId: Number(req.params.id) });
