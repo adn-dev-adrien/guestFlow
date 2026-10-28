@@ -71,6 +71,10 @@ on desktop as on mobile — and a page can no longer invent its own.
     stay truly centred. Under 720 px of bar the tabs still take a second row (ds-components rule 19).
     Checked at 900 / 1200 / 1400 / 1600 px on Intégrations, Clients, Textes des emails, Plugins,
     Options & ressources, Vacances & fermetures: Save / Cancel always on the title's row.
+12. **A tab switch never blanks the bar** (added 2026-10-28). A wrapper that mounts only the active tab
+    (Options & ressources) shows, while a lazy plugin tab's chunk loads, a bar with that tab's label as
+    title and the same tabs — not an empty Suspense fallback. Before, switching to « Facturables au SAS »
+    made the title and the tabs disappear for ~400 ms (measured at 390 px, CPU x5).
 
 **Edge cases:**
 - 6 long labels + a long page title on a laptop (~1040 px of content) → the tabs scroll **inside** the
@@ -162,6 +166,7 @@ CTA); the only addition is the `tabs` prop described above.
 None — no server-side logic (CLAUDE.md §9 "tests not required for pure styling changes").
 
 ### Client unit tests (Vitest) — 13 new tests, suite green at 1317
+- [x] `pages/__tests__/OptionsResourcesPage.suspense-bar.test.jsx` (1) — rule 12.
 - [x] `components/__tests__/PageTabs.render.test.jsx` — renders one `role="tab"` per item, marks the active
       one `aria-selected`, fires `onChange` with the clicked value, renders the badge node, keeps the
       label, and scrolls its overflow instead of wrapping (rules 7, 8).

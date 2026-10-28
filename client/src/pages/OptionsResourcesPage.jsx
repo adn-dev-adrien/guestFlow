@@ -8,13 +8,15 @@
  * to its `PageActionBar`: centred in the bar on sm+, second row of the same sticky block on xs
  * (specs/ds-tabs.md rule 2). The tab lives in `?tab=` so the old `/parametres/tarifs` link lands on
  * it. Only the active tab is mounted; the standalone routes (/options, /resources) redirect to their
- * tab (specs/options-resources-ux.md rule 1).
+ * tab (specs/options-resources-ux.md rule 1). While a contributed tab's chunk loads, the bar (title +
+ * tabs) stays drawn (specs/ds-tabs.md rule 12).
  */
 
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'react-router';
 import { Box } from '@mui/material';
 import PageTabs from '../components/PageTabs';
+import PageActionBar from '../components/PageActionBar';
 import OptionsPage from './OptionsPage';
 import ResourcesPage from './ResourcesPage';
 import { useSlot } from '../plugins/sdk/useSlot';
@@ -29,7 +31,8 @@ export default function OptionsResourcesPage() {
   const contributed = useSlot('optionsResources.tabs');
   const items = [...CORE_ITEMS, ...contributed.map(({ value, label }) => ({ value, label }))];
   const tab = items.some((i) => i.value === params.get('tab')) ? params.get('tab') : 'options';
-  const Contributed = contributed.find((c) => c.value === tab)?.Component;
+  const active = contributed.find((c) => c.value === tab);
+  const Contributed = active?.Component;
 
   const barTabs = (
     <PageTabs
@@ -44,7 +47,7 @@ export default function OptionsResourcesPage() {
     <Box>
       {tab === 'options' && <OptionsPage barTabs={barTabs} />}
       {tab === 'resources' && <ResourcesPage barTabs={barTabs} />}
-      {Contributed && <Suspense fallback={null}><Contributed barTabs={barTabs} /></Suspense>}
+      {Contributed && <Suspense fallback={<PageActionBar title={active.label} tabs={barTabs} />}><Contributed barTabs={barTabs} /></Suspense>}
     </Box>
   );
 }
