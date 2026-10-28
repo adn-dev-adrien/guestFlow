@@ -200,6 +200,7 @@ export default function FinancePage() {
 
             <FinanceHero
               hero={d.hero}
+              showHt={d.showHt}
               windowLabel={d.window.label}
               asOf={d.window.asOf < d.window.to ? d.window.asOf : null}
               propertyName={selectedProperty ? selectedProperty.name : null}

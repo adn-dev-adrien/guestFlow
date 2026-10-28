@@ -86,6 +86,16 @@ function tickEmailHistoryPurge() {
   runEmailHistoryPurge('daily pass');
 }
 
+// specs/vat-optional-mode.md rule 29 — the settings column mirroring the VAT rate in force follows a period
+// that starts today (no write moves it), at the hourly tick, so it is right within the hour past midnight.
+function tickVatRateMirror() {
+  try {
+    require('./models/vatRegimeModel').syncMirror(db);
+  } catch (err) {
+    console.error('[vat-regime] mirror error:', err && err.message ? err.message : err);
+  }
+}
+
 // Per-minute arrival/departure push pass. Isolated from the other jobs (its own in-progress guard +
 // try/catch). The first pass after boot stamps already-due events without sending (rule 12).
 async function runArrivalDeparturePushPass(reason = 'tick') {
@@ -149,6 +159,7 @@ function startScheduledTasks() {
   // window is trimmed without waiting a full day after a restart.
   const EMAIL_HISTORY_PURGE_TICK = 60 * 60 * 1000; // 1 hour
   setInterval(tickEmailHistoryPurge, EMAIL_HISTORY_PURGE_TICK);
+  setInterval(tickVatRateMirror, EMAIL_HISTORY_PURGE_TICK);
   setTimeout(tickEmailHistoryPurge, 100 * 1000);
 
   // Arrival/departure push: per-minute tick. First pass 95 s after boot (firstRun → stamps the day's
@@ -179,6 +190,8 @@ function startScheduledTasks() {
 module.exports = {
   startScheduledTasks,
   performAutoSync,
+  // VAT rate mirror — exposed for tests.
+  tickVatRateMirror,
   // Arrival/departure push — exposed for tests + ops trigger.
   runArrivalDeparturePushPass,
   // Breakfast push — exposed for tests + ops trigger.

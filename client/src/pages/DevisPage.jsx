@@ -43,6 +43,8 @@ export default function DevisPage() {
   const { confirm } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [devisList, setDevisList] = useState([]);
+  // « Sans TVA »: the server says whether the list still has a quote under VAT (`vatShowTtc`); the column says TTC then.
+  const notSubject = devisList.length > 0 && devisList[0].vatShowTtc === false;
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
@@ -229,7 +231,7 @@ export default function DevisPage() {
       <TableCell sx={{ fontWeight: 700 }}>Statut</TableCell>
       <TableCell sx={{ fontWeight: 700 }}>Client</TableCell>
       <TableCell sx={{ fontWeight: 700 }}>Séjour</TableCell>
-      <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} align="right">Montant TTC</TableCell>
+      <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} align="right">{notSubject ? 'Montant' : 'Montant TTC'}</TableCell>
       <TableCell sx={{ width: 104, position: 'relative' }} align="right">
         <Box component="span" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>Actions</Box>
       </TableCell>

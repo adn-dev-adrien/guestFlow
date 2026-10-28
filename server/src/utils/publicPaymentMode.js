@@ -11,13 +11,7 @@
  * devisModel.findById, which spreads a divergent tax-inclusive deposit over the row (enrichDevis).
  */
 
-// Global VAT rate (single-rate model). Falls back to 10 on any read failure.
-function globalVatRate(database) {
-  try {
-    const row = database.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
-    return row && row.vatRate != null ? Number(row.vatRate) : 10;
-  } catch { return 10; }
-}
+const vatRegimeModel = require('../models/vatRegimeModel');
 
 // RAW stored deposit amount (cents) for a devis — the amount the guest agreed to on the quote.
 function depositPaymentCents(database, devisId, fallbackRow) {
@@ -42,8 +36,11 @@ function depositPaymentComponents(database, devisId, fallbackRow) {
   const grossCents = depositPaymentCents(database, devisId, fallbackRow);
   return {
     components: [{ title: 'Acompte séjour', grossCents, taxable: true }],
-    vatRatePercent: globalVatRate(database),
+    vatRatePercent: vatRegimeModel.rateForRow(database, { id: devisId }),
   };
 }
+
+// Part of the SDK contract (2.x): the rate of the regime in force today.
+const globalVatRate = (database) => vatRegimeModel.rateForRow(database, null);
 
 module.exports = { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents, globalVatRate };

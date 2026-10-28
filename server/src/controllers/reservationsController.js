@@ -33,7 +33,7 @@ const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const reservationsModel = require('../models/reservationsModel');
-const settingsModel = require('../models/settingsModel');
+const vatRegimeModel = require('../models/vatRegimeModel');
 const termsController = require('./termsController');
 const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
@@ -776,8 +776,8 @@ function storedSummaryOf(row) {
     + sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE amount END),0) AS total FROM reservation_custom_options WHERE reservationId = ?'));
   const resourcesTotal = sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_resources WHERE reservationId = ?');
   const accommodation = round2(Math.max(0, Number(row.finalPrice || 0) - optionsTotal - resourcesTotal));
-  const settings = settingsModel.read() || {};
-  const vatRate = settings.vatRate != null ? Number(settings.vatRate) : 10;
+  const vatRegime = vatRegimeModel.forRow(db, row);
+  const vatRate = vatRegime.rate;
   const vatOf = (ttc) => round2(ttc * (vatRate / (100 + vatRate)));
   const totalVatAmount = round2(vatOf(accommodation) + vatOf(optionsTotal) + vatOf(resourcesTotal));
   return {
@@ -786,6 +786,7 @@ function storedSummaryOf(row) {
     optionsTotal,
     resourcesTotal,
     vatRate,
+    vatRegime,
     totalVatAmount,
     totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),
     depositDueDate: row.depositDueDate || null,

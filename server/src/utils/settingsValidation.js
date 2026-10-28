@@ -105,7 +105,7 @@ function validateQuoteValidityDays(value) {
 
 function validateVatRate(value) {
   if (value == null || value === '') return null;
-  const n = Number(value);
+  const n = require('./vatRegime').parseRate(value);
   if (!Number.isFinite(n)) return 'Doit être un nombre entre 0 et 100.';
   if (n < 0 || n > 100) return 'Doit être un nombre entre 0 et 100.';
   return null;

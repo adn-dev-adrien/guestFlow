@@ -16,7 +16,10 @@
 const path = require('path');
 const fs = require('fs');
 
+const db = require('../database');
 const settingsModel = require('../models/settingsModel');
+const vatRegimeModel = require('../models/vatRegimeModel');
+const vatRegime = require('../utils/vatRegime');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
@@ -50,14 +53,39 @@ const QUOTE_FIELDS = [
   { input: 'validityDays', column: 'quoteValidityDays', validator: validation.validateQuoteValidityDays },
 ];
 
-// Single VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
-// options, resources, custom options. Previously a 2-rate model (10 % accommodation / 20 %
-// standard) — collapsed because every revenue stream on GuestFlow is invoiced at 10 %.
-const VAT_FIELDS = [
-  { input: 'rate', column: 'vatRate', validator: validation.validateVatRate },
-  // The commission and cancellation-indemnity rates are edited on Plan comptable, next to the
-  // accounts that use them (specs/settings-rationalization.md rule 14).
-];
+// VAT (specs/single-vat-rate.md §4.1, specs/vat-optional-mode.md rules 3 and 9). The rate and the legal
+// mention edit the period in force, never a settings column. The commission and cancellation-indemnity
+// rates are edited on Plan comptable, next to the accounts that use them
+// (specs/settings-rationalization.md rule 14).
+function readVatGroup(vat, errors) {
+  const change = {};
+  if (!vat) return change;
+  // The page sends its whole group back: a value that says nothing new (no mention, a rate of 0 under
+  // « Sans TVA ») is not a change.
+  if (Object.prototype.hasOwnProperty.call(vat, 'rate')) {
+    // Rule 33 — a blank or null rate is refused, never turned into 10 % behind the operator's back.
+    const blank = vat.rate == null || String(vat.rate).trim() === '';
+    const current = vatRegimeModel.inForce(db);
+    if (blank && current && current.regime === vatRegime.REGIMES.NOT_SUBJECT) {
+      // « Sans TVA »: there is no rate to edit, the page's echo of a blank one says nothing.
+    } else {
+      const err = blank ? 'Taux requis.' : validation.validateVatRate(vat.rate);
+      if (err) errors.vatRate = err;
+      else change.rate = vatRegime.parseRate(vat.rate);
+    }
+  }
+  const mention = vat.legalMention;
+  if (mention != null && mention !== '') {
+    if (vatRegime.isMentionKey(mention)) change.legalMention = mention;
+    else errors.legalMention = 'Mention inconnue.';
+  }
+  return change;
+}
+
+const VAT_REFUSALS = Object.freeze({
+  rate: { field: 'vatRate', message: 'Sans TVA : pas de taux à modifier.' },
+  legalMention: { field: 'legalMention', message: 'Assujetti à la TVA : pas de mention légale.' },
+});
 
 // SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask
 // semantics). `username`, `fromEmail` and `fromName` are overrides: '' means « derived from
@@ -116,7 +144,7 @@ function pickGroup(body, group) {
 
 function getSettings(req, res) {
   const row = settingsModel.read();
-  return res.json(shapeResponse(row));
+  return res.json(shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)));
 }
 
 /**
@@ -171,7 +199,7 @@ async function updateSettings(req, res) {
 
   applyGroup(company, COMPANY_FIELDS);
   applyGroup(quote, QUOTE_FIELDS);
-  applyGroup(vat, VAT_FIELDS);
+  const vatChange = readVatGroup(vat, errors);
   applyGroup(smtp, SMTP_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
   applyGroup(emails, EMAILS_FIELDS);
@@ -210,6 +238,17 @@ async function updateSettings(req, res) {
     return res.status(400).json({ code: 'SETTINGS_INVALID', errors });
   }
 
+  const inForce = vatRegimeModel.inForce(db);
+  const subject = !inForce || inForce.regime === vatRegime.REGIMES.SUBJECT;
+  const refused = (subject && vatChange.legalMention !== undefined && 'legalMention')
+    || (!subject && vatChange.rate !== undefined && vatChange.rate !== 0 && 'rate');
+  if (!subject) delete vatChange.rate;
+  if (subject) delete vatChange.legalMention;
+  if (refused) {
+    const { field, message } = VAT_REFUSALS[refused];
+    return res.status(422).json({ code: 'SETTINGS_INVALID', errors: { [field]: message } });
+  }
+
   const stored = settingsModel.read();
   // Rule 28 — host and password both emptied: back to no server of its own, security included.
   if (payload.smtpHost === '' && (payload.smtpPasswordEncrypted === '' || (!stored.smtpPasswordSet && payload.smtpPasswordEncrypted === undefined))) {
@@ -224,12 +263,24 @@ async function updateSettings(req, res) {
     }
   }
 
-  settingsModel.upsert(payload);
+  let notRepriced = [];
+  let retiredLinks = [];
+  db.transaction(() => {
+    // Rule 27 — the stored tourist tax of the period's stays follows the rate the same way a switch's does.
+    if (vatChange.rate !== undefined) {
+      const edited = require('../models/vatRegimeSwitchModel').editRateInForce(db, vatChange.rate);
+      notRepriced = edited.notRepriced;
+      retiredLinks = edited.retiredLinks || [];
+    }
+    if (vatChange.legalMention !== undefined) vatRegimeModel.setMentionInForce(db, vatChange.legalMention);
+    settingsModel.upsert(payload);
+  })();
+  require('../models/vatRegimeSwitchModel').deactivateAfterCommit(retiredLinks);
 
   const row = settingsModel.read();
   // The push subject follows the company and sender addresses (specs/plugins-phase-p-productisation.md rule 18).
   if (company || smtp) require('../utils/vapid').ensureVapid(row);
-  return res.json(shapeResponse(row));
+  return res.json({ ...shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)), vatNotRepriced: notRepriced });
 }
 
 function uploadLogo(req, res) {

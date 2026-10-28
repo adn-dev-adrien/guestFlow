@@ -113,6 +113,10 @@ the cent. If Qonto's API cannot represent that exactly, fall back to the current
     when the tax rides on the solde — for a devis (engine replay), a reservation (stored columns, rule 8)
     and the public payment alike. A tax paid on arrival (collected there or forced to the Complément)
     leaves no tax line.
+11. **The basket rate is the reservation's period rate (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md)).**
+    « The global `vatRate` » of rules 2 and 8 reads as the rate of the row's VAT period (a devis not
+    converted: the period in force). Under « Sans TVA » every item goes at `"0"` with the same items and
+    the same charged total. A link already open keeps the basket it was created with.
 
 ---
 

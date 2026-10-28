@@ -21,6 +21,7 @@ const emailLogModel = require('../models/emailLogModel');
 const { englishMissing, normaliseLang } = require('../utils/emailTemplateLanguage');
 const { createEmailService } = require('../utils/emailService');
 const financeModel = require('../models/financeModel');
+const vatRegimeModel = require('../models/vatRegimeModel');
 const { storedLinkComponents } = require('../utils/storedLinkComponents');
 const installmentsModel = require('../models/installmentsModel');
 const { requestContext } = require('../utils/installmentPlan');
@@ -125,8 +126,8 @@ function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote, storedOf 
   return { components, vatRatePercent };
 }
 
-// specs/payment-links-vat.md rule 8 — a reservation's basket, from its stored columns: the global VAT
-// rate, and the tourist tax on the solde unless it is collected on arrival (the Suivi taxe de séjour's
+// specs/payment-links-vat.md rule 8 — a reservation's basket, from its stored columns: the VAT
+// rate of its regime, and the tourist tax on the solde unless it is collected on arrival (the Suivi taxe de séjour's
 // own predicate). Devis rows never reach here: the engine replays them.
 function storedReservationComponents(id, type, db = database) {
   let row = null;
@@ -137,14 +138,14 @@ function storedReservationComponents(id, type, db = database) {
   } catch { row = null; }
   if (!row) return null;
   return storedLinkComponents(row, type, {
-    vatRatePercent: financeModel.helpers.getVatRate(db),
+    vatRatePercent: vatRegimeModel.rateForRow(db, { id }),
     taxOnArrival: Boolean(row.taxOnArrival),
     titles: LINK_TITLES,
   });
 }
 
 // specs/direct-installments.md rule 39 — the basket of ONE installment: the tourist tax (when it rides the
-// pre-arrival money) shared in proportion over the plan and exempt of VAT, the rest at the global rate.
+// pre-arrival money) shared in proportion over the plan and exempt of VAT, the rest at the rate of the stay's regime.
 function resolveInstallmentComponents(id, installment, plan, db = database) {
   let row = null;
   try {
@@ -160,7 +161,7 @@ function resolveInstallmentComponents(id, installment, plan, db = database) {
   if (taxable <= 0) return null;
   const components = [{ title: `${LINK_TITLES.installment} ${installment.number}/${plan.length}`, grossCents: taxable, taxable: true }];
   if (share > 0) components.push({ title: 'Taxe de séjour', grossCents: share, taxable: false });
-  return { components, vatRatePercent: financeModel.helpers.getVatRate(db) };
+  return { components, vatRatePercent: vatRegimeModel.rateForRow(db, { id }) };
 }
 
 const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
