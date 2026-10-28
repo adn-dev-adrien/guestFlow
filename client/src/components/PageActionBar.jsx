@@ -23,6 +23,9 @@
  *                                SECOND ROW of the same sticky block on xs. Mutually exclusive with
  *                                `center`; see specs/ds-tabs.md rules 2-3.)
  *
+ *   progress?    boolean | string  (a thin 2 px indeterminate bar glued under the bar, over the first 2 px of the
+ *                                page, out of the layout; the string is its accessible name. Reduced motion: static)
+ *
  *   onSave?      () => void     (omit → no Save button)
  *   saveDisabled? boolean
  *   saveTooltip?  string        (default 'Enregistrer')
@@ -69,7 +72,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import {
   Box, Typography, IconButton, Tooltip, Menu, MenuItem,
-  ListItemIcon, ListItemText, useMediaQuery, CircularProgress,
+  ListItemIcon, ListItemText, useMediaQuery, CircularProgress, LinearProgress,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -164,6 +167,7 @@ export default function PageActionBar({
   identityBelow = 'lg',
   // A <PageTabs> node: centred in the bar on sm+, second row of the same sticky block on xs.
   tabs,
+  progress = false,
   onSave,
   saveDisabled = false,
   saveTooltip = 'Enregistrer',
@@ -304,6 +308,16 @@ export default function PageActionBar({
         containerType: 'inline-size',
       }}
     >
+      {progress && (
+        <LinearProgress
+          aria-label={typeof progress === 'string' ? progress : undefined}
+          data-testid="page-action-bar-progress"
+          sx={{
+            position: 'absolute', top: 'calc(100% + 1px)', left: 0, right: 0, height: 2,
+            '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', width: '100%', left: 0, transform: 'none' } },
+          }}
+        />
+      )}
       <Box
         data-testid="page-action-bar-row"
         sx={{

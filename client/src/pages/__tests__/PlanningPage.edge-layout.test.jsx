@@ -76,15 +76,16 @@ test('rule 31 — the timeline switches the browser\'s scroll anchoring off', as
   expect(screen.getByTestId('planning-timeline')).toHaveStyle({ overflowAnchor: 'none' });
 });
 
-test('rule 20 — a past window in flight shows a thin progress bar just under the page bar, out of the layout', async () => {
+test('rule 20 — a past window in flight shows a thin progress bar glued under the page bar, out of the layout', async () => {
   getPlanningDays.mockImplementation((range) => (range.from === windowRange(-2).from
     ? new Promise(() => {})
     : Promise.resolve(cards({})(range))));
   renderPage();
   await opened();
+  expect(screen.queryByTestId('page-action-bar-progress')).toBeNull();
   await scrollWindowTo(100);
-  const holder = await screen.findByTestId('planning-past-progress');
-  expect(holder).toHaveStyle({ position: 'sticky', height: '0px' });
-  expect(holder.querySelector('[role="progressbar"]')).toHaveAttribute('aria-label', 'Chargement des jours précédents');
+  const progress = await screen.findByTestId('page-action-bar-progress');
+  expect(progress).toHaveAttribute('aria-label', 'Chargement des jours précédents');
+  expect(progress).toHaveStyle({ position: 'absolute', height: '2px' });
   expect(screen.getByTestId('planning-timeline').querySelector('[aria-busy="true"]')).toBeNull();
 });

@@ -1,6 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Box, LinearProgress, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import TodayIcon from '@mui/icons-material/Today';
 import PageActionBar from '../components/PageActionBar';
 import LoadingState from '../components/LoadingState';
@@ -427,27 +427,12 @@ export default function PlanningPage() {
   );
 
   // A window in flight shows a skeleton at its edge; a failed one says so and offers to retry.
-  // At the start edge a thin progress bar sticks just under the page bar, out of the layout: nothing is
-  // inserted above the viewport, so no card moves and nothing is covered (specs/dashboard-planning-scroll.md rule 20).
+  // At the start edge the loading shows as a thin progress bar glued under the page bar (`progress` below),
+  // out of the layout: nothing is inserted above the viewport, so no card moves
+  // (specs/dashboard-planning-scroll.md rule 20).
   const renderEdge = (window, atStart = false) => {
     if (!window || window.status === 'loaded') return null;
-    if (window.status === 'loading' && atStart) {
-      return (
-        <Box
-          key={`edge-${window.k}`}
-          data-testid="planning-past-progress"
-          sx={{ position: 'sticky', top: 'var(--gf-page-bar-bottom, 0px)', height: 0, zIndex: 1 }}
-        >
-          <LinearProgress
-            aria-label={PAST_LOADING}
-            sx={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-              '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', width: '100%', left: 0, transform: 'none' } },
-            }}
-          />
-        </Box>
-      );
-    }
+    if (window.status === 'loading' && atStart) return null;
     if (window.status === 'loading') return <LoadingState key={`edge-${window.k}`} variant="skeleton" rows={2} />;
     return (
       <ErrorAlert key={`edge-${window.k}`} message={EDGE_ERROR} onRetry={() => timeline.retry(window.k)} sx={{ my: 2 }} />
@@ -458,6 +443,7 @@ export default function PlanningPage() {
     <Box>
       <PageActionBar
         title="Planning"
+        progress={phase === 'ready' && windows[0]?.status === 'loading' ? PAST_LOADING : false}
         actionsBefore={[
           { icon: <TodayIcon />, tooltip: TODAY_ACTION, onClick: goToToday, color: 'primary', ariaDisabled: atToday },
           ...actionNodes.map((node) => ({ node })),
