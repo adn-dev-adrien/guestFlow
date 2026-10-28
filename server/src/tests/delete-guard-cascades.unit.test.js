@@ -106,6 +106,16 @@ test('rule 52 — the property controller answers 409 and deletes nothing', asyn
   assert.equal(count(db, 'reservations'), 1);
 });
 
+test('rule 49 — a link retired after the guest paid it (cancelled with paidAt) still counts as money', () => {
+  const { db, stay } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  const link = links.create({ reservationId: stay, type: 'deposit', amountCents: 100, providerLinkId: 'ql_r', url: 'u', status: 'open' });
+  assert.equal(propertiesModel.buildModel(db).deletionBlocker(1), null);
+  db.prepare("UPDATE payment_links SET status = 'cancelled', paidAt = '2099-05-01T10:00:00Z' WHERE id = ?").run(link.id);
+  assert.equal(propertiesModel.buildModel(db).deletionBlocker(1), PROPERTY_MONEY_MESSAGE);
+  assert.equal(require('../models/reservationsModel').create(db).deletionBlocker(stay), MONEY_MESSAGE);
+});
+
 test('rule 52 — a devis carrying a paid link is kept (409)', () => {
   const { db, insert } = seed();
   const devis = Number(insert.run('devis', '2099-06-01', '2099-06-04').lastInsertRowid);

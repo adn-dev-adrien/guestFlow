@@ -36,7 +36,7 @@ function carriesMoney(database, ids) {
   };
   return exists(`SELECT 1 FROM reservations WHERE id IN (${marks})
                   AND (depositPaid = 1 OR balancePaid = 1 OR complementPaid = 1 OR endOfStayComplementPaid = 1)`)
-    || exists(`SELECT 1 FROM payment_links WHERE reservationId IN (${marks}) AND status = 'paid'`)
+    || exists(`SELECT 1 FROM payment_links WHERE reservationId IN (${marks}) AND (status = 'paid' OR paidAt IS NOT NULL)`)
     || exists(`SELECT 1 FROM reservation_installments WHERE reservationId IN (${marks}) AND paid = 1`)
     || exists(`SELECT 1 FROM reservation_refunds WHERE reservationId IN (${marks})`)
     || exists(`SELECT 1 FROM reservation_platform_penalties WHERE reservationId IN (${marks})`)
