@@ -52,6 +52,13 @@ for (const id of MINE) {
     const group = [id, ...Object.values(known).filter((p) => (p.requires || []).some((r) => r.id === id)).map((p) => p.id)];
     const rowsOf = (ids) => Object.assign({}, ...ids.map((p) => Object.fromEntries(Object.entries(SEED.rows[p] || {}))));
     const keptRows = () => countRows(Object.keys(rowsOf(group)));
+    // A plugin may add rows of its own once it runs again (the school holidays sync themselves): what the
+    // seed put there must still be there, never less.
+    const expectKept = (label) => {
+      const expected = rowsOf(group);
+      const now = keptRows();
+      Object.keys(expected).forEach((table) => expect(now[table], `${label}: ${table}`).toBeGreaterThanOrEqual(expected[table]));
+    };
     const call = async (method, url, expected, label) => {
       const res = await request.fetch(url, { method });
       expect(res.status(), `${label} (${method} ${url})`).toBe(expected);
@@ -86,7 +93,7 @@ for (const id of MINE) {
     // (b) back: the plugin first, then its dependants; its pages render, its data is untouched.
     for (const p of group) await call('POST', `/api/plugins/${p}/activate`, 200, `activate ${p}`);
     await ownPagesRender(group, `${id} reactivated: its own pages`);
-    expect(keptRows(), `${id}: rows after the round trip`).toEqual(rowsOf(group));
+    expectKept(`${id}: rows after the round trip`);
     const passes = await control.passes(request);
     expect(passes.failed, `${id}: a pass threw after the plugin came back`).toEqual({});
 
@@ -94,11 +101,11 @@ for (const id of MINE) {
     for (const p of [...group].reverse()) await call('DELETE', `/api/plugins/${p}`, 200, `uninstall ${p}`);
     await restart(request);
     await coreSmoke(`${id} uninstalled`);
-    expect(keptRows(), `${id}: rows kept while uninstalled`).toEqual(rowsOf(group));
+    expectKept(`${id}: rows kept while uninstalled`);
     for (const p of group) await call('POST', `/api/plugins/${p}/install`, 200, `reinstall ${p}`);
     await restart(request);
     await ownPagesRender(group, `${id} reinstalled: its own pages`);
-    expect(keptRows(), `${id}: rows after the reinstall`).toEqual(rowsOf(group));
+    expectKept(`${id}: rows after the reinstall`);
 
     // (d) purged: its tables are dropped, and a reinstall without a restart works on empty ones.
     const listed = await plugins(request);

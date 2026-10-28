@@ -254,7 +254,7 @@ including the ones added later.
     starts the production server on the rule 11 database with every plugin, and for each plugin P — with
     the plugins that require it, which move first when going down and last when coming back — through the
     real API: (a) deactivate → the pages smoke of rule 10 on the core pages and the fiches; (b) activate
-    → P's own pages render, P's rows are the ones `seed.json` counted, and the scheduled passes and jobs
+    → P's own pages render, P's tables hold at least the rows `seed.json` counted (a plugin may add its own once it runs again), and the scheduled passes and jobs
     run without a throw; (c) uninstall keeping data → restart → pages smoke and rows kept; reinstall →
     restart → P's pages render and its rows are back; (d) when P is erasable: uninstall with purge →
     restart → pages smoke → reinstall **without** a restart → P's pages render (no statement prepared on
