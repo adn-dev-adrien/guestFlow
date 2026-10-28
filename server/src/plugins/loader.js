@@ -127,7 +127,7 @@ const installing = new Set();
 
 function runActivateHooks(id) {
   const record = registry.get(id);
-  if (!record || record.failed || announced.has(id)) return Promise.resolve();
+  if (!record || record.failed || announced.has(id) || !registry.isLive(id)) return Promise.resolve();
   announced.add(id);
   wasLive.set(id, true);
   return Promise.all(record.onActivate.map(async (hook) => {
