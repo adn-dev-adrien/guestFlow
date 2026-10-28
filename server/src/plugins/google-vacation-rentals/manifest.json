@@ -24,7 +24,8 @@
       "Compatible avec le SDK 2 de GuestFlow."
     ],
     "1.0.2": [
-      "Remis en marche, le plugin renvoie tout à Google dès son prochain passage, au lieu d’attendre la nuit."
+      "Remis en marche, le plugin renvoie tout à Google dès son prochain passage, au lieu d’attendre la nuit.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }
