@@ -1,0 +1,1 @@
+- **Email texts page opens faster** (spec `inte-performance.md`, 2026-10-28). The first preview no longer waits for the 400 ms typing debounce, a folded section's fields are no longer mounted (136 → 52 inputs), and each section's « Email » selector shows its own email instead of logging out-of-range warnings. +6 client tests.

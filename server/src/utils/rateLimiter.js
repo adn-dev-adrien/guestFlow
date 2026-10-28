@@ -56,6 +56,7 @@ function createWindowCounter({
       hits.set(k, kept);
       return kept.length <= max;
     },
+    reset: (key) => { hits.delete(String(key || '')); },
     sweep,
     size: () => hits.size,
     clear: () => hits.clear(),

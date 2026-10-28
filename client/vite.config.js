@@ -106,6 +106,8 @@ export default defineConfig({
     // Never ship sourcemaps to prod — security flag pinned by the 2026-06-01 audit
     // (was `GENERATE_SOURCEMAP=false` in CRA / CI). Equivalent here.
     sourcemap: false,
+    // specs/inte-performance.md rule 4 — scripts/check-bundle-budget.mjs reads the chunk graph from it.
+    manifest: true,
     // Vite ships zero inline runtime scripts by default — already satisfies the
     // `script-src 'self'` CSP posture that `INLINE_RUNTIME_CHUNK=false` enforced
     // under CRA. No extra setting required.

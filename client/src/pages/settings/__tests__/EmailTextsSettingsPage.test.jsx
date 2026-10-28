@@ -90,7 +90,7 @@ test('rule 25: sentences the stored template never places are folded away', asyn
   api.getEmailTexts.mockResolvedValue({ ...TEXTS, sections });
   renderAt(EmailTextsSettingsPage);
   const fold = await screen.findByText('Phrases non utilisées par le modèle (1)');
-  expect(screen.getByText('Accès — Le Gîte')).not.toBeVisible();
+  expect(screen.queryByText('Accès — Le Gîte')).not.toBeInTheDocument();
   fireEvent.click(fold);
   await waitFor(() => expect(screen.getByText('Accès — Le Gîte')).toBeVisible());
 });

@@ -4,7 +4,38 @@ import { DATA_CHANGED_EVENT } from './constants/appEvents';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
-async function request(path, options = {}) {
+// Identical GETs in flight at the same moment (the shell and a page both reading /properties or
+// /system/version) are one request: the first caller gets the parsed body, each other its own copy.
+// Any write empties the table when it starts and again when it settles, so a read started after the
+// write never joins one started before it commits (specs/inte-performance.md rule 8). A POST that writes
+// nothing (`readOnly`) leaves it alone.
+const inFlight = new Map();
+
+function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET' || options.body) {
+    if (options.readOnly) return send(path, options);
+    inFlight.clear();
+    const written = send(path, options);
+    const settled = () => inFlight.clear();
+    written.then(settled, settled);
+    return written;
+  }
+  let shared = inFlight.get(path);
+  if (!shared) {
+    const promise = send(path, options);
+    shared = { promise, taken: false };
+    inFlight.set(path, shared);
+    const forget = () => { if (inFlight.get(path) === shared) inFlight.delete(path); };
+    promise.then(forget, forget);
+  }
+  const first = !shared.taken;
+  shared.taken = true;
+  // Both go through `then`, so every copy is made before any caller's continuation can touch the original.
+  return shared.promise.then((body) => (first || body == null ? body : structuredClone(body)));
+}
+
+async function send(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
     credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
@@ -97,10 +128,12 @@ const api = {
   verifySecondFactor: (code, trustDevice) => request('/auth/2fa/verify', { method: 'POST', body: { code, trustDevice } }),
   resendSecondFactor: () => request('/auth/2fa/resend', { method: 'POST' }),
   getTwoFactorStatus: () => request('/auth/2fa/status'),
-  startTwoFactor: (method, password) => request('/auth/2fa/start', { method: 'POST', body: { method, password } }),
-  confirmTwoFactor: (code) => request('/auth/2fa/confirm', { method: 'POST', body: { code } }),
-  disableTwoFactor: (password) => request('/auth/2fa/disable', { method: 'POST', body: { password } }),
-  regenerateBackupCodes: (password) => request('/auth/2fa/backup-codes', { method: 'POST', body: { password } }),
+  startTwoFactor: (method, password, code, enrolmentToken) => request('/auth/2fa/start', { method: 'POST', body: { method, password, code, enrolmentToken } }),
+  cancelTwoFactor: () => request('/auth/2fa/cancel', { method: 'POST' }),
+  sendTwoFactorActionCode: () => request('/auth/2fa/code', { method: 'POST' }),
+  confirmTwoFactor: (code, options = {}) => request('/auth/2fa/confirm', { method: 'POST', body: { code, ...options } }),
+  disableTwoFactor: (password, code) => request('/auth/2fa/disable', { method: 'POST', body: { password, code } }),
+  regenerateBackupCodes: (password, code) => request('/auth/2fa/backup-codes', { method: 'POST', body: { password, code } }),
   snoozeTwoFactor: () => request('/auth/2fa/snooze', { method: 'POST' }),
   disableUserTwoFactor: (id) => request(`/users/${id}/two-factor`, { method: 'DELETE' }),
   getSupportBanner: () => request('/support-access/banner'),
@@ -190,7 +223,7 @@ const api = {
   cleanupOrphanClientsByIds: (ids) => request('/clients/cleanup-orphans/delete', { method: 'POST', body: { ids } }),
   // Server-side cleanup of a dropped/typed raw string → clean field values
   // (specs/client-contact-smart-input.md). Send any of { address, email, phone }.
-  parseClientContact: (payload) => request('/clients/parse-contact', { method: 'POST', body: payload }),
+  parseClientContact: (payload) => request('/clients/parse-contact', { method: 'POST', body: payload, readOnly: true }),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),
   deleteClient: (id, options = {}) => {
@@ -202,7 +235,7 @@ const api = {
 
   // Properties
   getProperties: () => request('/properties'),
-  getProperty: (id) => request(`/properties/${id}`),
+  getProperty: (id, view) => request(`/properties/${id}${view ? `?view=${view}` : ''}`),
   getPlatformColors: () => request('/properties/platform-colors'),
   getArticleLabels: (name) => request(`/properties/article-labels?name=${encodeURIComponent(name || '')}`),
   createProperty: (formData) => request('/properties', { method: 'POST', body: formData }),
@@ -226,7 +259,7 @@ const api = {
   // specs/pricing-min-nights-per-range.md — calendar season painting: (re)assign a selected period to
   // a season (existing/new) with a minimum-nights; the server carves/splits the covering season(s).
   assignPricingDateRange: (propId, data) => request(`/properties/${propId}/pricing/assign-dates`, { method: 'POST', body: data }),
-  previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data }),
+  previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data, readOnly: true }),
   // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up).
   getPlatformPrices: (propId) => request(`/properties/${propId}/platform-prices`),
   // Tariff recipes (specs/tariff-recipes/spec.md §3.5)
@@ -352,11 +385,11 @@ const api = {
   // rules 30-31).
   getWebsiteConnection: () => request('/settings/website-connection'),
   regenerateWebsiteKey: () => request('/settings/website-connection/regenerate', { method: 'POST' }),
-  calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
-  suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
+  calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data, readOnly: true }),
+  suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data, readOnly: true }),
   // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » items and total, derived by the server.
-  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data }),
-  computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures }),
+  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data, readOnly: true }),
+  computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures, readOnly: true }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
@@ -657,7 +690,7 @@ const api = {
   // current admin so they can verify the SMTP block before inviting anyone.
   sendSmtpTest: () => request('/settings/smtp-test', { method: 'POST' }),
   // specs/settings-rationalization.md rule 28 — the server found from the sending address.
-  detectSmtp: (address) => request('/settings/smtp-detect', { method: 'POST', body: { address } }),
+  detectSmtp: (address) => request('/settings/smtp-detect', { method: 'POST', body: { address }, readOnly: true }),
 
   // Google Calendar sync (specs/google-calendar-oauth-rework.md §4.3). The OAuth authorize
   // redirect is a full-page navigation (window.location), not an XHR — no helper for it.
@@ -673,7 +706,7 @@ const api = {
   saveTermsDraft: (payload) => request('/terms/draft', { method: 'PUT', body: payload }),
   // specs/plugins-phase-3a-online-payment.md rule 15.
   saveTermsPublicSiteOrigin: (publicSiteOrigin) => request('/terms/public-site-origin', { method: 'PUT', body: { publicSiteOrigin } }),
-  previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload }),
+  previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload, readOnly: true }),
   publishTerms: () => request('/terms/publish', { method: 'POST' }),
   getTermsVersion: (version) => request(`/terms/versions/${version}`),
   // The « Réservation en ligne » card of the website-booking plugin (specs/plugins-phase-2-hosts.md rule 25).
@@ -703,9 +736,9 @@ const api = {
   deleteEstablishmentClosure: (id) => request(`/establishment-closures/${id}`, { method: 'DELETE' }),
 
   // Email automation (specs/email-automation.md)
-  getEmailTemplates:        () => request('/email-templates'),
+  getEmailTemplates:        (view) => request(`/email-templates${view ? `?view=${view}` : ''}`),
   getEmailTemplatesTimeline: () => request('/email-templates?view=timeline'),
-  describeTemplateWhen:     (body) => request('/email-templates/when', { method: 'POST', body }),
+  describeTemplateWhen:     (body) => request('/email-templates/when', { method: 'POST', body, readOnly: true }),
   getEmailMentions: () => request('/email-mentions'),
   createEmailMention: (body) => request('/email-mentions', { method: 'POST', body }),
   updateEmailMention: (id, body) => request(`/email-mentions/${id}`, { method: 'PUT', body }),
@@ -737,7 +770,7 @@ const api = {
     return a.download;
   },
   getEmailReadiness: () => request('/email-readiness'),
-  previewEmailDraft: (body) => request('/emails/preview', { method: 'POST', body }),
+  previewEmailDraft: (body) => request('/emails/preview', { method: 'POST', body, readOnly: true }),
   sendTestEmail: (body) => request('/emails/test', { method: 'POST', body }),
   getEmailTemplateVariables: (id) => request(`/email-templates/${id || 'new'}/variables`),
   getPropertyArrivalFacts: (id) => request(`/properties/${id}/arrival-facts`),

@@ -10,7 +10,7 @@ vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getEmailTemplates: vi.fn(), getEmailTemplatesTimeline: vi.fn(), describeTemplateWhen: vi.fn(), getEmailTemplateVariables: vi.fn(), getPendingEmails: vi.fn(),
+    getEmailTemplates: vi.fn(), getEmailTemplatesTimeline: vi.fn(), getEmailTemplate: vi.fn(), describeTemplateWhen: vi.fn(), getEmailTemplateVariables: vi.fn(), getPendingEmails: vi.fn(),
     createEmailTemplate: vi.fn(), updateEmailTemplate: vi.fn(), deleteEmailTemplate: vi.fn(),
   },
 }));
@@ -29,6 +29,7 @@ const OWN = { id: 2, stableKey: null, textsSection: null, shipped: false, displa
 beforeEach(() => {
   vi.clearAllMocks();
   api.getEmailTemplatesTimeline.mockResolvedValue({ groups: [{ id: 'before', label: 'Avant l’arrivée', templates: [J7] }, { id: 'during', label: 'Pendant le séjour', templates: [OWN] }] });
+  api.getEmailTemplate.mockImplementation(async (id) => [J7, OWN].find((t) => t.id === id));
   api.getEmailTemplateVariables.mockResolvedValue({ variables: [], conditions: [] });
   api.getPendingEmails.mockResolvedValue([]);
 });
