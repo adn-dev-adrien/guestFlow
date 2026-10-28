@@ -25,6 +25,27 @@ function receiptsOf(row, items) {
   return keys.map((k) => mine.find((i) => i.ledgerKey === k)).filter(Boolean);
 }
 
+const NO_ACTION = { proposalId: null, amountCents: 0 };
+
+/** What the bank says about the first échéance still open, in the words of its state. */
+function bankLineOf(item) {
+  const { proposal } = item;
+  if (proposal) {
+    const amountCents = proposal.allocations.reduce((s, a) => s + a.amountCents, 0);
+    return {
+      state: 'proposed', label: `Virement trouvé : ${euros(proposal.bank.amountCents)} le ${proposal.bank.dateLabel}`,
+      confidence: proposal.confidence, confidenceLabel: proposal.confidenceLabel,
+      // One click only when nothing is left to judge: the others are checked on the fiche.
+      proposalId: proposal.confidence === 'sur' && !proposal.needsShares ? proposal.id : null, amountCents,
+    };
+  }
+  const last = item.bank[item.bank.length - 1];
+  if (item.state === 'received_not_recorded' && last) return { state: 'received', label: `Virement arrivé le ${last.dateLabel} : marquer reçu sur la fiche`, ...NO_ACTION };
+  if (item.state === 'partial') return { state: 'partial', label: `Reçu en partie : ${euros(item.receivedCents)} sur ${euros(item.expectedCents)}`, ...NO_ACTION };
+  if (item.state === 'amount_gap' && last) return { state: 'gap', label: `Virement de ${euros(item.receivedCents)} le ${last.dateLabel}, la fiche attend ${euros(item.expectedCents)}`, ...NO_ACTION };
+  return { state: 'nothing', label: 'Rien sur le compte', ...NO_ACTION };
+}
+
 /**
  * @param {object[]} rows   the card's rows
  * @param {object[]} items  the controller's receipt items (`state`, `proposal`, `reservation`, `ledgerKey`)
@@ -36,20 +57,7 @@ function decorateRows(rows, items) {
     if (late.length === 0) { out.push(row); return out; }
     const open = late.filter((i) => i.state !== 'reconciled');
     if (open.length === 0) return out;
-    const proposed = open.find((i) => i.proposal);
-    if (proposed) {
-      const { proposal } = proposed;
-      const amountCents = proposal.allocations.reduce((s, a) => s + a.amountCents, 0);
-      out.push({
-        ...row,
-        bank: {
-          state: 'proposed', label: `Virement trouvé : ${euros(proposal.bank.amountCents)} le ${proposal.bank.dateLabel}`,
-          proposalId: proposal.needsShares ? null : proposal.id, amountCents,
-        },
-      });
-    } else {
-      out.push({ ...row, bank: { state: 'nothing', label: 'Rien sur le compte', proposalId: null, amountCents: 0 } });
-    }
+    out.push({ ...row, bank: bankLineOf(open[0]) });
     return out;
   }, []);
 }

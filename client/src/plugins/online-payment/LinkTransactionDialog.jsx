@@ -14,14 +14,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Button, Checkbox, Chip, Stack, TextField, Typography,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
-  api, FormDialog, PlatformChip, LoadingState, useLatestPreview,
+  api, FormDialog, PlatformChip, LoadingState, ErrorAlert, useLatestPreview,
 } from '../sdk';
 import AmountPairFields from './AmountPairFields';
 import { money, parseEuroInput, centsToInput } from './reconciliationShared';
 
 const MAX_TICKED = 10;
-const REASON_LABELS = { exact: 'montant exact', amount: '±5 €', name: 'nom' };
+const REASON_LABELS = { exact: 'montant exact', amount: '±5 €', name: 'nom', proposal: 'proposé pour cette fiche' };
 
 function Row({ checked, disabled, onToggle, children }) {
   return (
@@ -42,7 +43,7 @@ function CreditRow({ credit, checked, disabled, onToggle }) {
   return (
     <Row checked={checked} disabled={disabled} onToggle={onToggle}>
       <Stack direction="row" sx={{ alignItems: 'baseline', flexWrap: 'wrap', columnGap: 1 }}>
-        <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(credit.remainingCents)}</b>
+        <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{money(credit.remainingCents)}</b>
         <Typography component="span" variant="body2" color="text.secondary">{credit.dateLabel}</Typography>
       </Stack>
       <Typography variant="caption" color="text.secondary" component="div" sx={{ overflowWrap: 'anywhere' }}>
@@ -60,12 +61,12 @@ function CreditRow({ credit, checked, disabled, onToggle }) {
 function ReceiptRow({ receipt, checked, disabled, onToggle }) {
   return (
     <Row checked={checked} disabled={disabled} onToggle={onToggle}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+      <Typography component="div" variant="body2" sx={{ fontWeight: 600 }}>
         {receipt.reservation.clientName || 'Client'} · {receipt.label}
         <PlatformChip platform={receipt.reservation.platform} sx={{ ml: 1 }} />
       </Typography>
       <Typography variant="caption" color="text.secondary" component="div" sx={{ overflowWrap: 'anywhere' }}>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(receipt.openCents)}</span>
+        <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{money(receipt.openCents)}</span>
         {receipt.anchorDateLabel ? ` · ${receipt.anchorDateLabel}` : ''}{receipt.reservation.propertyName ? ` · ${receipt.reservation.propertyName}` : ''}
       </Typography>
     </Row>
@@ -106,6 +107,13 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
     setTicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : (cur.length < MAX_TICKED ? [...cur, id] : cur)));
   };
 
+  // The credits the lists showed, by id: the split fields name a pair by its transfer, not by a bare receipt.
+  const known = useMemo(() => {
+    const all = base ? [...base.likely, ...base.others.items, ...more] : [];
+    if (creditMode) all.push(credit);
+    return new Map(all.filter((c) => c.transactionId).map((c) => [c.transactionId, c]));
+  }, [base, more, creditMode, credit]);
+
   const manualPairs = useMemo(() => {
     if (!manual) return null;
     return manual.map((m) => ({ transactionId: m.transactionId, reservationId: m.reservationId, ledgerKey: m.ledgerKey, amountCents: parseEuroInput(m.text) }));
@@ -122,7 +130,7 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
     delay: 150,
   });
   const answer = preview.fresh && !preview.error ? preview.data : null;
-  const shown = preview.data;
+  const shown = preview.error ? null : preview.data;
 
   const showMore = async () => {
     setMoreBusy(true);
@@ -154,9 +162,19 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
     : <CreditRow key={keyOf(item)} credit={item} checked={tickedIds.includes(keyOf(item))} disabled={!tickedIds.includes(keyOf(item)) && tickedIds.length >= MAX_TICKED} onToggle={() => toggle(keyOf(item))} />);
   const nameOfPair = (p) => {
     const r = shown && shown.receipts.find((x) => x.key === `${p.reservationId}|${p.ledgerKey}`);
-    return `${r ? r.label : p.ledgerKey}`;
+    const from = known.get(p.transactionId);
+    return `${from ? `${from.dateLabel} · ${money(from.remainingCents)} → ` : ''}${r ? r.label : p.ledgerKey}`;
   };
-  const errorFor = (index) => (answer || shown ? ((shown && shown.errors) || []).find((e) => e.field === `pairs.${index}`) : null);
+  // A refusal belongs under the field it is about: the pair's own, else its credit's or its receipt's. Only a fresh
+  // answer counts: an older refusal would stay under a field the operator has since changed.
+  const errorFor = (index) => {
+    if (!preview.fresh || !shown) return null;
+    const m = manual && manual[index];
+    return shown.errors.find((e) => e.field === `pairs.${index}`)
+      || (m && shown.errors.find((e) => e.field === `credit.${m.transactionId}` || e.field === `receipt.${m.reservationId}|${m.ledgerKey}`))
+      || null;
+  };
+  const refusalsInFields = new Set(manual ? manual.flatMap((m, i) => { const e = errorFor(i); return e ? [e.field] : []; }) : []);
 
   return (
     <FormDialog
@@ -173,15 +191,20 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
         label={creditMode ? 'Client, logement, date (12/03) ou montant' : 'Nom, date (12/03) ou montant (596,58)'}
         slotProps={{ htmlInput: { autoComplete: 'off', style: { fontSize: 16 } } }}
       />
-      {!base && <LoadingState />}
-      {base && !creditMode && base.receipts.length > 0 && (
-        <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>
-          {base.receipts.map((r) => `${r.label} · ${money(r.openCents)}${r.anchorDateLabel ? ` · ${r.anchorDateLabel}` : ''}`).join('  |  ')}
-        </Typography>
+      {!base && !list.error && <LoadingState />}
+      {list.error && <ErrorAlert message={list.error.message || 'Lecture impossible.'} onRetry={list.retry} />}
+      {base && !creditMode && (base.receipts || []).length > 0 && (
+        <Box sx={{ mb: 1 }}>
+          {base.receipts.map((r) => (
+            <Typography key={r.key} variant="caption" color="text.secondary" component="div">
+              {r.label} · <span style={{ whiteSpace: 'nowrap' }}>{money(r.openCents)}</span>{r.anchorDateLabel ? ` · ${r.anchorDateLabel}` : ''}
+            </Typography>
+          ))}
+        </Box>
       )}
       {empty && searching && (
         <Box sx={{ py: 2 }}>
-          <Typography variant="body2">Aucun résultat pour « {q.trim()} ».</Typography>
+          <Typography variant="body2">Aucun virement ne correspond à « {q.trim()} ».</Typography>
           <Button size="small" onClick={() => setQ('')} sx={{ textTransform: 'none', minHeight: 44 }}>Effacer la recherche</Button>
         </Box>
       )}
@@ -198,7 +221,8 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
             : <Box>{base.likely.map(renderItem)}</Box>}
           {base.others.total > 0 && (
             <Box component="details" open={noLikely || searching} sx={{ mt: 1 }}>
-              <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 600, minHeight: 44, display: 'flex', alignItems: 'center' }}>
+              <Box component="summary" sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 600, minHeight: 44, display: 'flex', alignItems: 'center', gap: 0.5, listStyle: 'none', '&::-webkit-details-marker': { display: 'none' }, '& .chev': { transition: 'transform 150ms' }, 'details[open] > & .chev': { transform: 'rotate(180deg)' }, '@media (prefers-reduced-motion: reduce)': { '& .chev': { transition: 'none' } } }}>
+                <ExpandMoreIcon className="chev" fontSize="small" />
                 {creditMode ? `Toutes les échéances ouvertes (${base.others.total})` : `Tous les virements disponibles (${base.others.total})`}
               </Box>
               <Box>{others.map(renderItem)}</Box>
@@ -221,14 +245,21 @@ export default function LinkTransactionDialog({ open, onClose, busy = false, onS
                 </Typography>
               ))}
               {shown.leftover.map((l) => <Typography key={l.transactionId} variant="caption" component="div" color="warning.main">{l.message}</Typography>)}
-              {shown.errors.filter((e) => !String(e.field || '').startsWith('pairs.') || !manual).map((e) => (
+              {shown.errors.filter((e) => !refusalsInFields.has(e.field) && (!String(e.field || '').startsWith('pairs.') || !manual)).map((e) => (
                 <Typography key={`${e.code}-${e.field}`} variant="caption" component="div" color="error.main" role="alert">{e.message}</Typography>
               ))}
               {!manual && shown.pairs.length > 0 && (
                 <Button size="small" onClick={startManual} sx={{ textTransform: 'none', minHeight: 44 }}>Modifier la répartition</Button>
               )}
             </>
-          ) : <Typography variant="caption" color="text.secondary">Calcul de la répartition…</Typography>}
+          ) : (preview.error
+            ? (
+              <Typography variant="caption" component="div" color="error.main" role="alert">
+                {preview.error.message || 'Calcul impossible.'}
+                <Button size="small" onClick={preview.retry} sx={{ textTransform: 'none', minHeight: 44 }}>Réessayer</Button>
+              </Typography>
+            )
+            : <Typography variant="caption" color="text.secondary">Calcul de la répartition…</Typography>)}
           {manual && (
             <AmountPairFields
               pairs={manual.map((m) => ({ id: `${m.transactionId}|${m.reservationId}|${m.ledgerKey}`, label: nameOfPair(m), text: m.text }))}

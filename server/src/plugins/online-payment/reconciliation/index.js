@@ -35,7 +35,7 @@ function mountReconciliation(ctx, { store }) {
     const transactions = createBankTransactionsModel(ctx.db);
     const model = createReconciliationModel(ctx.db);
     const qonto = (fn) => withQonto({ settings: store, origin: 'reconciliation' }, fn);
-    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations });
+    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments });
     const links = paymentLinks.buildModel(ctx.db);
     controller = createReconciliationController({
       db: ctx.db, settings: ctx.settings, transactions, model, writer,
@@ -59,6 +59,7 @@ function mountReconciliation(ctx, { store }) {
   }));
 
   ctx.reservationBlock('online-payment', (reservation) => build().buildFicheBlock(reservation));
+  ctx.events.on('platform-penalty.changed', ({ reservationId }) => build().afterPenalty(reservationId));
   ctx.paymentDeadlineDecorator((rows) => build().decorateDeadlines(rows));
 
   ctx.jobs.every({

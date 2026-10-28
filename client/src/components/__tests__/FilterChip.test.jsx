@@ -28,3 +28,17 @@ test('Échap leaves the filter, and stops listening once unmounted', () => {
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(onClear).toHaveBeenCalledTimes(1);
 });
+
+test('Échap in a field or with a dialog open does not leave the filter; the name keeps the count', () => {
+  const onClear = vi.fn();
+  render(<><FilterChip label="Écarts" count={9} onClear={onClear} /><input aria-label="champ" /></>);
+  expect(screen.getByLabelText('Filtre actif : Écarts · 9')).toBeTruthy();
+  fireEvent.keyDown(screen.getByLabelText('champ'), { key: 'Escape' });
+  expect(onClear).not.toHaveBeenCalled();
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  document.body.appendChild(dialog);
+  fireEvent.keyDown(document.body, { key: 'Escape' });
+  expect(onClear).not.toHaveBeenCalled();
+  dialog.remove();
+});

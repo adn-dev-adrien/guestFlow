@@ -47,6 +47,8 @@ export const credit = (over = {}) => ({
 export const BULK = {
   proposalIds: ['tx-1:7|balance'], count: 1, totalCents: 59658, amounts: { 'tx-1:7|balance': 59658 },
   toVerify: { proposalIds: [], count: 0, totalCents: 0, amounts: {} },
+  withToVerify: { proposalIds: ['tx-1:7|balance'], count: 1, totalCents: 59658, amounts: { 'tx-1:7|balance': 59658 } },
+  leftOut: 0,
 };
 
 export const ficheCredit = (over = {}) => ({

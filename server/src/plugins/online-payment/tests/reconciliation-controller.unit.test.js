@@ -10,7 +10,7 @@ test.beforeEach(() => { reset(); });
 const bookingCredit = (id, cents, over = {}) => credit(id, cents, { counterpartyName: 'Booking.com B.V.', label: 'Booking.com B.V.', reference: 'NO.x/ID.1', ...over });
 
 test('rules 34–36 — confirming a platform payout marks the fiche received at the bank date and carries the payout and its commission', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-11-18' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
 
@@ -35,7 +35,7 @@ test('rules 34–36 — confirming a platform payout marks the fiche received at
 });
 
 test('rule 38 — « Défaire » restores the fiche: unpaid again, payout and commission back to what they were', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-11-18' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
   const item = controller.list().body.items.find((i) => i.reservation.id === id);
@@ -51,7 +51,7 @@ test('rule 38 — « Défaire » restores the fiche: unpaid again, payout and co
 });
 
 test('rule 38 — a fiche edited since the confirmation is left alone by « Défaire »', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-11-18' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
   const item = controller.list().body.items.find((i) => i.reservation.id === id);

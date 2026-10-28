@@ -261,6 +261,8 @@ function seedBankCredits({ startDate = '2026-01-01', credits = [] } = {}) {
 function clearBankSeed() {
   return withDb((db) => {
     db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'online-payment' AND key IN ('qontoRefreshTokenEncrypted', 'reconciliationStartDate', 'reconciliationBankAccountId', 'reconciliationLastReadAt')").run();
+    db.prepare("DELETE FROM bank_reconciliation_lines WHERE transactionId LIKE 'e2e-%' OR transactionId LIKE 'tc-%'").run();
+    db.prepare("DELETE FROM bank_transactions WHERE bankAccountId = 'e2e-account'").run();
   });
 }
 

@@ -10,7 +10,12 @@ import { Chip } from '@mui/material';
 
 export default function FilterChip({ label, count, onClear, clearLabel = 'Retirer le filtre' }) {
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClear(); };
+    const onKey = (e) => {
+      // Escape closes a dialog or leaves a field first: only a bare Escape on the page leaves the filter.
+      const t = e.target;
+      if (e.key !== 'Escape' || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) || document.querySelector('[role="dialog"]')) return;
+      onClear();
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClear]);
@@ -18,7 +23,7 @@ export default function FilterChip({ label, count, onClear, clearLabel = 'Retire
     <Chip
       color="primary" variant="outlined" label={count == null ? label : `${label} · ${count}`}
       onDelete={onClear} slotProps={{ deleteIcon: { 'aria-label': clearLabel } }}
-      aria-label={`Filtre actif : ${label}`} sx={{ minHeight: 32 }}
+      aria-label={`Filtre actif : ${label}${count == null ? '' : ` · ${count}`}`} sx={{ minHeight: 32 }}
     />
   );
 }

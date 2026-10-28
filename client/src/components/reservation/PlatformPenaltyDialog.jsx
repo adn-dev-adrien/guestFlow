@@ -45,7 +45,7 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
   const preview = useLatestPreview({
     fetcher: (d) => api.previewPlatformPenalty(reservationId, d.body),
     draft: { body },
-    enabled: open,
+    enabled: open && toAmount(amount) != null && toAmount(amount) > 0,
     scope: reservationId,
     resetKey: open ? String(reservationId) : 'closed',
     delay: 250,
@@ -67,14 +67,15 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
   };
 
   const touch = (field) => setTouched((t) => ({ ...t, [field]: true }));
-  const errorOf = (field) => refused.find((e) => e.field === field);
+  const amountInvalid = amount.trim() !== '' && toAmount(amount) == null;
+  const errorOf = (field) => (field === 'amount' && amountInvalid ? { message: 'Montant invalide : chiffres et virgule, deux décimales au plus.' } : refused.find((e) => e.field === field));
   const figures = (label, key, fmt) => (shown && shown.before && shown.after && shown.before[key] != null && shown.after[key] != null
     ? `${label} ${fmt(shown.before[key])} → ${fmt(shown.after[key])}` : null);
 
   return (
     <FormDialog
       open={open} onClose={onClose} title="Pénalité plateforme" submitLabel="Enregistrer" onSubmit={submit} submitBusy={busy}
-      submitDisabled={!answer || !answer.valid}
+      submitDisabled={!answer || !answer.valid || amountInvalid}
     >
       <TextField
         fullWidth label="Montant (€)" value={amount} sx={{ mt: 1 }} onChange={(e) => { setAmount(e.target.value); touch('amount'); }}
@@ -92,12 +93,12 @@ export default function PlatformPenaltyDialog({ open, onClose, reservationId, so
         slotProps={{ inputLabel: { shrink: true } }} error={Boolean(errorOf('date'))}
         helperText={errorOf('date')?.message || 'Par défaut : la date de réception du versement, sinon aujourd’hui.'}
       />
-      {shown && shown.needsChoice && (
+      {shown && (shown.needsChoice || choice != null) && (
         <Box sx={{ mt: 1.5 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography id="penalty-choice" variant="body2" sx={{ fontWeight: 600 }}>
             Le versement saisi ({shown.before.payout != null ? formatCurrency(shown.before.payout) : ''}) est :
           </Typography>
-          <RadioGroup value={choice == null ? '' : String(choice)} onChange={(e) => setChoice(e.target.value === 'true')}>
+          <RadioGroup aria-labelledby="penalty-choice" value={choice == null ? '' : String(choice)} onChange={(e) => setChoice(e.target.value === 'true')}>
             <FormControlLabel value="false" control={<Radio />} label="le montant du relevé, avant pénalité" />
             <FormControlLabel value="true" control={<Radio />} label="le montant reçu sur le compte, pénalité déjà déduite" />
           </RadioGroup>

@@ -27,8 +27,9 @@ const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
  * @param {Function} deps.applyPaymentMark core's mark (no request)
  * @param {Function} deps.computePlatformCommission
  * @param {object} deps.reservations       core reservationsModel (getRow, addHistoryEntry, updatePaymentField)
+ * @param {object} [deps.installments]     core installmentsModel (findById, markUnpaid): « Défaire » takes an installment back
  */
-function createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations }) {
+function createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments = null }) {
   const history = (reservationId, label, from, to) => reservations.addHistoryEntry(reservationId, 'update',
     [{ field: 'bankReconciliation', label, from, to }]);
 
@@ -48,8 +49,8 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       if (!settled) return { written: false, reason: 'no-date' };
 
       const before = reservations.getRow(receipt.reservationId) || {};
-      // An installment is marked through its own handler (rule 38); « Défaire » cannot take it back: the
-      // payment stays recorded, as a bank transfer cannot be un-received.
+      // An installment is marked through its own handler (rule 38); « Défaire » takes it back through the
+      // installments model (reconciliation-assisted-matching.md rule 21) while nobody touched it since.
       const body = fields.installment
         ? { installmentId: receipt.installmentId, installmentPaidDate: settled, installmentMethod: 'transfer' }
         : { [fields.flag]: true, [fields.date]: settled };
@@ -80,7 +81,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
           payout: before.platformPayoutAmount == null ? null : Number(before.platformPayoutAmount),
           commission: before.platformCommissionAmount == null ? null : Number(before.platformCommissionAmount),
         },
-        written: { paid: true, date: settled, payout, commission },
+        written: { paid: true, date: settled, payout, commission, installmentId: receipt.installmentId || null },
         createdBy: user && user.id ? user.id : null,
       });
       history(receipt.reservationId, auto ? 'Rapprochement bancaire automatique' : 'Rapprochement bancaire', 'à percevoir', `reçu le ${frDate(settled)} (virement)`);
@@ -95,6 +96,18 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       const restored = [];
       const untouched = [];
       model.ficheWritesOfTransaction(transactionId).forEach((w) => {
+        if (w.written.installmentId != null) {
+          // An installment the confirmation marked received goes back to unpaid, unless it was touched since.
+          const installment = installments ? installments.findById(w.written.installmentId) : null;
+          const untouchedSince = installment && Number(installment.paid) === 1 && day(installment.paidDate) === w.written.date
+            && String(installment.paidMethod) === 'transfer';
+          if (untouchedSince && installments.markUnpaid(installment.id).flipped) {
+            history(w.reservationId, 'Rapprochement bancaire', `reçu le ${frDate(w.written.date)}`, 'à percevoir (rapprochement défait)');
+            restored.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
+          } else untouched.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
+          model.deleteFicheWrite(w.id);
+          return;
+        }
         const fields = BUCKET_FIELDS[w.ledgerKey];
         const row = reservations.getRow(w.reservationId);
         const edited = !row || !fields

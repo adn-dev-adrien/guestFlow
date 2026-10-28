@@ -43,7 +43,7 @@ const row = (id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(id
 const history = (id) => db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).map((r) => r.changedFields).join(' ');
 const body = (over = {}) => ({ amount: 40, reason: 'Frais de relogement', date: '2026-05-26', source: 'reconciliation', ...over });
 
-test('rule 23 — a direct or a cancelled stay cannot carry a penalty', () => {
+test('rule 23, 26 — a direct (422) or a cancelled (409) stay cannot carry a penalty', () => {
   const direct = stay({ platform: 'direct' });
   const cancelled = stay({ kind: 'cancelled' });
   assert.equal(controller.declare(direct, body(), null).body.code, 'PENALTY_NOT_PLATFORM');
@@ -175,7 +175,11 @@ test('rule 27 — the ledger\'s payout row shows a line per penalty and the net 
   const ledger = buildLedger({ row: row(id), penalties: penaltiesModel.listFor(id), today: TODAY });
   const payout = ledger.rows.find((r) => r.key === 'balance');
   const plain = (t) => t.replace(/[\u00a0\u202f]/g, ' ');
-  assert.deepEqual(payout.detail.lines.map(plain), ['Pénalité plateforme −40,00 € · Frais de relogement']);
+  assert.deepEqual(payout.detail.penalties.map((p) => plain(p.label)), ['Pénalité plateforme −40,00 € · Frais de relogement']);
+  assert.equal(payout.detail.penalties[0].id > 0, true);
+  assert.deepEqual(payout.penaltyAction, { label: 'Déclarer une pénalité' }, 'offered on the payout row itself, even when the amounts are frozen');
+  const direct = buildLedger({ row: { ...row(id), platform: 'direct' }, today: TODAY }).rows.find((r) => r.key === 'balance');
+  assert.equal(direct.penaltyAction, undefined);
   assert.match(plain(payout.detail.commission), /Commission 189,98 € · net 570,02 €/);
 });
 

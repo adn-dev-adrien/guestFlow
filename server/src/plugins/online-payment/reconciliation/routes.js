@@ -15,7 +15,7 @@ function buildRouter(controller) {
   });
 
   router.get('/', wrap((req) => controller.list({ view: req.query.view, filter: req.query.filter })));
-  router.post('/read', wrap((req) => controller.readNow({ view: req.query.view })));
+  router.post('/read', wrap((req) => controller.readNow({ view: req.query.view, filter: req.query.filter })));
   router.post('/links', wrap((req) => controller.confirm({
     transactionId: req.body && req.body.transactionId, allocations: req.body && req.body.allocations, user: req.user,
   })));

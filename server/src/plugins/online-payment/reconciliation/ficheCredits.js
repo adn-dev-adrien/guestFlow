@@ -91,6 +91,12 @@ function anchorLabel(receipt) {
  * @returns {{ rank: number, reasons: string[], fitsKey: string|null, distance: number }|null} null = not plausible
  */
 function plausibility(credit, receipts, lastName) {
+  const own = plausibilityByEvidence(credit, receipts, lastName);
+  if (own || !credit.proposedHereKey) return own;
+  return { rank: 0, reasons: ['proposal'], fitsKey: credit.proposedHereKey, distance: 0 };
+}
+
+function plausibilityByEvidence(credit, receipts, lastName) {
   const near = receipts.filter((r) => anchorOf(r) && withinWindow(anchorOf(r), credit.settledAt));
   if (near.length === 0) return null;
   const totalOpen = receipts.reduce((s, r) => s + r.openCents, 0);

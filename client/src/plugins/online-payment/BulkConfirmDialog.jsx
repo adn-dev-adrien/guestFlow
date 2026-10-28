@@ -3,7 +3,7 @@
  * what will be written from the server's `bulk` summary; « à vérifier » proposals are left out unless the
  * checkbox is ticked, which only switches between two server-computed sets.
  *
- * Props: open, onClose, bulk ({ proposalIds, count, totalCents, amounts, toVerify: same shape }), busy,
+ * Props: open, onClose, bulk ({ proposalIds, count, totalCents, amounts, toVerify, withToVerify: same shape, leftOut }), busy,
  *        onConfirm({ proposalIds, amounts })
  */
 import React, { useEffect, useState } from 'react';
@@ -17,12 +17,10 @@ export default function BulkConfirmDialog({ open, onClose, bulk, busy = false, o
   if (!bulk) return null;
 
   const { toVerify } = bulk;
-  const count = bulk.count + (withVerify ? toVerify.count : 0);
-  const total = bulk.totalCents + (withVerify ? toVerify.totalCents : 0);
-  const send = () => onConfirm({
-    proposalIds: [...bulk.proposalIds, ...(withVerify ? toVerify.proposalIds : [])],
-    amounts: { ...bulk.amounts, ...(withVerify ? toVerify.amounts : {}) },
-  });
+  // The two sets come from the server: nothing is added up here.
+  const chosen = withVerify ? bulk.withToVerify : bulk;
+  const { count, totalCents: total } = chosen;
+  const send = () => onConfirm({ proposalIds: chosen.proposalIds, amounts: chosen.amounts });
 
   return (
     <FormDialog
@@ -35,6 +33,11 @@ export default function BulkConfirmDialog({ open, onClose, bulk, busy = false, o
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
         Les fiches seront marquées reçues à la date du virement.
       </Typography>
+      {bulk.leftOut > 0 && (
+        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+          {bulk.leftOut} versement{bulk.leftOut > 1 ? 's' : ''} groupé{bulk.leftOut > 1 ? 's' : ''} à répartir : non compris.
+        </Typography>
+      )}
       {toVerify.count > 0 && (
         <FormControlLabel
           sx={{ mt: 1, minHeight: 44 }}

@@ -35,7 +35,7 @@ const acompteNetOf = (row) => (Number(row.depositDisabled || 0) === 1 || !(Numbe
 
 const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
 
-function buildController({ database, penaltiesModel, reservationsModel, todayOf }) {
+function buildController({ database, penaltiesModel, reservationsModel, todayOf, emit = () => {} }) {
   const stay = (id) => database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
 
   /** Rule 23 — only a stay settled by a platform, and not a cancelled one. */
@@ -188,6 +188,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf 
           field: 'platformPenalty', label: 'Pénalité plateforme', from: null, to: `${eur(plan.amountCents / 100)} · ${plan.reason}`,
         }]);
       })();
+      emit('platform-penalty.changed', { reservationId: Number(reservationId) });
       const after = stay(reservationId);
       return {
         status: 201,
@@ -226,6 +227,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf 
           field: 'platformPenalty', label: 'Pénalité plateforme', from: `${eur(penalty.amount)} · ${penalty.reason}`, to: 'supprimée',
         }]);
       })();
+      emit('platform-penalty.changed', { reservationId: Number(reservationId) });
       return {
         status: 200,
         body: { ok: true, payoutRestored: restored, ...(moved ? { message: 'Versement modifié depuis : vérifier la commission à la main.' } : {}) },
@@ -243,6 +245,7 @@ function bind() {
     penaltiesModel: require('../models/platformPenaltiesModel'),
     reservationsModel: require('../models/reservationsModel'),
     todayOf: require('../utils/localDate').todayIso,
+    emit: require('../plugins/sdk/eventBus').emit,
   });
   return bound;
 }

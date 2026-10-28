@@ -13,15 +13,9 @@
  *   locked: past-locked fiche
  *   onApply(patch), onCancel()
  *   computeCommission(figures) → { commission } — « Calculer la commission » (server)
- *   reservationId?, canDeclarePenalty?, onPenaltiesChanged?() — the penalties of a stored stay
- *     (specs/reconciliation-assisted-matching.md rules 24, 30): lines, « Déclarer une pénalité », delete
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Button, IconButton, Stack, Tooltip, Typography } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import api from '../../api';
-import PlatformPenaltyDialog from './PlatformPenaltyDialog';
-import { useAppDialogs, useToast } from '../DialogProvider';
+import React, { useState } from 'react';
+import { Box, Button, Stack, Tooltip, Typography } from '@mui/material';
 import ArithmeticTextField from '../ArithmeticTextField';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -29,28 +23,7 @@ const blank = (v) => v === '' || v == null;
 
 export default function PlatformStatementEditor({
   form, pricingQuote, withDepositCommission, locked, onApply, onCancel, computeCommission, onError,
-  reservationId = null, canDeclarePenalty = false, onPenaltiesChanged,
 }) {
-  const { confirm } = useAppDialogs();
-  const { showError, showSuccess } = useToast();
-  const [penalties, setPenalties] = useState([]);
-  const [penaltyOpen, setPenaltyOpen] = useState(false);
-  const loadPenalties = useCallback(async () => {
-    if (!reservationId) return;
-    try { setPenalties((await api.listPlatformPenalties(reservationId)).items || []); } catch { setPenalties([]); }
-  }, [reservationId]);
-  useEffect(() => { loadPenalties(); }, [loadPenalties]);
-  const changed = async () => { await loadPenalties(); if (onPenaltiesChanged) await onPenaltiesChanged(); };
-  const removePenalty = async (penalty) => {
-    const ok = await confirm({ title: 'Supprimer la pénalité ?', message: `${penalty.reason} · ${formatCurrency(penalty.amount)}`, confirmLabel: 'Supprimer' });
-    if (!ok) return;
-    try {
-      const answer = await api.removePlatformPenalty(reservationId, penalty.id);
-      showSuccess(answer.message || 'Pénalité supprimée.');
-      await changed();
-    } catch (err) { showError(err?.message || 'Suppression impossible.'); }
-  };
-
   const [draft, setDraft] = useState({
     platformGrossAmount: form.platformGrossAmount ?? '',
     platformTouristTaxAmount: form.platformTouristTaxAmount ?? '',
@@ -177,24 +150,6 @@ export default function PlatformStatementEditor({
         <Typography variant="caption" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>
           Virement reçu : {formatCurrency(form.platformPayoutAmount)}
         </Typography>
-      )}
-      {reservationId && (penalties.length > 0 || canDeclarePenalty) && (
-        <Box sx={{ gridColumn: '1 / -1' }}>
-          {penalties.map((p) => (
-            <Stack key={p.id} direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
-                Pénalité · {p.reason} · −{formatCurrency(p.amount)} · {p.dateLabel}
-              </Typography>
-              <Tooltip title="Supprimer la pénalité">
-                <span><IconButton aria-label="Supprimer la pénalité" disabled={locked} onClick={() => removePenalty(p)} sx={{ minWidth: 44, minHeight: 44 }}><DeleteIcon fontSize="small" /></IconButton></span>
-              </Tooltip>
-            </Stack>
-          ))}
-          {canDeclarePenalty && (
-            <Button size="small" variant="text" onClick={() => setPenaltyOpen(true)} sx={{ textTransform: 'none', minHeight: 44 }}>Déclarer une pénalité</Button>
-          )}
-          <PlatformPenaltyDialog open={penaltyOpen} onClose={() => setPenaltyOpen(false)} reservationId={reservationId} source="fiche" onDone={changed} />
-        </Box>
       )}
     </Box>
   );

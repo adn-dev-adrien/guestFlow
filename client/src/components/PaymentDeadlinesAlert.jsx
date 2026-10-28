@@ -29,6 +29,7 @@ import { Box, Button, Divider, Stack, Typography } from '@mui/material';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import SendIcon from '@mui/icons-material/Send';
 import SnoozeIcon from '@mui/icons-material/Snooze';
+import { Link as RouterLink, useInRouterContext } from 'react-router';
 import api from '../api';
 import AttentionCard from './AttentionCard';
 import StatusBadge from './StatusBadge';
@@ -40,6 +41,7 @@ import { DEADLINE_STATE_LABELS, DEADLINE_STATE_BADGE, deadlineHeadline } from '.
 
 export default function PaymentDeadlinesAlert({ attention }) {
   const { showSuccess, showError } = useToast();
+  const inRouter = useInRouterContext();
   const [rows, setRows] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [cancelRow, setCancelRow] = useState(null);
@@ -161,10 +163,23 @@ export default function PaymentDeadlinesAlert({ attention }) {
               ) : null}
               {row.bank ? (
                 <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Typography variant="body2" color={row.bank.state === 'proposed' ? 'success.main' : 'text.secondary'}>{row.bank.label}</Typography>
+                  <Typography variant="body2" color={row.bank.state === 'proposed' ? 'success.main' : 'text.secondary'}>
+                    {row.bank.label}{row.bank.confidenceLabel ? ` · ${row.bank.confidenceLabel}` : ''}
+                  </Typography>
                   {row.bank.proposalId ? (
-                    <Button size="small" variant="text" onClick={() => handleBankConfirm(row)} disabled={busyId === row.reservationId} sx={{ minHeight: 44 }}>
+                    <Button
+                      size="small" variant="text" onClick={() => handleBankConfirm(row)} disabled={busyId === row.reservationId} sx={{ minHeight: 44 }}
+                      aria-label={`Confirmer le virement de ${formatCurrency(row.bank.amountCents / 100)} pour ${row.clientName}`}
+                    >
                       Confirmer
+                    </Button>
+                  ) : null}
+                  {row.bank.state === 'proposed' && !row.bank.proposalId ? (
+                    <Button
+                      size="small" variant="text" sx={{ minHeight: 44 }} {...(inRouter ? { component: RouterLink, to: `/reservations/${row.reservationId}` } : { href: `/reservations/${row.reservationId}` })}
+                      aria-label={`Vérifier le virement pour ${row.clientName}`}
+                    >
+                      Vérifier
                     </Button>
                   ) : null}
                 </Stack>

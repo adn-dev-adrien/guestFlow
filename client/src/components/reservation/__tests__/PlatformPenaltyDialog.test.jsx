@@ -35,7 +35,7 @@ test('rule 24 — opened from a reconciliation gap, the amount is prefilled and 
 
 test('rule 25 — the before / after choice shows only when the server asks, with the server\'s figures', async () => {
   api.previewPlatformPenalty.mockResolvedValue(preview({ valid: false, needsChoice: true, errors: [{ code: 'INVALID_PENALTY', field: 'payoutIncludesPenalty', message: 'Indiquer…' }] }));
-  renderDialog();
+  renderDialog({ initialAmount: 40 });
   expect(await screen.findByText('le montant du relevé, avant pénalité')).toBeTruthy();
   expect(screen.getByText('le montant reçu sur le compte, pénalité déjà déduite')).toBeTruthy();
   expect(screen.getByText(/Commission 229,98 € → 189,98 €/)).toBeTruthy();
@@ -44,7 +44,7 @@ test('rule 25 — the before / after choice shows only when the server asks, wit
 
 test('rule 25 — choosing « reçu sur le compte » re-previews with payoutIncludesPenalty', async () => {
   api.previewPlatformPenalty.mockResolvedValue(preview({ needsChoice: true }));
-  renderDialog();
+  renderDialog({ initialAmount: 40 });
   fireEvent.click(await screen.findByLabelText('le montant reçu sur le compte, pénalité déjà déduite'));
   await waitFor(() => expect(api.previewPlatformPenalty).toHaveBeenLastCalledWith(7, expect.objectContaining({ payoutIncludesPenalty: true, source: 'fiche' })));
 });
@@ -76,4 +76,23 @@ test('rule 24 — motif suggestions come from the server; « Enregistrer » send
   await waitFor(() => expect(api.declarePlatformPenalty).toHaveBeenCalledWith(7, expect.objectContaining({ amount: 40, reason: 'Frais de relogement', source: 'reconciliation' })));
   await waitFor(() => expect(onDone).toHaveBeenCalled());
   expect(onClose).toHaveBeenCalled();
+});
+
+test('rule 25 — the choice stays on screen once made, even when the server no longer asks', async () => {
+  api.previewPlatformPenalty.mockResolvedValueOnce(preview({ needsChoice: true }));
+  api.previewPlatformPenalty.mockResolvedValue(preview({ needsChoice: false }));
+  renderDialog({ initialAmount: 40 });
+  fireEvent.click(await screen.findByLabelText('le montant reçu sur le compte, pénalité déjà déduite'));
+  await waitFor(() => expect(api.previewPlatformPenalty).toHaveBeenCalledTimes(2));
+  expect(screen.getByLabelText('le montant reçu sur le compte, pénalité déjà déduite').checked).toBe(true);
+});
+
+test('rule 26 — nothing is asked before an amount is typed, and a bad amount is worded without a request', async () => {
+  renderDialog({ source: 'reconciliation' });
+  await waitFor(() => expect(api.listPlatformPenalties).toHaveBeenCalled());
+  expect(api.previewPlatformPenalty).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText('Montant (€)'), { target: { value: 'abc' } });
+  expect(await screen.findByText(/Montant invalide/)).toBeTruthy();
+  expect(api.previewPlatformPenalty).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Enregistrer' }).disabled).toBe(true);
 });

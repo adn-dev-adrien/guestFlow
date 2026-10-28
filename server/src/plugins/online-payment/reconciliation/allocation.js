@@ -9,7 +9,8 @@
  * Receipt shape: `{ key, reservationId, ledgerKey, label, capCents, needCents, tolerance, unbounded, anchor, order }`
  *  - `capCents`   the most a pair may carry (what is still open)
  *  - `needCents`  what completes it (the bank amount minus what is already reconciled)
- *  - `unbounded`  a platform payout the fiche does not carry yet: the credit IS the payout (v1 rule 36)
+ *  - `unbounded`  a platform payout the fiche does not carry yet: the credit IS the payout (v1 rule 36); one credit
+ *                 at most, the one closest to `fitCents` (its gross), `needCents` is its cap
  */
 
 const { euros } = require('./receiptStates');
@@ -24,19 +25,26 @@ function emptyState(receipts) {
 function allocateFifo({ credits, receipts }) {
   const queue = [...receipts].sort(byDue);
   const left = new Map(credits.map((c) => [c.transactionId, c.remainingCents]));
-  const need = new Map(queue.map((r) => [r.key, r.unbounded ? Infinity : r.needCents]));
+  const need = new Map(queue.map((r) => [r.key, r.unbounded && !(r.needCents > 0) ? Infinity : r.needCents]));
   const ordered = [...credits].sort((a, b) => String(a.settledAt).localeCompare(String(b.settledAt)));
   const pairs = [];
   const push = (credit, receipt, cents) => {
     if (cents <= 0) return;
     pairs.push({ transactionId: credit.transactionId, reservationId: receipt.reservationId, ledgerKey: receipt.ledgerKey, amountCents: cents });
     left.set(credit.transactionId, left.get(credit.transactionId) - cents);
-    need.set(receipt.key, need.get(receipt.key) - cents);
+    // A payout the fiche does not carry yet is one credit: once it has one, nothing else lands on it.
+    need.set(receipt.key, receipt.unbounded ? 0 : need.get(receipt.key) - cents);
   };
 
   ordered.forEach((credit) => {
     const exact = queue.find((r) => !r.unbounded && need.get(r.key) > 0 && need.get(r.key) === left.get(credit.transactionId));
     if (exact) push(credit, exact, left.get(credit.transactionId));
+  });
+  queue.filter((r) => r.unbounded && need.get(r.key) > 0 && r.fitCents > 0).forEach((receipt) => {
+    const candidates = ordered.filter((c) => left.get(c.transactionId) > 0);
+    if (candidates.length === 0) return;
+    const closest = candidates.reduce((a, b) => (Math.abs(left.get(b.transactionId) - receipt.fitCents) < Math.abs(left.get(a.transactionId) - receipt.fitCents) ? b : a));
+    push(closest, receipt, Math.min(left.get(closest.transactionId), need.get(receipt.key)));
   });
   ordered.forEach((credit) => {
     queue.forEach((receipt) => {
@@ -116,7 +124,7 @@ function validatePairs({ pairs, creditsById, receiptsByKey, enforceCap = true })
       errors.push(err('RECEIPT_ALREADY_COVERED', 'Cette échéance est déjà couverte par un autre virement.', `receipt.${key}`));
       return;
     }
-    if (enforceCap && !r.unbounded && r.checkCap !== false && sum > r.capCents) {
+    if (enforceCap && !(r.unbounded && !(r.capCents > 0)) && r.checkCap !== false && sum > r.capCents) {
       errors.push(err('ALLOCATION_EXCEEDS_RECEIPT', `${r.label} n'attend plus que ${euros(r.capCents)}.`, `receipt.${key}`));
     }
   });

@@ -40,6 +40,9 @@ const { allocateFifo } = require('./allocation');
 // A platform is the same whatever its stored spelling (`Airbnb` / `AirBnb`, `GitesDeFrance` /
 // `Gitesdefrance`): patterns, batch list and receipts are compared by slug, never by exact name.
 const platformSlug = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+// A platform pays after the stay: a credit more than 3 days before the expected date is another stay's
+// money, unless the platform pays at booking time (v1 rule 14; review 2026-10-28).
+const earlyDaysOf = (platform) => (PAYS_AT_BOOKING.some((p) => platformSlug(p) === platformSlug(platform)) ? MAX_EARLY_DAYS : GROUP_EARLY_DAYS);
 const dayNumber = (iso) => (iso ? Math.floor(Date.parse(`${iso}T00:00:00Z`) / MS_DAY) : null);
 const daysBetween = (a, b) => (day(a) && day(b) ? dayNumber(day(b)) - dayNumber(day(a)) : null);
 
@@ -108,7 +111,7 @@ const proposal = (tx, items, confidence, source, reason, extra = {}) => ({
 function estimatedGroup(tx, platform, rows, settings) {
   const settled = day(tx.settledAt);
   const rate = (Number((settings.commissionRates || {})[platform]) || 0) / 100;
-  const early = PAYS_AT_BOOKING.some((p) => platformSlug(p) === platformSlug(platform)) ? MAX_EARLY_DAYS : GROUP_EARLY_DAYS;
+  const early = earlyDaysOf(platform);
   const items = rows.map((r) => {
     const at = day(r.expectedDate || r.dueDate);
     return {
@@ -121,6 +124,8 @@ function estimatedGroup(tx, platform, rows, settings) {
     return delta <= 30 && delta >= -early;
   });
   if (!items.some((i) => i.estimated)) return null;
+  // A single estimated stay that fits the credit explains it alone (v1 rule 32): never combine around it.
+  if (items.some((i) => i.estimated && Math.abs(i.cents - tx.remainingCents) <= Math.round(i.cents * ESTIMATE_TOLERANCE))) return null;
   const tolerance = (chosen) => chosen.reduce((s, c) => s + (c.estimated ? Math.round(c.cents * ESTIMATE_TOLERANCE) : 0), 0);
 
   let best = null;
@@ -138,7 +143,7 @@ function estimatedGroup(tx, platform, rows, settings) {
   const estimatedRows = found.filter((f) => f.estimated);
   const exactSum = found.filter((f) => !f.estimated).reduce((s, f) => s + f.cents, 0);
   if (estimatedRows.length === 1) {
-    return proposal(tx, found.map((f) => ({ receipt: f.receipt, allocCents: f.estimated ? tx.remainingCents - exactSum : f.cents })), 'probable', 'platform-group',
+    return proposal(tx, found.map((f) => ({ receipt: f.receipt, allocCents: f.estimated ? tx.remainingCents - exactSum : f.cents })), 'verifier', 'platform-group',
       `Versement groupé de ${found.length} séjours ${platform}`, { groupSize: found.length, unrecordedPayout: true });
   }
   return proposal(tx, found.map((f) => ({ receipt: f.receipt, allocCents: f.cents })), 'verifier', 'platform-group',
@@ -156,7 +161,7 @@ function platformProposals(tx, platform, receipts, settings) {
     if (!settled) return true;
     const anchor = r.expectedDate || r.dueDate;
     const delta = anchor ? daysBetween(anchor, settled) : 0;
-    return delta <= 30 && delta >= -MAX_EARLY_DAYS;
+    return delta <= 30 && delta >= -earlyDaysOf(platform);
   };
   const candidates = mine.filter(inWindow);
   const out = [];

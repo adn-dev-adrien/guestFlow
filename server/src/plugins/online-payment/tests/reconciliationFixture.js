@@ -58,7 +58,7 @@ function build({ connected = true, startDate = '2026-10-01', mark = applyPayment
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
   const model = createReconciliationModel(db);
-  const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations });
+  const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations, installments: require('../../../models/installmentsModel').buildModel(db) });
   const calls = { qonto: 0, read: 0 };
   const controller = createReconciliationController({
     db, settings, transactions, model, writer,

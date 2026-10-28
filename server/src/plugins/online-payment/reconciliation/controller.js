@@ -18,7 +18,7 @@ const { randomUUID } = require('crypto');
 const MIN_READ_GAP_MS = 60 * 1000;
 const CREDIT_WINDOW_DAYS = 31;
 const MAX_BATCH_CREDITS = 10;
-const FILTERS = ['gaps', 'proposed', 'unmatched', 'reconciled'];
+const FILTERS = ['gaps', 'proposed', 'unmatched', 'reconciled', 'auto'];
 const CONFIDENCE_LABELS = { sur: 'sûr', probable: 'probable', verifier: 'à vérifier' };
 const DEFAULT_ACQUIRING_FEE = Object.freeze({ percent: 1.4, fixedCents: 25 });
 const DEFAULT_CARD_FEE_PERCENT = 2.8;
@@ -108,9 +108,13 @@ function createReconciliationController({ db, settings, transactions, model, wri
       // A platform payout the fiche does not carry yet has no expected amount: the credit is the payout (v1 rule 36).
       const unbounded = r.channel.startsWith('platform:') && !r.payoutRecorded;
       const expectedBank = isLink ? netOf(r.expectedCents) : r.expectedCents;
+      // The credit of a payout the fiche does not carry yet is its payout, but never more than the stay can pay
+      // out: its gross (the platform's commission is not known to the cent), plus 1 % (review 2026-10-28).
+      const unboundedCap = Math.round(Math.max(0, r.grossCents) * 1.01);
       return {
         ...r, key: keyOf(r), openCents: open, order, anchor: anchorOf(r), unbounded,
-        capCents: open, checkCap: !isLink, needCents: Math.max(0, expectedBank - covered), tolerance: isLink ? Math.max(1, lines.length + 1) : 0,
+        fitCents: r.grossCents, capCents: unbounded ? unboundedCap : open, checkCap: !isLink,
+        needCents: unbounded ? unboundedCap : Math.max(0, expectedBank - covered), tolerance: isLink ? Math.max(1, lines.length + 1) : 0,
         alreadyCovered: !unbounded && r.expectedCents > 0 && covered >= r.expectedCents,
       };
     });
@@ -178,7 +182,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
         }) : [],
         canUndo: lines.length > 0,
         // Rule 24 — a platform credit below the expected payout: the gap can be declared as a penalty.
-        declarePenalty: st.state === 'amount_gap' && r.channel.startsWith('platform:') && r.ledgerKey === 'balance' && r.payoutRecorded && st.gapCents < 0
+        declarePenalty: (st.state === 'amount_gap' || st.state === 'partial') && r.channel.startsWith('platform:') && r.ledgerKey === 'balance' && r.payoutRecorded && st.gapCents < 0
           ? { amountCents: -st.gapCents, amount: -st.gapCents / 100 } : null,
       };
     });
@@ -229,7 +233,12 @@ function createReconciliationController({ db, settings, transactions, model, wri
   const creditEntity = (data, t, forReservationId) => {
     const slot = data.byTransaction[t.id];
     const elsewhere = Boolean(slot && slot.proposal && slot.proposal.allocations.every((a) => a.reservationId !== forReservationId));
-    return { ...t, ...data.bankSide(t), transactionId: String(t.id), proposedElsewhere: elsewhere };
+    // A credit the matcher proposes to THIS fiche always counts as plausible (review 2026-10-28): its key is the receipt it fits.
+    const mine = slot && slot.proposal ? slot.proposal.allocations.find((a) => a.reservationId === forReservationId) : null;
+    return {
+      ...t, ...data.bankSide(t), transactionId: String(t.id), proposedElsewhere: elsewhere,
+      proposedHereKey: mine ? `${mine.reservationId}|${mine.ledgerKey}` : null,
+    };
   };
 
   /** The primary proposal of every credit, by id (rule 13). */
@@ -254,7 +263,10 @@ function createReconciliationController({ db, settings, transactions, model, wri
     if (new Set(list.map((p) => p.transactionId)).size > MAX_BATCH_CREDITS) {
       return { status: 422, body: { error: `Au plus ${MAX_BATCH_CREDITS} virements à la fois.`, code: 'INVALID_ALLOCATION' } };
     }
-    const errors = explainErrors(data, list, validatePairs({ pairs: list, creditsById: creditIndex(data), receiptsByKey: data.receiptsByKey, enforceCap }));
+    // A platform receipt never takes more than it expects (it would rewrite the payout of the fiche): the
+    // « another amount » latitude of v1 rule 36 is for the own channels only.
+    const capped = !proposalId && (enforceCap || list.some((p) => String((data.receiptsByKey.get(`${p.reservationId}|${p.ledgerKey}`) || {}).channel || '').startsWith('platform:')));
+    const errors = explainErrors(data, list, validatePairs({ pairs: list, creditsById: creditIndex(data), receiptsByKey: data.receiptsByKey, enforceCap: capped }));
     if (errors.length > 0) {
       const [first] = errors;
       const status = first.code === 'UNKNOWN_TRANSACTION' ? 404 : (first.code === 'INVALID_ALLOCATION' && legacy ? 400 : 422);
@@ -280,6 +292,19 @@ function createReconciliationController({ db, settings, transactions, model, wri
     return sum < remaining ? `Il manque ${euros(remaining - sum)} : les parts doivent faire ${euros(remaining)}.` : `Les parts dépassent le versement de ${euros(sum - remaining)} : elles doivent faire ${euros(remaining)}.`;
   }
 
+  /** Marks the receipt received when its confirmed lines now cover it (v1 rules 34–37). */
+  function writeReceipt(data, receipt, { user, auto = false, netOf }) {
+    const lines = model.linesOfReceipt(receipt.reservationId, receipt.ledgerKey)
+      .map((l) => ({ ...l, settledAt: (data.txById.get(l.transactionId) || {}).settledAt }));
+    const isLink = receipt.channel === 'link';
+    // A platform payout the fiche does not carry yet has no expected amount: the credit is the payout (rule 36).
+    const covered = lines.reduce((sum, l) => sum + l.amountCents, 0);
+    return writer.writeIfComplete({
+      receipt, lines, expectedBankCents: receipt.unbounded ? covered : (isLink ? netOf(receipt.expectedCents) : receipt.expectedCents),
+      tolerance: isLink ? lines.length : 0, user, auto,
+    });
+  }
+
   function writePairs({ data, list, user, auto = false }) {
     const marked = [];
     const notWritten = [];
@@ -294,15 +319,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
         }));
         new Set(list.map((a) => `${a.reservationId}|${a.ledgerKey}`)).forEach((k) => {
           const receipt = data.receiptsByKey.get(k);
-          const lines = model.linesOfReceipt(receipt.reservationId, receipt.ledgerKey)
-            .map((l) => ({ ...l, settledAt: (data.txById.get(l.transactionId) || {}).settledAt }));
-          const isLink = receipt.channel === 'link';
-          // A platform payout the fiche does not carry yet has no expected amount: the credit is the payout (rule 36).
-          const covered = lines.reduce((sum, l) => sum + l.amountCents, 0);
-          const result = writer.writeIfComplete({
-            receipt, lines, expectedBankCents: receipt.unbounded ? covered : (isLink ? netOf(receipt.expectedCents) : receipt.expectedCents),
-            tolerance: isLink ? lines.length : 0, user, auto,
-          });
+          const result = writeReceipt(data, receipt, { user, auto, netOf });
           if (result.error) { const err = new Error('FICHE_REFUSED'); err.refusal = result.error; throw err; }
           if (result.written) marked.push({ reservationId: receipt.reservationId, ledgerKey: receipt.ledgerKey, date: result.date, warning: result.warning || null });
           else notWritten.push({ reservationId: receipt.reservationId, ledgerKey: receipt.ledgerKey, reason: result.reason });
@@ -346,19 +363,27 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
   const FILTER_ITEMS = {
     gaps: (i) => i.isGap, proposed: (i) => i.state === 'proposed', unmatched: () => false, reconciled: (i) => i.state === 'reconciled',
+    auto: (i) => i.bank.some((b) => b.auto),
   };
 
   /** Rule 12 — what « Tout confirmer » would write: sûr / probable by default, « à vérifier » counted apart. */
   function bulkSummary(items) {
     const seen = new Map();
-    items.forEach((i) => { if (i.proposal && !i.proposal.needsShares && !seen.has(i.proposal.id)) seen.set(i.proposal.id, i.proposal); });
+    const needShares = new Set();
+    items.forEach((i) => {
+      if (!i.proposal) return;
+      if (i.proposal.needsShares) needShares.add(i.proposal.id);
+      else if (!seen.has(i.proposal.id)) seen.set(i.proposal.id, i.proposal);
+    });
     const sumOf = (list) => ({
       proposalIds: list.map((p) => p.id), count: list.length,
       totalCents: list.reduce((t, p) => t + p.allocations.reduce((s, a) => s + a.amountCents, 0), 0),
       amounts: Object.fromEntries(list.map((p) => [p.id, p.allocations.reduce((s, a) => s + a.amountCents, 0)])),
     });
     const all = [...seen.values()];
-    return { ...sumOf(all.filter((p) => p.confidence !== 'verifier')), toVerify: sumOf(all.filter((p) => p.confidence === 'verifier')) };
+    // `withToVerify` is the set the dialog confirms once « à vérifier » is included: the client adds nothing up.
+    // `leftOut` counts the proposals no « Tout confirmer » takes (their shares are typed one by one).
+    return { ...sumOf(all.filter((p) => p.confidence !== 'verifier')), toVerify: sumOf(all.filter((p) => p.confidence === 'verifier')), withToVerify: sumOf(all), leftOut: needShares.size };
   }
 
   const notConnected = () => ({ status: 409, body: { error: 'Qonto n\'est pas connecté.', code: 'QONTO_NOT_CONNECTED' } });
@@ -381,7 +406,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
     },
 
     /** POST /read — « Actualiser ». */
-    async readNow({ view = 'todo' } = {}) {
+    async readNow({ view = 'todo', filter } = {}) {
       if (!connected()) return notConnected();
       const now = Date.now();
       if (now - lastAttemptAt < MIN_READ_GAP_MS) return { status: 429, body: { error: 'Lecture trop rapprochée : réessayer dans une minute.', code: 'READ_TOO_SOON' } };
@@ -389,7 +414,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
       compute();
       const result = await read();
       if (result && result.ok) afterRead();
-      return this.list({ view });
+      return this.list({ view, filter });
     },
 
     /** The 8-hour job. Inert until the page has been opened once (rule 1: the start date exists). */
@@ -431,7 +456,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
           && (reservationId == null ? Boolean(wanted) : r.reservationId === Number(reservationId)) && (!wanted || wanted.has(r.key)));
         chosen = allocateFifo({ credits: ids.map((id) => index.get(id)).filter((c) => c.remainingCents > 0), receipts: pool });
       }
-      const errors = explainErrors(data, chosen, validatePairs({ pairs: chosen, creditsById: index, receiptsByKey: data.receiptsByKey }));
+      const errors = explainErrors(data, chosen, validatePairs({ pairs: chosen, creditsById: index, receiptsByKey: data.receiptsByKey, enforceCap: !proposalId }));
       if (errors.length === 0 && proposalId) {
         const refusal = sharesRefusal(data, proposalId, chosen.map((p) => ({ ...p, transactionId: String(p.transactionId) })));
         if (refusal) errors.push({ code: 'SHARES_DO_NOT_SUM', field: 'shares', message: refusal });
@@ -562,6 +587,17 @@ function createReconciliationController({ db, settings, transactions, model, wri
         lines: mine,
         unclaimedCount: data.counts.unmatched,
       };
+    },
+
+    /** Rule 31 — a penalty declared or removed: a platform balance its lines now cover is marked received. */
+    afterPenalty(reservationId) {
+      if (!connected()) return;
+      const data = compute();
+      const cfg = matcherSettings();
+      const netOf = (c) => c - Math.round(c * (Number(cfg.acquiringFee.percent) || 0) / 100) - (Number(cfg.acquiringFee.fixedCents) || 0);
+      const receipt = data.receiptsByKey.get(`${Number(reservationId)}|balance`);
+      if (!receipt || receipt.paid || !receipt.channel.startsWith('platform:') || (data.linesByReceipt.get(receipt.key) || []).length === 0) return;
+      db.transaction(() => { writeReceipt(data, receipt, { user: SYSTEM_USER, auto: false, netOf }); })();
     },
 
     /** The home's « Échéances » rows, decorated from the stored reconciliation (rule 22) — unchanged when it is off. */

@@ -45,7 +45,7 @@ test('rules 17–18 — two or more estimated rows: « à vérifier », shares t
   assert.equal(bulk.count + bulk.toVerify.count, 0, 'a proposal that needs typed shares is never in « Tout confirmer »');
 });
 
-test('rule 18 — one estimated row among exact ones: « probable », its share is the credit minus the exact rows', () => {
+test('rule 18 — one estimated row among exact ones: « à vérifier » (never « probable »), its share is the credit minus the exact rows', () => {
   const exactA = recorded(400, '2026-10-08');
   const exactB = recorded(300, '2026-10-09');
   const guess = unrecorded(500, '2026-10-10');
@@ -53,7 +53,7 @@ test('rule 18 — one estimated row among exact ones: « probable », its share 
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', credited)], { bankAccountId: 'acc-1' });
   const { proposal } = itemOf(controller, guess);
-  assert.equal(proposal.confidence, 'probable');
+  assert.equal(proposal.confidence, 'verifier');
   assert.equal(proposal.needsShares, false);
   assert.equal(proposal.allocations.find((x) => x.reservationId === guess).amountCents, credited - 70000);
   assert.equal(proposal.allocations.find((x) => x.reservationId === exactA).amountCents, 40000);

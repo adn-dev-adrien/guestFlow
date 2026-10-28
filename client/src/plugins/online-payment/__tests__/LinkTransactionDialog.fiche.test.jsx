@@ -52,7 +52,7 @@ test('rule 4 — no match: the search is worded and can be cleared', async () =>
   await screen.findByText('Correspondances probables');
   api.getReconciliationFicheCredits.mockResolvedValue(ficheCreditsPayload({ likely: [], others: { total: 0, offset: 0, items: [] } }));
   fireEvent.change(screen.getByLabelText(/Nom, date/), { target: { value: 'zzz' } });
-  expect(await screen.findByText(/Aucun résultat pour « zzz »/)).toBeTruthy();
+  expect(await screen.findByText(/Aucun virement ne correspond à « zzz »/)).toBeTruthy();
   api.getReconciliationFicheCredits.mockResolvedValue(ficheCreditsPayload());
   fireEvent.click(screen.getByRole('button', { name: 'Effacer la recherche' }));
   expect(await screen.findByText('Correspondances probables')).toBeTruthy();
@@ -91,7 +91,7 @@ test('rules 7–8 — « Modifier la répartition » re-previews the typed amoun
   fireEvent.click((await screen.findAllByRole('checkbox'))[0]);
   await screen.findByText('1 virement · 300,00 €');
   fireEvent.click(screen.getByRole('button', { name: 'Modifier la répartition' }));
-  const field = await screen.findByLabelText('Acompte (€)');
+  const field = await screen.findByLabelText(/→ Acompte \(€\)/);
   api.previewReconciliationAllocation.mockResolvedValue(previewPayload({ pairs: [{ transactionId: 'tx-1', reservationId: 7, ledgerKey: 'deposit', amountCents: 12050 }] }));
   fireEvent.change(field, { target: { value: '120,50' } });
   await waitFor(() => expect(api.previewReconciliationAllocation).toHaveBeenCalledWith({
@@ -108,7 +108,7 @@ test('rule 7 — a typed amount that is not an amount is refused inline, with no
   await screen.findByText('1 virement · 300,00 €');
   fireEvent.click(screen.getByRole('button', { name: 'Modifier la répartition' }));
   api.previewReconciliationAllocation.mockClear();
-  fireEvent.change(await screen.findByLabelText('Acompte (€)'), { target: { value: '12,345' } });
+  fireEvent.change(await screen.findByLabelText(/→ Acompte \(€\)/), { target: { value: '12,345' } });
   expect(await screen.findByText(/deux décimales au plus/)).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Rattacher' }).disabled).toBe(true);
   expect(api.previewReconciliationAllocation).not.toHaveBeenCalled();

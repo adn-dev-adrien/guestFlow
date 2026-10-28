@@ -73,13 +73,15 @@ test('rule 7 — manual pairs are refused above the credit, above the receipt, a
   assert.equal(check(100.5).errors[0].code, 'INVALID_ALLOCATION', 'cents are whole numbers: no third decimal');
 });
 
-test('rule 7 — a pair above what the receipt still expects is refused, not a platform payout not yet recorded', () => {
+test('rule 7 — a pair above what the receipt still expects is refused; a payout not yet recorded is capped at its gross', () => {
   const receipts = new Map([['1|deposit', R('deposit', '2026-10-14', 30000)]]);
   const creditsById = new Map([['a', { transactionId: 'a', remainingCents: 90000, dateLabel: '10/10' }]]);
   const errs = validatePairs({ pairs: [{ transactionId: 'a', reservationId: 1, ledgerKey: 'deposit', amountCents: 40000 }], creditsById, receiptsByKey: receipts });
   assert.equal(errs[0].code, 'ALLOCATION_EXCEEDS_RECEIPT');
   receipts.get('1|deposit').unbounded = true;
-  assert.deepEqual(validatePairs({ pairs: [{ transactionId: 'a', reservationId: 1, ledgerKey: 'deposit', amountCents: 40000 }], creditsById, receiptsByKey: receipts }), []);
+  assert.equal(validatePairs({ pairs: [{ transactionId: 'a', reservationId: 1, ledgerKey: 'deposit', amountCents: 40000 }], creditsById, receiptsByKey: receipts })[0].code, 'ALLOCATION_EXCEEDS_RECEIPT');
+  receipts.get('1|deposit').capCents = 0;
+  assert.deepEqual(validatePairs({ pairs: [{ transactionId: 'a', reservationId: 1, ledgerKey: 'deposit', amountCents: 40000 }], creditsById, receiptsByKey: receipts }), [], 'no gross at all: one credit may be the payout');
 });
 
 test('rule 9 — equal installments take the earliest due unpaid one, whatever the credit date', () => {

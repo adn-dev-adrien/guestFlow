@@ -333,7 +333,7 @@ function buildLedger({
         detail.commission = `Commission ${formatEuros(soldeCommission)} · net ${formatEuros(balanceAmount - soldeCommission - penaltyTotal)}`;
       }
       if (penalties.length > 0) {
-        detail.lines = penalties.map((p) => `Pénalité plateforme −${formatEuros(p.amount)} · ${p.reason}`);
+        detail.penalties = penalties.map((p) => ({ id: p.id, label: `Pénalité plateforme −${formatEuros(p.amount)} · ${p.reason}` }));
       }
       const payoutRaw = has('platformPayoutAmount') ? live.platformPayoutAmount : r.platformPayoutAmount;
       const payout = payoutRaw === '' || payoutRaw == null || !Number.isFinite(Number(payoutRaw)) ? null : round2(payoutRaw);
@@ -399,7 +399,9 @@ function buildLedger({
       if (paid.deposit) detail.hint = 'Acompte perçu : modifier le solde change le prix';
       base = { ...due, action: canAct && balanceAmount > 0 ? { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' } : null, amountEdit };
     }
-    rows.push({ key: 'balance', label, amount: balanceAmount, ...base, detail: tidyDetail(detail) });
+    // Rule 24 of the reconciliation spec — a penalty is declared where the payout is, even on a fiche whose amounts are frozen.
+    const penaltyAction = isPlatform && canAct ? { label: 'Déclarer une pénalité' } : null;
+    rows.push({ key: 'balance', label, amount: balanceAmount, ...base, ...(penaltyAction ? { penaltyAction } : {}), detail: tidyDetail(detail) });
   }
 
   // ── Compléments + notes en séjour (rules 2, 22, Q5) ──────────────────────

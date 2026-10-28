@@ -10,6 +10,8 @@ import BulkConfirmDialog from '../BulkConfirmDialog';
 const BULK = {
   proposalIds: ['a', 'b'], count: 2, totalCents: 75050, amounts: { a: 30000, b: 45050 },
   toVerify: { proposalIds: ['c'], count: 1, totalCents: 12500, amounts: { c: 12500 } },
+  withToVerify: { proposalIds: ['a', 'b', 'c'], count: 3, totalCents: 87550, amounts: { a: 30000, b: 45050, c: 12500 } },
+  leftOut: 0,
 };
 const renderDialog = (props = {}) => render(<BulkConfirmDialog open onClose={vi.fn()} bulk={BULK} onConfirm={vi.fn()} {...props} />);
 
@@ -46,4 +48,9 @@ test('rule 12 — nothing to confirm: the button is disabled and no checkbox is 
   renderDialog({ bulk: { ...BULK, proposalIds: [], count: 0, totalCents: 0, amounts: {}, toVerify: { proposalIds: [], count: 0, totalCents: 0, amounts: {} } } });
   expect(screen.getByRole('button', { name: 'Confirmer 0' }).disabled).toBe(true);
   expect(screen.queryByLabelText(/Inclure aussi/)).toBeNull();
+});
+
+test('rule 12 — the proposals no batch takes are said, not counted in', () => {
+  renderDialog({ bulk: { ...BULK, leftOut: 2 } });
+  expect(screen.getByText('2 versements groupés à répartir : non compris.')).toBeTruthy();
 });

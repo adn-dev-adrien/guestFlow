@@ -19,7 +19,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import {
   api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip, FilterChip, PlatformPenaltyDialog,
 } from '../sdk';
-import ReconciliationLine from './ReconciliationLine';
+import ReconciliationLine, { BankCell } from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
 import BulkConfirmDialog from './BulkConfirmDialog';
 import SplitSharesDialog from './SplitSharesDialog';
@@ -38,7 +38,14 @@ const COUNTERS = [
   { label: 'Non rattachés', key: 'unmatched', view: 'todo', color: 'warning.main' },
   { label: 'Rapprochés', key: 'reconciled', view: 'done', color: 'success.main' },
 ];
-const FILTER_KEYS = COUNTERS.map((c) => c.key);
+// `auto` is no counter: « Voir » after an automatic read leads to the lines the server confirmed alone.
+const FILTER_VIEWS = { gaps: 'todo', proposed: 'todo', unmatched: 'todo', reconciled: 'done', auto: 'done' };
+const FILTER_LABELS = { gaps: 'Écarts', proposed: 'À confirmer', unmatched: 'Non rattachés', reconciled: 'Rapprochés', auto: 'Rapprochements automatiques' };
+const FILTER_EMPTY = {
+  gaps: 'Aucun écart à traiter.', proposed: 'Plus rien à confirmer.', unmatched: 'Aucun virement non rattaché.',
+  reconciled: 'Aucun rapprochement.', auto: 'Aucun rapprochement automatique.',
+};
+const FILTER_KEYS = Object.keys(FILTER_VIEWS);
 const CREDIT_BADGE = { unmatched: ['warning', 'Non rattaché'], other: ['neutral', 'Autre crédit'], outside: ['neutral', 'Hors réservation'] };
 
 export default function ReconciliationPage() {
@@ -49,8 +56,8 @@ export default function ReconciliationPage() {
   const latest = useRef(0);
   const [params, setParams] = useSearchParams();
   const [view, setViewState] = useState(() => {
-    const f = COUNTERS.find((c) => c.key === params.get('filter'));
-    return f ? f.view : 'todo';
+    const f = params.get('filter');
+    return FILTER_VIEWS[f] || 'todo';
   });
   const filter = FILTER_KEYS.includes(params.get('filter')) ? params.get('filter') : null;
   const [data, setData] = useState(null);
@@ -61,6 +68,7 @@ export default function ReconciliationPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [sharesItem, setSharesItem] = useState(null);
   const [penaltyItem, setPenaltyItem] = useState(null);
+  const [dismissedAuto, setDismissedAuto] = useState(null);
 
   const setView = useCallback((next) => {
     setViewState(next);
@@ -112,7 +120,7 @@ export default function ReconciliationPage() {
   };
   const showAutomatic = () => {
     setViewState('done');
-    setParams({ filter: 'reconciled' }, { replace: true });
+    setParams({ filter: 'auto' }, { replace: true });
   };
   const confirmAll = async (payload) => {
     const answer = await actions.confirmAll(payload);
@@ -158,12 +166,13 @@ export default function ReconciliationPage() {
     <>
       {bar}
       {error && <ErrorAlert message={error.message} onRetry={refresh} />}
-      {data.autoConfirmed && data.autoConfirmed.count > 0 && (
+      {data.autoConfirmed && data.autoConfirmed.count > 0 && dismissedAuto !== data.autoConfirmed.at && (
         <Stack direction="row" gap={1} sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 1.5, px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'info.soft', color: 'info.text' }}>
           <Typography variant="body2">
             {data.autoConfirmed.count} rapprochement{data.autoConfirmed.count > 1 ? 's' : ''} automatique{data.autoConfirmed.count > 1 ? 's' : ''}
           </Typography>
           <Button size="small" color="inherit" onClick={showAutomatic} sx={{ textTransform: 'none', minHeight: 44, fontWeight: 600 }}>Voir</Button>
+          <Button size="small" color="inherit" onClick={() => setDismissedAuto(data.autoConfirmed.at)} sx={{ textTransform: 'none', minHeight: 44 }} aria-label="Fermer l'information">Fermer</Button>
         </Stack>
       )}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.25, mb: 1.5 }}>
@@ -186,7 +195,7 @@ export default function ReconciliationPage() {
       </Box>
       {filter && (
         <Box sx={{ mb: 1.5 }}>
-          <FilterChip label={COUNTERS.find((c) => c.key === filter).label} count={counts[filter]} onClear={clearFilter} clearLabel="Retirer le filtre" />
+          <FilterChip label={FILTER_LABELS[filter]} count={counts[filter]} onClear={clearFilter} clearLabel="Retirer le filtre" />
         </Box>
       )}
 
@@ -196,7 +205,10 @@ export default function ReconciliationPage() {
       />
 
       {empty ? (
-        <EmptyState message={view === 'todo' ? 'Rien à traiter : chaque échéance est rapprochée ou attendue.' : 'Aucune ligne ici.'} />
+        <EmptyState
+          message={filter ? FILTER_EMPTY[filter] : (view === 'todo' ? 'Rien à traiter : chaque échéance est rapprochée ou attendue.' : 'Aucune ligne ici.')}
+          actionLabel={filter ? 'Retirer le filtre' : undefined} onAction={filter ? clearFilter : undefined}
+        />
       ) : (
         <>
           {items.length > 0 && (isMobile ? (
@@ -218,7 +230,6 @@ export default function ReconciliationPage() {
               </TableHead>
               <TableBody>
                 {items.map((item) => {
-                  const side = item.bank[0] || (item.proposal && item.proposal.bank);
                   const busy = actions.busy === item.key;
                   return (
                     <TableRow key={item.key} hover>
@@ -228,15 +239,7 @@ export default function ReconciliationPage() {
                       </TableCell>
                       <TableCell>{item.label}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.expectedCents)}</TableCell>
-                      <TableCell>
-                        {side ? (
-                          <>
-                            {!item.bank[0] && <Typography variant="caption" color="text.secondary">proposé · </Typography>}
-                            {side.dateLabel} · <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.bank[0] ? item.allocatedCents : side.amountCents)}</span>
-                            <Typography variant="caption" color="text.secondary" component="div">{side.counterparty}</Typography>
-                          </>
-                        ) : '—'}
-                      </TableCell>
+                      <TableCell><BankCell item={item} /></TableCell>
                       <TableCell>
                         <StatusBadge status={item.tone} label={item.stateLabel} />
                         {item.proposal && <Typography variant="caption" color="text.secondary" component="div">{item.proposal.confidenceLabel}</Typography>}
@@ -246,7 +249,7 @@ export default function ReconciliationPage() {
                         {item.proposal && <Button size="small" variant="contained" disabled={busy} onClick={() => (item.proposal.needsShares ? setSharesItem(item) : actions.confirm(item))} sx={{ mr: 0.5, textTransform: 'none' }}>{item.proposal.needsShares ? 'Répartir et confirmer' : 'Confirmer'}</Button>}
                         {item.proposal && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.discard(item)} sx={{ textTransform: 'none' }}>Écarter</Button>}
                         {item.canUndo && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.undo(item)} sx={{ textTransform: 'none' }}>Défaire</Button>}
-                        {item.declarePenalty && <Button size="small" variant="outlined" onClick={() => setPenaltyItem(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Déclarer une pénalité</Button>}
+                        {item.declarePenalty && <Button size="small" variant="outlined" onClick={() => setPenaltyItem(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Déclarer une pénalité de {money(item.declarePenalty.amountCents)}</Button>}
                         {item.isGap && <Button size="small" variant="outlined" onClick={() => openFiche(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Ouvrir la fiche</Button>}
                       </TableCell>
                     </TableRow>
@@ -286,10 +289,9 @@ export default function ReconciliationPage() {
         </>
       )}
 
-      <LinkTransactionDialog
-        open={Boolean(linkCredit)} onClose={() => setLinkCredit(null)} credit={linkCredit}
-        busy={actions.busy === 'manual'} onSubmit={submitLink}
-      />
+      {linkCredit && (
+        <LinkTransactionDialog open onClose={() => setLinkCredit(null)} credit={linkCredit} busy={actions.busy === 'manual'} onSubmit={submitLink} />
+      )}
       {penaltyItem && (
         <PlatformPenaltyDialog
           open onClose={() => setPenaltyItem(null)} reservationId={penaltyItem.reservation.id} source="reconciliation"

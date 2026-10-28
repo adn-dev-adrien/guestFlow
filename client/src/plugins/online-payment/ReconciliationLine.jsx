@@ -37,6 +37,46 @@ function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
   );
 }
 
+/**
+ * BankCell — « Sur le compte » of the page's table: the confirmed transfers (with their « auto » badge and the stays
+ * they also covered) or the proposed ones (several credits of a split, the other stays of a group). Same wording as the
+ * mobile cards, drawn from the same server fields.
+ */
+export function BankCell({ item }) {
+  const { proposal } = item;
+  if (item.bank.length === 0 && !proposal) return '—';
+  return (
+    <Box>
+      {item.bank.map((b) => (
+        <Box key={b.transactionId} sx={{ mb: 0.5 }}>
+          <Typography component="span" variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{b.dateLabel} · {money(b.allocatedCents)}</Typography>
+          {b.auto && <Chip size="small" variant="outlined" label="auto" sx={{ ml: 0.75, height: 20 }} />}
+          <Typography variant="caption" color="text.secondary" component="div" sx={{ overflowWrap: 'anywhere' }}>
+            {b.counterparty}
+            {(b.alsoCovers || []).length > 0 && ` · couvre aussi ${b.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
+          </Typography>
+        </Box>
+      ))}
+      {item.bank.length === 0 && proposal && (
+        <>
+          {(proposal.parts || [proposal.bank]).map((part) => (
+            <Box key={part.transactionId} sx={{ mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">proposé · </Typography>
+              <Typography component="span" variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{part.dateLabel} · {money(part.amountCents)}</Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ overflowWrap: 'anywhere' }}>{part.counterparty}</Typography>
+            </Box>
+          ))}
+          {proposal.alsoCovers.length > 0 && (
+            <Typography variant="caption" color="text.secondary" component="div">
+              Versement groupé · couvre aussi {proposal.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}
+            </Typography>
+          )}
+        </>
+      )}
+    </Box>
+  );
+}
+
 export default function ReconciliationLine({ item, busy = false, blocked = '', onConfirm, onDiscard, onUndo, onShares, onDeclarePenalty, showReservation = false, onOpenFiche }) {
   const { proposal } = item;
   const disabled = busy || Boolean(blocked);

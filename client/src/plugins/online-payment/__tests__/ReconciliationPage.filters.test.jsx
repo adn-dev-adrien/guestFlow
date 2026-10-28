@@ -39,7 +39,7 @@ test('rule 11 — clicking a counter asks the server for that set, presses it an
   fireEvent.click(counter);
   await waitFor(() => expect(api.getReconciliation).toHaveBeenLastCalledWith('todo', 'gaps'));
   await waitFor(() => expect(screen.getByRole('button', { name: /Écarts/, pressed: true })).toBeTruthy());
-  expect(screen.getByLabelText('Filtre actif : Écarts')).toBeTruthy();
+  expect(screen.getByLabelText('Filtre actif : Écarts · 1')).toBeTruthy();
   expect(screen.getByTestId('where').textContent).toBe('?filter=gaps');
 });
 
@@ -49,19 +49,19 @@ test('rule 11 — a second click on the active counter leaves the filter', async
   api.getReconciliation.mockResolvedValue(payload());
   fireEvent.click(counter);
   await waitFor(() => expect(api.getReconciliation).toHaveBeenLastCalledWith('todo', null));
-  expect(screen.queryByLabelText('Filtre actif : Écarts')).toBeNull();
+  expect(screen.queryByLabelText('Filtre actif : Écarts · 1')).toBeNull();
   expect(screen.getByTestId('where').textContent).toBe('');
 });
 
 test('rule 11 — the chip\'s close button and Échap leave the filter', async () => {
   renderPage('/finance/rapprochement?filter=proposed');
-  await screen.findByLabelText('Filtre actif : À confirmer');
+  await screen.findByLabelText('Filtre actif : À confirmer · 1');
   fireEvent.click(screen.getByTestId('CancelIcon'));
-  await waitFor(() => expect(screen.queryByLabelText('Filtre actif : À confirmer')).toBeNull());
+  await waitFor(() => expect(screen.queryByLabelText('Filtre actif : À confirmer · 1')).toBeNull());
   fireEvent.click(screen.getByRole('button', { name: /À confirmer/ }));
-  await screen.findByLabelText('Filtre actif : À confirmer');
+  await screen.findByLabelText('Filtre actif : À confirmer · 1');
   fireEvent.keyDown(document, { key: 'Escape' });
-  await waitFor(() => expect(screen.queryByLabelText('Filtre actif : À confirmer')).toBeNull());
+  await waitFor(() => expect(screen.queryByLabelText('Filtre actif : À confirmer · 1')).toBeNull());
 });
 
 test('rule 11 — the filter lives in the URL: a reload with it asks the server for it; the tab bar clears it', async () => {

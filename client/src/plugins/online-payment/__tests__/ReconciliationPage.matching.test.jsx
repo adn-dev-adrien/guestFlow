@@ -38,7 +38,7 @@ test('rule 21 — « 12 rapprochements automatiques » leads to the reconciled r
   expect(await screen.findByText('12 rapprochements automatiques')).toBeTruthy();
   api.getReconciliation.mockResolvedValue(payload({ view: 'done', filter: 'reconciled', items: [] }));
   fireEvent.click(screen.getByRole('button', { name: 'Voir' }));
-  await waitFor(() => expect(api.getReconciliation).toHaveBeenLastCalledWith('done', 'reconciled'));
+  await waitFor(() => expect(api.getReconciliation).toHaveBeenLastCalledWith('done', 'auto'));
 });
 
 test('rule 21 — no line when nothing was confirmed automatically', async () => {

@@ -137,3 +137,12 @@ test('rule 1 — a reservation outside the scope or unknown is refused', () => {
   assert.equal(controller.ficheCredits({ reservationId: past }).body.code, 'RESERVATION_OUT_OF_SCOPE');
   assert.equal(controller.ficheCredits({ reservationId: 999999 }).status, 404);
 });
+
+test('rules 2, 39 — a credit the matcher proposes to this fiche is always plausible, even 27 days after the échéance', () => {
+  const id = addReservation({ platform: 'Booking', platformGrossAmount: 500, platformPayoutAmount: 420, finalPrice: 500, balanceAmount: 500, depositAmount: 0, balanceDueDate: '2026-09-01' });
+  const { controller, transactions } = build();
+  transactions.upsertMany([credit('p', 42000, { settledAt: at('2026-09-28'), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.9' })], { bankAccountId: 'acc-1' });
+  const body = load(controller, id);
+  assert.deepEqual(body.likely.map((c) => c.transactionId), ['p']);
+  assert.deepEqual(body.likely[0].reasons, ['proposal']);
+});

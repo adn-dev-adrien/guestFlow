@@ -239,7 +239,7 @@ const api = {
   dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
   // Rapprochement bancaire Qonto (specs/qonto-bank-reconciliation.md §4.3) + the generic plugin settings
   getReconciliation: (view, filter) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`),
-  readReconciliation: (view) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}`, { method: 'POST' }),
+  readReconciliation: (view, filter) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`, { method: 'POST' }),
   confirmReconciliation: (payload) => request('/payments/reconciliation/links', { method: 'POST', body: payload }),
   undoReconciliation: (transactionId) => request(`/payments/reconciliation/links/${encodeURIComponent(transactionId)}`, { method: 'DELETE' }),
   discardReconciliation: (payload) => request('/payments/reconciliation/discards', { method: 'POST', body: payload }),
