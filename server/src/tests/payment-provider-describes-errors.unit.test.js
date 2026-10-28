@@ -1,9 +1,6 @@
 // specs/platform-settings-relay-and-review.md rule 9 — the core's money path names no payment provider:
 // an error the provider knows (Qonto « à connecter d'abord ») is worded by the provider itself through
 // `describeError`; without it, the core answers its generic 502 (audit 2026-10-27).
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['online-payment'])) return;
-
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -11,12 +8,13 @@ const fs = require('fs');
 process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-provider-errors-')), 'p.db');
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const silent = console.log;
 console.log = () => {};
 const { sendError } = require('../controllers/paymentsController').__test;
-const { createQontoProvider } = require('../plugins/online-payment/provider');
+const { createQontoProvider } = optionalPlugin(() => require('../plugins/online-payment/provider'));
 console.log = silent;
 
 function res() {
@@ -24,7 +22,7 @@ function res() {
 }
 const notConnected = Object.assign(new Error('no refresh token'), { code: 'QONTO_NOT_CONNECTED' });
 
-test('the Qonto provider words its own « not connected »', () => {
+test('the Qonto provider words its own « not connected »', { skip: skipWithout(['online-payment']) }, () => {
   const qonto = createQontoProvider({ settings: { qontoConnected: () => false } });
   const r = sendError(res(), notConnected, qonto);
   assert.equal(r.statusCode, 400);

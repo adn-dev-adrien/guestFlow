@@ -3,10 +3,8 @@
 // night, and never after a refused write. Real controllers over the real schema in memory.
 process.env.DB_PATH = ':memory:';
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['tariff-recipes'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const silent = console.log;
@@ -18,8 +16,8 @@ const properties = require('../controllers/propertiesController');
 const optionDefaults = require('../controllers/propertyOptionDefaultsController');
 const closures = require('../controllers/establishmentClosuresController');
 const options = require('../controllers/optionsController');
-const { createController: createRecipeController } = require('../plugins/tariff-recipes/controller');
-const { runTariffRecipeHorizonPass } = require('../plugins/tariff-recipes/horizon');
+const { createController: createRecipeController } = optionalPlugin(() => require('../plugins/tariff-recipes/controller'));
+const { runTariffRecipeHorizonPass } = optionalPlugin(() => require('../plugins/tariff-recipes/horizon'));
 const { createContext } = require('../plugins/sdk/createContext');
 const registry = require('../plugins/sdk/registry');
 
@@ -132,7 +130,7 @@ test('closures: a property closure announces its property, an establishment-wide
   assert.deepEqual(priced(), [], 'an inverted range is refused');
 });
 
-test('tariff-recipes: an applied recipe and an extended horizon announce the property; a no-op does not', () => {
+test('tariff-recipes: an applied recipe and an extended horizon announce the property; a no-op does not', { skip: skipWithout(['tariff-recipes']) }, () => {
   const announced = [];
   const announce = (id) => announced.push(Number(id));
   let next = { applied: true };

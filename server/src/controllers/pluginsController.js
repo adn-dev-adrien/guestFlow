@@ -11,7 +11,7 @@ const defaultModel = require('../models/pluginsModel');
 const registry = require('../plugins/sdk/registry');
 const { forgetPluginMigrations } = require('../plugins/sdk/pluginMigrations');
 const {
-  PLUGIN_CATALOG, PLUGIN_SETTINGS_PLACES, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT,
+  PLUGIN_CATALOG, PLUGIN_DISPLAY_NAMES, PLUGIN_SETTINGS_PLACES, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT,
 } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
 const { compare } = require('../utils/semverRange');
@@ -589,7 +589,7 @@ function createController(model = defaultModel, deps = {}) {
     // A page shows while any of its plugins is active: then the address answers like a core page.
     pageOwner(req, res) {
       const plugins = pluginsOfPage(req.query && req.query.path)
-        .map((id) => view(entryFor(id) || bareEntry(id)))
+        .map((id) => view(entryFor(id) || bareEntry(id, { name: PLUGIN_DISPLAY_NAMES[id] })))
         .map((p) => ({ id: p.id, name: p.name, state: p.state }));
       if (!plugins.length || plugins.some((p) => p.state === 'active')) return res.json({ plugins: [], message: null });
       // Non-breaking spaces: a closing « » » never starts a line on its own.

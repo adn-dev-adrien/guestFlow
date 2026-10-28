@@ -6,15 +6,13 @@
 // the cancellation e-mails stay possible.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['sas'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const express = require('express');
 
 const db = require('../database');
-const sasController = require('../plugins/sas/controller');
+const sasController = optionalPlugin(() => require('../plugins/sas/controller'));
 
 db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Granja')").run();
 db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Camille', 'Martin', 'camille@example.com')").run();
@@ -73,7 +71,7 @@ const PATHS = [
   ['POST', (id) => `/api/dashboard/payment-deadlines/${id}/remind`, { type: 'balance' }],
 ];
 
-test('rule 25 — every write on a duplicate set aside answers 409 RESERVATION_SUPERSEDED and writes nothing', async () => {
+test('rule 25 — every write on a duplicate set aside answers 409 RESERVATION_SUPERSEDED and writes nothing', { skip: skipWithout(['sas']) }, async () => {
   const before = writes();
   for (const [method, path, body] of PATHS) {
     const res = await call(method, path(1), body);
@@ -84,7 +82,7 @@ test('rule 25 — every write on a duplicate set aside answers 409 RESERVATION_S
   assert.equal(db.prepare('SELECT COUNT(*) c FROM email_log').get().c, 0, 'no e-mail left');
 });
 
-test('rule 22 — the same writes on a live stay are not refused by the guard', async () => {
+test('rule 22 — the same writes on a live stay are not refused by the guard', { skip: skipWithout(['sas']) }, async () => {
   for (const [method, path, body] of PATHS.slice(0, 2)) {
     const res = await call(method, path(3), body);
     assert.notEqual(res.body.code, 'RESERVATION_SUPERSEDED');
@@ -93,7 +91,7 @@ test('rule 22 — the same writes on a live stay are not refused by the guard', 
   assert.notEqual(sas.body.code, 'RESERVATION_SUPERSEDED', 'a live stay is not refused by the SAS');
 });
 
-test('rule 25 — a cancelled stay stays read-only for the fiche, the payment marks, the SAS, the arrival payment and the links', async () => {
+test('rule 25 — a cancelled stay stays read-only for the fiche, the payment marks, the SAS, the arrival payment and the links', { skip: skipWithout(['sas']) }, async () => {
   const closed = [0, 1, 2, 3, 4, 5, 6, 12, 13, 19];
   for (const i of closed) {
     const [method, path, body] = PATHS[i];

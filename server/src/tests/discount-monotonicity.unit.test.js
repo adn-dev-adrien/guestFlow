@@ -2,12 +2,13 @@ const { requirePlugins } = require('../plugins/sdk/testing');
 if (!requirePlugins(['tariff-recipes'])) return;
 
 const test = require('node:test');
+const { optionalPlugin } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
 const { normalizeProgressiveTiers } = require('../utils/pricing');
-const { validateRecipe } = require('../plugins/tariff-recipes/store');
+const { validateRecipe } = optionalPlugin(() => require('../plugins/tariff-recipes/store'));
 
 // specs/tariff-recipes/spec.md §3.6 rules 36-37 — the degressivity of the source document's §6,
 // reproduced exactly, and the commercial promise that must hold at every stay length: a further

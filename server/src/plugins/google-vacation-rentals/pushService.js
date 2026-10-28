@@ -20,6 +20,7 @@
 const xml = require('./ariXml');
 const { diffState, isEmptyDiff } = require('./snapshot');
 
+const CATCH_UP_AFTER_MS = 90 * 60 * 1000;
 const DEBOUNCE_MS = Object.freeze({
   // Rule 12 — a recipe writing dozens of rules triggers one run.
   pricing: 30 * 1000,
@@ -31,6 +32,7 @@ const RATE_GROUPS_PER_MESSAGE = 500;
 function createPushService({
   settings, model, client, loadState, capacityOf, today, now = () => new Date(), timers = { setTimeout, clearTimeout }, log = console,
 }) {
+  let lastTick = null;
   const chains = new Map();
   const pending = new Map();
   const running = new Set();
@@ -185,6 +187,15 @@ function createPushService({
   async function nightlyTick() {
     if (!settings.partnerId()) return false;
     const at = now();
+    // specs/plugin-removal-resilience.md rule 17 — the hourly tick is skipped while the plugin is off, and
+    // so are the triggers: a tick arriving after a longer silence re-sends everything now instead of
+    // leaving Google on the prices of the day the plugin was switched off until the nightly pass.
+    const silence = lastTick ? at.getTime() - lastTick.getTime() : 0;
+    lastTick = at;
+    if (silence > CATCH_UP_AFTER_MS) {
+      await runAll({ full: true, reason: 'catch-up' });
+      return true;
+    }
     if (at.getHours() !== settings.fullResendHour()) return false;
     const last = model.lastNightlyStart();
     if (last && new Date(last).toDateString() === at.toDateString()) return false;
@@ -205,4 +216,4 @@ function createPushService({
   };
 }
 
-module.exports = { createPushService, DEBOUNCE_MS, RATE_GROUPS_PER_MESSAGE };
+module.exports = { createPushService, DEBOUNCE_MS, CATCH_UP_AFTER_MS, RATE_GROUPS_PER_MESSAGE };

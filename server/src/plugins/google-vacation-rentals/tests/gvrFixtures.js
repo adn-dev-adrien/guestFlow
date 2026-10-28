@@ -10,10 +10,10 @@ const fs = require('fs');
 const path = require('path');
 
 const db = require('../../../database');
-const { applyPluginSchema } = require('../../sdk/testing');
-const { validateRecipe } = require('../../tariff-recipes/store');
-const { createTariffRecipeModel } = require('../../tariff-recipes/model');
-const { buildYearPlan, materializeClosures } = require('../../tariff-recipes/seasonPlan');
+const { applyPluginSchema, optionalPlugin } = require('../../sdk/testing');
+const { validateRecipe } = optionalPlugin(() => require('../../tariff-recipes/store'));
+const { createTariffRecipeModel } = optionalPlugin(() => require('../../tariff-recipes/model'));
+const { buildYearPlan, materializeClosures } = optionalPlugin(() => require('../../tariff-recipes/seasonPlan'));
 
 const RECIPES = path.join(__dirname, '..', '..', 'tariff-recipes', 'recipes');
 const YEARS = [2026, 2027, 2028];

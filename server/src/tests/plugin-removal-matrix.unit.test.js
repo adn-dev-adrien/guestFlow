@@ -97,7 +97,7 @@ function testFiles(dir, out = []) {
   fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) testFiles(full, out);
-    else if (e.name.endsWith('.test.js')) out.push(full);
+    else if (e.name.endsWith('.js')) out.push(full);
   });
   return out;
 }
@@ -106,7 +106,8 @@ function testFiles(dir, out = []) {
 // `plugins/sas/index.js`) or a `path.join(__dirname, …, 'plugins', '<id>')`. Comments, URLs
 // (`/plugins/<id>/install`) and the data directory of a package (`<dataDir>/plugins/<id>`) name no file.
 function pluginsNamedBy(source, ids) {
-  const code = source.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join('\n');
+  const code = source.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join('\n')
+    .replace(/optionalPlugin\(\(\) => require\([^)]*\)\)/g, '');
   return ids.filter((id) => {
     const folder = id.replace(/-/g, '\\-');
     return new RegExp(`['"\`](?:\\.{1,2}/)*(?:src/)?plugins/${folder}(?:/|['"\`])|__dirname[^\\n]*['"]plugins['"],\\s*['"]${folder}['"]`).test(code);
@@ -116,7 +117,7 @@ function pluginsNamedBy(source, ids) {
 const GUARD = /(?:requirePlugins|missingPlugins|skipWithout)\(\[([^\]]*)\]/g;
 const guardedIn = (source) => [...source.matchAll(GUARD)].flatMap((m) => [...m[1].matchAll(/'([a-z-]+)'/g)].map((x) => x[1]));
 
-test('rules 3, 4: a test that imports a plugin folder names it in requirePlugins, unless it lives in that plugin', () => {
+test('rules 3, 4: a test or fixture that reads a plugin folder loads it with optionalPlugin or names it in requirePlugins / skipWithout, unless it lives in that plugin', () => {
   const ids = listPlugins();
   const violations = [];
   const scan = (dir, ownerOf) => testFiles(dir).forEach((file) => {

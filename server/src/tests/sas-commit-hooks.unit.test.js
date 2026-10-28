@@ -1,15 +1,13 @@
 // The SAS commit contract of plugin steps (specs/plugins-phase-3c-hourly-resources.md rules 6–8).
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['hourly-resources'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const registry = require('../plugins/sdk/registry');
 const { createContext } = require('../plugins/sdk/createContext');
 const sasCommitHooks = require('../utils/sasCommitHooks');
-const { seed } = require('../plugins/hourly-resources/tests/hourlySchedulingFixture');
+const { seed } = optionalPlugin(() => require('../plugins/hourly-resources/tests/hourlySchedulingFixture'));
 
 // A plugin `demo` whose step `demoStep` bills one line and writes a note, recording every call.
 function declare({ live = true, validate = () => ({ ok: true }), write } = {}) {
@@ -32,14 +30,14 @@ test.afterEach(() => registry.reset());
 
 const customRows = (ctx) => ctx.db.prepare('SELECT description, amount, sasArrivalOrigin, sasLineKey FROM reservation_custom_options WHERE reservationId = 500').all();
 
-test('rule 6: a refusal aborts before anything is written, with its status and body', () => {
+test('rule 6: a refusal aborts before anything is written, with its status and body', { skip: skipWithout(['hourly-resources']) }, () => {
   const ctx = seed();
   declare({ validate: () => ({ ok: false, status: 409, body: { error: 'SLOT_CONFLICT' } }) });
   const out = sasCommitHooks.prepare({ reservation: ctx.reservation, pluginSteps: { demoStep: {} }, db: ctx.db });
   assert.deepEqual(out.refusal, { status: 409, body: { error: 'SLOT_CONFLICT' } });
 });
 
-test('rule 6: the step that did not run is not validated nor written, but its lines are recomputed', () => {
+test('rule 6: the step that did not run is not validated nor written, but its lines are recomputed', { skip: skipWithout(['hourly-resources']) }, () => {
   const ctx = seed();
   const calls = declare();
   const out = sasCommitHooks.prepare({ reservation: ctx.reservation, pluginSteps: {}, db: ctx.db });
@@ -48,7 +46,7 @@ test('rule 6: the step that did not run is not validated nor written, but its li
   assert.deepEqual(out.items, [{ label: 'Frais démo', amount: 12, sasLineKey: 'demo:fee' }]);
 });
 
-test('rules 6–7: the line is stored tagged and the write runs inside the commit', () => {
+test('rules 6–7: the line is stored tagged and the write runs inside the commit', { skip: skipWithout(['hourly-resources']) }, () => {
   const ctx = seed();
   declare();
   const out = sasCommitHooks.prepare({ reservation: ctx.reservation, pluginSteps: { demoStep: { any: 1 } }, db: ctx.db });
@@ -58,7 +56,7 @@ test('rules 6–7: the line is stored tagged and the write runs inside the commi
   assert.equal(ctx.db.prepare('SELECT departureHandoverNote AS n FROM reservations WHERE id = 500').get().n, 'écrit');
 });
 
-test('rule 6: a throwing write rolls the whole commit back', () => {
+test('rule 6: a throwing write rolls the whole commit back', { skip: skipWithout(['hourly-resources']) }, () => {
   const ctx = seed();
   declare({ write: () => { throw new Error('boom'); } });
   const out = sasCommitHooks.prepare({ reservation: ctx.reservation, pluginSteps: { demoStep: {} }, db: ctx.db });
@@ -67,7 +65,7 @@ test('rule 6: a throwing write rolls the whole commit back', () => {
   assert.deepEqual(customRows(ctx), []);
 });
 
-test('rule 7: the labels of the plugin lines, stored or computed, are the ones a dialog copy is dropped by', () => {
+test('rule 7: the labels of the plugin lines, stored or computed, are the ones a dialog copy is dropped by', { skip: skipWithout(['hourly-resources']) }, () => {
   const ctx = seed();
   ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin, sasLineKey)
     VALUES (500, 'Ancienne ligne', 5, 1, 1, 'demo:old')`).run();
@@ -76,7 +74,7 @@ test('rule 7: the labels of the plugin lines, stored or computed, are the ones a
   assert.deepEqual([...out.labels].sort(), ['Ancienne ligne', 'Frais démo']);
 });
 
-test('rule 8 (P10): with the plugin off, nothing is called and what it billed is kept as stored', () => {
+test('rule 8 (P10): with the plugin off, nothing is called and what it billed is kept as stored', { skip: skipWithout(['hourly-resources']) }, () => {
   const ctx = seed();
   ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, offered, inComplement, sasArrivalOrigin, sasLineKey)
     VALUES (500, 'Frais démo', 12, 0, 1, 1, 'demo:fee')`).run();

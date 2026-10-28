@@ -3,10 +3,8 @@
 // proportional tourist tax follows the price paid (its base HT is the price itself), a frozen or
 // declared one never moves; a view that spans both regimes treats each row with its own.
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['accounting-export'])) return;
-
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { buildVatGoldenDb } = require('./vatRegimeGoldenFixture');
@@ -99,7 +97,7 @@ test('rule 13: a view spanning both regimes treats each stay with its own rate',
   assert.equal(withOne.showHt, true);
 });
 
-test('rule 13: the accounting month holds entries with VAT and entries without', () => {
+test('rule 13: the accounting month holds entries with VAT and entries without', { skip: skipWithout(['accounting-export']) }, () => {
   const { create } = require('../plugins/accounting-export/accountingModel');
   toggle(104, true);
   const entries = create(db).encaissementsByMonth({ month: 8, year: 2027 });

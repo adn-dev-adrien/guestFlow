@@ -7,16 +7,14 @@
 // bouger. Et le mécanisme choisi est « échouer en se fermant » — le champ interdit est retiré en
 // silence, jamais rejeté, pour qu'un client un peu ancien ne perde pas tout un check-in sur un
 // champ qu'il n'aurait pas dû envoyer.
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['sas'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { toReceptionSasCommit, toReceptionReservationView } = require('../utils/receptionView');
 // `buildStayPayment` répond « cette étape est-elle applicable ? » : elle vit dans le contrôleur du
 // SAS, exposée pour être épinglée sans monter tout le harnais HTTP.
-const { __test: { buildStayPayment } } = require('../plugins/sas/controller');
+const { __test: { buildStayPayment } } = optionalPlugin(() => require('../plugins/sas/controller'));
 
 // specs/collect-stay-payment-at-check-in.md rule 25 — fail-closed sur l'écriture : `stayPaid` et
 // `stayPaidCash` venant d'un compte réception sont retirés, jamais honorés.
@@ -79,7 +77,7 @@ test('la fiche servie à la réception ne porte aucun montant du séjour', () =>
 
 // specs/collect-stay-payment-at-check-in.md rule 7 — l'étape « Séjour à régler » n'est pas
 // applicable : le serveur répond « non », il ne se contente pas de cacher un bouton côté écran.
-test('l’étape de règlement du séjour n’est jamais applicable pour la réception', () => {
+test('l’étape de règlement du séjour n’est jamais applicable pour la réception', { skip: skipWithout(['sas']) }, () => {
   const stay = { depositAmount: 0, balanceAmount: 400, balancePaid: 0 };
   assert.equal(buildStayPayment(stay, { isDeparture: false, receptionOnly: false }).applicable, true);
   const bridee = buildStayPayment(stay, { isDeparture: false, receptionOnly: true });

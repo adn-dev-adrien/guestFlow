@@ -58,6 +58,13 @@ async function main() {
     if (!saved.ok) throw new Error(`[snapshot] saving the ${name} stay: ${saved.status} ${await saved.text()}`);
     reference[name] = money(await (await call('GET', `/api/reservations/${stay.id}`)).json());
   }
+  // With every plugin present the deposit reminder of the quote offers its open link: what the removal run
+  // must see disappear with `online-payment` (rule 6).
+  const templates = await (await call('GET', '/api/email-templates')).json();
+  const reminder = templates.find((t) => t.stableKey === 'deposit_reminder');
+  const mail = await (await call('GET', `/api/emails/preview?reservationId=${seed.quote.id}&templateId=${reminder.id}`)).json();
+  reference.quoteReminder = { templateId: reminder.id, offersLink: /pay\.example\.test\/pl_removal_open/.test(`${mail.subject}\n${mail.body}`) };
+  if (!reference.quoteReminder.offersLink) throw new Error('[snapshot] the quote reminder does not offer its open link with every plugin present');
   fs.writeFileSync(path.join(WORK, 'reference.json'), JSON.stringify(reference, null, 2));
 }
 

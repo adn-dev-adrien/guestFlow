@@ -211,10 +211,35 @@ test('rule 13 — the hourly job runs the full re-send at the configured hour, o
   assert.ok(w.model.listLog(5).every((r) => r.full === 1 && r.reason === 'nightly'));
   clock = new Date('2027-03-01T04:50:00');
   assert.equal(await w.push.nightlyTick(), false, 'already done today');
-  clock = new Date('2027-03-02T05:10:00');
-  assert.equal(await w.push.nightlyTick(), false, 'not the hour');
+  // The job ticks every hour: only the configured one runs the re-send.
+  for (let h = 5; h < 24; h += 1) {
+    clock = new Date(`2027-03-01T${String(h).padStart(2, '0')}:10:00`);
+    assert.equal(await w.push.nightlyTick(), false, `not the hour (${h}h)`);
+  }
+  for (let h = 0; h < 4; h += 1) {
+    clock = new Date(`2027-03-02T${String(h).padStart(2, '0')}:10:00`);
+    assert.equal(await w.push.nightlyTick(), false, `not the hour (${h}h)`);
+  }
   clock = new Date('2027-03-02T04:05:00');
   assert.equal(await w.push.nightlyTick(), true);
+});
+
+test('rule 17 of the removal spec — a plugin switched off and on again re-sends everything at its next tick', async () => {
+  let clock = new Date('2027-03-01T10:10:00');
+  const w = world({ values: { partnerId: 'solio_partner' }, now: () => clock });
+  assert.equal(await w.push.nightlyTick(), false, 'the first tick of a process has nothing to compare to');
+  clock = new Date('2027-03-01T11:10:00');
+  assert.equal(await w.push.nightlyTick(), false, 'an hourly cadence is no silence');
+  assert.equal(w.loads.length, 0);
+  // Switched off at 11:30: its ticks and its triggers are skipped. Back on, the next tick is at 15:10.
+  w.state = stateOf([...BASE_RATES.slice(0, 3), rate('2027-03-07', 2, 2, 700)], BASE_DAYS);
+  clock = new Date('2027-03-01T15:10:00');
+  assert.equal(await w.push.nightlyTick(), true);
+  assert.deepEqual(w.loads.map((l) => l.id), [1, 2]);
+  assert.ok(w.model.listLog(5).every((r) => r.full === 1 && r.reason === 'catch-up'));
+  assert.equal(w.model.rateSnapshot(1).get('2027-03-07|2|2'), 70000, 'the price changed while off reached the snapshot');
+  clock = new Date('2027-03-01T16:10:00');
+  assert.equal(await w.push.nightlyTick(), false);
 });
 
 test('runs of a property never overlap', async () => {

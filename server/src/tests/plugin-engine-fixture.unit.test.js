@@ -26,6 +26,7 @@ const fixture = {
     router.get('/ping', (req, res) => res.json({ pong: true }));
     ctx.mount('/api/engine-fixture', router);
     ctx.jobs.every({ name: 'tick', intervalMs: 1000, run: () => { ran.push('tick'); } });
+    ctx.events.on('reservation.updated', () => { ran.push('event'); });
     ctx.data({ tables: ['engine_fixture_rows'], describe: () => [{ label: 'rows', count: 1 }] });
   },
 };
@@ -87,6 +88,19 @@ test('rule 5: its job runs while it is live and skips its tick when it is not', 
   plugins.setEnabled(ID, false);
   await ticks[0]();
   assert.deepEqual(ran, ['tick']);
+  registry.reset();
+});
+
+test('rule 17: the bus drops an event while the module is off — it is never replayed when it comes back', async () => {
+  const { plugins } = boot();
+  const eventBus = require('../plugins/sdk/eventBus');
+  ran.length = 0;
+  plugins.setEnabled(ID, false);
+  await eventBus.dispatch('reservation.updated', { reservationId: 1 });
+  plugins.setEnabled(ID, true);
+  assert.deepEqual(ran, []);
+  await eventBus.dispatch('reservation.updated', { reservationId: 1 });
+  assert.deepEqual(ran, ['event']);
   registry.reset();
 });
 

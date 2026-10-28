@@ -7,10 +7,8 @@
 //  - a re-opened SAS sent the old supplement back as a custom line, and the server added a fresh one;
 //  - a save after a partial placement shrank the sold hours to the hours placed.
 
-const { requirePlugins } = require('../../sdk/testing');
-if (!requirePlugins(['sas'])) return;
-
 const test = require('node:test');
+const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const Module = require('module');
@@ -235,7 +233,7 @@ function seedReopened(ctx) {
 const OLD_SUPPLEMENT = (ctx) => ({ customOptionId: ctx.oldSupplementId });
 const DRAP = { label: 'Drap housse', qty: 1, unitPrice: 15, amount: 15, offered: false };
 
-test('rule 26: a re-opened SAS that sends the old supplement back bills it once', (t) => {
+test('rule 26: a re-opened SAS that sends the old supplement back bills it once', { skip: skipWithout(['sas']) }, (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { res, items } = commitArrival(ctx, {
     keptLines: [OLD_SUPPLEMENT(ctx), { customOptionId: ctx.drapId }],
@@ -245,13 +243,13 @@ test('rule 26: a re-opened SAS that sends the old supplement back bills it once'
   assert.deepEqual(items, [{ key: `kept:${ctx.drapId}`, ...DRAP }, SUPPLEMENT(ctx, 20)]);
 });
 
-test('rule 32: a commit without the step recomputes the supplement instead of keeping a copy', (t) => {
+test('rule 32: a commit without the step recomputes the supplement instead of keeping a copy', { skip: skipWithout(['sas']) }, (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { items } = commitArrival(ctx, { keptLines: [OLD_SUPPLEMENT(ctx)] }, t);
   assert.deepEqual(items, [SUPPLEMENT(ctx, 20)]);
 });
 
-test('rule 32: hours moved to the day band drop the supplement', (t) => {
+test('rule 32: hours moved to the day band drop the supplement', { skip: skipWithout(['sas']) }, (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { items } = commitArrival(ctx, {
     keptLines: [OLD_SUPPLEMENT(ctx)],
@@ -260,7 +258,7 @@ test('rule 32: hours moved to the day band drop the supplement', (t) => {
   assert.deepEqual(items, []);
 });
 
-test('rule 26: removing every block of a resource clears its sessions and its supplement', (t) => {
+test('rule 26: removing every block of a resource clears its sessions and its supplement', { skip: skipWithout(['sas']) }, (t) => {
   const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { items } = commitArrival(ctx, { keptLines: [OLD_SUPPLEMENT(ctx)], pluginSteps: step(ctx, []) }, t);
   assert.deepEqual(items, []);

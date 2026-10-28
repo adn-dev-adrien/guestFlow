@@ -89,3 +89,14 @@ test('rule 42: Intégrations is named while none of its nine plugins is active, 
   assert.deepEqual(ask(ctrl, '/settings/integrations'), { plugins: [], message: null });
   db.close();
 });
+
+// specs/plugin-removal-resilience.md rule 1 — a page whose plugin this release never shipped, and that no
+// row remembers, still names it properly.
+test('rule 1: the core display names follow the manifests, and a page names a plugin nobody installed', () => {
+  const { PLUGIN_DISPLAY_NAMES, findPlugin } = require('../constants/plugins');
+  PLUGIN_IDS.forEach((id) => assert.equal(PLUGIN_DISPLAY_NAMES[id], findPlugin(id).name, id));
+  const { db, ctrl } = controller();
+  const answer = ask(ctrl, '/comptabilite');
+  assert.match(answer.message, /Export comptable/);
+  db.close();
+});

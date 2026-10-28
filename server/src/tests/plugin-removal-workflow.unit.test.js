@@ -26,6 +26,8 @@ test('rule 7: one cell per plugin, the matrix being the list the folders give', 
 });
 
 test('rule 7: a failing night opens or comments on one issue, and only a scheduled run does', () => {
+  assert.match(code, /needs: \[list, removal, sweep\]/);
+  assert.match(code, /needs\.list\.result == 'failure'/);
   assert.match(code, /github\.event_name == 'schedule'/);
   assert.match(code, /Plugin removal matrix failing/);
   assert.match(code, /issues: write/);

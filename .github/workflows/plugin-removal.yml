@@ -144,8 +144,8 @@ jobs:
 
   alert:
     name: open or update the issue
-    needs: [removal, sweep]
-    if: ${{ always() && github.event_name == 'schedule' && (needs.removal.result == 'failure' || needs.sweep.result == 'failure') }}
+    needs: [list, removal, sweep]
+    if: ${{ always() && github.event_name == 'schedule' && (needs.list.result == 'failure' || needs.removal.result == 'failure' || needs.sweep.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

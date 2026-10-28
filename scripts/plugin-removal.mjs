@@ -146,6 +146,7 @@ function runStep(name, command, cmdArgs, { cwd, env = {}, logDir }) {
 function cell(id) {
   const source = path.resolve(HERE, '..');
   const inPlace = args.includes('--in-place');
+  if (inPlace && process.env.CI !== 'true') throw new Error('--in-place deletes folders of this checkout: it only runs in CI (CI=true)');
   const tmp = process.env.TMPDIR || os.tmpdir();
   // A cell deletes folders: on a developer's machine it works on a copy, in CI (`--in-place`) on the checkout.
   const sandbox = inPlace ? null : path.resolve(flag('--sandbox', path.join(tmp, `gf-removal-sandbox-${id}`)));
@@ -195,6 +196,7 @@ function sweep() {
   const logDir = path.join(work, 'logs');
   fs.mkdirSync(logDir, { recursive: true });
   const baseEnv = { TMPDIR: work, DB_PATH: path.join(work, 'removal.db'), GUESTFLOW_SMTP_DETECT: 'off' };
+  fs.writeFileSync(path.join(work, 'routes.json'), JSON.stringify(Object.fromEntries(listPlugins(root).map((p) => [p, routesOf(root, p)]))));
   const steps = [
     runStep('seed', process.execPath, ['server/scripts/seed-e2e.js'], { cwd: root, logDir, env: { ...baseEnv, E2E_ADMIN_EMAIL: 'e2e@guestflow.test', E2E_ADMIN_PASSWORD: 'e2e-secret-1234' } }),
     runStep('seed-data', process.execPath, ['server/scripts/seed-plugin-data.js'], { cwd: root, logDir, env: { ...baseEnv, REMOVAL_SEED_OUT: path.join(work, 'seed.json') } }),

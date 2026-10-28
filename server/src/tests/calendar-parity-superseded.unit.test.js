@@ -5,17 +5,15 @@
 // « Rétablir » undoes it when its dates are still free.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['accounting-export'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const db = require('../database');
 const calendarModel = require('../models/calendarModel');
 const reservationsModel = require('../models/reservationsModel');
 const propertyIcalModel = require('../models/propertyIcalModel');
-const accountingModelFactory = require('../plugins/accounting-export/accountingModel');
+const accountingModelFactory = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
 const reservationsController = require('../controllers/reservationsController');
 const { findCandidates, setAsideDuplicates, REASON } = require('../utils/supersededDuplicates');
 
@@ -149,7 +147,7 @@ test('rule 26 — within the keeper dates ±1 day it is a copy; the keeper is th
   assert.deepEqual(found.superseded.find((s) => s.id === 70), { id: 70, byReservationId: 72 });
 });
 
-test('rule 22 — a stay set aside is absent from the calendar, the lists, the availability and the books; search flags it', () => {
+test('rule 22 — a stay set aside is absent from the calendar, the lists, the availability and the books; search flags it', { skip: skipWithout(['accounting-export']) }, () => {
   assert.ok(!allSet(1).includes(22279));
   assert.ok(!rm.list({ propertyId: 1 }).some((r) => r.id === 22279));
   assert.equal(rm.validateAvailability(1, '2027-04-16', '2027-04-17', '15:00', '10:00', null), null, 'a free night is free');

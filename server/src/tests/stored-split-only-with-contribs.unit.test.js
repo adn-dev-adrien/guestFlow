@@ -6,14 +6,12 @@
 
 process.env.DB_PATH = ':memory:';
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['accounting-export'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const { db, createStay, rowOf, mark, respond, controller, ADMIN } = require('./ledgerFixture');
-const { create: accountingModel } = require('../plugins/accounting-export/accountingModel');
-const { create: accountingController } = require('../plugins/accounting-export/controller');
+const { create: accountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const { create: accountingController } = optionalPlugin(() => require('../plugins/accounting-export/controller'));
 const { hasAnyContrib, captureBucketSplit } = require('../utils/forceItemContribsCapture');
 
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -40,7 +38,7 @@ function olderStay() {
   return id;
 }
 
-test('rule 46 — a stay with no contribution stays wholly on the stored-money path when its solde is marked', () => {
+test('rule 46 — a stay with no contribution stays wholly on the stored-money path when its solde is marked', { skip: skipWithout(['accounting-export']) }, () => {
   const id = olderStay();
   const mayBefore = csvOf(2026, 5);
   assert.match(mayBefore, /;90;0;/, 'the acompte entry of May');
@@ -52,7 +50,7 @@ test('rule 46 — a stay with no contribution stays wholly on the stored-money p
   assert.ok(balance.lines.some((l) => /^706/.test(l.compte) && Number(l.credit) > 0), 'the solde books revenue');
 });
 
-test('rule 46 — the single payment and the SAS keep a no-contribution stay on the stored-money path too', () => {
+test('rule 46 — the single payment and the SAS keep a no-contribution stay on the stored-money path too', { skip: skipWithout(['accounting-export']) }, () => {
   const settled = olderStay();
   db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(settled);
   const mayBefore = csvOf(2026, 5);
@@ -70,7 +68,7 @@ test('rule 46 — the single payment and the SAS keep a no-contribution stay on 
   assert.equal(csvOf(2026, 5), sasMay);
 });
 
-test('rule 46 — an acompte that captured its split: the drifted solde still gets the stored split (rule 37 holds)', () => {
+test('rule 46 — an acompte that captured its split: the drifted solde still gets the stored split (rule 37 holds)', { skip: skipWithout(['accounting-export']) }, () => {
   const id = createStay();
   mark(id, { depositPaid: true, depositPaidDate: TODAY, expectedAmountCents: Math.round(rowOf(id).depositAmount * 100) });
   assert.equal(hasAnyContrib(db, id), true);

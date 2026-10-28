@@ -5,17 +5,15 @@
 // its OWN month instead: an avoir reversing the revenue + VAT, an indemnity crediting the same sum
 // VAT-free. Which is why the reservation row survives the cancellation.
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['accounting-export'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
 const { cancelReservation } = require('../utils/cancelReservation');
-const accountingModelFactory = require('../plugins/accounting-export/accountingModel');
+const accountingModelFactory = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
 const reservationsModelFactory = require('../models/reservationsModel');
 const refundsModelFactory = require('../models/refundsModel');
 const compensationsModelFactory = require('../models/cancellationCompensationsModel');
@@ -50,7 +48,7 @@ function seed() {
   };
 }
 
-test('the acompte stays booked in ITS month, untouched by the cancellation (rule 34)', () => {
+test('the acompte stays booked in ITS month, untouched by the cancellation (rule 34)', { skip: skipWithout(['accounting-export']) }, () => {
   const { db, accounting, deps } = seed();
   const before = accounting.encaissementsByMonth({ month: 5, year: 2026 });
   assert.equal(before.length, 1);
@@ -68,7 +66,7 @@ test('the acompte stays booked in ITS month, untouched by the cancellation (rule
   db.close();
 });
 
-test('the cancellation month carries the avoir and the indemnity, and nothing else', () => {
+test('the cancellation month carries the avoir and the indemnity, and nothing else', { skip: skipWithout(['accounting-export']) }, () => {
   const { db, accounting, deps } = seed();
   cancelReservation(deps, 10, { today: CANCELLED_ON, vatRate: 10 });
 
@@ -86,7 +84,7 @@ test('the cancellation month carries the avoir and the indemnity, and nothing el
   db.close();
 });
 
-test('the pair nets to zero: same amount out of the séjour revenue, into the indemnity account', () => {
+test('the pair nets to zero: same amount out of the séjour revenue, into the indemnity account', { skip: skipWithout(['accounting-export']) }, () => {
   const { db, accounting, deps } = seed();
   cancelReservation(deps, 10, { today: CANCELLED_ON, vatRate: 10 });
 
@@ -99,7 +97,7 @@ test('the pair nets to zero: same amount out of the séjour revenue, into the in
   db.close();
 });
 
-test('the journal of the cancellation month balances, entry by entry', () => {
+test('the journal of the cancellation month balances, entry by entry', { skip: skipWithout(['accounting-export']) }, () => {
   const { db, accounting, deps } = seed();
   cancelReservation(deps, 10, { today: CANCELLED_ON, vatRate: 10 });
   const { buildRows } = require('../plugins/accounting-export/accountingExport');

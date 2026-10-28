@@ -96,6 +96,28 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [GOOGLE_VACATION_RENTALS]: `${INTEGRATIONS}?tab=${GOOGLE_VACATION_RENTALS}`,
 });
 
+// specs/plugin-removal-resilience.md rule 1 — what a page says of the plugin it depends on when this
+// release does not ship it and no row remembers it (tests/plugin-page-owner keeps it in step with the
+// manifests).
+const PLUGIN_DISPLAY_NAMES = Object.freeze({
+  'accounting-export': 'Export comptable',
+  'airbnb-intake': 'Saisie Airbnb',
+  'booking-intake': 'Saisie Booking',
+  'gate-access': 'Accès au portail (Sowel)',
+  'gites-de-france-intake': 'Saisie Gîtes de France',
+  'google-calendar': 'Google Agenda',
+  'google-vacation-rentals': 'Google Vacation Rentals',
+  'hourly-resources': 'Ressources à l’heure',
+  linen: 'Linge et blanchisserie',
+  neat: 'Assurance annulation Neat',
+  'online-payment': 'Paiement en ligne (Qonto)',
+  sas: 'Arrivée et départ guidés',
+  'school-holidays': 'Vacances scolaires',
+  'tariff-recipes': 'Recettes tarifaires',
+  'weather-alerts': 'Vigilance Météo-France',
+  'website-booking': 'Réservation depuis le site',
+});
+
 /** → the ids of the plugins a page belongs to, or [] for a core page or an unknown address. */
 function pluginsOfPage(path) {
   const clean = String(path || '').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
@@ -131,6 +153,7 @@ module.exports = {
   SEEDED_ON_EXISTING_IDS,
   findPlugin,
   PLUGIN_PAGES,
+  PLUGIN_DISPLAY_NAMES,
   PLUGIN_SETTINGS_PLACES,
   pluginsOfPage,
   ROLE_PLUGINS,

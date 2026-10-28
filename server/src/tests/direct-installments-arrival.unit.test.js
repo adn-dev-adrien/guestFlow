@@ -1,9 +1,7 @@
 // specs/direct-installments.md rules 35-38 — the plan at the door and in the books: what is due at arrival, the
 // SAS settling it, the fiscal attribution date, the bank reconciliation, and the paid buckets a plan never zeroes.
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['online-payment'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -12,8 +10,8 @@ const { buildPaymentDeadlineRows } = require('../utils/paymentDeadlines');
 const { create: createReservationsModel } = require('../models/reservationsModel');
 const { buildLedger } = require('../utils/reservationLedger');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
-const { receiptsOfReservation } = require('../plugins/online-payment/reconciliation/expectedReceipts');
-const { createFicheWriter } = require('../plugins/online-payment/reconciliation/ficheWriter');
+const { receiptsOfReservation } = optionalPlugin(() => require('../plugins/online-payment/reconciliation/expectedReceipts'));
+const { createFicheWriter } = optionalPlugin(() => require('../plugins/online-payment/reconciliation/ficheWriter'));
 const { applyPaymentMark } = require('../utils/reservationPaymentMark');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { __test: { paymentMarkRefusal } } = require('../controllers/reservationsController');
@@ -66,7 +64,7 @@ test('rule 36 — « Espèces » at the SAS records the remaining installments a
 });
 
 // ── Rule 38 — bank reconciliation ───────────────────────────────────────────────────────────────────
-test('rule 38 — each installment is an expected bank receipt; espèces never are; written through the installment mark', async () => {
+test('rule 38 — each installment is an expected bank receipt; espèces never are; written through the installment mark', { skip: skipWithout(['online-payment']) }, async () => {
   const h = createHarness();
   h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 0, balanceAmount: 0, depositDueDate: null, balanceDueDate: null };
   await call(h.controller.put, { params: { id: h.reservationId }, body: { count: 3 } });

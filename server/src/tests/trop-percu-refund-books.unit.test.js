@@ -7,10 +7,8 @@
 
 process.env.DB_PATH = ':memory:';
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['accounting-export'])) return;
-
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
@@ -19,7 +17,7 @@ function respond() {
   return { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
 }
 
-test('rule 36 — 465,60 € paid, reduced, 110,40 € refunded: every surface reads 355,20 €', async () => {
+test('rule 36 — 465,60 € paid, reduced, 110,40 € refunded: every surface reads 355,20 €', { skip: skipWithout(['accounting-export']) }, async () => {
   const db = require('../database');
   const controller = require('../controllers/reservationsController');
   const refunds = require('../controllers/refundsController');

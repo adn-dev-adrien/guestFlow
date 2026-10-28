@@ -153,17 +153,19 @@ including the ones added later.
    record, in `sources` as in `packages` mode (`requireRecord` becomes the default). Unit suites that
    probe `isLive` without registering a module register a fixture record or configure the registry
    explicitly. Consequently `/api/auth/me` never lists a plugin whose module is not loaded.
-3. **A core test never needs a plugin it does not name.** A test under `server/src/tests/` that imports a
-   `plugins/<id>/` folder — or reads one of its files — opens with `requirePlugins(['<id>'])` for the whole
-   file, or guards the one test with `skipWithout(['<id>'])`; a plugin's own tests import its own folder
-   freely. A static guard (`plugin-removal-matrix.unit.test.js`) fails on any import it cannot match to
-   such a call. Tests that merely *describe* a plugin through core data (a URL, a settings key, a log line)
-   need nothing. Where a core test was only reading one plugin's sources, the assertion moved into that
-   plugin's `tests/` (`mount-wiring`, `inactive-plugin`, `attention-summary`). Client side, no core test
-   mocks or imports a plugin folder; the suites that need two plugins skip with `lacksPlugins` (rule 4).
-   *Amended 2026-10-28 at implementation:* the draft moved all 40 files into their plugin or onto a
-   fixture; that would have rewritten ~40 suites other branches are editing for no extra proof, so a test
-   that really needs a plugin now says so and is skipped when it is not shipped.
+3. **A core test never needs a plugin it does not name — and never loses a test it does not need to.** A
+   test or fixture under `server/src/tests/` that reads a `plugins/<id>/` folder loads it with
+   `optionalPlugin(() => require(...))` (the folder absent reads as an empty module, the file still loads)
+   and the tests that really use it are marked `skipWithout(['<id>'])`; a whole file is guarded with
+   `requirePlugins` only when every test in it needs the plugin (the recipes' fixtures, the Google Vacation
+   Rentals data builders). A plugin's own tests import its own folder freely. The static guard
+   (`plugin-removal-matrix.unit.test.js`) scans every `.js` under the test folders, fixtures included, and
+   fails on an unwrapped, unnamed read. Where a core test only read one plugin's sources, the assertion
+   moved into that plugin's `tests/`. The guards were audited by deleting each plugin in turn and running
+   the files that name it: a test that passes without the plugin — the Neat insurance leaving every option
+   list (P13), the nordic-bath reminder without hourly resources, the ledger tests that do not read the
+   ledger — must run in that plugin's cell. Client side, no core test mocks or imports a plugin folder; the
+   suites that need a plugin skip with `lacksPlugins` (rule 4).
 4. **A test that needs a plugin says so.** `requirePlugins(ids)` (server: `plugins/sdk/testing.js`) skips a
    whole file — one test named `skipped: requires <ids>` — when a plugin is not shipped; `skipWithout(ids)`
    gives `{ skip }` for a single test; `listPlugins()` / `missingPlugins(ids)` read the folders. Client:
@@ -197,7 +199,10 @@ including the ones added later.
    a developer runs it on a copy of the tree (the default, under `TMPDIR`).
    The cell is named `removal: <P>`. The matrix is **not blocking**: it gates no pull request; a failing
    cell fails the nightly run, which opens or updates one issue (rule 15's alert), and anyone can run it
-   against a branch from the Actions tab before merging a risky change.
+   against a branch from the Actions tab before merging a risky change. A `schedule` and a `workflow_dispatch`
+   run only from the repository's default branch: the matrix is effective once this workflow reaches `master`
+   (until then, `workflow_dispatch` works on the branch that holds the file only after it is merged there; locally,
+   `node scripts/plugin-removal.mjs cell <id>` runs the same cell). `--in-place` refuses to run unless `CI=true`.
 8. **Boot and health.** In the removal E2E, the server answers `GET /api/version` 200 within 60 s,
    logs no `register failed`/`migration failed` for a plugin other than P, and `GET /api/plugins`
    lists P with `incompatible.code = 'PACKAGE_MISSING'` and every other plugin `active`.
@@ -225,7 +230,8 @@ including the ones added later.
     stay, a tariff recipe run, a school holiday, a weather cache row, a public request and its CGV
     acceptance, the Google Vacation Rentals snapshots. A plugin with nothing to seed exports `seed: null`
     with a one-line `reason` (`accounting-export`, `google-calendar`, `sas`: no table of their own). A
-    missing file or a throwing seed fails the script naming the plugin; it never seeds less. The script
+    missing file or a throwing seed fails the script naming the plugin; it never seeds less. The core part
+    also creates a sent quote (`quote` in `seed.json`); `online-payment` gives it an open deposit link. The script
     also writes `seed.json` — the stays, and for every plugin the row count of each table its erasure
     declaration (`ctx.data({ tables })`) lists — read before the plugin's code is removed, and stores each
     bundled plugin's manifest in its row, as a booted release does.
@@ -236,7 +242,9 @@ including the ones added later.
     the fiche loaded) answers 200 and leaves it identical to the cent — `finalPrice`, deposit, balance,
     tourist tax, every option and resource line with its quantity, price and sessions — and P's tables
     keep the rows `seed.json` counted. The previews of the guest emails render, carry no `{{…}}` left
-    unreplaced, and offer no payment link when `online-payment` is gone (rule 6).
+    unreplaced. The `deposit_reminder` preview of the seeded quote — which `snapshot.js` checked offers its open
+    link with every plugin present — must offer it in every cell but `online-payment`'s, where it must not
+    (rule 6: the check fails if the rule is reverted).
 13. **A new plugin is in the matrix by construction.** The matrix is not written by hand: a first job
     runs `node scripts/plugin-removal.mjs list`, which returns every folder of `server/src/plugins/`
     holding a `manifest.json` (sorted), and the matrix is `fromJSON` of it. A guard unit test
@@ -265,12 +273,17 @@ including the ones added later.
     cancelled, the accounts deactivated — straight in the sweep's own database, since cancelling a link
     reaches the provider) and goes on. For `website-booking` it asserts `409 REQUIRED_BY` while
     `google-vacation-rentals` is active, then deactivates the dependent first.
-17. **Re-enabled plugins come back clean.** In step (b) of rule 15 the scheduled passes and the jobs of
-    every live plugin run once (`run-scheduled-passes.js`): none throws. *Not delivered in this lot:* the
-    proof, on fakes, that a reservation changed while `google-calendar`, `neat` or
-    `google-vacation-rentals` were off is handled by their next pass — those plugins' own suites keep
-    their reconcile / scan / full-push cases; a dedicated « changed while off » case per plugin is a
-    follow-up.
+17. **Re-enabled plugins catch up from their own state.** The event bus drops an event while a plugin is not
+    live and never replays it (proved on the engine fixture), so each plugin that reacts to events must
+    recover from the data at its next pass. `google-calendar` (the 15-minute reconcile diff-pushes every
+    changed or missing stay) and `neat` (the 5-minute pass subscribes every stay that qualifies) already
+    do, and a fake-backed case per plugin proves it (`catch-up-after-reactivation`).
+    `google-vacation-rentals` did not: its triggers were lost and only the nightly pass would have re-sent
+    the prices, up to 24 hours stale on Google. Its hourly tick now re-sends everything (`reason:
+    'catch-up'`) when it arrives after more than 90 minutes of silence — the tick is skipped while the
+    plugin is off — so the next tick after a reactivation catches up (plugin 1.0.2). In the sweep, step (b)
+    changes a stay while the group is off, then asserts the change is still on the fiche after the
+    reactivation, and the scheduled passes and jobs run once without a throw.
 18. **Fast enough to run nightly in parallel.** A removal cell stays under 12 minutes and a sweep shard
     under 15 on GitHub-hosted runners (`ubuntu-latest`, never `self-hosted`). The server suite of a cell
     runs as `npm test` does today — serial, about 3½ minutes for 7 700 tests — so no per-process

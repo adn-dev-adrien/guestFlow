@@ -1,10 +1,8 @@
 // specs/direct-installments.md rules 4, 5, 8, 22 and §4.1 — what a plan does to the money readers: the
 // pricing engine (acompte and solde replaced, the rise on a settled plan goes to the arrival complement),
 // the settlement figures, the ledger, the accounting export and the collection alert.
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['accounting-export'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -15,8 +13,8 @@ const { buildLedger } = require('../utils/reservationLedger');
 const { buildPlanPayload } = require('../utils/installmentPlan');
 const { buildPaymentDeadlineRows } = require('../utils/paymentDeadlines');
 const financeModel = require('../models/financeModel');
-const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
-const { entryToStructured } = require('../plugins/accounting-export/accountingExport');
+const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const { entryToStructured } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 const { migrateInstallmentsSchema } = require('../utils/installmentsMigration');
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
@@ -282,7 +280,7 @@ test('rule 5 — the finance readers see the installments collected as money rec
   assert.equal(summary.totalCollected, 400);
 });
 
-test('rule 29 — accounting: each paid installment is an encaissement of its own, at its paid date, booked like a solde', () => {
+test('rule 29 — accounting: each paid installment is an encaissement of its own, at its paid date, booked like a solde', { skip: skipWithout(['accounting-export']) }, () => {
   const db = plannedStay(booksDb());
   const accounting = createAccountingModel(db);
   const january = accounting.encaissementsByMonth({ month: 1, year: 2027 });
@@ -302,7 +300,7 @@ test('rule 29 — accounting: each paid installment is an encaissement of its ow
   assert.equal(round2(credit), 200, 'the entry balances');
 });
 
-test('accounting — the tourist tax rides every installment in proportion; the last one takes what is left, so the books add up to the tax', () => {
+test('accounting — the tourist tax rides every installment in proportion; the last one takes what is left, so the books add up to the tax', { skip: skipWithout(['accounting-export']) }, () => {
   const db = plannedStay(booksDb(), { tax: 31 });
   db.prepare('UPDATE reservation_installments SET amountCents = 21000, paid = 1, paidDate = ? WHERE reservationId = 1').run('2027-01-10');
   db.prepare('UPDATE reservation_installments SET paidDate = ? WHERE reservationId = 1 AND number = 2').run('2027-03-10');

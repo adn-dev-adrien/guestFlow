@@ -3,10 +3,8 @@
 // two periods (10 % for the stays before 2027-08-01, 20 % from then on) every one of them gives the
 // right rate to a stay of each side.
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['accounting-export'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -33,7 +31,7 @@ const publicPayment = require('../utils/publicPaymentMode');
 const devisModel = require('../models/devisModel');
 const finance = require('../models/financeModel');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
+const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
 
 const row = (id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
 const quoteOf = (id) => calculateReservationQuote(buildReservationEngineInput(db, row(id)));
@@ -148,7 +146,7 @@ test('rule 8: the devis PDF prints the rate of the regime the devis is quoted un
   assert.ok(!printed.includes('10,00%'));
 });
 
-test('rule 8: the accounting journal books each entry at the rate of its reservation', () => {
+test('rule 8: the accounting journal books each entry at the rate of its reservation', { skip: skipWithout(['accounting-export']) }, () => {
   const accounting = createAccountingModel(db);
   const rateOf = (month, id) => accounting.encaissementsByMonth({ month, year: 2027 })
     .filter((e) => e.reservationId === id).flatMap((e) => e.buckets).map((b) => b.ratePercent);

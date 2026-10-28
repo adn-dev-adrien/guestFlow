@@ -89,8 +89,12 @@ test('rule 12 — the fiches that carried the removed plugins’ data open, save
 
   const templates = await (await request.get('/api/email-templates')).json();
   const problems = [];
+  const reminder = await (await request.get(`/api/emails/preview?reservationId=${SEED.quote.id}&templateId=${ref.quoteReminder.templateId}`)).json();
+  const offers = /pay\.example\.test\/pl_removal_open/.test(`${reminder.subject}\n${reminder.body}`);
+  // Rule 6: with the payment plugin the quote's reminder offers its open link; without it, never.
+  if (offers !== !GONE.includes('online-payment')) problems.push(`the quote's deposit reminder ${offers ? 'offers' : 'does not offer'} its open payment link`);
   for (const template of templates) {
-    for (const stay of Object.values(SEED.stays)) {
+    for (const stay of [...Object.values(SEED.stays), SEED.quote]) {
       const res = await request.get(`/api/emails/preview?reservationId=${stay.id}&templateId=${template.id}`);
       if (res.status() !== 200) { problems.push(`template ${template.stableKey || template.id} / stay ${stay.id} → ${res.status()}`); continue; }
       const body = await res.json();

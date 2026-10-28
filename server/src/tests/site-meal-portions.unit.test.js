@@ -4,10 +4,8 @@
 // quote publishes, the property-default quantity and the migration of devis stored under the old
 // séance meaning.
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['website-booking'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 // The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
@@ -19,7 +17,7 @@ const {
   isPerPersonCardOption, servingsFor, portionCap, clampPortions, portionWording,
 } = require('../utils/mealPortions');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { toPublicOptionLimits } = require('../plugins/website-booking/publicProjections');
+const { toPublicOptionLimits } = optionalPlugin(() => require('../plugins/website-booking/publicProjections'));
 const { mergePropertyDefaultsIntoPayload } = require('../utils/propertyDefaultOptions');
 const { runMealPortionQuantitiesMigration } = require('../utils/migrateMealPortionQuantities');
 
@@ -191,7 +189,7 @@ test('the admin flow is untouched: occurrences still drive the billed units', ()
 
 // ---- the caps the quote publishes (rules 7-8) ----
 
-test('optionLimits carries the cap and its French hint, per option', () => {
+test('optionLimits carries the cap and its French hint, per option', { skip: skipWithout(['website-booking']) }, () => {
   const limits = toPublicOptionLimits({
     options: [BREAKFAST, TRAPPER, ROOM], persons: 4, nights: 3, property: PROPERTY,
   });
@@ -202,7 +200,7 @@ test('optionLimits carries the cap and its French hint, per option', () => {
   assert.equal(limits[1].hint, "Jusqu'à 24 — 4 personnes × 6 repas");
 });
 
-test('the hint counts the lunches the times add, without explaining them', () => {
+test('the hint counts the lunches the times add, without explaining them', { skip: skipWithout(['website-booking']) }, () => {
   const limits = toPublicOptionLimits({
     options: [TRAPPER], persons: 4, nights: 3, checkInTime: '11:00', checkOutTime: '14:00', property: PROPERTY,
   });
@@ -210,7 +208,7 @@ test('the hint counts the lunches the times add, without explaining them', () =>
   assert.equal(limits[0].hint, "Jusqu'à 32 — 4 personnes × 8 repas");
 });
 
-test('no dates or no guests → no caps to publish', () => {
+test('no dates or no guests → no caps to publish', { skip: skipWithout(['website-booking']) }, () => {
   assert.deepEqual(toPublicOptionLimits({ options: [BREAKFAST], persons: 4, nights: 0 }), []);
   assert.deepEqual(toPublicOptionLimits({ options: [BREAKFAST], persons: 0, nights: 3 }), []);
 });
@@ -369,7 +367,7 @@ function fakeRes() {
   };
 }
 
-test('booking request: portions over the cap are refused, never quietly lowered', () => {
+test('booking request: portions over the cap are refused, never quietly lowered', { skip: skipWithout(['website-booking']) }, () => {
   const captures = {};
   const controller = buildBookingController({ options: [BREAKFAST, TRAPPER], captures });
   const res = fakeRes();
@@ -381,7 +379,7 @@ test('booking request: portions over the cap are refused, never quietly lowered'
   assert.equal(captures.devisCreate, undefined, 'nothing persisted');
 });
 
-test('booking request: portions within the cap go through untouched', () => {
+test('booking request: portions within the cap go through untouched', { skip: skipWithout(['website-booking']) }, () => {
   const captures = {};
   const controller = buildBookingController({ options: [BREAKFAST, TRAPPER], captures });
   const res = fakeRes();

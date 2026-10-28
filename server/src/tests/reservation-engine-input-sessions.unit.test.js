@@ -5,10 +5,8 @@
 // « À planifier » however many hours were placed. The amount was right either way: a sold line is the
 // locked snapshot's.
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['hourly-resources'])) return;
-
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -85,7 +83,7 @@ const replay = (db) => calculateReservationQuote(
   buildReservationEngineInput(db, db.prepare('SELECT * FROM reservations WHERE id = 1').get()),
 );
 
-test('rule 5: a replayed bath keeps its sessions and the hours placed, at its sold amount', () => {
+test('rule 5: a replayed bath keeps its sessions and the hours placed, at its sold amount', { skip: skipWithout(['hourly-resources']) }, () => {
   const db = seedDb();
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, sessions)
     VALUES (1, 14, 2, 30, 2, 'per_hour', 60, ?)`).run(JSON.stringify([
@@ -100,7 +98,7 @@ test('rule 5: a replayed bath keeps its sessions and the hours placed, at its so
   db.close();
 });
 
-test('rule 5: a replayed bath with no session placed still reads « À planifier »', () => {
+test('rule 5: a replayed bath with no session placed still reads « À planifier »', { skip: skipWithout(['hourly-resources']) }, () => {
   const db = seedDb();
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, sessions)
     VALUES (1, 14, 2, 30, 2, 'per_hour', 60, NULL)`).run();

@@ -6,17 +6,15 @@
  * the form opens; the two strings and their English.
  */
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['website-booking'])) return;
-
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const challenge = require('../plugins/website-booking/challenge');
+const challenge = optionalPlugin(() => require('../plugins/website-booking/challenge'));
 
 const PLUGIN = path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'guestflow-booking');
 const read = (...p) => fs.readFileSync(path.join(PLUGIN, ...p), 'utf8');
@@ -35,7 +33,7 @@ test('rule 2: the plugin\'s SHA-256 is SHA-256', () => {
   });
 });
 
-test('rule 2: the nonce the browser finds passes GuestFlow\'s check', () => {
+test('rule 2: the nonce the browser finds passes GuestFlow\'s check', { skip: skipWithout(['website-booking']) }, () => {
   const pow = loadPow();
   const now = Date.now();
   const c = challenge.issue({ secret: 's', ipKey: '81.250.12.4', difficulty: 14, now });

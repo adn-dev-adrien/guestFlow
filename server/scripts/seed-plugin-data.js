@@ -46,12 +46,17 @@ function seedCore() {
     return { id: Number(id), propertyId: Number(propertyId), clientId: Number(clientId), resourceId: Number(resourceId), startDate };
   };
   const stays = { direct: stay('direct', 30), platform: stay('booking', 60) };
+  // A sent quote: the deposit reminder offers its open payment link (specs/plugin-removal-resilience.md rule 6).
+  const quoteStart = addDays(90);
+  const quoteId = db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, platform, kind, devisStatus, validUntil, totalPrice, finalPrice, depositAmount, balanceAmount)
+    VALUES (?, ?, ?, ?, 2, 'direct', 'devis', 'sent', ?, 600, 600, 180, 420)`).run(propertyId, clientId, quoteStart, addDays(93), addDays(20)).lastInsertRowid;
+  const quote = { id: Number(quoteId), propertyId: Number(propertyId), clientId: Number(clientId) };
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, sessions)
     VALUES (?, ?, 1, 30, 1, 'per_hour', 30, ?)`).run(stays.direct.id, resourceId, JSON.stringify([{ date: stays.direct.startDate, startTime: '18:00', endTime: '19:00' }]));
-  return stays;
+  return { stays, quote };
 }
 
-function seedPlugins(stays) {
+function seedPlugins(stays, quote) {
   const skipped = {};
   listPlugins().forEach((id) => {
     const file = path.join(PLUGINS_DIR, id, 'tests', 'removalSeed.js');
@@ -64,7 +69,7 @@ function seedPlugins(stays) {
       return;
     }
     try {
-      db.transaction(() => mod.seed(db, { stays }))();
+      db.transaction(() => mod.seed(db, { stays, quote }))();
     } catch (err) {
       throw new Error(`[seed-plugin-data] ${id}: ${err.message}`);
     }
@@ -90,10 +95,10 @@ function storeManifests() {
 
 try {
   storeManifests();
-  const stays = seedCore();
-  const skipped = seedPlugins(stays);
+  const { stays, quote } = seedCore();
+  const skipped = seedPlugins(stays, quote);
   const rows = countRows();
-  if (OUT) fs.writeFileSync(OUT, JSON.stringify({ stays, rows, skipped }, null, 2));
+  if (OUT) fs.writeFileSync(OUT, JSON.stringify({ stays, quote, rows, skipped }, null, 2));
   const seeded = Object.values(rows).reduce((n, tables) => n + Object.values(tables).reduce((a, b) => a + b, 0), 0);
   console.log(`[seed-plugin-data] ${listPlugins().length - Object.keys(skipped).length} plugin(s) seeded, ${seeded} plugin row(s), ${Object.keys(skipped).length} without a table.`);
 } catch (err) {

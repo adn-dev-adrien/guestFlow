@@ -32,6 +32,6 @@ test('rule 8: each contributing plugin brings its own search words, none shared'
       owners.set(word, s.pluginId);
     });
   });
-  if (owners.has('Neat')) expect(owners.get('Neat')).toBe('neat');
-  if (owners.has('Sowel')) expect(owners.get('Sowel')).toBe('gate-access');
+  if (shippedPlugins().includes('neat')) expect(owners.get('Neat')).toBe('neat');
+  if (shippedPlugins().includes('gate-access')) expect(owners.get('Sowel')).toBe('gate-access');
 });

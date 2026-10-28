@@ -70,4 +70,21 @@ function skipWithout(ids) {
   return missing.length ? `requires ${missing.join(', ')}` : false;
 }
 
-module.exports = { applyPluginSchema, listPlugins, missingPlugins, requirePlugins, skipWithout };
+// What a plugin that is not shipped reads as: any property, at any depth, and any call, gives it back, so
+// a file that destructures it still loads. A test that really uses it fails and is skipped by `skipWithout`.
+const absent = new Proxy(function absentPlugin() { return absent; }, { get: (_, key) => (key === 'then' ? undefined : absent) });
+
+/**
+ * Loads something out of a plugin's folder for a test file that only needs it in some of its tests:
+ * `absent` (see above) when the folder is not shipped, so the file still loads and its other tests still run.
+ */
+function optionalPlugin(load) {
+  try {
+    return load();
+  } catch (err) {
+    if (err && err.code === 'MODULE_NOT_FOUND') return absent;
+    throw err;
+  }
+}
+
+module.exports = { applyPluginSchema, listPlugins, missingPlugins, requirePlugins, skipWithout, optionalPlugin };

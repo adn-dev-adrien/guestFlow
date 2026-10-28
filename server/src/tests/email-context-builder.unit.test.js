@@ -1,9 +1,6 @@
 // Context builder: shapes reservation/client/property/options/settings into a flat
 // { vars, flags } object the renderer consumes. See specs/email-automation.md §3 rule 3 + §4.4.
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['hourly-resources'])) return;
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

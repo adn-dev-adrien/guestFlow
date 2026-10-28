@@ -9,14 +9,14 @@ const { test, expect } = require('@playwright/test');
 const {
   ROOT, WORK, seed, CORE_PAGES, countRows, restart, control,
 } = require('./helpers');
-const { smoke } = require('./smoke');
+const { smoke, removedApiMatchers } = require('./smoke');
 
 const SEED = seed();
 const IDS = Object.keys(SEED.rows).sort();
 const [index, total] = (process.env.SWEEP_SHARD || '1/1').split('/').map(Number);
 const MINE = IDS.filter((_, i) => i % total === index - 1);
 const Database = require(path.join(ROOT, 'server', 'node_modules', 'better-sqlite3'));
-const { PLUGIN_SETTINGS_PLACES } = require('../../server/src/constants/plugins');
+const { PLUGIN_SETTINGS_PLACES, PLUGIN_PAGES } = require('../../server/src/constants/plugins');
 
 const writable = () => new Database(path.join(WORK, 'removal.db'));
 const fiches = Object.values(SEED.stays).map((s) => `/reservations/${s.id}`);
@@ -64,8 +64,10 @@ for (const id of MINE) {
       expect(res.status(), `${label} (${method} ${url})`).toBe(expected);
       return res;
     };
+    // While the group is off the core pages neither call its API nor link to the pages only it owns.
+    const exclusive = Object.entries(PLUGIN_PAGES).filter(([, owners]) => owners.every((o) => group.includes(o))).map(([p]) => p);
     const coreSmoke = async (label) => {
-      const problems = await smoke(page, [...CORE_PAGES, ...fiches]);
+      const problems = await smoke(page, [...CORE_PAGES, ...fiches], { matchers: removedApiMatchers(group), hiddenLinks: exclusive });
       expect(problems, label).toEqual([]);
     };
     const ownPagesRender = async (ids, label) => {
@@ -90,10 +92,17 @@ for (const id of MINE) {
     // (a) deactivated: the dependants first, then the plugin.
     for (const p of [...group].reverse()) await call('POST', `/api/plugins/${p}/deactivate`, 200, `deactivate ${p}`);
     await coreSmoke(`${id} deactivated`);
+    // Something changes while the group is off: no event reaches it (the bus drops them), and what it holds
+    // for the stay must come back as it was, the change included (rule 17).
+    const db = writable();
+    db.prepare("UPDATE reservations SET notes = 'changed while off' WHERE id = ?").run(SEED.stays.direct.id);
+    db.close();
     // (b) back: the plugin first, then its dependants; its pages render, its data is untouched.
     for (const p of group) await call('POST', `/api/plugins/${p}/activate`, 200, `activate ${p}`);
     await ownPagesRender(group, `${id} reactivated: its own pages`);
     expectKept(`${id}: rows after the round trip`);
+    const fiche = await (await request.get(`/api/reservations/${SEED.stays.direct.id}`)).json();
+    expect(fiche.notes, `${id}: the change made while it was off is kept`).toBe('changed while off');
     const passes = await control.passes(request);
     expect(passes.failed, `${id}: a pass threw after the plugin came back`).toEqual({});
 

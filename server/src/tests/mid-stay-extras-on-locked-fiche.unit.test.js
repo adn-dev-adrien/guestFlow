@@ -5,10 +5,8 @@
 // moves, the mid-stay part lands in the end-of-stay complement) only mean something end to end.
 process.env.DB_PATH = ':memory:';
 
-const { requirePlugins } = require('../plugins/sdk/testing');
-if (!requirePlugins(['hourly-resources'])) return;
-
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const {
@@ -217,7 +215,7 @@ test('adding a catalogue option during the stay is saved and goes to the end-of-
 });
 
 // specs/mid-stay-extras-on-locked-fiche.md rule 5
-test('adding a custom line and a resource during the stay lands in the end-of-stay complement', () => {
+test('adding a custom line and a resource during the stay lands in the end-of-stay complement', { skip: skipWithout(['hourly-resources']) }, () => {
   const id = seedStay();
   put(id, () => {});
   const result = put(id, (b) => {
@@ -384,7 +382,7 @@ test('S2 — fewer served persons on a per-person card option sold at arrival is
   assert.equal(more.status, 200, JSON.stringify(more.body));
 });
 
-test('S2 — an hourly resource with a free first hour cannot lose hours sold at arrival', () => {
+test('S2 — an hourly resource with a free first hour cannot lose hours sold at arrival', { skip: skipWithout(['hourly-resources']) }, () => {
   const id = seedStay();
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
               VALUES (?, 202, 2, 30, 1, 'per_hour', 30, 0)`).run(id);
@@ -394,7 +392,7 @@ test('S2 — an hourly resource with a free first hour cannot lose hours sold at
   assert.equal(result.body.code, 'ARRIVAL_EXTRAS_FROZEN');
 });
 
-test('S3 — a refused resource leaves the row, the options and the resources untouched', () => {
+test('S3 — a refused resource leaves the row, the options and the resources untouched', { skip: skipWithout(['hourly-resources']) }, () => {
   const id = seedStay();
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
               VALUES (?, 201, 1, 12, 1, 'per_stay', 12, 0)`).run(id);

@@ -1,8 +1,6 @@
-const { requirePlugins } = require('../../sdk/testing');
-if (!requirePlugins(['hourly-resources'])) return;
-
 require('./isolatedDb');
 const test = require('node:test');
+const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
 const Module = require('module');
 
@@ -76,7 +74,7 @@ test('listOptions excludes options that are OFFERED defaults for the property (i
   assert.deepEqual(res.body.data.ungrouped.map((o) => o.price), [80]); // the offered linen (7) is gone
 });
 
-test('listResources returns resources sorted by price ascending', () => {
+test('listResources returns resources sorted by price ascending', { skip: skipWithout(['hourly-resources']) }, () => {
   // The bath is sold by the hour: on sale only while its plugin is live (phase 3c rule 18).
   require('../../../tests/hourlyResourcesFixture').liveHourlyResources();
   const controller = buildController({ resources: [
