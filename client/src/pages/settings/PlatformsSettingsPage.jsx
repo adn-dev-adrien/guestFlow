@@ -115,6 +115,12 @@ export default function PlatformsSettingsPage() {
     } catch (err) {
       if (err && err.errors) {
         setErrors(err.errors);
+        // A refused colour goes back to the saved one (specs/calendar-property-parity.md rule 7).
+        setDraft((rows) => rows.map((row) => {
+          if (!(err.errors[String(row.id)] || {}).color) return row;
+          const previous = saved.find((p) => p.id === row.id);
+          return previous ? { ...row, color: previous.color } : row;
+        }));
         showError('Enregistrement refusé : corrigez les champs en rouge.');
       } else {
         showError((err && err.message) || "Impossible d'enregistrer les plateformes.");
@@ -128,7 +134,7 @@ export default function PlatformsSettingsPage() {
   const fieldError = (id, key) => (errors[String(id)] || {})[key];
 
   const colorCell = (p) => (
-    <PlatformColorPicker color={p.color} onChange={(hex) => setField(p.id, 'color', hex)} disabled={saving} />
+    <PlatformColorPicker color={p.color} onChange={(hex) => setField(p.id, 'color', hex)} disabled={saving} error={fieldError(p.id, 'color')} />
   );
   const commissionCell = (p) => (
     <TextField

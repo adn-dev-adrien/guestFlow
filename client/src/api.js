@@ -325,6 +325,14 @@ const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/reservations${qs ? `?${qs}` : ''}`);
   },
+  // The one read both calendars share: stays + closures of a range, every bar shaped by the server
+  // (specs/calendar-property-parity.md rule 1). `propertyId` restricts it to one logement.
+  getCalendar: ({ from, to, propertyId, signal }) => {
+    const qs = new URLSearchParams({ from, to, ...(propertyId ? { propertyId } : {}) });
+    return request(`/calendar?${qs}`, { signal });
+  },
+  // « Rétablir » on a duplicate set aside (rule 22).
+  restoreSupersededReservation: (id) => request(`/reservations/${id}/restore`, { method: 'POST' }),
   // Canonical platform-name list for the dropdowns (built-ins ∪ DB platforms, incl. iCal-added).
   // specs/ical-platforms-in-dropdowns.md.
   getPlatforms: () => request('/platforms'),

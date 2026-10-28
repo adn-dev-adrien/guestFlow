@@ -1,0 +1,93 @@
+// specs/calendar-property-parity.md rules 16, 18-20 — a guest's name is one ribbon per week segment laid over
+// the stay, never shrunk vertically, truncated only by width with the full text on hover and in its name;
+// the greyed days at either end of a block are real, interactive days.
+import React from 'react';
+import { vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from '../../theme';
+import CalendarMonthGrid from '../CalendarMonthGrid';
+import CalendarDayCell, { CELL_TOP_BAND_H } from '../CalendarDayCell';
+
+const stay = (extra = {}) => ({
+  id: 7, propertyId: 1, propertyName: 'Granja', startDate: '2026-12-29', endDate: '2027-01-02', label: 'Jean-Baptiste Montgolfier',
+  platform: 'direct', platformDisplay: 'Direct', color: '#2F5D46', textColor: '#FFFFFF', past: false,
+  checkInTime: '16:00', checkOutTime: '10:00', ...extra,
+});
+const handlers = {
+  onReservationClick: vi.fn(), onMouseDown: vi.fn(), onMouseEnter: vi.fn(),
+  onOpenNote: vi.fn(), onOpenNewReservation: vi.fn(), onDevisClick: vi.fn(),
+};
+
+function renderGrid({ stays = [stay()], year = 2026, month = 11, onReservationClick = vi.fn(), cellProps = {} } = {}) {
+  return render(
+    <ThemeProvider theme={theme}>
+      <CalendarMonthGrid
+        year={year}
+        month={month}
+        stays={stays}
+        onReservationClick={onReservationClick}
+        renderCell={(d, y, m, outside) => (
+          <CalendarDayCell
+            key={`${y}-${m}-${d}`} day={d} y={y} m={m} outside={outside}
+            reservations={stays} devisList={[]} closures={[]} selectedProp={1}
+            publicHolidays={new Set(['2026-12-25'])} today="2026-10-28" cleaningHours={3}
+            inDrag={false} isDragging={false} {...handlers} {...cellProps}
+          />
+        )}
+      />
+    </ThemeProvider>,
+  );
+}
+
+test('rule 18 — one ribbon per week segment, named after the stay, in its colour and text colour', () => {
+  const { container } = renderGrid();
+  const ribbons = container.querySelectorAll('[data-ribbon="r7"]');
+  expect(ribbons).toHaveLength(1);
+  const style = getComputedStyle(ribbons[0]);
+  expect(style.backgroundColor).toBe('rgb(47, 93, 70)');
+  expect(style.color).toBe('rgb(255, 255, 255)');
+  expect(ribbons[0]).toHaveTextContent('Jean-Baptiste Montgolfier');
+  expect(ribbons[0]).toHaveTextContent('Direct');
+});
+
+test('rule 18 — a stay crossing a month end is labelled in each block where it has a segment', () => {
+  const dec = renderGrid();
+  expect(dec.container.querySelectorAll('[data-ribbon="r7"]')).toHaveLength(1);
+  dec.unmount();
+  const jan = renderGrid({ year: 2027, month: 0 });
+  expect(jan.container.querySelectorAll('[data-ribbon="r7"]')).toHaveLength(1);
+});
+
+test('rule 19 — the label is never height-constrained and carries the full name, platform and dates', () => {
+  const { container } = renderGrid();
+  const ribbon = container.querySelector('[data-ribbon="r7"]');
+  expect(ribbon).toHaveAttribute('aria-label', 'Jean-Baptiste Montgolfier — Direct, 29 décembre → 2 janvier');
+  [...ribbon.children].forEach((line) => {
+    expect(getComputedStyle(line).flexShrink).toBe('0');
+    expect(getComputedStyle(line).whiteSpace).toBe('nowrap');
+  });
+  fireEvent.click(ribbon);
+});
+
+test('rule 19 — Enter on a ribbon opens the fiche', () => {
+  const onReservationClick = vi.fn();
+  const { container } = renderGrid({ onReservationClick });
+  fireEvent.keyDown(container.querySelector('[data-ribbon="r7"]'), { key: 'Enter' });
+  expect(onReservationClick).toHaveBeenCalledWith(7);
+});
+
+test('rule 20 — the ribbon starts below the top band that holds the day number and the férié marker', () => {
+  const { container } = renderGrid();
+  expect(getComputedStyle(container.querySelector('[data-ribbon="r7"]')).top).toBe(`${CELL_TOP_BAND_H}px`);
+  expect(screen.getAllByText('férié').length).toBeGreaterThan(0);
+});
+
+test('rule 16 — the greyed days of the neighbouring months are real days with their own content', () => {
+  const { container } = renderGrid();
+  const nextMonthDay = container.querySelector('[data-date="2027-01-02"]');
+  expect(nextMonthDay).not.toBeNull();
+  fireEvent.mouseDown(nextMonthDay);
+  fireEvent.mouseEnter(nextMonthDay);
+  expect(handlers.onMouseEnter).toHaveBeenCalledWith(2, 2027, 0);
+});

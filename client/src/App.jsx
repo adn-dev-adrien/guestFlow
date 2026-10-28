@@ -50,7 +50,7 @@ import SupportAccessPage from './pages/settings/SupportAccessPage';
 import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
-import { PLATFORM_COLORS, normalizePlatformKey, setPlatformDisplayNames } from './constants/platforms';
+import { PLATFORM_COLORS, PLATFORM_TEXT_COLORS, normalizePlatformKey, setPlatformDisplayNames } from './constants/platforms';
 import {
   visibleSettingsGroups, settingsGroupOf, SETTINGS_HOME_PATH, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected,
 } from './constants/settingsMenu';
@@ -640,6 +640,10 @@ function AppShell() {
         for (const [rawKey, color] of Object.entries(customColors)) {
           const key = normalizePlatformKey(rawKey);
           if (key) PLATFORM_COLORS[key] = color;
+        }
+        for (const [rawKey, textColor] of Object.entries(data?.textColors || {})) {
+          const key = normalizePlatformKey(rawKey);
+          if (key) PLATFORM_TEXT_COLORS[key] = textColor;
         }
         setPlatformDisplayNames(data?.displayNames);
       })
