@@ -103,6 +103,10 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    - closures applying to the property (`closuresModel`), and/or
    - **tombstones** (rule 7).
    Echoes are counted in the sync result (`échos Booking ignorés`).
+   > **Amended 2026-10-28 (rule 18):** the full-cover skip is withdrawn for stays and tombstones. An
+   > event wholly over held nights is **created and flagged** exactly like a partial one (rule 8); the
+   > counter `échos Booking ignorés` / `echoSkipped` no longer exists. Only a closure's own echo is still
+   > dropped, by the closure guard (rule 17).
 7. **Tombstones.** When a range stops being exported by GuestFlow (stay deleted, cancelled, or its
    dates changed), it is written to `ical_export_tombstones` with the time. A tombstone covers an echo
    for **72 hours**, the time for Booking to re-import GuestFlow's feed and drop the dates; tombstones
@@ -250,6 +254,19 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     the guest moved on Airbnb onto a closure stayed on its old dates in GuestFlow with no alert, and a
     new booking straddling the end of a closure never existed in GuestFlow — its nights stayed open
     in the export to every other channel.
+18. **A Booking event wholly over held nights is a conflict, not an echo** _(fixed at the 2026-10-28
+    audit; rule 6 amended)_. Rule 14 records the measurement behind it: with Booking's import set to
+    « Uniquement les dates réservées » its feed carries **its own reservations only** — GuestFlow's
+    ranges are absent from it. A Booking event whose every night is held by a stay from another origin or
+    by a recent tombstone is therefore not Booking mirroring GuestFlow: it is a Booking stay sold on nights
+    GuestFlow holds (an import lag on Booking's side, or a sale within 72 h of a cancellation). It used to
+    be skipped with no row, no mapping, no flag and no notification, and stayed invisible for as long as
+    it was covered, while a partial overlap — the lesser case — was flagged. It is now created and flagged
+    `bookingConflictAt` with the conflict notification, like rule 8. A tombstone still counts as held
+    (a flag on a stay whose predecessor was just cancelled is noise the operator dismisses; a silent drop
+    is an overbooking). A wholly-closure event stays dropped by rule 17. **Accepted residual risk:** if the
+    operator ever sets Booking's import to « all dates », every non-Booking stay comes back as a flagged
+    Booking event; the answer is the import setting, not a silent skip.
 
 ---
 
@@ -395,6 +412,12 @@ tables, because its Booking source now goes through the Booking path.
   straddling the end of the closure.
 - [x] Client: `components/property/__tests__/PropertyPlatformsTab.closed-feed.test.jsx` (3 tests) — chip,
   switch saved with the URL, kept by « Désactiver ».
+
+### Server unit tests — 2026-10-28 audit (rules 6, 14, 18)
+- [x] `lodgify-decommission-native-feeds.unit.test.js` and `booking-tombstone-owner.unit.test.js` updated:
+  a Booking event wholly over a GreenGo stay, over a GreenGo + hand-entered stay back to back, over a
+  fresh tombstone (owner other source or none) is created and flagged; past 72 h it is created unflagged;
+  the recorded sync message and counts name the conflicts and no longer any echo.
 
 ### Manual verification
 - [ ] On a prod copy (`DB_PATH`), point the Booking source at a recorded native feed fixture and run a sync: no duplicate, echoes counted.

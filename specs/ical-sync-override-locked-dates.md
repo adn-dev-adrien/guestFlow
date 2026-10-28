@@ -117,6 +117,15 @@ edit is preserved).
 9. **Empty state.** No alert renders when there are zero pending drifts.
 10. **Single PR, no follow-up split.** Sync detection + drift table + Dashboard alert + approve
     / reject endpoints all ship together.
+11. **Approving a drift is a date change like any other** _(added 2026-10-28, audit)_. The narrow
+    override also: (a) refuses a stay that is no longer a live `reservation` (`409 RESERVATION_NON_ACTIVE`,
+    the alert stays pending so it can still be rejected); (b) checks the new nights against the property's
+    other stays and closures, as the sync does for a moved stay (`specs/ical-import-hardening.md`
+    rule 3): a clash is applied but stamped `bookingConflictAt` and notified once (`notifyBookingConflict`,
+    origin `ical`), a stay moved off every taken night loses a previous flag; (c) moves the payout deadline
+    of a platform stay (`balanceDueDate` = new departure + the platform's `payoutDueDays`,
+    `specs/platform-payout-due-date.md` rule 8). The price, capacity and payment fields stay untouched
+    (rule 7).
 
 **Edge cases:**
 - **Locked reservation, new UID alongside the date change** (Booking sometimes does this): the

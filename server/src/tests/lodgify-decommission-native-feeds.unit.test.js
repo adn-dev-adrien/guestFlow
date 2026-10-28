@@ -119,26 +119,28 @@ test('rule 5/9 — a CLOSED event on free dates is a real Booking reservation, n
   assert.equal(resa.bookingConflictAt, null);
 });
 
-test('rule 6 — Booking echoing a GreenGo stay is skipped and counted', async () => {
+test('rule 6 (amended 2026-10-28) — a Booking event wholly over a GreenGo stay is created and flagged, never dropped', async () => {
   const { db, model } = fresh();
   stubFetch([{ uid: 'G1', start: '20270703', end: '20270706', summary: 'Jean Dupont' }]);
   await model.syncSource(GREENGO);
   stubFetch([closed('B-echo', '20270703', '20270706')]);
   const r = await model.syncSource(BOOKING);
-  assert.equal(r.echoSkippedCount, 1);
-  assert.equal(r.createdCount, 0);
-  assert.equal(all(db).length, 1);
+  assert.equal(r.createdCount, 1);
+  assert.equal(r.conflictReservationIds.length, 1);
+  assert.equal(all(db).length, 2);
+  assert.ok(all(db).find((x) => x.platform === 'Booking').bookingConflictAt);
 });
 
-test('rule 6 — an echo merging a GreenGo stay and a hand-entered stay back to back is skipped', async () => {
+test('rule 6 (amended 2026-10-28) — a Booking block over a GreenGo stay and a hand-entered stay back to back is created and flagged', async () => {
   const { db, model } = fresh();
   stubFetch([{ uid: 'G1', start: '20270703', end: '20270705', summary: 'Jean Dupont' }]);
   await model.syncSource(GREENGO);
   db.prepare("INSERT INTO reservations (propertyId, startDate, endDate, platform, sourceType) VALUES (1, '2027-07-05', '2027-07-08', 'direct', 'manual')").run();
   stubFetch([closed('B-merged', '20270703', '20270708')]);
   const r = await model.syncSource(BOOKING);
-  assert.equal(r.echoSkippedCount, 1);
-  assert.equal(all(db).length, 2);
+  assert.equal(r.createdCount, 1);
+  assert.equal(r.conflictReservationIds.length, 1);
+  assert.equal(all(db).length, 3);
 });
 
 test('rule 8 — a Booking event partly over held nights is created AND flagged in conflict', async () => {
@@ -188,7 +190,7 @@ test('rule 4bis — a cancelled Booking stay never hands its fiche to a new one 
 
 // ---------- tombstones (rule 7) ----------
 
-test('rule 7 — a stay that just left the export still covers Booking’s echo; after 72 h it does not', async () => {
+test('rule 7 — a stay that just left the export still covers the dates (conflict flag); after 72 h it does not', async () => {
   const { db, model } = fresh();
   const ranges = icalExportRangesModel.create(db);
   db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, platform, sourceType) VALUES (50, 1, '2027-07-09', '2027-07-11', 'Greengo', 'manual')").run();
@@ -197,12 +199,15 @@ test('rule 7 — a stay that just left the export still covers Booking’s echo;
 
   stubFetch([closed('B-ghost', '20270709', '20270711')]);
   const r1 = await model.syncSource(BOOKING);
-  assert.equal(r1.echoSkippedCount, 1, 'Booking has not re-read the feed yet: echo, not a phantom booking');
-  assert.equal(all(db).length, 0);
+  assert.equal(r1.createdCount, 1, 'never dropped');
+  assert.equal(r1.conflictReservationIds.length, 1, 'inside the 72 h window the nights count as held');
 
+  db.prepare('DELETE FROM reservations').run();
+  db.prepare('DELETE FROM ical_import_events').run();
   db.prepare("UPDATE ical_export_tombstones SET removedAt = datetime('now', '-80 hours')").run();
   const r2 = await model.syncSource(BOOKING);
   assert.equal(r2.createdCount, 1, 'past the 72 h window, the dates are free again: a real Booking stay');
+  assert.equal(r2.conflictReservationIds.length, 0);
 });
 
 test('rule 7 — refresh writes one tombstone per range that left the export; purge drops them after 7 days', () => {
@@ -235,7 +240,6 @@ test('rules 1-2 — the native Booking feed takes over a stay relayed by Lodgify
   stubFetch([closed('B-native', '20270703', '20270706')]);
   const r = await model.syncSource(BOOKING);
   assert.equal(r.takenOverCount, 1);
-  assert.equal(r.echoSkippedCount, 0, 'takeover runs before the echo filter');
   const rows = all(db);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, id);
@@ -302,7 +306,7 @@ test('rule 1 — two candidates on the same dates: no takeover, the data is alre
 
 // ---------- sync result reporting (rule 13) ----------
 
-test('rule 13 — the recorded sync message and counts name the Booking echoes', async () => {
+test('rule 13 — the recorded sync message and counts name the conflicts', async () => {
   const { db, model } = fresh();
   db.exec(`ALTER TABLE ical_sources ADD COLUMN url TEXT;
     ALTER TABLE ical_sources ADD COLUMN lastSyncAt TEXT; ALTER TABLE ical_sources ADD COLUMN lastSyncStatus TEXT;
@@ -313,11 +317,11 @@ test('rule 13 — the recorded sync message and counts name the Booking echoes',
   stubFetch([closed('B-echo', '20270703', '20270706')]);
   await model.syncSourceAndRecord(BOOKING);
   const row = db.prepare('SELECT lastSyncMessage, lastSyncCounts FROM ical_sources WHERE id = ?').get(BOOKING.id);
-  assert.match(row.lastSyncMessage, /1 écho\(s\) ignoré\(s\)/);
-  assert.doesNotMatch(row.lastSyncMessage, /reprise|en conflit/, 'zero counters stay silent');
+  assert.match(row.lastSyncMessage, /1 en conflit/);
+  assert.doesNotMatch(row.lastSyncMessage, /reprise|écho/, 'zero counters stay silent');
   assert.deepEqual(
-    (({ takenOver, echoSkipped, conflicts }) => ({ takenOver, echoSkipped, conflicts }))(JSON.parse(row.lastSyncCounts)),
-    { takenOver: 0, echoSkipped: 1, conflicts: 0 },
+    (({ takenOver, conflicts }) => ({ takenOver, conflicts }))(JSON.parse(row.lastSyncCounts)),
+    { takenOver: 0, conflicts: 1 },
   );
 });
 

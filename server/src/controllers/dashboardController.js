@@ -21,6 +21,7 @@ function buildController({
   icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
   icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
   emitPluginEvent = defaultEmitPluginEvent,
+  notifyBookingConflict = (id, options) => require('../utils/notificationService').notifyBookingConflict(id, options),
   // Injected so the deadline endpoints stay testable without Qonto/SMTP: production wires the real
   // payments controller lazily (it pulls the Qonto client, which must not load with the dashboard).
   sendDepositRequest = (id) => require('./paymentsController').sendDepositRequestFor(id),
@@ -69,6 +70,7 @@ function buildController({
       // Approved date override → plugins react after the response, so the committed approval can
       // never be turned into a 500 by them (specs/plugins-phase-1-sdk.md rule 9).
       if (result.reservationId) emitPluginEvent('reservation.updated', { reservationId: result.reservationId });
+      if (result.conflict) Promise.resolve(notifyBookingConflict(result.reservationId, { origin: 'ical' })).catch(() => {});
       return undefined;
     },
 

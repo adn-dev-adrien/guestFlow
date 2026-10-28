@@ -2,6 +2,8 @@
 // clients per stay (rule 1), stopped sources (rule 2), overlap conflicts on every feed (rule 3), bounded
 // fetches (rule 4), truncated feeds (rule 5), repeated UIDs (rule 6), UTC instants (rule 7), placeholder
 // names (rule 8), the status line (rule 9) and the `disabled` flag (rule 10).
+// The fetch tests use a loopback server and fake hostnames: the private-address guard (rule 26) has its own file.
+process.env.GUESTFLOW_ICAL_ALLOW_PRIVATE = '1';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
