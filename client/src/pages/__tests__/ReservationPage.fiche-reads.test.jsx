@@ -2,7 +2,7 @@
 // view (no pricing seasons), no catalogue, and not the whole client list (the search box is hidden).
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router';
 import { vi } from 'vitest';
 
 const { mockAuth } = vi.hoisted(() => ({ mockAuth: { user: { id: 1, roles: ['admin'], enabledPlugins: [] }, loading: false, logout: () => {} } }));
@@ -68,4 +68,32 @@ test('rule 15: when the client cannot be read, the search is what the page shows
   );
   await waitFor(() => expect(api.getClient).toHaveBeenCalledWith(9));
   await waitFor(() => expect(api.getClients).toHaveBeenCalled());
+});
+
+function CreateDevisButton() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate('/reservations/new?mode=devis', {
+      state: { prefillDevis: { propertyId: 1, offeredOptionIds: [], form: { startDate: '2027-03-01', endDate: '2027-03-04', adults: 2, selectedOptions: [], customOptions: [], selectedResources: [] } } },
+    })}
+    >
+      prefill-devis
+    </button>
+  );
+}
+
+test('rule 23: « Créer un devis » from a blank fiche with the same dates reads the availability again', async () => {
+  const { fireEvent, screen } = await import('@testing-library/react');
+  vi.clearAllMocks();
+  render(
+    <MemoryRouter initialEntries={['/reservations/new?propertyId=1&startDate=2027-03-01&endDate=2027-03-04']}>
+      <CreateDevisButton />
+      <Routes><Route path="/reservations/new" element={<ReservationPage />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getResourcesAvailability).toHaveBeenCalledTimes(1));
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  expect(api.getResourcesAvailability).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'prefill-devis' }));
+  await waitFor(() => expect(api.getResourcesAvailability).toHaveBeenCalledTimes(2));
 });

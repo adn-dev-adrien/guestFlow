@@ -568,7 +568,7 @@ function list(req, res) {
   const rows = model.list({ propertyId, clientId, from, to })
     .map((row) => ({ ...row, platformDisplay: platformDisplay(row.platform) }));
   if (isReceptionOnly(req.user)) return res.json(toReceptionReservationList(rows));
-  // `?view=occupancy` — the fiche's conflict checks and mini planning read six fields of each stay of
+  // `?view=occupancy` — the fiche's conflict checks and mini planning read nine fields of each stay of
   // the property, not the whole row (specs/inte-performance.md rule 20).
   if (req.query.view === 'occupancy') return res.json(rows.map(toOccupancyRow));
   return res.json(rows);

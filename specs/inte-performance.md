@@ -200,19 +200,23 @@ the same kind fails CI instead of reaching Adrien.
     manifest is read by the CI budget (rule 4) and is not served by production.
 20. **The fiche reads its property's stays as occupancy.** (Follow-up lot, 2026-10-28, after the calendar,
     home and Planning rewrites merged.) `GET /api/reservations?propertyId=…&view=occupancy` answers
-    `id, propertyId, startDate, endDate, checkInTime, checkOutTime` of each stay (what the overlap checks and
-    the mini planning read) instead of the whole row (128 kB for one property on the shadow). Same rows,
+    `id, propertyId, startDate, endDate, checkInTime, checkOutTime, platform, firstName, lastName` of each stay
+    (what the overlap checks and the mini planning read: its bars are coloured by platform and its tooltips name
+    the guest; a test reads the component's own accesses and requires each to be in the list) instead of the
+    whole row (128 kB for one property on the shadow). Same rows,
     same order; reception keeps its own finance-free list; the plain list is unchanged.
 21. **The stay view names group options by id.** In `GET /api/properties/:id?view=stay` the options of
-    `optionGroups` (`ungrouped` and each group) are `{ id }`: the groups repeated every option in full
-    (49 kB beside the 28 kB of `options`). `utils/optionGroups.js` joins them back in the fiche. The default
+    `optionGroups` (`ungrouped` and each group) are `{ id }` and the `pinned` / `foldable` slices of each
+    group are not sent (`ExtrasSection` recomputes them): the groups repeated every option in full, three
+    times (22 kB of `pinned` / `foldable` on top of the 49 kB of groups, beside the 28 kB of `options`). `utils/optionGroups.js` joins them back in the fiche. The default
     detail keeps the groups whole.
 22. **Planning days carry what the page renders.** `GET /api/planning/days` maps each arrival to the card
     fields of rule 12 and each departure to the fields of `DepartureMiniRow` (`DEPARTURE_FIELDS`), including
     the reception locks. `GET /api/planning/today` (5 kB) is unchanged: the home's tables read many more
     columns.
 23. **The fiche reads the resource availability once.** The effect that refreshes it when the dates change
-    skips the key (property, dates, excluded stay) the init has just read.
+    skips the key (property, dates, excluded stay) the init has just read; loading a property context (a
+    prefilled devis, a changed logement) forgets the key, so the availability is read again for it.
 24. **The email log preview is full screen on a phone** (`EmailLogViewDialog`, CLAUDE.md §7).
 
 **Edge cases:**

@@ -89,4 +89,4 @@ function restore(req, res) {
   return res.json(result);
 }
 
-module.exports = { list, catalogueOptions, catalogueView, getOne, create, update, remove, restore };
+module.exports = { list, catalogueView, getOne, create, update, remove, restore };

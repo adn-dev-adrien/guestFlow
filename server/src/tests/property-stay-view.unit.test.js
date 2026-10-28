@@ -16,7 +16,7 @@ const { getOne } = require('../controllers/propertiesController');
 const DETAIL = {
   id: 1, name: 'Le Gîte', singleBeds: 2, doubleBeds: 3, maxGuests: 10, defaultCheckIn: '15:00', cleaningHours: 3,
   options: [{ id: 1, title: 'Linge', price: 7 }, { id: 2, title: 'Bain', price: 30 }],
-  optionGroups: { ungrouped: [{ id: 1, title: 'Linge', price: 7 }], groups: [{ category: 'Animations', pinned: false, foldable: true, enabledCount: 0, options: [{ id: 2, title: 'Bain', price: 30 }, { id: 1, title: 'Linge', price: 7 }] }] }, resources: [], icalSources: [], closureRanges: [],
+  optionGroups: { ungrouped: [{ id: 1, title: 'Linge', price: 7 }], groups: [{ category: 'Animations', pinned: [{ id: 2, title: 'Bain', price: 30 }], foldable: [{ id: 1, title: 'Linge', price: 7 }], enabledCount: 0, options: [{ id: 2, title: 'Bain', price: 30 }, { id: 1, title: 'Linge', price: 7 }] }] }, resources: [], icalSources: [], closureRanges: [],
   pricingRules: Array.from({ length: 40 }, (_, i) => ({ id: i, label: `Saison ${i}`, pricePerNight: 100 + i, progressiveTiers: [] })),
 };
 
@@ -51,10 +51,11 @@ test('rule 14: an unknown view answers the full detail', () => {
 
 test.after(() => fs.rmSync(DIR, { recursive: true, force: true }));
 
-test('rule 21: the stay view names the options of a group by id, with the group fields kept', () => {
+test('rule 21: the stay view names the options of a group by id, drops the pinned and foldable slices, keeps the other group fields', () => {
   const { optionGroups } = answer({ view: 'stay' });
   assert.deepEqual(optionGroups.ungrouped, [{ id: 1 }]);
-  assert.deepEqual(optionGroups.groups, [{ category: 'Animations', pinned: false, foldable: true, enabledCount: 0, options: [{ id: 2 }, { id: 1 }] }]);
+  assert.deepEqual(optionGroups.groups, [{ category: 'Animations', enabledCount: 0, options: [{ id: 2 }, { id: 1 }] }]);
+  assert.equal('pinned' in optionGroups.groups[0] || 'foldable' in optionGroups.groups[0], false, 'the slices the fiche recomputes are not sent');
   assert.equal(JSON.stringify(optionGroups).includes('price'), false, 'no option field is repeated in the groups');
 });
 

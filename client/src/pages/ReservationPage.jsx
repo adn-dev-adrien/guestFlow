@@ -255,6 +255,9 @@ export default function ReservationPage() {
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [pricingQuote, setPricingQuote] = useState(null);
   const pricingQuoteRef = useRef(null);
+  // What the last resource-availability read was for: the effect that follows the dates does not ask again
+  // for the answer the init just got, and a new property context forgets it (specs/inte-performance.md rule 23).
+  const availabilityKey = useRef('');
   pricingQuoteRef.current = pricingQuote;
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
@@ -335,6 +338,7 @@ export default function ReservationPage() {
     const propDetails = await api.getProperty(numId, 'stay');
     // `propDetails.options` is the property-scoped, priced, grouped list.
     const options = Array.isArray(propDetails?.options) ? propDetails.options : [];
+    availabilityKey.current = '';
     setSelectedProp(numId);
     setSelectedProperty(propDetails || propertiesList.find((p) => p.id === numId) || null);
     setPropertyOptions(options);
@@ -1223,9 +1227,7 @@ export default function ReservationPage() {
     availabilityKey.current = [propertyId, startDate, endDate, excludeReservationId || ''].join('|');
     setAvailableResources(resources);
   };
-  // What the last read was for: the effect below does not ask again for the answer the init just got
-  // (specs/inte-performance.md rule 23).
-  const availabilityKey = useRef('');
+
 
   // The availability used to refresh only at init and when the Logement select changed — so typing
   // the dates on a blank fiche never triggered it, and « déjà réservée » / the remaining quantity

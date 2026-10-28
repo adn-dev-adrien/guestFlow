@@ -58,7 +58,7 @@ test('rule 22: the lean day is lighter than the fiches it replaces', () => {
   assert.ok(JSON.stringify(day).length < JSON.stringify({ a: [FICHE], d: [FICHE] }).length * 0.6);
 });
 
-test('rule 20: an occupancy row has the six fields the fiche reads, nothing else', () => {
+test('rule 20: an occupancy row has exactly the fields it lists, nothing else', () => {
   const row = toOccupancyRow(FICHE);
   assert.deepEqual(Object.keys(row).sort(), [...OCCUPANCY_FIELDS].sort());
   assert.equal(row.checkInTime, '16:00');
@@ -90,4 +90,15 @@ test('rule 20: GET /reservations?view=occupancy answers occupancy rows; the plai
 test('rule 22: the card and row projections are the same functions the upcoming page uses', () => {
   assert.equal(toArrivalCard(FICHE).id, 7);
   assert.equal(toDepartureRow(FICHE).id, 7);
+});
+
+test('rule 20: every field MiniPlanningStrip reads of a stay is in the occupancy row (read from the component)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'MiniPlanningStrip.jsx'), 'utf8');
+  // The stays of the list are the ones named `…Res`, `reservation` and `r` there.
+  const reads = new Set([...source.matchAll(/\b(?:\w*Res|reservation|r)\??\.([A-Za-z]+)/g)].map((m) => m[1]));
+  assert.ok(reads.size >= 6, `the component reads ${[...reads].join(', ')}`);
+  for (const field of ['platform', 'firstName', 'lastName', 'startDate', 'endDate', 'propertyId', 'id']) assert.ok(reads.has(field), `the pin finds ${field}`);
+  for (const field of reads) assert.ok(OCCUPANCY_FIELDS.includes(field), `MiniPlanningStrip reads ${field}, which the occupancy row lacks`);
 });
