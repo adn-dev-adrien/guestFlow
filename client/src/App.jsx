@@ -56,6 +56,7 @@ import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/ca
 import { isPluginEnabled, isRouteEnabled, SAS } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
 import { allContributions } from './plugins/sdk/registry';
+import { DATA_CHANGED_EVENT } from './constants/appEvents';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import AppVersionBadge, { AppVersionFooter } from './components/AppVersionBadge';
@@ -208,19 +209,24 @@ function NavContent({ onItemClick }) {
   useEffect(() => { setSettingsGroupToggles({}); }, [location.pathname, location.hash]);
   const selectedCalendarPropertyId = new URLSearchParams(location.search).get('propertyId');
 
+  // Read once, then again after a write (a property added or renamed), not on every page change
+  // (specs/inte-performance.md rule 13).
   useEffect(() => {
     let isMounted = true;
-    api.getProperties()
+    const read = () => api.getProperties()
       .then((items) => {
         if (isMounted) setProperties(items || []);
       })
       .catch(() => {
         if (isMounted) setProperties([]);
       });
+    read();
+    window.addEventListener(DATA_CHANGED_EVENT, read);
     return () => {
       isMounted = false;
+      window.removeEventListener(DATA_CHANGED_EVENT, read);
     };
-  }, [location.pathname, location.search]);
+  }, []);
 
   useEffect(() => {
     if (location.pathname.startsWith('/properties')) {

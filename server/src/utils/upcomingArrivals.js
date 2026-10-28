@@ -38,4 +38,23 @@ function groupArrivalsByDay(reservations, today) {
   };
 }
 
-module.exports = { groupArrivalsByDay, frenchDayLabel };
+// What the arrival card and its page read, field by field (specs/inte-performance.md rule 12). The
+// fiche behind a card is fetched by the fiche itself; the SAS opens by id and loads its own data.
+const CARD_FIELDS = [
+  'id', 'startDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'platform', 'checkInTime', 'checkInReady',
+  'adults', 'children', 'teens', 'babies', 'doubleBeds', 'singleBeds', 'babyBeds', 'notes',
+  'complementAmount', 'complementPaid', 'complementDeferredToCheckout', 'cautionAmount', 'cautionReceived',
+  'bedLinenAlert', 'arrivalSasDoneAt', 'arrivalSasLock', 'checkInStatusEditable',
+];
+const pick = (source, keys) => Object.fromEntries(keys.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
+
+/** One arrival as the card renders it: the fields above, and each option / resource by name and quantity. */
+function toArrivalCard(reservation) {
+  return {
+    ...pick(reservation, CARD_FIELDS),
+    options: (reservation.options || []).map((o) => pick(o, ['title', 'billedUnits', 'quantity'])),
+    resources: (reservation.resources || []).map((r) => pick(r, ['name', 'billedUnits', 'quantity'])),
+  };
+}
+
+module.exports = { groupArrivalsByDay, frenchDayLabel, toArrivalCard, CARD_FIELDS };
