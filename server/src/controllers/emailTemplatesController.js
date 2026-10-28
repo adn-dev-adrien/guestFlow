@@ -122,6 +122,9 @@ function buildController(model, settingsModel, deps = {}) {
     // The timeline lists what the page shows; the two bodies (the bulk of the payload) are read from
     // `GET /:id` when the editor opens (specs/inte-performance.md rule 11).
     if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows.map(withoutBodies)) });
+    // `?view=picker` — the same rows without the bodies, for the pickers (history filter, send and compose
+    // dialogs) that show a name and a moment (rule 16).
+    if (req.query && req.query.view === 'picker') return res.json(rows.sort(stayOrder).map(withoutBodies));
     // In stay order, like the timeline: the history filter and the send dialog list them so (rule 44).
     return res.json(rows.sort(stayOrder));
   }

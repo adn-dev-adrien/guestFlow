@@ -71,7 +71,7 @@ export default function EmailManualSendDialog({
     setError('');
     setManualEmail('');
     setLangOverride(null);
-    api.getEmailTemplates()
+    api.getEmailTemplates('picker')
       .then((rows) => {
         const enabled = rows.filter((r) => r.enabled !== 0);
         // When resending from the history, the original template may be disabled: keep it

@@ -327,12 +327,10 @@ export default function ReservationPage() {
   const loadPropertyContext = useCallback(async (propertyId, propertiesList = []) => {
     const numId = Number(propertyId);
     if (!numId) return { property: null, options: [] };
-    const [propDetails, catalogue] = await Promise.all([api.getProperty(numId), api.getOptions()]);
-    // `propDetails.options` is the property-scoped, priced, grouped list; the flat catalogue filtered
-    // by `propertyIds` is the fallback for a payload that predates it.
-    const options = Array.isArray(propDetails?.options)
-      ? propDetails.options
-      : (catalogue || []).filter((o) => (o.propertyIds || []).includes(numId));
+    // The fiche reads no pricing season: `view=stay` leaves them out (specs/inte-performance.md rule 14).
+    const propDetails = await api.getProperty(numId, 'stay');
+    // `propDetails.options` is the property-scoped, priced, grouped list.
+    const options = Array.isArray(propDetails?.options) ? propDetails.options : [];
     setSelectedProp(numId);
     setSelectedProperty(propDetails || propertiesList.find((p) => p.id === numId) || null);
     setPropertyOptions(options);
@@ -1246,7 +1244,10 @@ export default function ReservationPage() {
     setClients(data);
   };
 
-  useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
+  // The list feeds the search box only: an existing stay shows its client by name until « changer »
+  // opens the search, so it is not read before (specs/inte-performance.md rule 15).
+  const clientSearchShown = clientSearchOpen || !reservationId;
+  useEffect(() => { if (clientSearchShown) loadClientsForSearch(clientSearch); }, [clientSearch, clientSearchShown]);
   // Keep `selectedClient` (the bold-name display) in sync with the attached clientId — from the
   // search list when present, otherwise fetched directly so it works on initial load / deep-links.
   useEffect(() => {

@@ -56,3 +56,17 @@ test('rule 11: the timeline is lighter than the list it replaces', async () => {
   const lean = JSON.stringify((await call(controller.list, { query: { view: 'timeline' } })).body);
   assert.ok(lean.length < full.length * 0.6, `${lean.length} vs ${full.length}`);
 });
+
+test('rule 16: the picker view is the list without the bodies, in stay order, with what the pickers show', async () => {
+  const model = { list: () => [row({ id: 2, stableKey: 'arrival_reminder_7d', dayOffset: -7 }), row()] };
+  const controller = buildController(model, { read: () => ({}) });
+  const picker = await call(controller.list, { query: { view: 'picker' } });
+  const plain = await call(controller.list, { query: {} });
+  assert.deepEqual(picker.body.map((t) => t.id), plain.body.map((t) => t.id));
+  for (const t of picker.body) {
+    assert.equal('body' in t, false);
+    assert.equal('bodyEn' in t, false);
+    for (const field of ['id', 'name', 'displayName', 'whenLabel', 'dayOffset', 'hasEnglish', 'enabled']) assert.ok(field in t, field);
+  }
+  assert.equal(typeof plain.body[0].body, 'string');
+});

@@ -228,7 +228,7 @@ const api = {
 
   // Properties
   getProperties: () => request('/properties'),
-  getProperty: (id) => request(`/properties/${id}`),
+  getProperty: (id, view) => request(`/properties/${id}${view ? `?view=${view}` : ''}`),
   getPlatformColors: () => request('/properties/platform-colors'),
   getArticleLabels: (name) => request(`/properties/article-labels?name=${encodeURIComponent(name || '')}`),
   createProperty: (formData) => request('/properties', { method: 'POST', body: formData }),
@@ -729,7 +729,7 @@ const api = {
   deleteEstablishmentClosure: (id) => request(`/establishment-closures/${id}`, { method: 'DELETE' }),
 
   // Email automation (specs/email-automation.md)
-  getEmailTemplates:        () => request('/email-templates'),
+  getEmailTemplates:        (view) => request(`/email-templates${view ? `?view=${view}` : ''}`),
   getEmailTemplatesTimeline: () => request('/email-templates?view=timeline'),
   describeTemplateWhen:     (body) => request('/email-templates/when', { method: 'POST', body }),
   getEmailMentions: () => request('/email-mentions'),
