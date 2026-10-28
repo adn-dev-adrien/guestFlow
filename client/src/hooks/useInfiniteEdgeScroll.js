@@ -95,7 +95,7 @@ export default function useInfiniteEdgeScroll({
   const holdAnchor = useCallback(() => {
     const first = anchors().find((node) => node.getBoundingClientRect().bottom > topOffset() + 1);
     heldAnchorRef.current = first
-      ? { key: first.getAttribute('data-scroll-anchor'), top: first.getBoundingClientRect().top }
+      ? { key: first.getAttribute('data-scroll-anchor'), top: first.getBoundingClientRect().top, scrollTop: scrollTop() }
       : null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -279,7 +279,9 @@ export default function useInfiniteEdgeScroll({
     if (held) {
       heldAnchorRef.current = null;
       const node = anchorNamed(held.key);
-      const delta = node ? node.getBoundingClientRect().top - held.top : 0;
+      // The operator may have scrolled between the hold and this commit (a wheel handler asks for content
+      // before the browser applies the scroll): their move is theirs, only the content's shift is undone.
+      const delta = node ? node.getBoundingClientRect().top - (held.top - (scrollTop() - held.scrollTop)) : 0;
       if (Math.abs(delta) >= 1) scrollTo(scrollTop() + delta, 'instant');
     }
     if (latest.current.enabled && chainingRef.current) {

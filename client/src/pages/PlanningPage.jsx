@@ -426,8 +426,17 @@ export default function PlanningPage() {
   );
 
   // A window in flight shows a skeleton at its edge; a failed one says so and offers to retry.
-  const renderEdge = (window) => {
+  // At the start edge the skeleton is drawn over the top of the timeline, out of the layout: inserting
+  // then removing 120 px above the viewport moved every card, and the scroll compensation visibly jerked.
+  const renderEdge = (window, atStart = false) => {
     if (!window || window.status === 'loaded') return null;
+    if (window.status === 'loading' && atStart) {
+      return (
+        <Box key={`edge-${window.k}`} sx={{ position: 'relative', height: 0 }}>
+          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0 }}><LoadingState variant="skeleton" rows={2} /></Box>
+        </Box>
+      );
+    }
     if (window.status === 'loading') return <LoadingState key={`edge-${window.k}`} variant="skeleton" rows={2} />;
     return (
       <ErrorAlert key={`edge-${window.k}`} message={EDGE_ERROR} onRetry={() => timeline.retry(window.k)} sx={{ my: 2 }} />
@@ -452,8 +461,8 @@ export default function PlanningPage() {
           rule 6): no page-owned scroll container, so the sticky bar stays visible. Names no plugin's
           cards: an instance without them reads it too (specs/plugins-phase-0-foundation.md rule 30). */}
       {phase === 'ready' && (
-        <Box data-testid="planning-timeline">
-          {renderEdge(windows[0])}
+        <Box data-testid="planning-timeline" sx={{ overflowAnchor: 'none' }}>
+          {renderEdge(windows[0], true)}
           {items.map((item) => (item.kind === 'fold' ? renderFold(item) : renderDay(item)))}
           {renderEdge(windows[windows.length - 1])}
         </Box>
