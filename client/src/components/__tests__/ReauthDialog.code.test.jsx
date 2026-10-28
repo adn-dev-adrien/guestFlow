@@ -16,15 +16,65 @@ test('rule 47: with a code needed, the submit waits for the password AND a compl
   render(<ReauthDialog {...base} needsCode onSubmit={onSubmit} />);
   const submit = screen.getByRole('button', { name: 'Désactiver' });
   expect(submit).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '12345' } });
   fireEvent.change(screen.getByLabelText(/^Mot de passe \(confirmation\)/), { target: { value: 'secret' } });
   expect(submit).toBeDisabled();
-  fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '12345' } });
-  expect(submit).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '123456' } });
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ password: 'secret', code: '123456' }));
+  expect(screen.getByRole('button', { name: 'Utiliser un code de secours' })).toBeInTheDocument();
+});
+
+test('rule 47: the 6th digit sends the code when the password is filled, and not before; the button still works', async () => {
+  const onSubmit = vi.fn().mockResolvedValue();
+  render(<ReauthDialog {...base} needsCode onSubmit={onSubmit} />);
+  fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '123456' } });
+  expect(onSubmit).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText(/^Mot de passe \(confirmation\)/), { target: { value: 'secret' } });
+  const submit = screen.getByRole('button', { name: 'Désactiver' });
   expect(submit).toBeEnabled();
   fireEvent.click(submit);
   await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ password: 'secret', code: '123456' }));
-  expect(screen.getByRole('button', { name: 'Utiliser un code de secours' })).toBeInTheDocument();
+});
+
+test('rule 47: « Vérification… » shows while the code is checked, and the field stays focusable (readOnly)', async () => {
+  let release;
+  const onSubmit = vi.fn(() => new Promise((resolve) => { release = resolve; }));
+  render(<ReauthDialog {...base} needsCode onSubmit={onSubmit} />);
+  fireEvent.change(screen.getByLabelText(/^Mot de passe \(confirmation\)/), { target: { value: 'secret' } });
+  fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '123456' } });
+  expect(await screen.findByText('Vérification…')).toBeInTheDocument();
+  expect(screen.getByLabelText('Code à 6 chiffres')).toHaveAttribute('readonly');
+  expect(screen.getByLabelText('Code à 6 chiffres')).not.toBeDisabled();
+  await act(async () => { release(); });
+  expect(screen.queryByText('Vérification…')).toBeNull();
+});
+
+test('rule 47: an email-method account reads « Code reçu par email » and « Utiliser le code reçu par email »', () => {
+  render(<ReauthDialog {...base} needsCode onSendCode={vi.fn()} onSubmit={vi.fn()} />);
+  expect(screen.getByLabelText('Code reçu par email')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Utiliser un code de secours' }));
+  expect(screen.getByRole('button', { name: 'Utiliser le code reçu par email' })).toBeInTheDocument();
+});
+
+test('rules 47, 49: a lock disables the submit and counts down the served seconds, then opens again', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const onSubmit = vi.fn().mockRejectedValue(apiError('REAUTH_LOCKED', 'Trop d’essais : réessayer après 14:32 (dans 30 s).', { retryInSeconds: 30 }));
+  render(<ReauthDialog {...base} needsCode onSubmit={onSubmit} />);
+  fireEvent.change(screen.getByLabelText(/^Mot de passe \(confirmation\)/), { target: { value: 'secret' } });
+  fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '123456' } });
+  expect(await screen.findByText('Trop d’essais : réessayer après 14:32 (dans 30 s).')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Désactiver' })).toBeDisabled();
+  for (let i = 0; i < 30; i += 1) await act(async () => { vi.advanceTimersByTime(1000); });
+  expect(screen.queryByText(/Trop d’essais/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Désactiver' })).toBeEnabled();
+});
+
+test('rule 47: a wrong code shows the tries left the server worded', async () => {
+  const onSubmit = vi.fn().mockRejectedValue(apiError('BAD_CODE', 'Code incorrect : 3 essais restants.', { attemptsLeft: 3 }));
+  render(<ReauthDialog {...base} needsCode onSubmit={onSubmit} />);
+  fireEvent.change(screen.getByLabelText(/^Mot de passe \(confirmation\)/), { target: { value: 'secret' } });
+  fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '000000' } });
+  expect((await screen.findByText('Code incorrect : 3 essais restants.')).getAttribute('role')).toBe('alert');
 });
 
 test('rule 47: without a code needed, only the password is asked and no code is sent', async () => {

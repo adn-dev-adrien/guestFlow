@@ -34,6 +34,7 @@ export const TOTP_ENROLMENT = {
   accountLabel: 'Domaine des Oliviers · marie@x.fr',
   replacing: false,
   expiresAt: '2026-10-28T10:15:00.000Z',
+  enrolmentToken: 'tok-1',
 };
 
 export const EMAIL_ENROLMENT = { method: 'email', sentTo: 'm•••e@x.fr', resendInSeconds: 60, replacing: false, expiresAt: '2026-10-28T10:15:00.000Z' };

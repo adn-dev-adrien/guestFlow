@@ -381,7 +381,7 @@ function TwoFactorOffButton({ user, isSelf, busy, onClick, small }) {
   return (
     <Tooltip title="Désactiver la validation en deux étapes">
       <span>
-        <IconButton size="small" onClick={() => onClick(user)} disabled={busy} aria-label="Désactiver la validation en deux étapes">
+        <IconButton size="small" onClick={() => onClick(user)} disabled={busy} aria-label="Désactiver la validation en deux étapes" sx={{ minWidth: 44, minHeight: 44 }}>
           <PhonelinkEraseIcon fontSize={small ? 'small' : undefined} />
         </IconButton>
       </span>

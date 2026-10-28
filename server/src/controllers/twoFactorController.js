@@ -24,7 +24,7 @@ const totp = require('../utils/totp');
 const deviceTrust = require('../utils/deviceTrust');
 const { httpError } = require('../utils/httpError');
 const { ADMIN, userHasRole } = require('../constants/roles');
-const { createWindowCounter } = require('../utils/rateLimiter');
+const { createReauthGuard, lockedError } = require('../utils/reauthGuard');
 
 const MAX_FAILURES = 5;
 const LOCK_MINUTES = 15;
@@ -33,6 +33,7 @@ const SNOOZE_DAYS = 30;
 const ENROLMENT_MINUTES = 15;
 const RESEND_SECONDS = 60;
 const MAX_SENDS = 5;
+const MAX_MAILS_PER_HOUR = 6;
 const BACKUP_LOW_AT = 3;
 const CLOCK_HINT_AT = 3;
 const ISSUER = 'GuestFlow';
@@ -60,48 +61,39 @@ const parisDateTime = (iso) => new Date(iso).toLocaleString('fr-FR', { timeZone:
 const fullName = (u) => [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email;
 
 const plural = (n, one, many) => (n === 1 ? one : many);
-const sessionKey = (sessionId) => (sessionId ? sha256(`2fa-enrolment:${sessionId}`) : null);
+const hashToken = (token) => sha256(`2fa-enrolment:${token || ''}`);
+const newToken = () => crypto.randomBytes(32).toString('hex');
+const sameHash = (a, b) => Boolean(a && b) && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 function createTwoFactorController({
-  model, users, mailer, trustSecret, now = () => new Date(), qr = QRCode, companyName = () => '',
+  model, users, mailer, trustSecret, now = () => new Date(), qr = QRCode, companyName = () => '', passwordGuard,
 }) {
   const nowIso = () => now().toISOString();
   const lockedMessage = (until) => `Trop d’essais : réessayer après ${parisTime(until)}.`;
   const inMinutes = (iso, minutes) => new Date(new Date(iso).getTime() + minutes * 60000).toISOString();
 
-  // Rule 49 — the confirmation password: 5 wrong ones within 15 minutes lock the three routes that ask
-  // for it for 15 minutes, per account, in memory (a restart clears it, as for rule 3).
-  const passwordFailures = createWindowCounter({
-    windowMs: LOCK_MINUTES * 60000, max: MAX_FAILURES - 1, now: () => now().getTime(), sweepMs: 0,
+  // Rule 49 — the confirmation password's limit, shared with the password change (utils/reauthGuard.js).
+  const guard = passwordGuard || createReauthGuard({
+    users, now, onLock: (userId) => model.addEvent(userId, 'reauth_locked', '', nowIso()),
   });
-  const passwordLocks = new Map();
-
-  function assertPasswordOpen(userId) {
-    const until = passwordLocks.get(userId);
-    if (!until) return;
-    if (until > nowIso()) throw httpError(429, 'REAUTH_LOCKED', lockedMessage(until));
-    passwordLocks.delete(userId);
-  }
 
   function assertPassword(user, password) {
-    assertPasswordOpen(user.id);
-    if (users.verifyCredentials(user.email, String(password || ''))) return;
-    // Nothing typed is not a guess: it counts for nothing.
-    if (!String(password || '') || passwordFailures.hit(user.id)) throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect.');
-    const until = inMinutes(nowIso(), LOCK_MINUTES);
-    passwordLocks.set(user.id, until);
-    model.addEvent(user.id, 'reauth_locked', '', nowIso());
-    throw httpError(429, 'REAUTH_LOCKED', lockedMessage(until));
+    if (!guard.check(user, password)) throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect.');
   }
 
-  function assertNotLocked(row) {
-    if (row && row.lockedUntil && row.lockedUntil > nowIso()) throw httpError(429, 'LOCKED', lockedMessage(row.lockedUntil));
+  function assertNotLocked(row, { detailed = false } = {}) {
+    if (!row || !row.lockedUntil || row.lockedUntil <= nowIso()) return;
+    throw detailed ? lockedError('LOCKED', row.lockedUntil, now()) : httpError(429, 'LOCKED', lockedMessage(row.lockedUntil));
   }
 
+  // `purpose`: 'login' and 'setup' share the login code; 'action' (a re-authentication) has its own, so
+  // asking for one never cancels the other.
   async function sendEmailCode(user, purpose) {
     if (!mailer.available()) throw httpError(400, 'EMAIL_UNAVAILABLE', 'Aucun envoi d’email configuré.');
     const code = sixDigits();
-    model.setEmailCode(user.id, sha256(code), new Date(now().getTime() + EMAIL_CODE_MINUTES * 60000).toISOString());
+    const expires = new Date(now().getTime() + EMAIL_CODE_MINUTES * 60000).toISOString();
+    if (purpose === 'action') model.setActionCode(user.id, sha256(code), expires);
+    else model.setEmailCode(user.id, sha256(code), expires);
     await mailer.send({
       to: user.email,
       subject: purpose === 'login' ? 'Code de connexion — GuestFlow' : 'Code de confirmation — GuestFlow',
@@ -114,6 +106,13 @@ function createTwoFactorController({
     const given = Buffer.from(sha256(String(code || '').trim()));
     const ok = crypto.timingSafeEqual(Buffer.from(row.emailCodeHash), given);
     if (ok) model.clearEmailCode(userId);
+    return ok;
+  }
+
+  function checkActionCode(userId, row, code) {
+    if (!row || !row.actionCodeHash || !row.actionCodeExpiresAt || row.actionCodeExpiresAt <= nowIso()) return false;
+    const ok = crypto.timingSafeEqual(Buffer.from(row.actionCodeHash), Buffer.from(sha256(String(code || '').trim())));
+    if (ok) model.clearActionCode(userId);
     return ok;
   }
 
@@ -175,7 +174,7 @@ function createTwoFactorController({
   // Rule 47 — a current code, on top of the password: the app's, a backup code (spent), or the code
   // just emailed. A wrong one counts toward the lock of rule 8; the TOTP step used cannot open a session.
   function assertCurrentCode(user, row, code) {
-    assertNotLocked(row);
+    assertNotLocked(row, { detailed: true });
     const value = totp.normalizeCode(code);
     if (!value) throw httpError(400, 'CODE_REQUIRED', 'Saisir un code actuel.');
     let ok;
@@ -185,16 +184,17 @@ function createTwoFactorController({
       const step = row.secretEncrypted ? totp.matchTotpStep(row.secretEncrypted, value, now()) : null;
       ok = step !== null && model.useTotpStep(user.id, step);
     } else {
-      ok = checkEmailCode(user.id, row, value);
+      ok = checkActionCode(user.id, row, value);
     }
     if (!ok) {
       model.recordFailure(user.id);
       if (row.failedCount + 1 >= MAX_FAILURES) {
         const until = inMinutes(nowIso(), LOCK_MINUTES);
         model.lock(user.id, until);
-        throw httpError(429, 'LOCKED', lockedMessage(until));
+        throw lockedError('LOCKED', until, now());
       }
-      throw httpError(400, 'BAD_CODE', 'Code incorrect.');
+      const left = MAX_FAILURES - (row.failedCount + 1);
+      throw httpError(400, 'BAD_CODE', `Code incorrect : ${left} ${plural(left, 'essai restant', 'essais restants')}.`, { attemptsLeft: left });
     }
     model.resetFailures(user.id);
   }
@@ -207,6 +207,7 @@ function createTwoFactorController({
     assertCurrentCode(user, row, code);
   }
 
+  // Why a mail slot was refused — the 60 s gap, the enrolment's 5 sends, the hour's mails.
   function assertMayResend(row, enrolment) {
     if (enrolment && row.pendingSends >= MAX_SENDS) {
       throw httpError(429, 'TOO_MANY_SENDS', 'Trop d’envois : recommencer l’activation.');
@@ -217,30 +218,50 @@ function createTwoFactorController({
         throw httpError(429, 'RESEND_TOO_SOON', `Nouvel envoi possible dans ${wait} s.`, { retryInSeconds: wait });
       }
     }
+    if (row.mailsSince && row.mailsSince > new Date(now().getTime() - 3600000).toISOString() && row.mailsSent >= MAX_MAILS_PER_HOUR) {
+      throw httpError(429, 'TOO_MANY_SENDS', 'Trop d’envois : réessayer plus tard.');
+    }
   }
 
-  async function sendEnrolmentOrActionCode(user, { enrolment }) {
-    await sendEmailCode(user, enrolment ? 'setup' : 'action');
-    if (enrolment) model.markEnrolmentCodeSent(user.id, nowIso());
-    else model.markCodeSent(user.id, nowIso());
-    return { sentTo: maskEmail(user.email), resendInSeconds: RESEND_SECONDS };
+  // Rules 44, 55 — the slot is taken before the mail is sent, in one conditional UPDATE, so parallel
+  // requests cannot all pass a check made before the first of them wrote.
+  function reserveMailSlot(userId, { enrolment = false } = {}) {
+    model.ensure(userId);
+    const at = now().getTime();
+    const taken = model.reserveMailSlot(userId, {
+      nowIso: new Date(at).toISOString(),
+      gapBeforeIso: new Date(at - RESEND_SECONDS * 1000).toISOString(),
+      hourAgoIso: new Date(at - 3600000).toISOString(),
+      enrolment,
+      maxSends: MAX_SENDS,
+      maxPerHour: MAX_MAILS_PER_HOUR,
+    });
+    if (taken) return;
+    assertMayResend(model.get(userId), enrolment);
+    throw httpError(429, 'RESEND_TOO_SOON', `Nouvel envoi possible dans ${RESEND_SECONDS} s.`, { retryInSeconds: RESEND_SECONDS });
   }
 
-  async function start(user, { method, password, code } = {}, { sessionId } = {}) {
+  const sentTo = (user) => ({ sentTo: maskEmail(user.email), resendInSeconds: RESEND_SECONDS });
+
+  async function start(user, { method, password, code, enrolmentToken } = {}) {
     if (!METHODS.includes(method)) throw httpError(400, 'INVALID_METHOD', 'Méthode inconnue.');
     const row = model.get(user.id);
     const enabled = Boolean(row && row.enabledAt);
     if (enabled && row.method === 'email' && method === 'email') {
       throw httpError(409, 'SAME_METHOD', 'Le code par email est déjà la méthode active.');
     }
-    // Rule 44 — inside an enrolment opened with the password, by this very session, the method may be
-    // switched without asking it again. Any other session, or an older enrolment, is asked for it.
-    const key = sessionKey(sessionId);
+    if (method === 'email' && !mailer.available()) throw httpError(400, 'EMAIL_UNAVAILABLE', 'Aucun envoi d’email configuré.');
+    // Rule 44 — inside a FIRST activation opened with the password, the method may be switched without
+    // asking it again, by whoever holds the enrolment's token (random, handed back by the opening call and
+    // kept by the dialog; only its hash is stored — a session cookie alone is not enough). A replacement
+    // of an active step is never switched without the password and a current code.
     const pending = pendingState(row);
-    const switching = !password && pending.fresh && key && row.pendingSessionHash === key;
+    const switching = !password && !enabled && pending.fresh && sameHash(row.pendingTokenHash, hashToken(enrolmentToken));
+    let token = enrolmentToken;
     if (!switching) {
       assertPassword(user, password);
       if (enabled) assertCurrentCode(user, row, code);
+      token = newToken();
     }
     const startedAt = switching ? row.pendingStartedAt : nowIso();
     const expiresAt = inMinutes(startedAt, ENROLMENT_MINUTES);
@@ -248,7 +269,7 @@ function createTwoFactorController({
     if (method === 'totp') {
       const secret = totp.generateSecret();
       if (switching) model.switchPending(user.id, 'totp', secret);
-      else model.setPending(user.id, 'totp', secret, { startedAt, sessionHash: key });
+      else model.setPending(user.id, 'totp', secret, { startedAt, tokenHash: hashToken(token) });
       const accountLabel = [companyName(), user.email].map((v) => String(v || '').trim()).filter(Boolean).join(' · ');
       const uri = totp.otpauthUri({ secret, account: accountLabel, issuer: ISSUER });
       return {
@@ -260,16 +281,19 @@ function createTwoFactorController({
         accountLabel,
         replacing,
         expiresAt,
+        enrolmentToken: token,
       };
     }
     if (switching) {
-      assertMayResend(row, true);
+      reserveMailSlot(user.id, { enrolment: true });
       model.switchPending(user.id, 'email', null);
     } else {
-      model.setPending(user.id, 'email', null, { startedAt, sessionHash: key });
+      reserveMailSlot(user.id);
+      model.setPending(user.id, 'email', null, { startedAt, tokenHash: hashToken(token) });
+      model.markEnrolmentSend(user.id);
     }
-    const sent = await sendEnrolmentOrActionCode(user, { enrolment: true });
-    return { method, ...sent, replacing, expiresAt };
+    await sendEmailCode(user, 'setup');
+    return { method, ...sentTo(user), replacing, expiresAt, enrolmentToken: token };
   }
 
   // Rule 44/47 — « Renvoyer le code » of an email enrolment, or « Recevoir un code » of a re-auth.
@@ -277,12 +301,14 @@ function createTwoFactorController({
     const row = model.get(user.id);
     const pending = pendingState(row);
     if (pending.fresh && pending.method === 'email') {
-      assertMayResend(row, true);
-      return sendEnrolmentOrActionCode(user, { enrolment: true });
+      reserveMailSlot(user.id, { enrolment: true });
+      await sendEmailCode(user, 'setup');
+      return sentTo(user);
     }
     if (row && row.enabledAt && row.method === 'email') {
-      assertMayResend(row, false);
-      return sendEnrolmentOrActionCode(user, { enrolment: false });
+      reserveMailSlot(user.id);
+      await sendEmailCode(user, 'action');
+      return sentTo(user);
     }
     throw httpError(409, 'NOT_EMAIL', 'Aucun code par email à envoyer.');
   }
@@ -292,7 +318,7 @@ function createTwoFactorController({
     model.dropPending(user.id);
   }
 
-  function confirm(user, { code } = {}) {
+  function confirm(user, { code, forgetTrustedDevices } = {}) {
     const row = model.get(user.id);
     if (!row || !row.pendingMethod) throw httpError(409, 'NO_PENDING_METHOD', 'Choisir d’abord une méthode.');
     if (!pendingState(row).fresh) {
@@ -315,7 +341,9 @@ function createTwoFactorController({
     }
     const replacing = Boolean(row.enabledAt);
     const { codes, hashes } = freshBackupCodes();
-    model.activatePending(user.id, nowIso(), hashes, step, { keepEnabledAt: replacing });
+    // Rule 48 — a new app forgets the trusted devices (the trust is bound to `enabledAt`) unless the
+    // user unticked « Oublier les appareils de confiance ».
+    model.activatePending(user.id, nowIso(), hashes, step, { keepEnabledAt: replacing && forgetTrustedDevices === false });
     model.addEvent(user.id, `${replacing ? 'replaced' : 'enabled'}_${row.pendingMethod}`, '', nowIso());
     return { backupCodes: codes, status: status(user) };
   }
@@ -368,7 +396,10 @@ function createTwoFactorController({
   async function beginLogin(user) {
     const row = model.get(user.id);
     assertNotLocked(row);
-    if (row.method === 'email') await sendEmailCode(user, 'login');
+    if (row.method === 'email') {
+      await sendEmailCode(user, 'login');
+      model.markCodeSent(user.id, nowIso());
+    }
     return {
       step: 'second-factor',
       method: row.method,
@@ -421,6 +452,7 @@ function createTwoFactorController({
     if (!user || !row || !row.enabledAt) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnexion nécessaire.');
     if (row.method !== 'email') throw httpError(400, 'NOT_EMAIL', 'Méthode : appli d’authentification.');
     assertNotLocked(row);
+    reserveMailSlot(userId);
     await sendEmailCode(user, 'login');
     return { message: 'Nouveau code envoyé ; le précédent ne marche plus.' };
   }

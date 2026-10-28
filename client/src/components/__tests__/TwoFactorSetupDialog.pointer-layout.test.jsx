@@ -23,7 +23,7 @@ test('rule 41: a coarse pointer offers « Ouvrir dans l’appli » with the serv
   renderStepTwo();
   const open = screen.getByRole('link', { name: 'Ouvrir dans l’appli d’authentification' });
   expect(open.getAttribute('href')).toBe(TOTP_ENROLMENT.otpauthUri);
-  expect(screen.getByTestId('setup-key').textContent.replace(/\s+/g, ' ')).toContain('ABCD EFGH IJKL MNOP');
+  expect(screen.getByTestId('setup-key').textContent).toContain('ABCD EFGH IJKL MNOP');
   expect(screen.queryByAltText('QR code de l’appli d’authentification')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: /Afficher le QR code/ }));
   expect(screen.getByAltText('QR code de l’appli d’authentification')).toBeInTheDocument();
@@ -35,10 +35,29 @@ test('rule 41: a fine pointer shows the QR code first and folds the key behind �
   renderStepTwo();
   expect(screen.getByAltText('QR code de l’appli d’authentification')).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /Ouvrir dans l’appli/ })).toBeNull();
-  expect(screen.queryByText('ABCD EFGH IJKL MNOP')).toBeNull();
+  expect(screen.queryByTestId('setup-key')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Saisie manuelle de la clé' }));
-  expect(screen.getByText('ABCD EFGH IJKL MNOP')).toBeInTheDocument();
+  const groups = screen.getByTestId('setup-key').querySelectorAll('span');
+  expect([...groups].map((g) => g.textContent)).toEqual(['ABCD', 'EFGH', 'IJKL', 'MNOP']);
+  expect(groups[0]).toHaveStyle({ whiteSpace: 'nowrap', display: 'inline-block' });
   expect(screen.getByText('Basé sur l’heure · 6 chiffres · 30 s')).toBeInTheDocument();
+});
+
+test('rule 41: « Copier la clé » on a computer copies the same compact key', async () => {
+  window.matchMedia = media({ coarse: false });
+  const writeText = vi.fn().mockResolvedValue();
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  renderStepTwo();
+  fireEvent.click(screen.getByRole('button', { name: 'Saisie manuelle de la clé' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Copier la clé' }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith('ABCDEFGHIJKLMNOP'));
+});
+
+test('rule 40: the dialog is 480 px wide at most', () => {
+  window.matchMedia = media({ coarse: false });
+  renderStepTwo();
+  const paper = screen.getByRole('dialog');
+  expect(getComputedStyle(paper).maxWidth).toBe('480px');
 });
 
 test('rule 41: « Copier la clé » copies the key without its spaces', async () => {

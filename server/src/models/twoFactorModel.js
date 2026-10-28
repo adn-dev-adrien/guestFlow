@@ -18,21 +18,32 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
   const getStmt = db.prepare('SELECT * FROM user_two_factor WHERE userId = ?');
   const ensureStmt = db.prepare('INSERT OR IGNORE INTO user_two_factor (userId) VALUES (?)');
   const setPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = ?, pendingSecretEncrypted = ?, pendingFailures = 0,
-    pendingStartedAt = ?, pendingSessionHash = ?, pendingSends = 0, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
+    pendingStartedAt = ?, pendingTokenHash = ?, pendingSends = 0, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
   const switchPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = ?, pendingSecretEncrypted = ?, pendingFailures = 0,
     emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
-  const enrolmentSentStmt = db.prepare('UPDATE user_two_factor SET pendingSends = pendingSends + 1, lastCodeSentAt = ? WHERE userId = ?');
+  // A slot: lastCodeSentAt becomes now, mailsSent counts within an hour (reset once the hour is over).
+  const slotSet = `lastCodeSentAt = ?,
+    mailsSent = CASE WHEN mailsSince IS NULL OR mailsSince <= ? THEN 1 ELSE mailsSent + 1 END,
+    mailsSince = CASE WHEN mailsSince IS NULL OR mailsSince <= ? THEN ? ELSE mailsSince END`;
+  const slotWhere = `(lastCodeSentAt IS NULL OR lastCodeSentAt <= ?)
+    AND (mailsSince IS NULL OR mailsSince <= ? OR mailsSent < ?)`;
+  const reserveStmt = db.prepare(`UPDATE user_two_factor SET ${slotSet} WHERE userId = ? AND ${slotWhere}`);
+  const reserveEnrolmentStmt = db.prepare(`UPDATE user_two_factor SET pendingSends = pendingSends + 1, ${slotSet}
+    WHERE userId = ? AND pendingSends < ? AND ${slotWhere}`);
+  const setActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = ?, actionCodeExpiresAt = ? WHERE userId = ?');
+  const clearActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = NULL, actionCodeExpiresAt = NULL WHERE userId = ?');
+  const enrolmentSendStmt = db.prepare('UPDATE user_two_factor SET pendingSends = pendingSends + 1 WHERE userId = ?');
   const codeSentStmt = db.prepare('UPDATE user_two_factor SET lastCodeSentAt = ? WHERE userId = ?');
   const pendingFailStmt = db.prepare('UPDATE user_two_factor SET pendingFailures = pendingFailures + 1 WHERE userId = ?');
   // The email code is dropped only when it belonged to the enrolment (SQLite reads the old row on the right).
   const dropPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0,
-    pendingStartedAt = NULL, pendingSessionHash = NULL, pendingSends = 0,
+    pendingStartedAt = NULL, pendingTokenHash = NULL, pendingSends = 0,
     emailCodeHash = CASE WHEN pendingMethod = 'email' THEN NULL ELSE emailCodeHash END,
     emailCodeExpiresAt = CASE WHEN pendingMethod = 'email' THEN NULL ELSE emailCodeExpiresAt END WHERE userId = ?`);
   const activateStmt = db.prepare(`UPDATE user_two_factor SET method = pendingMethod,
     secretEncrypted = CASE WHEN pendingMethod = 'totp' THEN pendingSecretEncrypted ELSE NULL END,
     enabledAt = CASE WHEN ? = 1 THEN enabledAt ELSE ? END,
-    pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0, pendingStartedAt = NULL, pendingSessionHash = NULL,
+    pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0, pendingStartedAt = NULL, pendingTokenHash = NULL,
     pendingSends = 0, failedCount = 0, lockedUntil = NULL,
     lastTotpStep = ?, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
   const deleteStmt = db.prepare('DELETE FROM user_two_factor WHERE userId = ?');
@@ -75,17 +86,32 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     isEnabled: (userId) => Boolean((getStmt.get(Number(userId)) || {}).enabledAt),
     enabledUserIds: () => enabledIdsStmt.all().map((r) => Number(r.userId)),
 
-    // A new enrolment, opened with the password: its start and the session that opened it (rules 43-44).
-    setPending(userId, method, secret, { startedAt, sessionHash = null }) {
+    // A new enrolment, opened with the password: its start and the hash of its token (rules 43-44, 54).
+    setPending(userId, method, secret, { startedAt, tokenHash = null }) {
       ensureStmt.run(Number(userId));
-      setPendingStmt.run(method, secret ? encrypt(secret) : null, startedAt, sessionHash, Number(userId));
+      setPendingStmt.run(method, secret ? encrypt(secret) : null, startedAt, tokenHash, Number(userId));
     },
     // The same enrolment moving to another method: its start, its session and its sends are kept.
     switchPending(userId, method, secret) {
       switchPendingStmt.run(method, secret ? encrypt(secret) : null, Number(userId));
     },
-    markEnrolmentCodeSent: (userId, nowIso) => enrolmentSentStmt.run(nowIso, Number(userId)),
+    ensure: (userId) => ensureStmt.run(Number(userId)),
+    markEnrolmentSend: (userId) => enrolmentSendStmt.run(Number(userId)),
     markCodeSent: (userId, nowIso) => codeSentStmt.run(nowIso, Number(userId)),
+    // Rule 44/55 — a mail slot is taken BEFORE the mail is sent, in one conditional UPDATE, so parallel
+    // requests cannot all pass a check made before the first one writes. `enrolment`: at most `maxSends`
+    // per enrolment; always: no send within the gap, and at most `maxPerHour` mails per hour. → true when
+    // the slot is yours.
+    reserveMailSlot(userId, { nowIso, gapBeforeIso, hourAgoIso, enrolment = false, maxSends = 5, maxPerHour = 10 }) {
+      const stmt = enrolment ? reserveEnrolmentStmt : reserveStmt;
+      const set = [nowIso, hourAgoIso, hourAgoIso, nowIso];
+      const where = [gapBeforeIso, hourAgoIso, maxPerHour];
+      const args = enrolment ? [...set, Number(userId), maxSends, ...where] : [...set, Number(userId), ...where];
+      return stmt.run(...args).changes === 1;
+    },
+    // The re-authentication code is kept apart from the login code, so asking for one never cancels the other.
+    setActionCode: (userId, codeHash, expiresAt) => setActionStmt.run(codeHash, expiresAt, Number(userId)),
+    clearActionCode: (userId) => clearActionStmt.run(Number(userId)),
     recordPendingFailure: (userId) => pendingFailStmt.run(Number(userId)),
     dropPending: (userId) => dropPendingStmt.run(Number(userId)),
     // `totpStep`: the step of the code that confirmed the enrolment, so that code cannot also open a

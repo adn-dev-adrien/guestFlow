@@ -10,11 +10,13 @@
  *   account's history folded under « Historique (n) ».
  *
  * Everything shown, including the sentences with numbers and dates, comes from GET /api/auth/2fa/status.
+ * Focus goes back to the card's first action when a dialog ends on « Terminé ».
  * Props: account (the user's email, written in the downloaded backup codes), startOpen (open the
- * activation as soon as the status is read, rule 51), onStartHandled().
+ * activation as soon as the status is read, rule 51), onStartHandled(), notify(message) (a success
+ * toast, e.g. after « Désactiver »).
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Button, Card, CardContent, Collapse, Link, Stack, Typography } from '@mui/material';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Box, Button, Card, CardContent, Collapse, Link, Stack, Typography, useMediaQuery } from '@mui/material';
 import api from '../api';
 import StatusBadge from './StatusBadge';
 import BackupCodesDialog from './BackupCodesDialog';
@@ -26,7 +28,10 @@ import { REAUTH_TEXTS, TWO_FACTOR_EXPLAINER, TWO_FACTOR_NAME } from '../constant
 
 const errorText = (err, fallback) => (err && err.message && err.message !== err.error ? err.message : fallback);
 
-export default function TwoFactorSection({ account, startOpen = false, onStartHandled }) {
+export default function TwoFactorSection({ account, startOpen = false, onStartHandled, notify }) {
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const card = useRef(null);
+  const [refocus, setRefocus] = useState(0);
   const [status, setStatus] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [setup, setSetup] = useState(null);
@@ -50,6 +55,12 @@ export default function TwoFactorSection({ account, startOpen = false, onStartHa
     if (onStartHandled) onStartHandled();
   }, [startOpen, status, onStartHandled]);
 
+  useEffect(() => {
+    if (!refocus || !card.current) return;
+    const first = card.current.querySelector('button:not([aria-expanded])');
+    if (first) first.focus();
+  }, [refocus]);
+
   const toApp = status && status.method === 'email';
   const replaceKey = toApp ? 'toApp' : 'replace';
 
@@ -57,6 +68,7 @@ export default function TwoFactorSection({ account, startOpen = false, onStartHa
     if (reauth === 'disable') {
       setStatus(await api.disableTwoFactor(password, code));
       setReauth(null);
+      if (notify) notify(`${TWO_FACTOR_NAME} désactivée.`);
     } else if (reauth === 'codes') {
       const out = await api.regenerateBackupCodes(password, code);
       setStatus(out.status);
@@ -72,7 +84,7 @@ export default function TwoFactorSection({ account, startOpen = false, onStartHa
   const reauthTexts = reauth && REAUTH_TEXTS[reauth === 'replace' ? replaceKey : reauth];
 
   return (
-    <Card variant="outlined" sx={{ mb: 3 }}>
+    <Card variant="outlined" sx={{ mb: 3 }} ref={card}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack spacing={2}>
           <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -124,7 +136,7 @@ export default function TwoFactorSection({ account, startOpen = false, onStartHa
                 sx={{ minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>
                 {`Historique (${status.eventsCount})`}
               </Link>
-              <Collapse in={historyOpen} unmountOnExit>
+              <Collapse in={historyOpen} unmountOnExit timeout={reduceMotion ? 0 : 'auto'}>
                 <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
                   {status.events.map((e) => (
                     <Typography component="li" variant="body2" key={`${e.at}-${e.label}`}>{`${e.atLabel} — ${e.label}`}</Typography>
@@ -141,11 +153,10 @@ export default function TwoFactorSection({ account, startOpen = false, onStartHa
           open
           account={account}
           emailAvailable={Boolean(status && status.emailAvailable)}
-          currentMethod={status ? status.method : null}
           initialEnrolment={setup.enrolment}
           onClose={() => { setSetup(null); load(); }}
           onRestart={() => setReauth('replace')}
-          onDone={(next) => { setStatus(next); setSetup(null); }}
+          onDone={(next) => { setStatus(next); setSetup(null); setRefocus((n) => n + 1); }}
         />
       )}
       <ReauthDialog
@@ -159,7 +170,7 @@ export default function TwoFactorSection({ account, startOpen = false, onStartHa
         onSendCode={status && status.method === 'email' ? api.sendTwoFactorActionCode : undefined}
         onSubmit={submitReauth}
       />
-      <BackupCodesDialog open={Boolean(codes)} codes={codes || []} account={account} onClose={() => setCodes(null)} />
+      <BackupCodesDialog open={Boolean(codes)} codes={codes || []} account={account} onClose={() => { setCodes(null); setRefocus((n) => n + 1); }} />
     </Card>
   );
 }

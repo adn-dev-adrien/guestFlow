@@ -45,20 +45,20 @@ async function activate(page, account) {
   await expect(page.getByText('Désactivée')).toBeVisible();
   await expect(page.getByLabel(/^Mot de passe \(confirmation\)/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Activer' }).click();
-  await expect(page.getByText('Étape 1 sur 3')).toBeVisible();
+  await expect(page.getByText('Étape 1 sur 3', { exact: true })).toBeVisible();
   await page.getByLabel(/^Mot de passe \(confirmation\)/).fill('not-the-password');
   await page.getByRole('button', { name: 'Continuer' }).click();
   await expect(page.getByText('Mot de passe incorrect.')).toBeVisible();
   await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
   await page.getByRole('button', { name: 'Continuer' }).click();
-  await expect(page.getByText('Étape 2 sur 3')).toBeVisible();
+  await expect(page.getByText('Étape 2 sur 3', { exact: true })).toBeVisible();
   await expect(page.getByAltText('QR code de l’appli d’authentification')).toBeVisible();
   await page.getByRole('button', { name: 'Saisie manuelle de la clé' }).click();
-  const secret = (await page.getByTestId('secret-value').textContent()).trim();
+  const secret = (await page.getByTestId('setup-key').textContent()).trim();
   await page.getByLabel('Code à 6 chiffres').fill('000000');
   await expect(page.getByRole('alert').filter({ hasText: 'Code incorrect : 4 essais restants.' })).toBeVisible();
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret));
-  await expect(page.getByText('Étape 3 sur 3')).toBeVisible();
+  await expect(page.getByText('Étape 3 sur 3', { exact: true })).toBeVisible();
   await expect(page.getByTestId('backup-codes')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Terminé' })).toBeDisabled();
   const download = page.waitForEvent('download');
@@ -102,19 +102,19 @@ test('rules 47-48 — « Changer d’appli » asks the password and a code, and 
 
   await page.getByRole('button', { name: 'Changer d’appli' }).click();
   await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
+  // Rule 47: the code is sent at its 6th digit once the password is filled, and the refusal says the tries left.
   await page.getByLabel('Code à 6 chiffres').fill('000000');
-  await page.getByRole('button', { name: 'Continuer' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'Code incorrect.' })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Code incorrect : 4 essais restants.' })).toBeVisible();
   // Rule 24: the enrolment code is spent, so the re-authentication takes the next step's code.
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(first.secret, new Date(Date.now() + 30_000)));
-  await page.getByRole('button', { name: 'Continuer' }).click();
-  await expect(page.getByText('Étape 2 sur 3')).toBeVisible();
+  await expect(page.getByText('Étape 1 sur 2', { exact: true })).toBeVisible();
   await expect(page.locator('.MuiDialog-root')).toHaveCount(1);
   await page.getByRole('button', { name: 'Saisie manuelle de la clé' }).click();
-  const next = (await page.getByTestId('secret-value').textContent()).replace(/\s/g, '');
+  const next = (await page.getByTestId('setup-key').textContent()).replace(/\s/g, '');
   expect(next).not.toBe(first.secret);
+  await expect(page.getByRole('checkbox', { name: 'Oublier les appareils de confiance' })).toBeChecked();
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(next));
-  await expect(page.getByText('Étape 3 sur 3')).toBeVisible();
+  await expect(page.getByText('Étape 2 sur 2', { exact: true })).toBeVisible();
   await page.getByRole('checkbox', { name: 'Codes enregistrés en lieu sûr' }).check();
   await page.getByRole('button', { name: 'Terminé' }).click();
   await page.getByRole('button', { name: /^Historique/ }).click();
@@ -123,8 +123,8 @@ test('rules 47-48 — « Changer d’appli » asks the password and a code, and 
   await page.getByRole('button', { name: 'Désactiver' }).click();
   await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(next, new Date(Date.now() + 30_000)));
-  await page.getByRole('dialog').getByRole('button', { name: 'Désactiver' }).click();
   await expect(page.getByText('Désactivée', { exact: true })).toBeVisible();
+  await expect(page.getByText('Validation en deux étapes désactivée.')).toBeVisible();
 });
 
 test('rules 12-16 + 20 — the support asks, the admin accepts, a signed link opens a traced support session', async ({ page, browser }) => {

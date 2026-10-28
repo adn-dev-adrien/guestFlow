@@ -408,11 +408,12 @@ every change still writes the journal, the secret still never leaves the server 
     send, 5 sends per enrolment: 429 `RESEND_TOO_SOON` « Nouvel envoi possible dans 42 s. », then
     429 `TOO_MANY_SENDS`) and « Utiliser plutôt une appli » back to the app layout (a new secret). The
     step's title becomes « Email ».
-    - Implementation detail (2026-10-28, security): the password-free switch is also bound to **the
-      session that opened the enrolment** (`pendingSessionHash`, the SHA-256 of the session id). Without
-      it, a stolen session could ride a victim's open enrolment and be handed a fresh secret. Another
-      session, or no session id, is asked for the password (400 `BAD_PASSWORD`). The switch keeps the
-      enrolment's start: it never extends the 15 minutes, and the sends counter carries over.
+    - **Amended 2026-10-28 (review, rule 54):** the password-free switch is for a FIRST activation only,
+      and needs the enrolment's random token; it is never available on a replacement (rule 48), whose email
+      link is therefore not offered. The switch keeps the enrolment's start: it never extends the 15
+      minutes, and the sends counter carries over. An enrolment that has expired when the switch is tried
+      ends (« Activation expirée : recommencer. » and « Recommencer »), never asks a password under the
+      code cells.
     - « Renvoyer le code » is `POST /2fa/code`, which also sends a re-authentication code (rule 47)
       for an account on the email method. An account already on the email method cannot start an
       email enrolment (409 `SAME_METHOD`).
@@ -443,6 +444,11 @@ every change still writes the journal, the secret still never leaves the server 
       step is on; a TOTP code is spent like a login code (rule 28).
     - A wrong code counts toward rule 8's lock (5 → 15 min) like at login. A wrong password counts
       toward rule 49.
+    - A wrong code answers 400 `BAD_CODE` with `attemptsLeft` and « Code incorrect : 3 essais restants. »,
+      as for the enrolment (rule 42); the lock (429 `LOCKED`) and rule 49's carry `retryInSeconds`.
+    - The code is sent as soon as its 6th digit arrives when the password is filled (as at login), with
+      « Vérification… » under the cells; for an email-method account the field reads « Code reçu par
+      email » and the switch link « Utiliser le code reçu par email » (as the login's code screen).
     - Without both, nothing changes. The admin's « Désactiver » for another user (rule 9) is
       unchanged: it is the lost-phone path.
     - Order of the checks: the password lock (rule 49), the password, whether a step is on (409
@@ -452,18 +458,32 @@ every change still writes the journal, the secret still never leaves the server 
 48. **Changing app does not leave the account unprotected** (new). « Changer d’appli » runs steps 2–3 of
     the activation (after rule 47's re-auth): a new secret is pending while the current method keeps
     working at login. Only the confirmation of a code from the new app replaces it, in one transaction,
-    with new backup codes (step 3). `enabledAt` is kept, so the trusted devices of rule 7 stay trusted.
-    Leaving midway (rule 40) keeps the current method untouched. From the email method, the same button
-    reads « Passer à une appli »; from an app, step 2's email link of rule 44 switches to the email
-    method the same way.
+    with new backup codes (step 3). Leaving midway (rule 40) keeps the current method untouched. From
+    the email method, the same button reads « Passer à une appli ».
+    - **Amended 2026-10-28 (review):** the steps are numbered « n sur 2 » and step 2 says « L’appli
+      actuelle reste valable jusqu’à la validation du nouveau code. ». A box « Oublier les appareils de
+      confiance », **ticked by default**, sends `forgetTrustedDevices` with the confirmation: the trusted
+      devices of rule 7 are bound to `enabledAt`, which then becomes the date of the new app, so they are
+      asked for a code again (a stolen device trusted for 30 days must not survive a change of app).
+      Unticked, `enabledAt` is kept and they stay trusted (a server test names both).
+    - A replacement is never switched to the email method inside the dialog (rule 44 amended): moving
+      from the app to the email code on an active account is not offered, the app being the safer method.
+      The API still accepts it with the password and a current code.
 49. **The confirmation password is limited** (new; closes the gap above). 5 wrong passwords on
     `/2fa/start`, `/2fa/disable`, `/2fa/backup-codes` within 15 minutes, per account, refuse the next
-    ones for 15 minutes: 429 `REAUTH_LOCKED` « Trop d’essais : réessayer après 14:32. », said under the
-    field. The lock writes « Trop d’essais du mot de passe (validation en deux étapes) » in the
+    ones for 15 minutes: 429 `REAUTH_LOCKED` « Trop d’essais : réessayer après 14:32 (dans 12 min). »
+    with `retryInSeconds`, said under the field (the dialog's submit stays disabled until it passes).
+    **Amended 2026-10-28 (review): the same guard (`utils/reauthGuard.js`, one instance in
+    `accountSecurityServices.js`) also stands in front of `POST /api/auth/change-password`**: its
+    `verifyCredentials` had no limit, so a stolen session could guess the current password there and
+    walk around the lock. A wrong current password still answers 401 `INVALID_CREDENTIALS` until the 5th,
+    which answers 429 `REAUTH_LOCKED`; the right one is refused while locked. The lock writes « Trop d’essais du mot de passe (validation en deux étapes) » in the
     journal, once, when the lock is set (the 5th wrong password itself answers `REAUTH_LOCKED`). While
     locked even the right password is refused, and the lock is per account (others are unaffected). In
     memory (`utils/rateLimiter.js`'s `createWindowCounter`, keyed by user id), like rule 3: a restart
-    clears it. An empty password is not a guess and is not counted.
+    clears it, and it is per process: a second process would count apart. Production runs a single
+    process (one PM2 instance), which is what makes the in-memory lock sound; a clustered deployment
+    would need a shared counter. An empty password is not a guess and is not counted.
 50. **The journal names what happened** (amends rule 9's list). New events, worded by the server:
     `replaced_totp` « Appli d’authentification changée », `replaced_email` « Passage au code par
     email », `reauth_locked` (rule 49). The existing labels read « Validation en deux étapes activée
@@ -483,6 +503,40 @@ every change still writes the journal, the secret still never leaves the server 
     to a support session (`AccountPage.jsx:115`, unchanged); the new writes (`/2fa/cancel`, `/2fa/code`)
     fall under `supportSessionPolicy`'s existing `/auth/2fa` write refusal
     (`supportSessionPolicy.js:53`), and a test names them.
+54. **The password-free switch is held by a token, not by the session** (added 2026-10-28, security
+    review). `POST /2fa/start` with the password returns a random `enrolmentToken` (32 bytes, hex); only
+    its SHA-256 is stored (`pendingTokenHash`). The switch of rule 44 sends `{ method, enrolmentToken }`
+    and no password, and is accepted only for a fresh enrolment of a FIRST activation, by a timing-safe
+    comparison. A session cookie alone is not enough (a cookie thief rode a victim's open replacement and
+    was handed a secret, the backup codes and the account), and a replacement is never switched without
+    the password and a current code. A new enrolment makes the old token worthless.
+55. **Mails are limited atomically** (added 2026-10-28, security review). Every code mail (enrolment,
+    resend, re-authentication, login resend) first takes a slot in ONE conditional `UPDATE`
+    (`reserveMailSlot`): no send within 60 s of the last, at most 5 per enrolment, at most 6 an hour
+    (`mailsSent` / `mailsSince`), and only then is the mail sent — twenty parallel requests send one.
+    A start with the password takes a slot too (restarting resets the enrolment, no longer its limits).
+    The re-authentication code has its own hash (`actionCodeHash`): asking for one never cancels a login
+    code in flight. `POST /2fa/resend` at login waits 60 s after the code just sent. The mail transport
+    is checked before an enrolment is switched to email, so a refusal leaves the app enrolment on screen
+    (400 `EMAIL_UNAVAILABLE`).
+56. **After a refused code the next one replaces it** (added 2026-10-28, UX review; `OneTimeCodeField`,
+    shared with the console's login). The field selects a complete code whole on focus and click; a
+    REFUSED complete code that receives more digits keeps what was just typed or pasted (rule 35's
+    « extra digit dropped » stays for a code not refused, which may already be on its way); a check in
+    flight holds the field `readOnly`, never `disabled`, so a phone keeps its keyboard.
+57. **The lock and the tries are said** (added 2026-10-28, UX review). Rules 47 and 49's refusals carry
+    `retryInSeconds` and the message « … (dans 12 min). » (worded by the server); the re-authentication
+    dialog disables its submit and counts the served seconds down. A wrong re-authentication code says
+    the tries left (rule 47). « Vérification… » shows under the cells while a code is checked, in the
+    activation dialog and the re-authentication dialog.
+58. **Focus, announcements and motion** (added 2026-10-28, UX review). Step changes are announced by a
+    polite live region (« Étape 2 sur 3 : Appli »); focus goes to « Copier » at the codes step and to
+    « Recommencer » when the enrolment ended; after « Terminé » (or the new backup codes) focus returns
+    to the card's first action; « Désactiver » ends with the toast « Validation en deux étapes
+    désactivée. »; collapses and dialogs have no transition under `prefers-reduced-motion` (`FormDialog`
+    included); the icon button of Paramètres › Utilisateurs is 44 × 44 px. The dialog is 480 px wide at
+    most on a computer; the key is shown in non-breaking groups of 4 in both layouts, with « Copier la
+    clé » copying it without spaces.
 
 ---
 
@@ -514,14 +568,15 @@ every change still writes the journal, the secret still never leaves the server 
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `controllers/` | `twoFactorController.js` | T | Rules 41–50: `start` returns `otpauthUri`, `issuer`, `accountLabel`; the password-free switch inside a fresh enrolment of the same session (44); resend gap and cap (44); `confirm` with `attemptsLeft` + worded message (42) and expiry (43); `cancel`; `sendCode` (44, 47); password + code re-auth (47); replacement keeping the current method until confirmed (48); the re-auth lock, a `createWindowCounter` built inside the controller on its injected clock (49); new event labels (50); `status` gains `enabledLabel`, `backupCodesTotal`, `backupCodesLabel`, `backupCodesLow`, `backupCodesWarning`, `eventsCount`, `reauthNeedsCode` |
-| `models/` | `twoFactorModel.js` | T | `setPending` stamps `pendingStartedAt` and the opening session; `switchPending` keeps both; `markEnrolmentCodeSent` / `markCodeSent` (`pendingSends`, `lastCodeSentAt`); `dropPending` clears the enrolment (and its email code only); `activatePending(…, { keepEnabledAt })` for rule 48 (one transaction: method, secret, codes) |
+| `controllers/` | `twoFactorController.js` | T | Rules 41–50: `start` returns `otpauthUri`, `issuer`, `accountLabel`; the password-free switch of a first activation, held by the enrolment's token (44, 54); atomic mail slots, gap, cap, hour (44, 55); `confirm` with `attemptsLeft` + worded message (42) and expiry (43); `cancel`; `sendCode` (44, 47); password + code re-auth (47); replacement keeping the current method until confirmed (48); the re-auth lock through the shared `reauthGuard` (49); the separate re-auth code (55); new event labels (50); `status` gains `enabledLabel`, `backupCodesTotal`, `backupCodesLabel`, `backupCodesLow`, `backupCodesWarning`, `eventsCount`, `reauthNeedsCode` |
+| `models/` | `twoFactorModel.js` | T | `setPending` stamps `pendingStartedAt` and the token's hash; `switchPending` keeps both; `reserveMailSlot` (the atomic slot, rule 55), `setActionCode` / `clearActionCode`; `dropPending` clears the enrolment (and its email code only); `activatePending(…, { keepEnabledAt })` for rule 48 (one transaction: method, secret, codes) |
 | `utils/` | `accountSecuritySchema.js` | T | Additive columns of §5 (idempotent `ADD COLUMN` checks, run from `database.js`) |
 | `utils/` | `accountSecurityServices.js` | T | Wires the company name reader (settings model) into the controller |
+| `utils/` | `reauthGuard.js` | C | Rule 49: the shared confirmation-password limit (one `createWindowCounter` + the lock map), used by the second step's routes and `changePassword` |
 | `utils/` | `rateLimiter.js` | — | Reused unchanged (rule 49) |
 | `utils/` | `totp.js` | — | Reused unchanged: `otpauthUri({ secret, account, issuer })` already takes the label |
 | `utils/` | `dashboardAttention.js` | T | Rule 51: title « Validation en deux étapes », detail « Compte protégé par le seul mot de passe. » |
-| `controllers/` | `authController.js` | T | `twoFactorCancel`, `twoFactorCode` through the existing `self` gate (rule 6's 2026-10-23 gate); `self` answers 204 when the handler returns nothing and hands the request to `twoFactorStart` (the session id binds the enrolment, rule 44) |
+| `controllers/` | `authController.js` | T | `twoFactorCancel`, `twoFactorCode` through the existing `self` gate (rule 6's 2026-10-23 gate); `self` answers 204 when the handler returns nothing; `changePassword` goes through the shared guard (rule 49) |
 | `routes/` | `auth.js` | T | `POST /2fa/cancel`, `POST /2fa/code` (thin) |
 | `utils/` | `supportSessionPolicy.js` | — | Unchanged; covers the new writes (rule 53) |
 | `middleware/`, `tasks/` | — | — | None |
@@ -647,8 +702,8 @@ Added at implementation (2026-10-08), all created by `utils/accountSecuritySchem
   account's flag (rule 21), set on the existing support row by its creation address.
 - Rules 43–44 (2026-10-28): `user_two_factor.pendingStartedAt TEXT NULL` (the enrolment's start; also
   the 15-minute window in which the email switch needs no password), `pendingSends INTEGER NOT NULL
-  DEFAULT 0` and `lastCodeSentAt TEXT NULL` (the 60 s gap and 5 sends), `pendingSessionHash TEXT NULL`
-  (the session that opened the enrolment, rule 44). Additive, nullable or
+  DEFAULT 0` and `lastCodeSentAt TEXT NULL` (the 60 s gap and 5 sends), `pendingTokenHash TEXT NULL`
+  (replaced during the review by `pendingTokenHash`, rule 54), plus `actionCodeHash` / `actionCodeExpiresAt` (the re-authentication code, rule 55) and `mailsSent` / `mailsSince` (the hour's mails). Additive, nullable or
   defaulted: an existing row with a pending enrolment has `pendingStartedAt` NULL, which rule 43 reads
   as expired (the owner restarts in one click). No data is rewritten; no new table. The re-auth counter
   of rule 49 is in memory, not in the database. New `user_security_events.event` values only
@@ -842,11 +897,20 @@ Implemented 2026-10-08 on `feature/hosting-h2-account-security` (target `inte/pl
   subjects (the card's method picker, rule 29) no longer exist or moved to the dialog files above.
 - **E2E:** `hosting-h2.spec.js` — « rules 6-7, 38-45 » rewritten onto the dialog, new « rules 47-48 »
   (change of app, history label, disabling with password + code).
-- **Deviations from the draft:** the re-auth counter is built inside the controller on its injected clock
-  (not wired by `accountSecurityServices.js`); `POST /2fa/code` also resends an enrolment's email code;
-  the password-free switch is bound to the opening session (`pendingSessionHash`, rule 44); rule 29 is
+- **Deviations from the draft:** the re-auth limit lives in `utils/reauthGuard.js` and is shared with the password change (review); `POST /2fa/code` also resends an enrolment's email code;
+  the password-free switch is held by a random enrolment token, never by the session, and never on a replacement (rules 44, 54); rule 29 is
   withdrawn (its picker is gone); `backupCodesWarning` and the error codes `CODE_REQUIRED`, `SAME_METHOD`,
   `NOT_EMAIL`, `TOO_MANY_SENDS` were added. The console reuses `OneTimeCodeField` unchanged.
+
+**Review fixes of 2026-10-28 (security + client UX, same branch):** rules 54–58 and the amendments of 44, 47,
+48, 49 above. Server: `reauthGuard.js`, token instead of session, atomic mail slots, separate re-auth code,
+`resendLogin` gap, mail transport checked first, forget-trusted-devices on a new app, `retryInSeconds` and
+`attemptsLeft` on re-auth refusals. Client: `OneTimeCodeField` retype and `readOnly`, switch errors mapped,
+480 px dialog, key groups in both layouts, « n sur 2 » for a replacement, email labels, focus and live
+region, lock countdown, auto-submit, toast, reduced motion, 44 px target. Tests added: server
+`hosting-h2-two-factor-*` (+13), client `OneTimeCodeField.refused-retype` (5),
+`TwoFactorSetupDialog.accessibility` (6), `TwoFactorSection.after-actions` (3), `ReauthDialog.code` (+4),
+`.email-fallback` rewritten (5), `.pointer-layout` (+2).
 
 **UI/UX review, 2026-10-19 (`feature/ui-otp-html-emails`, target `inte/plugins`):** rules 32–34 —
 `OneTimeCodeField` rewritten as one input drawn as six cells with `onComplete`; `SecondFactorForm`

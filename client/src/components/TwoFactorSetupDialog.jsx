@@ -13,20 +13,25 @@
  *
  * Specific to this feature: it orchestrates the 2FA endpoints.
  *
+ * A replacement has two steps (« n sur 2 »), says the current app stays valid until the new code is
+ * validated, and offers « Oublier les appareils de confiance » (ticked): the trusted devices are asked for
+ * a code again once the new app is confirmed (rule 48). The email link is offered on a first activation
+ * only: a replacement is never switched without the password and a current code (rules 44, 54).
+ *
  * Props: open, onClose(), onDone(status) (after « Terminé »), onRestart() (replacement only: the
- * enrolment ended, the parent asks again), account, emailAvailable, currentMethod ('totp' | 'email' |
- * null), initialEnrolment (the answer of POST /2fa/start, to open at step 2).
+ * enrolment ended, the parent asks again), account, emailAvailable, initialEnrolment (the answer of
+ * POST /2fa/start, to open at step 2).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Link, Stack, Typography, useMediaQuery,
+  Alert, Box, Button, Checkbox, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, Link, Stack,
+  Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import api from '../api';
 import PasswordField from './PasswordField';
 import OneTimeCodeField from './OneTimeCodeField';
-import SecretRevealField from './SecretRevealField';
 import BackupCodesPanel from './BackupCodesPanel';
 import { ENROLMENT_ENDED, SETUP_STEPS, TWO_FACTOR_EXPLAINER } from '../constants/twoFactor';
 
@@ -50,15 +55,15 @@ function KeyGroups({ secret }) {
   );
 }
 
-function Fold({ label, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
+function Fold({ label, children, reduceMotion }) {
+  const [open, setOpen] = useState(false);
   return (
     <Box>
       <Link component="button" type="button" variant="body2" onClick={() => setOpen((o) => !o)} aria-expanded={open}
         sx={{ minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>
         {label}
       </Link>
-      <Collapse in={open} unmountOnExit>{children}</Collapse>
+      <Collapse in={open} unmountOnExit timeout={reduceMotion ? 0 : 'auto'}>{children}</Collapse>
     </Box>
   );
 }
@@ -75,12 +80,14 @@ function QrImage({ src }) {
 }
 
 export default function TwoFactorSetupDialog({
-  open, onClose, onDone, onRestart, account = '', emailAvailable = false, currentMethod = null, initialEnrolment = null,
+  open, onClose, onDone, onRestart, account = '', emailAvailable = false, initialEnrolment = null,
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const touch = useMediaQuery('(pointer: coarse)');
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const replacing = Boolean(initialEnrolment);
+  const totalSteps = replacing ? 2 : 3;
 
   const [step, setStep] = useState(replacing ? 2 : 1);
   const [enrolment, setEnrolment] = useState(initialEnrolment);
@@ -95,6 +102,8 @@ export default function TwoFactorSetupDialog({
   const [wait, setWait] = useState(0);
   const [resendError, setResendError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const [forgetDevices, setForgetDevices] = useState(true);
   const inFlight = useRef(false);
   const body = useRef(null);
 
@@ -151,7 +160,7 @@ export default function TwoFactorSetupDialog({
   const confirm = (value) => guard(async () => {
     setCodeError('');
     try {
-      const out = await api.confirmTwoFactor(value);
+      const out = replacing ? await api.confirmTwoFactor(value, { forgetTrustedDevices: forgetDevices }) : await api.confirmTwoFactor(value);
       setResult(out);
       setSaved(false);
       setStep(3);
@@ -162,11 +171,13 @@ export default function TwoFactorSetupDialog({
   });
 
   const switchMethod = (method) => guard(async () => {
-    setResendError(''); setCode(''); setCodeError('');
+    setResendError(''); setCode(''); setCodeError(''); setLinkError('');
     try {
-      setEnrolment(await api.startTwoFactor(method));
+      setEnrolment(await api.startTwoFactor(method, undefined, undefined, enrolment.enrolmentToken));
     } catch (err) {
-      setCodeError(messageOf(err, 'Changement impossible.'));
+      // The window is over (the switch then asks the password again): the enrolment has ended.
+      if (err && ['BAD_PASSWORD', 'ENROLMENT_EXPIRED'].includes(err.error)) setEnded(ENROLMENT_ENDED.ENROLMENT_EXPIRED);
+      else setLinkError(messageOf(err, 'Changement impossible.'));
     }
   });
 
@@ -206,9 +217,18 @@ export default function TwoFactorSetupDialog({
         onChange={(v) => { setCode(v); setCodeError(''); }}
         onComplete={confirm}
         error={codeError}
-        disabled={busy}
+        helperText={busy ? 'Vérification…' : undefined}
+        readOnly={busy}
         autoFocus
       />
+    </Stack>
+  );
+
+  const keyBlock = enrolment && enrolment.method === 'totp' && (
+    <Stack spacing={1}>
+      <KeyGroups secret={enrolment.secret} />
+      <Button variant="outlined" onClick={copyKey} sx={{ minHeight: 44 }}>{copied ? 'Clé copiée' : 'Copier la clé'}</Button>
+      <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>Basé sur l’heure · 6 chiffres · 30 s</Typography>
     </Stack>
   );
 
@@ -220,11 +240,8 @@ export default function TwoFactorSetupDialog({
           <Button component="a" href={enrolment.otpauthUri} variant="contained" size="large" sx={{ minHeight: 48 }}>
             Ouvrir dans l’appli d’authentification
           </Button>
-          <Stack spacing={1}>
-            <KeyGroups secret={enrolment.secret} />
-            <Button variant="outlined" onClick={copyKey} sx={{ minHeight: 44 }}>{copied ? 'Clé copiée' : 'Copier la clé'}</Button>
-          </Stack>
-          <Fold label="Afficher le QR code (à scanner depuis un autre appareil)">
+          {keyBlock}
+          <Fold label="Afficher le QR code (à scanner depuis un autre appareil)" reduceMotion={reduceMotion}>
             <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1 }}><QrImage src={enrolment.qrDataUrl} /></Box>
           </Fold>
         </>
@@ -232,24 +249,32 @@ export default function TwoFactorSetupDialog({
         <>
           <Typography variant="body2">Scanner ce QR code avec l’appli d’authentification, puis saisir le code qu’elle affiche.</Typography>
           <Box sx={{ display: 'flex', justifyContent: 'center' }}><QrImage src={enrolment.qrDataUrl} /></Box>
-          <Fold label="Saisie manuelle de la clé">
-            <Stack spacing={1} sx={{ pt: 1 }}>
-              <SecretRevealField label="Clé" value={enrolment.secret} masked={false} />
-              <Typography variant="caption" color="text.secondary">Basé sur l’heure · 6 chiffres · 30 s</Typography>
-            </Stack>
+          <Fold label="Saisie manuelle de la clé" reduceMotion={reduceMotion}>
+            <Box sx={{ pt: 1 }}>{keyBlock}</Box>
           </Fold>
         </>
       )}
       <Typography variant="caption" color="text.secondary">
         {`Nom dans l’appli : GuestFlow — ${enrolment.accountLabel}`}
       </Typography>
+      {replacing && (
+        <Typography variant="body2" color="text.secondary">L’appli actuelle reste valable jusqu’à la validation du nouveau code.</Typography>
+      )}
       {codeField}
-      {emailAvailable && currentMethod !== 'email' && (
+      {replacing && (
+        <FormControlLabel
+          control={<Checkbox checked={forgetDevices} onChange={(e) => setForgetDevices(e.target.checked)} />}
+          label="Oublier les appareils de confiance"
+          sx={{ minHeight: 44 }}
+        />
+      )}
+      {emailAvailable && !replacing && (
         <Link component="button" type="button" variant="body2" onClick={() => switchMethod('email')} disabled={busy}
           sx={{ alignSelf: 'flex-start', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>
           Pas d’appli ? Recevoir le code par email
         </Link>
       )}
+      {linkError && <Typography variant="body2" color="error" role="alert">{linkError}</Typography>}
     </Stack>
   );
 
@@ -266,17 +291,27 @@ export default function TwoFactorSetupDialog({
           Utiliser plutôt une appli
         </Link>
       </Stack>
-      {resendError && <Typography variant="body2" color="error" role="alert">{resendError}</Typography>}
+      {(resendError || linkError) && <Typography variant="body2" color="error" role="alert">{resendError || linkError}</Typography>}
     </Stack>
   );
 
   const stepTitle = step === 2 && enrolment && enrolment.method === 'email' ? 'Email' : SETUP_STEPS[step - 1];
+  const stepNumber = replacing ? step - 1 : step;
+  const stepLabel = `Étape ${stepNumber} sur ${totalSteps}`;
 
   return (
-    <Dialog open={open} onClose={(e, reason) => { if (reason !== 'backdropClick') leave(); }} fullScreen={fullScreen} maxWidth="xs" fullWidth>
+    <Dialog
+      open={open}
+      onClose={(e, reason) => { if (reason !== 'backdropClick') leave(); }}
+      fullScreen={fullScreen}
+      maxWidth={false}
+      fullWidth
+      transitionDuration={reduceMotion ? 0 : undefined}
+      slotProps={{ paper: { sx: fullScreen ? undefined : { maxWidth: 480 } } }}
+    >
       <DialogTitle sx={{ pr: 7 }}>
         <Typography component="span" variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.6 }}>
-          {`Étape ${step} sur 3`}
+          {stepLabel}
         </Typography>
         {stepTitle}
         {step < 3 && (
@@ -285,6 +320,9 @@ export default function TwoFactorSetupDialog({
           </IconButton>
         )}
       </DialogTitle>
+      <Box role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+        {`${stepLabel} : ${stepTitle}`}
+      </Box>
       <DialogContent ref={body}>
         {step === 1 && (
           <Stack spacing={2} sx={{ pt: 1 }}>
@@ -312,7 +350,7 @@ export default function TwoFactorSetupDialog({
             <Typography variant="body2">
               {replacing ? 'Nouvelle appli active. Nouveaux codes de secours :' : 'Validation en deux étapes activée. Conserver ces codes de secours :'}
             </Typography>
-            <BackupCodesPanel codes={result.backupCodes} account={account} onSavedChange={setSaved} />
+            <BackupCodesPanel codes={result.backupCodes} account={account} onSavedChange={setSaved} autoFocus />
           </Stack>
         )}
       </DialogContent>
@@ -326,7 +364,7 @@ export default function TwoFactorSetupDialog({
         {step === 2 && (ended ? (
           <>
             <Button onClick={leave} sx={{ minHeight: 44 }}>Fermer</Button>
-            <Button variant="contained" onClick={restart} sx={{ minHeight: 44 }}>Recommencer</Button>
+            <Button variant="contained" onClick={restart} autoFocus sx={{ minHeight: 44 }}>Recommencer</Button>
           </>
         ) : (
           <Button onClick={leave} sx={{ minHeight: 44 }}>Annuler</Button>

@@ -70,6 +70,6 @@ test('rule 48: « Changer d’appli » re-authenticates, then opens the dialog a
   await fill();
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuer' }));
   await waitFor(() => expect(api.startTwoFactor).toHaveBeenCalledWith('totp', 'secret', '123456'));
-  expect(await screen.findByText('Étape 2 sur 3')).toBeInTheDocument();
+  expect(await screen.findByText('Étape 1 sur 2')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Annuler' })).toBeInTheDocument();
 });

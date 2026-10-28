@@ -6,6 +6,10 @@
  *
  * `onSubmit({ password, code })` is async and throws the API error on a refusal; the dialog shows it
  * where it belongs — a wrong or locked password under the password, a wrong code under the cells.
+ * The code is sent as soon as its 6th digit arrives when the password is filled; « Vérification… » shows
+ * while it is checked. A lock (`retryInSeconds` served with a REAUTH_LOCKED or LOCKED refusal) disables
+ * the submit until it passes, counting down the served seconds. For an email-method account the field is
+ * « Code reçu par email » and the switch link reads « Utiliser le code reçu par email » (as at login).
  * Built on FormDialog (full screen on a phone). `onSendCode()` resolves `{ sentTo, resendInSeconds }`
  * and throws the API error (`retryInSeconds` on a too-early resend).
  *
@@ -19,6 +23,7 @@ import PasswordField from './PasswordField';
 import OneTimeCodeField, { isCompleteCode } from './OneTimeCodeField';
 
 const PASSWORD_ERRORS = ['BAD_PASSWORD', 'REAUTH_LOCKED'];
+const LOCK_ERRORS = ['REAUTH_LOCKED', 'LOCKED'];
 
 export default function ReauthDialog({
   open, onClose, title, text, submitLabel, submitColor, needsCode = false, onSendCode, onSubmit,
@@ -30,11 +35,12 @@ export default function ReauthDialog({
   const [sent, setSent] = useState(null);
   const [wait, setWait] = useState(0);
   const [sendError, setSendError] = useState('');
+  const [lockLeft, setLockLeft] = useState(0);
   const submitting = useRef(false);
 
   useEffect(() => {
     if (!open) return;
-    setPassword(''); setCode(''); setError(null); setSent(null); setWait(0); setSendError('');
+    setPassword(''); setCode(''); setError(null); setSent(null); setWait(0); setSendError(''); setLockLeft(0);
   }, [open]);
 
   useEffect(() => {
@@ -43,17 +49,28 @@ export default function ReauthDialog({
     return () => clearTimeout(t);
   }, [wait]);
 
-  const ready = Boolean(password) && (!needsCode || isCompleteCode(code, true));
+  useEffect(() => {
+    if (lockLeft <= 0) return undefined;
+    const t = setTimeout(() => {
+      setLockLeft((n) => n - 1);
+      if (lockLeft === 1) setError(null);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [lockLeft]);
 
-  const submit = async () => {
-    if (!ready || submitting.current) return;
+  const locked = lockLeft > 0;
+  const ready = Boolean(password) && !locked && (!needsCode || isCompleteCode(code, true));
+
+  const submit = async (sentCode = code) => {
+    if (!password || locked || (needsCode && !isCompleteCode(sentCode, true)) || submitting.current) return;
     submitting.current = true;
     setBusy(true);
     setError(null);
     try {
-      await onSubmit({ password, code: needsCode ? code : undefined });
+      await onSubmit({ password, code: needsCode ? sentCode : undefined });
     } catch (err) {
       setError(err);
+      if (err && LOCK_ERRORS.includes(err.error) && err.retryInSeconds) setLockLeft(err.retryInSeconds);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -85,14 +102,14 @@ export default function ReauthDialog({
       submitColor={submitColor}
       submitDisabled={!ready}
       submitBusy={busy}
-      onSubmit={submit}
+      onSubmit={() => submit()}
     >
       <Stack spacing={2} sx={{ pt: 1 }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}>
         {text && <Typography variant="body2" color="text.secondary">{text}</Typography>}
         <PasswordField
           label="Mot de passe (confirmation)"
           value={password}
-          onChange={(e) => { setPassword(e.target.value); setError(null); }}
+          onChange={(e) => { setPassword(e.target.value); if (!locked) setError(null); }}
           autoComplete="current-password"
           autoFocus
           fullWidth
@@ -104,11 +121,14 @@ export default function ReauthDialog({
             <Typography variant="body2">Code actuel</Typography>
             <OneTimeCodeField
               value={code}
-              onChange={(v) => { setCode(v); setError(null); }}
+              onChange={(v) => { setCode(v); if (!locked) setError(null); }}
+              onComplete={(c) => submit(c)}
               allowBackup
               error={codeError}
-              helperText={onSendCode && sent ? `Code envoyé à ${sent}.` : undefined}
-              label="Code à 6 chiffres"
+              helperText={busy ? 'Vérification…' : (onSendCode && sent ? `Code envoyé à ${sent}.` : undefined)}
+              readOnly={busy}
+              label={onSendCode ? 'Code reçu par email' : 'Code à 6 chiffres'}
+              primaryLinkLabel={onSendCode ? 'Utiliser le code reçu par email' : 'Utiliser le code de l’application'}
             />
             {onSendCode && (
               <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>

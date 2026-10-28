@@ -116,7 +116,7 @@ export default function AccountPage() {
           </CardContent>
         </Card>
         )}
-        {me && !me.isSupport && !wasMustChange && <TwoFactorSection account={me.email} startOpen={wantsActivation} onStartHandled={activationHandled} />}
+        {me && !me.isSupport && !wasMustChange && <TwoFactorSection account={me.email} startOpen={wantsActivation} onStartHandled={activationHandled} notify={showSuccess} />}
       </Box>
     </Box>
   );

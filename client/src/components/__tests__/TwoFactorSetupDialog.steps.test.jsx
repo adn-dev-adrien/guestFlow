@@ -123,6 +123,6 @@ test('rules 40, 45: step 3 has no way out but « Terminé », which waits for th
 
 test('rule 48: opened with an enrolment (change of app) it starts at step 2 and asks nothing again', () => {
   renderDialog({ initialEnrolment: { ...TOTP_ENROLMENT, replacing: true } });
-  expect(screen.getByText('Étape 2 sur 3')).toBeInTheDocument();
+  expect(screen.getByText('Étape 1 sur 2')).toBeInTheDocument();
   expect(screen.queryByLabelText(/^Mot de passe/)).toBeNull();
 });

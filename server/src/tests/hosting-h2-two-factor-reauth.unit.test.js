@@ -9,7 +9,6 @@ const authController = require('../controllers/authController');
 const { forbiddenReason } = require('../utils/supportSessionPolicy');
 
 const PASSWORD = 'correct horse battery';
-const SESSION = { sessionId: 'sid-marie' };
 const MIN = 60000;
 
 const code = (err) => err && err.body && err.body.error;
@@ -26,7 +25,7 @@ test('rule 47 — turning off, new backup codes and a new method are refused wit
   const { user, secret } = await enabled(h);
   assert.throws(() => h.twoFactor.disable(user, { password: PASSWORD }), (e) => code(e) === 'CODE_REQUIRED');
   assert.throws(() => h.twoFactor.regenerate(user, { password: PASSWORD, code: '  ' }), (e) => code(e) === 'CODE_REQUIRED');
-  await assert.rejects(h.twoFactor.start(user, { method: 'totp', password: PASSWORD }, SESSION), (e) => code(e) === 'CODE_REQUIRED');
+  await assert.rejects(h.twoFactor.start(user, { method: 'totp', password: PASSWORD }), (e) => code(e) === 'CODE_REQUIRED');
   assert.equal(h.twoFactor.status(user).enabled, true);
   assert.equal(h.twoFactorModel.get(user.id).pendingMethod, null, 'no replacement began');
   assert.equal(h.twoFactorModel.get(user.id).secretEncrypted, secret);
@@ -52,13 +51,13 @@ test('rule 47 — an app code, a backup code (spent) and an emailed code each au
   assert.throws(() => h.twoFactor.disable(user, { password: PASSWORD, code: backupCodes[0] }), (e) => code(e) === 'BAD_CODE', 'the old codes are gone');
 
   const spendable = renewed.backupCodes[0];
-  await h.twoFactor.start(user, { method: 'totp', password: PASSWORD, code: spendable }, SESSION);
+  await h.twoFactor.start(user, { method: 'totp', password: PASSWORD, code: spendable });
   assert.equal(h.twoFactor.status(user).backupCodesLeft, 9, 'the backup code was spent by the re-authentication');
   assert.throws(() => h.twoFactor.disable(user, { password: PASSWORD, code: spendable }), (e) => code(e) === 'BAD_CODE', 'a backup code works once');
 
   const e = setup();
   const paul = e.addUser('paul@domaine-ombre.fr');
-  await e.twoFactor.start(paul, { method: 'email', password: PASSWORD }, SESSION);
+  await e.twoFactor.start(paul, { method: 'email', password: PASSWORD });
   e.twoFactor.confirm(paul, { code: /Code : (\d{6})/.exec(e.mailer.sent[0].text)[1] });
   e.now.advance(MIN);
   await e.twoFactor.sendCode(paul);
@@ -71,9 +70,9 @@ test('rule 47 — an app code, a backup code (spent) and an emailed code each au
 test('rule 47 — a method change re-authenticates, and a wrong password does not even look at the code', async () => {
   const h = setup();
   const { user, secret } = await enabled(h);
-  await assert.rejects(h.twoFactor.start(user, { method: 'totp', password: 'wrong', code: codeAt(secret, h.now()) }, SESSION), (e) => code(e) === 'BAD_PASSWORD');
+  await assert.rejects(h.twoFactor.start(user, { method: 'totp', password: 'wrong', code: codeAt(secret, h.now()) }), (e) => code(e) === 'BAD_PASSWORD');
   assert.equal(h.twoFactorModel.get(user.id).lastTotpStep, Math.floor((h.now().getTime() - MIN) / 30000), 'the code was not spent');
-  const started = await h.twoFactor.start(user, { method: 'totp', password: PASSWORD, code: codeAt(secret, h.now()) }, SESSION);
+  const started = await h.twoFactor.start(user, { method: 'totp', password: PASSWORD, code: codeAt(secret, h.now()) });
   assert.equal(started.replacing, true);
 });
 
@@ -100,18 +99,18 @@ test('rule 49 — 5 wrong passwords lock disable, new codes and a new method for
   const wrong = [
     () => h.twoFactor.disable(user, { password: 'nope-1', code: '000000' }),
     () => h.twoFactor.regenerate(user, { password: 'nope-2', code: '000000' }),
-    () => h.twoFactor.start(user, { method: 'totp', password: 'nope-3', code: '000000' }, SESSION),
+    () => h.twoFactor.start(user, { method: 'totp', password: 'nope-3', code: '000000' }),
     () => h.twoFactor.disable(user, { password: 'nope-4', code: '000000' }),
   ];
   for (const attempt of wrong) await assert.rejects(Promise.resolve().then(attempt), (e) => code(e) === 'BAD_PASSWORD');
   await assert.rejects(Promise.resolve().then(() => h.twoFactor.disable(user, { password: 'nope-5', code: '000000' })),
-    (e) => e.status === 429 && code(e) === 'REAUTH_LOCKED' && /^Trop d’essais : réessayer après \d\d:\d\d\.$/.test(e.body.message));
+    (e) => e.status === 429 && code(e) === 'REAUTH_LOCKED' && /^Trop d’essais : réessayer après \d\d:\d\d \(dans 15 min\)\.$/.test(e.body.message) && e.body.retryInSeconds === 900);
 
   h.now.advance(5 * MIN);
   const good = { password: PASSWORD, code: codeAt(secret, h.now()) };
-  assert.throws(() => h.twoFactor.disable(user, good), (e) => code(e) === 'REAUTH_LOCKED');
+  assert.throws(() => h.twoFactor.disable(user, good), (e) => code(e) === 'REAUTH_LOCKED' && e.body.retryInSeconds === 600 && /\(dans 10 min\)/.test(e.body.message));
   assert.throws(() => h.twoFactor.regenerate(user, good), (e) => code(e) === 'REAUTH_LOCKED');
-  await assert.rejects(h.twoFactor.start(user, { method: 'totp', ...good }, SESSION), (e) => code(e) === 'REAUTH_LOCKED');
+  await assert.rejects(h.twoFactor.start(user, { method: 'totp', ...good }), (e) => code(e) === 'REAUTH_LOCKED');
   assert.equal(h.twoFactor.status(user).enabled, true);
 
   h.now.advance(10 * MIN + 1000);
@@ -122,23 +121,23 @@ test('rule 49 — the lock also covers the first activation, is written to the j
   const h = setup();
   const marie = h.addUser('marie@domaine-ombre.fr');
   const paul = h.addUser('paul@domaine-ombre.fr');
-  for (let i = 0; i < 4; i += 1) await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: `nope-${i}` }, SESSION), (e) => code(e) === 'BAD_PASSWORD');
-  await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: 'nope-4' }, SESSION), (e) => code(e) === 'REAUTH_LOCKED');
-  await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: PASSWORD }, SESSION), (e) => code(e) === 'REAUTH_LOCKED');
-  await assert.rejects(h.twoFactor.start(marie, { method: 'email', password: PASSWORD }, SESSION), (e) => code(e) === 'REAUTH_LOCKED');
+  for (let i = 0; i < 4; i += 1) await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: `nope-${i}` }), (e) => code(e) === 'BAD_PASSWORD');
+  await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: 'nope-4' }), (e) => code(e) === 'REAUTH_LOCKED');
+  await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: PASSWORD }), (e) => code(e) === 'REAUTH_LOCKED');
+  await assert.rejects(h.twoFactor.start(marie, { method: 'email', password: PASSWORD }), (e) => code(e) === 'REAUTH_LOCKED');
   const journal = h.twoFactor.status(marie).events;
   assert.deepEqual(journal.map((e) => e.label), ['Trop d’essais du mot de passe (validation en deux étapes)']);
-  assert.ok((await h.twoFactor.start(paul, { method: 'totp', password: PASSWORD }, { sessionId: 'sid-paul' })).secret, 'another account is unaffected');
+  assert.ok((await h.twoFactor.start(paul, { method: 'totp', password: PASSWORD })).secret, 'another account is unaffected');
 });
 
 test('rule 49 — an empty password is not a guess, and 4 wrong ones within the window followed by time do not lock', async () => {
   const h = setup();
   const marie = h.addUser('marie@domaine-ombre.fr');
-  for (let i = 0; i < 10; i += 1) await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: '' }, SESSION), (e) => code(e) === 'BAD_PASSWORD');
-  for (let i = 0; i < 4; i += 1) await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: `nope-${i}` }, SESSION), (e) => code(e) === 'BAD_PASSWORD');
+  for (let i = 0; i < 10; i += 1) await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: '' }), (e) => code(e) === 'BAD_PASSWORD');
+  for (let i = 0; i < 4; i += 1) await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: `nope-${i}` }), (e) => code(e) === 'BAD_PASSWORD');
   h.now.advance(16 * MIN);
-  await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: 'nope-late' }, SESSION), (e) => code(e) === 'BAD_PASSWORD', 'the window slid past the old tries');
-  assert.ok((await h.twoFactor.start(marie, { method: 'totp', password: PASSWORD }, SESSION)).secret);
+  await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: 'nope-late' }), (e) => code(e) === 'BAD_PASSWORD', 'the window slid past the old tries');
+  assert.ok((await h.twoFactor.start(marie, { method: 'totp', password: PASSWORD })).secret);
 });
 
 test('rule 49 — the lock concerns the confirmation routes only: the password and the second step still work at login', async () => {
@@ -167,4 +166,94 @@ test('rule 53 — the self gate refuses cancel and code to a session whose accou
     await handler({ session: fakeSession({ user: marie }), body: {}, headers: {} }, res, () => {});
     assert.equal(res.statusCode, 401);
   }
+});
+
+test('rule 47 — a wrong re-authentication code says the tries left, and the lock says how long it lasts', async () => {
+  const h = setup();
+  const { user } = await enabled(h);
+  assert.throws(() => h.twoFactor.disable(user, { password: PASSWORD, code: '000000' }),
+    (e) => code(e) === 'BAD_CODE' && e.body.attemptsLeft === 4 && e.body.message === 'Code incorrect : 4 essais restants.');
+  for (let left = 3; left >= 1; left -= 1) {
+    assert.throws(() => h.twoFactor.disable(user, { password: PASSWORD, code: '000000' }), (e) => e.body.attemptsLeft === left);
+  }
+  assert.throws(() => h.twoFactor.disable(user, { password: PASSWORD, code: '000000' }),
+    (e) => e.status === 429 && code(e) === 'LOCKED' && e.body.retryInSeconds === 900 && /\(dans 15 min\)/.test(e.body.message));
+});
+
+test('rule 49 — the password change is behind the same lock: 5 wrong current passwords, then even the right one is refused', async () => {
+  const h = setup();
+  const marie = h.addUser('marie@domaine-ombre.fr');
+  const { createReauthGuard } = require('../utils/reauthGuard');
+  const passwordGuard = createReauthGuard({ users: h.users, now: h.now, onLock: (id) => h.twoFactorModel.addEvent(id, 'reauth_locked', '', h.now().toISOString()) });
+  const twoFactor = require('../controllers/twoFactorController').createTwoFactorController({
+    model: h.twoFactorModel, users: h.users, mailer: h.mailer, trustSecret: 'x', now: h.now, passwordGuard,
+  });
+  const c = authController.create(h.users, { twoFactor, passwordGuard, now: h.now });
+  const attempt = async (currentPassword) => {
+    const res = fakeRes();
+    c.changePassword({ session: fakeSession({ user: marie }), body: { currentPassword, newPassword: 'a brand new password' }, sessionID: 'sid' }, res);
+    return res;
+  };
+  for (let i = 0; i < 4; i += 1) assert.equal((await attempt(`nope-${i}`)).statusCode, 401);
+  const fifth = await attempt('nope-4');
+  assert.equal(fifth.statusCode, 429);
+  assert.equal(fifth.body.error, 'REAUTH_LOCKED');
+  assert.equal((await attempt(PASSWORD)).statusCode, 429, 'the right password waits too');
+  assert.throws(() => twoFactor.disable(marie, { password: PASSWORD, code: '000000' }), (e) => code(e) === 'REAUTH_LOCKED', 'the second step\'s routes share the lock');
+  assert.ok(h.users.verifyCredentials(marie.email, PASSWORD), 'the password itself is unchanged');
+  h.now.advance(15 * MIN + 1000);
+  assert.equal((await attempt(PASSWORD)).statusCode, 204);
+});
+
+test('rule 49 — the services share ONE guard between the second step and the password change', () => {
+  const services = require('../utils/accountSecurityServices');
+  const defaultAuth = require('../controllers/authController');
+  assert.ok(services.passwordGuard && typeof services.passwordGuard.check === 'function');
+  assert.ok(defaultAuth.changePassword);
+});
+
+test('rule 55 — an emailed re-authentication code never cancels a login code, and has its own hourly cap', async () => {
+  const h = setup();
+  const paul = h.addUser('paul@domaine-ombre.fr');
+  await h.twoFactor.start(paul, { method: 'email', password: PASSWORD });
+  h.twoFactor.confirm(paul, { code: /Code : (\d{6})/.exec(h.mailer.sent[0].text)[1] });
+  h.now.advance(MIN);
+  await h.twoFactor.beginLogin(paul);
+  const loginCode = /Code : (\d{6})/.exec(h.mailer.sent.at(-1).text)[1];
+  h.now.advance(MIN);
+  await h.twoFactor.sendCode(paul);
+  const actionCode = /Code : (\d{6})/.exec(h.mailer.sent.at(-1).text)[1];
+  assert.equal(h.twoFactor.verifyLogin(paul.id, { code: loginCode }).user.id, paul.id, 'the login code still works');
+  assert.throws(() => h.twoFactor.disable(paul, { password: PASSWORD, code: loginCode }), (e) => code(e) === 'BAD_CODE', 'and is not a re-authentication code');
+  assert.equal(h.twoFactor.disable(paul, { password: PASSWORD, code: actionCode }).enabled, false);
+});
+
+test('rule 55 — re-authentication mails: at most 6 an hour, then a new hour', async () => {
+  const h = setup();
+  const paul = h.addUser('paul@domaine-ombre.fr');
+  await h.twoFactor.start(paul, { method: 'email', password: PASSWORD });
+  h.twoFactor.confirm(paul, { code: /Code : (\d{6})/.exec(h.mailer.sent[0].text)[1] });
+  const before = h.mailer.sent.length;
+  let sent = 0;
+  for (let i = 0; i < 12; i += 1) {
+    h.now.advance(61000);
+    try { await h.twoFactor.sendCode(paul); sent += 1; } catch (e) { assert.equal(code(e), 'TOO_MANY_SENDS'); }
+  }
+  assert.equal(sent, 5, '1 mail of the activation + 5 = 6 within the hour');
+  assert.equal(h.mailer.sent.length - before, 5);
+  h.now.advance(3600000);
+  await h.twoFactor.sendCode(paul);
+});
+
+test('rule 55 — « Renvoyer le code » at login waits 60 s after the code just sent', async () => {
+  const h = setup();
+  const paul = h.addUser('paul@domaine-ombre.fr');
+  await h.twoFactor.start(paul, { method: 'email', password: PASSWORD });
+  h.twoFactor.confirm(paul, { code: /Code : (\d{6})/.exec(h.mailer.sent[0].text)[1] });
+  h.now.advance(MIN);
+  await h.twoFactor.beginLogin(paul);
+  await assert.rejects(h.twoFactor.resendLogin(paul.id), (e) => code(e) === 'RESEND_TOO_SOON' && e.body.retryInSeconds === 60);
+  h.now.advance(61000);
+  assert.ok((await h.twoFactor.resendLogin(paul.id)).message);
+  await assert.rejects(h.twoFactor.resendLogin(paul.id), (e) => code(e) === 'RESEND_TOO_SOON');
 });

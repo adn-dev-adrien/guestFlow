@@ -5,7 +5,7 @@
  * the parent, which keeps its « Terminé » disabled until it is true. Generic: any « shown once » list
  * of secrets (the console's operator codes next).
  *
- * Props: codes: string[], account (written in the downloaded file), onSavedChange(saved: boolean),
+ * Props: autoFocus (focuses « Copier » when the panel appears), codes: string[], account (written in the downloaded file), onSavedChange(saved: boolean),
  *        title ('Codes de secours GuestFlow' — first line of the file), filePrefix
  *        ('guestflow-codes-de-secours').
  */
@@ -18,6 +18,7 @@ import CheckIcon from '@mui/icons-material/Check';
 const FEEDBACK_MS = 2000;
 
 export default function BackupCodesPanel({
+  autoFocus = false,
   codes = [],
   account = '',
   onSavedChange,
@@ -88,7 +89,7 @@ export default function BackupCodesPanel({
         {codes.map((code) => <Box key={code}>{code}</Box>)}
       </Box>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-        <Button variant="outlined" startIcon={done === 'copy' ? <CheckIcon /> : <ContentCopyIcon />} onClick={copy} sx={{ minHeight: 44 }}>
+        <Button variant="outlined" startIcon={done === 'copy' ? <CheckIcon /> : <ContentCopyIcon />} onClick={copy} autoFocus={autoFocus} sx={{ minHeight: 44 }}>
           {done === 'copy' ? 'Copié' : 'Copier'}
         </Button>
         <Button variant="outlined" startIcon={done === 'download' ? <CheckIcon /> : <DownloadIcon />} onClick={download} sx={{ minHeight: 44 }}>

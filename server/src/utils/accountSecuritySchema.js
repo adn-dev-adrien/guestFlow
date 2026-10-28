@@ -91,13 +91,18 @@ function applyAccountSecuritySchema(db) {
     CREATE INDEX IF NOT EXISTS idx_support_access_log_access ON support_access_log(accessId);
   `);
 
-  // Rules 43-44 (2026-10-28): the enrolment's start, its sends, and the session that opened it. Nullable or
+  // Rules 43-44, 54-55 (2026-10-28): the enrolment's start, its sends and the hash of its token, the
+  // re-authentication code apart from the login code, and the hourly count of mails. Nullable or
   // defaulted: an enrolment begun before the update has no start, which rule 43 reads as expired.
   const twoFactorCols = db.prepare('PRAGMA table_info(user_two_factor)').all().map((c) => c.name);
   if (!twoFactorCols.includes('pendingStartedAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingStartedAt TEXT');
   if (!twoFactorCols.includes('pendingSends')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingSends INTEGER NOT NULL DEFAULT 0');
   if (!twoFactorCols.includes('lastCodeSentAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN lastCodeSentAt TEXT');
-  if (!twoFactorCols.includes('pendingSessionHash')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingSessionHash TEXT');
+  if (!twoFactorCols.includes('pendingTokenHash')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingTokenHash TEXT');
+  if (!twoFactorCols.includes('actionCodeHash')) db.exec('ALTER TABLE user_two_factor ADD COLUMN actionCodeHash TEXT');
+  if (!twoFactorCols.includes('actionCodeExpiresAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN actionCodeExpiresAt TEXT');
+  if (!twoFactorCols.includes('mailsSent')) db.exec('ALTER TABLE user_two_factor ADD COLUMN mailsSent INTEGER NOT NULL DEFAULT 0');
+  if (!twoFactorCols.includes('mailsSince')) db.exec('ALTER TABLE user_two_factor ADD COLUMN mailsSince TEXT');
 
   const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userCols.includes('twoFactorSnoozedUntil')) db.exec('ALTER TABLE users ADD COLUMN twoFactorSnoozedUntil TEXT');
