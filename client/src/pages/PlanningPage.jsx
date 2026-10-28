@@ -65,6 +65,7 @@ function mapBreakfastItem(i, date) {
 
 // How close today's header must be to its resting place under the bar to count as « there ».
 const AT_TODAY_TOLERANCE_PX = 8;
+const PAST_LOADING = 'Chargement des jours précédents';
 
 const barBottom = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gf-page-bar-bottom')) || 0;
 const todayKey = (today) => `day-${today}`;
@@ -426,17 +427,12 @@ export default function PlanningPage() {
   );
 
   // A window in flight shows a skeleton at its edge; a failed one says so and offers to retry.
-  // At the start edge the skeleton is drawn over the top of the timeline, out of the layout: inserting
-  // then removing 120 px above the viewport moved every card, and the scroll compensation visibly jerked.
+  // At the start edge the loading shows as a thin progress bar glued under the page bar (`progress` below),
+  // out of the layout: nothing is inserted above the viewport, so no card moves
+  // (specs/dashboard-planning-scroll.md rule 20).
   const renderEdge = (window, atStart = false) => {
     if (!window || window.status === 'loaded') return null;
-    if (window.status === 'loading' && atStart) {
-      return (
-        <Box key={`edge-${window.k}`} sx={{ position: 'relative', height: 0 }}>
-          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0 }}><LoadingState variant="skeleton" rows={2} /></Box>
-        </Box>
-      );
-    }
+    if (window.status === 'loading' && atStart) return null;
     if (window.status === 'loading') return <LoadingState key={`edge-${window.k}`} variant="skeleton" rows={2} />;
     return (
       <ErrorAlert key={`edge-${window.k}`} message={EDGE_ERROR} onRetry={() => timeline.retry(window.k)} sx={{ my: 2 }} />
@@ -447,6 +443,7 @@ export default function PlanningPage() {
     <Box>
       <PageActionBar
         title="Planning"
+        progress={phase === 'ready' && windows[0]?.status === 'loading' ? PAST_LOADING : false}
         actionsBefore={[
           { icon: <TodayIcon />, tooltip: TODAY_ACTION, onClick: goToToday, color: 'primary', ariaDisabled: atToday },
           ...actionNodes.map((node) => ({ node })),

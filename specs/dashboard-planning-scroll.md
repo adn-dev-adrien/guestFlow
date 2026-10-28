@@ -185,11 +185,15 @@ any more.
     (`ErrorAlert`), the loaded days stay usable and the other edge keeps extending; scrolling past the
     edge does not retry by itself. A failed opening (window 0) shows the page's `ErrorAlert` with retry.
     A plugin `load` that fails only loses that plugin's cards of that window, with the plugin's
-    `errorMessage` toast (unchanged). *Amended 2026-10-28:* at the START edge the loading skeleton is
-    drawn over the top of the timeline, out of the layout (a zero-height wrapper, the skeleton absolute
-    inside it): inserting then removing it above the viewport shifted every card and made the scroll
-    compensation jerk, and the scroll events of that compensation were read as new gestures. The END
-    edge and the failure alert keep their place in the flow.
+    `errorMessage` toast (unchanged). *Amended 2026-10-28:* at the START edge the skeleton row is replaced by a thin (2 px)
+    indeterminate progress bar (`LinearProgress`, theme primary, static under `prefers-reduced-motion`)
+    glued under the page bar at every scroll position (`PageActionBar`'s `progress` prop: absolute under
+    the bar's border, over the first 2 px of the page; fixed under the app's top bar when a phone's bar is
+    not drawn — its lone action handed to the top bar, or nothing left to draw), out of the layout, and only while the past
+    window loads: inserting then removing a skeleton above
+    the viewport shifted every card and made the scroll compensation jerk (its scroll events were read
+    as new gestures), and an overlaid skeleton covered the first cards. *Resolved 2026-10-28 (Adrien):
+    fine barre de progression.* The END edge skeleton and the failure alert keep their place in the flow.
 21. **Writes refresh what they touched.** A tick stays optimistic (unchanged). A SAS committed
     (`onDone`) reloads the loaded windows holding the stay's arrival and departure days, not the whole
     timeline. A plugin's `reload()` reloads that plugin's cards over every loaded window, each window
@@ -250,6 +254,14 @@ any more.
     hook is the only mechanism that compensates a shift, otherwise the browser's compensation (already
     applied when the restore runs) would be read as the operator's move and applied a second time.
     Without this, the first wheel up after opening could snap the view back under today's header.
+
+32. **A gesture that crosses the threshold asks for the edge it reaches.** A touch fling, a smooth
+    wheel or a PageUp is one gesture (rule 30) that can start far from an edge (e.g. 1500 px from the
+    top) and cross the 800 px threshold while it runs; rule 13 asks the edge « when the scroll comes
+    within 800 px », so the edge is asked at that moment, not only at the gesture's start. The bounds
+    are unchanged: only the edge of the gesture's direction (rule 26), at most one request in flight,
+    and a window that brings nothing to draw ends the chain (rules 26, 30 N = 1); the hook's own
+    scrolls (rule 25) are not gestures.
 
 **Edge cases:**
 - Several arrivals on the next arrival day → all listed (rule 2), one row each.
@@ -419,7 +431,10 @@ None. No migration.
 - [x] `components/__tests__/PageActionBar.aria-disabled.test.jsx` (2) — rule 29.
 - [x] `hooks/__tests__/usePlanningTimeline.windows.test.jsx` (3) — rules 27, 28; `useInfiniteEdgeScroll.window.test.jsx` gains rules 24 and 26 (14 in all).
 - [x] `hooks/__tests__/useInfiniteEdgeScroll.scrolled-before-commit.test.jsx` (2) — rule 31.
-- [x] `pages/__tests__/PlanningPage.edge-layout.test.jsx` (2) — rule 20 (start-edge skeleton out of the layout), rule 31 (`overflow-anchor: none` on the timeline).
+- [x] `pages/__tests__/PlanningPage.edge-layout.test.jsx` (2) — rule 20 (start-edge progress bar out of the layout), rule 31 (`overflow-anchor: none` on the timeline).
+- [x] `hooks/__tests__/useInfiniteEdgeScroll.crossing-threshold.test.jsx` (3) — rule 32.
+- [x] `e2e/bare/planning-past-progress.spec.js` — rule 20 on a bare install at 390 px (bar not drawn, progress still shown under the top bar).
+- [x] `components/__tests__/PageActionBar.progress.test.jsx` (4) — rule 20 (`progress` prop of the bar).
 
 ### E2E (Playwright)
 - [x] New `e2e/specs/planning/timeline-scroll.spec.js` — opens on today under the bar; wheel up shows

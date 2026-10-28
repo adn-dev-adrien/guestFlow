@@ -216,6 +216,18 @@ export default function useInfiniteEdgeScroll({
     chainingRef.current = answer !== 'none';
   }, [extend]);
 
+  // A fling or a smooth scroll is one gesture that can start far from an edge and cross the threshold
+  // while it runs: the edge it reaches is asked then, within the same bounds (the gesture's edge, and a
+  // load that did not push the edge away ends it), without restarting the chain.
+  const follow = useCallback(() => {
+    if (chainingRef.current) return;
+    const answer = extend();
+    if (answer === 'started') {
+      chainCountRef.current = 1;
+      chainingRef.current = true;
+    }
+  }, [extend]);
+
   // A burst of input (a trackpad flick fires dozens of wheel events) is ONE gesture: the chain is reset
   // only once the operator has been quiet for SETTLE_MS, or when they turn around.
   const gestureTimerRef = useRef(null);
@@ -225,10 +237,13 @@ export default function useInfiniteEdgeScroll({
     gestureTimerRef.current = setTimeout(() => { gestureActiveRef.current = false; }, SETTLE_MS);
     const turned = direction && direction !== directionRef.current;
     if (direction) directionRef.current = direction;
-    if (gestureActiveRef.current && !turned) return;
+    if (gestureActiveRef.current && !turned) {
+      follow();
+      return;
+    }
     gestureActiveRef.current = true;
     kick();
-  }, [kick]);
+  }, [kick, follow]);
 
   useEffect(() => {
     if (!enabled) return undefined;
