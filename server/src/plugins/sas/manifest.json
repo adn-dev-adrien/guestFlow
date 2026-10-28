@@ -72,7 +72,8 @@
       "Compatible avec le SDK 2.6 de GuestFlow."
     ],
     "1.7.2": [
-      "Un séjour annulé ou un doublon écarté ne peut plus être validé à l’arrivée ou au départ."
+      "Un séjour annulé ou un doublon écarté ne peut plus être validé à l’arrivée ou au départ.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }
