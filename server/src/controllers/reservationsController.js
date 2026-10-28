@@ -108,6 +108,8 @@ const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
 const ledgerLinks = require('../utils/ledgerLinks');
 const installments = require('./installmentsController');
+const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
+const paymentLinksStore = require('../models/paymentLinksModel');
 
 // specs/reservation-payment-ledger.md §3.1 — the payments ledger of a fiche, built by the server from
 // the stored row (paid states, dates, caution, single payment) and, while the fiche is edited, the live
@@ -1414,9 +1416,22 @@ function ledgerHistoryChange({ body, stored, quote }) {
 // the save is first played in a rolled-back transaction to learn the amounts it would store. A link
 // whose amount would change and that the guest has paid meanwhile refuses the save (409
 // LINK_ALREADY_PAID); otherwise the save goes through and the stale links are retired and deactivated.
+// The fiche rewrites every column from its form: a save built on a version older than the stored one
+// would silently revert what a plugin, the iCal sync or another tab wrote meanwhile. The client sends the
+// `updatedAt` it loaded; a caller that omits it (a script) is not checked.
+function staleFicheRefusal(reservationId, body) {
+  const loaded = body && body.loadedUpdatedAt;
+  if (loaded == null || loaded === '') return null;
+  const row = model.getRow(reservationId);
+  if (!row || String(row.updatedAt || '') === String(loaded)) return null;
+  return { status: 409, body: { error: 'Fiche modifiée entre-temps.', code: 'STALE_FICHE' } };
+}
+
 async function update(req, res) {
   try {
     const id = Number(req.params.id);
+    const stale409 = staleFicheRefusal(id, req.body);
+    if (stale409) return res.status(stale409.status).json(stale409.body);
     const unlockPast = pastUnlockRequested(req);
     const open = openPaymentLinks(id);
     let stale = [];
@@ -2361,7 +2376,13 @@ function updatePayment(req, res) {
     : { ok: true });
 }
 
-function remove(req, res) {
+const NOT_DELETABLE = {
+  devis: 'Un devis se supprime depuis la page Devis.',
+  cancelled: 'Cette réservation est annulée : elle reste dans l’historique et la comptabilité.',
+  superseded: 'Ce doublon écarté reste dans l’historique : le rétablir ou le laisser.',
+};
+
+async function remove(req, res) {
   const existing = model.getForArchiveCheck(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
   const today = localTodayIso();
@@ -2369,6 +2390,16 @@ function remove(req, res) {
   // stay that has ended.
   if (existing.endDate < today && !pastUnlockRequested(req)) {
     return res.status(403).json({ error: 'Cette réservation est archivée (terminée) et ne peut plus être modifiée.' });
+  }
+  if (existing.kind !== 'reservation') {
+    return res.status(409).json({ error: NOT_DELETABLE[existing.kind] || NOT_DELETABLE.cancelled, code: 'RESERVATION_NOT_DELETABLE' });
+  }
+  const blocker = model.deletionBlocker(existing.id);
+  if (blocker) return res.status(409).json({ error: blocker, code: 'RESERVATION_CARRIES_MONEY' });
+  try {
+    await deactivateOpenLinksBeforeDelete(existing.id, { paymentLinksModel: paymentLinksStore });
+  } catch (err) {
+    return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
   }
   model.remove(req.params.id);
   res.json({ ok: true });
@@ -2404,4 +2435,4 @@ module.exports = {
 };
 
 // Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
-module.exports.__test = { paymentMarkRefusal };
+module.exports.__test = { paymentMarkRefusal, staleFicheRefusal };

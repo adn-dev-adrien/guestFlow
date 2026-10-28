@@ -1051,7 +1051,7 @@ function createModel(database) {
     return tx();
   }
 
-  function remove(id) {
+  function removeRefusal(id) {
     const existing = database.prepare("SELECT id, convertedReservationId FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     // The CGV acceptance of a converted request lives on this row and is the stay's proof
@@ -1059,8 +1059,20 @@ function createModel(database) {
     if (existing.convertedReservationId && database.prepare('SELECT 1 FROM terms_acceptances WHERE reservationId = ?').get(existing.id)) {
       return { error: "Ce devis porte l'acceptation des CGV de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409 };
     }
+    return null;
+  }
+
+  function remove(id) {
+    const refusal = removeRefusal(id);
+    if (refusal) return refusal;
     database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(Number(id));
     return { ok: true, data: { success: true } };
+  }
+
+  // The links a devis may have issued must not stay payable once the row is gone.
+  async function deactivateLinksBeforeRemove(id) {
+    const paymentLinksModel = require('./paymentLinksModel').buildModel(database);
+    return require('../utils/paymentLinkDeactivation').deactivateOpenLinksBeforeDelete(Number(id), { paymentLinksModel });
   }
 
   // Copy a booking's line graph from one reservations row to another (used by both convert flows).
@@ -1105,13 +1117,24 @@ function createModel(database) {
     }) || 0;
   }
 
-  function convertToReservation(id) {
+  // `options.allowConflict` is for the paid-link path only: the money is already in, so the stay is
+  // created anyway and the caller flags the clash (specs/devis-accept-to-reservation.md rule 12).
+  function convertToReservation(id, options = {}) {
     const numId = Number(id);
     const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!devisRow) return { error: 'Devis non trouvé', status: 404 };
     if (devisRow.convertedReservationId) return { error: 'Ce devis a déjà été converti en réservation', status: 400 };
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(devisRow.propertyId);
     if (!property) return { error: 'Logement introuvable', status: 404 };
+
+    if (!options.allowConflict) {
+      const { getNightBlocksFromTimes } = require('../utils/occupancy');
+      const unavailable = require('./reservationsModel').create(database).validateAvailability(
+        devisRow.propertyId, devisRow.startDate, devisRow.endDate, devisRow.checkInTime, devisRow.checkOutTime,
+        null, getNightBlocksFromTimes(devisRow.checkInTime, devisRow.checkOutTime), { allowPastDates: true },
+      );
+      if (unavailable) return { error: unavailable.error, status: 409, code: 'DATES_UNAVAILABLE' };
+    }
 
     const tx = database.transaction(() => {
       const info = database.prepare(`
@@ -1232,6 +1255,8 @@ function createModel(database) {
     previewExtension,
     extend,
     remove,
+    removeRefusal,
+    deactivateLinksBeforeRemove,
     convertToReservation,
     convertFromReservation,
   };

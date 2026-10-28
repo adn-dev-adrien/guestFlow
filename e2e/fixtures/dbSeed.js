@@ -328,7 +328,17 @@ function clearBankSeed() {
   });
 }
 
+/**
+ * What a plugin intake or the iCal sync does to a stay behind the operator's back: a new note and a
+ * newer `updatedAt` (specs/reservation-fiche-concurrency.md). The version moves five minutes ahead so
+ * the test never depends on the clock's one-second resolution.
+ */
+function simulateBackgroundWrite(reservationId, notes) {
+  return withDb((db) => db.prepare("UPDATE reservations SET notes = ?, updatedAt = datetime('now', '+5 minutes') WHERE id = ?").run(notes, reservationId));
+}
+
 module.exports = {
+  simulateBackgroundWrite,
   backdateReservation,
   resetVatRegime,
   setFranchiseRegime,

@@ -1211,7 +1211,29 @@ function createReservationsModel(database) {
     },
 
     getForArchiveCheck(reservationId) {
-      return database.prepare('SELECT id, endDate FROM reservations WHERE id = ?').get(reservationId);
+      return database.prepare('SELECT id, endDate, kind FROM reservations WHERE id = ?').get(reservationId);
+    },
+
+    // Why a stay may not be deleted: anything that carries money is accounting history, and the
+    // cascade would wipe it with the row (specs/reservation-delete-guards.md).
+    deletionBlocker(reservationId) {
+      const id = Number(reservationId);
+      const row = database.prepare(`
+        SELECT depositPaid, balancePaid, complementPaid, endOfStayComplementPaid FROM reservations WHERE id = ?
+      `).get(id);
+      if (!row) return null;
+      const exists = (sql) => {
+        try { return Boolean(database.prepare(sql).get(id)); } catch { return false; }
+      };
+      const carriesMoney = row.depositPaid || row.balancePaid || row.complementPaid || row.endOfStayComplementPaid
+        || exists("SELECT 1 FROM payment_links WHERE reservationId = ? AND status = 'paid'")
+        || exists('SELECT 1 FROM reservation_installments WHERE reservationId = ? AND paid = 1')
+        || exists('SELECT 1 FROM reservation_refunds WHERE reservationId = ?')
+        || exists('SELECT 1 FROM reservation_platform_penalties WHERE reservationId = ?')
+        || exists('SELECT 1 FROM cancellation_compensations WHERE reservationId = ?');
+      return carriesMoney
+        ? 'Cette réservation porte des encaissements, remboursements ou indemnités : elle ne peut pas être supprimée. L’annuler la conserve dans la comptabilité.'
+        : null;
     },
 
     getBasic(reservationId) {
@@ -1484,7 +1506,7 @@ function createReservationsModel(database) {
         }
       }
 
-      const coveringClosure = establishmentClosuresModel.findCoveringClosure(propertyId, startDate, endDate);
+      const coveringClosure = establishmentClosuresModel.findCoveringClosure(propertyId, newEffStart, newEffEnd);
       if (coveringClosure) {
         return {
           error: `Fermeture en place sur cette période : « ${coveringClosure.label} » du ${coveringClosure.startDate} au ${coveringClosure.endDate}.`,

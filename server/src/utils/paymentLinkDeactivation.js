@@ -74,4 +74,40 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
   return { notDeactivated };
 }
 
-module.exports = { deactivateAbandonedLinks, assertNotPaid, alreadyInactive };
+/**
+ * Before a stay or a devis is deleted: every open link of the row is deactivated at its provider, or
+ * the delete is refused. A link left payable would take a guest's money into a row that no longer
+ * exists. Throws `{ httpStatus, error, message }` (the shape `assertNotPaid` uses) and changes nothing
+ * locally unless every deactivation succeeded.
+ */
+async function deactivateOpenLinksBeforeDelete(reservationId, { paymentLinksModel, providerFor = defaultProviderFor }) {
+  const open = paymentLinksModel.listForReservation(reservationId).filter((link) => link.status === 'open');
+  const done = [];
+  for (const link of open) {
+    if (!link.providerLinkId) { done.push(link); continue; }
+    const provider = providerFor(link.provider || 'qonto');
+    try {
+      await assertNotPaid(link, provider);
+    } catch (err) {
+      done.forEach((l) => paymentLinksModel.cancel(l.id));
+      if (err && err.error === 'LINK_ALREADY_PAID') {
+        throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Un lien de paiement vient d’être payé : suppression refusée.' };
+      }
+      throw err;
+    }
+    try {
+      if (!provider) throw new Error('payment provider unavailable');
+      await provider.cancelLink(link.providerLinkId);
+    } catch (err) {
+      if (!(await alreadyInactive(provider, link.providerLinkId))) {
+        done.forEach((l) => paymentLinksModel.cancel(l.id));
+        throw { httpStatus: 502, error: 'LINK_NOT_DEACTIVATED', message: 'Un lien de paiement en cours n’a pas pu être désactivé chez le prestataire : suppression refusée, réessayer.' };
+      }
+    }
+    done.push(link);
+  }
+  done.forEach((l) => paymentLinksModel.cancel(l.id));
+  return { deactivated: done.length };
+}
+
+module.exports = { deactivateAbandonedLinks, deactivateOpenLinksBeforeDelete, assertNotPaid, alreadyInactive };

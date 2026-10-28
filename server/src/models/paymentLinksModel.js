@@ -130,6 +130,15 @@ function buildModel(database) {
     ).all();
   }
 
+  // Open links whose reservation row no longer exists: still payable at the provider, nothing to land on.
+  function listOrphanOpen() {
+    return database.prepare(`
+      SELECT l.id, l.reservationId, l.type, l.amountCents, l.createdAt FROM payment_links l
+       WHERE l.status = 'open' AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.id = l.reservationId)
+       ORDER BY l.id
+    `).all();
+  }
+
   // Rule 1: no provider call — the expiry is already in our record.
   function retireExpired({ now = new Date() } = {}) {
     const nowMs = now.getTime();
@@ -338,6 +347,7 @@ function buildModel(database) {
     create,
     findById,
     listOpen,
+    listOrphanOpen,
     retireExpired,
     retireSettled,
     settledBucketDateOf,

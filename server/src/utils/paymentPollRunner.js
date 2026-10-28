@@ -62,7 +62,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     let reservationId = row.convertedReservationId;
     let effect = 'already-converted';
     if (!reservationId) {
-      const conv = devisModel.convertToReservation(link.reservationId);
+      const conv = devisModel.convertToReservation(link.reservationId, { allowConflict: true });
       if (conv && conv.error) return { effect: 'convert-failed', error: conv.error };
       reservationId = conv.data.reservationId;
       effect = 'converted';

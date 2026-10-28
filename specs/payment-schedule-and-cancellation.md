@@ -378,6 +378,28 @@ acompte is kept as an indemnity, and the books say so correctly.
     is due and unpaid, the derived `cancellationReason` is `unpaid_deposit` even though the solde is unpaid
     too — the first money missing names the cancellation, as rule 27 says. It read `unpaid_balance`.
 
+49. **`DELETE /api/reservations/:id` deletes a live, money-free stay only** _(added 2026-10-28, audit)_.
+    The route used to bypass every guard of the fiche: it erased a cancelled stay with its refunds, a
+    duplicate set aside, and a devis with its CGV acceptance (the FK cascade), though the fiche save
+    refuses all three (rule 25, `specs/terms-acceptance-record.md` rule 29). It now answers
+    `409 RESERVATION_NOT_DELETABLE` for any `kind` other than `reservation` (a devis is deleted from the
+    Devis page; a cancelled stay is history), and `409 RESERVATION_CARRIES_MONEY` for a stay with any
+    collected bucket (acompte, solde, complement, end-of-stay complement), a paid payment link, a paid
+    installment, a refund, a platform penalty or a cancellation compensation. Cancelling the stay is the
+    way to retire it. The archive rule (a finished stay needs the admin's per-fiche unlock) is unchanged.
+    The iCal cancellation approval, which deletes a stay on its own authority, is not this route.
+50. **A delete deactivates the row's payment links first** _(added 2026-10-28, audit)_. Neither a
+    deleted stay nor a deleted devis may leave an open link payable at the provider: before the delete
+    every open link of the row is deactivated through the provider abstraction
+    (`deactivateOpenLinksBeforeDelete`) and marked `cancelled`. A link paid meanwhile answers
+    `409 LINK_ALREADY_PAID`; a provider that cannot deactivate it (down, plugin off) answers
+    `502 LINK_NOT_DEACTIVATED` and **nothing is deleted** (the links already deactivated stay cancelled).
+    The devis route runs its own refusals (CGV proof) before touching any link.
+51. **Orphan open links are logged at boot** _(added 2026-10-28, audit)_. An open link whose reservation
+    row no longer exists (deleted before rule 50) is still payable at the provider and has nothing to
+    land on. The server logs one warning at startup naming each (`link->reservation`); no data is
+    changed, the operator deactivates them by hand.
+
 ---
 
 ## 4. Architecture
