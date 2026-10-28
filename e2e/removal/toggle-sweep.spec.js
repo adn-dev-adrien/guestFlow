@@ -11,6 +11,7 @@ const {
 } = require('./helpers');
 const { smoke, removedApiMatchers } = require('./smoke');
 
+const REBUILT = new Set(['gvr_rate_snapshot', 'gvr_day_snapshot']);
 const SEED = seed();
 const IDS = Object.keys(SEED.rows).sort();
 const [index, total] = (process.env.SWEEP_SHARD || '1/1').split('/').map(Number);
@@ -57,7 +58,8 @@ for (const id of MINE) {
     const expectKept = (label) => {
       const expected = rowsOf(group);
       const now = keptRows();
-      Object.keys(expected).forEach((table) => expect(now[table], `${label}: ${table}`).toBeGreaterThanOrEqual(expected[table]));
+      // The feed's snapshots are what it last sent: its catch-up rewrites them from the real state.
+      Object.keys(expected).filter((table) => !REBUILT.has(table)).forEach((table) => expect(now[table], `${label}: ${table}`).toBeGreaterThanOrEqual(expected[table]));
     };
     const call = async (method, url, expected, label) => {
       const res = await request.fetch(url, { method });
