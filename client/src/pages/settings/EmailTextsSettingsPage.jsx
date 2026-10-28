@@ -43,6 +43,7 @@ import useDirtyFormGuard from '../../hooks/useDirtyFormGuard';
 import { useToast } from '../../components/DialogProvider';
 import readTextFile from '../../utils/readTextFile';
 import { buildDictionary, toDisplay } from '../../utils/tokenDisplay';
+import { plural } from '../../utils/formatters';
 
 const TABS = [
   { value: 'texts', label: 'Par email' },
@@ -51,7 +52,6 @@ const TABS = [
 // Rule 13 — typing is debounced; every other trigger renders at once (rule 50).
 const PREVIEW_DELAY_MS = 400;
 const hasKeys = (object) => Object.keys(object || {}).length > 0;
-const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 export default function EmailTextsSettingsPage() {
   const theme = useTheme();

@@ -1,0 +1,1 @@
+- **One request instead of two for identical reads** (spec `inte-performance.md`, 2026-10-28). Reads of the same path started at the same moment (the version and the property list, read by the shell and by a page) share one request; any write resets this so a read after a write is always fresh. One request fewer on every page. +7 client tests.

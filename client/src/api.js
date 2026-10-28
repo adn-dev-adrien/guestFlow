@@ -4,7 +4,33 @@ import { DATA_CHANGED_EVENT } from './constants/appEvents';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
-async function request(path, options = {}) {
+// Identical GETs in flight at the same moment (the shell and a page both reading /properties or
+// /system/version) are one request: the first caller gets the parsed body, each other its own copy.
+// Any write empties the table, so a read started after a write never joins one started before it
+// (specs/inte-performance.md rule 8).
+const inFlight = new Map();
+
+function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET' || options.body) {
+    inFlight.clear();
+    return send(path, options);
+  }
+  let shared = inFlight.get(path);
+  if (!shared) {
+    const promise = send(path, options);
+    shared = { promise, taken: false };
+    inFlight.set(path, shared);
+    const forget = () => { if (inFlight.get(path) === shared) inFlight.delete(path); };
+    promise.then(forget, forget);
+  }
+  const first = !shared.taken;
+  shared.taken = true;
+  // Both go through `then`, so every copy is made before any caller's continuation can touch the original.
+  return shared.promise.then((body) => (first || body == null ? body : structuredClone(body)));
+}
+
+async function send(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
     credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)

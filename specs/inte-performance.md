@@ -115,24 +115,50 @@ the same kind fails CI instead of reaching Adrien.
 3. **Plugin pages follow rule 2.** A plugin's route contribution is rendered through the same lazy
    boundary; the production plugin bundles are already separate files and are unchanged.
 4. **The initial JavaScript has a budget, checked in CI.** `scripts/check-bundle-budget.mjs` reads the
-   Vite manifest of `client/dist` and sums the gzip size of the entry and of every chunk it imports
-   statically (what any first page pays). Above the budget the CI client job fails and names the
-   chunks. The budget is set from the measurement after rule 2 + 10 % headroom, written in the
-   script with the date it was measured. Today, before rule 2: 637 kB gzip (`index` 77 + `sdk` 144 +
-   `App` 416).
+   Vite manifest of `client/dist` and sums the gzip size of the entry, of every chunk it imports
+   statically and of the chunks `index.jsx` always imports at boot (`App`, the plugin runtime) with
+   their static imports — what any first page pays; the pages, dynamic imports of `App`, are not
+   counted. Above the budget the CI client job (`npm run build` then the script) fails and names the
+   heaviest chunks. The budget is the measurement after rule 2 plus 10 % headroom, written in the
+   script with the date it was measured: **284 851 bytes gzip measured on 2026-10-28, budget
+   313 336**. Before rule 2: 637 kB gzip (`index` 77 + `sdk` 144 + `App` 416). It needs
+   `build.manifest: true` in `client/vite.config.js`.
 5. **The heavy endpoints do not grow with the data.** On a fixture of 2 000 reservations and 1 500
    clients, `GET /api/email-texts`, `POST /api/emails/preview`, `GET /api/dashboard/attention`,
    `GET /api/platforms/settings`, `GET /api/email-templates?view=timeline` and `GET /api/emails/pending`
    run **the same number of SQL statements as on 20 reservations** (no statement per reservation,
-   counted by wrapping `db.prepare(...).run/get/all`), and each answers under 250 ms on the CI runner.
+   counted by wrapping `db.prepare(...).run/get/all`, after one warm-up call), and each answers under
+   250 ms on the CI runner. The test mounts the core routers only: a plugin's own attention handler is
+   not exercised.
 6. **A measurement tool lives in the repository.** `e2e/perf/measure-pages.mjs <base-url>` logs in with
-   the dev test account and prints, per page, the time to settled content, the number of requests,
-   the API calls and long tasks, with optional CPU throttling (`--cpu 4`). It is a tool, not a gate.
+   the dev test account (`GUESTFLOW_PERF_EMAIL` / `GUESTFLOW_PERF_PASSWORD`; the password is never in
+   the repository) and prints, per page, the time to settled content, the number of requests and
+   script files, the API calls and long tasks, with optional CPU throttling (`--cpu 4`). It is a
+   tool, not a gate.
    > **Sans test** — a measurement script; its numbers depend on the machine. Rules 4, 5 and
    > guest-email-texts rules 50–52 are the gates.
+7. **Hashed assets are cached for good.** (Added during implementation, 2026-10-28.) The server serves
+   `assets/` of the client build with `Cache-Control: public, max-age=31536000, immutable`
+   (`middleware/hashedAssets.js`, mounted before the static folder); `index.html` keeps `max-age=0`.
+   Vite names every file there after its content, so a changed file is a new URL. Without it, the
+   browser revalidated each of the 29 files of a page at every load, and the ~60 files rule 2 adds to
+   a first load would have been 60 more conditional requests.
+8. **Identical reads in flight are one request.** (Added 2026-10-28, widening decision below.) In
+   `client/src/api.js`, GET requests for the same path started while one is in flight share it: the
+   first caller gets the parsed body, each other a `structuredClone` of it (all copies made before any
+   caller continues, so one mutating its list cannot change another's). Any write empties the table, so
+   a read started after a write never joins a read started before it. A failed read rejects every
+   caller and is not remembered. Measured on the production-build shadow: one request fewer on every
+   page (the shell and a page both read `/system/version`; `/properties` on its own page).
+9. **One « count + word » helper.** (Added 2026-10-28.) `plural(n, word)` lives in
+   `utils/formatters.js`; the three identical private copies (`FinancePage`, `FinanceDetailPanel`,
+   `EmailTextsSettingsPage`) are removed.
 
 **Edge cases:**
 
+- A lazy chunk of a plugin page fails the same way (the boundary recognises the browser's « failed to
+  fetch dynamically imported module » in Chromium, Safari and Firefox wording); any other error thrown
+  by a page is not a chunk failure and reaches the app's error boundary untouched.
 - A lazy chunk fails because the release changed under an open tab → one automatic reload (guarded by a
   `sessionStorage` flag so it cannot loop), then the error state of rule 2.
 - `--dev` on a shadow → today's behaviour, and the script prints that the shadow is not representative
@@ -153,18 +179,21 @@ the same kind fails CI instead of reaching Adrien.
 | `routes/` | — | — | (none) |
 | `controllers/` | — | — | (none — rule 5 measures them; a statement found per reservation is fixed in the controller it lives in) |
 | `models/` | — | — | (none) |
-| `middleware/` | — | — | (none) |
+| `middleware/` | `hashedAssets.js` | C | Rule 7: static handler of the build's `assets/` folder, one-year immutable cache |
 | `utils/` | — | — | (none) |
 | `scheduledTasks.js` | — | — | (none) |
 | `database.js` | — | — | (none) |
+| `index.js` | `index.js` | T | Mounts `hashedAssets` on `/assets` before the static client folder (rule 7) |
 | `tests/` | `heavy-endpoints-budget.unit.test.js` | C | Rule 5: seeds 20 then 2 000 reservations, counts statements per endpoint, asserts equal counts and the time budget |
 | `tests/helpers/` | `statementCounter.js` | C | Wraps `db.prepare` to count executed statements during one request (test-only) |
+| `tests/` | `hashed-assets-cache.unit.test.js` | C | Rule 7: `assets/` is immutable for a year, `index.html` is not, a missing asset is a 404 |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `settings/EmailTextsSettingsPage.jsx` | T | guest-email-texts rules 50–52: first preview without debounce, folded sections unmounted, each section's selector on its own email |
+| `components/` | `ErrorAlert.jsx` | T | `retryLabel` prop (« Recharger » for a failed chunk; default « Réessayer » unchanged) |
 | `components/` | `LazyPage.jsx` | C | `lazyPage(loader)` + its `Suspense`/error boundary: `LoadingState` while loading, one reload then `ErrorAlert` on a failed chunk (rule 2) |
 | `App.jsx` | `App.jsx` | T | Page imports become `lazyPage(...)` (rule 2); plugin routes go through the same boundary (rule 3) |
 | `hooks/` | — | — | (none) |
@@ -176,7 +205,7 @@ the same kind fails CI instead of reaching Adrien.
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `LoadingState`, `ErrorAlert`, `Accordion` (MUI) | `LoadingState`/`ErrorAlert` are the shared states of the design system. |
+| **Consumed (existing generic)** | `LoadingState`, `ErrorAlert`, `Accordion` (MUI) | `LoadingState`/`ErrorAlert` are the shared states of the design system; `ErrorAlert` gains a `retryLabel` prop. |
 | **Created (new generic)** | `LazyPage` (`lazyPage` helper) | Every route of the core and of the plugins uses it; nothing page-specific in it. |
 | **Specific (kept feature-local)** | — | — |
 
@@ -219,25 +248,29 @@ No screen changes beyond loading states.
 
 ### Server unit tests
 
-- [ ] `server/src/tests/heavy-endpoints-budget.unit.test.js` — rule 5 (6 endpoints × 2 cases: same
-      statement count at 20 and 2 000 reservations, time budget) — **12 cases**.
+- [x] `server/src/tests/hashed-assets-cache.unit.test.js` — rule 7 — **2 cases**.
+
+- [x] `server/src/tests/heavy-endpoints-budget.unit.test.js` — rule 5 (6 endpoints × 2 cases: same
+      statement count at 20 and 2 000 reservations, time budget; plus a control that the counter sees a
+      statement per reservation) — **13 cases**.
 
 ### Script tests (in the server suite, importing `scripts/*.mjs`)
 
-- [ ] `server/src/tests/start-shadow.unit.test.js` — rule 1 (packages env, never production, outbox + dead bases,
+- [x] `server/src/tests/start-shadow.unit.test.js` — rule 1 (packages env, never production, outbox + dead bases,
       `--dev`, port taken) — **5 cases**.
-- [ ] `server/src/tests/bundle-budget.unit.test.js` — rule 4 (under, over + named chunks, dynamic import
-      ignored, missing manifest fails) — **4 cases**.
+- [x] `server/src/tests/bundle-budget.unit.test.js` — rule 4 (boot chain counted once, page chunk
+      ignored, under/over, CLI without manifest and over budget naming the chunks) — **4 cases**.
 
 ### Client Vitest
 
-- [ ] `client/src/components/__tests__/LazyPage.loading.test.jsx` — rules 2–3 (fallback inside the
-      shell, page shown on resolve, one reload on chunk error, `ErrorAlert` the second time, plugin route
-      through the boundary) — **5 cases**.
-- [ ] `client/src/pages/settings/__tests__/EmailTextsSettingsPage.performance.test.jsx` —
+- [x] `client/src/components/__tests__/LazyPage.loading.test.jsx` — rules 2–3 (fallback inside the
+      shell after 150 ms, page shown on resolve, one reload on chunk error, `ErrorAlert` + « Recharger »
+      the second time, flag cleared on success, plugin route through the boundary and reloading once, a
+      render crash is not a chunk failure) — **7 cases**.
+- [x] `client/src/pages/settings/__tests__/EmailTextsSettingsPage.performance.test.jsx` —
       guest-email-texts rules 50–52 (see that spec) — **6 cases**.
-- [ ] Existing `EmailTextsSettingsPage.*.test.jsx` suites re-run: a test reaching a field of a folded
-      section must open it first (rule 45 already does, `click-preview` suite).
+- [x] Existing `EmailTextsSettingsPage.*.test.jsx` suites re-run: only the rule 25 test changed (the
+      « Phrases non utilisées » fold is now unmounted, not hidden).
 
 ### E2E
 
@@ -250,7 +283,7 @@ No screen changes beyond loading states.
       inte-prod column.
 - [ ] `/settings/emails/textes` ≤ 250 ms idle, ≤ 750 ms at `--cpu 4`; Emails › Modèles → preview
       ≤ 250 ms.
-- [ ] **Mobile (390 px, `--cpu 4`)**: the email texts page opens a section and its « Voir l'email »
+- [x] **Mobile (390 px, `--cpu 4`)**: the email texts page opens a section and its « Voir l'email »
       sheet with the preview; a page change shows the bar and menu throughout.
 - [ ] Regression: rule 45 (a click on a sentence of the preview opens its field in a folded section),
       dirty guard on leaving the texts page.
@@ -264,6 +297,35 @@ No screen changes beyond loading states.
 - `TokenTextField` memoisation: after rule 51 typing is at 16 ms p50; revisit only if a measurement
   says so.
 - Changing production hosting (compression, HTTP/2): production loads in 130 ms on the LAN.
+
+## 8b. Widening of 2026-10-28 (lot 5)
+
+**Resolved 2026-10-28** (Adrien, via the coordinator): the slowness is general; only optimisations that
+show in PRODUCTION count. Three axes, behaviour-neutral, measured on a production-build shadow, leaving
+the pages other branches are rewriting (`Dashboard`, `PlanningPage`, `CalendarPage`) untouched.
+
+Audit of the calls each main page makes on the production build (63 reservations, 78 clients;
+`node` + Playwright, responses counted when fully read):
+
+| Page | calls | kB | Finding |
+|---|---|---|---|
+| `/` | 22 → 21 | 109 | four overlapping `GET /reservations?from&to` windows (34 + 28 + 19 + 11 kB), full rows |
+| `/calendar` | 20 → 19 | 80 → 79 | the same windows; `GET /properties` twice |
+| `/planning` | 22 → 21 | 35 | `GET /reservations/:id` 22 kB for one stay |
+| `/reservations/upcoming` | 10 → 9 | 62 | 57 kB: every stay in full (≈ 5.8 kB each, ~60 columns), cards read a few |
+| `/clients` | 10 → 9 | 17 → 16 | none |
+| `/finance` | 11 → 10 | 20 → 19 | none |
+| `/settings` | 10 → 9 | 6 | none |
+| `/emails` | 11 | 38 | timeline carries each template's FR + EN body (≈ 20 of 33 kB) the list does not show |
+
+Done in this lot: rule 8 (every page: one call fewer) and rule 9. **Not done, noted for their owners
+or for a decision**: trimming `reservations` rows to the columns the calendar/dashboard/cards render
+(`Dashboard`, `CalendarPage`, `PlanningPage` are being rewritten by other branches; the upcoming cards
+and the email timeline need a field-by-field audit of what their dialogs read: a trimmed payload is a
+contract change to be done with that page, not beside it), the `/properties` re-read at ~350 ms on the
+properties and calendar pages, and virtualisation (no list measured as costly: ≤ 63 stays here).
+Bundle: no duplicated feature found beyond the helper of rule 9; the heaviest chunks are third-party
+(`FinancePage` 128 kB gzip = Recharts, now loaded only on the finance pages; MUI core 108 kB).
 
 ## 9. Open questions
 
