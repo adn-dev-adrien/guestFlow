@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -73,30 +74,30 @@ function resourceTotal(db, resourceId) {
   return { line, resourcesTotal: quote.resourcesTotal };
 }
 
-test('per_stay resource → price x1 (20)', () => {
+test('per_stay resource → price x1 (20)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { line, resourcesTotal } = resourceTotal(createDb(), 10);
   assert.equal(line.totalPrice, 20);
   assert.equal(resourcesTotal, 20);
 });
 
-test('per_person resource → price x persons (20 x 2 = 40)', () => {
+test('per_person resource → price x persons (20 x 2 = 40)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { line } = resourceTotal(createDb(), 11);
   assert.equal(line.totalPrice, 40);
 });
 
-test('per_night resource → price x nights (20 x 3 = 60)', () => {
+test('per_night resource → price x nights (20 x 3 = 60)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { line } = resourceTotal(createDb(), 12);
   assert.equal(line.totalPrice, 60);
 });
 
-test('per_person_per_night resource → price x persons x nights (20 x 2 x 3 = 120)', () => {
+test('per_person_per_night resource → price x persons x nights (20 x 2 x 3 = 120)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { line } = resourceTotal(createDb(), 13);
   assert.equal(line.totalPrice, 120);
   assert.equal(line.billedUnits, 6);
 });
 
 // specs/resource-hourly-scheduling.md §3.3 — hourly-scheduled resource priced from the fiche sessions.
-test('hourly-scheduled resource → time-banded grid over the sessions', () => {
+test('hourly-scheduled resource → time-banded grid over the sessions', { skip: skipWithout(['hourly-resources']) }, () => {
   const db = createDb();
   const quote = calculateReservationQuote({
     db, ...BASE,
@@ -112,7 +113,7 @@ test('hourly-scheduled resource → time-banded grid over the sessions', () => {
   assert.equal(line.sessions.length, 2);
 });
 
-test('hourly-scheduled resource → free first hour deducted once (property freeMinutes)', () => {
+test('hourly-scheduled resource → free first hour deducted once (property freeMinutes)', { skip: skipWithout(['hourly-resources']) }, () => {
   const db = createDb();
   db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (1, 14, 30, 60)').run();
   const quote = calculateReservationQuote({
@@ -126,7 +127,7 @@ test('hourly-scheduled resource → free first hour deducted once (property free
   assert.equal(line.billedUnits, 1);
 });
 
-test('hourly-scheduled resource → an unusable session falls back to quantity pricing, never to nothing', () => {
+test('hourly-scheduled resource → an unusable session falls back to quantity pricing, never to nothing', { skip: skipWithout(['hourly-resources']) }, () => {
   // A session below the minimum duration (a resource reconfigured under a saved booking, say) used to
   // erase the line and its money. The hours it described were still sold, so they are billed as a
   // bare quantity and re-placed during the arrival SAS
@@ -143,7 +144,7 @@ test('hourly-scheduled resource → an unusable session falls back to quantity p
   assert.equal(line.sessions, undefined, 'nothing is presented as scheduled');
 });
 
-test('hourly-scheduled resource → an explicit quantity wins over unusable sessions', () => {
+test('hourly-scheduled resource → an explicit quantity wins over unusable sessions', { skip: skipWithout(['hourly-resources']) }, () => {
   const db = createDb();
   const quote = calculateReservationQuote({
     db, ...BASE,

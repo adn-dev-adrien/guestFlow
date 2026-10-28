@@ -108,6 +108,7 @@ test('rule 11: a booked resource says its sentence, with its slots while hourly 
     resources: [{ resourceId: 1, name: 'Sauna', priceType: 'per_hour', emailBookedText: sentence, sessions: JSON.stringify(sessions) }],
   });
   registry.configure({ isActive: () => true, allows: () => true });
+  registry.ensure('hourly-resources');
   const live = buildContext(input([{ date: '2027-07-11', start: '18:00', end: '19:00' }]));
   assert.equal(live.flags.hasNordicBath, true);
   assert.equal(live.vars.nordicBathReminder, 'Le sauna est à vous le 11 juillet 2027 de 18:00 à 19:00.');

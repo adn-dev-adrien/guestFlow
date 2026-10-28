@@ -1,3 +1,4 @@
+const { optionalPlugin } = require('../plugins/sdk/testing');
 /**
  * Prices `per_hour` lines in a suite as the `hourly-resources` plugin does once live
  * (specs/plugins-phase-3c-hourly-resources.md rule 11): a live plugin declaring its price-line
@@ -6,12 +7,12 @@
 
 const registry = require('../plugins/sdk/registry');
 const { createContext } = require('../plugins/sdk/createContext');
-const { createHourlyContributor } = require('../plugins/hourly-resources/pricing');
+const { createHourlyContributor } = optionalPlugin(() => require('../plugins/hourly-resources/pricing'));
 
 function liveHourlyResources() {
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
-  createContext('hourly-resources', {}).priceLineContributor(createHourlyContributor());
+  if (createHourlyContributor) createContext('hourly-resources', {}).priceLineContributor(createHourlyContributor());
 }
 
 function withdrawHourlyResources() {

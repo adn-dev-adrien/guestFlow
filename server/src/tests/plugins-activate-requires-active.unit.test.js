@@ -3,6 +3,7 @@
 // naming the plugin to activate first. Google Vacation Rentals could be re-activated while
 // website-booking, which it requires, was off.
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -36,10 +37,10 @@ function setup(installed) {
   return { model, call };
 }
 
-const gvrName = findPlugin('google-vacation-rentals').name;
-const siteName = findPlugin('website-booking').name;
+const gvrName = (findPlugin('google-vacation-rentals') || {}).name;
+const siteName = (findPlugin('website-booking') || {}).name;
 
-test('re-activating a plugin while its requirement is inactive is refused, naming it', () => {
+test('re-activating a plugin while its requirement is inactive is refused, naming it', { skip: skipWithout(['google-vacation-rentals', 'website-booking']) }, () => {
   const { model, call } = setup(['website-booking', 'google-vacation-rentals']);
   assert.equal(call('deactivate', 'google-vacation-rentals').statusCode, 200);
   assert.equal(call('deactivate', 'website-booking').statusCode, 200);

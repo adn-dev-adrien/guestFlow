@@ -9,6 +9,7 @@ process.env.PUBLIC_API_KEY = 'phase-2-website-key';
 process.env.PUBLIC_API_RATELIMIT_MAX = '50';
 
 const test = require('node:test');
+const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -17,6 +18,7 @@ const express = require('express');
 const db = require('../../../database');
 const registry = require('../../sdk/registry');
 const loader = require('../../loader');
+const { optionalPlugin } = require('../../sdk/testing');
 const localEnv = require('../../../utils/localEnv');
 const { buildModel: buildPluginsModel } = require('../../../models/pluginsModel');
 const { buildModel: buildPluginSettingsModel } = require('../../../models/pluginSettingsModel');
@@ -24,7 +26,7 @@ const { createController } = require('../../../controllers/pluginsController');
 const termsModel = require('../../../models/termsModel');
 const settings = require('../settings');
 const { checkTermsAcceptance } = require('../controllers/publicBookingRequestController');
-const gateAccess = require('../../gate-access');
+const gateAccess = optionalPlugin(() => require('../../gate-access'));
 const websiteBooking = require('..');
 
 const ID = 'website-booking';
@@ -35,7 +37,7 @@ const plugins = buildPluginsModel(db);
 const settingsModel = buildPluginSettingsModel(db);
 
 // The plugins installed and active for one test; the two modules registered as index.js does.
-function boot({ installed = [], modules = [gateAccess, websiteBooking] } = {}) {
+function boot({ installed = [], modules = [gateAccess, websiteBooking].filter((m) => m.id) } = {}) {
   registry.reset();
   db.prepare('DELETE FROM plugins').run();
   installed.forEach((id) => plugins.install(id));
@@ -93,7 +95,7 @@ test('specs/plugins-phase-2-hosts.md rule 23 — every /public/v1 prefix answers
   assert.notEqual(gate.body && gate.body.error, 'PLUGIN_INACTIVE');
 }));
 
-test('specs/plugins-phase-2-hosts.md rule 23 — once installed, the same paths answer behind the API key', () => withSecretsSpy(async () => {
+test('specs/plugins-phase-2-hosts.md rule 23 — once installed, the same paths answer behind the API key', { skip: skipWithout(['gate-access']) }, () => withSecretsSpy(async () => {
   const app = boot({ installed: [ID] });
   assert.equal((await call(app, 'GET', '/public/v1/properties')).status, 401, 'the key is checked first');
   const list = await call(app, 'GET', '/public/v1/properties', { headers: visitor('198.51.100.1') });
@@ -107,7 +109,7 @@ test('specs/plugins-phase-2-hosts.md rule 23 — once installed, the same paths 
 
 // Amended by specs/plugins-phase-3a-online-payment.md rule 5: the second plugin is whichever declares
 // the payment provider — online-payment, here.
-test('specs/plugins-phase-2-hosts.md rule 23 — /booking-requests/:id/pay and /status need website-booking AND online-payment', () => withSecretsSpy(async () => {
+test('specs/plugins-phase-2-hosts.md rule 23 — /booking-requests/:id/pay and /status need website-booking AND online-payment', { skip: skipWithout(['online-payment']) }, () => withSecretsSpy(async () => {
   const withPayments = [gateAccess, websiteBooking, require('../../online-payment')];
   let app = boot({ installed: [ID], modules: withPayments });
   for (const [method, url] of [['POST', '/public/v1/booking-requests/1/pay'], ['GET', '/public/v1/booking-requests/1/status']]) {

@@ -198,6 +198,10 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     onInstall(fn) { record.onInstall.push(fn); },
     // Runs at every boot, only while the plugin is installed (rule 18).
     onBoot(fn) { record.onBoot.push(fn); },
+    // SDK 2.11.0 — runs each time the plugin goes from off to live: activated, or installed (after its
+    // install hooks). Events sent while it was off were dropped, so it recovers from its own data here
+    // (specs/plugin-removal-resilience.md rule 17). Not awaited by the request that switched it on.
+    onActivate(fn) { record.onActivate.push(fn); },
     // { tables: [name], describe(db) → [{ label, count }], purge?(db) } (rule 12).
     data(declaration) { record.data = declaration; },
     isLive: () => registry.isLive(id),

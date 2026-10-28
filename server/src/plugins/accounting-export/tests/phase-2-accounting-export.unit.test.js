@@ -2,6 +2,7 @@
 // answer only while it is live, the accountant reaches them only through it, its four settings live in
 // plugin_settings, and its erasure resets configuration without touching a single accounting fact.
 const test = require('node:test');
+const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -133,7 +134,7 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the export routes answer 404 PL
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 3 — the accountant reaches the export only while accounting-export is live, and still reads the compensations', async () => {
+test('specs/plugins-phase-2-hosts.md rule 3 — the accountant reaches the export only while accounting-export is live, and still reads the compensations', { skip: skipWithout(['website-booking']) }, async () => {
   const db = freshDb();
   const accountant = { roles: ['accountant'] };
 

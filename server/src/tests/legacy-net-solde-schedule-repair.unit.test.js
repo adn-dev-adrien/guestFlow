@@ -12,12 +12,14 @@
  */
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { runLegacyNetSoldeRepair } = require('../utils/legacyNetSoldeRepair');
-const { __test: { buildEntry } } = require('../plugins/accounting-export/accountingModel');
-const { buildRows } = require('../plugins/accounting-export/accountingExport');
+const accountingModel = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
+const { buildRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 
 const COMMISSION_CONTEXT = {
   defaultAccount: '622600', vatRateCommission: 20, vatRate: 10, platformByName: new Map(),
@@ -80,7 +82,7 @@ test('le solde net redevient brut : la commission rejoint son échéance', () =>
   assert.equal(row.depositAmount + row.balanceAmount, row.finalPrice + row.touristTaxTotal);
 });
 
-test('le journal comptable est inchangé, au centime', () => {
+test('le journal comptable est inchangé, au centime', { skip: skipWithout(['accounting-export']) }, () => {
   const before = buildEntry(
     { ...PARRETON, balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Parreton' },
     'balance', null, COMMISSION_CONTEXT, { collectedOnArrival: false },

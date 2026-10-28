@@ -1,10 +1,11 @@
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 // specs/site-traffic-analytics.md §3.C — the source of a website booking request: the validator that
 // never refuses (rule 15), the channel classification (rule 16), the ready-to-render origin (rule 19)
 // and the row of the « Canaux de réservation » card a reservation belongs to (rule 21).
-const { validateAttribution } = require('../plugins/website-booking/publicInputValidation');
+const { validateAttribution } = optionalPlugin(() => require('../plugins/website-booking/publicInputValidation'));
 const { classifyAttribution, originDisplay, bookingChannelOf, platformDisplayName } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 
@@ -13,7 +14,7 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 // Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
 require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
-test('validateAttribution keeps the known keys, trimmed', () => {
+test('validateAttribution keeps the known keys, trimmed', { skip: skipWithout(['website-booking']) }, () => {
   assert.deepEqual(validateAttribution({
     referrer: ' L.Instagram.com ', utmSource: ' instagram ', utmCampaign: 'lancement-2026',
     landingPath: '/la-granja/', firstSeenAt: '2026-09-28T12:00:00.000Z', extra: 'dropped',
@@ -23,18 +24,18 @@ test('validateAttribution keeps the known keys, trimmed', () => {
   });
 });
 
-test('validateAttribution caps every text at 200 characters', () => {
+test('validateAttribution caps every text at 200 characters', { skip: skipWithout(['website-booking']) }, () => {
   const out = validateAttribution({ utmCampaign: 'x'.repeat(5000) });
   assert.equal(out.utmCampaign.length, 200);
 });
 
-test('validateAttribution drops a malformed field and keeps the rest', () => {
+test('validateAttribution drops a malformed field and keeps the rest', { skip: skipWithout(['website-booking']) }, () => {
   assert.deepEqual(validateAttribution({
     referrer: 'pas un site !!', landingPath: 'https://evil.example/', firstSeenAt: 'hier', utmMedium: 42, utmSource: 'google',
   }), { utmSource: 'google' });
 });
 
-test('validateAttribution never throws and turns hopeless input into null', () => {
+test('validateAttribution never throws and turns hopeless input into null', { skip: skipWithout(['website-booking']) }, () => {
   for (const raw of [undefined, null, 'instagram', 42, [], ['a'], {}, { referrer: '' }, { utmSource: { $gt: 1 } }]) {
     assert.equal(validateAttribution(raw), null);
   }

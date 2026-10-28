@@ -2,6 +2,7 @@
 // arrival SAS offer page shows comes from the server, priced by the very function the sale is billed with.
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { buildSasSaleOffers, priceOptionSale } = require('../utils/sasOptionSale');
@@ -65,7 +66,7 @@ test('parity — perMorning equals the sale priced on the first candidate mornin
   assert.equal(b.perMorning.amount, sale.totalPrice);
 });
 
-test('rule 12 — additive: the offer keeps every earlier field and the SDK range is untouched', () => {
+test('rule 12 — additive: the offer keeps every earlier field and the SDK range is untouched', { skip: skipWithout(['sas']) }, () => {
   const b = offers();
   ['available', 'optionId', 'unitPrice', 'perPerson', 'defaultPersons', 'selectedPersons', 'maxPersons', 'mornings']
     .forEach((key) => assert.ok(key in b, key));

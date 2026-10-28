@@ -9,12 +9,13 @@
 //   - the journal still balances, with the rebate on its own `70900000` debit rather than a quietly
 //     smaller accommodation credit.
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const financeModel = require('../models/financeModel');
-const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
-const { entryToStructured } = require('../plugins/accounting-export/accountingExport');
+const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const { entryToStructured } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
@@ -166,7 +167,7 @@ test('a caisse-interne group is off the books WHOLE — réduction included', ()
 // ── The journal ──────────────────────────────────────────────────────────────
 
 // specs/arrival-payment-detail-and-adjustment.md rule 24
-test('the réduction is its own balanced entry, debited on 70900000', () => {
+test('the réduction is its own balanced entry, debited on 70900000', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), { arrivalPaymentReduction: 50 }));
   const discount = entries.find((e) => e.kind === 'discount');
   assert.ok(discount, 'une écriture de rabais est émise');
@@ -181,7 +182,7 @@ test('the réduction is its own balanced entry, debited on 70900000', () => {
   assert.equal(card.lines.find((l) => l.compte.startsWith('C')).credit, 50, 'le débit client revient au réellement encaissé');
 });
 
-test('the sale entries keep their GROSS credits — the rebate is a line, not a smaller price', () => {
+test('the sale entries keep their GROSS credits — the rebate is a line, not a smaller price', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), { arrivalPaymentReduction: 50 }));
   const balance = entries.find((e) => e.kind === 'balance');
   const card = entryToStructured(balance);
@@ -190,7 +191,7 @@ test('the sale entries keep their GROSS credits — the rebate is a line, not a 
 });
 
 // specs/arrival-payment-detail-and-adjustment.md rule 25
-test('the pourboire is its own entry, hors TVA, on the produit divers', () => {
+test('the pourboire is its own entry, hors TVA, on the produit divers', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), { arrivalPaymentTip: 20 }));
   const tip = entries.find((e) => e.kind === 'tip');
   assert.ok(tip);
@@ -204,7 +205,7 @@ test('the pourboire is its own entry, hors TVA, on the produit divers', () => {
 });
 
 // specs/arrival-payment-detail-and-adjustment.md rule 26
-test('both are stamped with the payment group, so the Comptabilité shows ONE card', () => {
+test('both are stamped with the payment group, so the Comptabilité shows ONE card', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), { arrivalPaymentReduction: 50 }));
   const ids = new Set(entries.map((e) => e.paymentGroup?.id));
   assert.equal(ids.size, 1);
@@ -212,7 +213,7 @@ test('both are stamped with the payment group, so the Comptabilité shows ONE ca
   assert.equal(entries.length, 3, 'solde + complément + rabais');
 });
 
-test('a caisse-interne group emits neither entry', () => {
+test('a caisse-interne group emits neither entry', { skip: skipWithout(['accounting-export']) }, () => {
   const entries = entriesOf(insertPayment(freshDb(), {
     arrivalPaymentGroup: CASH_GROUP,
     balancePaidCash: 1,
@@ -223,7 +224,7 @@ test('a caisse-interne group emits neither entry', () => {
   assert.equal(entries.length, 0);
 });
 
-test('an adjustment whose group is dated in another month does not leak into this one', () => {
+test('an adjustment whose group is dated in another month does not leak into this one', { skip: skipWithout(['accounting-export']) }, () => {
   const db = insertPayment(freshDb(), {
     arrivalPaymentGroup: JSON.stringify({ at: '2026-07-30', cash: 0, total: 500, buckets: ['balance', 'complement'] }),
     arrivalPaymentReduction: 50,
@@ -256,7 +257,7 @@ test('le total remis est la somme des seaux, moins la réduction, plus le pourbo
 // specs/arrival-payment-detail-and-adjustment.md rule 28 — l'export du comptable gagne les deux
 // écritures. C'est le changement de forme qu'il faut lui annoncer : le vérifier ici, c'est vérifier
 // ce qui atterrit réellement dans son fichier.
-test('le CSV du comptable porte la remise et le pourboire', async () => {
+test('le CSV du comptable porte la remise et le pourboire', { skip: skipWithout(['accounting-export']) }, async () => {
   const { buildRows, CSV_HEADERS } = require('../plugins/accounting-export/accountingExport');
   const db = insertPayment(freshDb(), { arrivalPaymentReduction: 50 });
   const rows = buildRows(createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 }));

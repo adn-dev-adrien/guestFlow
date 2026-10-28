@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retrait des plugins</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-soft:#E3ECE6;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+::selection{background:#D5E3D9}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:1040px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.35rem/1.2 var(--serif);margin:52px 0 12px}
+h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+p{margin:0 0 12px;max-width:70ch}
+code{font-size:.86em;background:#EFEBE2;padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0;padding-left:1.1em;max-width:72ch}
+ul.plain li{margin:6px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.num{font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
+@media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi b{display:block;font:600 1.6rem/1.1 var(--serif);font-variant-numeric:tabular-nums}
+.kpi span{color:var(--muted);font-size:.85rem}
+.kpi.ok b{color:var(--success)} .kpi.ko b{color:var(--error)}
+
+.badge{display:inline-flex;align-items:center;gap:6px;font:500 .78rem/1 var(--sans);padding:5px 9px;border-radius:99px;white-space:nowrap}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--success-bg);color:var(--success)}
+.b-ko{background:var(--error-bg);color:var(--error)}
+.b-warn{background:var(--warning-bg);color:var(--warning)}
+.b-info{background:var(--info-bg);color:var(--info)}
+
+/* explorer */
+.demo-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:10px 0 14px}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 .9rem var(--sans);color:#57534A;padding:7px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.stage{margin:0 auto;max-width:1040px;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+.stage.phone{max-width:390px}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:7px 12px;font:500 .85rem var(--sans);cursor:pointer;min-height:40px;display:inline-flex;align-items:center;gap:7px;transition:background .15s ease,border-color .15s ease}
+.chip .dot{width:8px;height:8px;border-radius:50%}
+.chip[aria-pressed=true]{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.chip:active{transform:scale(.97)}
+.phone .chips{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.phone .chip{scroll-snap-align:start;flex:0 0 auto}
+.detail{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px}
+.mode .badge{white-space:normal;line-height:1.3;flex:0 1 auto;max-width:55%}
+.phone .mode{flex-direction:column}.phone .mode .badge{max-width:none}
+@media(max-width:600px){.mode{flex-direction:column}.mode .badge{max-width:none}}
+.phone .detail{grid-template-columns:1fr}
+@media(max-width:720px){.detail{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card h3{font:600 1.1rem var(--serif);margin:0 0 4px}
+.card .sub{color:var(--muted);font-size:.88rem;margin:0 0 12px}
+.modes{display:flex;flex-direction:column;gap:8px}
+.mode{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.mode .l{min-width:0}
+.mode .l b{display:block;font-weight:600;font-size:.92rem}
+.mode .l small{color:var(--muted);font-size:.82rem;display:block}
+.deps dt{font-weight:600;font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px}
+.deps dt:first-child{margin-top:0}
+.deps dd{margin:0;font-size:.92rem}
+.deps ul{margin:0;padding-left:1.1em}
+.empty{color:var(--muted);font-style:italic}
+
+/* matrix */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:12px}
+.phone .grid{grid-template-columns:1fr 1fr}
+.cell{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--card);font-size:.82rem;min-width:0}
+.cell code{background:none;padding:0;font-size:.8rem}
+.cell .st{margin-top:6px}
+.cell.new{animation:pop .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+.addrow{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:200px}
+.field input{height:44px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;background:var(--card);color:var(--ink)}
+.field input.bad{border-color:var(--error);background:var(--error-bg);animation:nudge .3s cubic-bezier(.2,.8,.2,1)}
+.field .help{font-size:.8rem;color:var(--muted);min-height:1.2em}
+.field .help.err{color:var(--error)}
+@keyframes nudge{0%,100%{transform:none}30%{transform:translateX(-4px)}60%{transform:translateX(3px)}}
+.btn{height:44px;border:0;border-radius:10px;padding:0 16px;font:600 .92rem var(--sans);cursor:pointer;background:var(--primary);color:#fff}
+.btn.sec{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn:active{transform:scale(.98)}
+.phone .addrow .btn{width:100%}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.q{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.q ol{margin:8px 0 0;padding-left:1.2em}
+.q li{margin:6px 0}
+.reco{color:var(--success);font-weight:600}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Retirer un plugin sans rien casser</h1>
+<p class="lede">Chaque plugin a été retiré un par un — désactivé, désinstallé, puis son code supprimé — et tout le reste a été vérifié. Ce qui tient, ce qui casse, et la garantie qu’on propose de mettre dans la CI pour que ça reste vrai.</p>
+
+<h2>Le constat</h2>
+<div class="kpis">
+  <div class="kpi ok"><b class="num">15 / 15</b><span>plugins désactivés puis désinstallés : l’application tient</span></div>
+  <div class="kpi ok"><b class="num">40</b><span>pages vérifiées à chaque retrait, fiches avec données comprises</span></div>
+  <div class="kpi ko"><b class="num">16 / 16</b><span>plugins dont le code absent empêche le serveur de démarrer</span></div>
+  <div class="kpi ko"><b class="num">40</b><span>fichiers de tests du cœur qui importent un plugin</span></div>
+</div>
+<div class="cols">
+  <div class="panel">
+    <h3>Ce qui tient</h3>
+    <ul class="plain">
+      <li>Sur une copie des données réelles, en build de production : désactiver, désinstaller (après redémarrage, le plugin n’est plus chargé), réinstaller. Aucune erreur de page, aucune erreur serveur, les données reviennent.</li>
+      <li>Les garde-fous font leur travail : le paiement en ligne refuse de partir avec 5 liens ouverts, l’Accueil et le Comptable refusent de partir avec un compte qui en dépend.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>Ce qui casse</h3>
+    <ul class="plain">
+      <li><b>Le serveur ne démarre pas</b> si le dossier d’un plugin manque : le catalogue lit chaque <code>manifest.json</code> au chargement.</li>
+      <li><b>Les tests ne survivent pas au retrait</b> : 40 fichiers du cœur, 4 tests de plugins qui en importent un autre, et les tests du moteur de plugins écrits sur de vrais plugins (« seize plugins »).</li>
+      <li>En mode développement, un plugin inscrit en base mais sans code compte comme <b>actif</b>.</li>
+      <li>Latent : un rappel d’acompte peut renvoyer un lien Qonto alors que le paiement en ligne ne tourne plus.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Plugin par plugin</h2>
+<p>Choisir un plugin : ce qui dépend de lui, et ce qu’a donné chaque façon de le retirer.</p>
+<div class="demo-bar">
+  <div class="seg" role="group" aria-label="Largeur">
+    <button type="button" aria-pressed="true" data-w="desk">Ordinateur</button>
+    <button type="button" aria-pressed="false" data-w="phone">Téléphone</button>
+  </div>
+</div>
+<div class="stage" id="stage">
+  <div class="frame">
+    <div class="chips" id="chips" role="group" aria-label="Plugins"></div>
+    <div class="detail">
+      <div class="card">
+        <h3 id="pName"></h3>
+        <p class="sub" id="pSub"></p>
+        <div class="modes" id="pModes"></div>
+      </div>
+      <div class="card">
+        <dl class="deps" id="pDeps"></dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Ce qu’on propose</h2>
+<div class="cols">
+  <div class="panel">
+    <h3>1. Les corrections</h3>
+    <ul class="plain">
+      <li>Le catalogue ignore un plugin dont le code manque, au lieu de planter. S’il était installé, il apparaît « Paquet introuvable » sur la page Plugins, désinstallable.</li>
+      <li>Sans module chargé, un plugin n’est jamais actif, en production comme en développement.</li>
+      <li>Les tests du cœur n’importent plus aucun plugin : déplacés dans le plugin, ou réécrits sur un plugin factice. Un test qui prouve une vraie collaboration (le SAS et ses étapes, Neat sur le site) le déclare et se saute quand l’un manque.</li>
+      <li>Le lien de paiement n’est proposé dans un mail que si le paiement en ligne tourne.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>2. La garantie, chaque nuit et à la demande</h3>
+    <ul class="plain">
+      <li><b>Une case par plugin</b> : on supprime son code, puis tests serveur, build, démarrage en production sur une base qui contient encore ses données, contrat des API du cœur, et les pages principales sur ordinateur et téléphone.</li>
+      <li><b>Un balayage</b> : sur un seul serveur, chaque plugin est désactivé, réactivé, désinstallé, purgé, réinstallé — et ses données doivent revenir à l’identique.</li>
+      <li>Une fiche qui porte les données d’un plugin retiré s’ouvre et s’enregistre sans changer un centime.</li>
+    </ul>
+  </div>
+</div>
+
+<h3 style="margin-top:22px">La matrice se remplit seule</h3>
+<p>La liste des cases n’est écrite nulle part : elle vient des dossiers. Ajouter un plugin ajoute sa case — et un test unitaire (celui-là bloque la PR) échoue tant que ses données de test manquent.</p>
+<div class="stage" id="stage2">
+  <div class="frame">
+    <div class="addrow">
+      <label class="field">
+        <span style="font-size:.85rem;font-weight:600">Nouveau dossier de plugin</span>
+        <input id="newId" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="ex. menage-planning" aria-describedby="newHelp">
+        <span class="help" id="newHelp">Identifiant en minuscules, chiffres et tirets.</span>
+      </label>
+      <button type="button" class="btn" id="addBtn" style="margin-top:24px">Ajouter</button>
+      <button type="button" class="btn sec" id="seedBtn" style="margin-top:24px" hidden>Ajouter ses données de test</button>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="plain">
+  <li>Retirer deux plugins à la fois dans toutes les combinaisons. « Tous retirés » est déjà prouvé par la suite « installation vierge » ; un plugin requis par un autre est retiré avec lui (Site internet emporte Google Vacation Rentals).</li>
+  <li>Ce que voient les consommateurs extérieurs d’un plugin retiré : le site WordPress sans « Site internet », la maison sans « Accès portail », le script de saisie Booking. Ils reçoivent aujourd’hui une réponse « plugin inactif » ; ce qu’ils en affichent relève de leur propre spec.</li>
+  <li>Réécrire les identifiants de plugins cités dans le cœur (prix à l’heure, rôles, modèles de mails) : tous sont conditionnés à « plugin actif », et la matrice prouve qu’ils sont sans effet en son absence.</li>
+  <li>La suite de tests client dans chaque case : un contrôle statique (aucun fichier du cœur n’importe un plugin) et le rendu des pages sans le plugin la remplacent, pour 7 minutes de moins par case.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="cols">
+  <div class="panel">
+    <h3>Le chantier des tests</h3>
+    <p>Une quarantaine de fichiers de tests à déplacer ou réécrire, sans perdre un seul cas. Le nombre de tests de chaque suite est comparé avant et après : un cas qui disparaît se voit.</p>
+  </div>
+  <div class="panel">
+    <h3>Le temps de CI</h3>
+    <p>Les 16 cases ne tournent plus sur les PR : chaque nuit et à la demande (onglet Actions), 8 en parallèle, une case sous 12 minutes. Aucun contrôle de PR n’attend derrière elles — en échange, la casse d’un plugin se découvre le lendemain du merge, par une issue ouverte automatiquement.</p>
+  </div>
+</div>
+
+<h2>Arbitrages tranchés le 28/10/2026</h2>
+<div class="q">
+  <b>Quand tournent les 16 cases ?</b>
+  <ol><li><b>Chaque nuit et à la demande</b>, sans bloquer les PR.</li></ol>
+</div>
+<div class="q">
+  <b>Le balayage « désactiver / désinstaller / réinstaller » bloque-t-il la PR ?</b>
+  <ol><li><b>Non</b> : chaque nuit, avec une issue ouverte ou mise à jour en cas d’échec.</li></ol>
+</div>
+<div class="q">
+  <b>Les tests exposés par la règle « sans module, pas actif » ?</b>
+  <ol><li><b>Corrigés dans la même PR</b>.</li></ol>
+</div>
+</main>
+
+<script>
+(function () {
+  var PLUGINS = [
+    { id: 'hourly-resources', name: 'Ressources à l’heure', off: 'ok', removed: 'ok', absent: 9,
+      core: ['Prix « à l’heure » : les lignes existantes restent figées en lecture seule', 'Contexte des mails et faits du séjour', 'Lecture des réservations externes de ressources (contrôle de conflit)'],
+      plugins: ['Son étape « créneaux » dans le SAS'], tables: ['resource_bookings'] },
+    { id: 'linen', name: 'Linge et blanchisserie', off: 'ok', removed: 'ok', absent: 2,
+      core: ['Alerte linge des cartes d’arrivée du planning'], plugins: ['Ses étapes linge dans le SAS'], tables: ['laundry_trip_skips', 'laundry_trip_manual_additions', 'laundry_extra_trips'] },
+    { id: 'website-booking', name: 'Site internet', off: 'ok', removed: 'ok', absent: 7,
+      core: ['Toute l’API publique /public/v1 (le site WordPress)'], plugins: ['Requis par Google Vacation Rentals', 'Affiche l’offre d’assurance Neat'], tables: ['public_request_* (4)'] },
+    { id: 'gate-access', name: 'Accès portail', off: 'ok', removed: 'ok', absent: 2,
+      core: ['Code et lien portail des mails (vides sans le plugin)', 'Route publique appelée par la maison'], plugins: ['Son étape portail dans le SAS'], tables: ['gate_key_results', 'gate_connector_state'] },
+    { id: 'neat', name: 'Neat', off: 'ok', removed: 'ok', absent: 0,
+      core: ['Préférence de notification « Neat »'], plugins: ['Son offre dans l’API du site'], tables: ['neat_subscriptions', 'neat_price_cache'] },
+    { id: 'online-payment', name: 'Paiement en ligne', off: 'blocked', removed: 'blocked', absent: 2,
+      core: ['Fournisseur de paiement, 4 modèles de demande', 'Refus de retrait tant qu’un lien est ouvert', 'Rappel d’acompte : réinjecte le lien ouvert sans vérifier le plugin'],
+      plugins: ['Paiement des demandes du site'], tables: ['bank_* (5)'] },
+    { id: 'google-calendar', name: 'Google Agenda', off: 'ok', removed: 'ok', absent: 0,
+      core: ['Ancienne colonne de réglages migrée'], plugins: [], tables: [] },
+    { id: 'accounting-export', name: 'Export comptable', off: 'blocked', removed: 'blocked', absent: 8,
+      core: ['Rôle « Comptable » (refus de retrait si un compte en dépend)', 'Menu Finance des comptables'], plugins: [], tables: [] },
+    { id: 'sas', name: 'SAS d’arrivée et de départ', off: 'blocked', removed: 'blocked', absent: 1,
+      core: ['Rôle « Accueil »', 'Notifications d’arrivée et de départ', 'Redirection de l’ancienne page Tarifs'], plugins: ['Héberge les étapes Linge, Météo, Portail, Ressources'], tables: [] },
+    { id: 'tariff-recipes', name: 'Recettes tarifaires', off: 'ok', removed: 'ok', absent: 6,
+      core: ['Annonce « prix changé »'], plugins: ['Alimente Google Vacation Rentals'], tables: ['tariff_recipe_runs'] },
+    { id: 'school-holidays', name: 'Vacances scolaires', off: 'ok', removed: 'ok', absent: 1,
+      core: ['Libellé du menu « Vacances & fermetures »', 'Pastilles de zones des calendriers'], plugins: [], tables: ['school_holidays', 'school_holidays_sync_state'] },
+    { id: 'weather-alerts', name: 'Météo', off: 'ok', removed: 'ok', absent: 0,
+      core: ['Ancienne colonne de clé migrée'], plugins: ['Son étape météo dans le SAS'], tables: ['weather_vigilance_cache'] },
+    { id: 'gites-de-france-intake', name: 'Saisie Gîtes de France', off: 'ok', removed: 'ok', absent: 1,
+      core: ['Bandeau de saisie de la fiche, alerte de l’accueil'], plugins: [], tables: ['gdf_intakes'] },
+    { id: 'booking-intake', name: 'Saisie Booking', off: 'ok', removed: 'ok', absent: 1,
+      core: ['Bandeau de saisie de la fiche', 'Route publique du script'], plugins: [], tables: ['booking_intakes', 'booking_dismissals'] },
+    { id: 'airbnb-intake', name: 'Saisie Airbnb', off: 'ok', removed: 'ok', absent: 0,
+      core: ['Bandeau de saisie de la fiche, alerte de l’accueil'], plugins: [], tables: ['airbnb_intakes'] },
+    { id: 'google-vacation-rentals', name: 'Google Vacation Rentals', off: 'na', removed: 'na', absent: 1,
+      core: [], plugins: ['Nécessite Site internet', 'Ses tests importent les Recettes tarifaires'], tables: ['gvr_* (3)'] }
+  ];
+  var MODE_TXT = {
+    ok: ['b-ok', 'Tout fonctionne'],
+    blocked: ['b-warn', 'Refusé par son garde-fou, puis tout fonctionne'],
+    na: ['b-info', 'Non installé sur la copie']
+  };
+  var chips = document.getElementById('chips');
+  var current = PLUGINS[0].id;
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  PLUGINS.forEach(function (p) {
+    var b = el('button', 'chip'); b.type = 'button'; b.dataset.id = p.id;
+    var d = el('span', 'dot'); d.style.background = p.off === 'blocked' ? 'var(--warning)' : 'var(--error)';
+    b.appendChild(d); b.appendChild(document.createTextNode(p.name));
+    b.addEventListener('click', function () { current = p.id; render(); });
+    chips.appendChild(b);
+  });
+  function mode(label, sub, badge) {
+    var m = el('div', 'mode'); var l = el('div', 'l');
+    l.appendChild(el('b', null, label)); l.appendChild(el('small', null, sub));
+    var s = el('span', 'badge ' + badge[0], badge[1]);
+    m.appendChild(l); m.appendChild(s); return m;
+  }
+  function list(items) {
+    var dd = el('dd');
+    if (!items.length) { dd.appendChild(el('span', 'empty', 'Rien')); return dd; }
+    var ul = el('ul'); items.forEach(function (t) { ul.appendChild(el('li', null, t)); }); dd.appendChild(ul); return dd;
+  }
+  function render() {
+    var p = PLUGINS.filter(function (x) { return x.id === current; })[0];
+    [].forEach.call(chips.children, function (c) { c.setAttribute('aria-pressed', String(c.dataset.id === current)); });
+    document.getElementById('pName').textContent = p.name;
+    document.getElementById('pSub').textContent = p.id;
+    var modes = document.getElementById('pModes'); modes.innerHTML = '';
+    modes.appendChild(mode('Désactivé', 'Données et réglages gardés', MODE_TXT[p.off]));
+    modes.appendChild(mode('Désinstallé, serveur redémarré', 'Le plugin n’est plus chargé, ses données restent', MODE_TXT[p.removed]));
+    modes.appendChild(mode('Réinstallé', 'Ses données reviennent', MODE_TXT[p.off === 'na' ? 'na' : 'ok']));
+    var absentTxt = 'Le serveur ne démarre pas' + (p.absent ? ' · ' + p.absent + ' fichier' + (p.absent > 1 ? 's' : '') + ' de tests du cœur ou d’autres plugins cassé' + (p.absent > 1 ? 's' : '') : '');
+    modes.appendChild(mode('Code absent', 'Dossiers serveur et client supprimés', ['b-ko', absentTxt]));
+    var deps = document.getElementById('pDeps'); deps.innerHTML = '';
+    deps.appendChild(el('dt', null, 'Le cœur s’en sert'));
+    deps.appendChild(list(p.core));
+    deps.appendChild(el('dt', null, 'Les autres plugins'));
+    deps.appendChild(list(p.plugins));
+    deps.appendChild(el('dt', null, 'Tables laissées en place à la désinstallation'));
+    deps.appendChild(list(p.tables));
+  }
+  render();
+
+  // matrix
+  var grid = document.getElementById('grid');
+  var cells = PLUGINS.map(function (p) { return { id: p.id, seed: true }; });
+  var pending = null;
+  function drawGrid(newId) {
+    grid.innerHTML = '';
+    cells.forEach(function (c) {
+      var d = el('div', 'cell' + (c.id === newId ? ' new' : ''));
+      d.appendChild(el('code', null, 'removal: ' + c.id));
+      var st = el('div', 'st');
+      st.appendChild(c.seed ? el('span', 'badge b-ok', 'Vert') : el('span', 'badge b-ko', 'Données de test manquantes'));
+      d.appendChild(st); grid.appendChild(d);
+    });
+  }
+  drawGrid();
+  var input = document.getElementById('newId'); var help = document.getElementById('newHelp');
+  var seedBtn = document.getElementById('seedBtn');
+  var ID_RE = /^[a-z][a-z0-9-]{1,40}$/;
+  function refuse(msg) {
+    input.classList.remove('bad'); void input.offsetWidth; input.classList.add('bad');
+    help.textContent = msg; help.className = 'help err'; input.setAttribute('aria-invalid', 'true');
+  }
+  function add() {
+    var v = input.value.trim();
+    if (!v) return refuse('Identifiant requis.');
+    if (!ID_RE.test(v)) return refuse('Minuscules, chiffres et tirets, 2 à 41 caractères, une lettre en premier.');
+    if (cells.some(function (c) { return c.id === v; })) return refuse('Ce plugin existe déjà.');
+    input.classList.remove('bad'); input.removeAttribute('aria-invalid');
+    cells.push({ id: v, seed: false }); pending = v;
+    help.textContent = 'Case ajoutée sans toucher au workflow. Elle échoue tant que removalSeed.js manque.'; help.className = 'help';
+    seedBtn.hidden = false; input.value = '';
+    drawGrid(v);
+  }
+  document.getElementById('addBtn').addEventListener('click', add);
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
+  input.addEventListener('input', function () { if (input.classList.contains('bad')) { input.classList.remove('bad'); help.className = 'help'; help.textContent = 'Identifiant en minuscules, chiffres et tirets.'; } });
+  seedBtn.addEventListener('click', function () {
+    cells.forEach(function (c) { if (c.id === pending) c.seed = true; });
+    seedBtn.hidden = true; help.textContent = 'Données de test ajoutées : la case passe au vert.'; help.className = 'help';
+    drawGrid();
+  });
+
+  // width toggle
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.seg button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      var phone = b.dataset.w === 'phone';
+      document.getElementById('stage').classList.toggle('phone', phone);
+      document.getElementById('stage2').classList.toggle('phone', phone);
+    });
+  });
+})();
+</script>
+</body>
+</html>

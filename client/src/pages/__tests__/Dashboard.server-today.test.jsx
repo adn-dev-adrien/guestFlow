@@ -23,7 +23,6 @@ vi.mock('../../api', () => ({
 }));
 const { mockAuth } = vi.hoisted(() => ({ mockAuth: { user: { roles: ['admin'] } } }));
 vi.mock('../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => mockAuth }));
-vi.mock('../../plugins/linen/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalCancellationAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/NewReservationsAlert', () => ({ __esModule: true, default: () => null }));

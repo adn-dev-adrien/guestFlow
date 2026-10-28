@@ -192,13 +192,23 @@ function createPushService({
     return true;
   }
 
+  /**
+   * specs/plugin-removal-resilience.md rule 17 — the plugin came back (activated or reinstalled): its triggers
+   * were dropped while it was off, so everything is re-sent now instead of at the nightly pass.
+   */
+  async function catchUp() {
+    if (!settings.partnerId()) return false;
+    await runAll({ full: true, reason: 'catch-up' });
+    return true;
+  }
+
   function cancelPending() {
     pending.forEach((entry) => timers.clearTimeout(entry.handle));
     pending.clear();
   }
 
   return {
-    runProperty, runAll, schedule, nightlyTick, cancelPending,
+    runProperty, runAll, schedule, nightlyTick, catchUp, cancelPending,
     isPending: (id) => pending.has(Number(id)),
     pendingKind: (id) => (pending.get(Number(id)) || {}).kind || null,
     isRunning: (id) => running.has(Number(id)),

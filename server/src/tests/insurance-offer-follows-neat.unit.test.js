@@ -3,6 +3,7 @@
 // it gets it back read-only; the plugin's return brings the option back with its settings.
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -101,7 +102,7 @@ test('rules 21, 23 — Neat back: the option is back with its price, type and pr
   assert.deepEqual(model.listForProperty(1).map((o) => o.id).sort(), [10, 11]);
 });
 
-test('rule 6 — the site refuses the insurance like an option the property does not offer', () => {
+test('rule 6 — the site refuses the insurance like an option the property does not offer', { skip: skipWithout(['website-booking']) }, () => {
   const db = seed();
   const original = Module.prototype.require;
   Module.prototype.require = function patched(id) {

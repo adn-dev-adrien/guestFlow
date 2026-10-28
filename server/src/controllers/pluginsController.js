@@ -11,7 +11,7 @@ const defaultModel = require('../models/pluginsModel');
 const registry = require('../plugins/sdk/registry');
 const { forgetPluginMigrations } = require('../plugins/sdk/pluginMigrations');
 const {
-  PLUGIN_CATALOG, PLUGIN_SETTINGS_PLACES, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT,
+  PLUGIN_CATALOG, PLUGIN_DISPLAY_NAMES, PLUGIN_SETTINGS_PLACES, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT,
 } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
 const { compare } = require('../utils/semverRange');
@@ -105,7 +105,29 @@ function createController(model = defaultModel, deps = {}) {
     registry: (id) => (packages() ? host().registryClient().versions(id) : []),
     bundled: (id) => host().runningCopy(id),
   });
-  const nameOf = (id) => (findPlugin(id) || {}).name || id;
+  // specs/plugin-removal-resilience.md rule 1 — an installed plugin this release no longer ships is
+  // still listed (under the name its row's manifest carries), so it can be uninstalled.
+  const bareEntry = (id, m = {}) => ({
+      id,
+      name: m.name || id,
+      description: m.description || '',
+      icon: m.icon || 'extension',
+      surfaces: m.surfaces || [],
+      requires: m.requires || [],
+      version: m.version || null,
+    });
+  const orphanEntry = (row) => ({ ...bareEntry(row.id, row.manifest || {}), version: row.version || (row.manifest || {}).version || null });
+  const entryFor = (id) => {
+    const known = findPlugin(id);
+    if (known) return known;
+    const row = model.get(id);
+    return row ? orphanEntry(row) : null;
+  };
+  const catalogue = () => {
+    const shipped = new Set(PLUGIN_CATALOG.map((p) => p.id));
+    return [...PLUGIN_CATALOG, ...model.list().filter((r) => !shipped.has(r.id)).map(orphanEntry)];
+  };
+  const nameOf = (id) => (entryFor(id) || {}).name || id;
   const installedVersions = () => Object.fromEntries(model.list().map((r) => [r.id, r.version || (host().runningCopy(r.id) || { manifest: {} }).manifest.version]));
   const planCtx = () => ({
     sources: sources(), env: env(), installed: installedVersions(), nameOf, allows: (id) => licence().allowsPlugin(id),
@@ -272,7 +294,7 @@ function createController(model = defaultModel, deps = {}) {
   }
 
   function statusView() {
-    const views = PLUGIN_CATALOG.map(view);
+    const views = catalogue().map(view);
     const updates = views.filter((p) => p.update && !p.update.refusal && !p.outOfPlan);
     const n = updates.length;
     const regStatus = packages() ? host().registryClient().status() : { configured: false };
@@ -345,7 +367,10 @@ function createController(model = defaultModel, deps = {}) {
     }
     model.install(id, { version: candidate.version, source: candidate.source, manifest: pkg.manifest, sha256: pkg.sha256 });
     undo.push(() => model.uninstall(id));
-    if (!restart) await loader().runInstallHooks(id);
+    if (!restart) {
+      await loader().runInstallHooks(id);
+      loader().runActivateHooks(id);
+    }
     return { restart };
   }
 
@@ -478,7 +503,7 @@ function createController(model = defaultModel, deps = {}) {
 
   // Resolves `:id` or answers 404; returns the catalogue entry.
   function resolve(req, res) {
-    const entry = findPlugin(req.params.id);
+    const entry = entryFor(req.params.id);
     if (!entry) res.status(404).json({ error: 'UNKNOWN_PLUGIN' });
     return entry;
   }
@@ -490,7 +515,7 @@ function createController(model = defaultModel, deps = {}) {
   function refuseIfRequiredBy(entry, res, { activeOnly = false, reconciling = false } = {}) {
     const others = model.list().filter((r) => r.id !== entry.id && (!activeOnly || r.enabled)
       && (!reconciling || licence().allowsPlugin(r.id)));
-    const dependents = dependentsOf(entry.id, Object.fromEntries(others.map((r) => [r.id, r.manifest || findPlugin(r.id)])));
+    const dependents = dependentsOf(entry.id, Object.fromEntries(others.map((r) => [r.id, r.manifest || entryFor(r.id)])));
     if (!dependents.length) return false;
     const names = dependents.map((m) => m.name || nameOf(m.id)).join(', ');
     const step = activeOnly ? 'désactiver' : 'désinstaller';
@@ -528,8 +553,8 @@ function createController(model = defaultModel, deps = {}) {
     // GET /api/plugins — on an operator-managed space only what a feature needs: the live plugins,
     // each as { id, name, icon, setup } (specs/plugin-operator-provisioning.md rule 5).
     list(req, res) {
-      if (!operatorManaged()) return res.json(PLUGIN_CATALOG.map(view));
-      const live = PLUGIN_CATALOG.filter((entry) => {
+      if (!operatorManaged()) return res.json(catalogue().map(view));
+      const live = catalogue().filter((entry) => {
         const row = model.get(entry.id);
         return Boolean(row && row.enabled && reg.isLive(entry.id));
       });
@@ -538,7 +563,7 @@ function createController(model = defaultModel, deps = {}) {
 
     /** The same views, for the core's own readers (the Paramètres summary, rule 25). */
     views() {
-      return PLUGIN_CATALOG.map(view);
+      return catalogue().map(view);
     },
 
     // POST /api/plugins/:id/install — rule 4: installed and active in one step. A module's tables are
@@ -558,7 +583,10 @@ function createController(model = defaultModel, deps = {}) {
         }
       }
       model.install(entry.id);
-      if (reg.get(entry.id)) await loader().runInstallHooks(entry.id);
+      if (reg.get(entry.id)) {
+        await loader().runInstallHooks(entry.id);
+        loader().runActivateHooks(entry.id);
+      }
       return res.json(view(entry));
     },
 
@@ -567,7 +595,7 @@ function createController(model = defaultModel, deps = {}) {
     // A page shows while any of its plugins is active: then the address answers like a core page.
     pageOwner(req, res) {
       const plugins = pluginsOfPage(req.query && req.query.path)
-        .map((id) => view(findPlugin(id)))
+        .map((id) => view(entryFor(id) || bareEntry(id, { name: PLUGIN_DISPLAY_NAMES[id] })))
         .map((p) => ({ id: p.id, name: p.name, state: p.state }));
       if (!plugins.length || plugins.some((p) => p.state === 'active')) return res.json({ plugins: [], message: null });
       // Non-breaking spaces: a closing « » » never starts a line on its own.
@@ -617,7 +645,7 @@ function createController(model = defaultModel, deps = {}) {
     // switch and one restart. A refused package leaves every plugin as it was.
     async updateAll(req, res) {
       if (refuseUpdateConditions(res)) return undefined;
-      const targets = PLUGIN_CATALOG.map((entry) => {
+      const targets = catalogue().map((entry) => {
         const row = model.get(entry.id);
         if (!row || host().state().incompatible[entry.id] || !licence().allowsPlugin(entry.id)) return null;
         const target = updateTarget(row, null);
@@ -660,6 +688,7 @@ function createController(model = defaultModel, deps = {}) {
       if (refuseIfOutOfPlan(entry, res)) return undefined;
       if (refuseIfRequirementInactive(entry, res)) return undefined;
       model.setEnabled(entry.id, true);
+      if (reg.get(entry.id)) loader().runActivateHooks(entry.id);
       return res.json(view(entry));
     },
 

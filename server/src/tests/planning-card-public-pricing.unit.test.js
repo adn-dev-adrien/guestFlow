@@ -4,6 +4,7 @@
 // flag (admin), a planning-card option still requires scheduled occurrences.
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -114,7 +115,7 @@ function seedHourlyResource(db) {
   return db;
 }
 
-test('public flow: hourly-scheduled resource billed by quantity (= hours) when unscheduled', () => {
+test('public flow: hourly-scheduled resource billed by quantity (= hours) when unscheduled', { skip: skipWithout(['hourly-resources']) }, () => {
   const q = quote(seedHourlyResource(seedDb()), { selectedResources: [{ resourceId: 3, quantity: 2 }], planningCardAsQuantity: true });
   const line = q.resourceLines.find((l) => l.resourceId === 3);
   assert.ok(line, 'the hourly resource is billed from the bare quantity, not dropped');
@@ -123,12 +124,12 @@ test('public flow: hourly-scheduled resource billed by quantity (= hours) when u
   assert.equal(q.resourcesTotal, 60);
 });
 
-test('public flow: hourly-scheduled resource quantity 0 → no line', () => {
+test('public flow: hourly-scheduled resource quantity 0 → no line', { skip: skipWithout(['hourly-resources']) }, () => {
   const q = quote(seedHourlyResource(seedDb()), { selectedResources: [{ resourceId: 3, quantity: 0 }], planningCardAsQuantity: true });
   assert.equal(q.resourceLines.find((l) => l.resourceId === 3), undefined);
 });
 
-test('public flow: sessions still win over the bare quantity when provided', () => {
+test('public flow: sessions still win over the bare quantity when provided', { skip: skipWithout(['hourly-resources']) }, () => {
   const q = quote(seedHourlyResource(seedDb()), {
     selectedResources: [{ resourceId: 3, quantity: 5, sessions: [{ date: '2026-07-11', start: '20:00', end: '22:00' }] }],
     planningCardAsQuantity: true,
@@ -138,7 +139,7 @@ test('public flow: sessions still win over the bare quantity when provided', () 
   assert.equal(line.quantity, 2);     // HOURS scheduled, not the session count (§3.1 rule 7)
 });
 
-test('admin flow (flag off): an hourly-scheduled resource with NO sessions is billed by quantity', () => {
+test('admin flow (flag off): an hourly-scheduled resource with NO sessions is billed by quantity', { skip: skipWithout(['hourly-resources']) }, () => {
   // Regression guard for the reported bug: enabling the Bain nordique on a devis used to return NO
   // line at all, so the resource vanished from the summary and from the total
   // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 1).
@@ -150,7 +151,7 @@ test('admin flow (flag off): an hourly-scheduled resource with NO sessions is bi
   assert.equal(q.resourcesTotal, 60);
 });
 
-test('the resource line no longer depends on planningCardAsQuantity', () => {
+test('the resource line no longer depends on planningCardAsQuantity', { skip: skipWithout(['hourly-resources']) }, () => {
   const args = { selectedResources: [{ resourceId: 3, quantity: 2 }] };
   const withFlag = quote(seedHourlyResource(seedDb()), { ...args, planningCardAsQuantity: true });
   const withoutFlag = quote(seedHourlyResource(seedDb()), args);

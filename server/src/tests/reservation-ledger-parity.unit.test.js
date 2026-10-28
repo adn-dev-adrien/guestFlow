@@ -22,11 +22,12 @@ if (SOURCE) {
 }
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const { db, controller, respond, createStay, mark, ADMIN } = require('./ledgerFixture');
 const { bucketStates, remainingToPay } = require('../utils/reservationSettlement');
-const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
-const { create: createAccountingController } = require('../plugins/accounting-export/controller');
+const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const { create: createAccountingController } = optionalPlugin(() => require('../plugins/accounting-export/controller'));
 
 function seedSynthetic() {
   const today = new Date().toISOString().slice(0, 10);
@@ -82,7 +83,7 @@ function ledgerOf(id) {
 
 const isPaid = (row) => Boolean(row) && String(row.state).startsWith('paid');
 
-test('rules 1, 4, 5 — every stored reservation: bucket states, amounts and « Reste à percevoir » match the settlement readers; the export is untouched', () => {
+test('rules 1, 4, 5 — every stored reservation: bucket states, amounts and « Reste à percevoir » match the settlement readers; the export is untouched', { skip: skipWithout(['accounting-export']) }, () => {
   if (!SOURCE) seedSynthetic();
   const before = exportAll();
   const rows = db.prepare("SELECT * FROM reservations WHERE kind IN ('reservation', 'cancelled') ORDER BY id").all();

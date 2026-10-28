@@ -24,6 +24,8 @@ const {
 } = require('../utils/pluginsSchema');
 const { isEncrypted } = require('../utils/encryption');
 
+const { listPlugins, skipWithout } = require('../plugins/sdk/testing');
+
 const SRC = path.join(__dirname, '..');
 const SCHEMA = fs.readFileSync(path.join(SRC, 'schema.sql'), 'utf8');
 const MODULE_IDS = ['weather-alerts', 'school-holidays', 'google-calendar', 'tariff-recipes', 'gate-access'];
@@ -88,7 +90,7 @@ const PHASE_3_IDS = ['online-payment', 'neat', 'hourly-resources'];
 const LATER_IDS = ['gites-de-france-intake', 'booking-intake', 'airbnb-intake', 'google-vacation-rentals'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
-  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS, ...LATER_IDS].sort());
+  assert.deepEqual(MODULES.map((m) => m.id).sort(), listPlugins());
   MODULES.forEach((m) => assert.equal(typeof m.register, 'function', m.id));
 });
 
@@ -136,16 +138,16 @@ test('rules 3, 11: no plugin imports the core outside the SDK, and the core impo
 
 test('rule 3: the isolation walk does catch a planted violation in either direction', () => {
   assert.deepEqual(importViolations({
-    'plugins/weather-alerts/x.js': "require('../../models/settingsModel')",
-    'controllers/y.js': "require('../plugins/google-calendar/sync')",
-    'plugins/gate-access/z.js': "require('../sdk'); require('./keys'); require('qrcode')",
+    'plugins/fixture-a/x.js': "require('../../models/settingsModel')",
+    'controllers/y.js': "require('../plugins/fixture-b/sync')",
+    'plugins/fixture-c/z.js': "require('../sdk'); require('./keys'); require('qrcode')",
   }), [
-    'plugins/weather-alerts/x.js → ../../models/settingsModel',
-    'controllers/y.js → ../plugins/google-calendar/sync',
+    'plugins/fixture-a/x.js → ../../models/settingsModel',
+    'controllers/y.js → ../plugins/fixture-b/sync',
   ]);
 });
 
-test('rule 4: a module that throws in register is failed, answers 404, and the others still mount', async () => {
+test('rule 4: a module that throws in register is failed, answers 404, and the others still mount', { skip: skipWithout(['school-holidays']) }, async () => {
   const db = freshDb();
   const broken = { id: 'weather-alerts', register() { throw new Error('boom'); } };
   const holidays = MODULES.find((m) => m.id === 'school-holidays');
@@ -177,7 +179,7 @@ test('rule 4: a module that throws after declaring a route answers 404 PLUGIN_IN
 
 // ---------- §3.B routes (rule 5) ----------
 
-test('rule 5: every moved route keeps its URL and answers 404 PLUGIN_INACTIVE while its plugin is off', async () => {
+test('rule 5: every moved route keeps its URL and answers 404 PLUGIN_INACTIVE while its plugin is off', { skip: skipWithout(['gate-access', 'google-calendar', 'school-holidays', 'tariff-recipes', 'weather-alerts']) }, async () => {
   const db = freshDb();
   const { app } = boot(db, { installed: MODULE_IDS, active: [] });
   for (const url of [
@@ -207,7 +209,7 @@ test('rule 5: a public mount is refused outside /public/, a plain mount outside 
   assert.throws(() => ctx.mount('/x', express.Router()), /\/api\//);
 });
 
-test('rule 5: plugin reception entries join the role guard; inactive, the route still ends in 404', () => {
+test('rule 5: plugin reception entries join the role guard; inactive, the route still ends in 404', { skip: skipWithout(['gate-access', 'weather-alerts']) }, () => {
   const db = freshDb();
   boot(db, { installed: [] });
   const matchers = loader.receptionMatchers().map((m) => `${m.method} ${m.re.source}`);
@@ -217,7 +219,7 @@ test('rule 5: plugin reception entries join the role guard; inactive, the route 
 
 // ---------- tables (rule 6) ----------
 
-test('rules 6, 26: an uninstalled plugin has no table; installing creates them and records the ledger', async () => {
+test('rules 6, 26: an uninstalled plugin has no table; installing creates them and records the ledger', { skip: skipWithout(['gate-access']) }, async () => {
   for (const table of ['weather_vigilance_cache', 'school_holidays', 'tariff_recipe_runs', 'gate_key_results']) {
     assert.doesNotMatch(SCHEMA, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`), table);
   }
@@ -233,7 +235,7 @@ test('rules 6, 26: an uninstalled plugin has no table; installing creates them a
   assert.ok(db.prepare("SELECT 1 FROM migrations WHERE name = 'plugin:gate-access:tables_v1'").get());
 });
 
-test('rules 6, 25: on a database that predates the module the migrations are no-ops, and run once', () => {
+test('rules 6, 25: on a database that predates the module the migrations are no-ops, and run once', { skip: skipWithout(['weather-alerts']) }, () => {
   const db = freshDb();
   db.exec('CREATE TABLE weather_vigilance_cache (departmentCode TEXT PRIMARY KEY, payload TEXT NOT NULL, fetchedAt TEXT NOT NULL)');
   db.prepare("INSERT INTO weather_vigilance_cache VALUES ('07', '[]', '2026-09-28')").run();
@@ -243,7 +245,7 @@ test('rules 6, 25: on a database that predates the module the migrations are no-
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM migrations WHERE name LIKE 'plugin:weather-alerts:%'").get().n, 1);
 });
 
-test('rule 6: a migration that fails at install time refuses the install and records nothing', async () => {
+test('rule 6: a migration that fails at install time refuses the install and records nothing', { skip: skipWithout(['weather-alerts']) }, async () => {
   const db = freshDb();
   const bad = { id: 'weather-alerts', register(ctx) { ctx.migrations([{ name: 'bad', up: () => { throw new Error('nope'); } }]); } };
   const { plugins } = boot(db, { installed: [], modules: [bad] });
@@ -258,7 +260,7 @@ test('rule 6: a migration that fails at install time refuses the install and rec
 
 // ---------- settings (rule 7) ----------
 
-test('rule 7: a secret is encrypted at rest and only reads back as <key>Set over HTTP', () => {
+test('rule 7: a secret is encrypted at rest and only reads back as <key>Set over HTTP', { skip: skipWithout(['weather-alerts']) }, () => {
   const db = freshDb();
   const { settingsModel } = boot(db, { installed: ['weather-alerts'] });
   const controller = createController(buildPluginsModel(db), { registry, settingsModel: () => settingsModel });
@@ -332,7 +334,7 @@ test('rule 25: a value a rollback wrote in the old columns is carried forward; a
 
 // ---------- jobs (rule 8) ----------
 
-test('rule 8: the jobs keep today’s intervals and boot delays, and skip their tick while inactive', async () => {
+test('rule 8: the jobs keep today’s intervals and boot delays, and skip their tick while inactive', { skip: skipWithout(['airbnb-intake', 'gate-access', 'gites-de-france-intake', 'google-calendar', 'google-vacation-rentals', 'neat', 'online-payment', 'school-holidays', 'tariff-recipes', 'website-booking']) }, async () => {
   const db = freshDb();
   boot(db, { installed: MODULE_IDS, active: [] });
   const intervals = [];
@@ -404,7 +406,7 @@ test('rule 9: a handler runs only while its plugin is live, and a throwing one n
   assert.throws(() => eventBus.emit('reservation.exploded', {}), /Unknown plugin event/);
 });
 
-test('rule 9: Google subscribes to the five events it used to be called for', () => {
+test('rule 9: Google subscribes to the five events it used to be called for', { skip: skipWithout(['google-calendar']) }, () => {
   const db = freshDb();
   boot(db, { installed: [] });
   // reservation.paid (phase 3a) changes nothing in a calendar event, nor does a price
@@ -416,7 +418,7 @@ test('rule 9: Google subscribes to the five events it used to be called for', ()
 
 // ---------- email variables (rule 10) ----------
 
-test('rule 10: the gate variables are filled while the plugin is active, empty and false when it is not', () => {
+test('rule 10: the gate variables are filled while the plugin is active, empty and false when it is not', { skip: skipWithout(['gate-access']) }, () => {
   const db = freshDb();
   boot(db, { installed: ['gate-access'] });
   db.prepare(`INSERT INTO gate_key_results (reservationId, action, ok, state, code, url, receivedAt)
@@ -444,7 +446,7 @@ test('rule 10: the four email paths take the plugin variables and no longer call
 // stands for a plugin without one.
 const WITHOUT_HOURLY_MODULE = MODULES.filter((m) => m.id !== 'hourly-resources');
 
-test('rule 12: the Plugins list says which plugins are erasable and what an erasure would take', () => {
+test('rule 12: the Plugins list says which plugins are erasable and what an erasure would take', { skip: skipWithout(['school-holidays']) }, () => {
   const db = freshDb();
   const { plugins } = boot(db, { installed: ['school-holidays', 'hourly-resources'], modules: WITHOUT_HOURLY_MODULE });
   db.prepare("INSERT INTO school_holidays (label) VALUES ('Toussaint'), ('Noël')").run();
@@ -459,7 +461,7 @@ test('rule 12: the Plugins list says which plugins are erasable and what an eras
   assert.deepEqual(hourly.data, []);
 });
 
-test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; a reinstall starts empty', async () => {
+test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; a reinstall starts empty', { skip: skipWithout(['weather-alerts']) }, async () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['weather-alerts'] });
   settingsModel.set('weather-alerts', 'apiKey', 'k', { secret: true });
@@ -499,7 +501,7 @@ test('rule 23: an erasure obeys the refusals of phase 0 rule 8', () => {
   assert.ok(plugins.get('online-payment'));
 });
 
-test('rule 20: erasing the recipes keeps every season and price; the seasons become manual', () => {
+test('rule 20: erasing the recipes keeps every season and price; the seasons become manual', { skip: skipWithout(['tariff-recipes']) }, () => {
   const db = freshDb();
   const { plugins } = boot(db, { installed: ['tariff-recipes'] });
   db.prepare("INSERT INTO properties (id, name, tariffRecipeId, tariffRecipeVersion) VALUES (1, 'Gîte', 'gite-2027', '3.0.0')").run();
@@ -550,7 +552,7 @@ test('rule 12: an erasure that fails halfway rolls everything back and keeps the
 
 // ---------- gate paths that ran while inactive (§1), rules 17-18 ----------
 
-test('rule 17: the SAS payload carries plugin data only for live plugins, and no gate field of its own', () => {
+test('rule 17: the SAS payload carries plugin data only for live plugins, and no gate field of its own', { skip: skipWithout(['sas', 'gate-access']) }, () => {
   const db = freshDb();
   boot(db, { installed: ['gate-access'] });
   db.prepare(`INSERT INTO gate_key_results (reservationId, action, ok, state, code, receivedAt)
@@ -564,7 +566,7 @@ test('rule 17: the SAS payload carries plugin data only for live plugins, and no
   assert.doesNotMatch(sas, /gateAccess:/);
 });
 
-test('rule 18: the connector keys are created by the plugin only, never by the core boot', () => {
+test('rule 18: the connector keys are created by the plugin only, never by the core boot', { skip: skipWithout(['gate-access']) }, () => {
   const index = fs.readFileSync(path.join(SRC, 'index.js'), 'utf8');
   assert.doesNotMatch(index, /GATE_API_KEY|GATE_SIGNING_SECRET/);
   const db = freshDb();

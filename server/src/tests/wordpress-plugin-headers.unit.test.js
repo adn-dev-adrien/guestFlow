@@ -2,6 +2,7 @@
 // wordpress.org plugin of the same slug as an « update ». Rule 24 — the version is bumped in the three
 // places the release reads, and the update manifest says which WordPress it was tested on.
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +24,7 @@ test('rule 24: header, constant and Stable tag agree, with a changelog entry', (
   assert.ok(readme.includes(`= ${header} =`), 'readme.txt has no changelog entry for the version');
 });
 
-test('rule 24: the manifest is « tested up to » a current WordPress', () => {
+test('rule 24: the manifest is « tested up to » a current WordPress', { skip: skipWithout(['website-booking']) }, () => {
   const ctrl = fs.readFileSync(path.join(__dirname, '..', 'plugins', 'website-booking', 'controllers', 'pluginUpdateController.js'), 'utf8');
   const tested = /const TESTED_WP = '(\d+)\.(\d+)';/.exec(ctrl);
   assert.ok(tested, 'TESTED_WP not found');

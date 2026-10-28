@@ -20,6 +20,7 @@ const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { SEQUENCE_STABLE_KEYS, MAIL } = require('../utils/guestEmailSequence');
 
 registry.configure({ isActive: (id) => id === 'hourly-resources', allows: () => true });
+registry.ensure('hourly-resources');
 
 const SEASON = {
   [MAIL.NOVEMBER]: { sendDate: '2027-11-15', giftDeadline: '2027-12-15', unsubscribeUrl: 'https://guestflow.example/preferences/emails?t=abc' },

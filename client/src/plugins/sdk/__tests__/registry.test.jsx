@@ -14,6 +14,7 @@ import { allContributions, contributionsFor } from '../registry';
 import Slot from '../Slot';
 import { ROUTE_PLUGINS, MODULE_ROUTE_ROLES, isRouteEnabled } from '../../../constants/plugins';
 import { SETTINGS_MENU } from '../../../constants/settingsMenu';
+import { shippedPlugins, lacksPlugins } from '../testing';
 
 const SRC = path.resolve(__dirname, '../../..');
 
@@ -24,11 +25,8 @@ beforeEach(() => enabled.clear());
 // (specs/plugins-phase-3c-hourly-resources.md rule 24); then gites-de-france-intake
 // (specs/gites-de-france-mail-intake.md), booking-intake (specs/booking-extranet-intake.md) and
 // airbnb-intake (specs/airbnb-mail-intake.md), google-vacation-rentals (specs/google-vacation-rentals-feed.md).
-test('rule 2: the modules are listed once', () => {
-  expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual([
-    'accounting-export', 'airbnb-intake', 'booking-intake', 'gate-access', 'gites-de-france-intake', 'google-calendar', 'google-vacation-rentals', 'hourly-resources', 'linen', 'neat', 'online-payment', 'sas', 'school-holidays',
-    'tariff-recipes', 'weather-alerts', 'website-booking',
-  ]);
+test('rule 2: the modules are listed once, one per shipped folder', () => {
+  expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual(shippedPlugins());
 });
 
 function readTree(dir, acc = {}) {
@@ -88,7 +86,7 @@ test('rule 13: a slot keeps the contributions of active plugins only, in their o
   expect(contributionsFor('s', user, modules).map((c) => `${c.pluginId}:${c.key}`)).toEqual(['a:early', 'a:late']);
 });
 
-test('rules 13-14: <Slot> renders an active plugin’s lazy component, and nothing for an inactive one', async () => {
+test.skipIf(lacksPlugins(['gate-access']))('rules 13-14: <Slot> renders an active plugin’s lazy component, and nothing for an inactive one', async () => {
   const { container, rerender } = render(<Slot name="dashboard.alerts.urgent" />);
   expect(container.innerHTML).toBe('');
   enabled.add('gate-access');
@@ -98,7 +96,7 @@ test('rules 13-14: <Slot> renders an active plugin’s lazy component, and nothi
   expect(await screen.findByText('clés du portail')).toBeTruthy();
 });
 
-test('rule 15: contributed pages join the route guard with the roles their module declares', () => {
+test.skipIf(lacksPlugins(['school-holidays', 'tariff-recipes']))('rule 15: contributed pages join the route guard with the roles their module declares', () => {
   expect(ROUTE_PLUGINS['/school-holidays']).toBe('school-holidays');
   expect(ROUTE_PLUGINS['/parametres/recettes']).toBe('tariff-recipes');
   expect(MODULE_ROUTE_ROLES['/parametres/recettes']).toEqual(['admin']);
@@ -106,7 +104,7 @@ test('rule 15: contributed pages join the route guard with the roles their modul
   expect(isRouteEnabled({ enabledPlugins: ['school-holidays'] }, '/school-holidays')).toBe(true);
 });
 
-test('rule 13: the recipes entry of the settings menu sits right after « Options & ressources »', () => {
+test.skipIf(lacksPlugins(['tariff-recipes']))('rule 13: the recipes entry of the settings menu sits right after « Options & ressources »', () => {
   const paths = SETTINGS_MENU.filter(Boolean).map((e) => e.path);
   expect(paths[paths.indexOf('/parametres/options-ressources') + 1]).toBe('/parametres/recettes');
 });

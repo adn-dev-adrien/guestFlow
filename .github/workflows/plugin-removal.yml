@@ -1,0 +1,167 @@
+name: Plugin removal matrix
+
+# specs/plugin-removal-resilience.md rules 7, 13, 15, 18.
+#
+# Nightly and on demand — never a pull-request check (decision of 2026-10-28). One cell per plugin: the
+# plugin, and the ones requiring it, are taken out of the code; the server suite, the build, the
+# production server on a database that still holds its data and the removal E2E must all pass. One sweep
+# per shard: every plugin is deactivated, reactivated, uninstalled, purged and reinstalled on a running
+# server. A failing night opens — or comments on — one issue.
+#
+# GitHub-hosted runners only: the production host's database and keys never meet a runner.
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: plugin-removal-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  list:
+    name: list the plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      plugins: ${{ steps.list.outputs.plugins }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📋 The plugins are the folders of server/src/plugins
+        id: list
+        run: echo "plugins=$(node scripts/plugin-removal.mjs list)" >> "$GITHUB_OUTPUT"
+
+  removal:
+    name: 'removal: ${{ matrix.plugin }}'
+    needs: list
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        plugin: ${{ fromJSON(needs.list.outputs.plugins) }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📚 Install root + client + server deps
+        run: |
+          npm ci
+          cd client && npm ci
+          cd ../server && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        run: |
+          cd server
+          env npm_config_build_from_source=true npm rebuild better-sqlite3
+
+      - name: 🎭 Install Playwright browsers (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: 🧪 Remove the plugin and check the rest
+        env:
+          CI: 'true'
+          TMPDIR: ${{ runner.temp }}
+        run: node scripts/plugin-removal.mjs cell "${{ matrix.plugin }}" --in-place
+
+      - name: 📤 Upload the logs and the Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: removal-${{ matrix.plugin }}
+          path: |
+            ${{ runner.temp }}/gf-removal-*/logs/
+            ${{ runner.temp }}/gf-removal-*/result.json
+            playwright-report-removal/
+          retention-days: 7
+
+  sweep:
+    name: 'plugin toggle sweep (${{ matrix.shard }}/2)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📚 Install root + client + server deps
+        run: |
+          npm ci
+          cd client && npm ci
+          cd ../server && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        run: |
+          cd server
+          env npm_config_build_from_source=true npm rebuild better-sqlite3
+
+      - name: 🎭 Install Playwright browsers (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: 🧪 Deactivate, reactivate, uninstall, purge and reinstall every plugin of the shard
+        env:
+          CI: 'true'
+          TMPDIR: ${{ runner.temp }}
+        run: node scripts/plugin-removal.mjs sweep --shard "${{ matrix.shard }}/2"
+
+      - name: 📤 Upload the logs and the Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sweep-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/gf-removal-sweep-*/logs/
+            playwright-report-removal/
+          retention-days: 7
+
+  alert:
+    name: open or update the issue
+    needs: [list, removal, sweep]
+    if: ${{ always() && github.event_name == 'schedule' && (needs.list.result == 'failure' || needs.removal.result == 'failure' || needs.sweep.result == 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: 🔔 Issue « Plugin removal matrix failing »
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Plugin removal matrix failing"
+          body="The nightly plugin removal matrix failed: ${RUN_URL}"
+          number=$(gh issue list --state open --search "\"${title}\" in:title" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

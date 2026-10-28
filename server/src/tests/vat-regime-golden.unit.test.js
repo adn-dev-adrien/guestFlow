@@ -5,6 +5,7 @@
 // legitimate on that code (Lot 0).
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -16,7 +17,7 @@ const GOLDEN = path.join(__dirname, 'fixtures', 'vat-regime', 'golden.json');
 
 const db = buildVatGoldenDb();
 
-test('rule 23: a VAT-registered install answers byte for byte as before the regime', async () => {
+test('rule 23: a VAT-registered install answers byte for byte as before the regime', { skip: skipWithout(['accounting-export']) }, async () => {
   const actual = await capture(db);
   if (process.env.GOLDEN_UPDATE === '1') {
     fs.mkdirSync(path.dirname(GOLDEN), { recursive: true });
@@ -28,7 +29,7 @@ test('rule 23: a VAT-registered install answers byte for byte as before the regi
   for (const key of Object.keys(expected)) assert.equal(actual[key], expected[key], key);
 });
 
-test('rule 23: the capture covers every artefact family and no family answers an error', async () => {
+test('rule 23: the capture covers every artefact family and no family answers an error', { skip: skipWithout(['accounting-export']) }, async () => {
   const actual = await capture(db);
   const families = new Set(Object.keys(actual).map((k) => k.split('/')[0]));
   for (const f of ['quote', 'fiche', 'pdf', 'link', 'csv', 'finance', 'tourist-tax', 'cancel']) assert.ok(families.has(f), f);
@@ -39,7 +40,7 @@ test('rule 23: the capture covers every artefact family and no family answers an
   assert.ok(csvWithRows >= 5, `journal months with entries: ${csvWithRows}`);
 });
 
-test('rule 23: the capture is deterministic', async () => {
+test('rule 23: the capture is deterministic', { skip: skipWithout(['accounting-export']) }, async () => {
   const a = await capture(db);
   const b = await capture(db);
   for (const key of Object.keys(a)) assert.equal(a[key], b[key], key);

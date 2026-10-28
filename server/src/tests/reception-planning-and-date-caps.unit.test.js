@@ -8,12 +8,13 @@
  */
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { checkPlanningRange, isIsoDate, daysBetween, MAX_PLANNING_RANGE_DAYS } = require('../utils/planningDateRange');
 const { toReceptionPlanningEvent, PLANNING_EVENT_KEEP } = require('../utils/receptionView');
-const { createController } = require('../plugins/hourly-resources/controller');
-const { buildController: buildPlanning } = require('../plugins/linen/planningController');
+const { createController } = optionalPlugin(() => require('../plugins/hourly-resources/controller'));
+const { buildController: buildPlanning } = optionalPlugin(() => require('../plugins/linen/planningController'));
 
 // The planning events are the `hourly-resources` plugin's, the laundry summary the `linen` plugin's
 // (specs/plugins-phase-3c-hourly-resources.md rule 10, specs/plugins-phase-2-hosts.md rule 4).
@@ -47,7 +48,7 @@ test('toReceptionPlanningEvent keeps only the whitelist, drops finance + PII', (
   assert.equal(view.resourceName, 'Spa');
 });
 
-test('planning-events: reception gets the projection, admin gets the full payload', () => {
+test('planning-events: reception gets the projection, admin gets the full payload', { skip: skipWithout(['hourly-resources']) }, () => {
   const model = { listPlanningEvents: () => [fullEvent()] };
   const c = buildResourceBookings(model);
 
@@ -62,7 +63,7 @@ test('planning-events: reception gets the projection, admin gets the full payloa
   assert.equal(rAdmin.body[0].clientPhone, '+33600000000');
 });
 
-test('planning-events: reception-only when roles also include a non-admin role', () => {
+test('planning-events: reception-only when roles also include a non-admin role', { skip: skipWithout(['hourly-resources']) }, () => {
   const model = { listPlanningEvents: () => [fullEvent()] };
   const c = buildResourceBookings(model);
   const r = res();
@@ -91,7 +92,7 @@ test('checkPlanningRange: ok, inverted, bad ISO, and the width ceiling', () => {
   assert.deepEqual(checkPlanningRange('0000-00-00', '2026-06-01'), { status: 400, error: 'INVALID_DATE_RANGE' });
 });
 
-test('planning-events rejects a pathological span before hitting the DB', () => {
+test('planning-events rejects a pathological span before hitting the DB', { skip: skipWithout(['hourly-resources']) }, () => {
   let called = false;
   const model = { listPlanningEvents: () => { called = true; return []; } };
   const c = buildResourceBookings(model);
@@ -102,7 +103,7 @@ test('planning-events rejects a pathological span before hitting the DB', () => 
   assert.equal(called, false, 'the model must not be queried for an out-of-bounds range');
 });
 
-test('laundryDays rejects a pathological span before the ledger walks it', () => {
+test('laundryDays rejects a pathological span before the ledger walks it', { skip: skipWithout(['linen']) }, () => {
   let touched = false;
   const trap = new Proxy({}, { get() { touched = true; return () => { throw new Error('ledger should not run'); }; } });
   const c = buildPlanning({

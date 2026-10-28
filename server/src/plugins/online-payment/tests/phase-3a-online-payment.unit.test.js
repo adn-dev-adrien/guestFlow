@@ -2,6 +2,7 @@
 // declares the payment provider, mounts its routes and its webhook at the URLs Qonto knows, runs the
 // poll as its job, keeps its settings in plugin_settings, and its erasure keeps every payment.
 const test = require('node:test');
+const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -92,7 +93,7 @@ test('rules 4, 10 — the module declares Qonto as the payment provider, ready o
   assert.equal(paymentProviders.active(), null, 'plugin off: no provider');
 });
 
-test('rules 11, 12 — the routes and the webhook answer at the URLs Qonto and the page know, only while live', async () => {
+test('rules 11, 12 — the routes and the webhook answer at the URLs Qonto and the page know, only while live', { skip: skipWithout(['google-vacation-rentals']) }, async () => {
   const db = v38Db();
   const off = boot(db, { active: false });
   assert.equal(loader.isWebhook('POST', '/payments/qonto/webhook'), true);

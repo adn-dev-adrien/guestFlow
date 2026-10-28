@@ -4,6 +4,7 @@
 // declares `^2.0.0` but calls `coreModule('installmentPlan')` (SDK 2.5.0) would load on a 2.4 core and
 // crash on its first export. `sdk/coreModuleHistory.json` records what each SDK minor added.
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -61,7 +62,7 @@ test('every plugin calls only core modules and names that exist at the floor of 
   assert.deepEqual(late, []);
 });
 
-test('the audit case: accounting-export reaches installmentPlan, so it declares SDK 2.5 at least', () => {
+test('the audit case: accounting-export reaches installmentPlan, so it declares SDK 2.5 at least', { skip: skipWithout(['accounting-export']) }, () => {
   assert.match(pluginSources('accounting-export'), /coreModule\('installmentPlan'\)/);
   assert.ok(semver.gte(semver.minVersion(readSourceManifest('accounting-export').sdk), '2.5.0'));
 });

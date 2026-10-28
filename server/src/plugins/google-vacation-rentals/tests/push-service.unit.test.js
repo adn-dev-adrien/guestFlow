@@ -211,10 +211,31 @@ test('rule 13 — the hourly job runs the full re-send at the configured hour, o
   assert.ok(w.model.listLog(5).every((r) => r.full === 1 && r.reason === 'nightly'));
   clock = new Date('2027-03-01T04:50:00');
   assert.equal(await w.push.nightlyTick(), false, 'already done today');
-  clock = new Date('2027-03-02T05:10:00');
-  assert.equal(await w.push.nightlyTick(), false, 'not the hour');
+  // The job ticks every hour: only the configured one runs the re-send.
+  for (let h = 5; h < 24; h += 1) {
+    clock = new Date(`2027-03-01T${String(h).padStart(2, '0')}:10:00`);
+    assert.equal(await w.push.nightlyTick(), false, `not the hour (${h}h)`);
+  }
+  for (let h = 0; h < 4; h += 1) {
+    clock = new Date(`2027-03-02T${String(h).padStart(2, '0')}:10:00`);
+    assert.equal(await w.push.nightlyTick(), false, `not the hour (${h}h)`);
+  }
   clock = new Date('2027-03-02T04:05:00');
   assert.equal(await w.push.nightlyTick(), true);
+});
+
+test('specs/plugin-removal-resilience.md rule 17 — catchUp re-sends everything now, and only once a partner id is set', async () => {
+  const w = world({ values: { partnerId: 'solio_partner' } });
+  // A price changed while the plugin was off: no trigger reached it. Activated or reinstalled, a restart in
+  // between or not, an off window of a minute or a day, the hook runs the same catch-up.
+  w.state = stateOf([...BASE_RATES.slice(0, 3), rate('2027-03-07', 2, 2, 700)], BASE_DAYS);
+  assert.equal(await w.push.catchUp(), true);
+  assert.deepEqual(w.loads.map((l) => l.id), [1, 2]);
+  assert.ok(w.model.listLog(5).every((r) => r.full === 1 && r.reason === 'catch-up'));
+  assert.equal(w.model.rateSnapshot(1).get('2027-03-07|2|2'), 70000, 'the price changed while off reached the snapshot');
+  const bare = world();
+  assert.equal(await bare.push.catchUp(), false, 'no partner id, nothing to send');
+  assert.equal(bare.loads.length, 0);
 });
 
 test('runs of a property never overlap', async () => {

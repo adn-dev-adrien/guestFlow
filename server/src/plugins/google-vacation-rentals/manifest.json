@@ -1,7 +1,7 @@
 {
   "id": "google-vacation-rentals",
   "name": "Google Vacation Rentals",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Envoie à Google les prix du site et les disponibilités de chaque logement.",
   "icon": "travel-explore",
   "surfaces": [
@@ -14,13 +14,17 @@
     }
   ],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.4.0",
+  "sdk": "^2.11.0",
   "changelog": {
     "1.0.0": [
       "Première version : prix des séjours, disponibilités et restrictions calculés par le moteur du site, en simulation tant que Google n’a pas ouvert le compte (SDK 2.4)."
     ],
     "1.0.1": [
       "Chaque taille de groupe à partir d’une personne est chiffrée : un petit groupe n’est plus envoyé au prix des personnes incluses quand une option par personne est ajoutée par défaut.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.2": [
+      "Remis en marche ou réinstallé, le plugin renvoie tout à Google tout de suite, au lieu d’attendre la nuit.",
       "Compatible avec le SDK 2 de GuestFlow."
     ]
   }

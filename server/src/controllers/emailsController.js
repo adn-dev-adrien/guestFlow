@@ -37,6 +37,7 @@ function failureLabel(stored) {
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
+const paymentProviders = require('../utils/paymentProviders');
 const { loadReservationGraph } = require('../utils/reservationEmailGraph');
 const { refuseIfReadOnly } = require('../utils/reservationReadOnly');
 const {
@@ -143,8 +144,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       pluginContext: pluginEmailContext(reservationId),
     });
 
+    // specs/plugin-removal-resilience.md rule 6 — a stored open link is re-offered only while a payment
+    // provider is live: nobody polls or reconciles it otherwise.
+    const providerLive = Boolean(paymentProviders.declared());
     if (installmentRef) {
-      const url = extra.paymentLink || installmentRef.openLinkUrl || '';
+      const url = extra.paymentLink || (providerLive ? installmentRef.openLinkUrl : '') || '';
       context.vars.paymentLink = url;
       context.flags.hasPaymentLink = Boolean(url);
     }
@@ -152,7 +156,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // Payment-link templates (e.g. deposit_reminder) re-offer the existing OPEN link for the devis —
     // read-only, no Qonto write. Empty when there is none → the body falls back via {{#if hasPaymentLink}}.
     const linkType = PAYMENT_LINK_TEMPLATES[template.stableKey];
-    if (linkType && paymentLinksModel && typeof paymentLinksModel.findOpenForReservation === 'function') {
+    if (linkType && providerLive && paymentLinksModel && typeof paymentLinksModel.findOpenForReservation === 'function') {
       const openLink = paymentLinksModel.findOpenForReservation(Number(reservationId), linkType);
       const url = openLink && openLink.url ? openLink.url : '';
       context.vars.paymentLink = url;

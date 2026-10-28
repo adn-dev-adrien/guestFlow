@@ -2,6 +2,7 @@
 // { vars, flags } object the renderer consumes. See specs/email-automation.md §3 rule 3 + §4.4.
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { buildContext, __test } = require('../utils/emailContextBuilder');
@@ -394,7 +395,7 @@ test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices ren
   assert.equal(flags.hasNordicBath, true);
 });
 
-test('lang="en": nordic-bath scheduled slot recalled in English', () => {
+test('lang="en": nordic-bath scheduled slot recalled in English', { skip: skipWithout(['hourly-resources']) }, () => {
   const { vars } = buildContext({
     ...baseInput({ resources: [{ ...BATH, priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
     lang: 'en',
@@ -478,7 +479,7 @@ test('nordicBathReminder no longer recalls a slot once hourly resources are off'
   }
 });
 
-test('nordicBathReminder recalls the scheduled slot(s) when sessions are set', () => {
+test('nordicBathReminder recalls the scheduled slot(s) when sessions are set', { skip: skipWithout(['hourly-resources']) }, () => {
   const { vars } = buildContext(baseInput({
     resources: [{
       ...BATH,

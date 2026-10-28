@@ -1,4 +1,8 @@
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['tariff-recipes'])) return;
+
 const test = require('node:test');
+const { optionalPlugin } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -171,8 +175,8 @@ test('un événement écrit par l’apply ne se présente pas comme déduit', ()
 
 // ── Rules 5 & 6 — through the REAL apply: a change is dated, a no-op is not ────────────────────
 
-const { createTariffRecipeModel } = require('../plugins/tariff-recipes/model');
-const { validateRecipe } = require('../plugins/tariff-recipes/store');
+const { createTariffRecipeModel } = optionalPlugin(() => require('../plugins/tariff-recipes/model'));
+const { validateRecipe } = optionalPlugin(() => require('../plugins/tariff-recipes/store'));
 
 // Passée par le validateur comme le ferait le vrai chargement : le test protège le chemin réel,
 // pas une structure inventée à la main qui ne franchirait jamais le store.

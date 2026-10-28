@@ -8,12 +8,13 @@ const fs = require('fs');
 process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-provider-errors-')), 'p.db');
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const silent = console.log;
 console.log = () => {};
 const { sendError } = require('../controllers/paymentsController').__test;
-const { createQontoProvider } = require('../plugins/online-payment/provider');
+const { createQontoProvider } = optionalPlugin(() => require('../plugins/online-payment/provider'));
 console.log = silent;
 
 function res() {
@@ -21,7 +22,7 @@ function res() {
 }
 const notConnected = Object.assign(new Error('no refresh token'), { code: 'QONTO_NOT_CONNECTED' });
 
-test('the Qonto provider words its own « not connected »', () => {
+test('the Qonto provider words its own « not connected »', { skip: skipWithout(['online-payment']) }, () => {
   const qonto = createQontoProvider({ settings: { qontoConnected: () => false } });
   const r = sendError(res(), notConnected, qonto);
   assert.equal(r.statusCode, 400);

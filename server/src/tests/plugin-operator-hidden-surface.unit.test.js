@@ -3,11 +3,13 @@
 // is narrowed to what a feature needs, the assistant has no plugin step; an unmanaged space (Solio,
 // development, E2E) is unchanged.
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const express = require('express');
 
 const { space } = require('./pluginOperatorFixture');
+const { PLUGIN_CATALOG } = require('../constants/plugins');
 const { create: createGuard } = require('../middleware/requireSelfManagedPlugins');
 const enforceRoleAccess = require('../middleware/enforceRoleAccess');
 const authController = require('../controllers/authController');
@@ -158,11 +160,11 @@ test('rules 5, 9: nothing about versions, plans, offers, updates or data reaches
   });
 });
 
-test('rule 1: an unmanaged space lists everything exactly as before', () => {
+test('rule 1: an unmanaged space lists everything exactly as before', { skip: skipWithout(['linen', 'neat']) }, () => {
   const s = space({ installed: ['linen'], managed: false });
   let out;
   s.controller.list({}, { json: (b) => { out = b; } });
-  assert.equal(out.length, 16);
+  assert.equal(out.length, PLUGIN_CATALOG.length);
   assert.deepEqual(Object.keys(out.find((p) => p.id === 'linen')).includes('planChip'), true);
   assert.equal(out.find((p) => p.id === 'linen').state, 'active');
   assert.equal(out.find((p) => p.id === 'neat').state, 'available');

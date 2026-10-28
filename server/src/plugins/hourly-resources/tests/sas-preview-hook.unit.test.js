@@ -3,6 +3,7 @@
 // hook's `write` never runs on a preview, and a stale block is refused before « Valider ».
 
 const test = require('node:test');
+const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
 const Module = require('module');
 
@@ -70,7 +71,7 @@ const blocks = (ctx, list) => ({
   resourceScheduling: { blocks: list.map((b) => ({ ...b, resourceId: ctx.resourceId })), resourceIds: [ctx.resourceId] },
 });
 
-test('rule 10 — the evening hour placed on the step is billed once, as a plugin line of the preview', (t) => {
+test('rule 10 — the evening hour placed on the step is billed once, as a plugin line of the preview', { skip: skipWithout(['sas']) }, (t) => {
   const ctx = seed({ hoursSold: 2 });
   const { res, writes } = preview(ctx, { pluginSteps: blocks(ctx, DAY_AND_EVENING) }, t);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -81,7 +82,7 @@ test('rule 10 — the evening hour placed on the step is billed once, as a plugi
   assert.equal(writes.length, 0);
 });
 
-test('rule 12 — a block that no longer fits is refused by the preview, as the commit would', (t) => {
+test('rule 12 — a block that no longer fits is refused by the preview, as the commit would', { skip: skipWithout(['sas']) }, (t) => {
   const ctx = seed({ hoursSold: 2 });
   const { res } = preview(ctx, { pluginSteps: blocks(ctx, [{ date: '2026-09-20', start: '17:00', end: '18:00' }]) }, t);
   assert.equal(res.statusCode, 409);

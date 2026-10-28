@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 import api from '../../../api';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
+import { lacksPlugins } from '../../sdk/testing';
 
 const enabled = new Set();
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: (id) => enabled.has(id) }));
@@ -52,7 +53,7 @@ test('rule 17: no keypad code and no key → no Portail step at all', async () =
   expect(screen.queryByText(/Code du portail/)).toBeNull();
 });
 
-test('rule 17: a key held by the gate plugin takes the page, with the keypad code as the fallback', async () => {
+test.skipIf(lacksPlugins(['gate-access']))('rule 17: a key held by the gate plugin takes the page, with the keypad code as the fallback', async () => {
   enabled.add('gate-access');
   api.getReservationGateAccess.mockResolvedValue({ sas: { status: 'ok', code: '4K7M-9QT2', qrDataUri: null, windowLabel: '' } });
   api.getReservationSas.mockResolvedValue(sasPayload({ ...noCaution, portalCode: '4719', pluginData: { 'gate-access': { available: true } } }));
@@ -63,7 +64,7 @@ test('rule 17: a key held by the gate plugin takes the page, with the keypad cod
   expect(screen.getByText('Secours — code du clavier du portail :')).toBeTruthy();
 });
 
-test('rule 13: the weather plugin adds its step before the recap only while active and alerting', async () => {
+test.skipIf(lacksPlugins(['weather-alerts']))('rule 13: the weather plugin adds its step before the recap only while active and alerting', async () => {
   const alert = { phenomenonId: 3, phenomenon: 'Orages', colorLevel: 3, color: 'Orange', timingLabel: 'Demain', message: 'Orages', instructions: [] };
   api.getReservationWeatherAlerts.mockResolvedValue({ alerts: [alert] });
   api.getReservationSas.mockResolvedValue(sasPayload(noCaution));
@@ -73,7 +74,7 @@ test('rule 13: the weather plugin adds its step before the recap only while acti
   expect(api.getReservationWeatherAlerts).not.toHaveBeenCalled();
 });
 
-test('rule 13: active and alerting, the weather step shows before the recap', async () => {
+test.skipIf(lacksPlugins(['weather-alerts']))('rule 13: active and alerting, the weather step shows before the recap', async () => {
   enabled.add('weather-alerts');
   const alert = { phenomenonId: 3, phenomenon: 'Orages', colorLevel: 3, color: 'Orange', timingLabel: 'Demain', message: 'Risque d’orages', instructions: [] };
   api.getReservationWeatherAlerts.mockResolvedValue({ alerts: [alert] });

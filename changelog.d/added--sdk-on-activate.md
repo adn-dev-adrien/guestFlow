@@ -1,0 +1,1 @@
+- **SDK 2.11.0: `ctx.onActivate(fn)`.** A plugin can recover from its own data each time it goes from off to live (activated, or installed). Google Vacation Rentals 1.0.2 uses it to re-send everything to Google at once (spec `plugin-removal-resilience.md` rule 17).

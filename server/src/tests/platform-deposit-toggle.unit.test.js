@@ -1,10 +1,12 @@
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
-const { __test: { buildEntry } } = require('../plugins/accounting-export/accountingModel');
-const { entryToRows } = require('../plugins/accounting-export/accountingExport');
+const accountingModel = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
+const { entryToRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 
 // specs/platform-deposit-toggle.md — a platform flagged « acompte = Oui » uses the normal acompte/solde
 // split (of the NET pre-arrival = pre-arrival − commission); « Non » (default) keeps the legacy
@@ -127,7 +129,7 @@ function depositRow() {
 function sumDebits(rows) { return round2(rows.reduce((s, r) => s + (typeof r[7] === 'number' ? r[7] : 0), 0)); }
 function sumCredits(rows) { return round2(rows.reduce((s, r) => s + (typeof r[8] === 'number' ? r[8] : 0), 0)); }
 
-test('accounting: explicit per-échéance commission — acompte on deposit, solde on balance; CA on gross', () => {
+test('accounting: explicit per-échéance commission — acompte on deposit, solde on balance; CA on gross', { skip: skipWithout(['accounting-export']) }, () => {
   const row = depositRow();
   const dep = buildEntry(row, 'deposit', null, commissionContext);
   const bal = buildEntry(row, 'balance', null, commissionContext);
@@ -148,7 +150,7 @@ test('accounting: explicit per-échéance commission — acompte on deposit, sol
   }
 });
 
-test('accounting backward-compat: a no-acompte platform books the whole commission on the solde', () => {
+test('accounting backward-compat: a no-acompte platform books the whole commission on the solde', { skip: skipWithout(['accounting-export']) }, () => {
   const row = { ...depositRow(), depositAmount: 0, depositPaid: 0, depositPaidDate: null, balanceAmount: 300, platformCommissionAmount: 30, acompteCommissionAmount: 0 };
   const dep = buildEntry(row, 'deposit', null, commissionContext);
   const bal = buildEntry(row, 'balance', null, commissionContext);

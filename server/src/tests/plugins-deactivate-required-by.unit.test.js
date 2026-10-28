@@ -3,6 +3,7 @@
 // the dependant. Found at the 2026-10-27 spec review: website-booking could be switched off while
 // google-vacation-rentals, which requires it, stayed active.
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -36,12 +37,12 @@ function setup(installed) {
   return { model, call };
 }
 
-test('the dependency this rule is about exists in the catalogue', () => {
+test('the dependency this rule is about exists in the catalogue', { skip: skipWithout(['google-vacation-rentals', 'website-booking']) }, () => {
   const gvr = findPlugin('google-vacation-rentals');
   assert.ok((gvr.requires || []).some((r) => r.id === 'website-booking'));
 });
 
-test('deactivating a plugin an active plugin requires is refused, naming the dependant', () => {
+test('deactivating a plugin an active plugin requires is refused, naming the dependant', { skip: skipWithout(['google-vacation-rentals', 'website-booking']) }, () => {
   const { model, call } = setup(['website-booking', 'google-vacation-rentals']);
   const res = call('deactivate', 'website-booking');
   assert.equal(res.statusCode, 409);
@@ -59,7 +60,7 @@ test('once the dependant is inactive, the requirement can be deactivated', () =>
   assert.equal(model.get('website-booking').enabled, false);
 });
 
-test('uninstalling still counts an inactive dependant (rule 12 unchanged)', () => {
+test('uninstalling still counts an inactive dependant (rule 12 unchanged)', { skip: skipWithout(['google-vacation-rentals', 'website-booking']) }, () => {
   const { call } = setup(['website-booking', 'google-vacation-rentals']);
   call('deactivate', 'google-vacation-rentals');
   const res = call('uninstall', 'website-booking');

@@ -4,15 +4,13 @@
  * dispatch, the email and SAS builders to merge contributions, the Plugins controller to install and
  * erase. The core never imports a plugin file: it only asks this registry.
  *
- * `isLive(id)` is the single answer to "may this plugin run now": installed, active, registered
- * without throwing (rule 4), and allowed by the instance's licence
+ * `isLive(id)` is the single answer to "may this plugin run now": registered (a plugin whose code is
+ * not loaded is never live, whatever its row says — specs/plugin-removal-resilience.md rule 2), installed,
+ * active, registered without throwing (rule 4), and allowed by the instance's licence
  * (specs/control-plane-plans-and-access.md rule 12). `isActive` and `allows` are injectable for tests.
  */
 
 const records = new Map();
-// specs/plugins-phase-4-registry.md rules 14, 17 — in the package mode only the installed, loadable
-// packages register: a plugin with no record is then not loaded, so it is not live either.
-let requireRecord = false;
 let isActiveImpl = (id) => require('../../models/pluginsModel').isActive(id);
 let allowsImpl = (id) => require('../../utils/licence').allowsPlugin(id);
 
@@ -34,6 +32,7 @@ function emptyRecord(id) {
     sasProviders: [],
     onInstall: [],
     onBoot: [],
+    onActivate: [],
     data: null,
     // specs/plugins-phase-3a-online-payment.md rules 4, 12.
     paymentProvider: null,
@@ -83,18 +82,16 @@ module.exports = {
   },
   isLive: (id) => {
     const record = records.get(id);
-    if (!record && requireRecord) return false;
-    if (record && record.failed) return false;
+    if (!record) return false;
+    if (record.failed) return false;
     return Boolean(isActiveImpl(id)) && allowsImpl(id);
   },
-  configure({ isActive, allows, requireRecord: required } = {}) {
+  configure({ isActive, allows } = {}) {
     if (isActive) isActiveImpl = isActive;
     if (allows) allowsImpl = allows;
-    if (required !== undefined) requireRecord = Boolean(required);
   },
   reset() {
     records.clear();
-    requireRecord = false;
     isActiveImpl = (id) => require('../../models/pluginsModel').isActive(id);
     allowsImpl = (id) => require('../../utils/licence').allowsPlugin(id);
   },

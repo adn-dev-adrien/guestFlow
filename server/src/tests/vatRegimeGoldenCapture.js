@@ -11,6 +11,7 @@
 
 const crypto = require('crypto');
 const zlib = require('zlib');
+const { optionalPlugin } = require('../plugins/sdk/testing');
 
 // Timestamps SQLite stamps with the real clock say nothing about a VAT reader. `vatRegime`,
 // `vatPeriodId` and `showHt` are what the regime ADDED to the payloads (rule 23 compares what already existed; the
@@ -161,8 +162,8 @@ async function capture(db, { years = [2025, 2026, 2027, 2028] } = {}) {
     await put(`link/${r.id}/public-deposit`, () => itemsOf(publicPayment.depositPaymentComponents(db, r.id)));
   }
 
-  const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
-  const { buildRows } = require('../plugins/accounting-export/accountingExport');
+  const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+  const { buildRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
   const accounting = createAccountingModel(db);
   for (const { year, month } of monthsBetween(years[0], years[years.length - 1])) {
     await put(`csv/${year}-${String(month).padStart(2, '0')}`, () => {

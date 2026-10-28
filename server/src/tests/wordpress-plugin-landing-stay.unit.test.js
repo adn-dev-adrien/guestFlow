@@ -2,12 +2,13 @@
 // WordPress booking block that opens with its dates and party size. The block is browser JavaScript:
 // its two URL readers are lifted out of view.js and run here, against a stubbed address bar.
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const { landingUrlTemplate } = require('../plugins/google-vacation-rentals/controller');
+const { landingUrlTemplate } = optionalPlugin(() => require('../plugins/google-vacation-rentals/controller'));
 
 const PLUGIN = path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'guestflow-booking');
 const view = fs.readFileSync(path.join(PLUGIN, 'blocks', 'booking', 'view.js'), 'utf8');
@@ -66,7 +67,7 @@ test('rule 19 — the WordPress plugin version moved, in its header, its constan
   assert.match(readme, /= 1\.17\.0 =\n\* Lien d'arrivée de Google Vacation Rentals/);
 });
 
-test('rule 18 — the landing link given to Google: the property page with the dates, the party size and the campaign', () => {
+test('rule 18 — the landing link given to Google: the property page with the dates, the party size and the campaign', { skip: skipWithout(['google-vacation-rentals']) }, () => {
   assert.equal(
     landingUrlTemplate('https://domainesolio.com/', 'la-granja'),
     'https://domainesolio.com/la-granja/?checkin=(CHECKINDAY)%2F(CHECKINMONTH)%2F(CHECKINYEAR)'

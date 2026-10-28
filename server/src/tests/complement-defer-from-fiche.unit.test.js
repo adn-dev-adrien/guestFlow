@@ -7,6 +7,7 @@
  */
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Module = require('module');
 
@@ -50,7 +51,7 @@ test('un complément ENCAISSÉ reste sous « arrivée », marqueur ou pas', () =
 
 // ── la comptabilité ne bouge pas d'un centime ───────────────────────────────
 
-test('règle 18 — reportée ou non, la même réservation produit les mêmes écritures', () => {
+test('règle 18 — reportée ou non, la même réservation produit les mêmes écritures', { skip: skipWithout(['accounting-export']) }, () => {
   const { __test: { buildEntry } } = require('../plugins/accounting-export/accountingModel');
   const row = (deferred) => ({
     id: 1, firstName: 'Jean', lastName: 'Dupont', platform: 'direct',

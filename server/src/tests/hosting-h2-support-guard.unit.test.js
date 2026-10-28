@@ -13,6 +13,7 @@ const { buildRouter } = require('../routes/supportAccess');
 const { describe, pageName } = require('../utils/supportLogLabels');
 const Database = require('better-sqlite3');
 const registry = require('../plugins/sdk/registry');
+const { missingPlugins } = require('../plugins/sdk/testing');
 const { createContext } = require('../plugins/sdk/createContext');
 
 // A support session on an open access, and a second request the customer has not answered yet.
@@ -201,10 +202,12 @@ test('rule 18 — second review: Qonto OAuth, the gate secrets, plugin uninstall
   }
   // The gate connector declares its secrets route itself (rule 23).
   registry.reset();
-  require('../plugins/gate-access').register(createContext('gate-access', { db: new Database(':memory:') }));
-  assert.equal(isForbidden('GET', '/settings/gate-connector/secrets', {}), true, 'secrets come back in clear');
-  assert.equal(isForbidden('GET', '/SETTINGS/Gate-Connector/Secrets/', {}), true);
-  assert.equal(isForbidden('GET', '/settings/gate-connector', {}), false, 'the masked card stays readable');
+  if (!missingPlugins(['gate-access']).length) {
+    require('../plugins/gate-access').register(createContext('gate-access', { db: new Database(':memory:') }));
+    assert.equal(isForbidden('GET', '/settings/gate-connector/secrets', {}), true, 'secrets come back in clear');
+    assert.equal(isForbidden('GET', '/SETTINGS/Gate-Connector/Secrets/', {}), true);
+    assert.equal(isForbidden('GET', '/settings/gate-connector', {}), false, 'the masked card stays readable');
+  }
   registry.reset();
   assert.equal(isForbidden('DELETE', '/plugins/neat', {}), true);
   assert.equal(isForbidden('POST', '/Plugins/neat/Deactivate/', {}), true);

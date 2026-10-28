@@ -316,6 +316,12 @@ screen or endpoint: the customer sees only the features themselves.
     annulée » / « X désinstallé » — never « Effacement des données » for a module that holds none.
     _Added at second review; wording amended at follow-up._
 
+39. **An installed plugin whose code is gone stays until it is uninstalled.** A row without a module
+    (`PACKAGE_MISSING`, specs/plugin-removal-resilience.md rule 1) is outside the catalogue the reconciler
+    walks: it ignores it, whatever `activePlugins` says, and an erase order naming it is settled without
+    touching anything (rule 23). The row stays — never live, never listed by the managed `GET /api/plugins`
+    (rule 5) — until a release ships the plugin again or the row is removed from the database.
+
 **Edge cases:**
 
 - The console is down for days → the last licence still carries `activePlugins`; the space keeps

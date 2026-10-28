@@ -5,6 +5,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const { db, createStay, rowOf, liveQuote, save, mark } = require('./ledgerFixture');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
@@ -294,7 +295,7 @@ function exportMonth(day) {
   return json;
 }
 
-test('rule 37 — acompte captured, solde recorded on drifted amounts: revenue and VAT, never all on 46710000', () => {
+test('rule 37 — acompte captured, solde recorded on drifted amounts: revenue and VAT, never all on 46710000', { skip: skipWithout(['accounting-export']) }, () => {
   const id = createStay();
   mark(id, { depositPaid: true, depositPaidDate: TODAY, expectedAmountCents: Math.round(rowOf(id).depositAmount * 100) });
   db.prepare('UPDATE reservations SET balanceAmount = round(balanceAmount + 30, 2), finalPrice = round(finalPrice + 30, 2) WHERE id = ?').run(id);
@@ -312,7 +313,7 @@ test('rule 37 — acompte captured, solde recorded on drifted amounts: revenue a
   assert.ok(credits.some((l) => l.compte === '44571100'), 'VAT credited');
 });
 
-test('export invariant — no sale entry of the month has all its credits on the tourist-tax account', () => {
+test('export invariant — no sale entry of the month has all its credits on the tourist-tax account', { skip: skipWithout(['accounting-export']) }, () => {
   const month = exportMonth(TODAY);
   for (const entry of month.entries.filter((e) => e.direction === 'sale' && e.kind !== 'tip')) {
     const credits = entry.lines.filter((l) => Number(l.credit) > 0);
@@ -383,7 +384,7 @@ function driftedStayWithCapturedAcompte(extra = {}) {
   return id;
 }
 
-test('rule 42 — « Encaisser en une fois » on drifted amounts: the solde gets the stored-amount split', () => {
+test('rule 42 — « Encaisser en une fois » on drifted amounts: the solde gets the stored-amount split', { skip: skipWithout(['accounting-export']) }, () => {
   const id = driftedStayWithCapturedAcompte();
   db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(id);
   const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
@@ -399,7 +400,7 @@ test('rule 42 — « Encaisser en une fois » on drifted amounts: the solde gets
   assertNoTaxOnlyEntry(exportMonth(TODAY));
 });
 
-test('rule 42 — the SAS stay payment on drifted amounts: the stored-amount split, never all on 46710000', () => {
+test('rule 42 — the SAS stay payment on drifted amounts: the stored-amount split, never all on 46710000', { skip: skipWithout(['accounting-export']) }, () => {
   const id = driftedStayWithCapturedAcompte();
   require('../models/reservationsModel').commitArrivalSas(id, { stayPaid: true, stayPaidCash: false });
   assert.equal(rowOf(id).balancePaid, 1);
@@ -415,7 +416,7 @@ test('rule 42 — the shared capture never throws: with no possible split it log
   assert.equal(logged.length, 1);
 });
 
-test('rule 43 — the export announces an entry whose credits are all on the tourist-tax account', () => {
+test('rule 43 — the export announces an entry whose credits are all on the tourist-tax account', { skip: skipWithout(['accounting-export']) }, () => {
   const { __test } = require('../plugins/accounting-export/controller');
   const entries = [
     { direction: 'sale', reservationId: 1, kind: 'balance', libelle: 'A', paidDate: '2026-06-19', encaissementTtc: 67.13,

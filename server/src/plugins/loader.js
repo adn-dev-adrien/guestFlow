@@ -118,6 +118,20 @@ async function runInstallHooks(id) {
   }
 }
 
+// SDK 2.11.0 — the activation hooks run in the background: a failure is logged, never the request's.
+function runActivateHooks(id) {
+  const record = registry.get(id);
+  if (!record || record.failed) return Promise.resolve();
+  return Promise.all(record.onActivate.map(async (hook) => {
+    try {
+      await hook();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[plugin:${id}] activation hook failed:`, err && err.message ? err.message : err);
+    }
+  }));
+}
+
 const gate = (id) => requirePlugin(id, { isActive: registry.isLive });
 
 // The routers holding the plugin mounts, placed once in the app (rule 13: a live install adds to them).
@@ -280,6 +294,7 @@ module.exports = {
   registerAll,
   migrate,
   runInstallHooks,
+  runActivateHooks,
   mountPublic,
   mountApi,
   startJobs,

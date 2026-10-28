@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const enforceRoleAccess = require('../middleware/enforceRoleAccess');
@@ -95,7 +96,7 @@ const FORBIDDEN = [
   ['POST', '/laundry/schedule/preview'],
 ];
 
-test('reception: every allowlisted method+path passes', () => {
+test('reception: every allowlisted method+path passes', { skip: skipWithout(['hourly-resources', 'linen', 'sas', 'weather-alerts']) }, () => {
   for (const [method, path] of ALLOWED) {
     assert.equal(call({ roles: ['reception'], method, path }).nextCalled, true, `${method} ${path}`);
   }
@@ -121,7 +122,7 @@ test('reception + admin → admin wins (unrestricted)', () => {
   assert.equal(call({ roles: ['reception', 'admin'], method: 'GET', path: '/finance' }).nextCalled, true);
 });
 
-test('reception + accountant → union of both branches', () => {
+test('reception + accountant → union of both branches', { skip: skipWithout(['sas']) }, () => {
   // Reception operational surface…
   assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/reservations/42/sas' }).nextCalled, true);
   // …plus the accountant's core read (the compensations; the export's entries are its plugin's).

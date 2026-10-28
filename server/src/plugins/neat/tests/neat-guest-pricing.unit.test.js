@@ -8,6 +8,7 @@
  */
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -19,7 +20,7 @@ const registry = require('../../sdk/registry');
 const { createContext } = require('../../sdk/createContext');
 const quotePostProcessors = require('../../../utils/quotePostProcessors');
 const { calculateReservationQuote } = require('../../../utils/pricing');
-const { toPublicCancellationInsurance } = require('../../website-booking/publicProjections');
+const { toPublicCancellationInsurance } = optionalPlugin(() => require('../../website-booking/publicProjections'));
 
 // ---- fakes ----
 
@@ -254,7 +255,7 @@ test('the processor leaves the quote alone on a cold cache or an inactive config
 
 // ---- the public projection label ----
 
-test('with Neat pricing active a 0-priced insurance stays visible and announces the per-stay tariff', () => {
+test('with Neat pricing active a 0-priced insurance stays visible and announces the per-stay tariff', { skip: skipWithout(['website-booking']) }, () => {
   const option = { id: 42, title: 'Assurance annulation', priceType: 'per_night', price: 0 };
   assert.equal(toPublicCancellationInsurance(option), null, 'unpriced + inactive → hidden (rule 15)');
   const block = toPublicCancellationInsurance(option, { dynamicPrice: true, amount: 23 });

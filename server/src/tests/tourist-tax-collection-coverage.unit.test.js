@@ -6,14 +6,16 @@
 //      stay surfaces no such line.
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
 const financeModel = require('../models/financeModel');
-const { __test: { buildEntry } } = require('../plugins/accounting-export/accountingModel');
-const { CSV_HEADERS, buildRows } = require('../plugins/accounting-export/accountingExport');
+const accountingModel = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
+const { CSV_HEADERS, buildRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 const { serializeCsv } = require('../utils/csv');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
@@ -290,7 +292,7 @@ function makeRow(overrides = {}) {
 // specs/accounting-encaissement-effective-percent.md; the routing flag rides taxContext.
 const csvLines = (entries) => serializeCsv(CSV_HEADERS, buildRows(entries), { bom: false }).split('\r\n').filter(Boolean);
 
-test('Comptabilité: owner-collected tax → a dedicated 46710000 line in the entry detail + CSV', () => {
+test('Comptabilité: owner-collected tax → a dedicated 46710000 line in the entry detail + CSV', { skip: skipWithout(['accounting-export']) }, () => {
   // We collect (touristTaxCollectedOnArrival = true, i.e. the source's collectsTouristTax = 0). The tax
   // rides on the complement (pure-tax complement of 4.80).
   const row = makeRow({
@@ -307,7 +309,7 @@ test('Comptabilité: owner-collected tax → a dedicated 46710000 line in the en
   assert.ok(taxLine.includes('4,80'), 'the tourist-tax line holds the 4,80 € amount');
 });
 
-test('Comptabilité: platform-remits tax → NO 46710000 line (tax is the platform\'s business)', () => {
+test('Comptabilité: platform-remits tax → NO 46710000 line (tax is the platform\'s business)', { skip: skipWithout(['accounting-export']) }, () => {
   // The platform collects + remits to the commune (touristTaxCollectedOnArrival = false, not reversed);
   // the stay carries no owner-side tax.
   const row = makeRow({ platform: 'airbnb', touristTaxTotal: 0 });
@@ -320,7 +322,7 @@ test('Comptabilité: platform-remits tax → NO 46710000 line (tax is the platfo
   assert.ok(!lines.some((l) => l.includes(';46710000;')), 'no tourist-tax pass-through line for a platform-remits stay');
 });
 
-test('Comptabilité: platform-reversed tax (case 1) → the tax rides the balance on a 46710000 line', () => {
+test('Comptabilité: platform-reversed tax (case 1) → the tax rides the balance on a 46710000 line', { skip: skipWithout(['accounting-export']) }, () => {
   // The platform collects the tax then reverses it to us at settlement (single platform payout → the
   // `balance` entry, deposit=0). The tax is now a REAL charge stored in `touristTaxTotal` and scheduled
   // in the balance, so the STANDARD tax-in-balance path books it on 46710000 (no special casing).
