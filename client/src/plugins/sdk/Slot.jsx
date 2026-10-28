@@ -31,7 +31,7 @@ class ContributionBoundary extends React.Component {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
         <Typography variant="caption" color="text.secondary">Module mis à jour.</Typography>
-        <Button size="small" onClick={() => window.location.reload()}>Recharger</Button>
+        <Button size="small" sx={{ minHeight: 44 }} onClick={() => window.location.reload()}>Recharger</Button>
       </Box>
     );
   }

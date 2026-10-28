@@ -133,6 +133,7 @@ function createController(model = defaultModel, deps = {}) {
     sources: sources(), env: env(), installed: installedVersions(), nameOf, allows: (id) => licence().allowsPlugin(id),
   });
 
+  const describeLogged = new Set();
   const erasable = (id) => Boolean(reg.get(id) && reg.get(id).data);
 
   // Rule 12 — what « Effacer aussi ses données » would erase, as the server counts it. `null` when the
@@ -143,7 +144,10 @@ function createController(model = defaultModel, deps = {}) {
     try {
       return record.data.describe(getDb()) || [];
     } catch (err) {
-      console.error(`[plugin:${id}] data description failed:`, err && err.message ? err.message : err);
+      if (!describeLogged.has(id)) {
+        describeLogged.add(id);
+        console.error(`[plugin:${id}] data description failed:`, err && err.message ? err.message : err);
+      }
       return null;
     }
   }
@@ -348,9 +352,11 @@ function createController(model = defaultModel, deps = {}) {
     }
     const loaded = host().state().loaded[id];
     let restart = false;
+    // Loaded at this version but failed at boot: registered afresh, like a failed live install.
+    const failedLoaded = loaded === candidate.version && Boolean(reg.get(id) && reg.get(id).failed);
     if (loaded && loaded !== candidate.version) {
       restart = true;
-    } else if (loaded) {
+    } else if (loaded && !failedLoaded) {
       try {
         loader().migrate(getDb(), id);
       } catch (err) {
@@ -367,8 +373,10 @@ function createController(model = defaultModel, deps = {}) {
       if (!loader().registerLive(mod, { db: getDb() })) {
         return { status: 500, body: { error: 'PLUGIN_REGISTER_FAILED', plugin: id, message: 'Échec du démarrage.' } };
       }
-      host().setLoaded(id, candidate.version, pkg.manifest.contentHash);
-      undo.push(() => host().unsetLoaded(id));
+      if (!loaded) {
+        host().setLoaded(id, candidate.version, pkg.manifest.contentHash);
+        undo.push(() => host().unsetLoaded(id));
+      }
       try {
         loader().migrate(getDb(), id);
       } catch (err) {
@@ -378,6 +386,7 @@ function createController(model = defaultModel, deps = {}) {
     }
     model.install(id, { version: candidate.version, source: candidate.source, manifest: pkg.manifest, sha256: pkg.sha256 });
     undo.push(() => model.uninstall(id));
+    if (restart) model.markHooksPending(id);
     if (!restart) {
       loader().beginInstall(id);
       installed.push(id);
@@ -716,6 +725,14 @@ function createController(model = defaultModel, deps = {}) {
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       if (refuseIfOutOfPlan(entry, res)) return undefined;
       if (refuseIfRequirementInactive(entry, res)) return undefined;
+      if (reg.get(entry.id)) {
+        try {
+          loader().migrate(getDb(), entry.id);
+        } catch (err) {
+          console.error(`[plugin:${entry.id}] activation migration failed:`, err && err.message ? err.message : err);
+          return res.status(500).json({ error: 'PLUGIN_MIGRATION_FAILED', plugin: entry.id });
+        }
+      }
       model.setEnabled(entry.id, true);
       if (reg.get(entry.id)) loader().runActivateHooks(entry.id);
       return res.json(view(entry));

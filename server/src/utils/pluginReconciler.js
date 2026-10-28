@@ -48,7 +48,9 @@ function planSteps({ desired, states, requires, order }) {
   ];
 }
 
-function createReconciler({ licence, model, provisioning, controller, catalogue, now = () => new Date() }) {
+function createReconciler({
+  licence, model, provisioning, controller, catalogue, now = () => new Date(), coreVersion = () => require('./appVersion').getAppVersion(),
+}) {
   const order = catalogue.map((p) => p.id);
   const catalogueRequires = Object.fromEntries(catalogue.map((p) => [p.id, (p.requires || []).map((r) => r.id)]));
   let running = false;
@@ -115,7 +117,7 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
       } else if (!TRANSIENT_CODES.has(body && body.error)) {
         provisioning.record({
           pluginId: id, desired: 'inactive', outcome: BLOCKED_CODES.has(body && body.error) ? 'blocked' : 'failed',
-          code: (body && body.code) || (body && body.error) || 'FAILED', message: (body && body.message) || 'Échec de l’effacement.',
+          code: (body && body.code) || (body && body.error) || 'FAILED', message: (body && body.message) || (removal === true ? 'Échec de la désinstallation.' : 'Échec de l’effacement.'),
           licenceIssuedAt: issuedAt, at,
         });
       }
@@ -126,6 +128,7 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
   // the data it would erase. Published for every installed plugin, dropped for the others.
   function publishFacts() {
     try {
+      provisioning.setCapabilities({ removalOrders: true, coreVersion: coreVersion() });
       controller.views().forEach((view) => {
         const installed = view.state !== 'available';
         provisioning.setFacts(view.id, installed

@@ -1,0 +1,2 @@
+- Plugins: activating a plugin after a partial erasure recreates its tables first, and a plugin that failed at boot starts again when installed at the same version.
+- Plugins: an install that needed a restart now runs its install and activation hooks at the next boot.

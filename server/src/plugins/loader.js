@@ -175,6 +175,21 @@ function syncLiveTransitions() {
   return Promise.all(fired);
 }
 
+/**
+ * Specs/plugins-phase-4-registry.md rule 41 — an install that needed a restart ran no hook (the old code
+ * was still loaded). At the boot that follows, the plugins that owe them get their install hooks and
+ * their activation hooks, once; the marker is cleared even if a hook fails (hooks never block).
+ */
+async function runPendingInstallHooks(model) {
+  for (const id of model.pendingHooks()) {
+    model.clearHooksPending(id);
+    if (!registry.get(id)) continue;
+    announced.delete(id);
+    await runInstallHooks(id); // eslint-disable-line no-await-in-loop
+    runActivateHooks(id);
+  }
+}
+
 /** Test-only: forget every recorded transition so a suite starts from a clean boot. */
 function resetLiveTransitionsForTests() {
   wasLive.clear();
@@ -386,7 +401,7 @@ const receptionMatchers = () => roleMatchers('reception');
 // let it through to the plugin's own authentication (specs/plugins-phase-3a-online-payment.md rule 12).
 function isWebhook(method, path) {
   if (method !== 'POST') return false;
-  return registry.all().some((record) => registry.isLive(record.id) && record.webhooks.some((w) => w.path === `/api${path}`));
+  return registry.all().some((record) => record.webhooks.some((w) => w.path === `/api${path}`) && registry.isLive(record.id));
 }
 
 module.exports = {
@@ -395,6 +410,7 @@ module.exports = {
   runInstallHooks,
   runActivateHooks,
   syncLiveTransitions,
+  runPendingInstallHooks,
   markInactive,
   beginInstall,
   endInstall,

@@ -308,9 +308,13 @@ below are the recommended ones; each is reversible in a later spec.
       a reinstall without a restart left the plugin active with no tables. The loaded record is
       deliberately kept on uninstall: it names the code the process holds, and a different version
       still restarts (rule 13);
+    - activating a plugin runs its migrations too (500 `PLUGIN_MIGRATION_FAILED` if they throw, the
+      plugin stays off): after an « Effacement incomplet » the tables are gone, and « Activer » must
+      not turn on a plugin without them;
     - a plugin whose live `register` failed is registered afresh by the next install: its failed
       record, its mounted layers and its job schedule are dropped first, so the retry either comes up
-      whole or answers 500 `PLUGIN_REGISTER_FAILED` again;
+      whole or answers 500 `PLUGIN_REGISTER_FAILED` again. The same holds for a plugin that failed at
+      boot and is installed again at the same version;
     - an erasure runs the database step (one transaction) then the files step. A failure of the
       first answers « rien n’a été effacé » (true: it rolled back); a failure of the second answers
       « Effacement incomplet : les données sont effacées, pas les fichiers. À relancer. », leaves the
@@ -332,6 +336,13 @@ below are the recommended ones; each is reversible in a later spec.
     `tar` refuses links but lets FIFO and device members through, and a gzip can expand without
     limit: both need a signed package to be reached.
     **Sans test** — a statement of the trust model, not a behaviour.
+41. **An install that needed a restart owes its hooks** (audit 2026-10-28, finding 4; lifts the
+    limit noted under rule 13). When an install is recorded but the old code is still loaded (a version
+    other than the loaded one), no hook can run. The row carries `hooks_pending = 1`; at the next boot,
+    once the plugins are registered and migrated, `loader.runPendingInstallHooks` runs the install hooks
+    then the activation hooks of each such plugin, clears the marker first (a failing hook is logged,
+    never repeated or blocking). School-holidays' first sync and Google Vacation Rentals' catch-up no
+    longer wait for something else to trigger them. Test: `plugin-install-hooks-after-restart.unit.test.js`.
 
 ---
 
@@ -437,7 +448,7 @@ word per line (seen in the browser check of 2026-10-17).
   `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
 - _(added 2026-10-27)_ `plugins-deactivate-required-by.unit.test.js` (rule 36, 4 tests).
 - _(added 2026-10-27, adversarial review)_ `plugins-activate-requires-active.unit.test.js` (rule 37, 3 tests; the refusal failed on the code before the fix).
-- _(added 2026-10-28, audit)_ rules 38–39: `plugin-install-requirement-inactive.unit.test.js`, `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`, `Slot.isolation.test.jsx`.
+- _(added 2026-10-28, audit)_ rules 38–41: `plugin-install-hooks-after-restart.unit.test.js`, `plugin-install-requirement-inactive.unit.test.js`, `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`, `Slot.isolation.test.jsx`.
 
 ## 8. Out of scope
 

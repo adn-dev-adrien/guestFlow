@@ -42,3 +42,36 @@ test('rule 40: a plugin whose data description throws is published as unknown, n
   const stored = s.db.prepare("SELECT value FROM plugin_provisioning_meta WHERE key = 'facts:linen'").get();
   assert.equal(JSON.parse(stored.value).dataUnknown, true);
 });
+
+test('rule 40: a removal order that fails is recorded with an uninstall wording, an erase order keeps the erase one', { skip: skipWithout(['linen']) }, async () => {
+  for (const [removal, expected] of [[true, 'Échec de la désinstallation.'], [false, 'Échec de l’effacement.']]) {
+    const s = space({ installed: [['linen', false]], active: [], eraseOrders: [{ order: 'o-f', id: 'linen', removal }], data: withLinenData });
+    s.controller.uninstall = (req, res) => res.status(500).json({ error: 'BOOM' });
+    await s.rebuild().run();
+    assert.equal(s.provisioning.get('linen').message, expected);
+  }
+});
+
+test('rule 40: the space publishes what its core understands, for the console to gate « Désinstaller »', async () => {
+  const s = space({ installed: [['linen', false]], active: [], data: withLinenData });
+  await s.reconciler.run();
+  const stored = s.db.prepare("SELECT value FROM plugin_provisioning_meta WHERE key = 'capabilities'").get();
+  const capabilities = JSON.parse(stored.value);
+  assert.equal(capabilities.removalOrders, true);
+  assert.match(capabilities.coreVersion, /^\d+\.\d+\.\d+/);
+});
+
+test('rule 40: an unreadable data count is logged once per plugin, not at every read', { skip: skipWithout(['linen']) }, () => {
+  const data = { linen: { tables: ['linen_stock'], describe: () => { throw new Error('boom'); } } };
+  const s = space({ installed: [['linen', false]], active: [], data });
+  const original = console.error;
+  let logged = 0;
+  console.error = () => { logged += 1; };
+  try {
+    s.controller.views();
+    s.controller.views();
+  } finally {
+    console.error = original;
+  }
+  assert.equal(logged, 1);
+});

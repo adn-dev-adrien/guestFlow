@@ -52,6 +52,8 @@ const PACKAGE_COLUMNS = [
   ['previous_source', 'TEXT'],
   ['previous_sha256', 'TEXT'],
   ['rollback_until', 'TEXT'],
+  // 1 while an install that needed a restart still owes its install and activation hooks (rule 41).
+  ['hooks_pending', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 
 function ensurePackageColumns(db) {

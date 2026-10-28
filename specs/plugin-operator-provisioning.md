@@ -328,7 +328,14 @@ screen or endpoint: the customer sees only the features themselves.
     or false is the data erase of rule 23 (purge, then plain uninstall for a plugin keeping no data).
     When a plugin's own data count (`describe`) throws, the plugin view carries `dataUnknown: true`
     with `data: []`, logged, and the facts published to the console carry `dataUnknown: true`: the
-    console must offer neither erase nor removal on it. Test: `plugin-removal-order-no-purge.unit.test.js`.
+    console must offer neither erase nor removal on it. A removal order that fails is recorded « Échec de
+    la désinstallation. » (an erase order keeps « Échec de l’effacement. »). **Version skew:** a space
+    from before this rule would purge a removal order, so the console offers « Désinstaller » only to a
+    space that declares it understands it: each reconciliation pass publishes, in
+    `plugin_provisioning_meta`, `capabilities` = `{"removalOrders":true,"coreVersion":"x.y.z"}`
+    (`provisioning.setCapabilities`), which the console reads next to `facts:<id>`. A space without that
+    key predates the rule. This is the space side of `removal` and `dataUnknown`; the console refers to
+    it. Test: `plugin-removal-order-no-purge.unit.test.js`.
 
 **Edge cases:**
 

@@ -400,7 +400,9 @@ without the core knowing it.
     plugin that is not live and applies an entry only to a path the plugin serves itself (one of its
     `ctx.route` paths, below one of its `/api` mounts, or its webhook): an entry aimed at a core route
     (`/clients`) stays inert. `loader.isWebhook` skips a plugin that is not live. A webhook path itself
-    is the plugin's declaration; keeping it off core routes stays a matter of review.
+    is the plugin's declaration; keeping it off core routes stays a matter of review. Likewise a plugin
+    route or mount that itself overlaps a core route still opens that core route for its own role
+    entries: the check proves the path is the plugin's, not that no core route shares it.
     Test: `plugin-role-entries-own-routes.unit.test.js`.
 
 ## 4. Architecture
