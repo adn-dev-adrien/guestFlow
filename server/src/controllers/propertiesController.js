@@ -31,6 +31,12 @@ function list(req, res) {
 function getOne(req, res) {
   const property = model.getByIdWithDetails(req.params.id);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
+  // `?view=stay` — what a reservation fiche reads: the property without its pricing seasons, which only
+  // the tariff pages render (the bulk of the payload; specs/inte-performance.md rule 14).
+  if (req.query && req.query.view === 'stay') {
+    const { pricingRules, ...stay } = property; // eslint-disable-line no-unused-vars
+    return res.json(stay);
+  }
   return res.json(property);
 }
 

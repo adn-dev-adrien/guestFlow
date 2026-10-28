@@ -79,3 +79,8 @@ export function displayDateTime(iso) {
   if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 }
+
+/** « 3 textes », « 1 texte »: the count and the word, an « s » from two (specs/inte-performance.md rule 9). */
+export function plural(n, word) {
+  return `${n} ${word}${n > 1 ? 's' : ''}`;
+}
