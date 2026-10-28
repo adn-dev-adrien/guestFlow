@@ -21,6 +21,7 @@
  *       commits ''.
  *   - error?: string               — a message from the server (shown in red, wins over the range check).
  *   - helperText?: node            — shown while nothing else needs saying.
+ *   - showUnit?: boolean (default true) — the unit as an end adornment; off where a column header says it.
  *   - ...rest — forwarded to MUI <TextField> (label, size, fullWidth, disabled, sx…).
  *
  * It renders `type="text"` with a numeric `inputMode`, so there is no native spinner and no
@@ -39,6 +40,7 @@ export default function BoundedNumberField({
   required = true,
   error = '',
   helperText = '',
+  showUnit = true,
   slotProps,
   onKeyDown,
   ...rest
@@ -137,7 +139,7 @@ export default function BoundedNumberField({
         htmlInput: { inputMode: limits.integer ? 'numeric' : 'decimal', 'aria-invalid': Boolean(refusal), ...slotProps?.htmlInput },
         input: {
           ...slotProps?.input,
-          endAdornment: limits.unit ? <InputAdornment position="end">{limits.unit}</InputAdornment> : slotProps?.input?.endAdornment,
+          endAdornment: showUnit && limits.unit ? <InputAdornment position="end">{limits.unit}</InputAdornment> : slotProps?.input?.endAdornment,
         },
       }}
     />

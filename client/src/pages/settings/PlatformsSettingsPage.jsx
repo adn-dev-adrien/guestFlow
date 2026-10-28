@@ -26,6 +26,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingState from '../../components/LoadingState';
 import PlatformColorPicker from '../../components/PlatformColorPicker';
+import BoundedNumberField from '../../components/BoundedNumberField';
 import { useToast } from '../../components/DialogProvider';
 import useDirtyFormGuard from '../../hooks/useDirtyFormGuard';
 import { formatPlatformLabel } from '../../constants/platforms';
@@ -41,14 +42,8 @@ const EDITABLE = [
   'relaysGuestEmail', 'reviewWhereFr', 'reviewWhereEn',
 ];
 
-// The rows as the form edits them: numbers become strings so a half-typed value stays as typed.
-function toDraft(platforms) {
-  return platforms.map((p) => ({
-    ...p,
-    commissionPercent: String(p.commissionPercent ?? ''),
-    payoutDueDays: p.payoutDueDays == null ? null : String(p.payoutDueDays),
-  }));
-}
+// The rows as the form edits them (the bounded fields hold their own half-typed text).
+const toDraft = (platforms) => platforms.map((p) => ({ ...p, commissionPercent: p.commissionPercent ?? 0 }));
 
 // Only the fields that changed, per row that changed — the server validates everything.
 function changedRows(draft, saved) {
@@ -73,13 +68,15 @@ export default function PlatformsSettingsPage() {
   const [saved, setSaved] = useState(null);
   const [draft, setDraft] = useState(null);
   const [errors, setErrors] = useState({});
+  const [limits, setLimits] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(false);
     try {
-      const { platforms } = await api.getPlatformSettings();
+      const { platforms, limits: serverLimits } = await api.getPlatformSettings();
+      setLimits(serverLimits);
       const rows = toDraft(platforms || []);
       setSaved(rows);
       setDraft(rows);
@@ -131,15 +128,16 @@ export default function PlatformsSettingsPage() {
     <PlatformColorPicker color={p.color} onChange={(hex) => setField(p.id, 'color', hex)} disabled={saving} />
   );
   const commissionCell = (p) => (
-    <TextField
+    <BoundedNumberField
       value={p.commissionPercent}
-      onChange={(e) => setField(p.id, 'commissionPercent', e.target.value)}
+      onCommit={(next) => setField(p.id, 'commissionPercent', next)}
+      limits={limits.commissionPercent}
       size="small"
       disabled={saving}
-      error={Boolean(fieldError(p.id, 'commissionPercent'))}
-      helperText={fieldError(p.id, 'commissionPercent') || ''}
-      slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `Commission ${formatPlatformLabel(p.name)}` } }}
-      sx={{ width: { xs: '100%', lg: 76 } }}
+      error={fieldError(p.id, 'commissionPercent')}
+      showUnit={false}
+      slotProps={{ htmlInput: { 'aria-label': `Commission ${formatPlatformLabel(p.name)}` } }}
+      sx={{ width: { xs: '100%', lg: 88 } }}
     />
   );
   const depositCell = (p) => (p.takesDeposit === null ? '—' : (
@@ -216,15 +214,16 @@ export default function PlatformsSettingsPage() {
     </TextField>
   ));
   const payoutCell = (p) => (p.payoutDueDays === null ? '—' : (
-    <TextField
+    <BoundedNumberField
       value={p.payoutDueDays}
-      onChange={(e) => setField(p.id, 'payoutDueDays', e.target.value)}
+      onCommit={(next) => setField(p.id, 'payoutDueDays', next)}
+      limits={limits.payoutDueDays}
       size="small"
       disabled={saving}
-      error={Boolean(fieldError(p.id, 'payoutDueDays'))}
-      helperText={fieldError(p.id, 'payoutDueDays') || ''}
-      slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': `Virement ${formatPlatformLabel(p.name)}` } }}
-      sx={{ width: { xs: '100%', lg: 68 } }}
+      error={fieldError(p.id, 'payoutDueDays')}
+      showUnit={false}
+      slotProps={{ htmlInput: { 'aria-label': `Virement ${formatPlatformLabel(p.name)}` } }}
+      sx={{ width: { xs: '100%', lg: 76 } }}
     />
   ));
 

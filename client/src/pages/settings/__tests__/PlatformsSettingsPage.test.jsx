@@ -21,6 +21,7 @@ vi.mock('../../../components/DialogProvider', () => {
 
 import api from '../../../api';
 import PlatformsSettingsPage, { __test } from '../PlatformsSettingsPage';
+import { LIMITS } from './platformLimitsFixtures';
 
 const PLATFORMS = [
   { id: 1, name: 'direct', isDirect: true, color: '#c9a227', commissionPercent: 5, takesDeposit: null, touristTaxCollection: null, payoutDueDays: null },
@@ -30,7 +31,7 @@ const PLATFORMS = [
 
 beforeEach(() => {
   Object.values(api).forEach((m) => m.mockReset());
-  api.getPlatformSettings.mockResolvedValue({ platforms: PLATFORMS });
+  api.getPlatformSettings.mockResolvedValue({ limits: LIMITS, platforms: PLATFORMS });
   api.savePlatformSettings.mockResolvedValue({ platforms: PLATFORMS });
 });
 
@@ -38,14 +39,14 @@ const renderPage = () => render(<MemoryRouter><PlatformsSettingsPage /></MemoryR
 
 test('changedRows sends only the fields that changed, per row that changed', () => {
   const saved = __test.toDraft(PLATFORMS);
-  const draft = saved.map((p) => (p.id === 3 ? { ...p, commissionPercent: '16' } : p));
-  expect(__test.changedRows(draft, saved)).toEqual([{ id: 3, commissionPercent: '16' }]);
+  const draft = saved.map((p) => (p.id === 3 ? { ...p, commissionPercent: 16 } : p));
+  expect(__test.changedRows(draft, saved)).toEqual([{ id: 3, commissionPercent: 16 }]);
   expect(__test.changedRows(saved, saved)).toEqual([]);
 });
 
 test('a value that does not apply to a channel is shown as « — », not as a field', async () => {
   renderPage();
-  expect(await screen.findByLabelText('Commission Airbnb')).toHaveValue('15.5');
+  expect(await screen.findByLabelText('Commission Airbnb')).toHaveValue('15,5');
   expect(screen.getByLabelText('Virement Airbnb')).toHaveValue('10');
   expect(screen.queryByLabelText('Virement Lodgify')).toBeNull();
   expect(screen.queryByLabelText('Acompte Direct')).toBeNull();
@@ -57,8 +58,11 @@ test('a save sends the change; a refused field shows its message', async () => {
     errors: { 3: { commissionPercent: 'Entre 0 et 99,99 %.' } },
   }));
   renderPage();
-  fireEvent.change(await screen.findByLabelText('Commission Airbnb'), { target: { value: '120' } });
+  const commission = await screen.findByLabelText('Commission Airbnb');
+  fireEvent.focus(commission);
+  fireEvent.change(commission, { target: { value: '120' } });
+  fireEvent.blur(commission);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' })); });
-  await waitFor(() => expect(api.savePlatformSettings).toHaveBeenCalledWith([{ id: 3, commissionPercent: '120' }]));
+  await waitFor(() => expect(api.savePlatformSettings).toHaveBeenCalledWith([{ id: 3, commissionPercent: 120 }]));
   expect(await screen.findByText('Entre 0 et 99,99 %.')).toBeInTheDocument();
 });

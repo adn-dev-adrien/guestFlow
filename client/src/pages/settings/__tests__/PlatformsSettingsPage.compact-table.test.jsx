@@ -20,11 +20,12 @@ vi.mock('../../../components/DialogProvider', () => {
 
 import api from '../../../api';
 import PlatformsSettingsPage from '../PlatformsSettingsPage';
+import { LIMITS } from './platformLimitsFixtures';
 
 let orig;
 beforeEach(() => {
   orig = window.matchMedia;
-  api.getPlatformSettings.mockResolvedValue({ platforms: [
+  api.getPlatformSettings.mockResolvedValue({ limits: LIMITS, platforms: [
     { id: 1, name: 'direct', isDirect: true, countsAsDirect: true, color: '#c9a227', commissionPercent: 0, takesDeposit: null, touristTaxCollection: null, payoutDueDays: null, forbidsGuestChores: null },
     { id: 4, name: 'Airbnb', isDirect: false, countsAsDirect: false, color: '#FF5A5F', commissionPercent: 15.5, takesDeposit: false, touristTaxCollection: 'platform', payoutDueDays: 10, forbidsGuestChores: true },
   ] });
