@@ -55,12 +55,16 @@ function createLoginController(ctx, customersController) {
   // page name its company next to it by creating a user with that address.
   function readDirectory(at = ctx.now().toISOString()) {
     const all = customers.list();
-    const contactOwner = new Map(all.filter((c) => !c.erasedAt && c.contactEmail).map((c) => [normaliseEmail(c.contactEmail), c.id]));
+    const contactOwners = new Map();
+    all.filter((c) => !c.erasedAt && c.contactEmail).forEach((c) => {
+      const key = normaliseEmail(c.contactEmail);
+      contactOwners.set(key, (contactOwners.get(key) || new Set()).add(c.id));
+    });
     let read = 0;
     for (const c of all) {
       const emails = ctx.instances.readActiveEmails(servedSlug(c));
       if (emails === null) continue;
-      const claimable = emails.filter((e) => !contactOwner.has(normaliseEmail(e)) || contactOwner.get(normaliseEmail(e)) === c.id);
+      const claimable = emails.filter((e) => !contactOwners.has(normaliseEmail(e)) || contactOwners.get(normaliseEmail(e)).has(c.id));
       directory.replace(c.id, [...new Set(claimable.map((e) => emailHmac(directoryKey, e)))], at);
       read += 1;
     }

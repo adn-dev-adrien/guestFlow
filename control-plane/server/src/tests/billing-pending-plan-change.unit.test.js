@@ -57,3 +57,20 @@ test('rule 40: a held invoice (earlier mismatch) is re-priced by « Réessayer l
     assert.match(result.notice, /^Facture .+ créée\.$/);
   } finally { h.cleanup(); }
 });
+
+test('rule 40: when only the length changes, the journal names the period, not « X → X »', async () => {
+  const qonto = guardedQonto();
+  const h = makeContext({ at: '2026-10-01T08:00:00Z', qonto });
+  try {
+    const c = await h.ctx.controllers.customers.create(MONTHLY, 'op');
+    qonto.state.failNext = { step: 'createInvoice', error: new Error('Qonto timeout') };
+    h.now.set('2026-10-25T08:00:00Z');
+    await h.ctx.controllers.billing.runDaily(() => {});
+    h.ctx.db.prepare('UPDATE invoices SET months = 3 WHERE customerId = ?').run(c.id);
+    h.now.set('2026-10-26T08:00:00Z');
+    await h.ctx.controllers.billing.runDaily(() => {});
+    const line = h.ctx.models.audit.forCustomer(c.id).map((a) => a.text).find((t) => /recalculée/.test(t));
+    assert.match(line, /1 mois, jusqu’au \d{2}\/\d{2}\/\d{4}$/);
+    assert.ok(!/→/.test(line));
+  } finally { h.cleanup(); }
+});

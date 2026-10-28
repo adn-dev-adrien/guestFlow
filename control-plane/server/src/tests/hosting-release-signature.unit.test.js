@@ -40,6 +40,7 @@ function fakeRelease({ signature }) {
       ok: true, status: 200, headers: { get: (h) => (h === 'content-length' ? String(body.length) : null) },
       body: require('stream').Readable.toWeb(require('stream').Readable.from([body])),
       text: async () => body.toString('utf8'),
+      arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.length),
     };
   };
   const release = {

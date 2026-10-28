@@ -321,13 +321,24 @@ signed-off releases over HTTPS, when the operator asks for it.
     `rolled_back`, plus a French human-readable label, the target version, and — on failure — the
     error and the log tail.
 38. The last 5 update outcomes are kept and shown in the settings section (version, date, result).
-39. **A release's install scripts never see the installer's secrets** (audit 2026-10-28, H1). The
-    dependency install runs `npm ci --omit=dev --ignore-scripts` with a minimal environment — `PATH`,
-    a `HOME` and npm cache inside the release being staged, nothing else, so no `CP_*`/`GUESTFLOW_*`
-    variable, session secret or key is inherited. Lifecycle scripts are then run only for the native
-    modules present in the tree and named by an allowlist (`better-sqlite3`, `sharp`), through an explicit
-    `npm rebuild <name>` with the same minimal environment (`better-sqlite3` from source). The fleet
-    console, which holds the licence private key, installs releases through the same function.
+39. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
+    Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
+    `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
+    host, or a missing hash refuses the release (`LOCKFILE_UNTRUSTED`). That closes what `--ignore-scripts`
+    leaves open — a git dependency's `prepare`, and a look-alike package named `sharp` or `better-sqlite3`.
+    The install is then `npm ci --omit=dev --ignore-scripts` with a minimal environment: `PATH`, the proxy
+    variables (`HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `NODE_EXTRA_CA_CERTS`), a throw-away `HOME` inside the
+    release and an npm cache next to the releases directory (warm across updates); no `CP_*`/`GUESTFLOW_*`
+    variable is inherited. No lifecycle script runs and no rebuild is attempted: `better-sqlite3` ships
+    N-API prebuilds and `sharp` its prebuilt optional packages, and a final `require('better-sqlite3')`
+    proves the module loads. Both the self-update and the fleet console (which holds the licence key) use
+    this one function. **What is guaranteed**: no install-time code of the release or of a dependency runs.
+    **What is not**: the install and that final `require` still run as the installer's own unix user, so
+    code of an integrity-checked registry package that executes at load time can read what that user reads
+    (on the console host: `console/env` and `envs/`). Closing that needs the install to run as another user
+    (a root wrapper in the style of `guestflow-systemctl` running `npm ci` and the smoke test as an
+    unprivileged `gf-build` user, with the release directory handed over and back, a sudoers line and
+    bootstrap changes — not testable off the host, so not done).
 40. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
     SPKI Ed25519) is configured on the installer, the release must carry a `SHA256SUMS.sig` asset — the
     base64 Ed25519 signature of the exact `SHA256SUMS` bytes — and an unsigned release, a signature that
@@ -335,8 +346,13 @@ signed-off releases over HTTPS, when the operator asks for it.
     `SIGNATURE_KEY_INVALID`) before the archive is trusted. With no key configured nothing changes. The
     signing key is held by the maintainer, never by GitHub: after the release workflow has published,
     `node scripts/sign-release.mjs sign <private-key-file> vX.Y.Z` signs the published `SHA256SUMS` and
-    uploads `SHA256SUMS.sig`; `keygen <private-key-file>` creates the key pair and prints the public key
-    to configure. The release skill's last step is that signing once the key exists.
+    uploads `SHA256SUMS.sig` after checking that the sums list the downloaded archive's real hash and
+    printing them for comparison with the CI log; `keygen <private-key-file>` creates the key pair and
+    prints the public key to configure. The `/guestflow-release` skill runs that signing (step 8b) when
+    `GUESTFLOW_RELEASE_SIGNING_KEY` is set. The key must be Ed25519 and the signature is checked over the
+    raw bytes of `SHA256SUMS`. The check sits in the only two install paths (`stageRelease` for a space,
+    `releases.install` for the console); a version already installed is not re-verified. Once the key is
+    configured a release is not installable until it has been signed.
 
 **Edge cases**
 

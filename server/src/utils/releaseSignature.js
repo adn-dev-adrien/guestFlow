@@ -1,5 +1,5 @@
 /**
- * Detached Ed25519 signature over a release's `SHA256SUMS` (specs/self-update-and-releases.md rule 51).
+ * Detached Ed25519 signature over a release's `SHA256SUMS` (specs/self-update-and-releases.md rule 40).
  *
  * The signing key is held by the maintainer, never by GitHub; the installer is configured with the
  * matching public key (`GUESTFLOW_RELEASE_PUBLIC_KEY`, base64 DER SPKI, same encoding as the licence
@@ -14,7 +14,8 @@ const SIGNATURE_ASSET_NAME = 'SHA256SUMS.sig';
 function toKey(publicKey) {
   if (!publicKey) return null;
   try {
-    return crypto.createPublicKey({ key: Buffer.from(String(publicKey).trim(), 'base64'), format: 'der', type: 'spki' });
+    const key = crypto.createPublicKey({ key: Buffer.from(String(publicKey).trim(), 'base64'), format: 'der', type: 'spki' });
+    return key.asymmetricKeyType === 'ed25519' ? key : null;
   } catch {
     return null;
   }
@@ -31,12 +32,12 @@ function signSums(sumsText, privateKey) {
 }
 
 /**
- * Check `sumsText` against the detached signature when a public key is configured.
+ * Check `sums` (the raw bytes of SHA256SUMS, as downloaded) against the detached signature when a public key is configured.
  * `fetchSignature()` returns the signature text; it is only called when a key is configured.
  * Throws SIGNATURE_KEY_INVALID, SIGNATURE_MISSING or SIGNATURE_INVALID; resolves true when verified,
  * false when no key is configured.
  */
-async function assertSumsSigned({ sumsText, signature, publicKey, fetchSignature }) {
+async function assertSumsSigned({ sums, signature, publicKey, fetchSignature }) {
   if (!publicKey) return false;
   const key = toKey(publicKey);
   if (!key) throw new Error('SIGNATURE_KEY_INVALID');
@@ -44,7 +45,7 @@ async function assertSumsSigned({ sumsText, signature, publicKey, fetchSignature
   const text = await fetchSignature(signature);
   let ok = false;
   try {
-    ok = crypto.verify(null, Buffer.from(sumsText), key, Buffer.from(String(text).trim(), 'base64'));
+    ok = crypto.verify(null, Buffer.from(sums), key, Buffer.from(String(text).trim(), 'base64'));
   } catch {
     ok = false;
   }

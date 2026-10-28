@@ -6,10 +6,12 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const { installDependencies } = require('../utils/updateStaging');
+const { lockfileViolations, assertLockfileProvenance } = require('../utils/lockfileProvenance');
 
-// specs/self-update-and-releases.md rule 39: the install of a release runs with --ignore-scripts and a
-// minimal environment; only the allowlisted native modules get an explicit rebuild. The sentinels play
-// the part of the console's licence private key, session secret and encryption key.
+// specs/self-update-and-releases.md rule 39: before an install, the release's lockfile must resolve every
+// package from the npm registry with an integrity hash; the install then runs with --ignore-scripts and a
+// minimal environment. The sentinels play the part of the console's licence key, session secret and
+// encryption key.
 
 const SECRETS = {
   CP_LICENCE_PRIVATE_KEY: 'SENTINEL-LICENCE-KEY',
@@ -17,77 +19,115 @@ const SECRETS = {
   GUESTFLOW_ENCRYPTION_KEY: 'SENTINEL-ENCRYPTION',
 };
 
-function withSecrets(fn) {
+function withEnv(vars, fn) {
   return async () => {
     const saved = {};
-    for (const [k, v] of Object.entries(SECRETS)) { saved[k] = process.env[k]; process.env[k] = v; }
+    for (const [k, v] of Object.entries(vars)) { saved[k] = process.env[k]; process.env[k] = v; }
     try { await fn(); } finally {
       for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     }
   };
 }
 
-// A release whose server/package.json, and a tarball dependency named like the native module, both
-// dump their environment from install scripts into the release tree.
-function buildHostileRelease() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-hostile-'));
-  const releaseDir = path.join(root, 'release');
+const REG = 'https://registry.npmjs.org/';
+const clean = (extra = {}) => ({
+  lockfileVersion: 3,
+  packages: {
+    '': { name: 'x' },
+    'node_modules/ok': { version: '1.0.0', resolved: `${REG}ok/-/ok-1.0.0.tgz`, integrity: 'sha512-abc' },
+    ...extra,
+  },
+});
+
+test('the real lockfile of this repository passes the provenance check (rule 39)', () => {
+  assert.deepEqual(lockfileViolations(require('../../package-lock.json')), []);
+});
+
+test('every lockfile entry that is not a registry package with an integrity hash is refused (rule 39)', () => {
+  assert.deepEqual(lockfileViolations(clean()), []);
+  assert.deepEqual(lockfileViolations(clean({ 'node_modules/b': { inBundle: true, version: '1.0.0' } })), [], 'a bundled copy has no URL of its own');
+  const refused = {
+    'git (prepare would run)': { version: '1.0.0', resolved: 'git+ssh://git@github.com/evil/repo.git#abcdef', integrity: 'sha512-x' },
+    'git over https': { version: '1.0.0', resolved: 'git+https://github.com/evil/repo.git#abcdef' },
+    'file dependency': { version: '1.0.0', resolved: 'file:../evil.tgz' },
+    'link dependency': { resolved: '../evil', link: true },
+    'http tarball': { version: '1.0.0', resolved: 'http://registry.npmjs.org/sharp/-/sharp-1.0.0.tgz', integrity: 'sha512-x' },
+    'other registry': { version: '1.0.0', resolved: 'https://registry.evil.example/sharp/-/sharp-1.0.0.tgz', integrity: 'sha512-x' },
+    'look-alike host': { version: '1.0.0', resolved: 'https://registry.npmjs.org.evil.example/sharp.tgz', integrity: 'sha512-x' },
+    'no integrity': { version: '1.0.0', resolved: `${REG}sharp/-/sharp-1.0.0.tgz` },
+    'no resolved': { version: '1.0.0', integrity: 'sha512-x' },
+    'a package named like a native module, from a tarball': { version: '1.0.0', resolved: 'https://example.com/better-sqlite3.tgz', integrity: 'sha512-x' },
+  };
+  for (const [name, entry] of Object.entries(refused)) {
+    assert.equal(lockfileViolations(clean({ 'node_modules/sharp': entry })).length, 1, name);
+  }
+  assert.equal(lockfileViolations({}).length, 1);
+});
+
+function writeRelease(lock) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-prov-'));
+  const releaseDir = path.join(root, 'releases', '9.9.9.partial');
   const serverDir = path.join(releaseDir, 'server');
-  const pkgDir = path.join(root, 'better-sqlite3');
   fs.mkdirSync(serverDir, { recursive: true });
-  fs.mkdirSync(pkgDir);
-  const leakOf = (name) => `require('fs').writeFileSync(require('path').resolve(${JSON.stringify(releaseDir)},'${name}.json'),JSON.stringify(process.env))`;
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
-    name: 'better-sqlite3', version: '1.0.0', main: 'index.js',
-    scripts: { install: `node -e "${leakOf('rebuild-env').replace(/"/g, '\\"')}"` },
-  }));
-  fs.writeFileSync(path.join(pkgDir, 'index.js'), 'module.exports = {};\n');
-  execFileSync('npm', ['pack', '--pack-destination', serverDir, '--silent'], { cwd: pkgDir, stdio: 'pipe' });
+  const leak = (name) => `node -e "require('fs').writeFileSync(${JSON.stringify(path.join(root, name))}, JSON.stringify(process.env))"`;
   fs.writeFileSync(path.join(serverDir, 'package.json'), JSON.stringify({
-    name: 'hostile', version: '1.0.0',
-    dependencies: { 'better-sqlite3': 'file:./better-sqlite3-1.0.0.tgz' },
-    scripts: { postinstall: `node -e "${leakOf('postinstall-env').replace(/"/g, '\\"')}"`, preinstall: `node -e "${leakOf('preinstall-env').replace(/"/g, '\\"')}"` },
+    name: 'hostile', version: '1.0.0', scripts: { preinstall: leak('preinstall.json'), postinstall: leak('postinstall.json'), prepare: leak('prepare.json') },
   }));
-  execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--offline', '--silent'], { cwd: serverDir, stdio: 'pipe', env: { ...process.env, npm_config_cache: path.join(root, 'cache') } });
+  if (lock) fs.writeFileSync(path.join(serverDir, 'package-lock.json'), JSON.stringify(lock));
   return { root, releaseDir };
 }
 
-test('install scripts of a release never see the installer secrets (rule 39)', withSecrets(async () => {
-  const { root, releaseDir } = buildHostileRelease();
+test('a release with an untrusted lockfile is refused before npm runs at all (rule 39)', async () => {
+  for (const lock of [
+    clean({ 'node_modules/sharp': { version: '1.0.0', resolved: 'git+ssh://git@github.com/evil/repo.git#abc', integrity: 'sha512-x' } }),
+    clean({ 'node_modules/better-sqlite3': { version: '1.0.0', resolved: 'file:./better-sqlite3-1.0.0.tgz', integrity: 'sha512-x' } }),
+    null,
+  ]) {
+    const { root, releaseDir } = writeRelease(lock);
+    const calls = [];
+    try {
+      await assert.rejects(installDependencies({ releaseDir, execFileImpl: async (...a) => { calls.push(a); } }), /^Error: LOCKFILE_UNTRUSTED:/);
+      assert.deepEqual(calls, []);
+      assert.throws(() => assertLockfileProvenance(path.join(releaseDir, 'server')), /LOCKFILE_UNTRUSTED/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('npm ci of a clean release runs none of its lifecycle scripts, whatever the environment holds (rule 39)', withEnv(SECRETS, async () => {
+  const { root, releaseDir } = writeRelease({ lockfileVersion: 3, name: 'hostile', version: '1.0.0', packages: { '': { name: 'hostile', version: '1.0.0' } } });
   try {
-    await installDependencies({ releaseDir });
-    // Root scripts are skipped altogether under --ignore-scripts.
-    assert.equal(fs.existsSync(path.join(releaseDir, 'postinstall-env.json')), false);
-    assert.equal(fs.existsSync(path.join(releaseDir, 'preinstall-env.json')), false);
-    // The allowlisted native module is rebuilt, with a minimal environment.
-    const env = JSON.parse(fs.readFileSync(path.join(releaseDir, 'rebuild-env.json'), 'utf8'));
-    for (const name of Object.keys(SECRETS)) assert.equal(env[name], undefined, `${name} leaked`);
-    assert.equal(JSON.stringify(env).includes('SENTINEL'), false);
-    assert.equal(env.npm_config_build_from_source, 'true');
+    await installDependencies({
+      releaseDir,
+      execFileImpl: async (cmd, args, options) => {
+        if (cmd === 'npm') execFileSync(cmd, args, { cwd: options.cwd, env: options.env, stdio: 'pipe' });
+      },
+    });
+    for (const name of ['preinstall.json', 'postinstall.json', 'prepare.json']) {
+      assert.equal(fs.existsSync(path.join(root, name)), false, `${name} ran`);
+    }
     assert.equal(fs.existsSync(path.join(releaseDir, '.install-home')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 }));
 
-test('every child of the install gets the minimal environment, and only allowlisted modules are rebuilt (rule 39)', withSecrets(async () => {
-  const releaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-install-calls-'));
-  fs.mkdirSync(path.join(releaseDir, 'server', 'node_modules', 'sharp'), { recursive: true });
-  fs.mkdirSync(path.join(releaseDir, 'server', 'node_modules', 'better-sqlite3'), { recursive: true });
-  fs.mkdirSync(path.join(releaseDir, 'server', 'node_modules', 'evil-native'), { recursive: true });
+test('every child of the install gets a minimal environment, the proxy settings and a cache outside the release (rule 39)', withEnv({ ...SECRETS, HTTPS_PROXY: 'http://proxy.test:3128', NO_PROXY: 'localhost' }, async () => {
+  const { root, releaseDir } = writeRelease(clean());
   const calls = [];
   try {
     await installDependencies({ releaseDir, execFileImpl: async (cmd, args, options) => { calls.push({ cmd, args, options }); } });
-    assert.deepEqual(calls[0].args, ['ci', '--omit=dev', '--ignore-scripts']);
-    assert.deepEqual(calls.slice(1, -1).map((c) => c.args.join(' ')), ['rebuild better-sqlite3', 'rebuild sharp']);
-    for (const call of calls) {
-      assert.ok(call.options.env, 'explicit env');
-      assert.equal(JSON.stringify(call.options.env).includes('SENTINEL'), false);
-      assert.equal(call.options.env.CP_LICENCE_PRIVATE_KEY, undefined);
-      assert.ok(call.options.env.HOME.startsWith(releaseDir));
-      assert.ok(call.options.env.npm_config_cache.startsWith(releaseDir));
+    assert.deepEqual(calls.map((c) => c.args[0] === 'ci' ? c.args.join(' ') : '-e'), ['ci --omit=dev --ignore-scripts', '-e']);
+    for (const { options } of calls) {
+      assert.equal(JSON.stringify(options.env).includes('SENTINEL'), false);
+      assert.equal(options.env.CP_LICENCE_PRIVATE_KEY, undefined);
+      assert.equal(options.env.HTTPS_PROXY, 'http://proxy.test:3128');
+      assert.equal(options.env.NO_PROXY, 'localhost');
+      assert.equal(options.env.npm_config_cache, path.join(root, 'releases', '.npm-cache'));
+      assert.ok(options.env.HOME.startsWith(releaseDir));
     }
   } finally {
-    fs.rmSync(releaseDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 }));

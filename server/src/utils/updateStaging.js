@@ -19,6 +19,7 @@ const { isAllowedDownloadUrl, parseSha256Sums } = require('./releaseClient');
 const { isValidVersion } = require('./semver');
 const { linkPersistentPaths } = require('./releaseLinks');
 const { assertSumsSigned, releasePublicKeyFromEnv } = require('./releaseSignature');
+const { assertLockfileProvenance } = require('./lockfileProvenance');
 
 const execFileAsync = promisify(execFile);
 
@@ -82,6 +83,12 @@ async function downloadToFile({ url, destFile, maxBytes = MAX_ARCHIVE_BYTES, fet
 async function fetchText({ url, fetchImpl = fetch }) {
   const res = await fetchAllowed(url, { fetchImpl });
   return res.text();
+}
+
+/** Fetch a small asset as raw bytes (what a signature is checked against). */
+async function fetchBuffer({ url, fetchImpl = fetch }) {
+  const res = await fetchAllowed(url, { fetchImpl });
+  return Buffer.from(await res.arrayBuffer());
 }
 
 async function sha256File(file) {
@@ -161,48 +168,49 @@ function assertReleaseLayout(releaseDir, expectedVersion) {
   return true;
 }
 
-// The only dependencies whose own install scripts are allowed to run (the native ones): every other
-// lifecycle script of a release is skipped, because a release is third-party code installed by a
-// process that may hold secrets (audit 2026-10-28, H1).
-const NATIVE_REBUILD_ALLOWLIST = ['better-sqlite3', 'sharp'];
+// Not secrets: how to reach the registry from behind a proxy.
+const PASS_THROUGH_ENV = ['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'https_proxy', 'http_proxy', 'no_proxy', 'NODE_EXTRA_CA_CERTS'];
 
 /**
- * The environment of every npm / node child of an install: nothing of the parent's, so no secret
- * (`CP_*`, `GUESTFLOW_*`, session or encryption keys) can reach a lifecycle script of the release.
+ * The environment of every npm / node child of an install: nothing of the parent's but PATH and the
+ * proxy settings, so no secret (`CP_*`, `GUESTFLOW_*`, session or encryption keys) reaches a lifecycle
+ * script of the release. The npm cache is `cacheDir`, outside the release, so updates stay warm.
  */
-function installEnv(homeDir, extra = {}) {
-  return {
+function installEnv(homeDir, cacheDir) {
+  const env = {
     PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
     HOME: homeDir,
-    npm_config_cache: path.join(homeDir, '.npm'),
+    npm_config_cache: cacheDir,
     npm_config_update_notifier: 'false',
     npm_config_fund: 'false',
     npm_config_audit: 'false',
-    ...extra,
   };
+  for (const name of PASS_THROUGH_ENV) if (process.env[name]) env[name] = process.env[name];
+  return env;
 }
 
 /**
  * Install production dependencies and make sure the native module actually loads.
  *
- * `npm ci --omit=dev --ignore-scripts` first: no lifecycle script of the release or of any of its
- * dependencies runs, and the environment is minimal (see `installEnv`). Then the native modules
- * present in the tree (`NATIVE_REBUILD_ALLOWLIST`) are rebuilt explicitly — `better-sqlite3` from
- * source so its ABI matches the Node that will run it, the same two-step the deploy workflow used —
- * with the same minimal environment.
+ * Guarantees (rule 39), and their limit. Before anything runs, the lockfile must resolve every package
+ * from the public npm registry with an integrity hash (`assertLockfileProvenance`): no git, file, link
+ * or http dependency, so no `prepare` script and no look-alike `sharp`. Then `npm ci --omit=dev
+ * --ignore-scripts` runs with a minimal environment (`installEnv`). Packages from the registry can
+ * still ship install scripts of their own, but none runs: scripts are skipped, and `better-sqlite3`
+ * (N-API prebuilds) and `sharp` (prebuilt optional packages) need none. What this does NOT do: the
+ * install still runs as the installer's own user, so it is not a sandbox against a compromised
+ * registry package's *code at load time*, only against install-time execution.
  */
 async function installDependencies({ releaseDir, execFileImpl = execFileAsync }) {
   const serverDir = path.join(releaseDir, 'server');
+  assertLockfileProvenance(serverDir);
   const homeDir = path.join(releaseDir, '.install-home');
+  const cacheDir = path.join(path.dirname(releaseDir), '.npm-cache');
   fs.mkdirSync(homeDir, { recursive: true });
-  const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: installEnv(homeDir) };
+  fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+  const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: installEnv(homeDir, cacheDir) };
   try {
     await execFileImpl('npm', ['ci', '--omit=dev', '--ignore-scripts'], options);
-    const present = NATIVE_REBUILD_ALLOWLIST.filter((name) => fs.existsSync(path.join(serverDir, 'node_modules', name)));
-    for (const name of present) {
-      const extra = name === 'better-sqlite3' ? { npm_config_build_from_source: 'true' } : {};
-      await execFileImpl('npm', ['rebuild', name], { ...options, env: installEnv(homeDir, extra) });
-    }
     await execFileImpl(process.execPath, ['-e', "require('better-sqlite3')"], options);
   } finally {
     fs.rmSync(homeDir, { recursive: true, force: true });
@@ -237,14 +245,14 @@ async function stageRelease({
     await downloadToFile({ url: release.archive.url, destFile: tmpArchive, fetchImpl });
 
     onPhase('verifying');
-    const sumsText = await fetchText({ url: release.checksums.url, fetchImpl });
+    const sumsBytes = await fetchBuffer({ url: release.checksums.url, fetchImpl });
     await assertSumsSigned({
-      sumsText,
+      sums: sumsBytes,
       signature: release.checksumsSignature,
       publicKey: releasePublicKey,
       fetchSignature: (asset) => fetchText({ url: asset.url, fetchImpl }),
     });
-    const sums = parseSha256Sums(sumsText);
+    const sums = parseSha256Sums(sumsBytes.toString('utf8'));
     const expected = sums[release.archive.name];
     if (!expected) throw new Error('CHECKSUM_MISSING');
     const actual = await sha256File(tmpArchive);
@@ -304,6 +312,7 @@ module.exports = {
   fetchAllowed,
   downloadToFile,
   fetchText,
+  fetchBuffer,
   sha256File,
   assertArchiveMembers,
   assertMemberPaths,

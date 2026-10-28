@@ -673,8 +673,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 41. **The shared login directory does not trust a space's claim on a known address** (added 2026-10-28,
     audit L2). Spaces declare their users' emails and nothing proves them (a customer administrator
     creates users without confirmation). The address recorded as a customer's contact is a known
-    identity: it is put in the directory for that customer's space only, whatever another space
-    declares. Other addresses are listed as before (rule 26) — the residual risk, a space claiming an
+    identity: it is put in the directory for the space(s) of the customer(s) it is recorded on only
+    (two customers may share one), whatever another space declares. Other addresses are listed as before (rule 26) — the residual risk, a space claiming an
     address the operator never recorded, is accepted: the page then shows a company name, no
     credential is exposed (each space checks its own passwords).
 

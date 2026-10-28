@@ -19,18 +19,18 @@ const SUMS = 'abc  guestflow-1.0.0.tar.gz\n';
 const sigAsset = { name: 'SHA256SUMS.sig', url: 'https://github.com/x/SHA256SUMS.sig' };
 
 test('no public key configured: nothing is checked (rule 40)', async () => {
-  assert.equal(await assertSumsSigned({ sumsText: SUMS, signature: null, publicKey: null, fetchSignature: () => assert.fail('no fetch') }), false);
+  assert.equal(await assertSumsSigned({ sums: SUMS, signature: null, publicKey: null, fetchSignature: () => assert.fail('no fetch') }), false);
 });
 
 test('a valid signature passes, a missing, forged or garbled one is refused (rule 40)', async () => {
   const good = signSums(SUMS, pair.privateKey);
-  assert.equal(await assertSumsSigned({ sumsText: SUMS, signature: sigAsset, publicKey, fetchSignature: async () => `${good}\n` }), true);
-  await assert.rejects(assertSumsSigned({ sumsText: SUMS, signature: null, publicKey, fetchSignature: async () => good }), /SIGNATURE_MISSING/);
-  await assert.rejects(assertSumsSigned({ sumsText: `${SUMS}tampered`, signature: sigAsset, publicKey, fetchSignature: async () => good }), /SIGNATURE_INVALID/);
+  assert.equal(await assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey, fetchSignature: async () => `${good}\n` }), true);
+  await assert.rejects(assertSumsSigned({ sums: SUMS, signature: null, publicKey, fetchSignature: async () => good }), /SIGNATURE_MISSING/);
+  await assert.rejects(assertSumsSigned({ sums: `${SUMS}tampered`, signature: sigAsset, publicKey, fetchSignature: async () => good }), /SIGNATURE_INVALID/);
   const other = crypto.generateKeyPairSync('ed25519');
-  await assert.rejects(assertSumsSigned({ sumsText: SUMS, signature: sigAsset, publicKey, fetchSignature: async () => signSums(SUMS, other.privateKey) }), /SIGNATURE_INVALID/);
-  await assert.rejects(assertSumsSigned({ sumsText: SUMS, signature: sigAsset, publicKey, fetchSignature: async () => '%%%not base64%%%' }), /SIGNATURE_INVALID/);
-  await assert.rejects(assertSumsSigned({ sumsText: SUMS, signature: sigAsset, publicKey: 'garbage', fetchSignature: async () => good }), /SIGNATURE_KEY_INVALID/);
+  await assert.rejects(assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey, fetchSignature: async () => signSums(SUMS, other.privateKey) }), /SIGNATURE_INVALID/);
+  await assert.rejects(assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey, fetchSignature: async () => '%%%not base64%%%' }), /SIGNATURE_INVALID/);
+  await assert.rejects(assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey: 'garbage', fetchSignature: async () => good }), /SIGNATURE_KEY_INVALID/);
 });
 
 test('the key comes from GUESTFLOW_RELEASE_PUBLIC_KEY (rule 40)', () => {
@@ -83,4 +83,17 @@ test('stageRelease: unsigned releases still install with no key, and are refused
   await assert.rejects(stage({ key: publicKey, sign: null }), /SIGNATURE_MISSING/);
   await assert.rejects(stage({ key: publicKey, sign: false }), /SIGNATURE_INVALID/);
   await stage({ key: publicKey, sign: true });
+});
+
+test('a public key that is not Ed25519 is refused as unusable (rule 40)', async () => {
+  const rsa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
+  await assert.rejects(assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey: rsa, fetchSignature: async () => 'x' }), /SIGNATURE_KEY_INVALID/);
+});
+
+test('the signature is checked over the raw bytes, not over a decoded string (rule 40)', async () => {
+  const bytes = Buffer.from([0x61, 0xff, 0xfe, 0x0a]);
+  const sig = crypto.sign(null, bytes, pair.privateKey).toString('base64');
+  assert.equal(await assertSumsSigned({ sums: bytes, signature: sigAsset, publicKey, fetchSignature: async () => sig }), true);
+  assert.equal(await assertSumsSigned({ sums: bytes, signature: sigAsset, publicKey, fetchSignature: async () => sig }), true);
+  await assert.rejects(assertSumsSigned({ sums: bytes.toString('utf8'), signature: sigAsset, publicKey, fetchSignature: async () => sig }), /SIGNATURE_INVALID/);
 });

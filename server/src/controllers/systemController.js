@@ -388,6 +388,7 @@ const STAGING_MESSAGES = {
     ARCHIVE_TOO_LARGE: "L'archive dépasse la taille maximale autorisée.",
     CHECKSUM_MISSING: "L'empreinte SHA-256 de l'archive est absente de la release.",
     CHECKSUM_MISMATCH: "L'archive téléchargée ne correspond pas à son empreinte SHA-256 : mise à jour refusée.",
+    LOCKFILE_UNTRUSTED: "Le fichier de verrouillage des dépendances de la release pointe hors du registre npm : mise à jour refusée.",
     SIGNATURE_MISSING: "La release n'est pas signée alors qu'une clé de signature est configurée : mise à jour refusée.",
     SIGNATURE_INVALID: "La signature de la release ne correspond pas à la clé configurée : mise à jour refusée.",
     SIGNATURE_KEY_INVALID: "La clé publique de signature des releases est illisible : mise à jour refusée.",

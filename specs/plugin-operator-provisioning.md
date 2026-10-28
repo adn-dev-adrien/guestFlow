@@ -331,12 +331,13 @@ screen or endpoint: the customer sees only the features themselves.
     with no data line at all. When the space cannot say — no facts for an installed module, `dataUnknown:
     true` (its count threw), `data: null` — the line reads « Données non relevées : ni effacement ni
     désinstallation. » and offers no action: unknown is not « nothing ».
-46. **A removal order carries `removal: true` in the licence** (audit 2026-10-28, H2): `eraseOrders` is
-    `[{ order, id, removal? }]`, `removal: true` only for « Désinstaller ». The space runs such an order
-    without `purge`, so the promise made to the operator (« Il ne contient aucune donnée ») holds even if
-    data appeared since. Switching the module back on settles its pending orders (rule 27) — and when the
-    space has already run one (`erase:<order>` reported), the journal reads « Données de X déjà effacées » /
-    « X déjà désinstallé » instead of « annulé » (audit L1).
+46. **What the console sends for a removal, and a settled order** (audit 2026-10-28, H2 and L1). The
+    licence's `eraseOrders` is `[{ order, id, removal? }]`, with `removal: true` only for « Désinstaller »;
+    what the space does with it (never a purge, unknown data counts) is the space's rule — see the rule
+    added by the audit of the plugin host (« A removal order never purges… », `plugin-removal-order-no-purge.unit.test.js`).
+    Switching the module back on settles its pending orders (rule 27) — and when the space has already run
+    one (`erase:<order>` reported), the journal reads « Données de X déjà effacées » / « X déjà désinstallé »
+    instead of « annulé » (audit L1).
 
 **Edge cases:**
 

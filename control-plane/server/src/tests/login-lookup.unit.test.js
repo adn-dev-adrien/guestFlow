@@ -62,3 +62,17 @@ test('rule 41 — a space cannot list itself next to another customer\'s contact
     h.cleanup();
   }
 });
+
+test('rule 41 — one contact address recorded on two customers is listed for both (rule 24 several spaces)', async () => {
+  const h = makeContext({ at: '2026-10-01T08:00:00Z' });
+  try {
+    makeInstance(h.root, 'aulnes', { users: [{ email: 'compta@lamy.fr' }] });
+    makeInstance(h.root, 'moulin', { users: [{ email: 'compta@lamy.fr' }] });
+    await h.ctx.controllers.customers.create({ ...NEW_CUSTOMER, contactEmail: 'compta@lamy.fr' }, 'op');
+    await h.ctx.controllers.customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'Compta@Lamy.fr', billing: 'monthly', length: 1, startsAt: '2026-06-01' }, 'op');
+    h.ctx.controllers.login.readDirectory();
+    assert.deepEqual(h.ctx.controllers.login.lookup('compta@lamy.fr').spaces.map((s) => s.slug), ['aulnes', 'moulin']);
+  } finally {
+    h.cleanup();
+  }
+});
