@@ -14,7 +14,8 @@
  *     per type oldest first for a partial extra trip. The state before T is replayed from the last
  *     non-skipped regular trip before it (that trip collected everything ready).
  *   - Pick-up(T)   = what that trip collects, with the drop dates it comes from (`fromTrips`);
- *                    `stillAtLaundry` is what stays after it (T's own drop excluded).
+ *                    `stillAtLaundry` is what stays after it (T's own drop excluded), one `{ counts, readyOn }`
+ *                    per ready date.
  * With one weekday and a one-day turnaround every batch is ready at the next trip, so this reproduces
  * the pre-feature contract exactly: Pick-up(L) = Drop-off(prev).
  *
@@ -27,7 +28,7 @@
 
 const { addDays, previousMatchingDay } = require('./laundryWindow');
 const { addBatch, collectBatches, totalOf } = require('./laundryBatches');
-const { MAX_TURNAROUND_DAYS } = require('./laundrySchedule');
+const { MAX_TURNAROUND_DAYS, REPLAY_DAYS } = require('./laundrySchedule');
 
 const BLOCK_KEYS = Object.freeze([
   'singleBeds', 'doubleBeds', 'babyBeds',
@@ -72,8 +73,6 @@ function makeBlockBuilders({ laundryModel, laundryManualAdditionsModel }) {
   );
   return { buildBlock, incompleteFor };
 }
-
-const REPLAY_DAYS = 42;
 
 /**
  * Build a ledger bound to one configuration.
@@ -138,10 +137,15 @@ function createTripLedger({ schedule, skippedDates, extraTrips, buildBlock, inco
     return batches;
   };
 
+  // What stays at the laundry after the trip, one line per date it becomes ready, soonest first
+  // (specs/linen-laundry-days.md rule 11) — a card must not add up batches ready on different days.
   const stillAt = (remaining) => {
-    if (remaining.length === 0) return null;
-    const { counts, readyOn } = totalOf(remaining, BLOCK_KEYS);
-    return { counts, readyOn };
+    const byReadyOn = new Map();
+    for (const batch of remaining) {
+      if (!byReadyOn.has(batch.readyFrom)) byReadyOn.set(batch.readyFrom, []);
+      byReadyOn.get(batch.readyFrom).push(batch);
+    }
+    return Array.from(byReadyOn.keys()).sort().map((readyOn) => ({ counts: totalOf(byReadyOn.get(readyOn), BLOCK_KEYS).counts, readyOn }));
   };
 
   /**
@@ -155,7 +159,7 @@ function createTripLedger({ schedule, skippedDates, extraTrips, buildBlock, inco
         kind: 'regular',
         dropOff: { ...emptyBlock(), incomplete: [] },
         pickUp: { ...emptyBlock(), fromTrips: [] },
-        stillAtLaundry: null,
+        stillAtLaundry: [],
       };
     }
     if (!isRegular(date) && !isActiveExtra(date)) return null;
@@ -171,6 +175,9 @@ function createTripLedger({ schedule, skippedDates, extraTrips, buildBlock, inco
     if (entry.kind === 'extra') {
       entry.pickUpAll = extrasByDate.get(date).pickUpAll;
       entry.leftAtLaundry = totalOf(remaining, BLOCK_KEYS).counts;
+      // A partial extra trip already says what it leaves (`leftAtLaundry`): what it leaves is ready by
+      // definition, so a « prêt le » line would only repeat it.
+      if (!entry.pickUpAll) entry.stillAtLaundry = [];
     }
     return entry;
   };

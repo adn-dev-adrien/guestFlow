@@ -8,8 +8,6 @@
  * tests.
  */
 
-const { createSchedule } = require('./laundrySchedule');
-
 const parseWeekdays = (csv) => String(csv).split(',').filter((d) => d !== '').map(Number);
 
 function createModel(database) {
@@ -35,9 +33,6 @@ function createModel(database) {
   return {
     /** Every version, oldest first: `[{ effectiveFrom, weekdays: number[], turnaroundDays }]`. */
     listAll,
-
-    /** The versions as a `laundrySchedule` value. */
-    schedule: () => createSchedule(listAll()),
 
     /** Write (or overwrite) the version effective from `effectiveFrom`. */
     upsert(effectiveFrom, { weekdays, turnaroundDays }) {

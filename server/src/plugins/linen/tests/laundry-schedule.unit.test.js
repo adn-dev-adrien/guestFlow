@@ -56,8 +56,11 @@ test('specs/linen-laundry-days.md §3.1 rule 3: the weekdays are checked before 
   assert.equal(validateSchedule({ weekdays: [], turnaroundDays: 0 }).error.code, 'LAUNDRY_WEEKDAYS_EMPTY');
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 3: numeric strings of integers are accepted as those integers', () => {
-  assert.deepEqual(validateSchedule({ weekdays: ['2', '4'], turnaroundDays: '3' }).value, { weekdays: [2, 4], turnaroundDays: 3 });
+test('specs/linen-laundry-days.md §3.1 rule 3: strings are refused, never coerced — "3" and ["2"] are not integers', () => {
+  assert.deepEqual(validateSchedule({ weekdays: ['2', '4'], turnaroundDays: 3 }), { error: ERR.weekday });
+  assert.deepEqual(validateSchedule({ weekdays: [2], turnaroundDays: '3' }), { error: ERR.turnaround });
+  assert.deepEqual(validateSchedule({ weekdays: [2], turnaroundDays: ['2'] }), { error: ERR.turnaround });
+  assert.deepEqual(validateSchedule({ weekdays: [['2']], turnaroundDays: 3 }), { error: ERR.weekday });
 });
 
 test('specs/linen-laundry-days.md §3.1 rule 3: sameSchedule compares the sets and the turnaround', () => {
@@ -161,9 +164,11 @@ test('specs/linen-laundry-days.md §3.1 rule 7: all seven days, turnaround 1 —
   assert.equal(longestWaitDays, 1);
 });
 
-test('specs/linen-laundry-days.md §3.1 rule 7: the cycle wraps over the weekend (Friday → Monday) and lists days in weekday order', () => {
+test('specs/linen-laundry-days.md §3.1 rule 7: the cycle wraps over the weekend (Friday → Monday) and lists days Monday to Sunday', () => {
   assert.deepEqual(cycleOf([5, 1], 1), { cycle: [line(1, 5, 4), line(5, 1, 3)], longestWaitDays: 4 });
-  assert.deepEqual(cycleOf([6, 0], 1).cycle, [line(0, 6, 6), line(6, 0, 1)]);
+  // Monday first: Saturday before Sunday.
+  assert.deepEqual(cycleOf([0, 6], 1).cycle, [line(6, 0, 1), line(0, 6, 6)]);
+  assert.deepEqual(cycleOf([0, 1, 2, 3, 4, 5, 6], 1).cycle.map((c) => c.dropWeekday), [1, 2, 3, 4, 5, 6, 0]);
 });
 
 test('specs/linen-laundry-days.md §3.1 rule 7: firstLaundryDayFrom is the first laundry day on or after a date', () => {

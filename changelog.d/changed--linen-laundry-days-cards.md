@@ -1,0 +1,1 @@
+- **Laundry cards**: a day with nothing but bath mats no longer draws a card while their stock is 0 (untracked); the shortage alert shows the first spell (« du mer. 13 au lun. 23 nov. ») and mentions later ones.

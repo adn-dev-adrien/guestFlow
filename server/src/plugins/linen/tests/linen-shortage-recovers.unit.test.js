@@ -1,5 +1,5 @@
-// specs/linen-laundry-days.md §3.3 rule 18 — the Dashboard shortage alert says when a shortage ends, and
-// names the bath mat. (The alert itself: dashboard-controller-linen.unit.test.js.)
+// specs/linen-laundry-days.md §3.3 rule 18 — the Dashboard shortage alert says when the first shortage spell
+// ends, whether another follows, and names the bath mat. (The alert itself: dashboard-controller-linen.unit.test.js.)
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -9,7 +9,9 @@ function makeRes() {
   return { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
 }
 
-const short = (firstDate, maxMissing, recoversOn, ids = []) => ({ firstDate, maxMissing, recoversOn, impactedReservationIds: ids });
+const short = (firstDate, maxMissing, lastShortageDate, ids = [], laterShortage = false) => ({
+  firstDate, maxMissing, lastShortageDate, laterShortage, impactedReservationIds: ids,
+});
 const none = () => short(null, 0, null);
 
 function alertFor(shortagesByType) {
@@ -22,17 +24,24 @@ function alertFor(shortagesByType) {
   return res.body;
 }
 
-test('specs/linen-laundry-days.md §3.3 rule 18: each type carries recoversOn, the first date with a clean sheet for everyone again', () => {
+test('specs/linen-laundry-days.md §3.3 rule 18: each type carries lastShortageDate, the last day of the first spell', () => {
   const body = alertFor({ single: short('2026-06-24', 3, '2026-06-28', [1]), double: none() });
   assert.equal(body.shortagesByType.length, 1);
   assert.equal(body.shortagesByType[0].type, 'single');
   assert.equal(body.shortagesByType[0].firstShortageDate, '2026-06-24');
-  assert.equal(body.shortagesByType[0].recoversOn, '2026-06-28');
+  assert.equal(body.shortagesByType[0].lastShortageDate, '2026-06-28');
+  assert.equal(body.shortagesByType[0].laterShortage, false);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 18: recoversOn is null when the shortage lasts to the end of the horizon', () => {
+test('specs/linen-laundry-days.md §3.3 rule 18: lastShortageDate is null when the first spell lasts to the end of the horizon', () => {
   const body = alertFor({ double: short('2026-06-24', 1, null, [2]) });
-  assert.equal(body.shortagesByType[0].recoversOn, null);
+  assert.equal(body.shortagesByType[0].lastShortageDate, null);
+});
+
+test('specs/linen-laundry-days.md §3.3 rule 18: a later spell is flagged next to the first one\'s end', () => {
+  const body = alertFor({ single: short('2026-06-12', 3, '2026-06-15', [1], true) });
+  assert.equal(body.shortagesByType[0].lastShortageDate, '2026-06-15');
+  assert.equal(body.shortagesByType[0].laterShortage, true);
 });
 
 test('specs/linen-laundry-days.md §3.3 rule 18: a bath-mat shortage reads « Tapis de bain », not « bathMat »', () => {

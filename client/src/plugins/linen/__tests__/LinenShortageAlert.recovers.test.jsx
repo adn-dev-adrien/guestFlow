@@ -13,28 +13,49 @@ import LinenShortageAlert from '../LinenShortageAlert';
 const payload = (over = {}) => ({
   horizon: '2026-08-30',
   shortagesByType: [{
-    type: 'double', label: 'Drap double', firstShortageDate: '2026-06-24', maxMissing: 2, recoversOn: '2026-06-30',
-    impactedReservations: [], ...over,
+    type: 'double', label: 'Drap double', firstShortageDate: '2026-06-24', lastShortageDate: '2026-06-29', laterShortage: false,
+    maxMissing: 2, impactedReservations: [], ...over,
   }],
 });
 
 const renderAlert = () => render(<MemoryRouter><LinenShortageAlert attention={{}} /></MemoryRouter>);
+const lineOf = async () => {
+  await waitFor(() => expect(screen.getByText('Drap double')).toBeInTheDocument());
+  return screen.getByText('Drap double').parentElement;
+};
 
-test('specs/linen-laundry-days.md rule 18: the end of the shortage follows the first shortage — « jusqu\'au mar. 30 juin »', async () => {
+test('specs/linen-laundry-days.md rule 18: the first spell reads « du mer. 24 au lun. 29 juin » — both dates in one format, the last day of the shortage', async () => {
   api.getLinenShortageAlert.mockResolvedValue(payload());
   renderAlert();
-  await waitFor(() => expect(screen.getByText('Drap double')).toBeInTheDocument());
-  const line = screen.getByText('Drap double').parentElement;
+  const line = await lineOf();
   expect(line).toHaveTextContent("jusqu'à 2 manquants");
-  expect(line).toHaveTextContent('première rupture le 24 juin 2026');
-  expect(line).toHaveTextContent("jusqu'au mar. 30 juin");
+  expect(line).toHaveTextContent('du mer. 24 au lun. 29 juin');
+  expect(line).not.toHaveTextContent('puis');
 });
 
-test('specs/linen-laundry-days.md rule 18: without recoversOn (not within the horizon) the wording is today\'s', async () => {
-  api.getLinenShortageAlert.mockResolvedValue(payload({ recoversOn: null }));
+test('specs/linen-laundry-days.md rule 18: a spell across two months names both', async () => {
+  api.getLinenShortageAlert.mockResolvedValue(payload({ firstShortageDate: '2026-06-29', lastShortageDate: '2026-07-02' }));
   renderAlert();
-  await waitFor(() => expect(screen.getByText('Drap double')).toBeInTheDocument());
-  const line = screen.getByText('Drap double').parentElement;
-  expect(line).toHaveTextContent('première rupture le 24 juin 2026');
-  expect(line).not.toHaveTextContent("jusqu'au");
+  expect(await lineOf()).toHaveTextContent('du lun. 29 juin au jeu. 2 juil.');
+});
+
+test('specs/linen-laundry-days.md rule 18: a one-day spell reads « le … »', async () => {
+  api.getLinenShortageAlert.mockResolvedValue(payload({ lastShortageDate: '2026-06-24' }));
+  renderAlert();
+  expect(await lineOf()).toHaveTextContent('le mer. 24 juin');
+});
+
+test('specs/linen-laundry-days.md rule 18: a later spell is announced next to the first', async () => {
+  api.getLinenShortageAlert.mockResolvedValue(payload({ laterShortage: true }));
+  renderAlert();
+  const line = await lineOf();
+  expect(line).toHaveTextContent('du mer. 24 au lun. 29 juin · puis d’autres périodes');
+});
+
+test('specs/linen-laundry-days.md rule 18: while the first spell runs at the horizon (no last day) it reads « à partir du … »', async () => {
+  api.getLinenShortageAlert.mockResolvedValue(payload({ lastShortageDate: null }));
+  renderAlert();
+  const line = await lineOf();
+  expect(line).toHaveTextContent('à partir du mer. 24 juin');
+  expect(line).not.toHaveTextContent(' au ');
 });

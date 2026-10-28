@@ -43,17 +43,23 @@ export function sameDraft(a, b) {
   return x.turnaroundDays === y.turnaroundDays && x.weekdays.join() === y.weekdays.join();
 }
 
+const daysLabel = (n) => `${n} ${n > 1 ? 'jours' : 'jour'}`;
+
 /**
  * The line under the fields (rules 19 and 22), or null. `view` is `GET /api/laundry/schedule`.
- * A draft that differs from the version in force starts tomorrow; a saved pending version says what
- * is still in force today.
+ * A draft that differs from the version in force starts tomorrow; a saved pending version also says what
+ * stays in force until then (days and turnaround); going back to the version in force says the pending
+ * change is cancelled.
  */
 export function effectiveCaption(view, draft) {
   if (!view || !isDraftValid(draft)) return null;
   const tomorrow = `À partir de demain, ${formatDayShort(view.tomorrow)}`;
   const current = draftFromSchedule(view.current);
-  if (view.pending && sameDraft(draft, draftFromSchedule(view.pending))) {
-    return `${tomorrow} — aujourd’hui : ${weekdaysSentence(current.weekdays)}`;
+  if (view.pending) {
+    if (sameDraft(draft, draftFromSchedule(view.pending))) {
+      return `${tomorrow} · Jusqu’à demain : ${weekdaysSentence(current.weekdays)} · ${daysLabel(view.current.turnaroundDays)}`;
+    }
+    if (sameDraft(draft, current)) return 'Changement de demain annulé.';
   }
   return sameDraft(draft, current) ? null : tomorrow;
 }

@@ -167,3 +167,13 @@ test('specs/linen-laundry-days.md §3.4 rule 19: the initial cycle shows before 
   render(<LaundryScheduleSection value={tuesdayThursday} onChange={() => {}} initialCycle={CYCLE} />);
   expect(screen.getByTestId('laundry-cycle')).toHaveTextContent('Jeu. → mar.');
 });
+
+test('specs/linen-laundry-days.md §3.4 rule 19: the cycle is not left dimmed once the value is invalid and no preview is pending', async () => {
+  render(<Harness initial={tuesdayThursday} />);
+  await flushPreview();
+  fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));   // a preview is now in flight: dimmed
+  expect(screen.getByTestId('laundry-cycle')).toHaveStyle({ opacity: '0.45' });
+  fireEvent.change(screen.getByLabelText('Délai en jours'), { target: { value: 'abc' } });   // invalid: no preview will answer
+  await flushPreview();
+  expect(screen.getByTestId('laundry-cycle')).toHaveStyle({ opacity: '1' });
+});

@@ -32,7 +32,8 @@ function buildController({
      *         type: 'single', label: 'Drap simple',
      *         firstShortageDate: 'YYYY-MM-DD',
      *         maxMissing: 3,
-     *         recoversOn: 'YYYY-MM-DD' | null,   // first date with a clean sheet for everyone again
+     *         lastShortageDate: 'YYYY-MM-DD' | null,  // last day of the FIRST spell (null while it runs at the horizon)
+     *         laterShortage: boolean,                  // another spell follows the first one
      *         impactedReservations: [{ id, clientName, startDate, endDate }, ...],
      *       },
      *       ...
@@ -73,7 +74,8 @@ function buildController({
         label: TYPE_LABELS[type] || type,
         firstShortageDate: agg.firstDate,
         maxMissing: agg.maxMissing,
-        recoversOn: agg.recoversOn || null,
+        lastShortageDate: agg.lastShortageDate || null,
+        laterShortage: Boolean(agg.laterShortage),
         impactedReservations: agg.impactedReservationIds.map(resolveReservation),
       }));
 

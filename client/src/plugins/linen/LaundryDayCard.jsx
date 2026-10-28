@@ -12,7 +12,7 @@
  *
  * Props:
  *   data — the server's card: { kind, dropOff: { singleBeds, doubleBeds, babyBeds, … }, pickUp: same +
- *     `fromTrips: ['YYYY-MM-DD']`, stillAtLaundry: { counts, readyOn } | null, extraTrip, leftAtLaundry }.
+ *     `fromTrips: ['YYYY-MM-DD']`, stillAtLaundry: [{ counts, readyOn }] (one per ready date), extraTrip, leftAtLaundry }.
  *     Pass `undefined` / `null` → renders nothing. `dropOff.incomplete` (optional) lists the stays
  *     that declare bed linen with no quantity saved yet — rendered as a warning + clickable chips
  *     (specs/laundry-counts-explicit-option-only.md §3.2).
@@ -46,7 +46,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
-import { formatSheets, formatTowels, formatDropDay } from './formatLinen';
+import { formatSheets, formatTowels, formatLinenBlock, formatDropDay } from './formatLinen';
 
 // Laundry-themed palette (2026-06-02). Cyan reads as "fresh / water / linen" without leaning
 // clinical or flashy. Three tones cascade — bg subtle → border just defined enough to pop off
@@ -194,12 +194,9 @@ export default function LaundryDayCard({
   const hasManual = Boolean(manualSheets || manualTowels);
   const hasWithdrawn = Boolean(withdrawnSheets || withdrawnTowels);
   const canEditManual = typeof onEditManual === 'function' && Boolean(date);
-  // specs/linen-laundry-days.md rule 11 — batches dropped earlier that are not ready yet. A partial extra
-  // trip already lists what it leaves, so it keeps its own caption.
-  const stillAtLaundry = data.stillAtLaundry && !isPartial ? data.stillAtLaundry : null;
-  const stillLine = stillAtLaundry
-    ? [formatSheets(stillAtLaundry.counts), formatTowels(stillAtLaundry.counts), `prêt ${formatDropDay(stillAtLaundry.readyOn)}`].filter(Boolean).join(' · ')
-    : null;
+  // specs/linen-laundry-days.md rule 11 — batches dropped earlier that are not ready yet: one line per ready
+  // date, as the server groups them (a partial extra trip comes with none: it keeps its own caption).
+  const stillLines = Array.isArray(data.stillAtLaundry) ? data.stillAtLaundry : [];
   // §3.5 — third block: post-drop available stock. Hidden when no inventory data is provided
   // (e.g. stock untracked = nothing to display).
   const bedParts = formatInventoryParts(inventoryAfter, ['double', 'single', 'baby'], BED_LABELS);
@@ -311,12 +308,14 @@ export default function LaundryDayCard({
               <SideBlock title="À apporter" side={data.dropOff} />
               <SideBlock title="À récupérer" note={provenanceOf(data.pickUp)} side={data.pickUp} />
             </Stack>
-            {stillLine && (
-              <Typography variant="body2" sx={{ mt: 0.75, fontWeight: 600, color: 'text.primary' }}>
-                <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>Encore à la blanchisserie :</Box>{' '}
-                {stillLine}
+            {stillLines.map((line) => (
+              <Typography key={line.readyOn} variant="body2" sx={{ mt: 0.75, fontWeight: 600, color: 'text.primary' }}>
+                <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>
+                  {`Encore à la blanchisserie · prêt ${formatDropDay(line.readyOn)} :`}
+                </Box>{' '}
+                {formatLinenBlock(line.counts)}
               </Typography>
-            )}
+            ))}
             {isPartial && (
               <Typography variant="caption" sx={{ display: 'block', mt: 0.75, fontStyle: 'italic', color: 'text.secondary' }}>
                 {leftLine

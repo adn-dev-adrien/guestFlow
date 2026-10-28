@@ -16,12 +16,11 @@ const STOCK_KEYS = Object.freeze([
 const SETTING_KEYS = Object.freeze([LAUNDRY_WEEKDAY, ...STOCK_KEYS]);
 const DEFAULT_WEEKDAY = 2;
 
-// 0 = Sunday … 6 = Saturday (Date.getDay()).
+// Frozen since the laundry schedule (specs/linen-laundry-days.md rule 26): a write is refused and points to
+// the endpoint that owns the laundry days now. An empty value stays a no-op (the purge writes it).
 function validateLaundryWeekday(value) {
   if (value == null || value === '') return null;
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 0 || n > 6) return 'Doit être un entier entre 0 (dimanche) et 6 (samedi).';
-  return null;
+  return 'Les jours de blanchisserie se règlent par PUT /api/laundry/schedule.';
 }
 
 // A stock count: an integer from 0 to 999. 0 means « this type is not tracked ».

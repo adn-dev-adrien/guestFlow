@@ -81,7 +81,10 @@ export default function LaundryScheduleSection({
   const previewKey = draftValid ? JSON.stringify(scheduleBody(value)) : null;
 
   useEffect(() => {
-    if (!previewKey) return undefined;
+    if (!previewKey) {
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
     const timer = setTimeout(async () => {
@@ -123,10 +126,10 @@ export default function LaundryScheduleSection({
 
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
-      <CardContent sx={{ p: { xs: 1.25, sm: 3 } }}>
+      <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <LocalLaundryServiceIcon color="action" />
-          <Typography variant="sectionHeader">Blanchisserie</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Blanchisserie</Typography>
         </Box>
 
         <FieldRow id="laundry-days-label" label="Jours">
@@ -138,9 +141,9 @@ export default function LaundryScheduleSection({
             aria-labelledby="laundry-days-label"
             aria-describedby="laundry-days-error"
             sx={{
-              display: 'flex', gap: { xs: '1px', sm: 0.75 }, width: { xs: '100%', sm: 'auto' },
+              display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: '4px', sm: 0.75 }, width: { xs: '100%', sm: 'auto' },
               '& .MuiToggleButtonGroup-grouped': {
-                flex: { xs: 1, sm: 'none' }, minWidth: { xs: 0, sm: 44 }, height: 44, borderRadius: '10px !important',
+                flex: { xs: '1 1 40px', sm: 'none' }, minWidth: { xs: 40, sm: 44 }, height: 44, borderRadius: '10px !important',
                 border: '1px solid', borderColor: 'divider', fontWeight: 600, touchAction: 'manipulation',
                 transition: 'background-color 150ms ease, color 150ms ease, transform 100ms ease',
                 '&:active': { transform: 'scale(0.95)' },

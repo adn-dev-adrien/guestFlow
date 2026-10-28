@@ -118,7 +118,7 @@ test('specs/plugins-phase-2-hosts.md rule 15: /api/laundry and the shortage aler
   assert.doesNotMatch(fs.readFileSync(path.join(SRC, 'index.js'), 'utf8'), /\/api\/laundry/);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 15: the stock and the laundry day are read and written through /api/plugins/linen/settings, validated', () => {
+test('specs/plugins-phase-2-hosts.md rule 15: the stock is read and written through /api/plugins/linen/settings, validated; the frozen laundry day is refused', () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel });
@@ -135,9 +135,14 @@ test('specs/plugins-phase-2-hosts.md rule 15: the stock and the laundry day are 
 
   res = fakeRes();
   controller.saveSettings({ params: { id: 'linen' }, body: { bedLinenStockDouble: 12, laundryWeekday: 4 } }, res);
+  // specs/linen-laundry-days.md rule 26 — the laundry day is frozen: refused, pointing to the schedule endpoint.
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.errors.laundryWeekday, /PUT \/api\/laundry\/schedule/);
+
+  res = fakeRes();
+  controller.saveSettings({ params: { id: 'linen' }, body: { bedLinenStockDouble: 12 } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.bedLinenStockDouble, '12');
-  assert.equal(res.body.laundryWeekday, '4');
 });
 
 test('specs/plugins-phase-2-hosts.md rule 17: the bed-linen alert is computed only while linen is live', () => {

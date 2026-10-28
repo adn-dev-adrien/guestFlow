@@ -172,6 +172,33 @@ test('specs/linen-laundry-days.md §3.3 rule 15: a manual line on a date that is
   assert.equal(day(result, '2026-06-16').dropped.single, 2);
 });
 
+test('specs/linen-laundry-days.md §3.5 rule 28: a negative manual line on a date that is not a laundry day waits for the next drop and is capped there', () => {
+  // 2 singles are dirty from Wednesday 06-17 (a stay ended that day). The operator washes 1 at home on that
+  // Wednesday (not a trip day): nothing is taken off the pile before a drop, Thursday's drop carries 1.
+  const stays = [stay('2026-06-10', '2026-06-17', 2)];
+  const stock = { single: 6, double: 0, baby: 0, large: 0, medium: 0, small: 0, bathMat: 0 };
+  const once = run({ schedule: constantSchedule([TUE, THU], 1), stays, stock: 6, manualAdditionsByDate: new Map([['2026-06-17', { single: -1 }]]), from: '2026-06-12', to: '2026-06-30' });
+  assert.equal(day(once, '2026-06-17').dirty.single, 2);
+  assert.equal(day(once, '2026-06-18').dropped.single, 1);
+  assert.equal(day(once, '2026-06-18').clean.single, 5, 'the washed linen is clean again on the drop day');
+  // More washed at home than the pile holds: capped at the pile, never negative.
+  const capped = run({ schedule: constantSchedule([TUE, THU], 1), stays, stock: 6, manualAdditionsByDate: new Map([['2026-06-17', { single: -1 }], ['2026-06-18', { single: -9 }]]), from: '2026-06-12', to: '2026-06-30' });
+  assert.equal(day(capped, '2026-06-18').dropped.single, 0);
+  assert.equal(day(capped, '2026-06-18').clean.single, 6);
+  assertConservation(once, stock, 'negative carried');
+  assertConservation(capped, stock, 'negative capped');
+});
+
+test('specs/linen-laundry-days.md §3.5 rule 28: removing a weekday that holds a negative manual line keeps it — it reaches the next drop instead of vanishing', () => {
+  const stays = [stay('2026-06-10', '2026-06-16', 3)];
+  const manual = new Map([['2026-06-18', { single: -2 }]]);   // a Thursday line…
+  const withThursday = run({ schedule: constantSchedule([TUE, THU], 1), stays, stock: 6, manualAdditionsByDate: manual, from: '2026-06-12', to: '2026-06-30' });
+  assert.equal(day(withThursday, '2026-06-16').dropped.single, 3);
+  const tuesdayOnly = run({ schedule: constantSchedule([TUE], 1), stays: [stay('2026-06-10', '2026-06-17', 3)], stock: 6, manualAdditionsByDate: manual, from: '2026-06-12', to: '2026-06-30' });
+  // …Thursday left the schedule: the stay ending Wednesday 06-17 reaches the Tuesday 06-23 drop minus the 2 washed at home.
+  assert.equal(day(tuesdayOnly, '2026-06-23').dropped.single, 1);
+});
+
 // --- Rule 16: the initial state is a replay -----------------------------------------------------
 
 test('specs/linen-laundry-days.md §3.3 rule 16: the state on `from` is what the day-by-day replay gives — starting later changes nothing from there on', () => {
@@ -228,33 +255,37 @@ test('specs/linen-laundry-days.md §3.3 rule 16: the warm-up reaches 42 days bac
 
 // --- Rule 18: a shortage says when it ends ------------------------------------------------------
 
-test('specs/linen-laundry-days.md §3.3 rule 18: recoversOn is the first day after the first shortage with a clean sheet for everyone again', () => {
+test('specs/linen-laundry-days.md §3.3 rule 18: lastShortageDate is the last day of the first spell — the day before a clean sheet exists for everyone again', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3), stay('2026-06-12', '2026-06-14', 3)];
   const slow = run({ schedule: constantSchedule([TUE, THU], 3), stays, stock: 3 });
   assert.equal(slow.shortagesByType.single.firstDate, '2026-06-12');
-  assert.equal(slow.shortagesByType.single.recoversOn, '2026-06-16');   // the Tuesday that finally collects the batch
+  assert.equal(slow.shortagesByType.single.lastShortageDate, '2026-06-15');   // Tuesday 06-16 collects the batch
+  assert.equal(slow.shortagesByType.single.laterShortage, false);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 18: recoversOn is null when the shortage lasts to the end of the horizon, and for a type that is not short', () => {
+test('specs/linen-laundry-days.md §3.3 rule 18: lastShortageDate is null while the first spell runs at the horizon, and for a type that is not short', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3), stay('2026-06-12', '2026-06-14', 3)];
   const result = run({ schedule: constantSchedule([TUE, THU], 3), stays, stock: 3, to: '2026-06-14' });
   assert.equal(result.shortagesByType.single.firstDate, '2026-06-12');
-  assert.equal(result.shortagesByType.single.recoversOn, null);
+  assert.equal(result.shortagesByType.single.lastShortageDate, null);
   assert.equal(result.shortagesByType.double.firstDate, null);
-  assert.equal(result.shortagesByType.double.recoversOn, null);
+  assert.equal(result.shortagesByType.double.lastShortageDate, null);
+  assert.equal(result.shortagesByType.double.laterShortage, false);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 18: recoversOn stays the first recovery when the shortage comes back later', () => {
+test('specs/linen-laundry-days.md §3.3 rule 18: a shortage that comes back later is flagged, and the first spell keeps its own end', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3), stay('2026-06-12', '2026-06-14', 3), stay('2026-06-22', '2026-06-25', 5)];
   const result = run({ schedule: constantSchedule([TUE, THU], 3), stays, stock: 3 });
   assert.equal(result.shortagesByType.single.firstDate, '2026-06-12');
-  assert.equal(result.shortagesByType.single.recoversOn, '2026-06-16');
+  assert.equal(result.shortagesByType.single.lastShortageDate, '2026-06-15');
+  assert.equal(result.shortagesByType.single.laterShortage, true);
   assert.ok(result.shortagesByType.single.maxMissing >= 2);
 });
 
-test('specs/linen-laundry-days.md §3.3 rule 18: a type with no stock is untracked — no shortage, no recovery', () => {
+test('specs/linen-laundry-days.md §3.3 rule 18: a type with no stock is untracked — no shortage, no spell', () => {
   const stays = [stay('2026-06-05', '2026-06-09', 3)];
   const result = run({ schedule: constantSchedule([TUE], 1), stays, stock: 0 });
   assert.equal(result.shortagesByType.single.firstDate, null);
-  assert.equal(result.shortagesByType.single.recoversOn, null);
+  assert.equal(result.shortagesByType.single.lastShortageDate, null);
+  assert.equal(result.shortagesByType.single.laterShortage, false);
 });

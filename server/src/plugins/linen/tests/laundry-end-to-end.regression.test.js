@@ -197,7 +197,7 @@ test('END-TO-END: Adrien\'s prod scenario produces the exact expected dropOff fo
       largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
       fromTrips: [],
     },
-    stillAtLaundry: null,
+    stillAtLaundry: [],
     isSkipped: false,
     inventoryAfter: null,
     manualAddition: null,

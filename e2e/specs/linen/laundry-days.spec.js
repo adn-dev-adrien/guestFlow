@@ -57,13 +57,13 @@ test('Linge page — Tuesday + Thursday, turnaround 2: refusals before Save, the
   await expect(page.getByText(/^À partir de demain, /)).toBeVisible();
 
   await page.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(page.getByText(/aujourd’hui : mardi/)).toBeVisible();
+  await expect(page.getByText(/Jusqu’à demain : mardi/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'Jeudi' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Délai en jours')).toHaveValue('2');
-  await expect(page.getByText(/aujourd’hui : mardi/)).toBeVisible();
+  await expect(page.getByText(/Jusqu’à demain : mardi/)).toBeVisible();
 
   // Cancel puts the saved schedule back.
   await page.getByRole('button', { name: 'Un jour de plus' }).click();
@@ -125,6 +125,6 @@ test.describe('on a phone', () => {
     await page.getByRole('button', { name: 'Jeudi' }).click();
     await page.getByRole('button', { name: 'Un jour de plus' }).click();
     await page.getByRole('button', { name: 'Enregistrer' }).click();
-    await expect(page.getByText(/aujourd’hui : mardi/)).toBeVisible();
+    await expect(page.getByText(/Jusqu’à demain : mardi/)).toBeVisible();
   });
 });

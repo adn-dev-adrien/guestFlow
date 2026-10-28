@@ -60,3 +60,17 @@ export function formatDropDay(iso) {
   if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
 }
+
+// « du mer. 13 au lun. 23 nov. » — a spell of days; the month is named once when both ends share it, and a
+// single day reads « le mer. 13 nov. ».
+export function formatDayRange(fromIso, toIso) {
+  if (!fromIso) return '';
+  if (!toIso || toIso === fromIso) return `le ${formatDayShort(fromIso)}`;
+  const from = new Date(`${String(fromIso).slice(0, 10)}T12:00:00`);
+  const to = new Date(`${String(toIso).slice(0, 10)}T12:00:00`);
+  const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
+  const fromLabel = sameMonth
+    ? from.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
+    : formatDayShort(fromIso);
+  return `du ${fromLabel} au ${formatDayShort(toIso)}`;
+}

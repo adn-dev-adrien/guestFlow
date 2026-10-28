@@ -14,7 +14,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Box, Card, CardContent, Stack, Typography, TextField, FormHelperText } from '@mui/material';
+import { Box, Card, CardContent, Skeleton, Stack, Typography, TextField, FormHelperText } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import BathtubIcon from '@mui/icons-material/Bathtub';
 import {
@@ -62,8 +62,9 @@ export default function LinenStockPage() {
   const { showSuccess, showError } = useToast();
 
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft: { ...draft, schedule: scheduleDraft },
-    saved: { ...savedForm, schedule: savedSchedule },
+    // The schedule is compared as what would be sent: « 02 » typed over « 2 » is not a change.
+    draft: { ...draft, schedule: scheduleDraft && scheduleBody(scheduleDraft) },
+    saved: { ...savedForm, schedule: savedSchedule && scheduleBody(savedSchedule) },
     navigate,
   });
 
@@ -146,6 +147,10 @@ export default function LinenStockPage() {
           />
         )}
 
+        {!scheduleDraft && !loadError && (
+          // Same height as the card, so the stock cards below do not jump when it arrives.
+          <Skeleton variant="rounded" aria-hidden sx={{ height: { xs: 309, sm: 261 }, mb: 3 }} />
+        )}
         {scheduleDraft && (
           <LaundryScheduleSection
             value={scheduleDraft}

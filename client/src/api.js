@@ -530,6 +530,14 @@ const api = {
   // Both bounds are required; any window, past or future.
   getLaundryPlanningDays: ({ from, to }) =>
     request(`/planning/laundry/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // Kept for `linen` 1.1.x, still installable from the registry: its own server answers these two URLs
+  // (specs/linen-laundry-days.md §4.2). `linen` 1.2.0 does not call them; remove at the next major SDK.
+  getLaundryPlanningSummary: ({ from, to } = {}) => {
+    const params = [`from=${encodeURIComponent(from)}`];
+    if (to) params.push(`to=${encodeURIComponent(to)}`);
+    return request(`/planning/laundry?${params.join('&')}`);
+  },
+  getLinenInventory: () => request('/planning/linen-inventory'),
   // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.3). Returns the
   // dates in [from, to] where ≥1 reservation has the breakfast option AND the customer is
   // present in the morning (= `startDate < D AND endDate >= D`). Payload:

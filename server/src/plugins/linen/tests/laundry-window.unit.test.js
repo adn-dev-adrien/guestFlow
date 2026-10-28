@@ -38,15 +38,6 @@ test('weekdayOf returns Date.getUTCDay() semantics (0=Sunday)', () => {
   assert.equal(weekdayOf('2026-06-06'), 6);
 });
 
-test('assertWeekday rejects out-of-range values', () => {
-  assert.throws(() => __test.assertWeekday(-1));
-  assert.throws(() => __test.assertWeekday(7));
-  assert.throws(() => __test.assertWeekday('mardi'));
-  assert.throws(() => __test.assertWeekday(2.5));
-  assert.equal(__test.assertWeekday(0), 0);
-  assert.equal(__test.assertWeekday(6), 6);
-});
-
 // --- specs/linen-laundry-days.md §3.2 rule 8 — the day-by-day walk that replaced the 7-day jumps ---
 
 const nonSkipped = (weekdays, skipped = []) => (iso) => weekdays.includes(weekdayOf(iso)) && !skipped.includes(iso);

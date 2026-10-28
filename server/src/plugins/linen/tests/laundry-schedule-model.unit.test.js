@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 
 const { MIGRATIONS } = require('../migrations');
 const laundryScheduleModel = require('../laundryScheduleModel');
+const { createSchedule } = require('../laundrySchedule');
 
 // specs/linen-laundry-days.md §5 + §3.1 rules 4-5, 24 — the dated versions table and its migration.
 
@@ -59,7 +60,7 @@ test('specs/linen-laundry-days.md §3.1 rule 4: the model reads the migrated ver
   MIGRATION.up(db);
   const model = laundryScheduleModel.create(db);
   assert.deepEqual(model.listAll(), [{ effectiveFrom: '0001-01-01', weekdays: [4], turnaroundDays: 1 }]);
-  const schedule = model.schedule();
+  const schedule = createSchedule(model.listAll());
   assert.equal(schedule.isRegularDay('2026-06-04'), true);
   assert.equal(schedule.isRegularDay('2026-06-02'), false);
   assert.equal(schedule.readyFrom('2026-06-04'), '2026-06-05');

@@ -16,8 +16,12 @@
 const MAX_PLANNING_RANGE_DAYS = 750;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// A real calendar day, not just the shape: `9999-99-99` would parse to NaN, slip under the cap and walk the
+// ledger until it failed (reception-reachable).
 function isIsoDate(value) {
-  return typeof value === 'string' && ISO_DATE_RE.test(value);
+  if (typeof value !== 'string' || !ISO_DATE_RE.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 // Whole days between two YYYY-MM-DD strings, computed in UTC so DST never shifts the count.

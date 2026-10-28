@@ -38,15 +38,20 @@ test('specs/linen-laundry-days.md §3.4 rule 19: no caption when the draft is th
   expect(effectiveCaption(null, { weekdays: [2], turnaroundText: '1' })).toBeNull();
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 22: a saved pending version says what is in force today', () => {
+test('specs/linen-laundry-days.md §3.4 rule 22: a saved pending version says what stays in force until tomorrow — days and turnaround', () => {
   const v = view(version([2], 1), version([2, 4], 2, '2026-10-29'));
-  expect(effectiveCaption(v, { weekdays: [2, 4], turnaroundText: '2' })).toBe('À partir de demain, jeu. 29 oct. — aujourd’hui : mardi');
-  const several = view(version([1, 3, 5], 1), version([2], 1, '2026-10-29'));
-  expect(effectiveCaption(several, { weekdays: [2], turnaroundText: '1' })).toContain('aujourd’hui : lundi, mercredi et vendredi');
+  expect(effectiveCaption(v, { weekdays: [2, 4], turnaroundText: '2' })).toBe('À partir de demain, jeu. 29 oct. · Jusqu’à demain : mardi · 1 jour');
+  const several = view(version([1, 3, 5], 3), version([2], 1, '2026-10-29'));
+  expect(effectiveCaption(several, { weekdays: [2], turnaroundText: '1' })).toContain('Jusqu’à demain : lundi, mercredi et vendredi · 3 jours');
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 22: with a pending version, editing back to the version in force shows nothing, to something else shows plain tomorrow', () => {
+test('specs/linen-laundry-days.md §3.4 rule 22: a turnaround-only pending change is announced too', () => {
+  const v = view(version([2], 1), version([2], 3, '2026-10-29'));
+  expect(effectiveCaption(v, { weekdays: [2], turnaroundText: '3' })).toBe('À partir de demain, jeu. 29 oct. · Jusqu’à demain : mardi · 1 jour');
+});
+
+test('specs/linen-laundry-days.md §3.4 rule 22: with a pending version, going back to the version in force says the change is cancelled, something else shows plain tomorrow', () => {
   const v = view(version([2], 1), version([2, 4], 2, '2026-10-29'));
-  expect(effectiveCaption(v, { weekdays: [2], turnaroundText: '1' })).toBeNull();
+  expect(effectiveCaption(v, { weekdays: [2], turnaroundText: '1' })).toBe('Changement de demain annulé.');
   expect(effectiveCaption(v, { weekdays: [3], turnaroundText: '1' })).toBe('À partir de demain, jeu. 29 oct.');
 });

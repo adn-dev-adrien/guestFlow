@@ -12,7 +12,7 @@
 
 const sdk = require('../sdk');
 const { simulateInventory, findHorizon } = require('./linenInventory');
-const { createSchedule } = require('./laundrySchedule');
+const { createSchedule, REPLAY_DAYS } = require('./laundrySchedule');
 
 function buildModel(database, deps = {}) {
   const { settingsModel, laundryScheduleModel } = deps;
@@ -116,7 +116,7 @@ function buildModel(database, deps = {}) {
     // (specs/linen-laundry-days.md §3.3 rule 16).
     const lookbackFrom = (() => {
       const d = new Date(`${today}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() - 42);
+      d.setUTCDate(d.getUTCDate() - REPLAY_DAYS);
       return d.toISOString().slice(0, 10);
     })();
     const reservations = fetchReservationsStmt.all(lookbackFrom);

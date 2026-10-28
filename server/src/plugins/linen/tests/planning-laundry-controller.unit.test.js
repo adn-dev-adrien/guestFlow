@@ -163,7 +163,7 @@ test('laundryDays: payload carries dropOff + pickUp per laundry day (bed + bathr
     kind: 'regular',
     dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, mediumTowels: 0, smallTowels: 7, bathMats: 0, incomplete: [] },
     pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, mediumTowels: 0, smallTowels: 9, bathMats: 0, fromTrips: ['2026-05-26'] },
-    stillAtLaundry: null,
+    stillAtLaundry: [],
     isSkipped: false,
     inventoryAfter: null,
     manualAddition: null,

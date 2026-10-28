@@ -61,7 +61,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: a schedule change alone saves t
   await waitFor(() => expect(api.saveLaundrySchedule).toHaveBeenCalledWith({ weekdays: [2, 4], turnaroundDays: 1 }));
   expect(api.savePluginSettings).not.toHaveBeenCalled();
   await waitFor(() => expect(toast.showSuccess).toHaveBeenCalledWith('Enregistré.'));
-  expect(await screen.findByText('À partir de demain, jeu. 29 oct. — aujourd’hui : mardi')).toBeInTheDocument();
+  expect(await screen.findByText('À partir de demain, jeu. 29 oct. · Jusqu’à demain : mardi · 1 jour')).toBeInTheDocument();
   expect(save()).toBeDisabled();
 });
 
@@ -127,7 +127,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: a failure without a field is a 
 
 test('specs/linen-laundry-days.md §3.4 rule 22: a pending version is what the page shows, with what is in force today', async () => {
   setup({ pending: { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 2, cycle: [], longestWaitDays: 5 } });
-  expect(await screen.findByText('À partir de demain, jeu. 29 oct. — aujourd’hui : mardi')).toBeInTheDocument();
+  expect(await screen.findByText('À partir de demain, jeu. 29 oct. · Jusqu’à demain : mardi · 1 jour')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Jeudi' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByLabelText('Délai en jours')).toHaveValue('2');
   expect(save()).toBeDisabled();
@@ -135,11 +135,44 @@ test('specs/linen-laundry-days.md §3.4 rule 22: a pending version is what the p
 
 test('specs/linen-laundry-days.md §3.4 rule 22: going back to the version in force and saving sends it, so the server deletes the pending one', async () => {
   setup({ pending: { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 2, cycle: [], longestWaitDays: 5 } });
-  await screen.findByText('À partir de demain, jeu. 29 oct. — aujourd’hui : mardi');
+  await screen.findByText('À partir de demain, jeu. 29 oct. · Jusqu’à demain : mardi · 1 jour');
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de moins' }));
   api.saveLaundrySchedule.mockResolvedValue({ ok: true, current: inForce, pending: null, tomorrow: '2026-10-29' });
   fireEvent.click(save());
   await waitFor(() => expect(api.saveLaundrySchedule).toHaveBeenCalledWith({ weekdays: [2], turnaroundDays: 1 }));
   await waitFor(() => expect(screen.queryByText(/À partir de demain/)).not.toBeInTheDocument());
+});
+
+test('specs/linen-laundry-days.md §3.4 rule 22: with a pending version, going back to the version in force says the change of tomorrow is cancelled', async () => {
+  setup({ pending: { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 2, cycle: [], longestWaitDays: 5 } });
+  await screen.findByText(/Jusqu’à demain : mardi/);
+  fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Un jour de moins' }));
+  expect(screen.getByText('Changement de demain annulé.')).toBeInTheDocument();
+});
+
+test('specs/linen-laundry-days.md §3.4 rule 21: « 02 » typed over « 2 » is not a change — Save stays off, no phantom dirty state', async () => {
+  setup();
+  const input = await screen.findByLabelText('Délai en jours');
+  fireEvent.change(input, { target: { value: '01' } });
+  expect(save()).toBeDisabled();
+  expect(cancel()).toBeDisabled();
+  fireEvent.change(input, { target: { value: '02' } });
+  expect(save()).toBeEnabled();
+  fireEvent.click(save());
+  await waitFor(() => expect(api.saveLaundrySchedule).toHaveBeenCalledWith({ weekdays: [2], turnaroundDays: 2 }));
+});
+
+test('specs/linen-laundry-days.md §3.4 rule 19: a placeholder of the same height holds the place of the card while the schedule loads', async () => {
+  let release;
+  api.getPluginSettings.mockResolvedValue(STOCK);
+  api.getLaundrySchedule.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+  api.previewLaundrySchedule.mockResolvedValue({ cycle: CYCLE_TUESDAY, longestWaitDays: 7, firstTripOn: '2026-10-29' });
+  const { container } = render(<MemoryRouter><LinenStockPage /></MemoryRouter>);
+  await waitFor(() => expect(container.querySelector('.MuiSkeleton-root')).not.toBeNull());
+  expect(screen.queryByText('Blanchisserie')).not.toBeInTheDocument();
+  release({ current: inForce, pending: null, tomorrow: '2026-10-29' });
+  expect(await screen.findByText('Blanchisserie')).toBeInTheDocument();
+  expect(container.querySelector('.MuiSkeleton-root')).toBeNull();
 });

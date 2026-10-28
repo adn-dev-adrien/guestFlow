@@ -46,16 +46,20 @@ function buildController({
     return byDate;
   };
 
-  const total = (side) => BLOCK_KEYS.reduce((sum, k) => sum + (Number(side[k]) || 0), 0);
+  // Bath mats only draw a card when they are tracked (stock > 0): a type at stock 0 is not tracked
+  // (specs/laundry-bath-mat.md §3 rule 7), and a day with nothing but mats is not worth a card.
+  const total = (side, matsTracked) => BLOCK_KEYS
+    .filter((k) => k !== 'bathMats' || matsTracked)
+    .reduce((sum, k) => sum + (Number(side[k]) || 0), 0);
 
   // specs/linen-laundry-days.md rule 13 — the server decides which dates carry a card: an extra trip
   // (the operator's own decision), a skipped trip (so it can be reverted), a day with linen on either
   // side, a stay declaring linen without a quantity yet, or batches still at the laundry.
-  const isDrawn = (entry, isSkipped) => entry.kind === 'extra'
+  const isDrawn = (entry, isSkipped, matsTracked) => entry.kind === 'extra'
     || isSkipped
-    || total(entry.dropOff) + total(entry.pickUp) > 0
+    || total(entry.dropOff, matsTracked) + total(entry.pickUp, matsTracked) > 0
     || entry.dropOff.incomplete.length > 0
-    || entry.stillAtLaundry !== null;
+    || entry.stillAtLaundry.length > 0;
 
   return {
     /**
@@ -96,13 +100,14 @@ function buildController({
         ...ledger.extraDates.filter((d) => d >= from && d <= to),
       ])).sort();
       const projection = inventoryByDate(from, to, schedule);
+      const matsTracked = Number(injectedSettingsModel.read().towelStockBathMat || 0) > 0;
 
       const days = {};
       for (const date of tripDates) {
         const entry = ledger.entryFor(date);
         if (!entry) continue;
         const isSkipped = entry.kind === 'regular' && skippedDates.has(date);
-        if (!isDrawn(entry, isSkipped)) continue;
+        if (!isDrawn(entry, isSkipped, matsTracked)) continue;
         const trip = entry.kind === 'extra' ? extraTrips.find((t) => t.date === date) : null;
         days[date] = {
           kind: entry.kind,

@@ -25,6 +25,7 @@
  */
 
 const { addBatch, collectBatches, totalOf } = require('./laundryBatches');
+const { REPLAY_DAYS } = require('./laundrySchedule');
 
 const BED_TYPES = Object.freeze(['single', 'double', 'baby']);
 // `bathMat` (specs/laundry-bath-mat.md) is a towel-family type: flat per-stay quantity from the
@@ -215,7 +216,6 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
   return out;
 }
 
-const REPLAY_DAYS = 42;
 
 /**
  * Core engine. Walks day by day from `from − 42` to `to`, emits the days from `from`, and returns:
@@ -223,7 +223,7 @@ const REPLAY_DAYS = 42;
  *     days: [{ date, clean, inCirculation, dirty, atLaundry, isTripDay,
  *              dropped, pickedUp, batches,
  *              shortagesToday: [{ type, missing }] }, ...],
- *     shortagesByType: { single: { firstDate, maxMissing, recoversOn, impactedReservationIds }, ... }
+ *     shortagesByType: { single: { firstDate, lastShortageDate, laterShortage, maxMissing, impactedReservationIds }, ... }
  *   }
  * `dropped` / `pickedUp` are the moves of a trip day (zeros on any other day); `batches` is what
  * stays at the laundry at the end of the day, `[{ dropDate, readyFrom, counts }]`.
@@ -288,6 +288,8 @@ function simulateInventory({
     }
   }
   const dirty = zeroByType();
+  // Linen the operator washed himself, waiting for the next drop to be taken off the dirty pile.
+  const washedAtHome = zeroByType();
   let atLaundry = [];
   // clean = stock - inCirculation (may go negative — a real shortage, surfaced as such). Start from a
   // zero-filled record so a partial `stock` (a caller that omits a type) yields 0, not NaN.
@@ -298,7 +300,9 @@ function simulateInventory({
   const days = [];
   const shortagesByType = {};
   for (const t of ALL_TYPES) {
-    shortagesByType[t] = { firstDate: null, maxMissing: 0, recoversOn: null, impactedReservationIds: new Set() };
+    shortagesByType[t] = {
+      firstDate: null, lastDate: null, firstSpellOver: false, laterSpell: false, maxMissing: 0, impactedReservationIds: new Set(),
+    };
   }
 
   let cursor = start;
@@ -341,31 +345,38 @@ function simulateInventory({
       subtractInto(clean, c);
     }
 
-    // 2.5) Manual additions of THIS date (specs/manual-laundry-additions.md §4 rules 4-5): the operator
-    // washes extra linen → it leaves clean and joins the dirty pile, so the next drop washes it and it
-    // returns clean on pick-up. Applied whatever the date, like the Planning window sums, so a line
-    // left on a date that is no longer a laundry day still reaches the next trip. On a SKIPPED trip
-    // the drop is skipped, so it stays dirty and defers to the next non-skipped trip — same
-    // carry-forward as reservation linen. Conservation holds: what leaves clean returns on pick-up.
-    // A NEGATIVE manual value is the mirror move (specs/laundry-manual-removals.md §3 rules 4-5): the
-    // operator washed that linen himself, so it goes dirty → clean on that date, never joins a batch
-    // and never comes back on a pick-up. Capped at the dirty pile of its type: linen still in a
-    // guest's room — or already clean — cannot be « washed at home », and inventing it here would
-    // break the conservation invariant.
+    // 2.5) Manual lines of THIS date, whatever the date is (the Planning window sums count them too, so a
+    // line left on a date that a schedule change turned into a non-laundry day still reaches the next trip).
+    // A positive line (specs/manual-laundry-additions.md §4 rules 4-5): the operator washes extra linen, it
+    // leaves clean and joins the dirty pile, so the next drop washes it and it returns clean on pick-up. On a
+    // SKIPPED trip the drop is skipped, so it stays dirty and defers to the next non-skipped trip — same
+    // carry-forward as reservation linen. A NEGATIVE line is the mirror move
+    // (specs/laundry-manual-removals.md §3 rules 4-5): the operator washed that linen himself. It waits for
+    // the next drop and is capped THERE at the dirty pile of its type — the rule the Planning ledger applies
+    // (a window's sum floored at 0) — so the two agree whatever the date of the line. Linen still in a
+    // guest's room, or already clean, cannot be « washed at home »; inventing it would break conservation.
     const manual = manualAdditionsByDate.get(cursor);
     if (manual) {
-      const applied = zeroByType();
       for (const t of ALL_TYPES) {
         const wanted = Number(manual[t] || 0);
-        applied[t] = wanted < 0 ? -Math.max(0, Math.min(dirty[t], -wanted)) : wanted;
+        if (wanted > 0) {
+          dirty[t] += wanted;
+          clean[t] -= wanted;
+        } else if (wanted < 0) {
+          washedAtHome[t] += -wanted;
+        }
       }
-      addInto(dirty, applied);
-      subtractInto(clean, applied);
     }
 
     // 3) Trip-day drop: the whole dirty pile becomes a batch, ready `turnaroundDays` later; dirty
     // resets to 0. Skipped days don't drop.
     if (isTripDay) {
+      for (const t of ALL_TYPES) {
+        const washed = Math.max(0, Math.min(dirty[t], washedAtHome[t]));
+        dirty[t] -= washed;
+        clean[t] += washed;
+        washedAtHome[t] = 0;
+      }
       addInto(dropped, dirty);
       atLaundry = addBatch(atLaundry, { dropDate: cursor, readyFrom: schedule.readyFrom(cursor), counts: dropped });
       subtractInto(dirty, dropped);
@@ -380,15 +391,17 @@ function simulateInventory({
         if (Number(stock[t]) > 0 && clean[t] < 0) {
           shortagesToday.push({ type: t, missing: -clean[t] });
           if (!agg.firstDate) agg.firstDate = cursor;
+          // specs/linen-laundry-days.md rule 18 — the first spell runs until the first day with a clean sheet
+          // for everyone again; a shortage after that is a later spell, flagged, not merged into it.
+          if (!agg.firstSpellOver) agg.lastDate = cursor;
+          else agg.laterSpell = true;
           if (-clean[t] > agg.maxMissing) agg.maxMissing = -clean[t];
           for (const a of arrivalsToday) {
             const c = contractsByReservationId.get(Number(a.id));
             if (c && c[t] > 0) agg.impactedReservationIds.add(Number(a.id));
           }
-        } else if (agg.firstDate && !agg.recoversOn && Number(stock[t]) > 0) {
-          // specs/linen-laundry-days.md rule 18 — the first day after the first shortage with a clean
-          // sheet for everyone again.
-          agg.recoversOn = cursor;
+        } else if (agg.firstDate && Number(stock[t]) > 0) {
+          agg.firstSpellOver = true;
         }
       }
 
@@ -425,7 +438,9 @@ function simulateInventory({
     shortagesByTypeOut[t] = {
       firstDate: shortagesByType[t].firstDate,
       maxMissing: shortagesByType[t].maxMissing,
-      recoversOn: shortagesByType[t].recoversOn,
+      // null while the first spell is still running at the horizon.
+      lastShortageDate: shortagesByType[t].firstSpellOver ? shortagesByType[t].lastDate : null,
+      laterShortage: shortagesByType[t].laterSpell,
       impactedReservationIds: Array.from(shortagesByType[t].impactedReservationIds).sort((a, b) => a - b),
     };
   }

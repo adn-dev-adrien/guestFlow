@@ -77,13 +77,14 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
 3. **Validation is the server's.** `PUT /api/laundry/schedule` refuses, with `400` and nothing written:
    an empty set (`LAUNDRY_WEEKDAYS_EMPTY`, « Au moins un jour. »), a value outside 0..6 or a duplicate
    (`LAUNDRY_WEEKDAY_INVALID`, « Jour invalide. »), a turnaround that is not an integer in 1..14 —
-   `2.5`, `0`, `15`, `"abc"` are refused, never rounded (`LAUNDRY_TURNAROUND_INVALID`, « Entre 1 et 14
+   `2.5`, `0`, `15`, `"abc"`, `"3"` and `["2"]` are refused, never rounded or coerced (`LAUNDRY_TURNAROUND_INVALID`, « Entre 1 et 14
    jours. »).
 4. **Existing installs keep their behaviour exactly.** The migration turns `laundryWeekday = W` into the
    schedule `{ weekdays: [W], turnaroundDays: 1 }` (absent or invalid → `[2]`). With one weekday every
-   batch waits 7 days ≥ 1, so every regular trip, pick-up and projected figure is unchanged — pinned by
-   running the existing ledger and engine suites unmodified against the migrated schedule
-   (except the tests listed in §7.4). A fresh install starts with `{ [2], 1 }`.
+   batch waits 7 days ≥ 1, so every regular trip, pick-up and card is unchanged — pinned by running the
+   existing ledger and engine suites unmodified against the migrated schedule (except the tests listed in
+   §7.4). The stock projection is unchanged too, except for the correction of §5: a past manual line now
+   stays counted for the week after it. A fresh install starts with `{ [2], 1 }`.
 5. **A change applies from tomorrow; the past keeps its rhythm.** The schedule is stored as dated
    versions. Saving writes the version effective **tomorrow** (server date + 1); saving again before
    tomorrow overwrites that pending version. A date `D` follows the version with the greatest
@@ -118,8 +119,10 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
 11. **The card says where the pick-up comes from.** `pickUp.fromTrips` lists the drop dates collected
     (« déposé mar. 21 »). When batches dropped **before** `T` are still at the laundry after its pick-up (`T`'s own drop is
     not counted — it obviously is), the entry carries
-    `stillAtLaundry: { counts, readyOn }` — `readyOn` the earliest `readyFrom` among them — and the card
-    adds one line: « Encore à la blanchisserie : 4 doubles · prêt jeu. 23 ».
+    `stillAtLaundry: [{ counts, readyOn }]`, **one entry per ready date, soonest first** (batches ready on
+    different days are never added up under one date; `[]` when nothing stays, and for a partial extra trip,
+    whose `leftAtLaundry` already says it). The card adds one line per entry:
+    « Encore à la blanchisserie · prêt jeu. 23 : Draps : 4 doubles · Serviettes : 6 grandes ».
 12. **Skips and extra trips follow the schedule of their date.** A skip means something only on a
     regular day of the version in force on that date; elsewhere it stays inert (today's rule). An extra
     trip is refused on any regular day of the version in force on its date (`400
@@ -159,9 +162,11 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
     linen and the manual lines — pinned by one test over a Tuesday + Thursday month with a skip, an extra
     trip, a partial pick-up and a turnaround change.
 18. **A shortage says when it ends.** Each type of `GET /api/dashboard/linen-shortage` gains
-    `recoversOn`: the first date after `firstShortageDate` where `clean ≥ 0` again (`null` when not
-    within the horizon). The alert adds « jusqu'au mar. 28 » — when the laundry brings it back. The
-    labels gain the bath mat (« Tapis de bain »).
+    `lastShortageDate`, the last day of the **first spell** (the day before `clean ≥ 0` again for every
+    arrival; `null` while that spell still runs at the horizon), and `laterShortage`, `true` when another
+    spell follows it. The alert reads « du mer. 13 au lun. 23 nov. » (« à partir du … » without a last day,
+    « · puis d'autres périodes » with `laterShortage`), both dates in one format. The labels gain the bath
+    mat (« Tapis de bain »).
 
 ### 3.4 Linge page
 
@@ -177,8 +182,9 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
     and, when it changed, the schedule (`PUT /api/laundry/schedule`). Cancel restores both. The dirty-form
     guard covers both. A schedule refusal keeps the draft and shows the server message under the field.
 22. **Pending version.** When a version effective tomorrow exists, the page shows it (it is what was
-    saved) with the caption « À partir de demain, mer. 29 oct. — aujourd'hui : mardi ». Reverting the
-    draft to the version in force and saving deletes the pending version.
+    saved) with the caption « À partir de demain, mer. 29 oct. · Jusqu'à demain : mardi · 1 jour » (days and
+    turnaround of the version in force, so a turnaround-only change reads too). Reverting the draft to the
+    version in force shows « Changement de demain annulé. » and saving deletes the pending version.
 
 ### 3.5 Roles, purge, plugin
 
@@ -190,7 +196,18 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
     `{ [2], 1 }`.
 25. **Plugin release.** `linen` 1.2.0, changelog lines in French, impersonal, short: « Plusieurs jours de
     blanchisserie par semaine. », « Délai de la blanchisserie : le linge revient quand il est prêt, et le
-    stock le sait. », « Une rupture de linge dit jusqu'à quand. »
+    stock le sait. », « Une rupture de linge dit jusqu'à quand. » (and one line for the bath-mat label). The
+    manifest's `guestflow` floor is raised to `>=3.19.0` (§4).
+26. **`laundryWeekday` is frozen.** The generic `PUT /api/plugins/linen/settings` refuses any non-empty
+    `laundryWeekday` with its `INVALID_SETTING` error (`400`, as every setting validation) whose message
+    points to `PUT /api/laundry/schedule`; nothing reads it any more, it stays stored for a rollback.
+27. **Bath mats alone draw no card while untracked.** A day whose only linen is bath mats gets a card only when
+    their stock is above 0; the other types draw a card whatever their stock (the former client rule, which
+    never counted mats).
+28. **One rule for a manual line washed at home, on any date.** A negative manual line waits for the next drop
+    and is capped there at what is dirty — the Planning ledger's rule (a window's sum floored at 0) and the
+    engine's, so a card and the projection agree even for a line left on a date that a schedule change turned
+    into a non-laundry day; a positive line joins the dirty pile on its own date.
 
 **Edge cases:**
 - All seven days ticked, turnaround 1 → a trip every day; each drop comes back the next day.
@@ -212,8 +229,15 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
 
 ## 4. Architecture
 
-Everything lives in the `linen` plugin. **The core is not touched**: the `planning.days` slot and its
-per-day `load({ from, to })` contract already exist; the reception matchers already cover the new paths.
+Everything functional lives in the `linen` plugin; the `planning.days` slot and its per-day
+`load({ from, to })` contract already exist and the reception matchers already cover the new paths. The
+core is touched in four small, generic places: the SDK `api` of `client/src/api.js` gains
+`getLaundrySchedule` / `saveLaundrySchedule` / `previewLaundrySchedule` / `getLaundryPlanningDays` (the two old
+wrappers `getLaundryPlanningSummary` / `getLinenInventory` stay, thin, for a `linen` 1.1.x still installable from
+the registry); `client/src/plugins/hostModules.*` exports three more MUI components (`InputBase`,
+`ToggleButton`, `ToggleButtonGroup`); `utils/planningDateRange.js` rejects non-calendar dates
+(`9999-99-99` used to slip under the cap); and the manifest's `guestflow` floor is raised to `>=3.19.0` — the
+release that ships these host names and api methods.
 
 ### 4.1 Server side (`server/src/plugins/linen/`)
 
@@ -223,13 +247,13 @@ per-day `load({ from, to })` contract already exist; the reception matchers alre
 | utils (pure) | `laundryWindow.js` | T | One day-by-day walk (`previousMatchingDay(date, matches, lookback)`) replaces the 7-day jumps; the single-weekday helpers go. |
 | utils (pure) | `laundryBatches.js` | C | The linen at the laundry as batches `{ dropDate, readyFrom, counts }`: `addBatch`, `collectBatches` (all ready / partial oldest first), `totalOf`. Shared by the ledger (`singleBeds`… keys) and the engine (`single`… keys). |
 | utils (pure) | `laundryTripLedger.js` | T | Takes a `schedule` instead of a `weekday`; the pool becomes a batch list with `readyFrom` (rules 10-11), replayed from the last non-skipped regular trip before the date (that trip collected everything ready), or from 42 days back when there is none; emits `pickUp.fromTrips` and `stillAtLaundry`. |
-| utils (pure) | `linenInventory.js` | T | `atLaundry` as batches (rule 15); warm-up replay from `today − 42` replacing the seed logic (rule 16); `recoversOn` per type (rule 18); the days it emits also carry `dropped`, `pickedUp` and `batches`. Takes `schedule` instead of `laundryWeekday`. |
+| utils (pure) | `linenInventory.js` | T | `atLaundry` as batches (rule 15); warm-up replay from `today − 42` replacing the seed logic (rule 16); `lastShortageDate` / `laterShortage` per type (rule 18); the days it emits also carry `dropped`, `pickedUp` and `batches`. Takes `schedule` instead of `laundryWeekday`. |
 | models | `laundryScheduleModel.js` | C | `laundry_schedule_versions`: `listAll()`, `upsertPending(tomorrow, schedule)`, `deletePending(tomorrow)`. |
 | models | `linenInventoryModel.js` | T | Reads the schedule model; fetch lookback 35 → 42 days. |
 | controllers | `laundryScheduleController.js` | C | `GET` (current + pending), `PUT` (validate → upsert or delete the pending version), `POST preview` (validate → `describeCycle`). |
 | controllers | `planningController.js` | T | New `laundryDays(req, res)` composing ledger + engine + skips + manual lines + extra trips into the per-day cards and the `shown` decision (rule 13). `laundrySummary` and `linenInventory` are removed with their last consumer. |
 | controllers | `extraTripsController.js` | T | « Regular day » check through the schedule of the trip's date (rule 12). |
-| controllers | `shortageController.js` | T | `recoversOn`, bath-mat label (rule 18). |
+| controllers | `shortageController.js` | T | `lastShortageDate`, `laterShortage`, bath-mat label (rule 18). |
 | routes | `routes.js` | T | `GET/PUT /schedule`, `POST /schedule/preview` under `/api/laundry`. |
 | plugin entry | `index.js` | T | Wires the model/controller; `ctx.route('get', '/api/planning/laundry/days', …)`; data table + describe line (rule 24); drops the two removed routes. |
 | settings | `settings.js` | T | `laundryWeekday` stays declared (rollback to 1.1.x reads it) but is no longer read nor written: `read()` returns the stock only, the Linge page stops sending it. |
@@ -245,7 +269,7 @@ per-day `load({ from, to })` contract already exist; the reception matchers alre
 | component | `LaundryScheduleSection.jsx` | C | Replaces `SettingsLaundrySection.jsx`: day toggles, turnaround stepper, server cycle, refusals (rules 19-20, 22). |
 | component | `SettingsLaundrySection.jsx`, `weekdays.js` | T | The section is deleted; `weekdays.js` keeps the labels (short + long). |
 | component | `LaundryDayCard.jsx` | T | Renders `pickUp.fromTrips` and `stillAtLaundry`; drops its own « hide when empty » computation (the server decides). |
-| component | `LinenShortageAlert.jsx` | T | « jusqu'au … » from `recoversOn`. |
+| component | `LinenShortageAlert.jsx` | T | « du … au … » from `firstShortageDate` / `lastShortageDate`, « puis d'autres périodes ». |
 | loader | `planningDays.js` | T | One call to `/api/planning/laundry/days`; no `sum`, no `isShown`. |
 | services | `client/src/api.js` | T | `getLaundrySchedule`, `saveLaundrySchedule`, `previewLaundrySchedule`, `getLaundryPlanningDays`; removes `getLaundryPlanningSummary` / `getLinenInventory` (no consumer left). |
 | core pages / hooks / constants | — | — | None. |
@@ -266,7 +290,7 @@ per-day `load({ from, to })` contract already exist; the reception matchers alre
 | PUT | `/api/laundry/schedule` | `{ weekdays: number[], turnaroundDays: number }` | `{ ok: true, current, pending, tomorrow }` | Admin. `400 { error, code, field }` per rule 3. Same as `current` → deletes `pending`. |
 | POST | `/api/laundry/schedule/preview` | same body | `{ cycle: [{ dropWeekday, pickUpWeekday, waitDays }], longestWaitDays, firstTripOn }` | Admin, no write, same 400s. |
 | GET | `/api/planning/laundry/days?from&to` | — | `{ days: { 'YYYY-MM-DD': Card } }` | Both bounds required; `checkPlanningRange`. |
-| GET | `/api/dashboard/linen-shortage` | — | each type + `recoversOn: 'YYYY-MM-DD' \| null` | Additive. |
+| GET | `/api/dashboard/linen-shortage` | — | each type + `lastShortageDate: 'YYYY-MM-DD' \| null`, `laterShortage: boolean` | Additive. |
 
 ```text
 Card = {
@@ -275,7 +299,7 @@ Card = {
   dropOff:  { singleBeds, doubleBeds, babyBeds, largeTowels, mediumTowels, smallTowels, bathMats,
               incomplete: [{ id, clientName, propertyName, endDate }] },
   pickUp:   { …7 types, fromTrips: ['YYYY-MM-DD'] },
-  stillAtLaundry: { counts: { …7 types }, readyOn: 'YYYY-MM-DD' } | null,
+  stillAtLaundry: [{ counts: { …7 types }, readyOn: 'YYYY-MM-DD' }],   // one per ready date, soonest first
   inventoryAfter: { [trackedType]: number } | null,   // today..horizon only
   manualAddition: { …7 types, signed } | null,
   extraTrip: { pickUpAll, pickUp } | null,             // kind 'extra'
@@ -333,11 +357,17 @@ Replaces the « Linge & blanchisserie » card at the top of the page.
 
 - Copy: « Blanchisserie », « Jours », « Linge prêt après », « jour » / « jours », « À partir de demain, … »,
   errors « Au moins un jour. », « Entre 1 et 14 jours. ». No explanatory paragraph (the current one goes).
-- The cycle lines refresh from the server preview (debounced 250 ms); while loading the previous lines
-  stay, dimmed. A preview error leaves the last good cycle.
+- The cycle lines (Monday → Sunday, like the toggles) refresh from the server preview (debounced 250 ms); while
+  loading the previous lines stay, dimmed — and are restored as soon as no preview is pending (invalid value). A
+  preview error leaves the last good cycle. The dirty guard compares what would be sent (« 02 » over « 2 » is
+  no change).
 - `PageActionBar`: title « Linge », Save + Cancel (unchanged), no new action.
-- **Mobile (`xs`)**: the seven toggles fill the row (each ≥ 44 px, single letter), the stepper is
-  full-width, the cycle lines stack. **`md`/`lg`**: the card sits at the top of the page column, max
+- **Mobile (`xs`)**: the seven toggles share the row (single letter, 44 px high, a 4 px gap), the stepper is
+  full-width, the cycle lines stack. Measured at 390 px: toggles 40.3 px wide, 3 px visible gap, no horizontal
+  scroll, card 309 px high; at 360 px the row wraps onto two lines (toggles 42.5 px) rather than shrink under
+  40 px; at 900 and 1280 px toggles are 44 px, card 261 px high. The inner padding is 16 px like the sibling
+  cards and the header uses their bold style. While the schedule loads, a placeholder of the same height holds
+  the place of the card. **`md`/`lg`**: the card sits at the top of the page column, max
   width 900/1240 as today.
 
 ### 6.2 Planning — laundry card
@@ -361,9 +391,10 @@ Same `LaundryDayCard`, on every laundry day of the schedule:
 
 ### 6.3 Dashboard — shortage alert
 
-« Drap double : jusqu'à 2 manquants · première rupture le 24 juin 2026 · jusqu'au mar. 30 juin » — the end
-date is `recoversOn` as served (no date arithmetic on the client, so no « day before » shown); without it,
-today's wording.
+« Drap double : jusqu'à 2 manquants · du mer. 24 au lun. 29 juin » — the end
+first spell is rendered « du mer. 13 au lun. 23 nov. » from `firstShortageDate` / `lastShortageDate` as served
+(no date arithmetic on the client); « · puis d'autres périodes » when `laterShortage`; « à partir du mer. 13 nov. »
+when the spell still runs at the horizon.
 
 ## 7. Test plan
 
@@ -395,7 +426,7 @@ by the multi-day ledger file, `linen-inventory-shortage-tracking.md rule 18` by 
 ### 7.3 E2E (Playwright) — done
 
 - [x] `e2e/specs/linen/laundry-days.spec.js` — Linge page refusals and save (desktop), Planning cards with
-  « déposé mar. » through a seeded bed-linen stay, one run at 390 px. `skip-laundry-trip.spec.js`,
+  « déposé mar. » through a seeded bed-linen stay, one run at 390 px. `skip-laundry-trip.spec.js` (unchanged, still green),
   `laundry-extra-trip.spec.js` moved to the new endpoint, `stock-roundtrip.spec.js` unchanged.
 
 ### 7.4 Existing suites
@@ -461,5 +492,15 @@ per-day payload »), plugin `linen` 1.2.0 for both. Deviations from the draft, a
 - A manual line is applied by the engine on its own date whatever that date is, like the Planning window sums.
 - The extra-trip preview's `atLaundry` is what is **ready** on that date.
 - `GET /api/laundry/schedule` serves `cycle` and `longestWaitDays` inside `current` / `pending`.
-- Shortage alert wording (§6.3): `recoversOn` as served, no « day before ».
-- The Linge « Blanchisserie » card uses 10 px side padding at `xs` so the seven toggles reach 44 px.
+- Shortage alert (§6.3): the server serves the first spell's `lastShortageDate` and a `laterShortage` flag instead of `recoversOn` (review 2026-10-28: `recoversOn` was off by one and ignored later spells).
+- The Linge « Blanchisserie » card keeps the 16 px padding of its siblings; the toggles measure 40.3 px × 44 at 390 px (not 44 × 44) and the row wraps below ~380 px (§6.1).
+
+### Review fixes (2026-10-28, two Opus reviewers)
+
+`planningDateRange` rejects non-calendar dates; the SDK `api` keeps the two old wrappers and the manifest floor
+is `>=3.19.0`; one rule for negative manual lines (rule 28); bath mats alone draw no card while untracked
+(rule 27); `laundryWeekday` refused by the generic settings write (rule 26); the shortage alert serves the first
+spell and a later-spell flag (rule 18); `stillAtLaundry` is one entry per ready date (rule 11); the pending
+caption says what stays in force (rule 22); the preview refuses strings (rule 3); the cycle is ordered Monday
+first; dead helpers removed; the replay length derives from `28 + MAX_TURNAROUND_DAYS`. Not changed (pre-existing):
+the `T − 7` fallback after four skipped weeks.

@@ -130,7 +130,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a regular day with linen to bri
   assert.equal(card.dropOff.doubleBeds, 2);
   assert.deepEqual(card.dropOff.incomplete, []);
   assert.deepEqual(card.pickUp.fromTrips, []);
-  assert.equal(card.stillAtLaundry, null);
+  assert.deepEqual(card.stillAtLaundry, []);
   assert.equal(card.manualAddition, null);
   assert.equal(card.extraTrip, null);
   assert.equal(card.leftAtLaundry, null);
@@ -146,17 +146,28 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a day that only collects is dra
   assert.deepEqual(card.pickUp.fromTrips, ['2026-06-09']);
 });
 
-test('specs/linen-laundry-days.md §3.2 rule 13: a day with only bath mats still counts as a day with linen', () => {
-  const { days, db, setSchedule, property, client } = fresh();
+// A Tuesday drop-off holding nothing but 2 bath mats.
+function seedMatsOnlyStay({ db, setSchedule, property, client }) {
   setSchedule('0001-01-01', [2], 1);
   const mat = Number(db.prepare("INSERT INTO options (title, countsAsBathMat) VALUES ('Tapis de bain', 1)").run().lastInsertRowid);
   db.exec('CREATE TABLE IF NOT EXISTS property_option_bath_mats (propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (propertyId, optionId))');
   db.prepare('INSERT INTO property_option_bath_mats (propertyId, optionId, quantity) VALUES (?, ?, 2)').run(property, mat);
   const stayId = Number(db.prepare("INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults) VALUES ('reservation', ?, ?, '2026-06-05', '2026-06-09', 2)").run(property, client).lastInsertRowid);
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, 1)').run(stayId, mat);
-  const card = days('2026-06-09', '2026-06-09').body.days['2026-06-09'];
-  assert.ok(card, 'a bath-mat-only drop-off is drawn');
+}
+
+test('specs/linen-laundry-days.md §3.5 rule 27: a day with only bath mats is drawn when the mats are tracked', () => {
+  const ctx = fresh({ stock: { ...STOCK, towelStockBathMat: 4 } });
+  seedMatsOnlyStay(ctx);
+  const card = ctx.days('2026-06-09', '2026-06-09').body.days['2026-06-09'];
+  assert.ok(card, 'a bath-mat-only drop-off is drawn once the mats are tracked');
   assert.equal(card.dropOff.bathMats, 2);
+});
+
+test('specs/linen-laundry-days.md §3.5 rule 27: a day with only bath mats is not drawn while their stock is 0 (untracked)', () => {
+  const ctx = fresh();
+  seedMatsOnlyStay(ctx);
+  assert.deepEqual(ctx.days('2026-06-09', '2026-06-09').body, { days: {} });
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 13: a skipped regular day is always drawn, with zeros, so it can be reverted', () => {
@@ -166,7 +177,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a skipped regular day is always
   assert.equal(card.kind, 'regular');
   assert.equal(card.isSkipped, true);
   assert.equal(card.dropOff.singleBeds, 0);
-  assert.equal(card.stillAtLaundry, null);
+  assert.deepEqual(card.stillAtLaundry, []);
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 13: an extra trip is always drawn, with its record and, when partial, what it leaves', () => {
@@ -212,8 +223,7 @@ test('specs/linen-laundry-days.md §3.2 rule 11: a day with batches still at the
   assert.ok(card);
   assert.equal(card.dropOff.doubleBeds, 0);
   assert.equal(card.pickUp.doubleBeds, 0);
-  assert.equal(card.stillAtLaundry.counts.doubleBeds, 2);
-  assert.equal(card.stillAtLaundry.readyOn, '2026-06-12');
+  assert.deepEqual(card.stillAtLaundry.map((l) => [l.readyOn, l.counts.doubleBeds]), [['2026-06-12', 2]]);
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 13: the manual line of the date rides on the card, signed', () => {
@@ -300,6 +310,7 @@ test('specs/linen-laundry-days.md §3.2 rule 17: every trip date of a Tuesday + 
   models.laundryManualAdditionsModel.set('2026-06-11', { singleBeds: 2 });
   models.laundryManualAdditionsModel.set('2026-06-18', { doubleBeds: -1 });
   models.laundryManualAdditionsModel.set('2026-06-13', { doubleBeds: 1 });
+  models.laundryManualAdditionsModel.set('2026-06-17', { singleBeds: -1, doubleBeds: -9 });   // washed at home, on a Wednesday: carried to Thursday and capped there
 
   const sim = linenInventoryModel.simulate({ today: TODAY });
   assert.ok(sim, 'a horizon exists');
@@ -318,11 +329,16 @@ test('specs/linen-laundry-days.md §3.2 rule 17: every trip date of a Tuesday + 
     for (const [type, key] of Object.entries(TYPE_KEYS)) {
       assert.equal(card ? card.dropOff[key] : 0, engineDay.dropped[type], `${engineDay.date} drop-off ${key}`);
       assert.equal(card ? card.pickUp[key] : 0, engineDay.pickedUp[type], `${engineDay.date} pick-up ${key}`);
-      const still = batchesBefore.reduce((s, b) => s + b.counts[type], 0);
-      assert.equal(card && card.stillAtLaundry ? card.stillAtLaundry.counts[key] : 0, still, `${engineDay.date} still at the laundry ${key}`);
+      // One line per ready date: the engine's batches, grouped the same way. A partial extra trip leaves
+      // its remainder to `leftAtLaundry` instead.
+      const partialExtra = card && card.kind === 'extra' && card.extraTrip.pickUpAll === false;
+      for (const line of partialExtra ? [] : (card ? card.stillAtLaundry : [])) {
+        const expected = batchesBefore.filter((b) => b.readyFrom === line.readyOn).reduce((s, b) => s + b.counts[type], 0);
+        assert.equal(line.counts[key], expected, `${engineDay.date} still at the laundry ${key} ready ${line.readyOn}`);
+      }
     }
-    if (batchesBefore.length > 0) {
-      assert.equal(card.stillAtLaundry.readyOn, batchesBefore.map((b) => b.readyFrom).sort()[0], `${engineDay.date} readyOn`);
+    if (card && !(card.kind === 'extra' && card.extraTrip.pickUpAll === false)) {
+      assert.deepEqual(card.stillAtLaundry.map((l) => l.readyOn), [...new Set(batchesBefore.map((b) => b.readyFrom))].sort(), `${engineDay.date} readyOn dates`);
     }
     if (card && card.inventoryAfter) {
       assert.equal(card.inventoryAfter.single, engineDay.clean.single, `${engineDay.date} inventoryAfter single`);
@@ -331,5 +347,5 @@ test('specs/linen-laundry-days.md §3.2 rule 17: every trip date of a Tuesday + 
   }
   assert.ok(comparedTripDays >= 7, `the month had ${comparedTripDays} trip days`);
   assert.ok(Object.values(cards).some((c) => c.pickUp.fromTrips.length > 0));
-  assert.ok(Object.values(cards).some((c) => c.stillAtLaundry), 'the turnaround of 3 leaves linen at the laundry on some Thursday');
+  assert.ok(Object.values(cards).some((c) => c.stillAtLaundry.length > 0), 'the turnaround of 3 leaves linen at the laundry on some Thursday');
 });

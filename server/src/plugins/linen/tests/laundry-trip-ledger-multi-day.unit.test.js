@@ -96,7 +96,7 @@ test('specs/linen-laundry-days.md §3.2 rule 10: turnaround 1 — Thursday colle
   const thu = ledger.entryFor('2026-06-11');
   assert.deepEqual(counts(thu.pickUp), zeros({ singleBeds: 2 }));
   assert.deepEqual(thu.pickUp.fromTrips, ['2026-06-09']);
-  assert.equal(thu.stillAtLaundry, null);
+  assert.deepEqual(thu.stillAtLaundry, []);
   const tue = ledger.entryFor('2026-06-16');
   assert.deepEqual(counts(tue.pickUp), zeros({ singleBeds: 3 }));
   assert.deepEqual(tue.pickUp.fromTrips, ['2026-06-11']);
@@ -113,12 +113,12 @@ test('specs/linen-laundry-days.md §3.2 rule 10: turnaround 3 — Tuesday\'s bat
   assert.deepEqual(ledger.entryFor('2026-06-09').pickUp.fromTrips, ['2026-06-02', '2026-06-04']);
   assert.deepEqual(counts(thu.pickUp), zeros());
   assert.deepEqual(thu.pickUp.fromTrips, []);
-  assert.deepEqual(thu.stillAtLaundry, { counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-12' });
+  assert.deepEqual(thu.stillAtLaundry, [{ counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-12' }]);
   // Tuesday 06-16 collects both Tuesday 06-09 and Thursday 06-11 (ready Sun 06-14), oldest first.
   const tue = ledger.entryFor('2026-06-16');
   assert.deepEqual(counts(tue.pickUp), zeros({ singleBeds: 5 }));
   assert.deepEqual(tue.pickUp.fromTrips, ['2026-06-09', '2026-06-11']);
-  assert.equal(tue.stillAtLaundry, null);
+  assert.deepEqual(tue.stillAtLaundry, []);
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 10: a Thursday with nothing to collect still shows what it brings and what stays', () => {
@@ -127,7 +127,7 @@ test('specs/linen-laundry-days.md §3.2 rule 10: a Thursday with nothing to coll
   assert.deepEqual(counts(thu.pickUp), zeros());
   assert.deepEqual(thu.pickUp.fromTrips, []);
   assert.deepEqual(thu.dropOff, { ...zeros({ singleBeds: 1 }), incomplete: [] });
-  assert.deepEqual(thu.stillAtLaundry, { counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-12' });
+  assert.deepEqual(thu.stillAtLaundry, [{ counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-12' }]);
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 11: stillAtLaundry never counts the trip\'s own drop, and readyOn is the earliest of what stays', () => {
@@ -138,13 +138,27 @@ test('specs/linen-laundry-days.md §3.2 rule 11: stillAtLaundry never counts the
   const tue16 = ledger.entryFor('2026-06-16');
   assert.deepEqual(tue16.pickUp.fromTrips, ['2026-06-02']);
   assert.deepEqual(counts(tue16.pickUp), zeros({ singleBeds: 1 }));
-  assert.deepEqual(tue16.stillAtLaundry, { counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-19' });   // not the 4 dropped today
+  assert.deepEqual(tue16.stillAtLaundry, [{ counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-19' }]);   // not the 4 dropped today
+});
+
+test('specs/linen-laundry-days.md §3.2 rule 11: batches ready on different days make one line each, soonest first — never added up under one date', () => {
+  const { ledger } = makeLedger({ schedule: tueThu(3), drops: { '2026-06-09': { singleBeds: 2 }, '2026-06-11': { doubleBeds: 1 }, '2026-06-16': { largeTowels: 9 } } });
+  // Tuesday 06-16 collects both earlier batches (ready 06-12 and 06-14): nothing stays.
+  assert.deepEqual(ledger.entryFor('2026-06-16').stillAtLaundry, []);
+  // Thursday 06-11: only Tuesday's batch (ready 06-12) is at the laundry.
+  const { ledger: slow } = makeLedger({ schedule: constantSchedule([TUE, THU], 5), drops: { '2026-06-04': { singleBeds: 1 }, '2026-06-09': { doubleBeds: 2 } } });
+  // Turnaround 5: Thursday's 06-04 batch is ready Tue 06-09 (collected), Tuesday's 06-09 batch is ready Sun 06-14.
+  const thu = slow.entryFor('2026-06-11');
+  assert.deepEqual(thu.stillAtLaundry, [{ counts: zeros({ doubleBeds: 2 }), readyOn: '2026-06-14' }]);
+  const { ledger: two } = makeLedger({ schedule: constantSchedule([TUE, THU], 4), drops: { '2026-06-09': { doubleBeds: 2 }, '2026-06-11': { singleBeds: 3 } } });
+  const next = two.entryFor('2026-06-12') || two.entryFor('2026-06-16');
+  assert.deepEqual(next.stillAtLaundry.map((l) => l.readyOn), [...next.stillAtLaundry.map((l) => l.readyOn)].sort());
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 11: an empty drop leaves no batch behind', () => {
   const { ledger } = makeLedger({ schedule: tueThu(3), drops: { '2026-06-11': { singleBeds: 1 } } });
-  assert.equal(ledger.entryFor('2026-06-16').stillAtLaundry, null);
-  assert.deepEqual(ledger.entryFor('2026-06-11').stillAtLaundry, null);
+  assert.deepEqual(ledger.entryFor('2026-06-16').stillAtLaundry, []);
+  assert.deepEqual(ledger.entryFor('2026-06-11').stillAtLaundry, []);
 });
 
 test('specs/linen-laundry-days.md §3.1 rule 6: a batch dropped under turnaround 1 is ready after 1 day even once the turnaround is raised', () => {
@@ -169,7 +183,7 @@ test('specs/linen-laundry-days.md §3.2 rule 12: a skipped Tuesday with Tuesday 
   const tue = ledger.entryFor('2026-06-09');
   assert.deepEqual(counts(tue.pickUp), zeros());
   assert.deepEqual(tue.dropOff, { ...zeros(), incomplete: [] });
-  assert.equal(tue.stillAtLaundry, null);
+  assert.deepEqual(tue.stillAtLaundry, []);
   const thu = ledger.entryFor('2026-06-11');
   assert.deepEqual(calls.filter((c) => c.end === '2026-06-11')[0], { start: '2026-06-04', end: '2026-06-11' });
   assert.deepEqual(counts(thu.pickUp), zeros({ singleBeds: 1 }));   // Thursday 06-04's batch, ready 06-07
@@ -225,7 +239,7 @@ test('specs/linen-laundry-days.md §3.2 rule 10: a partial extra trip collects m
   assert.deepEqual(counts(extra.pickUp), zeros({ singleBeds: 3, doubleBeds: 1 }));
   assert.deepEqual(extra.pickUp.fromTrips, ['2026-06-09', '2026-06-10']);
   assert.deepEqual(extra.leftAtLaundry, zeros({ largeTowels: 5 }));
-  assert.deepEqual(extra.stillAtLaundry, { counts: zeros({ largeTowels: 5 }), readyOn: '2026-06-10' });
+  assert.deepEqual(extra.stillAtLaundry, [], 'a partial extra trip says what it leaves through leftAtLaundry, not a « prêt le » line');
   // Tuesday 06-16 collects what is left of A and the extra trip's own drop.
   const tue = ledger.entryFor('2026-06-16');
   assert.deepEqual(counts(tue.pickUp), zeros({ largeTowels: 5, babyBeds: 1 }));
@@ -243,7 +257,7 @@ test('specs/linen-laundry-days.md §3.2 rule 10: an extra trip that takes everyt
   const sunday = ledger.entryFor('2026-06-14');
   assert.deepEqual(counts(sunday.pickUp), zeros());
   assert.deepEqual(sunday.leftAtLaundry, zeros({ doubleBeds: 1 }));
-  assert.deepEqual(sunday.stillAtLaundry, { counts: zeros({ doubleBeds: 1 }), readyOn: '2026-06-15' });
+  assert.deepEqual(sunday.stillAtLaundry, [{ counts: zeros({ doubleBeds: 1 }), readyOn: '2026-06-15' }]);
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 10: the extra-trip preview offers what is READY on that date', () => {
@@ -280,7 +294,7 @@ test('specs/linen-laundry-days.md §3.2 rule 10: a turnaround of 14 on one weekd
   const { ledger } = makeLedger({ schedule: constantSchedule([TUE], 14), drops: { '2026-06-02': { singleBeds: 1 }, '2026-06-09': { singleBeds: 2 } } });
   const tue16 = ledger.entryFor('2026-06-16');
   assert.deepEqual(counts(tue16.pickUp), zeros({ singleBeds: 1 }));   // 06-02 + 14 = 06-16
-  assert.deepEqual(tue16.stillAtLaundry, { counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-23' });
+  assert.deepEqual(tue16.stillAtLaundry, [{ counts: zeros({ singleBeds: 2 }), readyOn: '2026-06-23' }]);
   assert.deepEqual(counts(ledger.entryFor('2026-06-23').pickUp), zeros({ singleBeds: 2 }));
 });
 

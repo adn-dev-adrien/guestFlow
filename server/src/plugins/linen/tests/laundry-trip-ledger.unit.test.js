@@ -57,7 +57,7 @@ test('skipped regular day: zeros, kind regular, no model call', () => {
   const { ledger, calls, incompleteCalls } = makeLedger({ skipped: ['2026-06-09'] });
   const e = ledger.entryFor('2026-06-09');
   assert.deepEqual(e, {
-    date: '2026-06-09', kind: 'regular', dropOff: { ...zeros(), incomplete: [] }, pickUp: { ...zeros(), fromTrips: [] }, stillAtLaundry: null,
+    date: '2026-06-09', kind: 'regular', dropOff: { ...zeros(), incomplete: [] }, pickUp: { ...zeros(), fromTrips: [] }, stillAtLaundry: [],
   });
   assert.equal(calls.length, 0);
   assert.equal(incompleteCalls.length, 0);

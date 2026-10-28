@@ -13,6 +13,10 @@ const MIN_TURNAROUND_DAYS = 1;
 const MAX_TURNAROUND_DAYS = 14;
 const DEFAULT_WEEKDAY = 2;
 const BEGINNING_OF_TIME = '0001-01-01';
+// The skip lookback (28 days) plus the longest turnaround: how far back the state of the laundry can still
+// depend on a past trip. The stock engine warms up over it; the ledger falls back to it.
+const SKIP_LOOKBACK_DAYS = 28;
+const REPLAY_DAYS = SKIP_LOOKBACK_DAYS + MAX_TURNAROUND_DAYS;
 
 const ERRORS = Object.freeze({
   weekdaysEmpty: { code: 'LAUNDRY_WEEKDAYS_EMPTY', message: 'Au moins un jour.', field: 'weekdays' },
@@ -31,10 +35,10 @@ function validateSchedule(input) {
   const body = input && typeof input === 'object' ? input : {};
   const rawDays = body.weekdays;
   if (!Array.isArray(rawDays) || rawDays.length === 0) return { error: ERRORS.weekdaysEmpty };
-  const days = rawDays.map((d) => (typeof d === 'number' || (typeof d === 'string' && d.trim() !== '') ? Number(d) : NaN));
+  const days = rawDays.map((d) => (typeof d === 'number' ? d : NaN));
   if (!days.every(isWeekday) || new Set(days).size !== days.length) return { error: ERRORS.weekdayInvalid };
   const raw = body.turnaroundDays;
-  const turnaround = typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '') ? Number(raw) : NaN;
+  const turnaround = typeof raw === 'number' ? raw : NaN;
   if (!Number.isInteger(turnaround) || turnaround < MIN_TURNAROUND_DAYS || turnaround > MAX_TURNAROUND_DAYS) {
     return { error: ERRORS.turnaroundInvalid };
   }
@@ -53,7 +57,8 @@ const sameSchedule = (a, b) => Boolean(a && b)
  */
 function describeCycle({ weekdays, turnaroundDays }) {
   const set = new Set(weekdays);
-  const cycle = [...weekdays].sort((a, b) => a - b).map((dropWeekday) => {
+  // Monday first, like the day toggles of the Linge page.
+  const cycle = [...weekdays].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((dropWeekday) => {
     let waitDays = turnaroundDays;
     while (!set.has((dropWeekday + waitDays) % 7)) waitDays += 1;
     return { dropWeekday, pickUpWeekday: (dropWeekday + waitDays) % 7, waitDays };
@@ -108,4 +113,6 @@ module.exports = {
   BEGINNING_OF_TIME,
   MIN_TURNAROUND_DAYS,
   MAX_TURNAROUND_DAYS,
+  SKIP_LOOKBACK_DAYS,
+  REPLAY_DAYS,
 };

@@ -34,14 +34,6 @@ function weekdayOf(iso) {
   return parseIso(iso).getUTCDay();
 }
 
-function assertWeekday(weekday) {
-  const n = Number(weekday);
-  if (!Number.isInteger(n) || n < 0 || n > 6) {
-    throw new Error(`INVALID_WEEKDAY:${weekday}`);
-  }
-  return n;
-}
-
 /**
  * The latest date strictly before `iso`, at most `maxLookbackDays` back, for which `matches(date)` holds
  * — `null` when none. The walk goes one day at a time, so any set of weekdays is covered: the former
@@ -60,5 +52,5 @@ module.exports = {
   weekdayOf,
   previousMatchingDay,
   // exported for unit tests
-  __test: { parseIso, toIso, assertWeekday },
+  __test: { parseIso, toIso },
 };

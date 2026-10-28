@@ -108,6 +108,8 @@ test('specs/linen-laundry-days.md §3.1 rule 3: every refusal is a 400 with the 
     [{ weekdays: [2], turnaroundDays: 15 }, 'LAUNDRY_TURNAROUND_INVALID', 'Entre 1 et 14 jours.', 'turnaroundDays'],
     [{ weekdays: [2], turnaroundDays: 2.5 }, 'LAUNDRY_TURNAROUND_INVALID', 'Entre 1 et 14 jours.', 'turnaroundDays'],
     [{ weekdays: [2], turnaroundDays: 'abc' }, 'LAUNDRY_TURNAROUND_INVALID', 'Entre 1 et 14 jours.', 'turnaroundDays'],
+    [{ weekdays: [2], turnaroundDays: '3' }, 'LAUNDRY_TURNAROUND_INVALID', 'Entre 1 et 14 jours.', 'turnaroundDays'],
+    [{ weekdays: ['2'], turnaroundDays: 3 }, 'LAUNDRY_WEEKDAY_INVALID', 'Jour invalide.', 'weekdays'],
     [undefined, 'LAUNDRY_WEEKDAYS_EMPTY', 'Au moins un jour.', 'weekdays'],
   ];
   for (const [body, code, error, field] of cases) {
