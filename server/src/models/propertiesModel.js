@@ -25,6 +25,8 @@ const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
 const propertyArticle = require('../utils/propertyArticle');
+const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
+const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
 // coerced explicitly to a 0/1 bit for INTEGER columns.
@@ -78,18 +80,25 @@ function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
 }
 
 // specs/payment-schedule-and-cancellation.md §3 — the three delays that drive the payment schedule.
-// A blank / non-numeric / negative input falls back to the policy default rather than persisting a
-// value that would produce a nonsensical deadline. 0 is legitimate ("due the same day").
-function dayCountOr(value, fallback) {
-  // Absent (null / undefined / '') means "not provided" — `Number(null)` is 0, which would persist a
-  // same-day deadline on any payload that simply omits the field. A real 0 is kept.
-  if (value === null || value === undefined || value === '') return fallback;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? Math.round(n) : fallback;
+// The boundary refuses a bad value (specs/settings-input-guards.md rules 9-12); what is written is the
+// value it accepted, parsed the way it was validated. Only an ABSENT field (null / undefined / '') keeps
+// the stored value — or the policy default on creation — so a partial payload never resets a delay.
+// 0 is legitimate ("due the same day").
+const DELAY_DEFAULTS = { depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7 };
+// The model holds the same bounds as the boundary (rule 48): a plugin calling it directly cannot store
+// 400 days. A refused value leaves the stored one in place, which is also what an unchanged legacy value
+// sent back means (rule 11).
+function delayOf(body, key, stored) {
+  const fallback = stored == null ? DELAY_DEFAULTS[key] : Number(stored);
+  const raw = body[key];
+  if (raw == null || String(raw).trim() === '') return fallback;
+  const parsed = parseBoundedNumber(raw, PROPERTY_LIMITS[key]);
+  return parsed.error ? fallback : parsed.value;
 }
-const depositDueDaysOf = (body) => dayCountOr(body.depositDueDays, 7);
-const balanceDaysBeforeOf = (body) => dayCountOr(body.balanceDaysBefore, 30);
-const cancelAfterBalanceDueDaysOf = (body) => dayCountOr(body.cancelAfterBalanceDueDays, 7);
+// With the acompte off its delay is hidden and not validated (rule 9): the stored one stays.
+const depositDueDaysOf = (body, stored) => (toBit(body.depositEnabled) ? delayOf(body, 'depositDueDays', stored) : (stored == null ? DELAY_DEFAULTS.depositDueDays : Number(stored)));
+const balanceDaysBeforeOf = (body, stored) => delayOf(body, 'balanceDaysBefore', stored);
+const cancelAfterBalanceDueDaysOf = (body, stored) => delayOf(body, 'cancelAfterBalanceDueDays', stored);
 
 // `pricing_rules.extraGuestTiers` is a JSON TEXT column; a malformed value must degrade to "no
 // tiers" (the single price applies) rather than throw on a page load.
@@ -293,7 +302,9 @@ function createPropertiesModel(database) {
     database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(own.article, Number(id));
   }
 
-  function writeEmailFacts(id, body = {}) {
+  function writeEmailFacts(id, payload = {}) {
+    // specs/settings-input-guards.md rules 23-24 — the pool mode is mapped to the two stored bounds.
+    const body = { ...payload, ...resolvePoolSeason(payload) };
     for (const { key, coerce } of EMAIL_FACT_FIELDS) {
       if (!propertyCols.has(key) || !Object.prototype.hasOwnProperty.call(body, key)) continue;
       database.prepare(`UPDATE properties SET ${key} = ? WHERE id = ?`).run(coerce(body[key]), Number(id));
@@ -428,6 +439,7 @@ function createPropertiesModel(database) {
     getByIdWithDetails(id) {
       const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(id);
       if (!property) return null;
+      property.poolSeasonMode = poolSeasonModeOf(property.poolSeasonStart, property.poolSeasonEnd);
 
       if (typeof database.ensureDefaultTimedOptionsForProperty === 'function') {
         database.ensureDefaultTimedOptionsForProperty(Number(id));
@@ -629,7 +641,7 @@ function createPropertiesModel(database) {
     },
 
     async update(id, body = {}, photoFile = null) {
-      const existing = database.prepare('SELECT photo, nameArticle, extraGuestPriceUnit, welcomePackCost, defaultCautionAmount FROM properties WHERE id = ?').get(id);
+      const existing = database.prepare('SELECT photo, nameArticle, extraGuestPriceUnit, welcomePackCost, defaultCautionAmount, depositDueDays, balanceDaysBefore, cancelAfterBalanceDueDays FROM properties WHERE id = ?').get(id);
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
 
@@ -656,9 +668,9 @@ function createPropertiesModel(database) {
         body.singleBeds ?? 0,
         body.doubleBeds ?? 0,
         body.depositPercent || 30,
-        depositDueDaysOf(body),
-        balanceDaysBeforeOf(body),
-        cancelAfterBalanceDueDaysOf(body),
+        depositDueDaysOf(body, existing?.depositDueDays),
+        balanceDaysBeforeOf(body, existing?.balanceDaysBefore),
+        cancelAfterBalanceDueDaysOf(body, existing?.cancelAfterBalanceDueDays),
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,

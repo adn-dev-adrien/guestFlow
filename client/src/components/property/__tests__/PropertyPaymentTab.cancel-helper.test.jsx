@@ -6,10 +6,11 @@ import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
 import theme from '../../../theme';
 import PropertyPaymentTab from '../PropertyPaymentTab';
+import { LIMITS } from './propertyLimitsFixtures';
 
 const renderTab = (depositEnabled) => render(
   <ThemeProvider theme={theme}>
-    <PropertyPaymentTab form={{ depositEnabled, cancelAfterBalanceDueDays: 7 }} updateField={vi.fn()} onZeroFocus={vi.fn()} />
+    <PropertyPaymentTab form={{ depositEnabled, cancelAfterBalanceDueDays: 7 }} updateField={vi.fn()} onZeroFocus={vi.fn()} limits={LIMITS} />
   </ThemeProvider>,
 );
 

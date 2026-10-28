@@ -110,7 +110,7 @@ test('no answer from the server: « Total indisponible », amounts « — », no
   expect(screen.queryByRole('button', { name: 'CB / Chèque' })).toBeNull();
   clickBtn('Réessayer');
   await waitFor(() => expect(screen.queryByText('Total indisponible : pas de réponse du serveur.')).toBeNull());
-  expect(screen.getByRole('button', { name: 'Valider et terminer' })).toBeEnabled();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Valider et terminer' })).toBeEnabled());
 });
 
 test('before any answer, a failing server replaces the list with the same panel', async () => {

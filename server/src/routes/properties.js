@@ -10,6 +10,7 @@ const { handlePhotoUpload, handleDocumentUpload, multerErrorHandler } = require(
 router.get('/', ctrl.list);
 router.get('/platform-colors', ctrl.platformColors);
 router.get('/article-labels', ctrl.articleLabels);
+router.get('/limits', ctrl.limits);
 router.get('/email-hooks', ctrl.emailHooks);
 router.put('/email-hooks', ctrl.saveEmailHooks);
 router.get('/:id', ctrl.getOne);

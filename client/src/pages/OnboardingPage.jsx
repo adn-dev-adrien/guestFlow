@@ -1,7 +1,7 @@
 /**
  * OnboardingPage — `/demarrage`, the start assistant (specs/plugins-phase-p-productisation.md §3.D
  * rules 20–23). Five steps: Entreprise, Premier logement, Plugins (three yes/no questions the server
- * maps to plugins — rule 43), Emails
+ * maps to plugins — rule 43; absent when the operator manages the plugins), Emails
  * (specs/guest-email-texts-made-simple.md rule 21), C'est prêt. Every step is
  * validated and saved by the server when « Suivant » is pressed; an error keeps the step open.
  * « Plus tard » closes the assistant and keeps what was saved.
@@ -22,9 +22,14 @@ import ErrorAlert from '../components/ErrorAlert';
 import OnboardingEmailsStep from '../components/OnboardingEmailsStep';
 import ReadinessList, { targetUrl } from '../components/ReadinessList';
 
-const TITLES = ['Entreprise', 'Premier logement', 'Plugins', 'Emails', 'C’est prêt'];
-const STEPS = TITLES.length;
-const EMAILS_STEP = 4;
+// specs/plugin-operator-provisioning.md rule 8 — an operator-managed space has no « Plugins » step.
+const ALL_STEPS = [
+  { key: 'company', title: 'Entreprise' },
+  { key: 'property', title: 'Premier logement' },
+  { key: 'plugins', title: 'Plugins' },
+  { key: 'emails', title: 'Emails' },
+  { key: 'ready', title: 'C’est prêt' },
+];
 // A link of the last step: a full-height touch target, its text at the top-left.
 const LAST_STEP_LINK = { textAlign: 'left', minHeight: 44, display: 'flex', alignItems: 'center' };
 const ONBOARDING_PLUGINS_FOOTNOTE = 'Le reste se règle plus tard dans Paramètres › Plugins.';
@@ -68,6 +73,10 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   const [canAdoptLogin, setCanAdoptLogin] = useState(false);
   const [useAsLogin, setUseAsLogin] = useState(false);
   const [pluginsSummary, setPluginsSummary] = useState('');
+  const [pluginStep, setPluginStep] = useState(true);
+  const steps = ALL_STEPS.filter((s) => pluginStep || s.key !== 'plugins');
+  const total = steps.length;
+  const currentKey = steps[step - 1].key;
   // Rule 42 — a plugin installed from a package is not in the open bundle: leaving loads the app again.
   const [needsLoad, setNeedsLoad] = useState(false);
 
@@ -89,6 +98,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         } else if (data.property && data.property.existing > 0) {
           setExistingProperties(data.property.existing);
         }
+        setPluginStep(data.pluginStep !== false);
         setPlugins(data.plugins || []);
         setPluginsSummary(data.pluginsSummary || '');
         setQuestions(data.questions || []);
@@ -154,7 +164,8 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
 
   // « Emails » opens pre-filled from what the earlier steps saved; « C'est prêt » lists what is missing.
   async function enter(target) {
-    if (target === EMAILS_STEP) {
+    const key = steps[target - 1].key;
+    if (key === 'emails') {
       const data = await api.getOnboarding();
       const e = data.emails;
       setEmails(e);
@@ -168,7 +179,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         }])),
       });
     }
-    if (target === STEPS) setReadiness((await api.getEmailReadiness()).items || []);
+    if (key === 'ready') setReadiness((await api.getEmailReadiness()).items || []);
     setStep(target);
   }
 
@@ -176,7 +187,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     setBusy(true);
     setFailure('');
     try {
-      if (step === 1) {
+      if (currentKey === 'company') {
         // specs/hosting-h2-account-security.md rules 27, 37 — the company email becomes the login of
         // the bootstrap account only when the box is ticked; the step says so once.
         const saved = await api.saveOnboardingCompany({ ...company, useAsLogin: canAdoptLogin && useAsLogin });
@@ -186,8 +197,8 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
           await refresh();
         }
       }
-      if (step === 2 && !existingProperties) await api.saveOnboardingProperty(property);
-      if (step === 3) {
+      if (currentKey === 'property' && !existingProperties) await api.saveOnboardingProperty(property);
+      if (currentKey === 'plugins') {
         // Rule 43 — only the questions still open to an answer: a settled one changes nothing.
         const open = questions.filter((q) => q.allowed && !q.settled);
         const saved = await api.saveOnboardingPlugins(Object.fromEntries(open.map((q) => [q.id, Boolean(answers[q.id])])));
@@ -205,7 +216,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
           return;
         }
       }
-      if (step === EMAILS_STEP) {
+      if (currentKey === 'emails') {
         await api.saveOnboardingEmails({
           phone: emailDraft.phone,
           senderName: emailDraft.senderName,
@@ -225,7 +236,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
           }),
         });
       }
-      if (step === STEPS) { await leave(); return; }
+      if (currentKey === 'ready') { await leave(); return; }
       setErrors({});
       await enter(step + 1);
     } catch (err) {
@@ -242,17 +253,17 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
     <StepperPage
       brand={<Brand />}
       step={step}
-      total={STEPS}
-      title={TITLES[step - 1]}
+      total={total}
+      title={steps[step - 1].title}
       onNext={next}
-      nextLabel={step === STEPS ? 'Ouvrir le tableau de bord' : 'Suivant'}
-      onBack={step > 1 && step < STEPS ? () => { setErrors({}); setFailure(''); setStep(step - 1); } : undefined}
-      onLater={step < STEPS ? () => leave() : undefined}
+      nextLabel={currentKey === 'ready' ? 'Ouvrir le tableau de bord' : 'Suivant'}
+      onBack={step > 1 && currentKey !== 'ready' ? () => { setErrors({}); setFailure(''); setStep(step - 1); } : undefined}
+      onLater={currentKey !== 'ready' ? () => leave() : undefined}
       busy={busy}
     >
       {failure && <Alert severity="error" sx={{ mb: 2 }}>{failure}</Alert>}
 
-      {step === 1 && (
+      {currentKey === 'company' && (
         <Stack spacing={2}>
           <TextField label="Nom de l’entreprise" required {...field(company, setCompany, 'name')} />
           <TextField label="Email" type="email" required {...field(company, setCompany, 'email')} />
@@ -269,18 +280,18 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         </Stack>
       )}
 
-      {step === 2 && loginEmail && (
+      {currentKey === 'property' && loginEmail && (
         <Alert severity="info" sx={{ mb: 2 }}>{`Connexion désormais avec ${loginEmail}.`}</Alert>
       )}
 
-      {step === 2 && existingProperties > 0 && (
+      {currentKey === 'property' && existingProperties > 0 && (
         <Stack spacing={1}>
           <Typography>{`Logements : ${existingProperties}`}</Typography>
           <Link component="button" type="button" onClick={() => leave('/properties')} sx={{ textAlign: 'left' }}>Modifier dans Logements</Link>
         </Stack>
       )}
 
-      {step === 2 && !existingProperties && (
+      {currentKey === 'property' && !existingProperties && (
         <Stack spacing={2}>
           <TextField label="Nom du logement" required {...field(property, setProperty, 'name')} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, columnGap: 2, rowGap: 2 }}>
@@ -299,7 +310,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         </Stack>
       )}
 
-      {step === 3 && (
+      {currentKey === 'plugins' && (
         <Stack spacing={1.5}>
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
             {questions.map((q, i) => (
@@ -329,7 +340,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         </Stack>
       )}
 
-      {step === EMAILS_STEP && emails && (
+      {currentKey === 'emails' && emails && (
         <OnboardingEmailsStep
           emails={emails}
           value={emailDraft}
@@ -343,14 +354,16 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
         />
       )}
 
-      {step === STEPS && (
+      {currentKey === 'ready' && (
         <Stack spacing={1.5}>
           <Typography>{`${company.name || 'L’établissement'} est prêt.`}</Typography>
           <ReadinessList items={readiness} title="Emails à compléter" onOpen={(target) => leave(targetUrl(target))} />
           <Stack spacing={0}>
             <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={LAST_STEP_LINK}>Réglages › Emails : les textes des emails</Link>
             <Link component="button" type="button" onClick={() => leave('/properties')} sx={LAST_STEP_LINK}>Tarifs : saisons et prix des logements</Link>
-            <Link component="button" type="button" onClick={() => leave('/parametres/plugins')} sx={LAST_STEP_LINK}>{`Plugins : ${pluginsSummary}`}</Link>
+            {pluginStep && (
+              <Link component="button" type="button" onClick={() => leave('/parametres/plugins')} sx={LAST_STEP_LINK}>{`Plugins : ${pluginsSummary}`}</Link>
+            )}
           </Stack>
         </Stack>
       )}

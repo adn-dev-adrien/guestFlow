@@ -62,6 +62,27 @@ function ensurePackageColumns(db) {
   db.prepare("UPDATE plugins SET source = 'bundled' WHERE source = 'builtin'").run();
 }
 
+// specs/plugin-operator-provisioning.md §5 — what the reconciliation did with the operator's choice.
+// Empty and never written on a space that no operator manages.
+function ensureProvisioningTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_provisioning (
+      pluginId        TEXT PRIMARY KEY,
+      desired         TEXT NOT NULL CHECK (desired IN ('active', 'inactive')),
+      outcome         TEXT NOT NULL CHECK (outcome IN ('applied', 'failed', 'blocked')),
+      code            TEXT,
+      message         TEXT,
+      licenceIssuedAt TEXT NOT NULL,
+      eraseOrder      TEXT,
+      at              TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS plugin_provisioning_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+}
+
 function seedBuiltinPlugins(db) {
   if (db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(SEED_MIGRATION)) return false;
   const existing = db.prepare('SELECT 1 FROM properties LIMIT 1').get()
@@ -152,6 +173,7 @@ function resyncAfterRollback(db) {
 module.exports = {
   ensurePluginsTable,
   ensurePackageColumns,
+  ensureProvisioningTables,
   PACKAGE_COLUMNS,
   seedBuiltinPlugins,
   ensurePluginSettingsTable,

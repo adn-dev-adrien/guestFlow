@@ -188,6 +188,8 @@ app.use('/api/auth/login', loginLimiter);
 // /api router, the auth routes included.
 app.use('/api', require('./middleware/supportAudit').createSupportAudit({
   controller: require('./utils/accountSecurityServices').supportAccess,
+  // specs/plugin-operator-provisioning.md rule 30 — the hidden plugin lifecycle is not the audit's to answer.
+  isHidden: require('./middleware/requireSelfManagedPlugins').isHidden,
 }));
 
 // Auth routes are public (login/me) or session-checked in the controller (logout/change-password),

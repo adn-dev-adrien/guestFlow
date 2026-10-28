@@ -374,6 +374,9 @@ email shown beside the text. The whole wording can also go out and come back as 
     declared with those defaults) copies that default for an empty or NULL bound, as its emails
     used it (2026-10-23, inte/plugins review); an instance born after
     `plugins-phase-p-productisation.md` rule 14 reads empty as no pool.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 22-27): « Piscine » on offers « Toute
+    l'année » (stored `01-01`/`12-31`) or « Saison »; the closing day is never before the opening day;
+    « Les deux dates, ou aucune. » becomes « Les deux dates. ».
 35. **Typed text is never lost.** « Textes des emails » and the property page ask before leaving with
     unsaved changes — through the menu, « Retour », a link inside the page, the browser's back or a
     reload. The property's « Arrivée » block is saved by the page's own Enregistrer / Annuler (no button

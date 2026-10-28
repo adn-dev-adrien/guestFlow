@@ -39,26 +39,7 @@ const { ONBOARDING_QUESTIONS } = require('../constants/onboardingQuestions');
 const RECOMMENDED = new Set(ONBOARDING_QUESTIONS.filter((q) => q.recommended).flatMap((q) => q.plugins));
 const { defaultCapacity: capacityFor, MAX_CAPACITY } = require('../utils/defaultCapacity');
 
-/**
- * Runs an Express handler and resolves its answer once the handler has finished, so a step can reuse
- * an endpoint as it is. Rule 37 — an install answers before it releases the plugin lock: resolving on
- * the answer alone started the next install while the lock was still held.
- */
-function capture(handler, req) {
-  return new Promise((resolve) => {
-    let answer = null;
-    const res = {
-      statusCode: 200,
-      status(code) { this.statusCode = code; return this; },
-      json(body) { if (!answer) answer = { status: this.statusCode, body }; return this; },
-      end() { if (!answer) answer = { status: this.statusCode, body: null }; return this; },
-    };
-    Promise.resolve()
-      .then(() => handler(req, res))
-      .then(() => resolve(answer || { status: 500, body: { error: 'NO_ANSWER' } }))
-      .catch((err) => resolve(answer || { status: 500, body: { error: err && err.message } }));
-  });
-}
+const { capture } = require('../utils/captureHandler');
 
 // Rule 37 — the reason a plugin was not activated, in the words the step prints.
 const PLUGIN_FAILURES = Object.freeze({
@@ -80,7 +61,9 @@ function activeSummary(count) {
   return count === 1 ? '1 plugin actif' : `${count} plugins actifs`;
 }
 
-function buildController({ database, settingsModel, propertiesModel, plugins, usersModel = null, ensureVapid = () => {} }) {
+function buildController({
+  database, settingsModel, propertiesModel, plugins, usersModel = null, ensureVapid = () => {}, pluginStep = () => true,
+}) {
   const model = () => onboardingModel.buildModel(database);
 
   function companyOf(row) {
@@ -209,11 +192,16 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
 
   async function get(req, res) {
     const row = settingsModel.read();
-    const list = await pluginList();
+    // specs/plugin-operator-provisioning.md rule 8: an operator-managed space has no plugin step.
+    const withPlugins = pluginStep();
+    const list = withPlugins ? await pluginList() : [];
     return res.json({
-      open: model().isOpen(), company: companyOf(row), property: propertyStep(), emails: emailsOf(row), plugins: list,
-      questions: questionsOf(list),
-      pluginsSummary: activeSummary(list.filter((p) => p.state === 'active').length),
+      open: model().isOpen(), company: companyOf(row), property: propertyStep(), emails: emailsOf(row), pluginStep: withPlugins,
+      ...(withPlugins ? {
+        plugins: list,
+        questions: questionsOf(list),
+        pluginsSummary: activeSummary(list.filter((p) => p.state === 'active').length),
+      } : {}),
       // specs/hosting-h2-account-security.md rule 37 — whether step 1 offers its « se connecter » opt-in.
       login: { email: (req.user && req.user.email) || null, canAdopt: isBootstrapLogin(req.user) },
     });
@@ -389,6 +377,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, us
   }
 
   async function savePlugins(req, res) {
+    if (!pluginStep()) return res.status(404).json({ error: 'API route not found' });
     const answers = req.body && req.body.answers;
     if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
       return res.status(400).json({ error: 'ONBOARDING_ANSWERS_REQUIRED', message: 'Réponses manquantes.' });

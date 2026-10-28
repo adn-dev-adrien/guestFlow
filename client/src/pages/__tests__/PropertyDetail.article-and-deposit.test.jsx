@@ -14,7 +14,7 @@ vi.mock('react-router', async (importOriginal) => {
 vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getArticleLabels: vi.fn(), getProperty: vi.fn(), getOptions: vi.fn(), getPropertyArrivalFacts: vi.fn(),
+    getArticleLabels: vi.fn(), getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(), getPropertyArrivalFacts: vi.fn(),
     savePropertyArrivalFacts: vi.fn(), updateProperty: vi.fn(), createProperty: vi.fn(), deleteProperty: vi.fn(),
     getPropertyPlatforms: vi.fn(), getPlatformSettings: vi.fn(), createOption: vi.fn(), updateOption: vi.fn(),
   },
@@ -24,6 +24,7 @@ vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
+import { LIMITS } from '../../components/property/__tests__/propertyLimitsFixtures';
 
 const PROPERTY = {
   id: 5, name: 'Le Fournil', nameArticle: 'au', nameArticleConfirmed: 0, maxGuests: 3, maxBabies: 0, singleBeds: 0, doubleBeds: 1,
@@ -42,6 +43,7 @@ const renderAt = (url) => render(
 );
 
 beforeEach(() => {
+  api.getPropertyLimits.mockResolvedValue(LIMITS);
   vi.clearAllMocks();
   api.getArticleLabels.mockResolvedValue({ labels: LABELS });
   api.getOptions.mockResolvedValue([]);

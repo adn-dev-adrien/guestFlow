@@ -1,0 +1,1 @@
+- **Plan comptable, one « Comptes » card** (specs/settings-input-guards.md): the default commission account and the cancellation-indemnity account join the other accounts, grouped as Ventes, Taxes, Commissions et produits divers and Journal. Storage and validation are unchanged.

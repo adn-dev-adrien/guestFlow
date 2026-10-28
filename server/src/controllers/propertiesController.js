@@ -5,6 +5,7 @@ const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
 const { validatePropertyInput } = require('../utils/propertyValidation');
+const { PROPERTY_LIMITS } = require('../utils/inputLimits');
 const { quotaRefusal } = require('../utils/planQuota');
 const propertyArticle = require('../utils/propertyArticle');
 const { emitPricingChanged, priceBearingRow, priceBearingChanged } = require('../utils/pricingChanged');
@@ -52,6 +53,12 @@ function getOne(req, res) {
     return res.json({ ...stay, optionGroups: referenceOptionGroups(stay.optionGroups) });
   }
   return res.json(property);
+}
+
+// GET /api/properties/limits — the bounds of the property form's numbers, for a new property too
+// (specs/settings-input-guards.md rule 8).
+function limits(req, res) {
+  res.json(PROPERTY_LIMITS);
 }
 
 // GET /api/properties/article-labels?name= — the five articles as the guest emails write them
@@ -171,7 +178,7 @@ function setOptions(req, res) {
 }
 
 module.exports = {
-  list, getOne, articleLabels, platformColors, emailHooks, saveEmailHooks, progressivePreview,
+  list, getOne, limits, articleLabels, platformColors, emailHooks, saveEmailHooks, progressivePreview,
   create, update, remove,
   addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
   addDocument, deleteDocument, setOptions,

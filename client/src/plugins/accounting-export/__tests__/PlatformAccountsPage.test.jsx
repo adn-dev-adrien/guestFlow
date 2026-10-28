@@ -72,7 +72,7 @@ beforeEach(() => {
 test('renders the default account + every platform row from the GET payload', async () => {
   renderPage();
   await screen.findByText('Plan comptable');
-  expect(screen.getByLabelText('Compte commission par défaut')).toHaveValue('622600');
+  expect(screen.getByLabelText('Commission par défaut')).toHaveValue('622600');
   // Each platform name appears as a row label.
   expect(await screen.findByText('Airbnb')).toBeInTheDocument();
   expect(screen.getByText('Gitedefrance')).toBeInTheDocument();
@@ -98,7 +98,7 @@ test('both accounting VAT rates are editable fields, and a save sends them', asy
   renderPage();
   const commission = await screen.findByLabelText(/TVA déductible sur commissions/i);
   expect(commission).toHaveValue('20');
-  expect(screen.getByLabelText(/TVA sur indemnités d'annulation/i)).toHaveValue('0');
+  expect(screen.getByLabelText(/TVA sur indemnités/i)).toHaveValue('0');
 
   await user.clear(commission);
   await user.type(commission, '19,6');
@@ -280,7 +280,7 @@ test("the cancellation-compensation account is editable and its 0 % VAT is shown
   const user = userEvent.setup();
   api.savePlatformAccounts.mockResolvedValue(SAMPLE_GET);
   renderPage();
-  const field = await screen.findByLabelText(/Compte indemnités d'annulation/i);
+  const field = await screen.findByLabelText(/^Indemnités d'annulation$/);
   expect(field).toHaveValue('75880000');
   expect(screen.getByText(/hors champ/i)).toBeInTheDocument();
 
@@ -294,9 +294,9 @@ test("the cancellation-compensation account is editable and its 0 % VAT is shown
 test('the accountant may edit the compensation account (it is a chart-of-accounts setting)', async () => {
   setAuth({ roles: ['accountant'] });
   renderPage();
-  const field = await screen.findByLabelText(/Compte indemnités d'annulation/i);
+  const field = await screen.findByLabelText(/^Indemnités d'annulation$/);
   expect(field).not.toBeDisabled();
   // …and so are the VAT rates (rule 14).
-  expect(screen.getByLabelText(/TVA sur indemnités d'annulation/i)).not.toBeDisabled();
+  expect(screen.getByLabelText(/TVA sur indemnités/i)).not.toBeDisabled();
   expect(screen.getByLabelText(/TVA déductible sur commissions/i)).not.toBeDisabled();
 });
