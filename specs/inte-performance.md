@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/inte-performance` (from `inte/plugins` 714ed5e4) |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -341,3 +341,35 @@ Bundle: no duplicated feature found beyond the helper of rule 9; the heaviest ch
    `e2e/perf/measure-pages.mjs`. Biggest gain for what Adrien feels.
 3. **Lot 3 — lazy routes** (rules 2–3): `LazyPage.jsx`, `App.jsx`, test, both E2E suites.
 4. **Lot 4 — guards** (rules 4–5): budget script + CI step + manifest, server budget test.
+
+## 11. Implementation progress (2026-10-28)
+
+- [x] Lot 1 — email texts page (guest-email-texts rules 50–52): `29c25079`.
+- [x] Lot 2 — shadow on a build, measurement tool (rules 1, 6): `b5e805fe`.
+- [x] Lot 3 — lazy routes (rules 2–3): `1e6ac20c`.
+- [x] Lot 4 — guards (rules 4–5): `c5c3f852`.
+- [x] Rule 7 (immutable hashed assets), added because lot 3 multiplies the files of a first load: `e04d95a0`.
+- [x] Lot 5 — widening: rules 8–9 and the page-by-page audit of §8b.
+
+Tests: server 6 874 + 2 (`hashed-assets`) green; client 2 287; spec coverage green. The three
+statement/budget/shadow suites run inside `npm test` of the server.
+
+### Measured (same Mac, production build, headless Chromium, `measure-pages.mjs`)
+
+The machine was heavily loaded by parallel agents during every measurement (load average 40 to 125),
+so absolute times are 2 to 4 times those of §1.2 and only interleaved comparisons mean anything.
+
+- Initial JavaScript (gzip): **637 kB → 284.9 kB** (rule 2), 286.6 kB with rule 8; budget 313.3 kB.
+  The pages are now separate chunks: `FinancePage` 128 kB, `ReservationPage` 60 kB, `PropertyDetail` 14 kB,
+  `CalendarPage` 10 kB, `Dashboard` 10 kB, `EmailTextsSettingsPage` 8 kB.
+- Script files of a first load: 29 → 87 on `/` (the pages and their shared chunks are separate files);
+  rule 7 makes a repeat load revalidate none of them.
+- Settled time, interleaved old (lot 2 build) vs new (lot 3 build), `--cpu 1`, 5 runs: `/` 180–320 → 560–710 ms,
+  `/emails` 350–450 → 420–530 ms, the others within noise. **The lazy routes did not make pages
+  load faster on this machine and made the home slower by ~250 ms** (an extra round: `/auth/me`, then the
+  chunk of the page, then its calls); preloading the home chunk did not change it and was dropped. The gain
+  is bytes parsed on a first visit (637 → 285 kB), which a loaded localhost cannot show. Keep or drop
+  lot 3 is a decision for Adrien (it is its own commit; the budget would go back to 637 kB + 10 %).
+- Email texts page: idle 670 ms (§1.2, quiet machine) → 480 ms under load, 40 inputs mounted at open
+  (136 before), first preview requested at once (rule 50).
+- `/emails`, `/settings/plateformes` unchanged in code: any change in their figures is noise.
