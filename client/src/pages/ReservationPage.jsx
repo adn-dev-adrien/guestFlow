@@ -46,6 +46,7 @@ import { WEBSITE_BOOKING } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
+import { expandOptionGroups } from '../utils/optionGroups';
 import { getRangeOccupancyConflictInfo, isPlacementUnchanged } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
@@ -337,7 +338,7 @@ export default function ReservationPage() {
     setSelectedProp(numId);
     setSelectedProperty(propDetails || propertiesList.find((p) => p.id === numId) || null);
     setPropertyOptions(options);
-    setPropertyOptionGroups(propDetails?.optionGroups || null);
+    setPropertyOptionGroups(expandOptionGroups(propDetails?.optionGroups, options) || null);
     if (Array.isArray(propDetails?.resources)) {
       setAvailableResources(propDetails.resources.map((r) => ({
         ...r,
@@ -795,7 +796,7 @@ export default function ReservationPage() {
           if (prefillPropertyId) {
             await loadPropertyContext(prefillPropertyId, props);
 
-            const allRes = await api.getReservations({ propertyId: prefillPropertyId });
+            const allRes = await api.getReservations({ propertyId: prefillPropertyId, view: 'occupancy' });
             setReservations(allRes || []);
             setExcludeReservationIdForDevis(null);
           }
@@ -825,7 +826,7 @@ export default function ReservationPage() {
           setFrozenResources(Array.isArray(res.frozenResources) ? res.frozenResources : []);
 
           // Load all reservations for this property to check conflicts
-          const allRes = await api.getReservations({ propertyId: res.propertyId });
+          const allRes = await api.getReservations({ propertyId: res.propertyId, view: 'occupancy' });
           setReservations(allRes);
           setExcludeReservationIdForDevis(null);
 
@@ -976,7 +977,7 @@ export default function ReservationPage() {
           const catalogueOptions = addFrozenOptions(loaded.options, devis.frozenOptions);
           setFrozenResources(Array.isArray(devis.frozenResources) ? devis.frozenResources : []);
 
-          const allRes = await api.getReservations({ propertyId: devis.propertyId });
+          const allRes = await api.getReservations({ propertyId: devis.propertyId, view: 'occupancy' });
           setReservations(allRes || []);
 
           // Exclude the reservation that matches this devis' dates (if it was transformed into a reservation)
@@ -1121,7 +1122,7 @@ export default function ReservationPage() {
             applyQuoteMinNights(calc);
           }
 
-          const allRes = await api.getReservations({ propertyId: initialPropId });
+          const allRes = await api.getReservations({ propertyId: initialPropId, view: 'occupancy' });
           setReservations(allRes);
           setExcludeReservationIdForDevis(null);
 
@@ -1219,8 +1220,12 @@ export default function ReservationPage() {
       endDate,
       ...(excludeReservationId ? { excludeReservationId } : {}),
     });
+    availabilityKey.current = [propertyId, startDate, endDate, excludeReservationId || ''].join('|');
     setAvailableResources(resources);
   };
+  // What the last read was for: the effect below does not ask again for the answer the init just got
+  // (specs/inte-performance.md rule 23).
+  const availabilityKey = useRef('');
 
   // The availability used to refresh only at init and when the Logement select changed — so typing
   // the dates on a blank fiche never triggered it, and « déjà réservée » / the remaining quantity
@@ -1228,12 +1233,9 @@ export default function ReservationPage() {
   // are set the catalogue from the property context stands in, so the block is never empty.
   useEffect(() => {
     if (loading || !selectedProp || !form.startDate || !form.endDate) return;
-    loadResourcesAvailability(
-      form.startDate,
-      form.endDate,
-      selectedProp,
-      editingReservationId || excludeReservationIdForDevis || null,
-    ).catch(() => {});
+    const excludeId = editingReservationId || excludeReservationIdForDevis || null;
+    if (availabilityKey.current === [selectedProp, form.startDate, form.endDate, excludeId || ''].join('|')) return;
+    loadResourcesAvailability(form.startDate, form.endDate, selectedProp, excludeId).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, selectedProp, form.startDate, form.endDate, editingReservationId, excludeReservationIdForDevis]);
 
@@ -2026,7 +2028,7 @@ export default function ReservationPage() {
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
       }),
-      api.getReservations({ propertyId: nextPropertyId }),
+      api.getReservations({ propertyId: nextPropertyId, view: 'occupancy' }),
     ]);
 
     // A different logement is a different pack — the refusals of the previous one mean nothing here.

@@ -66,4 +66,20 @@ function toArrivalCard(reservation) {
   };
 }
 
-module.exports = { groupArrivalsByDay, frenchDayLabel, toArrivalCard, CARD_FIELDS };
+const DEPARTURE_FIELDS = [
+  'id', 'startDate', 'endDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'checkOutTime', 'checkOutDone',
+  'departureHandoverNote', 'departureSasDoneAt', 'departureSasLock', 'checkOutStatusEditable',
+];
+
+/** One departure as `DepartureMiniRow` renders it (specs/inte-performance.md rule 22). */
+function toDepartureRow(reservation) {
+  return pick(reservation, DEPARTURE_FIELDS);
+}
+
+/** One stay of a reservation list as the fiche's conflict checks and mini planning read it (rule 20). */
+const OCCUPANCY_FIELDS = ['id', 'propertyId', 'startDate', 'endDate', 'checkInTime', 'checkOutTime'];
+function toOccupancyRow(reservation) {
+  return pick(reservation, OCCUPANCY_FIELDS);
+}
+
+module.exports = { groupArrivalsByDay, frenchDayLabel, toArrivalCard, CARD_FIELDS, toDepartureRow, DEPARTURE_FIELDS, toOccupancyRow, OCCUPANCY_FIELDS };

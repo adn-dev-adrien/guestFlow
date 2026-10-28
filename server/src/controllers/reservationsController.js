@@ -89,6 +89,7 @@ const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
 const { readOnlyRefusal } = require('../utils/reservationReadOnly');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
+const { toOccupancyRow } = require('../utils/upcomingArrivals');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
@@ -566,7 +567,11 @@ function list(req, res) {
   // specs/ui-review-2026-10-19-operations.md rule 15 — the display name the calendar prints.
   const rows = model.list({ propertyId, clientId, from, to })
     .map((row) => ({ ...row, platformDisplay: platformDisplay(row.platform) }));
-  res.json(isReceptionOnly(req.user) ? toReceptionReservationList(rows) : rows);
+  if (isReceptionOnly(req.user)) return res.json(toReceptionReservationList(rows));
+  // `?view=occupancy` — the fiche's conflict checks and mini planning read six fields of each stay of
+  // the property, not the whole row (specs/inte-performance.md rule 20).
+  if (req.query.view === 'occupancy') return res.json(rows.map(toOccupancyRow));
+  return res.json(rows);
 }
 
 // Live "jump to a reservation" search (specs/reservation-number-and-search.md §3). Matching + shaping

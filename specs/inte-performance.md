@@ -198,6 +198,22 @@ the same kind fails CI instead of reaching Adrien.
     prefetch cleared the flag and the page reloaded in a loop (12 reloads in 5 s).
 19. **The release carries no Vite manifest.** `release.sh` copies `client/dist` without `.vite/`: the
     manifest is read by the CI budget (rule 4) and is not served by production.
+20. **The fiche reads its property's stays as occupancy.** (Follow-up lot, 2026-10-28, after the calendar,
+    home and Planning rewrites merged.) `GET /api/reservations?propertyId=…&view=occupancy` answers
+    `id, propertyId, startDate, endDate, checkInTime, checkOutTime` of each stay (what the overlap checks and
+    the mini planning read) instead of the whole row (128 kB for one property on the shadow). Same rows,
+    same order; reception keeps its own finance-free list; the plain list is unchanged.
+21. **The stay view names group options by id.** In `GET /api/properties/:id?view=stay` the options of
+    `optionGroups` (`ungrouped` and each group) are `{ id }`: the groups repeated every option in full
+    (49 kB beside the 28 kB of `options`). `utils/optionGroups.js` joins them back in the fiche. The default
+    detail keeps the groups whole.
+22. **Planning days carry what the page renders.** `GET /api/planning/days` maps each arrival to the card
+    fields of rule 12 and each departure to the fields of `DepartureMiniRow` (`DEPARTURE_FIELDS`), including
+    the reception locks. `GET /api/planning/today` (5 kB) is unchanged: the home's tables read many more
+    columns.
+23. **The fiche reads the resource availability once.** The effect that refreshes it when the dates change
+    skips the key (property, dates, excluded stay) the init has just read.
+24. **The email log preview is full screen on a phone** (`EmailLogViewDialog`, CLAUDE.md §7).
 
 **Edge cases:**
 
@@ -307,6 +323,12 @@ No screen changes beyond loading states.
       `App.menu-properties.test.jsx` — rule 13; `ReservationPage.fiche-reads.test.jsx` — rules 14–15;
       `api.property-view.test.js` — rules 14, 16.
 
+### Follow-up lot tests
+
+- [x] `planning-days-lean.unit.test.js` — rules 20, 22 — **5 cases**; `property-stay-view.unit.test.js` — rule 21 (+2);
+      client `optionGroups.test.js` — rule 21; `ReservationPage.fiche-reads.test.jsx` — rules 20, 23;
+      `EmailLogViewDialog.full-screen.test.jsx` — rule 24.
+
 ### Script tests (in the server suite, importing `scripts/*.mjs`)
 
 - [x] `server/src/tests/start-shadow.unit.test.js` — rule 1 (packages env, never production, outbox + dead bases,
@@ -382,23 +404,26 @@ Done in this lot: rules 8 to 16. Measured on the production-build shadow (`node`
 | `/calendar` | 20 → 18 | 80 → 77 |
 | `/clients`, `/finance`, `/settings`, `/planning`, `/` | one call fewer each | unchanged |
 
-### Follow-up lot, after the pages being rewritten elsewhere (to do, not done)
+### Follow-up lot, after the pages rewritten elsewhere (done 2026-10-28)
 
-**Resolved 2026-10-28** (coordinator): `Dashboard.jsx`, `PlanningPage.jsx` and `CalendarPage.jsx` are being
-rewritten by the `dashboard-planning-scroll` and `calendar-property-parity` branches; their payloads are
-trimmed **after those branches merge, rebased onto inte**, in a lot of its own:
+**Resolved 2026-10-28** (coordinator): done once `dashboard-planning-scroll`, `calendar-property-parity` and
+`options-resources-ux` were merged, on a branch cut from `inte/plugins`. What the merged code does now, measured
+on the production-build shadow (calls, kB), and what was done:
 
-- the home and the calendar read four overlapping `GET /reservations?from&to` windows of full rows
-  (34 + 28 + 19 + 11 kB on the home, 28 + 19 + 11 + 8 kB on the calendar): one window each, and only the
-  columns the grid and the cards render;
-- the planning reads `GET /reservations/:id` (22 kB) for one stay;
-- the calendar and the properties page read `/properties` a second time after their own mount (the
-  shell's read and the page's are not concurrent, so the coalescing of rule 8 does not catch them).
+| Page | before | after | What |
+|---|---|---|---|
+| `/` | 17 calls, 17 kB | unchanged | the four full-row windows are gone: three `GET /calendar?from&to` of 1–2 kB each, `GET /planning/today` 5 kB |
+| `/calendar` | 14 calls, 15 kB | unchanged | one `GET /calendar` per window, 1–2 kB each; the second `/properties` read is gone |
+| `/planning` | 25 calls, 51 kB | **25 calls, 20 kB** | three `GET /planning/days` windows of 13–14 kB → 3 kB each (rule 22); no `GET /reservations/:id` any more |
+| `/reservations/:id` | 23 calls, **244 kB** | **22 calls, 93 kB** | `GET /reservations?propertyId` 128 → 4 kB (rule 20), `GET /properties/1?view=stay` 76 → 52 kB (rule 21), availability read once (rule 23) |
+| `/properties` | 8 calls, 5 kB | unchanged | no duplicate any more |
+| `/options` | 10 calls, 16 kB | unchanged | the new `GET /options/catalogue-view` is 9 kB (was 26 kB on `?view=catalogue`) |
 
-Left for a decision, with their measure: the fiche's property view still carries every option twice
-(`options` 28 kB and `optionGroups` 49 kB hold the same options, grouped); `GET /resources/availability`
-is read twice with the same parameters on the fiche; `GET /options?view=catalogue` is 26 kB on the
-options pages.
+Not changed, with the reason: the home's `GET /planning/today` (5 kB) feeds tables that read most columns;
+the three overlapping `GET /calendar` windows are 1–2 kB each; `GET /today` is read twice on the home (two
+`useServerToday` instances, 0.1 kB); the options pages read `/properties` a second time after the shell's
+(not concurrent); the server still answers `GET /options?view=catalogue` (a test covers it) although no client
+screen calls it since the catalogue view replaced it.
 
 ### Bundle redundancy pass (2026-10-28)
 
@@ -436,6 +461,7 @@ their own: they are UI refactors, not measurable payload or bundle gains.
 - [x] Lot 3 — lazy routes (rules 2–3): `1e6ac20c`.
 - [x] Lot 4 — guards (rules 4–5): `c5c3f852`.
 - [x] Rule 7 (immutable hashed assets), added because lot 3 multiplies the files of a first load: `e04d95a0`.
+- [x] Follow-up lot (rules 20–24, branch `feature/inte-performance-windows`).
 - [x] Lot 5 — widening: rules 8–16 and the page-by-page audit of §8b (`7cce4826`, `7a5b4350`, `993bc84f`, the lean-reads commits).
 
 Tests: server 6 874 + 2 (`hashed-assets`) green; client 2 287; spec coverage green. The three

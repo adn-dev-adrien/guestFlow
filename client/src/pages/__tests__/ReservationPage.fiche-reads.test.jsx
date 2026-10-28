@@ -45,6 +45,19 @@ test('rules 14–15: an existing stay reads the stay view of its property, no ca
   expect(api.getClients).not.toHaveBeenCalled();
 });
 
+test('rules 20, 23: the stays of the property are read as occupancy, the availability once for the same dates', async () => {
+  vi.clearAllMocks();
+  render(
+    <MemoryRouter initialEntries={['/reservations/5']}>
+      <Routes><Route path="/reservations/:reservationId" element={<ReservationPage />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getResourcesAvailability).toHaveBeenCalled());
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  expect(api.getReservations).toHaveBeenCalledWith({ propertyId: 1, view: 'occupancy' });
+  expect(api.getResourcesAvailability).toHaveBeenCalledTimes(1);
+});
+
 test('rule 15: when the client cannot be read, the search is what the page shows and its list is read', async () => {
   vi.clearAllMocks();
   api.getClient.mockRejectedValueOnce(new Error('boom'));
