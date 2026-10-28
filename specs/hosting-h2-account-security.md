@@ -145,7 +145,14 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     - the settings that hold a credential or where the account emails point: the SMTP connection
       (the `smtp` group), a plugin setting declared
       `secret`, the Google connection (`/api/google-calendar/oauth/*`, the calendar), the Qonto
-      credentials and provider connection, the Neat credentials and environment.
+      credentials and provider connection, the Neat credentials and environment;
+    - *(amended 2026-10-28, audit finding M3 — the rule was incomplete)* changing the property's keypad
+      code (`company.portalCode`), the address the booking notifications go to
+      (`notifications.recipientEmail`) and the bank details printed on a devis (`company.iban`,
+      `company.bic`). The settings page sends its whole group on every save, so only a value that
+      differs from the stored one is refused; the same value sent back passes. Bank details are
+      forbidden as the safe default: the owner can relax that later. The refusal is a logged 403 like
+      the others.
 
     Nothing the support does can therefore outlive the access.
     - Widened 2026-10-17 (second review): also refused, for any method, the Qonto OAuth connection
@@ -542,6 +549,24 @@ every change still writes the journal, the secret still never leaves the server 
     included); the icon button of Paramètres › Utilisateurs is 44 × 44 px. The dialog is 480 px wide at
     most on a computer; the key is shown in non-breaking groups of 4 in both layouts, with « Copier la
     clé » copying it without spaces.
+
+59. **Changing your own email asks the password** (added 2026-10-28, audit finding M1). `PUT /api/users/me`
+    with an email that differs from the current one needs `currentPassword`, and `code` (app, backup or
+    emailed code, rule 47) when the second step is on; a wrong or missing one answers 400 `BAD_PASSWORD` /
+    `CODE_REQUIRED` / `BAD_CODE`, and the password shares rule 49's limit. The format is checked first.
+    Once changed, the OLD address gets a notice (best effort: a mail failure never undoes the change).
+    A save that leaves the email as it is asks for nothing. « Mon compte » opens the re-authentication
+    dialog (rule 47) only when the email field changed.
+60. **A support write is logged even if the client leaves** (added 2026-10-28, audit finding M2). The
+    entry is written on `finish`, or on `close` without `finish` with the summary `aborted` (shown to the
+    customer as « Interrompu »); never twice.
+61. **A login costs the same hash whoever answers** (added 2026-10-28, audit finding L1). An unknown,
+    deactivated or support account is checked against a dummy hash, so the time of a refusal does not
+    tell whether an account exists (rule 1's reasoning, applied to the login).
+62. **The login code mail is limited like every code mail** (added 2026-10-28, audit finding L3). For an
+    email-method account the code mailed after the right password takes a login mail slot (rule 55: 60 s
+    gap, 6 an hour, shared with « Renvoyer le code »). Over the limit no mail leaves, the code step is still
+    shown (« Code déjà envoyé à … ») and the code already sent stays valid.
 
 ---
 
