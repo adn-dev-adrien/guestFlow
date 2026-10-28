@@ -15,6 +15,13 @@ const { groupArrivalsByDay } = require('../utils/upcomingArrivals');
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+// A real calendar day: `2026-13-01` and `2026-02-30` have the shape but no day behind them.
+function isCalendarDay(value) {
+  if (!ISO_DAY.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
 function buildController({
   model = upcomingModel,
   detailOf = (id) => reservationsModel.getByIdWithDetails(id),
@@ -24,7 +31,7 @@ function buildController({
     upcoming(req, res) {
       const current = today();
       const only = req.query && req.query.day;
-      if (only !== undefined && !ISO_DAY.test(String(only))) {
+      if (only !== undefined && !isCalendarDay(String(only))) {
         return res.status(400).json({ error: 'Date invalide.' });
       }
       let ids;

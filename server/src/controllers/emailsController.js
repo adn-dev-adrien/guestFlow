@@ -16,9 +16,17 @@ const { todayIso: localTodayIso } = require('../utils/localDate');
 const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
+const {
+  normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_MESSAGE, ENGLISH_VERSION_MISSING_ACTION,
+} = require('../utils/emailTemplateLanguage');
+
 // A stored failure reason as the history shows it: the known codes, else the transport's text read
 // through sendFailureMessage (specs/email-automation.md rule 15).
-const FAILURE_CODES = { CLIENT_NO_EMAIL: 'Pas d’adresse email.', NO_TEMPLATE: 'Modèle manquant.' };
+const FAILURE_CODES = {
+  CLIENT_NO_EMAIL: 'Pas d’adresse email.',
+  NO_TEMPLATE: 'Modèle manquant.',
+  [ENGLISH_VERSION_MISSING]: ENGLISH_VERSION_MISSING_MESSAGE,
+};
 function failureLabel(stored) {
   const text = String(stored || '').trim();
   if (!text) return '';
@@ -29,7 +37,6 @@ function failureLabel(stored) {
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
-const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
 const { loadReservationGraph } = require('../utils/reservationEmailGraph');
 const {
   SEQUENCE_STABLE_KEYS, SEASON_STABLE_KEYS, stayDedupKey, seasonDedupKey, seasonKeyOf,
@@ -39,6 +46,7 @@ const { sequenceContextFor, nextSeasonDate } = require('../utils/sequenceRenderC
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { buildDraftPreview } = require('../utils/emailDraftPreview');
 const { guestEmailMessage } = require('../utils/guestEmailHtml');
+const { displayNameOf } = require('../utils/emailTimeline');
 
 // Templates that re-offer an existing payment link (injected read-only at preview/send time).
 const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
@@ -69,6 +77,13 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return { stableKey, dedupKey: seasonDedupKey(stableKey, clientId, seasonKey), reservationId, clientId, seasonKey, sendDate };
   }
 
+  // specs/guest-email-texts-made-simple.md rule 44 — the history and the pending list name a template
+  // the way every other page does (« Merci et avis », not « Séquence — J+1 merci et avis »).
+  function withDisplayNames(rows) {
+    const names = new Map(templatesModel.list().map((t) => [Number(t.id), displayNameOf(t)]));
+    return rows.map((row) => (names.has(Number(row.templateId)) ? { ...row, templateName: names.get(Number(row.templateId)) } : row));
+  }
+
   function readSettings() {
     return settingsModel.read();
   }
@@ -86,6 +101,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return emailServiceFactory(smtp);
   }
 
+  // Explicit override wins, else the CLIENT's language, else the reservation's, else French.
+  function guestLangOf(graph, lang) {
+    return normaliseLang(lang || graph.client?.emailLanguage || graph.reservation.emailLanguage);
+  }
+
   function buildPreview(reservationId, templateId, overrides = {}, lang, extra = {}) {
     const settings = { ...readSettings(), ...(extra.settings || {}) };
     const template = templatesModel.findById(templateId);
@@ -95,7 +115,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
     // Language resolution (specs/email-client-language-and-fiche-polish.md §3 rule 2): explicit override
     // wins, else the CLIENT's language, else the reservation's (transitional fallback), else French.
-    const useLang = normaliseLang(lang || graph.client?.emailLanguage || graph.reservation.emailLanguage);
+    const useLang = guestLangOf(graph, lang);
 
     const installmentRef = template.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests
       ? installmentRequests.resolve(reservationId, extra.occurrenceKey)
@@ -160,6 +180,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       html,
       missingVariables,
       lang: useLang,
+      // specs/email-language-fr-en.md rule 9 — shown, never sent.
+      englishMissing: englishMissing(template, useLang),
       occurrenceKey: installmentRef ? installmentRef.occurrenceKey : '',
       installmentId: installmentRef ? installmentRef.id : null,
     };
@@ -196,6 +218,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       html: result.html,
       missingVariables: result.missingVariables,
       lang: result.lang,
+      englishMissing: result.englishMissing,
     });
   }
 
@@ -204,9 +227,15 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
+    const wanted = templatesModel.findById(templateId);
+    // specs/email-language-fr-en.md rule 9 — a template without its English version never leaves for an
+    // English-speaking guest, operator text or not; checked before any payment link is minted.
+    const wantedGraph = wanted ? loadReservationGraph(database, reservationId) : null;
+    if (wantedGraph && englishMissing(wanted, guestLangOf(wantedGraph, lang))) {
+      return res.status(422).json({ error: ENGLISH_VERSION_MISSING, message: ENGLISH_VERSION_MISSING_ACTION });
+    }
     // An installment request goes out with its own link, minted (or reused) at its exact amount.
     let paymentLink = null;
-    const wanted = templatesModel.findById(templateId);
     if (wanted && wanted.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests) {
       const target = installmentRequests.resolve(Number(reservationId), occurrenceKey);
       if (!target) return res.status(404).json({ error: 'INSTALLMENT_NOT_FOUND', message: 'Aucune échéance à demander.' });
@@ -323,7 +352,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     ];
     merged.sort((a, b) => String(a.startDate).localeCompare(String(b.startDate))
       || Number(a.dayOffset) - Number(b.dayOffset));
-    return res.json(merged);
+    return res.json(withDisplayNames(merged));
   }
 
   function acknowledge(req, res) {
@@ -453,7 +482,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     });
     // specs/email-history-rolling-window.md rule 8 — the time as the operator lives it (Europe/Paris);
     // specs/email-automation.md rule 15 — a failure in French, not the transport's own words.
-    const rows = (result.rows || []).map((row) => ({
+    const rows = withDisplayNames(result.rows || []).map((row) => ({
       ...row,
       sentAtLabel: parisDateTimeLabel(row.sentAt),
       errorLabel: row.status === 'failed' ? failureLabel(row.errorMessage) : '',

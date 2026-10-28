@@ -95,7 +95,9 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
 5. **Holiday blocks are the run of consecutive non-working days minus the last day** — the guest
    checks out that morning. A Monday holiday gives 2 nights (Sat, Sun), a Thursday bridge gives 3.
 6. **A holiday block already at the top rank is not raised, but still carries its minimum stay**, so
-   it still splits the range. 14 juillet inside high season is the case to check.
+   it still splits the range — **only when that minimum exceeds what the night already demands**.
+   14 juillet inside high season is the case to check: on the Lodge (season minimum 1) it splits with
+   a 3-night minimum; on the Gîte (summer core at 4) it leaves the range whole (rule 16quater).
 7. **Seasons must cover the whole year with no gap** — an uncovered date silently falls back to the
    engine's 100 €/night default. Closures do not cover: they block availability, not pricing.
 8. **A closure is not a season.** Declare it in `closures`; it blocks bookings and (with
@@ -129,6 +131,13 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
     DISPLAYED prices as if they were net (direct showed 16/9 instead of 15/8). After applying a
     recipe, verify the grid's direct row REPRODUCES the displayed prices — that identity is the
     whole point of a net pivot, and it fails loudly the moment one is dropped.
+16. **`extraGuest.unit` and `appliesAbove` are written on the property by the apply** (rule 64 of
+    `specs/tariff-recipes/spec.md`); the preview lists them as « Supplément voyageurs » / « Personnes
+    incluses ». A tier table on a `per_stay` unit is refused at load: a per-stay supplement never reads
+    tiers, and the card would announce a price nobody is billed.
+17. **A cleaning fee for a channel the installation does not record is skipped, not blocking**
+    (`specs/tariff-recipe-platform-cleaning-fee.md` rule 15). The preview names it; re-apply once
+    the platform exists in Paramètres › Plateformes.
 
 ## Validation the loader enforces
 

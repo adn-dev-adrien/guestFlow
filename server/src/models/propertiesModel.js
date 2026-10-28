@@ -23,6 +23,7 @@ const platformsModel = require('./platformsModel');
 const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
+const propertyArticle = require('../utils/propertyArticle');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
 // coerced explicitly to a 0/1 bit for INTEGER columns.
@@ -281,6 +282,16 @@ function createPropertiesModel(database) {
     try { return new Set(database.prepare('PRAGMA table_info(properties)').all().map((c) => c.name)); }
     catch { return new Set(); }
   })();
+  // specs/guest-email-texts-made-simple.md rule 30 — a name that starts with its own article
+  // (« La Bergerie », « Le Fournil », « Les Pins », « L'Oustal ») sets that article, confirmed, whatever
+  // the form sent; the property page and the start assistant agree (2026-10-27 spec review).
+  function applyOwnArticle(id, name) {
+    if (!propertyCols.has('nameArticleConfirmed')) return;
+    const own = propertyArticle.derive(name);
+    if (!own.certain) return;
+    database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(own.article, Number(id));
+  }
+
   function writeEmailFacts(id, body = {}) {
     for (const { key, coerce } of EMAIL_FACT_FIELDS) {
       if (!propertyCols.has(key) || !Object.prototype.hasOwnProperty.call(body, key)) continue;
@@ -549,7 +560,7 @@ function createPropertiesModel(database) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyName(body.name),
-        normalizeNameArticle(body.nameArticle),
+        normalizeNameArticle(sent(body, 'nameArticle') ? body.nameArticle : propertyArticle.derive(body.name).article),
         photo,
         body.maxGuests || 2,
         body.maxBabies || 0,
@@ -602,6 +613,7 @@ function createPropertiesModel(database) {
       }
 
       writeEmailFacts(propertyId, body);
+      applyOwnArticle(propertyId, body.name);
 
       return { id: propertyId };
     },
@@ -652,6 +664,7 @@ function createPropertiesModel(database) {
       );
 
       writeEmailFacts(id, body);
+      applyOwnArticle(id, body.name);
 
       if (newPhoto && existing && existing.photo && existing.photo !== newPhoto) {
         removeUploadedFile(existing.photo);

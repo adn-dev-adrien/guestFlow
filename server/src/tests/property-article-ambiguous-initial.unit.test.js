@@ -22,12 +22,10 @@ test('rule 30: a real vowel keeps its guess and its three choices; a consonant i
   assert.deepEqual(propertyArticle.choices('Gite').map((c) => c.value), ['au', 'à la', 'aux', 'à']);
 });
 
-test('rule 30: the property page labels are the contracted forms the emails send', () => {
-  const labels = propertyArticle.labels('Le Fournil');
-  assert.equal(labels.find((l) => l.value === 'au').label, 'au Fournil');
-  assert.equal(labels.length, 5);
-  assert.deepEqual(propertyArticle.labels('').map((l) => l.label), [...propertyArticle.ARTICLES]);
+test('rule 30: the property page labels are the contracted forms the emails send, its choices only', () => {
   let body;
   ctrl.articleLabels({ query: { name: 'Les Pins' } }, { json: (b) => { body = b; } });
-  assert.equal(body.labels.find((l) => l.value === 'aux').label, 'aux Pins');
+  assert.deepEqual(body.labels, [{ value: 'aux', label: 'aux Pins' }]);
+  ctrl.articleLabels({ query: { name: 'Gite' } }, { json: (b) => { body = b; } });
+  assert.deepEqual(body.labels.map((l) => l.label), ['au Gite', 'à la Gite', 'aux Gite', 'à Gite']);
 });

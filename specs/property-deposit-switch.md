@@ -9,6 +9,15 @@
 | **Related PR** | (link once opened) |
 | **Related** | [public-online-deposit.md](public-online-deposit.md) (creates the toggle — this spec widens it), [disable-deposit-per-reservation.md](disable-deposit-per-reservation.md) (the per-reservation opt-out this reuses), [platform-deposit-toggle.md](platform-deposit-toggle.md) (the per-platform flag), [payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) (the due dates), [editable-deposit-amount.md](editable-deposit-amount.md) (the manual override) |
 
+> **Updated 2026-10-27 (spec review — copy drift, no behaviour change).** The property page has since
+> become tabbed ([settings-rationalization.md](settings-rationalization.md) rule 21): both cards live in
+> the « Paiement & caution » tab (`client/src/components/property/PropertyPaymentTab.jsx`). The shipped
+> copy differs from rules 10–11 and §6: the switch reads **« Demander un acompte »** (card title still
+> « Acompte »), and the second card is titled **« Solde & caution »** when the switch is on and
+> **« Paiement & caution »** when it is off (lower-case « caution »); its first field is labelled
+> « Solde (jours avant l'arrivée) » / « Paiement (jours avant l'arrivée) » accordingly. One copy bug is
+> recorded as an open item in §9.
+
 ---
 
 ## 1. Context
@@ -79,11 +88,13 @@ website — and the property page stops asking for acompte settings that mean no
 ### The property page
 
 9. The « Acompte & Solde » card splits in two.
-10. **Card « Acompte »** — the switch is the **first** thing in it, followed by one line of caption:
+10. _(Copy updated 2026-10-27: the switch label is « Demander un acompte » — see the note at the top.)_
+    **Card « Acompte »** — the switch is the **first** thing in it, followed by one line of caption:
     ON « Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l'arrivée. » /
     OFF « Le séjour est payé en une fois, à la réservation. » When the switch is OFF the card holds
     nothing else. When it is ON it reveals `% acompte` and `Acompte (jours après réservation)`.
-11. **Card « Paiement & Caution »** — always visible, whatever the switch: `Solde (jours avant)`,
+11. _(Copy updated 2026-10-27: titled « Solde & caution » when the acompte is on, « Paiement & caution »
+    when off — see the note at the top.)_ **Card « Paiement & Caution »** — always visible, whatever the switch: `Solde (jours avant)`,
     `Annulation (jours après échéance du solde)`, `Caution par défaut (€)`. These three apply to a
     single-payment stay exactly as they apply to a split one; hiding them would make an active
     setting unreachable.
@@ -91,6 +102,11 @@ website — and the property page stops asking for acompte settings that mean no
     solde — ou du paiement unique quand l'acompte est désactivé. »
 13. Revealing or hiding the acompte fields is **local UI state only**. Nothing is computed on the
     client: the values keep being sent as they are and the server decides what they are worth.
+14. **The « Annulation » helper follows the switch** (2026-10-28, Adrien). ON: « Délai avant de pouvoir
+    annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre
+    d'indemnité. » OFF: « Délai avant de pouvoir annuler un séjour dont le paiement n'est pas réglé.
+    Sans acompte, l'annulation suit les conditions des CGV. » — a property without an acompte has no
+    acompte to keep.
 
 **Edge cases:**
 
@@ -210,10 +226,10 @@ French copy:
 | Where | String |
 |---|---|
 | Card 1 title | `Acompte` |
-| Switch label | `Acompte` |
+| Switch label | `Acompte` — _shipped as `Demander un acompte` (noted 2026-10-27)_ |
 | Caption ON | `Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l'arrivée.` |
 | Caption OFF | `Le séjour est payé en une fois, à la réservation.` |
-| Card 2 title | `Paiement & Caution` |
+| Card 2 title | `Paiement & Caution` — _shipped as `Solde & caution` (acompte on) / `Paiement & caution` (acompte off), noted 2026-10-27_ |
 | Helper under `Solde (jours avant)` | `Échéance du solde — ou du paiement unique quand l'acompte est désactivé.` |
 
 Other labels and helper texts are carried over unchanged (`% acompte`,
@@ -285,3 +301,10 @@ Other labels and helper texts are carried over unchanged (`% acompte`,
   settings. Do they disappear with the card?
   - A (2026-09-20, Adrien): **no** — they move out into their own card, always visible. Hiding a
     setting that still takes effect is a bug, not a simplification.
+- **Resolved 2026-10-28 (Adrien: « Selon les CGV », rule 14) — found at the 2026-10-27 spec review.** With
+  the switch OFF, the helper under « Annulation (jours après échéance du solde) » still says
+  « … L'acompte encaissé est alors conservé à titre d'indemnité. »
+  (`client/src/components/property/PropertyPaymentTab.jsx`, the `cancelAfterBalanceDueDays` field). A
+  property without an acompte has no acompte to keep, so the sentence is false in that state. The
+  helper should depend on the switch like the card title and the first field label already do; the
+  exact OFF wording is Adrien's call.

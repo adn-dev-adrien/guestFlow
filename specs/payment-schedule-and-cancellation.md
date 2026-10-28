@@ -361,6 +361,15 @@ acompte is kept as an indemnity, and the books say so correctly.
   column is left as harmless residue.
 - Cancelling a stay whose acompte was paid **in the current month** → the avoir + indemnity land in the
   same month as the encaissement; the three entries coexist and net to the correct result.
+47. **Fixed at the 2026-10-27 spec review — the acompte is never due after the solde.** Booked 31 to 36
+    days out, `booking + depositDueDays` (7) fell after `arrival − balanceDaysBefore` (30): booked on
+    27/10 for 28/11, the acompte was due 03/11 and the solde 29/10. A FRESH acompte deadline is now
+    capped at the solde deadline (`resolveDepositDueDate({ notAfter })`); a stored one keeps its promise
+    (rule 4). A platform solde (payout after departure) never caps anything in practice.
+
+48. **Nothing collected reads `unpaid_deposit`** (fixed at the 2026-10-27 spec review). When the acompte
+    is due and unpaid, the derived `cancellationReason` is `unpaid_deposit` even though the solde is unpaid
+    too — the first money missing names the cancellation, as rule 27 says. It read `unpaid_balance`.
 
 ---
 
@@ -542,6 +551,7 @@ One line per reservation:
 ## 7. Test plan
 
 ### Server unit tests — **53 new, suite at 3157 green**
+- [x] `tests/reservation-cancellation.unit.test.js` — rule 48: the « acompte never collected » case now expects `unpaid_deposit` (spec review 2026-10-27)
 - [x] `tests/payment-schedule.unit.test.js` (9) — deposit due = booking + N and frozen across
       recomputes; devis → `validUntil`; balance = `max(start − 30, booking)`; late booking clamps to
       the booking day; nothing-to-collect → NULL; `cancelOn = balance + 7`; an absent setting falls
@@ -619,6 +629,7 @@ One line per reservation:
       no cancel button; the click posts the server's own `remindType`; the « échéance dépassée » copy;
       the title counts late rows and to-dos separately.
 - [x] `npx vitest run` green (131 files). `npm run test:e2e` — see below.
+- Spec review 2026-10-27 (rule 47): `server/src/tests/deposit-not-due-after-solde.unit.test.js` (3 tests — cap, stored date untouched, stay booked 32 days out).
 
 ## 8. Out of scope
 

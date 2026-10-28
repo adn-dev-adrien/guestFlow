@@ -341,6 +341,13 @@ without losing anything today's page shows.
     narrow no-break space, which renders as almost nothing in the app font: « 1300 € » under a tile
     reading « 1 900 € ».
 
+49. **A late installment is an overdue element** (spec review of 2026-10-27). For an own-channel stay,
+    `overdueOf` adds every installment the fiche calls late (`specs/direct-installments.md` rule 48) to
+    `overdueItems` (`kind: 'installment:<id>'`, `installmentId`, `paidField: null`), and to the row's
+    `overdueAmount` and `oldestDueDate`; the « En retard » tile, its insight and its detail follow. Rule 38
+    still holds: « Marquer payé » ticks exactly the listed elements — the flags through the payment
+    endpoint, each installment through its own.
+
 ---
 
 ## 4. Architecture
@@ -505,6 +512,7 @@ par mois » and « Taux d'occupation » side by side.
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
+- [x] `tests/finance-late-installments.unit.test.js` (3, spec review 2026-10-27) — rule 49; client `FinancePage.settle-late-installment.test.jsx` (1)
 - [x] `finance-window.unit.test.js` (4) — rules 1-2: the three window kinds, refusals.
 - [x] `finance-occupancy.unit.test.js` (5) — rules 24-25: closures (global, per logement, exclusive end),
       closed month = gap, ÷ 0 guarded, revenue per night, RevPAR.

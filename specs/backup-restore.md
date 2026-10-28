@@ -51,18 +51,30 @@ command, and bring a crashed/replaced Raspberry Pi back to that exact state with
    symlink always points at the most recent one.
 7. Rotation keeps the N most recent backups (default 30, `--keep 0` disables pruning).
 8. `manifest.txt` records what is needed to interpret the snapshot later: date, source host, the
-   local repo `HEAD` and `origin/release` SHAs (i.e. which code the data belongs to), the Pi's node
-   version and app version, the integrity-check result, and the file inventory.
+   local repo `HEAD`, the release `current` points at (i.e. which code the data belongs to — see
+   rule 15), the Pi's node version and app version, the integrity-check result, and the file inventory.
 9. Restore never destroys the target's current state: the existing remote `guestflow.db` and
    `.env.local` are moved/copied aside as `*.pre-restore-<stamp>` before being replaced.
 10. Restore removes any stale `guestflow.db-wal` / `guestflow.db-shm` on the target — they belong
     to the *replaced* database file and would corrupt the restored one.
 11. Restore stops PM2 before writing, re-creates the `current/server/{guestflow.db,.env.local}`
-    symlinks the deploy workflow expects, and restarts PM2 afterwards.
+    symlinks a release expects (`server/src/utils/releaseLinks.js`, self-update rule 25b), and restarts PM2 afterwards.
 12. Restore refuses to run against a directory that does not contain both `guestflow.db` and
     `.env.local`, and asks for confirmation before overwriting production (`--yes` to skip).
 13. No host, IP or absolute path is hardcoded: the Pi is given by `--host` / `$GUESTFLOW_SSH_HOST`,
     the destination by `--dest` / `$GUESTFLOW_BACKUP_DIR` (default `~/GuestFlowBackups`).
+14. *(Fixed at the 2026-10-27 spec review.)* The scripts run under macOS `/bin/bash` 3.2, which, in a
+    UTF-8 locale, reads a non-ASCII character glued to `$VAR` (`"$STAMP…"`) as part of the variable
+    name and aborts under `set -u`. `restore-to-pi.sh` did exactly that right after
+    `pm2 stop guestflow`, leaving production stopped with nothing restored. A variable followed by a
+    non-ASCII character is always written `${VAR}`, and a server unit test scans every `*.sh` of the
+    repository for the unbraced form.
+15. *(Fixed at the 2026-10-27 spec review.)* The manifest records the deployed release instead of an
+    `origin/release` SHA: the `release` branch no longer exists since releases became published
+    archives (`specs/self-update-and-releases.md`), and `git rev-parse` of a missing ref printed the
+    ref name plus a stray `n/a`. The line is now `current ->` (the `readlink` of `~/guestflow/current`,
+    i.e. `releases/X.Y.Z`), next to the app version read from that release's `package.json`.
+    > **Sans test** — an ops script that reads the production host over SSH; verified by reading `manifest.txt` after a backup run (`current -> releases/X.Y.Z`).
 
 **Edge cases:**
 - Pi unreachable / SSH key not set up → clear error, exit 1, no empty backup directory advertised.
@@ -71,7 +83,7 @@ command, and bring a crashed/replaced Raspberry Pi back to that exact state with
 - Pi replaced with a different LAN IP → `restore-to-pi.sh --skip-certs`, then regenerate the cert
   with `server/scripts/generate-self-signed-cert.sh` (the old cert's SANs no longer match).
 - App not deployed yet on a fresh Pi → restore still drops the data in `~/guestflow/data/`, skips
-  the symlinks, and warns that PM2 has no `guestflow` process (deploy `release` first).
+  the symlinks, and warns that PM2 has no `guestflow` process (install the release first).
 
 ---
 
@@ -100,14 +112,19 @@ No server or client code is involved: this is operator tooling around the deploy
 |---|---|---|
 | `scripts/backup-from-pi.sh` | C | Pulls a consistent snapshot (DB via `sqlite3 .backup`, `.env.local`, `certs/`, `uploads/`), verifies integrity, writes manifest + checksums, rotates old backups. |
 | `scripts/restore-to-pi.sh` | C | Pushes a backup back onto a Pi: stops PM2, archives current data, uploads DB/secrets/certs/uploads, re-links `current/server/*`, restarts PM2. |
+| `server/src/tests/shell-scripts-bash32-variables.unit.test.js` | C | Rule 14: fails on any `*.sh` gluing a non-ASCII character to an unbraced `$VAR` (2026-10-27). |
 | `README.md` | T | New §"Backup & restore" documenting the two commands and the disaster-recovery runbook. |
 
 ### 4.4 Disaster-recovery runbook (Pi is dead)
 
-1. Flash Raspberry Pi OS, restore SSH access, install node + `pm2`, re-register the GitHub Actions
-   self-hosted runner (README §"Deployment using GitHub runner").
-2. Push `release` (or re-run the deploy workflow) so `~/guestflow/current/` is rebuilt from git.
-   The app boots on an **empty** database — expected, do not use it yet.
+1. Reinstall the OS, restore SSH access, install node + `pm2`. **No CI runner**: production makes
+   outbound calls only (CLAUDE.md §5.6) — the runner step of the original runbook is gone since
+   2026-08-20.
+2. Install the published release named in the backup's `manifest.txt` (`remote app ver`) by hand,
+   as README « Installing one manually » describes: archive checked against `SHA256SUMS`, extracted
+   into `releases/X.Y.Z`, `current -> releases/X.Y.Z`, `ecosystem.config.js` written (or run
+   `scripts/bootstrap-vm.sh` on an extracted `current/` directory). The app boots on an **empty**
+   database — expected, do not use it yet.
 3. `scripts/restore-to-pi.sh --host pi@<new-host> --from ~/GuestFlowBackups/latest`
    (add `--skip-certs` if the Pi's IP changed, then regenerate the cert).
 4. Verify: `ssh pi@<new-host> 'pm2 logs guestflow --lines 30'`, then open the app and check the
@@ -135,7 +152,9 @@ responsive concern.
 ## 7. Test plan
 
 ### Server unit tests
-None — no server business logic is added (CLAUDE.md §9 "Tests not required for: pure plumbing").
+- [x] `shell-scripts-bash32-variables.unit.test.js` (2 tests, 2026-10-27) — rule 14: the pattern
+      catches the `"$STAMP…"` line that stopped production, and no `*.sh` in the repository carries
+      it. Reproduction: `LC_ALL=fr_FR.UTF-8 /bin/bash -uc 'S=1; echo "$S…"'` → `S�: unbound variable`.
 
 ### Manual verification (done 2026-08-09)
 - [x] Backup against the live Pi while PM2 was running → `integrity_check: ok`.

@@ -68,7 +68,21 @@ function validateFinanceInputs(fields) {
   return null;
 }
 
+// The refusal the operator reads (specs/editable-deposit-amount.md rule 9): French text in `error`, the
+// machine code kept in `code` for callers that branch on it.
+const FINANCE_ERROR_MESSAGES = {
+  [ERROR_NOT_A_NUMBER]: 'Montant invalide : saisir un nombre.',
+  [ERROR_NEGATIVE_AMOUNT]: 'Un montant ne peut pas être négatif.',
+  [ERROR_INVALID_PERCENTAGE]: 'Pourcentage invalide : entre 0 et 100.',
+  [ERROR_GROSS_BELOW_NET]: 'Le brut ne peut pas être inférieur au solde.',
+};
+
+function financeErrorBody(code) {
+  return { error: FINANCE_ERROR_MESSAGES[code] || 'Montant invalide.', code };
+}
+
 module.exports = {
+  financeErrorBody,
   validateMoneyAmount,
   validatePercentage,
   validateClientGrossAmount,

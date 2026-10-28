@@ -135,14 +135,23 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
     // pass first erased the word boundaries (`GitesDeFrance` → `Gitesdefrance`), so saving a source
     // created a second catalogue row without the commission and tagged every import with it.
     const platformLabelRaw = platformLabelInput || platformKeyInput || normalizedPlatformKey;
-    const platformLabel = formatPlatformName(platformLabelRaw) || platformLabelRaw;
+    // 2026-10-27 spec review — the catalogue's spelling when one exists under the same slug (or the same
+    // slug plus « .com »): `BookingCom` is Booking, `gites-de-france` is GitesDeFrance, never a second
+    // platform. Built lazily and guarded: a minimal schema without `platforms` keeps the plain format.
+    const catalogueLabel = (() => {
+      try { return platformsModel.create(database).canonicalName(platformLabelRaw); } catch (_) { return null; }
+    })();
+    const platformLabel = catalogueLabel || formatPlatformName(platformLabelRaw) || platformLabelRaw;
+    // A new source is keyed by its canonical platform; an existing one keeps its stored key (its imports
+    // carry it) unless the body sends another.
+    const platformKey = !existing && platformLabel ? normalizePlatformKey(platformLabel) : normalizedPlatformKey;
 
     // specs/platforms-and-ical-rework.md §3 rule 7 — the URL iCal is now OPTIONAL: empty ⇒ no sync
     // (the operator enters that platform's bookings manually). Only validate the format when present.
     if (url && !/^https?:\/\//i.test(url)) return { error: 'URL iCal invalide (http(s) requis).' };
     if (!normalizedPlatformKey) return { error: 'La plateforme est requise.' };
 
-    const knownColor = KNOWN_PLATFORM_COLORS[normalizedPlatformKey];
+    const knownColor = KNOWN_PLATFORM_COLORS[platformKey] || KNOWN_PLATFORM_COLORS[normalizedPlatformKey];
     const chosenColor = String(body.platformColor || '').trim();
     const platformColor = knownColor || chosenColor || existing?.platformColor || DEFAULT_PLATFORM_COLOR;
 
@@ -156,10 +165,10 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
     const feedMarksStaysClosed = body.feedMarksStaysClosed === undefined
       ? (existing && existing.feedMarksStaysClosed !== undefined && existing.feedMarksStaysClosed !== null
         ? (Number(existing.feedMarksStaysClosed) === 1 ? 1 : 0)
-        : (defaultMarksStaysClosed(normalizedPlatformKey, platformLabel) ? 1 : 0))
+        : (defaultMarksStaysClosed(platformKey, platformLabel) ? 1 : 0))
       : (body.feedMarksStaysClosed === true || body.feedMarksStaysClosed === 1 ? 1 : 0);
 
-    return { url, normalizedPlatformKey, platformLabel, name: platformLabel, platformColor, disabled, feedMarksStaysClosed };
+    return { url, normalizedPlatformKey: platformKey, platformLabel, name: platformLabel, platformColor, disabled, feedMarksStaysClosed };
   }
 
   // Rule 16 — written apart from the main INSERT/UPDATE so a minimal schema without the column keeps working.
@@ -205,10 +214,14 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
       // Configure-on-demand (specs/platforms-and-ical-rework.md §3 rule 3): one row per
       // (property, platform). If this property already has a source for the platform, UPDATE it
       // instead of inserting a duplicate — so toggling tax then setting a URL both land on one row.
-      const existing = database.prepare(
-        'SELECT id FROM ical_sources WHERE propertyId = ? AND lower(platformKey) = lower(?) ORDER BY id DESC LIMIT 1'
-      ).get(propertyId, input.normalizedPlatformKey);
-      if (existing) return model.updateSource(propertyId, existing.id, body);
+      // Matched by slug on the key or the label, like `listForProperty`: `gites-de-france` and
+      // `gitesdefrance` are one platform (2026-10-27 spec review).
+      const slugOf = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const wanted = new Set([slugOf(input.normalizedPlatformKey), slugOf(input.platformLabel)]);
+      const existing = database.prepare('SELECT id, platformKey, platformLabel FROM ical_sources WHERE propertyId = ? ORDER BY id DESC')
+        .all(propertyId)
+        .find((src) => wanted.has(slugOf(src.platformKey)) || wanted.has(slugOf(src.platformLabel)));
+      if (existing) return model.updateSource(propertyId, existing.id, { ...body, platformKey: existing.platformKey, platformLabel: input.platformLabel });
       // Tourist-tax handling: derive the two stored booleans from the 3-way `touristTaxCollection`
       // (or the legacy boolean). Defaults to "platform handles everything" (collects = 1, remitted = 1).
       const tax = resolveTouristTaxColumns(body);

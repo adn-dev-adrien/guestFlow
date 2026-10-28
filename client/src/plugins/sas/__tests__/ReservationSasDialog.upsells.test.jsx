@@ -38,6 +38,8 @@ beforeEach(() => {
 const BATH_LINEN_OFFER = { available: true, unitPrice: 4, priceType: 'per_person', persons: 3, nights: 2, amount: 12, label: 'Linge de toilette' };
 
 // specs/arrival-departure-sas.md rule 8
+// specs/sas-bath-linen-upsell.md rules 1 + 4-7 — the page shows the offer, « Ajouter » joins the arrival
+// complement (sent as intent), the recap line reads « persons × price », and the règlement is on the recap.
 test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds the line to the arrival complement; règlement is on the recap', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2, children: 1 },
@@ -54,6 +56,7 @@ test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds t
   clickBtn('Ajouter le linge de toilette');
 
   await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText(/Linge de toilette : 3 × 4,00\s€ = 12,00\s€/)).toBeInTheDocument();
   expect(screen.getByText(/Total : 12,00 €/)).toBeInTheDocument();
   // Settlement is chosen once for the whole complement on the recap (no payment question at the step).
   expect(screen.getByRole('button', { name: 'En fin de séjour' })).toBeInTheDocument();
@@ -70,6 +73,7 @@ test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds t
   expect(arg.linenItems).toEqual([]); // specs/sas-arrival-total-server-side.md rule 6 — intent only
 });
 
+// specs/sas-bath-linen-upsell.md rule 5 — « Non merci » adds nothing.
 test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2, children: 1 },
@@ -94,6 +98,7 @@ test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', asy
 });
 
 // specs/arrival-departure-sas.md rule 8
+// specs/sas-bath-linen-upsell.md rule 1 — no offer, no page.
 test('arrival SAS: bath-linen page is skipped when the offer is unavailable', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1 },
@@ -108,7 +113,7 @@ test('arrival SAS: bath-linen page is skipped when the offer is unavailable', as
 });
 
 test('departure SAS: a bath-linen line deferred at arrival is shown and counted in the total; it is not re-sent', async () => {
-  // specs/sas-bath-linen-upsell.md §3.3 — the arrival SAS wrote a `source:'arrivalBathLinen'` end-of-stay
+  // specs/sas-bath-linen-upsell.md rule 9 (§3.3) — the arrival SAS wrote a `source:'arrivalBathLinen'` end-of-stay
   // line; the check-out recap must display + count it. specs/sas-departure-recap-server-side.md rule 9 —
   // the server keeps it from the stored detail: the draft only refers to it by key.
   api.getReservationSas.mockResolvedValue(sasPayload({

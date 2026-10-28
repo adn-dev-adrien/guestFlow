@@ -55,6 +55,14 @@ const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
+// specs/platform-per-echeance-commission.md rule 3 — a commission is clamped to its échéance (net cash
+// ≥ 0). The engine clamps it (`quote.<field>`), so the stored figure is the engine's whenever it gave
+// one: storing the raw input let a 100 € commission on a 0 € acompte reach finance as a −100 € net.
+function storedCommission(input, engineValue) {
+  const entered = Math.max(0, Number(input));
+  return engineValue != null && Number.isFinite(Number(engineValue)) ? Math.min(entered, Number(engineValue)) : entered;
+}
+
 // Origin shown on the « Nouvelles réservations » dashboard card (specs/dashboard-ical-new-reservations.md
 // rule 9): the iCal source, else « Site » for a paid website devis, else the channel set on the fiche.
 function newReservationOriginLabel(row) {
@@ -79,6 +87,13 @@ function parseDetailLines(raw) {
 }
 
 // Business error the controller maps to a 409 with its code (specs/mid-stay-notes.md §4.3).
+// specs/disable-deposit-per-reservation.md rule 2 — no acompte, no acompte deadline. The posted date is
+// only a fallback for a deposit the engine priced without dating it; it never survives a zero deposit.
+function storedDepositDueDate(quote, postedDepositDueDate) {
+  if (!(round2(quote.depositAmount) > 0)) return null;
+  return quote.depositDueDate || postedDepositDueDate || null;
+}
+
 function midStayError(code, message) {
   const err = new Error(message);
   err.code = code;
@@ -492,6 +507,10 @@ function createReservationsModel(database) {
   const HAS_RCO_SAS_LINE_KEY = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'sasLineKey'); } catch { return false; }
   })();
+  // A custom line keeps its count (specs/arrival-departure-sas.md rule 29); minimal test schemas lack it.
+  const HAS_RCO_QUANTITY = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity'); } catch { return false; }
+  })();
   // Extras baseline captured when the stay starts (specs/mid-stay-extras-to-end-of-stay-complement.md
   // §3.1). Guarded so minimal test schemas without the column simply never route anything to the
   // end-of-stay complement (legacy behaviour).
@@ -790,7 +809,10 @@ function createReservationsModel(database) {
     isReservationNumberTaken(number, exceptId) {
       const value = String(number || '').trim();
       if (!value) return false;
-      let sql = "SELECT 1 FROM reservations WHERE kind = 'reservation' AND reservationNumber = ?";
+      // Every row the unique index covers — devis and cancelled stays included — so a number held by
+      // one is refused with the French 400, never by the index as a 500
+      // (specs/reservation-number-and-search.md rule 16).
+      let sql = 'SELECT 1 FROM reservations WHERE reservationNumber = ?';
       const params = [value];
       if (exceptId) { sql += ' AND id != ?'; params.push(Number(exceptId)); }
       return Boolean(database.prepare(sql).get(...params));
@@ -906,8 +928,10 @@ function createReservationsModel(database) {
       }
 
       const customOptions = database.prepare(`
-        SELECT rco.id as customOptionId, rco.description as title, rco.description, 1 as quantity,
-          rco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
+        SELECT rco.id as customOptionId, rco.description as title, rco.description,
+          ${HAS_RCO_QUANTITY ? 'MAX(COALESCE(rco.quantity, 1), 1)' : '1'} as quantity,
+          ${HAS_RCO_QUANTITY ? 'ROUND(rco.amount / MAX(COALESCE(rco.quantity, 1), 1), 2)' : 'rco.amount'} as unitPrice,
+          ${HAS_RCO_QUANTITY ? 'MAX(COALESCE(rco.quantity, 1), 1)' : '1'} as billedUnits, 'per_stay' as priceType,
           CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END as totalPrice,
           rco.amount as originalTotalPrice,
           COALESCE(rco.offered, 0) as offered,
@@ -1115,7 +1139,10 @@ function createReservationsModel(database) {
         customPrice: row.customPrice == null ? null : Number(row.customPrice),
         finalPrice: Number(row.finalPrice || 0),
         depositAmount: Number(row.depositAmount || 0),
-        depositDueDate: row.depositDueDate || null,
+        // Same reading as the payload side (disable-deposit-per-reservation rule 11): a 0 € acompte has
+        // no deadline, whatever a row stored before rule 10 still holds.
+        depositDueDate: round2(row.depositAmount) > 0 ? (row.depositDueDate || null) : null,
+        depositAmountOverride: row.depositAmountOverride == null ? null : Number(row.depositAmountOverride),
         depositPaidDate: row.depositPaidDate || null,
         balanceAmount: Number(row.balanceAmount || 0),
         balanceDueDate: row.balanceDueDate || null,
@@ -1170,6 +1197,16 @@ function createReservationsModel(database) {
                adults, children, teens, babies, singleBeds, doubleBeds, babyBeds
           FROM reservations WHERE id = ?
       `).get(reservationId);
+    },
+
+    // The check-in / check-out times a stay takes when none is given: the property's own defaults
+    // (specs/edit-reservation-blocked-by-overlap.md rule 5, specs/reservations-backend-mvc.md rule 9).
+    getPropertyDefaultTimes(propertyId) {
+      const row = database.prepare('SELECT defaultCheckIn, defaultCheckOut FROM properties WHERE id = ?').get(Number(propertyId));
+      return {
+        checkInTime: (row && row.defaultCheckIn) || '15:00',
+        checkOutTime: (row && row.defaultCheckOut) || '10:00',
+      };
     },
 
     getForArchiveCheck(reservationId) {
@@ -1291,7 +1328,7 @@ function createReservationsModel(database) {
       });
     },
 
-    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 15): the stays the boot repair
+    // Dashboard « À vérifier » (specs/reservation-number-and-search.md rule 16): the stays the boot repair
     // numbered — possibly ghosts of a failed creation, still blocking their dates — until the operator
     // has looked at them. Empty on a schema without the stamp.
     listRepairedNumbers() {
@@ -1530,11 +1567,11 @@ function createReservationsModel(database) {
       // NULL on direct bookings (no commission). Drives the fiche « net perçu » only; the accounting
       // commission stays derived from `clientGrossAmount`.
       const platformCommissionForStore = platformIsNonDirect
-        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? Math.max(0, Number(platformCommissionAmount)) : null)
+        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? storedCommission(platformCommissionAmount, quote.platformCommissionAmount) : null)
         : null;
       // specs/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
       const acompteCommissionForStore = platformIsNonDirect
-        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? Math.max(0, Number(acompteCommissionAmount)) : null)
+        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? storedCommission(acompteCommissionAmount, quote.acompteCommissionAmount) : null)
         : null;
       // specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
       const platformGrossForStore = platformIsNonDirect
@@ -1557,8 +1594,8 @@ function createReservationsModel(database) {
           notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount,
           depositDisabled, touristTaxInComplement, depositAmountOverride, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
           platformTouristTaxAmount,
-          tariffSnapshot)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          tariffSnapshot, complementAmount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -1566,7 +1603,7 @@ function createReservationsModel(database) {
         platformNormalized, quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
-        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, capitalizeFirst(notes),
+        quote.depositAmount || 0, storedDepositDueDate(quote, depositDueDate), quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, capitalizeFirst(notes),
         cautionAmount || 0,
         extraGuestSurchargeOffered ? 1 : 0,
         nightBlocks.blocksPreviousNight,
@@ -1584,6 +1621,10 @@ function createReservationsModel(database) {
         // Written once, at creation, and replayed by every later save so a recipe change never
         // re-prices what is already in the database.
         quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
+        // specs/force-item-to-complement.md rule 18 — the arrival complement the engine priced. Left
+        // out of this INSERT until the 2026-10-27 review, so a stay created with a line routed to the
+        // complement read « Rien à percevoir » at the SAS until its first re-save.
+        Number(quote.complementAmount || 0),
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistExtraGuestComplement(result.lastInsertRowid, quote);
@@ -1594,6 +1635,15 @@ function createReservationsModel(database) {
       // amount just written, so a line that later freezes can still explain itself.
       writeTouristTaxSnapshot(database, result.lastInsertRowid, quote);
       return result.lastInsertRowid;
+    },
+
+    // specs/tariff-recipes/spec.md §3 rule 62 — the snapshot a save priced with becomes the stored one,
+    // so the nights it added and the reprice of a moved arrival carry their season into the next save.
+    // The engine already wrote the sold property-level half (tiers verbatim, rule 67) and the sold
+    // free-unit grants (rule 66) into it: nothing is merged here.
+    refreshTariffSnapshot(reservationId, snapshot) {
+      if (!snapshot) return;
+      database.prepare('UPDATE reservations SET tariffSnapshot = ? WHERE id = ?').run(JSON.stringify(snapshot), reservationId);
     },
 
     /**
@@ -1833,11 +1883,11 @@ function createReservationsModel(database) {
         : Number(quote.finalPrice || 0);
       // specs/platform-commission-line.md — operator-entered platform commission (€), clamped ≥ 0; NULL on direct.
       const platformCommissionForStore = platformIsNonDirect
-        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? Math.max(0, Number(platformCommissionAmount)) : null)
+        ? (platformCommissionAmount != null && platformCommissionAmount !== '' ? storedCommission(platformCommissionAmount, quote.platformCommissionAmount) : null)
         : null;
       // specs/platform-per-echeance-commission.md — the acompte commission (€, ≥ 0, NULL on direct).
       const acompteCommissionForStore = platformIsNonDirect
-        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? Math.max(0, Number(acompteCommissionAmount)) : null)
+        ? (acompteCommissionAmount != null && acompteCommissionAmount !== '' ? storedCommission(acompteCommissionAmount, quote.acompteCommissionAmount) : null)
         : null;
       // specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation), ≥ 0, NULL on direct.
       const platformGrossForStore = platformIsNonDirect
@@ -1875,7 +1925,7 @@ function createReservationsModel(database) {
         platformNormalized, quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
-        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null,
+        quote.depositAmount || 0, storedDepositDueDate(quote, depositDueDate),
         depositPaid ? 1 : 0, depositPaid ? (depositPaidDate || null) : null,
         quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null,
         balancePaid ? 1 : 0, balancePaid ? (balancePaidDate || null) : null,
@@ -2318,7 +2368,7 @@ function createReservationsModel(database) {
           key: `bed:${Number(item.id)}`, label: String(item.label).trim(), qty, unitPrice, amount, offered: Boolean(line.offered),
         });
       }
-      const ownRow = database.prepare(`SELECT id, description, amount FROM reservation_custom_options
+      const ownRow = database.prepare(`SELECT id, description, amount, ${HAS_RCO_QUANTITY ? 'quantity' : '1 AS quantity'} FROM reservation_custom_options
         WHERE id = ? AND reservationId = ? AND sasArrivalOrigin = 1${HAS_RCO_SAS_LINE_KEY ? ' AND sasLineKey IS NULL' : ''}`);
       const seen = new Set();
       for (const line of (Array.isArray(keptLines) ? keptLines : [])) {
@@ -2328,8 +2378,9 @@ function createReservationsModel(database) {
         if (!row || !(Number(row.amount) > 0)) continue;
         seen.add(id);
         const amount = round2(row.amount);
+        const qty = Math.max(1, Math.round(Number(row.quantity) || 1));
         out.push({
-          key: `kept:${id}`, label: String(row.description).trim(), qty: 1, unitPrice: amount, amount, offered: Boolean(line.offered),
+          key: `kept:${id}`, label: String(row.description).trim(), qty, unitPrice: round2(amount / qty), amount, offered: Boolean(line.offered),
         });
       }
       return out;
@@ -3137,10 +3188,15 @@ function createReservationsModel(database) {
             const insert = HAS_RCO_SAS_LINE_KEY
               ? database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin, sasLineKey) VALUES (?, ?, ?, ?, ?, 1, 1, ?)')
               : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
+            // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded
+            // statements above stay valid on a schema without the column.
+            const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
             let sort = Number(maxSort) + 1;
             for (const it of items) {
               const values = [reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, it.offered ? 1 : 0, sort];
-              insert.run(...values, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
+              const inserted = insert.run(...values, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
+              const qty = Math.round(Number(it.qty) || 1);
+              if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);
               sort += 1;
             }
           }

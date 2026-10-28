@@ -57,7 +57,8 @@ that threshold are **automatically deleted**. The history is reachable from the 
 **Edge cases:**
 - Reservation deleted after a send → the log row is an orphan → excluded from the list and purged.
 - Stay longer than 3 days → still purged at arrival + 3 days (single cutoff, by decision), even though the
-  guest may not have checked out yet.
+  guest may not have checked out yet — for the e-mails written before that; one written later follows
+  rule 9.
 - Reservation with arrival exactly today → shown (`today ≤ today + 3`).
 - Empty/NULL `startDate` (shouldn't happen — `NOT NULL`) → treated as not-current → excluded + purged.
 - The purge is destructive (rows are deleted, not archived) — this is the intended behavior; the history is
@@ -67,6 +68,20 @@ that threshold are **automatically deleted**. The history is reachable from the 
    UTC without a zone; the history read it as local time and showed « 00:11 » for a send at 02:11. The
    server words each row's time in Europe/Paris (`sentAtLabel`, « 18/10/2026 02:11 »), and the « déjà
    envoyé » question of the send dialog too.
+
+9. **An e-mail written after the arrival keeps its 3 days** (fixed at the 2026-10-27 spec review). With the
+   arrival as the only reference, a J+1 of a stay of 3 nights or more and every season e-mail were out of
+   the window the moment they were written: never shown, purged at the next run, out of reach of
+   « Renvoyer ». A row is now current while `today ≤ max(arrival, the day it was written) + 3 days` — the
+   same predicate for `history()` and `purgeRealizedStays()`. Rows written before the arrival are unchanged.
+   The caption reads: *« Historique des emails pour les séjours en cours et à venir. Chaque envoi est retiré
+   3 jours après l'arrivée, ou après son envoi s'il part plus tard. »*
+10. **Cards below `md`** (2026-10-27 spec review). At 390 px the 6-column table cut the address and pushed
+    the status off-screen. Below `md` each e-mail is a card: its name and status, the guest and the
+    property, the address, the subject, the failure reason when there is one, the time and the two actions
+    (≥ 44 px). The table stays from `md` up. The template names are the display names of
+    guest-email-texts-made-simple rule 44 (« Merci et avis »), and the « Modèle » filter lists the
+    templates in stay order.
 
 ---
 
@@ -94,6 +109,9 @@ that threshold are **automatically deleted**. The history is reachable from the 
 |---|---|---|---|
 | `App.js` | `App.js` | T | Make "Emails" a collapsible parent: `EMAILS_CHILDREN = ['/emails', '/emails/historique']`, an `emailsMenuOpen` state, and the parent + sub-items JSX (Modèles / Historique), mirroring the Calendrier group. |
 | `pages/` | `pages/EmailHistoryPage.js` | T | Copy tweak only: title/subtitle clarifies it's the **current-stays** history (e.g. caption *« Séjours en cours et à venir — les envois sont retirés 3 jours après l'arrivée. »*). No structural change; the server returns the scoped set. |
+| `pages/` | `pages/EmailHistoryPage.jsx` | T | **2026-10-27:** cards below `md` or whenever the 920 px table would be clipped (rule 10); the caption of rule 9. |
+| `components/` | `components/DataPageScaffold.jsx` | T | **2026-10-27:** passes `cardsBelowWidth` through to `ResponsiveTable`. |
+| `models/` (server) | `models/emailLogModel.js` | T | **2026-10-27:** the window counts from the later of the arrival and `sentAt` (rule 9), in `history()` and `purgeRealizedStays()`. |
 | `api.js` | `api.js` | — | `getEmailHistory()` already exists; unchanged. |
 
 **Component reuse declaration:**
@@ -136,7 +154,7 @@ as a `Migration`/data note in the changelog. No reservation/client data is touch
 - **Empty state:** when no current-stay email exists, the existing empty state shows (no special-casing).
 - **Sidebar:** "Emails" expands to **Modèles** + **Historique**. On `xs` the drawer collapses behind the
   menu icon as today; the sub-items are reachable once expanded (≥44px targets — MUI default).
-- **Responsive:** no layout change; `DataPageScaffold` already handles `xs` (table scroll container).
+- **Responsive:** cards below `md` (rule 10), the table from `md` up.
 - **PageActionBar:** `EmailHistoryPage` keeps its current header; no new page-level action.
 
 ## 7. Test plan
@@ -157,6 +175,18 @@ as a `Migration`/data note in the changelog. No reservation/client data is touch
 ### Manual UI verification
 - [x] Sidebar: "Emails" expands to Modèles + Historique; both navigate correctly (E2E-verified).
 - [ ] Mobile (`xs`): the history table scrolls; the sub-menu is reachable.
+
+### Added at the 2026-10-27 spec review
+- [x] `server/src/tests/email-history-window-late-sends.unit.test.js` (new, 3) — rule 9: a J+1 after a
+  7-night stay is shown the day it leaves and 3 days after, then hidden; the purge keeps it while current;
+  a season e-mail is visible the day it is written. `email-log-model` / `email-log-purge` now pin `sentAt`
+  before the arrival.
+- [x] `server/src/tests/email-display-names-history.unit.test.js` (new, 3) — rule 10: display names in the
+  history and the pending list, templates in stay order.
+- [x] `client/src/pages/__tests__/EmailHistoryPage.mobile-cards.test.jsx` (new, 2) — rule 10: cards at
+  390 px, the table at 1280 px.
+- [x] E2E `e2e/specs/emails/email-history-rolling-window.spec.js` — the past-stay row is now seeded as sent
+  before its arrival (`seedEmailLog({ sentAt })`), the caption of rule 9.
 
 ## 8. Out of scope
 

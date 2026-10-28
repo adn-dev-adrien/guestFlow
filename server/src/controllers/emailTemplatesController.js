@@ -24,7 +24,8 @@ const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { todayIso } = require('../utils/localDate');
 const { PLUGIN_OF_TEMPLATE, PAYMENT_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
 const { templateWhenLabel, templateWhen, describeWhen } = require('../utils/templateWhen');
-const { displayNameOf, timeline } = require('../utils/emailTimeline');
+const { displayNameOf, timeline, compare: stayOrder } = require('../utils/emailTimeline');
+const { hasEnglishVersion } = require('../utils/emailTemplateLanguage');
 const { weekdayLabel } = require('../utils/dateFr');
 const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
 
@@ -101,7 +102,8 @@ function buildController(model, settingsModel, deps = {}) {
   // `textsSection`: the section of « Textes des emails » that writes this template's sentences
   // (specs/guest-email-texts-made-simple.md rule 12), null for a template of the operator's own.
   // `whenLabel` / `when`: the « Quand » (specs/email-automation.md rule 16; specs/guest-email-texts-made-simple.md
-  // rule 43). `displayName`: the one name of the email on every page (rule 44).
+  // rule 43). `displayName`: the one name of the email on every page (rule 44). `hasEnglish`: whether it
+  // can be sent to an English-speaking guest (specs/email-language-fr-en.md rule 9).
   const withSection = (row) => ({
     ...row,
     textsSection: sectionOfStableKey(row.stableKey),
@@ -109,13 +111,15 @@ function buildController(model, settingsModel, deps = {}) {
     when: templateWhen(row),
     displayName: displayNameOf(row),
     shipped: Boolean(row.stableKey),
+    hasEnglish: hasEnglishVersion(row),
   });
 
   // `?view=timeline` — Emails › Modèles in stay order, grouped by moment (rule 44).
   function list(req, res) {
     const rows = model.list().filter(sendable).map(withSection);
     if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows) });
-    return res.json(rows);
+    // In stay order, like the timeline: the history filter and the send dialog list them so (rule 44).
+    return res.json(rows.sort(stayOrder));
   }
 
   /**

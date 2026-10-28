@@ -247,10 +247,28 @@ function saleOffersFor(reservation, { isDeparture }) {
  * both read it: the reception strip, the linen gate, the plugin hooks (a refusal stops both), and the
  * intents resolved to priced items. `input` is what `planArrivalSas` and `commitArrivalSas` take.
  */
+// specs/sas-departure-recap-server-side.md rule 28 (2026-10-27 spec review) — a linen element is
+// counted in whole pieces. A quantity of 1.5 used to be rounded to 2 and billed; it is refused, at
+// the preview as at the commit, so the recap never shows a count the operator did not type.
+const WHOLE_QUANTITY_REFUSAL = {
+  status: 400,
+  body: { error: 'INVALID_QUANTITY', message: 'Quantité invalide : un nombre entier de pièces est attendu.' },
+};
+function wholeQuantityRefusal(lines) {
+  if (!Array.isArray(lines)) return null;
+  const bad = lines.some((line) => {
+    const qty = Number(line && line.qty);
+    return !Number.isInteger(qty) || qty < 0;
+  });
+  return bad ? WHOLE_QUANTITY_REFUSAL : null;
+}
+
 function normaliseArrivalDraft(req, reservation) {
   let body = req.body || {};
   if (isReceptionOnly(req.user)) body = toReceptionSasCommit(body);
   body = withoutLinenDecisions(Number(reservation.id), body);
+  const quantityRefusal = wholeQuantityRefusal(body.linenItems);
+  if (quantityRefusal) return { refusal: quantityRefusal };
   const plugins = sasCommitHooks.prepare({ reservation, pluginSteps: body.pluginSteps || {} });
   if (plugins.refusal) return { refusal: plugins.refusal };
   const resolved = reservationsModel.resolveSasArrivalItems(Number(reservation.id), {
@@ -561,6 +579,8 @@ function commitArrival(req, res) {
  */
 function normaliseDepartureDraft(req, reservation) {
   const body = req.body || {};
+  const quantityRefusal = wholeQuantityRefusal(body.missingItems);
+  if (quantityRefusal) return { refusal: quantityRefusal };
   // specs/plugins-phase-p-productisation.md rule 16 — with the check off, no seal field is accepted.
   const checked = extinguisherCheckOn();
   return {
@@ -600,6 +620,7 @@ function previewDeparture(req, res) {
   const departureLock = receptionSasLock(req, reservation, 'departure');
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
   const draft = normaliseDepartureDraft(req, reservation);
+  if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
   const plan = reservationsModel.planDepartureSas(Number(req.params.id), draft.input);
   return res.json(departureRecapFor(reservation, plan));
 }
@@ -610,6 +631,7 @@ function commitDeparture(req, res) {
   const departureLock = receptionSasLock(req, reservation, 'departure');
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
   const draft = normaliseDepartureDraft(req, reservation);
+  if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
   const {
     cautionReturned, complementsSettled, complementsPaidCash, displayedDepartureTotal,
   } = draft.body;

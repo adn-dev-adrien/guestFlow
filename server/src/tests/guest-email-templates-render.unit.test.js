@@ -78,7 +78,7 @@ test('rule 13: the six shipped templates carry no place, product or facility of 
 test('confirmation: stay amount, no caution, no cleaning, no option push', () => {
   const { subject, body } = render(MAIL.CONFIRMATION, 'fr');
   assert.equal(subject, 'Votre séjour à Maison test est confirmé');
-  assert.match(body, /Montant du séjour : 1240,00 €/);
+  assert.match(body, /Montant du séjour : 1\u202F240 €/);
   assert.doesNotMatch(body, /caution|ménage|alléger|€ par personne/i);
 });
 

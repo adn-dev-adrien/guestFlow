@@ -33,6 +33,10 @@ function validatePercentPrice(payload) {
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
     return { field: 'price', issue: 'percent_of_stay expects a percentage between 0 and 100' };
   }
+  // Rule 2 — at most 2 decimals (4.333 is refused, not rounded behind the operator's back).
+  if (Math.abs(Math.round(percent * 100) - percent * 100) > 1e-6) {
+    return { field: 'price', issue: 'percent_of_stay expects at most 2 decimals' };
+  }
   return null;
 }
 

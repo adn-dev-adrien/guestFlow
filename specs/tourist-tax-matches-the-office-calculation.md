@@ -238,6 +238,25 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     > **Amended 2026-09-11** — the threshold counts the withheld tourist tax too
     > (`brut < extras + supplément + taxe retenue`): a brut that covers the extras but not the tax it
     > claims to contain is just as inconsistent, and floors the base the same way.
+17. **Fixed at the 2026-10-27 spec review — the save pins the tax like the preview.** `calculate-price`
+    honoured rules 10-12 but `PUT /reservations/:id` built its engine input without
+    `freezeTouristTax` / `frozenTouristTax*`: a notes-only save after the commune rate moved wrote the new
+    tax (18 € instead of the 15 € collected) and re-stamped the freeze on it, while the paid solde kept
+    the old figure. Both paths now share `frozenTouristTaxInputs`: a save that keeps the stay as it was
+    sold (logement, dates, party) pins the collected tax. A save that changes the stay itself still
+    re-prices it, on purpose — the difference is a trop-perçu or an amount owed
+    ([reservation-refunds.md](reservation-refunds.md) rules 34-36). « Recalculer la taxe de séjour »
+    (`refreshTouristTax`) still lifts the pin deliberately.
+
+### Fixed at the 2026-10-27 spec review
+
+18. **The rule-15 caption is the spec's, to the character.** It read
+    « (272.55EUR HT ÷ 3 nuits ÷ 2 occupants = 90.85EUR HT/nuit) x 5.00% … »: the « = 90,85 » was the
+    per-night price BEFORE the division by the occupants, so the shown arithmetic was false, and the
+    figures were English-formatted. It now reads « (272,55 € HT ÷ 3 nuits ÷ 2 occupants) × 5,00 % +
+    10,00 % dep = 2,50 €/adulte/nuit », French figures (comma, grouped thousands, « € », « × »), and
+    the per-person mode « 1,36 € × 2 adultes × 3 nuits ». Built by the engine, so the fiche and the
+    public quote (`publicProjections.js`) change together.
 
 ---
 
@@ -251,6 +270,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `pricing.js` | T | `computeTouristTaxBreakdown`: occupants exclude babies; returns the base it used. `calculateReservationQuote`: base per rules 1-7 (brut minus non-complement extras, minus inclusions, minus surcharge); accepts the frozen base/occupants and returns them verbatim when frozen; emits the rule-16 inconsistency flag. |
+| `utils/` | `pricing.js` | T | 2026-10-27 (rule 18) — `frenchEuros` / `frenchPercent`; the caption follows rule 15's shape with French figures. |
 | `utils/` | `reservationEngineInput.js` | T | Carries `platformGrossAmount` and the three frozen columns, so the declaration and the contrib capture replay exactly what the fiche shows. |
 | `utils/` | `touristTaxFreeze.js` | C | Pure helpers: `carriesTaxInBalance(routing)`, `shouldFreeze(reservation, routing)` (rules 10-11), `reconstructFrozenBase(stored, property)` (rule 14). Unit-testable, and shared by the save path, the declaration and the migration so the three can never disagree. |
 | `controllers/` | `reservationsController.js` | T | `calculatePrice` / `create` / `update`: pass the frozen inputs; on save, freeze when rule 10's instalment flips to paid. |
@@ -327,6 +347,9 @@ Checked at `xs` / `md` / `lg`.
 
 ### Server unit tests
 
+- `tourist-tax-caption-format.unit.test.js` (4, rule 18) — the spec shape, French figures, the shown
+  figures reproduce the unit amount, per-person mode.
+
 - [x] `tests/tourist-tax-base-accommodation-only.unit.test.js` — extended: the brut derives the base
       again, net of the extras billed through it; a « Complément » line is NOT subtracted; an
       inconsistent brut floors at 0 and raises rule 16. 10 tests.
@@ -363,6 +386,7 @@ Server 3868 pass, client 1199 pass.
 - [ ] Mobile (`xs`): the fiche caption and the Suivi table read correctly.
 
 ---
+- Spec review 2026-10-27 (rule 17): `server/src/tests/collected-tax-kept-on-save.unit.test.js` (2 tests — notes-only save keeps the collected tax, « Recalculer » still re-prices).
 
 ## 8. Out of scope
 

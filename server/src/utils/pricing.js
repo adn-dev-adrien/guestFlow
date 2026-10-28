@@ -505,7 +505,7 @@ function computeTouristTaxBreakdown({
     touristTaxRate = perDayRate;
     touristTaxUnitAmount = perDayRate;
     touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);
-    touristTaxLabel = `${touristTaxUnitAmount.toFixed(2)}EUR x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nightsCount} nuit${nightsCount > 1 ? 's' : ''}`;
+    touristTaxLabel = `${frenchEuros(touristTaxUnitAmount)} × ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} × ${nightsCount} nuit${nightsCount > 1 ? 's' : ''}`;
   } else if (mode === 'percentage_accommodation' || mode === 'percentage_and_fixed') {
     touristTaxRate = communePercentage;
     municipalUnitAmount = roundMoney(perOccupantNightPriceHt * (communePercentage / 100));
@@ -516,13 +516,15 @@ function computeTouristTaxBreakdown({
     }
     touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);
     const fixedLabel = mode === 'percentage_and_fixed' && fixedAmount > 0
-      ? ` + ${fixedAmount.toFixed(2)}EUR`
+      ? ` + ${frenchEuros(fixedAmount)}`
       : '';
     // specs/tourist-tax-matches-the-office-calculation.md rule 15 — the caption opens on the stay's
     // whole base HT because that is the single figure the office's form asks for (« Montant du séjour
     // HT »). The operator retypes it and lands on the amount shown beside it; the per-night and
-    // per-occupant steps follow so the arithmetic can be checked without a calculator.
-    touristTaxLabel = `(${stayBaseHt.toFixed(2)}EUR HT ÷ ${nightsCount} nuit${nightsCount > 1 ? 's' : ''} ÷ ${occupantsCount || 0} occupant${occupantsCount > 1 ? 's' : ''} = ${averageNightPriceHt.toFixed(2)}EUR HT/nuit) x ${communePercentage.toFixed(2)}% + ${departmentPercentage.toFixed(2)}% dep${fixedLabel} = ${touristTaxUnitAmount.toFixed(2)}EUR/adulte/nuit`;
+    // per-occupant steps follow so the arithmetic can be checked without a calculator. Exactly the
+    // spec's shape, French-formatted: an intermediate « = X € HT/nuit » used to print the per-NIGHT
+    // price after dividing by the occupants, which no division of the shown figures produces.
+    touristTaxLabel = `(${frenchEuros(stayBaseHt)} HT ÷ ${nightsCount} nuit${nightsCount > 1 ? 's' : ''} ÷ ${occupantsCount || 0} occupant${occupantsCount > 1 ? 's' : ''}) × ${frenchPercent(communePercentage)} + ${frenchPercent(departmentPercentage)} dep${fixedLabel} = ${frenchEuros(touristTaxUnitAmount)}/adulte/nuit`;
   }
 
   return {
@@ -546,6 +548,16 @@ function computeTouristTaxBreakdown({
     touristTaxTotal,
   };
 }
+
+// French money / percentage for the server-phrased captions (« 1 234,56 € », « 5,00 % »).
+const NBSP = '\u00a0';
+function frenchNumber(value) {
+  const n = roundMoney(Number(value || 0));
+  const [int, dec] = Math.abs(n).toFixed(2).split('.');
+  return `${n < 0 ? '−' : ''}${int.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)},${dec}`;
+}
+const frenchEuros = (value) => `${frenchNumber(value)}${NBSP}€`;
+const frenchPercent = (value) => `${frenchNumber(value)}${NBSP}%`;
 
 function timeToDecimalHour(timeStr, fallback = 0) {
   const value = String(timeStr || '').trim();
@@ -708,9 +720,13 @@ function computeExtraGuestSurcharge({
   if (unit !== 'per_night') {
     return { total: roundMoney(count * baseUnit), ratioTotal: null, unit: 'per_stay' };
   }
-  if (count <= 0 || !Array.isArray(nightlyBreakdown) || nightlyBreakdown.length === 0) {
+  if (!Array.isArray(nightlyBreakdown) || nightlyBreakdown.length === 0) {
     return { total: 0, ratioTotal: 0, unit: 'per_night' };
   }
+  // The tiers are resolved even with nobody above the included guests: the tariff snapshot stores
+  // them, and a party that grows after the sale must be billed at the table it was sold under — a
+  // count of 0 at the sale used to store « no tiers » and bill the newcomer 0 € (spec review
+  // 2026-10-27, tariff-events-and-extra-guest-tiers rule 23).
   let total = 0;
   let ratioTotal = 0;
   let tiers = null;
@@ -742,7 +758,7 @@ function computeExtraGuestSurcharge({
   }
   return {
     total: roundMoney(total),
-    ratioTotal: roundMoney(ratioTotal),
+    ratioTotal: count > 0 ? roundMoney(ratioTotal) : 0,
     unit: 'per_night',
     tiers,
     label: tiers ? describeExtraGuestTiers(tiers) : null,
@@ -995,6 +1011,8 @@ function applyOfferedToLine(realTotal, offered) {
     offered: Boolean(offered),
   };
 }
+
+const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
 // specs/tariff-recipes/spec.md §3.9 rules 52bis-52ter — the first N units of an option are covered
 // by the rate (the direct welcome pack's two breakfasts). The operator orders the FULL quantity and
@@ -1568,13 +1586,39 @@ function calculateReservationQuote({
   // specs/plugins-phase-p-productisation.md rule 45 — the one reading of the channel every money
   // decision below shares.
   const channel = saleChannel(platform);
-  // Units the reservation was granted when it was sold, per option id (rule 12bis).
-  const lockedFreeUnitsFor = (optionId) => {
-    if (!lockedTariff) return null;                       // no snapshot → live
-    const map = lockedTariff.freeUnitsByOption || {};
-    // Absent from the map = this option was granted NOTHING when the reservation was sold. Falling
-    // back to the live value there would let a widened pack reach the very bookings this protects.
-    return Number(map[String(optionId)] || 0);
+  // specs/tariff-recipes/spec.md §3 rules 12bis + 66 — the free units of an option are read from two
+  // maps of the tariff snapshot, never one:
+  //   - `grantedFreeUnitsByOption`: what the stay was GRANTED per option (0 included). It survives
+  //     every save, the option removed, its quantity lowered or the stay moved to a platform, so a
+  //     re-added welcome pack is not billed. An option absent from it was never on the stay: it gets
+  //     today's catalogue.
+  //   - `freeUnitsByOption`: what the stored lines were CONSUMED net of at the last save — only the
+  //     add-back of a sold line reads it (rule 56).
+  // A snapshot written before rule 66 only has the consumed map: it stands in for the grant (the best
+  // lower bound we have), an option already on the stay but absent from it was granted nothing, and an
+  // option new to the stay gets the catalogue.
+  const soldGrantMap = lockedTariff && isPlainObject(lockedTariff.grantedFreeUnitsByOption)
+    ? lockedTariff.grantedFreeUnitsByOption
+    : null;
+  const consumedMap = lockedTariff && isPlainObject(lockedTariff.freeUnitsByOption)
+    ? lockedTariff.freeUnitsByOption
+    : {};
+  const grantedFreeUnitsFor = (optionId) => {
+    const key = String(optionId);
+    const live = Math.max(0, Number(optionsById.get(Number(optionId))?.freeUnits || 0));
+    if (!lockedTariff) return live;                       // no snapshot → sold now, at the catalogue
+    if (soldGrantMap) return Object.prototype.hasOwnProperty.call(soldGrantMap, key)
+      ? Math.max(0, Number(soldGrantMap[key] || 0))
+      : live;
+    if (Object.prototype.hasOwnProperty.call(consumedMap, key)) return Math.max(0, Number(consumedMap[key] || 0));
+    return lockedOptionsById.has(Number(optionId)) ? 0 : live;
+  };
+  // What a stored line is net of. A legacy snapshot recorded it at the creation only, for a direct
+  // sale: on a platform save it has nothing to add back.
+  const consumedFreeUnitsFor = (optionId) => {
+    if (!lockedTariff) return 0;
+    const consumed = Math.max(0, Number(consumedMap[String(optionId)] || 0));
+    return soldGrantMap || isDirectBooking ? consumed : 0;
   };
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
@@ -1752,7 +1796,7 @@ function calculateReservationQuote({
             cardPersons: selected?.cardPersons, persons, maxGuests: property.maxGuests,
           });
           const billedUnits = roundMoney(occurrences.length * (perPerson ? covers.served : 1));
-          const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
+          const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: grantedFreeUnitsFor(optionId) });
           return {
             optionId,
             title: option.title,
@@ -1799,7 +1843,7 @@ function calculateReservationQuote({
         const qty = portions.quantity;
         if (qty <= 0) return null;
         const billedUnits = roundMoney(qty);
-        const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
+        const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: grantedFreeUnitsFor(optionId) });
         return {
           optionId,
           title: option.title,
@@ -1899,11 +1943,9 @@ function calculateReservationQuote({
         : (neatOverride !== null
           ? 1
           : roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights)));
-      // The units the sold line was granted free — the ones its stored total is net of.
-      const lockedGranted = lockedFreeUnitsFor(optionId);
       // Only what a snapshot says was deducted is added back: a row stored without one predates the
       // free units and holds a gross total (rule 56).
-      const soldFreeUnits = isDirectBooking && lockedGranted != null ? lockedGranted : 0;
+      const soldFreeUnits = consumedFreeUnitsFor(optionId);
       const merged = mergeLineWithLockedSnapshot({
         lockedLine: lockedInsuranceLine
           || reconstructLockedRealTotal(lockedLineGrossOfFreeUnits(locked, soldFreeUnits), unitBase),
@@ -1912,7 +1954,7 @@ function calculateReservationQuote({
       });
       const free = applyFreeUnitsToLine({
         option, isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
-        lockedFreeUnits: lockedFreeUnitsFor(optionId),
+        lockedFreeUnits: grantedFreeUnitsFor(optionId),
       });
       return {
         optionId,
@@ -2242,10 +2284,13 @@ function calculateReservationQuote({
   // PLATFORM's figure, never ours, which is exactly what makes subtracting it safe where subtracting
   // our own estimate was not (platform-brut-excludes-offered-tourist-tax.md). Empty → 0 → every term
   // below is inert and the brut keeps being read tax-excluded, so no already-booked reservation moves.
-  const withheldTouristTaxInBrut = (platformGrossPin != null && isTouristTaxOfferedByPlatform
+  // `Entered` is kept apart from the amount: « 0 € withheld » is the platform's answer, not an empty
+  // box, and the fiche must print it instead of falling back to our estimate (spec review 2026-10-27).
+  const withheldTouristTaxEntered = platformGrossPin != null && isTouristTaxOfferedByPlatform
     && platformTouristTaxAmountInput !== '' && platformTouristTaxAmountInput != null
-    && Number.isFinite(Number(platformTouristTaxAmountInput)))
-    ? roundMoney(Math.max(0, Number(platformTouristTaxAmountInput)))
+    && Number.isFinite(Number(platformTouristTaxAmountInput)) && Number(platformTouristTaxAmountInput) >= 0;
+  const withheldTouristTaxInBrut = withheldTouristTaxEntered
+    ? roundMoney(Number(platformTouristTaxAmountInput))
     : 0;
 
   // specs/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
@@ -2475,31 +2520,6 @@ function calculateReservationQuote({
   // specs/reservation-refunds.md rules 38 and 40 — whose amount a paid solde follows: the platform's
   // statement on a platform sale, and on a counts-as-direct channel whose platform amount is entered.
   const paidSoldeFollowsStatement = channel.platformSale || platformGrossPin != null;
-  // specs/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
-  // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
-  // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
-  // so the summary shows the single « Total du séjour TTC » line).
-  // specs/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
-  // Both ≥ 0, non-direct only. The acompte/solde AMOUNTS are gross (what the guest pays); the commissions
-  // are tracked separately and booked on the platform account per échéance. Net perçu = total − Σ.
-  const clampCommission = (input) => {
-    const n = input === '' || input == null ? 0 : Number(input);
-    return channel.namedChannel && Number.isFinite(n) && n > 0 ? roundMoney(n) : 0;
-  };
-  const platformCommissionAmount = clampCommission(platformCommissionAmountInput); // solde
-  const acompteCommissionAmount = clampCommission(acompteCommissionAmountInput);   // acompte
-  const totalPlatformCommission = roundMoney(platformCommissionAmount + acompteCommissionAmount);
-  // Net perçu = what the platform actually settles to us = the PRE-ARRIVAL amount (acompte + solde) minus
-  // its commission. It must NOT be based on `totalStayPrice`: the complement (the on-arrival tourist tax
-  // for owner-collect platforms — `touristTaxCollectedOnArrival` — plus any on-site extras) is collected
-  // by US at check-in, never by the platform. Using `totalStayPrice` over-counted the platform's payout by
-  // exactly the complement, so the « Paiement plateforme » reconciliation always showed an écart equal to
-  // the tourist tax (specs/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
-  // right bucket, so for tax-collecting platforms (tax in the balance, complement = 0) the value is
-  // unchanged (= totalStayPrice − commission).
-  const platformNetReceivedAmount = totalPlatformCommission > 0
-    ? roundMoney(preArrivalAmount - totalPlatformCommission)
-    : null;
   // specs/plugins-phase-p-productisation.md rule 45 — an EXISTING stay on a counts-as-direct channel
   // keeps the schedule it was stored with: sold as a single payment (no acompte, no acompte deadline)
   // it stays one, paid or not; a stored acompte stays as it is. Only a new stay takes the direct rule.
@@ -2620,19 +2640,45 @@ function calculateReservationQuote({
     resolvedBalanceAmount = 0;
   }
 
+  // specs/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
+  // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
+  // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
+  // so the summary shows the single « Total du séjour TTC » line).
+  // specs/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
+  // Both ≥ 0, non-direct only. The acompte/solde AMOUNTS are gross (what the guest pays); the commissions
+  // are tracked separately and booked on the platform account per échéance. Net perçu = total − Σ.
+  // Rule 3 + edge case — each commission is clamped to ITS échéance (net cash ≥ 0): a 100 € commission
+  // typed on a 0 € acompte used to flow into finance as a −100 € net (spec review 2026-10-27). Clamped
+  // here, after the split, because the échéance amounts are only known now. An installment plan holds
+  // the whole pre-arrival amount, so it is the solde's cap there.
+  const clampCommission = (input, echeanceAmount) => {
+    const n = input === '' || input == null ? 0 : Number(input);
+    if (!channel.namedChannel || !Number.isFinite(n) || n <= 0) return 0;
+    return roundMoney(Math.min(n, Math.max(0, Number(echeanceAmount) || 0)));
+  };
+  const platformCommissionAmount = clampCommission( // solde
+    platformCommissionAmountInput,
+    installmentPlan ? preArrivalAmount : resolvedBalanceAmount,
+  );
+  const acompteCommissionAmount = clampCommission(acompteCommissionAmountInput, resolvedDepositAmount); // acompte
+  const totalPlatformCommission = roundMoney(platformCommissionAmount + acompteCommissionAmount);
+  // Net perçu = what the platform actually settles to us = the PRE-ARRIVAL amount (acompte + solde) minus
+  // its commission. It must NOT be based on `totalStayPrice`: the complement (the on-arrival tourist tax
+  // for owner-collect platforms — `touristTaxCollectedOnArrival` — plus any on-site extras) is collected
+  // by US at check-in, never by the platform. Using `totalStayPrice` over-counted the platform's payout by
+  // exactly the complement, so the « Paiement plateforme » reconciliation always showed an écart equal to
+  // the tourist tax (specs/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
+  // right bucket, so for tax-collecting platforms (tax in the balance, complement = 0) the value is
+  // unchanged (= totalStayPrice − commission).
+  const platformNetReceivedAmount = totalPlatformCommission > 0
+    ? roundMoney(preArrivalAmount - totalPlatformCommission)
+    : null;
+
   // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
   // the BOOKING and never moves again (`existingDepositDueDate` wins on every recompute); the solde
   // is due `balanceDaysBefore` before arrival, clamped so it can never land before the booking day.
   // A devis takes its validity date as the acompte deadline. Both are NULL when their bucket carries
   // nothing to collect — a deadline on a €0 line would only confuse the UI and the emails.
-  const depositDueDate = resolveDepositDueDate({
-    kind: quoteKind,
-    hasDeposit: !depositDisabled && resolvedDepositAmount > 0,
-    bookingDate,
-    validUntil,
-    existingDepositDueDate,
-    depositDueDays: property.depositDueDays,
-  });
   // specs/platform-payout-due-date.md §3.1 — on a NON-direct reservation the solde is the platform's
   // payout, due `payoutDueDays` after the guest leaves; own channels keep the J-30 rule above.
   const balanceDueDate = resolveBalanceDueDate({
@@ -2651,6 +2697,16 @@ function calculateReservationQuote({
     // OTA name never had an acompte to lose, so it keeps the guest-facing derivation (rule 3 above).
     dueOnValidUntil: String(quoteKind) === 'devis' && !platformIsNonDirect && resolvedDepositAmount === 0,
     validUntil,
+  });
+  const depositDueDate = resolveDepositDueDate({
+    kind: quoteKind,
+    hasDeposit: !depositDisabled && resolvedDepositAmount > 0,
+    bookingDate,
+    validUntil,
+    existingDepositDueDate,
+    depositDueDays: property.depositDueDays,
+    // specs/payment-schedule-and-cancellation.md rule 47 — never after the solde.
+    notAfter: balanceDueDate,
   });
 
   // Complément à percevoir = forced items (manual or tax-on-arrival or touristTaxInComplement)
@@ -2818,8 +2874,11 @@ function calculateReservationQuote({
   // owed by the arrival complement — counting the pre-arrival amount too took it twice (600 paid,
   // stay raised to 700: « Total perçu » 800). A plan not fully paid absorbs the rise itself (rule 8 of
   // direct-installments), so it still counts for the whole pre-arrival amount.
+  // A plan above the stay after a drop (rule 8: nothing is lowered) counts for the stay, never for
+  // installments the guest does not owe; what it already collected stays counted
+  // (specs/reservation-payment-ledger.md rule 48 — same figure as the stored headline).
   const planCarries = installmentPlan
-    ? (installmentPlan.allPaid ? planScheduled : preArrivalAmount)
+    ? (installmentPlan.allPaid ? planScheduled : Math.max(preArrivalAmount, Number(installmentPlan.paid || 0)))
     : 0;
   const netReceivedForTotal = roundMoney(
     resolvedDepositAmount + resolvedBalanceAmount + planCarries - totalPlatformCommission,
@@ -2921,7 +2980,13 @@ function calculateReservationQuote({
       includedGuests,
       extraGuestPrice: extraGuestUnitPrice,
       extraGuestPriceUnit,
-      extraGuestTiers: extraGuestCalc.tiers || null,
+      // `[]` = sold without tiers, an explicit answer; `null` only survives in snapshots written
+      // before the 2026-10-27 spec review, and replays as « no tiers » too (rule 12ter backfill).
+      // A replay stores the table it replayed, verbatim (rule 67): the engine priced with it, and a
+      // legacy `null` is how the operator still finds the stays sold before the fix.
+      extraGuestTiers: lockedTariff
+        ? (lockedTariff.extraGuestTiers ?? null)
+        : (extraGuestCalc.tiers || []),
       // Rule 58 — the season each night was sold under, for the per-night supplement.
       extraGuestNights: extraGuestPriceUnit === 'per_night'
         ? Object.fromEntries(nightlyBreakdown.map((night) => {
@@ -2934,17 +2999,32 @@ function calculateReservationQuote({
           return [date, { base: live.nightlyBase, unit: live.seasonUnit }];
         }))
         : null,
+      // Rule 66 — consumed by the lines this quote stores (the add-back of the next save)…
       freeUnitsByOption: Object.fromEntries(
         finalOptionLines
           .filter((line) => line && Number(line.freeUnits || 0) > 0)
           .map((line) => [String(line.optionId), Number(line.freeUnits)]),
       ),
+      // …and granted: every grant the stay ever had, kept when its line goes, plus the lines it holds.
+      grantedFreeUnitsByOption: {
+        ...(soldGrantMap || (lockedTariff ? consumedMap : {})),
+        ...Object.fromEntries(
+          finalOptionLines
+            .filter((line) => line && line.optionId != null)
+            .map((line) => [String(line.optionId), grantedFreeUnitsFor(line.optionId)]),
+        ),
+      },
     },
     // specs/tourist-tax-included-services-deduction.md §4.3 — the accommodation the tax is computed
     // on, plus the two halves it comes from, so the summary can render « Base : X − Y de prestations
     // comprises » without subtracting them back (wrong whenever the base was floored at 0).
     touristTaxBaseAccommodation: taxBaseAccommodation,
-    touristTaxBaseBeforeDeduction: taxBaseBeforeDeduction,
+    // On a pinned brut the base starts from what the guest paid (the brut less the extras and the
+    // supplement it carries), not from the tariff: the caption must name the figure actually used
+    // (tourist-tax-included-services-deduction.md rule 17, spec review 2026-10-27).
+    touristTaxBaseBeforeDeduction: platformGrossPin != null
+      ? roundMoney(Math.max(0, taxAccommodationPaid - extraGuestInBrutSurcharge))
+      : taxBaseBeforeDeduction,
     touristTaxIncludedInRateDeduction,
     // specs/tourist-tax-matches-the-office-calculation.md — the accommodation the guest paid before
     // the two deductions (rules 2-3), whether the fiche is frozen (rule 12), and the inconsistent-brut
@@ -3007,7 +3087,7 @@ function calculateReservationQuote({
     // null when the box is empty / the mode isn't « collecte ET reverse ». Distinct from
     // `touristTaxOriginalTotal`, which stays the engine's OWN estimate: the fiche displays the
     // withheld one and falls back to the estimate, « Reprendre le calcul » offers the estimate.
-    platformTouristTaxWithheld: withheldTouristTaxInBrut > 0 ? withheldTouristTaxInBrut : null,
+    platformTouristTaxWithheld: withheldTouristTaxEntered ? withheldTouristTaxInBrut : null,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,

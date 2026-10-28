@@ -122,12 +122,13 @@ function createIntakeService(deps) {
   // fields are refreshed only while no other reservation uses it.
   function write(booking, reservation) {
     const { client, reservation: patch } = plan(booking, reservation);
-    const own = core.findOrCreateClient(client);
-    const result = core.updateReservation(reservation.id, { ...patch, clientId: own.id }, { label: `Rempli depuis l’extranet Booking (réservation ${booking.resId})` });
+    // The core finds or creates the client in the same transaction as the update: a refused fiche leaves
+    // no client behind.
+    const result = core.updateReservation(reservation.id, patch, { label: `Rempli depuis l’extranet Booking (réservation ${booking.resId})`, client });
     if (result.status !== 200) {
       return { ok: false, message: (result.body && result.body.error) || `Erreur ${result.status}`, code: result.body && result.body.code };
     }
-    if (!clientShared(own.id, reservation.id)) core.updateClient(own.id, client);
+    if (!clientShared(result.clientId, reservation.id)) core.updateClient(result.clientId, client);
     return { ok: true };
   }
 

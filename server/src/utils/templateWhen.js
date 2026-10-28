@@ -26,6 +26,7 @@ const FIXED = Object.freeze({
   deposit_request: 'à la demande',
   balance_request: 'à la demande',
   full_request: 'à la demande',
+  installment_request: 'à chaque échéance, à la demande',
 });
 
 // The words of each anchor, after « avant » / « après », and for the day itself.

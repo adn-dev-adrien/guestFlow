@@ -485,6 +485,14 @@ Decisions taken on 2026-10-06:
     a field any more: a message shows when there is one, and steps 1 and 2 use the same 16 px gap as
     the property grid. The reserved lines, added to the stack's and the grid's own gaps, gave uneven
     spacing from one field to the next.
+48. **Plateformes: every column visible from 1280 px, cards below** (2026-10-27 spec review, supersedes the
+    `lg` threshold of rule 35 for this page). With the side menu open, 1280 px showed 1043 px of columns in
+    a 926 px card — « Sans corvées » hidden behind an invisible inner scroll, « Vente directe » wrapping.
+    The table is now compact: the colour sits beside the platform's name (no « Couleur » column), headers
+    are short and never wrap (« Commission % », « Virement (j) »), cells take 6 px of side padding and the
+    inputs their content's width — ~912 px of content in the 926 px card at 1280. Below 1280 px (1200 px
+    still lacks ~70 px) the page shows its cards, which carry every setting. Verified at 390 / 900 / 1200 /
+    1280 / 1440 px. Test: `PlatformsSettingsPage.compact-table`.
 
 ## 4. Architecture
 

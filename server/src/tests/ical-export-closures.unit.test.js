@@ -68,9 +68,10 @@ function closureEvents(ics) {
   return events(ics).filter((lines) => lines.some((l) => l.startsWith('UID:closure-')));
 }
 
+// The value after the property and its parameters (`DTSTART;VALUE=DATE:20261101` → `20261101`).
 function valueOf(lines, key) {
-  const line = lines.find((l) => l.startsWith(`${key}:`));
-  return line === undefined ? null : line.slice(key.length + 1);
+  const line = lines.find((l) => l.startsWith(`${key}:`) || l.startsWith(`${key};`));
+  return line === undefined ? null : line.slice(line.indexOf(':') + 1);
 }
 
 test('rules 1 + 4 + 7 — a closure of the property is exported with its stored dates, untouched', () => {

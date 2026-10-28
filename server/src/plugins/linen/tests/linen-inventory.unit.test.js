@@ -122,6 +122,7 @@ test('one reservation with explicit bed-linen option: clean drops on check-in, r
 
 // --- Property-default fallback (specs/laundry-counts-explicit-option-only.md §3.1) ---
 
+// specs/laundry-counts-explicit-option-only.md rule 11 — the projection counts like the laundry card: no option, no consumption.
 test('property default of a VISIBLE option does NOT create a contract without an explicit row', () => {
   // Mirrors laundryModel: the ticked option is the only signal, so the projection and the
   // laundry card can never disagree on which stays consume linen.

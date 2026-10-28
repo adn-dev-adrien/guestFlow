@@ -68,6 +68,17 @@ séjour − the sum of the per-échéance commissions.
 - Past/not-re-saved reservation stored under the old net model → re-saving recomputes to the gross model;
   see §5 migration.
 
+### Fixed at the 2026-10-27 spec review
+
+7. **The edge-case clamp is enforced, on the stored figure too.** The engine floored each commission
+   at 0 only: a 100 € commission typed on a platform stay with no acompte gave an acompte net of
+   −100 € that finance summed as cash. Each commission is now clamped to its échéance (acompte →
+   `depositAmount`, solde → `balanceAmount`, or the whole pre-arrival amount under an installment
+   plan), after the split, and the reservation stores the engine's clamped value. Clamp, not refuse:
+   the edge case says « clamped to the amount », and the save carries every other field the operator
+   typed. The acompte commission now reaches the engine on create and update, not only on the
+   preview — without it the clamp read « none entered ».
+
 ---
 
 ## 4. Architecture
@@ -80,6 +91,7 @@ séjour − the sum of the per-échéance commissions.
 | `models/accountingModel.js` | | T | Per-entry platform commission (acompte→deposit, solde→balance), `grossRatio = 1` for the entered-commission path; drop the proportional split. |
 | `controllers/reservationsController.js` | | T | Validate + forward `acompteCommissionAmount` (money). |
 | `models/reservationsModel.js` | | T | Persist `acompteCommissionAmount`. |
+| `utils/pricing.js` · `controllers/reservationsController.js` · `models/reservationsModel.js` | | T | 2026-10-27 (rule 7) — clamp each commission to its échéance after the split; forward the acompte commission on create/update; store the engine's clamped value (`storedCommission`). |
 | `tests/` | `platform-per-echeance-commission.unit.test.js` | C | Engine net perçu + accounting per-entry commission, CA = total, net cash, balanced. |
 
 ### 4.2 Client (`client/src/`)
@@ -121,6 +133,10 @@ net to gross on platform reservations once re-saved; no money is lost (net perç
 ## 7. Test plan
 
 ### Server unit — `tests/platform-deposit-toggle.unit.test.js` + `tests/pricing-platform-commission.unit.test.js`
+
+- `tests/platform-commission-clamped-to-echeance.unit.test.js` (4, rule 7) — acompte commission on a
+  no-acompte stay → 0, solde commission clamped to the solde, an in-range one kept, the stored figure is
+  the clamped one.
 - [x] Engine: net perçu = total − acompteComm − soldeComm; deposit/balance split the **gross** pre-arrival.
 - [x] Accounting: acompte entry books `acompteCommissionAmount` on the **platform's account**; solde entry
   books the solde commission; complement none; CA = total; net cash per entry = amount − commission;

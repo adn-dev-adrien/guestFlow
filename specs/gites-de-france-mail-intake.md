@@ -179,6 +179,11 @@ choice in one click.
     applies it. After 24 h the dashboard line shows that reason instead of « aucune fiche sur ces dates ».
     It used to end in a final `error` that no later pass looked at again (the Airbnb intake already
     waited, `specs/airbnb-mail-intake.md` rule 11).
+19. *(Fixed at the 2026-10-27 spec review.)* The guest's client is created **in the same transaction as the
+    fiche's update**: the plugin hands its find-or-create payload to `ctx.core.reservations.update(id, patch,
+    { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first. A fiche the core
+    refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
+    no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
 
 ---
 

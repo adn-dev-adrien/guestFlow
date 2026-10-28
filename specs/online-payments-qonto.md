@@ -199,6 +199,11 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 - Deposit/balance due date changes after a link was issued → the host regenerates the link.
 - Qonto API/network error during a poll → logged, retried next pass; never crashes the scheduler.
 
+21. **An échéance already collected is never billed again** (fixed at the 2026-10-27 spec review).
+    `ensurePaymentLink` refuses **409 `ALREADY_PAID`** before any provider call when the link would charge
+    a paid bucket: `deposit` once the acompte is paid, `balance` once the solde is, `full` once either is.
+    Installment links already had the same guard (`INSTALLMENT_PAID`).
+
 ---
 
 ## 4. Architecture
@@ -324,6 +329,7 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 ## 7. Test plan
 
 ### Server unit tests
+- [x] `tests/payment-link-paid-bucket-guard.unit.test.js` (5, spec review 2026-10-27) — rule 21: deposit / balance / full refused 409 on a paid bucket with no provider call; the solde link of a stay whose acompte only is paid still minted
 - [ ] `qontoClient` — link creation payload (amount in cents, reference = reservation id), token
       refresh, payment-status parsing; all against a mocked HTTP layer.
 - [ ] `paymentLinksModel` — create/listOpen/markPaid idempotency.

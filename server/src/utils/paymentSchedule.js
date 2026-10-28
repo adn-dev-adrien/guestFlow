@@ -48,6 +48,8 @@ const positiveDays = (value, fallback) => {
  * @param {string}  input.validUntil             devis validity date (devis only)
  * @param {string}  input.existingDepositDueDate the stored date, when the reservation already has one
  * @param {number}  input.depositDueDays         property setting, days after booking
+ * @param {string}  input.notAfter               the solde deadline: a fresh acompte deadline never
+ *                                               falls after it (rule 47)
  * @returns {string|null}
  */
 function resolveDepositDueDate({
@@ -57,6 +59,7 @@ function resolveDepositDueDate({
   validUntil = null,
   existingDepositDueDate = null,
   depositDueDays = 7,
+  notAfter = null,
 } = {}) {
   if (!hasDeposit) return null;
   // A devis promises the dates until its validity date — that IS its acompte deadline (rule 5).
@@ -66,7 +69,12 @@ function resolveDepositDueDate({
   if (existing) return existing;
   const booked = toIsoDay(bookingDate);
   if (!booked) return null;
-  return addDaysToIsoDate(booked, positiveDays(depositDueDays, 7));
+  const due = addDaysToIsoDate(booked, positiveDays(depositDueDays, 7));
+  // Rule 47 — booked 31 to 36 days out, `booking + 7` lands after `arrival − 30`: the acompte would be
+  // owed after the solde. It is due on the solde's day instead. Only a fresh date is capped; a stored
+  // one stays the promise it was (rule 4).
+  const cap = toIsoDay(notAfter);
+  return cap && due && cap < due ? cap : due;
 }
 
 /**

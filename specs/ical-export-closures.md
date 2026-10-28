@@ -69,6 +69,11 @@ iCal feed, with no per-channel manual re-declaration.
 10. The feed stays **additive** for its consumers: no existing event changes shape, so no platform
     can lose a contract here. Under `specs/self-update-and-releases.md` §3.A rule 2 this is a **Y**,
     not an X, even though the iCal feeds are an out-of-repo consumer.
+11. *(Fixed at the 2026-10-27 spec review.)* Every exported event is RFC 5545 conformant: `DTSTART` and
+    `DTEND` are all-day values written `DTSTART;VALUE=DATE:YYYYMMDD` (the dates themselves, start
+    inclusive / end exclusive, do not change), and `DTSTAMP` is the UTC date-time of the generation
+    (`YYYYMMDDTHHMMSSZ`, §3.8.7.2 types it DATE-TIME — a date alone was invalid). GuestFlow's own importer
+    reads the feed back to the same nights. Test: `tests/ical-export-rfc5545.unit.test.js`.
 
 **Edge cases:**
 - **No applicable closure** → the feed is byte-for-byte what it is today.

@@ -20,6 +20,13 @@ const realSettingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
 const realPushService = require('./pushService');
 const { buildNotificationDigest } = require('./notificationDigest');
+const { platformDisplay } = require('./platformDisplay');
+
+// The iCal source's own name, else the platform as every page writes it (« GreenGo », « Gîtes de
+// France »), never the stored key (2026-10-27 spec review).
+function platformNameOf(resa) {
+  return String(resa.sourceName || '').trim() || platformDisplay(resa.platform || resa.sourcePlatformKey);
+}
 
 // specs/public-request-abuse-and-grouping.md rule 9 — website requests are mailed one at a time only
 // for the first of a 15-minute window; the following ones wait for one summary.
@@ -137,7 +144,7 @@ function buildNotificationService({
       `Client : ${client || '—'}`,
       `Email : ${devis.clientEmail || '—'}`,
       `Téléphone : ${devis.clientPhone || '—'}`,
-      `Séjour : du ${devis.startDate} au ${devis.endDate}`,
+      `Séjour : du ${frDate(devis.startDate)} au ${frDate(devis.endDate)}`,
       `Voyageurs : ${Number(devis.adults || 0)} adulte(s), ${Number(devis.teens || 0)} ado(s), ${Number(devis.children || 0)} enfant(s), ${Number(devis.babies || 0)} bébé(s)`,
     ];
     if (devis.options && devis.options.length) {
@@ -178,7 +185,7 @@ function buildNotificationService({
   function buildReservationEmail(resa, publicUrl) {
     const guest = String(resa.icalOriginalSummary || '').trim()
       || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
-    const platform = String(resa.sourceName || '').trim() || String(resa.platform || resa.sourcePlatformKey || '').trim();
+    const platform = platformNameOf(resa);
     const subject = `Nouvelle réservation ${platform} — ${resa.propertyName || ''}`.trim();
     const nights = nightsBetween(resa.startDate, resa.endDate);
     const lines = [
@@ -231,17 +238,49 @@ function buildNotificationService({
     }
   }
 
+  /**
+   * One line per quote, not per request (fixed at the 2026-10-27 spec review: one stay sent 13 times
+   * read as 13 lines). A quote counts as new when one of its requests created it in the window, as
+   * updated otherwise; its line says how many requests it gathered.
+   */
+  function groupDigestItems(items) {
+    const groups = [];
+    const byRef = new Map();
+    items.forEach((item) => {
+      const key = item.refId ? Number(item.refId) : null;
+      let group = key !== null ? byRef.get(key) : null;
+      if (!group) {
+        group = { refId: item.refId, created: false, updates: 0, capped: false };
+        groups.push(group);
+        if (key !== null) byRef.set(key, group);
+      }
+      if (String(item.kind).startsWith('updated')) group.updates += 1;
+      else group.created = true;
+      if (item.kind === 'updated-capped') group.capped = true;
+    });
+    return groups;
+  }
+
+  function digestTag(group) {
+    const updates = `${group.updates} mise${group.updates > 1 ? 's' : ''} à jour`;
+    let tag;
+    if (group.created) tag = group.updates ? `nouvelle, puis ${updates}` : 'nouvelle';
+    else tag = group.updates > 1 ? updates : 'mise à jour';
+    return group.capped ? `${tag}, message non ajouté : limite atteinte` : tag;
+  }
+
   function buildSiteDigestEmail(items, publicUrl) {
-    const fresh = items.filter((i) => !String(i.kind).startsWith('updated')).length;
-    const updatedCount = items.length - fresh;
+    const groups = groupDigestItems(items);
+    const fresh = groups.filter((g) => g.created).length;
+    const updatedCount = groups.length - fresh;
     const parts = [];
     if (fresh) parts.push(`${fresh} nouvelle${fresh > 1 ? 's' : ''} demande${fresh > 1 ? 's' : ''} du site`);
     if (updatedCount) parts.push(`${updatedCount} demande${updatedCount > 1 ? 's' : ''} mise${updatedCount > 1 ? 's' : ''} à jour`);
     const subject = parts.join(', ');
     const lines = [`${subject.charAt(0).toUpperCase()}${subject.slice(1)} depuis le dernier e-mail.`, ''];
-    items.forEach((item) => {
-      const devis = item.refId ? loadDevis(item.refId) : null;
-      const tag = { updated: 'mise à jour', 'updated-capped': 'mise à jour, message non ajouté : limite atteinte' }[item.kind] || 'nouvelle';
+    groups.forEach((group) => {
+      const devis = group.refId ? loadDevis(group.refId) : null;
+      const tag = digestTag(group);
       if (!devis) { lines.push(`- (${tag}) demande supprimée depuis`); return; }
       const client = `${String(devis.firstName || '').trim()} ${String(devis.lastName || '').trim()}`.trim() || '—';
       const ref = devis.devisNumber ? `#${devis.devisNumber} ` : '';
@@ -295,7 +334,7 @@ function buildNotificationService({
       if (!resa) return { sent: false, skipped: 'not_found' };
       // Push (independent of the email settings + the iCal email channel toggle). Body shows the
       // guest + property + start date (specs/pwa-push-notifications.md §3.3 rule 11).
-      const platform = String(resa.sourceName || '').trim() || String(resa.platform || resa.sourcePlatformKey || '').trim();
+      const platform = platformNameOf(resa);
       const guest = String(resa.icalOriginalSummary || '').trim()
         || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
       const guestProperty = [guest, resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · ');

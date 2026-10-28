@@ -74,6 +74,11 @@ option's base price is used, exactly as today.
 11. **Options list shows the overrides (2026-06-20).** On the Options page list, the « Prix » cell shows
     the base price plus one line per property that overrides it (« Logement : X € »), via a generic
     `renderPriceCell` slot on `PricedItemsPage`.
+12. **The phone card stays valid HTML (fixed at the 2026-10-27 spec review).** On `xs` the price of
+    `PricedItemsPage`'s card — the block of rule 11 when an option has overrides — and its extra
+    caption lines render in a `div`, not a `<p>`: a block inside a paragraph made React log
+    DOM-nesting warnings on the Options page at 390 px. Pinned by
+    `components/__tests__/PricedItemsPage.mobile-nesting.test.jsx`.
 
 **Edge cases:**
 - Override = 0 with a non-free priceType → a genuine **0 €** for that property (an explicit row is

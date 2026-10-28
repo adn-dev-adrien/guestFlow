@@ -26,6 +26,7 @@
  *   renderRow?:        (item) => <TableRow>
  *   renderMobileCard?: (item) => card content (xs)
  *   cardsBelow?:       'sm' | 'md' | 'lg'  breakpoint under which the cards replace the table (default 'sm')
+ *   cardsBelowWidth?:  number      the cards also replace the table while its container is narrower (px)
  */
 import React from 'react';
 import { Box, Button, Card, CardContent, TableBody, TableHead, TableRow, TableCell } from '@mui/material';
@@ -57,6 +58,7 @@ export default function DataPageScaffold({
   renderRow,
   renderMobileCard,
   cardsBelow,
+  cardsBelowWidth,
 }) {
   const actionsBefore = (actionLabel && onAction) ? [{
     node: (
@@ -90,6 +92,7 @@ export default function DataPageScaffold({
         emptyText={emptyText}
         minWidth={minWidth}
         cardsBelow={cardsBelow}
+        cardsBelowWidth={cardsBelowWidth}
       />
     );
   } else {

@@ -1,0 +1,17 @@
+- Reservation fiche: changing only the check-in or check-out time now re-runs the overlap check (fiche and server), so a late departure that blocks the next arrival is refused like at creation; a baby-bed increase re-runs the baby-bed check.
+- A stay created with a line routed to the arrival complement now stores that complement; the SAS no longer reads « Rien à percevoir » for it.
+- Saving a fiche no longer re-prices a tourist tax already collected (the save pins it like the live quote does).
+- The tariff snapshot is refreshed on every save that rewrites the nights, so a notes-only save after an extension or an arrival move no longer moves the price.
+- Saving a started stay no longer fails after the property's default caution changed, and the first save no longer writes a phantom « Caution 0 € → 500 € » history row.
+- The acompte deadline is cleared when the acompte becomes 0 €, and is never due after the solde (stays booked 31-36 days ahead).
+- Setting or clearing a hand-typed acompte now leaves an « Acompte saisi » history row.
+- Money/percentage refusals of the reservation endpoints answer in French, with the machine code in `code`.
+- A reservation created without times takes the property's default check-in/check-out times.
+- The « no linen → no bed counts » invariant reads the lines the engine kept, not the payload.
+- A reservation number held by any row (devis included) is refused with the French 400 instead of failing on the unique index.
+- A malformed JSON request body answers 400 « Requête invalide : le corps JSON est mal formé. » instead of « Erreur interne du serveur ».
+- A reservation posted without a client is refused with a French 400 `CLIENT_REQUIRED` instead of a server error (specs/reservations-backend-mvc.md rule 10).
+- The welcome-pack free units a stay was granted now survive every save: removing the option, lowering its quantity or saving the stay on a platform for a while no longer bills it when it comes back (300 → 380 €). The tariff snapshot stores the grant (`grantedFreeUnitsByOption`) apart from what the lines consumed; an option new to the stay gets today's catalogue (tariff-recipes rule 66).
+- A save stores the extra-guest tier table it replayed verbatim: a legacy `null` stays `null` (the marker of the Lodge stays sold at ≤ 2 guests before the fix) instead of turning into `[]` (tariff-recipes rule 67).
+- A stay with a legacy 0 € acompte and a stored deadline saves again: a past locked fiche is no longer refused with `PAST_RESERVATION_LOCKED`, and an unlocked one writes no phantom « Date acompte … → — » history row (disable-deposit-per-reservation rule 11).
+- A devis stores its arrival complement and its conversion to a reservation carries it, instead of opening a new « Rien à percevoir » hole (force-item-to-complement rule 19).

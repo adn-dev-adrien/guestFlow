@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, Box, Typography } from '@mui/material';
-import { getDaysInMonth, DAY_NAMES, MONTH_NAMES } from '../utils/calendarVisuals';
+import { getDaysInMonth, DAY_NAMES, MONTH_SHORT_NAMES } from '../utils/calendarVisuals';
 
 /**
  * CalendarMonthGrid — the scrollable, infinite month grid: sticky day-name header, padding for the
@@ -27,7 +27,7 @@ export default function CalendarMonthGrid({ months, scrollRef, onScroll, onMouse
             onMouseUp={onMouseUp}
           >
             {/* Sticky day names */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 5 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 0.5, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 5 }}>
               {DAY_NAMES.map((d) => (
                 <Box key={d} sx={{ textAlign: 'center', fontWeight: 600, py: 1, color: 'text.secondary', fontSize: 14 }}>{d}</Box>
               ))}
@@ -54,7 +54,7 @@ export default function CalendarMonthGrid({ months, scrollRef, onScroll, onMouse
                   const monthKey = `${y}-${m}`;
                   const cell = renderCell(d, y, m, dim);
                   if (d === 1) {
-                    const badgeLabel = `${MONTH_NAMES[m].substring(0, 4)}. ${y}`;
+                    const badgeLabel = `${MONTH_SHORT_NAMES[m]} ${y}`;
                     cells.push(
                       <Box key={`m${y}-${m}-${d}`} sx={{ position: 'relative' }}>
                         <Box sx={{
@@ -122,12 +122,12 @@ export default function CalendarMonthGrid({ months, scrollRef, onScroll, onMouse
                   <Box
                     key={`row-${rowIndex}`}
                     data-month-anchor={isMonthAnchorRow ? row.monthKey : undefined}
-                    sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, position: 'relative' }}
+                    sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 0.5, position: 'relative' }}
                   >
                     {shouldShowLabel && (
                       <Box sx={{ position: 'absolute', left: -45, top: 0, bottom: 0, width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                         <Typography sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                          {MONTH_NAMES[month].substring(0, 3)} {year}
+                          {MONTH_SHORT_NAMES[month]} {year}
                         </Typography>
                       </Box>
                     )}

@@ -124,30 +124,6 @@ options and resources appear once, at their real amount, only when they were rea
     to attach it to) credits the options account rather than letting the residue land on the tourist-tax
     pass-through.
 
-### A gross-up entry that captured contribs (2026-10-19)
-
-> **Why this was added.** The review of 2026-10-19 ticked the solde of réservation #13 (Gîtes de
-> France, `clientGrossAmount` era: 706 € solde net, 907,20 € paid by the guest, no entered commission)
-> on a copy of the Solio base. The tick captured contribs from the stored solde — 706 € of
-> accommodation — and the contrib path used them as they were, while the entry's CA is grossed up to
-> 907,20 € (rule 4, `specs/accounting-encaissement-effective-percent.md` rule 1). The 201,20 € of
-> commission the contribs leave out fell on the last credit, the VAT line:
-> `CDAUSQU D706 | 622600 D201,20 | 70600000 C641,82 | 44571100 C265,38` — 41 % of VAT. Rule 10 of the
-> effective-percent spec assumed every contrib row was a current-model row (ratio 1); a legacy row
-> ticked today is not. The same row without contribs books `70600000 C824,73 | 44571100 C82,47`, which
-> is what its five paid siblings (#1-#4, #8) already book.
-
-12. **Contribs are used only on an entry that is not grossed up.** When the gross-up ratio of an entry
-    is not 1 (the `clientGrossAmount` era, or a « solde = net » schedule the boot repair left alone),
-    its contribs describe the stored net amount, not the CA the entry books. The entry is then booked
-    like one that never captured anything: the stored-money path, which pro-rates the gross-up over the
-    postes it collects (rules 5-7), so the VAT line is the sales rate applied to the revenue. Entries
-    with a ratio of 1 — every reservation written by the current engine — keep their contribs as before.
-    On the Solio base this changes réservation #13 only, and only once its solde is ticked: no month
-    already collected changes (the 36 months 2025-2027 export byte-identical before and after).
-    (Numbered 12 to keep the identity it has on `inte/plugins`, where rule 11 — contribs that overflow
-    a reduced entry — also lives; master has no rule 11.)
-
 **Edge cases:**
 - Pre-arrival revenue = 0 (everything in the complement) but an acompte was collected → the whole
   encaissement credits accommodation (defensive; cannot happen with a consistent fiche).
@@ -193,6 +169,31 @@ options and resources appear once, at their real amount, only when they were rea
     with a ratio of 1 — every reservation written by the current engine — keep their contribs as before.
     On the Solio base this changes réservation #13 only, and only once its solde is ticked: no month
     already collected changes (the 36 months 2025-2027 export byte-identical before and after).
+    (Numbered 12 to keep the identity it has on `inte/plugins`, where rule 11 — contribs that overflow
+    a reduced entry — also lives; master has no rule 11.)
+
+### Money already collected never moves (2026-10-27)
+
+> **Why this was added.** The spec review of 2026-10-27 paid a 515 € stay (acompte 150, solde 365 with
+> 15 € of tourist tax), then added a guest: the tax rose to 22,50 € and the engine billed the 7,50 €
+> difference as an arrival complement. The October solde entry already exported was rewritten
+> (`70600000 C318,18 → C311,37`, `46710000 C15 → C22,50`) and the 7,50 € complement, ticked paid,
+> appeared in no month at all (Finance « Encaissé » 522,50 against a journal of 515). Separately, an
+> installment of a past month moved on every later save of the fiche: its tourist-tax share and its
+> revenue pro rata were recomputed from the stay as it stood. `accountant-accounting-export.md` rule 33
+> says a month already exported keeps its cents.
+
+13. **The tourist tax of a paid solde is the tax it collected.** Once the solde is paid, its entry books
+    the tourist tax frozen at that moment (`touristTaxSoldeContribTtc`, plus the share an older acompte
+    captured and reclassed); a tax that rises afterwards never rewrites it. The rise is collected by the
+    arrival complement, and its entry books it on 46710000 (an entry carrying only tax, listed among the
+    month's « écritures de taxe seule »). A solde paid before contribs existed keeps the live total.
+14. **An installment books the split frozen when it was collected.** Recording an installment as paid
+    stores its accounting split on the installment (`reservation_installments.paidSplit`: tourist-tax
+    share, accommodation, options, resources, in cents, adding up to its amount —
+    `utils/installmentPaidSplit.js`, `specs/direct-installments.md` rule 47). The export books that split
+    verbatim; a later save of the fiche moves no installment entry. An installment collected before the
+    column existed (none in production) keeps the live split.
 
 ---
 
@@ -212,6 +213,9 @@ options and resources appear once, at their real amount, only when they were rea
 | `database.js` | — | — | (none) — no schema change, no migration. |
 | `tests/` | `accounting-books-the-money-collected.unit.test.js` | C | The five measured reservations as regressions: Carpier (ratio 1 + pure-accommodation solde + resource on 70601000), Foulon (cash complement stays out), Nicolet (drift → the bank amount), Parreton (legacy gross-up preserved), and a mid-stay-free control. |
 | `tests/` | `accounting-gross-up-ignores-contribs.unit.test.js` | C | Rule 12: #13's shape with and without contribs books the same entry at 10 % VAT; a ratio-1 entry keeps its contribs; end to end through the payment controller. |
+| `plugins/accounting-export/` | `accountingModel.js` | T | Rule 13: `computeTaxTtcForKind` books the solde's frozen tax and the later rise on the complement. Rule 14: `buildInstallmentEntry` books the stored `paidSplit`. |
+| `utils/` | `installmentPaidSplit.js` (C), `installmentPayment.js` | C/T | Rule 14: the split computed and stored when an installment is collected. |
+| `tests/` | `plugins/accounting-export/tests/accounting-collected-money-frozen.unit.test.js` | C | Rules 13-14. |
 | `tests/` | `accounting-encaissement-effective-percent.unit.test.js` | T | The existing effective-percent expectations that encode the old ratio, realigned on rule 1. |
 
 ### 4.2 Client side (`client/src/`)
@@ -227,7 +231,8 @@ Unchanged — same endpoints, same CSV columns, same journal-row layout. Only th
 
 ## 5. Data model
 
-No schema change, no migration, no backfill. The fix is entirely in how stored data is read.
+No schema change, no migration, no backfill for rules 1-13: the fix is entirely in how stored data is
+read. Rule 14 adds `reservation_installments.paidSplit` (see `specs/direct-installments.md` §5).
 
 **Data impact:** none on the records. The **exports** of past months do change for the affected
 reservations — which is the point: they were wrong. Adrien's accountant reprocesses the already-filed
@@ -255,6 +260,11 @@ become the money that actually moved. No new string, no responsive impact, no ac
 - [x] `accounting-gross-up-ignores-contribs.unit.test.js` (4, new, rule 12) — #13's shape books
       `70600000 C824,73 | 44571100 C82,47` with its contribs, exactly as without them; a ratio-1 entry
       still books its contribs; the solde ticked through the payment controller lands at 10 % VAT.
+
+- [x] `plugins/accounting-export/tests/accounting-collected-money-frozen.unit.test.js` (5, new, rules
+      13-14) — the October solde unchanged by a tax rise, the 7,50 € complement on 46710000 in its month
+      (the stay books 522,50 € in all), a solde without contribs still on the live tax, an installment
+      unchanged by a later save, the stored split.
 
 ### Coherence audit (the tool that found this)
 - [x] Re-run over the whole base (7 months, 40 entries): 0 unbalanced entry, 0 negative line, 0 entry

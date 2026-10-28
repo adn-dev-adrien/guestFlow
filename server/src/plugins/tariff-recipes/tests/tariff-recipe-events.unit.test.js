@@ -170,7 +170,7 @@ test('an event range whose minNights equals the season default re-applies as unc
   const { createTariffRecipeModel } = require('../model');
   const db = new Database(':memory:');
   db.exec(`
-    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, tariffRecipeId TEXT DEFAULT '',
+    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPriceUnit TEXT DEFAULT 'per_stay', tariffRecipeId TEXT DEFAULT '',
       tariffRecipeVersion TEXT DEFAULT '', welcomePackCost REAL DEFAULT 0, platformCleaningFees TEXT DEFAULT '[]', updatedAt TEXT);
     CREATE TABLE pricing_rules (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, label TEXT,
       pricePerNight REAL DEFAULT 100, pricingMode TEXT DEFAULT 'fixed', progressiveTiers TEXT DEFAULT '[]',

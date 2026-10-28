@@ -149,6 +149,28 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
 - Stay dates extended BETWEEN deposit-paid and balance-paid: `accommodationAcompteContribTtc` is frozen; `accommodationSoldeContribTtc = currentAccommodationTtc − accommodationAcompteContribTtc` at balance-paid → absorbs the extension. Clean.
 - `paidSnapshotDeposit > paidSnapshotBalance` (impossible in practice — would require shrinking between payments). The `max(0, …)` clamp prevents negative contributions; conservation invariant test catches any drift.
 - Item removed AFTER balance-paid (e.g. refund): contribs stay (they represent what WAS in the entry). Complement = `currentTotalPrice − contribs` becomes negative → clamped to 0. The conservation invariant breaks (acompte+solde now > current item value); the engine emits a warning in the server log so the operator knows to manually correct.
+18. **Fixed at the 2026-10-27 spec review — the complement is stored at creation.** `insertReservation`
+    had no `complementAmount` column: a stay created with a line routed to the complement (Ménage 80 €)
+    stored 0 while the engine had taken the line out of the acompte and the solde, so the SAS read
+    « Rien à percevoir » until the first re-save. The INSERT now writes `quote.complementAmount`. A
+    one-shot boot repair (`created_complement_amount_repaired_v1`, `utils/createdComplementRepair.js`)
+    restores the rows that lost it, and only those: reservation, not cancelled, created on the fiche,
+    complement unpaid / 0 / not adjusted, arrival SAS not done, never saved since creation, and
+    `finalPrice − acompte − solde` equal to the routed lines (+ the tax when it is routed). Each repair
+    is logged at boot and written to the reservation's history. The iCal import is unpriced by design
+    and a devis conversion copies the devis row (whose lines are pinned out of the complement unless the
+    operator flagged them): both re-price on their first save.
+19. **Fixed at the adversarial review of the 2026-10-27 fixes — the repair equation includes the tax,
+    ended stays are left alone, and a devis carries its complement.** `finalPrice` excludes the tourist
+    tax, so rule 18's `finalPrice − acompte − solde` never matched a stay with a tax and the repair
+    marked itself done having repaired nothing. The proof is now `finalPrice + touristTaxTotal −
+    acompte − solde` = routed lines (+ the tax when it is routed to the complement), for both routings.
+    Only stays not yet ended (`endDate ≥ today`) are touched: an old closed stay is not reopened as
+    « unsettled ». And the devis was a second source of holes: its row stored no `complementAmount` and
+    `convertToReservation` copied none. A devis now stores the engine's `complementAmount` (create and
+    update) and the conversion carries it; a devis stored before that converts with the amount its own
+    totals prove (`provenComplementAmount`, the repair's proof), else nothing. The migration key stays
+    `created_complement_amount_repaired_v1` (it never ran in production).
 
 ---
 
@@ -165,6 +187,8 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
 | `utils/` | `pricing.js` | T | `calculateReservationQuote` accepts the new fields, returns `quote.optionLines[i].inComplement` + `acompteContribTtc` + `soldeContribTtc` (read directly from the DB row passed in) + computed `complementPortion = totalPrice − (acompteContrib \|\| 0) − (soldeContrib \|\| 0)`. The aggregate math subtracts forced items + forced tax from `preArrivalAmount` (so deposit/balance auto-split applies to the auto group only). `complementAmount = forcedTotal + sum of delta portions (auto)`. **The existing `optionsTotal` / `optionsNetPrice` / etc. stay as full sums** (used for VAT extraction in the quote line table); accounting reads the per-line contribs instead. |
 | `utils/` | `reservationAudit.js` | T | Add `touristTaxInComplement` to `HISTORY_FIELD_LABELS` (`"Taxe en complément"`). Per-line `inComplement` folded into `optionsSignature` / `resourcesSignature` (existing pattern). Contrib captures are logged via a separate `addHistoryEntry(id, 'payment-snapshot', { trigger, contribs })` call on the payment flip. |
 | `models/` | `accountingModel.js` | T | `buildEntry` (line ~134): for `kind === 'deposit'`, build buckets by summing `acompteContribTtc` per line per kind + `reservation.accommodationAcompteContribTtc` + `reservation.touristTaxAcompteContribTtc`. Extract HT/VAT per bucket using the existing VAT-rate logic. Same for `kind === 'balance'` with `soldeContribTtc`. For `kind === 'complement'`: 100 % of forced items + delta for non-forced + accommodation delta + tax (full if forced/on-arrival, delta otherwise). Conservation invariant: each entry's sum-of-bucket-TTC equals `encaissementTtc`. |
+| `utils/` | `createdComplementRepair.js` | C | Rules 18-19 — the one-shot boot repair of the complement lost at creation; `provenComplementAmount` (`finalPrice + tax − acompte − solde` = routed lines + routed tax) is shared with the devis conversion. |
+| `models/` | `devisModel.js` | T | Rule 19 — a devis stores `complementAmount` (create, update); `convertToReservation` carries it, or the proven amount for a devis stored before. |
 | `tests/` | `pricing-force-and-snapshot.unit.test.js` | C | New file. ≥ 15 cases over the matrix (forced flag × payment state × snapshot presence × growth/extension). Conservation invariant asserted on every case. |
 | `tests/` | `accounting-per-line-contribs.unit.test.js` | C | New file. Insert reservation, mark deposit paid → assert each non-forced line has `acompteContribTtc = totalPrice × depositPercent` and the sum equals `depositAmount`. Grow an option, mark balance paid, assert `soldeContribTtc` calculated correctly, sum equals `balanceAmount`. Run the export, assert the per-entry bucket TTC sums match the encaissement amounts and no contamination occurs (deposit entry's options HT = `acompteContribTtc → HT extraction`, not pro-rated against the grown total). |
 | `tests/` | `payment-contrib-capture.unit.test.js` | C | New file. Drive `updatePayment` deposit 0→1 and balance 0→1; assert the contrib columns now contain the expected values per line. Verify 1→0 clears them. Forced lines stay NULL throughout. Conservation invariant asserted on capture. |
@@ -323,6 +347,8 @@ For the duplicated line label (`Option B (+1)`), the engine returns the `quantit
 - [ ] Mobile (`xs`) → checkbox column reachable; summary splits readably.
 
 ---
+- Spec review 2026-10-27 (rule 18): `server/src/tests/created-stay-complement-amount.unit.test.js` (3 tests — complement stored at creation, boot repair limited to the proven rows and idempotent, unproven gap left alone).
+- Adversarial review of the 2026-10-27 fixes (rule 19): `server/src/tests/created-complement-repair-tourist-tax.unit.test.js` (4 tests — repair with a tax on the solde and on the complement, ended stay left alone, devis stores and carries its complement, legacy devis converts with the proven amount).
 
 ## 8. Out of scope
 

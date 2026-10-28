@@ -160,9 +160,10 @@ dropped the UID.
     + no alert until BOTH sources drop the UID. That existing logic is reused unchanged
     in rule 1.
 11. **History audit.** Every approve emits a `reservation_history` row before the
-    `DELETE`. The deletion CASCADE will preserve the history row only if the schema is
-    set up for it; existing FKs already preserve history beyond reservation lifetime via
-    a "soft" foreign key (no ON DELETE CASCADE on `reservation_history.reservationId`).
+    `DELETE`, and that row — with every earlier entry of the stay — survives the delete:
+    `reservation_history.reservationId` carries no foreign key (rule 14). *(Corrected at the
+    2026-10-27 spec review: the schema declared `ON DELETE CASCADE`, so the row was erased with the
+    stay it was written for.)*
 12. **Single PR, no follow-up split.** Sync detection + cancellation table + Dashboard
     alert + approve/reject endpoints ship together.
 13. **A stay already cancelled in GuestFlow is never proposed for deletion** *(fixed at the
@@ -173,6 +174,23 @@ dropped the UID.
     returns `{ ok: true, outcome: 'already_cancelled' }` without emitting `reservation.cancelled` again.
     **Why:** approving used to `DELETE` the cancelled reservation, and the delete cascaded its
     `reservation_refunds` — the credit note owed to the guest disappeared with it.
+14. **A stay's history outlives the stay** *(fixed at the 2026-10-27 spec review, operator decision
+    2026-10-27)*. `reservation_history` is rebuilt without its `REFERENCES reservations(id) ON DELETE
+    CASCADE` (one-shot `reservation_history_outlives_reservation_v1`, every row, id and the AUTOINCREMENT
+    counter kept, index restored, idempotent on the table's DDL). Every path that deletes a reservation
+    (approved iCal cancellation, the operator's « Supprimer », the iCal sync's own clean-up, a devis)
+    now leaves its history behind as orphan rows by design; readers only ever read a history by the id
+    of a stay they hold, and reservation ids are AUTOINCREMENT, so no later stay inherits it. The purge
+    of an untouched public request (`purgeUntouchedPublicRequest`) still deletes its rows explicitly.
+15. **Orphan history rows are intended, on every delete path** *(stated at the adversarial review of the
+    2026-10-27 fixes, operator decision 2026-10-27)*. Every path that deletes a reservation — the
+    operator's « Supprimer » (`DELETE /api/reservations/:id`), the iCal sync's stale clean-up, an approved
+    iCal cancellation (rule 5), a devis deleted from Devis — leaves the stay's `reservation_history` rows
+    in place, with no stay to read them from. This is the decision, not a leak: nothing reads a history
+    without holding its stay's id, ids are never reused, and the audit trail of a deleted stay stays
+    available to a database read. The **only** path that deletes history rows is the purge of an untouched
+    website request (`devisModel.purgePublicRequest`, specs/public-request-abuse-and-grouping.md rule 10):
+    that quote was never acted on by anyone, so its trail carries nothing worth keeping.
 
 **Edge cases:**
 - **The same UID disappears AND a new UID at the same dates/name appears in the same
@@ -258,6 +276,10 @@ middleware already restricts `/api/dashboard/*` to admins, accountants are read-
 ---
 
 ## 5. Data model
+
+> **2026-10-27 spec review** — `reservation_history.reservationId` has no foreign key any more (rule 14):
+> `utils/reservationHistoryKeepMigration.js` rebuilds the table once on an existing database, and
+> `schema.sql` declares it without the reference. Test: `tests/reservation-history-outlives-stay.unit.test.js`.
 
 New table:
 

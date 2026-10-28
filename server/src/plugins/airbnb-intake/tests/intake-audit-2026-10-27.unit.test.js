@@ -23,11 +23,10 @@ function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => 
     propertyOptions: () => [],
     getReservation: () => ({ ...R, options: [], notes: '' }),
     core: {
-      updateReservation: (id) => { calls.updates.push(id); return { status: 200 }; },
+      updateReservation: (id, patch, opts) => { calls.updates.push(id); if (opts && opts.client) calls.clients.push(opts.client); return { status: 200, clientId: 9 }; },
       suggestBeds: () => ({ singleBeds: 1, doubleBeds: 1 }),
       platformCommission: () => 1,
       withholdsTouristTax: (propertyId, platform) => { calls.withholds.push([propertyId, platform]); return withholds(); },
-      findOrCreateClient: (c) => { calls.clients.push(c); return { id: 9 }; },
     },
     today: () => today,
   });

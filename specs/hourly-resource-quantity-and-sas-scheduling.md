@@ -331,6 +331,31 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 - `complementPaid = 1` already → the supplement is still recorded and the recap warns about the delta
   to collect, per §3 edge cases of the SAS spec.
 
+### 3.7 The fiche save checks the other uses too (fix, 2026-10-27 spec review)
+
+34. **« And vice versa », on the fiche as well.** Rule 28 stopped an external booking from being created
+    over a guest session, and the SAS commit re-checks capacity, but a **fiche save**
+    (`POST /api/reservations`, `PUT /api/reservations/:id`) only compared the stay's own sessions with
+    each other (phase-3c rule 30): a session placed on an hour an external booking — or another stay's
+    session — already held on a resource that exists once was saved (review F6: bath ×1, external booking
+    07/11 19:00–21:00, a stay saved with 20:00–21:00 → 201, the bath booked twice). Each session the save
+    brings is now counted against the external bookings (`resource_bookings`, bookings linked to this
+    stay excepted) and the sessions of the **other** real reservations (devis hold no slot), with the
+    resource's `turnoverMinutes` kept free on both sides, exactly like rule 28's write path. When the
+    count reaches the resource's `quantity` the save is refused **409 `RESOURCE_SLOT_TAKEN`** with
+    « Créneau déjà occupé le {date longue} à {HH:MM} : la ressource est réservée par ailleurs. » and the
+    conflicting `{ resourceId, date, start, end }`. A session the stay **already stored unchanged** is
+    not re-judged, so a fiche that carried such an overlap before this fix can still be saved for
+    anything else; moving or adding a session is judged.
+35. **The most uses at once, not every use of the slot** (adversarial review of the 2026-10-27 fixes,
+    amends rule 34). Rule 34 counted every outside use touching a session: with a resource ×2, bookings
+    17:00–18:30 and 19:30–21:00 refused a session 18:00–20:00 although one unit stays free throughout.
+    `firstSessionConflict` now compares the **peak** of simultaneous uses during the session (a sweep
+    over the stay's own overlapping sessions and the outside uses) with the quantity. Each outside use
+    still keeps the resource for its `turnoverMinutes` after it, and the session for its own after it,
+    so the pairwise rule of rule 34 is unchanged for a resource ×1; two uses one after the other, reset
+    included, take one unit, not two.
+
 ---
 
 ## 4. Architecture
@@ -364,6 +389,9 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 | `controllers/` | `controllers/resourcesController.js` | T | Rule 25: availability endpoint for the picker's live refresh. |
 | `routes/` | `routes/resources.js` | T | `GET /api/resources/:id/free-slots`. |
 | `database.js` | `database.js` | T | Rule 11: idempotent `ADD COLUMN` for `resources.heatUpMinutes` + `resources.heatRetentionMinutes` (both `INTEGER NOT NULL DEFAULT 0`). |
+| `utils/` | `utils/resourceSessionConflicts.js` | T | (2026-10-27) Rule 34: `firstSessionConflict` also counts what `occupiedOn(resourceId, date)` returns, turnover-aware, skipping the sessions already stored unchanged; `conflictError` answers `RESOURCE_SLOT_TAKEN` for those. Rule 35: the peak of simultaneous uses (`peakConcurrency`), never their count. |
+| `models/` | `models/resourceOtherUsesModel.js` | C | (2026-10-27) Rule 34, core side: external bookings + other stays' sessions of a resource on a date, `turnoverOf`, the stay's stored sessions. Guarded: `resource_bookings` and `turnoverMinutes` exist only once the plugin is installed. |
+| `controllers/` | `controllers/reservationsController.js` | T | (2026-10-27) Rule 34: `refuseSessionConflict(res, resources, reservationId)` on create and update. |
 
 **Notes:**
 - `resourceAvailability.js` is the only place time arithmetic lives; it takes `{ now }` as an argument
@@ -403,6 +431,7 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 | POST | `/api/reservations/:id/sas/arrival` | `{ …, resourceBlocks: [{ resourceId, date, start, end }] }` | `{ ok, complementAmount, eveningSupplement }` | Rules 24, 26-27. `409 { error: 'SLOT_CONFLICT', block, reason }` with `reason ∈ taken \| heating \| past \| closed \| budget \| duration`; writes nothing. |
 | GET | `/api/resource-bookings?resourceId&weekStart` | — | `[{ …, kind: 'booking' \| 'session', reservationId, turnoverMinutes }]` | Rule 29, unified occupancy. |
 | PUT/POST | `/api/resources/:id` | `{ …, heatUpMinutes, heatRetentionMinutes }` | resource | Rule 11, additive. |
+| POST / PUT | `/api/reservations`, `/api/reservations/:id` | `{ …, resources: [{ resourceId, sessions }] }` | unchanged | Rule 34 (2026-10-27): `409 { error: '<French sentence>', code: 'RESOURCE_SLOT_TAKEN', conflict: { resourceId, date, start, end, elsewhere: true } }` when a session takes a slot held elsewhere. |
 
 Auth: all endpoints behind the existing session auth; the SAS commit keeps its reception-role lock
 (`receptionSasLock`). The commit is idempotent per rule 26 — it **replaces** the placed blocks and
@@ -588,6 +617,15 @@ new file, next to the assertions they replace (three of which pinned the old, bu
       re-opened SAS bills one supplement, with or without the step; hours moved to the day band drop it.
       9 of the 11 fail on the code before the fix.
 - [x] Same file (+1): rule 33 — a fiche save keeps the SAS marker on the SAS's own lines, by label.
+- [x] `tests/resource-session-occupied-elsewhere.unit.test.js` (6, rule 34, 2026-10-27): a new session
+      over an external booking → `RESOURCE_SLOT_TAKEN` with its French message; over another stay's
+      session → refused, a devis holds no slot; free slots, back-to-back uses and the stay's own stored
+      session pass; the turnover keeps the reset free; an old overlap stored unchanged does not lock the
+      fiche, moving it is judged; no plugin tables → the stay-only check.
+- [x] `tests/resource-session-peak-concurrency.unit.test.js` (6, rule 35, adversarial review of the
+      2026-10-27 fixes): ×2 with 17:00–18:30 and 19:30–21:00 accepts 18:00–20:00 (with and without a
+      turnover), two simultaneous bookings fill it, an unfinished reset takes a ×1 unit, own sessions
+      count at the same instant only, `peakConcurrency` never stacks touching intervals. Failed before.
 - `tests/hourlySchedulingFixture.js` — the stay fixture, shared with `sas-resource-scheduling`.
 
 ### Server — extended existing tests

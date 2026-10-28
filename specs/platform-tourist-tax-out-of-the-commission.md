@@ -228,6 +228,14 @@ counted.
     19,20 €) could not be marked paid from the fiche. The fiche now shows the refusal instead of
     swallowing it, so a future drift is visible rather than silent.
 
+### Fixed at the 2026-10-27 spec review
+
+26. **« 0 » withheld is an answer.** The engine served `platformTouristTaxWithheld: null` whenever the
+    amount was 0, so a platform that kept no tax made the fiche fall back to the engine's estimate and
+    print it struck through as if the platform had kept it. The box now distinguishes empty (`null`,
+    the estimate) from 0 (the platform's figure, printed 0,00 €), as rules 9 and 15 already said. A
+    negative amount stays an empty box (rule 20). The rule-15 test now pins 0 → 0.
+
 ---
 
 ## 4. Architecture
@@ -245,6 +253,7 @@ counted.
 | `database.js` | [database.js](../server/src/database.js) | T | Idempotent, PRAGMA-guarded `ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL`. No backfill (rule 2). |
 | `schema.sql` | [schema.sql](../server/src/schema.sql) | T | The column on the `CREATE TABLE reservations` for fresh installs. |
 | `utils/pricing.js` | [pricing.js:2058](../server/src/utils/pricing.js#L2058) | T | Accept `platformTouristTaxAmount`. Resolve `withheldTouristTaxInBrut` = the amount when the box is set **and** `platformGrossPin != null` **and** `isTouristTaxOfferedByPlatform`, else `0`; subtract it in `pinnedAccommodation` beside the existing `reversedTouristTaxInBrut`. Publish `platformTouristTaxWithheld` in the quote (rule 9); `touristTaxOriginalTotal` keeps its meaning. |
+| `utils/pricing.js` | — | T | 2026-10-27 (rule 26) — `withheldTouristTaxEntered` keeps « 0 » apart from an empty box in `platformTouristTaxWithheld`. |
 | `models/reservationsModel.js` | [reservationsModel.js:1337](../server/src/models/reservationsModel.js#L1337) | T | Persist `platformTouristTaxAmount` on insert/update (`NULL` on direct, rule 18); expose it from the reservation detail mapping. |
 | `controllers/reservationsController.js` | [reservationsController.js:612](../server/src/controllers/reservationsController.js#L612) | T | Validate it as money; forward it to the engine in `calculatePrice` **and** `create`/`update`, so the live preview and the persisted books price identically (the defect [platform-payment-entry.md](platform-payment-entry.md) §4.1 had to fix for `platformGrossAmount`). |
 | `utils/reservationEngineInput.js` | [reservationEngineInput.js](../server/src/utils/reservationEngineInput.js) | T | Carry `platformTouristTaxAmount` into every replay of a stored booking (rule 25). |
@@ -367,6 +376,8 @@ cancel, PDF/sync/delete slots) untouched.
 ## 7. Test plan
 
 ### Server unit tests
+
+- `platform-withheld-tax-zero.unit.test.js` (3, rule 26) — 0 is served as 0, empty and negative as null.
 
 - [x] `tests/platform-tourist-tax-out-of-the-commission.unit.test.js` (new)
   - rule 1 — the withheld amount is read only in mode `platform`; ignored on `platform_reversed`,

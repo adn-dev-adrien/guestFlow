@@ -143,13 +143,14 @@ function createBookingLinesModel(database) {
     // INSERT, so `insertCustomOptions` carries the marker over by label; without it the SAS lost its
     // own lines at the first save and a re-opened SAS billed them again
     // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 33).
-    // Each entry is `{ description, sasLineKey }`: the key of a line a plugin billed rides along
+    // Each entry is `{ description, sasLineKey, quantity }`: the key of a line a plugin billed rides along
     // (specs/plugins-phase-3c-hourly-resources.md rule 7).
     sasOriginCustomLabels(bookingId) {
       if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
       const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
-      return database.prepare(`SELECT description, ${key} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
-        .all(bookingId).map((r) => ({ description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null }));
+      const qty = CUSTOM_OPTION_COLUMNS.has('quantity') ? 'quantity' : '1 AS quantity';
+      return database.prepare(`SELECT description, ${key}, ${qty} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
+        .all(bookingId).map((r) => ({ description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null, quantity: Number(r.quantity) || 1 }));
     },
 
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = []) {
@@ -170,7 +171,8 @@ function createBookingLinesModel(database) {
           inComplement: forced,
           acompteContribTtc: forced ? null : (line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
-          ...(sasLine ? { sasArrivalOrigin: 1, sasLineKey: sasLine.sasLineKey } : {}),
+          // The count the SAS stored travels with its marker (specs/arrival-departure-sas.md rule 29).
+          ...(sasLine ? { sasArrivalOrigin: 1, sasLineKey: sasLine.sasLineKey, quantity: sasLine.quantity } : {}),
         });
         sortOrder += 1;
       }

@@ -1,0 +1,1 @@
+- plugin:website-booking Migration `public_request_tables_v3` drops the `public_request_issued` table (issued anti-bot challenges, kept 24 h): challenges handed out no longer count towards the difficulty. Nothing else is touched.

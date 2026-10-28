@@ -505,11 +505,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // here.
           (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1 && !o.sasLineKey).forEach((o) => {
             const label = String(o.description || o.title || '');
-            const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
             const lineOffered = Number(o.offered || 0) === 1;
             const item = bedByLabel.get(label);
             if (item && Number(item.price) > 0) {
-              nextBed[item.id] = Math.max(1, Math.round(amount / Number(item.price)));
+              // The count the line stored (specs/arrival-departure-sas.md rule 29) — no division of an
+              // amount by a price that may have changed since.
+              nextBed[item.id] = Math.max(1, Number(o.quantity) || 1);
               if (lineOffered) seed.add(`bed:${item.id}`);
             } else {
               if (lineOffered) seed.add(`kept:${Number(o.customOptionId)}`);
@@ -1613,6 +1614,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 </Typography>
               )}
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
+              {/* specs/arrival-departure-sas.md rule 12 — the status shows « non traité » too (2026-10-27). */}
+              {caution === 'reporte' && <Typography variant="body2" color="warning.main">Caution non perçue : reportée au départ.</Typography>}
               {pluginRecapNotes.map((note) => (
                 <Typography key={note} variant="body2" color="warning.main">{note}</Typography>
               ))}

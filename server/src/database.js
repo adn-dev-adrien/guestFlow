@@ -2007,6 +2007,12 @@ db.exec(`
     sortOrder INTEGER NOT NULL DEFAULT 0
   );
 `);
+
+// ---------- SAS CUSTOM LINES KEEP THEIR QUANTITY ----------
+// specs/arrival-departure-sas.md rule 29 (2026-10-27 spec review): « Taie d'oreiller » × 2 was one
+// custom row carrying the total only. Column + one-shot backfill, recorded in `migrations`.
+require('./utils/sasCustomLineQuantityMigration').ensureCustomLineQuantity(db, { skipBackfill: process.env.SKIP_MIGRATIONS === 'true' });
+
 // « Tarifs facturables » — repair amounts (operator-managed in Réglages). Generic priced list; rows with
 // a `repairKey` are SAS-linked + protected. Seeded with the fire-extinguisher seal
 // (specs/extinguisher-seal-and-repair-amounts.md).
@@ -2433,6 +2439,21 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// One-shot (2026-10-27 spec review): a name holding its own article takes it, confirmed — properties
+// created from the property page were stored « au » (specs/guest-email-texts-made-simple.md rule 30).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'property_own_article_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { repairPropertyOwnArticles } = require('./utils/propertyOwnArticleRepair');
+    const repaired = db.transaction(() => {
+      const n = repairPropertyOwnArticles(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return n;
+    })();
+    if (repaired) console.log(`[migration:property-own-article] ${repaired} property article(s) corrected`);
+  }
+}
+
 // ---------- SETTINGS RATIONALIZATION ----------
 // Derived email identity, per-template automatic sending, dropped settings
 // (specs/settings-rationalization.md §5). Idempotent.
@@ -2659,6 +2680,19 @@ db.exec(`
 db.exec('CREATE INDEX IF NOT EXISTS idx_booking_pace_cancellations_property ON booking_pace_cancellations(propertyId)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(createdAt)');
 
+// ---------- BREAKFAST FALLBACK « PRÉPARÉ » MARKS (specs/breakfast-option-planning-card.md) ----------
+// A breakfast served without chosen mornings (site/API booking, property default) shows a card every
+// morning but has no stored occurrence to carry its « préparé » flag: the flag lives here, one row per
+// reservation and morning. Additive, starts empty.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS breakfast_fallback_done (
+    reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (reservationId, date)
+  )
+`);
+
 // ---------- ACCOUNT SECURITY (specs/hosting-h2-account-security.md §5) ----------
 // Reset links, second step, backup codes, account history, support access and its log, and the
 // disabled « Support GuestFlow » user. Additive, idempotent.
@@ -2675,6 +2709,58 @@ try {
   }
 } catch (err) {
   console.warn('[ical-clients] séparation des clients iCal partagés impossible :', err.message);
+}
+
+// ---------- ARRIVAL COMPLEMENT LOST AT CREATION ----------
+// specs/force-item-to-complement.md rule 18. `insertReservation` used to drop `complementAmount`, so a
+// stay created with a line routed to the complement asked for nothing at the SAS until its first save.
+// Restores it on the rows never saved since, and only where the row's own totals prove the gap; each
+// repair is logged here and written to the reservation's history. Placed after every guarded column
+// migration, and idempotent via `migrations.created_complement_amount_repaired_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'created_complement_amount_repaired_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runCreatedComplementRepair } = require('./utils/createdComplementRepair');
+    const tx = db.transaction(() => {
+      const result = runCreatedComplementRepair(db);
+      if (!result) return;
+      const { repaired } = result;
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      const detail = repaired.map((r) => `${r.reservationNumber || `#${r.id}`} → ${r.amount} €`).join(', ');
+      // eslint-disable-next-line no-console
+      console.log(`[migration:created-complement-amount] repaired ${repaired.length} reservation(s)${detail ? ` : ${detail}` : ''}`);
+    });
+    tx();
+  }
+}
+
+// ---------- A 0 € ACOMPTE HAS NO DEADLINE (specs/disable-deposit-per-reservation.md rule 11) ----------
+// Rows stored before rule 10 kept the deadline of an acompte switched off. Cleared once, where nothing
+// was ever paid on the acompte, with the count logged. Idempotent via `migrations`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'zero_deposit_deadline_cleared_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runZeroDepositDeadlineCleanup } = require('./utils/zeroDepositDeadlineCleanup');
+    db.transaction(() => {
+      const cleared = runZeroDepositDeadlineCleanup(db);
+      if (cleared == null) return;
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:zero-deposit-deadline] cleared the deadline of ${cleared} reservation(s) with a 0 € acompte`);
+    })();
+  }
+}
+
+// ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------
+// `reservation_history` no longer cascades with `reservations`: the audit trail of a deleted stay —
+// the « Suppression iCal approuvée » row first — must survive the delete. Table rebuild, every row kept.
+{
+  const migrationName = 'reservation_history_outlives_reservation_v1';
+  const { keepHistoryBeyondReservation } = require('./utils/reservationHistoryKeepMigration');
+  const copied = keepHistoryBeyondReservation(db);
+  if (copied !== null) console.log(`[history] ${copied} ligne(s) d'historique conservée(s) au-delà de la suppression du séjour.`);
+  db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
 }
 
 // ---------- REJEU DU BASELINE ----------

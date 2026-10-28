@@ -14,7 +14,7 @@
  *  - onReservationClick(id), onDevisClick(id), onOpenNewReservation(start,end), onOpenNote(dateStr)
  *  - onWeekChange(weekStartStr): lets the parent extend the loaded month range to cover the week.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Card, Box, Typography, IconButton, Button, Chip, Stack } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -86,12 +86,24 @@ export default function CalendarWeekView({
   const scrollRef = useRef(null);
   const [index, setIndex] = useState(CENTER);
 
-  // Land on today's week on mount (and whenever the pivot resets).
-  useEffect(() => {
+  // Land on today's week on mount (and whenever the pivot resets). The strip can still be 0 px wide at
+  // that moment (a deep link `/calendar?propertyId=…` mounts it while the page is still laying out): the
+  // scroll then stayed at the first week — « 1 – 7 juin » with nothing loaded — until something else
+  // moved it (2026-10-27 spec review, F12). So the position is re-applied whenever the strip's width
+  // changes, which also keeps the shown week when the phone rotates.
+  const indexRef = useRef(CENTER);
+  indexRef.current = index;
+  useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    el.scrollLeft = CENTER * el.clientWidth;
+    if (!el) return undefined;
     setIndex(CENTER);
+    indexRef.current = CENTER;
+    const place = () => { if (el.clientWidth) el.scrollLeft = indexRef.current * el.clientWidth; };
+    place();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(place);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [pivotMonday]);
 
   const handleScroll = useCallback(() => {
@@ -174,7 +186,7 @@ export default function CalendarWeekView({
               color={getReservationColor(summary.ongoing.platform)}
               icon="•"
               primary={`Séjour — ${compactName(summary.ongoing.firstName, summary.ongoing.lastName)}`}
-              secondary={summary.ongoing.platform || ''}
+              secondary={formatPlatformLabel(summary.ongoing.platform)}
               onClick={() => onReservationClick(summary.ongoing.id)}
             />
           )}
@@ -185,7 +197,7 @@ export default function CalendarWeekView({
               faded
               icon={kind === 'arrival' ? '↓' : kind === 'departure' ? '↑' : '•'}
               primary={`Devis — ${compactName(devis.firstName, devis.lastName)}`}
-              secondary={devis.platform || ''}
+              secondary={formatPlatformLabel(devis.platform)}
               onClick={() => onDevisClick(devis.id)}
             />
           ))}

@@ -23,7 +23,7 @@ test('rule 18: unmapped gîte → pending with its reason; mapped later → appl
     commissionPercent: () => 10,
     propertyOptions: () => [],
     getReservation: () => ({ ...R, options: [] }),
-    core: { updateReservation: (id) => { updates.push(id); return { status: 200 }; }, suggestBeds: () => ({ singleBeds: 0, doubleBeds: 0 }), findOrCreateClient: () => ({ id: 1 }) },
+    core: { updateReservation: (id) => { updates.push(id); return { status: 200 }; }, suggestBeds: () => ({ singleBeds: 0, doubleBeds: 0 }) },
     today: () => '2026-10-20',
   });
 

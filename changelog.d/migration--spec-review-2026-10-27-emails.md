@@ -1,0 +1,1 @@
+- One-shot `property_own_article_v1`: every property whose name starts with its own article (« La … », « Le … », « Les … », « L'… ») and whose stored article differs or was never confirmed takes that article, confirmed. Nothing else is touched.

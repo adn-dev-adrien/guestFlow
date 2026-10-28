@@ -87,6 +87,12 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const installmentClause = hasInstallments
     ? `OR EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id AND i.paid = 1 AND i.paidDate >= ? AND i.paidDate < ?)`
     : '';
+  // specs/accounting-books-the-money-collected.md rule 14 — the split frozen when the installment was
+  // collected. A schema without the column (older test fixtures) reads NULL: the live split.
+  const paidSplitCol = hasInstallments && (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_installments)').all().some((c) => c.name === 'paidSplit'); }
+    catch { return false; }
+  })() ? 'paidSplit' : 'NULL AS paidSplit';
   const installmentCols = hasReservationColumn('installmentsPaidAmount')
     ? 'r.installmentsPaidAmount, r.installmentsUnpaidAmount'
     : '0 AS installmentsPaidAmount, 0 AS installmentsUnpaidAmount';
@@ -187,7 +193,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         // One encaissement per installment collected in the month (specs/direct-installments.md): the plan
         // replaces the acompte and the solde, so these are the pre-arrival money of such a stay.
         if (hasInstallments) {
-          const plan = database.prepare('SELECT number, amountCents, paidDate, paid FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(row.id);
+          const plan = database.prepare(`SELECT number, amountCents, paidDate, paid, ${paidSplitCol} FROM reservation_installments WHERE reservationId = ? ORDER BY number`).all(row.id);
           // The tax shares are those of the whole plan, so they add up to the tax once every installment is in.
           const shares = taxShares(Math.round(Number(row.touristTaxTotal || 0) * 100), plan.map((i) => Number(i.amountCents)));
           plan.forEach((installment, index) => {
@@ -545,7 +551,24 @@ function buildInstallmentEntry(row, installment, count, taxShare, perLineData, c
     touristTaxTotal: taxShare,
   };
   const entry = buildEntry(standIn, 'balance', { ...perLineData, hasContribs: false }, commissionContext, taxContext);
-  return entry && { ...entry, kind: 'installment', installment: { number: installment.number, count } };
+  if (!entry) return null;
+  const frozen = parsePaidSplit(installment.paidSplit);
+  if (!frozen) return { ...entry, kind: 'installment', installment: { number: installment.number, count } };
+  // specs/accounting-books-the-money-collected.md rule 14 — collected, so frozen: the split stored at
+  // payment time is booked verbatim, whatever the fiche became since (rule 33 of the export spec).
+  const vatRate = commissionContext && Number.isFinite(Number(commissionContext.vatRate)) ? Number(commissionContext.vatRate) : 10;
+  return {
+    ...entry,
+    kind: 'installment',
+    installment: { number: installment.number, count },
+    taxTtc: frozen.taxCents / 100,
+    fraction: 1,
+    buckets: [
+      bucketFromTtc('accommodation', frozen.accommodationCents / 100, vatRate),
+      bucketFromTtc('options',       frozen.optionsCents / 100,       vatRate),
+      bucketFromTtc('resources',     frozen.resourcesCents / 100,     vatRate),
+    ].filter((b) => b.ht > 0 || b.vat > 0),
+  };
 }
 
 /**
@@ -761,7 +784,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   // floor guarantees the complement covers it, so the credits close on the announced amount.
   const taxTtc = complementIsAdjusted && storedAllocation.tax != null
     ? round2(storedAllocation.tax)
-    : computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc);
+    : computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc, soldeCaptureMatches(row, perLineData));
   const encaissementNetTtc = round2(encaissementTtc - (commissionLine ? commissionLine.ttc : 0));
   // Single global sales VAT rate (specs/single-vat-rate.md) — same one the quote carried.
   const vatRate = commissionContext && Number.isFinite(Number(commissionContext.vatRate))
@@ -987,7 +1010,20 @@ function buildMidStayNoteEntry(row, note, vatRate) {
 // Tax TTC for a given encaissement kind, read from the per-bucket capture columns. Returns 0
 // when the tax was either routed to complement (and this kind isn't 'complement') or
 // already-captured-as-zero (e.g. collectedOnArrival path).
-function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc) {
+// Whether the solde's captured contribs describe the solde as stored: their sum is the encaissement by
+// the capture's conservation invariant. A row whose stored solde no longer matches them (an older shape
+// reduced after payment, accounting-books-the-money-collected rule 11) has no trustworthy frozen tax.
+function soldeCaptureMatches(row, perLineData) {
+  if (row.touristTaxSoldeContribTtc == null || row.accommodationSoldeContribTtc == null) return false;
+  const lines = perLineData
+    ? [...(perLineData.optionLines || []), ...(perLineData.customOptionLines || []), ...(perLineData.resourceLines || [])]
+    : [];
+  const captured = nz(row.accommodationSoldeContribTtc) + nz(row.touristTaxSoldeContribTtc)
+    + lines.reduce((sum, l) => sum + nz(l.soldeContribTtc), 0);
+  return Math.abs(round2(captured) - round2(nz(row.balanceAmount))) <= CONTRIB_RESIDUE_TOLERANCE_TTC;
+}
+
+function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc, soldeFrozen = false) {
   const total = round2(nz(row.touristTaxTotal));
   const cap = Number(encaissementTtc) > 0 ? Number(encaissementTtc) : total;
   if (taxRoutedToComplement) {
@@ -1006,7 +1042,18 @@ function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc)
   // The balance CA is always ≥ the tax (balance = accommodation remainder + tax), so the
   // clamp is only a defensive guard.
   if (kind === 'deposit') return 0;
-  if (kind === 'balance') return round2(Math.min(total, cap));
+  // specs/accounting-books-the-money-collected.md rule 13 — once the solde is paid, the tax it
+  // collected is frozen in `touristTaxSoldeContribTtc` (plus the share an older acompte captured,
+  // reclassed here). A tax that rises afterwards never rewrites that entry: the growth is collected —
+  // and booked — by the arrival complement. A solde paid before contribs existed, or whose contribs no
+  // longer describe it, keeps the live total.
+  const frozenInSolde = soldeFrozen && Number(row.balancePaid || 0) === 1
+    ? round2(nz(row.touristTaxAcompteContribTtc) + nz(row.touristTaxSoldeContribTtc))
+    : null;
+  if (kind === 'balance') return round2(Math.min(frozenInSolde != null ? frozenInSolde : total, cap));
+  if (kind === 'complement' && frozenInSolde != null) {
+    return round2(Math.min(Math.max(0, total - frozenInSolde), cap));
+  }
   return 0;
 }
 
@@ -1080,6 +1127,19 @@ function sumComplementContribution(lines, remainingMidStay = {}, isCustom = fals
 
 function sumContribField(lines, field) {
   return (lines || []).reduce((sum, line) => sum + nz(line[field]), 0);
+}
+
+// The `paidSplit` JSON the core stores on a collected installment (utils/installmentPaidSplit.js);
+// anything unreadable reads as « no frozen split ».
+function parsePaidSplit(raw) {
+  if (!raw) return null;
+  try {
+    const split = JSON.parse(raw);
+    const keys = ['taxCents', 'accommodationCents', 'optionsCents', 'resourcesCents'];
+    return split && keys.every((k) => Number.isInteger(split[k])) ? split : null;
+  } catch {
+    return null;
+  }
 }
 
 function nz(value) { return value == null ? 0 : Number(value); }

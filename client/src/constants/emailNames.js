@@ -12,6 +12,7 @@ export const EMAIL_DISPLAY_NAMES = Object.freeze({
   full_request: 'Demande de paiement',
   balance_request: 'Demande de solde',
   balance_reminder: 'Rappel de solde',
+  installment_request: 'Demande d’échéance',
   arrival_reminder_7d: 'Préparation du séjour',
   arrival_reminder_1d: 'Accès et arrivée',
   guest_thanks_j1: 'Merci et avis',

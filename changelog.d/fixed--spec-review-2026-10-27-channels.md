@@ -1,0 +1,12 @@
+- Approving an iCal cancellation keeps the deleted stay's history, the « Suppression iCal approuvée » line included: `reservation_history` no longer cascades with the reservation.
+- Reminding a platform reservation is refused as a platform reservation (400 `PLATFORM_RESERVATION`) even when no payment provider is connected, instead of 409 `NO_PAYMENT_PROVIDER`.
+- The logement's « Plateformes » tab shows display names (« Gîtes de France », « Direct ») instead of the stored keys.
+- Paramètres › Plateformes shows every column from 1280 px (compact table, the colour beside the name, one-line headers) and its cards below; « Sans corvées » is no longer hidden behind an inner scroll.
+- Saving Paramètres › Plateformes judges « Compté comme vente directe » on the saved state: ticking it together with « Sans corvées » no longer stores a hidden chore-free flag.
+- A platform first used by a reservation, an intake or an import appears on Paramètres › Plateformes at once, without a restart.
+- `BookingCom`, « Booking.com » or `gites-de-france` sent for an iCal source (or typed in « Ajouter une plateforme ») land on the existing Booking / Gîtes de France platform and source instead of creating duplicates.
+- The iCal export is RFC 5545 conformant: all-day `DTSTART;VALUE=DATE` / `DTEND;VALUE=DATE` and a UTC date-time `DTSTAMP`; the exported dates are unchanged.
+- Plugin SDK 2.7.0: `ctx.core.reservations.update(id, patch, { client })` creates the guest's client in the same transaction as the update.
+- plugin:airbnb-intake A fiche GuestFlow refuses no longer leaves an orphan guest client behind.
+- plugin:gites-de-france-intake A fiche GuestFlow refuses no longer leaves an orphan guest client behind.
+- plugin:booking-intake A fiche GuestFlow refuses no longer leaves an orphan guest client behind.

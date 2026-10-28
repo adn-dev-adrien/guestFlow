@@ -256,6 +256,7 @@ function seedBathLinen(db, { price = 4, priceType = 'per_person' } = {}) {
 // The « réglé en fin de séjour » path that wrote a parallel billing line is gone, and every commit
 // erases what it left behind.
 
+// specs/sas-bath-linen-upsell.md rules 6 + 8 — the upsell rides the arrival complement, never the end of stay.
 test('commitArrivalSas: never writes a bath-linen line into the end-of-stay complement', () => {
   const db = makeDb();
   seedBathLinen(db);
@@ -270,6 +271,7 @@ test('commitArrivalSas: never writes a bath-linen line into the end-of-stay comp
   assert.deepEqual(opts, [{ optionId: 60, totalPrice: 12, inComplement: 1, sasArrivalOrigin: 1 }]);
 });
 
+// specs/sas-bath-linen-upsell.md rule 8 — a legacy deferred line is removed on re-commit, the amount recomputed.
 test('commitArrivalSas: drops a legacy ghost line even when the bath-linen step is not part of the run', () => {
   const db = makeDb();
   seedBathLinen(db);
@@ -301,6 +303,7 @@ test('commitArrivalSas: leaves a ghost-free end-of-stay complement untouched, an
   assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((l) => l.label), ['Ménage de fin de séjour']);
 });
 
+// specs/sas-bath-linen-upsell.md rule 9 — the departure commit keeps a legacy line with its source tag, counted.
 test('commitDepartureSas: preserves an arrival-added bath-linen line (source tag) sent back in the detail', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -337,7 +340,7 @@ test('commitDepartureSas: caution returned + end-of-stay complement + detail set
 });
 
 test('commitDepartureSas: cautionReturned=false clears the marker + its date (faithful edit)', () => {
-  // specs/reopen-completed-sas.md §6 — re-opening a departure and un-ticking « caution rendue »
+  // specs/reopen-completed-sas.md rule 6 — re-opening a departure and un-ticking « caution rendue »
   // reverts the marker (e.g. a litige / dégât found after the fact).
   const db = makeDb();
   db.prepare("UPDATE reservations SET cautionReturned = 1, cautionReturnedDate = '2026-06-10' WHERE id = 1").run();
@@ -356,6 +359,29 @@ test('commitDepartureSas: cautionReturned omitted leaves the marker untouched', 
   const r = db.prepare('SELECT cautionReturned, cautionReturnedDate FROM reservations WHERE id = 1').get();
   assert.equal(r.cautionReturned, 1);
   assert.equal(r.cautionReturnedDate, '2026-06-10');
+});
+
+// specs/reopen-completed-sas.md rule 6 — a re-ticked caution keeps the date it was first marked on.
+test('re-commit with the caution still ticked keeps its first date (arrival and departure)', () => {
+  const db = makeDb();
+  db.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = '2026-06-01', cautionReturned = 1, cautionReturnedDate = '2026-06-10' WHERE id = 1").run();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cautionReceived: true });
+  model.commitDepartureSas(1, { cautionReturned: true, endOfStayComplementAmount: 0 });
+  const r = db.prepare('SELECT cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate FROM reservations WHERE id = 1').get();
+  assert.deepEqual(r, { cautionReceived: 1, cautionReceivedDate: '2026-06-01', cautionReturned: 1, cautionReturnedDate: '2026-06-10' });
+});
+
+// specs/reopen-completed-sas.md rule 7 — a re-commit refreshes `…SasDoneAt`; the SAS never reverts to « not done ».
+test('re-commit refreshes the done timestamps and never clears them', () => {
+  const db = makeDb();
+  db.prepare("UPDATE reservations SET arrivalSasDoneAt = '2026-01-01 08:00:00', departureSasDoneAt = '2026-01-02 08:00:00' WHERE id = 1").run();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cautionReceived: false, complementItems: [] });
+  model.commitDepartureSas(1, { cautionReturned: false, endOfStayComplementAmount: 0 });
+  const r = db.prepare('SELECT arrivalSasDoneAt, departureSasDoneAt FROM reservations WHERE id = 1').get();
+  assert.ok(r.arrivalSasDoneAt && r.arrivalSasDoneAt > '2026-01-01 08:00:00', r.arrivalSasDoneAt);
+  assert.ok(r.departureSasDoneAt && r.departureSasDoneAt > '2026-01-02 08:00:00', r.departureSasDoneAt);
 });
 
 // specs/arrival-departure-sas.md rule 19

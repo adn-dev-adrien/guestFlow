@@ -235,8 +235,9 @@ remaining the single source of truth for prices, availability, and validation.
 31. **The booking request carries a proof of work** (2026-10-27, plugin 1.18.0,
     [public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rules 1-5 and 13).
     The proxy relays `GET /wp-json/guestflow/v1/booking-requests/challenge` to the fixed upstream
-    path, `Cache-Control: no-store`. The block asks for a challenge when its form is built and solves
-    it in a Web Worker (`assets/pow-worker.js` + `assets/pow.js`, plain JavaScript, no library, no
+    path, `Cache-Control: no-store`. The block asks for a challenge once its contact form is in view
+    (IntersectionObserver) or touched — never when the form is built, so a page view costs nothing
+    (changed at the 2026-10-27 spec review, rule 29 of that spec) — and solves it in a Web Worker (`assets/pow-worker.js` + `assets/pow.js`, plain JavaScript, no library, no
     CDN; slices on the page when no Worker starts). The button reads « Vérification… » only when the
     guest submits before it is solved; the request waits out GuestFlow's 3-second minimum, a challenge
     older than 14 minutes is re-fetched, a fresh one is prepared after every send, and a
@@ -248,7 +249,9 @@ remaining the single source of truth for prices, availability, and validation.
     receipt — no payment is offered, the page reads « Votre demande du <date> a déjà été transmise :
     votre message a été ajouté. » (`messageAdded`), « … a été mise à jour. » or « Demande reçue. Nous
     vous recontactons rapidement. »; the message field stops at 2 000 characters. A `messageAdded`
-    answer never starts a payment, even with a token (rule 27 of the same spec).
+    answer never starts a payment, even with a token (rule 27 of the same spec); since the 2026-10-27
+    spec review any answer carrying a boolean `messageAdded` is message-only, and `messageAdded: false`
+    (the message cap was reached, rule 30) reads « Demande reçue. Nous vous recontactons rapidement. ».
 
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings

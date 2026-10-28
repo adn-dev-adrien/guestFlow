@@ -120,10 +120,11 @@ test('the requalification avoir is not a refund to the guest — no money went b
   db.close();
 });
 
+// specs/payment-schedule-and-cancellation.md rule 48 — nothing collected reads `unpaid_deposit`.
 test('an acompte never collected requalifies nothing (rule 27)', () => {
   const { db, deps } = seed({ depositPaid: 0 });
   const out = cancel(deps);
-  assert.equal(out.cancellationReason, 'unpaid_balance');
+  assert.equal(out.cancellationReason, 'unpaid_deposit');
   assert.equal(out.retainedDepositAmount, 0);
   assert.equal(out.refundId, null);
   assert.equal(out.compensationId, null);

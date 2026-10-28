@@ -35,8 +35,10 @@ function resolveCancellationReason(row) {
   // An installment plan replaces the solde (specs/direct-installments.md rule 5): what it still owes is one.
   const balanceUnpaid = (Number(row.balanceAmount || 0) > 0 && !Number(row.balancePaid))
     || Number(row.installmentsUnpaidAmount || 0) > 0;
-  if (balanceUnpaid) return 'unpaid_balance';
+  // Nothing collected at all is an unpaid acompte, the first money missing — not an unpaid solde
+  // (payment-schedule-and-cancellation rule 36, fixed at the 2026-10-27 spec review).
   if (depositUnpaid) return 'unpaid_deposit';
+  if (balanceUnpaid) return 'unpaid_balance';
   return 'manual';
 }
 
@@ -56,7 +58,9 @@ function installmentsRetainedOf(installmentsModel, id, row) {
   plan.forEach((installment, index) => {
     if (Number(installment.paid) !== 1) return;
     amountCents += Number(installment.amountCents);
-    retainedTaxCents += shares[index];
+    // Rule 47 — the share frozen when it was collected is the one the books hold.
+    const frozen = typeof installmentsModel.paidSplitOf === 'function' ? installmentsModel.paidSplitOf(installment.id) : null;
+    retainedTaxCents += frozen ? frozen.taxCents : shares[index];
   });
   return { amountTtc: amountCents / 100, touristTaxTtc: retainedTaxCents / 100 };
 }

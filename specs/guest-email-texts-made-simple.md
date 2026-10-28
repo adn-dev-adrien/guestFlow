@@ -541,6 +541,32 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     click, a tap or a key in it), « + Variable » appends the variable at the end of the text, after a
     space when the text does not already end in one; once it has, the variable lands at the caret.
 
+47. **The property page applies rule 30 too** (fixed at the 2026-10-27 spec review). Only the start
+    assistant derived the article: a property created from Logements as « La Bergerie » was stored « au »,
+    unconfirmed, and its guests read « votre séjour au La Bergerie »; the page's select offered the five
+    articles (« à l'La Bergerie », « aux La Bergerie »…). Now `propertiesModel.create` / `update` set a name's
+    own article, confirmed, whatever the form sent; a create without an article starts from the guess of
+    `propertyArticle.derive`, unconfirmed. `GET /api/properties/article-labels` returns
+    `propertyArticle.choices(name)` — the one article of « La Bergerie », the four or five of any other
+    name — and the select shows that single choice selected. A one-shot boot repair
+    (`property_own_article_v1`, `utils/propertyOwnArticleRepair.js`) corrects every stored property whose
+    name holds its article and whose article differs or was never confirmed. **By design** (accepted at
+    the adversarial review of the 2026-10-27 fixes): the own article of a name starting with « Le », « La »,
+    « Les » or « L' » overrides any other choice, even one the operator had confirmed — « La Bergerie »
+    stored « à » and confirmed is rewritten « La » by a save and by the boot repair; the article lives in
+    the name.
+48. **The history and the pending list use the names of rule 44** (fixed at the 2026-10-27 spec review).
+    `GET /api/emails/history` and `GET /api/emails/pending` named a shipped email by its stored name
+    (« Séquence — J+1 merci et avis »); they now carry its display name (« Merci et avis »). The plain
+    `GET /api/email-templates` list is in stay order (`emailTimeline.compare`), so the history filter and
+    the send dialog list the emails as the guest receives them, no longer by day offset and name.
+49. **The installment request has its name and its moment** (adversarial review of the 2026-10-27 fixes).
+    `installment_request` had no entry in `utils/emailTimeline.js` nor `utils/templateWhen.js`: Emails ›
+    Modèles showed its seed name « Demande de règlement d'une échéance (lien de paiement) », grouped it
+    « Pendant le séjour » and read « Le jour de l'arrivée », editable. It is now « Demande d’échéance »,
+    in « Avant l’arrivée » first (the payment emails of that moment), and its « Quand » is fixed: « À chaque
+    échéance, à la demande ». The client mirror `constants/emailNames.js` (settings search) carries the name too.
+
 ---
 
 ## 4. Architecture
@@ -558,6 +584,7 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `utils/` | `emailTemplateRenderer.js` | T | `structureError`: what the renderer cannot read, refused by the shared validator (rule 27, 2026-10-18) |
 | `utils/` | `propertyFacts.js` | C | The facts left unsaid by the assistant and their answers (rule 28, 2026-10-18) |
 | `utils/` | `propertyArticle.js` | C | The article derived from the name, its contraction, the chips worth offering (rule 30, 2026-10-18) |
+| `utils/` | `propertyOwnArticleRepair.js` | C | Rule 47: the one-shot repair of a stored article its name contradicts |
 | `utils/` | `migrateCgvLinkCondition.js` | C | One-shot wrap of a hand-written CGV sentence in its condition (rule 36, 2026-10-18) |
 | `utils/` | `guestEmailHtml.js` | C | The HTML part derived from the rendered text, `guestEmailMessage` (rules 37–39, 2026-10-19) |
 | `utils/` | `emailService.js` | T | Sends `html` beside `text` when given (rule 37) |
@@ -580,7 +607,9 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `utils/` | `translationCsv.js` | T | Exposes `cell`, `splitRows`, `detectSeparator` (rule 18); formula-safe cells, encoding check (rules 22–23) |
 | `controllers/` | `translationsController.js` | T | Refuses a badly encoded file (rule 23) |
 | `models/` | `emailTextsModel.js` | C | The one key space of every editable sentence: list, validate, apply in one transaction, marks |
-| `models/` | `stayFactsModel.js`, `propertiesModel.js` | T | Arrival facts in the email context; an article sent by a form is confirmed |
+| `models/` | `stayFactsModel.js`, `propertiesModel.js` | T | Arrival facts in the email context; an article sent by a form is confirmed; a name holding its article sets it, confirmed (rule 47) |
+| `controllers/` | `propertiesController.js` | T | Rule 47: `article-labels` returns the choices worth offering |
+| `controllers/` | `emailsController.js`, `emailTemplatesController.js` | T | Rule 48: display names in the history and the pending list; the template list in stay order |
 | `controllers/` | `propertyArrivalFactsController.js` | C | `GET/PUT /api/properties/:id/arrival-facts` |
 | `controllers/` | `emailTemplatesController.js` | T | Shared validation (rule 11), `GET /:id/variables`, `textsSection` (rule 12) |
 | `controllers/` | `onboardingController.js` | T | `emails` block and `PUT /api/onboarding/emails` (rule 21) |
@@ -588,8 +617,8 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
 | `utils/` | `templateTokens.js` | T | `closestVariable`: the suggestion of a refusal (rule 41); sections named by purpose with their « Quand » (rule 44); the private tag characters refused (rule 45) |
 | `utils/` | `previewTags.js` | C | Tags a stored text with its key, splits a tagged rendering into segments and plain text (rule 45) |
 | `utils/` | `emailDraftPreview.js` | T | Tags every stored text inside the rolled-back transaction; answers `segments`, `subjectKey`, `toTranslate` (rules 42, 45) |
-| `utils/` | `templateWhen.js` | T | The « Quand » sentence, whether its number is editable, and the reading of a typed sentence (rule 43) |
-| `utils/` | `emailTimeline.js` | C | One name per email and its moment; the timeline in stay order (rule 44) |
+| `utils/` | `templateWhen.js` | T | The « Quand » sentence, whether its number is editable, and the reading of a typed sentence (rule 43); the installment request's fixed sentence (rule 49) |
+| `utils/` | `emailTimeline.js` | C | One name per email and its moment; the timeline in stay order (rule 44); the installment request's name and moment (rule 49) |
 | `utils/` | `dateFr.js` | T | `weekdayLabel` — « mercredi 21 octobre » (rule 43) |
 | `models/` | `emailTextsModel.js` | T | `countToTranslate` (rule 42); subjects described by the email's name (rule 44) |
 | `models/` | `emailTemplatesModel.js` | T | `nextStay` — the stay of the « Quand ? » example (rule 43) |
@@ -749,6 +778,10 @@ See the summary page.
 ## 7. Test plan
 
 **Server unit tests:**
+- `property-own-article.unit.test.js` (new, 5, 2026-10-27) — rule 47: « La Bergerie » created from the
+  page reads « à la », confirmed; a guess stays unconfirmed; a rename to « Les Pins »; the choices; the
+  one-shot repair. `property-article-ambiguous-initial` now asserts the choices the page receives.
+- `email-display-names-history.unit.test.js` (new, 3, 2026-10-27) — rule 48;
 - paragraph composition and omission;
 - encryption of the two secrets;
 - the readiness checks, one test per check;
@@ -795,7 +828,7 @@ The `previewWithArticle` helper tests are gone with the helper.
 segments keyed by the page's keys, the preview equal to the real send on four emails × FR/EN, nothing
 persisted, the test send and a real send carry no tag, the characters refused), `email-texts-variable-suggestion`
 (3, rule 41), `email-texts-translate-count` (2, rule 42), `email-template-when-sentence` (3, rule 43),
-`email-templates-timeline` (4, rule 44); `email-texts-page`, `email-texts-csv`, `email-texts-tokens`,
+`email-templates-timeline` (4, rule 44); `email-installment-template-timeline` (3, rule 49, adversarial review of the 2026-10-27 fixes, failed before); `email-texts-page`, `email-texts-csv`, `email-texts-tokens`,
 `email-send-failure-and-when`, `email-mentions`, `stay-texts` follow the new names and the refusal's
 `unknown`. Client `TokenTextField.variables-on-demand` (5, rules 41–42), `EmailTextsSettingsPage.one-language`
 (3, rule 42), `EmailTextsSettingsPage.click-preview` (4, rules 41, 45), `EmailTemplatesPage.when-sentence`

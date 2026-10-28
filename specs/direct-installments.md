@@ -258,6 +258,27 @@ its due date, after the operator validates it.
 - Cancelling a reservation with a plan → open links retired and deactivated; paid installments stay
   in the ledger and are requalified as retained (rule 46).
 
+**Fixed at the 2026-10-27 spec review**
+
+47. **A collected installment keeps the accounting split it was booked with.** Recording an installment
+    as paid (`utils/installmentPayment.recordInstallmentPayment`, every path: the fiche, a paid link, the
+    Finance page) stores its split on the row — `reservation_installments.paidSplit`, JSON
+    `{ taxCents, accommodationCents, optionsCents, resourcesCents }`, adding up to `amountCents`
+    (`utils/installmentPaidSplit.js`): the tourist-tax share of rule 39 as the plan stood, the rest pro rata
+    of the accommodation and the pre-arrival lines. The accounting export books it verbatim, and the
+    cancellation of rule 46 reverses that same tax share. *Why:* the review paid installment 1 (172 € with
+    5,01 € of tax) in October, then added a guest; the October entry became 7,41 € of tax and 149,63 € of
+    accommodation — a month already exported moved
+    (`specs/accounting-books-the-money-collected.md` rule 14).
+48. **A late installment is late on the Finance page too.** An installment the fiche calls « En retard »
+    (rule 14: unpaid three days after its due date, or the guest has arrived — `installmentsModel.listLate`,
+    the collection alert's own read; a covered plan owes nothing, rule 33) is an element of the stay's row
+    in « En retard » (`Échéance n/N`, its amount, its due date, `installmentId`), counted by the tile, its
+    insight and the detail. « Marquer payé » records it through `POST …/installments/:id/payment`.
+    *Why:* `financeModel.overdueOf` only knew the acompte, the solde and the payout, so a stay paid
+    through a plan was never late on Finance while the fiche and the payment deadlines said it was
+    (`specs/finance-dashboard-redesign.md` rule 49).
+
 ---
 
 ## 4. Architecture
@@ -299,6 +320,8 @@ its due date, after the operator validates it.
 | `models/` | `financeModel.js`, `financeDashboardModel.js`; `utils/paymentStatus.js` | T | Rule 45: `totalSejour` counts the plan, one « Encaissé » row per paid installment, `remainingDue` = `remainingToPay` |
 | `utils/` | `cancelReservation.js`, `cancellationRequalification.js`; `controllers/reservationCancellationController.js` | T | Rule 46: the paid installments (and their tax shares) feed the retained avoir + indemnity |
 | `database.js` | `database.js`, `schema.sql` | T | Table, `payment_links` CHECK + column, queue/log occurrence key, stay aggregates (§5) |
+| `utils/` | `installmentPaidSplit.js` (C), `installmentPayment.js`, `installmentsMigration.js`; `models/installmentsModel.js` | C/T | Rule 47: the split computed and stored at payment (`setPaidSplit` / `paidSplitOf`), read by the export and the cancellation |
+| `models/` | `financeModel.js` (`overdueOf`, `lateInstallmentsOf`); `installmentsModel.listLate` (+ `count`) | T | Rule 48: late installments in « En retard » |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -379,9 +402,14 @@ CREATE TABLE IF NOT EXISTS reservation_installments (
   amountEdited INTEGER NOT NULL DEFAULT 0,
   addedCents INTEGER NOT NULL DEFAULT 0,
   createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+  paidSplit TEXT,                 -- rule 47, added 2026-10-27 (utils/installmentsMigration.js)
   UNIQUE (reservationId, number)
 );
 ```
+
+- `reservation_installments.paidSplit` (rule 47): the accounting split frozen when the installment is
+  collected, JSON in cents; `NULL` until then. Added by an idempotent `ALTER TABLE` in
+  `installmentsMigration.js`; no backfill (no installment collected in production yet).
 
 - `payment_links`: the `type` CHECK gains `'installment'` and a nullable `installmentId` column.
   SQLite cannot alter a CHECK: the table is rebuilt (create new, copy, swap) inside one
@@ -461,6 +489,9 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `tests/direct-installments-arrival.unit.test.js` (7) — due at arrival, SAS settlement, bank receipts, paid buckets never zeroed (rules 35, 36, 38); rule 37 extends `finance-attribution-date.unit.test.js`
 - [x] `tests/direct-installments-finance-revenue.unit.test.js` (4) — rule 45: the invariant on a plan, summary per property, pace and projection, one « Encaissé » row per installment
 - [x] `tests/direct-installments-cancellation.unit.test.js` (3) — rule 46: avoir 400 @ 10 % + 8 @ 0 %, indemnity 408, nothing collected → nothing booked, tax at arrival → no tax reversed
+- [x] `plugins/accounting-export/tests/accounting-collected-money-frozen.unit.test.js` (2 of 5) — rule 47: an October installment unchanged after a later save; the stored split adds up and keeps the plan's tax share
+- [x] `tests/finance-late-installments.unit.test.js` (3) — rule 48: two late installments as elements, the three-day grace, a covered plan never late
+- [x] `client/src/pages/__tests__/FinancePage.settle-late-installment.test.jsx` (1) — rule 48: « Marquer payé » records each late installment through its endpoint
 
 ### Client tests
 Baseline 2 153 → **2 176** (+23, all green).

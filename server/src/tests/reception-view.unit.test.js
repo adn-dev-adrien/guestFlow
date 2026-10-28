@@ -127,9 +127,9 @@ test('toReceptionReservationView strips prices off séjour option / resource lin
   const view = toReceptionReservationView(FULL_RESERVATION);
   assert.deepEqual(view.options[0], {
     id: 1, optionId: 5, customOptionId: undefined, title: 'Ménage', description: 'Forfait ménage',
-    quantity: 1, autoOptionType: 'cleaning', isCustom: undefined, inComplement: 0, offered: 0, sasArrivalOrigin: 0,
+    quantity: 1, billedUnits: undefined, autoOptionType: 'cleaning', isCustom: undefined, inComplement: 0, offered: 0, sasArrivalOrigin: 0,
   });
-  assert.deepEqual(view.resources, [{ id: 9, resourceId: 4, name: 'Kayak', quantity: 2, inComplement: 1, offered: 1 }]);
+  assert.deepEqual(view.resources, [{ id: 9, resourceId: 4, name: 'Kayak', quantity: 2, billedUnits: undefined, inComplement: 1, offered: 1 }]);
   // No stay-money key survives on a séjour line or a resource line.
   for (const line of [view.options[0], ...view.resources]) {
     for (const priceKey of ['totalPrice', 'unitPrice', 'originalTotalPrice', 'amount', 'acompteContribTtc']) {

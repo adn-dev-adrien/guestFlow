@@ -467,9 +467,11 @@ function createOptionsModel(database) {
     // reservations) are kept; only the per-property DEFAULT rows are removed so the option stops being
     // auto-added to new reservations. Auto-options (autoOptionType) are non-deletable (UI + here).
     remove(id) {
-      const row = database.prepare('SELECT autoOptionType FROM options WHERE id = ?').get(id);
+      const insuranceCol = HAS_OPTION_CANCELLATION_INSURANCE ? 'isCancellationInsurance' : '0 AS isCancellationInsurance';
+      const row = database.prepare(`SELECT autoOptionType, ${insuranceCol} FROM options WHERE id = ?`).get(id);
       if (!row) return { error: 'OPTION_NOT_FOUND', status: 404 };
-      if (row.autoOptionType) {
+      // specs/cancellation-insurance.md rule 14 — the insurance is not deletable, like the typed seeds.
+      if (row.autoOptionType || Number(row.isCancellationInsurance || 0) === 1) {
         return { error: 'AUTO_OPTION_NON_DELETABLE', status: 409 };
       }
       database.transaction(() => {

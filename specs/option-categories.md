@@ -8,6 +8,17 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Updated 2026-10-27 (spec review — drift only).** The **Boissons + Restauration catering seed is
+> gone.** Phase P ([plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) rule 12, PR #672)
+> deleted `server/src/utils/cateringSeed.js` and its call in `database.js`: no boot inserts, re-inserts,
+> adopts or links those 14 articles any more, and a property created later is not linked to them. Rows
+> already seeded on an existing database stay as ordinary operator data. Rules 21–26, §5.2, §5.4 and the
+> seed lines of §4.1 / §5.5 / §7 are therefore **historical** and carry an inline note. What still holds:
+> the `category` / `seedKey` / `alwaysVisible` columns, the grouping (`utils/optionGrouping.js`), the
+> rendering rules, and the two one-shot backfills `option_categories_v1` / `option_breakfast_restauration_v1`
+> (`utils/optionCategoriesMigration.js`, called from `database.js`). `seedKey` is still used by the other
+> structural seeds (`cancellationInsuranceSeed.js`, `babyBedSupplementSeed.js`).
+
 ---
 
 ## 1. Context
@@ -86,6 +97,8 @@ regular catalogue options, editable afterwards like any other.
     option is never folded.
 10. The toggle states what it hides: « Voir les 7 autres » when collapsed, « Réduire » when open.
     A section with nothing pinned shows only its header + « Voir les 9 options » — zero cards.
+    One hidden line reads in the singular: « Voir l’autre » / « Voir l’option » (fixed at the
+    2026-10-27 spec review — the code wrote « Voir les 1 option »).
 11. The section header shows the label and, when > 0, a soft `success` chip with the number of
     **selected** options, e.g. « Boissons ③ ». An `alwaysVisible` option the operator hasn't ticked
     is visible but does **not** count — the chip answers « what am I billing? », not « what is on
@@ -123,6 +136,11 @@ regular catalogue options, editable afterwards like any other.
 
 ### Seeded catalogue (Boissons + Restauration)
 
+> **Superseded 2026-10-27 (noted at the spec review; removed by phase P rule 12, #672).** Rules 21–26
+> describe a seed that no longer exists — `cateringSeed.js` is deleted. Kept for history and because
+> rows it created on existing databases remain. A new database starts with no Boissons / Restauration
+> articles; the operator creates them like any other option.
+
 21. The §5.4 articles are created as ordinary catalogue options: `priceType = 'per_stay'` (unit
     price × operator-entered quantity), `displayToClient = 1`, linked to **both** properties,
     `category` = `Boissons` or `Restauration`.
@@ -148,6 +166,7 @@ regular catalogue options, editable afterwards like any other.
     retires one.
 26. Seeded prices are the **selling prices** of column 6 of the price list (the bold amounts), not
     the cost or the margin columns.
+    _(Rules 21–26: superseded 2026-10-27 — see the note above.)_
 
 ### Category backfill
 
@@ -171,6 +190,7 @@ regular catalogue options, editable afterwards like any other.
 - Category label containing only spaces → normalized to `''` on write (rule 6), i.e. ungrouped.
 - A seeded article renamed by the operator, then a new property is created → the seed links the
   renamed row (matched by `seedKey`) to the new property; it does not re-insert the original title.
+  _(Superseded 2026-10-27: no seed runs any more; a new property is linked to no catering article.)_
 
 ---
 
@@ -197,13 +217,13 @@ regular catalogue options, editable afterwards like any other.
 | `controllers/` | `optionsController.js` | — | (none — thin pass-through already) |
 | `controllers/` | `public/publicCatalogController.js` | T | `listOptions` returns the grouped shape instead of a flat array |
 | `models/` | `optionsModel.js` | T | `category` / `seedKey` / `alwaysVisible` in the projections, `create`, `update`; `persistCategory` + `persistAlwaysVisible` guarded writes; `ORDER BY category, title` |
-| `models/` | `propertiesModel.js` | T | `getByIdWithDetails` adds `property.optionGroups` (visibility-filtered, grouped) + lazy-links the catering catalogue to a property created after boot |
+| `models/` | `propertiesModel.js` | T | `getByIdWithDetails` adds `property.optionGroups` (visibility-filtered, grouped). ~~+ lazy-links the catering catalogue to a property created after boot~~ _(removed by phase P, noted 2026-10-27)_ |
 | `utils/` | `optionGrouping.js` | **C** | Pure: `normalizeCategory` + `isPinnedOption` + `groupOptionsByCategory(options, enabledIds)` → `{ ungrouped, groups: [{ category, options, pinned, foldable, enabledCount }] }` + `listCategories` (rules 2-3, 9, 9bis) |
-| `utils/` | `cateringSeed.js` | **C** | The §5.4 definitions (Boissons + Restauration) + the structural seeder (rules 21-26), built on the `bedLinenSeed.js` skeleton |
+| `utils/` | ~~`cateringSeed.js`~~ | **D** | _Deleted by phase P rule 12 (#672), noted 2026-10-27._ Was: the §5.4 definitions (Boissons + Restauration) + the structural seeder (rules 21-26) |
 | `utils/` | `optionCategoriesMigration.js` | **C** | The two one-shot backfills (rule 27 + §5.3bis), extracted so they are unit-testable — the house pattern of `zeroBedsWhenNoBedLinenMigration.js` |
 | `utils/` | `publicProjections.js` | T | `toPublicOption` exposes `category` |
 | `middleware/`, `scheduledTasks.js` | — | — | (none) |
-| `database.js` | `database.js` | T | `migrateOptionsColumns()` gains `category`, `seedKey`, `alwaysVisible`; calls `ensureCateringOptions()` beside the other seeds; runs `option_categories_v1` and `option_breakfast_restauration_v1` behind the `migrations` flags |
+| `database.js` | `database.js` | T | `migrateOptionsColumns()` gains `category`, `seedKey`, `alwaysVisible`; ~~calls `ensureCateringOptions()` beside the other seeds~~ (removed by phase P, noted 2026-10-27); runs `option_categories_v1` and `option_breakfast_restauration_v1` behind the `migrations` flags |
 
 `reservationsModel.js` is **not** touched: the fiche reads its catalogue from `property.options`
 (`optionsModel.listForProperty`, a `SELECT o.*`), so `category` flows through already.
@@ -284,6 +304,8 @@ No index: the catalogue is a few dozen rows and is always read in full.
 
 ### 5.2 Structural seed `cateringSeed.js`
 
+> **Superseded 2026-10-27:** the seeder is deleted (phase P rule 12, #672). Description kept for history.
+
 Called from `database.js` beside `ensureDefaultBedLinenOption` / `ensureDefaultBreakfastOption`.
 For each definition of §5.4, in one transaction:
 
@@ -324,6 +346,9 @@ admin.
 
 ### 5.4 Seeded articles
 
+> **Superseded 2026-10-27:** no longer seeded (phase P rule 12, #672). The table records what the
+> deleted seed created on databases that ran it before phase P; those rows stay as operator data.
+
 Source: Adrien's price list. **Column 1 → `title`, column 2 → `description`, column 6 → `price`**
 (the bold selling price). All rows: `priceType = 'per_stay'`, `displayToClient = 1`, both properties.
 Producer names carried from the price-list section headers into the description, so the
@@ -363,7 +388,8 @@ and planning-card configuration are operator-owned and must not be re-asserted.
 - Ids 11-15 → `Animations`, id 16 → `Restauration`. Reversible by hand in the admin.
 - The breakfast option → `Restauration` + pinned. It keeps showing on every fiche exactly as before
   the categories existed; only its position moves.
-- 14 new rows in `options` + 28 in `property_options`. **No reservation is touched, no price is
+- 14 new rows in `options` + 28 in `property_options` _(only on databases booted before phase P; a new
+  database gets none — noted 2026-10-27)_. **No reservation is touched, no price is
   recomputed, no existing total moves.**
 - Rollback: ignore the columns; the seeded articles can be archived from the admin (rule 25).
 
@@ -499,7 +525,8 @@ Options & suppléments
 - [x] `tests/public-options-grouped.unit.test.js` — the public payload has the `{ ungrouped, groups }`
       shape; `displayToClient = 0` options excluded **before** grouping; an all-hidden category
       produces no group (rule 14); price-ascending order preserved inside a group.
-- [x] `tests/catering-seed.unit.test.js` — inserts all 14 articles with the right
+- [x] ~~`tests/catering-seed.unit.test.js`~~ _(deleted with the seed by phase P, noted 2026-10-27; the
+      E2E `option-categories.spec.js` now seeds the catalogue it needs)_ — inserts all 14 articles with the right
       title/description/price/priceType/category/seedKey; a second run inserts nothing; a **renamed**
       article is not duplicated (rule 23); a **same-titled pre-existing** option is adopted, not
       duplicated (rule 24); an **archived** article is not resurrected (rule 25); every article is

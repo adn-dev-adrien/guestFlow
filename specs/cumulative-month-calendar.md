@@ -81,12 +81,19 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    `CumulativeMonthCalendar` (no duplication, identical behaviour), replacing its old per-logement
    mini-calendars. Only the navigation callbacks differ (origin `'/'`).
 10. Drilling into a single logement's full calendar stays via the toolbar's property selector (unchanged).
+11. **A month added above keeps the view still** (fixed at the 2026-10-27 spec review). When the scroll
+    adds a month above the first one, the view moves by exactly what that month pushed the first one
+    down — measured on the first month's anchor, not on the scroller's total height. On a phone both
+    edges are near at load, a month is added at each end in the same commit, and the height-based delta
+    counted the months appended below too: the view landed ~180 px past the current month and its first
+    stay hid under the sticky « Octobre 2026 » label. (Rule 6 of the per-property calendar uses the same
+    hook and gets the same correction.)
 
 ## 4. Architecture
 | Layer | File | Responsibility |
 |---|---|---|
 | components | `CumulativeMonthCalendar.js` (new) | Self-contained: reuses `useInfiniteMonthScroll`, incrementally fetches each visible month's reservations **+ closures** (merged by id), normalises them (`normalizeItems`), computes the week/lane layout grouped by logement with half-day reservation edges (`buildMonthLayout`), renders stacked month blocks + bars + legend. Render-only; reuses `getPlatformColor`. |
-| hooks | `useInfiniteMonthScroll.js` | Reused as-is (a truthy sentinel keeps its scroll effects active outside the per-property flow). |
+| hooks | `useInfiniteMonthScroll.js` | Reused (a truthy sentinel keeps its scroll effects active outside the per-property flow). Since 2026-10-27 (rule 11) a prepend keeps the former first month's anchor still on screen instead of adding the scroller's whole growth. |
 | pages | `CalendarPage.js` | Replace `SyncedPropertyMiniCalendars` (no-property branch) with `CumulativeMonthCalendar` (props: `onReservationClick`, `onCreateReservation`). |
 | pages | `Dashboard.js` | Replace its `SyncedPropertyMiniCalendars` overview with the **same** `CumulativeMonthCalendar` (callbacks with origin `'/'`). |
 
@@ -120,6 +127,10 @@ endDate`).
 - [x] Unit (`useInfiniteMonthScroll`, 3 tests): one scroll event at the bottom chains short months until the
   scroller is clear of the edge; repeated returns to the bottom keep appending without scrolling away
   first; a zero-height layout stays bounded. (`hooks/__tests__/useInfiniteMonthScroll.edge-chain.test.jsx`)
+- [x] Rule 11 (2026-10-27): a month added above and one below in the same pass leave the former first
+  month where it was on screen. (`hooks/__tests__/useInfiniteMonthScroll.prepend-anchor.test.jsx`.)
+  Browser, 390 px `/calendar`: the current month's label sits at the top of the list and its first stay
+  right under it (was hidden under the label).
 - [ ] _(superseded)_ a stay within one week → one segment on the right
   lane; a stay crossing a week boundary → two segments; two overlapping stays → two lanes.
 - [ ] Manual (dev): the overview shows all logements' reservations as platform-coloured bars on one month;

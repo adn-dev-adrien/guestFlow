@@ -30,7 +30,8 @@ test('history shows current-stay sends, hides past-stay sends, and is reachable 
   setReservationDates(past.id, isoOffset(-10), isoOffset(-8));
 
   seedEmailLog({ reservationId: current.id, renderedSubject: 'CURRENT-STAY-EMAIL', recipientEmail: 'hist@test.fr' });
-  seedEmailLog({ reservationId: past.id, renderedSubject: 'PAST-STAY-EMAIL', recipientEmail: 'hist@test.fr' });
+  // Sent before that arrival: the window counts from the later of the arrival and the send (rule 9).
+  seedEmailLog({ reservationId: past.id, renderedSubject: 'PAST-STAY-EMAIL', recipientEmail: 'hist@test.fr', sentAt: `${isoOffset(-12)} 08:00:00` });
 
   // Reach the history from the sidebar: on /emails the "Emails" submenu auto-expands → click "Historique".
   await page.goto('/emails');
@@ -40,7 +41,7 @@ test('history shows current-stay sends, hides past-stay sends, and is reachable 
   await expect(page.getByRole('heading', { name: 'Historique des emails' })).toBeVisible({ timeout: 10_000 });
 
   // Rolling-window caption present.
-  await expect(page.getByText(/retirés 3 jours après la date d.arrivée/i)).toBeVisible();
+  await expect(page.getByText(/retiré 3 jours après l.arrivée, ou après son envoi/i)).toBeVisible();
 
   // The current-stay send shows; the past-stay send is filtered out.
   await expect(page.getByText('CURRENT-STAY-EMAIL')).toBeVisible({ timeout: 10_000 });

@@ -287,7 +287,9 @@ export default function PricedItemsPage({
             <Stack onClick={() => openDialog(item)} sx={{ cursor: 'pointer', gap: 0.5 }}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>{item[formNameKey] || ''}</Typography>
-                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                {/* A `div`: the price cell may be a block of lines (per-property prices), and a block
+                    inside a <p> is invalid HTML (React DOM-nesting warning, 2026-10-27 spec review). */}
+                <Typography component="div" variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
                   {renderPriceCell ? renderPriceCell(item, properties) : formatCurrency(item.price)}
                 </Typography>
               </Stack>
@@ -298,7 +300,7 @@ export default function PricedItemsPage({
                 .map((col) => ({ key: col.key, value: col.render(item) }))
                 .filter((c) => Boolean(c.value))
                 .map((c) => (
-                  <Typography key={c.key} variant="caption" color="text.secondary">{c.value}</Typography>
+                  <Typography key={c.key} component="div" variant="caption" color="text.secondary">{c.value}</Typography>
                 ))}
               <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
                 <Tooltip title="Modifier">

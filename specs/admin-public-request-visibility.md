@@ -24,10 +24,12 @@ the operator immediately sees and can process requests that arrived from WordPre
 
 ## 3. Functional rules
 
-1. Each devis row whose `requestOrigin === 'public'` shows a **"WordPress"** badge (with a globe icon
-   + tooltip "Demande de réservation reçue depuis le site WordPress").
-2. The Devis list gains an **"Origine"** filter: *Toutes* (default) / *Demandes WordPress* (`public`) /
-   *Devis internes* (`internal` = `requestOrigin` NULL or any non-`public` value).
+1. Each devis row whose `requestOrigin === 'public'` shows a **« Site internet »** badge (`StatusBadge`,
+   info, globe icon) + tooltip « Demande de réservation reçue depuis le site internet ». (Wording
+   aligned on the code at the 2026-10-27 spec review: the operator's word is « site internet », not
+   the CMS behind it.)
+2. The Devis list gains an **"Origine"** filter: *Toutes* (default) / *Demandes du site internet*
+   (`public`) / *Devis internes* (`internal` = `requestOrigin` NULL or any non-`public` value).
 3. The filter is applied **server-side** (`GET /api/devis?requestOrigin=public|internal`), consistent
    with the existing `status` filter.
 4. Devis created in the admin (no `requestOrigin`) are unaffected — no badge, counted as "internes".
@@ -52,7 +54,7 @@ the operator immediately sees and can process requests that arrived from WordPre
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `pages/` | `pages/DevisPage.js` | T | New "Origine" `Select` filter (wired to `requestOrigin` query param) + a "WordPress" `Chip` badge on rows where `requestOrigin === 'public'`. |
+| `pages/` | `pages/DevisPage.jsx` | T | New "Origine" `Select` filter (wired to `requestOrigin` query param) + a « Site internet » `StatusBadge` on rows where `requestOrigin === 'public'`. |
 | `services/` | `api.js` | — | `getDevis(params)` already forwards arbitrary params. |
 
 **Component reuse:** MUI `Chip` / `Select` / `Tooltip` (existing primitives). No new component.
@@ -68,8 +70,8 @@ No change (uses the `reservations.requestOrigin` column from public-api.md).
 
 ## 6. UI / UX
 
-- Devis table: a small outlined **"WordPress"** chip (info color, globe icon) next to the devis number
-  for public requests; tooltip explains the origin.
+- Devis table: a small **« Site internet »** badge (`StatusBadge`, info, globe icon) next to the devis
+  number for public requests; the tooltip explains the origin.
 - A second filter dropdown "Origine" beside the existing "Statut" filter. Responsive: filters stack on
   narrow screens (existing `Stack` behavior).
 
@@ -83,8 +85,9 @@ No change (uses the `reservations.requestOrigin` column from public-api.md).
 - [x] Full client suite green (398). Badge + filter are presentational wiring over the existing list.
 
 ### Manual UI verification
-- [ ] Submit a booking request via the public API → it appears in the Devis list with the WordPress
-  badge; the "Origine → Demandes WordPress" filter narrows to it. *(pending — needs the running app.)*
+- [ ] Submit a booking request via the public API → it appears in the Devis list with the « Site
+  internet » badge; the « Origine → Demandes du site internet » filter narrows to it. *(pending — needs
+  the running app.)*
 
 ## 8. Out of scope
 

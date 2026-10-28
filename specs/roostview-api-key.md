@@ -32,6 +32,11 @@ Roostview connects with its own key, which can only read; the site's key is unto
 4. A Roostview call is its own visitor: the `X-GuestFlow-Visitor-*` headers the proxy relays are
    ignored for it, so the per-visitor rate limiter counts Roostview's own address.
 5. Fail closed: an empty or absent `ROOSTVIEW_API_KEY` matches nothing.
+6. **Rule 2 is judged on the path under `/public/v1`** (fixed at the 2026-10-27 spec review). Since the
+   public chain is mounted once per prefix (`plugins/website-booking/routes/index.js`, plugins phase 2),
+   `req.path` is only what follows the prefix (`/`, `/1`): the key matched none of its reads and
+   answered 403 on every route. `roostviewMayCall` now rebuilds the path from `req.baseUrl + req.path`
+   and strips `/public/v1`.
 
 **Edge cases:**
 - Both keys configured to the same value → the call is treated as the site's (full rights); the
@@ -45,7 +50,7 @@ Roostview connects with its own key, which can only read; the site's key is unto
 ### Server
 | Layer | File | Change |
 |---|---|---|
-| `middleware/` | `middleware/requirePublicApiKey.js` | Recognises the caller (`site` / `roostview`), sets `req.publicApiCaller`, enforces rule 2. |
+| `middleware/` | `middleware/requirePublicApiKey.js` | Recognises the caller (`site` / `roostview`), sets `req.publicApiCaller`, enforces rule 2 on the full path (rule 6). |
 | `middleware/` | `middleware/visitorContext.js` | Rule 4: no relayed visitor for Roostview. |
 | entry | `index.js` | `getOrCreateSecret('ROOSTVIEW_API_KEY')` at boot. |
 
@@ -73,6 +78,10 @@ None in GuestFlow. The operator copies `ROOSTVIEW_API_KEY` from `.env.local` int
 - [x] `tests/require-public-api-key.unit.test.js` — Roostview key reads the catalogue/availability/quote; 403
       on booking requests, terms, plugin update, POST on properties; site key unchanged and told apart;
       fail closed; no relayed visitor for Roostview. **(+5 tests)**
+- [x] `plugins/website-booking/tests/roostview-key-mounted.unit.test.js` — rule 6 over HTTP on the REAL
+      per-prefix mounts (controllers stubbed): the six reads answer 200 to the Roostview key; booking
+      requests, the challenge, terms and a POST on properties answer 403; the site key keeps the tree.
+      Failed (403 on every read) before the fix. **(2 tests)**
 
 ## 8. Out of scope
 

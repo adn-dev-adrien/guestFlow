@@ -137,13 +137,13 @@ function setReservationDates(reservationId, startDate, endDate) {
  * Insert a row in `email_log` (specs/email-history-rolling-window.md). Used to exercise the
  * history list + rolling window without an SMTP send.
  */
-function seedEmailLog({ reservationId, templateId = null, status = 'sent', channel = 'smtp', renderedSubject = 'Sujet test', renderedBody = 'Corps test', recipientEmail = 'guest@test.fr' }) {
+function seedEmailLog({ reservationId, templateId = null, status = 'sent', channel = 'smtp', renderedSubject = 'Sujet test', renderedBody = 'Corps test', recipientEmail = 'guest@test.fr', sentAt = null }) {
   return withDb((db) => {
     const res = db.prepare(`
       INSERT INTO email_log
         (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail)
-      VALUES (?, ?, datetime('now'), ?, ?, '', ?, ?, ?)
-    `).run(templateId, reservationId, status, channel, renderedSubject, renderedBody, recipientEmail);
+      VALUES (?, ?, COALESCE(?, datetime('now')), ?, ?, '', ?, ?, ?)
+    `).run(templateId, reservationId, sentAt, status, channel, renderedSubject, renderedBody, recipientEmail);
     return Number(res.lastInsertRowid);
   });
 }

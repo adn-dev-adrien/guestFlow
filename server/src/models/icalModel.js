@@ -46,11 +46,19 @@ function closureSummary(label) {
 // The stamp and the two dates of an event. Stays and closures share the convention — start
 // inclusive, end exclusive — so both columns go in untouched: a closure 2026-11-01 → 2027-03-01 blocks
 // the nights of 1 Nov through 28 Feb and leaves 1 March bookable.
-function eventDateLines(startDate, endDate) {
+//
+// RFC 5545 (2026-10-27 spec review, specs/ical-export-closures.md rule 11): the two dates are all-day
+// values, so they say `;VALUE=DATE` — the dates a platform reads are unchanged — and DTSTAMP is the UTC
+// date-time the feed was generated (§3.8.7.2 types it DATE-TIME; a date alone is invalid there).
+function formatIcalStamp(date) {
+  return `${date.toISOString().slice(0, 19).replace(/[-:]/g, '')}Z`;
+}
+
+function eventDateLines(startDate, endDate, now = new Date()) {
   return [
-    `DTSTAMP:${formatIcalDate(new Date())}`,
-    `DTSTART:${formatIcalDate(new Date(startDate))}`,
-    `DTEND:${formatIcalDate(new Date(endDate))}`,
+    `DTSTAMP:${formatIcalStamp(now)}`,
+    `DTSTART;VALUE=DATE:${formatIcalDate(new Date(startDate))}`,
+    `DTEND;VALUE=DATE:${formatIcalDate(new Date(endDate))}`,
   ];
 }
 
@@ -167,6 +175,6 @@ function createIcalModel(database) {
 
 const defaultModel = createIcalModel(db);
 defaultModel.buildModel = createIcalModel;
-defaultModel.__test = { escapeIcalText, formatIcalDate, RESERVATION_SUMMARY };
+defaultModel.__test = { escapeIcalText, formatIcalDate, formatIcalStamp, eventDateLines, RESERVATION_SUMMARY };
 
 module.exports = defaultModel;

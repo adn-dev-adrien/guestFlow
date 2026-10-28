@@ -1,0 +1,1 @@
+- Deactivating a plugin that an active plugin requires is refused (409 `REQUIRED_BY`, « Nécessaire à … : à désactiver d’abord. »), as uninstalling already was — e.g. « Réservation depuis le site » while « Google Vacation Rentals » is active.

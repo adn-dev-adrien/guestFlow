@@ -15,7 +15,7 @@ vi.mock('../../components/DialogProvider', () => ({ useToast: () => ({ showError
 vi.mock('../../components/sas/ReservationSasDialog', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getProperties: vi.fn().mockResolvedValue([]),
+    getPlanningAlerts: vi.fn().mockResolvedValue({ arrivals: {}, departures: {} }),
     getReservations: vi.fn().mockResolvedValue([]),
     getReservation: vi.fn(),
     getBreakfastPlanningSummary: vi.fn().mockResolvedValue({ breakfastByDate: {} }),
@@ -63,8 +63,8 @@ function renderPage() {
   return render(<MemoryRouter><PlanningPage /></MemoryRouter>);
 }
 
-// The page loads once the server date is known, and again if the properties arrive later (its own
-// behaviour): wait until the counts stop moving, and compare against them.
+// The page loads once the server date is known: wait until the counts stop moving, and compare
+// against them.
 async function settled(...contributions) {
   await waitFor(() => contributions.forEach((c) => expect(c.load).toHaveBeenCalled()));
   await new Promise((resolve) => setTimeout(resolve, 50));

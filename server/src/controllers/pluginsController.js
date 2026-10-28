@@ -478,6 +478,37 @@ function createController(model = defaultModel, deps = {}) {
     return entry;
   }
 
+  // specs/plugins-phase-4-registry.md rule 12 — a plugin another installed plugin requires stays
+  // installed; rule 36 — and stays active while an ACTIVE plugin requires it.
+  function refuseIfRequiredBy(entry, res, { activeOnly = false } = {}) {
+    const others = model.list().filter((r) => r.id !== entry.id && (!activeOnly || r.enabled));
+    const dependents = dependentsOf(entry.id, Object.fromEntries(others.map((r) => [r.id, r.manifest || findPlugin(r.id)])));
+    if (!dependents.length) return false;
+    const names = dependents.map((m) => m.name || nameOf(m.id)).join(', ');
+    const step = activeOnly ? 'désactiver' : 'désinstaller';
+    res.status(409).json({
+      error: 'REQUIRED_BY', requiredBy: dependents.map((m) => m.id), message: `Nécessaire à ${names} : à ${step} d’abord.`,
+    });
+    return true;
+  }
+
+  // Rule 37 — the mirror of rule 36: a plugin is activated only once every plugin it requires is
+  // installed and active, else it would run without what it is built on.
+  function refuseIfRequirementInactive(entry, res) {
+    const row = model.get(entry.id);
+    const manifest = (row && row.manifest) || entry;
+    const inactive = (manifest.requires || []).map((r) => r.id).filter((id) => {
+      const required = model.get(id);
+      return !required || !required.enabled;
+    });
+    if (!inactive.length) return false;
+    const names = inactive.map(nameOf).join(', ');
+    res.status(409).json({
+      error: 'REQUIREMENT_INACTIVE', requires: inactive, message: `Nécessite ${names} : à activer d’abord.`,
+    });
+    return true;
+  }
+
   function refuseIfBlocked(entry, res) {
     const blocker = blockerFor(entry.id, model);
     if (!blocker) return false;
@@ -613,6 +644,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!entry) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       if (refuseIfOutOfPlan(entry, res)) return undefined;
+      if (refuseIfRequirementInactive(entry, res)) return undefined;
       model.setEnabled(entry.id, true);
       return res.json(view(entry));
     },
@@ -622,6 +654,7 @@ function createController(model = defaultModel, deps = {}) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
+      if (refuseIfRequiredBy(entry, res, { activeOnly: true })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       model.setEnabled(entry.id, false);
       return res.json(view(entry));
@@ -635,14 +668,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       const wantsPurge = req.query && (req.query.purge === '1' || req.query.purge === 'true');
       if (wantsPurge && !erasable(entry.id)) return res.status(409).json({ error: 'NOT_ERASABLE' });
-      // specs/plugins-phase-4-registry.md rule 12 — a plugin another installed plugin requires stays.
-      const installedManifests = Object.fromEntries(model.list().filter((r) => r.id !== entry.id)
-        .map((r) => [r.id, r.manifest || findPlugin(r.id)]));
-      const dependents = dependentsOf(entry.id, installedManifests);
-      if (dependents.length) {
-        const names = dependents.map((m) => m.name || nameOf(m.id)).join(', ');
-        return res.status(409).json({ error: 'REQUIRED_BY', message: `Nécessaire à ${names} : à désinstaller d’abord.` });
-      }
+      if (refuseIfRequiredBy(entry, res)) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       if (wantsPurge) {
         try {

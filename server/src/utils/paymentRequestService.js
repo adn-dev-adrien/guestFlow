@@ -12,6 +12,7 @@
 
 const { buildVatItems } = require('./paymentLinkItems');
 const { buildStayLineLabel } = require('./paymentLinkLabel');
+const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = require('./emailTemplateLanguage');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
 // dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
@@ -78,8 +79,13 @@ async function ensurePaymentLink(deps, id, type) {
 
   // touristTaxTotal is carried so the full-payment amount resolver has the tax even on the fallback row
   // (specs/public-online-payment.md — avoids a silent tax-free undercharge if the devis lookup misses).
-  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal FROM reservations WHERE id = ?').get(id);
+  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal, depositPaid, balancePaid FROM reservations WHERE id = ?').get(id);
   if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
+  // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
+  // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
+  const paidBucket = { deposit: ['depositPaid'], balance: ['balancePaid'], full: ['depositPaid', 'balancePaid'] }[type]
+    .some((flag) => Number(r[flag] || 0) === 1);
+  if (paidBucket) throw { httpStatus: 409, error: 'ALREADY_PAID', message: 'Cette échéance est déjà perçue : aucun lien à créer.' };
   const amountCents = resolveAmountCents(id, type, r);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type : devis ou réservation à vérifier.' };
 
@@ -223,7 +229,16 @@ async function sendInstallmentRequest(deps, id, installmentId) {
 }
 const sendingNow = new Set();
 
+// specs/email-language-fr-en.md rule 12 — a mail that cannot leave (no English version for an English
+// guest) is refused before any link is minted at the provider. `englishMissing` is optional in deps.
+function englishMissingRefusal(deps, id, stableKey) {
+  if (!deps.englishMissing || !deps.englishMissing({ reservationId: id, stableKey })) return null;
+  return { httpStatus: 422, body: { error: ENGLISH_VERSION_MISSING, reason: ENGLISH_VERSION_MISSING, message: ENGLISH_VERSION_MISSING_PAYMENT_ACTION } };
+}
+
 async function doSendInstallmentRequest(deps, id, installmentId) {
+  const refused = englishMissingRefusal(deps, id, REQUEST_TEMPLATES.installment);
+  if (refused) return refused;
   const link = await ensureInstallmentLink(deps, id, installmentId);
   const installment = deps.installmentsModel.findById(installmentId);
   const result = await deps.sendTemplate({
@@ -258,6 +273,8 @@ async function sendPaymentRequest(deps, id, requestedType) {
   const stableKey = REQUEST_TEMPLATES[type];
   if (!stableKey) return { httpStatus: 400, body: { error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit/balance/full).' } };
 
+  const refused = englishMissingRefusal(deps, id, stableKey);
+  if (refused) return refused;
   const link = await ensurePaymentLink(deps, id, type); // {httpStatus} throw bubbles to the controller
   const result = await deps.sendTemplate({ reservationId: id, stableKey, paymentLink: link.url, amountCents: link.amountCents });
 

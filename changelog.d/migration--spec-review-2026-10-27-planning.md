@@ -1,0 +1,1 @@
+- New table `breakfast_fallback_done (reservationId, date)` — the « préparé » flag of a breakfast card that has no chosen mornings. Created empty and idempotently at boot; no existing row is touched.

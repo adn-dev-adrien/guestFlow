@@ -8,6 +8,15 @@
 | **Author** | Adrien |
 | **Touches** | `App.js`, `constants/roles.js`, new pages `BillableAmountsPage` / `SeasonsClosuresPage` / `OptionsResourcesPage`, `LinenStockPage`, `SettingsPage` |
 
+> **Updated 2026-10-27 (spec review — drift only).** Rule 1 and §5 no longer describe the app.
+> « Tarifs facturables » is no longer a page nor a submenu entry: `/parametres/tarifs` **redirects** to
+> `/parametres/options-ressources?tab=sas` (the « Facturables au SAS » tab, contributed by the SAS plugin,
+> `client/src/plugins/sas/BillableAmountsTab.jsx`) — or to `/parametres/options-ressources` when the SAS
+> plugin is off (`client/src/App.jsx`); `BillableAmountsPage` is gone. The submenu order of §5 was
+> replaced by [settings-rationalization.md](settings-rationalization.md) rules 2, 24 and 26: « Paramètres »
+> opens a summary page and the submenu is a shortcut menu in four groups (`client/src/constants/settingsMenu.js`).
+> Rules 2–4 (laundry day on the Linge page, the two tabbed merges) still hold.
+
 ---
 
 ## 1. Context
@@ -22,7 +31,9 @@ A shorter, clearer Paramètres submenu where each concern is one findable entry.
 
 ## 3. Functional rules
 
-1. **« Tarifs facturables » becomes its own page** (`/parametres/tarifs`, admin) — the « Prix du linge »
+1. _(Superseded 2026-10-27: `/parametres/tarifs` now redirects to `/parametres/options-ressources?tab=sas`
+   and the entry left the submenu — see the note at the top.)_
+   **« Tarifs facturables » becomes its own page** (`/parametres/tarifs`, admin) — the « Prix du linge »
    (éléments manquants) + « Montants de réparation » (utilisés dans le SAS). Moved out of Paramètres →
    Générale (it was a section there).
 2. **« Jour de blanchisserie » moves to the « Blanchisserie » page** (`/parametres/stock-blanchisserie`),
@@ -40,7 +51,7 @@ The standalone routes (`/options`, `/resources`, `/school-holidays`, `/establish
 
 | Layer | File | C/T | Responsibility |
 |---|---|---|---|
-| pages | `pages/BillableAmountsPage.js` | C | Thin wrapper: `PageActionBar` + the self-contained `SettingsBillableAmountsSection`. |
+| pages | ~~`pages/BillableAmountsPage.js`~~ | C | Thin wrapper: `PageActionBar` + the self-contained `SettingsBillableAmountsSection`. _(Removed — replaced by the SAS plugin's `BillableAmountsTab`; noted 2026-10-27.)_ |
 | pages | `pages/SeasonsClosuresPage.js` | C | Tabs over `SchoolHolidaysPage` / `EstablishmentClosuresPage` (only the active tab is mounted). |
 | pages | `pages/OptionsResourcesPage.js` | C | Tabs over `OptionsPage` / `ResourcesPage`. |
 | pages | `pages/LinenStockPage.js` | T | Now also loads/saves `laundry.weekday` (renders `SettingsLaundrySection`); dirty guard + save bar cover both stock + day. |
@@ -54,6 +65,8 @@ No server / API / data-model change (the moved sections keep their existing endp
 
 - Paramètres submenu, new order: Générale · Logements · **Options & ressources** · Clients ·
   **Vacances & fermetures** · Blanchisserie · **Tarifs facturables** · Paiements · Gestion utilisateur.
+  _(Superseded 2026-10-27 by settings-rationalization rules 2, 24 and 26 — summary page + four-group
+  shortcut menu; no « Tarifs facturables » entry.)_
 - The combined pages put non-sticky `Tabs` above the existing page (which keeps its own header/actions),
   so no sticky-bar overlap. Mobile: tabs scroll, inner pages already responsive.
 

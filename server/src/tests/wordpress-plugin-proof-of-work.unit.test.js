@@ -57,9 +57,14 @@ test('rule 2: the challenge is relayed on a fixed path, never cached', () => {
   assert.match(proxy, /header\('Cache-Control', 'no-store'\)/);
 });
 
-test('rule 2: the drawer starts the work when the form opens, and says « Vérification… » only if it is not done', () => {
+test('rules 2 + 29: the drawer starts the work when the contact form is in view or touched — never at page load — and says « Vérification… » only if it is not done', () => {
   const view = read('blocks', 'booking', 'view.js');
-  assert.match(view, /recompute\(\);\n\s*\/\/[^\n]*\n\s*prepareProof\(\);\n {2}\}/);
+  assert.match(view, /recompute\(\);\n\s*armProof\(\);\n {2}\}/);
+  const arm = view.slice(view.indexOf('function armProof()'), view.indexOf('function currentProof()'));
+  assert.match(arm, /contact\.addEventListener\('focusin', wake\);/);
+  assert.match(arm, /\.observe\(contact\);/);
+  assert.match(arm, /Date\.now\(\) - proof\.receivedAt > CHALLENGE_REFRESH_MS\) prepareProof\(\);/, 'an expired one is fetched afresh');
+  assert.equal((view.match(/^\s*prepareProof\(\);$/gm) || []).length, 1, 'only after a send, never on its own at init');
   assert.match(view, /if \(!entry\.solved\) busy\(GF\.t\('verifying'\)\);/);
   assert.match(view, /new Worker\(GF\.powWorkerUrl\)/);
   assert.match(view, /body\.challenge = p\.challenge;/);
@@ -104,5 +109,6 @@ test('rules 21-22: « message ajouté », a reference-free receipt, and the 2 00
 // Re-review of PR #805 — rule 27: a message-only answer never starts a payment, token or not.
 test('rule 27: the drawer pays only a quote that came back with a token and was not message-only', () => {
   const view = read('blocks', 'booking', 'view.js');
-  assert.match(view, /if \(paying && !noQuote && !data\.messageAdded\) \{/);
+  assert.match(view, /var messageOnly = typeof data\.messageAdded === 'boolean';/);
+  assert.match(view, /if \(paying && !noQuote && !messageOnly\) \{/);
 });
