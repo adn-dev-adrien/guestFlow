@@ -6,8 +6,9 @@
 import React from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box,
-  Typography, Stack, Chip,
+  Typography, Stack, Chip, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 function statusLabel(status) {
   if (status === 'sent') return { label: 'Envoyé', color: 'success' };
@@ -17,10 +18,13 @@ function statusLabel(status) {
 }
 
 export default function EmailLogViewDialog({ open, row, onClose }) {
+  const theme = useTheme();
+  // Full screen on a phone (CLAUDE.md §7 dialog rule; specs/inte-performance.md rule 24).
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   if (!row) return null;
   const status = statusLabel(row.status);
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle>Aperçu de l'email</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>

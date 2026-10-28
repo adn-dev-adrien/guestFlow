@@ -13,7 +13,7 @@ const reservationsModel = require('../models/reservationsModel');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { isReceptionOnly } = require('../constants/roles');
 const { toReceptionReservationView } = require('../utils/receptionView');
-const { frenchDayLabel } = require('../utils/upcomingArrivals');
+const { frenchDayLabel, toArrivalCard, toDepartureRow } = require('../utils/upcomingArrivals');
 const { checkWindow, relativeLabel, windowDays, idsByDate } = require('../utils/planningDays');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -94,8 +94,9 @@ function buildController({
         today: current,
         days: windowDays(from, to, current).map((day) => ({
           ...day,
-          arrivals: stays(arrivals[day.date], read),
-          departures: stays(departures[day.date], read),
+          // The Planning page renders the arrival card and the departure row only (rule 22).
+          arrivals: stays(arrivals[day.date], read).map(toArrivalCard),
+          departures: stays(departures[day.date], read).map(toDepartureRow),
           breakfast: breakfast[day.date] || null,
           optionCards: optionCards[day.date] || null,
         })),
