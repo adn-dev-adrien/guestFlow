@@ -236,6 +236,29 @@ name is always readable or truncated cleanly with the full name on hover.
     `supersededReason`, actor « migration ») and `unsuperseded` (actor = the admin) — shown in the
     fiche's history like any other event.
 
+25. **A duplicate set aside takes no write.** Every route that writes to a stay answers `409
+    { code: 'RESERVATION_SUPERSEDED' }` and writes nothing: the fiche save, the payment marks, the SAS commit and
+    its previews, the arrival payment, refunds, installments, payment links and requests, e-mail send / queue /
+    mark-sent, the cancellation. One shared guard (`utils/reservationReadOnly.js`). A **cancelled** stay keeps
+    its existing behaviour (`specs/payment-schedule-and-cancellation.md` rule 25) and the guard now also closes
+    what was clearly a bug: SAS commit and previews, arrival payment, payment links and requests answer
+    `409 RESERVATION_CANCELLED`; refunds, the plan it was cancelled with and the cancellation e-mails stay possible.
+26. **Only a clear copy is set aside (amends 23).** A hidden stay becomes `superseded` only when it sits within
+    its keeper's dates, one day of slack either side (a longer one would free nights for sale). Every other
+    case — a candidate carrying money, a longer one, two hidden stays on the same nights — is left as it is and
+    both stays are stamped `bookingConflictAt`, which the existing conflict alert shows, with a `reservation_history`
+    entry; the boot log lists the ids. The migration runs after the baseline replay.
+27. **An old built-in colour is not a custom colour.** A per-source colour equal to a built-in default — the current
+    one or the one before rule 6 — is never read as an operator's choice: the boot backfill of `platforms.color`
+    and the colour listing ignore it, so the new palette reaches an install whose sources were created under the old
+    one. Only a colour that is neither (prod: Lodgify `#fec700`) stays custom.
+28. **Overlapping stays stack on the logement calendar.** Their name ribbons take lanes, one below the other, with
+    the lane packing of « Tous » (`buildMonthLayout`); the week row grows by one lane per extra stay. A stay that
+    is over is drawn as on « Tous » and the phone — tint, stripe, ink, no opacity (rule 8).
+29. **A closed fiche is shown, not edited.** The fiche of a cancelled stay or of a duplicate has no Enregistrer,
+    no extra action (nouvelle note, devis, e-mail, demande de solde, annulation), its fields are disabled (a
+    disabled fieldset: keyboard included) and it shows no date-conflict hint.
+
 **Edge cases:**
 - Stay with a disabled iCal source → shown in both calendars (rule 2).
 - Cancelled stay → in neither.
@@ -284,6 +307,8 @@ name is always readable or truncated cleanly with the full name on hover.
 | `utils/` | `supersededDuplicates.js` | C | Pure-SQL helper of the migration: finds the candidates of rule 23 (hidden ∧ overlapping a visible stay ∧ no money), returns `{ superseded: [ids], skippedPaid: [ids], keptVisible: [ids] }`. Unit-tested on its own. |
 | `models/` | `platformsModel.js` | T | `resolveColor` unchanged; `colorMap` / the platform-colour listing add `textColors` (rule 5). |
 | `controllers/` | `platformsController.js` | T | Both colour writers — `setColor` (`PUT /api/platforms/:key/color`) and the bulk `planRow` of `PUT /api/platforms/settings` (today: `HEX_COLOR` only) — call `validateCalendarColor`; a refusal is `400 { error }` / `errors.color` and writes nothing (rule 7). |
+| `utils/` | `reservationReadOnly.js` | C | The one 409 guard of a read-only stay (`RESERVATION_SUPERSEDED` / `RESERVATION_CANCELLED`): `readOnlyRefusal`, route middleware `guardReadOnly`; applied in `routes/reservations.js` (the SAS routes of the plugin included: the core guard answers before the plugin's routes, mounted after), `routes/payments.js` and `emailsController` (rule 25). |
+| `utils/` | `platformColorBackfill.js` | C | The boot backfill of `platforms.color`, extracted from `database.js`; an old built-in colour is not custom (rule 27). |
 | `utils/` | `colorContrast.js` | C | Pure: `contrastRatio(a, b)`, `textColorFor(hex)`, `validateCalendarColor(hex)` (rules 5, 7). |
 | `constants/` | `platformColors.js` | T | New built-in palette (rule 6). |
 | `middleware/` | — | — | (none) |
@@ -395,7 +420,7 @@ Interactive summary: [docs/specs/2026-10-28-calendar-property-parity.html](../do
   label spans each week segment of a stay. The bar keeps the logement picker and loses the arrows;
   « Aujourd'hui » sits in the calendar's toolbar row, as on « Tous ».
 - Phone (`xs`): infinite day agenda (rule 17). Rows 56 px min, the day (« Mer 28 ») left, content right,
-  note button 44 × 44. Each stay is a 28 px ribbon in its colour (rule 21): full width inside the stay,
+  note button 44 × 44. Each stay is a 32 px ribbon in its colour (rule 21): full width inside the stay,
   right half on arrival, left half on departure, both halves on a turnover day; closures hatched,
   devis dashed, past stays tinted.
 - Superseded stay (rule 22): fiche read-only, banner on `warning` soft background « Doublon de la
@@ -434,81 +459,33 @@ any more (the arrows and « Aujourd'hui » move to the calendar's own toolbar, i
 | 3 | `InfiniteMonthScroller`, logement month blocks, per-month cache, no arrows, week label overlay, closure diagonals, phone day agenda with ribbons | 12-19, 21 | yes |
 
 ### Server unit tests
-- [ ] `tests/calendar-property-parity.unit.test.js` — 9 cases: for every logement of a fixture with two
-  logements, three platforms, one `disabled = 1` source, a cancelled stay, a global and a logement
-  closure, the logement range equals the general range filtered by logement (rule 1); the disabled
-  platform's stay is in both (rule 2); `reservationsModel.list({ propertyId })` keeps it (rule 2); the
-  cancelled stay is in neither; payload fields `label` (3 fallbacks), `color`, `textColor`, `past` on the
-  server day (rule 3); 400 on `from > to`, malformed date, > 400 days, unknown logement.
-- [ ] `tests/calendar-colors.unit.test.js` — 8 cases: `contrastRatio` reference pairs; `textColorFor`
-  picks white on `#1B3F8B` and ink on `#F2CC3D` (rule 5); every built-in colour reaches 4.5:1 with its
-  text colour (rule 6); `validateCalendarColor` refuses `red`, `#12345`, `#8F8F8F`-like mid greys
-  (< 4.5 both ways), `#EEEEEE` (< 1.4 on white) with the three messages (rule 7); `setColor` keeps the
-  previous colour on refusal; the platform-colour listing carries `textColors`.
-- [ ] `tests/calendar-parity-superseded.unit.test.js` — 10 cases: the migration sets aside a hidden stay
-  overlapping a visible one, with `supersededByReservationId` = the earliest overlap and a `superseded`
-  history event (rules 23, 24); leaves a hidden stay with no overlap as `reservation`; leaves a hidden
-  duplicate with a paid balance untouched; ignores a hidden stay overlapping only hidden stays; second
-  boot changes nothing (idempotent); fixture shaped like the prod copy (1 duplicate + 9 isolated) →
-  every logement's calendar after = today's set + the isolated ones, minus the duplicate (rule 23);
-  a superseded stay is absent from `/api/calendar`, availability, `list()` and the accounting export,
-  present in `search` with its flag (rule 22); « Rétablir » restores it with an `unsuperseded` event
-  (rule 24) and answers 409 when its dates were booked since (rule 22); the iCal sync leaves a
-  superseded row untouched and inserts no copy (rule 22).
-- [ ] `tests/platforms-and-ical-rework.unit.test.js` — the existing « list excludes a disabled-platform
-  reservation » case is inverted (rule 2); count unchanged.
+- [x] `tests/calendar-property-parity.unit.test.js` — 10 cases: logement range = general range filtered (rule 1); the disabled platform's stay is in both and in `list({ propertyId })` (rule 2); the cancelled stay in neither; `label` (3 fallbacks), `color`, `textColor`, `past` on the server day (rule 3); closures with `global` / `propertyName` / `label`; 400 on `from > to`, malformed date, > 400 days, unknown logement; reception-only whitelist.
+- [x] `tests/calendar-colors.unit.test.js` — 10 cases: `contrastRatio` pairs, `textColorFor` (rule 5); every built-in at 4.5:1 and one hue per platform (rule 6); `validateCalendarColor` with its three messages, the previous colour kept on a refused PUT and a refused bulk save (rule 7); `textColors` in the listing; the boot backfill keeps only Lodgify `#fec700` as custom on the prod-shaped fixture and the listing ignores an old built-in per-source colour (rule 27).
+- [x] `tests/calendar-parity-superseded.unit.test.js` — 13 cases: the set-aside with keeper, reason text and `superseded` history event (rules 23, 24); the prod-shaped fixture (1 duplicate + 9 isolated); idempotent second boot; money, longer-than-keeper and hidden-overlap cases left as they are and both stays flagged (rule 26); keeper = earliest overlap within ±1 day; a superseded stay absent from the calendar, lists, availability and the books but found by search (rule 22); the fiche payload; « Rétablir » with its audit event and 409 (rules 22, 24); the iCal sync never touches it.
+- [x] `tests/calendar-parity-read-only.unit.test.js` — 4 cases: every write path of rule 25 answers 409 `RESERVATION_SUPERSEDED` and writes nothing (an express harness over the real routes and the SAS controller); a live stay is not refused; a cancelled stay stays refused where listed, keeps refunds and the cancellation e-mails.
+- [x] `tests/platforms-and-ical-rework.unit.test.js` — the « list excludes a disabled-platform reservation » case is inverted (rule 2).
 
 ### Client tests (Vitest)
-- [ ] `utils/__tests__/calendarLayout.closure-lane.test.js` — 6 cases: closure shares the lane of a stay
-  ending on its start day (rule 9); closure half-day edges incl. one night (rule 10); two closures packed;
-  global closure stays a column hatch; `weekSegments` of a month-crossing stay; one-night segment width.
-- [ ] `components/__tests__/CumulativeMonthCalendar.solid-bars.test.jsx` — 4 cases: future bar filled
-  with `color`, text `textColor` (rule 4); past bar tinted, ink text, no opacity (rule 8); closure bar
-  label + accessible name, no click handler (rule 11); legend swatches solid.
-- [ ] `components/__tests__/InfiniteMonthScroller.month-cache.test.jsx` — 5 cases: one `loadMonth` call
-  per month across prepends/appends; stale response after a scope change is dropped; scope change
-  empties the cache and keeps the focused month; failed month shows retry, others render; « Aujourd'hui »
-  focuses the current month (rules 13-15).
-- [ ] `components/__tests__/CalendarMonthGrid.stay-label.test.jsx` — 5 cases: one label per week
-  segment spanning its cells (rule 18); label not height-constrained (no `overflow: hidden` on a shrinking
-  flex child) and with `title`/`aria-label` = full name + platform + dates (rule 19); férié + dots in the
-  top band (rule 20); edge days of a block interactive (rule 16).
-- [ ] `components/__tests__/CalendarDayCell.closure-half-day.test.jsx` — 3 cases: start cell second-half
-  hatch, end cell first-half hatch, end cell's free half starts a selection (rule 12).
-- [ ] `components/__tests__/CalendarDayAgenda.test.jsx` — 4 cases: day rows per month, opens on today,
-  free future day offers « + Nouvelle réservation », infinite scroll appends a month (rule 17).
-- [ ] `components/__tests__/CalendarDayAgenda.ribbons.test.jsx` — 5 cases: mid-stay ribbon full width in
-  `color` / `textColor`; arrival right half with « ↓ » time; departure left half with « ↑ » time;
-  turnover day both halves; past stay tinted, closure hatched (rule 21).
-- [ ] `pages/__tests__/ReservationPage.superseded.test.jsx` — 3 cases: banner with the link, fields
-  read-only, « Rétablir » shown to an admin only and the 409 message surfaced (rule 22).
-- [ ] `pages/__tests__/CalendarPage.property-scroll.test.jsx` — 2 cases: no « Mois précédent / suivant »
-  in the bar (rule 14); switching logement keeps the month in view (rule 15).
-- [ ] `components/__tests__/PlatformColorPicker.refusal.test.jsx` — 2 cases: server message shown,
-  swatch back to the previous colour (rule 7).
-- [ ] Removed with the component: `CalendarWeekView.test.jsx`, `CalendarWeekView.deep-link-week.test.jsx`,
-  `CalendarWeekView.platform-label.test.jsx` (their deep-link and platform-label cases move to
-  `CalendarDayAgenda.test.jsx`). Updated: `CumulativeMonthCalendar.closures-and-bars.test.jsx` (rules
-  13-14 of the 10-19 review superseded), `CalendarDayCell.platform-label.test.jsx`.
+- [x] `utils/__tests__/calendarLayout.closure-lane.test.js` — 10 cases (rules 9, 10, 18).
+- [x] `components/__tests__/CumulativeMonthCalendar.solid-bars.test.jsx` — 7 cases: solid future bar, past tint, closure bar and lane, legend, « Aujourd'hui », keyboard (rules 4, 8, 9, 11, 14).
+- [x] `components/__tests__/InfiniteMonthScroller.month-cache.test.jsx` — 5 cases (rules 13-15).
+- [x] `components/__tests__/CalendarMonthGrid.stay-label.test.jsx` — 8 cases: one ribbon per week segment, never clipped, top band, edge days, past tint, lanes for overlapping stays (rules 8, 16, 18-20, 28).
+- [x] `components/__tests__/CalendarDayCell.closure-half-day.test.jsx` — 6 cases (rule 12).
+- [x] `components/__tests__/CalendarDayAgenda.test.jsx` — 5 cases (rule 17); `CalendarDayAgenda.ribbons.test.jsx` — 6 cases (rule 21).
+- [x] `pages/__tests__/ReservationPage.superseded.test.jsx` — 3 cases: banner, no Save / extra action, disabled fieldset, no conflict hint, « Rétablir » for an admin only with the 409 message (rules 22, 29).
+- [x] `pages/__tests__/CalendarPage.property-scroll.test.jsx` — 3 cases (rules 14, 15).
+- [x] `components/__tests__/PlatformColorPicker.refusal.test.jsx` — 3 cases (rule 7).
+- [x] Removed with the component: the three `CalendarWeekView` suites and the old `CumulativeMonthCalendar` ones; updated: `CalendarPage.property-filter`, `CumulativeMonthCalendar.mobile`, `calendar-platform-colors`.
 
 ### E2E (Playwright)
-- [ ] `e2e/calendar-property-parity.spec.ts` — 3 cases: a stay on a platform « Désactivé » for its
-  logement appears in « Tous » and in the logement (rules 1-2); scrolling up in the logement calendar
-  shows the previous month's title and its stay (rule 13); 390 px: the logement calendar is a day agenda
-  that scrolls into the next month (rule 17).
+- [x] `e2e/specs/calendar/calendar-property-parity.spec.js` — 3 cases (rules 1, 2, 13, 17).
 
-### Manual UI verification (shadow copy, 390 / 900 / 1440 px)
-- [ ] Boot on a fresh copy of `prod-snap.db`: the log names 22279 set aside, Granja shows 31 stays and
-  Estiva 25 in both calendars; 22279's fiche shows the banner, « Rétablir » restores it.
-- [ ] 390 px, Granja, 29 Dec → 2 Jan: ribbons right half / full / left half, readable; turnover day
-  two halves.
-- [ ] La Granja: same stays in « Tous » and « Granja » over 2026; the 29 Dec → 2 Jan name readable or
-  cleanly truncated with tooltip; 25 Dec férié does not cover it.
-- [ ] « Tous », week of 5-11 Oct: the closure of the 11th on the Granja row, after the 9 → 11 stay,
-  half-day edges.
-- [ ] Colours: every platform distinguishable side by side; past weeks tinted.
-- [ ] Paramètres → Plateformes: `#EEEEEE` refused with its message, previous colour kept.
-- [ ] Dashboard: same calendar, no regression; Planning and Réservations unaffected.
+### Manual UI verification (shadow copy, 390 / 900 / 1280 px)
+- [x] Boot on a fresh copy of `prod-snap.db`: the log names 22279 set aside, Granja 31 / Estiva 25 in both calendars, only Lodgify `#fec700` custom.
+- [x] 390 px, Granja, 29 Dec → 2 Jan: ribbons right half / full / left half; turnover day.
+- [x] Granja: same stays in « Tous » and « Granja »; the name readable.
+- [x] « Tous »: the closure on its logement's row, half-day edges.
+- [x] 900 px: Sunday visible on both grids.
 
 ## 8. Out of scope
 
@@ -542,7 +519,7 @@ All three lots shipped together on `feature/calendar-property-parity` (the migra
 | 2 | Done | New palette + `textColors`; `colorContrast.js`; refusals of rule 7 on both colour writers; solid bars, past tint, closure lane items with half-day edges, hatched closure bar. |
 | 3 | Done | `InfiniteMonthScroller` + `useMonthDataCache`; logement month blocks, per-week name ribbons, closure diagonals, `CalendarDayAgenda` with ribbons; `CalendarWeekView` removed. |
 
-**Tests:** server 3 new files (10 + 8 + 11 cases) and 3 updated suites; client 10 new files / 1 updated; E2E `e2e/specs/calendar/calendar-property-parity.spec.js` (3 cases); `check-spec-coverage` 24/24.
+**Tests:** server 4 new files (10 + 10 + 13 + 4 cases) and 3 updated suites; client 10 new files / 3 updated; E2E `e2e/specs/calendar/calendar-property-parity.spec.js` (3 cases); `check-spec-coverage` 24/24.
 
 **Deviations from the draft, and why**
 - The month cache is a hook owned by the page and passed to the scroller (not a `loadMonth` prop of the scroller): the logement page needs every loaded month for its drag guards and date-conflict checks.
@@ -550,3 +527,5 @@ All three lots shipped together on `feature/calendar-property-parity` (the migra
 - Paramètres → Plateformes: the picker shows the server's message under the swatch and returns to the previous colour after a refused save; it does not preview the text colour of a draft colour, because that would need contrast math on the client (rule 5). The text colour of a saved colour comes with the listing.
 - The header search shows « Annulée » as well as « Doublon écarté » (it showed neither before).
 - A note of the day on the logement calendar is printed in the cell's top band (cut by width, full text on hover) now that the ribbon takes the lower part of the cell.
+
+**Review fixes (2026-10-28, rules 25-29)** — the boot colour backfill no longer freezes the old palette as custom colours (rule 27); every write path refuses a duplicate (rule 25); the migration only sets aside a clear copy and flags the rest (rule 26); overlapping stays stack and a past ribbon is a tint (rule 28); a closed fiche is read-only (rule 29); the logement grid keeps `CALENDAR_MIN_WIDTH` (560 px), so Sunday is visible at 900 px.

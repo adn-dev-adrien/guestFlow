@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { getClosureDayParts } from '../utils/closureCalendar';
+import { frRange } from '../utils/calendarLayout';
 import {
   formatDate, shiftDate, timeToHour, hourToPercent,
   getBlockedNightInfo, compactName, closureHatch,
@@ -194,6 +195,7 @@ export default function CalendarDayCell({
     const closure = closureDay ? closureDay.closure : null;
     const cellNode = (
       <Box data-date={dateStr}
+        aria-label={closure ? `${day}, ${closure.label || 'Fermé'}, fermé` : undefined}
         onMouseDown={() => !isPast && onMouseDown(day, y, m)}
         onMouseEnter={() => onMouseEnter(day, y, m)}
         onContextMenu={(e) => { e.preventDefault(); onOpenNote(dateStr); }}
@@ -235,7 +237,7 @@ export default function CalendarDayCell({
     );
     return closure ? (
       <Tooltip
-        title={`${closure.label || 'Fermeture'} — du ${closure.startDate} au ${closure.endDate}`}
+        title={`${closure.label || 'Fermeture'} — ${frRange(closure.startDate, shiftDate(closure.endDate, -1))}`}
         arrow
       >
         {cellNode}

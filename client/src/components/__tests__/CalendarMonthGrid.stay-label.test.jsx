@@ -91,3 +91,20 @@ test('rule 16 — the greyed days of the neighbouring months are real days with 
   fireEvent.mouseEnter(nextMonthDay);
   expect(handlers.onMouseEnter).toHaveBeenCalledWith(2, 2027, 0);
 });
+
+test('rules 8, 28 — a past stay is a tint with a stripe and ink text on the logement calendar too, no opacity', () => {
+  const { container } = renderGrid({ stays: [stay({ past: true })] });
+  const style = getComputedStyle(container.querySelector('[data-ribbon="r7"]'));
+  expect(style.backgroundColor).toBe('rgba(47, 93, 70, 0.14)');
+  expect(style.color).toBe('rgb(39, 37, 31)');
+  expect(style.boxShadow).toMatch(/inset 3px 0 0/);
+  expect(style.opacity).not.toBe('0.55');
+});
+
+test('rule 28 — stays that overlap stack in lanes instead of hiding each other', () => {
+  const stays = [1, 2, 3, 4, 5, 6].map((i) => stay({ id: 100 + i, startDate: '2026-12-08', endDate: '2026-12-11', label: `Guest ${i}` }));
+  const { container } = renderGrid({ stays });
+  const tops = [...container.querySelectorAll('[data-ribbon]')].map((r) => getComputedStyle(r).top);
+  expect(container.querySelectorAll('[data-ribbon]')).toHaveLength(6);
+  expect(new Set(tops).size).toBe(6);
+});

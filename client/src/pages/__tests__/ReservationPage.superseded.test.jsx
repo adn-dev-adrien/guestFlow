@@ -8,6 +8,9 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 
+// The fiche is a big page: its first import is slow on a cold run.
+vi.setConfig({ testTimeout: 30000 });
+
 const showError = vi.fn();
 const showSuccess = vi.fn();
 let role = 'admin';
@@ -63,12 +66,18 @@ beforeEach(() => {
   api.getReservations.mockResolvedValue([]);
 });
 
-test('the banner names the kept stay and links to it; there is no Save', async () => {
+test('rule 29 — the banner names the kept stay and links to it; there is no Save, no extra action, the fields are read-only', async () => {
   open();
   expect(await screen.findByText(/Doublon de la réservation/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'n° 202600014' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Enregistrer' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Annuler le séjour' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Envoyer un email' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Transformer en devis' })).toBeNull();
+  // « + Nouvelle note » lives in the form: disabled with its fieldset.
+  expect(screen.getByRole('button', { name: /Nouvelle note/ })).toBeDisabled();
+  expect(document.querySelector('fieldset').disabled).toBe(true);
+  expect(screen.queryByText('Ce logement est déjà réservé pour ces dates.')).toBeNull();
 });
 
 test('« Rétablir » is offered to an admin, restores, and surfaces the 409 message', async () => {

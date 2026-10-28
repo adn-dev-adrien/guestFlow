@@ -1205,21 +1205,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
       }
     },
 
-    // The property's disabled platform labels (specs/platforms-and-ical-rework.md §3 rule 10) — the
-    // platforms whose bookings are hidden from this property's reservation views. Returns the set of
-    // platform labels + keys (lowercased) so callers can match `reservations.platform` either way.
-    disabledPlatformLabels(propertyId) {
-      const rows = database.prepare(
-        "SELECT platformLabel, platformKey FROM ical_sources WHERE propertyId = ? AND disabled = 1"
-      ).all(propertyId);
-      const set = new Set();
-      for (const r of rows) {
-        if (r.platformLabel) set.add(String(r.platformLabel).toLowerCase());
-        if (r.platformKey) set.add(String(r.platformKey).toLowerCase());
-      }
-      return [...set];
-    },
-
     // specs/ical-import-hardening.md rule 4 — every feed is fetched at once, then applied one after the
     // other in id order, as before: a slow platform costs one timeout, not one per source behind it,
     // and the takeover / cross-source matching keeps seeing the sources in the same order.

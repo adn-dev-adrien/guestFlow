@@ -190,7 +190,14 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
                   <Box
                     {...(closure
                       ? { 'data-closure-bar': item.key, tabIndex: 0, role: 'img', 'aria-label': closureBarLabel(item) }
-                      : { 'data-bar': item.key, onClick: (e) => { e.stopPropagation(); onReservationClick && onReservationClick(item.reservationId); } })}
+                      : {
+                        'data-bar': item.key, role: 'button', tabIndex: 0,
+                        'aria-label': `${item.label} — ${item.platformDisplay || formatPlatformLabel(item.platform)}, ${frRange(item.startDate, item.endDate)}`,
+                        onClick: (e) => { e.stopPropagation(); onReservationClick && onReservationClick(item.reservationId); },
+                        onKeyDown: (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onReservationClick && onReservationClick(item.reservationId); }
+                        },
+                      })}
                     sx={{
                       position: 'absolute', left, width, top, height: BAR_VISIBLE_H,
                       ...radius,
@@ -202,7 +209,7 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
                           border: '1px solid', borderColor: alpha(theme.palette.text.primary, 0.25),
                           '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 },
                         }
-                        : { cursor: 'pointer', transition: 'filter 120ms ease-out, background-color 120ms ease-out', ...stayBarSx(item) }),
+                        : { cursor: 'pointer', '&:focus-visible': { outline: '2px solid', outlineColor: 'text.primary', outlineOffset: 1 }, transition: 'filter 120ms ease-out, background-color 120ms ease-out', ...stayBarSx(item) }),
                     }}
                   >
                     <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>

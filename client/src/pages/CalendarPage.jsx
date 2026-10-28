@@ -7,7 +7,7 @@ import {
 import PageActionBar from '../components/PageActionBar';
 import ErrorAlert from '../components/ErrorAlert';
 import SegmentedSelect from '../components/SegmentedSelect';
-import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
+import CumulativeMonthCalendar, { CALENDAR_MIN_WIDTH } from '../components/CumulativeMonthCalendar';
 import InfiniteMonthScroller from '../components/InfiniteMonthScroller';
 import CalendarMonthGrid from '../components/CalendarMonthGrid';
 import CalendarDayAgenda from '../components/CalendarDayAgenda';
@@ -459,7 +459,7 @@ export default function CalendarPage() {
             initialMonth={openingMonth}
             onVisibleMonthChange={(month) => { visibleMonthRef.current = month; }}
             todaySelector="[data-today='true']"
-            minWidth={{ xs: 'auto', sm: 680 }}
+            minWidth={{ xs: 'auto', sm: CALENDAR_MIN_WIDTH }}
             renderMonth={renderPropertyMonth}
           />
         </Box>

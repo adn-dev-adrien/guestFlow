@@ -497,6 +497,8 @@ export default function ReservationPage() {
   // server refuses every write on it, so the fiche must not offer any.
   const isCancelledReservation = Boolean(form.cancelledAt);
   const isSupersededReservation = form.kind === 'superseded';
+  // A cancelled stay and a duplicate set aside are history: the fiche only shows them (the server answers 409).
+  const isClosedFiche = isCancelledReservation || isSupersededReservation;
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
@@ -2096,7 +2098,7 @@ export default function ReservationPage() {
   };
 
   const getDateRangeConflictInfo = useCallback((startDate, endDate) => {
-    if (!selectedProp || !startDate || !endDate) return null;
+    if (!selectedProp || !startDate || !endDate || isClosedFiche) return null;
     const excludeId = editingReservationId || excludeReservationIdForDevis;
     return getRangeOccupancyConflictInfo({
       startDate,
@@ -2105,7 +2107,7 @@ export default function ReservationPage() {
       reservations,
       excludeReservationId: excludeId,
     });
-  }, [selectedProp, occupiedDates, editingReservationId, excludeReservationIdForDevis, reservations]);
+  }, [selectedProp, occupiedDates, editingReservationId, excludeReservationIdForDevis, reservations, isClosedFiche]);
 
   // ==================== SAVE & DELETE ====================
   const refreshToCurrentPricing = async () => {
@@ -3254,7 +3256,7 @@ export default function ReservationPage() {
     today: todayStr,
   });
 
-  const actionBarBefore = [
+  const actionBarBefore = isClosedFiche ? [] : [
     ...(midStayNote.visible ? [{
       icon: <PointOfSaleIcon />,
       tooltip: midStayNote.disabled ? midStayNote.reason : 'Nouvelle note (encaissement en séjour)',
@@ -3343,7 +3345,7 @@ export default function ReservationPage() {
     // specs/payment-schedule-and-cancellation.md §3.5 rule 21 — cancelling from the fiche, for the
     // phone call that never turns into a payment. Direct channels only: a platform booking is
     // cancelled through the iCal alert flow (specs/cancellation-compensation.md).
-    ...(!isDevisMode && reservationId && !isPlatformReservation && !isCancelledReservation && !isSupersededReservation
+    ...(!isDevisMode && reservationId && !isPlatformReservation && !isClosedFiche
       ? [{ icon: <EventBusyIcon />, tooltip: 'Annuler le séjour', onClick: () => setCancelDialogOpen(true), color: 'error', disabled: isReservationLocked }] : []),
     ...(!isDevisMode && reservationId
       ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked }] : []),
@@ -3518,7 +3520,7 @@ export default function ReservationPage() {
           </>
         ) : null}
         actionsBefore={actionBarBefore}
-        onSave={isCancelledReservation || isSupersededReservation ? undefined : handleSaveClick}
+        onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
         saveDisabled={saving}
         saveBusy={saving}
@@ -3606,10 +3608,14 @@ export default function ReservationPage() {
           </Box>
         )}
 
+        {/* A closed fiche is shown, not edited: a disabled fieldset makes every field really read-only
+            (keyboard included), not just unclickable. */}
         <Box
+          component="fieldset"
+          disabled={isClosedFiche}
           sx={{
-            position: 'relative',
-            ...(isSupersededReservation ? { opacity: 0.55, pointerEvents: 'none' } : {}),
+            position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,
+            ...(isClosedFiche ? { opacity: 0.55 } : {}),
           }}
         >
 

@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { Box, Tooltip } from '@mui/material';
 import { DAY_NAMES, shiftDate } from '../utils/calendarVisuals';
-import { monthWeekStarts, normalizeItems, weekSegments, frRange } from '../utils/calendarLayout';
+import { buildMonthLayout, monthWeekStarts, normalizeItems, frRange } from '../utils/calendarLayout';
+import { barTint } from '../utils/calendarVisuals';
 import { CELL_TOP_BAND_H } from './CalendarDayCell';
 import { formatPlatformLabel } from '../constants/platforms';
 
@@ -32,6 +33,9 @@ const edgeOffset = (edge, isRight) => (edge % 1 !== 0 ? -GAP / 2 : (isRight ? -G
 export default function CalendarMonthGrid({ year, month, stays, renderCell, onReservationClick }) {
   const items = useMemo(() => normalizeItems(stays, []), [stays]);
   const weekStarts = useMemo(() => monthWeekStarts(year, month), [year, month]);
+  // The lane packing of « Tous » decides which ribbon sits where: two stays that overlap (a conflict the
+  // operator has to see) stack in lanes instead of hiding each other.
+  const { weeks } = useMemo(() => buildMonthLayout(year, month, items, ''), [year, month, items]);
 
   return (
     <Box sx={{ userSelect: 'none' }}>
@@ -40,17 +44,20 @@ export default function CalendarMonthGrid({ year, month, stays, renderCell, onRe
           <Box key={d} sx={{ textAlign: 'center', fontWeight: 700, color: 'text.secondary', fontSize: 12 }}>{d}</Box>
         ))}
       </Box>
-      {weekStarts.map((weekStart) => (
+      {weekStarts.map((weekStart, weekIndex) => (
         <Box
           key={weekStart}
-          sx={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: `${GAP}px`, mb: `${GAP}px` }}
+          sx={{
+            position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: `${GAP}px`,
+            mb: `${GAP + Math.max(0, weeks[weekIndex].laneCount - 1) * (RIBBON_H + GAP)}px`,
+          }}
         >
           {Array.from({ length: 7 }, (_, i) => {
             const date = shiftDate(weekStart, i);
             const [y, mo, d] = date.split('-').map(Number);
             return renderCell(d, y, mo - 1, mo - 1 !== month);
           })}
-          {weekSegments(weekStart, items).map(({ item, leftEdge, rightEdge }) => {
+          {weeks[weekIndex].bars.map(({ item, leftEdge, rightEdge, lane }) => {
             const platform = item.platformDisplay || formatPlatformLabel(item.platform);
             const dates = frRange(item.startDate, item.endDate);
             const full = `${item.guestLabel} — ${platform}, ${dates}`;
@@ -68,12 +75,15 @@ export default function CalendarMonthGrid({ year, month, stays, renderCell, onRe
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onReservationClick(item.reservationId); }
                   }}
                   sx={{
-                    position: 'absolute', top: CELL_TOP_BAND_H, height: RIBBON_H, zIndex: 4,
+                    position: 'absolute', top: CELL_TOP_BAND_H + lane * (RIBBON_H + GAP), height: RIBBON_H, zIndex: 4,
                     left: `calc(${leftEdge} * (100% + ${GAP}px) / 7 + ${offsetL + RIBBON_INSET}px)`,
                     width: `calc(${rightEdge - leftEdge} * (100% + ${GAP}px) / 7 + ${offsetR - offsetL - 2 * RIBBON_INSET}px)`,
                     display: 'flex', flexDirection: 'column', justifyContent: 'center', px: 1, borderRadius: '7px',
-                    bgcolor: item.color, color: item.textColor, boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
-                    cursor: 'pointer', overflow: 'hidden', opacity: item.past ? 0.55 : 1,
+                    cursor: 'pointer', overflow: 'hidden',
+                    // A stay that is over keeps the soft look of « Tous » and the phone: tint, stripe, ink.
+                    ...(item.past
+                      ? { bgcolor: barTint(item.color), color: 'text.primary', boxShadow: `inset 3px 0 0 ${item.color}` }
+                      : { bgcolor: item.color, color: item.textColor, boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }),
                     '&:focus-visible': { outline: '2px solid', outlineColor: 'text.primary', outlineOffset: 1 },
                   }}
                 >

@@ -86,6 +86,7 @@ const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOpt
 const platformsModel = require('../models/platformsModel');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
+const { readOnlyRefusal } = require('../utils/reservationReadOnly');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
@@ -201,21 +202,6 @@ function scheduleQuoteInputs(bookingId) {
     kind: row.kind || 'reservation',
     validUntil: row.validUntil || null,
   };
-}
-
-// specs/payment-schedule-and-cancellation.md §3.5 rule 25 — a cancelled stay is read-only. Its
-// amounts and échéances are history (accounting still reads them) and its dates are back on sale,
-// so any write would either rewrite the books or resurrect a booking nobody expects. A duplicate set
-// aside (specs/calendar-property-parity.md rule 22) is read-only for the same reason.
-function readOnlyGuard(reservationId) {
-  const row = db.prepare('SELECT kind FROM reservations WHERE id = ?').get(Number(reservationId));
-  if (row && String(row.kind) === 'cancelled') {
-    return { status: 409, body: { error: 'Cette réservation est annulée et ne peut plus être modifiée.', code: 'RESERVATION_CANCELLED' } };
-  }
-  if (row && String(row.kind) === 'superseded') {
-    return { status: 409, body: { error: 'Ce doublon est écarté : le rétablir pour le modifier.', code: 'RESERVATION_SUPERSEDED' } };
-  }
-  return null;
 }
 
 // specs/mid-stay-notes.md §4.3 — the two note actions carried by the payment PATCH. Business
@@ -1587,7 +1573,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   const id = Number(req.params.id);
 
-  const cancelled = readOnlyGuard(id);
+  const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
 
   // specs/direct-installments.md rule 1 — a plan with money in keeps the reservation on the own channels.
@@ -2160,7 +2146,7 @@ function updatePayment(req, res) {
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
-  const cancelledPayment = readOnlyGuard(Number(req.params.id));
+  const cancelledPayment = readOnlyRefusal(db, Number(req.params.id));
   if (cancelledPayment) return res.status(cancelledPayment.status).json(cancelledPayment.body);
 
   // specs/reservation-payment-ledger.md rules 9, 11, 12 — the guards of a mark, all checked BEFORE

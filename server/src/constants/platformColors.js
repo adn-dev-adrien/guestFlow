@@ -18,4 +18,27 @@ const KNOWN_PLATFORM_COLORS = {
 
 const DEFAULT_PLATFORM_COLOR = '#6E6A5E';
 
-module.exports = { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR };
+// The palette before specs/calendar-property-parity.md rule 6. Rows written while it was the built-in one
+// (`ical_sources.platformColor` at creation) hold these values: they are the old DEFAULT, never an operator's
+// choice, so the boot backfill and the colour listing must not read them as a custom colour.
+const LEGACY_PLATFORM_COLORS = {
+  direct: '#c9a227',
+  airbnb: '#FF5A5F',
+  greengo: '#4CAF50',
+  abritel: '#1565c0',
+  abracadaroom: '#00bcd4',
+  booking: '#003580',
+  gitedefrance: '#e6c832',
+  gitesdefrance: '#e6c832',
+  pitchup: '#f57c00',
+};
+const LEGACY_DEFAULT_PLATFORM_COLOR = '#757575';
+
+/** Whether `color` is a built-in default (current or pre-2026-10-28) for the platform `slug`, not a custom one. */
+function isBuiltinColor(slug, color) {
+  const value = String(color || '').trim().toLowerCase();
+  return [KNOWN_PLATFORM_COLORS[slug], LEGACY_PLATFORM_COLORS[slug], DEFAULT_PLATFORM_COLOR, LEGACY_DEFAULT_PLATFORM_COLOR]
+    .some((builtin) => builtin && builtin.toLowerCase() === value);
+}
+
+module.exports = { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR, isBuiltinColor };

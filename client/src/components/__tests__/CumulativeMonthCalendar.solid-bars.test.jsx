@@ -92,3 +92,25 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     expect(screen.queryByText(/Faites défiler/)).toBeNull();
   });
 });
+
+describe('CumulativeMonthCalendar — keyboard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-16T12:00:00'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('a stay bar is reachable from the keyboard, named in full, and Enter opens its fiche', async () => {
+    const onReservationClick = vi.fn();
+    api.getCalendar.mockResolvedValue(payload([stay(1, '2026-07-20', '2026-07-22')]));
+    const { container } = render(<ThemeProvider theme={theme}><CumulativeMonthCalendar onReservationClick={onReservationClick} /></ThemeProvider>);
+    await waitFor(() => expect(container.querySelector('[data-bar="r1"]')).not.toBeNull());
+    const bar = container.querySelector('[data-bar="r1"]');
+    expect(bar).toHaveAttribute('tabindex', '0');
+    expect(bar).toHaveAttribute('role', 'button');
+    expect(bar).toHaveAttribute('aria-label', 'Gite · Jean Dupont — Airbnb, 20 juillet → 22 juillet');
+    fireEvent.keyDown(bar, { key: 'Enter' });
+    expect(onReservationClick).toHaveBeenCalledWith(1);
+  });
+});

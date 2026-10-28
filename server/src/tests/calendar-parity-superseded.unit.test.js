@@ -58,7 +58,7 @@ test('rule 23 — the old filter hides 10 Granja stays; only the one overlapping
   const found = findCandidates(db);
   assert.deepEqual(found.superseded, [{ id: 22279, byReservationId: 14 }]);
   assert.deepEqual(found.keptVisible.sort((a, b) => a - b), ISOLATED);
-  assert.deepEqual(found.skippedPaid, []);
+  assert.deepEqual(found.conflicts, []);
 });
 
 test('rule 23-24 — the migration sets the duplicate aside, names its keeper, and audits it', () => {
@@ -70,6 +70,7 @@ test('rule 23-24 — the migration sets the duplicate aside, names its keeper, a
   assert.equal(row.kind, 'superseded');
   assert.equal(row.supersededByReservationId, 14);
   assert.equal(row.supersededReason, REASON);
+  assert.equal(JSON.parse(historyOf(22279)[0].changedFields).find((f) => f.field === 'supersededReason').toText, "Copie d'un séjour visible");
   assert.ok(row.supersededAt);
   const [event] = historyOf(22279);
   assert.equal(event.eventType, 'superseded');
@@ -93,12 +94,16 @@ test('rule 23 — a second boot changes nothing', () => {
   assert.ok(db.prepare("SELECT 1 FROM migrations WHERE name = 'calendar_parity_superseded_v1'").get(), 'the boot recorded the migration');
 });
 
-test('rule 23 — a hidden duplicate carrying money is left untouched and reported', () => {
+test('rule 26 — a hidden duplicate carrying money is left untouched and both stays are flagged for the operator', () => {
   stay(40, 2, '2026-08-05', '2026-08-08', { platform: 'direct' });
   stay(41, 2, '2026-08-06', '2026-08-09', { platform: 'Lodgify', balancePaid: 1 });
   const found = setAsideDuplicates(db);
-  assert.deepEqual(found.skippedPaid, [41]);
+  assert.ok(found.conflicts.some((c) => c.id === 41 && c.otherId === 40 && c.why === 'paid'));
   assert.equal(kindOf(41), 'reservation');
+  for (const id of [40, 41]) {
+    assert.ok(db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = ?').get(id).bookingConflictAt, `stay ${id} carries the conflict marker`);
+  }
+  assert.equal(historyOf(41).at(-1).eventType, 'update');
 });
 
 test('rule 23 — a paid payment link or a paid installment also counts as money', () => {
@@ -108,20 +113,37 @@ test('rule 23 — a paid payment link or a paid installment also counts as money
   db.prepare("INSERT INTO payment_links (reservationId, type, url, status, paidAt) VALUES (?, 'balance', 'x', 'paid', '2026-08-01')").run(withLink);
   db.prepare('INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid) VALUES (?, 1, ?, 1000, 1)').run(withInstallment, '2026-08-01');
   const found = findCandidates(db);
-  assert.ok(found.skippedPaid.includes(withLink));
-  assert.ok(found.skippedPaid.includes(withInstallment));
-  assert.ok(!found.superseded.some((s) => s.byReservationId === keeper && (s.id === withLink || s.id === withInstallment)));
+  const paid = found.conflicts.filter((c) => c.why === 'paid').map((c) => c.id);
+  assert.ok(paid.includes(withLink) && paid.includes(withInstallment));
+  assert.ok(!found.superseded.some((s) => s.byReservationId === keeper));
 });
 
-test('rule 23 — a hidden stay overlapping only hidden stays is not superseded; the keeper is the earliest overlap', () => {
+test('rule 26 — two hidden stays on the same nights are not set aside: both are flagged, never both silently visible', () => {
   stay(60, 1, '2026-11-01', '2026-11-06', { platform: 'Lodgify' });
   stay(61, 1, '2026-11-04', '2026-11-08', { platform: 'Lodgify' });
-  stay(70, 1, '2026-12-01', '2026-12-10', { platform: 'Lodgify' });
-  stay(72, 1, '2026-12-05', '2026-12-07', { platform: 'direct' });
+  const found = setAsideDuplicates(db);
+  assert.ok(found.conflicts.some((c) => c.why === 'hidden-overlap'));
+  assert.ok(found.flagged.includes(60) && found.flagged.includes(61));
+  assert.equal(kindOf(60), 'reservation');
+  assert.equal(kindOf(61), 'reservation');
+  assert.ok(db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = 60').get().bookingConflictAt);
+});
+
+test('rule 26 — a hidden stay LONGER than the visible one it overlaps is not set aside (it would free nights): flagged instead', () => {
+  stay(80, 1, '2026-06-10', '2026-06-18', { platform: 'direct' });
+  stay(81, 1, '2026-06-09', '2026-06-21', { platform: 'Lodgify' });
+  const found = setAsideDuplicates(db);
+  assert.ok(found.conflicts.some((c) => c.id === 81 && c.otherId === 80 && c.why === 'longer'));
+  assert.equal(kindOf(81), 'reservation');
+  assert.ok(db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = 80').get().bookingConflictAt);
+});
+
+test('rule 26 — within the keeper dates ±1 day it is a copy; the keeper is the earliest overlap, by date not by id', () => {
+  stay(70, 1, '2026-12-01', '2026-12-04', { platform: 'Lodgify' });
+  stay(72, 1, '2026-12-01', '2026-12-03', { platform: 'direct' });
   stay(71, 1, '2026-12-02', '2026-12-04', { platform: 'direct' });
   const found = findCandidates(db);
-  assert.ok(found.keptVisible.includes(60) && found.keptVisible.includes(61), 'nothing visible proves they are copies');
-  assert.deepEqual(found.superseded.find((s) => s.id === 70), { id: 70, byReservationId: 71 }, 'earliest by arrival date, not by id');
+  assert.deepEqual(found.superseded.find((s) => s.id === 70), { id: 70, byReservationId: 72 });
 });
 
 test('rule 22 — a stay set aside is absent from the calendar, the lists, the availability and the books; search flags it', () => {

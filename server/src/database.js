@@ -1046,30 +1046,9 @@ db.exec(`
    WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
 `);
 
-// specs/platforms-and-ical-rework.md §5 — one-time backfill of the new GLOBAL `platforms.color`
-// from any operator-customised per-source `ical_sources.platformColor` (a colour that differs from
-// both the grey default and the platform's built-in brand colour). Only fills rows whose
-// `platforms.color` is still NULL, so it never overwrites a colour later chosen via the new palette.
-{
-  const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('./constants/platformColors');
-  const slug = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const setColor = db.prepare('UPDATE platforms SET color = ? WHERE id = ? AND color IS NULL');
-  const platformRows = db.prepare('SELECT id, name FROM platforms WHERE color IS NULL').all();
-  for (const platform of platformRows) {
-    const key = slug(platform.name);
-    const source = db.prepare(`
-      SELECT platformColor FROM ical_sources
-       WHERE lower(platformLabel) = lower(?)
-         AND platformColor IS NOT NULL AND trim(platformColor) != ''
-       ORDER BY updatedAt DESC, id DESC LIMIT 1
-    `).get(platform.name);
-    const custom = source && String(source.platformColor).trim();
-    if (custom && custom.toLowerCase() !== DEFAULT_PLATFORM_COLOR.toLowerCase()
-        && custom.toLowerCase() !== String(KNOWN_PLATFORM_COLORS[key] || '').toLowerCase()) {
-      setColor.run(custom, platform.id);
-    }
-  }
-}
+// specs/platforms-and-ical-rework.md §5 — one-time backfill of the GLOBAL `platforms.color` from the operator's
+// per-source colours; the old built-in palette is not a custom colour (specs/calendar-property-parity.md rule 6).
+require('./utils/platformColorBackfill').backfillPlatformColors(db);
 
 // specs/platforms-and-ical-rework.md — fold the legacy singular "Gîte de France" (slug `gitedefrance`)
 // into the canonical plural "Gîtes de France" ("GitesDeFrance"). Same brand, must show as one. Slug-based
@@ -2767,23 +2746,6 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
 }
 
-// ---------- DUPLICATES THE OLD « PLATFORM DISABLED » FILTER HID (specs/calendar-property-parity.md rules 23-24) ----------
-// Runs before any read: the filter is gone from reservationsModel.list(), so a hidden stay that sits on a
-// visible one must already be set aside by then. Idempotent — a second run finds no `kind = 'reservation'`
-// candidate left, and the `migrations` row records it anyway.
-if (process.env.SKIP_MIGRATIONS !== 'true') {
-  const migrationName = 'calendar_parity_superseded_v1';
-  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
-    const { setAsideDuplicates } = require('./utils/supersededDuplicates');
-    const { superseded, skippedPaid, keptVisible } = setAsideDuplicates(db);
-    const ids = (list) => (list.length ? list.join(', ') : 'aucun');
-    console.log(`[migration:${migrationName}] ${superseded.length} doublon(s) écarté(s) (${ids(superseded.map((s) => s.id))}) ; `
-      + `${skippedPaid.length} laissé(s) car payé(s) (${ids(skippedPaid)}) ; `
-      + `${keptVisible.length} séjour(s) masqué(s) redevenu(s) visible(s) (${ids(keptVisible)}).`);
-    db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
-  }
-}
-
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes
@@ -2794,6 +2756,24 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 if (baselineDeferredError) {
   db.exec(SCHEMA_SQL);
   console.log('[schema] baseline rejoue avec succes apres les migrations gardees.');
+}
+
+// ---------- DUPLICATES THE OLD « PLATFORM DISABLED » FILTER HID (specs/calendar-property-parity.md rules 23-24) ----------
+// Runs after the baseline replay (the money tables it reads exist) and before any read: the filter is gone
+// from reservationsModel.list(), so a hidden stay that sits on a visible one must already be set aside by
+// then. Idempotent — a second run finds no `kind = 'reservation'` candidate left, and the `migrations` row
+// records it anyway.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'calendar_parity_superseded_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { setAsideDuplicates } = require('./utils/supersededDuplicates');
+    const { superseded, flagged, keptVisible } = setAsideDuplicates(db);
+    const ids = (list) => (list.length ? list.join(', ') : 'aucun');
+    console.log(`[migration:${migrationName}] ${superseded.length} doublon(s) écarté(s) (${ids(superseded.map((s) => s.id))}) ; `
+      + `${flagged.length} séjour(s) signalé(s) en conflit de dates (${ids(flagged)}) ; `
+      + `${keptVisible.length} séjour(s) masqué(s) redevenu(s) visible(s) (${ids(keptVisible)}).`);
+    db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+  }
 }
 
 // ---------- DB HYGIENE — Bloc 0 ----------

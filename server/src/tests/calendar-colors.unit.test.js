@@ -90,3 +90,32 @@ test('rule 5 — the platform-colour listing carries textColors, custom override
   assert.equal(knownColors.airbnb, '#C93848');
   assert.equal(db.prepare("SELECT color FROM platforms WHERE name = 'Pitchup'").get().color, '#FEC700');
 });
+
+test('rule 27 — the boot backfill does not freeze the old palette as custom colours; a real custom colour is kept', () => {
+  const { backfillPlatformColors } = require('../utils/platformColorBackfill');
+  const Database = require('better-sqlite3');
+  const fs = require('fs');
+  const path = require('path');
+  const mem = new Database(':memory:');
+  mem.exec(fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8'));
+  mem.prepare("INSERT INTO properties (id, name) VALUES (1, 'Granja')").run();
+  const LEGACY = [['Airbnb', '#FF5A5F'], ['Booking', '#003580'], ['GitesDeFrance', '#e6c832'], ['Greengo', '#4CAF50'],
+    ['Abracadaroom', '#00bcd4'], ['Campspace', '#757575'], ['direct', '#c9a227'], ['Pitchup', '#f57c00'], ['Abritel', '#1565c0'], ['Lodgify', '#fec700']];
+  for (const [label, color] of LEGACY) {
+    mem.prepare('INSERT OR IGNORE INTO platforms (name) VALUES (?)').run(label);
+    mem.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor) VALUES (1, ?, '', ?, ?, ?)").run(label, label.toLowerCase(), label, color);
+  }
+  assert.deepEqual(backfillPlatformColors(mem), ['Lodgify'], 'only Lodgify #fec700 is custom');
+  const stored = Object.fromEntries(mem.prepare('SELECT name, color FROM platforms WHERE color IS NOT NULL').all().map((r) => [r.name, r.color]));
+  assert.deepEqual(stored, { Lodgify: '#fec700' });
+  assert.deepEqual(backfillPlatformColors(mem), [], 'idempotent');
+});
+
+test('rule 27 — the colour listing ignores a per-source colour that is only an old built-in default', () => {
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Granja')").run();
+  db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, isActive) VALUES (1, 'Abritel', '', 'abritel', 'Abritel', '#1565c0', 1)").run();
+  db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, isActive) VALUES (1, 'Lodgify', '', 'lodgify', 'Lodgify', '#fec700', 1)").run();
+  const { customColors } = propertiesModel.getPlatformColors();
+  assert.equal(customColors.abritel, undefined, 'the old brand blue does not mask the new palette');
+  assert.equal(customColors.lodgify, '#fec700');
+});

@@ -31,6 +31,9 @@ import useDirtyFormGuard from '../../hooks/useDirtyFormGuard';
 import { formatPlatformLabel } from '../../constants/platforms';
 import Slot from '../../plugins/sdk/Slot';
 
+// How long a refused colour's message stays under its swatch once the swatch is back to the saved colour.
+const COLOR_REFUSAL_MS = 6000;
+
 const TAX_OPTIONS = [
   { value: 'platform', label: 'Plateforme → commune' },
   { value: 'platform_reversed', label: 'Plateforme → établissement' },
@@ -121,6 +124,11 @@ export default function PlatformsSettingsPage() {
           const previous = saved.find((p) => p.id === row.id);
           return previous ? { ...row, color: previous.color } : row;
         }));
+        // The message stays long enough to be read, then goes with the colour it was about.
+        window.setTimeout(() => setErrors((prev) => Object.fromEntries(Object.entries(prev).map(([id, fields]) => {
+          const { color: _gone, ...rest } = fields;
+          return [id, rest];
+        }))), COLOR_REFUSAL_MS);
         showError('Enregistrement refusé : corrigez les champs en rouge.');
       } else {
         showError((err && err.message) || "Impossible d'enregistrer les plateformes.");

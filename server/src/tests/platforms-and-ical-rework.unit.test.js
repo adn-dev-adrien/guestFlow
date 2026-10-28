@@ -4,7 +4,7 @@
 //      property's source config + global colour.
 //   2. propertyIcalModel — URL iCal is OPTIONAL (empty allowed, http(s) when present); sync skips
 //      empty-URL sources; createSource upserts one row per (property, platform); the per-property
-//      `disabled` flag persists; disabledPlatformLabels returns the hidden set.
+//      `disabled` flag persists (it no longer hides stays).
 //   3. reservationsModel.list({propertyId}) KEEPS a disabled-platform reservation — rule 10's display
 //      filter was superseded by specs/calendar-property-parity.md rule 2 — and getOccupiedReservations
 //      (availability) counts it as before.
@@ -213,16 +213,16 @@ test('propertyIcalModel: sync skips empty-URL sources (no fetch, status untouche
   assert.equal(after.lastSyncStatus, null);
 });
 
-test('propertyIcalModel: disabled flag persists + disabledPlatformLabels returns the hidden set', () => {
+test('propertyIcalModel: the disabled flag persists per source', () => {
   const db = freshDb();
   const pim = propertyIcalModel.buildModel(db);
 
   pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '', disabled: true });
   pim.createSource(1, { platformKey: 'booking', platformLabel: 'Booking', url: '' }); // not disabled
 
-  const labels = pim.disabledPlatformLabels(1);
-  assert.ok(labels.includes('airbnb'), 'the disabled platform label is returned (lowercased)');
-  assert.ok(!labels.includes('booking'), 'a non-disabled platform is not returned');
+  const flags = Object.fromEntries(db.prepare('SELECT platformKey, disabled FROM ical_sources WHERE propertyId = 1').all().map((r) => [r.platformKey, r.disabled]));
+  assert.equal(flags.airbnb, 1);
+  assert.equal(flags.booking, 0);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
