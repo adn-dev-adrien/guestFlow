@@ -195,7 +195,7 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
 > handler, summarize })` declares a subject of the home's « À traiter »; the client SDK exports
 > `AttentionCard`, and a `dashboard.alerts(.urgent)` contribution receives the server's `attention`.
 
-> 2026-10-28 (SDK 2.8.0–2.10.0, `specs/reconciliation-assisted-matching.md`; numbers settled at merge): the SDK gains
+> 2026-10-28 (SDK 2.9.0, `specs/reconciliation-assisted-matching.md`): the SDK gains
 > - client export `FilterChip` (an active-filter chip, Escape and close button);
 > - server `ctx.paymentDeadlineDecorator(rows => rows)` — decorates, or drops, the rows of the home's « Échéances »
 >   card while the plugin is live; one per plugin, a throwing decorator changes nothing (rule 22 of that spec);
@@ -253,6 +253,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     `IntakeBanner` — specs/airbnb-mail-intake.md §4.1) and `displayDate`. The HTTP
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
+
+> 2026-10-28 — SDK 2.8.0 (`specs/options-resources-ux.md` rule 19): `ctx.resourceCatalogueLines(build)` —
+> `build(resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null`, synchronous,
+> called only while the plugin is live; the hourly plugin shows its evening / external rates, free first
+> hour and schedule on the resource card (hourly-resources 1.3.0, `sdk ^2.8.0`, `guestflow >=3.18.0`: the
+> host bricks it needs ship in the same core build). No `coreModule` change.
 
 > 2026-10-27 — SDK 2.7.0 (spec review): `ctx.core.reservations.update(id, patch, { label, client })` takes
 > the guest's find-or-create payload and creates the client in the same transaction as the update, so a

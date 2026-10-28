@@ -19,9 +19,8 @@ import DialogProvider from '../../components/DialogProvider';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getReservations: vi.fn(),
+    getPlanningToday: vi.fn(),
     getAttention: vi.fn(),
-    getReservation: vi.fn(),
     markPayment: vi.fn(),
   },
 }));
@@ -55,30 +54,34 @@ function renderPage() {
   );
 }
 
+// What GET /api/planning/today answers (specs/dashboard-planning-scroll.md rule 1).
+const dayLists = ({ arrivals = [], departures = [], nextArrival = null } = {}) => ({
+  today: localIsoToday(), arrivals, departures, nextArrival,
+});
+
 beforeEach(() => {
   mockAuth.user = { roles: ['admin'] };
   navigateSpy.mockReset();
-  api.getReservations.mockReset().mockResolvedValue([]);
+  api.getPlanningToday.mockReset().mockResolvedValue(dayLists());
   api.getAttention.mockReset().mockResolvedValue({ pinned: [], items: [], total: 0 });
-  api.getReservation.mockReset().mockResolvedValue(null);
 });
 
 test('a rejected loader shows the retryable ErrorAlert instead of a stuck page', async () => {
-  api.getReservations.mockRejectedValue(new Error('boom'));
+  api.getPlanningToday.mockRejectedValue(new Error('boom'));
   renderPage();
   expect(await screen.findByText('Impossible de charger le tableau de bord.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
   // The day lists are not rendered in the error state.
-  expect(screen.queryByText(/^Départs — /)).not.toBeInTheDocument();
+  expect(screen.queryByText('Départs du jour')).not.toBeInTheDocument();
 });
 
 test('the initial load shows the shared LoadingState (aria-busy)', async () => {
   let resolveList;
-  api.getReservations.mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
+  api.getPlanningToday.mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
   renderPage();
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-  resolveList([]);
-  await screen.findByText(/^Départs — /);
+  resolveList(dayLists());
+  await screen.findByText('Départs du jour');
 });
 
 // specs/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
@@ -93,8 +96,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
   };
 
   function mountArrival(operationalCollection) {
-    api.getReservations.mockReset().mockResolvedValue([base]);
-    api.getReservation.mockReset().mockResolvedValue({ ...base, operationalCollection });
+    api.getPlanningToday.mockReset().mockResolvedValue(dayLists({ arrivals: [{ ...base, operationalCollection }] }));
     return renderPage();
   }
 
@@ -127,8 +129,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
 
   // specs/ds-components.md rule 25 — « Lit bébé ×1 », accent and multiplication sign included.
   test('a baby bed reads « Lit bébé ×1 »', async () => {
-    api.getReservations.mockReset().mockResolvedValue([{ ...base, babyBeds: 1 }]);
-    api.getReservation.mockReset().mockResolvedValue({ ...base, babyBeds: 1 });
+    api.getPlanningToday.mockReset().mockResolvedValue(dayLists({ arrivals: [{ ...base, babyBeds: 1 }] }));
     renderPage();
     expect((await screen.findAllByText(/Lit bébé ×1/)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Lit bebe/)).not.toBeInTheDocument();
@@ -158,8 +159,7 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
 
   beforeEach(() => {
     mockAuth.user = { roles: ['reception'], enabledPlugins: ['sas'] };
-    api.getReservations.mockReset().mockResolvedValue([arrival]); // upcoming (drives arrivals/departures)
-    api.getReservation.mockReset().mockResolvedValue(arrival);
+    api.getPlanningToday.mockReset().mockResolvedValue(dayLists({ arrivals: [arrival] }));
   });
 
   test('shows the arrivals list but drops the attention subjects, the Paiements column and the month calendar', async () => {
@@ -195,8 +195,8 @@ test('the day lists run departures FIRST, arrivals second (issue #427)', async (
   // specs/reception-role-checkin-only.md §3.3 / §6.1 — the day is handled in that order (departures
   // in the morning, arrivals in the afternoon), so the first list is the one needed first.
   renderPage();
-  const departures = await screen.findByText(/^Départs — /);
-  const arrivals = await screen.findByText(/^Arrivées — /);
+  const departures = await screen.findByText('Départs du jour');
+  const arrivals = await screen.findByText('Arrivées du jour');
   // Node.compareDocumentPosition: 4 = arrivals FOLLOWS departures in the document.
   expect(departures.compareDocumentPosition(arrivals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

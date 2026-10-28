@@ -22,7 +22,7 @@ const EVENTS = Object.freeze([
   // move a price, a minimum stay, a changeover day or a closed night. `null` = every property.
   'pricing.changed',
   // specs/reconciliation-assisted-matching.md rule 31 — { reservationId } after a platform penalty is declared or
-  // removed: the bank reconciliation completes a receipt the declaration now covers (SDK 2.10.0).
+  // removed: the bank reconciliation completes a receipt the declaration now covers (SDK 2.9.0).
   'platform-penalty.changed',
 ]);
 

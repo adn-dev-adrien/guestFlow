@@ -7,6 +7,7 @@ import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
 import MidStayNoteDialog from './MidStayNoteDialog';
 import MidStayNoteRow from './MidStayNoteRow';
+import { createPortal } from 'react-dom';
 import RefundDialog from './RefundDialog';
 import PaymentMarkForm from './PaymentMarkForm';
 import PlatformStatementEditor from './PlatformStatementEditor';
@@ -270,6 +271,9 @@ export default function FinanceSection() {
     refundOverpaymentTtc = 0,
     refundOverpaymentLines = [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
+    // A cancelled fiche is a disabled fieldset, yet a refund is still its legitimate write
+    // (specs/calendar-property-parity.md rule 25): the button goes through a portal to a node outside it.
+    refundHost = null,
     // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
     ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
     // specs/direct-installments.md — the plan of a direct reservation and its setter.
@@ -698,6 +702,12 @@ export default function FinanceSection() {
     );
   };
 
+  const refundButton = (
+    <Button variant="text" onClick={() => setRefundDialogOpen(true)} sx={{ minHeight: 44, textTransform: 'none' }}>
+      + Nouveau remboursement
+    </Button>
+  );
+
   const footer = (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 1 }} sx={{ mt: 1.5, alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap' }}>
       {showMidStayNotes && (
@@ -709,11 +719,7 @@ export default function FinanceSection() {
           </span>
         </Tooltip>
       )}
-      {!isDevisMode && editingReservationId && (
-        <Button variant="text" onClick={() => setRefundDialogOpen(true)} sx={{ minHeight: 44, textTransform: 'none' }}>
-          + Nouveau remboursement
-        </Button>
-      )}
+      {!isDevisMode && editingReservationId && (refundHost ? createPortal(refundButton, refundHost) : refundButton)}
     </Stack>
   );
 

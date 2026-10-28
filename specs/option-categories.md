@@ -479,6 +479,8 @@ page-level action.
 - **Responsive:** the field is full-width in the existing form grid; the table keeps its contained
   horizontal scroll on `xs`.
 
+> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** On the admin catalogue the categories become foldable sections of a server-grouped list (« Sans catégorie » first, then French collation — the fiche's order), with a category filter; the « Catégorie » table column disappears. The field moves to the « Général » section of the editor panel and offers the existing labels as one-tap suggestions; « Toujours visible » unchanged. Rules 1-6 unchanged.
+
 ### 6.3 Public WordPress widget
 
 ```

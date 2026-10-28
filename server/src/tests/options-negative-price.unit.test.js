@@ -18,8 +18,8 @@ test('create refuses a negative price and writes nothing', () => {
   const before = db.prepare('SELECT COUNT(*) AS n FROM options').get().n;
   const r = res();
   controller.create({ body: { title: 'Remise', priceType: 'per_stay', price: -50 } }, r);
-  assert.equal(r.statusCode, 400);
-  assert.equal(r.body.error, 'Le prix d’une option ne peut pas être négatif.');
+  assert.equal(r.statusCode, 422);
+  assert.deepEqual(r.body.details.map((d) => [d.field, d.code]), [['price', 'NEGATIVE_OPTION_PRICE']]);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM options').get().n, before);
 });
 
@@ -27,7 +27,7 @@ test('update refuses a negative price; a zero price and an update without price 
   const id = db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Ménage', 'per_stay', 80)").run().lastInsertRowid;
   const refused = res();
   controller.update({ params: { id }, body: { title: 'Ménage', priceType: 'per_stay', price: '-1' } }, refused);
-  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.statusCode, 422);
   assert.equal(db.prepare('SELECT price FROM options WHERE id = ?').get(id).price, 80);
   const free = res();
   controller.update({ params: { id }, body: { title: 'Ménage', priceType: 'per_stay', price: 0 } }, free);

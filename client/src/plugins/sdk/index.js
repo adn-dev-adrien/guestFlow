@@ -51,7 +51,7 @@ export { isReceptionOnly } from '../../constants/roles';
 export { default as HelpedTextField } from '../../components/HelpedTextField';
 // The debounced, latest-wins server preview hook (specs/resource-supplements-total-server-side.md Q5) — SDK 2.1.0.
 export { default as useLatestPreview } from '../../hooks/useLatestPreview';
-// reconciliation-assisted-matching (rule 11) — the active-filter chip — SDK 2.8.0.
+// reconciliation-assisted-matching (rule 11) — the active-filter chip — SDK 2.9.0.
 export { default as FilterChip } from '../../components/FilterChip';
-// reconciliation-assisted-matching (rule 24) — the platform penalty dialog, opened from a gap — SDK 2.10.0.
+// reconciliation-assisted-matching (rule 24) — the platform penalty dialog, opened from a gap — SDK 2.9.0.
 export { default as PlatformPenaltyDialog } from '../../components/reservation/PlatformPenaltyDialog';

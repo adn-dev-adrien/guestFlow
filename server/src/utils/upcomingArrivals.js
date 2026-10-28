@@ -8,10 +8,19 @@ const DAY_LABEL = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
 });
 
-/** `2026-10-23` → `vendredi 23 octobre`. */
-function frenchDayLabel(isoDate) {
+const DAY_LABEL_WITH_YEAR = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+});
+
+/**
+ * `2026-10-23` → `vendredi 23 octobre`. With `today` given, a day outside today's year carries its
+ * year (`samedi 3 avril 2027`), so a date months away is never read as this year's.
+ */
+function frenchDayLabel(isoDate, today) {
   const d = new Date(`${isoDate}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) ? isoDate : DAY_LABEL.format(d);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  const otherYear = today && String(isoDate).slice(0, 4) !== String(today).slice(0, 4);
+  return (otherYear ? DAY_LABEL_WITH_YEAR : DAY_LABEL).format(d);
 }
 
 /**
@@ -24,7 +33,7 @@ function groupArrivalsByDay(reservations, today) {
   for (const reservation of reservations) {
     let day = days[days.length - 1];
     if (!day || day.date !== reservation.startDate) {
-      day = { date: reservation.startDate, label: frenchDayLabel(reservation.startDate), isToday: reservation.startDate === today, reservations: [] };
+      day = { date: reservation.startDate, label: frenchDayLabel(reservation.startDate, today), isToday: reservation.startDate === today, reservations: [] };
       days.push(day);
     }
     day.reservations.push(reservation);
@@ -38,4 +47,23 @@ function groupArrivalsByDay(reservations, today) {
   };
 }
 
-module.exports = { groupArrivalsByDay, frenchDayLabel };
+// What the arrival card and its page read, field by field (specs/inte-performance.md rule 12). The
+// fiche behind a card is fetched by the fiche itself; the SAS opens by id and loads its own data.
+const CARD_FIELDS = [
+  'id', 'startDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'platform', 'checkInTime', 'checkInReady',
+  'adults', 'children', 'teens', 'babies', 'doubleBeds', 'singleBeds', 'babyBeds', 'notes',
+  'complementAmount', 'complementPaid', 'complementDeferredToCheckout', 'cautionAmount', 'cautionReceived',
+  'bedLinenAlert', 'arrivalSasDoneAt', 'arrivalSasLock', 'checkInStatusEditable',
+];
+const pick = (source, keys) => Object.fromEntries(keys.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
+
+/** One arrival as the card renders it: the fields above, and each option / resource by name and quantity. */
+function toArrivalCard(reservation) {
+  return {
+    ...pick(reservation, CARD_FIELDS),
+    options: (reservation.options || []).map((o) => pick(o, ['title', 'billedUnits', 'quantity'])),
+    resources: (reservation.resources || []).map((r) => pick(r, ['name', 'billedUnits', 'quantity'])),
+  };
+}
+
+module.exports = { groupArrivalsByDay, frenchDayLabel, toArrivalCard, CARD_FIELDS };

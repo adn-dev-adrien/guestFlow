@@ -18,6 +18,7 @@ const { createController } = require('./controller');
 const { buildRouter } = require('./routes');
 const { createHourlyContributor } = require('./pricing');
 const { createSasStep } = require('./sasStep');
+const { buildCatalogueLines } = require('./catalogueLines');
 
 const id = 'hourly-resources';
 
@@ -46,6 +47,8 @@ function register(ctx) {
 
   // Rule 11 — the `per_hour` lines of a quote.
   ctx.priceLineContributor(createHourlyContributor());
+  // specs/options-resources-ux.md rule 19 — the evening / external rates and the schedule on the card.
+  ctx.resourceCatalogueLines(buildCatalogueLines);
 
   // Rule 10 — the external bookings, the SAS picker's free slots and the planning cards, at their
   // current URLs.

@@ -725,15 +725,9 @@ function createReservationsModel(database) {
       `;
       const params = [];
       if (propertyId) {
+        // No platform filter: a stay occupying dates is never hidden, whatever the state of its
+        // platform's iCal source (specs/calendar-property-parity.md rule 2).
         sql += ' AND r.propertyId = ?'; params.push(propertyId);
-        // specs/platforms-and-ical-rework.md §3 rule 10 — hide reservations of a platform DISABLED
-        // for this property. DISPLAY filter only: availability/getOccupiedReservations is unchanged,
-        // so a disabled platform's bookings still block dates (no double-booking regression).
-        sql += ` AND NOT EXISTS (
-          SELECT 1 FROM ical_sources s
-          WHERE s.propertyId = r.propertyId AND s.disabled = 1
-            AND (lower(s.platformLabel) = lower(r.platform) OR lower(s.platformKey) = lower(r.platform))
-        )`;
       }
       if (clientId) { sql += ' AND r.clientId = ?'; params.push(clientId); }
       if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
@@ -771,6 +765,7 @@ function createReservationsModel(database) {
     // (case-insensitive substring). Result is shaped + capped server-side (fat backend). Blank q → [].
     // Cancelled stays are included and flagged (specs/payment-schedule-and-cancellation.md §3.5
     // rule 26): search is the one path that must still find them — every list view drops them.
+    // A duplicate set aside (specs/calendar-property-parity.md rule 22) is found the same way.
     search({ q } = {}) {
       const term = String(q || '').trim().toLowerCase();
       if (!term) return [];
@@ -781,7 +776,7 @@ function createReservationsModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind IN ('reservation', 'cancelled') AND (
+        WHERE r.kind IN ('reservation', 'cancelled', 'superseded') AND (
           LOWER(COALESCE(r.reservationNumber, '')) LIKE ?
           OR LOWER(COALESCE(c.firstName, '')) LIKE ?
           OR LOWER(COALESCE(c.lastName, '')) LIKE ?
@@ -800,6 +795,7 @@ function createReservationsModel(database) {
         startDate: row.startDate || '',
         endDate: row.endDate || '',
         cancelled: row.kind === 'cancelled',
+        superseded: row.kind === 'superseded',
         cancelledAt: row.cancelledAt || null,
       }));
     },
@@ -888,9 +884,14 @@ function createReservationsModel(database) {
         JOIN properties p ON r.propertyId = p.id
         -- specs/payment-schedule-and-cancellation.md §3.5 rule 26 — a cancelled stay stays
         -- reachable: its fiche opens read-only so the operator can see what was cancelled and why.
-        WHERE r.id = ? AND r.kind IN ('reservation', 'cancelled')
+        -- A duplicate set aside (specs/calendar-property-parity.md rule 22) opens read-only too.
+        WHERE r.id = ? AND r.kind IN ('reservation', 'cancelled', 'superseded')
       `).get(id);
       if (!reservation) return null;
+      if (reservation.kind === 'superseded' && reservation.supersededByReservationId) {
+        const keeper = database.prepare('SELECT reservationNumber FROM reservations WHERE id = ?').get(reservation.supersededByReservationId);
+        reservation.supersededByReservationNumber = (keeper && keeper.reservationNumber) || null;
+      }
       // specs/caution-live-from-property.md §3: the caution amount is live from the property
       // (defaultCautionAmount) until it is received, then frozen to the collected amount.
       reservation.cautionAmount = resolveEffectiveCaution(reservation);
@@ -2128,6 +2129,18 @@ function createReservationsModel(database) {
                updatedAt = datetime('now')
          WHERE id = ? AND kind = 'reservation'
       `).run(cancelledAt, String(reason || ''), cancelledBy == null ? null : Number(cancelledBy), Number(reservationId));
+    },
+
+    // specs/calendar-property-parity.md rule 22 — undo of the boot migration that set a stay aside as the
+    // copy of another (utils/supersededDuplicates.js): the stay is a plain reservation again. The caller
+    // checks availability first. Returns whether a row moved.
+    restoreSuperseded(reservationId) {
+      return database.prepare(`
+        UPDATE reservations
+           SET kind = 'reservation', supersededAt = NULL, supersededByReservationId = NULL, supersededReason = NULL,
+               updatedAt = datetime('now')
+         WHERE id = ? AND kind = 'superseded'
+      `).run(Number(reservationId)).changes > 0;
     },
 
     // ── Arrival / Departure SAS (specs/arrival-departure-sas.md §4.1) ──────────────

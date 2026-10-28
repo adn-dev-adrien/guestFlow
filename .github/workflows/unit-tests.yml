@@ -145,6 +145,13 @@ jobs:
       - name: 🧪 Run the client unit suite
         run: cd client && npm test
 
+      - name: 📦 Initial JavaScript within its budget
+        # specs/inte-performance.md rule 4 — a heavy import in the shell, or a page imported eagerly
+        # again, fails here with the chunks named, instead of reaching the operator as a slow app.
+        run: |
+          cd client && npm run build
+          cd .. && node scripts/check-bundle-budget.mjs
+
   # specs/control-plane-plans-and-access.md — the control plane (the operator console) is its own app
   # in `control-plane/`, deployed separately, tested here with the rest. Its server requires
   # GuestFlow's licence and password modules and runs `server/scripts/create-first-admin.js` in the

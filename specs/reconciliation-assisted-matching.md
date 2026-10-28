@@ -365,7 +365,7 @@ on the right account, on the fiche, in the finance pages and in the accounting e
 | 2 | `plugins/online-payment/reconciliation/` | `deadlineDecorator.js` | C | Overdue row × reconciliation → `bank: { state: 'proposed'|'nothing'|'reconciled', label, proposalId }` (rule 22). |
 | 2 | `plugins/online-payment/reconciliation/` | `receiptStates.js` | T | `late` leaves the gap count used by « Écarts de règlement » (rule 22). |
 | 2 | `plugins/online-payment/` | `settingsStore.js`, `manifest.json` | T | Setting `reconciliationAutoConfirm` (`''`/`1` = on, the default; `0` = off); version 1.4.0 (lot 1: 1.3.1). |
-| 2 | `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | `ctx.paymentDeadlineDecorator(fn)` — generic, inert without a plugin; SDK 2.9.0 (lot 1 already took 2.8.0 for the client `FilterChip` export). |
+| 2 | `plugins/sdk/` | `createContext.js`, `registry.js`, `version.js` | T | `ctx.paymentDeadlineDecorator(fn)` — generic, inert without a plugin; SDK 2.9.0 (one bump for all the bricks: `FilterChip`, `PlatformPenaltyDialog`, `paymentDeadlineDecorator`, `platformPenaltiesModel`, the event `platform-penalty.changed`). |
 | 2 | `utils/` | `pluginPaymentDeadlineDecorators.js` | C | Applies the live plugins' decorators to the card's rows; a throwing one changes nothing. |
 | 2 | `controllers/` | `dashboardController.js` | T | `paymentDeadlines` passes its rows through `decorateDeadlineRows` (rule 22). |
 | 3 | `database.js` | `database.js` | T | Table `reservation_platform_penalties`, column `reservations.platformPenaltyAmount` (§5). |
@@ -376,7 +376,7 @@ on the right account, on the fiche, in the finance pages and in the accounting e
 | 3 | `models/`, `utils/` | `financeModel.js`, `financeDashboardModel.js`, `reservationSettlement.js` (`platformPenalty`), `paymentDeadlines.js`, `reservationsModel.js` (deadline candidates) | T | Net received − penalties (rule 27): « total de séjour », « encaissé », « reste à percevoir », a late payout, the cash-flow line. The fiche's headline « Vous percevez » (`sejourNetTotal`, `storedNetTotal`) is net of the penalties too — decision of the 2026-10-28 review (rule 35); the penalty also shows as its own line of the payout row. |
 | 3 | `plugins/online-payment/reconciliation/` | `expectedReceipts.js`, `ficheWriter.js`, `receiptStates.js` | T | Expected bank amount and written payout account for penalties (rules 25, 31); `amount_gap` below the payout carries the `declarePenalty` action with the gap (rule 24). |
 | 3 | `plugins/accounting-export/` | `accountingModel.js`, `accountPlan.js`, `settings.js`, `manifest.json` | T | One penalty entry per line (rule 28); setting `platformPenaltyAccount` (default `658000`); Plan comptable row; version 1.0.15. |
-| 3 | `plugins/sdk/` | `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | Expose `platformPenaltiesModel` to the accounting plugin; SDK 2.10.0 (client export of `PlatformPenaltyDialog`). The reconciliation reads `reservations.platformPenaltyAmount` only. |
+| 3 | `plugins/sdk/` | `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | Expose `platformPenaltiesModel` to the accounting plugin; included in SDK 2.9.0 (client export of `PlatformPenaltyDialog`). The reconciliation reads `reservations.platformPenaltyAmount` only. |
 | — | `scheduledTasks.js` | — | — | (none — the job is the plugin's) |
 | — | `middleware/` | — | — | (none — existing `admin` role check) |
 
@@ -597,16 +597,16 @@ All resolved by Adrien on 2026-10-28.
 | Lot | Content | Rules | Ships alone? | Size |
 |---|---|---|---|---|
 | 1 | Fiche dialog (plausible, search, folded list, multi-credit, manual split), page filters, bulk confirmation, linking a credit to several receipts | 1–14 | Yes — plugin only, no core change | ~10 files, ~55 tests |
-| 2 | Split-payment and grouped-payout proposals, plan order, automatic confirmation, due-date card decoration (SDK 2.8.0) | 15–22 | Yes, after lot 1 (uses its batch path and split dialog) | ~12 files, ~40 tests |
+| 2 | Split-payment and grouped-payout proposals, plan order, automatic confirmation, due-date card decoration (SDK 2.9.0) | 15–22 | Yes, after lot 1 (uses its batch path and split dialog) | ~12 files, ~40 tests |
 | 3 | Platform penalties: core table + column, fiche dialog, ledger + finance readers, accounting entry, reconciliation link | 23–31 | Yes — core + 2 plugins; the reconciliation link needs lot 1 | ~16 files, ~35 tests |
 
 ## 11. Implementation progress
 
 Implemented 2026-10-28 on `feature/reconciliation-assisted-matching`; review fixes the same day (§3.5–3.6, rules 32–46).
 
-- **Lot 1** (rules 1–14): `ficheCredits.js`, `allocation.js`, controller (`ficheCredits`, `previewAllocation`, `linkBatch`, `confirmAll`, filters, `candidates`), `LinkTransactionDialog` rewrite, `BulkConfirmDialog`, `FilterChip`, page counters as filters. Plugin 1.3.1, SDK 2.8.0.
+- **Lot 1** (rules 1–14): `ficheCredits.js`, `allocation.js`, controller (`ficheCredits`, `previewAllocation`, `linkBatch`, `confirmAll`, filters, `candidates`), `LinkTransactionDialog` rewrite, `BulkConfirmDialog`, `FilterChip`, page counters as filters. Plugin 1.4.0 (one entry), SDK 2.9.0.
 - **Lot 2** (rules 15–22): split payments, equal installments, estimated grouped payouts + `SplitSharesDialog`, `autoConfirm.js`, `deadlineDecorator.js`, `ctx.paymentDeadlineDecorator`, setting `reconciliationAutoConfirm`, migration `reconciliation_v2`. Plugin 1.4.0, SDK 2.9.0.
-- **Lot 3** (rules 23–31): core table + column, `platformPenaltiesModel/Controller`, routes, readers, accounting entry, reconciliation link, `PlatformPenaltyDialog`. Plugins 1.4.1 / accounting 1.0.15, SDK 2.10.0.
+- **Lot 3** (rules 23–31): core table + column, `platformPenaltiesModel/Controller`, routes, readers, accounting entry, reconciliation link, `PlatformPenaltyDialog`. Accounting 1.0.15.
 - Clarified while implementing: rule 5 (a credit equal to one receipt goes to it), rule 9 (« unreconciled »), rule 2 (anchor fallback), rule 13 (`amounts`), rule 17 (single estimated row stays rule 32), rule 22 (overdue states only; `late` leaves the home count, not the page counter), rule 30 (the commission is restored with the payout, hence the two `commissionAdjusted*` columns).
 - Tests: server unit files listed in §7 (plus `finance-platform-penalty-totals`), client files likewise; recette on the shadow in the PR notes.
 - **A3 reminder:** the penalty account `658000` is a placeholder — confirm it with the accountant before the first real penalty is booked.

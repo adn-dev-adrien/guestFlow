@@ -50,7 +50,7 @@ test('matches by reservation number (fragment)', () => {
   assert.deepEqual(rows[0], {
     id, reservationNumber: '2026-07-042', clientFullName: 'Jean Dupont',
     propertyName: 'Gîte du Lac', startDate: '2026-07-10', endDate: '2026-07-13',
-    cancelled: false, cancelledAt: null,
+    cancelled: false, cancelledAt: null, superseded: false,
   });
 });
 

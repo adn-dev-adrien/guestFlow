@@ -59,7 +59,7 @@ export default function EmailComposeDialog({ open, onClose, onQueued }) {
     setReservation(null);
     setTemplateId('');
     setLoading(true);
-    Promise.all([api.getEmailEligibleReservations(), api.getEmailTemplates()])
+    Promise.all([api.getEmailEligibleReservations(), api.getEmailTemplates('picker')])
       .then(([res, tpl]) => {
         setReservations(res || []);
         const enabled = (tpl || []).filter((t) => t.enabled !== 0);

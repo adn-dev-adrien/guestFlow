@@ -2,11 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Checkbox,
-  Alert, Button, TextField, Tooltip, IconButton, Stack, TableRow, TableCell,
+  Alert, Tooltip, Stack, TableRow, TableCell,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageActionBar from '../components/PageActionBar';
 import ResponsiveTable from '../components/ResponsiveTable';
 import LoadingState from '../components/LoadingState';
@@ -16,7 +14,7 @@ import AttentionInbox, { AttentionPinned, LegacyPluginAlerts } from '../componen
 import useAttention from '../hooks/useAttention';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
-import { displayDate, formatCurrency } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
 import { ADMIN, isReceptionOnly, userHasRole } from '../constants/roles';
@@ -25,9 +23,11 @@ import { SAS } from '../constants/plugins';
 import { statusLockTooltip } from '../constants/receptionSasLock';
 import api from '../api';
 import useServerToday from '../hooks/useServerToday';
-import { addIsoDays } from '../utils/isoDay';
-
-const addDays = addIsoDays;
+import FoldedDayList from '../components/FoldedDayList';
+import NextArrivalBlock from '../components/NextArrivalBlock';
+import {
+  ARRIVALS_TITLE, DEPARTURES_TITLE, NO_ARRIVAL_PLANNED, NO_ARRIVAL_TODAY, NO_DEPARTURE_TODAY,
+} from '../constants/planningCopy';
 
 // The day lists switch to cards as soon as their CONTAINER cannot hold the arrivals table without a
 // scroller — the drawer eats 240 px, so a viewport breakpoint alone hid Note / Paiements / Caution
@@ -76,12 +76,12 @@ export default function Dashboard() {
   // A reception account only acts through the SAS: without it (outside the plan, failed) a row leads
   // nowhere, so it is not offered as a link.
   const sasOn = usePlugin(SAS);
-  // The server's date (specs/ds-sweep-planning.md rule 28); nothing loads before it is known.
+  // The server's date (specs/ds-sweep-planning.md rule 28); nothing loads before it is known, and the
+  // lists load again when it moves on (specs/dashboard-planning-scroll.md rule 7).
   const todayStr = useServerToday();
-  const [pickedDate, setPickedDate] = useState(null);
-  const selectedDate = pickedDate || todayStr;
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
+  const [nextArrival, setNextArrival] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -112,32 +112,18 @@ export default function Dashboard() {
     }
   };
 
-  // Only the latest load paints: quick day-to-day clicks, or the server's day moving on when the page
-  // comes back to the foreground, can answer out of order (specs/upcoming-reservations-cards.md rule 7).
+  // Only the latest load paints: the server's day moving on when the page comes back to the foreground,
+  // or « Réessayer », can answer out of order (specs/upcoming-reservations-cards.md rule 9).
   const loadSeq = useRef(0);
   const loadDashboardData = async () => {
     const seq = ++loadSeq.current;
     const isCurrent = () => seq === loadSeq.current;
-    // Fetch reservations starting from selectedDate if it's in the past
-    const fetchFrom = selectedDate < todayStr ? selectedDate : todayStr;
-
     try {
-      const allUpcoming = await api.getReservations({ from: fetchFrom });
-
-      const arrivalsBase = allUpcoming
-        .filter((r) => r.startDate === selectedDate)
-        .sort((a, b) => (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59'));
-      const departuresBase = allUpcoming
-        .filter((r) => r.endDate === selectedDate)
-        .sort((a, b) => (a.checkOutTime || '23:59').localeCompare(b.checkOutTime || '23:59'));
-
-      const [arrivalsDetailed, departuresDetailed] = await Promise.all([
-        Promise.all(arrivalsBase.map((r) => api.getReservation(r.id))),
-        Promise.all(departuresBase.map((r) => api.getReservation(r.id))),
-      ]);
+      const data = await api.getPlanningToday();
       if (!isCurrent()) return;
-      setArrivalsToday(arrivalsDetailed);
-      setDeparturesToday(departuresDetailed);
+      setArrivalsToday(data.arrivals);
+      setDeparturesToday(data.departures);
+      setNextArrival(data.nextArrival);
       setLoadError(false);
     } catch (e) {
       if (isCurrent()) setLoadError(true);
@@ -147,8 +133,8 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (selectedDate) loadDashboardData();
-  }, [selectedDate, todayStr, reloadNonce]); // eslint-disable-line
+    if (todayStr) loadDashboardData();
+  }, [todayStr, reloadNonce]); // eslint-disable-line
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
   // Reception has no reservation sheet — a row tap jumps to the Planning with the matching SAS open.
@@ -160,32 +146,6 @@ export default function Dashboard() {
     if (!receptionMode) openReservation(r);
     else if (sasOn) navigate(`/planning?sas=departure&reservationId=${r.id}`);
   };
-
-  // Date cluster — rendered in the bar `center` on sm+ and as a compact strip under the bar on xs
-  // (PageActionBar hides `center` on xs). specs/ds-sweep-planning.md rule 1.
-  const renderDateNav = () => (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-      <IconButton size="small" onClick={() => setPickedDate(addDays(selectedDate, -1))} disabled={!selectedDate} aria-label="Jour précédent">
-        <NavigateBeforeIcon />
-      </IconButton>
-      <TextField
-        type="date"
-        size="small"
-        value={selectedDate || ''}
-        onChange={(e) => setPickedDate(e.target.value)}
-        sx={{ width: 165 }}
-        slotProps={{ htmlInput: { style: { padding: '6px 10px' }, 'aria-label': 'Date affichée' } }}
-      />
-      <IconButton size="small" onClick={() => setPickedDate(addDays(selectedDate, 1))} disabled={!selectedDate} aria-label="Jour suivant">
-        <NavigateNextIcon />
-      </IconButton>
-      {selectedDate !== todayStr && (
-        <Button size="small" variant="outlined" onClick={() => setPickedDate(null)}>
-          Aujourd'hui
-        </Button>
-      )}
-    </Box>
-  );
 
   const checkboxCell = (title, checked, onChange, checkboxSx, disabled = false) => (
     <Tooltip title={title}>
@@ -350,11 +310,7 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <PageActionBar title="Tableau de bord" center={renderDateNav()} />
-      {/* xs fallback for the bar's hidden `center` — same date cluster, compact strip. */}
-      <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
-        {renderDateNav()}
-      </Box>
+      <PageActionBar title="Tableau de bord" />
 
       {/* The day first (specs/shell-and-home-day-first.md rules 1–3): the gate keys and the payment
           deadlines stay unfolded above it; everything else waits in « À traiter » below it. The KPI
@@ -377,35 +333,42 @@ export default function Dashboard() {
             {receptionMode && !sasOn && (
               <Alert severity="info">Arrivées et départs guidés indisponibles pour le moment.</Alert>
             )}
-            <Box>
-              <Typography variant="sectionHeader" gutterBottom>Départs — {displayDate(selectedDate)}</Typography>
+            <FoldedDayList title={DEPARTURES_TITLE} empty={departuresToday.length === 0} emptyText={NO_DEPARTURE_TODAY}>
               <ResponsiveTable
                 items={departuresToday}
                 getKey={(r) => r.id}
                 minWidth={DEPARTURES_TABLE_WIDTH}
                 cardsBelowWidth={DAY_LISTS_CARDS_BELOW}
-                emptyText="Aucun départ ce jour."
                 head={departuresHead}
                 renderRow={renderDepartureRow}
                 renderMobileCard={renderDepartureCard}
                 onItemClick={openDeparture}
               />
-            </Box>
+            </FoldedDayList>
 
-            <Box>
-              <Typography variant="sectionHeader" gutterBottom>Arrivées — {displayDate(selectedDate)}</Typography>
+            <FoldedDayList
+              title={ARRIVALS_TITLE}
+              empty={arrivalsToday.length === 0}
+              emptyText={nextArrival ? NO_ARRIVAL_TODAY : `${NO_ARRIVAL_TODAY} · ${NO_ARRIVAL_PLANNED}`}
+              after={nextArrival && (
+                <NextArrivalBlock
+                  nextArrival={nextArrival}
+                  bedsLabel={bedsLabel}
+                  onOpen={receptionMode ? undefined : openReservation}
+                />
+              )}
+            >
               <ResponsiveTable
                 items={arrivalsToday}
                 getKey={(r) => r.id}
                 minWidth={ARRIVALS_TABLE_WIDTH}
                 cardsBelowWidth={DAY_LISTS_CARDS_BELOW}
-                emptyText="Aucune arrivée ce jour."
                 head={arrivalsHead}
                 renderRow={renderArrivalRow}
                 renderMobileCard={renderArrivalCard}
                 onItemClick={openArrival}
               />
-            </Box>
+            </FoldedDayList>
           </Stack>
 
           {showAttention && <AttentionInbox items={attention.items} total={attention.total} unavailableLabel={attention.unavailableLabel} />}

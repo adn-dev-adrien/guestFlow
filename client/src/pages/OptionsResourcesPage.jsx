@@ -7,8 +7,8 @@
  * specs/plugins-phase-2-hosts.md rule 8). The tabs are handed to the active child, which passes them
  * to its `PageActionBar`: centred in the bar on sm+, second row of the same sticky block on xs
  * (specs/ds-tabs.md rule 2). The tab lives in `?tab=` so the old `/parametres/tarifs` link lands on
- * it. Only the active tab is mounted; standalone routes (/options, /resources) are unaffected (no
- * barTabs).
+ * it. Only the active tab is mounted; the standalone routes (/options, /resources) redirect to their
+ * tab (specs/options-resources-ux.md rule 1).
  */
 
 import React, { Suspense } from 'react';

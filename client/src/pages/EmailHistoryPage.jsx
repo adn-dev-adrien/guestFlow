@@ -65,7 +65,7 @@ export default function EmailHistoryPage() {
   }, [page, statusFilter, templateFilter, reservationIdFilter]);
 
   useEffect(() => {
-    api.getEmailTemplates().then(setTemplates).catch(() => setTemplates([]));
+    api.getEmailTemplates('picker').then(setTemplates).catch(() => setTemplates([]));
   }, []);
   useEffect(() => { reload(); }, [reload]);
 
