@@ -96,6 +96,7 @@ function createController(model = defaultModel, deps = {}) {
   const coreVersion = deps.coreVersion || (() => require('../utils/appVersion').getAppVersion());
   const sdkVersion = deps.sdkVersion || require('../plugins/sdk/version').SDK_VERSION;
   const now = deps.now || (() => new Date());
+  const operatorManaged = deps.operatorManaged || (() => require('../utils/pluginGovernance').isOperatorManaged());
 
   const packages = () => host().mode() === 'packages';
   const env = () => ({ coreVersion: coreVersion(), sdkVersion, hostExports: host().hostExports() });
@@ -521,9 +522,15 @@ function createController(model = defaultModel, deps = {}) {
   }
 
   return {
-    // GET /api/plugins
+    // GET /api/plugins — on an operator-managed space only what a feature needs: the live plugins,
+    // each as { id, name, icon, setup } (specs/plugin-operator-provisioning.md rule 5).
     list(req, res) {
-      return res.json(PLUGIN_CATALOG.map(view));
+      if (!operatorManaged()) return res.json(PLUGIN_CATALOG.map(view));
+      const live = PLUGIN_CATALOG.filter((entry) => {
+        const row = model.get(entry.id);
+        return Boolean(row && row.enabled && reg.isLive(entry.id));
+      });
+      return res.json(live.map(view).map(({ id, name, icon, setup }) => ({ id, name, icon, setup })));
     },
 
     /** The same views, for the core's own readers (the Paramètres summary, rule 25). */

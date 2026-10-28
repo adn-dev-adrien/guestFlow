@@ -31,6 +31,7 @@ const PENDING_MS = 10 * 60 * 1000;
 function createAuthController(users, {
   sessions = defaultSessionsModel,
   activePlugins = () => [],
+  pluginsManageable = () => true,
   onboardingOpen = () => false,
   twoFactor = null,
   passwordReset = null,
@@ -43,6 +44,8 @@ function createAuthController(users, {
   const withPlugins = (user, session = {}) => ({
     ...user,
     enabledPlugins: activePlugins(),
+    // specs/plugin-operator-provisioning.md rule 3: the Plugins page exists where the administrator manages them.
+    pluginsManageable: userHasRole(user, ADMIN) && pluginsManageable(),
     onboardingOpen: userHasRole(user, ADMIN) && !user.isSupport && onboardingOpen(),
     // specs/hosting-h2-account-security.md rule 17: the support page exists on a managed instance only.
     supportAccessEnabled: Boolean(supportAccess && supportAccess.enabled()) && userHasRole(user, ADMIN),
@@ -288,6 +291,7 @@ const defaultController = createAuthController(defaultUsersModel, {
     const registry = require('../plugins/sdk/registry');
     return require('../models/pluginsModel').listActiveIds().filter((id) => registry.isLive(id));
   },
+  pluginsManageable: () => !require('../utils/pluginGovernance').isOperatorManaged(),
   onboardingOpen: () => require('../models/onboardingModel').buildModel(require('../database')).isOpen(),
 });
 defaultController.create = createAuthController;

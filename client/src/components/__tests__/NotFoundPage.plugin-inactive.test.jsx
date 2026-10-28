@@ -1,13 +1,13 @@
 // specs/plugins-phase-p-productisation.md rule 40 — for an administrator, the address of a plugin that
 // is not active reads « Plugin inactif » with a link to Plugins; any other address, or another role,
-// keeps « Page introuvable ».
+// keeps « Page introuvable ». An unmanaged space only (specs/plugin-operator-provisioning.md rule 7).
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 
 vi.mock('../../api', () => ({ __esModule: true, default: { getPluginPage: vi.fn() } }));
-let user = { id: 1, roles: ['admin'] };
+let user = { id: 1, roles: ['admin'], pluginsManageable: true };
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user }) }));
 
 import api from '../../api';
@@ -24,7 +24,7 @@ const renderAt = (path) => render(
 
 beforeEach(() => {
   vi.clearAllMocks();
-  user = { id: 1, roles: ['admin'] };
+  user = { id: 1, roles: ['admin'], pluginsManageable: true };
 });
 
 test('rule 40: a plugin page names its plugin and opens Plugins', async () => {

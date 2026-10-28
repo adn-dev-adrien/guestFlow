@@ -22,7 +22,7 @@ function licenceReader({ plugins, active = null, eraseOrders = [], issuedAt = '2
   };
 }
 
-function space({ installed = [], active = null, plugins, eraseOrders = [], data = {}, blockers = {}, setup = {}, now = () => new Date('2026-10-28T08:00:00Z') } = {}) {
+function space({ installed = [], active = null, plugins, eraseOrders = [], data = {}, blockers = {}, setup = {}, managed = false, now = () => new Date('2026-10-28T08:00:00Z') } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE migrations (name TEXT PRIMARY KEY, ran_at TEXT DEFAULT (datetime('now')));
@@ -52,6 +52,7 @@ function space({ installed = [], active = null, plugins, eraseOrders = [], data 
     registry,
     db: () => db,
     settingsModel: () => ({ deleteAll() {} }),
+    operatorManaged: () => managed,
     now,
   });
   const provisioning = provisioningModel.buildModel(db);

@@ -216,6 +216,7 @@ screen or endpoint: the customer sees only the features themselves.
     the page (rule 3); the core self-update already says « Mises à jour gérées par l'hébergeur »
     (H1 rule 9). The release archive still ships every package (P24), so rule 16 can always install
     from the space's own release.
+    > **Sans test** — pas de comportement nouveau : cette règle ne fait que renvoyer à « Versions › Plugins » (H1 règles 11, 30–31) et aux règles 3–4 testées.
 
 ### 3.G Migration
 
@@ -231,6 +232,7 @@ screen or endpoint: the customer sees only the features themselves.
 26. **Release order.** The space's code (rules 1–9, 15–23) is inert without `activePlugins`; the
     console's code writes it. Shipping the space first then the console, or both in one release, never
     leaves a hosted customer with plugins switched by surprise.
+    > **Sans test** — règle de processus de publication ; l'invariant qu'elle protège (aucun changement tant qu'aucune licence ne porte `activePlugins`) est testé par les règles 15 et 25.
 
 **Edge cases:**
 
