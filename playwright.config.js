@@ -32,6 +32,9 @@ process.env.TZ = 'Europe/Paris';
 
 const isCI = Boolean(process.env.CI);
 
+// Specs that rewrite the global VAT regime / rate, in the order they run (see the projects below).
+const VAT_STATE_SPECS = [/vat-regime-switch\.spec\.js$/, /vat-franchise\.spec\.js$/, /vat-roundtrip\.spec\.js$/];
+
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'e2e', 'specs'),
   // Per-spec timeout — the slowest specs are CRUD round-trips with multiple navigations.
@@ -110,13 +113,33 @@ module.exports = defineConfig({
       use: { ...devices['Desktop Chrome'] },
       // The bank reconciliation spec seeds a stored Qonto connection into the shared database: it runs in
       // its own project, after the others, so it never overlaps a spec that expects Qonto to be absent.
-      testIgnore: /reconciliation-assisted-matching\.spec\.js$/,
+      // The three VAT specs rewrite the global VAT regime and rate (specs/vat-optional-mode.md): they run
+      // one after the other, once everything else is done, so no spec ever reads a regime in flux.
+      testIgnore: [/reconciliation-assisted-matching\.spec\.js$/, ...VAT_STATE_SPECS],
     },
     {
       name: 'bank-reconciliation',
       use: { ...devices['Desktop Chrome'] },
       testMatch: /reconciliation-assisted-matching\.spec\.js$/,
       dependencies: ['chromium'],
+    },
+    {
+      name: 'vat-regime',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: VAT_STATE_SPECS[0],
+      dependencies: ['chromium'],
+    },
+    {
+      name: 'vat-franchise',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: VAT_STATE_SPECS[1],
+      dependencies: ['vat-regime'],
+    },
+    {
+      name: 'vat-rate',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: VAT_STATE_SPECS[2],
+      dependencies: ['vat-franchise'],
     },
   ],
 });
