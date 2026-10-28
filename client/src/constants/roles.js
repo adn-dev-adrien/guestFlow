@@ -99,6 +99,8 @@ export const ROUTE_ROLES = liveRecord(() => ({ ...CORE_ROUTE_ROLES, ...MODULE_RO
 // Routes that also need something of the instance, as the server says in `/auth/me`.
 const ROUTE_CONDITIONS = Object.freeze({
   '/parametres/acces-support': (user) => Boolean(user && user.supportAccessEnabled),
+  // specs/plugin-operator-provisioning.md rule 3 — the Plugins page exists only where the administrator manages the plugins.
+  '/parametres/plugins': (user) => Boolean(user && user.pluginsManageable),
 });
 
 export function canSeeRoute(user, path) {

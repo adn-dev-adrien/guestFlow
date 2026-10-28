@@ -82,6 +82,8 @@ function applyGuestEmailSequenceSchema(db) {
     ['guestSequenceStartDate', 'TEXT'],
     ['googleReviewUrl', "TEXT DEFAULT ''"],
     ['instagramUrl', "TEXT DEFAULT ''"],
+    // specs/settings-input-guards.md rule 41 — the ordered social links; `instagramUrl` stays in sync.
+    ['socialLinks', "TEXT NOT NULL DEFAULT '[]'"],
     // Empty = no pool (rule 14). An existing row keeps the season it holds.
     ['poolSeasonStart', "TEXT DEFAULT ''"],
     ['poolSeasonEnd', "TEXT DEFAULT ''"],

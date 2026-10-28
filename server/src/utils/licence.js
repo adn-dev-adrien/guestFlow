@@ -162,6 +162,26 @@ function createLicenceReader({
     effectiveState,
     isReadOnly: () => READ_ONLY_STATES.has(effectiveState()),
     allowsPlugin,
+    // specs/plugin-operator-provisioning.md rules 15, 23 — what the operator switched on (null when the
+    // licence says nothing: the stored states stand) and the erase orders it carries. Read from an
+    // expired licence too, as `plugins` is.
+    activePlugins() {
+      const lic = current();
+      const source = lic.enforced ? pluginSource(lic) : null;
+      if (!source || !Array.isArray(source.activePlugins)) return null;
+      return source.activePlugins.filter((id) => typeof id === 'string');
+    },
+    eraseOrders() {
+      const lic = current();
+      const source = lic.enforced ? pluginSource(lic) : null;
+      if (!source || !Array.isArray(source.eraseOrders)) return [];
+      return source.eraseOrders.filter((o) => o && typeof o.order === 'string' && typeof o.id === 'string');
+    },
+    issuedAt() {
+      const lic = current();
+      const source = lic.enforced ? pluginSource(lic) : null;
+      return source && source.issuedAt ? String(source.issuedAt) : null;
+    },
     planName: () => {
       const lic = current();
       return lic.enforced && lic.valid ? lic.payload.planName || lic.payload.plan : null;

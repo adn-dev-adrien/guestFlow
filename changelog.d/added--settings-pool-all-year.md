@@ -1,0 +1,1 @@
+- **Pool open all year** (specs/settings-input-guards.md): « Piscine » offers « Toute l'année » or « Saison » on the Séjour tab; the switch is now kept after saving, and a season whose closing day is before its opening day is refused (« La fermeture suit l'ouverture. »). No migration: a year-round pool is stored as 01-01 to 12-31.

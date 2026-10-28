@@ -18,11 +18,12 @@ vi.mock('../../../components/DialogProvider', () => {
 
 import api from '../../../api';
 import PlatformsSettingsPage from '../PlatformsSettingsPage';
+import { LIMITS } from './platformLimitsFixtures';
 
 let orig;
 beforeEach(() => {
   orig = window.matchMedia;
-  api.getPlatformSettings.mockResolvedValue({ platforms: [
+  api.getPlatformSettings.mockResolvedValue({ limits: LIMITS, platforms: [
     { id: 1, name: 'direct', isDirect: true, countsAsDirect: true, color: '#c9a227', commissionPercent: 0, takesDeposit: null, touristTaxCollection: null, payoutDueDays: null },
     { id: 4, name: 'Lodgify', isDirect: false, countsAsDirect: false, color: '#fec700', commissionPercent: 5, takesDeposit: true, touristTaxCollection: 'owner', payoutDueDays: 7 },
   ] });

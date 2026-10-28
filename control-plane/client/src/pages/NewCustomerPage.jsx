@@ -18,12 +18,12 @@ const EMPTY = {
   billingStreet: '', billingPostcode: '', billingCity: '', billingCountry: 'FR', vatNumber: '',
 };
 // Checked as typed once filled in; the others once a save was attempted.
-const LIVE = ['slug', 'billingPostcode', 'vatNumber'];
+const LIVE = ['slug', 'billingPostcode', 'vatNumber', 'modules'];
 
 function Toggle({ value, onChange, options, label }) {
   return (
     <Stack spacing={0.5}>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
       <ToggleButtonGroup exclusive size="small" value={value} onChange={(e, v) => v !== null && onChange(v)} sx={{ flexWrap: 'wrap' }}>
         {options.map((o) => <ToggleButton key={o.value} value={o.value} sx={{ minHeight: 44 }}>{o.label}</ToggleButton>)}
       </ToggleButtonGroup>
@@ -50,6 +50,9 @@ export default function NewCustomerPage() {
   }, [form]);
 
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
+  // A new plan or add-on set re-ticks the modules it allows (rule 13): the choice restarts from the server's.
+  const withoutModules = ({ modules, ...rest }) => rest;
+  const setAllowed = (key) => (value) => setForm((f) => ({ ...withoutModules(f), [key]: value }));
   const field = (key) => (e) => set(key)(e.target.value);
   // The slug is checked as it is typed; the other fields once a save was attempted.
   const errorOf = (key) => ((submitted || (LIVE.includes(key) && form[key])) ? preview.errors[key] : undefined);
@@ -68,7 +71,14 @@ export default function NewCustomerPage() {
     }
   }
 
-  const toggleAddon = (id) => set('addons')(form.addons.includes(id) ? form.addons.filter((a) => a !== id) : [...form.addons, id]);
+  const toggleAddon = (id) => setAllowed('addons')(form.addons.includes(id) ? form.addons.filter((a) => a !== id) : [...form.addons, id]);
+  // The choice starts from the server's (every module of the plan) and then lives in the form: two quick
+  // clicks never wait for the preview, which only judges.
+  const isTicked = (m) => (form.modules ? form.modules.includes(m.id) : m.ticked);
+  const toggleModule = (id) => setForm((f) => {
+    const ticked = f.modules || preview.moduleChoices.filter((m) => m.ticked).map((m) => m.id);
+    return { ...f, modules: ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id] };
+  });
 
   return (
     <>
@@ -127,7 +137,7 @@ export default function NewCustomerPage() {
           <CardContent>
             <Stack spacing={2}>
               {catalogue && (
-                <Toggle label="Forfait" value={form.planCode} onChange={set('planCode')}
+                <Toggle label="Forfait" value={form.planCode} onChange={setAllowed('planCode')}
                   options={catalogue.plans.map((p) => ({ value: p.code, label: p.name }))} />
               )}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -148,12 +158,22 @@ export default function NewCustomerPage() {
                 label="Période d’essai de 30 jours, sans paiement" sx={{ minHeight: 44 }} />
               {preview.addonChoices && preview.addonChoices.length > 0 && (
                 <Stack>
-                  <Typography variant="caption" color="text.secondary">Options à la carte</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Options à la carte</Typography>
                   {preview.addonChoices.map((a) => (
                     <FormControlLabel key={a.pluginId} sx={{ minHeight: 44 }} disabled={a.included}
                       control={<Checkbox checked={a.included || form.addons.includes(a.pluginId)} onChange={() => toggleAddon(a.pluginId)} />}
                       label={a.included ? `${a.name} — inclus dans le forfait` : `${a.name} — ${a.priceLabel}`} />
                   ))}
+                </Stack>
+              )}
+              {preview.moduleChoices && preview.moduleChoices.length > 0 && (
+                <Stack>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Modules</Typography>
+                  {preview.moduleChoices.map((m) => (
+                    <FormControlLabel key={m.id} sx={{ minHeight: 44 }}
+                      control={<Checkbox checked={isTicked(m)} onChange={() => toggleModule(m.id)} />} label={m.name} />
+                  ))}
+                  <Typography variant="body2" sx={{ color: errorOf('modules') ? 'error.main' : 'text.secondary' }}>{errorOf('modules') || preview.moduleSummary}</Typography>
                 </Stack>
               )}
             </Stack>
@@ -164,7 +184,7 @@ export default function NewCustomerPage() {
             <CardContent>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{preview.summary.price}</Typography>
               <Typography variant="body2">{preview.summary.period}</Typography>
-              <Typography variant="caption" color="text.secondary">{preview.summary.catalogue}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{preview.summary.catalogue}</Typography>
             </CardContent>
           </Card>
         )}

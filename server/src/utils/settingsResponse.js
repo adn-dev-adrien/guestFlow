@@ -9,6 +9,7 @@ const { resolveEmailIdentity } = require('./emailIdentity');
 const { readRevenueGoals } = require('./revenueGoals');
 const platformMail = require('./platformMail');
 const { franchiseApplies } = require('./vatFranchise');
+const { effectiveSocialLinks, publicNetworks } = require('./socialLinks');
 
 function formatUpdatedAtLabel(updatedAt) {
   if (!updatedAt) return null;
@@ -120,6 +121,8 @@ function shapeResponse(row, env = process.env, vat = null) {
       sequenceStartDate: row.guestSequenceStartDate || null,
       googleReviewUrl: row.googleReviewUrl || '',
       instagramUrl: row.instagramUrl || '',
+      socialLinks: effectiveSocialLinks(row),
+      socialNetworks: publicNetworks(),
     },
     updatedAt: row.updatedAt || null,
     updatedAtLabel: formatUpdatedAtLabel(row.updatedAt),

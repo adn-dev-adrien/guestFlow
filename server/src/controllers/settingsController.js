@@ -24,6 +24,7 @@ const vatFranchise = require('../utils/vatFranchise');
 const { todayIso } = require('../utils/localDate');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
+const { validateSocialLinks, validateSocialUrl, networkOf, instagramUrlOf, mergeLegacyInstagram, parseSocialLinks } = require('../utils/socialLinks');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
@@ -122,7 +123,6 @@ const NOTIFICATIONS_FIELDS = [
 // is decided per template (specs/settings-rationalization.md rule 17b), not here.
 const EMAILS_FIELDS = [
   { input: 'googleReviewUrl', column: 'googleReviewUrl', validator: validation.validatePublicUrl },
-  { input: 'instagramUrl', column: 'instagramUrl', validator: validation.validatePublicUrl },
 ];
 // The pool season moved to the property that has the pool (specs/guest-email-texts-made-simple.md rule 34).
 
@@ -142,8 +142,34 @@ const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'noti
 // deliberately tolerates, so a value pasted with a trailing newline can never reach the header.
 const TRIMMED_TEXT_COLUMNS = new Set([
   'smtpFromName', 'smtpFromEmail', 'notificationRecipientEmail',
-  'googleReviewUrl', 'instagramUrl',
+  'googleReviewUrl',
 ]);
+
+/**
+ * Social links (specs/settings-input-guards.md rules 35-43). The list is validated per entry and
+ * `instagramUrl` is kept equal to its Instagram entry for a rollback; an older client sending only
+ * `instagramUrl` replaces that entry and keeps the others.
+ */
+function applySocialLinks(emails, payload, errors) {
+  if (!emails) return;
+  const has = (key) => Object.prototype.hasOwnProperty.call(emails, key);
+  if (has('socialLinks')) {
+    const { links, errors: linkErrors } = validateSocialLinks(emails.socialLinks);
+    Object.assign(errors, linkErrors);
+    payload.socialLinks = JSON.stringify(links);
+    payload.instagramUrl = instagramUrlOf(links);
+  } else if (has('instagramUrl')) {
+    const legacyUrl = String(emails.instagramUrl == null ? '' : emails.instagramUrl).trim();
+    const err = legacyUrl ? validateSocialUrl(legacyUrl, networkOf('instagram')) : '';
+    if (err) {
+      errors.instagramUrl = err;
+      return;
+    }
+    const links = mergeLegacyInstagram(parseSocialLinks(settingsModel.read().socialLinks), emails.instagramUrl);
+    payload.socialLinks = JSON.stringify(links);
+    payload.instagramUrl = legacyUrl;
+  }
+}
 
 function pickGroup(body, group) {
   const value = body && body[group];
@@ -211,6 +237,7 @@ async function updateSettings(req, res) {
   applyGroup(smtp, SMTP_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
   applyGroup(emails, EMAILS_FIELDS);
+  applySocialLinks(emails, payload, errors);
   applyGroup(accounting, ACCOUNTING_FIELDS);
 
   // `fiscalYearEndMonth` is NOT NULL: an empty/null value (a Select cleared client-side) must

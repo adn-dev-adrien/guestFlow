@@ -11,11 +11,50 @@
  */
 
 const { validateMonthDay } = require('./settingsValidation');
+const { PROPERTY_LIMITS, parseBoundedNumber } = require('./inputLimits');
+const { MODES, poolSeasonModeOf } = require('./poolSeason');
 
 const has = (body, key) => Object.prototype.hasOwnProperty.call(body, key);
 const asNumber = (value) => (value === '' || value === null || value === undefined ? NaN : Number(String(value).replace(',', '.')));
 const isWhole = (n) => Number.isInteger(n) && n >= 0;
 const isTrue = (value) => value === true || value === 1 || value === '1' || value === 'true';
+
+// specs/guest-email-texts-made-simple.md rule 34, amended by specs/settings-input-guards.md rules 22-26
+// and 46-47: the pair is judged on what the payload changes, a lone bound is completed from the stored
+// season, and a legacy pair left as it is never blocks an unrelated save.
+function validatePoolSeason(body, errors, existing) {
+  const mode = has(body, 'poolSeasonMode') ? body.poolSeasonMode : null;
+  if (mode !== null && !MODES.includes(mode)) {
+    errors.poolSeasonMode = 'Choix invalide.';
+    return;
+  }
+  if (mode === 'none' || mode === 'allYear') return;
+  const hasStart = has(body, 'poolSeasonStart');
+  const hasEnd = has(body, 'poolSeasonEnd');
+  if (mode === null && !hasStart && !hasEnd) return;
+  const storedStart = String((existing && existing.poolSeasonStart) || '').trim();
+  const storedEnd = String((existing && existing.poolSeasonEnd) || '').trim();
+  const start = hasStart ? String(body.poolSeasonStart || '').trim() : storedStart;
+  const end = hasEnd ? String(body.poolSeasonEnd || '').trim() : storedEnd;
+  if (hasStart) {
+    const error = validateMonthDay(start);
+    if (error) errors.poolSeasonStart = error;
+  }
+  if (hasEnd) {
+    const error = validateMonthDay(end);
+    if (error) errors.poolSeasonEnd = error;
+  }
+  if (errors.poolSeasonStart || errors.poolSeasonEnd) return;
+  const becomesSeason = mode === 'season' && poolSeasonModeOf(storedStart, storedEnd) !== 'season';
+  if (mode === null && !start && !end) return;
+  if (start === storedStart && end === storedEnd && !becomesSeason) return;
+  if (!start || !end) {
+    if (!start) errors.poolSeasonStart = 'Les deux dates.';
+    if (!end) errors.poolSeasonEnd = 'Les deux dates.';
+    return;
+  }
+  if (end < start) errors.poolSeasonEnd = 'La fermeture suit l\'ouverture.';
+}
 
 function validatePropertyInput(body = {}, existing = null) {
   const errors = {};
@@ -74,16 +113,18 @@ function validatePropertyInput(body = {}, existing = null) {
     if (!Number.isFinite(amount) || amount < 0) errors[key] = 'Un montant ≥ 0 €.';
   }
 
-  // specs/guest-email-texts-made-simple.md rule 34 — the pool season, both bounds or none.
-  for (const key of ['poolSeasonStart', 'poolSeasonEnd']) {
-    if (!has(body, key)) continue;
-    const error = validateMonthDay(String(body[key] || '').trim());
-    if (error) errors[key] = error;
+  // specs/settings-input-guards.md rules 9-11 — a delay is refused, never replaced, and only when it
+  // is the field that changes: a stored value outside the bounds stays savable for an unrelated edit.
+  const depositOn = isTrue(pick('depositEnabled'));
+  for (const key of ['depositDueDays', 'balanceDaysBefore', 'cancelAfterBalanceDueDays']) {
+    if (!has(body, key) || String(body[key] ?? '').trim() === '') continue;
+    if (key === 'depositDueDays' && !depositOn) continue;
+    if (existing && asNumber(body[key]) === asNumber(existing[key])) continue;
+    const parsed = parseBoundedNumber(body[key], PROPERTY_LIMITS[key]);
+    if (parsed.error) errors[key] = parsed.error;
   }
-  if (has(body, 'poolSeasonStart') && has(body, 'poolSeasonEnd') && !errors.poolSeasonStart && !errors.poolSeasonEnd
-    && Boolean(String(body.poolSeasonStart || '').trim()) !== Boolean(String(body.poolSeasonEnd || '').trim())) {
-    errors[String(body.poolSeasonStart || '').trim() ? 'poolSeasonEnd' : 'poolSeasonStart'] = 'Les deux dates, ou aucune.';
-  }
+
+  validatePoolSeason(body, errors, existing);
 
   return errors;
 }

@@ -42,7 +42,7 @@ function settingsPayload(smtp = {}) {
       ...smtp,
     },
     notifications: { enabled: true, icalReservationEnabled: true, recipientEmail: '', derivedRecipient: 'contact@solio.fr' },
-    emails: { googleReviewUrl: '', instagramUrl: '', poolSeasonStart: '06-15', poolSeasonEnd: '08-31' },
+    emails: { googleReviewUrl: '', instagramUrl: '' },
     updatedAtLabel: 'aujourd’hui',
   };
 }

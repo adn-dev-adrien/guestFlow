@@ -127,20 +127,32 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
     }
   }
 
+  // Rule 25 — a customer whose space could not be read is seeded as soon as it can be; rule 23 — an
+  // erase order the space ran leaves the licence. Cheap when there is nothing to do.
+  function syncModules() {
+    try {
+      return controllers.modules.sweep();
+    } catch (err) {
+      log(`[scheduler] module sync failed: ${err.message}`);
+      return { seeded: 0, acknowledged: 0 };
+    }
+  }
+
   function start(intervalMs = 60000) {
     ctx.fleetUpdater.recover();
     ctx.provisioner.recover();
     const live = models.customers.list().filter((c) => !c.archivedAt).map((c) => ctx.provisioner.instanceOf(c));
     ctx.drivers.process.resumeEnabled(live).catch((err) => log(`[process] resume failed: ${err.message}`));
+    syncModules();
     tick();
     readDirectory();
     const timers = [setInterval(tick, intervalMs), setInterval(checkPayments, PAYMENT_CHECK_MS), setInterval(readDirectory, intervalMs),
-      setInterval(probe, intervalMs)];
+      setInterval(probe, intervalMs), setInterval(syncModules, intervalMs)];
     for (const t of timers) t.unref();
     return () => timers.forEach(clearInterval);
   }
 
-  return { runDaily, runHostDaily, copyConsoleDatabase, isDue, tick, checkPayments, readDirectory, probe, start };
+  return { runDaily, runHostDaily, copyConsoleDatabase, isDue, tick, checkPayments, readDirectory, probe, syncModules, start };
 }
 
 module.exports = { createScheduler, RUN_HOUR, PAYMENT_CHECK_MS };

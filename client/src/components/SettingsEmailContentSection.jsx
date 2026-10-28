@@ -1,14 +1,14 @@
 /**
  * SettingsEmailContentSection — « Contenu des mails » card of Paramètres → Emails & notifications.
  *
- * The settings the guest emails quote (specs/guest-email-sequence.md §6.2): the review and Instagram
- * links of the J+1 email. The pool season belongs to the property that has the pool (Logement ›
+ * The settings the guest emails quote (specs/guest-email-sequence.md §6.2): the review link and the
+ * social links of the J+1 email (specs/settings-input-guards.md §3.7). The pool season belongs to the property that has the pool (Logement ›
  * Séjour, specs/guest-email-texts-made-simple.md rule 34). Whether an email leaves by itself
  * is not decided here any more: each template has its own mode (specs/settings-rationalization.md
  * rule 17b).
  *
  * Props:
- *   values:   { googleReviewUrl, instagramUrl }
+ *   values:   { googleReviewUrl, socialLinks, socialNetworks }
  *   onChange: (key, value) => void
  *   disabled: boolean
  *   errors:   { [column]: string } — server validation messages
@@ -17,6 +17,7 @@ import React from 'react';
 import { Link as RouterLink } from 'react-router';
 import { Card, CardContent, Stack, Typography, Box, Button } from '@mui/material';
 import HelpedTextField from './HelpedTextField';
+import SocialLinksField from './SocialLinksField';
 
 export default function SettingsEmailContentSection({
   values = {},
@@ -43,12 +44,11 @@ export default function SettingsEmailContentSection({
             error={errors.googleReviewUrl}
             disabled={disabled}
           />
-          <HelpedTextField
-            label="Lien Instagram"
-            value={values.instagramUrl || ''}
-            onChange={(v) => onChange('instagramUrl', v)}
-            helperText="Proposé dans le mail de remerciement (J+1)."
-            error={errors.instagramUrl}
+          <SocialLinksField
+            links={values.socialLinks || []}
+            networks={values.socialNetworks || []}
+            onChange={(next) => onChange('socialLinks', next)}
+            errors={errors}
             disabled={disabled}
           />
           {/* specs/plugins-phase-p-productisation.md §6 — the sentences of the emails. */}

@@ -10,6 +10,7 @@
  *   timedOptions: { early, late }, updateTimedOptionField(kind, field, value), timeOptions (string[])
  *   propertyId — null for a property not created yet (its texts come once it exists)
  *   arrival — { draft, saved, errors, onChange } of the « Arrivée » block, held by the page (rule 35)
+ *   savedSeason — { start, end } of the stored pool season ('' when none), what « Saison » comes back to
  *
  * Cleaning, towels and bed linen (specs/guest-email-texts-made-simple.md rule 28): « Selon les options » leaves
  * the emails to the options; empty means not said yet, and the emails stay silent on it. The pool
@@ -19,6 +20,7 @@ import React from 'react';
 import { Link as RouterLink } from 'react-router';
 import PropertyArrivalFacts from './PropertyArrivalFacts';
 import MonthDayField from '../MonthDayField';
+import SegmentedSelect from '../SegmentedSelect';
 import {
   Box, Card, CardContent, FormControl, FormControlLabel, FormHelperText, InputLabel, Link, MenuItem, Select, Switch, TextField, Typography,
 } from '@mui/material';
@@ -30,7 +32,7 @@ const TIMED = [
 
 export default function PropertyStayTab({
   form, errors = {}, updateField, onZeroFocus, timedOptions, updateTimedOptionField, timeOptions, propertyId = null,
-  arrival = null,
+  arrival = null, savedSeason = { start: '', end: '' },
 }) {
   const choice = (field, label, options) => (
     <FormControl size="small" fullWidth error={Boolean(errors[field])}>
@@ -49,7 +51,7 @@ export default function PropertyStayTab({
       <FormHelperText>{errors[field] || (form[field] === '' ? 'Vide : rien n’est dit aux voyageurs.' : ' ')}</FormHelperText>
     </FormControl>
   );
-  const hasPool = Boolean(form.poolSeasonStart || form.poolSeasonEnd || form.poolOpen);
+  const poolMode = form.poolSeasonMode || 'none';
   return (
     <>
       <Card sx={{ mb: 3 }}>
@@ -98,17 +100,30 @@ export default function PropertyStayTab({
             <FormControlLabel
               control={(
                 <Switch
-                  checked={hasPool}
-                  onChange={(e) => {
-                    updateField('poolOpen', e.target.checked);
-                    if (!e.target.checked) { updateField('poolSeasonStart', ''); updateField('poolSeasonEnd', ''); }
-                  }}
+                  checked={poolMode !== 'none'}
+                  onChange={(e) => updateField('poolSeasonMode', e.target.checked ? 'allYear' : 'none')}
                 />
               )}
               label="Piscine"
               sx={{ minHeight: 44 }}
             />
-            {hasPool && (
+            {poolMode !== 'none' && (
+              <SegmentedSelect
+                label="Période d'ouverture"
+                options={[{ value: 'allYear', label: "Toute l'année" }, { value: 'season', label: 'Saison' }]}
+                value={poolMode}
+                onChange={(next) => {
+                  updateField('poolSeasonMode', next);
+                  // « Saison » starts from the stored season, else empty: prefilled with the all-year bounds it
+                  // would save back as all year.
+                  if (next === 'season' && poolMode !== 'season') {
+                    updateField('poolSeasonStart', savedSeason.start);
+                    updateField('poolSeasonEnd', savedSeason.end);
+                  }
+                }}
+              />
+            )}
+            {poolMode === 'season' && (
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <MonthDayField label="Ouverte du" value={form.poolSeasonStart} onChange={(v) => updateField('poolSeasonStart', v)} error={errors.poolSeasonStart} />
                 <MonthDayField label="Au" value={form.poolSeasonEnd} onChange={(v) => updateField('poolSeasonEnd', v)} error={errors.poolSeasonEnd} />

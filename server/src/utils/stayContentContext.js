@@ -31,6 +31,7 @@ const { platformDisplay } = require('./platformDisplay');
 const { renderStayText, renderText } = require('./stayTextCatalogue');
 const { format: formatWithArticle } = require('./propertyArticle');
 const { pendingFactsOf } = require('./propertyFacts');
+const { effectiveSocialLinks, renderSocialLinks } = require('./socialLinks');
 
 const WEEKDAYS = { fr: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
 const MONTHS = { fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'], en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] };
@@ -359,8 +360,9 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   } else {
     reviewParagraph = say('review.platform', { platform: platformName, link: googleReviewUrl }, { hasGoogleReview: Boolean(googleReviewUrl) });
   }
-  const instagramUrl = safe(settings.instagramUrl).trim();
-  const instagramParagraph = instagramUrl ? say('instagram', { link: instagramUrl }) : '';
+  // specs/settings-input-guards.md rule 39 — one link renders exactly as the single Instagram URL did.
+  const socialLinks = effectiveSocialLinks(settings);
+  const instagramParagraph = socialLinks.length ? say('instagram', { link: renderSocialLinks(socialLinks, L) }) : '';
 
   // --- season emails
   const offers = (facts.properties || [])

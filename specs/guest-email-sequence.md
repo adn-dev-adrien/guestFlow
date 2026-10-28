@@ -530,6 +530,9 @@ Ne plus recevoir nos nouvelles : {{unsubscribeUrl}}
 - **Client form** — switch « Ne pas envoyer les mails après séjour » with helper text « Remerciement, bons cadeau et vœux ne lui seront pas envoyés ». When unsubscribed: `StatusBadge` « Désinscrit des nouvelles le … » (read-only).
 - **Property detail** — card « Dans les mails clients »: accroche FR / EN (`HelpedTextField`, multiline), distance du parking (m), switches « Wifi » and « Cafetière filtre familiale ».
 - **Réglages › Emails automatiques** — line « Séquence active depuis le … » (or « pas encore activée »), URL avis Google, URL Instagram, saison piscine (début / fin, JJ/MM).
+  **Amended 2026-10-28** (specs/settings-input-guards.md rules 35-44): « URL Instagram » became an
+  ordered list « Réseaux sociaux » (network + URL, up to 8, validated server-side); one link renders the
+  J+1 e-mail exactly as before.
 - **Public page** — « Vos préférences Domaine Solio »: one sentence and a button « Ne plus recevoir les nouvelles du domaine »; after POST, « C'est noté. Vous continuerez à recevoir les informations liées à vos séjours. » Mobile-first, no external asset.
 
 Responsive: every new field stacks full width on `xs`; the simulation swaps table → cards under `md`.

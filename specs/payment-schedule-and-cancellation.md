@@ -118,6 +118,9 @@ acompte is kept as an indemnity, and the books say so correctly.
    the conversion date, unless the acompte was already paid online (then it is left as-is).
 6. `depositDueDate` is `NULL` when there is no acompte to collect (`depositDisabled`,
    `depositAmount = 0`, or a non-direct platform).
+   **Amended 2026-10-28** (specs/settings-input-guards.md rules 9, 11-12, 15): `depositDueDays` is a
+   whole number from 0 to 30, refused (400) otherwise; 0 means « due on the booking day » (« à la
+   réservation »), with no blocking (A1 = label only).
 
 ### 3.2 Solde — due 30 days before arrival
 
@@ -128,6 +131,8 @@ acompte is kept as an indemnity, and the books say so correctly.
 9. **Late booking** (arrival less than `balanceDaysBefore` days away): the clamp of rule 7 makes the
    solde due on the booking day itself — acompte and solde are both immediately payable.
 10. `balanceDueDate` is `NULL` when `balanceAmount = 0` (nothing left to collect pre-arrival).
+   **Amended 2026-10-28** (specs/settings-input-guards.md rules 10-12): `balanceDaysBefore` is a whole
+   number from 0 to 60, refused (400) otherwise — no more silent fallback to 30 on a negative.
 
 ### 3.3 Cancellation deadline
 
@@ -141,6 +146,8 @@ acompte is kept as an indemnity, and the books say so correctly.
 13. The cancellation action is offered **only while `today < startDate`**. From the arrival day on,
     the row stays visible as an unpaid-arrival warning with no cancel button — cancelling a stay whose
     guest is at the door is not a decision the dashboard should suggest.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 10-12): `cancelAfterBalanceDueDays` is a
+    whole number from 0 to 60, refused (400) otherwise.
 
 ### 3.4 Dashboard alert
 

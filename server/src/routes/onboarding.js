@@ -9,6 +9,7 @@ const controller = buildController({
   usersModel: require('../models/usersModel'),
   plugins: require('../controllers/pluginsController'),
   ensureVapid: (settings) => require('../utils/vapid').ensureVapid(settings),
+  pluginStep: () => !require('../utils/pluginGovernance').isOperatorManaged(),
 });
 
 router.get('/', controller.get);

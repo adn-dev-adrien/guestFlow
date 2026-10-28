@@ -18,7 +18,7 @@ vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
     getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
-    getProperty: vi.fn(), getOptions: vi.fn(), getPropertyArrivalFacts: vi.fn(), savePropertyArrivalFacts: vi.fn(),
+    getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(), getPropertyArrivalFacts: vi.fn(), savePropertyArrivalFacts: vi.fn(),
     updateProperty: vi.fn(), createProperty: vi.fn(), deleteProperty: vi.fn(),
     getPropertyPlatforms: vi.fn(), getPlatformSettings: vi.fn(), createOption: vi.fn(), updateOption: vi.fn(),
   },
@@ -28,6 +28,7 @@ vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
+import { LIMITS } from '../../components/property/__tests__/propertyLimitsFixtures';
 
 const PROPERTY = {
   id: 5, name: 'Le Moulin', nameArticle: 'au', maxGuests: 3, maxBabies: 1, singleBeds: 1, doubleBeds: 2,
@@ -42,6 +43,7 @@ const renderAt = (url = '/properties/5?tab=sejour') => render(
 );
 
 beforeEach(() => {
+  api.getPropertyLimits.mockResolvedValue(LIMITS);
   vi.clearAllMocks();
   api.getOptions.mockResolvedValue([]);
   api.getProperty.mockResolvedValue({ ...PROPERTY });
@@ -96,6 +98,7 @@ test('rule 34: the pool season is chosen as a day and a month on the Séjour tab
   renderAt();
   await screen.findByLabelText('Réseau Wi-Fi');
   fireEvent.click(screen.getByLabelText('Piscine'));
+  fireEvent.click(screen.getByRole('button', { name: 'Saison' }));
   fireEvent.mouseDown(screen.getAllByLabelText('Jour')[0]);
   fireEvent.click(within(await screen.findByRole('listbox')).getByText('15'));
   fireEvent.mouseDown(screen.getAllByLabelText('Mois')[0]);
@@ -109,5 +112,6 @@ test('rule 34: the pool season is chosen as a day and a month on the Séjour tab
   const fd = api.updateProperty.mock.calls[0][1];
   expect(fd.get('poolSeasonStart')).toBe('06-15');
   expect(fd.get('poolSeasonEnd')).toBe('08-31');
+  expect(fd.get('poolSeasonMode')).toBe('season');
   expect(fd.has('poolOpen')).toBe(false);
 });

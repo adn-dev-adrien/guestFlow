@@ -6,7 +6,7 @@ import CustomerPage from '../pages/CustomerPage';
 import api from '../api';
 import { renderAt, setWidth, customerFixture } from './consoleFixtures';
 
-vi.mock('../api', () => ({ default: { customer: vi.fn(), licenceUrl: (id) => `/api/customers/${id}/licence` } }));
+vi.mock('../api', () => ({ default: { customerModules: () => new Promise(() => {}), customer: vi.fn(), licenceUrl: (id) => `/api/customers/${id}/licence` } }));
 
 const page = () => renderAt(<CustomerPage />, { path: '/clients/:id', route: '/clients/3' });
 const done = {

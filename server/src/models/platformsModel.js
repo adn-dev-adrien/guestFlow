@@ -17,6 +17,7 @@ const {
 } = require('../utils/platformNameFormat');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
+const { PLATFORM_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
 const { describeIcalSync } = require('../utils/icalSyncStatus');
 const { defaultMarksStaysClosed } = require('../utils/icalClosedFeed');
 
@@ -209,14 +210,17 @@ function createPlatformsModel(database) {
         .map((p) => ({ id: p.id, name: p.name, commissionPercent: Number(p.commissionPercent) || 0 }));
     },
 
-    // Set a platform's global commission % (clamped to [0, 99.99]). The Direct row is editable too
+    // Set a platform's global commission %: refused (null, nothing written) outside [0, 99.99], never
+    // clamped (specs/settings-input-guards.md rules 30, 48) — plugins reach this method too.
+    // The Direct row is editable too
     // since specs/tariff-recipes/spec.md §3.6 rule 32: it carries the booking-engine fee (Lodgify 5 %)
     // that the direct displayed price must cover.
     setCommissionPercent(id, commissionPercent) {
       const row = stmts.findById.get(Number(id));
       if (!row) return null;
-      const c = Math.max(0, Math.min(99.99, Number(commissionPercent) || 0));
-      stmts.updateCommissionPercent.run(c, Number(id));
+      const parsed = parseBoundedNumber(commissionPercent, PLATFORM_LIMITS.commissionPercent);
+      if (parsed.error) return null;
+      stmts.updateCommissionPercent.run(parsed.value, Number(id));
       return stmts.findById.get(Number(id));
     },
 

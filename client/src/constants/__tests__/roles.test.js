@@ -66,9 +66,9 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   // roles.plugins.test.js.
   const enabledPlugins = PLUGIN_IDS;
   // An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
-  const admin = { roles: ['admin'], enabledPlugins, supportAccessEnabled: true };
+  const admin = { roles: ['admin'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
   const accountant = { roles: ['accountant'], enabledPlugins };
-  const both = { roles: ['admin', 'accountant'], enabledPlugins, supportAccessEnabled: true };
+  const both = { roles: ['admin', 'accountant'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
 
   test('admin can see every registered route', () => {
     for (const path of Object.keys(ROUTE_ROLES)) {
@@ -104,7 +104,7 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   });
 
   test('multi-role admin+reception: admin scope (everything) wins', () => {
-    const adminReception = { roles: ['admin', 'reception'], enabledPlugins, supportAccessEnabled: true };
+    const adminReception = { roles: ['admin', 'reception'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
     for (const path of Object.keys(ROUTE_ROLES)) {
       expect(canSeeRoute(adminReception, path)).toBe(true);
     }

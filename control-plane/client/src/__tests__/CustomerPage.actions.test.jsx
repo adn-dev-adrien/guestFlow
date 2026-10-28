@@ -7,7 +7,7 @@ import CustomerPage from '../pages/CustomerPage';
 import api from '../api';
 import { renderAt, setWidth, customerFixture as customer } from './consoleFixtures';
 
-vi.mock('../api', () => ({ default: {
+vi.mock('../api', () => ({ default: { customerModules: () => new Promise(() => {}),
   customer: vi.fn(), stepAction: vi.fn(), recordPayment: vi.fn(), extend: vi.fn(), forceActive: vi.fn(), changePlan: vi.fn(),
   deprovision: vi.fn(), reactivate: vi.fn(), cancelErase: vi.fn(), eraseNow: vi.fn(), licenceUrl: (id) => `/api/customers/${id}/licence`,
 } }));
