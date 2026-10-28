@@ -85,7 +85,7 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
     <Box sx={{ py: 1.5, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }} data-testid={`line-${item.key}`}>
       <Stack direction="row" gap={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography component="div" variant="body2" sx={{ fontWeight: 600 }}>
             {showReservation && `${item.reservation.clientName || 'Client'} · `}{item.label}
             {showReservation && <PlatformChip platform={item.reservation.platform} sx={{ ml: 1 }} />}
           </Typography>

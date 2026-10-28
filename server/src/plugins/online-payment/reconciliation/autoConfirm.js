@@ -10,6 +10,8 @@
  * Pure selection (`eligible`) + the run, which confirms through the controller's own write path.
  */
 
+const { day } = require('./dates');
+
 /**
  * @param {object} data the controller's computed pass (`receiptsByKey`, `byTransaction`, `txById`, `allocatedOf`)
  * @returns {{ proposal: object, pair: object }[]}
@@ -27,6 +29,9 @@ function eligible(data) {
     const tx = data.txById.get(p.transactionId);
     if (!receipt || !tx || receipt.unbounded || receipt.alreadyCovered) return;
     const remaining = tx.amountCents - (data.allocatedOf.get(tx.id) || 0);
+    // Automatic only for a credit dated on or after checkout: before it, the stay's own payout is not due yet.
+    const checkOut = receipt && receipt.reservation && String(receipt.reservation.endDate || '').slice(0, 10);
+    if (checkOut && receipt.channel.startsWith('platform:') && tx && day(tx.settledAt) < checkOut) return;
     if (!(receipt.needCents > 0) || alloc.amountCents !== receipt.needCents || remaining !== alloc.amountCents) return;
     out.push({ proposal: p, pair: { transactionId: p.transactionId, reservationId: alloc.reservationId, ledgerKey: alloc.ledgerKey, amountCents: alloc.amountCents } });
   });
@@ -37,18 +42,18 @@ function eligible(data) {
  * @param {object} deps
  * @param {() => object} deps.compute        a fresh pass over stored data
  * @param {(args: object) => object} deps.confirm  the controller's write path (`{ pairs, auto: true }`)
- * @returns {{ count: number }}
+ * @returns {{ count: number, keys: string[] }} the receipts confirmed alone, `reservationId|ledgerKey`
  */
 function runAutoConfirm({ compute, confirm }) {
-  let count = 0;
+  const keys = [];
   eligible(compute()).forEach(({ pair }) => {
     // The previous confirmation changed the fiches: a pair is re-checked on fresh data before it is written.
     const still = eligible(compute()).find((e) => e.pair.transactionId === pair.transactionId && e.pair.reservationId === pair.reservationId && e.pair.ledgerKey === pair.ledgerKey);
     if (!still) return;
     const answer = confirm({ pairs: [pair], auto: true });
-    if (answer.status < 400) count += 1;
+    if (answer.status < 400) keys.push(`${pair.reservationId}|${pair.ledgerKey}`);
   });
-  return { count };
+  return { count: keys.length, keys };
 }
 
 module.exports = { eligible, runAutoConfirm };

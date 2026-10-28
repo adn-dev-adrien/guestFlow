@@ -104,3 +104,27 @@ test('rules 21, 41 — the information line of the automatic confirmations can b
   fireEvent.click(screen.getByRole('button', { name: "Fermer l'information" }));
   expect(screen.queryByText('3 rapprochements automatiques')).toBeNull();
 });
+
+test('rules 33, 46 — « Défaire » on an installment asks first, naming the payment link that stays closed', async () => {
+  const item = done({ key: '9|installment-1', ledgerKey: 'installment-1', label: 'Échéance 1/2', undoWarning: 'Le lien de paiement de cette échéance reste annulé ; en envoyer un nouveau depuis la fiche.' });
+  api.getReconciliation.mockResolvedValue(payload({ view: 'done', items: [item], credits: [] }));
+  api.undoReconciliation.mockResolvedValue({ ok: true, restored: [], untouched: [] });
+  renderPage('/finance/rapprochement');
+  fireEvent.click(await screen.findByRole('tab', { name: /Rapprochés/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Défaire' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByText(/reste annulé ; en envoyer un nouveau depuis la fiche/)).toBeTruthy();
+  expect(api.undoReconciliation).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Défaire' }));
+  await waitFor(() => expect(api.undoReconciliation).toHaveBeenCalledWith('tx-1'));
+});
+
+test('rules 33, 46 — without a warning « Défaire » acts at once', async () => {
+  api.getReconciliation.mockResolvedValue(payload({ view: 'done', items: [done()], credits: [] }));
+  api.undoReconciliation.mockResolvedValue({ ok: true, restored: [], untouched: [] });
+  renderPage('/finance/rapprochement');
+  fireEvent.click(await screen.findByRole('tab', { name: /Rapprochés/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Défaire' }));
+  await waitFor(() => expect(api.undoReconciliation).toHaveBeenCalledWith('tx-1'));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});

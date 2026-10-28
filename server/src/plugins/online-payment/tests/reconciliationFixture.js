@@ -38,7 +38,7 @@ let nextId = 100;
 function addReservation(over = {}) {
   const id = over.id || (nextId += 1);
   const row = {
-    id, kind: 'reservation', propertyId: 1, clientId: 1, startDate: '2026-11-10', endDate: '2026-11-12', adults: 2, platform: 'direct',
+    id, kind: 'reservation', propertyId: 1, clientId: 1, startDate: '2026-10-02', endDate: '2026-10-04', adults: 2, platform: 'direct',
     finalPrice: 700, depositAmount: 0, balanceAmount: 700, depositDueDate: null, balanceDueDate: '2026-11-01', ...over,
   };
   const cols = Object.keys(row);

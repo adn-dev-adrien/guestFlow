@@ -18,7 +18,7 @@ const SPLIT_WINDOW_DAYS = 30;
 const MAX_SPLIT_CREDITS = 3;
 const ESTIMATE_TOLERANCE = 0.01;
 // Platforms that pay at booking time, months before the stay (v1 rule 14).
-const PAYS_AT_BOOKING = Object.freeze(['Abracadaroom']);
+const PAYS_AT_BOOKING = Object.freeze(['Abracadaroom', 'Lodgify', 'Stripe']);
 const MS_DAY = 24 * 60 * 60 * 1000;
 
 const DEFAULT_PATTERNS = Object.freeze({
@@ -42,7 +42,31 @@ const { allocateFifo } = require('./allocation');
 const platformSlug = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 // A platform pays after the stay: a credit more than 3 days before the expected date is another stay's
 // money, unless the platform pays at booking time (v1 rule 14; review 2026-10-28).
-const earlyDaysOf = (platform) => (PAYS_AT_BOOKING.some((p) => platformSlug(p) === platformSlug(platform)) ? MAX_EARLY_DAYS : GROUP_EARLY_DAYS);
+const paysAtBooking = (platform) => PAYS_AT_BOOKING.some((p) => platformSlug(p) === platformSlug(platform));
+
+/**
+ * Is a credit of that day possible for this receipt? The expected date is a due date (checkout + the platform's delay),
+ * not a payout date, so the early side is bounded on the STAY: a platform that pays after the stay pays nothing before
+ * check-in. A platform paying at booking time keeps its long early window. Up to 30 days after the expected date.
+ */
+function inPayoutWindow(receipt, platform, settled) {
+  if (!settled) return true;
+  const anchor = receipt.expectedDate || receipt.dueDate;
+  const delta = anchor ? daysBetween(anchor, settled) : 0;
+  if (delta > 30) return false;
+  if (paysAtBooking(platform)) return delta >= -MAX_EARLY_DAYS;
+  const checkIn = day(receipt.reservation && receipt.reservation.startDate);
+  return checkIn ? settled >= checkIn : delta >= -GROUP_EARLY_DAYS;
+}
+
+/** « sûr » only for a credit in the stay's own payout window: from checkout to 14 days after the expected date. */
+function inSureWindow(receipt, settled) {
+  if (!settled) return true;
+  const checkOut = day(receipt.reservation && receipt.reservation.endDate);
+  const anchor = receipt.expectedDate || receipt.dueDate;
+  if (checkOut && settled < checkOut) return false;
+  return !anchor || daysBetween(anchor, settled) <= 14;
+}
 const dayNumber = (iso) => (iso ? Math.floor(Date.parse(`${iso}T00:00:00Z`) / MS_DAY) : null);
 const daysBetween = (a, b) => (day(a) && day(b) ? dayNumber(day(b)) - dayNumber(day(a)) : null);
 
@@ -62,6 +86,8 @@ function patternMatches(pattern, tx) {
 }
 
 function classify(tx, settings) {
+  // A platform pays by transfer: a card operation named like it is a refund or a purchase, never a payout.
+  if (/^(card|carte)$/i.test(String(tx.operationType || ''))) return { kind: 'other' };
   const patterns = settings.patterns || DEFAULT_PATTERNS;
   for (const [platform, list] of Object.entries(patterns)) {
     if ((list || []).some((p) => patternMatches(p, tx))) {
@@ -111,7 +137,6 @@ const proposal = (tx, items, confidence, source, reason, extra = {}) => ({
 function estimatedGroup(tx, platform, rows, settings) {
   const settled = day(tx.settledAt);
   const rate = (Number((settings.commissionRates || {})[platform]) || 0) / 100;
-  const early = earlyDaysOf(platform);
   const items = rows.map((r) => {
     const at = day(r.expectedDate || r.dueDate);
     return {
@@ -120,8 +145,7 @@ function estimatedGroup(tx, platform, rows, settings) {
     };
   }).filter((i) => {
     if (!i.at || !(i.cents > 0)) return false;
-    const delta = settled ? daysBetween(i.at, settled) : 0;
-    return delta <= 30 && delta >= -early;
+    return inPayoutWindow(i.receipt, platform, settled) && (settled ? daysBetween(i.at, settled) <= 30 : true);
   });
   if (!items.some((i) => i.estimated)) return null;
   // A single estimated stay that fits the credit explains it alone (v1 rule 32): never combine around it.
@@ -157,13 +181,7 @@ function platformProposals(tx, platform, receipts, settings) {
     && platformSlug(String(r.channel).slice('platform:'.length)) === platformSlug(platform) && r.openCents > 0);
   // A fiche is often typed after the money moved, so its creation date says nothing: the window is
   // anchored on the expected date alone (Abracadaroom pays at booking time, months before the stay).
-  const inWindow = (r) => {
-    if (!settled) return true;
-    const anchor = r.expectedDate || r.dueDate;
-    const delta = anchor ? daysBetween(anchor, settled) : 0;
-    return delta <= 30 && delta >= -earlyDaysOf(platform);
-  };
-  const candidates = mine.filter(inWindow);
+  const candidates = mine.filter((r) => inPayoutWindow(r, platform, settled));
   const out = [];
   const recorded = candidates.filter((r) => r.payoutRecorded);
   const batch = (settings.batchPlatforms || DEFAULT_BATCH_PLATFORMS).some((b) => platformSlug(b) === platformSlug(platform));
@@ -172,7 +190,8 @@ function platformProposals(tx, platform, receipts, settings) {
     const recent = mine.filter((r) => {
       const at = r.paidDate || r.expectedDate;
       const d = settled && at ? daysBetween(at, settled) : 0;
-      return d >= -3 && d <= 10;
+      // Lodgify's payouts (Stripe) follow the payment, not the stay: an unpaid receipt only has its due date to go by.
+      return d >= (r.paid ? -3 : -MAX_EARLY_DAYS) && d <= 10;
     });
     const fee = (Number(settings.cardFeePercent) || 0) / 100;
     const items = recent.map((r) => ({ receipt: r, cents: r.payoutRecorded ? r.openCents : Math.round(r.openCents * (1 - fee)), estimated: !r.payoutRecorded }));
@@ -187,8 +206,18 @@ function platformProposals(tx, platform, receipts, settings) {
   }
 
   const exact = recorded.filter((r) => Math.abs(r.openCents - tx.remainingCents) <= toleranceOf(r));
-  exact.forEach((r) => out.push(proposal(tx, [{ receipt: r, allocCents: tx.remainingCents }], exact.length === 1 ? 'sur' : 'verifier', 'platform',
-    exact.length === 1 ? `Seul versement ${platform} de ce montant` : `Plusieurs séjours ${platform} au même montant`)));
+  // An exact group of OTHER stays explains the credit just as well: the single match is no longer certain.
+  const rival = exact.length === 1
+    ? smallestSubset(recorded.filter((r) => !exact.includes(r)).map((r) => ({ receipt: r, cents: r.openCents })), tx.remainingCents, () => 0) : null;
+  const rivalGroup = Boolean(rival && rival.length > 1);
+  exact.forEach((r) => {
+    const sure = exact.length === 1 && !rivalGroup && inSureWindow(r, settled);
+    let reason = `Plusieurs séjours ${platform} au même montant`;
+    if (exact.length === 1) reason = `Seul versement ${platform} de ce montant`;
+    if (exact.length === 1 && rivalGroup) reason = `Montant d'un séjour ou d'un versement groupé de ${rival.length} séjours ${platform}`;
+    else if (exact.length === 1 && !sure) reason = `Seul versement ${platform} de ce montant, hors du délai habituel`;
+    out.push(proposal(tx, [{ receipt: r, allocCents: tx.remainingCents }], sure ? 'sur' : 'verifier', 'platform', reason));
+  });
   if (exact.length === 0) {
     const subset = smallestSubset(recorded.map((r) => ({ receipt: r, cents: r.openCents })), tx.remainingCents, () => 0);
     if (subset && subset.length > 1) {

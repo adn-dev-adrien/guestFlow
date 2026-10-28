@@ -175,7 +175,7 @@ test('rule 27 — the ledger\'s payout row shows a line per penalty and the net 
   const ledger = buildLedger({ row: row(id), penalties: penaltiesModel.listFor(id), today: TODAY });
   const payout = ledger.rows.find((r) => r.key === 'balance');
   const plain = (t) => t.replace(/[\u00a0\u202f]/g, ' ');
-  assert.deepEqual(payout.detail.penalties.map((p) => plain(p.label)), ['Pénalité plateforme −40,00 € · Frais de relogement']);
+  assert.deepEqual(payout.detail.penalties.map((p) => plain(p.label)), ['Pénalité plateforme −40,00 € · Frais de relogement · 26/05']);
   assert.equal(payout.detail.penalties[0].id > 0, true);
   assert.deepEqual(payout.penaltyAction, { label: 'Déclarer une pénalité' }, 'offered on the payout row itself, even when the amounts are frozen');
   const direct = buildLedger({ row: { ...row(id), platform: 'direct' }, today: TODAY }).rows.find((r) => r.key === 'balance');

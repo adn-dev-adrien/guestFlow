@@ -57,7 +57,9 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       let payout = null;
       let commission = null;
       // An automatic confirmation writes the flag and the date only (rules 20–21): never a payout, never an amount.
-      if (!auto && String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
+      // The payout and its commission are written only when the fiche carried none: a recorded payout that the credit
+      // equals is never touched (review 2026-10-28), and neither is its commission.
+      if (!auto && receipt.unbounded && String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
         // Rule 46 — the credit pays the solde only when the platform took an acompte: the payout is the
         // whole stay's net, so the commission is not inflated by the acompte.
         // …and what the platform kept as a penalty (reconciliation-assisted-matching.md rule 25).

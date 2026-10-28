@@ -249,7 +249,7 @@ export default function ReconciliationPage() {
                         {item.proposal && <Button size="small" variant="contained" disabled={busy} onClick={() => (item.proposal.needsShares ? setSharesItem(item) : actions.confirm(item))} sx={{ mr: 0.5, textTransform: 'none' }}>{item.proposal.needsShares ? 'Répartir et confirmer' : 'Confirmer'}</Button>}
                         {item.proposal && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.discard(item)} sx={{ textTransform: 'none' }}>Écarter</Button>}
                         {item.canUndo && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.undo(item)} sx={{ textTransform: 'none' }}>Défaire</Button>}
-                        {item.declarePenalty && <Button size="small" variant="outlined" onClick={() => setPenaltyItem(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Déclarer une pénalité de {money(item.declarePenalty.amountCents)}</Button>}
+                        {item.declarePenalty && <Button size="small" variant="outlined" onClick={() => setPenaltyItem(item)} sx={{ ml: 0.5, minHeight: 44, textTransform: 'none' }}>Déclarer une pénalité de {money(item.declarePenalty.amountCents)}</Button>}
                         {item.isGap && <Button size="small" variant="outlined" onClick={() => openFiche(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Ouvrir la fiche</Button>}
                       </TableCell>
                     </TableRow>

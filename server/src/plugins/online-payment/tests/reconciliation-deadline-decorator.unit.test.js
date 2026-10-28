@@ -68,7 +68,7 @@ test('rule 22 — « late » leaves the count of « Écarts de règlement », th
 test('rules 22, 37 — a « sûr » proposal gets the one-click confirmation', () => {
   const id = addReservation({ platform: 'Booking', platformGrossAmount: 800, platformPayoutAmount: 700, finalPrice: 800, balanceAmount: 800, depositAmount: 0, balanceDueDate: '2026-10-01' });
   const { controller, transactions } = build();
-  transactions.upsertMany([credit('t9', 70000, { settledAt: at('2026-10-02'), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.1' })], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([credit('t9', 70000, { settledAt: at('2026-10-06'), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.1' })], { bankAccountId: 'acc-1' });
   const [decorated] = controller.decorateDeadlines([row(id)]);
   assert.equal(decorated.bank.confidence, 'sur');
   assert.equal(decorated.bank.proposalId, `t9:${id}|balance`);

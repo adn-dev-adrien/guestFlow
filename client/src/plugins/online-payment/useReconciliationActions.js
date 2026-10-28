@@ -2,10 +2,11 @@
 // words a refusal through the toast, and tells the caller to reload (specs/qonto-bank-reconciliation.md
 // rules 26, 34, 39).
 import { useCallback, useState } from 'react';
-import { api, useToast } from '../sdk';
+import { api, useToast, useAppDialogs } from '../sdk';
 
 export default function useReconciliationActions({ onChanged }) {
   const { showError, showSuccess } = useToast();
+  const { confirm: askConfirm } = useAppDialogs();
   const [busy, setBusy] = useState(null);
 
   const run = useCallback(async (key, fn, success) => {
@@ -61,16 +62,19 @@ export default function useReconciliationActions({ onChanged }) {
     transactionId: item.proposal.bank.transactionId, reservationId: item.reservation.id, ledgerKey: item.ledgerKey,
   })), [run]);
 
-  const undo = useCallback((item) => run(item.key, async () => {
-    const ids = [...new Set(item.bank.map((b) => b.transactionId))];
-    let last = null;
-    for (const id of ids) {
-      // eslint-disable-next-line no-await-in-loop
-      last = await api.undoReconciliation(id);
-    }
-    return last;
-  }, (answer) => (answer && answer.untouched && answer.untouched.length > 0
-    ? 'Rapprochement défait. Fiche modifiée depuis : à vérifier à la main.' : 'Rapprochement défait.')), [run]);
+  const undo = useCallback(async (item) => {
+    if (item.undoWarning && !(await askConfirm({ title: 'Défaire le rapprochement ?', message: item.undoWarning, confirmLabel: 'Défaire' }))) return false;
+    return run(item.key, async () => {
+      const ids = [...new Set(item.bank.map((b) => b.transactionId))];
+      let last = null;
+      for (const id of ids) {
+        // eslint-disable-next-line no-await-in-loop
+        last = await api.undoReconciliation(id);
+      }
+      return last;
+    }, (answer) => (answer && answer.untouched && answer.untouched.length > 0
+      ? 'Rapprochement défait. Fiche modifiée depuis : à vérifier à la main.' : 'Rapprochement défait.'));
+  }, [run, askConfirm]);
 
   const setOutside = useCallback((credit, outside) => run(credit.transactionId, () => api.setReconciliationOutside(credit.transactionId, outside)), [run]);
 

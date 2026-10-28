@@ -139,8 +139,8 @@ test('rule 1 — a reservation outside the scope or unknown is refused', () => {
 });
 
 test('rules 2, 39 — a credit the matcher proposes to this fiche is always plausible, even 27 days after the échéance', () => {
-  const id = addReservation({ platform: 'Booking', platformGrossAmount: 500, platformPayoutAmount: 420, finalPrice: 500, balanceAmount: 500, depositAmount: 0, balanceDueDate: '2026-09-01' });
-  const { controller, transactions } = build();
+  const id = addReservation({ platform: 'Booking', platformGrossAmount: 500, platformPayoutAmount: 420, finalPrice: 500, balanceAmount: 500, depositAmount: 0, balanceDueDate: '2026-09-01', startDate: '2026-08-20', endDate: '2026-08-22' });
+  const { controller, transactions } = build({ startDate: '2026-01-01' });
   transactions.upsertMany([credit('p', 42000, { settledAt: at('2026-09-28'), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.9' })], { bankAccountId: 'acc-1' });
   const body = load(controller, id);
   assert.deepEqual(body.likely.map((c) => c.transactionId), ['p']);

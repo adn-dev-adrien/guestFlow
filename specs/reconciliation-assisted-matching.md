@@ -269,13 +269,16 @@ on the right account, on the fiche, in the finance pages and in the accounting e
 
 ### 3.5 Review of 2026-10-28 (appended; no rule above is renumbered)
 
-32. **An early credit is no match.** For a platform that does not pay at booking time, a credit settled more than
-    3 days before the stay's expected payout date is never proposed (the 400-day window is for Abracadaroom only).
+32. **An early credit is no match.** For a platform that does not pay at booking time, a credit settled before the
+    stay's check-in is never proposed (rule 42; the first version measured 3 days from the expected date).
     This is what keeps another stay's payout from becoming a « sûr » match, so it also bounds automatic
     confirmation (rule 20). *(Tightens v1 rule 14 for every platform proposal.)*
 33. **« Défaire » takes an installment back.** The confirmation of an installment receipt stores the installment;
     « Défaire » puts it back to unpaid (aggregates and frozen split included) while nobody changed it since (same
-    date, same method), else it is reported untouched like any edited fiche (v1 rule 38).
+    date, same method), else it is reported untouched like any edited fiche (v1 rule 38). **Limit:** the
+    installment's payment link, closed when the payment was recorded, stays closed (a provider cannot reopen a
+    link): the receipt carries `undoWarning` and « Défaire » asks first — « le lien de paiement de cette échéance
+    reste annulé ; en envoyer un nouveau depuis la fiche ».
 34. **A penalty is offered on a partial cover too.** A platform balance below its expected payout is `amount_gap`
     (already marked received) or `partial` (not yet): both offer « Déclarer une pénalité » with the gap. When a
     declaration (or a removal) makes the stored lines cover the receipt, the plugin marks the fiche received
@@ -300,6 +303,27 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     never write a stale payout or commission back on the next save.
 41. **« Actualiser » keeps the page's filter**, and « Voir » after automatic confirmations filters on the lines
     confirmed alone (`filter=auto`); the information line can be closed.
+
+### 3.6 Verification round of 2026-10-28 (appended)
+
+42. **The early side of a payout window is the stay.** The expected date is a due date (checkout + the platform's
+    delay), not a payout date: for a platform that pays after the stay a credit is possible from **check-in** on (never
+    before: another stay's money) up to 30 days after the expected date. Abracadaroom, Lodgify and Stripe pay at booking
+    time and keep the long early window. « sûr » (and so automatic confirmation) needs a credit dated **on or after
+    checkout** and within 14 days after the expected date; any other candidate is « à vérifier ». *(Replaces the 3-day
+    limit of rule 32 measured from the expected date.)*
+43. **No false « sûr ».** A single stay equal to the credit is « à vérifier » when an exact group of other stays
+    explains the credit too; a card operation (`card`) named like a platform is a refund or a purchase, never a payout;
+    a same-amount credit outside the stay's payout window (rule 42) is « à vérifier ».
+44. **A recorded payout is never rewritten by a confirmation.** The payout and the commission are written only when
+    the fiche carried no payout yet; when the credit equals the recorded payout only the paid flag and the date are
+    written. This holds for every confirmation, manual, bulk or automatic.
+45. **After a declaration, the cover is checked to the cent.** The fiche is marked received (flag and date only) only
+    when the stored lines equal what the penalties leave to expect; a payout the fiche does not carry yet, or any other
+    amount, is left to the operator. Every read also sweeps the fiches a declaration left covered (a server stopped
+    between the declaration and the event), idempotently.
+46. **The banner counts what « Voir » lists:** the receipts of the last read that are still reconciled and still
+    automatic; the ledger's penalty line shows the penalty's date.
 
 **Edge cases:**
 - A credit plausible for two échéances of the same fiche (acompte 300, solde 300) → listed once, best-fit
@@ -578,7 +602,7 @@ All resolved by Adrien on 2026-10-28.
 
 ## 11. Implementation progress
 
-Implemented 2026-10-28 on `feature/reconciliation-assisted-matching`; review fixes the same day (§3.5, rules 32–41).
+Implemented 2026-10-28 on `feature/reconciliation-assisted-matching`; review fixes the same day (§3.5–3.6, rules 32–46).
 
 - **Lot 1** (rules 1–14): `ficheCredits.js`, `allocation.js`, controller (`ficheCredits`, `previewAllocation`, `linkBatch`, `confirmAll`, filters, `candidates`), `LinkTransactionDialog` rewrite, `BulkConfirmDialog`, `FilterChip`, page counters as filters. Plugin 1.3.1, SDK 2.8.0.
 - **Lot 2** (rules 15–22): split payments, equal installments, estimated grouped payouts + `SplitSharesDialog`, `autoConfirm.js`, `deadlineDecorator.js`, `ctx.paymentDeadlineDecorator`, setting `reconciliationAutoConfirm`, migration `reconciliation_v2`. Plugin 1.4.0, SDK 2.9.0.

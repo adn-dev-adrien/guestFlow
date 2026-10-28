@@ -333,7 +333,7 @@ function buildLedger({
         detail.commission = `Commission ${formatEuros(soldeCommission)} · net ${formatEuros(balanceAmount - soldeCommission - penaltyTotal)}`;
       }
       if (penalties.length > 0) {
-        detail.penalties = penalties.map((p) => ({ id: p.id, label: `Pénalité plateforme −${formatEuros(p.amount)} · ${p.reason}` }));
+        detail.penalties = penalties.map((p) => ({ id: p.id, label: `Pénalité plateforme −${formatEuros(p.amount)} · ${p.reason} · ${shortDate(p.date, stayYear)}` }));
       }
       const payoutRaw = has('platformPayoutAmount') ? live.platformPayoutAmount : r.platformPayoutAmount;
       const payout = payoutRaw === '' || payoutRaw == null || !Number.isFinite(Number(payoutRaw)) ? null : round2(payoutRaw);

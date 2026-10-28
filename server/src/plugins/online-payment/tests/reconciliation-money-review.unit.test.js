@@ -22,7 +22,7 @@ test.beforeEach(() => { reset(); db.prepare('DELETE FROM reservation_platform_pe
 const at = (day) => `${day}T09:00:00.000Z`;
 const payout = (id, cents, day = '2026-10-12') => credit(id, cents, { settledAt: at(day), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.9' });
 const settings = { patterns: DEFAULT_PATTERNS, batchPlatforms: ['Lodgify'], commissionRates: { Booking: 15 }, cardFeePercent: 2.8, acquiringFee: { percent: 1.4, fixedCents: 25 } };
-const mk = (id, date, openCents, recorded, grossCents, platform = 'Booking') => ({
+const mk = (id, date, openCents, recorded = true, grossCents = Math.round(openCents * 1.18), platform = 'Booking') => ({
   reservationId: id, ledgerKey: 'balance', label: 'Versement', channel: `platform:${platform}`, openCents, expectedCents: openCents, needCents: openCents, capCents: openCents, grossCents,
   payoutRecorded: recorded, expectedDate: date, dueDate: date, paid: false, reservation: { id, lastName: `N${id}`, platform }, key: `${id}|balance`, order: id, tolerance: 0, unbounded: false, alreadyCovered: false,
 });
@@ -177,4 +177,132 @@ test('rules 11, 41 — « Actualiser » keeps the page filter end to end', async
   const body = (await controller.readNow({ view: 'todo', filter: 'gaps' })).body;
   assert.equal(body.filter, 'gaps');
   assert.ok(body.items.every((i) => i.isGap));
+});
+
+// ── Verification round of 2026-10-28 (rules 32, 33, 34, 41–46) ───────────────────────────────────────────────
+const recorded = (payoutEuros, due, over = {}) => addReservation({ platform: 'Booking', platformGrossAmount: payoutEuros + 60, platformPayoutAmount: payoutEuros, platformCommissionAmount: 60, finalPrice: payoutEuros + 60, balanceAmount: payoutEuros + 60, depositAmount: 0, balanceDueDate: due, ...over });
+const stayDates = (id, start, end) => ({ ...mk(id, '2026-10-10', 18192), reservation: { id, lastName: `N${id}`, platform: 'Booking', startDate: start, endDate: end } });
+const tx = (id, cents, date, cp = 'Booking.com B.V.', op = 'income') => ({ id, amountCents: cents, remainingCents: cents, currency: 'EUR', settledAt: `${date}T10:00:00Z`, counterpartyName: cp, label: cp, reference: 'NO.x/ID.1', operationType: op });
+const propose = (txs, receipts) => buildProposals({ transactions: txs, receipts, settings }).byTransaction;
+
+test('rules 32, 42 — a payout at checkout + 5 for a due date of checkout + 10 is proposed; one before check-in is not', () => {
+  const r = stayDates(1, '2026-09-18', '2026-09-20');
+  r.expectedDate = '2026-09-30'; r.dueDate = '2026-09-30';
+  const real = propose([tx('t', 18192, '2026-09-25')], [r]).t;
+  assert.equal(real.proposal.confidence, 'sur', 'checkout 20/09, payout 25/09, due 30/09: the real shape of a Booking payout');
+  const early = propose([tx('t', 18192, '2026-09-10')], [r]).t;
+  assert.equal(early.proposal, null, 'before check-in: another stay\'s money');
+});
+
+test('rules 32, 42 — « sûr » only from checkout; auto-confirmation never before it', () => {
+  const r = stayDates(1, '2026-09-18', '2026-09-24');
+  r.expectedDate = '2026-10-04'; r.dueDate = '2026-10-04';
+  const byTx = propose([tx('t', 18192, '2026-09-21')], [r]);
+  assert.equal(byTx.t.proposal.confidence, 'verifier', 'during the stay: possible, to be checked');
+  const data = { byTransaction: { t: { proposal: { ...byTx.t.proposal, confidence: 'sur' } } }, receiptsByKey: new Map([[r.key, r]]), txById: new Map([['t', tx('t', 18192, '2026-09-21')]]), allocatedOf: new Map() };
+  assert.equal(eligible(data).length, 0, 'even forced to « sûr », a credit before checkout is never auto-confirmed');
+});
+
+test('rules 32, 42 — Lodgify and Stripe pay at booking time: a long early window', () => {
+  const r = { ...stayDates(1, '2026-12-01', '2026-12-04'), channel: 'platform:Lodgify', reservation: { id: 1, lastName: 'N', platform: 'Lodgify', startDate: '2026-12-01', endDate: '2026-12-04' } };
+  r.expectedDate = '2026-12-10'; r.dueDate = '2026-12-10';
+  const stripe = { ...tx('t', 18192, '2026-08-01', 'STRIPE', 'income'), reference: 'stripe' };
+  const out = propose([stripe], [r]).t;
+  assert.ok(out.proposal);
+});
+
+test('rules 18, 43 — a single stay equal to the credit is only « à vérifier » when an exact group of other stays explains it too', () => {
+  const out = propose([tx('g', 30000, '2026-10-12')], [mk(1, '2026-10-10', 10000), mk(2, '2026-10-11', 20000), mk(3, '2026-10-12', 30000)]).g;
+  assert.equal(out.proposal.confidence, 'verifier');
+  assert.match(out.proposal.reason, /groupé de 2 séjours/);
+});
+
+test('rules 17, 43 — a card operation named like a platform is a refund or a purchase, never a payout', () => {
+  const out = propose([tx('r', 18192, '2026-10-12', 'Booking.com', 'card')], [mk(1, '2026-10-11', 18192)]).r;
+  assert.equal(out.proposal, null);
+});
+
+test('rules 20, 43 — a withheld payout of stay A and a same-amount credit 25 days later is « à vérifier », not « sûr »', () => {
+  const out = propose([tx('s', 7706, '2026-11-04', 'AIRBNB PAYMENTS LUXEMBOURG S.A.')], [mk(1, '2026-10-10', 7706, true, 9100, 'Airbnb')]).s;
+  assert.equal(out.proposal.confidence, 'verifier');
+  assert.match(out.proposal.reason, /hors du délai habituel/);
+});
+
+test('rules 25, 44 — a confirmation never touches a recorded payout nor its typed commission', () => {
+  const id = stay({ platformCommissionAmount: 77 });
+  const { controller, transactions } = build();
+  transactions.upsertMany([payout('p', 61002)], { bankAccountId: 'acc-1' });
+  const answer = controller.confirm({ transactionId: 'p', allocations: [{ reservationId: id, ledgerKey: 'balance', amountCents: 61002 }], user: USER });
+  assert.equal(answer.body.marked.length, 1);
+  assert.deepEqual([row(id).platformPayoutAmount, row(id).platformCommissionAmount], [610.02, 77]);
+});
+
+test('rules 31, 45 — after a declaration nothing is written unless the lines equal the expected amount to the cent, and then flag and date only', () => {
+  const noPayout = addReservation({ platform: 'Booking', platformGrossAmount: 650, finalPrice: 650, balanceAmount: 650, depositAmount: 0, balanceDueDate: '2026-10-10' });
+  const { controller, transactions, model } = build();
+  transactions.upsertMany([payout('u', 60000)], { bankAccountId: 'acc-1' });
+  model.addLine({ transactionId: 'u', reservationId: noPayout, ledgerKey: 'balance', amountCents: 60000 });
+  penalties.declare(noPayout, { amount: 50, reason: 'Frais de relogement', date: '2026-10-12', source: 'reconciliation' }, USER);
+  assert.equal(controller.afterPenalty(noPayout), false, 'a payout the fiche does not carry: left to the operator');
+  assert.equal(row(noPayout).balancePaid, 0);
+  assert.equal(row(noPayout).platformPayoutAmount, null);
+
+  const id = stay({ platformCommissionAmount: 77 });
+  transactions.upsertMany([payout('e', 57002)], { bankAccountId: 'acc-1' });
+  model.addLine({ transactionId: 'e', reservationId: id, ledgerKey: 'balance', amountCents: 57002 });
+  penalties.declare(id, { amount: 30, reason: 'Non-conformité', date: '2026-10-12', source: 'reconciliation' }, USER);
+  assert.equal(controller.afterPenalty(id), false, '570,02 + 30 does not make 610,02 − 30');
+  penalties.declare(id, { amount: 10, reason: 'Autre', date: '2026-10-12', source: 'reconciliation' }, USER);
+  assert.equal(controller.afterPenalty(id), true);
+  assert.deepEqual([row(id).balancePaid, row(id).platformPayoutAmount, row(id).platformCommissionAmount], [1, 610.02, 77]);
+});
+
+test('rules 31, 45 — every read sweeps the fiches a declaration left covered', async () => {
+  const id = stay();
+  const { controller, transactions, model } = build();
+  transactions.upsertMany([payout('e', 57002)], { bankAccountId: 'acc-1' });
+  model.addLine({ transactionId: 'e', reservationId: id, ledgerKey: 'balance', amountCents: 57002 });
+  penalties.declare(id, { amount: 40, reason: 'Frais de relogement', date: '2026-10-12', source: 'reconciliation' }, USER);
+  assert.equal(row(id).balancePaid, 0, 'the event handler never ran (server stopped)');
+  await controller.readNow();
+  assert.equal(row(id).balancePaid, 1);
+  await controller.readNow().catch(() => {});
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM bank_reconciliation_fiche_writes').get().n, 1, 'idempotent');
+});
+
+test('rules 21, 46 — the banner counts what « Voir » lists: still reconciled and still automatic', async () => {
+  const a = recorded(400, '2026-10-08');
+  const b = recorded(300, '2026-10-09');
+  const { controller, transactions } = build();
+  transactions.upsertMany([payout('pa', 40000, '2026-10-12'), payout('pb', 30000, '2026-10-12')], { bankAccountId: 'acc-1' });
+  const body = (await controller.readNow({ view: 'todo' })).body;
+  assert.equal(body.autoConfirmed.count, 2);
+  controller.undo({ transactionId: 'pb', user: USER });
+  const listed = controller.list({ view: 'done', filter: 'auto' }).body;
+  assert.equal(listed.items.length, 1);
+  assert.equal(listed.autoConfirmed.count, 1);
+  assert.ok(a && b);
+});
+
+test('rules 33, 46 — « Défaire » on an installment warns that its payment link stays closed', () => {
+  const id = addReservation({ finalPrice: 600, depositAmount: 0, balanceAmount: 0 });
+  const model = sdk.coreModule('installmentsModel').buildModel(db);
+  model.replacePlan(id, [{ number: 1, dueDate: '2026-10-05', amountCents: 30000 }, { number: 2, dueDate: '2026-11-01', amountCents: 30000 }], 60000);
+  const installmentId = model.listFor(id)[0].id;
+  db.prepare("INSERT INTO payment_links (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, installmentId) VALUES (?, 'installment', 'qonto', 'pl-1', 'https://x', 30000, 'EUR', 'cancelled', ?)").run(id, installmentId);
+  const { controller, transactions } = build();
+  transactions.upsertMany([credit('i1', 30000, { settledAt: at('2026-10-06') })], { bankAccountId: 'acc-1' });
+  controller.confirm({ transactionId: 'i1', allocations: [{ reservationId: id, ledgerKey: 'installment-1', amountCents: 30000 }], user: USER });
+  const item = controller.list({ view: 'done' }).body.items.find((i) => i.reservation.id === id && i.ledgerKey === 'installment-1');
+  assert.match(item.undoWarning, /reste annulé/);
+  db.prepare('DELETE FROM payment_links WHERE reservationId = ?').run(id);
+  assert.equal(controller.list({ view: 'done' }).body.items.find((i) => i.reservation.id === id && i.ledgerKey === 'installment-1').undoWarning, null);
+});
+
+test('rule 40 — the ledger penalty line carries its date', () => {
+  const { buildLedger } = require('../../../utils/reservationLedger');
+  const id = stay({ balancePaid: 1, balancePaidDate: '2026-10-12' });
+  penalties.declare(id, { amount: 40, reason: 'Frais de relogement', date: '2026-10-12', source: 'reconciliation' }, USER);
+  const ledger = buildLedger({ row: row(id), penalties: require('../../../models/platformPenaltiesModel').listFor(id), today: '2026-10-23' });
+  assert.match(ledger.rows.find((r) => r.key === 'balance').detail.penalties[0].label.replace(/ | /g, ' '), /Frais de relogement · 12\/10$/);
 });

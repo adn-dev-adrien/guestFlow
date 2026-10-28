@@ -181,6 +181,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
           return { proposalId: p.id, confidence: p.confidence, confidenceLabel: CONFIDENCE_LABELS[p.confidence], allocations: p.allocations, bank: bankSide(t) };
         }) : [],
         canUndo: lines.length > 0,
+        // The provider cannot reopen a payment link it closed: « Défaire » on an installment says so first (rule 33).
+        undoWarning: lines.length > 0 && r.installmentId && core.listLinks(r.reservationId).some((l) => l.type === 'installment' && Number(l.installmentId) === Number(r.installmentId))
+          ? 'Le lien de paiement de cette échéance reste annulé ; en envoyer un nouveau depuis la fiche.' : null,
         // Rule 24 — a platform credit below the expected payout: the gap can be declared as a penalty.
         declarePenalty: (st.state === 'amount_gap' || st.state === 'partial') && r.channel.startsWith('platform:') && r.ledgerKey === 'balance' && r.payoutRecorded && st.gapCents < 0
           ? { amountCents: -st.gapCents, amount: -st.gapCents / 100 } : null,
@@ -292,6 +295,25 @@ function createReconciliationController({ db, settings, transactions, model, wri
     return sum < remaining ? `Il manque ${euros(remaining - sum)} : les parts doivent faire ${euros(remaining)}.` : `Les parts dépassent le versement de ${euros(sum - remaining)} : elles doivent faire ${euros(remaining)}.`;
   }
 
+  /**
+   * Rule 34 — a platform balance whose stored lines now equal, to the cent, what its penalties leave to expect is marked
+   * received (flag and date only: its payout is recorded, nothing else moves). A payout the fiche does not carry yet,
+   * or an amount that does not match, is left to the operator.
+   */
+  function completeIfCovered(data, reservationId) {
+    const receipt = data.receiptsByKey.get(`${reservationId}|balance`);
+    if (!receipt || receipt.paid || receipt.unbounded || !receipt.channel.startsWith('platform:')) return false;
+    const lines = data.linesByReceipt.get(receipt.key) || [];
+    if (lines.length === 0 || lines.reduce((s, l) => s + l.amountCents, 0) !== receipt.expectedCents) return false;
+    return db.transaction(() => writeReceipt(data, receipt, { user: SYSTEM_USER, auto: false, netOf: (c) => c }).written)();
+  }
+
+  /** The sweep of every read: a declaration the server missed the event of (stopped in between) completes here. */
+  function completionSweep() {
+    compute().openReceipts.filter((r) => r.ledgerKey === 'balance' && !r.paid && Number((db.prepare('SELECT platformPenaltyAmount AS p FROM reservations WHERE id = ?').get(r.reservationId) || {}).p) > 0)
+      .forEach((r) => { completeIfCovered(compute(), r.reservationId); });
+  }
+
   /** Marks the receipt received when its confirmed lines now cover it (v1 rules 34–37). */
   function writeReceipt(data, receipt, { user, auto = false, netOf }) {
     const lines = model.linesOfReceipt(receipt.reservationId, receipt.ledgerKey)
@@ -337,14 +359,24 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
   /** Rules 20–21 — after a read, the certain matches confirm themselves (unless switched off). */
   function afterRead() {
-    const { count } = settings.get('reconciliationAutoConfirm') === '0'
-      ? { count: 0 }
+    completionSweep();
+    const { keys } = settings.get('reconciliationAutoConfirm') === '0'
+      ? { keys: [] }
       : runAutoConfirm({ compute, confirm: ({ pairs }) => linkPairs({ pairs, user: SYSTEM_USER, auto: true }) });
-    settings.set('reconciliationAutoConfirmed', JSON.stringify({ count, at: new Date().toISOString() }));
+    settings.set('reconciliationAutoConfirmed', JSON.stringify({ count: keys.length, keys, at: new Date().toISOString() }));
   }
 
+  // The banner counts what « Voir » lists: the receipts of the last read that are still reconciled (undone or since
+  // turned into a gap, they are no longer « automatic »).
+  const lastAuto = (data) => {
+    const stored = parseJson(settings.get('reconciliationAutoConfirmed'), null);
+    if (!stored) return null;
+    const keys = new Set((stored.keys || []).filter((k) => data.items.some((i) => i.key === k && i.state === 'reconciled' && i.bank.some((b) => b.auto))));
+    return { count: keys.size, at: stored.at, keys: [...keys] };
+  };
+
   const envelope = (data) => ({
-    autoConfirmed: parseJson(settings.get('reconciliationAutoConfirmed'), null),
+    autoConfirmed: (({ count, at }) => (count == null ? null : { count, at }))(lastAuto(data) || {}),
     lastReadAt: settings.get('reconciliationLastReadAt') || null,
     lastError: lastError(),
     startDate: data.startDate,
@@ -363,7 +395,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
   const FILTER_ITEMS = {
     gaps: (i) => i.isGap, proposed: (i) => i.state === 'proposed', unmatched: () => false, reconciled: (i) => i.state === 'reconciled',
-    auto: (i) => i.bank.some((b) => b.auto),
+    auto: null,
   };
 
   /** Rule 12 — what « Tout confirmer » would write: sûr / probable by default, « à vérifier » counted apart. */
@@ -398,8 +430,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
       const data = compute();
       const known = FILTERS.includes(filter) ? filter : null;
       const picked = pick(data);
+      const autoKeys = known === 'auto' ? new Set((lastAuto(data) || { keys: [] }).keys) : null;
       const rows = known ? {
-        items: picked.items.filter(FILTER_ITEMS[known]),
+        items: picked.items.filter(known === 'auto' ? (i) => autoKeys.has(i.key) : FILTER_ITEMS[known]),
         credits: picked.credits.filter((c) => known === 'unmatched' && c.status === 'unmatched'),
       } : picked;
       return { status: 200, body: { ...envelope(data), view: VIEWS[view] ? view : 'todo', filter: known, ...rows, bulk: bulkSummary(rows.items) } };
@@ -591,13 +624,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     /** Rule 31 — a penalty declared or removed: a platform balance its lines now cover is marked received. */
     afterPenalty(reservationId) {
-      if (!connected()) return;
-      const data = compute();
-      const cfg = matcherSettings();
-      const netOf = (c) => c - Math.round(c * (Number(cfg.acquiringFee.percent) || 0) / 100) - (Number(cfg.acquiringFee.fixedCents) || 0);
-      const receipt = data.receiptsByKey.get(`${Number(reservationId)}|balance`);
-      if (!receipt || receipt.paid || !receipt.channel.startsWith('platform:') || (data.linesByReceipt.get(receipt.key) || []).length === 0) return;
-      db.transaction(() => { writeReceipt(data, receipt, { user: SYSTEM_USER, auto: false, netOf }); })();
+      if (!connected()) return false;
+      return completeIfCovered(compute(), Number(reservationId));
     },
 
     /** The home's « Échéances » rows, decorated from the stored reconciliation (rule 22) — unchanged when it is off. */
