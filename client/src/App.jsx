@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
@@ -19,11 +19,10 @@ import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
 import OnboardingPage from './pages/OnboardingPage';
 import { onboardingRoute } from './utils/onboardingRoute';
-import EmailTextsSettingsPage from './pages/settings/EmailTextsSettingsPage';
 import LoginPage from './pages/LoginPage';
 import ForcedPasswordChangePage from './pages/ForcedPasswordChangePage';
-import LoadingState from './components/LoadingState';
-import UserManagementPage from './pages/UserManagementPage';
+import LazyPage, { lazyPage } from './components/LazyPage';
+import { preloadRoute, prefetchOnIdle } from './utils/pagePreload';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import EventIcon from '@mui/icons-material/Event';
@@ -46,7 +45,6 @@ import SupportAccessBanner from './components/SupportAccessBanner';
 import SupportSessionBar, { SUPPORT_BAR_HEIGHT } from './components/SupportSessionBar';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import SupportAccessPage from './pages/settings/SupportAccessPage';
 import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
@@ -54,45 +52,88 @@ import { PLATFORM_COLORS, normalizePlatformKey, setPlatformDisplayNames } from '
 import {
   visibleSettingsGroups, settingsGroupOf, SETTINGS_HOME_PATH, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected,
 } from './constants/settingsMenu';
-import SettingsHomePage from './pages/settings/SettingsHomePage';
 import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
 import { isPluginEnabled, isRouteEnabled, SAS } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
 import { allContributions } from './plugins/sdk/registry';
-
-import Dashboard from './pages/Dashboard';
-import ClientsPage from './pages/ClientsPage';
-import PropertiesPage from './pages/PropertiesPage';
-import PropertyDetail from './pages/PropertyDetail';
-import PropertyPricingSeasonsPage from './pages/PropertyPricingSeasonsPage';
-import CalendarPage from './pages/CalendarPage';
-import ReservationPage from './pages/ReservationPage';
-import ReservationsUpcomingPage from './pages/ReservationsUpcomingPage';
-import FinancePage from './pages/FinancePage';
-import TouristTaxPage from './pages/TouristTaxPage';
-import PlanningPage from './pages/PlanningPage';
-import EstablishmentSettingsPage from './pages/settings/EstablishmentSettingsPage';
-import PlatformsSettingsPage from './pages/settings/PlatformsSettingsPage';
-import VatFiscalSettingsPage from './pages/settings/VatFiscalSettingsPage';
-import EmailSettingsPage from './pages/settings/EmailSettingsPage';
-import IntegrationsSettingsPage from './pages/settings/IntegrationsSettingsPage';
-import SystemSettingsPage from './pages/settings/SystemSettingsPage';
-import TermsSettingsPage from './pages/settings/TermsSettingsPage';
-import PluginsPage from './pages/PluginsPage';
-import AccountPage from './pages/AccountPage';
-import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
-import OptionsResourcesPage from './pages/OptionsResourcesPage';
-import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
-import DevisPage from './pages/DevisPage';
-import CompensationsPage from './pages/CompensationsPage';
-import EmailTemplatesPage from './pages/EmailTemplatesPage';
-import EmailHistoryPage from './pages/EmailHistoryPage';
+import { DATA_CHANGED_EVENT } from './constants/appEvents';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import AppVersionBadge, { AppVersionFooter } from './components/AppVersionBadge';
 import { PageTitleProvider, TopBarActionSlot, usePageTitle, useSetTopBarTitleRoom } from './hooks/usePageTitle';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import NotFoundPage from './components/NotFoundPage';
+
+// Every page is loaded on demand (specs/inte-performance.md rule 2); the shell stays eager.
+const EmailTextsSettingsPage = lazyPage(() => import('./pages/settings/EmailTextsSettingsPage'));
+const UserManagementPage = lazyPage(() => import('./pages/UserManagementPage'));
+const SupportAccessPage = lazyPage(() => import('./pages/settings/SupportAccessPage'));
+const SettingsHomePage = lazyPage(() => import('./pages/settings/SettingsHomePage'));
+const Dashboard = lazyPage(() => import('./pages/Dashboard'));
+const ClientsPage = lazyPage(() => import('./pages/ClientsPage'));
+const PropertiesPage = lazyPage(() => import('./pages/PropertiesPage'));
+const PropertyDetail = lazyPage(() => import('./pages/PropertyDetail'));
+const PropertyPricingSeasonsPage = lazyPage(() => import('./pages/PropertyPricingSeasonsPage'));
+const CalendarPage = lazyPage(() => import('./pages/CalendarPage'));
+const ReservationPage = lazyPage(() => import('./pages/ReservationPage'));
+const ReservationsUpcomingPage = lazyPage(() => import('./pages/ReservationsUpcomingPage'));
+const FinancePage = lazyPage(() => import('./pages/FinancePage'));
+const TouristTaxPage = lazyPage(() => import('./pages/TouristTaxPage'));
+const PlanningPage = lazyPage(() => import('./pages/PlanningPage'));
+const EstablishmentSettingsPage = lazyPage(() => import('./pages/settings/EstablishmentSettingsPage'));
+const PlatformsSettingsPage = lazyPage(() => import('./pages/settings/PlatformsSettingsPage'));
+const VatFiscalSettingsPage = lazyPage(() => import('./pages/settings/VatFiscalSettingsPage'));
+const EmailSettingsPage = lazyPage(() => import('./pages/settings/EmailSettingsPage'));
+const IntegrationsSettingsPage = lazyPage(() => import('./pages/settings/IntegrationsSettingsPage'));
+const SystemSettingsPage = lazyPage(() => import('./pages/settings/SystemSettingsPage'));
+const TermsSettingsPage = lazyPage(() => import('./pages/settings/TermsSettingsPage'));
+const PluginsPage = lazyPage(() => import('./pages/PluginsPage'));
+const AccountPage = lazyPage(() => import('./pages/AccountPage'));
+const SeasonsClosuresPage = lazyPage(() => import('./pages/SeasonsClosuresPage'));
+const OptionsResourcesPage = lazyPage(() => import('./pages/OptionsResourcesPage'));
+const EstablishmentClosuresPage = lazyPage(() => import('./pages/EstablishmentClosuresPage'));
+const DevisPage = lazyPage(() => import('./pages/DevisPage'));
+const CompensationsPage = lazyPage(() => import('./pages/CompensationsPage'));
+const EmailTemplatesPage = lazyPage(() => import('./pages/EmailTemplatesPage'));
+const EmailHistoryPage = lazyPage(() => import('./pages/EmailHistoryPage'));
+
+// The page behind each route, to start its chunk before the router asks for it (rule 10).
+const PAGE_ROUTES = [
+  ['/', Dashboard],
+  ['/clients', ClientsPage],
+  ['/properties', PropertiesPage],
+  ['/properties/:id', PropertyDetail],
+  ['/properties/:id/pricing-seasons', PropertyPricingSeasonsPage],
+  ['/calendar', CalendarPage],
+  ['/reservations/new', ReservationPage],
+  ['/reservations/upcoming', ReservationsUpcomingPage],
+  ['/reservations/:reservationId', ReservationPage],
+  ['/devis', DevisPage],
+  ['/finance', FinancePage],
+  ['/finance/tourist-tax', TouristTaxPage],
+  ['/planning', PlanningPage],
+  ['/establishment-closures', EstablishmentClosuresPage],
+  ['/settings', SettingsHomePage],
+  ['/settings/etablissement', EstablishmentSettingsPage],
+  ['/settings/plateformes', PlatformsSettingsPage],
+  ['/settings/tva-exercice', VatFiscalSettingsPage],
+  ['/settings/emails', EmailSettingsPage],
+  ['/settings/emails/textes', EmailTextsSettingsPage],
+  ['/settings/integrations', IntegrationsSettingsPage],
+  ['/settings/systeme', SystemSettingsPage],
+  ['/settings/utilisateurs', UserManagementPage],
+  ['/parametres/vacances-fermetures', SeasonsClosuresPage],
+  ['/parametres/options-ressources', OptionsResourcesPage],
+  ['/parametres/conditions-generales', TermsSettingsPage],
+  ['/parametres/plugins', PluginsPage],
+  ['/parametres/acces-support', SupportAccessPage],
+  ['/mon-compte', AccountPage],
+  ['/emails', EmailTemplatesPage],
+  ['/emails/historique', EmailHistoryPage],
+];
+// Opened all day: fetched when the browser is idle. The heavy ones (finance charts) and the settings wait for a visit.
+const IDLE_PAGES = [Dashboard, PlanningPage, CalendarPage, ReservationPage, ClientsPage, EmailTemplatesPage, DevisPage];
+preloadRoute(PAGE_ROUTES, window.location.pathname);
 
 const MODULE_PAGES = allContributions('routes');
 
@@ -164,19 +205,24 @@ function NavContent({ onItemClick }) {
   useEffect(() => { setSettingsGroupToggles({}); }, [location.pathname, location.hash]);
   const selectedCalendarPropertyId = new URLSearchParams(location.search).get('propertyId');
 
+  // Read once, then again after a write (a property added or renamed), not on every page change
+  // (specs/inte-performance.md rule 13).
   useEffect(() => {
     let isMounted = true;
-    api.getProperties()
+    const read = () => api.getProperties()
       .then((items) => {
         if (isMounted) setProperties(items || []);
       })
       .catch(() => {
         if (isMounted) setProperties([]);
       });
+    read();
+    window.addEventListener(DATA_CHANGED_EVENT, read);
     return () => {
       isMounted = false;
+      window.removeEventListener(DATA_CHANGED_EVENT, read);
     };
-  }, [location.pathname, location.search]);
+  }, []);
 
   useEffect(() => {
     if (location.pathname.startsWith('/properties')) {
@@ -564,6 +610,7 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  useEffect(() => prefetchOnIdle(IDLE_PAGES), []);
   // A page of an inactive plugin is never mounted (rule 18); in its place the 404, which an
   // administrator reads as « Plugin inactif » (specs/plugins-phase-p-productisation.md rule 42).
   const pluginRoute = (path, element) => (isRouteEnabled(user, path) ? element : <NotFoundPage />);
@@ -788,7 +835,7 @@ function AppShell() {
           <Route path="/" element={<Dashboard />} />
           {/* Pages of plugin modules (specs/plugins-phase-1-sdk.md rule 15), lazily loaded. */}
           {MODULE_PAGES.map(({ path, Component }) => (
-            <Route key={path} path={path} element={pluginRoute(path, <Suspense fallback={<LoadingState />}><Component /></Suspense>)} />
+            <Route key={path} path={path} element={pluginRoute(path, <LazyPage><Component /></LazyPage>)} />
           ))}
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/properties" element={<PropertiesPage />} />

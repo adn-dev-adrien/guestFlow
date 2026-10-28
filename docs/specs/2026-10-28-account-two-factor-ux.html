@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Validation en deux étapes</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-dark:#244A38;--honey:#C99038;--paper:#F8F5EF;--card:#fff;
+  --ink:#27251F;--muted:#6E6A5E;--divider:rgba(60,54,36,.12);--shadow:0 3px 16px rgba(60,54,36,.09);
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;--error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;--neutral-bg:#EFEBE2;
+  --r-card:14px;--r-inner:10px;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+html{-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 var(--sans)}
+.doc{max-width:1180px;margin:0 auto;padding:28px 16px 64px}
+h1{font:600 1.6rem/1.2 var(--serif);margin:0 0 4px;letter-spacing:-.01em}
+h2{font:600 1.15rem/1.3 var(--serif);margin:40px 0 8px}
+.lead{color:var(--muted);margin:0 0 18px;max-width:820px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){.grid2{grid-template-columns:1fr}}
+.box{background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow);padding:16px 18px}
+.box h3{font:600 .95rem/1.3 var(--serif);margin:0 0 6px}
+.box ul{margin:0;padding-left:18px}.box li{margin:3px 0}
+.box p{margin:4px 0}
+.warnbox{background:var(--warning-bg)}
+code{font:12.5px var(--mono);background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px}
+
+/* controls */
+.controls{position:sticky;top:0;z-index:20;background:var(--paper);padding:10px 0;display:flex;gap:10px 18px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid var(--divider);margin-bottom:18px}
+@media (max-width:700px){.controls{position:static}.side{position:static}}
+.ctl{display:flex;flex-direction:column;gap:3px}
+.ctl>label,.ctl>span{font-size:11.5px;color:var(--muted);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--r-inner);overflow:hidden;background:#fff;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:7px 11px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;min-height:38px}
+.seg button+button{border-left:1px solid var(--divider)}
+.seg button[aria-pressed=true]{background:rgba(47,93,70,.1);color:var(--primary);font-weight:600}
+.linkbtn{border:0;background:none;color:var(--primary);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:8px 4px;min-height:38px}
+
+/* playground */
+.play{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:18px;align-items:start}
+@media (max-width:900px){.play{grid-template-columns:1fr}}
+.stage{position:relative;margin:0 auto;width:100%;max-width:900px;min-height:700px;background:var(--paper);border:1px solid var(--divider);border-radius:18px;overflow:hidden;transition:max-width .3s var(--ease)}
+.stage.mobile{max-width:390px;min-height:780px;border-radius:34px;border:8px solid #1d1c19}
+.app-top{height:48px;background:var(--primary);color:#fff;display:flex;align-items:center;padding:0 16px;font-weight:600;letter-spacing:.01em}
+.pab{display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid var(--divider);padding:10px 16px}
+.pab .t{font:600 1.15rem/1.2 var(--serif)}
+.pab .s{font-size:12px;color:#9a958a}
+.page{padding:16px}
+.stage.mobile .page{padding:12px}
+
+.card{background:#fff;border:1px solid var(--divider);border-radius:var(--r-card);padding:20px;margin-bottom:14px}
+.stage.mobile .card{padding:16px}
+.card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sh{font:600 1.05rem/1.3 var(--serif);margin:0}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:2px 10px;border-radius:99px}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-off{background:var(--neutral-bg);color:var(--muted)}
+.b-on{background:var(--success-bg);color:var(--success)}
+.muted{color:var(--muted)}
+.facts{margin:12px 0 4px;padding:0;list-style:none}
+.facts li{display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--divider);flex-wrap:wrap}
+.facts li:first-child{border-top:0}
+.facts .k{color:var(--muted);min-width:150px}
+.facts li.low{color:var(--warning)}
+.facts li.low .k{color:var(--warning)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.stage.mobile .actions{flex-direction:column}
+.stage.mobile .actions .btn{width:100%}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;min-height:44px;padding:0 16px;cursor:pointer;border:1px solid transparent;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;touch-action:manipulation;user-select:none;-webkit-user-select:none;transition:transform .1s var(--ease),background .15s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--primary);color:#fff}
+@media (hover:hover) and (pointer:fine){.btn-primary:hover{background:var(--primary-dark)}.btn-out:hover{background:rgba(47,93,70,.06)}.btn-text:hover{background:rgba(47,93,70,.06)}}
+.btn-primary:disabled{background:#c9c5bb;cursor:not-allowed;transform:none}
+.btn-out{background:#fff;color:var(--primary);border-color:rgba(47,93,70,.35)}
+.btn-danger{background:#fff;color:var(--error);border-color:rgba(168,67,58,.4)}
+.btn-text{background:none;color:var(--primary);padding:0 10px}
+.btn-sm{min-height:34px;font-size:13px;padding:0 10px}
+.history{margin-top:14px;border-top:1px solid var(--divider);padding-top:6px}
+.history summary{cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;padding:8px 0;list-style:none}
+.history summary::-webkit-details-marker{display:none}
+.history summary::before{content:"›";display:inline-block;margin-right:8px;transition:transform .2s var(--ease)}
+.history[open] summary::before{transform:rotate(90deg)}
+.history ul{margin:0;padding-left:18px;font-size:13px}
+.stub{color:var(--muted);font-size:13px}
+
+/* dialog */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:flex;align-items:center;justify-content:center;z-index:5;opacity:0;pointer-events:none;transition:opacity .18s var(--ease)}
+.scrim.open{opacity:1;pointer-events:auto}
+.dlg{background:#fff;border-radius:16px;width:480px;max-width:calc(100% - 32px);max-height:calc(100% - 32px);display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(39,37,31,.25);transform:translateY(8px) scale(.98);transition:transform .22s var(--ease)}
+.scrim.open .dlg{transform:none}
+.stage.mobile .scrim{align-items:stretch}
+.stage.mobile .dlg{width:100%;max-width:100%;max-height:100%;border-radius:0}
+.dlg-h{padding:18px 20px 6px;display:flex;align-items:flex-start;gap:10px}
+.dlg-h .ttl{font:600 1.15rem/1.25 var(--serif);margin:0}
+.dlg-h .stp{font-size:12px;color:var(--muted);margin-top:2px}
+.dlg-h .x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;width:44px;height:44px;margin:-10px -12px 0 auto;border-radius:10px}
+.prog{display:flex;gap:4px;padding:0 20px 8px}
+.prog i{flex:1;height:3px;border-radius:2px;background:var(--neutral-bg)}
+.prog i.on{background:var(--primary)}
+.dlg-b{padding:8px 20px 12px;overflow:auto;flex:1}
+.dlg-f{padding:12px 20px 18px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--divider)}
+.stage.mobile .dlg-f{flex-direction:column-reverse;padding-bottom:calc(18px + 16px) /* safe-area simulée */}
+.stage.mobile .dlg-f .btn{width:100%}
+.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.field label{font-size:13px;font-weight:600}
+.input{font:inherit;font-size:16px;border:1px solid rgba(60,54,36,.28);border-radius:10px;padding:11px 12px;min-height:46px;outline:none;background:#fff;color:var(--ink)}
+.input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(47,93,70,.15)}
+.input.err{border-color:var(--error)}
+.msg{font-size:13px;min-height:20px}
+.msg.e{color:var(--error)}
+.msg.i{color:var(--muted)}
+.hint{font-size:12px;color:var(--muted)}
+
+.qrwrap{display:flex;justify-content:center;margin:6px 0 4px}
+.qr{width:200px;height:200px;background:#fff;padding:10px;border:1px solid var(--divider);border-radius:12px}
+.entry{font-size:12.5px;color:var(--muted);text-align:center;margin:4px 0 10px;overflow-wrap:anywhere}
+.entry b{color:var(--ink);font-weight:600}
+details.dis{border:1px solid var(--divider);border-radius:10px;margin:8px 0;background:#fcfbf8}
+details.dis summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:13px;color:var(--primary);list-style:none;min-height:44px;display:flex;align-items:center}
+details.dis summary::-webkit-details-marker{display:none}
+details.dis .in{padding:0 12px 12px}
+.key{font:600 15px/1.6 var(--mono);letter-spacing:.04em;word-spacing:.35em;background:var(--neutral-bg);border-radius:8px;padding:8px 10px;margin:6px 0;user-select:all;-webkit-user-select:all}
+.key span{white-space:nowrap}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.stack{display:flex;flex-direction:column;gap:8px}
+.sep{height:1px;background:var(--divider);margin:14px 0}
+.otp{position:relative;margin:4px 0 0}
+.otp input{position:absolute;inset:0;width:100%;height:100%;opacity:1;color:transparent;caret-color:transparent;background:transparent;border:0;outline:none;font-size:16px;z-index:2;letter-spacing:2em}
+.otp input::selection{background:transparent}
+.cells{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;max-width:330px}
+.cell{height:52px;border:1px solid rgba(60,54,36,.28);border-radius:10px;display:flex;align-items:center;justify-content:center;font:600 22px var(--mono);background:#fff;transition:border-color .15s,background .15s}
+.otp.focus .cell.cur{border-color:var(--primary);box-shadow:0 0 0 3px rgba(47,93,70,.15)}
+.otp.err .cell{border-color:var(--error);background:var(--error-bg)}
+.otp.err.sel .cell{color:var(--error)}
+.otp.shake .cells{animation:shake .32s var(--ease)}
+@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+@media (prefers-reduced-motion:reduce){.otp.shake .cells{animation:none}.scrim,.dlg,.btn{transition:none}}
+.alert{border-radius:10px;padding:10px 12px;font-size:13px;margin:8px 0}
+.a-err{background:var(--error-bg);color:var(--error)}
+.a-warn{background:var(--warning-bg);color:var(--warning)}
+.a-info{background:var(--info-bg);color:var(--info)}
+.a-ok{background:var(--success-bg);color:var(--success)}
+.codes{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font:600 16px/1.9 var(--mono);font-variant-numeric:tabular-nums;text-align:center;background:var(--neutral-bg);border-radius:10px;padding:10px;margin:8px 0}
+@media (max-width:359px){.codes{grid-template-columns:1fr}}
+.chk{display:flex;gap:10px;align-items:center;min-height:44px;cursor:pointer;font-size:14px}
+.chk input{width:20px;height:20px;accent-color:var(--primary)}
+.toast{position:absolute;left:50%;bottom:24px;transform:translate(-50%,20px);background:#27251F;color:#fff;font-size:13px;padding:10px 14px;border-radius:10px;opacity:0;transition:.2s var(--ease);z-index:9;pointer-events:none;max-width:90%;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.nudge{background:var(--info-bg);border-radius:var(--r-card);padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.nudge .tt{font-weight:600;color:var(--info)}
+.nudge .dd{font-size:13px;color:var(--muted);flex:1;min-width:160px}
+
+/* side panels */
+.side{display:flex;flex-direction:column;gap:14px;position:sticky;top:76px}
+.auth{background:#1d1c19;color:#f3efe6;border-radius:18px;padding:14px}
+.auth h4,.mail h4{margin:0 0 8px;font:600 12px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:#a9a397}
+.auth .acct{font-size:12px;color:#cfc8b8;overflow-wrap:anywhere}
+.auth .code{font:700 30px var(--mono);letter-spacing:.12em;margin:4px 0;color:#9fd3b3}
+.auth .bar{height:4px;border-radius:2px;background:#3a3832;overflow:hidden}
+.auth .bar i{display:block;height:100%;background:#9fd3b3}
+.auth .empty{font-size:13px;color:#a9a397}
+.mail{background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:14px}
+.mail h4{color:var(--muted)}
+.mail .m{font-size:13px;border-top:1px solid var(--divider);padding:6px 0}
+.mail .m:first-of-type{border-top:0}
+.mail .m b{font-family:var(--mono)}
+.tip{font-size:12.5px;color:var(--muted)}
+
+.before{background:#fff;border:1px dashed rgba(60,54,36,.3);border-radius:12px;padding:14px;font-size:13px}
+.before .tg{display:inline-flex;border:1px solid var(--divider);border-radius:8px;overflow:hidden;margin:8px 0}
+.before .tg span{padding:6px 10px;font-size:12px}
+.before .tg span:first-child{background:rgba(47,93,70,.1);color:var(--primary);font-weight:600}
+.before .pw{border:1px solid rgba(60,54,36,.28);border-radius:8px;padding:8px;color:#9a958a;margin:6px 0}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:8px}
+.opt{border:1px solid var(--divider);border-radius:10px;padding:10px 12px;background:#fcfbf8}
+.opt.rec{border-color:rgba(47,93,70,.45);background:#f3f7f4}
+.opt b{display:block;margin-bottom:2px}
+.tag{font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Validation en deux étapes</h1>
+  <p class="lead">« Mon compte » — l’activation du « Second code » refaite comme sur les autres sites : une fenêtre en 3 étapes, un QR code ou un bouton sur téléphone, un seul code, les codes de secours mis de côté avant de fermer. La sécurité ne baisse nulle part et une faille se ferme. Spec amendée : <code>specs/hosting-h2-account-security.md</code>, règles 38 à 53.</p>
+
+  <h2>Le constat</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>C’est bien la double authentification</h3>
+      <p>Le « Second code » est déjà la fonction habituelle : appli d’authentification (TOTP, comme Google Authenticator ou le trousseau de l’iPhone), code par email en secours, 10 codes de secours, appareil de confiance 30 jours, verrou après 5 codes faux, journal du compte. C’est la <b>présentation</b> qui n’est pas celle qu’on connaît.</p>
+      <div class="before" aria-label="La carte actuelle">
+        <b style="font-family:var(--serif)">Second code</b> <span class="badge b-off">Désactivé</span>
+        <div class="tg"><span>Appli d’authentification</span><span>Code par email</span></div>
+        <div class="pw">Mot de passe (confirmation)</div>
+        <span class="btn btn-primary btn-sm" style="pointer-events:none">Activer</span>
+        <div class="hint" style="margin-top:6px">Aujourd’hui : choix de méthode et mot de passe avant toute explication ; QR, clé et code s’empilent ensuite dans la carte.</div>
+      </div>
+    </div>
+    <div class="box">
+      <h3>Ce qui manque</h3>
+      <ul>
+        <li>Sur téléphone, rien n’est prévu : le téléphone qui porte l’appli ne peut pas scanner son propre écran. Pas de lien vers l’appli, la clé n’a pas de bouton copier.</li>
+        <li>Un code faux dit « Code incorrect. » sans le nombre d’essais ; au 5<sup>e</sup>, le formulaire disparaît sans explication.</li>
+        <li>« Terminé » ferme les codes de secours sans qu’ils aient été copiés ni téléchargés.</li>
+        <li>Une fois activée : une seule ligne, et pas moyen de changer de téléphone sans tout désactiver (le compte reste nu entre les deux).</li>
+        <li>Une activation commencée n’expire jamais.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="box warnbox" style="margin-top:16px">
+    <h3>Une faille trouvée en lisant le code</h3>
+    <p>Le mot de passe redemandé pour activer, désactiver ou renouveler les codes n’a <b>aucune limite d’essais</b> (seule la limite générale de 3000 requêtes / 15 min s’applique, <code>twoFactorController.js:49</code>). Une session volée peut donc deviner le mot de passe par ces trois routes. Règle 49 : 5 essais faux en 15 min bloquent 15 min, avec une ligne au journal.</p>
+  </div>
+
+  <h2>Ce qu’on propose — la maquette</h2>
+  <p class="lead">Tout se manipule. Mot de passe de démo : <b>maison</b> (tout autre est refusé). Le bon code est dans l’« appli » simulée à droite ; un code faux montre le refus et les essais restants. Les trois réglages « Nom », « Confirmation » et « Email » sont les arbitrages en attente : les essayer ici.</p>
+
+  <div class="controls" role="group" aria-label="Réglages de la maquette">
+    <div class="ctl"><span>Vue</span><div class="seg" data-ctl="view"><button data-v="desktop" aria-pressed="true">Ordinateur</button><button data-v="mobile" aria-pressed="false">Téléphone</button></div></div>
+    <div class="ctl"><span>Nom (Q1)</span><div class="seg" data-ctl="name"><button data-v="0" aria-pressed="true">Validation en deux étapes</button><button data-v="1" aria-pressed="false">Double authentification</button><button data-v="2" aria-pressed="false">2FA</button></div></div>
+    <div class="ctl"><span>Confirmation (Q2)</span><div class="seg" data-ctl="reauth"><button data-v="code" aria-pressed="true">Mot de passe + code</button><button data-v="pw" aria-pressed="false">Mot de passe seul</button></div></div>
+    <div class="ctl"><span>Email (Q3)</span><div class="seg" data-ctl="email"><button data-v="link" aria-pressed="true">En secours</button><button data-v="peer" aria-pressed="false">Au même rang</button></div></div>
+    <div class="ctl"><span>Codes restants</span><div class="seg" data-ctl="left"><button data-v="10" aria-pressed="true">10</button><button data-v="3" aria-pressed="false">3</button><button data-v="1" aria-pressed="false">1</button></div></div>
+    <button class="linkbtn" id="reset">Recommencer la démo</button>
+  </div>
+
+  <div class="play">
+    <div class="stage" id="stage">
+      <div class="app-top">GuestFlow</div>
+      <div class="pab"><span class="t">Mon compte</span><span class="s">a.martin-de-la-roche-vasseur@domaine-des-oliviers.fr</span></div>
+      <div class="page" id="page"></div>
+      <div class="scrim" id="scrim"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" id="dlg"></div></div>
+      <div class="toast" id="toast"></div>
+    </div>
+    <aside class="side">
+      <div class="auth" aria-live="polite">
+        <h4>Appli d’authentification (simulée)</h4>
+        <div id="authBody"><div class="empty">Aucune entrée. Scanner le QR code, ouvrir le lien ou coller la clé pour l’ajouter.</div></div>
+      </div>
+      <div class="mail">
+        <h4>Boîte mail (simulée)</h4>
+        <div id="mailBody"><div class="tip">Aucun message.</div></div>
+      </div>
+      <div class="tip">Sur ordinateur, « scanner » le QR code en cliquant dessus. Sur téléphone, le bouton « Ouvrir dans l’appli » fait l’aller-retour.</div>
+    </aside>
+  </div>
+
+  <h2>Ce qu’on propose — les règles</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>L’activation</h3>
+      <ul>
+        <li><b>Désactivée</b> : un statut, une phrase, « Activer ». Rien d’autre dans la carte (39).</li>
+        <li><b>3 étapes</b> dans une fenêtre, plein écran sur téléphone : mot de passe → appli → codes de secours. Annuler aux étapes 1–2 ne laisse rien derrière (40).</li>
+        <li><b>Ordinateur</b> : QR code, clé à la main repliée. <b>Téléphone</b> : « Ouvrir dans l’appli » (lien <code>otpauth://</code>), « Copier la clé », QR replié. Choisi selon le type de pointeur, pas la taille d’écran (41).</li>
+        <li>L’entrée dans l’appli porte « GuestFlow » et « Entreprise · email » : reconnaissable dans une liste (41).</li>
+        <li><b>Un champ</b>, envoyé au 6<sup>e</sup> chiffre comme à la connexion. Refus : essais restants, puis « Vérifier l’heure du téléphone. », au 5<sup>e</sup> « Recommencer » (42). Expire après 15 min (43).</li>
+        <li><b>Email</b> en secours sous l’appli, renvoi après 60 s, 5 envois maximum (44).</li>
+        <li><b>Codes de secours</b> : « Terminé » attend la case « Codes enregistrés en lieu sûr », cochée d’office par Copier ou Télécharger (45).</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Une fois activée</h3>
+      <ul>
+        <li>Méthode et date, codes restants « 8 sur 10 » ; à 3 ou moins, la ligne passe en alerte avec « Nouveaux codes » (46).</li>
+        <li><b>Changer d’appli</b> sans désactiver : l’ancienne appli marche jusqu’à ce qu’un code de la nouvelle soit validé ; appareils de confiance conservés (48).</li>
+        <li>Désactiver, nouveaux codes, changer d’appli : mot de passe <b>+ un code</b> (selon Q2) (47).</li>
+        <li>Mot de passe de confirmation limité : 5 essais / 15 min (49). Journal plus parlant, replié sous « Historique » (46, 50).</li>
+        <li>La carte du tableau de bord ouvre directement la fenêtre (51).</li>
+        <li>Nom unique partout : carte, tableau de bord, Utilisateurs, journal ; la recherche des réglages trouve aussi « Second code » et « 2FA » (38).</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Ce qu’on ne fait pas</h2>
+  <div class="box">
+    <ul>
+      <li>Les clés d’accès (passkeys / WebAuthn) : la suite logique, une spec à part.</li>
+      <li>Rendre la validation obligatoire, ou afficher l’état de chaque utilisateur dans Paramètres › Utilisateurs.</li>
+      <li>Les SMS, plusieurs applis en même temps, l’impression des codes (Télécharger puis imprimer suffit).</li>
+      <li>Aucun changement de la connexion elle-même (écran « Vérification », appareil de confiance, verrou).</li>
+    </ul>
+  </div>
+
+  <h2>Le risque</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>Faible côté données</h3>
+      <p>Trois colonnes ajoutées à <code>user_two_factor</code>, sans réécriture. Une activation commencée avant la mise à jour est vue comme expirée : un clic sur « Recommencer ». Les comptes déjà protégés ne voient que la nouvelle carte.</p>
+    </div>
+    <div class="box">
+      <h3>À vérifier sur un vrai iPhone</h3>
+      <p>Le lien <code>otpauth://</code> ouvre le trousseau d’iOS ou l’appli installée ; sans appli, le navigateur affiche son propre refus — d’où « Copier la clé » juste en dessous. Si Q2 = mot de passe + code, serveur et client partent dans la même version (le client actuel n’envoie pas de code). Taille : ~12 fichiers, 2 lots (serveur, puis client + E2E), ~48 tests nouveaux ou réécrits.</p>
+    </div>
+  </div>
+
+  <h2>Les arbitrages en attente</h2>
+  <div class="box">
+    <h3>Q1 — Le nom</h3>
+    <div class="opts">
+      <div class="opt rec"><span class="tag">Recommandé</span><b>Validation en deux étapes</b>Dit ce qu’on fait, en français courant (Google).</div>
+      <div class="opt"><b>Double authentification</b>Le mot le plus répandu en France, un peu technique.</div>
+      <div class="opt"><b>Authentification à deux facteurs (2FA)</b>Apple, GitHub ; le plus long.</div>
+    </div>
+  </div>
+  <div class="box" style="margin-top:12px">
+    <h3>Q2 — Désactiver, changer d’appli, nouveaux codes : que redemander ?</h3>
+    <div class="opts">
+      <div class="opt rec"><span class="tag">Recommandé</span><b>Mot de passe + un code</b>Mot de passe volé + session volée ne suffisent plus à retirer la protection ni à fabriquer des codes de secours.</div>
+      <div class="opt"><b>Mot de passe seul (comme aujourd’hui)</b>Un champ de moins ; la limite d’essais (règle 49) ferme déjà la devinette.</div>
+    </div>
+  </div>
+  <div class="box" style="margin-top:12px">
+    <h3>Q3 — Le code par email</h3>
+    <div class="opts">
+      <div class="opt rec"><span class="tag">Recommandé</span><b>En secours, sous l’appli</b>Le parcours habituel ; l’appli est la méthode la plus sûre.</div>
+      <div class="opt"><b>Au même rang</b>Deux choix au départ, comme aujourd’hui ; une décision de plus.</div>
+      <div class="opt"><b>Appli seulement</b>Plus simple ; les comptes déjà par email continuent de marcher.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var NAMES=['Validation en deux étapes','Double authentification','Authentification à deux facteurs (2FA)'];
+var PASSWORD='maison';
+var COMPANY='Domaine des Oliviers';
+var EMAIL='a.martin-de-la-roche-vasseur@domaine-des-oliviers.fr';
+var MASKED='a•••••••••••••••••••••••••@domaine-des-oliviers.fr';
+var cfg={view:'desktop',name:0,reauth:'code',email:'link',left:10};
+var S;
+function fresh(){return {enabled:false,method:null,enabledAt:null,secret:null,activeSecret:null,codes:[],used:0,events:[],
+  dlg:null,step:1,pw:'',pwErr:'',pwFails:0,lockUntil:0,codeVal:'',codeErr:'',tries:5,cancelled:false,saved:false,copiedKey:false,
+  qrShown:false,keyShown:false,mailCode:null,lastSent:0,sends:0,replacing:false,reauthFor:null,reCode:'',reErr:'',reCodeErr:'',busy:false,authEntries:[],copied:'',nudge:true};}
+S=fresh();
+var $=function(id){return document.getElementById(id)};
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function name(){return NAMES[cfg.name]}
+function nameLc(){return cfg.name===2?'l’authentification à deux facteurs':name().charAt(0).toLowerCase()+name().slice(1)}
+function now(){return Date.now()}
+function today(){var d=new Date();return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()}
+function hhmm(t){var d=new Date(t);return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)}
+function toast(t){var el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(function(){el.classList.remove('on')},2200)}
+function addEvent(label){S.events.unshift({at:today()+' '+hhmm(now()),label:label})}
+
+/* pseudo TOTP: deterministic from secret + 30 s step */
+function hash(str){var h=2166136261;for(var i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function totp(secret,step){return String(hash(secret+':'+step)%1000000).padStart(6,'0')}
+function stepNow(){return Math.floor(now()/30000)}
+function okTotp(secret,code){var s=stepNow();return code===totp(secret,s)||code===totp(secret,s-1)}
+function newSecret(){var a='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567',o='';for(var i=0;i<32;i++)o+=a[Math.floor(Math.random()*32)];return o}
+function grouped(s){return s.match(/.{1,4}/g).map(function(g){return '<span>'+g+'</span>'}).join(' ')}
+function backupCodes(){var a='abcdefghjkmnpqrstuvwxyz23456789',out=[];for(var n=0;n<10;n++){var c='';for(var i=0;i<10;i++){c+=a[Math.floor(Math.random()*a.length)];if(i===4)c+='-'}out.push(c)}return out}
+
+/* fake QR (pattern only) */
+function qrSvg(seed){var n=25,cells='',r=hash(seed);function rnd(){r^=r<<13;r^=r>>>17;r^=r<<5;return (r>>>0)/4294967296}
+  function finder(x,y){return '<rect x="'+x+'" y="'+y+'" width="7" height="7" fill="#27251F"/><rect x="'+(x+1)+'" y="'+(y+1)+'" width="5" height="5" fill="#fff"/><rect x="'+(x+2)+'" y="'+(y+2)+'" width="3" height="3" fill="#27251F"/>'}
+  for(var y=0;y<n;y++)for(var x=0;x<n;x++){var inF=(x<8&&y<8)||(x>16&&y<8)||(x<8&&y>16);if(!inF&&rnd()>.52)cells+='<rect x="'+x+'" y="'+y+'" width="1" height="1"/>'}
+  return '<svg viewBox="0 0 25 25" width="100%" height="100%" shape-rendering="crispEdges" aria-hidden="true"><g fill="#27251F">'+cells+'</g>'+finder(0,0)+finder(18,0)+finder(0,18)+'</svg>'}
+
+/* ---------- page ---------- */
+function renderPage(){
+  var h='';
+  if(!S.enabled&&S.nudge){h+='<div class="nudge"><span class="tt">'+esc(name())+'</span><span class="dd">Compte protégé par le seul mot de passe. <span class="hint">(carte du tableau de bord)</span></span><button class="btn btn-primary btn-sm" data-a="activate">Activer</button><button class="btn btn-text btn-sm" data-a="later">Plus tard</button></div>'}
+  h+='<div class="card"><div class="card-h"><h3 class="sh">Mon mot de passe</h3></div><div class="stub">Mot de passe actuel · Nouveau · Confirmation (inchangé)</div></div>';
+  h+='<div class="card" id="tfCard"><div class="card-h"><h3 class="sh">'+esc(name())+'</h3>'+(S.enabled?'<span class="badge b-on">Activée</span>':'<span class="badge b-off">Désactivée</span>')+'</div>';
+  if(!S.enabled){
+    h+='<p class="muted" style="margin:8px 0 0">Code de l’appli d’authentification demandé à chaque connexion, en plus du mot de passe.</p><div class="actions"><button class="btn btn-primary" data-a="activate">Activer</button></div>';
+  }else{
+    var left=Math.max(0,cfg.left-S.used),low=left<=3;
+    h+='<ul class="facts"><li><span class="k">Méthode</span><span>'+(S.method==='totp'?'Appli d’authentification':'Code par email')+' · depuis le '+S.enabledAt+'</span></li>';
+    h+='<li class="'+(low?'low':'')+'"><span class="k">Codes de secours</span><span>'+(low?'Plus que '+left+' code'+(left>1?'s':'')+' de secours.':left+' codes de secours sur 10')+'</span>'+(low?'<button class="btn btn-out btn-sm" data-a="regen">Nouveaux codes</button>':'')+'</li></ul>';
+    h+='<div class="actions"><button class="btn btn-out" data-a="change">'+(S.method==='totp'?'Changer d’appli':'Passer à une appli')+'</button><button class="btn btn-out" data-a="regen">Nouveaux codes de secours</button><button class="btn btn-danger" data-a="disable">Désactiver</button></div>';
+  }
+  if(S.events.length){h+='<details class="history"><summary>Historique ('+S.events.length+')</summary><ul>'+S.events.slice(0,10).map(function(e){return '<li>'+esc(e.at)+' — '+esc(e.label)+'</li>'}).join('')+'</ul></details>'}
+  h+='</div>';
+  $('page').innerHTML=h;
+}
+
+/* ---------- dialog ---------- */
+function openDlg(kind){S.dlg=kind;$('scrim').classList.add('open');renderDlg();setTimeout(focusFirst,60)}
+function closeDlg(){S.dlg=null;$('scrim').classList.remove('open');renderPage()}
+function focusFirst(){var el=$('dlg').querySelector('[data-focus]');if(el)el.focus()}
+function otpHtml(id){var v=S.codeVal,cells='';for(var i=0;i<6;i++)cells+='<div class="cell'+(i===Math.min(v.length,5)?' cur':'')+'">'+(v[i]||'')+'</div>';
+  return '<div class="otp'+(S.codeErr?' err sel':'')+'" id="'+id+'"><input id="'+id+'In" inputmode="numeric" autocomplete="one-time-code" aria-label="Code à 6 chiffres" aria-describedby="'+id+'Msg" value="'+esc(v)+'" data-focus><div class="cells">'+cells+'</div></div>';}
+function header(title,step,total,closable){
+  var p='';if(total){p='<div class="prog" aria-hidden="true">';for(var i=1;i<=total;i++)p+='<i class="'+(i<=step?'on':'')+'"></i>';p+='</div>'}
+  return '<div class="dlg-h"><div><h3 class="ttl" id="dlgTitle">'+esc(title)+'</h3>'+(total?'<div class="stp">Étape '+step+' sur '+total+'</div>':'')+'</div>'+(closable?'<button class="x" data-a="cancel" aria-label="Fermer">×</button>':'')+'</div>'+p;}
+function locked(){return S.lockUntil>now()}
+function pwField(){
+  return '<div class="field"><label for="pw">Mot de passe (confirmation)</label><input class="input'+(S.pwErr?' err':'')+'" id="pw" type="password" autocomplete="current-password" value="'+esc(S.pw)+'" data-focus aria-describedby="pwMsg"><div class="msg e" id="pwMsg" role="alert">'+esc(S.pwErr)+'</div></div>';}
+
+function renderDlg(){
+  var d=$('dlg'),h='';
+  var setupTotal=S.replacing?2:3,base=S.replacing?-1:0;
+  if(S.dlg==='setup'){
+    if(S.step===1){
+      h+=header(name(),1,3,true)+'<div class="dlg-b"><p class="muted" style="margin:4px 0">Le mot de passe d’abord, puis l’appli d’authentification du téléphone.</p>';
+      if(cfg.email==='peer'){h+='<div class="field"><label>Méthode</label><div class="seg" style="width:100%"><button data-a="m-totp" aria-pressed="'+(S.method!=='email')+'" style="flex:1">Appli d’authentification</button><button data-a="m-email" aria-pressed="'+(S.method==='email')+'" style="flex:1">Code par email</button></div></div>'}
+      h+=pwField()+'</div><div class="dlg-f"><button class="btn btn-text" data-a="cancel">Annuler</button><button class="btn btn-primary" data-a="pwNext"'+(S.pw?'':' disabled')+'>Continuer</button></div>';
+    }else if(S.step===2){
+      var em=S.method==='email';
+      h+=header(em?'Email':'Appli',2+base,setupTotal,true)+'<div class="dlg-b">';
+      if(S.replacing)h+='<div class="alert a-info">L’appli actuelle reste valable jusqu’à la validation du nouveau code.</div>';
+      if(S.cancelled){
+        h+='<div class="alert a-err" role="alert">'+esc(S.cancelled)+'</div></div><div class="dlg-f"><button class="btn btn-text" data-a="cancel">Fermer</button><button class="btn btn-primary" data-a="restart" data-focus>Recommencer</button></div>';
+        d.innerHTML=h;return;
+      }
+      if(em){
+        var wait=Math.max(0,60-Math.floor((now()-S.lastSent)/1000));
+        h+='<p style="margin:4px 0">Code envoyé à <b style="overflow-wrap:anywhere">'+esc(MASKED)+'</b>.</p>';
+        h+='<div class="field"><label for="otpIn">Code reçu par email</label>'+otpHtml('otp')+'<div class="msg '+(S.codeErr?'e':'i')+'" id="otpMsg" role="alert">'+esc(S.codeErr||(S.busy?'Vérification…':''))+'</div></div>';
+        h+='<div class="row"><button class="btn btn-text btn-sm" data-a="resend"'+(wait?' disabled':'')+' id="resendBtn">'+(wait?'Renvoyer le code ('+wait+' s)':'Renvoyer le code')+'</button>'+(cfg.email==='link'?'<button class="btn btn-text btn-sm" data-a="toTotp">Utiliser plutôt une appli</button>':'')+'</div>';
+      }else{
+        var coarse=cfg.view==='mobile';
+        var entry='<div class="entry"><b>GuestFlow</b> — '+esc(COMPANY)+' · '+esc(EMAIL)+'</div>';
+        var keyBlock='<div class="key" aria-label="Clé">'+grouped(S.secret)+'</div><div class="hint">Basé sur l’heure · 6 chiffres · 30 s</div>';
+        if(coarse){
+          h+='<div class="stack"><a class="btn btn-primary" href="#" data-a="openApp">Ouvrir dans l’appli d’authentification</a><button class="btn btn-out" data-a="copyKey">'+(S.copiedKey?'Clé copiée':'Copier la clé')+'</button></div>'+keyBlock+entry;
+          h+='<details class="dis"'+(S.qrShown?' open':'')+' id="qrDis"><summary>Afficher le QR code</summary><div class="in"><div class="qrwrap"><div class="qr" data-a="scan" title="Scanner (démo)">'+qrSvg(S.secret)+'</div></div><div class="hint" style="text-align:center">Pour scanner depuis un autre appareil.</div></div></details>';
+        }else{
+          h+='<p class="muted" style="margin:4px 0">Scanner ce QR code avec l’appli d’authentification.</p><div class="qrwrap"><div class="qr" data-a="scan" title="Cliquer pour « scanner » (démo)" style="cursor:pointer">'+qrSvg(S.secret)+'</div></div>'+entry;
+          h+='<details class="dis"'+(S.keyShown?' open':'')+' id="keyDis"><summary>Saisie manuelle de la clé</summary><div class="in">'+keyBlock+'<div style="margin-top:8px"><button class="btn btn-out btn-sm" data-a="copyKey">'+(S.copiedKey?'Copiée':'Copier')+'</button></div></div></details>';
+        }
+        h+='<div class="sep"></div><div class="field"><label for="otpIn">Code affiché par l’appli</label>'+otpHtml('otp')+'<div class="msg '+(S.codeErr?'e':'i')+'" id="otpMsg" role="alert">'+esc(S.codeErr||(S.busy?'Vérification…':''))+'</div></div>';
+        if(cfg.email==='link')h+='<button class="btn btn-text btn-sm" data-a="toEmail">Pas d’appli ? Recevoir le code par email</button>';
+      }
+      h+='</div><div class="dlg-f"><button class="btn btn-text" data-a="cancel">Annuler</button></div>';
+    }else{
+      h+=header('Codes de secours',3+base,setupTotal,false)+'<div class="dlg-b">';
+      h+=codesPanel()+'</div><div class="dlg-f"><button class="btn btn-primary" data-a="done"'+(S.saved?'':' disabled')+'>Terminé</button></div>';
+    }
+  }else if(S.dlg==='reauth'){
+    var t={disable:'Désactiver '+nameLc(),regen:'Nouveaux codes de secours',change:S.method==='totp'?'Changer d’appli':'Passer à une appli'}[S.reauthFor];
+    var lbl={disable:'Désactiver',regen:'Générer',change:'Continuer'}[S.reauthFor];
+    var need=cfg.reauth==='code';
+    h+=header(t,0,0,true)+'<div class="dlg-b">';
+    if(S.reauthFor==='regen')h+='<p class="muted" style="margin:4px 0">Les anciens codes ne marcheront plus.</p>';
+    if(S.reauthFor==='disable')h+='<p class="muted" style="margin:4px 0">Le compte ne sera plus protégé que par le mot de passe.</p>';
+    h+=pwField();
+    if(need){
+      h+='<div class="field"><label for="otpIn">'+(S.method==='email'?'Code reçu par email':'Code de l’appli ou code de secours')+'</label>'+otpHtml('otp')+'<div class="msg '+(S.codeErr?'e':'i')+'" id="otpMsg" role="alert">'+esc(S.codeErr)+'</div></div>';
+      if(S.method==='email'){var w=Math.max(0,60-Math.floor((now()-S.lastSent)/1000));h+='<button class="btn btn-text btn-sm" data-a="reSend" id="resendBtn"'+(S.lastSent&&w?' disabled':'')+'>'+(S.lastSent&&w?'Recevoir un code ('+w+' s)':'Recevoir un code')+'</button>'}
+    }
+    h+='</div><div class="dlg-f"><button class="btn btn-text" data-a="cancel">Annuler</button><button class="btn '+(S.reauthFor==='disable'?'btn-danger':'btn-primary')+'" data-a="reOk"'+(S.pw&&(!need||S.codeVal.length>=6)?'':' disabled')+'>'+lbl+'</button></div>';
+  }else if(S.dlg==='codes'){
+    h+=header('Codes de secours',0,0,false)+'<div class="dlg-b">'+codesPanel()+'</div><div class="dlg-f"><button class="btn btn-primary" data-a="done"'+(S.saved?'':' disabled')+'>Terminé</button></div>';
+  }
+  d.innerHTML=h;
+}
+function codesPanel(){
+  return '<div class="alert a-warn">Affichés une seule fois. Chaque code remplace le code de l’appli une fois.</div><div class="codes" aria-label="Codes de secours">'+S.codes.map(function(c){return '<span>'+c+'</span>'}).join('')+'</div>'+
+  '<div class="row"><button class="btn btn-out btn-sm" data-a="copyCodes">'+(S.copied==='c'?'Copié':'Copier')+'</button><button class="btn btn-out btn-sm" data-a="dl">'+(S.copied==='d'?'Téléchargé':'Télécharger')+'</button></div>'+
+  '<label class="chk"><input type="checkbox" id="savedChk"'+(S.saved?' checked':'')+'> Codes enregistrés en lieu sûr</label>';
+}
+
+/* ---------- side panels ---------- */
+function renderSide(){
+  var a=$('authBody');
+  if(!S.authEntries.length){a.innerHTML='<div class="empty">Aucune entrée. Scanner le QR code, ouvrir le lien ou coller la clé pour l’ajouter.</div>'}
+  else{var rem=30-Math.floor(now()/1000)%30;a.innerHTML=S.authEntries.map(function(e,i){return '<div style="'+(i?'border-top:1px solid #3a3832;margin-top:10px;padding-top:10px':'')+'"><div class="acct"><b style="color:#fff">GuestFlow</b> — '+esc(COMPANY)+' · '+esc(EMAIL)+(e.old?' <span style="color:#a9a397">(ancienne)</span>':'')+'</div><div class="code">'+totp(e.secret,stepNow()).replace(/(\d{3})/,'$1 ')+'</div><div class="bar"><i style="width:'+(rem/30*100)+'%"></i></div></div>'}).join('')}
+  var m=$('mailBody');
+  m.innerHTML=S.mailCode?'<div class="m">Code de confirmation — GuestFlow<br>Code : <b>'+S.mailCode+'</b> · valable 10 minutes</div>':'<div class="tip">Aucun message.</div>';
+}
+function addAuth(secret){if(!S.authEntries.some(function(e){return e.secret===secret})){S.authEntries.forEach(function(e){e.old=true});S.authEntries.unshift({secret:secret});toast('Entrée ajoutée dans l’appli.')}renderSide()}
+
+/* ---------- actions ---------- */
+function startSetup(replacing){S.replacing=!!replacing;S.step=replacing?2:1;S.pw='';S.pwErr='';S.codeVal='';S.codeErr='';S.tries=5;S.cancelled=false;S.saved=false;S.copied='';S.copiedKey=false;S.qrShown=false;S.keyShown=false;
+  if(replacing){S.prevMethod=S.method;S.method='totp';S.secret=newSecret();S.startedAt=now()}else{S.method=S.method==='email'&&cfg.email==='peer'?'email':'totp'}
+  openDlg('setup')}
+function pwCheck(){
+  if(locked()){S.pwErr='Trop d’essais : réessayer après '+hhmm(S.lockUntil)+'.';return false}
+  if(S.pw!==PASSWORD){S.pwFails++;if(S.pwFails>=5){S.lockUntil=now()+15*60000;S.pwFails=0;S.pwErr='Trop d’essais : réessayer après '+hhmm(S.lockUntil)+'.';addEvent('Trop d’essais du mot de passe ('+nameLc().replace(/^l’/,'')+')')}else S.pwErr='Mot de passe incorrect.';return false}
+  S.pwFails=0;S.pwErr='';return true}
+function sendMail(){S.mailCode=String(Math.floor(Math.random()*1e6)).padStart(6,'0');S.lastSent=now();S.sends++;renderSide()}
+function refuse(cancelMsg){
+  S.tries--;
+  if(S.tries<=0){S.cancelled=cancelMsg;S.codeVal='';S.codeErr='';renderDlg();return}
+  S.codeErr='Code incorrect : '+S.tries+' essai'+(S.tries>1?'s':'')+' restant'+(S.tries>1?'s':'')+'.'+(S.tries<=2&&S.method==='totp'?' Vérifier l’heure du téléphone.':'');
+  renderDlg();var o=$('otp');if(o){o.classList.add('shake');var i=$('otpIn');if(i){i.focus();i.select()}setTimeout(function(){o.classList.remove('shake')},340)}
+}
+function submitCode(){
+  if(S.busy)return;S.busy=true;renderDlg();
+  setTimeout(function(){S.busy=false;
+    if(S.startedAt&&now()-S.startedAt>15*60000){S.cancelled='Activation expirée : recommencer.';renderDlg();return}
+    var ok=S.method==='email'?S.codeVal===S.mailCode:okTotp(S.secret,S.codeVal);
+    if(!ok){refuse('Trop de codes incorrects : activation annulée.');return}
+    var wasOn=S.enabled;S.enabled=true;if(!wasOn)S.enabledAt=today();S.activeSecret=S.method==='totp'?S.secret:null;S.used=0;S.codes=backupCodes();S.mailCode=S.method==='email'?S.mailCode:null;
+    if(S.replacing){addEvent(S.method==='totp'?'Appli d’authentification changée':'Passage au code par email');S.authEntries=S.authEntries.filter(function(e){return !e.old})}
+    else addEvent(name()+' activée ('+(S.method==='totp'?'appli':'email')+')');
+    S.codeVal='';S.codeErr='';S.step=3;S.saved=false;S.copied='';renderDlg();renderSide();renderPage();
+  },450);
+}
+function reauthOk(){
+  if(!pwCheck()){renderDlg();return}
+  if(cfg.reauth==='code'){
+    var v=S.codeVal,ok;
+    if(/^[a-z0-9]{5}-[a-z0-9]{5}$/.test(v)){ok=S.codes.indexOf(v)>=0}else ok=S.method==='email'?v===S.mailCode:okTotp(S.activeSecret,v);
+    if(!ok){S.tries=Math.min(S.tries,5);S.codeErr='Code incorrect.';renderDlg();var o=$('otp');if(o){o.classList.add('shake');setTimeout(function(){o.classList.remove('shake')},340)}return}
+  }
+  var f=S.reauthFor;S.pw='';S.codeVal='';S.codeErr='';
+  if(f==='disable'){S.enabled=false;S.method=null;S.activeSecret=null;S.authEntries=[];addEvent(name()+' désactivée');closeDlg();renderSide();toast(name()+' désactivée.')}
+  else if(f==='regen'){S.codes=backupCodes();S.used=0;cfg.left=10;syncSeg('left','10');addEvent('Nouveaux codes de secours');S.saved=false;S.copied='';S.dlg='codes';renderDlg()}
+  else{ startSetup(true) }
+}
+function syncSeg(k,v){document.querySelectorAll('[data-ctl="'+k+'"] button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.v===v))})}
+
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-a]');if(!t)return;var a=t.dataset.a;
+  if(t.tagName==='A')e.preventDefault();
+  switch(a){
+    case 'activate':startSetup(false);break;
+    case 'later':S.nudge=false;renderPage();toast('Masquée 30 jours.');break;
+    case 'cancel':if(S.dlg==='setup'&&S.replacing){S.method=S.prevMethod}closeDlg();break;
+    case 'm-totp':S.method='totp';renderDlg();break;
+    case 'm-email':S.method='email';renderDlg();break;
+    case 'pwNext':if(!pwCheck()){renderDlg();setTimeout(focusFirst,10);break}
+      S.secret=newSecret();S.startedAt=now();S.sends=0;S.step=2;if(S.method==='email')sendMail();renderDlg();setTimeout(focusFirst,10);break;
+    case 'scan':addAuth(S.secret);setTimeout(function(){var i=$('otpIn');if(i)i.focus()},30);break;
+    case 'openApp':toast('L’appli s’ouvre… (simulé)');setTimeout(function(){addAuth(S.secret);toast('Retour dans le navigateur : le champ du code a le focus.');var i=$('otpIn');if(i)i.focus()},1100);break;
+    case 'copyKey':S.copiedKey=true;try{navigator.clipboard.writeText(S.secret)}catch(_){}renderDlg();toast('Clé copiée, sans espaces. La coller dans l’appli.');setTimeout(function(){addAuth(S.secret)},900);setTimeout(function(){S.copiedKey=false;if(S.dlg==='setup'&&S.step===2)renderDlg()},2000);break;
+    case 'toEmail':S.method='email';S.codeVal='';S.codeErr='';S.tries=5;sendMail();renderDlg();setTimeout(focusFirst,10);break;
+    case 'toTotp':S.method='totp';S.secret=newSecret();S.codeVal='';S.codeErr='';S.tries=5;renderDlg();break;
+    case 'resend':if(S.sends>=5){S.codeErr='Trop d’envois : recommencer l’activation.';renderDlg();break}sendMail();toast('Nouveau code envoyé ; le précédent ne marche plus.');renderDlg();break;
+    case 'restart':S.cancelled=false;S.tries=5;S.codeVal='';if(S.replacing){S.secret=newSecret();S.startedAt=now();S.step=2}else{S.step=1;S.pw=''}renderDlg();setTimeout(focusFirst,10);break;
+    case 'copyCodes':try{navigator.clipboard.writeText(S.codes.join('\n'))}catch(_){}S.copied='c';S.saved=true;renderDlg();break;
+    case 'dl':var blob=new Blob(['Codes de secours GuestFlow — '+EMAIL+'\n\n'+S.codes.join('\n')+'\n'],{type:'text/plain'});var u=URL.createObjectURL(blob);var l=document.createElement('a');l.href=u;l.download='guestflow-codes-de-secours-'+new Date().toISOString().slice(0,10)+'.txt';document.body.appendChild(l);l.click();l.remove();URL.revokeObjectURL(u);S.copied='d';S.saved=true;renderDlg();break;
+    case 'done':if(!S.saved)break;var wasSetup=S.dlg==='setup'&&!S.replacing;closeDlg();toast(wasSetup?name()+' activée.':'Enregistré.');break;
+    case 'disable':case 'regen':case 'change':S.reauthFor=a;S.pw='';S.pwErr='';S.codeVal='';S.codeErr='';openDlg('reauth');break;
+    case 'reSend':sendMail();toast('Code envoyé.');renderDlg();break;
+    case 'reOk':reauthOk();break;
+  }
+});
+document.addEventListener('input',function(e){
+  if(e.target.id==='pw'){S.pw=e.target.value;S.pwErr='';var b=$('dlg').querySelector('[data-a="pwNext"],[data-a="reOk"]');if(b)b.disabled=!S.pw||(S.dlg==='reauth'&&cfg.reauth==='code'&&S.codeVal.length<6);var m=$('pwMsg');if(m)m.textContent='';e.target.classList.remove('err');return}
+  if(e.target.id==='otpIn'){
+    var raw=e.target.value,v;
+    var bk=raw.toLowerCase().replace(/[^a-z0-9]/g,'');
+    if(S.dlg==='reauth'&&/[a-z]/.test(bk)){v=bk.slice(0,10);if(v.length>5)v=v.slice(0,5)+'-'+v.slice(5)}else v=raw.replace(/\D/g,'').slice(0,6);
+    S.codeVal=v;S.codeErr='';
+    var o=$('otp');o.classList.remove('err','sel');var cells=o.querySelectorAll('.cell');var show=v.replace('-','');
+    if(v.indexOf('-')>=0||/[a-z]/.test(v)){cells.forEach(function(c,i){c.textContent=i===0?v:'';c.style.gridColumn=i===0?'1 / -1':'';c.style.display=i===0?'':'none';c.style.fontSize='18px'})}
+    else cells.forEach(function(c,i){c.textContent=v[i]||'';c.style.display='';c.style.gridColumn='';c.style.fontSize='';c.classList.toggle('cur',i===Math.min(v.length,5))});
+    var m=$('otpMsg');if(m){m.textContent='';m.className='msg i'}
+    if(S.dlg==='setup'&&v.length===6)submitCode();
+    if(S.dlg==='reauth'){var b=$('dlg').querySelector('[data-a="reOk"]');if(b)b.disabled=!S.pw||v.length<6}
+  }
+});
+document.addEventListener('change',function(e){if(e.target.id==='savedChk'){S.saved=e.target.checked;var b=$('dlg').querySelector('[data-a="done"]');if(b)b.disabled=!S.saved}});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&S.dlg){if(S.dlg==='setup'&&S.step===3||S.dlg==='codes')return;if(S.dlg==='setup'&&S.replacing)S.method=S.prevMethod;closeDlg()}
+  if(e.key==='Enter'&&e.target.id==='otpIn'&&S.dlg==='setup'&&S.codeVal.length<6){S.codeErr='Code incomplet : 6 chiffres.';renderDlg();var i=$('otpIn');if(i)i.focus()}
+  if(e.key==='Enter'&&e.target.id==='pw'){var b=$('dlg').querySelector('[data-a="pwNext"],[data-a="reOk"]');if(b&&!b.disabled)b.click()}
+});
+document.addEventListener('focusin',function(e){var o=e.target.id==='otpIn'&&$('otp');if(o)o.classList.add('focus')});
+document.addEventListener('focusout',function(e){var o=e.target.id==='otpIn'&&$('otp');if(o)o.classList.remove('focus')});
+$('scrim').addEventListener('click',function(e){if(e.target===this&&S.dlg==='reauth')closeDlg()});
+
+document.querySelectorAll('.seg[data-ctl]').forEach(function(seg){seg.addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b)return;var k=seg.dataset.ctl,v=b.dataset.v;syncSeg(k,v);
+  if(k==='view'){cfg.view=v;$('stage').classList.toggle('mobile',v==='mobile')}
+  else if(k==='name')cfg.name=Number(v);else if(k==='left'){cfg.left=Number(v);S.used=0}else cfg[k]=v;
+  renderPage();if(S.dlg)renderDlg();
+})});
+$('reset').addEventListener('click',function(){S=fresh();cfg.left=10;syncSeg('left','10');$('scrim').classList.remove('open');renderPage();renderSide()});
+
+setInterval(function(){renderSide();var r=$('resendBtn');if(r&&S.dlg)renderDlgKeepFocus()},1000);
+function renderDlgKeepFocus(){var a=document.activeElement,id=a&&a.id,ss=a&&a.selectionStart;if(id==='otpIn'||id==='pw')return;renderDlg()}
+renderPage();renderSide();
+})();
+</script>
+</body>
+</html>

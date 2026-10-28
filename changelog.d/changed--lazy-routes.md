@@ -1,0 +1,1 @@
+- **Pages load on demand** (spec `inte-performance.md`, 2026-10-28). Every page is a separate chunk loaded when opened, the app bar and menu stay while it loads, and a chunk that fails after a release (open tab) reloads once then shows « Page indisponible. ». The JavaScript loaded at startup drops from 637 kB to 285 kB gzip. +7 client tests.

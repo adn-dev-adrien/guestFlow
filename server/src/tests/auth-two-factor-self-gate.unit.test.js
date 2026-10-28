@@ -32,7 +32,7 @@ test('rule 6 — an active user reads their own second-step status', async () =>
 test('rule 6 — a deactivated account with an open session cannot start, disable or regenerate, and the session ends', async () => {
   const { h, marie, c } = harness();
   h.users.softDelete(marie.id);
-  for (const handler of [c.twoFactorStart, c.twoFactorDisable, c.twoFactorRegenerate, c.twoFactorSnooze, c.twoFactorStatus]) {
+  for (const handler of [c.twoFactorStart, c.twoFactorCancel, c.twoFactorCode, c.twoFactorDisable, c.twoFactorRegenerate, c.twoFactorSnooze, c.twoFactorStatus]) {
     const session = fakeSession({ user: marie });
     const { res } = await call(handler, session);
     assert.equal(res.statusCode, 401);

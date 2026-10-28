@@ -301,6 +301,7 @@ const clientBuildDir = process.env.GUESTFLOW_CLIENT_DIR
   : path.join(__dirname, '..', '..', 'client', 'build');
 const clientIndexPath = path.join(clientBuildDir, 'index.html');
 if (fs.existsSync(clientIndexPath)) {
+  app.use('/assets', require('./middleware/hashedAssets')(clientBuildDir));
   app.use(express.static(clientBuildDir));
   app.get(/^\/(?!api|uploads|plugin-assets).*/, (req, res) => {
     res.sendFile(clientIndexPath);
