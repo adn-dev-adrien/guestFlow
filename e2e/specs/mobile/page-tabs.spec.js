@@ -55,7 +55,13 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await expect(page.getByRole('tab')).toHaveCount(3, { timeout: 10_000 });
   await page.evaluate(() => {
     window.__tabCounts = new Set();
-    const sample = () => { window.__tabCounts.add(document.querySelectorAll('[role=tab]').length); requestAnimationFrame(sample); };
+    window.__tabYs = new Set();
+    const sample = () => {
+      const tabs = document.querySelectorAll('[role=tab]');
+      window.__tabCounts.add(tabs.length);
+      if (tabs.length) window.__tabYs.add(Math.round(tabs[0].getBoundingClientRect().y));
+      requestAnimationFrame(sample);
+    };
     sample();
   });
   await page.getByRole('tab', { name: 'Facturables au SAS' }).click();
@@ -63,4 +69,6 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await expect(page.getByRole('heading', { name: 'Facturables au SAS' }).first()).toBeVisible();
   await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); }));
   expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([3]);
+  // The fallback bar has the same rows as the loaded one: the strip does not jump when the real bar mounts.
+  expect(await page.evaluate(() => [...window.__tabYs])).toHaveLength(1);
 });

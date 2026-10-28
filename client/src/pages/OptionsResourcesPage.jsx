@@ -16,7 +16,7 @@ import React, { Suspense } from 'react';
 import { useSearchParams } from 'react-router';
 import { Box } from '@mui/material';
 import PageTabs from '../components/PageTabs';
-import PageActionBar from '../components/PageActionBar';
+import PageBarFallback from '../components/PageBarFallback';
 import OptionsPage from './OptionsPage';
 import ResourcesPage from './ResourcesPage';
 import { useSlot } from '../plugins/sdk/useSlot';
@@ -47,7 +47,7 @@ export default function OptionsResourcesPage() {
     <Box>
       {tab === 'options' && <OptionsPage barTabs={barTabs} />}
       {tab === 'resources' && <ResourcesPage barTabs={barTabs} />}
-      {Contributed && <Suspense fallback={<PageActionBar title={active.label} tabs={barTabs} />}><Contributed barTabs={barTabs} /></Suspense>}
+      {Contributed && <Suspense fallback={<PageBarFallback title={active.label} tabs={barTabs} />}><Contributed barTabs={barTabs} /></Suspense>}
     </Box>
   );
 }

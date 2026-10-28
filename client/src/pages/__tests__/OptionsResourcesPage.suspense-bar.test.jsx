@@ -26,6 +26,7 @@ test('rule 12 — while a contributed tab loads, the tabs and its title stay on 
   );
   expect(screen.queryByTestId('loaded')).toBeNull();
   expect(screen.getAllByRole('tab')).toHaveLength(3);
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
   expect(screen.getAllByText('Facturables au SAS').length).toBeGreaterThan(0);
   await act(async () => { release(); });
   expect(await screen.findByTestId('loaded')).toBeInTheDocument();
