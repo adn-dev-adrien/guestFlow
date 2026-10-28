@@ -228,3 +228,16 @@ test('rule 2, 4: the short messages are announced through a polite live region',
   type('-5');
   expect(live).toHaveTextContent('Positif uniquement.');
 });
+
+test('rule 50: a typed value already at a bound is committed by the arrow that cannot step', () => {
+  const onCommit = vi.fn();
+  render(<Harness initial={7} limits={{ min: 0, max: 60, integer: true, unit: 'jours' }} onCommit={onCommit} />);
+  type('60');
+  fireEvent.keyDown(field(), { key: 'ArrowUp' });
+  expect(onCommit).toHaveBeenLastCalledWith(60);
+  expect(field()).toHaveAttribute('aria-invalid', 'false');
+  type('0');
+  fireEvent.keyDown(field(), { key: 'ArrowDown' });
+  expect(onCommit).toHaveBeenLastCalledWith(0);
+  expect(field()).toHaveValue('0');
+});

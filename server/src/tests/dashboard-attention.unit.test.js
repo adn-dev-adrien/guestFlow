@@ -90,7 +90,7 @@ test('rules 6, 8: an update shows unless postponed or running; the 2FA nudge fol
   assert.equal(CORE_SUMMARIES['update-available']({ ...info, dismissedVersion: '3.11.0' }), null);
   assert.equal(CORE_SUMMARIES['update-available']({ ...info, updateInProgress: true }), null);
   assert.equal(CORE_SUMMARIES['update-available']({ ...info, updateAvailable: false }), null);
-  assert.equal(CORE_SUMMARIES['two-factor']({ nudge: true }).title, 'Second code de connexion');
+  assert.equal(CORE_SUMMARIES['two-factor']({ nudge: true }).title, 'Validation en deux étapes');
   assert.equal(CORE_SUMMARIES['two-factor']({ nudge: false }), null);
 });
 

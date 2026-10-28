@@ -18,14 +18,15 @@ const {
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFormat');
 const { normalizePlatformKey } = require('../utils/icalParser');
-const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
+const { KNOWN_PLATFORM_COLORS, isBuiltinColor } = require('../constants/platformColors');
+const { textColorFor } = require('../utils/colorContrast');
 const platformsModel = require('./platformsModel');
 const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
 const propertyArticle = require('../utils/propertyArticle');
 const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
-const { parseBoundedNumber } = require('../utils/inputLimits');
+const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
 // coerced explicitly to a 0/1 bit for INTEGER columns.
@@ -84,13 +85,15 @@ function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
 // the stored value — or the policy default on creation — so a partial payload never resets a delay.
 // 0 is legitimate ("due the same day").
 const DELAY_DEFAULTS = { depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7 };
-const ANY_WHOLE_NUMBER = { min: -Infinity, max: Infinity, integer: true };
+// The model holds the same bounds as the boundary (rule 48): a plugin calling it directly cannot store
+// 400 days. A refused value leaves the stored one in place, which is also what an unchanged legacy value
+// sent back means (rule 11).
 function delayOf(body, key, stored) {
   const fallback = stored == null ? DELAY_DEFAULTS[key] : Number(stored);
   const raw = body[key];
   if (raw == null || String(raw).trim() === '') return fallback;
-  const parsed = parseBoundedNumber(raw, ANY_WHOLE_NUMBER);
-  return parsed.error || parsed.value < 0 ? fallback : parsed.value;
+  const parsed = parseBoundedNumber(raw, PROPERTY_LIMITS[key]);
+  return parsed.error ? fallback : parsed.value;
 }
 // With the acompte off its delay is hidden and not validated (rule 9): the stored one stays.
 const depositDueDaysOf = (body, stored) => (toBit(body.depositEnabled) ? delayOf(body, 'depositDueDays', stored) : (stored == null ? DELAY_DEFAULTS.depositDueDays : Number(stored)));
@@ -404,7 +407,9 @@ function createPropertiesModel(database) {
       const customColors = {};
       customRows.forEach((row) => {
         const key = normalizePlatformKey(row.platformKey);
-        if (!key || customColors[key]) return;
+        // A per-source colour that is only a built-in default (the pre-2026-10-28 palette included) is not
+        // a choice: it must not mask the current palette.
+        if (!key || customColors[key] || isBuiltinColor(key, row.platformColor)) return;
         customColors[key] = row.platformColor;
       });
 
@@ -421,7 +426,14 @@ function createPropertiesModel(database) {
         if (label) displayNames[p.name] = label;
       }
 
-      return { knownColors: KNOWN_PLATFORM_COLORS, customColors, displayNames };
+      // specs/calendar-property-parity.md rule 5 — the text colour each bar carries, so the client
+      // never does contrast math.
+      const textColors = {};
+      for (const [slug, color] of Object.entries({ ...KNOWN_PLATFORM_COLORS, ...customColors })) {
+        if (/^#[0-9a-f]{6}$/i.test(color)) textColors[slug] = textColorFor(color);
+      }
+
+      return { knownColors: KNOWN_PLATFORM_COLORS, customColors, displayNames, textColors };
     },
 
     getByIdWithDetails(id) {

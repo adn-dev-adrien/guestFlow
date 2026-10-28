@@ -70,6 +70,31 @@ function setLinenStock({ single = 0, double = 0, baby = 0, large = 0, medium = 0
 }
 
 /**
+ * A bed-linen option ticked on the given stays `{ id, singleBeds }`, with their single beds written, so
+ * their sheets reach the laundry cards (specs/linen-laundry-days.md §7.3). Returns the option id, to hand
+ * back to `removeBedLinenOption`.
+ */
+function seedBedLinenOption(stays) {
+  return withDb((db) => {
+    const res = db.prepare("INSERT INTO options (title, price, priceType, countsAsBedLinen) VALUES ('Linge de lit (E2E blanchisserie)', 0, 'per_stay', 1)").run();
+    const optionId = Number(res.lastInsertRowid);
+    const link = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, 1)');
+    stays.forEach(({ id, singleBeds }) => {
+      link.run(id, optionId);
+      db.prepare('UPDATE reservations SET singleBeds = ? WHERE id = ?').run(singleBeds, id);
+    });
+    return optionId;
+  });
+}
+
+function removeBedLinenOption(optionId) {
+  return withDb((db) => {
+    db.prepare('DELETE FROM reservation_options WHERE optionId = ?').run(optionId);
+    db.prepare('DELETE FROM options WHERE id = ?').run(optionId);
+  });
+}
+
+/**
  * Insert an establishment closure (specs/establishment-closures.md). Used to verify the
  * reservation form rejects dates inside a closure.
  */
@@ -237,7 +262,38 @@ function setPlatformPayout(reservationId, amount) {
   });
 }
 
+/**
+ * Make the bank reconciliation readable on the E2E database (specs/reconciliation-assisted-matching.md):
+ * a stored Qonto connection marker (no Qonto call is ever made), the start date, and credits loaded
+ * straight into the plugin's table. Fictional data only.
+ */
+function seedBankCredits({ startDate = '2026-01-01', credits = [] } = {}) {
+  return withDb((db) => {
+    const put = db.prepare(`INSERT INTO plugin_settings (plugin_id, key, value, updated_at) VALUES ('online-payment', ?, ?, datetime('now'))
+      ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`);
+    put.run('qontoRefreshTokenEncrypted', 'e2e-not-a-real-token');
+    put.run('reconciliationStartDate', startDate);
+    put.run('reconciliationBankAccountId', 'e2e-account');
+    put.run('reconciliationLastReadAt', new Date().toISOString());
+    const insert = db.prepare(`INSERT OR REPLACE INTO bank_transactions
+      (id, bankAccountId, amountCents, currency, settledAt, emittedAt, updatedAt, operationType, label, counterpartyName, reference, note, source, fetchedAt)
+      VALUES (@id, 'e2e-account', @amountCents, 'EUR', @settledAt, @settledAt, @settledAt, 'income', @counterpartyName, @counterpartyName, @reference, '', 'qonto', datetime('now'))`);
+    credits.forEach((c) => insert.run({ reference: '', ...c, settledAt: `${c.date}T09:00:00.000Z` }));
+  });
+}
+
+/** Undo `seedBankCredits`: the instance reads as not connected again, so the other specs are untouched. */
+function clearBankSeed() {
+  return withDb((db) => {
+    db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'online-payment' AND key IN ('qontoRefreshTokenEncrypted', 'reconciliationStartDate', 'reconciliationBankAccountId', 'reconciliationLastReadAt')").run();
+    db.prepare("DELETE FROM bank_reconciliation_lines WHERE transactionId LIKE 'e2e-%' OR transactionId LIKE 'tc-%'").run();
+    db.prepare("DELETE FROM bank_transactions WHERE bankAccountId = 'e2e-account'").run();
+  });
+}
+
 module.exports = {
+  seedBankCredits,
+  clearBankSeed,
   enablePropertyDeposit,
   setReservationAmounts,
   setCompanySetting,
@@ -248,6 +304,8 @@ module.exports = {
   seedPendingDateDrift,
   seedPendingCancellation,
   setLinenStock,
+  seedBedLinenOption,
+  removeBedLinenOption,
   seedClosure,
   setAllowEditPastReservations,
   lockIcalReservation,

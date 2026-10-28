@@ -32,12 +32,16 @@ function legacy(value) {
   return res;
 }
 
-test('rule 28: the bulk save refuses a negative, an excess, a non-number and an empty rate, and writes nothing', () => {
-  for (const bad of [-1, '-1', 100, '120', 'abc', '', '1,2,3']) {
+test('rule 28, 48: the bulk save refuses a bad rate with the parser\'s own message and writes nothing', () => {
+  const cases = [
+    [-1, 'Entre 0 et 99,99 %.'], ['-1', 'Entre 0 et 99,99 %.'], [100, 'Entre 0 et 99,99 %.'], ['120', 'Entre 0 et 99,99 %.'],
+    ['abc', 'Nombre attendu.'], ['', 'Nombre attendu.'], ['1,2,3', 'Nombre attendu.'], ['12.345', 'Au plus 2 décimales.'],
+  ];
+  for (const [bad, message] of cases) {
     const res = save([{ id: idOf('Vrbo'), commissionPercent: bad }]);
     assert.equal(res.statusCode, 400, String(bad));
     assert.equal(res.body.code, 'PLATFORMS_INVALID');
-    assert.equal(res.body.errors[idOf('Vrbo')].commissionPercent, 'Entre 0 et 99,99 %.', String(bad));
+    assert.equal(res.body.errors[idOf('Vrbo')].commissionPercent, message, String(bad));
     assert.equal(rate(), 15, 'a refused save writes nothing');
   }
 });
@@ -50,21 +54,21 @@ test('rule 28: a French comma and the bounds are accepted', () => {
   assert.equal(rate(), 0);
 });
 
-test('rule 29: the payout delay keeps its whole-number 0 to 365 rule and message', () => {
-  for (const bad of [-1, 366, 2.5, 'abc']) {
+test('rule 29, 48: the payout delay is a whole number 0 to 365, refused with the parser\'s own message', () => {
+  for (const [bad, message] of [[-1, 'Un nombre entier de jours (0 à 365).'], [366, 'Un nombre entier de jours (0 à 365).'], [2.5, 'Nombre entier de jours.'], ['abc', 'Nombre attendu.']]) {
     const res = save([{ id: idOf('Vrbo'), payoutDueDays: bad }]);
     assert.equal(res.statusCode, 400, String(bad));
-    assert.equal(res.body.errors[idOf('Vrbo')].payoutDueDays, 'Un nombre entier de jours (0 à 365).');
+    assert.equal(res.body.errors[idOf('Vrbo')].payoutDueDays, message, String(bad));
   }
   assert.equal(save([{ id: idOf('Vrbo'), payoutDueDays: 365 }]).statusCode, 200);
 });
 
 test('rule 30: the legacy PUT refuses instead of clamping', () => {
   db.prepare("UPDATE platforms SET commissionPercent = 15 WHERE name = 'Vrbo'").run();
-  for (const bad of [-5, 250, 'abc', '', null, undefined]) {
+  for (const [bad, message] of [[-5, 'Entre 0 et 99,99 %.'], [250, 'Entre 0 et 99,99 %.'], ['abc', 'Nombre attendu.'], ['', 'Nombre attendu.'], [null, 'Nombre attendu.'], [undefined, 'Nombre attendu.']]) {
     const res = legacy(bad);
     assert.equal(res.statusCode, 400, String(bad));
-    assert.deepEqual(res.body, { error: 'Entre 0 et 99,99 %.' });
+    assert.deepEqual(res.body, { error: message });
     assert.equal(rate(), 15, 'nothing is clamped or written');
   }
   const ok = legacy('7,5');

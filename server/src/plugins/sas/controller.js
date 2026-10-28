@@ -426,6 +426,8 @@ function getSas(req, res) {
 function previewArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const closed = closedStayRefusal(reservation);
+  if (closed) return res.status(409).json(closed);
   const arrivalLock = receptionSasLock(req, reservation, 'arrival');
   if (arrivalLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: arrivalLock });
   const draft = normaliseArrivalDraft(req, reservation);
@@ -453,12 +455,23 @@ function recordTotalDifference(reservationId, eventType, history, warning) {
     console.error(`[sas-history] ${eventType} total difference on reservation ${reservationId} not recorded: ${err.message}`);
   }
 }
+// A cancelled stay or a duplicate set aside takes no check-in nor check-out (specs/calendar-property-parity.md
+// rule 25): the SAS refuses it before reading or writing anything. The plugin holds the stay already, so it
+// reads its kind rather than reaching for a core helper.
+const CLOSED_STAY_REFUSALS = {
+  cancelled: { error: 'Cette réservation est annulée et ne peut plus être modifiée.', code: 'RESERVATION_CANCELLED' },
+  superseded: { error: 'Ce doublon est écarté : le rétablir pour le modifier.', code: 'RESERVATION_SUPERSEDED' },
+};
+const closedStayRefusal = (reservation) => CLOSED_STAY_REFUSALS[String(reservation.kind)] || null;
+
 const ARRIVAL_TOTAL_HISTORY = { field: 'arrivalRecapTotal', label: 'Total du récapitulatif d’arrivée' };
 const DEPARTURE_TOTAL_HISTORY = { field: 'departureRecapTotal', label: 'Total du récapitulatif de départ' };
 
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const closed = closedStayRefusal(reservation);
+  if (closed) return res.status(409).json(closed);
   const arrivalLock = receptionSasLock(req, reservation, 'arrival');
   if (arrivalLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: arrivalLock });
   // specs/collect-stay-payment-at-check-in.md §3.6 rule 25 — fail-closed: a reception-only commit
@@ -617,6 +630,8 @@ function departureRecapFor(reservation, plan) {
 function previewDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const closed = closedStayRefusal(reservation);
+  if (closed) return res.status(409).json(closed);
   const departureLock = receptionSasLock(req, reservation, 'departure');
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
   const draft = normaliseDepartureDraft(req, reservation);
@@ -628,6 +643,8 @@ function previewDeparture(req, res) {
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const closed = closedStayRefusal(reservation);
+  if (closed) return res.status(409).json(closed);
   const departureLock = receptionSasLock(req, reservation, 'departure');
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
   const draft = normaliseDepartureDraft(req, reservation);

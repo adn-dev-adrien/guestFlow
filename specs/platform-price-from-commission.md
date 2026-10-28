@@ -84,10 +84,10 @@ owner nets the season's price/night. The commission % is entered per platform an
 |---|---|---|---|
 | `database.js` | `database.js` | T | Idempotent migration: re-add `platforms.commissionPercent REAL NOT NULL DEFAULT 0` (now **used**, not informational). |
 | `utils/` | `pricing.js` | T | New pure helper `grossFromNet(net, commissionPercent)` → `round2(net / (1 − clamp(c)/100))`; `c≥100` → null. Exported + unit-tested. |
-| `models/` | `platformsModel.js` | T | Include `commissionPercent` in the SELECT/list; `update()` accepts + writes it (clamped). Add `listWithCommission()` (non-direct platforms + their %). |
+| `models/` | `platformsModel.js` | T | Include `commissionPercent` in the SELECT/list; `update()` accepts + writes it (refused outside 0–99.99, never clamped — amended 2026-10-28). Add `listWithCommission()` (non-direct platforms + their %). |
 | `models/` | `propertiesModel.js` | T | `platformPrices(propertyId)` → `{ platforms: [{ id, name, commissionPercent }], seasons: [{ ruleId, label, netPerNight, byPlatform: { [platformId]: grossPerNight|null } }] }`. |
 | `controllers/` | `propertiesController.js` | T | `platformPrices` handler (GET). |
-| `controllers/` | the platforms controller (behind `PUT /platforms/:id`) | T | Accept `commissionPercent` on update (clamped). |
+| `controllers/` | the platforms controller (behind `PUT /platforms/:id`) | T | Accept `commissionPercent` on update (refused outside 0–99.99 — amended 2026-10-28). |
 | `routes/` | `routes/properties.js` | T | `GET /:id/platform-prices`. |
 | `routes/` | platforms route | T | Ensure the platform-update route forwards `commissionPercent`. |
 
@@ -110,7 +110,7 @@ properties).
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/properties/:id/platform-prices` | — | `{ platforms: [{ id, name, commissionPercent }], seasons: [{ ruleId, label, netPerNight, byPlatform: { [platformId]: number\|null } }] }` | Excludes `direct`. `null` gross = invalid % (≥100). |
-| PUT | `/api/platforms/:id` (existing) | `{ commissionPercent? }` (+ existing fields) | updated platform | `commissionPercent` clamped to `[0, 99.99]`. |
+| PUT | `/api/platforms/:id` (existing) | `{ commissionPercent? }` (+ existing fields) | updated platform | `commissionPercent` refused outside `[0, 99.99]` (amended 2026-10-28). |
 
 - **2026-10-27 audit:** `client/src/utils/formatters.js` gains `formatPercent` (one decimal, comma);
   `PlatformPriceCard.jsx` uses it with `formatCurrencyRounded` and `formatPlatformLabel` (rule 7).
@@ -147,7 +147,7 @@ The `direct` platform keeps `0` and is never shown in this feature.
 ### Server unit tests (`platform-price-from-commission.unit.test.js`, +5; suite 1508 green)
 - [x] `grossFromNet`: `c=20,net=100 → 125`; `c=15,net=100 → 117.65`; `c=0/undefined/negative → net`;
       `c≥100 → null`.
-- [x] `platformsModel` — `setCommissionPercent` clamps to `[0,99.99]`, rejects `direct`;
+- [x] `platformsModel` — `setCommissionPercent` refuses outside `[0,99.99]` (was: clamps — amended 2026-10-28), rejects `direct`;
       `listWithCommission` excludes `direct`. Existing platform fixtures updated for the new column.
 - [x] `propertiesModel.platformPrices` — seasons × non-direct-platforms grid with correct gross per cell;
       empty seasons / platforms handled.
@@ -177,3 +177,7 @@ The `direct` platform keeps `0` and is never shown in this feature.
 - **Q1 — where to edit the commission %?** → **Inline on the tarif page** (platform-column header),
   persisting the global per-platform rate.
 - **Q2 — rounding granularity?** → **2 decimals** (cents), consistent with the engine.
+
+> **Amended 2026-10-28 by settings-input-guards** (specs/settings-input-guards.md rules 30, 48): a commission outside
+> 0–99.99, with more than two decimals or not a number is refused (400 on the legacy `PUT /platforms/:id/commission`,
+> `null` from `platformsModel.setCommissionPercent`), never clamped.

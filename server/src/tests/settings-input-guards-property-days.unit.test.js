@@ -112,3 +112,13 @@ test('rule 13: the acompte percent keeps its own rule and message', () => {
   assert.match(validatePropertyInput({ ...on, depositPercent: 100 }).depositPercent, /^Entre 1 et 99 %\./);
   assert.match(validatePropertyInput({ ...on, depositPercent: 0 }).depositPercent, /^Entre 1 et 99 %\./);
 });
+
+test('rule 48: the model holds the bounds too — a plugin cannot store 400 days, a legacy stored 90 stays', async () => {
+  const { db, model } = await property({ depositDueDays: 12, balanceDaysBefore: 90, depositEnabled: 1 });
+  await model.update(1, { name: 'Le Gîte', depositEnabled: true, depositDueDays: 400, balanceDaysBefore: 90, cancelAfterBalanceDueDays: -3 });
+  assert.deepEqual(delays(db), { depositDueDays: 12, balanceDaysBefore: 90, cancelAfterBalanceDueDays: 7 });
+  await model.update(1, { name: 'Le Gîte', depositEnabled: true, depositDueDays: 30, balanceDaysBefore: 60, cancelAfterBalanceDueDays: 0 });
+  assert.deepEqual(delays(db), { depositDueDays: 30, balanceDaysBefore: 60, cancelAfterBalanceDueDays: 0 });
+  const id = (await model.create({ name: 'Neuf', depositEnabled: true, depositDueDays: 400 })).id;
+  assert.equal(db.prepare('SELECT depositDueDays FROM properties WHERE id = ?').get(id).depositDueDays, 7);
+});

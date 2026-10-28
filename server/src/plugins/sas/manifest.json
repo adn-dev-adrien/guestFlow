@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -70,6 +70,10 @@
       "Une quantité de linge non entière (1,5) est refusée au lieu d’être arrondie.",
       "Un élément de linge facturé en plusieurs pièces garde sa quantité à la réouverture du sas.",
       "Compatible avec le SDK 2.6 de GuestFlow."
+    ],
+    "1.7.2": [
+      "Un séjour annulé ou un doublon écarté ne peut plus être validé à l’arrivée ou au départ.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

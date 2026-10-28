@@ -1,12 +1,20 @@
 /**
- * Planning controller — aggregate endpoints for the Planning page: breakfast and option cards. The
- * laundry endpoints belong to the `linen` plugin (specs/plugins-phase-2-hosts.md rule 4), the resource
- * cards to `hourly-resources` (specs/plugins-phase-3c-hourly-resources.md rule 10).
+ * Planning controller — aggregate endpoints of the home and the Planning page: the day lists, the days
+ * of a window, the breakfast list and the option-card ticks. The laundry endpoints belong to the
+ * `linen` plugin (specs/plugins-phase-2-hosts.md rule 4), the resource cards to `hourly-resources`
+ * (specs/plugins-phase-3c-hourly-resources.md rule 10).
  */
 
 const breakfastModel = require('../models/breakfastModel');
 const planningOptionCardsModel = require('../models/planningOptionCardsModel');
 const planningAlertsModel = require('../models/planningAlertsModel');
+const planningDaysModel = require('../models/planningDaysModel');
+const reservationsModel = require('../models/reservationsModel');
+const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { isReceptionOnly } = require('../constants/roles');
+const { toReceptionReservationView } = require('../utils/receptionView');
+const { frenchDayLabel, toArrivalCard, toDepartureRow } = require('../utils/upcomingArrivals');
+const { checkWindow, relativeLabel, windowDays, idsByDate } = require('../utils/planningDays');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -18,21 +26,82 @@ function buildController({
   breakfastModel: injectedBreakfastModel = breakfastModel,
   planningOptionCardsModel: injectedOptionCardsModel = planningOptionCardsModel,
   planningAlertsModel: injectedAlertsModel = planningAlertsModel,
+  planningDaysModel: injectedDaysModel = planningDaysModel,
+  detailOf = (id) => reservationsModel.getByIdWithDetails(id),
+  today = getTodayIsoDate,
 } = {}) {
+  // The stay as the requester may read it: the detailed model shape, finance-free for reception.
+  const stayReader = (req) => {
+    const cache = new Map();
+    return (id) => {
+      if (!cache.has(id)) {
+        const detail = detailOf(id);
+        cache.set(id, detail && isReceptionOnly(req.user) ? toReceptionReservationView(detail) : detail);
+      }
+      return cache.get(id);
+    };
+  };
+  const stays = (ids, read) => (ids || []).map(read).filter(Boolean);
+
   return {
     /**
-     * GET /api/planning/alerts?from=YYYY-MM-DD&to=YYYY-MM-DD
-     *
-     * The cleaning alerts of the planning cards (specs/planning-arrival-alerts.md rules 7–10), keyed
-     * by card kind: `{ arrivals: { [reservationId]: alert }, departures: { [reservationId]: alert } }`.
+     * GET /api/planning/today (specs/dashboard-planning-scroll.md rules 1–3): the home's day lists in
+     * one call — today's departures and arrivals and, when nobody arrives, the next arrival day.
      */
-    alerts(req, res) {
+    today(req, res) {
+      const current = today();
+      const read = stayReader(req);
+      const arrivals = idsByDate(injectedDaysModel.arrivalsInRange(current, current))[current];
+      const departures = idsByDate(injectedDaysModel.departuresInRange(current, current))[current];
+      let nextArrival = null;
+      if (!arrivals) {
+        const date = injectedDaysModel.nextArrivalDayAfter(current);
+        if (date) {
+          nextArrival = {
+            date,
+            label: frenchDayLabel(date, current),
+            relativeLabel: relativeLabel(current, date),
+            reservations: stays(idsByDate(injectedDaysModel.arrivalsInRange(date, date))[date], read),
+          };
+        }
+      }
+      return res.json({
+        today: current,
+        departures: stays(departures, read),
+        arrivals: stays(arrivals, read),
+        nextArrival,
+      });
+    },
+
+    /**
+     * GET /api/planning/days?from&to (rules 8–9): every calendar day of a window, at most 31 days,
+     * with its arrivals, departures, breakfast and option cards, plus the window's cleaning alerts.
+     */
+    days(req, res) {
       const from = (req.query && req.query.from) || '';
       const to = (req.query && req.query.to) || '';
-      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      return res.json(injectedAlertsModel.alertsInRange({ from, to }));
+      const invalid = checkWindow(from, to);
+      if (invalid) return res.status(400).json({ error: invalid });
+      const current = today();
+      const read = stayReader(req);
+      const arrivals = idsByDate(injectedDaysModel.arrivalsInRange(from, to));
+      const departures = idsByDate(injectedDaysModel.departuresInRange(from, to));
+      const breakfast = injectedBreakfastModel.breakfastByDate({ from, to }) || {};
+      const optionCards = injectedOptionCardsModel.cardsInRange({ from, to }) || {};
+      return res.json({
+        from,
+        to,
+        today: current,
+        days: windowDays(from, to, current).map((day) => ({
+          ...day,
+          // The Planning page renders the arrival card and the departure row only (rule 22).
+          arrivals: stays(arrivals[day.date], read).map(toArrivalCard),
+          departures: stays(departures[day.date], read).map(toDepartureRow),
+          breakfast: breakfast[day.date] || null,
+          optionCards: optionCards[day.date] || null,
+        })),
+        alerts: injectedAlertsModel.alertsInRange({ from, to }),
+      });
     },
 
     /**
@@ -66,22 +135,6 @@ function buildController({
       }
       const breakfastByDate = injectedBreakfastModel.breakfastByDate({ from, to });
       return res.json({ breakfastByDate });
-    },
-
-    /**
-     * GET /api/planning/option-cards?from=YYYY-MM-DD&to=YYYY-MM-DD
-     *
-     * Option-driven planning cards (specs/option-planning-card.md §3.3): one card per stored
-     * occurrence of a `showsPlanningCard` option whose date ∈ [from, to], shaped ready to render.
-     */
-    optionCards(req, res) {
-      const from = (req.query && req.query.from) || '';
-      const to = (req.query && req.query.to) || '';
-      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      const optionCardsByDate = injectedOptionCardsModel.cardsInRange({ from, to });
-      return res.json({ optionCardsByDate });
     },
 
     /**

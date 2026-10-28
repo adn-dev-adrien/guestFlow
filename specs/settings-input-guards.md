@@ -41,7 +41,7 @@ What the code does today (`origin/inte/plugins` 714ed5e4):
   operator type `-3`.
 - [propertyValidation.js](../server/src/utils/propertyValidation.js) checks `depositPercent`, the tourist
   tax and the caution, but **none of the three day counts**.
-- [propertiesModel.js:79-91](../server/src/models/propertiesModel.js#L79) `dayCountOr()` turns a negative
+- [propertiesModel.js:79-91](../server/src/models/propertiesModel.js#L79) `dayCountOr()` (replaced by `delayOf`, rule 45) turns a negative
   or non-numeric value into the policy default (7 / 30 / 7). So `-3` is *saved as 7* with a success
   toast: the operator believes he stored something he did not. There is no upper bound at all — `400`
   days is stored as is.
@@ -161,7 +161,7 @@ plan reads as one list of accounts.
     capacity check (`settings-rationalization.md` rule 23a). An instance sold with `balanceDaysBefore =
     90` keeps working; the operator is told the day he edits that field. No migration rewrites a delay.
 12. **No more silent fallback on write.** A negative, non-numeric or out-of-range day count in a
-    property payload is refused by rule 9–10; `dayCountOr()` keeps its fallback only for an *absent*
+    property payload is refused by rule 9–10; `delayOf()` (formerly `dayCountOr()`) keeps its fallback only for an *absent*
     field (null / undefined / ''), which is what its comment says it is for.
 13. **`depositPercent` uses the same field** (decimal, 1–99, message unchanged: « Entre 1 et 99 %. Pour
     tout encaisser à la réservation, désactivez l'acompte. »). Its server rule is unchanged.
@@ -292,7 +292,10 @@ were written then withdrawn the same day; their numbers stay reserved._
 48. **The model refuses too.** `platformsModel.setCommissionPercent` (reachable by plugins) returns `null`
     and writes nothing outside 0–99.99; a commission with more than two decimals is refused (« Au plus 2
     décimales. »), never rounded, and `-0` reads as 0. The payout bound derives from
-    `MAX_PAYOUT_DUE_DAYS`.
+    `MAX_PAYOUT_DUE_DAYS`. A refusal answers the parser's own message (« Nombre attendu. », « Au plus 2
+    décimales. », the range message), on the bulk save, the legacy PUT and the payout delay alike.
+    `propertiesModel` holds the delay bounds as well: a plugin calling `update` cannot store 400 days (a
+    refused value leaves the stored one in place).
 49. **Social links, details.** Two links or more start on a new line, so the J+1 sentence reads
     « Pour suivre nos nouvelles : » then one « Network : url » per line (rule 39 otherwise unchanged); a URL
     containing a space is refused (« URL invalide. »); the legacy `emails.instagramUrl` input is held to
@@ -302,8 +305,9 @@ were written then withdrawn the same day; their numbers stay reserved._
     committed value), stop at the bounds from inside them, and never snap a refused value (↑ on 45 in a
     0–30 field does nothing, ↓ gives 44); only `-` and `−` (U+2212) are stripped as a minus, a pasted « — »
     is « Nombre attendu. »; the 2 s messages are announced through a polite live region; more decimals
-    than the field holds are shown « Au plus 2 décimales. ». The pool « Saison » starts with both dates
-    empty; the paiement tab shows a loading state, or an error with « Réessayer », while the property
+    than the field holds are shown « Au plus 2 décimales. »; a typed value already at a bound is committed by
+    the arrow that cannot step. The pool « Saison » starts from the stored season, empty when there was
+    none (never prefilled with the all-year bounds); the paiement tab shows a loading state, or an error with « Réessayer », while the property
     limits load; after « Retirer » focus moves to the next row (or « Ajouter un réseau »); the ↑ ↓ ✕
     buttons name their network; the list-level error reads in the error colour. The « TVA sur
     indemnités (%) » field is its own cell, after « Indemnités d'annulation » (helper « 0 % = hors champ de
@@ -338,13 +342,13 @@ were written then withdrawn the same day; their numbers stay reserved._
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `inputLimits.js` | C | The limits descriptors (`PROPERTY_LIMITS`, `PLATFORM_LIMITS`), `parseBoundedNumber(value, limits)` → `{ value }` or `{ error }`, and `limitMessage(limits)` (rules 1, 5, 6, 8). Pure. |
-| `utils/` | `propertyValidation.js` | T | Rules 9–11 (day counts, changed-only), 24–26 (pool mode, order, missing bound). |
+| `utils/` | `propertyValidation.js` | T | Rules 9–11 (day counts, changed-only), 24–26 (pool mode, order, missing bound), 45–47 (stored value completes a lone bound; the pair is judged on change). |
 | `utils/` | `poolSeason.js` | C | `resolvePoolSeason(body)` → stored bounds; `poolSeasonModeOf(start, end)` (rules 23–24). Pure. |
-| `models/` | `propertiesModel.js` | T | Writes the bounds from `resolvePoolSeason`; `dayCountOr` falls back only for an absent field (rule 12); exposes `poolSeasonMode` + `limits` on read. |
+| `models/` | `propertiesModel.js` | T | Writes the bounds from `resolvePoolSeason`; `delayOf` writes the validated value within the same bounds and falls back to the stored one only for an absent or refused field (rules 12, 45, 48); exposes `poolSeasonMode` + `limits` on read. |
 | `controllers/` | `propertiesController.js` | T | New `limits` handler behind `GET /properties/limits` (rule 8). |
 | `routes/` | `properties.js` | T | One line: `GET /limits`. |
 | `controllers/` | `platformsController.js` | T | Legacy `setCommission` refuses (rule 30); `planRow` reads `PLATFORM_LIMITS` (rules 28–29); `listSettings` adds `limits` (rule 31). |
-| `models/` | `platformsModel.js` | T | `setCommissionPercent` no longer clamps; it trusts the validated value. |
+| `models/` | `platformsModel.js` | T | `setCommissionPercent` refuses (returns `null`) outside 0–99.99, never clamps (rule 48). |
 | `utils/` | `socialLinks.js` | C | `SOCIAL_NETWORKS` catalogue, `validateSocialLinks(list)` (rules 36–37), `instagramUrlOf(list)` (rule 42), `mergeLegacyInstagram(list, url)` (rule 43), `renderSocialLinks(list, lang)` (rule 39). Pure. |
 | `controllers/` | `settingsController.js` | T | `EMAILS_FIELDS` gains `socialLinks` (JSON, validated); keeps writing `instagramUrl` (rule 42); legacy `instagramUrl` input mapped (rule 43). |
 | `models/` | `settingsModel.js` | T | `socialLinks` in the readable/writable columns. |
@@ -469,9 +473,9 @@ Every new rule is cited by at least one test (`check-spec-coverage`).
 
 | File | Cases | Rules |
 |---|---|---|
-| `components/__tests__/BoundedNumberField.input-guards.test.jsx` | 22 | 1–7, 50 |
+| `components/__tests__/BoundedNumberField.input-guards.test.jsx` | 23 | 1–7, 50 |
 | `components/property/__tests__/PropertyPaymentTab.day-bounds.test.jsx` | 5 | 9–14 |
-| `components/property/__tests__/PropertyStayTab.pool-mode.test.jsx` | 8 | 22–27, 50 |
+| `components/property/__tests__/PropertyStayTab.pool-mode.test.jsx` | 10 | 22–27, 50 |
 | `pages/__tests__/PropertyDetail.limits-loading.test.jsx` | 2 | 8, 50 |
 | `pages/settings/__tests__/PlatformsSettingsPage.commission-guard.test.jsx` | 4 | 28–29 |
 | `components/__tests__/SocialLinksField.test.jsx` | 11 | 35–38, 50 |

@@ -4,7 +4,8 @@ import { vi } from 'vitest';
 
 import LaundryDayCard from '../LaundryDayCard';
 
-// specs/laundry-extra-trip.md §3.5 rule 19 + §7 — the extra-trip variant of the laundry card.
+// specs/laundry-extra-trip.md §3.5 rule 19 + §7 — the extra-trip variant of the laundry card. Its
+// `pickUpAll` now lives in the card's `extraTrip` (specs/linen-laundry-days.md §4.3).
 
 const BLOCK = (over = {}) => ({
   singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, ...over,
@@ -12,7 +13,7 @@ const BLOCK = (over = {}) => ({
 
 const EXTRA_ALL = {
   kind: 'extra',
-  pickUpAll: true,
+  extraTrip: { pickUpAll: true, pickUp: {} },
   dropOff: BLOCK({ doubleBeds: 2 }),
   pickUp: BLOCK({ singleBeds: 3, largeTowels: 4 }),
   leftAtLaundry: BLOCK(),
@@ -20,7 +21,7 @@ const EXTRA_ALL = {
 
 const EXTRA_PARTIAL = {
   kind: 'extra',
-  pickUpAll: false,
+  extraTrip: { pickUpAll: false, pickUp: {} },
   dropOff: BLOCK({ doubleBeds: 2 }),
   pickUp: BLOCK({ singleBeds: 1 }),
   leftAtLaundry: BLOCK({ singleBeds: 2, largeTowels: 4 }),

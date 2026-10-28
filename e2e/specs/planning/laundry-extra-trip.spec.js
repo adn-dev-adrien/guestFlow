@@ -35,14 +35,14 @@ test('extra laundry trip — API round-trip + planning page still renders with a
   const listBody = await listResp.json();
   expect(listBody.trips.map((t) => t.date)).toContain(FAR_FUTURE_THURSDAY);
 
-  // The planning summary lists it as an extra trip.
-  const summaryResp = await request.get(`/api/planning/laundry?from=${FAR_FUTURE_THURSDAY}&to=${FAR_FUTURE_THURSDAY}`);
+  // The planning lists it as an extra trip (specs/linen-laundry-days.md rule 13: one card per date to draw).
+  const summaryResp = await request.get(`/api/planning/laundry/days?from=${FAR_FUTURE_THURSDAY}&to=${FAR_FUTURE_THURSDAY}`);
   expect(summaryResp.ok()).toBeTruthy();
   const summary = await summaryResp.json();
-  const entry = summary.laundryDays.find((d) => d.date === FAR_FUTURE_THURSDAY);
+  const entry = summary.days[FAR_FUTURE_THURSDAY];
   expect(entry).toBeTruthy();
   expect(entry.kind).toBe('extra');
-  expect(entry.pickUpAll).toBe(false);
+  expect(entry.extraTrip.pickUpAll).toBe(false);
   expect(entry).toHaveProperty('leftAtLaundry');
 
   // Navigate to /planning and assert it still mounts cleanly with the trip stored.

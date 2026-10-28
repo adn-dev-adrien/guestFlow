@@ -111,7 +111,11 @@ export default function BoundedNumberField({
     const committed = Number(value);
     const start = !Number.isNaN(typed) ? typed : (Number.isFinite(committed) ? committed : limits.min);
     const inside = start >= limits.min && start <= limits.max;
-    if (direction > 0 ? start >= limits.max : start <= limits.min) return;
+    if (direction > 0 ? start >= limits.max : start <= limits.min) {
+      // Already at the bound: nothing to step, but what was typed is still committed.
+      if (start !== committed) { setDraft(toDisplay(start)); onCommit(start); }
+      return;
+    }
     const raw = stepped(start + direction * stepSize);
     const next = inside ? Math.min(limits.max, Math.max(limits.min, raw)) : raw;
     setDraft(toDisplay(next));

@@ -10,7 +10,7 @@ test.beforeEach(() => { reset(); });
 const bookingCredit = (id, cents, over = {}) => credit(id, cents, { counterpartyName: 'Booking.com B.V.', label: 'Booking.com B.V.', reference: 'NO.x/ID.1', ...over });
 
 test('rules 34–36 — confirming a platform payout marks the fiche received at the bank date and carries the payout and its commission', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-11-18' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
 
@@ -35,7 +35,7 @@ test('rules 34–36 — confirming a platform payout marks the fiche received at
 });
 
 test('rule 38 — « Défaire » restores the fiche: unpaid again, payout and commission back to what they were', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-11-18' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
   const item = controller.list().body.items.find((i) => i.reservation.id === id);
@@ -51,7 +51,7 @@ test('rule 38 — « Défaire » restores the fiche: unpaid again, payout and co
 });
 
 test('rule 38 — a fiche edited since the confirmation is left alone by « Défaire »', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-11-18' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
   const item = controller.list().body.items.find((i) => i.reservation.id === id);
@@ -166,11 +166,12 @@ test('rules 25–27 — the fiche block: in scope only, stored data only, folded
 });
 
 test('rule 22 — the home subject counts the gaps and the unmatched credits', () => {
-  addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: '2026-09-01' });
+  const id = addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: '2026-09-01' });
   const { controller, transactions } = build();
-  transactions.upsertMany([bookingCredit('t1', 12345)], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([bookingCredit('t1', 12345), credit('t2', 75000)], { bankAccountId: 'acc-1' });
+  controller.confirm({ transactionId: 't2', allocations: [{ reservationId: id, ledgerKey: 'balance', amountCents: 75000 }], user: USER });
   const payload = controller.attention();
-  assert.equal(payload.gaps, 1, 'late');
+  assert.equal(payload.gaps, 1, 'an amount gap');
   assert.equal(payload.unmatched, 1);
   const { summarize } = require('../reconciliation/attention');
   assert.deepEqual(summarize(payload), { count: 2, title: 'Écarts de règlement', detail: '1 écart · 1 virement non rattaché', severity: 'todo' });
@@ -202,7 +203,7 @@ test('rule 18 — manual linking: the candidates of the dialog, an allocation sp
   const b = addReservation({ clientId: 2, balanceAmount: 300, finalPrice: 300 });
   const { controller, transactions } = build();
   transactions.upsertMany([credit('t1', 70000)], { bankAccountId: 'acc-1' });
-  const found = controller.candidates({ q: 'rossi' }).body.items;
+  const found = controller.candidates({ q: 'rossi' }).body.others.items;
   assert.deepEqual(found.map((i) => i.reservation.id), [b], 'the dialog filters by client');
   const answer = controller.confirm({ transactionId: 't1', allocations: [
     { reservationId: a, ledgerKey: 'balance', amountCents: 40000 },

@@ -27,17 +27,19 @@ const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
  * @param {Function} deps.applyPaymentMark core's mark (no request)
  * @param {Function} deps.computePlatformCommission
  * @param {object} deps.reservations       core reservationsModel (getRow, addHistoryEntry, updatePaymentField)
+ * @param {object} [deps.installments]     core installmentsModel (findById, markUnpaid): « Défaire » takes an installment back
  */
-function createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations }) {
+function createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments = null }) {
   const history = (reservationId, label, from, to) => reservations.addHistoryEntry(reservationId, 'update',
     [{ field: 'bankReconciliation', label, from, to }]);
 
   return {
     /**
-     * Marks the receipt received when its confirmed lines now cover it (rules 34–37).
+     * Marks the receipt received when its confirmed lines now cover it (rules 34–37). `auto` = the server
+     * confirmed it alone (reconciliation-assisted-matching.md rules 20–21).
      * @returns {{ written: boolean, reason?: string, error?: { status: number, body: object } }}
      */
-    writeIfComplete({ receipt, lines, expectedBankCents, tolerance = 0, user }) {
+    writeIfComplete({ receipt, lines, expectedBankCents, tolerance = 0, user, auto = false }) {
       const fields = receipt.installmentId ? { installment: true } : BUCKET_FIELDS[receipt.ledgerKey];
       if (!fields) return { written: false, reason: 'no-bucket' };
       if (receipt.paid) return { written: false, reason: 'already-received' };
@@ -47,17 +49,21 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       if (!settled) return { written: false, reason: 'no-date' };
 
       const before = reservations.getRow(receipt.reservationId) || {};
-      // An installment is marked through its own handler (rule 38); « Défaire » cannot take it back: the
-      // payment stays recorded, as a bank transfer cannot be un-received.
+      // An installment is marked through its own handler (rule 38); « Défaire » takes it back through the
+      // installments model (reconciliation-assisted-matching.md rule 21) while nobody touched it since.
       const body = fields.installment
         ? { installmentId: receipt.installmentId, installmentPaidDate: settled, installmentMethod: 'transfer' }
         : { [fields.flag]: true, [fields.date]: settled };
       let payout = null;
       let commission = null;
-      if (String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
+      // An automatic confirmation writes the flag and the date only (rules 20–21): never a payout, never an amount.
+      // The payout and its commission are written only when the fiche carried none: a recorded payout that the credit
+      // equals is never touched (review 2026-10-28), and neither is its commission.
+      if (!auto && receipt.unbounded && String(before.platform || 'direct').trim().toLowerCase() !== 'direct' && receipt.ledgerKey === 'balance') {
         // Rule 46 — the credit pays the solde only when the platform took an acompte: the payout is the
         // whole stay's net, so the commission is not inflated by the acompte.
-        payout = round2(got / 100 + platformAcompteNet(before));
+        // …and what the platform kept as a penalty (reconciliation-assisted-matching.md rule 25).
+        payout = round2(got / 100 + platformAcompteNet(before) + Math.max(0, Number(before.platformPenaltyAmount || 0)));
         const gross = before.platformGrossAmount != null && before.platformGrossAmount !== ''
           ? Number(before.platformGrossAmount) : Number(before.depositAmount || 0) + Number(before.balanceAmount || 0);
         commission = computePlatformCommission({
@@ -77,10 +83,10 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
           payout: before.platformPayoutAmount == null ? null : Number(before.platformPayoutAmount),
           commission: before.platformCommissionAmount == null ? null : Number(before.platformCommissionAmount),
         },
-        written: { paid: true, date: settled, payout, commission },
+        written: { paid: true, date: settled, payout, commission, installmentId: receipt.installmentId || null },
         createdBy: user && user.id ? user.id : null,
       });
-      history(receipt.reservationId, 'Rapprochement bancaire', 'à percevoir', `reçu le ${frDate(settled)} (virement)`);
+      history(receipt.reservationId, auto ? 'Rapprochement bancaire automatique' : 'Rapprochement bancaire', 'à percevoir', `reçu le ${frDate(settled)} (virement)`);
       return { written: true, date: settled, payout, warning: answer.body && answer.body.warning };
     },
 
@@ -92,6 +98,18 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       const restored = [];
       const untouched = [];
       model.ficheWritesOfTransaction(transactionId).forEach((w) => {
+        if (w.written.installmentId != null) {
+          // An installment the confirmation marked received goes back to unpaid, unless it was touched since.
+          const installment = installments ? installments.findById(w.written.installmentId) : null;
+          const untouchedSince = installment && Number(installment.paid) === 1 && day(installment.paidDate) === w.written.date
+            && String(installment.paidMethod) === 'transfer';
+          if (untouchedSince && installments.markUnpaid(installment.id).flipped) {
+            history(w.reservationId, 'Rapprochement bancaire', `reçu le ${frDate(w.written.date)}`, 'à percevoir (rapprochement défait)');
+            restored.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
+          } else untouched.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
+          model.deleteFicheWrite(w.id);
+          return;
+        }
         const fields = BUCKET_FIELDS[w.ledgerKey];
         const row = reservations.getRow(w.reservationId);
         const edited = !row || !fields

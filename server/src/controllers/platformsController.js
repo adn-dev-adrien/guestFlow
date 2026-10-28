@@ -7,7 +7,8 @@
 const platformsModel = require('../models/platformsModel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { parsePayoutDueDaysInput } = require('../utils/platformPayout');
-const { PLATFORM_LIMITS, parseBoundedNumber, limitMessage } = require('../utils/inputLimits');
+const { PLATFORM_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
+const { textColorFor, validateCalendarColor } = require('../utils/colorContrast');
 
 function listNames(req, res) {
   res.json({ platforms: platformsModel.listNames() });
@@ -22,7 +23,7 @@ function listWithCommission(req, res) {
 // specs/settings-input-guards.md rule 30).
 function setCommission(req, res) {
   const parsed = parseBoundedNumber(req.body && req.body.commissionPercent, PLATFORM_LIMITS.commissionPercent);
-  if (parsed.error) return res.status(400).json({ error: limitMessage(PLATFORM_LIMITS.commissionPercent) });
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
   const updated = platformsModel.setCommissionPercent(req.params.id, parsed.value);
   if (!updated) return res.status(404).json({ error: 'PLATFORM_NOT_FOUND_OR_DIRECT' });
   return res.json({ id: updated.id, name: updated.name, commissionPercent: Number(updated.commissionPercent) || 0 });
@@ -33,9 +34,12 @@ function setCommission(req, res) {
 // override. Upserts the platform so a never-used built-in can still be recoloured.
 function setColor(req, res) {
   const key = decodeURIComponent(req.params.key || '');
-  const updated = platformsModel.setColor(key, req.body && req.body.color);
+  const color = String((req.body && req.body.color) || '').trim();
+  const refusal = color ? validateCalendarColor(color) : null;
+  if (refusal) return res.status(400).json({ error: refusal });
+  const updated = platformsModel.setColor(key, color);
   if (!updated) return res.status(400).json({ error: 'PLATFORM_REQUIRED' });
-  return res.json({ name: updated.name, color: updated.color });
+  return res.json({ name: updated.name, color: updated.color, textColor: textColorFor(updated.color) });
 }
 
 // `:key` is the platform label/name. Sets the GLOBAL tourist-tax mode (applies to every property).
@@ -76,7 +80,6 @@ function setPayoutDueDays(req, res) {
 }
 
 const TOURIST_TAX_MODES = ['platform', 'platform_reversed', 'owner'];
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const MAX_REVIEW_WHERE = 80;
 
 // GET /api/platforms/settings — the « Plateformes » settings page (specs/settings-rationalization.md
@@ -98,12 +101,13 @@ function planRow(row, current) {
   const has = (key) => Object.prototype.hasOwnProperty.call(row, key);
   if (has('color')) {
     const color = String(row.color || '').trim();
-    if (color && !HEX_COLOR.test(color)) errors.color = 'Couleur invalide.';
+    const refusal = color ? validateCalendarColor(color) : null;
+    if (refusal) errors.color = refusal;
     else apply.push(() => platformsModel.setColor(current.name, color));
   }
   if (has('commissionPercent')) {
     const parsed = parseBoundedNumber(row.commissionPercent, PLATFORM_LIMITS.commissionPercent);
-    if (parsed.error) errors.commissionPercent = limitMessage(PLATFORM_LIMITS.commissionPercent);
+    if (parsed.error) errors.commissionPercent = parsed.error;
     else apply.push(() => platformsModel.setCommissionPercent(current.id, parsed.value));
   }
   if (!current.isDirect && has('takesDeposit')) {
@@ -137,9 +141,9 @@ function planRow(row, current) {
     if (fr.length <= MAX_REVIEW_WHERE && en.length <= MAX_REVIEW_WHERE) apply.push(() => platformsModel.setReviewWhere(current.id, { fr, en }));
   }
   if (!ownChannel && has('payoutDueDays')) {
-    const days = parsePayoutDueDaysInput(row.payoutDueDays);
-    if (days === null) errors.payoutDueDays = limitMessage(PLATFORM_LIMITS.payoutDueDays);
-    else apply.push(() => platformsModel.setPayoutDueDays(current.name, days));
+    const parsed = parseBoundedNumber(row.payoutDueDays, PLATFORM_LIMITS.payoutDueDays);
+    if (parsed.error) errors.payoutDueDays = parsed.error;
+    else apply.push(() => platformsModel.setPayoutDueDays(current.name, parsed.value));
   }
   return { errors, apply };
 }

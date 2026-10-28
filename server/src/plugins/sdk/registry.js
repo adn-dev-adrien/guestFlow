@@ -44,12 +44,16 @@ function emptyRecord(id) {
     // specs/plugins-phase-3c-hourly-resources.md rules 1, 6.
     priceLineContributor: null,
     sasCommits: [],
+    // specs/options-resources-ux.md rule 19 (SDK 2.8.0) — (resource, { properties }) → { lines?, footer? } | null.
+    resourceCatalogueLines: null,
     // specs/shell-and-home-day-first.md rule 9 — subjects of the home's « À traiter ».
     attention: [],
     // specs/plugins-phase-0-foundation.md rule 25 — () → null | what the plugin still lacks.
     setupStatus: null,
     // specs/platform-settings-relay-and-review.md rule 8 — [{ key, label }] push toggles (SDK 2.6.0).
     pushChannels: [],
+    // specs/reconciliation-assisted-matching.md rule 22 — (rows) → rows, applied to the home's « Échéances » card (SDK 2.9.0).
+    paymentDeadlineDecorator: null,
   };
 }
 

@@ -85,3 +85,8 @@ test('rule 32: Commission | Indemnités, then TVA sur indemnités | Pourboires �
   for (const label of ["Indemnités d'annulation", 'TVA sur indemnités (%)', 'Pourboires']) expect(cellOf(label).parentElement).toBe(grid);
   expect(within(card).getByText('0 % = hors champ de TVA.')).toBeInTheDocument();
 });
+
+test('rule 33: the penalty account sits in « Commissions et produits divers » with its label', () => {
+  const misc = accountGroupsFor([row('tipAccount'), row('platformPenaltyAccount', '75800000')]).find((g) => g.key === 'misc');
+  expect(misc.fields.map((f) => f.label)).toContain('Pénalités plateformes');
+});

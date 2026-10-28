@@ -26,7 +26,8 @@ function monthEntries(accountingModel, params) {
   const sales = accountingModel.encaissementsByMonth(params);
   const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
   const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
-  return [...sales, ...refunds, ...compensations]
+  const penalties = accountingModel.platformPenaltiesByMonth ? accountingModel.platformPenaltiesByMonth(params) : [];
+  return [...sales, ...refunds, ...compensations, ...penalties]
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 

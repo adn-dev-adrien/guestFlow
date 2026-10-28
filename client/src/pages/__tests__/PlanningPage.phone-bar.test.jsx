@@ -1,6 +1,8 @@
 // specs/shell-and-home-day-first.md rule 23 (2026-10-27 audit) — on a 390 px phone the planning bar
 // was an empty band holding only the laundry icon (a plugin node, which the bar never moves to the
-// top bar). On a phone the plugin buttons now sit with the date strip and the bar is not drawn.
+// top bar). specs/dashboard-planning-scroll.md rule 22: the plugin buttons stay in the band beside
+// « Aujourd'hui »; without any plugin button the lone « Aujourd'hui » icon moves to the top bar; no
+// date strip any more.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -15,18 +17,16 @@ vi.mock('../../components/DialogProvider', () => ({ useToast: () => ({ showError
 vi.mock('../../components/sas/ReservationSasDialog', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getPlanningAlerts: vi.fn().mockResolvedValue({ arrivals: {}, departures: {} }),
-    getReservations: vi.fn().mockResolvedValue([]),
-    getReservation: vi.fn(),
-    getBreakfastPlanningSummary: vi.fn().mockResolvedValue({ breakfastByDate: {} }),
-    getPlanningOptionCards: vi.fn().mockResolvedValue({ optionCardsByDate: {} }),
-    // The server's date, in the week the clocks go back: the window must still end 13 days later,
+    getPlanningDays: vi.fn(async (range) => (await import('./planningDaysFixtures')).daysPayload(range)),
+    // The server's date, in the week the clocks go back: the windows must still be 14 days long,
     // whatever the time zone the suite runs in (specs/ds-sweep-planning.md rule 28).
     getToday: vi.fn().mockResolvedValue({ today: '2026-10-25' }),
   },
 }));
 
 import PlanningPage from '../PlanningPage';
+import { stubWindowScroll } from './planningDaysFixtures';
+import { PageTitleProvider, TopBarActionSlot } from '../../hooks/usePageTitle';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -44,9 +44,27 @@ beforeEach(() => {
 });
 afterEach(() => { delete window.matchMedia; });
 
-test('phone: the plugin button sits with the date strip and no empty bar is drawn', async () => {
-  const { container } = render(<MemoryRouter><PlanningPage /></MemoryRouter>);
+const mountWithTopBar = () => render(
+  <MemoryRouter><PageTitleProvider><TopBarActionSlot /><PlanningPage /></PageTitleProvider></MemoryRouter>,
+);
+
+beforeEach(() => { stubWindowScroll(); });
+
+test('rule 22 — phone: the plugin button stays in the band beside « Aujourd\'hui », and no date strip is drawn', async () => {
+  const { container } = mountWithTopBar();
   const button = await screen.findByRole('button', { name: 'Ajouter un voyage blanchisserie exceptionnel' });
+  const band = container.querySelector('[data-sticky-bar]');
+  expect(band).not.toBeNull();
+  expect(band).toContainElement(button);
+  expect(within(band).getByRole('button', { name: "Aujourd'hui" })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Jour suivant' })).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Date de début')).not.toBeInTheDocument();
+});
+
+test('rule 22 — phone: with no plugin button the lone « Aujourd\'hui » icon moves to the top bar and no band is drawn', async () => {
+  delete slots['planning.actions'];
+  const { container } = mountWithTopBar();
+  const today = await screen.findByRole('button', { name: "Aujourd'hui" });
   expect(container.querySelector('[data-sticky-bar]')).toBeNull();
-  expect(within(button.parentElement).getByRole('button', { name: 'Jour suivant' })).toBeInTheDocument();
+  expect(screen.getByTestId('appbar-page-action')).toContainElement(today);
 });

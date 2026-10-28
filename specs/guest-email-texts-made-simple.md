@@ -569,6 +569,18 @@ Arbitrated by the owner on 2026-10-19 (`docs/rapports/2026-10-18-ui-ux-review.ht
     « Pendant le séjour » and read « Le jour de l'arrivée », editable. It is now « Demande d’échéance »,
     in « Avant l’arrivée » first (the payment emails of that moment), and its « Quand » is fixed: « À chaque
     échéance, à la demande ». The client mirror `constants/emailNames.js` (settings search) carries the name too.
+50. **The first preview does not wait** (performance review of 2026-10-28, `specs/inte-performance.md`).
+    The debounce of rule 13 (`PREVIEW_DELAY_MS`, 400 ms) applies to typing only. Opening the page, a
+    section, another email of the section, another stay, the language, or a reload after a save renders
+    the preview at once (`POST /api/emails/preview` sent in the same tick). Rule 13's « latest draft
+    wins » still holds. Measured: click in Emails › Modèles → preview 598 → 154 ms.
+51. **Only the open email's fields are mounted** (same review). A folded section's fields are not in the
+    page (`<Accordion>` details unmounted on exit); opening it mounts them. Rule 45 (a sentence of the
+    preview opens its folded field) and rule 34 (drafts survive) are unchanged: drafts live in the page
+    state, not in the fields. Measured: 136 → 52 inputs, page 670 → 201 ms in a production build.
+52. **Each section's « Email » selector shows its own email** (same review). The selector of a section
+    reads that section's choice (or its first email), never the open section's template id — which put
+    a value out of its options and logged 6 warnings per render.
 
 ---
 
@@ -855,6 +867,13 @@ and that the test send and a real send carry their HTML part, tag-free; client
 
 **Integrated review of inte/plugins (2026-10-19)** — rule 46: `components/__tests__/TokenTextField.never-focused.test.jsx` (3: appended with a
 space, no double space / empty field, at the caret once placed).
+
+**Performance review (2026-10-28, `specs/inte-performance.md`)** — rules 50–52:
+`pages/settings/__tests__/EmailTextsSettingsPage.performance.test.jsx` (6, fake timers: the preview is
+requested at 0 ms on open, on a section change and after a save; typing still waits 400 ms and sends
+once for a burst; a folded section's fields are absent and appear on opening; the payment section's
+selector holds one of its own emails while another section is open). The `click-preview` suite keeps
+rule 45 green with folded sections unmounted.
 
 ## 8. Out of scope
 

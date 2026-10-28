@@ -599,6 +599,7 @@ export default function PropertyDetail() {
             updateTimedOptionField={updateTimedOptionField}
             timeOptions={TIME_OPTIONS}
             propertyId={isNew ? null : property.id}
+            savedSeason={originalForm.poolSeasonMode === 'season' ? { start: originalForm.poolSeasonStart, end: originalForm.poolSeasonEnd } : undefined}
             arrival={arrivalSaved ? { draft: arrival, saved: arrivalSaved, errors: arrivalErrors, onChange: updateArrival } : null}
           />
         )}

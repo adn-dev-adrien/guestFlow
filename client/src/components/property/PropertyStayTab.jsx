@@ -10,6 +10,7 @@
  *   timedOptions: { early, late }, updateTimedOptionField(kind, field, value), timeOptions (string[])
  *   propertyId — null for a property not created yet (its texts come once it exists)
  *   arrival — { draft, saved, errors, onChange } of the « Arrivée » block, held by the page (rule 35)
+ *   savedSeason — { start, end } of the stored pool season ('' when none), what « Saison » comes back to
  *
  * Cleaning, towels and bed linen (specs/guest-email-texts-made-simple.md rule 28): « Selon les options » leaves
  * the emails to the options; empty means not said yet, and the emails stay silent on it. The pool
@@ -31,7 +32,7 @@ const TIMED = [
 
 export default function PropertyStayTab({
   form, errors = {}, updateField, onZeroFocus, timedOptions, updateTimedOptionField, timeOptions, propertyId = null,
-  arrival = null,
+  arrival = null, savedSeason = { start: '', end: '' },
 }) {
   const choice = (field, label, options) => (
     <FormControl size="small" fullWidth error={Boolean(errors[field])}>
@@ -113,8 +114,12 @@ export default function PropertyStayTab({
                 value={poolMode}
                 onChange={(next) => {
                   updateField('poolSeasonMode', next);
-                  // « Saison » starts empty: prefilled with the all-year bounds it would save back as all year.
-                  if (next === 'season' && poolMode !== 'season') { updateField('poolSeasonStart', ''); updateField('poolSeasonEnd', ''); }
+                  // « Saison » starts from the stored season, else empty: prefilled with the all-year bounds it
+                  // would save back as all year.
+                  if (next === 'season' && poolMode !== 'season') {
+                    updateField('poolSeasonStart', savedSeason.start);
+                    updateField('poolSeasonEnd', savedSeason.end);
+                  }
                 }}
               />
             )}

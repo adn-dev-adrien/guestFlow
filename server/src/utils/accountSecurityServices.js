@@ -13,6 +13,7 @@ const supportAccessModel = require('../models/supportAccessModel').default;
 const { createTwoFactorController } = require('../controllers/twoFactorController');
 const { createPasswordResetController } = require('../controllers/passwordResetController');
 const { createSupportAccessController } = require('../controllers/supportAccessController');
+const { createReauthGuard } = require('./reauthGuard');
 const { createAccountMailer } = require('./accountMailer');
 const { getOrCreateSecret } = require('./localEnv');
 const { shouldEnforceHttps } = require('./securityConfig');
@@ -20,11 +21,19 @@ const supportAccessTokens = require('./supportAccess');
 
 const mailer = createAccountMailer({ settingsModel });
 
+// Rule 49: ONE limit on the confirmation password, shared by the second step's routes and the password change.
+const passwordGuard = createReauthGuard({
+  users: usersModel,
+  onLock: (userId) => twoFactorModel.addEvent(userId, 'reauth_locked', '', new Date().toISOString()),
+});
+
 const twoFactor = createTwoFactorController({
   model: twoFactorModel,
   users: usersModel,
   mailer,
   trustSecret: getOrCreateSecret('GUESTFLOW_DEVICE_TRUST_SECRET', 32),
+  companyName: () => settingsModel.read().companyName,
+  passwordGuard,
 });
 
 const passwordReset = createPasswordResetController({
@@ -32,6 +41,7 @@ const passwordReset = createPasswordResetController({
   model: passwordResetModel,
   mailer,
   twoFactorModel,
+  passwordGuard,
 });
 
 // specs/hosting-h2-account-security.md rule 22 — the instance's slug: the hosting's GUESTFLOW_SLUG
@@ -53,6 +63,7 @@ const supportAccess = createSupportAccessController({
 module.exports = {
   mailer,
   twoFactor,
+  passwordGuard,
   twoFactorModel,
   passwordReset,
   supportAccess,

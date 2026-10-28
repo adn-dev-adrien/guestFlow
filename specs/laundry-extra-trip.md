@@ -171,6 +171,12 @@ the stock projection + shortage alert follow.
 - Reception user → sees the card and the captions, no create / edit / delete controls; a direct
   `PUT`/`DELETE` returns `403 FORBIDDEN_ROLE`.
 
+21. **Extra trips under a multi-day schedule (2026-10-28, [linen-laundry-days.md](linen-laundry-days.md)
+    rules 10, 12, 16).** Rule 2 refuses any regular day of the schedule in force on the trip's date.
+    Rules 8 and 12: a trip collects the batches that are ready (all of them, or the declared quantities
+    oldest first), not the whole pool. Rule 13's seed and its known approximation are replaced by the
+    engine's replay from `today − 42`.
+
 ---
 
 ## 4. Architecture

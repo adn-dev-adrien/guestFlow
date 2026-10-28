@@ -136,6 +136,10 @@ reflect the skip immediately.
   of dirty + 3 batches of `atLaundry` to the third trip. Tested in
   the engine unit suite.
 
+15. **A skip follows the schedule of its date (2026-10-28, [linen-laundry-days.md](linen-laundry-days.md)
+    rule 12).** Rule 2's « laundry day » is any weekday of the schedule in force on that date. Rule 7's
+    « ≥ 14 days » becomes « every batch whose `readyFrom` is reached ».
+
 ---
 
 ## 4. Architecture
@@ -380,7 +384,8 @@ that ships each step, per CLAUDE.md §4.1.)_
 - [x] **Hotfix 2026-06-05 follow-up #2** — after skipping two trips
       in a row, the trip-3 card *disappeared* instead of absorbing
       the 3-week backlog. The toggle's refetch used `from = startDate`
-      to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window)
+      to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window; « the loaded windows of the
+      timeline » since dashboard-planning-scroll.md, 2026-10-28, which reloads each window with its own range)
       and `setLaundryByDate` REPLACES the whole map — wiping any
       dates the user had already scrolled into view via infinite
       scroll. **Initial patch** used `lastLoadedRef.current` as the

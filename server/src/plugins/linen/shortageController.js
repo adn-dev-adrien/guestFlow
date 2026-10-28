@@ -10,6 +10,7 @@ const TYPE_LABELS = Object.freeze({
   large:  'Serviette grande',
   medium: 'Serviette moyenne',
   small:  'Serviette petite',
+  bathMat: 'Tapis de bain',
 });
 
 function buildController({
@@ -31,6 +32,8 @@ function buildController({
      *         type: 'single', label: 'Drap simple',
      *         firstShortageDate: 'YYYY-MM-DD',
      *         maxMissing: 3,
+     *         lastShortageDate: 'YYYY-MM-DD' | null,  // last day of the FIRST spell (null while it runs at the horizon)
+     *         laterShortage: boolean,                  // another spell follows the first one
      *         impactedReservations: [{ id, clientName, startDate, endDate }, ...],
      *       },
      *       ...
@@ -71,6 +74,8 @@ function buildController({
         label: TYPE_LABELS[type] || type,
         firstShortageDate: agg.firstDate,
         maxMissing: agg.maxMissing,
+        lastShortageDate: agg.lastShortageDate || null,
+        laterShortage: Boolean(agg.laterShortage),
         impactedReservations: agg.impactedReservationIds.map(resolveReservation),
       }));
 

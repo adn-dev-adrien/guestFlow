@@ -21,6 +21,7 @@ export const PLAN_LABELS = {
   commissionVatAccount: 'TVA déductible (commissions)',
   discountAccount: 'Rabais accordés',
   tipAccount: 'Pourboires',
+  platformPenaltyAccount: 'Pénalités plateformes',
   journalCode: 'Code journal des ventes',
 };
 
@@ -53,6 +54,7 @@ export const ACCOUNT_GROUPS = [
       { key: 'compensationAccount', source: 'compensation', label: "Indemnités d'annulation", helper: "Crédité quand une plateforme indemnise une annulation." },
       { key: 'vatRateCompensation', source: 'vatCompensation', label: 'TVA sur indemnités (%)', helper: '0 % = hors champ de TVA.' },
       { key: 'tipAccount' },
+      { key: 'platformPenaltyAccount' },
     ],
   },
   {

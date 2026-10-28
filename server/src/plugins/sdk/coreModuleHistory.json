@@ -135,6 +135,13 @@
           "setReviewWhere"
         ]
       }
+    },
+    {
+      "version": "2.9.0",
+      "modules": [
+        "platformPenaltiesModel"
+      ],
+      "names": {}
     }
   ]
 }

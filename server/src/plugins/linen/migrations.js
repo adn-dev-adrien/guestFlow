@@ -12,6 +12,7 @@
  */
 
 const { SETTING_KEYS } = require('./settings');
+const { DEFAULT_WEEKDAY, BEGINNING_OF_TIME } = require('./laundrySchedule');
 
 const SETTINGS_COPY_MARKER = 'plugin_settings_copied_from_app_settings:linen';
 
@@ -74,10 +75,35 @@ function addManualBathMats(db) {
   if (!columns.has('bathMats')) db.exec('ALTER TABLE laundry_trip_manual_additions ADD COLUMN bathMats INTEGER NOT NULL DEFAULT 0');
 }
 
+// specs/linen-laundry-days.md rules 4-5 and §5 — the single `laundryWeekday` becomes the first version of
+// a dated schedule, effective from the beginning of time and with a one-day turnaround: with one
+// weekday every batch waits 7 days, so every figure of an existing install stays what it was. The
+// frozen setting stays in plugin_settings for a rollback to 1.1.x. Seeded only while the table is empty.
+function createLaundryScheduleVersions(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS laundry_schedule_versions (
+      effectiveFrom  TEXT PRIMARY KEY NOT NULL CHECK (length(effectiveFrom) = 10),
+      weekdays       TEXT NOT NULL,
+      turnaroundDays INTEGER NOT NULL DEFAULT 1 CHECK (turnaroundDays BETWEEN 1 AND 14),
+      createdAt      TEXT NOT NULL DEFAULT (datetime('now')),
+      updatedAt      TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  if (db.prepare('SELECT 1 FROM laundry_schedule_versions LIMIT 1').get()) return;
+  const stored = db.prepare("SELECT value FROM plugin_settings WHERE plugin_id = 'linen' AND key = 'laundryWeekday'").get();
+  const raw = stored ? String(stored.value).trim() : '';
+  const weekday = raw !== '' && Number.isInteger(Number(raw)) && Number(raw) >= 0 && Number(raw) <= 6
+    ? Number(raw)
+    : DEFAULT_WEEKDAY;
+  db.prepare('INSERT INTO laundry_schedule_versions (effectiveFrom, weekdays, turnaroundDays) VALUES (?, ?, 1)')
+    .run(BEGINNING_OF_TIME, String(weekday));
+}
+
 const MIGRATIONS = Object.freeze([
   { name: 'laundry_tables_v1', up: createTables },
   { name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings },
   { name: 'manual_additions_bath_mats_v1', up: addManualBathMats },
+  { name: 'laundry_schedule_v1', up: createLaundryScheduleVersions },
 ]);
 
 module.exports = { MIGRATIONS, SETTINGS_COPY_MARKER };

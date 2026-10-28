@@ -4,7 +4,38 @@ import { DATA_CHANGED_EVENT } from './constants/appEvents';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
-async function request(path, options = {}) {
+// Identical GETs in flight at the same moment (the shell and a page both reading /properties or
+// /system/version) are one request: the first caller gets the parsed body, each other its own copy.
+// Any write empties the table when it starts and again when it settles, so a read started after the
+// write never joins one started before it commits (specs/inte-performance.md rule 8). A POST that writes
+// nothing (`readOnly`) leaves it alone.
+const inFlight = new Map();
+
+function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET' || options.body) {
+    if (options.readOnly) return send(path, options);
+    inFlight.clear();
+    const written = send(path, options);
+    const settled = () => inFlight.clear();
+    written.then(settled, settled);
+    return written;
+  }
+  let shared = inFlight.get(path);
+  if (!shared) {
+    const promise = send(path, options);
+    shared = { promise, taken: false };
+    inFlight.set(path, shared);
+    const forget = () => { if (inFlight.get(path) === shared) inFlight.delete(path); };
+    promise.then(forget, forget);
+  }
+  const first = !shared.taken;
+  shared.taken = true;
+  // Both go through `then`, so every copy is made before any caller's continuation can touch the original.
+  return shared.promise.then((body) => (first || body == null ? body : structuredClone(body)));
+}
+
+async function send(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
     credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
@@ -97,10 +128,12 @@ const api = {
   verifySecondFactor: (code, trustDevice) => request('/auth/2fa/verify', { method: 'POST', body: { code, trustDevice } }),
   resendSecondFactor: () => request('/auth/2fa/resend', { method: 'POST' }),
   getTwoFactorStatus: () => request('/auth/2fa/status'),
-  startTwoFactor: (method, password) => request('/auth/2fa/start', { method: 'POST', body: { method, password } }),
-  confirmTwoFactor: (code) => request('/auth/2fa/confirm', { method: 'POST', body: { code } }),
-  disableTwoFactor: (password) => request('/auth/2fa/disable', { method: 'POST', body: { password } }),
-  regenerateBackupCodes: (password) => request('/auth/2fa/backup-codes', { method: 'POST', body: { password } }),
+  startTwoFactor: (method, password, code, enrolmentToken) => request('/auth/2fa/start', { method: 'POST', body: { method, password, code, enrolmentToken } }),
+  cancelTwoFactor: () => request('/auth/2fa/cancel', { method: 'POST' }),
+  sendTwoFactorActionCode: () => request('/auth/2fa/code', { method: 'POST' }),
+  confirmTwoFactor: (code, options = {}) => request('/auth/2fa/confirm', { method: 'POST', body: { code, ...options } }),
+  disableTwoFactor: (password, code) => request('/auth/2fa/disable', { method: 'POST', body: { password, code } }),
+  regenerateBackupCodes: (password, code) => request('/auth/2fa/backup-codes', { method: 'POST', body: { password, code } }),
   snoozeTwoFactor: () => request('/auth/2fa/snooze', { method: 'POST' }),
   disableUserTwoFactor: (id) => request(`/users/${id}/two-factor`, { method: 'DELETE' }),
   getSupportBanner: () => request('/support-access/banner'),
@@ -190,7 +223,7 @@ const api = {
   cleanupOrphanClientsByIds: (ids) => request('/clients/cleanup-orphans/delete', { method: 'POST', body: { ids } }),
   // Server-side cleanup of a dropped/typed raw string → clean field values
   // (specs/client-contact-smart-input.md). Send any of { address, email, phone }.
-  parseClientContact: (payload) => request('/clients/parse-contact', { method: 'POST', body: payload }),
+  parseClientContact: (payload) => request('/clients/parse-contact', { method: 'POST', body: payload, readOnly: true }),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),
   deleteClient: (id, options = {}) => {
@@ -202,7 +235,7 @@ const api = {
 
   // Properties
   getProperties: () => request('/properties'),
-  getProperty: (id) => request(`/properties/${id}`),
+  getProperty: (id, view) => request(`/properties/${id}${view ? `?view=${view}` : ''}`),
   getPlatformColors: () => request('/properties/platform-colors'),
   getPropertyLimits: () => request('/properties/limits'),
   getArticleLabels: (name) => request(`/properties/article-labels?name=${encodeURIComponent(name || '')}`),
@@ -227,7 +260,7 @@ const api = {
   // specs/pricing-min-nights-per-range.md — calendar season painting: (re)assign a selected period to
   // a season (existing/new) with a minimum-nights; the server carves/splits the covering season(s).
   assignPricingDateRange: (propId, data) => request(`/properties/${propId}/pricing/assign-dates`, { method: 'POST', body: data }),
-  previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data }),
+  previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data, readOnly: true }),
   // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up).
   getPlatformPrices: (propId) => request(`/properties/${propId}/platform-prices`),
   // Tariff recipes (specs/tariff-recipes/spec.md §3.5)
@@ -239,13 +272,21 @@ const api = {
   getTariffRecipeRuns: () => request('/tariff-recipes/runs'),
   dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
   // Rapprochement bancaire Qonto (specs/qonto-bank-reconciliation.md §4.3) + the generic plugin settings
-  getReconciliation: (view) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}`),
-  readReconciliation: (view) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}`, { method: 'POST' }),
+  getReconciliation: (view, filter) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`),
+  readReconciliation: (view, filter) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`, { method: 'POST' }),
   confirmReconciliation: (payload) => request('/payments/reconciliation/links', { method: 'POST', body: payload }),
   undoReconciliation: (transactionId) => request(`/payments/reconciliation/links/${encodeURIComponent(transactionId)}`, { method: 'DELETE' }),
   discardReconciliation: (payload) => request('/payments/reconciliation/discards', { method: 'POST', body: payload }),
   setReconciliationOutside: (transactionId, outside) => request(`/payments/reconciliation/transactions/${encodeURIComponent(transactionId)}/outside`, { method: outside ? 'POST' : 'DELETE' }),
-  getReconciliationCandidates: (q) => request(`/payments/reconciliation/candidates?q=${encodeURIComponent(q || '')}`),
+  getReconciliationCandidates: ({ transactionId, q, offset } = {}) => request(`/payments/reconciliation/candidates?transactionId=${encodeURIComponent(transactionId || '')}&q=${encodeURIComponent(q || '')}&offset=${Number(offset) || 0}`),
+  getReconciliationFicheCredits: (reservationId, { q, offset } = {}) => request(`/payments/reconciliation/reservations/${encodeURIComponent(reservationId)}/credits?q=${encodeURIComponent(q || '')}&offset=${Number(offset) || 0}`),
+  previewReconciliationAllocation: (payload) => request('/payments/reconciliation/allocation-preview', { method: 'POST', body: payload }),
+  linkReconciliationBatch: (payload) => request('/payments/reconciliation/links/batch', { method: 'POST', body: payload }),
+  confirmAllReconciliation: (payload) => request('/payments/reconciliation/confirm-all', { method: 'POST', body: payload }),
+  listPlatformPenalties: (reservationId) => request(`/reservations/${reservationId}/platform-penalties`),
+  previewPlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties/preview`, { method: 'POST', body: payload }),
+  declarePlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties`, { method: 'POST', body: payload }),
+  removePlatformPenalty: (reservationId, penaltyId) => request(`/reservations/${reservationId}/platform-penalties/${penaltyId}`, { method: 'DELETE' }),
   getReconciliationBankAccounts: () => request('/payments/reconciliation/bank-accounts'),
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, payload) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: payload }),
@@ -276,7 +317,12 @@ const api = {
   // Options
   getOptions: () => request('/options'),
   // The options catalogue page: without the early / late options edited on each property (rule 15).
-  getCatalogueOptions: () => request('/options?view=catalogue'),
+  // specs/options-resources-ux.md — the catalogue shaped by the server, one option for the editor, restore.
+  getOptionsCatalogueView: (propertyId) => request(`/options/catalogue-view${propertyId ? `?propertyId=${propertyId}` : ''}`),
+  getOption: (id) => request(`/options/${id}`),
+  restoreOption: (id) => request(`/options/${id}/restore`, { method: 'POST' }),
+  getResourcesCatalogueView: () => request('/resources/catalogue-view'),
+  getResource: (id) => request(`/resources/${id}`),
   createOption: (data) => request('/options', { method: 'POST', body: data }),
   updateOption: (id, data) => request(`/options/${id}`, { method: 'PUT', body: data }),
   deleteOption: (id) => request(`/options/${id}`, { method: 'DELETE' }),
@@ -326,6 +372,14 @@ const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/reservations${qs ? `?${qs}` : ''}`);
   },
+  // The one read both calendars share: stays + closures of a range, every bar shaped by the server
+  // (specs/calendar-property-parity.md rule 1). `propertyId` restricts it to one logement.
+  getCalendar: ({ from, to, propertyId, signal }) => {
+    const qs = new URLSearchParams({ from, to, ...(propertyId ? { propertyId } : {}) });
+    return request(`/calendar?${qs}`, { signal });
+  },
+  // « Rétablir » on a duplicate set aside (rule 22).
+  restoreSupersededReservation: (id) => request(`/reservations/${id}/restore`, { method: 'POST' }),
   // Canonical platform-name list for the dropdowns (built-ins ∪ DB platforms, incl. iCal-added).
   // specs/ical-platforms-in-dropdowns.md.
   getPlatforms: () => request('/platforms'),
@@ -353,11 +407,11 @@ const api = {
   // rules 30-31).
   getWebsiteConnection: () => request('/settings/website-connection'),
   regenerateWebsiteKey: () => request('/settings/website-connection/regenerate', { method: 'POST' }),
-  calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
-  suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
+  calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data, readOnly: true }),
+  suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data, readOnly: true }),
   // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » items and total, derived by the server.
-  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data }),
-  computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures }),
+  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data, readOnly: true }),
+  computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures, readOnly: true }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
@@ -525,31 +579,35 @@ const api = {
   getMyEmailStatus: () => request('/users/me/email-status'),
   // specs/control-plane-plans-and-access.md — the admin subscription banner.
   getSubscription: () => request('/subscription'),
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
-  // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
-  // `to` is OPTIONAL: when omitted the server projects to the inventory horizon (= last
-  // reservation endDate). Use the explicit form when paginating an infinite-scroll viewport;
-  // omit it for "give me everything that matters" calls like a post-toggle refetch
-  // (specs/skip-laundry-trip.md §4.3 — hotfix 2026-06-05 follow-up #3).
+  // The laundry cards of the Planning for [from, to] (specs/linen-laundry-days.md §4.3): `{ days: { date: card } }`
+  // holding only the dates to draw, each card ready to render — the weekly bed-linen summary, the
+  // « disponible après ce dépôt » projection, the skips, manual lines and extra trips in one answer.
+  // Both bounds are required; any window, past or future.
+  getLaundryPlanningDays: ({ from, to }) =>
+    request(`/planning/laundry/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // Kept for `linen` 1.1.x, still installable from the registry: its own server answers these two URLs
+  // (specs/linen-laundry-days.md §4.2). `linen` 1.2.0 does not call them; remove at the next major SDK.
   getLaundryPlanningSummary: ({ from, to } = {}) => {
     const params = [`from=${encodeURIComponent(from)}`];
     if (to) params.push(`to=${encodeURIComponent(to)}`);
     return request(`/planning/laundry?${params.join('&')}`);
   },
+  getLinenInventory: () => request('/planning/linen-inventory'),
   // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.3). Returns the
   // dates in [from, to] where ≥1 reservation has the breakfast option AND the customer is
   // present in the morning (= `startDate < D AND endDate >= D`). Payload:
   // `{ breakfastByDate: { 'YYYY-MM-DD': { items: [{ clientName, propertyName, persons }], totalPersons } } }`.
   getBreakfastPlanningSummary: ({ from, to }) =>
     request(`/planning/breakfast?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  // specs/planning-arrival-alerts.md rules 7–10 — the cards' cleaning alerts, computed by the server.
-  getPlanningAlerts: ({ from, to }) =>
-    request(`/planning/alerts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  // Option-driven planning cards (specs/option-planning-card.md §3.3). Returns one card per stored
-  // occurrence of a « carte planning » option whose date ∈ [from, to]. Payload:
-  // `{ optionCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] } } }`.
-  getPlanningOptionCards: ({ from, to }) =>
-    request(`/planning/option-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // The home's day lists in one call (specs/dashboard-planning-scroll.md rules 1-3): today's departures
+  // and arrivals, and the next arrival day when nobody arrives. Payload:
+  // `{ today, departures, arrivals, nextArrival: null | { date, label, relativeLabel, reservations } }`.
+  getPlanningToday: () => request('/planning/today'),
+  // Every day of a window of at most 31 days, cards and cleaning alerts included (rules 8-9). Payload:
+  // `{ from, to, today, days: [{ date, label, shortLabel, isToday, isPast, arrivals, departures, breakfast,
+  // optionCards }], alerts: { arrivals, departures } }`.
+  getPlanningDays: ({ from, to }) =>
+    request(`/planning/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   // Toggle the « préparé » flag of one option-card occurrence (specs/option-planning-card.md §3.5).
   setPlanningOptionCardDone: ({ reservationId, optionId, date, time, done }) =>
     request('/planning/option-cards/done', {
@@ -568,9 +626,6 @@ const api = {
       method: 'POST',
       body: { reservationId, resourceId, date, start, done, ...(kind ? { kind } : {}) },
     }),
-  // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
-  // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
-  getLinenInventory: () => request('/planning/linen-inventory'),
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
@@ -599,6 +654,11 @@ const api = {
   updateLinenItems: (items) => request('/settings/linen-items', { method: 'PUT', body: items }),
   getRepairAmounts: () => request('/settings/repair-amounts'),
   updateRepairAmounts: (items) => request('/settings/repair-amounts', { method: 'PUT', body: items }),
+  // The laundry schedule (specs/linen-laundry-days.md §4.3): `{ current, pending, tomorrow }`; PUT writes
+  // the version effective tomorrow, the preview describes the cycle of a candidate without writing.
+  getLaundrySchedule: () => request('/laundry/schedule'),
+  saveLaundrySchedule: (schedule) => request('/laundry/schedule', { method: 'PUT', body: schedule }),
+  previewLaundrySchedule: (schedule) => request('/laundry/schedule/preview', { method: 'POST', body: schedule, readOnly: true }),
   // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
   // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
   // non-skipped trip. Global per date (one human, one trip). Spec
@@ -658,7 +718,7 @@ const api = {
   // current admin so they can verify the SMTP block before inviting anyone.
   sendSmtpTest: () => request('/settings/smtp-test', { method: 'POST' }),
   // specs/settings-rationalization.md rule 28 — the server found from the sending address.
-  detectSmtp: (address) => request('/settings/smtp-detect', { method: 'POST', body: { address } }),
+  detectSmtp: (address) => request('/settings/smtp-detect', { method: 'POST', body: { address }, readOnly: true }),
 
   // Google Calendar sync (specs/google-calendar-oauth-rework.md §4.3). The OAuth authorize
   // redirect is a full-page navigation (window.location), not an XHR — no helper for it.
@@ -674,7 +734,7 @@ const api = {
   saveTermsDraft: (payload) => request('/terms/draft', { method: 'PUT', body: payload }),
   // specs/plugins-phase-3a-online-payment.md rule 15.
   saveTermsPublicSiteOrigin: (publicSiteOrigin) => request('/terms/public-site-origin', { method: 'PUT', body: { publicSiteOrigin } }),
-  previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload }),
+  previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload, readOnly: true }),
   publishTerms: () => request('/terms/publish', { method: 'POST' }),
   getTermsVersion: (version) => request(`/terms/versions/${version}`),
   // The « Réservation en ligne » card of the website-booking plugin (specs/plugins-phase-2-hosts.md rule 25).
@@ -704,9 +764,9 @@ const api = {
   deleteEstablishmentClosure: (id) => request(`/establishment-closures/${id}`, { method: 'DELETE' }),
 
   // Email automation (specs/email-automation.md)
-  getEmailTemplates:        () => request('/email-templates'),
+  getEmailTemplates:        (view) => request(`/email-templates${view ? `?view=${view}` : ''}`),
   getEmailTemplatesTimeline: () => request('/email-templates?view=timeline'),
-  describeTemplateWhen:     (body) => request('/email-templates/when', { method: 'POST', body }),
+  describeTemplateWhen:     (body) => request('/email-templates/when', { method: 'POST', body, readOnly: true }),
   getEmailMentions: () => request('/email-mentions'),
   createEmailMention: (body) => request('/email-mentions', { method: 'POST', body }),
   updateEmailMention: (id, body) => request(`/email-mentions/${id}`, { method: 'PUT', body }),
@@ -738,7 +798,7 @@ const api = {
     return a.download;
   },
   getEmailReadiness: () => request('/email-readiness'),
-  previewEmailDraft: (body) => request('/emails/preview', { method: 'POST', body }),
+  previewEmailDraft: (body) => request('/emails/preview', { method: 'POST', body, readOnly: true }),
   sendTestEmail: (body) => request('/emails/test', { method: 'POST', body }),
   getEmailTemplateVariables: (id) => request(`/email-templates/${id || 'new'}/variables`),
   getPropertyArrivalFacts: (id) => request(`/properties/${id}/arrival-facts`),

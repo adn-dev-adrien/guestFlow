@@ -8,13 +8,13 @@ import { vi } from 'vitest';
 import theme from '../../../theme';
 import PropertyStayTab from '../PropertyStayTab';
 
-function Harness({ initial, errors = {}, onUpdate }) {
+function Harness({ initial, errors = {}, onUpdate, savedSeason }) {
   const [form, setForm] = useState({ hasWifi: true, poolSeasonMode: 'none', poolSeasonStart: '', poolSeasonEnd: '', ...initial });
   const updateField = (field, value) => { onUpdate?.(field, value); setForm((f) => ({ ...f, [field]: value })); };
   return (
     <MemoryRouter>
       <ThemeProvider theme={theme}>
-        <PropertyStayTab form={form} errors={errors} updateField={updateField} onZeroFocus={vi.fn()} timedOptions={{ early: null, late: null }} timeOptions={[]} />
+        <PropertyStayTab form={form} errors={errors} updateField={updateField} onZeroFocus={vi.fn()} timedOptions={{ early: null, late: null }} timeOptions={[]} savedSeason={savedSeason} />
       </ThemeProvider>
     </MemoryRouter>
   );
@@ -76,4 +76,21 @@ test('rule 22: choosing « Toute l\'année » hides the dates entirely', () => {
 test('rule 26: a « Saison » left empty is refused by the server under both dates', () => {
   render(<Harness initial={{ poolSeasonMode: 'season' }} errors={{ poolSeasonStart: 'Les deux dates.', poolSeasonEnd: 'Les deux dates.' }} />);
   expect(screen.getAllByText('Les deux dates.')).toHaveLength(2);
+});
+
+test('rule 22: Saison → Toute l\'année → Saison comes back to the stored season, empty when there was none', () => {
+  const onUpdate = vi.fn();
+  render(<Harness initial={{ poolSeasonMode: 'season', poolSeasonStart: '06-15', poolSeasonEnd: '08-31' }} savedSeason={{ start: '06-15', end: '08-31' }} onUpdate={onUpdate} />);
+  fireEvent.click(screen.getByRole('button', { name: "Toute l'année" }));
+  fireEvent.click(screen.getByRole('button', { name: 'Saison' }));
+  expect(onUpdate).toHaveBeenLastCalledWith('poolSeasonEnd', '08-31');
+  expect(onUpdate).toHaveBeenCalledWith('poolSeasonStart', '06-15');
+});
+
+test('rule 22: with no stored season, Saison comes back empty', () => {
+  const onUpdate = vi.fn();
+  render(<Harness initial={{ poolSeasonMode: 'allYear', poolSeasonStart: '01-01', poolSeasonEnd: '12-31' }} onUpdate={onUpdate} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Saison' }));
+  expect(onUpdate).toHaveBeenCalledWith('poolSeasonStart', '');
+  expect(onUpdate).toHaveBeenCalledWith('poolSeasonEnd', '');
 });

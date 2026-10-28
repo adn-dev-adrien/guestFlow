@@ -192,6 +192,20 @@ sqlite3 server/guestflow.db "VACUUM INTO '/tmp/recette.db'"
 DB_PATH=/tmp/recette.db GUESTFLOW_MAIL_OUTBOX=/tmp/outbox npm run dev:server
 ```
 
+#### Shadow: a copy that runs like production
+
+A shadow is such a copy running this checkout. Judge speed on a **build**, never on the Vite dev
+server (3 to 6 times slower, 481 unbundled modules per page):
+
+```bash
+node scripts/start-shadow.mjs --db /path/to/copy.db --port 4104   # builds, then one server on :4104
+node scripts/start-shadow.mjs --db /path/to/copy.db --port 4104 --dev   # hot reload, not representative
+GUESTFLOW_PERF_PASSWORD=... node e2e/perf/measure-pages.mjs http://localhost:4104 --cpu 4
+```
+
+The script copies the database (and the `.env.local` / `uploads` next to it), sends mails to an outbox
+and points Qonto and Neat at a dead address (`specs/inte-performance.md` rules 1 and 6).
+
 ### Running Unit Tests
 
 Unit tests are currently implemented on the server side using Node's built-in test runner.

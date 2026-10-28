@@ -351,7 +351,7 @@ one place.
 | `utils/` | `propertyValidation.js` | C | Property form validation (rule 23a) |
 | `utils/` | `settingsRationalizationMigration.js` | C | One-shot steps: identity normalisation, templates back to manual, column drops |
 | `controllers/` | `propertiesController.js` + `propertiesModel.js` | T | Validation on create / update; `GET/PUT /api/properties/email-hooks` |
-| `controllers/` | `optionsController.js` | T | `?view=catalogue` leaves out the per-property auto-options (rule 15) |
+| `controllers/` | `optionsController.js` | T | the catalogue (`GET /api/options/catalogue-view`) leaves out the per-property auto-options (rule 15); the old `?view=catalogue` on the plain list was removed (specs/inte-performance.md) |
 | `utils/` | `settingsResponse.js` | T | Return `footerTextEn`; return `smtp.derived` and `notifications.derivedRecipient` next to the stored overrides |
 | `controllers/` | `paymentsController.js` | T | Remove the timings GET/PUT |
 | `controllers/` | `reservationsController.js` | T | Replace the `allowEditPastReservations` read by the per-request `unlockPast` flag, admin only (rule 17a) |
@@ -418,7 +418,7 @@ one place.
 | POST/PUT/DELETE | `/api/reservations(/:id)` | Accept `unlockPast: true` in the body (`?unlockPast=1` on DELETE), honoured for an admin only |
 | GET/PUT | `/api/properties/email-hooks` | **New** (admin): `[{ propertyId, name, emailHook, emailHookEn }]`; PUT writes only those two columns |
 | POST/PUT | `/api/properties(/:id)` | 400 `{ error: 'PROPERTY_INVALID', errors: { field: message } }` (rule 23a) |
-| GET | `/api/options?view=catalogue` | Leaves out `early_check_in` / `late_check_out` |
+| GET | `/api/options/catalogue-view` | Leaves out `early_check_in` / `late_check_out` (replaced `/api/options?view=catalogue`) |
 | GET | `/api/settings/summary` | **New** (admin, rule 25): `{ lines: { '<page path>': { text, tone: 'neutral' \| 'warning' } } }` |
 | POST | `/api/settings/smtp-detect` | **New** (admin, rule 28): `{ address? }` → `{ address, status, found, provider: { id, name, host, secure, port, hint } \| null, message }` (`status`: found, unsupported, unknown, dns-failed, off, invalid; `message` empty when off); never writes |
 | PUT | `/api/settings` | Rule 28 — an `smtp` group that brings a password and no `host`, with no host stored, gets the deduced `smtpHost` / `smtpSecure`; `host` and `password` both `''` also reset `smtpSecure` |

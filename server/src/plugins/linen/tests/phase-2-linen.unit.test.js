@@ -24,6 +24,7 @@ const { ensurePluginsTable, ensurePluginSettingsTable } = require(path.join(SRC,
 
 const SCHEMA = fs.readFileSync(path.join(SRC, 'schema.sql'), 'utf8');
 const LAUNDRY_TABLES = ['laundry_trip_skips', 'laundry_trip_manual_additions', 'laundry_extra_trips'];
+const SCHEDULE_TABLE = 'laundry_schedule_versions';
 const SETTING_KEYS = [
   'laundryWeekday', 'bedLinenStockSingle', 'bedLinenStockDouble', 'bedLinenStockBaby',
   'towelStockLarge', 'towelStockMedium', 'towelStockSmall', 'towelStockBathMat',
@@ -76,25 +77,26 @@ function fakeRes() {
 
 test.afterEach(() => registry.reset());
 
-test('specs/plugins-phase-2-hosts.md rule 4: the two laundry planning endpoints answer 404 while linen is off; breakfast and option cards stay core', async () => {
+test('specs/plugins-phase-2-hosts.md rule 4: the laundry planning endpoint answers 404 while linen is off; breakfast and the days stay core', async () => {
   const db = freshDb();
   const { app, plugins } = boot(db, { installed: [] });
-  for (const url of ['/api/planning/laundry?from=2026-10-01&to=2026-10-14', '/api/planning/linen-inventory']) {
+  for (const url of ['/api/planning/laundry/days?from=2026-10-01&to=2026-10-14']) {
     const res = await request(app, 'GET', url);
     assert.equal(res.status, 404, url);
     assert.deepEqual(res.body, { error: 'PLUGIN_INACTIVE', plugin: 'linen' });
   }
   // The core planning router still answers its own endpoints (a bad range is its own 400).
   assert.deepEqual((await request(app, 'GET', '/api/planning/breakfast?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
-  assert.deepEqual((await request(app, 'GET', '/api/planning/option-cards?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
+  assert.deepEqual((await request(app, 'GET', '/api/planning/days?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
 
   plugins.install('linen');
   applyPluginSchema(db, 'linen');
-  const laundry = await request(app, 'GET', '/api/planning/laundry?from=2026-10-01&to=2026-10-14');
+  const laundry = await request(app, 'GET', '/api/planning/laundry/days?from=2026-10-01&to=2026-10-14');
   assert.equal(laundry.status, 200);
-  assert.equal(laundry.body.laundryWeekday, 2);
-  assert.equal(laundry.body.laundryDays.length, 2);
-  assert.deepEqual((await request(app, 'GET', '/api/planning/linen-inventory')).body, { horizon: null, byLaundryDay: {} });
+  assert.deepEqual(laundry.body, { days: {} });
+  // The two former endpoints are gone (specs/linen-laundry-days.md rule 13).
+  assert.equal((await request(app, 'GET', '/api/planning/laundry?from=2026-10-01&to=2026-10-14')).status, 404);
+  assert.equal((await request(app, 'GET', '/api/planning/linen-inventory')).status, 404);
   assert.equal((await request(app, 'GET', '/api/laundry/skips')).status, 200);
 
   const src = fs.readFileSync(path.join(SRC, 'routes/planning.js'), 'utf8');
@@ -116,7 +118,7 @@ test('specs/plugins-phase-2-hosts.md rule 15: /api/laundry and the shortage aler
   assert.doesNotMatch(fs.readFileSync(path.join(SRC, 'index.js'), 'utf8'), /\/api\/laundry/);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 15: the stock and the laundry day are read and written through /api/plugins/linen/settings, validated', () => {
+test('specs/plugins-phase-2-hosts.md rule 15: the stock is read and written through /api/plugins/linen/settings, validated; the frozen laundry day is refused', () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel });
@@ -133,9 +135,14 @@ test('specs/plugins-phase-2-hosts.md rule 15: the stock and the laundry day are 
 
   res = fakeRes();
   controller.saveSettings({ params: { id: 'linen' }, body: { bedLinenStockDouble: 12, laundryWeekday: 4 } }, res);
+  // specs/linen-laundry-days.md rule 26 — the laundry day is frozen: refused, pointing to the schedule endpoint.
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.errors.laundryWeekday, /PUT \/api\/laundry\/schedule/);
+
+  res = fakeRes();
+  controller.saveSettings({ params: { id: 'linen' }, body: { bedLinenStockDouble: 12 } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.bedLinenStockDouble, '12');
-  assert.equal(res.body.laundryWeekday, '4');
 });
 
 test('specs/plugins-phase-2-hosts.md rule 17: the bed-linen alert is computed only while linen is live', () => {
@@ -160,12 +167,13 @@ test('specs/plugins-phase-2-hosts.md rule 18: describe() lists what an erasure t
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel });
-  // A new database: the copy wrote the column defaults, so only the settings line shows.
+  // A new database: the copy wrote the column defaults, so only the settings line and the schedule's
+  // first version show (specs/linen-laundry-days.md rule 24).
   let res = fakeRes();
   controller.list({}, res);
   let linen = res.body.find((p) => p.id === 'linen');
   assert.equal(linen.erasable, true);
-  assert.deepEqual(linen.data.map((l) => l.label), ['le stock et le jour de blanchisserie']);
+  assert.deepEqual(linen.data.map((l) => l.label), ['le stock de linge', 'le rythme de blanchisserie']);
 
   ['2026-10-06', '2026-10-13', '2026-10-20'].forEach((d) => db.prepare('INSERT INTO laundry_trip_skips (tripDate) VALUES (?)').run(d));
   db.prepare("INSERT INTO laundry_trip_manual_additions (tripDate, singleBeds) VALUES ('2026-10-06', 1), ('2026-10-13', 2)").run();
@@ -174,7 +182,7 @@ test('specs/plugins-phase-2-hosts.md rule 18: describe() lists what an erasure t
   controller.list({}, res);
   linen = res.body.find((p) => p.id === 'linen');
   assert.deepEqual(linen.data.map((l) => l.label), [
-    '3 tournées sautées', '2 ajouts manuels', '1 tournée supplémentaire', 'le stock et le jour de blanchisserie',
+    '3 tournées sautées', '2 ajouts manuels', '1 tournée supplémentaire', 'le stock de linge', 'le rythme de blanchisserie',
   ]);
 
   db.prepare('DELETE FROM laundry_trip_manual_additions').run();
@@ -182,10 +190,10 @@ test('specs/plugins-phase-2-hosts.md rule 18: describe() lists what an erasure t
   res = fakeRes();
   controller.list({}, res);
   linen = res.body.find((p) => p.id === 'linen');
-  assert.deepEqual(linen.data.map((l) => l.label), ['3 tournées sautées', '1 tournée supplémentaire']);
+  assert.deepEqual(linen.data.map((l) => l.label), ['3 tournées sautées', '1 tournée supplémentaire', 'le rythme de blanchisserie']);
 });
 
-test('specs/plugins-phase-2-hosts.md rule 18: the purge empties the three tables and the eight settings, and keeps the options and the beds', async () => {
+test('specs/plugins-phase-2-hosts.md rule 18: the purge empties the laundry tables (schedule included) and the eight settings, and keeps the options and the beds', async () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
   db.prepare("INSERT INTO options (id, title, countsAsBedLinen) VALUES (7, 'Linge de lit', 1)").run();
@@ -200,13 +208,15 @@ test('specs/plugins-phase-2-hosts.md rule 18: the purge empties the three tables
   const res = fakeRes();
   controller.uninstall({ params: { id: 'linen' }, query: { purge: '1' } }, res);
   assert.equal(res.statusCode, 200);
-  LAUNDRY_TABLES.forEach((t) => assert.equal(tableExists(db, t), false, t));
+  [...LAUNDRY_TABLES, SCHEDULE_TABLE].forEach((t) => assert.equal(tableExists(db, t), false, t));
   SETTING_KEYS.forEach((key) => assert.equal(settingsModel.raw('linen', key), '', key));
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM options WHERE id = 7').get().n, 1);
 
-  // Reinstalled: empty tables, and the stock reads 0 — the frozen column is not copied back.
+  // Reinstalled: empty tables, a schedule back to { Tuesday, 1 day } (the purged weekday 4 is gone),
+  // and the stock reads 0 — the frozen column is not copied back.
   await controller.install({ params: { id: 'linen' } }, fakeRes());
   LAUNDRY_TABLES.forEach((t) => assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n, 0, t));
+  assert.deepEqual(db.prepare(`SELECT effectiveFrom, weekdays, turnaroundDays FROM ${SCHEDULE_TABLE}`).all(), [{ effectiveFrom: '0001-01-01', weekdays: '2', turnaroundDays: 1 }]);
   const view = fakeRes();
   controller.getSettings({ params: { id: 'linen' } }, view);
   assert.equal(view.body.bedLinenStockDouble, '0');

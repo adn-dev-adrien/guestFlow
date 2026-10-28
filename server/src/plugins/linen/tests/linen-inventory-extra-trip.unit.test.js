@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { simulateInventory, ALL_TYPES } = require('../linenInventory');
+const { constantSchedule } = require('./laundry-schedule-fixtures');
 
 // specs/laundry-extra-trip.md §3.3 + §7 — engine-level coverage for extra laundry trips.
 //
@@ -44,7 +45,7 @@ const STOCK = makeStock({ single: 10, double: 10, baby: 10 });
 function run({ extraTrips = new Map(), skippedDates = new Set(), from = '2026-06-01', to = '2026-06-30', reservations = [RES_A, RES_B] } = {}) {
   return simulateInventory({
     stock: STOCK, reservations, options: OPT, reservationOptions: RO, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from, to, skippedDates, extraTripsByDate: extraTrips,
+    schedule: constantSchedule(TUESDAY), from, to, skippedDates, extraTripsByDate: extraTrips,
   });
 }
 
@@ -97,7 +98,7 @@ test('pick-up happens BEFORE the check-ins of the extra day (rule 11 / inventory
   const r = simulateInventory({
     stock: STOCK, reservations: [RES_A, RES_B, RES_C], options: OPT,
     reservationOptions: [...RO, { reservationId: 3, optionId: 100, quantity: 1 }], propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-30',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-30',
     extraTripsByDate: new Map([['2026-06-11', { pickUpAll: true, pickUp: {} }]]),
   });
   const d = day(r, '2026-06-11');
@@ -115,7 +116,7 @@ test('an extra trip stored on the laundry weekday is inert (rule 2)', () => {
 test('no extra trip: engine output identical to the pre-feature baseline (default parameter)', () => {
   const withDefault = simulateInventory({
     stock: STOCK, reservations: [RES_A, RES_B], options: OPT, reservationOptions: RO, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-30',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-30',
   });
   assert.deepEqual(run().days, withDefault.days);
 });
@@ -160,17 +161,18 @@ test('an extra trip ON today is executed by the loop, not the init (rule 13)', (
   assertConservation(r, STOCK, 'extra on today');
 });
 
-test('init seed guard quirk (documented): when the last regular trip is more than a week back, the pool starts at 0 and a partial remainder is not tracked', () => {
-  // today = 06-16 (a Tuesday) but SKIPPED → last regular trip = 06-09, exactly 7 days back: the
-  // historical `> today − 7` guard does not fire, so the seed is 0 and the extra trip 06-11 finds
-  // an empty pool — its partial remainder (which really sits at the laundry) is not tracked. Same
-  // class of approximation as the guard itself; pinned so a future fix is deliberate.
+test('a partial remainder is tracked even when the last regular trip was skipped (specs/linen-laundry-days.md rule 16)', () => {
+  // today = 06-16 (a Tuesday) but SKIPPED → the last regular trip is 06-09. The former 7-day seed
+  // guard did not fire here, so the remainder of the partial extra trip of 06-11 (A: 1 single + 1
+  // double) was lost — only B showed at the laundry. The warm-up replay now carries it: this was the
+  // « known approximation » of specs/laundry-extra-trip.md rule 13, exact since rule 16.
   const r = run({
     from: '2026-06-16', skippedDates: new Set(['2026-06-16']),
     extraTrips: new Map([['2026-06-11', { pickUpAll: false, pickUp: { single: 1 } }]]),
   });
   const d0 = r.days[0];
-  assert.equal(d0.atLaundry.single, 1);   // only B, dropped on 06-11
-  assert.equal(d0.atLaundry.double, 0);
-  assertConservation(r, STOCK, 'guard quirk');
+  assert.equal(d0.atLaundry.single, 2);   // A's remainder + B, dropped on 06-11
+  assert.equal(d0.atLaundry.double, 1);   // A's remainder
+  assertConservation(r, STOCK, 'partial remainder');
 });
+
