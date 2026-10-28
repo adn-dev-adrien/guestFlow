@@ -1,46 +1,8 @@
-// specs/ui-review-2026-10-19-operations.md rule 26 — the back-button guard puts the page's own router
-// state back, never null: after « Rester », « Retour » still knows an app page is behind.
-import { renderHook, act } from '@testing-library/react';
+// specs/options-resources-ux.md rule 29 — the global navigation slots a dirty form holds: taken only while
+// dirty, previous handler restored, and a clean form never blocks (out-of-order releases included).
+import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 import useDirtyFormGuard from '../useDirtyFormGuard';
-import { hasInAppHistory } from '../../utils/navigation';
-
-afterEach(() => window.history.replaceState(null, '', '/'));
-
-test('rule 26: Back on a dirty form re-pushes the page entry with its idx', () => {
-  window.history.replaceState({ usr: null, key: 'k3', idx: 3 }, '', '/settings/etablissement');
-  const push = vi.spyOn(window.history, 'pushState');
-  const { result } = renderHook(() => useDirtyFormGuard({ draft: { a: 2 }, saved: { a: 1 }, navigate: vi.fn() }));
-  expect(result.current.isDirty).toBe(true);
-  // The browser has gone back one entry: its state is the previous page's.
-  window.history.replaceState({ usr: null, key: 'k2', idx: 2 }, '', '/settings');
-  act(() => { window.dispatchEvent(new PopStateEvent('popstate')); });
-  expect(result.current.guardDialogOpen).toBe(true);
-  expect(push).toHaveBeenLastCalledWith({ usr: null, key: 'k3', idx: 3 }, '', expect.any(String));
-  expect(hasInAppHistory()).toBe(true);
-  push.mockRestore();
-});
-
-// specs/options-resources-ux.md rule 29 — the hook's back path keeps the page's own URL, and the global
-// navigation slot is held only while dirty.
-test('rule 29: Back on a dirty form puts the page URL back, not the URL the browser went to', () => {
-  window.history.replaceState({ usr: null, key: 'k3', idx: 3 }, '', '/settings/etablissement');
-  const push = vi.spyOn(window.history, 'pushState');
-  renderHook(() => useDirtyFormGuard({ draft: { a: 2 }, saved: { a: 1 }, navigate: vi.fn() }));
-  window.history.replaceState({ usr: null, key: 'k2', idx: 2 }, '', '/settings');
-  act(() => { window.dispatchEvent(new PopStateEvent('popstate')); });
-  expect(push).toHaveBeenLastCalledWith({ usr: null, key: 'k3', idx: 3 }, '', expect.stringMatching(/\/settings\/etablissement$/));
-  push.mockRestore();
-});
-
-test('rule 29: guardBack false leaves Back alone', () => {
-  const push = vi.spyOn(window.history, 'pushState');
-  const { result } = renderHook(() => useDirtyFormGuard({ draft: { a: 2 }, saved: { a: 1 }, navigate: vi.fn(), guardBack: false }));
-  act(() => { window.dispatchEvent(new PopStateEvent('popstate')); });
-  expect(result.current.guardDialogOpen).toBe(false);
-  expect(push).not.toHaveBeenCalled();
-  push.mockRestore();
-});
 
 test('rule 29: the navigation slot is taken only while dirty, and the previous handler is put back', () => {
   const other = vi.fn(() => false);
@@ -65,5 +27,27 @@ test('rule 29: a clean mounted form leaves the slot empty, and unmounting a clea
   window.__guestflowBeforeNavigate = mine;
   unmount();
   expect(window.__guestflowBeforeNavigate).toBe(mine);
+  delete window.__guestflowBeforeNavigate;
+});
+
+test('rule 29: out-of-order releases never leave a clean form blocking navigation', () => {
+  const a = renderHook(({ draft }) => useDirtyFormGuard({ draft, saved: { a: 1 }, navigate: vi.fn() }), { initialProps: { draft: { a: 2 } } });
+  const b = renderHook(() => useDirtyFormGuard({ draft: { a: 3 }, saved: { a: 1 }, navigate: vi.fn() }));
+  // A is released first although B holds the slot, then B: the restored handler is A's, now clean.
+  a.rerender({ draft: { a: 1 } });
+  b.unmount();
+  const restored = window.__guestflowBeforeNavigate;
+  if (restored) expect(restored('/elsewhere')).toBe(false);
+  const back = window.__guestflowBeforeBack;
+  if (back) expect(back()).toBeNull();
+  a.unmount();
+  delete window.__guestflowBeforeNavigate;
+  delete window.__guestflowBeforeBack;
+});
+
+test('rule 29: guardBack false holds no back slot', () => {
+  renderHook(() => useDirtyFormGuard({ draft: { a: 2 }, saved: { a: 1 }, navigate: vi.fn(), guardBack: false }));
+  expect(window.__guestflowBeforeBack).toBeUndefined();
+  expect(typeof window.__guestflowBeforeNavigate).toBe('function');
   delete window.__guestflowBeforeNavigate;
 });

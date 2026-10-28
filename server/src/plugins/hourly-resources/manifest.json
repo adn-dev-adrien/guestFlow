@@ -12,7 +12,7 @@
     "Le type de prix « à l’heure »"
   ],
   "requires": [],
-  "guestflow": ">=3.19.0 <4.0.0",
+  "guestflow": ">=3.18.0 <4.0.0",
   "sdk": "^2.8.0",
   "changelog": {
     "1.0.0": [

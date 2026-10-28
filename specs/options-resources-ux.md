@@ -227,9 +227,13 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     indistinguishable from « free there » and stays as it is — the operator blanks the field if it was
     meant to inherit. Readers (`pricing.js`, the hourly plugin, the public projections) already fall
     back to the base price on NULL.
-29. `SidePanel` owns one history entry while open: the browser « Retour » closes a clean panel and asks
+29. A dirty **page** form is guarded against the browser « Retour » too: one interceptor, installed
+    before the router mounts (`client/src/utils/backGuard.js`, called from `index.jsx`), stops the
+    `popstate` before the router sees it, puts the page's entry back (its state and URL) and opens the
+    form's dialog; « Quitter sans enregistrer » then performs the back. (Before, the router unmounted
+    the form first and no guard ever ran.) `SidePanel` owns one history entry while open: the browser « Retour » closes a clean panel and asks
     first on a dirty one (the entry is put back, the panel stays); closing any other way removes the
-    entry. `useDirtyFormGuard` takes the global navigation slot only while its form is dirty and puts
+    entry, but only when it is still the current one. `useDirtyFormGuard` takes the global navigation slot only while its form is dirty and puts
     the previous handler back, and its Back path keeps the page's own URL; a clean or closed form holds
     nothing. « Enregistrer et quitter » continues to the pending destination only when the save
     succeeded.
@@ -388,28 +392,35 @@ Rule citations use `specs/options-resources-ux.md rule N` so `check-spec-coverag
 
 ### Server unit tests (`cd server && npm test`)
 
-- [x] `tests/options-catalogue-view.unit.test.js` — rules 2-7, 26 (19 cases).
-- [x] `tests/options-validation.unit.test.js` — rules 2, 4, 15, 16, 26, 27 (17 cases, with the controller
+- [x] `tests/options-catalogue-view.unit.test.js` — rules 2-7, 26 (21 cases).
+- [x] `tests/options-validation.unit.test.js` — rules 2, 4, 15, 16, 26, 27, 28 (24 cases, with the controller
       and the model on a temporary database).
-- [x] `tests/resources-catalogue-view.unit.test.js` — rules 18, 19, 21 (14 cases).
-- [x] `plugins/hourly-resources/tests/catalogue-lines.unit.test.js` — rule 19 (5 cases).
+- [x] `tests/resources-catalogue-view.unit.test.js` — rules 18, 19, 21 (18 cases).
+- [x] `plugins/hourly-resources/tests/catalogue-lines.unit.test.js` — rule 19 (6 cases).
+- [x] `tests/resource-property-price-inherits.unit.test.js` — rule 28 (7 cases: migration keeps rows and the
+      index, idempotent, NULL stored and reloaded blank, a typed 0 is a price, raising the base moves the
+      inheriting lines).
 - [x] Existing suites updated where the rule changed: `options-model` (a default outside an explicit
       scope is dropped, rule 15), `resources-controller` (422 instead of 400, rule 21); the rest green.
 - ~~`options-property-price-put`~~ — withdrawn with direction B.
 
 ### Client (`cd client && npx vitest run`)
 
-- [x] `pages/__tests__/OptionsPage.catalogue.test.jsx` — rules 8-12, 17, 22, 26, 27 (21 cases).
-- [x] `pages/options/__tests__/OptionEditorPanel.sections.test.jsx` — rules 12, 13, 17 (10 cases).
-- [x] `pages/options/__tests__/OptionEditorPanel.property-table.test.jsx` — rule 14 (10 cases).
-- [x] `pages/options/__tests__/OptionEditorPanel.validation.test.jsx` — rule 16 (10 cases).
+- [x] `pages/__tests__/OptionsPage.catalogue.test.jsx` — rules 8-12, 17, 22, 26, 27, 30 (25 cases).
+- [x] `pages/options/__tests__/OptionEditorPanel.sections.test.jsx` — rules 12, 13, 17, 30 (12 cases).
+- [x] `pages/options/__tests__/OptionEditorPanel.property-table.test.jsx` — rule 14 (11 cases).
+- [x] `pages/options/__tests__/OptionEditorPanel.validation.test.jsx` — rule 16 (12 cases).
 - [x] `pages/options/__tests__/OptionEditorPanel.specials.test.jsx` — every type-specific setting still
       reachable (16 cases); replaces `OptionsPage.percent` and `.category` (ported); `.no-english-field`
       now reads the new files.
-- [x] `pages/__tests__/ResourcesPage.cards.test.jsx` — rules 18-22 (15 cases);
-      `pages/options/__tests__/resourceToPayload.test.js` moved with `toResourcePayload`.
-- [x] `components/__tests__/SidePanel.test.jsx` (13), `GroupedList.test.jsx` (8), `SearchField.test.jsx` (5)
-      — the generic contracts.
+- [x] `pages/__tests__/ResourcesPage.cards.test.jsx` — rules 18-22, 28, 30 (16 cases);
+      `pages/options/__tests__/resourceToPayload.test.js` (12 cases) moved with `toResourcePayload`, and
+      covers the price lines of rules 21 and 28.
+- [x] `components/__tests__/SidePanel.test.jsx` (20), `GroupedList.test.jsx` (10), `SearchField.test.jsx` (5)
+      — the generic contracts, rules 29-30 included.
+- [x] `hooks/__tests__/useDirtyFormGuard.back.test.jsx` (4, a real `BrowserRouter` in jsdom: dirty page form →
+      `history.back()` → dialog, URL and entry kept, « Quitter » performs the back) and
+      `useDirtyFormGuard.history-state.test.jsx` (4: the slots, out-of-order release) — rule 29.
 - [x] `components/__tests__/PricedItemsPage.mobile-nesting.test.jsx` removed with the component.
 
 ### E2E (`npm run test:e2e`)
@@ -472,6 +483,14 @@ Deviations from the draft, decided while building:
   (rule 15); a payload without `propertyIds` keeps « a default implies applicability ».
 - The negative base price is a 422 detail carrying the legacy code (rule 16, review round).
 - The panel sits on the modal layer, above the app bar, so its header is never covered.
+
+Review round (2026-10-28, two Opus reviews and a verification): validation moved after the scope
+clean-up, resource property prices became inheritable (rule 28), the panel got its history entry, rows and
+cards lost their nested interactive elements, and the page-form Back guard was fixed for every
+`useDirtyFormGuard` user (rule 29). Unknown property ids in a payload are a 422 (rule 16) and a fresh
+database declares `property_resource_prices.price` nullable in `schema.sql`. **The existing nordic-bath
+lines (30 € / 1 h offerte) stay frozen copies of the base price they were saved with**: nothing is
+reinterpreted, so they only inherit once the operator blanks the field.
 
 Verification: server suite, client suite, `check-spec-coverage`, `vite build`, E2E (full suite and the new
 specs), and a browser pass on a copy of the shadow data at 1280 and 390 px.

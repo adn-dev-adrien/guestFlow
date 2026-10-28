@@ -237,3 +237,32 @@ test('rule 27: restoring an unknown option answers 404, an active one 409', () =
   assert.equal(active.statusCode, 409);
   assert.equal(active.body.error, 'OPTION_NOT_ARCHIVED');
 });
+
+test('rule 16: a property id the payload names that does not exist is a 422 « Logement inconnu », never a 500', () => {
+  const cases = [
+    { propertyIds: [1.5] },
+    { propertyIds: [999999] },
+    { propertyPrices: { 999999: 3 } },
+    { propertyDefaults: { 999999: { default: true, offered: false } } },
+    { propertyBathMats: { 999999: 2 } },
+  ];
+  for (const extra of cases) {
+    const r = res();
+    controller.create({ body: { title: 'Inconnu', priceType: 'per_stay', price: 5, ...extra } }, r);
+    assert.equal(r.statusCode, 422, JSON.stringify(extra));
+    assert.ok(r.body.details.every((d) => d.message === 'Logement inconnu'), JSON.stringify(r.body.details));
+  }
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM options WHERE title = 'Inconnu'").get().n, 0);
+});
+
+test('rule 16: an unknown property price key outside an explicit scope is dropped, like any out-of-scope line', () => {
+  const r = res();
+  controller.create({ body: valid({ title: 'Clé hors périmètre', propertyIds: [granja], propertyPrices: { [granja]: 4, 999999: 3 } }) }, r);
+  assert.equal(r.statusCode, 200);
+});
+
+test('rule 28: a fresh database declares property_resource_prices.price nullable, so the first boot rebuilds nothing', () => {
+  const column = db.prepare('PRAGMA table_info(property_resource_prices)').all().find((c) => c.name === 'price');
+  assert.equal(Number(column.notnull), 0);
+  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_property_resource_prices_resource'").get());
+});

@@ -103,7 +103,7 @@ export default function SidePanel({
     window.addEventListener('popstate', onPop);
     return () => {
       window.removeEventListener('popstate', onPop);
-      if (entryOpen) window.history.back();
+      if (entryOpen && window.history.state && window.history.state.sidePanel) window.history.back();
     };
   }, [open]);
 

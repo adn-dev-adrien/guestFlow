@@ -33,9 +33,25 @@ function priceProblem(raw, { percent = false } = {}) {
   return '';
 }
 
-function validateOptionPayload(payload) {
+/**
+ * @param {object} payload
+ * @param {{ knownPropertyIds?: number[] }} [context]  the ids of the properties that exist: any property
+ *   id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown one would
+ *   otherwise reach a foreign key and answer 500.
+ */
+function validateOptionPayload(payload, { knownPropertyIds } = {}) {
   const body = payload || {};
   const details = [];
+  const known = knownPropertyIds ? new Set(knownPropertyIds.map(Number)) : null;
+  const unknown = (pid) => !/^[1-9]\d*$/.test(String(pid)) || (known !== null && !known.has(Number(pid)));
+  if (Array.isArray(body.propertyIds) && body.propertyIds.some(unknown)) {
+    details.push({ field: 'propertyIds', message: MESSAGES.unknownProperty });
+  }
+  for (const group of ['propertyDefaults', 'propertyBathMats']) {
+    Object.keys(body[group] || {}).filter(unknown).forEach((pid) => {
+      details.push({ field: `${group}.${pid}`, message: MESSAGES.unknownProperty });
+    });
+  }
   if (!String(body.title || '').trim()) details.push({ field: 'title', message: MESSAGES.titleRequired });
 
   const percent = body.priceType === 'percent_of_stay';
@@ -46,7 +62,7 @@ function validateOptionPayload(payload) {
 
   if (!NO_PROPERTY_PRICE.includes(body.priceType)) {
     for (const [pid, raw] of Object.entries(body.propertyPrices || {})) {
-      if (!/^[1-9]\d*$/.test(pid)) {
+      if (unknown(pid)) {
         details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.unknownProperty });
         continue;
       }

@@ -166,6 +166,15 @@ test('rule 29: closing the panel any other way removes its history entry', async
   back.mockRestore();
 });
 
+test('rule 29: closing the panel does not go back when its own history entry is no longer the current one', () => {
+  const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+  const { rerender } = renderPanel();
+  window.history.replaceState({ usr: null, key: 'elsewhere', idx: 9 }, '', window.location.href);
+  rerender(<MemoryRouter><SidePanel open={false} onClose={() => {}} title="Ménage" /></MemoryRouter>);
+  expect(back).not.toHaveBeenCalled();
+  back.mockRestore();
+});
+
 test('rule 29: a clean panel holds no navigation guard, a dirty one does, and closing releases it', () => {
   window.__guestflowBeforeNavigate = undefined;
   delete window.__guestflowBeforeNavigate;
