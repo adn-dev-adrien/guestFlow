@@ -11,12 +11,13 @@ import SyncIcon from '@mui/icons-material/Sync';
 import {
   api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast, formatPlatformLabel,
 } from '../sdk';
+import { accountGroupsFor } from './accountGroups';
 
 /**
  * PlatformAccountsPage — `/comptabilite/plateformes`.
  *
- * Dedicated page where admin AND accountant configure the per-platform commission accounting:
- * fallback compte commission (top card) + per-platform overrides (bottom TableCard).
+ * Dedicated page where admin AND accountant configure the accounting accounts: one « Comptes » card
+ * (grouped, see accountGroups.js) + per-platform commission overrides (bottom TableCard).
  *
  * The global VAT rate applied to commissions (when a platform's "TVA déductible" Switch is ON)
  * is read-only here — it lives in Settings → Général → Taux de TVA. Admins see a link to
@@ -30,20 +31,6 @@ import {
  *
  * Spec: accounting-platform-commission-and-no-deposit.md §3.7 + §6.
  */
-
-// specs/plugins-phase-p-productisation.md rules 27–28 — the account plan, one field per role.
-const PLAN_LABELS = {
-  accommodationAccount: 'Hébergement',
-  complementaryAccount: 'Prestations complémentaires',
-  activitiesAccount: 'Activités',
-  vat20Account: 'TVA collectée 20 %',
-  vat10Account: 'TVA collectée 10 %',
-  touristTaxAccount: 'Taxe de séjour',
-  commissionVatAccount: 'TVA déductible (commissions)',
-  discountAccount: 'Rabais accordés',
-  tipAccount: 'Pourboires',
-  journalCode: 'Code journal des ventes',
-};
 
 const planValues = (rows) => Object.fromEntries((rows || []).map((r) => [r.key, r.value]));
 
@@ -262,6 +249,39 @@ export default function PlatformAccountsPage() {
     }
   }
 
+  const accountInput = (field, value, onChange, errorKey) => (
+    <TextField
+      key={field.key}
+      label={field.label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      error={Boolean(errors[errorKey])}
+      helperText={errors[errorKey] || field.helper}
+      slotProps={{ htmlInput: field.key === 'journalCode' ? { maxLength: 4 } : { inputMode: 'numeric', pattern: '[0-9]*' } }}
+      disabled={saving}
+    />
+  );
+  function accountField(field) {
+    if (field.source === 'default') return accountInput(field, defaultAccount, handleDefaultAccountChange, 'defaultAccount');
+    if (field.source === 'compensation') {
+      return (
+        <Stack key={field.key} spacing={2}>
+          {accountInput(field, compensationAccount, handleCompensationAccountChange, 'compensationAccount')}
+          <TextField
+            label="TVA sur indemnités (%)"
+            value={vatRateCompensation}
+            onChange={(e) => handleVatChange(setVatRateCompensation, 'vatRateCompensation')(e.target.value)}
+            error={Boolean(errors.vatRateCompensation)}
+            helperText={errors.vatRateCompensation || '0 % = hors champ de TVA (recommandé). À changer seulement à la demande du cabinet comptable.'}
+            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+            disabled={saving}
+          />
+        </Stack>
+      );
+    }
+    return accountInput(field, plan[field.key] ?? '', (value) => updatePlanField(field.key, value), `plan-${field.key}`);
+  }
+
   return (
     <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1100, mx: 'auto' }}>
       <PageActionBar
@@ -291,87 +311,23 @@ export default function PlatformAccountsPage() {
         <LoadingState />
       ) : (
         <Stack spacing={3}>
-          {planRows.length > 0 && (
-            <Card variant="outlined">
-              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-                <Stack spacing={2}>
-                  <Box>
-                    <Typography variant="sectionHeader">Comptes</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Comptes de l'export des ventes, format standard (CSV).
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                    {planRows.map((row) => (
-                      <TextField
-                        key={row.key}
-                        label={PLAN_LABELS[row.key] || row.key}
-                        value={plan[row.key] ?? ''}
-                        onChange={(e) => updatePlanField(row.key, e.target.value)}
-                        error={Boolean(errors[`plan-${row.key}`])}
-                        helperText={errors[`plan-${row.key}`] || `Par défaut : ${row.default}`}
-                        slotProps={{ htmlInput: row.key === 'journalCode' ? { maxLength: 4 } : { inputMode: 'numeric', pattern: '[0-9]*' } }}
-                        disabled={saving}
-                      />
-                    ))}
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
-
           <Card variant="outlined">
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Stack spacing={2}>
+              <Stack spacing={2.5}>
                 <Box>
-                  <Typography variant="sectionHeader">Compte par défaut</Typography>
+                  <Typography variant="sectionHeader">Comptes</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Utilisé pour les plateformes qui n'ont pas leur propre compte commission renseigné.
+                    Comptes de l'export des ventes, format standard (CSV).
                   </Typography>
                 </Box>
-                <TextField
-                  label="Compte commission par défaut"
-                  value={defaultAccount}
-                  onChange={(e) => handleDefaultAccountChange(e.target.value)}
-                  error={Boolean(errors.defaultAccount)}
-                  helperText={errors.defaultAccount || '3 à 12 chiffres (ex. 622600).'}
-                  sx={{ maxWidth: { sm: 320 } }}
-                  slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
-                  disabled={saving}
-                />
-              </Stack>
-            </CardContent>
-          </Card>
-
-          <Card variant="outlined">
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="sectionHeader">Indemnités d'annulation</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Compte crédité quand une plateforme verse une indemnité pour un séjour annulé.
-                  </Typography>
-                </Box>
-                <TextField
-                  label="Compte indemnités d'annulation"
-                  value={compensationAccount}
-                  onChange={(e) => handleCompensationAccountChange(e.target.value)}
-                  error={Boolean(errors.compensationAccount)}
-                  helperText={errors.compensationAccount || '3 à 12 chiffres (ex. 75880000, produits divers de gestion courante).'}
-                  sx={{ maxWidth: { sm: 320 } }}
-                  slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
-                  disabled={saving}
-                />
-                <TextField
-                  label="TVA sur indemnités d'annulation (%)"
-                  value={vatRateCompensation}
-                  onChange={(e) => handleVatChange(setVatRateCompensation, 'vatRateCompensation')(e.target.value)}
-                  error={Boolean(errors.vatRateCompensation)}
-                  helperText={errors.vatRateCompensation || "0 % = hors champ de TVA (recommandé). À changer seulement à la demande du cabinet comptable."}
-                  sx={{ maxWidth: { sm: 320 } }}
-                  slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-                  disabled={saving}
-                />
+                {accountGroupsFor(planRows).map((group) => (
+                  <Box key={group.key}>
+                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>{group.label}</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                      {group.fields.map((field) => accountField(field))}
+                    </Box>
+                  </Box>
+                ))}
               </Stack>
             </CardContent>
           </Card>
