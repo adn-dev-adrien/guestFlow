@@ -298,7 +298,7 @@ standard).
     *Why:* the second pass of the final review (minor 3) noted that production, which never had the
     split, may export October before installing this version: a fixed 1 October cutoff would then
     move October's cents on a re-export.
-36. **Each entry is booked under its reservation's VAT regime (2026-10-28, Draft — [vat-optional-mode.md](vat-optional-mode.md) rule 12g).**
+36. **Each entry is booked under its reservation's VAT regime (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md) rule 12g).**
     The sales rate of every entry (stay buckets, end-of-stay, mid-stay, arrival adjustments, refunds)
     is the rate of the reservation's VAT period, not the global setting. A « Sans TVA » reservation
     produces no 4457x line, its revenue lines carry the whole TTC share, its platform commission is

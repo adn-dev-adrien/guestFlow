@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/vat-optional-mode` _(user-managed)_ |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -250,14 +250,16 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `database.js` | `database.js` | T | Rule 22: `vat_periods` table, `reservations.vatPeriodId`, seed + backfill, `trg_reservations_vat_period` AFTER INSERT trigger, all idempotent. |
-| `models/` | `vatRegimeModel.js` | C | Read periods, period in force, `forRow`, insert period, reassign rows, delete unused latest, mirror `app_settings.vatRate`. The only reader of that column. |
+| `models/` | `vatRegimeModel.js` | C | The leaf: read periods, `forRow` / `rateForRow` (resolves from the row, completing it from the database), period in force, `inForceBlock`, rate / mention of the period in force, mirror `app_settings.vatRate`. The only reader of that column. Takes the database as a parameter, so a minimal test schema without `vat_periods` answers the historical 10 %. |
+| `models/` | `vatRegimeSwitchModel.js` | C | Preview (the switch itself played in a savepoint and rolled back, so the preview is exact), switch (one transaction), undo of an unused period, the settings card's state. Split from the leaf because it calls the pricing engine, which reads the leaf. |
+| `utils/` | `vatRegimeMigration.js` | C | Rule 22: table, column, seed, backfill (the same predicate as the trigger), trigger, mirror — idempotent, run on every boot. |
 | `models/` | `settingsModel.js` | T | `vatRate` writes route to the period in force (rule 9). |
 | `models/` | `financeModel.js` | T | `htAmount` per row via `forRow`; `showHt` in the dashboard payloads (rule 12d). |
 | `models/` | `refundsModel.js` | T | Re-rate lines of reassigned reservations (rule 16). |
 | `models/` | `reservationsModel.js` | T | `addHistoryEntry` (existing, `:1541`) — one entry per reassigned reservation (rule 16). |
-| `utils/` | `vatRegime.js` | C | Pure: predicate of rule 5, mention texts (rule 2), bounds validation (rule 15), preview fingerprint. |
-| `utils/` | `pricing.js` | T | `getGlobalVatRate` → the period of the SAVED booking (or today's for a fresh quote / live devis); quote gains `vatRegime { periodId, regime, rate, legalMention, legalMentionText }`; the three `vatPercentage*` keys carry the period's rate. |
-| `utils/` | `devisPdf.js` | T | Rate from the row's period; `not_subject` layout and mention (rule 12b, FR/EN labels). |
+| `utils/` | `vatRegime.js` | C | Pure: predicate of rule 5, mention texts (rule 2), bounds validation (rule 15), the period a switch inserts, the preview fingerprint, the French sentences of a period and of « Ce qui change » (month range, plurals). |
+| `utils/` | `pricing.js` | T | `getGlobalVatRate` is gone: the engine asks `forRow` with its own `bookingId` (a stored stay keeps its period), `kind` (a devis is live) and `bookingDate` / `startDate` (a new stay is priced under today's regime). The quote gains `vatRegime { periodId, regime, rate, legalMention, legalMentionText, legalMentionTextEn }`; the three `vatPercentage*` keys carry the period's rate. |
+| `utils/` | `devisPdf.js` | T | Rate and layout from `full.vatRegime` (attached by `devisModel.enrichDevis`); `not_subject` layout and mention (rule 12b, FR/EN labels). |
 | `utils/` | `devisQuote.js`, `publicPaymentMode.js`, `storedLinkComponents.js` | T | Basket rate from the row's period (rule 12c). |
 | `utils/` | `cancellationRequalification.js` | — | Unchanged; its caller passes the row's rate. |
 | `controllers/` | `vatRegimeController.js` | C | GET state, POST preview, POST switch, DELETE period; admin check; 409 / 422 shapes. |
@@ -265,8 +267,10 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
 | `controllers/` | `paymentsController.js`, `refundsController.js`, `reservationCancellationController.js` | T | Rate from the row's period. |
 | `controllers/` | `settingsController.js`, `settingsSummaryController.js` | T | Rate edit → period in force (422 when `not_subject`); summary wording (rule 12e). |
 | `routes/` | `settings.js` | T | Mount `/api/settings/vat-regime*` (thin). |
+| `middleware/` | `enforceRoleAccess.js` | T | The accountant may `GET /settings/vat-regime`. |
+| `utils/` | `settingsResponse.js` | T | `vat: { regime, rate, legalMention }` of the regime in force. |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rate per row via `sdk.coreModule('vatRegimeModel')`; `not_subject` entries without VAT, commission TTC without 44566, compensation 0 % (rule 12g). Plugin version bump + changelog line. |
-| `plugins/sdk/` | core module list | T | Expose `vatRegimeModel` read-only to plugins. |
+| `plugins/sdk/` | core module list | T | Expose `vatRegimeModel` to plugins (`forRow`, `rateForRow`, `inForceBlock`): SDK 2.8.0, `coreModules.json`, `coreModuleHistory.json`. |
 | `middleware/` | — | — | Existing admin role guard reused. |
 | `scheduledTasks.js` | — | — | None (a future-dated period needs no job: rule 5 is evaluated at insert). |
 
@@ -280,9 +284,9 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
 | `components/` | `VatPeriodHistory.jsx` | C | Specific: dated list of periods, « Annuler ce changement » on an unused latest one. |
 | `components/` | `PricingSummary.jsx`, `reservation/StoredPricingSummary.jsx` | T | Render `vatRegime` from the payload (rule 12a). |
 | `components/` | `FinanceHero.jsx`, `FinanceDetailPanel.jsx` | T | Hide HT when `showHt` is false. |
-| `components/property/` | `PropertyTariffTab.jsx` | T | Caption per regime (rule 12f) from the settings payload. |
+| `components/property/` | `PropertyTariffTab.jsx` | T | Caption per regime (rule 12f) from `useVatRegime`. |
 | `plugins/accounting-export/` | `PlatformAccountsPage.jsx` | T | Commission and compensation VAT fields hidden in `not_subject` (they cannot apply). |
-| `hooks/` | `useVatRegime.js` | C | Load state, preview (debounced 300 ms), switch, delete. |
+| `hooks/` | `useVatRegime.js` | C | Load state, carry the preview / switch / delete calls (the 300 ms debounce lives in the dialog, which owns the draft). |
 | `api.js` | `api.js` | T | `getVatRegime`, `previewVatSwitch`, `switchVatRegime`, `deleteVatPeriod`. |
 | `constants/` | `vatRegime.js` | C | French labels of scopes and buttons. |
 
@@ -301,10 +305,10 @@ All under the admin guard; « Comptable » may `GET`.
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/settings/vat-regime` | — | `{ inForce: Period, periods: Period[], mentions: [{ key, label }], accountingExportActive: bool }` | `Period = { id, regime, rate, legalMention, legalMentionText, basis, effectiveFrom, createdAt, createdByName, reservations: n, deletable: bool, label }` — `label` is the server's sentence (« Depuis le 01/01/2027 · réservations prises à partir de cette date »). |
-| POST | `/api/settings/vat-regime/preview` | `{ regime, rate?, legalMention?, basis, effectiveFrom? }` | `{ fingerprint, reassigned, collected, touristTaxChanged, touristTaxDelta, touristTaxKept, openLinks, exportMonths: ['2026-05', …], devisDrafts, accountingExportActive }` or 422 `{ errors: { effectiveFrom?: string, rate?: string, regime?: string } }` | Pure read. |
+| POST | `/api/settings/vat-regime/preview` | `{ regime, rate?, legalMention?, basis, effectiveFrom? }` | `{ fingerprint, reassigned, collected, touristTaxChanged, touristTaxDelta, touristTaxKept, openLinks, exportMonths: ['2026-05', …], devisDrafts, lines: ['9 réservations passent sans TVA, …'], accountingExportActive }` or 422 `{ errors: { effectiveFrom?: string, rate?: string, regime?: string } }` | Pure read. |
 | POST | `/api/settings/vat-regime/switch` | preview body + `{ fingerprint, acknowledged? }` | 201 `{ period: Period, reassigned }` | 409 `{ error: 'preview_stale' }`; 422 as preview, or `{ errors: { acknowledged } }` for scope `all`. |
 | DELETE | `/api/settings/vat-regime/periods/:id` | — | 204 | 409 `{ error: 'period_in_use' \| 'not_latest' \| 'initial_period' }`. |
-| PUT | `/api/settings` | `vat: { rate?, legalMention? }` | as today | Edits the period in force (rule 9); 422 `vatRate` when `not_subject`. |
+| PUT | `/api/settings` | `vat: { rate?, legalMention? }` | as today, `vat` = `{ regime, rate, legalMention }` | Edits the period in force (rule 9); 422 `vatRate` when `not_subject`, 422 `legalMention` when `subject`. The page sends back only what it changed, but a value that says nothing new (a null mention, a rate of 0 under « Sans TVA ») is not a change. |
 | — | Every quote payload | — | adds `vatRegime` | `vatPercentage*` keep their names. |
 | — | Finance payloads | — | adds `showHt` | — |
 
@@ -483,6 +487,10 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - **Per-line VAT exemptions** (an option outside VAT while the stay is taxed).
 - **Activating or deactivating the accounting plugin from the dialog** — it stays in Paramètres › Plugins.
 - **Renaming the page** — it keeps « TVA & exercice ».
+- **Franchise-threshold tracking** (a user-set threshold in the financial tracking, « Sans TVA » only) — to
+  come, by a later amendment. The model is ready for it: « was the operator not subject on year Y » is a
+  read of `vat_periods` (`listPeriods` + the predicate of rule 5), and each reservation carries its own
+  period, so a per-exercise revenue split needs no new storage.
 
 ## 9. Open questions
 
@@ -511,3 +519,29 @@ All four resolved by Adrien on 2026-10-28, each as proposed.
 
 Estimated size: ~16 server files touched, 4 created; ~10 client files touched, 5 created; 18 test files;
 ≈ 105 test cases. Lots 1 and 2 carry the risk; lots 3 and 4 are unreachable for Solio by construction.
+
+
+## 11. Implementation progress (2026-10-28)
+
+All four lots are done, committed in order on `feature/vat-optional-mode`; Lot 0 was committed alone on the
+unchanged code and every later lot kept its capture byte-identical.
+
+| Lot | Result |
+|---|---|
+| 0 | `vat-regime-golden.unit.test.js` (188 artefacts on the Solio-shaped fixture) and `scripts/vat-regime-golden-prod.mjs` (475 artefacts on the shadow copy: 63 quotes, 58 fiches, 5 devis PDF, 245 link baskets, 36 months of journal, finance, tourist-tax pages, 5 cancellations). |
+| 1 | Eleven readers swept to `vatRegimeModel.forRow`: 0 difference. |
+| 2 | Schema, trigger, resolver on periods: 0 difference on both. |
+| 3 | `not_subject` rendering; the capture ignores only the keys the regime added (`vatRegime`, `vatPeriodId`, `showHt`). A first draft of the PDF change altered the bytes of a VAT-registered devis; the golden caught it. |
+| 4 | Switch API, preview, dialog, history, undo, E2E. |
+
+Deviations from the draft, all written back above: the engine resolves through its own `bookingId` / `kind` /
+`bookingDate` instead of a new `vatPeriodId` argument; the devis PDF reads `full.vatRegime`; the preview is
+the switch played in a savepoint; the preview carries its `lines`; the 300 ms debounce lives in the dialog;
+`PUT /api/settings` treats a value that says nothing new as no change; a missing `vat_periods` table, or one
+that cannot be read, answers the historical default (minimal test schemas). A real bug found by the readers
+suite: a finance query selecting explicit columns lost the reservation's id, hence its period.
+
+Tests: server 6972 / 0 failed (full suite); new server files 13 (`vat-regime-*`, `single-vat-rate-period`,
+`payment-links-vat-period`, plugin `accounting-export-not-subject`); client 3 new files (26 cases) and the
+full run, whose failures under load (machine at load 200) pass when re-run alone; E2E `vat-regime-switch`
+(4) green; `check-spec-coverage` 23/23.

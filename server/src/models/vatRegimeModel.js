@@ -132,5 +132,5 @@ function setMentionInForce(db, key) {
 }
 
 module.exports = {
-  DEFAULT_RATE, forRow, rateForRow, periodForRow, inForce, inForceBlock, listPeriods, hasPeriods, syncMirror, setRateInForce, setMentionInForce,
+  DEFAULT_RATE, forRow, rateForRow, inForce, inForceBlock, listPeriods, syncMirror, setRateInForce, setMentionInForce,
 };

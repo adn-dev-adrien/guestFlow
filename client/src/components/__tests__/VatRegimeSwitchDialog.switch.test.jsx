@@ -2,7 +2,7 @@
 // (re-asked after each edit), the refusals it words, the acknowledgement of a correction, the stale
 // preview (409), the direction back to VAT, and the full-screen layout on a phone.
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
@@ -126,9 +126,9 @@ test('back to VAT: « Passer à la TVA », a rate with its 422 under the field, 
 test('an edit re-asks the preview once, after 300 ms of silence', async () => {
   const { preview } = draw({ inForce: NOT_SUBJECT });
   await waitFor(() => expect(preview).toHaveBeenCalledTimes(1));
-  await userEvent.type(screen.getByLabelText('Taux de TVA (%)'), '55');
+  fireEvent.change(screen.getByLabelText('Taux de TVA (%)'), { target: { value: '15' } });
   await waitFor(() => expect(preview).toHaveBeenCalledTimes(2));
-  expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ regime: 'subject', rate: '1055' }));
+  expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ regime: 'subject', rate: '15' }));
 });
 
 test('on a phone the dialog is full screen and the scope cards stack', () => {
