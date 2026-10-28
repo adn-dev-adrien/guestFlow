@@ -257,8 +257,16 @@ function seedBankCredits({ startDate = '2026-01-01', credits = [] } = {}) {
   });
 }
 
+/** Undo `seedBankCredits`: the instance reads as not connected again, so the other specs are untouched. */
+function clearBankSeed() {
+  return withDb((db) => {
+    db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'online-payment' AND key IN ('qontoRefreshTokenEncrypted', 'reconciliationStartDate', 'reconciliationBankAccountId', 'reconciliationLastReadAt')").run();
+  });
+}
+
 module.exports = {
   seedBankCredits,
+  clearBankSeed,
   enablePropertyDeposit,
   setReservationAmounts,
   setCompanySetting,
