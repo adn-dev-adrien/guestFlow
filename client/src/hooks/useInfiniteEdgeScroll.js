@@ -27,6 +27,9 @@
  *                                     the next commit
  *   scrollToAnchor(key, { behavior }) bring the item to the top offset; false when it is not drawn.
  *                                     `smooth` is instant under prefers-reduced-motion
+ *   pinAnchor(key)                    scrollToAnchor(key), then keep the item at the top offset while the feed's
+ *                                     height changes (cards that render late above it) until the operator
+ *                                     scrolls, touches or types
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
@@ -51,6 +54,9 @@ export default function useInfiniteEdgeScroll({
   const heldAnchorRef = useRef(null);
   const chainingRef = useRef(false);
   const chainCountRef = useRef(0);
+  // Where the hook itself last moved the scroller: the scroll event that follows is not a gesture, so it
+  // must not reset the chain (a short feed would otherwise load without end through its own adjustments).
+  const ownScrollRef = useRef(null);
 
   const scroller = () => latest.current.scrollerRef?.current || null;
   const topOffset = () => (latest.current.getTopOffset ? latest.current.getTopOffset() : 0);
@@ -58,6 +64,7 @@ export default function useInfiniteEdgeScroll({
   const anchorNamed = (key) => anchors().find((node) => node.getAttribute('data-scroll-anchor') === key) || null;
 
   const scrollTo = (top, behavior) => {
+    if (behavior === 'instant') ownScrollRef.current = top;
     const el = scroller();
     if (el) el.scrollTo({ top, behavior });
     else window.scrollTo({ top, behavior });
@@ -79,6 +86,32 @@ export default function useInfiniteEdgeScroll({
     scrollTo(top, behavior === 'smooth' && !reducedMotion() ? 'smooth' : 'instant');
     return true;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pinRef = useRef(null);
+  const releasePin = useCallback(() => {
+    if (!pinRef.current) return;
+    pinRef.current.stop();
+    pinRef.current = null;
+  }, []);
+  const pinAnchor = useCallback((key) => {
+    releasePin();
+    if (!scrollToAnchor(key)) return false;
+    const list = anchorNamed(key)?.parentElement;
+    const observer = list && typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => scrollToAnchor(key))
+      : null;
+    if (observer) observer.observe(list);
+    const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
+    events.forEach((name) => window.addEventListener(name, releasePin, { passive: true }));
+    pinRef.current = {
+      stop: () => {
+        if (observer) observer.disconnect();
+        events.forEach((name) => window.removeEventListener(name, releasePin));
+      },
+    };
+    return true;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => releasePin, [releasePin]);
 
   // Asks for content at the nearer edge first; an edge that has nothing to give leaves the other one.
   const extend = useCallback(() => {
@@ -108,7 +141,12 @@ export default function useInfiniteEdgeScroll({
   useEffect(() => {
     if (!enabled) return undefined;
     const target = scrollerRef?.current || window;
-    const onScroll = () => kick();
+    const onScroll = () => {
+      const own = ownScrollRef.current;
+      ownScrollRef.current = null;
+      if (own !== null && Math.abs(scrollTop() - own) < 1) return;
+      kick();
+    };
     target.addEventListener('scroll', onScroll, { passive: true });
     kick();
     return () => target.removeEventListener('scroll', onScroll);
@@ -134,5 +172,5 @@ export default function useInfiniteEdgeScroll({
     else if (answer === 'none') chainingRef.current = false;
   }, [version]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { holdAnchor, scrollToAnchor };
+  return { holdAnchor, scrollToAnchor, pinAnchor };
 }

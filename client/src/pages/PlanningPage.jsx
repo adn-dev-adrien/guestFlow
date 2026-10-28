@@ -108,7 +108,7 @@ export default function PlanningPage() {
 
   // The opening position (rule 12) is set once the first windows are drawn; the edges extend after it.
   const [positioned, setPositioned] = useState(false);
-  const { holdAnchor, scrollToAnchor } = useInfiniteEdgeScroll({
+  const { holdAnchor, scrollToAnchor, pinAnchor } = useInfiniteEdgeScroll({
     enabled: phase === 'ready' && positioned,
     version: timeline.version,
     onNearStart: timeline.requestStart,
@@ -120,9 +120,9 @@ export default function PlanningPage() {
   useEffect(() => { if (phase !== 'ready') setPositioned(false); }, [phase]);
   useLayoutEffect(() => {
     if (phase !== 'ready' || positioned) return;
-    scrollToAnchor(todayKey(todayStr));
+    pinAnchor(todayKey(todayStr));
     setPositioned(true);
-  }, [phase, positioned, todayStr, scrollToAnchor]);
+  }, [phase, positioned, todayStr, pinAnchor]);
 
   const [atToday, setAtToday] = useState(false);
   useEffect(() => {

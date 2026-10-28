@@ -37,7 +37,7 @@ function Harness({ initial, onNearStart, onNearEnd, element = false, maxChain })
   const [keys, setKeys] = useState(initial);
   const [version, setVersion] = useState(0);
   const scrollerRef = useRef(null);
-  const { holdAnchor, scrollToAnchor } = useInfiniteEdgeScroll({
+  const { holdAnchor, scrollToAnchor, pinAnchor } = useInfiniteEdgeScroll({
     scrollerRef: element ? scrollerRef : undefined,
     enabled: true,
     version,
@@ -48,6 +48,7 @@ function Harness({ initial, onNearStart, onNearEnd, element = false, maxChain })
   controls = {
     keys,
     scrollToAnchor,
+    pinAnchor,
     prepend: (more) => { holdAnchor(); setKeys((k) => [...more, ...k]); setVersion((v) => v + 1); },
     append: (more) => { setKeys((k) => [...k, ...more]); setVersion((v) => v + 1); },
     release: (n) => { holdAnchor(); setKeys((k) => k.slice(n)); setVersion((v) => v + 1); },
@@ -133,4 +134,50 @@ test('rule 18 — scrollToAnchor brings the item to the top offset; smooth is in
   act(() => { controls.scrollToAnchor('k21', { behavior: 'smooth' }); });
   expect(scrollTo).toHaveBeenLastCalledWith({ top: 2000, behavior: 'instant' });
   expect(controls.scrollToAnchor('missing')).toBe(false);
+});
+
+test('rule 25 — the scroll event of the hook\'s own anchoring is not a gesture: it does not restart the chain', () => {
+  const onNearStart = vi.fn(() => 'none');
+  render(<Harness initial={range(10, 49)} onNearStart={onNearStart} />);
+  scroll(300);
+  onNearStart.mockClear();
+  act(() => controls.prepend(range(1, 3)));
+  expect(scrollY).toBe(600);
+  act(() => { window.dispatchEvent(new Event('scroll')); });
+  expect(onNearStart).not.toHaveBeenCalled();
+  scroll(500);
+  expect(onNearStart).toHaveBeenCalledTimes(1);
+});
+
+test('rule 24 — a pinned item stays at the top offset while the feed grows above it, until the operator acts', () => {
+  const resizes = [];
+  const original = global.ResizeObserver;
+  global.ResizeObserver = class {
+    constructor(cb) { this.on = true; resizes.push(() => { if (this.on) cb(); }); }
+
+    observe() {}
+
+    disconnect() { this.on = false; }
+  };
+  render(<Harness initial={range(1, 40)} />);
+  act(() => { controls.pinAnchor('k21'); });
+  expect(scrollY).toBe(2000);
+  // Three items render late above k21: it is now 300 px lower than where it was pinned.
+  act(() => { controls.keys.unshift('x1', 'x2', 'x3'); });
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function rect() {
+    if (this.hasAttribute('data-scroll-anchor')) {
+      const index = this.getAttribute('data-scroll-anchor') === 'k21' ? 23 : 0;
+      const top = index * ITEM - scrollY;
+      return { top, bottom: top + ITEM, left: 0, right: 0, width: 0, height: ITEM };
+    }
+    return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
+  });
+  scrollTo.mockClear();
+  act(() => resizes.at(-1)());
+  expect(scrollTo).toHaveBeenCalledWith({ top: 2300, behavior: 'instant' });
+  act(() => { window.dispatchEvent(new Event('wheel')); });
+  scrollTo.mockClear();
+  act(() => resizes.at(-1)());
+  expect(scrollTo).not.toHaveBeenCalled();
+  global.ResizeObserver = original;
 });
