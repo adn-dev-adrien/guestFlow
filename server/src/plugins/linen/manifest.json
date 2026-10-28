@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -44,6 +44,12 @@
     "1.1.2": [
       "Ses mots de recherche des Paramètres (draps, blanchisserie, stock…) viennent du plugin.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.0": [
+      "Plusieurs jours de blanchisserie par semaine.",
+      "Délai de la blanchisserie : le linge revient quand il est prêt, et le stock le sait.",
+      "Une rupture de linge dit jusqu’à quand.",
+      "Le tapis de bain a son nom dans l’alerte de manque de linge."
     ]
   }
 }

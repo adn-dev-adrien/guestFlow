@@ -102,7 +102,7 @@ test('laundrySummary rejects a pathological span before the ledger walks it', ()
   const trap = new Proxy({}, { get() { touched = true; return () => { throw new Error('ledger should not run'); }; } });
   const c = buildPlanning({
     settingsModel: { read: () => ({ laundryWeekday: 2 }) },
-    laundryModel: trap, linenInventoryModel: trap, laundryTripSkipsModel: trap,
+    laundryModel: trap, linenInventoryModel: trap, laundryScheduleModel: trap, laundryTripSkipsModel: trap,
     laundryManualAdditionsModel: trap, laundryExtraTripsModel: trap,
   });
   const r = res();

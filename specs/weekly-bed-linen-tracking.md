@@ -384,6 +384,12 @@ neither.
 - **Reservation deleted (hard-deleted via DB).** Drops out of all windows
   immediately. Same as any other reservation deletion.
 
+37. **Several laundry days and a turnaround (2026-10-28, [linen-laundry-days.md](linen-laundry-days.md)
+    rules 1-10).** `laundryWeekday` becomes a dated schedule: a set of weekdays plus a turnaround in days.
+    Rule 7 reads « any weekday of the schedule in force on that date »; rule 8's window becomes
+    `(previous trip, L]` and Pick-up(L) the batches whose `readyFrom ≤ L`. Rule 10 is now what the code
+    does: a change applies from tomorrow and past windows keep the rhythm of their date.
+
 ---
 
 ## 4. Architecture

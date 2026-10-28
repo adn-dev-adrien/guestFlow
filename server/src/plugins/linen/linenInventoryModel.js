@@ -5,15 +5,17 @@
  *
  * No business logic. Just SQL → engine call → return.
  *
- * Factory `buildModel(db, { settingsModel })`: `settingsModel.read()` returns the linen settings
- * (`settings.js`), shaped like the former app_settings row.
+ * Factory `buildModel(db, { settingsModel, laundryScheduleModel })`: `settingsModel.read()` returns the
+ * linen settings (`settings.js`), shaped like the former app_settings row; `laundryScheduleModel.listAll()`
+ * the dated versions of the laundry schedule (specs/linen-laundry-days.md).
  */
 
 const sdk = require('../sdk');
 const { simulateInventory, findHorizon } = require('./linenInventory');
+const { createSchedule } = require('./laundrySchedule');
 
 function buildModel(database, deps = {}) {
-  const { settingsModel } = deps;
+  const { settingsModel, laundryScheduleModel } = deps;
   // specs/skip-laundry-trip.md §4.1 — the skips model is the single source of truth for
   // which dates the operator marked as not-made. Injected via `deps` for tests; defaults
   // to a fresh factory instance bound to the same `database`.
@@ -107,17 +109,14 @@ function buildModel(database, deps = {}) {
       small:  Number(settingsRow.towelStockSmall     || 0),
       bathMat: Number(settingsRow.towelStockBathMat  || 0),
     };
-    const laundryWeekday = Number(settingsRow.laundryWeekday == null ? 2 : settingsRow.laundryWeekday);
+    const schedule = createSchedule(laundryScheduleModel.listAll());
 
-    // We pull reservations whose endDate >= today − 35 so the initial state can be computed: the
-    // seed batch of the last regular trip reaches back a week before that trip (up to 13 days before
-    // today), the dirty window widens across skipped trips (up to 4 weeks), and the extra trips
-    // between the last regular trip and today are replayed on their own windows
-    // (specs/laundry-extra-trip.md §3.3 rule 14). The former 7-day fetch silently treated linen
-    // from stays ending 8-13 days ago as clean for the week after a trip.
+    // We pull reservations whose endDate >= today − 42: the engine replays the 42 days before today
+    // (28-day skip lookback + the 14-day maximum laundry turnaround) to build its initial state
+    // (specs/linen-laundry-days.md §3.3 rule 16).
     const lookbackFrom = (() => {
       const d = new Date(`${today}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() - 35);
+      d.setUTCDate(d.getUTCDate() - 42);
       return d.toISOString().slice(0, 10);
     })();
     const reservations = fetchReservationsStmt.all(lookbackFrom);
@@ -160,7 +159,7 @@ function buildModel(database, deps = {}) {
 
     const result = simulateInventory({
       stock, reservations, options, reservationOptions, propertyDefaults,
-      laundryWeekday, from: today, to: horizon, skippedDates, manualAdditionsByDate,
+      schedule, from: today, to: horizon, skippedDates, manualAdditionsByDate,
       bathMatByProperty, extraTripsByDate,
     });
 

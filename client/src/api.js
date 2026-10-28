@@ -598,6 +598,11 @@ const api = {
   updateLinenItems: (items) => request('/settings/linen-items', { method: 'PUT', body: items }),
   getRepairAmounts: () => request('/settings/repair-amounts'),
   updateRepairAmounts: (items) => request('/settings/repair-amounts', { method: 'PUT', body: items }),
+  // The laundry schedule (specs/linen-laundry-days.md §4.3): `{ current, pending, tomorrow }`; PUT writes
+  // the version effective tomorrow, the preview describes the cycle of a candidate without writing.
+  getLaundrySchedule: () => request('/laundry/schedule'),
+  saveLaundrySchedule: (schedule) => request('/laundry/schedule', { method: 'PUT', body: schedule }),
+  previewLaundrySchedule: (schedule) => request('/laundry/schedule/preview', { method: 'POST', body: schedule, readOnly: true }),
   // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
   // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
   // non-skipped trip. Global per date (one human, one trip). Spec

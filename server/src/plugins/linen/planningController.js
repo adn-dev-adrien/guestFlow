@@ -8,8 +8,8 @@
  */
 
 const sdk = require('../sdk');
-const { findLaundryDaysInRange, activeExtraDates } = require('./laundryWindow');
 const { createTripLedger, makeBlockBuilders } = require('./laundryTripLedger');
+const { createSchedule } = require('./laundrySchedule');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -21,6 +21,7 @@ function buildController({
   laundryModel: injectedLaundryModel,
   settingsModel: injectedSettingsModel,
   linenInventoryModel: injectedLinenInventoryModel,
+  laundryScheduleModel: injectedLaundryScheduleModel,
   laundryTripSkipsModel: injectedLaundryTripSkipsModel,
   laundryManualAdditionsModel: injectedLaundryManualAdditionsModel,
   laundryExtraTripsModel: injectedLaundryExtraTripsModel,
@@ -29,7 +30,7 @@ function buildController({
     /**
      * GET /api/planning/laundry?from=YYYY-MM-DD[&to=YYYY-MM-DD]
      *
-     * Returns the laundry summary for every occurrence of `laundryWeekday` (from settings)
+     * Returns the laundry summary for every laundry day of the schedule
      * in the requested range, plus every extra laundry trip in the range
      * (specs/laundry-extra-trip.md). Drop-off counts sheets used by reservations whose endDate
      * is in `(previous trip, T]`; pick-up is what sits at the laundry before T — with weekly
@@ -61,8 +62,7 @@ function buildController({
       if (rawTo && !isIsoDate(rawTo)) {
         return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
       }
-      const row = injectedSettingsModel.read();
-      const weekday = row && row.laundryWeekday != null ? Number(row.laundryWeekday) : 2;
+      const schedule = createSchedule(injectedLaundryScheduleModel.listAll());
       // Compute `to`. Explicit query param wins; otherwise derive from the inventory horizon.
       // No horizon (no future reservations) AND no explicit `to` → emit nothing: there's
       // nothing to project against.
@@ -71,7 +71,7 @@ function buildController({
         const sim = injectedLinenInventoryModel.simulate();
         to = sim?.horizon || null;
         if (!to) {
-          return res.json({ laundryWeekday: weekday, laundryDays: [] });
+          return res.json({ laundryDays: [] });
         }
       }
       if (from > to) {
@@ -98,7 +98,7 @@ function buildController({
       const skippedDates = new Set(injectedLaundryTripSkipsModel.listAll());
       const extraTrips = injectedLaundryExtraTripsModel.listAll();
       const ledger = createTripLedger({
-        weekday,
+        schedule,
         skippedDates,
         extraTrips,
         ...makeBlockBuilders({
@@ -106,15 +106,14 @@ function buildController({
           laundryManualAdditionsModel: injectedLaundryManualAdditionsModel,
         }),
       });
-      const regularDates = findLaundryDaysInRange(from, to, weekday);
-      const extraDates = activeExtraDates(extraTrips.map((t) => t.date), weekday)
-        .filter((d) => d >= from && d <= to);
+      const regularDates = schedule.regularDaysInRange(from, to);
+      const extraDates = ledger.extraDates.filter((d) => d >= from && d <= to);
       const tripDates = Array.from(new Set([...regularDates, ...extraDates])).sort();
       // Each entry: { date, kind, dropOff (+ incomplete), pickUp } and, for an extra trip,
       // { pickUpAll, leftAtLaundry }. A skipped regular trip emits zeros — the client masks them with
       // the "Voyage non réalisé" caption.
       const laundryDays = tripDates.map((date) => ledger.entryFor(date)).filter(Boolean);
-      return res.json({ laundryWeekday: weekday, laundryDays });
+      return res.json({ laundryDays });
     },
 
     /**
@@ -133,7 +132,7 @@ function buildController({
       const result = injectedLinenInventoryModel.simulate();
       if (!result) return res.json({ horizon: null, byLaundryDay: {} });
       const row = injectedSettingsModel.read();
-      const laundryWeekday = Number(row.laundryWeekday == null ? 2 : row.laundryWeekday);
+      const schedule = createSchedule(injectedLaundryScheduleModel.listAll());
       // Emit only the TRACKED types (stock > 0) in the « Disponible après ce dépôt » snapshot —
       // a type with stock 0 is "not tracked" (no availability figure, no shortage) per
       // specs/linen-inventory-shortage-tracking.md §3.1 + specs/laundry-bath-mat.md §3 rule 7.
@@ -154,8 +153,7 @@ function buildController({
       // (specs/laundry-extra-trip.md §3.3 rule 15), so the extra card shows its own line.
       const byLaundryDay = {};
       for (const day of result.days) {
-        const isLaundryDay = (new Date(`${day.date}T00:00:00Z`).getUTCDay()) === laundryWeekday;
-        if (isLaundryDay || day.isTripDay) {
+        if (schedule.isRegularDay(day.date) || day.isTripDay) {
           byLaundryDay[day.date] = projectClean(day.clean);
         }
       }

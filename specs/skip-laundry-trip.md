@@ -136,6 +136,10 @@ reflect the skip immediately.
   of dirty + 3 batches of `atLaundry` to the third trip. Tested in
   the engine unit suite.
 
+15. **A skip follows the schedule of its date (2026-10-28, [linen-laundry-days.md](linen-laundry-days.md)
+    rule 12).** Rule 2's « laundry day » is any weekday of the schedule in force on that date. Rule 7's
+    « ≥ 14 days » becomes « every batch whose `readyFrom` is reached ».
+
 ---
 
 ## 4. Architecture

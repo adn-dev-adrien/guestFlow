@@ -1,6 +1,8 @@
 /**
  * The eight linen settings, stored in plugin_settings (specs/plugins-phase-2-hosts.md rule 15): the
  * laundry day and the stock per linen type. Same names as the app_settings columns they came from.
+ * `laundryWeekday` is frozen since the laundry schedule (specs/linen-laundry-days.md): it stays
+ * declared so a rollback to 1.1.x finds it, but nothing reads it and nothing writes it any more.
  *
  * `GET/PUT /api/plugins/linen/settings` read and write them; each declared key validates its value
  * (phase 1 rule 7 plus `validate`), with the messages the core settings form used to show.
@@ -35,14 +37,12 @@ const DECLARED = Object.freeze([
   ...STOCK_KEYS.map((key) => ({ key, default: '0', validate: validateLinenStockCount })),
 ]);
 
-// The settings as numbers, shaped like the former app_settings row so the moved models and
+// The stock settings as numbers, shaped like the former app_settings row so the moved models and
 // controllers read them unchanged (`settingsModel.read()`).
 function createLinenSettings(store) {
   return {
     read() {
       const row = {};
-      const weekday = Number(store.get(LAUNDRY_WEEKDAY));
-      row[LAUNDRY_WEEKDAY] = Number.isInteger(weekday) && weekday >= 0 && weekday <= 6 ? weekday : DEFAULT_WEEKDAY;
       STOCK_KEYS.forEach((key) => { row[key] = Math.max(0, Math.floor(Number(store.get(key)) || 0)); });
       return row;
     },

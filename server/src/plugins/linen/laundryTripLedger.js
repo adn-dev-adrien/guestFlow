@@ -1,34 +1,33 @@
 /**
- * Laundry trip ledger — the pure « trip sequence + pool » logic behind the Planning laundry summary
- * (specs/laundry-extra-trip.md §3.2, on top of specs/weekly-bed-linen-tracking.md §3.3 and
- * specs/skip-laundry-trip.md §3.2).
+ * Laundry trip ledger — the pure « trip sequence + batches at the laundry » logic behind the Planning
+ * laundry cards (specs/linen-laundry-days.md §3.2, on top of specs/laundry-extra-trip.md §3.2,
+ * specs/weekly-bed-linen-tracking.md §3.3 and specs/skip-laundry-trip.md §3.2).
  *
- * The trip sequence S = every non-skipped regular laundry day ∪ every ACTIVE extra trip (an extra
- * trip stored on the laundry weekday is inert). For a trip T:
- *   - prevTrip(T)  = the latest element of S strictly before T; the regular anchor R(T) is the last
- *                    non-skipped regular day before T (null past the lookback → T − 7, the historical
- *                    degenerate rule), and any active extra trip in (R, T) comes later than R.
+ * The trip sequence S = every non-skipped regular laundry day (the weekdays of the schedule version in
+ * force on that date) ∪ every ACTIVE extra trip (an extra trip stored on a regular day is inert). For a
+ * trip T:
+ *   - prevTrip(T)  = the latest element of S strictly before T within the 28-day lookback (T − 7 when
+ *                    none — the historical degenerate rule).
  *   - Drop-off(T)  = buildBlock(prevTrip(T), T] — reservation linen + signed manual lines, floored.
- *   - Pool before T: a regular trip takes the whole pool back, so right after R the pool is exactly
- *                    Drop-off(R); then each extra E in (R, T) is replayed: pick(E) = pickUpAll ? pool
- *                    : min(pool, declared) per type, pool ← pool − pick(E) + Drop-off(E).
- *   - Pick-up(T)   = the whole pool for a regular trip, pick(T) for an extra trip (which also reports
- *                    leftAtLaundry = pool − pick).
- * Without extra trips this reproduces the pre-feature contract exactly: Pick-up(L) = Drop-off(prev).
+ *   - The laundry holds batches: each trip drops one (Drop-off, ready `turnaroundDays` later) and
+ *     collects the batches that are ready — all of them for a regular trip, `min(ready, declared)`
+ *     per type oldest first for a partial extra trip. The state before T is replayed from the last
+ *     non-skipped regular trip before it (that trip collected everything ready).
+ *   - Pick-up(T)   = what that trip collects, with the drop dates it comes from (`fromTrips`);
+ *                    `stillAtLaundry` is what stays after it (T's own drop excluded).
+ * With one weekday and a one-day turnaround every batch is ready at the next trip, so this reproduces
+ * the pre-feature contract exactly: Pick-up(L) = Drop-off(prev).
  *
  * `buildBlock(startExclusive, endInclusive)` and `incompleteFor(startExclusive, endInclusive)` are
  * injected (the SQL window sums live in the models), so the ledger is unit-testable with fakes and
- * shared by the summary endpoint and the extra-trip preview. No memoization on purpose: the call
- * sequence per emitted trip is (drop-off window, then the pool's windows), the order the existing
- * controller tests pin.
+ * shared by the Planning endpoint and the extra-trip preview. No memoization on purpose: the call
+ * sequence per emitted trip is (drop-off window, then the windows of the batches still at the laundry),
+ * the order the existing controller tests pin.
  */
 
-const {
-  addDays,
-  weekdayOf,
-  previousNonSkippedRegularBefore,
-  activeExtraDates,
-} = require('./laundryWindow');
+const { addDays, previousMatchingDay } = require('./laundryWindow');
+const { addBatch, collectBatches, totalOf } = require('./laundryBatches');
+const { MAX_TURNAROUND_DAYS } = require('./laundrySchedule');
 
 const BLOCK_KEYS = Object.freeze([
   'singleBeds', 'doubleBeds', 'babyBeds',
@@ -39,30 +38,6 @@ const BLOCK_KEYS = Object.freeze([
 function emptyBlock() {
   const out = {};
   for (const k of BLOCK_KEYS) out[k] = 0;
-  return out;
-}
-
-function keysOf(...blocks) {
-  const keys = new Set(BLOCK_KEYS);
-  for (const b of blocks) for (const k of Object.keys(b || {})) keys.add(k);
-  return keys;
-}
-
-function addBlocks(a, b) {
-  const out = {};
-  for (const k of keysOf(a, b)) out[k] = (Number(a && a[k]) || 0) + (Number(b && b[k]) || 0);
-  return out;
-}
-
-function subBlocks(a, b) {
-  const out = {};
-  for (const k of keysOf(a, b)) out[k] = Math.max(0, (Number(a && a[k]) || 0) - (Number(b && b[k]) || 0));
-  return out;
-}
-
-function minBlocks(a, b) {
-  const out = {};
-  for (const k of keysOf(a, b)) out[k] = Math.max(0, Math.min(Number(a && a[k]) || 0, Number(b && b[k]) || 0));
   return out;
 }
 
@@ -98,11 +73,13 @@ function makeBlockBuilders({ laundryModel, laundryManualAdditionsModel }) {
   return { buildBlock, incompleteFor };
 }
 
+const REPLAY_DAYS = 42;
+
 /**
  * Build a ledger bound to one configuration.
  *
  * @param {object} p
- * @param {number} p.weekday — laundry weekday (0..6)
+ * @param {object} p.schedule — `createSchedule(...)` from `laundrySchedule.js`
  * @param {Set<string>|string[]} p.skippedDates
  * @param {Map<string,object>|Array<object>} p.extraTrips — `{ date, pickUpAll, pickUp: {7 types} }`
  *   per extra trip (a Map keyed by date, or the model's `listAll()` array)
@@ -110,7 +87,7 @@ function makeBlockBuilders({ laundryModel, laundryManualAdditionsModel }) {
  * @param {Function} p.incompleteFor — `(startExclusive, endInclusive) → [...]`
  * @param {number} [p.lookbackDays=28]
  */
-function createTripLedger({ weekday, skippedDates, extraTrips, buildBlock, incompleteFor, lookbackDays = 28 }) {
+function createTripLedger({ schedule, skippedDates, extraTrips, buildBlock, incompleteFor, lookbackDays = 28 }) {
   const skipped = skippedDates instanceof Set ? skippedDates : new Set(skippedDates || []);
   const extrasByDate = new Map();
   const extraEntries = extraTrips instanceof Map ? Array.from(extraTrips.entries()) : (extraTrips || []).map((t) => [t.date, t]);
@@ -118,42 +95,53 @@ function createTripLedger({ weekday, skippedDates, extraTrips, buildBlock, incom
     if (!trip) continue;
     extrasByDate.set(date, { pickUpAll: trip.pickUpAll !== false, pickUp: trip.pickUp || {} });
   }
-  const extraDates = activeExtraDates(extrasByDate.keys(), weekday);
   const incomplete = typeof incompleteFor === 'function' ? incompleteFor : () => [];
 
-  const isRegular = (date) => weekdayOf(date) === weekday;
+  const isRegular = (date) => schedule.isRegularDay(date);
   const isActiveExtra = (date) => !isRegular(date) && extrasByDate.has(date);
+  const isTrip = (date) => (isRegular(date) && !skipped.has(date)) || isActiveExtra(date);
+  const extraDates = Array.from(extrasByDate.keys()).filter(isActiveExtra).sort();
 
-  // Regular anchor strictly before `date`; the historical `T − 7` fallback keeps producing windows
-  // when the whole lookback is skipped (the pre-feature degenerate rule, pinned by tests).
-  const anchorBefore = (date) => previousNonSkippedRegularBefore(date, weekday, skipped, lookbackDays) || addDays(date, -7);
-
-  const extrasBetween = (startExclusive, endExclusive) => extraDates.filter((d) => d > startExclusive && d < endExclusive);
-
-  const prevTrip = (date) => {
-    const anchor = anchorBefore(date);
-    const between = extrasBetween(anchor, date);
-    return between.length > 0 ? between[between.length - 1] : anchor;
-  };
+  const prevTrip = (date) => previousMatchingDay(date, isTrip, lookbackDays) || addDays(date, -7);
 
   const drop = (date) => buildBlock(prevTrip(date), date);
+  const blockCounts = (block) => Object.fromEntries(BLOCK_KEYS.map((k) => [k, Number(block[k]) || 0]));
 
-  const pickFor = (date, pool) => {
+  const collectOn = (batches, date) => {
     const trip = extrasByDate.get(date);
-    if (!trip || trip.pickUpAll) return pool;
-    return minBlocks(pool, trip.pickUp);
+    const wanted = trip && isActiveExtra(date) && !trip.pickUpAll ? trip.pickUp : null;
+    return collectBatches(batches, date, BLOCK_KEYS, wanted);
   };
 
-  // The pool at the laundry right before `date`'s own trip. Returned as the anchor's drop block
-  // untouched when no extra trip sits in between, so the historical payload shape is preserved.
-  const poolBefore = (date) => {
-    const anchor = anchorBefore(date);
-    let pool = drop(anchor);
-    for (const extra of extrasBetween(anchor, date)) {
-      const pick = pickFor(extra, pool);
-      pool = addBlocks(subBlocks(pool, pick), drop(extra));
+  // The batches at the laundry right before `date`'s own trip. A regular, non-skipped trip F collects
+  // every batch that is ready, so the state before `date` follows from F alone: the batches dropped
+  // before F that were still not ready at F (at most 14 days back), then every trip from F on. That
+  // keeps the drop-off windows queried to the few that matter. With no such trip in the lookback the
+  // laundry is replayed from the 42 days before `date` (the engine's own warm-up). An extra record
+  // stored on `date` itself is never part of it.
+  const batchesBefore = (date) => {
+    const anchor = previousMatchingDay(date, (d) => isRegular(d) && !skipped.has(d), lookbackDays);
+    const batchOf = (d) => ({ dropDate: d, readyFrom: schedule.readyFrom(d), counts: blockCounts(drop(d)) });
+    let batches = [];
+    let from;
+    if (anchor) {
+      for (let d = addDays(anchor, -MAX_TURNAROUND_DAYS); d < anchor; d = addDays(d, 1)) {
+        if (isTrip(d) && schedule.readyFrom(d) > anchor) batches = addBatch(batches, batchOf(d));
+      }
+      from = anchor;
+    } else {
+      from = addDays(date, -REPLAY_DAYS);
     }
-    return pool;
+    for (let d = from; d < date; d = addDays(d, 1)) {
+      if (isTrip(d)) batches = addBatch(collectOn(batches, d).remaining, batchOf(d));
+    }
+    return batches;
+  };
+
+  const stillAt = (remaining) => {
+    if (remaining.length === 0) return null;
+    const { counts, readyOn } = totalOf(remaining, BLOCK_KEYS);
+    return { counts, readyOn };
   };
 
   /**
@@ -161,40 +149,43 @@ function createTripLedger({ weekday, skippedDates, extraTrips, buildBlock, incom
    * active extra trip. Skipped regular days emit zeros and query nothing.
    */
   const entryFor = (date) => {
-    if (isRegular(date)) {
-      if (skipped.has(date)) {
-        return { date, kind: 'regular', dropOff: { ...emptyBlock(), incomplete: [] }, pickUp: { ...emptyBlock() } };
-      }
-      const dropOff = { ...drop(date), incomplete: incomplete(prevTrip(date), date) };
-      const pickUp = poolBefore(date);
-      return { date, kind: 'regular', dropOff, pickUp };
+    if (isRegular(date) && skipped.has(date)) {
+      return {
+        date,
+        kind: 'regular',
+        dropOff: { ...emptyBlock(), incomplete: [] },
+        pickUp: { ...emptyBlock(), fromTrips: [] },
+        stillAtLaundry: null,
+      };
     }
-    if (!isActiveExtra(date)) return null;
+    if (!isRegular(date) && !isActiveExtra(date)) return null;
     const dropOff = { ...drop(date), incomplete: incomplete(prevTrip(date), date) };
-    const pool = poolBefore(date);
-    const pickUp = pickFor(date, pool);
-    const trip = extrasByDate.get(date);
-    return {
+    const { collected, fromTrips, remaining } = collectOn(batchesBefore(date), date);
+    const entry = {
       date,
-      kind: 'extra',
+      kind: isRegular(date) ? 'regular' : 'extra',
       dropOff,
-      pickUp,
-      pickUpAll: trip.pickUpAll,
-      leftAtLaundry: subBlocks(pool, pickUp),
+      pickUp: { ...collected, fromTrips },
+      stillAtLaundry: stillAt(remaining),
     };
+    if (entry.kind === 'extra') {
+      entry.pickUpAll = extrasByDate.get(date).pickUpAll;
+      entry.leftAtLaundry = totalOf(remaining, BLOCK_KEYS).counts;
+    }
+    return entry;
   };
 
   /**
-   * What an extra trip on `date` would drop and what would be at the laundry before it. Any record
-   * stored on `date` itself is ignored (only trips strictly before `date` shape the pool), so the
-   * preview serves both the create and the edit flows.
+   * What an extra trip on `date` would drop and what it could collect there (the batches ready by
+   * then). Any record stored on `date` itself is ignored (only trips strictly before `date` shape the
+   * laundry), so the preview serves both the create and the edit flows.
    */
   const previewFor = (date) => ({
     dropOff: drop(date),
-    atLaundry: poolBefore(date),
+    atLaundry: collectBatches(batchesBefore(date), date, BLOCK_KEYS, null).collected,
   });
 
-  return { entryFor, previewFor, prevTrip, poolBefore, isRegular, isActiveExtra, extraDates };
+  return { entryFor, previewFor, prevTrip, isRegular, isActiveExtra, extraDates };
 }
 
 module.exports = {
@@ -202,5 +193,4 @@ module.exports = {
   makeBlockBuilders,
   emptyBlock,
   BLOCK_KEYS,
-  __test: { addBlocks, subBlocks, minBlocks },
 };

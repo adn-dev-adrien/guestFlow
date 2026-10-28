@@ -2,13 +2,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildController: buildPlanningController } = require('../planningController');
+const { fakeScheduleModel } = require('./laundry-schedule-fixtures');
 
 // The controller no longer falls back to models bound to the app database (it is wired by the
 // plugin), so the tests that do not care about manual lines pass an empty one.
 const NO_MANUAL_LINES = {
   sumForWindow: () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
 };
-const buildController = (deps) => buildPlanningController({ laundryManualAdditionsModel: NO_MANUAL_LINES, ...deps });
+const buildController = (deps) => buildPlanningController({
+  laundryManualAdditionsModel: NO_MANUAL_LINES,
+  laundryScheduleModel: fakeScheduleModel(deps.settingsModel.read().laundryWeekday),
+  ...deps,
+});
 
 // Controller-level tests with fake models. Pin the shape of the payload + the validation rules
 // (specs/weekly-bed-linen-tracking.md §4.3).
@@ -75,7 +80,6 @@ test('laundrySummary: 14-day range emits exactly the right number of laundry day
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-01', to: '2026-06-14' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.laundryWeekday, 2);
   assert.deepEqual(res.body.laundryDays.map((d) => d.date), ['2026-06-02', '2026-06-09']);
 });
 
@@ -118,7 +122,6 @@ test('laundrySummary: weekday change in settings is honoured (Wednesday)', () =>
   const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel, laundryExtraTripsModel, linenInventoryModel });
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-01', to: '2026-06-14' } }, res);
-  assert.equal(res.body.laundryWeekday, 3);
   // Wednesdays in window: 06-03 + 06-10.
   assert.deepEqual(res.body.laundryDays.map((d) => d.date), ['2026-06-03', '2026-06-10']);
 });
@@ -146,7 +149,8 @@ test('laundrySummary: payload carries dropOff + pickUp per laundry day (bed + ba
     date: '2026-06-02',
     kind: 'regular',
     dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, mediumTowels: 0, smallTowels: 7, bathMats: 0, incomplete: [] },
-    pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, mediumTowels: 0, smallTowels: 9, bathMats: 0 },
+    pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, mediumTowels: 0, smallTowels: 9, bathMats: 0, fromTrips: ['2026-05-26'] },
+    stillAtLaundry: null,
   }]);
 });
 
@@ -201,7 +205,7 @@ test('laundrySummary: zero-everywhere laundry day is STILL emitted (server contr
   );
   assert.deepEqual(
     res.body.laundryDays[0].pickUp,
-    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 }
+    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, fromTrips: [] }
   );
 });
 
@@ -233,7 +237,7 @@ test('laundrySummary: skipped laundry day returns zero blocks (client renders "V
     incomplete: [],
   });
   assert.deepEqual(res.body.laundryDays[0].pickUp, {
-    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, fromTrips: [],
   });
   // No window query was issued for the skipped day — proves we shortcut before hitting the model.
   assert.equal(calls.length, 0);
@@ -343,7 +347,7 @@ test('laundrySummary: `to` omitted AND no horizon (no future reservations) → r
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-09' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { laundryWeekday: 2, laundryDays: [] });
+  assert.deepEqual(res.body, { laundryDays: [] });
 });
 
 test('laundrySummary: explicit `to` still wins over the horizon (paginated infinite-scroll path)', () => {

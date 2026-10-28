@@ -1,0 +1,1 @@
+- **Laundry schedule (`linen` 1.2.0)**: new plugin table `laundry_schedule_versions`, seeded once from the former `laundryWeekday` as `{ [weekday], 1 day }` effective from the beginning of time — every regular trip, pick-up and projected figure of an existing install is unchanged. `laundryWeekday` stays stored (frozen) for a rollback to 1.1.x.

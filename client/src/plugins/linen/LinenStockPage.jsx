@@ -2,12 +2,13 @@
  * LinenStockPage — `/parametres/stock-blanchisserie`
  * (specs/linen-inventory-shortage-tracking.md §6.1).
  *
- * Standalone page with 6 number fields (bed simple/double/baby + towel large/medium/small).
+ * The « Blanchisserie » card on top (the laundry schedule, specs/linen-laundry-days.md §3.4), then the
+ * stock: 6 number fields (bed simple/double/baby + towel large/medium/small).
  * 0 = "I don't track this type" — the simulation skips it and the UI hides any line for that
  * type elsewhere (Planning + Dashboard).
  *
- * Persists to the `linen` plugin's settings via `PUT /api/plugins/linen/settings`
- * (specs/plugins-phase-2-hosts.md rule 15).
+ * Persists the stock to the `linen` plugin's settings via `PUT /api/plugins/linen/settings`
+ * (specs/plugins-phase-2-hosts.md rule 15) and the schedule via `PUT /api/laundry/schedule`.
  * Uses the same dirty-form guard pattern as the rest of SettingsPage so navigation away with
  * unsaved changes prompts a confirmation.
  */
@@ -19,7 +20,10 @@ import BathtubIcon from '@mui/icons-material/Bathtub';
 import {
   api, PageActionBar, ConfirmDialog, ErrorAlert, useToast, useDirtyFormGuard,
 } from '../sdk';
-import SettingsLaundrySection from './SettingsLaundrySection';
+import LaundryScheduleSection from './LaundryScheduleSection';
+import {
+  draftFromSchedule, effectiveCaption, isDraftValid, scheduleBody, sameDraft,
+} from './laundryScheduleDraft';
 
 const EMPTY = { bedSingle: 0, bedDouble: 0, bedBaby: 0, towelLarge: 0, towelMedium: 0, towelSmall: 0, towelBathMat: 0 };
 // Form field → plugin setting key.
@@ -46,18 +50,20 @@ export default function LinenStockPage() {
   const [saving, setSaving] = useState(false);
   const [savedForm, setSavedForm] = useState(EMPTY);
   const [draft, setDraft] = useState(EMPTY);
-  // « Jour de blanchisserie » lives on this page (moved from Paramètres → Générale). Tracked
-  // alongside the stock so the save bar + dirty guard cover both.
-  const [laundryWeekday, setLaundryWeekday] = useState(2);
-  const [savedWeekday, setSavedWeekday] = useState(2);
+  // The laundry schedule lives on this page; the view is `GET /api/laundry/schedule`. Tracked alongside
+  // the stock so the save bar and the dirty guard cover both.
+  const [scheduleView, setScheduleView] = useState(null);
+  const [savedSchedule, setSavedSchedule] = useState(null);
+  const [scheduleDraft, setScheduleDraft] = useState(null);
+  const [scheduleError, setScheduleError] = useState(null);
   // Load failures stay persistent (ErrorAlert); action feedback goes through the shared toasts
   // (specs/ds-components.md §3.2).
   const [loadError, setLoadError] = useState(false);
   const { showSuccess, showError } = useToast();
 
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft: { ...draft, laundryWeekday },
-    saved: { ...savedForm, laundryWeekday: savedWeekday },
+    draft: { ...draft, schedule: scheduleDraft },
+    saved: { ...savedForm, schedule: savedSchedule },
     navigate,
   });
 
@@ -65,14 +71,16 @@ export default function LinenStockPage() {
     let mounted = true;
     (async () => {
       try {
-        const data = (await api.getPluginSettings('linen')) || {};
+        const [settings, schedule] = await Promise.all([api.getPluginSettings('linen'), api.getLaundrySchedule()]);
+        const data = settings || {};
         if (!mounted) return;
         const shaped = Object.fromEntries(Object.entries(SETTING_KEYS).map(([field, key]) => [field, clampInt(data[key])]));
         setSavedForm(shaped);
         setDraft(shaped);
-        const wd = data.laundryWeekday !== '' && Number.isInteger(Number(data.laundryWeekday)) ? Number(data.laundryWeekday) : 2;
-        setLaundryWeekday(wd);
-        setSavedWeekday(wd);
+        const shapedSchedule = draftFromSchedule(schedule.pending || schedule.current);
+        setScheduleView(schedule);
+        setSavedSchedule(shapedSchedule);
+        setScheduleDraft(shapedSchedule);
       } catch (err) {
         if (mounted) setLoadError(true);
       } finally {
@@ -84,31 +92,47 @@ export default function LinenStockPage() {
 
   const update = (key) => (e) => setDraft((d) => ({ ...d, [key]: clampInt(e.target.value) }));
 
+  const changeSchedule = (next) => { setScheduleDraft(next); setScheduleError(null); };
+
+  const stockChanged = Object.keys(SETTING_KEYS).some((field) => draft[field] !== savedForm[field]);
+  const scheduleChanged = Boolean(scheduleDraft) && !sameDraft(scheduleDraft, savedSchedule);
+  const scheduleValid = !scheduleDraft || isDraftValid(scheduleDraft);
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.savePluginSettings('linen', {
-        ...Object.fromEntries(Object.entries(SETTING_KEYS).map(([field, key]) => [key, draft[field]])),
-        laundryWeekday,
-      });
-      setSavedForm(draft);
-      setSavedWeekday(laundryWeekday);
+      if (stockChanged) {
+        await api.savePluginSettings('linen', Object.fromEntries(Object.entries(SETTING_KEYS).map(([field, key]) => [key, draft[field]])));
+        setSavedForm(draft);
+      }
+      if (scheduleChanged) {
+        const view = await api.saveLaundrySchedule(scheduleBody(scheduleDraft));
+        const shaped = draftFromSchedule(view.pending || view.current);
+        setScheduleView(view);
+        setSavedSchedule(shaped);
+        setScheduleDraft(shaped);
+      }
       showSuccess('Enregistré.');
     } catch (err) {
-      showError(err.message || 'Échec de l\'enregistrement.');
+      if (err.field) setScheduleError({ field: err.field, message: err.message });
+      else showError(err.message || 'Échec de l\'enregistrement.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCancel = () => { setDraft(savedForm); setLaundryWeekday(savedWeekday); };
+  const handleCancel = () => {
+    setDraft(savedForm);
+    setScheduleDraft(savedSchedule);
+    setScheduleError(null);
+  };
 
   return (
     <Box>
       <PageActionBar
         title="Linge"
         onSave={handleSave}
-        saveDisabled={loading || saving || !isDirty}
+        saveDisabled={loading || saving || !isDirty || !scheduleValid}
         saveBusy={saving}
         onCancel={handleCancel}
         cancelDisabled={loading || saving || !isDirty}
@@ -122,12 +146,16 @@ export default function LinenStockPage() {
           />
         )}
 
-        {/* « Jour de blanchisserie » (moved here from Paramètres → Générale). */}
-        <SettingsLaundrySection
-          value={laundryWeekday}
-          onChange={setLaundryWeekday}
-          disabled={loading || saving}
-        />
+        {scheduleDraft && (
+          <LaundryScheduleSection
+            value={scheduleDraft}
+            onChange={changeSchedule}
+            initialCycle={scheduleView.pending || scheduleView.current}
+            caption={effectiveCaption(scheduleView, scheduleDraft)}
+            error={scheduleError}
+            disabled={loading || saving}
+          />
+        )}
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           Nombre de jeux complets de chaque type. Le total est partagé entre tous les logements ; il

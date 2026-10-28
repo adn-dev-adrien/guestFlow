@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { buildContractsByReservationId, simulateInventory, ALL_TYPES } = require('../linenInventory');
+const { constantSchedule } = require('./laundry-schedule-fixtures');
 const laundryModel = require('../laundryModel');
 
 // specs/laundry-bath-mat.md — bath mat as a 7th linen type, driven by the "Tapis de bain" option
@@ -92,7 +93,7 @@ test('bath mat: conservation invariant holds for the bathMat type through a full
     options: [BATH_MAT_OPTION],
     reservationOptions: [{ reservationId: 1, optionId: 50, quantity: 1 }],
     propertyDefaults: [],
-    laundryWeekday: 2,
+    schedule: constantSchedule(2),
     from: '2026-06-01', to: '2026-06-30',
     bathMatByProperty: new Map([[10, 2]]),
   });
