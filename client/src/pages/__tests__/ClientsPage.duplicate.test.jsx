@@ -30,6 +30,7 @@ vi.mock('../../components/DialogProvider', () => ({
 
 import api from '../../api';
 import ClientsPage from '../ClientsPage';
+import { directoryPayload } from './clientsDirectoryFixtures';
 
 function existsError() {
   const err = new Error('Client existant : Camille Revue (camille@example.fr).');
@@ -55,7 +56,7 @@ async function fillAndSave(user) {
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn?.mockReset?.());
   confirmMock.mockReset();
-  api.getClientsDirectory.mockResolvedValue({ items: [], counts: { upcoming: 0, past: 0 } });
+  api.getClientsDirectory.mockResolvedValue(directoryPayload());
 });
 
 test('a duplicate is asked about; « Annuler » creates nothing more', async () => {

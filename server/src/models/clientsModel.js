@@ -12,6 +12,7 @@
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
+const { clientWhenLabel } = require('../utils/clientWhenLabel');
 
 const MS_PER_DAY = 86400000;
 
@@ -95,70 +96,146 @@ function createModel(database) {
     return database.prepare('SELECT * FROM clients ORDER BY lastName, firstName').all();
   }
 
-  // specs/clients-upcoming-past-directory.md §3 — the Clients page's own read: each client with the
-  // stay that qualifies it, the bucket it belongs to, the per-bucket counts of the current search, and
-  // the ordering. All of it server-side; the page renders what it receives.
+  // specs/clients-upcoming-past-directory.md §3 — the Clients page's own read (rules 11-22): each client
+  // resolved into ONE view (upcoming / past / none), the stay that qualifies it, the groups the page
+  // renders, the counts and the order of the current search. All of it server-side.
   //
-  // Bucket rule: a client is « à venir » as soon as ONE stay has not ended yet (a guest currently in a
-  // property is still in the operator's hands), and a client with no stay at all lands there too — the
-  // list the operator works on never loses a row. Only `kind = 'reservation'` counts: a devis is not
-  // a stay.
-  const SORTABLE = new Set(['lastName', 'firstName', 'stayDate']);
-  function directory({ q, bucket, sort, dir } = {}) {
-    const today = todayKey();
+  // Only `kind = 'reservation'` is a stay (a devis is not, and a cancelled stay walks `kind` to
+  // 'cancelled'). Two reads — every stay, every devis — regardless of the number of clients.
+  const VIEWS = ['upcoming', 'past', 'none'];
+  const UPCOMING_GROUPS = [
+    ['inStay', 'En séjour'], ['next7', '7 prochains jours'], ['next30', '30 prochains jours'], ['later', 'Plus tard'],
+  ];
+  const NONE_GROUPS = [['devis', 'Devis en cours'], ['nothing', 'Aucune réservation']];
+  const collator = new Intl.Collator('fr');
+  const compareNames = (a, b) => collator.compare(a.lastName || '', b.lastName || '')
+    || collator.compare(a.firstName || '', b.firstName || '')
+    || a.id - b.id;
+
+  function addDays(iso, days) {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function upcomingGroupKey(stay, today) {
+    if (stay.startDate <= today) return 'inStay';
+    if (stay.startDate <= addDays(today, 7)) return 'next7';
+    if (stay.startDate <= addDays(today, 30)) return 'next30';
+    return 'later';
+  }
+
+  function directory({ q, view, bucket, sort, dir, today = todayKey() } = {}) {
     const search = String(q || '').trim();
     const like = `%${search}%`;
     const where = search
-      ? `WHERE c.lastName LIKE ? OR c.firstName LIKE ? OR c.email LIKE ? OR c.phone LIKE ?
-            OR c.street LIKE ? OR c.city LIKE ? OR c.postalCode LIKE ?`
+      ? `WHERE lastName LIKE ? OR firstName LIKE ? OR email LIKE ? OR phone LIKE ?
+            OR street LIKE ? OR city LIKE ? OR postalCode LIKE ?`
       : '';
-    const params = search ? [today, today, ...Array(7).fill(like)] : [today, today];
-    const rows = database.prepare(`
-      SELECT c.*,
-        (SELECT MIN(r.startDate) FROM reservations r
-          WHERE r.clientId = c.id AND r.kind = 'reservation' AND r.endDate >= ?) AS nextStayDate,
-        (SELECT MAX(r.startDate) FROM reservations r
-          WHERE r.clientId = c.id AND r.kind = 'reservation' AND r.endDate < ?) AS lastStayDate
-      FROM clients c
-      ${where}
-    `).all(...params);
+    const clients = database.prepare(`SELECT * FROM clients ${where}`).all(...(search ? Array(7).fill(like) : []));
 
-    const enriched = rows.map(({ nextStayDate, lastStayDate, ...client }) => ({
-      ...client,
-      bucket: (nextStayDate || !lastStayDate) ? 'upcoming' : 'past',
-      stayDate: nextStayDate || lastStayDate || null,
-    }));
-    const counts = {
-      upcoming: enriched.filter((c) => c.bucket === 'upcoming').length,
-      past: enriched.filter((c) => c.bucket === 'past').length,
+    const staysByClient = new Map();
+    for (const r of database.prepare(`
+      SELECT r.id, r.clientId, r.startDate, r.endDate, r.platform, p.name AS propertyName
+      FROM reservations r LEFT JOIN properties p ON p.id = r.propertyId
+      WHERE r.kind = 'reservation' AND r.clientId IS NOT NULL
+    `).all()) {
+      if (!staysByClient.has(r.clientId)) staysByClient.set(r.clientId, []);
+      staysByClient.get(r.clientId).push(r);
+    }
+    const devisByClient = new Map();
+    for (const d of database.prepare(`
+      SELECT id, clientId, devisNumber AS number, devisStatus AS status FROM reservations
+      WHERE kind = 'devis' AND clientId IS NOT NULL ORDER BY id
+    `).all()) devisByClient.set(d.clientId, d);
+
+    const enriched = clients.map((client) => {
+      const stays = staysByClient.get(client.id) || [];
+      const upcoming = stays.filter((s) => s.endDate >= today)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.id - b.id);
+      const past = stays.filter((s) => s.endDate < today)
+        .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.id - a.id);
+      const qualifying = upcoming[0] || past[0] || null;
+      const clientBucket = upcoming.length ? 'upcoming' : (past.length ? 'past' : 'none');
+      const latestDevis = devisByClient.get(client.id) || null;
+      return {
+        ...client,
+        bucket: clientBucket,
+        stayDate: qualifying ? qualifying.startDate : null,
+        stay: qualifying && {
+          reservationId: qualifying.id,
+          propertyName: qualifying.propertyName || '',
+          startDate: qualifying.startDate,
+          endDate: qualifying.endDate,
+          nights: computeNights(qualifying.startDate, qualifying.endDate),
+          platform: qualifying.platform || '',
+        },
+        stayCount: stays.length,
+        hasDevis: Boolean(latestDevis),
+        whenLabel: clientWhenLabel(clientBucket, qualifying, latestDevis, client.createdAt, today),
+      };
+    });
+
+    const counts = Object.fromEntries(VIEWS.map((v) => [v, enriched.filter((c) => c.bucket === v).length]));
+    const activeView = VIEWS.includes(view) ? view : (VIEWS.includes(bucket) ? bucket : 'upcoming');
+    const byName = sort === 'name' || sort === 'lastName' || sort === 'firstName';
+    const defaultDir = activeView === 'upcoming' ? 'asc' : 'desc';
+    const direction = dir === 'asc' || dir === 'desc' ? dir : (byName ? 'asc' : defaultDir);
+    const reverse = byName ? direction === 'desc' : direction !== defaultDir;
+
+    const inView = enriched.filter((c) => c.bucket === activeView);
+    const compareDefault = activeView === 'none'
+      ? (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || compareNames(a, b)
+      : (a, b) => (activeView === 'upcoming' ? 1 : -1) * a.stayDate.localeCompare(b.stayDate) || compareNames(a, b);
+    const ordered = inView.sort(byName ? compareNames : compareDefault);
+
+    let groups;
+    if (byName) {
+      groups = [{ key: 'all', label: '', items: ordered }];
+    } else {
+      const bucketOf = {
+        upcoming: (c) => upcomingGroupKey(c.stay, today),
+        past: (c) => `y${c.stay.startDate.slice(0, 4)}`,
+        none: (c) => (c.hasDevis ? 'devis' : 'nothing'),
+      }[activeView];
+      const labels = activeView === 'upcoming' ? UPCOMING_GROUPS : NONE_GROUPS;
+      const byKey = new Map();
+      for (const c of ordered) {
+        const key = bucketOf(c);
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push(c);
+      }
+      const keys = activeView === 'past'
+        ? [...byKey.keys()]
+        : labels.map(([key]) => key).filter((key) => byKey.has(key));
+      groups = keys.map((key) => ({
+        key,
+        label: activeView === 'past' ? key.slice(1) : labels.find(([k]) => k === key)[1],
+        items: byKey.get(key),
+      }));
+    }
+    if (reverse) groups = groups.reverse().map((g) => ({ ...g, items: [...g.items].reverse() }));
+    groups = groups.map((g) => ({ ...g, count: g.items.length }));
+
+    let elsewhere = null;
+    if (counts[activeView] === 0) {
+      const [best] = VIEWS.filter((v) => v !== activeView && counts[v] > 0).sort((a, b) => counts[b] - counts[a]);
+      if (best) elsewhere = { view: best, count: counts[best] };
+    }
+
+    return {
+      view: activeView,
+      sort: byName ? 'name' : 'stayDate',
+      dir: direction,
+      counts,
+      orphanCount: listOrphans().length,
+      elsewhere,
+      groups: groups.map((g) => ({
+        ...g,
+        items: g.items.map(({ hasDevis, ...item }) => item),
+      })),
+      items: groups.flatMap((g) => g.items.map(({ hasDevis, ...item }) => item)),
     };
-
-    const activeBucket = bucket === 'past' ? 'past' : 'upcoming';
-    // Default per bucket (§3.3 rule 6): the soonest arrival first, the most recent stay first.
-    const sortCol = SORTABLE.has(sort) ? sort : 'stayDate';
-    const direction = dir === 'asc' || dir === 'desc'
-      ? dir
-      : (activeBucket === 'past' ? 'desc' : 'asc');
-    const factor = direction === 'desc' ? -1 : 1;
-    const byName = (a, b) => String(a.lastName || '').localeCompare(String(b.lastName || ''), 'fr')
-      || String(a.firstName || '').localeCompare(String(b.firstName || ''), 'fr')
-      || a.id - b.id;
-    const items = enriched
-      .filter((c) => c.bucket === activeBucket)
-      .sort((a, b) => {
-        if (sortCol === 'stayDate') {
-          // A client with no date is never « the smallest »: it sorts last in both directions.
-          if (!a.stayDate || !b.stayDate) {
-            if (a.stayDate === b.stayDate) return byName(a, b);
-            return a.stayDate ? -1 : 1;
-          }
-          return factor * String(a.stayDate).localeCompare(String(b.stayDate)) || byName(a, b);
-        }
-        const primary = String(a[sortCol] || '').localeCompare(String(b[sortCol] || ''), 'fr');
-        return factor * primary || byName(a, b);
-      });
-
-    return { items, counts };
   }
 
   function findById(id) {

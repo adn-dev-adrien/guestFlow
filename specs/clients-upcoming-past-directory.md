@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (rules 1-10) · **Draft** amendment of 2026-10-28 (rules 11-22, §3.5) |
+| **Status** | Implemented (rules 1-10) · Implemented — amendment of 2026-10-28 (rules 11-22, §3.5) |
 | **Branch** | `feature/clients-upcoming-past-directory` _(user-managed)_ |
 | **Created** | 2026-08-17 |
 | **Author** | Adrien |
@@ -132,7 +132,7 @@ Rules 1 (third bullet) and 5 are superseded by rules 11 and 17; every other rule
 17. **One sort control, every width.** A single « Trier » select replaces the three sortable headers
     (supersedes rule 5): « Date de séjour » (default; per-view direction of rule 6; `none` sorts by
     creation date, newest first) or « Nom » (last name then first name, French locale, rule 8). Rules 6,
-    7 and 8 stand. On `xs`, where the headers never existed, the operator can now sort too.
+    7 and 8 stand (rule 7 is moot in the views, every client of « À venir » and « Passés » having a stay). On `xs`, where the headers never existed, the operator can now sort too.
 18. **A row opens the client; contact is one tap away.** Clicking a row opens the client sheet, as
     today. The email and the phone are links (`mailto:`, `tel:`) that do not open the sheet. The row
     carries no delete button any more: deletion goes through the sheet's « Supprimer », which opens the
@@ -185,7 +185,7 @@ untouched**: a list page's shaping has no business changing what a picker receiv
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `models/` | `models/clientsModel.js` | T | `directory({ q, view, sort, dir, today })`: one aggregate query per call (a `GROUP BY clientId` over non-cancelled real stays: next / last stay id + dates, `stayCount`; a second over devis: latest devis number + status) instead of two correlated sub-selects per client; resolves the three buckets, the groups, `stay`, `whenLabel`, `elsewhere`, `orphanCount`; `today` injectable for tests. |
+| `models/` | `models/clientsModel.js` | T | `directory({ q, view, sort, dir, today })`: two reads per call (every real stay with its property, every devis) reduced per client in memory, instead of two correlated sub-selects per client; resolves the three buckets, the groups, `stay`, `whenLabel`, `elsewhere`, `orphanCount`; `today` injectable for tests. |
 | `utils/` | `utils/clientWhenLabel.js` | C | Pure: `(bucket, stay, latestDevis, createdAt, today) → whenLabel` (rule 14). French labels, unit-tested at every threshold. |
 | `controllers/` | `controllers/clientsController.js` | T | `directory` whitelists `view` (`upcoming`/`past`/`none`; legacy `bucket` accepted as an alias) and `sort` (`stayDate`/`name`; legacy `lastName`/`firstName` map to `name`). |
 | `routes/` | `routes/clients.js` | — | Unchanged (`GET /api/clients/directory`). |
@@ -203,9 +203,9 @@ untouched**: a list page's shaping has no business changing what a picker receiv
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `services/` | `api.js` | T | `getClientsDirectory({ q, view, sort, dir })`. |
-| `pages/` | `pages/ClientsPage.jsx` | T | View from `?vue=` (rule 12); `PageTabs` with three counts; search + « Trier » select in the top row; renders the server groups through `GroupedListCard`; the `elsewhere` switch (rule 16); « Nettoyer » at the head of « Sans séjour » (rule 19); drops the table head, the sortable headers and the row delete icon. The sheet, the impact dialog and the cleanup dialog are untouched. |
-| `components/` | `components/GroupedListCard.jsx` | C | **Generic**: a card listing ordered groups (`label`, `count`, rows rendered by the caller) with a sticky group heading on `md+`, an `EmptyState` slot and keyboard-reachable rows. Generic because the « Réservations à venir » list and the Devis list group by period the same way; it knows nothing about clients. |
-| `components/` | `components/ClientDirectoryRow.jsx` | C | Specific: one client row — initials, name, `whenLabel`, property · dates · nights, `PlatformChip`, « N séjours », `mailto:` / `tel:` links (rule 18, 22). Desktop: one line in four zones; `xs`: three lines. |
+| `pages/` | `pages/ClientsPage.jsx` | T | View from `?vue=` (rule 12); `PageTabs` with three counts; `SearchField` + « Trier » select in the top row; renders the server groups through `GroupedList`; a `?clientId=` outside the open view is fetched (`getClient`) so the sheet still opens; the `elsewhere` switch (rule 16); « Nettoyer » at the head of « Sans séjour » (rule 19); drops the table head, the sortable headers and the row delete icon. The sheet, the impact dialog and the cleanup dialog are untouched. |
+| `components/` | `components/GroupedList.jsx` | T | **Reused** (merged with options-resources-ux, #824) instead of the planned `GroupedListCard`: a group with an empty `label` now renders its card with no header (the flat name sort). Headings are not sticky (a deviation from the mockup, see §6). |
+| `components/` | `components/ClientDirectoryRow.jsx` | C | Specific: one client row — initials, name (the one real button, stretched over the row so the links stay separate controls), `whenLabel`, property · dates · nights, `PlatformChip`, « N séjours », `mailto:` / `tel:` links (rule 18, 22). Desktop: one line in four zones; `xs`: three lines and a 44 px `tel:` button. |
 | `components/` | `components/DataPageScaffold.jsx` | T | Gains an optional `body` prop: custom content rendered in place of the table, keeping the bar, `topContent`, loading / error states. Without it nothing changes for the other pages. |
 | `constants/` | `constants/clientsDirectory.js` | C | The French UI strings of the page (view labels, sort labels, empty states, « Nettoyer les clients »). |
 
@@ -215,8 +215,8 @@ untouched**: a list page's shaping has no business changing what a picker receiv
 |---|---|---|
 | **Consumed (existing generic)** | `DataPageScaffold` (incl. `barCenter`), MUI `Tabs`/`Tab`, `TableSortLabel` | Reused as-is — the tab-in-bar pattern is `OptionsResourcesPage`, the sortable header is `PricedItemsPage`. |
 | **Created (new generic)** | — | None. |
-| **Amendment 2026-10-28 — consumed** | `DataPageScaffold` (+ `body`), `PageTabs`, `PlatformChip`, `StatusBadge`, `EmptyState`, `LoadingState`, `ErrorAlert`, `FormDialog`, `ClientFormFields`, `ClientCleanupDialog` | `TableSortLabel` is no longer used on this page. |
-| **Amendment 2026-10-28 — created** | `GroupedListCard` (generic), `ClientDirectoryRow` (specific) | See the table above for why. |
+| **Amendment 2026-10-28 — consumed** | `DataPageScaffold` (+ `body`), `PageTabs`, `GroupedList`, `SearchField`, `PlatformChip`, `StatusBadge`, `EmptyState`, `LoadingState`, `ErrorAlert`, `FormDialog`, `ClientFormFields`, `ClientCleanupDialog` | `TableSortLabel` is no longer used on this page. |
+| **Amendment 2026-10-28 — created** | `ClientDirectoryRow` (specific) | `GroupedListCard` is not created: `GroupedList` (#824) is the same component. |
 
 ### 4.3 API contract
 
@@ -295,8 +295,7 @@ Mockups: [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../docs
   slim strip under the bar on `xs`; « Nouveau client » stays the bar's action.
 - **Top row:** search field (full width on `xs`) + « Trier : Date de séjour ▾ » select; on `xs` the
   select goes under the search, full width.
-- **List (`md+`):** one white card (`GroupedListCard`); each group opens with a small heading
-  (`kpiLabel` style, « EN SÉJOUR · 1 ») that sticks under the action bar while its rows scroll. A row,
+- **List (`md+`):** one white card per group (`GroupedList`); each group opens with the shared serif heading and a count pill (« En séjour 1 »). _Deviation from the mockup: the headings do not stick under the action bar — `GroupedList` (#824) has no sticky mode and 9 / 49 / 20 rows do not need one._ A row,
   72 px high, four zones: [initials 40 px, soft primary background] [last name in 600 + first name,
   `whenLabel` underneath in `text.secondary`, « En séjour » in success tone] [property · « 06/11 →
   08/11/2026 · 2 nuits » + `PlatformChip`] [email and phone, ellipsised, right-aligned]. Hover tints
@@ -334,44 +333,41 @@ Mockups: [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../docs
 
 ### Amendment 2026-10-28 — tests
 
-Server — `server/src/tests/clients-directory-views.unit.test.js` (new, 14 cases):
-- [ ] rule 11 — a stay-less client is `none`, not `upcoming`; a devis-only client too; counts of the three views.
-- [ ] rule 11 — a cancelled reservation does not make a client `upcoming`, nor count in `stayCount`.
-- [ ] rule 12 — unknown `view` falls back to `upcoming`; legacy `bucket=past` still answers the past view.
-- [ ] rule 13 — upcoming groups at the thresholds (in stay, J+7, J+8, J+30, J+31), empty groups omitted, order.
-- [ ] rule 13 — past groups by year, newest first; none groups `devis` before `nothing`; name sort → one unlabelled group.
-- [ ] rule 14 — `stay` is the next stay when both exist, the last one otherwise, `null` when none.
-- [ ] rule 15 — `stayCount` counts past and future real stays.
-- [ ] rule 16 — the search spans the three views; `elsewhere` names the view with the most matches, `null` when the open view matches.
-- [ ] rule 17 — `sort=name` French-locale order; `none` sorted by creation date desc; legacy `lastName` maps to `name`.
-- [ ] rule 19 — `orphanCount` equals `listOrphans().length`.
-- [ ] rule 21 — `GET /api/clients` payload unchanged (plain array).
-- [ ] rule 13 — groups' `items` flattened equal the legacy `items` field.
+Server — `server/src/tests/clients-directory-views.unit.test.js` (new, 15 cases):
+- [x] rule 11 — a stay-less client is `none`, not `upcoming`; a devis-only client too; counts of the three views.
+- [x] rule 11 — a cancelled reservation does not make a client `upcoming`, nor count in `stayCount`.
+- [x] rule 12 — unknown `view` falls back to `upcoming`; legacy `bucket=past` still answers the past view.
+- [x] rule 13 — upcoming groups at the thresholds (in stay, J+7, J+8, J+30, J+31), empty groups omitted, order.
+- [x] rule 13 — past groups by year, newest first; none groups `devis` before `nothing`; name sort → one unlabelled group.
+- [x] rule 14 — `stay` is the next stay when both exist, the last one otherwise, `null` when none.
+- [x] rule 15 — `stayCount` counts past and future real stays.
+- [x] rule 16 — the search spans the three views; `elsewhere` names the view with the most matches, `null` when the open view matches.
+- [x] rule 17 — `sort=name` French-locale order; `none` sorted by creation date desc; legacy `lastName` maps to `name`.
+- [x] rule 19 — `orphanCount` equals `listOrphans().length`.
+- [x] rule 21 — `GET /api/clients` payload unchanged (plain array).
+- [x] rule 13 — groups' `items` flattened equal the legacy `items` field.
 
 Server — `server/src/tests/client-when-label.unit.test.js` (new, 10 cases): rule 14 at every threshold
 (in stay, today, tomorrow, J+60, J+61, ended J-1, J-7, J-60, J-730, devis label, creation date).
 
-Client — `client/src/pages/__tests__/ClientsPage.directory-views.test.jsx` (new, 8 cases):
-- [ ] rule 12 — opens on « À venir » without `?vue=`; `?vue=passes` opens Passés; switching view writes the URL.
-- [ ] rule 13 — renders the server groups' labels and counts, in order, and no client-side regrouping.
-- [ ] rule 16 — the `elsewhere` button switches view.
-- [ ] rule 17 — the « Trier » select reloads with `sort=name`.
-- [ ] rule 18 — clicking the phone link does not open the sheet; no delete button in a row.
-- [ ] rule 19 — « Nettoyer les clients » only in « Sans séjour », hidden when `orphanCount` is 0.
-- [ ] rule 20 — the three empty states.
-- [ ] rule 22 — a 120-character name renders on one line with a `title`.
+Client — `client/src/pages/__tests__/ClientsPage.directory-views.test.jsx` (new, 11 cases, shared payloads in `clientsDirectoryFixtures.jsx`):
+- [x] rule 12 — opens on « À venir » without `?vue=`; `?vue=passes` opens Passés; switching view writes the URL.
+- [x] rule 13 — renders the server groups' labels and counts, in order, and no client-side regrouping.
+- [x] rule 16 — the `elsewhere` button switches view.
+- [x] rule 17 — the « Trier » select reloads with `sort=name`.
+- [x] rule 18 — clicking the phone link does not open the sheet; no delete button in a row.
+- [x] rule 19 — « Nettoyer les clients » only in « Sans séjour », hidden when `orphanCount` is 0.
+- [x] rule 20 — the three empty states.
+- [x] rule 22 — a 120-character name renders on one line with a `title`.
 
-Client — `client/src/components/__tests__/GroupedListCard.rendering.test.jsx` (new, 4 cases): groups
-and counts, empty slot, unlabelled single group, rows reachable by keyboard.
+Client — `client/src/components/__tests__/GroupedList.unlabelled.test.jsx` (new, 1 case: a group with an empty label has no heading) and `DataPageScaffold.body.test.jsx` (new, 2 cases: the body slot keeps the bar, the top content and the error state). `GroupedListCard` was not created.
 
-The existing `ClientsPage.test.jsx` (tabs/sort headers) and `ClientsPage.delete.test.jsx` (headers, row
-trash) are updated: the header assertions move to the new row structure, the « re-click the trash »
-case goes through the sheet's « Supprimer ».
+The old `ClientsPage.directory.test.jsx` (tabs, sortable headers) is removed, its cases rewritten in the new file; `ClientsPage.delete.test.jsx`, `.states`, `.duplicate` and `.save-cancel` are updated (the « re-click the trash » cases go through the sheet's « Supprimer »). `clients-directory.unit.test.js` (rules 1-10) is updated for the `none` view.
 
 E2E — `e2e/specs/clients/clients-directory.spec.js` (new, 3): opens on À venir with no past client;
 switch to Passés and back from a fiche keeps `?vue=passes`; 390 px: no horizontal scroll, `tel:` link.
 
-Manual — shadow copy at 390 / 900 / 1280: the three views, the search miss, a long name, the cleanup
+Manual — shadow copy at 390 / 1280 (see the implementation progress below): the three views, the search miss, a long name, the cleanup
 from « Sans séjour ».
 
 ## 8. Out of scope

@@ -5,7 +5,7 @@
  * not given: grouping, order and counts are the caller's data, not computed here.
  *
  * Props:
- *   groups        Array<{ key: string, label: string, items: any[], count?: number, muted?: boolean }>
+ *   groups        Array<{ key: string, label: string (empty → the group renders its card with no header), items: any[], count?: number, muted?: boolean }>
  *                 `count` is the size of the whole group; when `items` is shorter (a search is active) the
  *                 pill reads « 2 / 9 ». `muted` greys the header (an archive).
  *   renderItem    (item, { group, highlighted }) => ReactNode   the row; it owns its padding and its click
@@ -33,6 +33,7 @@ function GroupSection({
   const pill = group.items.length < total ? `${group.items.length} / ${total}` : String(total);
   return (
     <Box component="section" sx={{ mt: 1.75 }}>
+      {group.label !== '' && (
       <Typography variant="sectionHeader" component="h2" sx={{ m: 0 }}>
         <Box
           component={foldable ? ButtonBase : 'div'}
@@ -66,6 +67,7 @@ function GroupSection({
           )}
         </Box>
       </Typography>
+      )}
       {!collapsed && (
         <Box
           id={bodyId}

@@ -51,6 +51,7 @@ vi.mock('../../components/DialogProvider', () => ({
 
 import api from '../../api';
 import ClientsPage from '../ClientsPage';
+import { directoryClient, directoryPayload, oneGroup } from './clientsDirectoryFixtures';
 
 const SAMPLE_CLIENT = {
   id: 42,
@@ -98,7 +99,7 @@ function getUrl() {
 
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn?.mockReset?.());
-  api.getClientsDirectory.mockResolvedValue({ items: [SAMPLE_CLIENT], counts: { upcoming: 1, past: 0 } });
+  api.getClientsDirectory.mockResolvedValue(directoryPayload({ groups: [oneGroup([directoryClient(SAMPLE_CLIENT)])] }));
   api.getClient.mockResolvedValue(SAMPLE_CLIENT);
   api.getClientDeleteImpact.mockResolvedValue({
     client: SAMPLE_CLIENT, reservationsCount: 0, reservations: [], devisCount: 0, devis: [],
@@ -169,9 +170,7 @@ describe('ClientsPage — Save / Cancel race regression (PR #132)', () => {
     });
 
     // Re-click the row — `lastHandledClientIdRef` was reset on URL clear, so this MUST re-open.
-    const lastNameCell = await screen.findByText('Dupont');
-    const row = lastNameCell.closest('tr');
-    fireEvent.click(row);
+    fireEvent.click(await screen.findByRole('button', { name: /Dupont/ }));
 
     expect(await screen.findByText('Modifier le client')).toBeInTheDocument();
     expect(getUrl()).toBe('/clients?clientId=42');

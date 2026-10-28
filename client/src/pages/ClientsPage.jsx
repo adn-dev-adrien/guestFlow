@@ -1,12 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-  Box, TextField, TableRow, Stack, TableSortLabel,
-  TableCell, IconButton, InputAdornment, Typography, Divider, Button, Tooltip
+  Box, Button, Divider, FormControl, InputLabel, MenuItem, Select, Typography,
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import HomeIcon from '@mui/icons-material/Home';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -18,32 +15,21 @@ import StatusBadge from '../components/StatusBadge';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
+import SearchField from '../components/SearchField';
+import GroupedList from '../components/GroupedList';
+import ClientDirectoryRow from '../components/ClientDirectoryRow';
 import ClientFormFields from '../components/ClientFormFields';
 import ClientCleanupDialog from '../components/ClientCleanupDialog';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
-import { formatCurrency, displayDate } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import { useToast, useAppDialogs } from '../components/DialogProvider';
 import { localIsoToday } from '../utils/isoDay';
-
-// A sortable column header (specs/clients-upcoming-past-directory.md §3.3), same interaction as the
-// « Tarifs facturables » page. Module-level on purpose: a component defined inside the page would be a
-// new type on every render, remounting the header — and dropping the click target mid-interaction.
-function SortableCell({ col, sort, onSort, children }) {
-  return (
-    <TableCell sx={{ fontWeight: 600 }}>
-      <TableSortLabel
-        active={sort.col === col}
-        direction={sort.col === col ? sort.dir : 'asc'}
-        onClick={() => onSort(col)}
-      >
-        {children}
-      </TableSortLabel>
-    </TableCell>
-  );
-}
+import {
+  VIEWS, SORTS, TEXTS, viewFromParam, paramFromView, viewLabel,
+} from '../constants/clientsDirectory';
 
 const DEVIS_STATUS = {
   draft: { status: 'neutral', label: 'Brouillon' },
@@ -81,11 +67,13 @@ export default function ClientsPage() {
   const { showSuccess, showError } = useToast();
   const { confirm } = useAppDialogs();
   const [urlParams, setUrlParams] = useSearchParams();
-  // specs/clients-upcoming-past-directory.md §3 — the two lists, the « Séjour » date, the counts and
-  // the ordering all come from the server; the page holds only the tab, the search and the sort.
-  const [bucket, setBucket] = useState('upcoming');
-  const [sort, setSort] = useState({ col: 'stayDate', dir: 'asc' });
-  const [counts, setCounts] = useState({ upcoming: 0, past: 0 });
+  // specs/clients-upcoming-past-directory.md rules 11-21 — views, groups, labels, counts and ordering
+  // all come from the server; the page holds the view (in the URL), the search and the sort.
+  const view = viewFromParam(urlParams.get('vue'));
+  const [sortKey, setSortKey] = useState('stayDate');
+  const [directory, setDirectory] = useState(null);
+  const latestRequest = useRef(0);
+  const latestItems = useRef([]);
   const {
     items: clients,
     loading,
@@ -95,15 +83,20 @@ export default function ClientsPage() {
     updateItem,
   } = useCrudResource({
     listFn: async (params) => {
+      latestRequest.current += 1;
+      const mine = latestRequest.current;
       const res = await api.getClientsDirectory(params);
-      setCounts(res?.counts || { upcoming: 0, past: 0 });
-      return res?.items || [];
+      if (mine !== latestRequest.current) return latestItems.current;
+      latestItems.current = res?.items || [];
+      setDirectory(res);
+      return latestItems.current;
     },
     createFn: (payload) => api.createClient(payload),
     updateFn: (id, payload) => api.updateClient(id, payload),
     deleteFn: (id) => api.deleteClient(id),
   });
   const [search, setSearch] = useState('');
+  const listParams = { q: search, view, sort: sortKey };
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyClient);
   const [editId, setEditId] = useState(null);
@@ -126,29 +119,24 @@ export default function ClientsPage() {
   // The failure is surfaced through the scaffold's error state (useCrudResource re-throws); swallow
   // the rejection here so it doesn't bubble as an unhandled promise rejection.
   useEffect(() => {
-    reload({ q: search, bucket, sort: sort.col, dir: sort.dir }).catch(() => {});
-  }, [search, bucket, sort, reload]);
+    reload(listParams).catch(() => {});
+  }, [search, view, sortKey, reload]);
 
-  // Switching tab restores that tab's default order (§3.3 rule 6): the soonest arrival first on
-  // « À venir », the most recent stay first on « Passés ».
-  const handleTabChange = (next) => {
-    setBucket(next);
-    setSort({ col: 'stayDate', dir: next === 'past' ? 'desc' : 'asc' });
+  // The view lives in the URL (rule 12) so « Retour » from a fiche and a shared link land on the same list.
+  const handleViewChange = (next) => {
+    const nextParams = new URLSearchParams(urlParams);
+    const param = paramFromView(next);
+    if (param) nextParams.set('vue', param);
+    else nextParams.delete('vue');
+    setUrlParams(nextParams, { replace: true });
   };
-  const handleSortClick = (col) => {
-    setSort((prev) => (prev.col === col
-      ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-      : { col, dir: col === 'stayDate' && bucket === 'past' ? 'desc' : 'asc' }));
-  };
-  const bucketTabs = (
+  const counts = directory?.counts || { upcoming: 0, past: 0, none: 0 };
+  const viewTabs = (
     <PageTabs
-      value={bucket}
-      onChange={handleTabChange}
-      items={[
-        { value: 'upcoming', label: `À venir (${counts.upcoming})` },
-        { value: 'past', label: `Passés (${counts.past})` },
-      ]}
-      ariaLabel="Séjours des clients"
+      value={view}
+      onChange={handleViewChange}
+      items={VIEWS.map((v) => ({ value: v.value, label: `${v.label} (${counts[v.value]})` }))}
+      ariaLabel={TEXTS.tabsLabel}
     />
   );
 
@@ -211,10 +199,10 @@ export default function ClientsPage() {
       phone: String(form.phone || '').trim(),
     };
     if (editId) {
-      await updateItem(editId, payload, search);
+      await updateItem(editId, payload, listParams);
     } else {
       try {
-        await createItem(payload, search);
+        await createItem(payload, listParams);
       } catch (err) {
         // specs/clients.md rule 12 — the email or phone already belongs to a client.
         if (err?.code !== 'CLIENT_EXISTS') throw err;
@@ -226,7 +214,7 @@ export default function ClientsPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return;
-        await createItem({ ...payload, allowDuplicate: true }, search);
+        await createItem({ ...payload, allowDuplicate: true }, listParams);
       }
     }
     handleCloseDialog();
@@ -259,17 +247,20 @@ export default function ClientsPage() {
       return;
     }
     if (deleteClientIdFromUrl) return;
-    if (clients.length === 0) return;
+    if (!directory) return;
     // Already opened (or attempted to open) this client during the current URL state:
     // don't re-open just because `clients` was reloaded after a save.
     if (clientIdFromUrl === lastHandledClientIdRef.current) return;
+    lastHandledClientIdRef.current = clientIdFromUrl;
     const clientToOpen = clients.find((c) => c.id === clientIdFromUrl);
     if (clientToOpen) {
-      lastHandledClientIdRef.current = clientIdFromUrl;
       handleOpen(clientToOpen);
+    } else {
+      // The client belongs to another view than the one on screen (a link from a fiche).
+      api.getClient(clientIdFromUrl).then(handleOpen).catch(() => setClientParam(null));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlParams, clients]);
+  }, [urlParams, clients, directory]);
 
   // 2026-09-25 bug fix — same race as the `clientId` effect above, on the deletion side. Keying the
   // effect on `deleteImpact.open` alone let it re-open the dialog it had just closed: the router
@@ -366,7 +357,7 @@ export default function ClientsPage() {
     try {
       await api.deleteClient(deleteImpact.clientId, { force: true });
       closeDeleteImpact();
-      await reload({ q: search, bucket, sort: sort.col, dir: sort.dir });
+      await reload(listParams);
     } catch (error) {
       setDeleteImpact((prev) => ({
         ...prev,
@@ -376,11 +367,18 @@ export default function ClientsPage() {
     }
   };
 
+  // The list the operator came from (rule 12): the view is kept when a fiche sends them back here.
+  const clientsUrl = (extra) => {
+    const params = new URLSearchParams(extra || {});
+    const param = paramFromView(view);
+    if (param) params.set('vue', param);
+    const qs = params.toString();
+    return qs ? `/clients?${qs}` : '/clients';
+  };
+
   const openReservationFromClients = (reservationId, clientIdFromReservation = null, source = 'client') => {
     const targetClientId = editId || clientIdFromReservation || deleteImpact.clientId;
-    const fromUrl = source === 'delete'
-      ? (targetClientId ? `/clients?deleteClientId=${targetClientId}` : '/clients')
-      : (targetClientId ? `/clients?clientId=${targetClientId}` : '/clients');
+    const fromUrl = clientsUrl(targetClientId && { [source === 'delete' ? 'deleteClientId' : 'clientId']: targetClientId });
     if (source === 'client') {
       setOpen(false);
     }
@@ -389,7 +387,7 @@ export default function ClientsPage() {
 
   const openDevisFromClients = (devisId) => {
     const targetClientId = deleteImpact.clientId || editId;
-    const fromUrl = targetClientId ? `/clients?deleteClientId=${targetClientId}` : '/clients';
+    const fromUrl = clientsUrl(targetClientId && { deleteClientId: targetClientId });
     navigate(withFrom(`/reservations/new?mode=devis&devisId=${devisId}`, fromUrl));
   };
 
@@ -524,7 +522,7 @@ export default function ClientsPage() {
     try {
       const result = await api.cleanupOrphanClientsByIds(ids);
       setCleanupDialog({ open: false, orphans: [], loading: false, busy: false });
-      await reload({ q: search, bucket, sort: sort.col, dir: sort.dir });
+      await reload(listParams);
       const deleted = Number(result?.deletedCount || 0);
       const skipped = Number(result?.skippedCount || 0);
       const skippedSuffix = skipped > 0
@@ -537,95 +535,92 @@ export default function ClientsPage() {
     }
   };
 
+  const groups = directory?.groups || [];
+  const orphanCount = directory?.orphanCount || 0;
+  const elsewhere = directory?.elsewhere;
+
+  const emptyList = (() => {
+    if (search.trim()) {
+      if (!elsewhere) return <EmptyState message={TEXTS.noMatchAnywhere} py={5} />;
+      return (
+        <EmptyState
+          message={TEXTS.noMatchIn(viewLabel(view))}
+          actionLabel={TEXTS.switchTo(elsewhere.count, viewLabel(elsewhere.view))}
+          onAction={() => handleViewChange(elsewhere.view)}
+          py={5}
+        />
+      );
+    }
+    if (view === 'upcoming') {
+      return (
+        <EmptyState
+          message={TEXTS.emptyUpcoming}
+          actionLabel={counts.past > 0 ? TEXTS.seePast(counts.past) : undefined}
+          onAction={() => handleViewChange('past')}
+          py={5}
+        />
+      );
+    }
+    return <EmptyState message={view === 'past' ? TEXTS.emptyPast : TEXTS.emptyNone} py={5} />;
+  })();
+
+  const listBody = (
+    <Box aria-busy={loading} sx={{ opacity: loading ? 0.6 : 1, transition: 'opacity 150ms' }}>
+      {view === 'none' && orphanCount > 0 && (
+        <Box
+          sx={(t) => ({
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap',
+            px: 2, py: 1.25, mb: 1.5, borderRadius: '14px', bgcolor: t.palette.warning.soft, color: t.palette.warning.text,
+          })}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>{TEXTS.orphanStrip(orphanCount)}</Typography>
+          <Button variant="outlined" color="warning" size="small" startIcon={<DeleteSweepIcon />} onClick={handleCleanupOrphanClients}>
+            {TEXTS.cleanup}
+          </Button>
+        </Box>
+      )}
+      <GroupedList
+        groups={groups}
+        renderItem={(client) => <ClientDirectoryRow client={client} onOpen={handleOpen} />}
+        empty={emptyList}
+      />
+    </Box>
+  );
+
   return (
     <Box>
       <DataPageScaffold
         title="Clients"
-        barTabs={bucketTabs}
+        barTabs={viewTabs}
         actionLabel="Nouveau client"
         actionIcon={<AddIcon />}
         onAction={() => handleOpen(null)}
         topContent={(
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField
-              fullWidth
-              placeholder="Rechercher un client (nom, email, téléphone…)"
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexDirection: { xs: 'column', sm: 'row' } }}>
+            <SearchField
+              label={TEXTS.searchLabel}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              size="small"
-              variant="outlined"
-              sx={{ flex: 1, minWidth: 260 }}
-              slotProps={{
-                input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }
-              }}
+              onChange={setSearch}
+              sx={{ flex: 1, width: { xs: '100%', sm: 'auto' } }}
             />
-            <Button
-              variant="outlined"
-              color="warning"
-              startIcon={<DeleteSweepIcon />}
-              onClick={handleCleanupOrphanClients}
-            >
-              Nettoyer les clients
-            </Button>
+            <FormControl size="small" sx={{ minWidth: 190, width: { xs: '100%', sm: 'auto' } }}>
+              <InputLabel id="clients-sort-label">{TEXTS.sortLabel}</InputLabel>
+              <Select
+                labelId="clients-sort-label"
+                label={TEXTS.sortLabel}
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                sx={{ borderRadius: 3, bgcolor: 'background.paper' }}
+              >
+                {SORTS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+              </Select>
+            </FormControl>
           </Box>
         )}
-        loading={loading}
+        loading={loading && !directory}
         error={listError}
-        onRetry={() => reload({ q: search, bucket, sort: sort.col, dir: sort.dir })}
-        minWidth={960}
-        head={(
-          <TableRow>
-            <SortableCell col="lastName" sort={sort} onSort={handleSortClick}>Nom</SortableCell>
-            <SortableCell col="firstName" sort={sort} onSort={handleSortClick}>Prénom</SortableCell>
-            <SortableCell col="stayDate" sort={sort} onSort={handleSortClick}>Séjour</SortableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Téléphone</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>CP</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Ville</TableCell>
-            <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
-          </TableRow>
-        )}
-        emptyText="Aucun client trouvé"
-        items={clients}
-        getKey={(c) => c.id}
-        renderRow={(c) => (
-          <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpen(c)}>
-            <TableCell>{c.lastName}</TableCell>
-            <TableCell>{c.firstName}</TableCell>
-            <TableCell>{c.stayDate ? displayDate(c.stayDate) : '—'}</TableCell>
-            <TableCell>{c.email}</TableCell>
-            <TableCell>{c.phone}</TableCell>
-            <TableCell>{c.postalCode || '—'}</TableCell>
-            <TableCell>{c.city || '—'}</TableCell>
-            <TableCell align="right">
-              <Tooltip title="Modifier">
-                <IconButton size="small" aria-label="Modifier" onClick={(e) => { e.stopPropagation(); handleOpen(c); }}><EditIcon fontSize="small" /></IconButton>
-              </Tooltip>
-              <Tooltip title="Supprimer">
-                <IconButton size="small" color="error" aria-label="Supprimer" onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}><DeleteIcon fontSize="small" /></IconButton>
-              </Tooltip>
-            </TableCell>
-          </TableRow>
-        )}
-        renderMobileCard={(c) => (
-          <Stack spacing={0.5} onClick={() => handleOpen(c)} sx={{ cursor: 'pointer' }}>
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>{c.lastName} {c.firstName}</Typography>
-              <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0 }}>
-                <IconButton size="small" aria-label="Modifier" onClick={() => handleOpen(c)}><EditIcon fontSize="small" /></IconButton>
-                <IconButton size="small" color="error" aria-label="Supprimer" onClick={() => handleDelete(c.id)}><DeleteIcon fontSize="small" /></IconButton>
-              </Box>
-            </Stack>
-            <Typography variant="caption" color="text.secondary">
-              Séjour : {c.stayDate ? displayDate(c.stayDate) : '—'}
-            </Typography>
-            {c.email && <Typography variant="caption" color="text.secondary">{c.email}</Typography>}
-            {c.phone && <Typography variant="caption" color="text.secondary">{c.phone}</Typography>}
-            {(c.postalCode || c.city) && (
-              <Typography variant="caption" color="text.secondary">{[c.postalCode, c.city].filter(Boolean).join(' ')}</Typography>
-            )}
-          </Stack>
-        )}
+        onRetry={() => reload(listParams)}
+        body={listBody}
       />
       {/* Dialog */}
       <FormDialog
