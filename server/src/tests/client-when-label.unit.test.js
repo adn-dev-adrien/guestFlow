@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { clientWhenLabel } = require('../utils/clientWhenLabel');
+const { clientWhenLabel, stayDatesLabel } = require('../utils/clientWhenLabel');
 
 const TODAY = '2026-10-28';
 const shift = (days) => {
@@ -60,4 +60,10 @@ test('rule 14 — no stay: the latest devis with its number and status, else the
   );
   assert.equal(clientWhenLabel('none', null, null, '2026-10-12 08:30:00', TODAY), 'Créé le 12/10/2026');
   assert.equal(clientWhenLabel('none', null, null, null, TODAY), '');
+});
+
+test('rule 14 — the stay dates say the year once when both days are in it', () => {
+  assert.equal(stayDatesLabel({ startDate: '2026-11-06', endDate: '2026-11-08' }), '06/11 → 08/11/2026');
+  assert.equal(stayDatesLabel({ startDate: '2026-12-30', endDate: '2027-01-02' }), '30/12/2026 → 02/01/2027');
+  assert.equal(stayDatesLabel(null), '');
 });

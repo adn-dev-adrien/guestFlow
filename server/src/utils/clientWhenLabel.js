@@ -52,4 +52,11 @@ function clientWhenLabel(bucket, stay, latestDevis, createdAt, today) {
   return noStayLabel(latestDevis, createdAt);
 }
 
-module.exports = { clientWhenLabel };
+/** « 06/11 → 08/11/2026 »: the year is said once when both days are in it. */
+function stayDatesLabel(stay) {
+  if (!stay) return '';
+  const start = stay.startDate.slice(0, 4) === stay.endDate.slice(0, 4) ? shortDate(stay.startDate) : longDate(stay.startDate);
+  return `${start} → ${longDate(stay.endDate)}`;
+}
+
+module.exports = { clientWhenLabel, stayDatesLabel };

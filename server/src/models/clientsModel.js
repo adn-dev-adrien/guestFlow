@@ -12,7 +12,7 @@
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
-const { clientWhenLabel } = require('../utils/clientWhenLabel');
+const { clientWhenLabel, stayDatesLabel } = require('../utils/clientWhenLabel');
 
 const MS_PER_DAY = 86400000;
 
@@ -146,7 +146,7 @@ function createModel(database) {
     const devisByClient = new Map();
     for (const d of database.prepare(`
       SELECT id, clientId, devisNumber AS number, devisStatus AS status FROM reservations
-      WHERE kind = 'devis' AND clientId IS NOT NULL ORDER BY id
+      WHERE kind = 'devis' AND clientId IS NOT NULL AND COALESCE(devisStatus, 'draft') IN ('draft', 'sent', 'accepted') ORDER BY id
     `).all()) devisByClient.set(d.clientId, d);
 
     const enriched = clients.map((client) => {
@@ -169,7 +169,9 @@ function createModel(database) {
           endDate: qualifying.endDate,
           nights: computeNights(qualifying.startDate, qualifying.endDate),
           platform: qualifying.platform || '',
+          datesLabel: stayDatesLabel(qualifying),
         },
+        inStay: clientBucket === 'upcoming' && qualifying.startDate < today,
         stayCount: stays.length,
         hasDevis: Boolean(latestDevis),
         whenLabel: clientWhenLabel(clientBucket, qualifying, latestDevis, client.createdAt, today),

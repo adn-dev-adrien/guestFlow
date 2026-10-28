@@ -13,9 +13,10 @@ export function directoryClient(over = {}) {
     bucket: 'upcoming',
     stayDate: '2026-11-06',
     stay: {
-      reservationId: 10, propertyName: 'La Granja', startDate: '2026-11-06', endDate: '2026-11-08', nights: 2, platform: 'Booking',
+      reservationId: 10, propertyName: 'La Granja', startDate: '2026-11-06', endDate: '2026-11-08', datesLabel: '06/11 → 08/11/2026', nights: 2, platform: 'Booking',
     },
     stayCount: 1,
+    inStay: false,
     whenLabel: 'Arrive dans 9 j',
     ...over,
   };

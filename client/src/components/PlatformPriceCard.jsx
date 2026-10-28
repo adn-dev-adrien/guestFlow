@@ -14,7 +14,7 @@
  *   refreshKey  — any. Change it (e.g. after editing a season's price) to re-fetch the grid.
  *   onError     — optional (err) => void.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import {
   Card, CardContent, Box, Typography, TableHead, TableBody, TableRow, TableCell, Link, Tooltip,
@@ -58,6 +58,14 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  // « Voir la grille » on a reservation fiche links to #prix-plateformes: scroll once the table has its height.
+  const scrolledToHashRef = useRef(false);
+  useEffect(() => {
+    if (loading || scrolledToHashRef.current || window.location.hash !== '#prix-plateformes') return;
+    scrolledToHashRef.current = true;
+    document.getElementById('prix-plateformes')?.scrollIntoView({ block: 'start' });
+  }, [loading]);
+
   const { platforms, seasons } = data;
   const hasCommissioned = platforms.some((p) => !p.isDirect);
   // specs/tariff-recipe-platform-cleaning-fee.md rule 10 — the column exists only when a channel bills one.
@@ -81,7 +89,7 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
   };
 
   return (
-    <Card variant="outlined" sx={{ mt: 3 }}>
+    <Card id="prix-plateformes" variant="outlined" sx={{ mt: 3, scrollMarginTop: { xs: 72, sm: 88 } }}>
       <CardContent sx={{ p: { xs: 1.5, sm: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <StorefrontIcon fontSize="small" sx={{ color: 'text.secondary' }} />

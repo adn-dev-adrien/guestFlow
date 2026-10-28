@@ -35,7 +35,7 @@ import { usePlugin } from '../hooks/usePlugins';
 import { TARIFF_RECIPES } from '../constants/plugins';
 import useDayMarkers from '../hooks/useDayMarkers';
 import { displayDate, formatCurrency } from '../utils/formatters';
-import { withFrom } from '../utils/navigation';
+import { withFrom, getFromParam } from '../utils/navigation';
 
 const DEFAULT_COLORS = ['#1976d2', '#2e7d32', '#f57c00', '#6a1b9a', '#00838f', '#d81b60', '#5d4037'];
 
@@ -209,6 +209,8 @@ function sanitizeDecimalInput(raw) {
 
 export default function PropertyPricingSeasonsPage() {
   const { id } = useParams();
+  // A link from a fiche (« Voir la grille ») brings the operator back to it.
+  const backTarget = getFromParam(window.location.search) || `/properties/${id}`;
   // The day dots (school-holiday zones) and the recipe card come from plugin modules
   // (specs/plugins-phase-1-sdk.md rule 13); the season badge only names a recipe while the plugin is
   // active — a core display of core data.
@@ -791,10 +793,10 @@ export default function PropertyPricingSeasonsPage() {
   }, [seasonDialogOpen, seasonForm.pricingMode, seasonForm.pricePerNight, seasonForm.progressiveTiers, refreshProgressivePreview]);
 
   if (loadError) {
-    return <Box><PageActionBar title="Gestion tarifaire" backTo={`/properties/${id}`} /><ErrorAlert message="Impossible de charger la tarification du logement." onRetry={loadData} /></Box>;
+    return <Box><PageActionBar title="Gestion tarifaire" backTo={backTarget} /><ErrorAlert message="Impossible de charger la tarification du logement." onRetry={loadData} /></Box>;
   }
   if (!property) {
-    return <Box><PageActionBar title="Gestion tarifaire" backTo={`/properties/${id}`} /><LoadingState label="Chargement de la tarification…" /></Box>;
+    return <Box><PageActionBar title="Gestion tarifaire" backTo={backTarget} /><LoadingState label="Chargement de la tarification…" /></Box>;
   }
 
   return (
@@ -807,7 +809,7 @@ export default function PropertyPricingSeasonsPage() {
         subtitle={isCompact ? undefined : (
           <Typography variant="body2" color="text.secondary">{property.name}</Typography>
         )}
-        backTo={`/properties/${id}`}
+        backTo={backTarget}
         // Compact: ICON actions, which PageActionBar collapses into its « … » overflow menu past two
         // items. As custom `node` buttons they stayed inline by design and stacked into a staircase
         // that squeezed the title out.

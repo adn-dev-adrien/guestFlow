@@ -1,6 +1,7 @@
 // specs/reservation-payment-ledger.md rules 56 and 62 — the platform price alert prints what the server decided.
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import PlatformPriceAlert from '../PlatformPriceAlert';
 
@@ -24,7 +25,7 @@ test('rule 62 — above the grid the percentage is signed with a plus', () => {
 test('rule 62 — « Voir la grille » links to the property’s pricing seasons, as a 44 px target', () => {
   renderAlert(CHECK);
   const link = screen.getByRole('link', { name: 'Voir la grille' });
-  expect(link).toHaveAttribute('href', '/properties/3/pricing-seasons');
+  expect(link.getAttribute('href')).toMatch(/^\/properties\/3\/pricing-seasons\?from=.*#prix-plateformes$/);
   expect(getComputedStyle(link).minHeight).toBe('44px');
 });
 
@@ -38,4 +39,17 @@ test('rule 62 — nothing is rendered without a check, and the alert has no dism
 test('rule 56 — no « tarif » / « ancien » wording in the alert', () => {
   renderAlert(CHECK);
   expect(screen.getByTestId('platform-price-alert')).not.toHaveTextContent(/tarif|ancien/i);
+});
+
+test('rule 62 — « Voir la grille » asks the page’s unsaved-changes guard first and stays put when it blocks', () => {
+  const guard = vi.fn(() => true);
+  window.__guestflowBeforeNavigate = guard;
+  try {
+    renderAlert(CHECK);
+    fireEvent.click(screen.getByRole('link', { name: 'Voir la grille' }));
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(guard.mock.calls[0][0]).toMatch(/^\/properties\/3\/pricing-seasons\?from=.*#prix-plateformes$/);
+  } finally {
+    delete window.__guestflowBeforeNavigate;
+  }
 });

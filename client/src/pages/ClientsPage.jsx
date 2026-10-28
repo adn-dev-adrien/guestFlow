@@ -72,6 +72,7 @@ export default function ClientsPage() {
   const view = viewFromParam(urlParams.get('vue'));
   const [sortKey, setSortKey] = useState('stayDate');
   const [directory, setDirectory] = useState(null);
+  const [pending, setPending] = useState(0);
   const latestRequest = useRef(0);
   const latestItems = useRef([]);
   const {
@@ -85,18 +86,32 @@ export default function ClientsPage() {
     listFn: async (params) => {
       latestRequest.current += 1;
       const mine = latestRequest.current;
-      const res = await api.getClientsDirectory(params);
-      if (mine !== latestRequest.current) return latestItems.current;
-      latestItems.current = res?.items || [];
-      setDirectory(res);
-      return latestItems.current;
+      setPending((n) => n + 1);
+      try {
+        const res = await api.getClientsDirectory(params);
+        if (mine !== latestRequest.current) return latestItems.current;
+        latestItems.current = (res?.groups || []).flatMap((g) => g.items);
+        setDirectory(res);
+        return latestItems.current;
+      } catch (err) {
+        // A superseded request's failure is nobody's business any more.
+        if (mine !== latestRequest.current) return latestItems.current;
+        throw err;
+      } finally {
+        setPending((n) => n - 1);
+      }
     },
     createFn: (payload) => api.createClient(payload),
     updateFn: (id, payload) => api.updateClient(id, payload),
     deleteFn: (id) => api.deleteClient(id),
   });
   const [search, setSearch] = useState('');
-  const listParams = { q: search, view, sort: sortKey };
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const listParams = { q: debouncedSearch, view, sort: sortKey };
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyClient);
   const [editId, setEditId] = useState(null);
@@ -120,7 +135,7 @@ export default function ClientsPage() {
   // the rejection here so it doesn't bubble as an unhandled promise rejection.
   useEffect(() => {
     reload(listParams).catch(() => {});
-  }, [search, view, sortKey, reload]);
+  }, [debouncedSearch, view, sortKey, reload]);
 
   // The view lives in the URL (rule 12) so « Retour » from a fiche and a shared link land on the same list.
   const handleViewChange = (next) => {
@@ -135,7 +150,15 @@ export default function ClientsPage() {
     <PageTabs
       value={view}
       onChange={handleViewChange}
-      items={VIEWS.map((v) => ({ value: v.value, label: `${v.label} (${counts[v.value]})` }))}
+      items={VIEWS.map((v) => ({
+        value: v.value,
+        label: v.label,
+        badge: (
+          <Box component="span" sx={{ px: 0.75, borderRadius: 99, bgcolor: 'grey.200', color: 'text.secondary', fontSize: '0.75rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            {` ${counts[v.value]}`}
+          </Box>
+        ),
+      }))}
       ariaLabel={TEXTS.tabsLabel}
     />
   );
@@ -565,7 +588,7 @@ export default function ClientsPage() {
   })();
 
   const listBody = (
-    <Box aria-busy={loading} sx={{ opacity: loading ? 0.6 : 1, transition: 'opacity 150ms' }}>
+    <Box aria-busy={pending > 0} sx={{ opacity: pending > 0 ? 0.6 : 1, transition: 'opacity 150ms' }}>
       {view === 'none' && orphanCount > 0 && (
         <Box
           sx={(t) => ({
@@ -582,7 +605,11 @@ export default function ClientsPage() {
       <GroupedList
         groups={groups}
         renderItem={(client) => <ClientDirectoryRow client={client} onOpen={handleOpen} />}
-        empty={emptyList}
+        empty={(
+          <Box sx={{ bgcolor: 'background.paper', borderRadius: '14px', boxShadow: '0 1px 2px rgba(39,37,31,.06), 0 4px 14px rgba(39,37,31,.05)' }}>
+            {emptyList}
+          </Box>
+        )}
       />
     </Box>
   );
@@ -612,7 +639,7 @@ export default function ClientsPage() {
                 onChange={(e) => setSortKey(e.target.value)}
                 sx={{ borderRadius: 3, bgcolor: 'background.paper' }}
               >
-                {SORTS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+                {SORTS.map((o) => <MenuItem key={o.value} value={o.value}>{o.value === 'stayDate' && view === 'none' ? TEXTS.sortByCreation : o.label}</MenuItem>)}
               </Select>
             </FormControl>
           </Box>

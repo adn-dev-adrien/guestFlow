@@ -8,47 +8,40 @@
  * or e-mail truncates to one line with the full value in `title`.
  *
  * Props:
- *   client    { id, lastName, firstName, email, phone, whenLabel, stayCount, bucket,
- *               stay: { propertyName, startDate, endDate, nights, platform } | null }
+ *   client    { id, lastName, firstName, email, phone, whenLabel, inStay, stayCount,
+ *               stay: { propertyName, datesLabel, nights, platform } | null }
  *   onOpen    (client) => void
  */
-import React from 'react';
+import React, { useId } from 'react';
 import { Box, ButtonBase, IconButton, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import PhoneIcon from '@mui/icons-material/PhoneOutlined';
 import PlatformChip from './PlatformChip';
 import StatusBadge from './StatusBadge';
-import { displayDate } from '../utils/formatters';
 import { TEXTS } from '../constants/clientsDirectory';
 
 const ellipsis = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 };
 
 function initialsOf(client) {
-  const letters = [client.firstName, client.lastName]
+  const letters = [client.lastName, client.firstName]
     .map((part) => String(part || '').trim().charAt(0).toUpperCase())
     .join('');
   return letters || '?';
 }
 
-// « 06/11 → 08/11/2026 »: the year is said once when both days are in it.
-function stayDates(stay) {
-  const start = displayDate(stay.startDate);
-  const end = displayDate(stay.endDate);
-  return `${start.slice(6) === end.slice(6) ? start.slice(0, 5) : start} → ${end}`;
-}
-
 const chipSx = { flex: 'none', height: 20, fontSize: '0.6875rem' };
 
 const contactLinkSx = {
-  ...ellipsis, display: 'block', color: 'text.secondary', textDecoration: 'none', fontSize: '0.8125rem',
+  ...ellipsis, display: 'inline-block', maxWidth: '100%', verticalAlign: 'top', color: 'text.secondary', textDecoration: 'none', fontSize: '0.8125rem',
   position: 'relative', zIndex: 1, '&:hover': { color: 'primary.main', textDecoration: 'underline' },
   '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2, borderRadius: 0.5 },
 };
 
 export default function ClientDirectoryRow({ client, onOpen }) {
   const { stay } = client;
+  const detailId = useId();
   const fullName = [client.lastName, client.firstName].filter((p) => String(p || '').trim()).join(' ');
-  const inStay = client.bucket === 'upcoming' && String(client.whenLabel).startsWith('En séjour');
+  const { inStay } = client;
   return (
     <Box
       data-testid="client-row"
@@ -77,8 +70,9 @@ export default function ClientDirectoryRow({ client, onOpen }) {
           <ButtonBase
             onClick={() => onOpen(client)}
             title={fullName}
+            aria-describedby={detailId}
             sx={{
-              ...ellipsis, display: 'block', textAlign: 'left', font: 'inherit', fontWeight: 600, borderRadius: 1,
+              ...ellipsis, display: 'block', position: 'static', textAlign: 'left', font: 'inherit', fontWeight: 600, borderRadius: 1,
               '&::after': { content: '""', position: 'absolute', inset: 0 },
               '&.Mui-focusVisible::after': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2, borderRadius: 'inherit' },
             }}
@@ -86,12 +80,13 @@ export default function ClientDirectoryRow({ client, onOpen }) {
             {fullName || '—'}
           </ButtonBase>
           {client.stayCount >= 2 && (
-            <Box sx={{ flex: 'none', position: 'relative' }}>
+            <Box sx={{ flex: 'none' }}>
               <StatusBadge status="neutral" label={TEXTS.stays(client.stayCount)} />
             </Box>
           )}
         </Box>
         <Typography
+          id={detailId}
           variant="body2"
           title={client.whenLabel}
           sx={{ ...ellipsis, fontSize: '0.8125rem', color: inStay ? 'success.text' : 'text.secondary', fontWeight: inStay ? 600 : 400 }}
@@ -110,7 +105,7 @@ export default function ClientDirectoryRow({ client, onOpen }) {
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, color: 'text.secondary', fontSize: '0.8125rem' }}>
             <Box component="span" sx={{ ...ellipsis, fontVariantNumeric: 'tabular-nums' }}>
-              {stayDates(stay)} · {TEXTS.nights(stay.nights)}
+              {stay.datesLabel} · {TEXTS.nights(stay.nights)}
             </Box>
             <PlatformChip platform={stay.platform} sx={{ ...chipSx, display: { xs: 'none', md: 'inline-flex' } }} />
           </Box>
@@ -118,8 +113,8 @@ export default function ClientDirectoryRow({ client, onOpen }) {
       )}
 
       <Box sx={{ minWidth: 0, textAlign: 'right', gridColumn: { md: stay ? 'auto' : '3 / span 2' }, display: { xs: 'none', md: 'block' } }}>
-        {client.email && <Box component="a" href={`mailto:${client.email}`} title={client.email} sx={contactLinkSx}>{client.email}</Box>}
-        {client.phone && <Box component="a" href={`tel:${client.phone}`} title={client.phone} sx={contactLinkSx}>{client.phone}</Box>}
+        {client.email && <Box sx={{ minWidth: 0 }}><Box component="a" href={`mailto:${client.email}`} title={client.email} sx={contactLinkSx}>{client.email}</Box></Box>}
+        {client.phone && <Box sx={{ minWidth: 0 }}><Box component="a" href={`tel:${client.phone}`} title={client.phone} sx={contactLinkSx}>{client.phone}</Box></Box>}
       </Box>
 
       {client.phone && (

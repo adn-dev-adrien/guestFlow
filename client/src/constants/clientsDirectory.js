@@ -12,8 +12,9 @@ export const SORTS = [
 ];
 
 export const TEXTS = {
-  searchLabel: 'Rechercher un client (nom, email, téléphone…)',
+  searchLabel: 'Rechercher un client',
   sortLabel: 'Trier',
+  sortByCreation: 'Date de création',
   tabsLabel: 'Séjours des clients',
   noMatchIn: (viewLabel) => `Aucun résultat dans ${viewLabel}`,
   switchTo: (count, viewLabel) => `${count} dans ${viewLabel}`,

@@ -65,6 +65,12 @@ function platformPriceCheck({
   const channel = (grid?.platforms || []).find((p) => String(p.name || '').trim().toLowerCase() === platformKey);
   if (!channel || !(Number(channel.commissionPercent) < 100)) return null;
 
+  // A cleaning fee billed by the channel and a ménage sold as an option inside the same brut cannot be told
+  // apart (no flag marks the cleaning option): the fee would be counted twice, so the stay is not judged.
+  const extrasInBrut = [...(quote.optionLines || []), ...(quote.resourceLines || [])]
+    .some((line) => !Number(line.inComplement || 0) && Number(line.totalPrice || 0) > 0);
+  if (Number(channel.cleaningFee || 0) > 0 && extrasInBrut) return null;
+
   const seasonsById = new Map((grid.seasons || []).map((s) => [s.ruleId, s]));
   const nights = Array.isArray(quote.nightlyBreakdown) ? quote.nightlyBreakdown : [];
   if (nights.length === 0) return null;

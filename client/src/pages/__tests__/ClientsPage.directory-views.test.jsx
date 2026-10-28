@@ -58,7 +58,7 @@ const COUNTS = { upcoming: 9, past: 49, none: 20 };
 const UPCOMING = directoryPayload({
   counts: COUNTS,
   groups: [
-    { key: 'inStay', label: 'En séjour', items: [directoryClient({ id: 1, lastName: 'Morel', firstName: 'Inès', stayCount: 3, whenLabel: 'En séjour · départ le 08/11', email: 'ines@example.fr', phone: '06 12 34 56 78' })] },
+    { key: 'inStay', label: 'En séjour', items: [directoryClient({ id: 1, lastName: 'Morel', firstName: 'Inès', stayCount: 3, inStay: true, whenLabel: 'En séjour · départ le 08/11', email: 'ines@example.fr', phone: '06 12 34 56 78' })] },
     oneGroup([directoryClient({ id: 2, lastName: 'Bernard', firstName: 'Luc', whenLabel: 'Arrive dans 5 j' })]),
   ],
 });
@@ -72,9 +72,9 @@ beforeEach(() => {
 
 test('rule 12 — opens on « À venir » without ?vue=, tabs carry the three counts, the read asks for that view', async () => {
   renderPage();
-  expect(await screen.findByRole('tab', { name: 'À venir (9)' })).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByRole('tab', { name: 'Passés (49)' })).toBeInTheDocument();
-  expect(screen.getByRole('tab', { name: 'Sans séjour (20)' })).toBeInTheDocument();
+  expect(await screen.findByRole('tab', { name: /^À venir\s*9$/ }, { timeout: 4000 })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('tab', { name: /^Passés\s*49$/ })).toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: /^Sans séjour\s*20$/ })).toBeInTheDocument();
   expect(lastCall()).toMatchObject({ view: 'upcoming', sort: 'stayDate' });
 });
 
@@ -108,6 +108,7 @@ test('rules 14-15 — the row prints the server label, the stay, the platform an
   expect(within(row).getByText('En séjour · départ le 08/11')).toBeInTheDocument();
   expect(within(row).getByText('La Granja')).toBeInTheDocument();
   expect(within(row).getByText('06/11 → 08/11/2026 · 2 nuits')).toBeInTheDocument();
+  expect(within(row).getByText('En séjour · départ le 08/11')).toHaveStyle('font-weight: 600');
   expect(within(row).getAllByText('Booking').length).toBeGreaterThan(0);
   expect(within(row).getByText('3 séjours')).toBeInTheDocument();
   const other = screen.getByText('Bernard Luc').closest('[data-testid="client-row"]');

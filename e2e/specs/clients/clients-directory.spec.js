@@ -34,6 +34,26 @@ test('opens on « À venir » without the past clients; a search finds them in �
   await expect(page.getByRole('button', { name: new RegExp(past.lastName) })).toBeVisible();
 });
 
+test('a click anywhere on the row — the stay column included — opens the client sheet, a contact link does not', async ({ page }) => {
+  const tag = `D${Date.now()}`;
+  await seed(tag);
+  await page.goto('/clients');
+  await page.getByRole('searchbox', { name: /Rechercher un client/ }).fill(`Avenir${tag}`);
+  const row = page.getByTestId('client-row').first();
+  await expect(row).toBeVisible();
+  // The stay column sits under the row's stretched button: click where a user would, on its text.
+  const clickCentreOf = async (locator) => {
+    const box = await locator.boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  };
+  await clickCentreOf(row.getByText(/E2E annuaire/).first());
+  await expect(page.getByText('Modifier le client')).toBeVisible();
+  await page.getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.getByText('Modifier le client')).toBeHidden();
+  await clickCentreOf(row.getByText(/ nuits/));
+  await expect(page.getByText('Modifier le client')).toBeVisible();
+});
+
 test('the view survives a trip to a fiche and « Retour »; « Sans séjour » offers the cleanup', async ({ page }) => {
   const tag = `B${Date.now()}`;
   const { past, nobody } = await seed(tag);

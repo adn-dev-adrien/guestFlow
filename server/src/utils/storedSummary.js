@@ -20,6 +20,13 @@ function safeAll(db, sql, ...params) {
   try { return db.prepare(sql).all(...params); } catch { return []; }
 }
 
+// An offered line is saved at 0: its real price is what the unit price and the billed units make. A line
+// that is NOT offered is exactly what was saved, a free one (0 €) included.
+function realPrice(line, offered) {
+  if (!offered || Number(line.totalPrice) > 0) return round2(line.totalPrice);
+  return round2(Number(line.unitPrice || 0) * Number(line.billedUnits || 0));
+}
+
 function storedOptionLines(db, row) {
   const defaultOffered = new Set(
     safeAll(db, 'SELECT optionId FROM property_option_defaults WHERE propertyId = ? AND offered = 1', row.propertyId)
@@ -31,8 +38,7 @@ function storedOptionLines(db, row) {
       FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId
      WHERE ro.reservationId = ? ORDER BY o.title COLLATE NOCASE`, row.id).map((r) => {
     const offered = flag(r.offered);
-    // An offered line is saved at 0: its real price is what the unit price and the billed units make.
-    const real = round2(Number(r.totalPrice) > 0 ? r.totalPrice : Number(r.unitPrice || 0) * Number(r.billedUnits || 0));
+    const real = realPrice(r, offered);
     return {
       optionId: Number(r.optionId),
       title: r.title || '',
@@ -80,7 +86,7 @@ function storedResourceLines(db, row) {
       FROM reservation_resources rr LEFT JOIN resources r ON r.id = rr.resourceId
      WHERE rr.reservationId = ? ORDER BY r.name COLLATE NOCASE`, row.id).map((r) => {
     const offered = flag(r.offered);
-    const real = round2(Number(r.totalPrice) > 0 ? r.totalPrice : Number(r.unitPrice || 0) * Number(r.billedUnits || 0));
+    const real = realPrice(r, offered);
     return {
       resourceId: Number(r.resourceId),
       name: r.name || '',
@@ -98,15 +104,18 @@ function storedResourceLines(db, row) {
   });
 }
 
-/** The saved nights, or `[]` when they no longer add up to the saved accommodation (« Détail » is then not offered). */
-function storedNightlyBreakdown(db, row, accommodation) {
+/**
+ * The saved nights, or `[]` when they no longer add up to the saved price of the nights (`totalPrice`, as the
+ * live card compares them): « Détail » is then not offered.
+ */
+function storedNightlyBreakdown(db, row, nightsTotal) {
   const nights = safeAll(db, `
     SELECT date, seasonLabel, pricingMode, price FROM reservation_nights WHERE reservationId = ? ORDER BY date`, row.id)
     .map((n, index) => ({
       date: n.date, nightNumber: index + 1, pricingMode: n.pricingMode, seasonLabel: n.seasonLabel, price: round2(n.price),
     }));
   const sum = round2(nights.reduce((total, n) => total + n.price, 0));
-  return nights.length > 0 && Math.abs(sum - accommodation) <= 0.01 ? nights : [];
+  return nights.length > 0 && Math.abs(sum - nightsTotal) <= 0.01 ? nights : [];
 }
 
 function nightsBetween(start, end) {
@@ -161,7 +170,7 @@ function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midS
 
   const summary = {
     nights: nightsBetween(row.startDate, row.endDate),
-    nightlyBreakdown: storedNightlyBreakdown(db, row, accommodation),
+    nightlyBreakdown: storedNightlyBreakdown(db, row, row.totalPrice == null ? accommodation : round2(row.totalPrice)),
     optionLines,
     resourceLines,
     accommodation,
@@ -201,7 +210,12 @@ function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midS
     platformNetReceivedAmount: totalCommission > 0 ? round2(preArrival - totalCommission) : null,
     headline,
   };
-  summary.summaryCascade = summaryCascade(summary);
+  // The card's lines add up to the saved total (`totalStayPrice`): the tourist tax a platform withheld is
+  // shown struck on its own line, never added on top, so the cascade starts from the saved total and
+  // deducts nothing for it.
+  summary.summaryCascade = {
+    ...summaryCascade(summary), grossTotal: summary.totalStayPrice, offeredTaxDeduction: 0,
+  };
   return summary;
 }
 

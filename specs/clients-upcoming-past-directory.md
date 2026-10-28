@@ -395,6 +395,8 @@ Resolved during scoping (2026-08-17, issue #19):
 - **Q-B. The row delete icon. — Resolved 2026-10-28:** (a) removed; deletion through the client sheet
   only. Rejected: (b) a « ⋯ » menu per row.
 
+**Review of 2026-10-28 — applied:** each item carries `inStay` and `stay.datesLabel` (« 06/11 → 08/11/2026 », year said once) so the row prints what the server decided; the whole row — the stay column included — opens the sheet (the stretched button is positioned against the row), contact links are inline so only their text is a target; the view tabs show their count as a pill; the sort label reads « Date de création » in « Sans séjour »; the search is debounced (250 ms) and a superseded response is ignored; a search miss sits inside the card; « Devis en cours » counts only draft, sent or accepted devis.
+
 ## 10. Implementation progress
 
 **Amendment 2026-10-28 — implemented** on `feature/clients-directory-and-fiche-tariff` (commit `feat(clients): directory with À venir / Passés / Sans séjour views`).

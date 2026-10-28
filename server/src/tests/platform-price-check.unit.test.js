@@ -181,3 +181,11 @@ test('rule 63 — the controller answers the check on calculate-price and omits 
   await controller.calculatePrice({ body, user: { role: 'reception' } }, reception);
   assert.equal('platformPriceCheck' in reception.body, false);
 });
+
+test('rule 61 — a channel cleaning fee and a ménage option inside the brut cannot be told apart: not judged', () => {
+  const withFee = { loadContext: () => ({ rules: RULES, property: {}, grid: { ...GRID, platforms: [{ id: 5, name: 'Booking', commissionPercent: 15, cleaningFee: 145 }] }, tariffChangedSinceBooking: false }) };
+  const far = { platformGrossAmount: 150, accommodationAdjustedPrice: 150 };
+  assert.ok(util({ quote: far, ...withFee }), 'sanity: the fee alone does not silence it');
+  assert.equal(util({ quote: { ...far, optionLines: [{ title: 'Ménage', totalPrice: 80, inComplement: 0 }] }, ...withFee }), null);
+  assert.ok(util({ quote: { ...far, optionLines: [{ title: 'Ménage', totalPrice: 80, inComplement: 1 }] }, ...withFee }), 'a line collected on arrival is not in the brut');
+});

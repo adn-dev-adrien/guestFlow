@@ -880,7 +880,7 @@ function platformPriceCheckOf({ quote, body, propertyId, storedRow, devisId, nig
     nightsReplayed,
     today: getTodayIsoDate(),
     loadContext: () => ({
-      rules: db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ?').all(propertyId),
+      rules: db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId),
       property: db.prepare('SELECT extraGuestPrice FROM properties WHERE id = ?').get(propertyId) || {},
       grid: propertiesModel.platformPrices(propertyId),
       tariffChangedSinceBooking: getTariffJournal().hasEventAfter(propertyId, bookingDate),

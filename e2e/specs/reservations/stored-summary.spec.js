@@ -50,8 +50,15 @@ test('a Booking stay 30 % under the grid shows « Prix Booking à vérifier »; 
   await expect(alert).toBeVisible({ timeout: 15_000 });
   await expect(alert).toContainText('Prix Booking à vérifier');
   await expect(alert).toContainText('248,00 € payés · 354,00 € selon la grille (−30 %)');
+  // A fiche with unsaved changes asks before leaving, then the grid opens on « Prix plateformes ».
+  await page.getByLabel('Notes').first().fill('note non enregistrée');
   await alert.getByRole('link', { name: 'Voir la grille' }).click();
-  await expect(page).toHaveURL(new RegExp(`/properties/${property.id}/pricing-seasons`));
+  await expect(page.getByText('Quitter sans enregistrer')).toBeVisible();
+  await page.getByRole('button', { name: 'Quitter sans enregistrer' }).click();
+  await expect(page).toHaveURL(new RegExp(`/properties/${property.id}/pricing-seasons.*#prix-plateformes`));
+  const card = page.locator('#prix-plateformes');
+  await expect(card.getByText('Prix plateformes')).toBeVisible();
+  await expect(card).toBeInViewport();
 });
 
 test.describe('phone (390 px)', () => {

@@ -124,7 +124,7 @@ function createTariffChangeJournalModel(database) {
   // « today's tariff ».
   function hasEventAfter(propertyId, isoDay) {
     const row = database.prepare(
-      'SELECT 1 AS found FROM tariff_change_events WHERE propertyId = ? AND substr(occurredAt, 1, 10) > ? LIMIT 1',
+      "SELECT 1 AS found FROM tariff_change_events WHERE propertyId = ? AND date(occurredAt, 'localtime') > ? LIMIT 1",
     ).get(Number(propertyId), String(isoDay || '').slice(0, 10));
     return Boolean(row);
   }

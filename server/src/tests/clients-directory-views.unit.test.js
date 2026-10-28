@@ -142,7 +142,10 @@ test('rule 14 — `stay` is the next stay when both exist, the last one otherwis
   addClient('Rien');
 
   const row = find(directory(), 'Fidele');
-  assert.deepEqual(row.stay, {
+  assert.equal(row.inStay, false);
+  assert.match(row.stay.datesLabel, /^\d\d\/\d\d.* → \d\d\/\d\d\/\d{4}$/);
+  const { datesLabel, ...stay } = row.stay;
+  assert.deepEqual(stay, {
     reservationId: nextId, propertyName: 'La Granja', startDate: shift(12), endDate: shift(15), nights: 3, platform: 'Booking',
   });
   assert.equal(row.stayDate, shift(12));
@@ -160,6 +163,7 @@ test('rule 14 — the stay of a client in the house is the current one; yesterda
   addStay(addClient('Hier'), -4, -1);
   const res = directory();
   assert.equal(find(res, 'Chezlui').stay.reservationId, current);
+  assert.equal(find(res, 'Chezlui').inStay, true);
   assert.equal(find(res, 'Chezlui').whenLabel, 'En séjour · départ le 08/11');
   assert.equal(res.groups[0].key, 'inStay');
   assert.equal(find(directory({ view: 'past' }), 'Hier').whenLabel, 'Parti le 27/10');
@@ -250,4 +254,24 @@ test('rule 12 — the controller forwards view, sort and dir and lets the model 
   const body = controller.directory({ query: { q: 'x', view: 'past', sort: 'name', dir: 'asc' } }, res);
   assert.deepEqual(body, { ok: true });
   assert.deepEqual(received, { q: 'x', view: 'past', bucket: undefined, sort: 'name', dir: 'asc' });
+});
+
+test('rule 11 — a stay ending today is « upcoming », « Arrive aujourd’hui » matches the « inStay » group of a stay starting today', () => {
+  const { addClient, addStay, directory } = makeModel();
+  const ends = addClient('Partant');
+  addStay(ends, -3, 0);
+  const starts = addClient('Arrivant');
+  addStay(starts, 0, 2);
+  const res = directory();
+  assert.deepEqual(res.groups.map((g) => g.key), ['inStay']);
+  assert.equal(find(res, 'Partant').whenLabel, 'En séjour · départ le 28/10');
+  assert.equal(find(res, 'Arrivant').whenLabel, "Arrive aujourd'hui");
+});
+
+test('rule 13 — only a live devis puts a client in « Devis en cours »; abandoned, expired or converted ones do not', () => {
+  const { addClient, addStay, directory } = makeModel();
+  addStay(addClient('Vivant'), 3, 4, { kind: 'devis', devisNumber: 'D-1', devisStatus: 'sent' });
+  for (const status of ['abandoned', 'expired', 'converted']) addStay(addClient(`Mort${status}`), 3, 4, { kind: 'devis', devisNumber: 'D-2', devisStatus: status });
+  const groups = directory({ view: 'none' }).groups;
+  assert.deepEqual(groups.map((g) => [g.key, g.count]), [['devis', 1], ['nothing', 3]]);
 });

@@ -2,6 +2,9 @@
  * PlatformPriceAlert — the one alert of the pricing summary: a platform stay sold far from the
  * « Prix plateformes » grid of its channel (specs/reservation-payment-ledger.md rules 58-63).
  *
+ * « Voir la grille » goes through the page's unsaved-changes guard (`window.__guestflowBeforeNavigate`) like a
+ * sidebar link, lands on the « Prix plateformes » card and brings the operator back to the fiche.
+ *
  * Renders what the server decided and shaped (`platformPriceCheck`); it compares nothing. Renders
  * nothing for `null`. Specific to the reservation fiche: its only content is this check.
  *
@@ -10,15 +13,25 @@
  */
 import React from 'react';
 import { Alert, AlertTitle, Box, Link as MuiLink } from '@mui/material';
-import { Link as RouterLink } from 'react-router';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { formatCurrency, formatSignedPercent } from '../../utils/formatters';
 import { formatPlatformLabel } from '../../constants/platforms';
 import { PLATFORM_PRICE_ALERT } from '../../constants/pricingSummaryStrings';
+import { withFrom } from '../../utils/navigation';
 
 const nowrap = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' };
 
 export default function PlatformPriceAlert({ check }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   if (!check) return null;
+  const target = `${withFrom(check.gridPath, `${location.pathname}${location.search}`)}#prix-plateformes`;
+  const openGrid = (event) => {
+    event.preventDefault();
+    const beforeNavigate = window.__guestflowBeforeNavigate;
+    if (typeof beforeNavigate === 'function' && beforeNavigate(target)) return;
+    navigate(target);
+  };
   return (
     <Alert
       severity="warning"
@@ -37,7 +50,8 @@ export default function PlatformPriceAlert({ check }) {
       </Box>
       <MuiLink
         component={RouterLink}
-        to={check.gridPath}
+        to={target}
+        onClick={openGrid}
         variant="body2"
         underline="hover"
         sx={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, fontWeight: 600 }}

@@ -520,7 +520,7 @@ captions and the platform cascade labels the live card has.
     « À payer avant », the complements and the caution. `StoredPricingSummary` is deleted.
 51. **The server shapes the stored summary like the live quote.** `storedSummary` carries, beside its
     money figures and dates, what `PricingSummary` reads from a quote: `nights`; `nightlyBreakdown` (the
-    saved nights; `[]` when their sum is more than 0,01 € away from the stored accommodation — « Détail »
+    saved nights; `[]` when their sum is more than 0,01 € away from the saved price of the nights (`totalPrice`, as the live card compares them) — « Détail »
     is then not offered rather than showing nights that do not add up); `optionLines` (the saved options
     by name, then the custom options) and `resourceLines`, each in the engine's line shape — `title` /
     `name`, `quantity`, `totalPrice` (0 when offered), `originalTotalPrice` (the real price, struck when
@@ -624,6 +624,11 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     fallback of a night no season covered yet): the grid describes a tariff the guest never saw, whatever
     the journal says. _Added after the real-data pass of 2026-10-28: a Booking stay of August 2027,
     booked in August 2026 on the fallback 100 € nights, read +43 % against today's grid._
+    A channel that bills a cleaning fee on the grid is not judged when the brut also carries a line sold
+    at the stay's own price (an option or a resource not collected on arrival): the fee and a « Ménage »
+    option cannot be told apart — no flag marks the cleaning option — and would be counted twice.
+    _Accepted limit (review 2026-10-28): a stay sold before a season edit is silenced by the clause above
+    rather than judged on today's grid._
     A manual price (`customPrice`) does not exist on a platform stay (the brut is the single lever,
     platform-payment-entry), so it needs no case.
 62. **One short alert, in the card.** When raised, the « Résumé tarifaire » opens with a single
@@ -631,7 +636,9 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     phone sheet: a title **« Prix {Plateforme} à vérifier »**, one line **« {paid} payés · {expected}
     selon la grille ({gapPercent}) »** (« 812,00 € payés · 1 180,00 € selon la grille (−31 %) »), and
     a text link **« Voir la grille »** to `/properties/:propertyId/pricing-seasons` (the « Prix
-    plateformes » section). Nothing else: no explanation of the mechanism, no « tarif » / « ancien »,
+    plateformes » section: the link carries `#prix-plateformes`, the grid page scrolls to it, and a
+    `from` parameter brings the operator back to the fiche). The link goes through the page's unsaved-changes
+    guard like a sidebar link. Nothing else: no explanation of the mechanism, no « tarif » / « ancien »,
     no dismiss button (Q-F). It follows the live quote: entering the brut in « Paiement plateforme »
     shows or clears it on the next preview, so a mistyped brut is caught at intake too.
 63. **The server decides, the client renders.** `calculate-price` returns `platformPriceCheck`
@@ -1049,6 +1056,15 @@ None left. **Resolved 2026-10-19** — Adrien took the recommended option on all
   the server (rule 63).
 - **Q-F. Dismissing an alert — Resolved 2026-10-28:** (a) not dismissable — it is rare by construction
   and goes away when the channel is fixed or the stay starts. Rejected: (b) « Ignorer » per fiche.
+
+### Review of 2026-10-28 — resolved
+
+- **Gîtes de France fiche 22308 raises the alert — Resolved 2026-10-28 (Adrien):** keep the alert as it is. The
+  gap is real; Adrien aligns the Gîtes de France prices in ITEA on the grid, so 22308 is expected to alert until then.
+  No code change.
+- Stored card: « Total du séjour » is the saved total (`totalStayPrice`): the cascade starts from it and a platform's
+  withheld tourist tax is shown struck on its own line, never added on top (a parity script over the 53 shadow
+  stays checks that the printed lines add up to it).
 
 ## 10. Implementation progress — amendment of 2026-10-28
 

@@ -102,3 +102,34 @@ test('rule 57 — a tourist-tax convention switched after the save raises the dr
   assert.equal(live.storedDrift, true);
   assert.equal('storedDriftItems' in live, false);
 });
+
+test('rule 51 — the nightly detail is compared with the saved price of the nights, so options do not hide it', () => {
+  const id = createStay();
+  addLines(id);
+  const s = stored(id);
+  assert.equal(s.nightlyBreakdown.length, 3, 'the nights still add up to `totalPrice` although options sit in the price');
+});
+
+test('rule 51 — a line that is not offered keeps its saved price, a free (0 €) one included', () => {
+  const id = createStay();
+  db.prepare(`INSERT OR REPLACE INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
+    VALUES (?, 21, 2, 9, 6, 'per_person', 0, 0, 0)`).run(id);
+  db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
+    VALUES (?, 30, 1, 60, 1, 'per_stay', 0, 0, 0)`).run(id);
+  const before = rowOf(id).finalPrice;
+  const s = stored(id);
+  assert.equal(s.optionLines.find((l) => l.title === 'Petit-déjeuner').totalPrice, 0);
+  assert.equal(s.resourceLines[0].totalPrice, 0);
+  assert.equal(s.accommodation, before, 'the accommodation does not shrink by what was never billed');
+});
+
+test('rule 50 — every printed line adds up to « Total du séjour », the saved total, withheld tax included', () => {
+  db.prepare("INSERT INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES ('Retenue', 1, 1)").run();
+  const id = createStay({ platform: 'Retenue' });
+  db.prepare('UPDATE reservations SET touristTaxTotal = 0, platformTouristTaxAmount = 16.02 WHERE id = ?').run(id);
+  const s = stored(id);
+  assert.equal(s.platformTouristTaxWithheld, 16.02);
+  assert.equal(s.summaryCascade.grossTotal, s.totalStayPrice);
+  assert.equal(s.summaryCascade.offeredTaxDeduction, 0);
+  assert.equal(Math.round((s.accommodation + s.optionsTotal + s.resourcesTotal + s.touristTaxTotal) * 100), Math.round(s.totalStayPrice * 100));
+});
