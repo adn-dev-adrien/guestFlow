@@ -17,7 +17,7 @@ vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
     getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
-    getProperty: vi.fn(), getOptions: vi.fn(),
+    getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(),
     // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
     getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
     savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})), updateProperty: vi.fn(), createProperty: vi.fn(), deleteProperty: vi.fn(),
@@ -28,6 +28,7 @@ vi.mock('../../api', () => ({
 import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
+import { LIMITS } from '../../components/property/__tests__/propertyLimitsFixtures';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
@@ -45,6 +46,7 @@ const renderAt = (url = '/properties/5') => render(
 );
 
 beforeEach(() => {
+  api.getPropertyLimits.mockResolvedValue(LIMITS);
   vi.clearAllMocks();
   api.getOptions.mockResolvedValue([]);
   api.getProperty.mockResolvedValue({ ...PROPERTY });

@@ -16,6 +16,7 @@ vi.mock('../DialogProvider', () => {
 
 import api from '../../api';
 import PlatformsSettingsPage from '../../pages/settings/PlatformsSettingsPage';
+import { LIMITS } from '../../pages/settings/__tests__/platformLimitsFixtures';
 
 test('the picker prints the server\'s refusal under the swatch', () => {
   render(<PlatformColorPicker color="#fec700" onChange={() => {}} error="Couleur trop claire pour le calendrier." />);
@@ -32,7 +33,7 @@ test('the presets are the built-in palette', () => {
 
 test('a refused save shows the message and the swatch returns to the previous colour', async () => {
   const platforms = [{ id: 4, name: 'Lodgify', isDirect: false, countsAsDirect: false, color: '#fec700', commissionPercent: 5, takesDeposit: true, touristTaxCollection: 'owner', payoutDueDays: 7 }];
-  api.getPlatformSettings.mockResolvedValue({ platforms });
+  api.getPlatformSettings.mockResolvedValue({ limits: LIMITS, platforms });
   api.savePlatformSettings.mockRejectedValue(Object.assign(new Error('refus'), { errors: { 4: { color: 'Couleur trop claire pour le calendrier.' } } }));
   render(<MemoryRouter><PlatformsSettingsPage /></MemoryRouter>);
   const swatch = (await screen.findAllByRole('button', { name: 'Changer la couleur' }))[0];
@@ -52,7 +53,7 @@ test('rule 7 — the message goes after a while, only that row\'s, and a newer s
       { id: 4, name: 'Lodgify', isDirect: false, countsAsDirect: false, color: '#fec700', commissionPercent: 5, takesDeposit: true, touristTaxCollection: 'owner', payoutDueDays: 7 },
       { id: 5, name: 'Booking', isDirect: false, countsAsDirect: false, color: '#1B3F8B', commissionPercent: 5, takesDeposit: true, touristTaxCollection: 'owner', payoutDueDays: 7 },
     ];
-    api.getPlatformSettings.mockResolvedValue({ platforms });
+    api.getPlatformSettings.mockResolvedValue({ limits: LIMITS, platforms });
     api.savePlatformSettings.mockRejectedValue(Object.assign(new Error('refus'), { errors: { 4: { color: 'Couleur trop claire pour le calendrier.' }, 5: { commissionPercent: 'Entre 0 et 99,99 %.' } } }));
     render(<MemoryRouter><PlatformsSettingsPage /></MemoryRouter>);
     fireEvent.click((await screen.findAllByRole('button', { name: 'Changer la couleur' }))[0]);

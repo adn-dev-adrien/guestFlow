@@ -17,6 +17,7 @@ vi.mock('../../../components/DialogProvider', () => {
 
 import api from '../../../api';
 import PlatformsSettingsPage from '../PlatformsSettingsPage';
+import { LIMITS } from './platformLimitsFixtures';
 
 const base = { isDirect: false, countsAsDirect: false, forbidsGuestChores: false, color: '#123456', commissionPercent: 15, takesDeposit: false, touristTaxCollection: 'platform', payoutDueDays: 10 };
 const PLATFORMS = [
@@ -26,7 +27,7 @@ const PLATFORMS = [
 ];
 
 beforeEach(() => {
-  api.getPlatformSettings.mockResolvedValue({ platforms: PLATFORMS });
+  api.getPlatformSettings.mockResolvedValue({ limits: LIMITS, platforms: PLATFORMS });
   api.savePlatformSettings.mockResolvedValue({ platforms: PLATFORMS });
 });
 

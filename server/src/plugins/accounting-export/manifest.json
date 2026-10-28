@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -74,6 +74,10 @@
       "Une réservation « Sans TVA » n’écrit ni TVA collectée, ni TVA déductible sur la commission ; l’indemnité d’annulation et l’avoir restent à 0 %.",
       "Le plan comptable masque les taux de TVA qui ne peuvent pas s’appliquer sous « Sans TVA ».",
       "Compatible avec le SDK 2.10 de GuestFlow."
+    ],
+    "1.0.17": [
+      "Le plan comptable range tous les comptes dans une seule carte « Comptes », par groupes : ventes, taxes, commissions et produits divers, journal.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

@@ -72,7 +72,7 @@ function platformsDb() {
   return db;
 }
 
-test('setCommissionPercent clamps to [0, 99.99]; direct is editable (booking-engine fee, rule 32)', () => {
+test('setCommissionPercent stores the validated rate; direct is editable (booking-engine fee, rule 32)', () => {
   const db = platformsDb();
   const m = createPlatformsModel(db);
   const airbnb = db.prepare("SELECT id FROM platforms WHERE name = 'Airbnb'").get().id;
@@ -80,10 +80,6 @@ test('setCommissionPercent clamps to [0, 99.99]; direct is editable (booking-eng
 
   m.setCommissionPercent(airbnb, 15);
   assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(airbnb).commissionPercent, 15);
-  m.setCommissionPercent(airbnb, 250);
-  assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(airbnb).commissionPercent, 99.99);
-  m.setCommissionPercent(airbnb, -3);
-  assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(airbnb).commissionPercent, 0);
 
   m.setCommissionPercent(direct, 5);
   assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(direct).commissionPercent, 5);

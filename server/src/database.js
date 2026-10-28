@@ -2443,6 +2443,13 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// One-shot (specs/settings-input-guards.md rule 41): the Instagram URL becomes the first social link.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const { migrateSocialLinks } = require('./utils/socialLinksMigration');
+  const { action } = migrateSocialLinks(db);
+  if (action === 'copied') console.log('[migration:social-links] Instagram URL copied to the social links');
+}
+
 // One-shot (2026-10-27 spec review): a name holding its own article takes it, confirmed — properties
 // created from the property page were stored « au » (specs/guest-email-texts-made-simple.md rule 30).
 if (process.env.SKIP_MIGRATIONS !== 'true') {

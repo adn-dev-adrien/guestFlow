@@ -1,0 +1,1 @@
+- **Social links:** the Instagram address is copied once into the new list (`app_settings.socialLinks`, migration `social_links_from_instagram_v1`); `instagramUrl` is kept in sync so installing the previous release renders the same e-mail. No payment delay and no pool season is rewritten.

@@ -324,6 +324,9 @@ Make every monthly CSV match the écriture model the accountant validated:
     aux commissions plateforme qui sont marquées 'TVA déductible' dans le Plan
     comptable plateformes."* No new endpoint — the existing `PUT /api/settings`
     accepts the new field.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 32-34): « Compte par défaut » and
+    « Indemnités d'annulation » now sit inside the « Comptes » card, group « Commissions et produits
+    divers »; their own cards are gone, storage and endpoint unchanged.
 18. **`Direct` row is always present + always disabled**:
     - Auto-inserted into `platforms` at boot if absent (rule 2).
     - Every input on the Direct row is rendered disabled with a muted

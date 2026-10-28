@@ -280,6 +280,8 @@ Decisions taken on 2026-10-06:
 
     `accountPlan.js` keeps the mapping logic and reads the numbers from the settings. The
     per-platform commission accounts already live on `/comptabilite/plateformes` and stay there.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 32-34): the page shows them in one
+    « Comptes » card, grouped, with the older default commission and indemnity accounts.
 28. **Validation:** an account is 3 to 12 digits, except the client auxiliary prefix, which stays as
     it is; a journal code is 1 to 4 uppercase letters or digits. Two different roles may share an
     account; tips and compensation already do.

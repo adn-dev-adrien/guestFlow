@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saisies des réglages</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-dark:#244A38;--primary-soft:#E3ECE6;--honey:#C99038;--honey-soft:#F6EDD7;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;--line-strong:#CFC7B7;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:1040px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.4rem/1.2 var(--serif);margin:56px 0 12px}
+h3.sub{font:600 1.08rem/1.3 var(--serif);margin:34px 0 8px}
+p{margin:0 0 12px;max-width:70ch}
+code{font-size:.86em;background:#EFEBE2;padding:1px 5px;border-radius:5px}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0 0 12px;padding-left:1.1em;max-width:72ch}
+ul.plain li{margin:6px 0}
+.num{font-variant-numeric:tabular-nums}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.panel h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+.tag{display:inline-block;font:600 .72rem var(--sans);padding:2px 8px;border-radius:99px;background:var(--primary-soft);color:var(--primary);vertical-align:2px;margin-left:6px}
+.tag.warn{background:var(--warning-bg);color:var(--warning)}
+
+/* sticky viewport toggle */
+.viewbar{position:sticky;top:0;z-index:20;background:rgba(248,245,239,.86);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border-bottom:1px solid var(--line)}
+.viewbar .in{max-width:1040px;margin:0 auto;padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.viewbar .t{font:600 .95rem var(--serif);flex:1;min-width:0}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 .88rem var(--sans);color:#57534A;padding:7px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.try{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 12px;font-size:.88rem;color:var(--muted)}
+.try kbd{font:600 .82rem var(--sans);background:var(--card);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 7px;color:var(--ink)}
+
+/* stage */
+.stage{margin:0 auto;max-width:1040px;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+body.phone .stage{max-width:390px}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+.actionbar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:12px}
+.actionbar .t{font:600 1rem var(--serif);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:inline-grid;place-items:center;cursor:pointer;color:var(--ink);font-size:1.05rem;transition:transform .1s ease}
+.ib:active{transform:scale(.96)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib.save:hover{background:var(--primary-dark)}
+.ib:disabled{opacity:.45;cursor:not-allowed}
+.tabs{display:flex;gap:4px;overflow-x:auto;margin:0 0 12px;border-bottom:1px solid var(--line);scrollbar-width:none}
+.tabs span{padding:9px 12px;font:500 .9rem var(--sans);color:var(--muted);white-space:nowrap}
+.tabs span.on{color:var(--primary);box-shadow:inset 0 -2px 0 var(--primary)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card h4{font:600 1.05rem var(--serif);margin:0 0 4px}
+.cap{font-size:.82rem;color:var(--muted);margin:0 0 12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+body.phone .row2{grid-template-columns:1fr}
+@media(max-width:600px){.row2{grid-template-columns:1fr}}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* MUI-like outlined field */
+.f{position:relative;min-width:0}
+.f label{position:absolute;left:10px;top:-8px;background:var(--card);padding:0 4px;font-size:.75rem;color:var(--muted);pointer-events:none;transition:color .16s ease}
+.f .box{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:8px;background:var(--card);min-height:44px;transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease}
+.f input,.f select{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:.95rem;padding:10px 12px;color:var(--ink);outline:none;font-variant-numeric:tabular-nums}
+.f select{padding-right:6px;cursor:pointer}
+.f .unit{padding:0 12px 0 0;color:var(--muted);font-size:.88rem;white-space:nowrap}
+.f:focus-within .box{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.f:focus-within label{color:var(--primary)}
+.f .help{font-size:.76rem;color:var(--muted);margin:4px 2px 0;min-height:1.1em}
+.f.err .box{border-color:var(--error);box-shadow:0 0 0 1px var(--error)}
+.f.err label,.f.err .help{color:var(--error)}
+.f.note .box{border-color:var(--honey);box-shadow:0 0 0 1px var(--honey);background:#FFFCF5}
+.f.note .help{color:var(--warning)}
+@media (prefers-reduced-motion:reduce){.f .box,.f label{transition:none}}
+
+.switch{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;user-select:none}
+.switch input{position:absolute;opacity:0;pointer-events:none}
+.switch .tr{width:38px;height:22px;border-radius:99px;background:#CFC7B7;position:relative;transition:background .2s ease;flex:none}
+.switch .tr::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.switch input:checked+.tr{background:var(--primary)}
+.switch input:checked+.tr::after{transform:translateX(16px)}
+.switch input:focus-visible+.tr{outline:2px solid var(--primary);outline-offset:2px}
+.mseg{display:flex;background:#ECE7DC;border-radius:10px;padding:3px;width:fit-content}
+body.phone .mseg{width:100%}
+.mseg button{flex:1;border:0;background:transparent;font:500 .9rem var(--sans);color:#57534A;padding:8px 14px;border-radius:8px;cursor:pointer;min-height:40px;white-space:nowrap}
+.mseg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.md{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:8px}
+.mdl{font-size:.85rem;margin:0 0 6px}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;border-radius:10px;padding:10px 16px;font-size:.9rem;transition:opacity .2s ease,transform .25s cubic-bezier(.2,.8,.2,1);z-index:50;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--error)}
+.stored{font-size:.82rem;color:var(--muted);margin-top:10px}
+.stored b{color:var(--ink);font-weight:600}
+.stored code{background:#F1EDE4}
+
+/* dialog */
+.scrim{position:fixed;inset:0;background:rgba(39,37,31,.38);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+.scrim.open{display:flex}
+.dlg{background:var(--card);border-radius:16px;max-width:440px;width:100%;padding:22px;box-shadow:0 24px 60px -20px rgba(0,0,0,.45);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+body.phone .dlg{max-width:390px;border-radius:16px 16px 0 0;align-self:flex-end}
+@keyframes pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.dlg{animation:none}}
+.dlg h4{font:600 1.15rem var(--serif);margin:0 0 6px}
+.dlg p{font-size:.94rem;color:var(--muted);margin:0 0 8px}
+.dlg .amt{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.acts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+body.phone .acts{flex-direction:column-reverse}
+.btn{min-height:44px;border-radius:10px;padding:0 16px;font:600 .92rem var(--sans);cursor:pointer;border:1px solid var(--primary);background:var(--card);color:var(--primary)}
+.btn.fill{background:var(--primary);color:#fff}
+.btn.text{border-color:transparent;color:var(--muted)}
+.btn:active{transform:scale(.98)}
+
+/* platforms */
+table.pl{width:100%;border-collapse:collapse;font-size:.92rem}
+table.pl th{text-align:left;font:600 .78rem var(--sans);color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+table.pl td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.pl td:first-child{font-weight:500;padding-top:18px}
+table.pl .f{width:120px}
+body.phone table.pl,body.phone table.pl tbody,body.phone table.pl tr,body.phone table.pl td{display:block;width:100%}
+body.phone table.pl thead{display:none}
+body.phone table.pl tr{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px}
+body.phone table.pl td{border:0;padding:6px 0}
+body.phone table.pl td:first-child{padding-top:2px;font-family:var(--serif);font-weight:600}
+body.phone table.pl .f{width:100%}
+@media(max-width:600px){
+  table.pl,table.pl tbody,table.pl tr,table.pl td{display:block;width:100%}
+  table.pl thead{display:none}
+  table.pl tr{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px}
+  table.pl td{border:0;padding:6px 0}
+  table.pl .f{width:100%}
+}
+
+/* social */
+.sl{display:flex;flex-direction:column;gap:10px}
+.slr{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:8px;align-items:start;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.slr .icons{display:flex;gap:4px}
+.slr .ib{width:40px;height:44px}
+body.phone .slr{grid-template-columns:minmax(0,1fr) auto;border:1px solid var(--line);border-radius:10px;padding:10px}
+body.phone .slr .url{grid-column:1/-1;grid-row:2}
+@media(max-width:600px){.slr{grid-template-columns:minmax(0,1fr) auto;border:1px solid var(--line);border-radius:10px;padding:10px}.slr .url{grid-column:1/-1;grid-row:2}}
+.linkbtn{border:0;background:transparent;color:var(--primary);font:600 .92rem var(--sans);cursor:pointer;min-height:44px;padding:0 4px;text-align:left}
+.linkbtn:disabled{color:#B8B1A2;cursor:not-allowed}
+.mail{background:#FDFCF9;border:1px solid var(--line);border-radius:12px;padding:16px 18px;font-size:.92rem;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.mail a{color:var(--primary)}
+.mail .hl{background:var(--honey-soft);border-radius:4px;padding:0 2px}
+
+/* plan comptable */
+.grp{font:600 .8rem var(--sans);color:var(--muted);margin:16px 0 10px;letter-spacing:.01em}
+.grp:first-of-type{margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 14px}
+body.phone .grid2{grid-template-columns:1fr}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}}
+.moved .box{background:#FBF7EC}
+.ro input{color:var(--ink)}
+
+/* arbitrations */
+.arb{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin:14px 0}
+.arb h3{font:600 1.05rem/1.3 var(--serif);margin:0 0 6px}
+.opt{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:10px 0;border-top:1px solid var(--line)}
+.opt:first-of-type{border-top:0}
+.opt b{font-weight:600}
+.opt .k{font:700 .8rem var(--sans);color:var(--primary);background:var(--primary-soft);border-radius:6px;padding:2px 7px;height:fit-content}
+.opt.rec .k{background:var(--primary);color:#fff}
+.risk li{margin:8px 0}
+footer{margin-top:60px;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="viewbar"><div class="in">
+  <span class="t">Saisies des réglages</span>
+  <div class="seg" role="group" aria-label="Largeur d'affichage">
+    <button type="button" data-view="desk" aria-pressed="true">Ordinateur</button>
+    <button type="button" data-view="phone" aria-pressed="false">Téléphone</button>
+  </div>
+</div></div>
+
+<main>
+<h1>Des réglages qui refusent ce qui n'a pas de sens</h1>
+<p class="lede">Six retours du 28/10 sur les réglages, une même cause : un champ accepte une valeur que le métier ne peut pas vouloir dire. Une même réponse : un champ commun, des bornes fixées par le serveur, le même message des deux côtés.</p>
+<p class="lede">Spécification : <code>specs/settings-input-guards.md</code> — <b>approuvée le 28/10</b>, arbitrages tranchés. Tous les écrans ci-dessous se manipulent ; le bouton « Téléphone » en haut les passe à 390 px.</p>
+
+<h2>Le constat</h2>
+<div class="cols">
+  <div class="panel"><h3>Jours d'acompte, de solde, d'annulation</h3><p>Un « -3 » est accepté avec « Enregistré »… puis <b>remplacé en silence par 7</b> (ou 30). Aucune borne haute : 400 jours passent. Le serveur ne vérifie pas ces trois champs.</p></div>
+  <div class="panel"><h3>Acompte à 0 jour</h3><p>Côté client et site, c'est déjà vrai : une demande reste un devis et ne tient les dates qu'une fois payée. Côté gestion, une réservation saisie à la main tient les dates sans acompte — <b>décision du 28/10 : on le garde</b>, 0 veut dire « à régler le jour de la réservation », sans blocage.</p></div>
+  <div class="panel"><h3>Piscine</h3><p>Pas de « toute l'année ». Fermeture avant l'ouverture acceptée (le mail J-7 n'en parle alors jamais). Allumer « Piscine » sans dates ne s'enregistre pas.</p></div>
+  <div class="panel"><h3>Commissions</h3><p>Le serveur refuse déjà le négatif, mais seulement à l'enregistrement, et le texte tapé reste. Un vieux point d'entrée ramène encore -5 à 0 sans rien dire.</p></div>
+  <div class="panel"><h3>Plan comptable</h3><p>Deux générations de réglages : « Compte par défaut » et « Indemnités d'annulation » existaient avant la carte « Comptes » (10/2026), qui a été ajoutée au-dessus au lieu de les absorber. Même enregistrement, simple question de mise en page.</p></div>
+  <div class="panel"><h3>Lien Instagram</h3><p>Une seule adresse, lue à un seul endroit : le mail de remerciement J+1. Le site ne l'utilise pas.</p></div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+
+<h3 class="sub">1. Un champ borné commun — et l'acompte à 0 jour</h3>
+<p>Le signe moins disparaît dès qu'il est tapé. Un texte qui n'est pas un nombre rend l'ancienne valeur en quittant le champ (ou Entrée, ou Échap). Un nombre hors bornes n'est <b>pas corrigé</b> : il reste rouge et l'enregistrement est refusé par le serveur avec le même message.</p>
+<div class="try">À essayer : <kbd>-5</kbd> <kbd>45</kbd> <kbd>abc</kbd> <kbd>2,5</kbd> <kbd>0</kbd> puis <kbd>Tab</kbd> ou <kbd>Entrée</kbd>, flèches haut/bas.</div>
+<div class="stage"><div class="frame">
+  <div class="actionbar"><span class="t">La Granja</span>
+    <button class="ib save" type="button" id="paySave" title="Enregistrer" aria-label="Enregistrer">✓</button>
+    <button class="ib" type="button" id="payCancel" title="Annuler" aria-label="Annuler">↺</button>
+  </div>
+  <div class="tabs"><span>Général</span><span>Séjour</span><span>Tarifs</span><span class="on">Paiement &amp; caution</span><span>Plateformes</span></div>
+  <div class="card">
+    <h4>Acompte</h4>
+    <label class="switch"><input type="checkbox" id="depOn" checked><span class="tr"></span><span>Demander un acompte</span></label>
+    <p class="cap" id="depCap">Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l'arrivée.</p>
+    <div class="row2" id="depFields">
+      <div class="f" data-bounded data-min="1" data-max="99" data-dec="2" data-unit="%" data-key="depositPercent"><label>% acompte</label><div class="box"><input value="30" inputmode="decimal" aria-label="% acompte"><span class="unit">%</span></div><div class="help" data-base=""></div></div>
+      <div class="f" data-bounded data-min="0" data-max="30" data-int data-unit="jours" data-key="depositDueDays"><label>Acompte (jours après réservation)</label><div class="box"><input value="7" inputmode="numeric" aria-label="Acompte, jours après réservation"><span class="unit">jours</span></div><div class="help" data-base="0 : à régler à la réservation.">0 : à régler à la réservation.</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h4 id="soldeTitle">Solde &amp; caution</h4>
+    <div class="stack">
+      <div class="f" data-bounded data-min="0" data-max="60" data-int data-unit="jours" data-key="balanceDaysBefore"><label>Solde (jours avant l'arrivée)</label><div class="box"><input value="30" inputmode="numeric" aria-label="Solde, jours avant l'arrivée"><span class="unit">jours</span></div><div class="help" data-base="Échéance du solde — ou du paiement unique quand l'acompte est désactivé.">Échéance du solde — ou du paiement unique quand l'acompte est désactivé.</div></div>
+      <div class="f" data-bounded data-min="0" data-max="60" data-int data-unit="jours" data-key="cancelAfterBalanceDueDays"><label>Annulation (jours après échéance du solde)</label><div class="box"><input value="7" inputmode="numeric" aria-label="Annulation, jours après échéance du solde"><span class="unit">jours</span></div><div class="help" data-base="Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé.">Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé.</div></div>
+    </div>
+  </div>
+  <div class="stored" id="payStored"></div>
+</div></div>
+
+<p style="margin-top:22px">Avec l'acompte à <b>0 jour</b>, la fiche affiche « à la réservation » ; rien n'est bloqué, l'alerte de retard prend le relais dès le lendemain. Mettre 0 ci-dessus, enregistrer, puis :</p>
+<div class="stage"><div class="frame">
+  <div class="actionbar"><span class="t">Nouvelle réservation · Léa Martin</span>
+    <button class="ib save" type="button" id="resaSave" title="Enregistrer" aria-label="Enregistrer">✓</button>
+  </div>
+  <div class="card">
+    <h4>Paiement</h4>
+    <p class="cap" style="margin-bottom:4px">Direct · La Granja · 12 → 19 juin 2027 · 600,00 €</p>
+    <div class="num" id="resaLines" style="font-size:.92rem"></div>
+  </div>
+  <div class="stored" id="resaStored">Rien d'enregistré.</div>
+</div></div>
+
+<h3 class="sub">2. Piscine : toute l'année, ou une saison</h3>
+<div class="try">À essayer : allumer, passer en « Saison », choisir une fermeture avant l'ouverture.</div>
+<div class="stage"><div class="frame">
+  <div class="tabs"><span>Général</span><span class="on">Séjour</span><span>Tarifs</span><span>Paiement &amp; caution</span></div>
+  <div class="card">
+    <h4>Équipements &amp; accès</h4>
+    <label class="switch"><input type="checkbox" id="poolOn"><span class="tr"></span><span>Piscine</span></label>
+    <div id="poolBody" hidden style="margin-top:8px">
+      <div class="mseg" role="group" aria-label="Ouverture de la piscine">
+        <button type="button" data-pm="allYear" aria-pressed="true">Toute l'année</button>
+        <button type="button" data-pm="season" aria-pressed="false">Saison</button>
+      </div>
+      <div class="row2" id="poolDates" hidden style="margin-top:14px">
+        <div><p class="mdl">Ouverte du</p><div class="md" id="mdStart"></div><div class="f" id="poolStartErr"><div class="help"></div></div></div>
+        <div><p class="mdl">Au</p><div class="md" id="mdEnd"></div><div class="f" id="poolEndErr"><div class="help"></div></div></div>
+      </div>
+    </div>
+    <div class="stored" id="poolStored"></div>
+  </div>
+</div></div>
+
+<h3 class="sub">3. Plateformes : commissions et délais de virement</h3>
+<div class="try">À essayer : <kbd>-16</kbd> dans une commission, <kbd>abc</kbd> puis <kbd>Entrée</kbd>, <kbd>120</kbd>, <kbd>16,44</kbd>.</div>
+<div class="stage"><div class="frame">
+  <div class="actionbar"><span class="t">Plateformes</span>
+    <button class="ib save" type="button" id="plSave" title="Enregistrer" aria-label="Enregistrer">✓</button>
+  </div>
+  <div class="card" style="padding:8px 12px">
+    <table class="pl"><thead><tr><th>Plateforme</th><th>Commission</th><th>Virement après</th></tr></thead><tbody id="plBody"></tbody></table>
+  </div>
+</div></div>
+
+<h3 class="sub">4. Réseaux sociaux, plusieurs liens</h3>
+<p>Chaque ligne : un réseau, son adresse. L'ordre se règle avec les flèches, c'est celui du mail. Le serveur vérifie que l'adresse est bien celle du réseau choisi. Avec un seul lien, le mail J+1 reste <b>identique au caractère près</b>.</p>
+<div class="try">À essayer : ajouter Facebook, coller une adresse Instagram dans la ligne Facebook, réordonner, tout supprimer.</div>
+<div class="stage"><div class="frame">
+  <div class="actionbar"><span class="t">Emails &amp; notifications</span>
+    <button class="ib save" type="button" id="slSave" title="Enregistrer" aria-label="Enregistrer">✓</button>
+  </div>
+  <div class="card">
+    <h4>Contenu des mails</h4>
+    <p class="cap">Repris dans les mails envoyés aux clients.</p>
+    <div class="f" style="margin-bottom:18px"><label>Lien d'avis Google</label><div class="box"><input value="https://g.page/r/exemple/review" aria-label="Lien d'avis Google"></div><div class="help">Proposé dans le mail de remerciement (J+1).</div></div>
+    <p class="mdl" style="font-weight:600">Réseaux sociaux</p>
+    <div class="sl" id="slList"></div>
+    <button class="linkbtn" type="button" id="slAdd">+ Ajouter un réseau</button>
+    <div class="help" style="font-size:.76rem;color:var(--muted)">Proposés dans le mail de remerciement (J+1).</div>
+  </div>
+  <div class="try" style="margin-top:4px">Deux liens ou plus : une ligne par lien (décidé le 28/10).</div>
+  <div class="mail" id="slMail" aria-live="polite"></div>
+</div></div>
+
+<h3 class="sub">5. Plan comptable : un seul bloc « Comptes »</h3>
+<div class="try"><span class="seg" role="group" aria-label="Avant ou après"><button type="button" data-pc="after" aria-pressed="true">Proposé</button><button type="button" data-pc="before" aria-pressed="false">Aujourd'hui</button></span></div>
+<div class="stage"><div class="frame">
+  <div class="actionbar"><span class="t">Plan comptable</span><button class="ib save" type="button" aria-label="Enregistrer" title="Enregistrer">✓</button></div>
+  <div id="pcAfter">
+    <div class="card">
+      <h4>Comptes</h4><p class="cap">Comptes de l'export des ventes, format standard (CSV).</p>
+      <div class="grp">Ventes</div>
+      <div class="grid2" id="pcVentes"></div>
+      <div class="grp">Taxes</div>
+      <div class="grid2" id="pcTaxes"></div>
+      <div class="grp">Commissions et produits divers</div>
+      <div class="grid2" id="pcDivers"></div>
+      <div class="grp">Journal</div>
+      <div class="grid2" id="pcJournal"></div>
+    </div>
+    <div class="card"><h4>Par plateforme</h4><p class="cap">Compte commission et TVA déductible, plateforme par plateforme. Inchangé.</p></div>
+  </div>
+  <div id="pcBefore" hidden>
+    <div class="card"><h4>Comptes</h4><p class="cap">Hébergement, Prestations complémentaires, Activités, TVA 20 %, TVA 10 %, Taxe de séjour, TVA déductible, Rabais, Pourboires, Code journal.</p></div>
+    <div class="card"><h4>Compte par défaut</h4><p class="cap">Compte commission par défaut — 622600</p></div>
+    <div class="card"><h4>Indemnités d'annulation</h4><p class="cap">Compte indemnités d'annulation — 75880000 · TVA sur indemnités — 0 %</p></div>
+    <div class="card"><h4>Par plateforme</h4><p class="cap">…</p></div>
+  </div>
+  <p class="stored">Les champs surlignés sont ceux qui rejoignent « Comptes ». Rien ne change côté serveur ni dans l'export.</p>
+</div></div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="plain">
+  <li>La lenteur de la page Plateformes : traitée par la spec performance.</li>
+  <li>Tout blocage lié à l'acompte à 0 jour (refus d'enregistrer, dialogue, statut « option ») : décidé le 28/10, l'affichage suffit.</li>
+  <li>Une saison de piscine qui passe le Nouvel An (novembre → mars).</li>
+  <li>Les réseaux sociaux dans le pied de page du site, ou en icônes dans le mail.</li>
+  <li>Réécrire un délai déjà enregistré hors bornes : il reste tel quel tant qu'on n'y touche pas.</li>
+  <li>Les autres nombres des réglages (tarifs, linge, ressources) : ils prendront le même champ quand on y touchera.</li>
+</ul>
+
+<h2>Le risque</h2>
+<ul class="plain risk">
+  <li><b>Acompte à 0</b> : simple affichage, aucun geste quotidien ne change. Aucun logement n'est à 0 aujourd'hui (les deux sont à 7 jours).</li>
+  <li><b>Mail J+1</b> : un seul lien rend le même texte, vérifié par un test « au caractère près » sur la séquence Solio. L'ancienne colonne <code>instagramUrl</code> reste écrite : revenir à la version précédente donne le même mail.</li>
+  <li><b>Valeurs existantes</b> : 7 / 30 / 7 jours et toutes les commissions actuelles (5 à 20 %) sont dans les bornes. Une autre installation hors bornes continue de fonctionner jusqu'à la prochaine modification du champ.</li>
+  <li><b>Taille</b> : environ 30 fichiers, en 5 lots livrables séparément — (1) champ commun + délais + commissions, (2) piscine, (3) plan comptable, (4) réseaux sociaux, (5) libellé « à la réservation ». ~85 tests nouveaux.</li>
+</ul>
+
+<h2>Les arbitrages tranchés <span class="tag">28/10</span></h2>
+<div class="arb"><h3>A1 — Acompte à 0 jour</h3><div class="opt rec"><span class="k">A</span><div><b>Affichage seul</b> — « à régler le jour de la réservation », aucun blocage, aucun dialogue. L'alerte de retard signale l'acompte non reçu dès le lendemain.</div></div></div>
+<div class="arb"><h3>A2 — Un nombre hors bornes</h3><div class="opt rec"><span class="k">1</span><div><b>Refusé</b> — rouge, message, enregistrement refusé ; jamais ramené à la borne.</div></div></div>
+<div class="arb"><h3>A3 — Plusieurs liens dans le mail J+1</h3><div class="opt rec"><span class="k">1</span><div><b>Une ligne par lien</b> — « Instagram : https://… », dans l'ordre choisi.</div></div></div>
+<div class="arb"><h3>A4 — Séjour de dernière minute à 0 jour</h3><div class="opt rec"><span class="k">—</span><div><b>Sans objet</b> — plus de blocage, donc rien à exempter.</div></div></div>
+
+<footer>Spec <code>specs/settings-input-guards.md</code> · notes d'amendement dans 8 specs existantes · noms des maquettes inventés.</footer>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s)};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var toastT;
+function toast(msg,bad){var t=$('#toast');t.textContent=msg;t.className='toast show'+(bad?' bad':'');clearTimeout(toastT);toastT=setTimeout(function(){t.className='toast'+(bad?' bad':'')},2400)}
+
+/* view toggle */
+$$('[data-view]').forEach(function(b){b.addEventListener('click',function(){
+  $$('[data-view]').forEach(function(x){x.setAttribute('aria-pressed',x===b)});
+  document.body.classList.toggle('phone',b.dataset.view==='phone');
+})});
+function segGroup(attr,cb){$$('['+attr+']').forEach(function(b){b.addEventListener('click',function(){
+  $$('['+attr+']').forEach(function(x){x.setAttribute('aria-pressed',x===b)});cb(b.getAttribute(attr));
+})})}
+
+/* ---------- limits (as the server would send them) ---------- */
+function fmt(n,dec){return dec?String(n).replace('.',','):String(n)}
+function limitMsg(L){
+  var u=L.unit==='%'?' %':(L.unit?' '+L.unit:'');
+  return 'Entre '+fmt(L.min,L.dec)+' et '+fmt(L.max,L.dec)+u+'.';
+}
+function check(raw,L){ // server-side twin: returns {value} or {error,kind}
+  var s=String(raw).trim();
+  if(s==='') return {error:'Nombre attendu.',kind:'nan'};
+  if(!/^\d+([.,]\d+)?$/.test(s)) return {error:'Nombre attendu.',kind:'nan'};
+  var n=Number(s.replace(',','.'));
+  if(L.int && !Number.isInteger(n)) return {error:'Nombre entier de jours.',kind:'range'};
+  if(L.dec && Math.round(n*Math.pow(10,L.dec))!==n*Math.pow(10,L.dec)) return {error:limitMsg(L),kind:'range'};
+  if(n<L.min||n>L.max) return {error:limitMsg(L),kind:'range'};
+  return {value:n};
+}
+
+/* ---------- BoundedNumberField ---------- */
+function bounded(f,onCommit){
+  var inp=$('input',f),help=$('.help',f),base=help.dataset.base||'';
+  var L={min:Number(f.dataset.min),max:Number(f.dataset.max),int:f.hasAttribute('data-int'),dec:f.dataset.dec?Number(f.dataset.dec):0,unit:f.dataset.unit||''};
+  var committed=inp.value, noteT;
+  f._limits=L;
+  function setHelp(t){help.textContent=t}
+  function clear(){f.classList.remove('err','note');inp.removeAttribute('aria-invalid');setHelp(base)}
+  function note(t){clearTimeout(noteT);f.classList.remove('err');f.classList.add('note');setHelp(t);noteT=setTimeout(function(){f.classList.remove('note');if(!f.classList.contains('err'))setHelp(base)},2000)}
+  function refuse(t){clearTimeout(noteT);f.classList.remove('note');f.classList.add('err');inp.setAttribute('aria-invalid','true');setHelp(t)}
+  inp.addEventListener('focus',function(){setTimeout(function(){inp.select()},0)});
+  inp.addEventListener('input',function(){
+    if(L.min>=0 && inp.value.indexOf('-')>=0){
+      var pos=inp.selectionStart, before=inp.value.slice(0,pos).split('-').length-1;
+      inp.value=inp.value.replace(/-/g,'');
+      try{inp.setSelectionRange(pos-before,pos-before)}catch(e){}
+      note('Positif uniquement.');
+    } else if(f.classList.contains('err')){f.classList.remove('err');inp.removeAttribute('aria-invalid');setHelp(base)}
+  });
+  function commit(){
+    var r=check(inp.value,L);
+    if(r.kind==='nan'){inp.value=committed;note('Nombre attendu.');return}
+    if(r.error){refuse(r.error);committed=inp.value;onCommit&&onCommit(inp.value,false);return}
+    inp.value=fmt(r.value,L.dec);committed=inp.value;clear();onCommit&&onCommit(inp.value,true);
+  }
+  inp.addEventListener('blur',commit);
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();commit();inp.select()}
+    else if(e.key==='Escape'){inp.value=committed;clear()}
+    else if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+      e.preventDefault();var step=L.int?1:1;var cur=Number(String(inp.value).replace(',','.'));if(!isFinite(cur))cur=Number(String(committed).replace(',','.'))||L.min;
+      var n=cur+(e.key==='ArrowUp'?step:-step);n=Math.min(L.max,Math.max(L.min,n));
+      n=Math.round(n*100)/100;inp.value=fmt(n,L.dec);clear();
+    }
+  });
+  return {get:function(){return inp.value},valid:function(){return !check(inp.value,L).error},showServer:refuse,reset:function(v){inp.value=v;committed=v;clear()},field:f};
+}
+
+/* ---------- payment tab ---------- */
+var pay={};
+var saved={depositPercent:'30',depositDueDays:'7',balanceDaysBefore:'30',cancelAfterBalanceDueDays:'7'};
+$$('[data-bounded]',$('#depFields').parentNode.parentNode).forEach(function(f){pay[f.dataset.key]=bounded(f)});
+var depOn=$('#depOn');
+function syncDep(){
+  var on=depOn.checked;$('#depFields').hidden=!on;
+  $('#depCap').textContent=on?"Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l'arrivée.":'Le séjour est payé en une fois, à la réservation.';
+  $('#soldeTitle').textContent=on?'Solde & caution':'Paiement & caution';
+}
+depOn.addEventListener('change',syncDep);
+function showStored(){
+  $('#payStored').innerHTML='Enregistré : acompte <b>'+(saved.depositEnabled===false?'désactivé':saved.depositPercent+' %, '+(saved.depositDueDays==='0'?'à la réservation':saved.depositDueDays+' j après réservation'))+'</b> · solde <b>'+saved.balanceDaysBefore+' j avant</b> · annulation <b>'+saved.cancelAfterBalanceDueDays+' j après</b>';
+  renderResa();
+}
+$('#paySave').addEventListener('click',function(){
+  var errs=[];
+  Object.keys(pay).forEach(function(k){
+    if((k==='depositPercent'||k==='depositDueDays')&&!depOn.checked)return;
+    var r=check(pay[k].get(),pay[k].field._limits);
+    if(r.error){errs.push(k);pay[k].showServer(r.error)}
+  });
+  if(errs.length){toast('Enregistrement refusé : '+errs.length+' champ'+(errs.length>1?'s':'')+' à corriger.',true);return}
+  Object.keys(pay).forEach(function(k){saved[k]=pay[k].get()});saved.depositEnabled=depOn.checked;
+  toast('Enregistré.');showStored();
+});
+$('#payCancel').addEventListener('click',function(){Object.keys(pay).forEach(function(k){pay[k].reset(saved[k])});depOn.checked=saved.depositEnabled!==false;syncDep()});
+
+/* ---------- reservation at 0 days (A1 = label only) ---------- */
+var resaState=null;
+function renderResa(){
+  var on=saved.depositEnabled!==false, zero=on&&saved.depositDueDays==='0';
+  var due=!on?'—':(zero?'à la réservation':saved.depositDueDays+' jours après la réservation');
+  var dep=on?Math.round(600*Number(String(saved.depositPercent).replace(',','.')))/100:0;
+  $('#resaLines').innerHTML=on?('Acompte '+dep.toFixed(2).replace('.',',')+' € — <b>'+due+'</b><br>Solde '+(600-dep).toFixed(2).replace('.',',')+' € — '+saved.balanceDaysBefore+' j avant l’arrivée'):'Paiement unique 600,00 € — '+saved.balanceDaysBefore+' j avant l’arrivée';
+  var st=$('#resaStored');
+  if(!resaState) st.textContent=zero?'Logement à 0 jour : enregistrer pour voir.':'Mettre l’acompte à 0 jour plus haut, puis enregistrer ici.';
+  else st.innerHTML=resaState;
+}
+$('#resaSave').addEventListener('click',function(){
+  var on=saved.depositEnabled!==false, zero=on&&saved.depositDueDays==='0';
+  resaState=zero?'<b>Réservation enregistrée</b> — dates tenues, acompte dû aujourd’hui ; en retard dès demain s’il n’est pas reçu.':'<b>Réservation enregistrée</b> — dates tenues, acompte dû dans '+saved.depositDueDays+' jours.';
+  toast('Réservation enregistrée.');renderResa();
+});
+
+/* ---------- pool ---------- */
+var MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+var pool={mode:'allYear',start:{d:15,m:6},end:{d:31,m:8},stored:{mode:'none'}};
+function mdPicker(host,key,label){
+  var mk=function(opts,val,aria){var w=document.createElement('div');w.className='f';w.innerHTML='<div class="box"><select aria-label="'+aria+'"></select></div>';var s=$('select',w);opts.forEach(function(o){var op=document.createElement('option');op.value=o[0];op.textContent=o[1];if(o[0]==val)op.selected=true;s.appendChild(op)});return w};
+  var days=[];for(var i=1;i<=31;i++)days.push([i,String(i)]);
+  var dW=mk(days,pool[key].d,label+', jour'),mW=mk(MONTHS.map(function(m,i){return [i+1,m]}),pool[key].m,label+', mois');
+  host.appendChild(dW);host.appendChild(mW);
+  $('select',dW).addEventListener('change',function(){pool[key].d=Number(this.value);validatePool()});
+  $('select',mW).addEventListener('change',function(){pool[key].m=Number(this.value);validatePool()});
+}
+mdPicker($('#mdStart'),'start','Ouverte du');mdPicker($('#mdEnd'),'end','Au');
+var pad=function(n){return String(n).padStart(2,'0')};
+var mdStr=function(o){return pad(o.m)+'-'+pad(o.d)};
+var mdHuman=function(o){return o.d+(o.d===1?'er':'')+' '+MONTHS[o.m-1]};
+function poolError(){return pool.mode==='season'&&mdStr(pool.end)<mdStr(pool.start)?'La fermeture suit l’ouverture.':''}
+function validatePool(){
+  var e=poolError(),box=$('#poolEndErr');
+  box.classList.toggle('err',!!e);$('.help',box).textContent=e;
+  $$('#mdEnd .f').forEach(function(f){f.classList.toggle('err',!!e)});
+  renderPoolStored(e);
+}
+function renderPoolStored(e){
+  var on=$('#poolOn').checked,s;
+  if(!on)s='Enregistré : <b>pas de piscine</b> · <code>"" → ""</code>';
+  else if(pool.mode==='allYear')s='Enregistré : <b>toute l’année</b> · <code>01-01 → 12-31</code> · le mail J-7 en parle pour tout séjour.';
+  else if(e)s='<span style="color:var(--error)">Enregistrement refusé (400) : « La fermeture suit l’ouverture. »</span>';
+  else s='Enregistré : <b>du '+mdHuman(pool.start)+' au '+mdHuman(pool.end)+'</b> · <code>'+mdStr(pool.start)+' → '+mdStr(pool.end)+'</code>';
+  $('#poolStored').innerHTML=s;
+}
+$('#poolOn').addEventListener('change',function(){$('#poolBody').hidden=!this.checked;validatePool()});
+segGroup('data-pm',function(v){pool.mode=v;$('#poolDates').hidden=v!=='season';validatePool()});
+renderPoolStored('');
+
+/* ---------- platforms ---------- */
+var PL=[['Airbnb','15,5','10'],['Booking.com','16,44','10'],['Gîtes de France','10','30'],['Abritel','15','10']];
+var plFields=[];
+PL.forEach(function(p){
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td>'+p[0]+'</td>'+
+  '<td><div class="f" data-min="0" data-max="99.99" data-dec="2" data-unit="%"><div class="box"><input value="'+p[1]+'" inputmode="decimal" aria-label="Commission '+p[0]+'"><span class="unit">%</span></div><div class="help" data-base=""></div></div></td>'+
+  '<td><div class="f" data-min="0" data-max="365" data-int data-unit="jours"><div class="box"><input value="'+p[2]+'" inputmode="numeric" aria-label="Virement après, '+p[0]+'"><span class="unit">jours</span></div><div class="help" data-base=""></div></div></td>';
+  $('#plBody').appendChild(tr);
+  $$('.f',tr).forEach(function(f){plFields.push(bounded(f))});
+});
+$('#plSave').addEventListener('click',function(){
+  var bad=0;plFields.forEach(function(b){var r=check(b.get(),b.field._limits);if(r.error){bad++;b.showServer(b.field._limits.unit==='jours'?'Un nombre entier de jours (0 à 365).':r.error)}});
+  bad?toast('Enregistrement refusé : '+bad+' champ'+(bad>1?'s':'')+' à corriger.',true):toast('Enregistré.');
+});
+
+/* ---------- social links ---------- */
+var NETS=[['instagram','Instagram',['instagram.com']],['facebook','Facebook',['facebook.com','fb.com','fb.me']],['tiktok','TikTok',['tiktok.com']],['youtube','YouTube',['youtube.com','youtu.be']],['pinterest','Pinterest',['pinterest.com','pinterest.fr','pin.it']],['linkedin','LinkedIn',['linkedin.com']],['x','X',['x.com','twitter.com']]];
+var netBy={};NETS.forEach(function(n){netBy[n[0]]=n});
+var links=[{network:'instagram',url:'https://www.instagram.com/domaine-exemple'}],a3='lines',slErr={};
+function urlError(l){
+  var u=String(l.url).trim();if(!u)return '';
+  var p;try{p=new URL(u)}catch(e){return 'URL invalide.'}
+  if(p.protocol!=='http:'&&p.protocol!=='https:')return 'Doit commencer par http:// ou https://.';
+  var h=p.hostname.toLowerCase();
+  var ok=netBy[l.network][2].some(function(d){return h===d||h.slice(-d.length-1)==='.'+d});
+  return ok?'':'Lien d’un autre réseau.';
+}
+function renderLinks(){
+  var host=$('#slList');host.innerHTML='';
+  links.forEach(function(l,i){
+    var r=document.createElement('div');r.className='slr';
+    var used=links.map(function(x){return x.network});
+    var opts=NETS.map(function(n){var dis=n[0]!==l.network&&used.indexOf(n[0])>=0;return '<option value="'+n[0]+'"'+(n[0]===l.network?' selected':'')+(dis?' disabled':'')+'>'+n[1]+'</option>'}).join('');
+    var e=slErr[i]||'';
+    r.innerHTML='<div class="f"><div class="box"><select aria-label="Réseau '+(i+1)+'">'+opts+'</select></div></div>'+
+      '<div class="f url'+(e?' err':'')+'"><div class="box"><input value="'+l.url.replace(/"/g,'&quot;')+'" placeholder="https://" aria-label="Adresse '+netBy[l.network][1]+'"'+(e?' aria-invalid="true"':'')+'></div><div class="help">'+e+'</div></div>'+
+      '<div class="icons"><button class="ib" type="button" data-up aria-label="Monter" title="Monter"'+(i===0?' disabled':'')+'>↑</button><button class="ib" type="button" data-down aria-label="Descendre" title="Descendre"'+(i===links.length-1?' disabled':'')+'>↓</button><button class="ib" type="button" data-rm aria-label="Retirer" title="Retirer">✕</button></div>';
+    $('select',r).addEventListener('change',function(){l.network=this.value;delete slErr[i];checkRow(i);renderLinks()});
+    var inp=$('input',r);
+    inp.addEventListener('input',function(){l.url=this.value;if(slErr[i]){delete slErr[i];var f=inp.closest('.f');f.classList.remove('err');$('.help',f).textContent='';inp.removeAttribute('aria-invalid')}renderMail()});
+    inp.addEventListener('blur',function(){l.url=this.value.trim();checkRow(i);renderLinks()});
+    $('[data-up]',r).addEventListener('click',function(){move(i,-1)});
+    $('[data-down]',r).addEventListener('click',function(){move(i,1)});
+    $('[data-rm]',r).addEventListener('click',function(){links.splice(i,1);slErr={};renderLinks()});
+    host.appendChild(r);
+  });
+  $('#slAdd').disabled=links.length>=8||links.length>=NETS.length;
+  renderMail();
+}
+function checkRow(i){var e=urlError(links[i]);if(e)slErr[i]=e;else delete slErr[i]}
+function move(i,d){var j=i+d;var t=links[i];links[i]=links[j];links[j]=t;slErr={};links.forEach(function(_,k){checkRow(k)});renderLinks()}
+$('#slAdd').addEventListener('click',function(){
+  var used=links.map(function(x){return x.network});var n=NETS.filter(function(x){return used.indexOf(x[0])<0})[0];
+  links.push({network:n[0],url:''});renderLinks();var ins=$$('#slList input');ins[ins.length-1].focus();
+});
+$('#slSave').addEventListener('click',function(){
+  slErr={};links.forEach(function(_,k){checkRow(k)});renderLinks();
+  var n=Object.keys(slErr).length;
+  n?toast('Enregistrement refusé : '+n+' lien'+(n>1?'s':'')+' à corriger.',true):toast('Enregistré.');
+});
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function renderMail(){
+  var good=links.filter(function(l,i){return l.url.trim()&&!urlError(l)});
+  var para='';
+  if(good.length===1)para='Si vous êtes nostalgiques de votre séjour, n’hésitez pas à nous suivre sur les réseaux sociaux : <a href="#" onclick="return false">'+esc(good[0].url)+'</a>';
+  else if(good.length>1){
+    var items=good.map(function(l){return netBy[l.network][1]+(a3==='lines'?' : ':' ')+'<a href="#" onclick="return false">'+esc(l.url)+'</a>'});
+    para='Si vous êtes nostalgiques de votre séjour, n’hésitez pas à nous suivre sur les réseaux sociaux :'+(a3==='lines'?'\n- '+items.join('\n- '):' '+items.join(' · '));
+  }
+  $('#slMail').innerHTML='<b>Mail J+1 — aperçu</b>\n\nBonjour Camille,\n\nMerci d’avoir séjourné chez nous. …\n\nSi quelque chose a manqué à votre séjour, même un détail, il suffit de répondre à ce mail : nous aimerions le savoir.\n\n'+(para?'<span class="hl">'+para+'</span>\n\n':'<span style="color:var(--muted)">(aucun lien : pas de paragraphe)</span>\n\n')+'Au plaisir de vous accueillir à nouveau,\nAdrien et Sophie';
+}
+renderLinks();
+
+/* ---------- plan comptable ---------- */
+function acc(host,label,val,moved,help){
+  var d=document.createElement('div');d.className='f ro'+(moved?' moved':'');
+  d.innerHTML='<label>'+label+'</label><div class="box"><input value="'+val+'" inputmode="numeric" aria-label="'+label+'"></div><div class="help">'+(help||'Par défaut : '+val)+'</div>';
+  $(host).appendChild(d);
+}
+acc('#pcVentes','Hébergement','70600000');acc('#pcVentes','Prestations complémentaires','70600010');acc('#pcVentes','Activités','70601000');acc('#pcVentes','Rabais accordés','70900000');
+acc('#pcTaxes','TVA collectée 20 %','44571200');acc('#pcTaxes','TVA collectée 10 %','44571100');acc('#pcTaxes','Taxe de séjour','46710000');acc('#pcTaxes','TVA déductible (commissions)','44566000');
+acc('#pcDivers','Commission par défaut','622600',true,'Pour les plateformes sans compte propre.');acc('#pcDivers','Indemnités d’annulation','75880000',true,'Crédité quand une plateforme indemnise une annulation.');
+acc('#pcDivers','TVA sur indemnités (%)','0',true,'0 % = hors champ de TVA.');acc('#pcDivers','Pourboires','75880000');
+acc('#pcJournal','Code journal des ventes','VT');
+segGroup('data-pc',function(v){$('#pcAfter').hidden=v!=='after';$('#pcBefore').hidden=v!=='before'});
+
+syncDep();showStored();
+})();
+</script>
+</body>
+</html>

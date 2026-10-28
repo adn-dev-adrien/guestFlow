@@ -31,7 +31,7 @@ const READ_ONLY = {
   company: ['logoPath'],
   smtp: ['passwordSet', 'derived', 'passwordDraft', 'platform'],
   notifications: ['derivedRecipient'],
-  emails: ['sequenceStartDate'],
+  emails: ['sequenceStartDate', 'instagramUrl', 'socialNetworks'],
 };
 
 // Secret drafts → the payload key the server expects.
@@ -51,7 +51,7 @@ const ERROR_KEYS = {
   smtp: { host: 'smtpHost', fromEmail: 'smtpFromEmail', fromName: 'smtpFromName', publicUrl: 'publicUrl' },
   notifications: { recipientEmail: 'notificationRecipientEmail' },
   emails: {
-    googleReviewUrl: 'googleReviewUrl', instagramUrl: 'instagramUrl',
+    googleReviewUrl: 'googleReviewUrl', socialLinks: 'socialLinks',
   },
 };
 
