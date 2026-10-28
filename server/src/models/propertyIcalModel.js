@@ -428,7 +428,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
           SET sourceIcalEventUid = ?, updatedAt = datetime('now')
           WHERE id = ?
         `);
-        const deleteReservation = database.prepare('DELETE FROM reservations WHERE id = ?');
         const insertReservation = database.prepare(`
           INSERT INTO reservations (
             propertyId, clientId, startDate, endDate, adults, children, teens, babies,

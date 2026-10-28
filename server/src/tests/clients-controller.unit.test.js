@@ -8,6 +8,8 @@ function fakeModel(overrides = {}) {
   const store = new Map();
   let nextId = 1;
   const base = {
+    deletionBlocker: () => null,
+    rowIdsToDelete: () => [],
     list: () => [...store.values()],
     findById: (id) => store.get(Number(id)),
     insert: (payload) => {
@@ -85,7 +87,7 @@ test('delete: client with reservations or devis and no force → 409 CLIENT_IN_U
   assert.equal(removed, false);
 });
 
-test('delete: with force=true deletes even when linked', () => {
+test('delete: with force=true deletes even when linked', async () => {
   const model = fakeModel({
     getDeleteImpact: (id) => ({
       client: { id: Number(id) }, reservationsCount: 2, reservations: [], devisCount: 1, devis: [],
@@ -95,18 +97,18 @@ test('delete: with force=true deletes even when linked', () => {
   model.remove = (id) => { removedId = id; };
   const c = clientsController.buildController(model);
   const res = fakeRes();
-  c.remove({ params: { id: 5 }, query: { force: 'true' } }, res);
+  await c.remove({ params: { id: 5 }, query: { force: 'true' } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
   assert.equal(removedId, 5);
 });
 
-test('delete: unlinked client deletes without force', () => {
+test('delete: unlinked client deletes without force', async () => {
   const model = fakeModel();
   const created = model.insert({ lastName: 'a', firstName: 'b' });
   const c = clientsController.buildController(model);
   const res = fakeRes();
-  c.remove({ params: { id: created.id }, query: {} }, res);
+  await c.remove({ params: { id: created.id }, query: {} }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(model.findById(created.id), undefined);
 });

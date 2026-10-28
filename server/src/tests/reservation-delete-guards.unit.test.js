@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rules 49-51 (and specs/terms-acceptance-record.md rule 29) — the
+// specs/payment-schedule-and-cancellation.md rules 49-52 (and specs/terms-acceptance-record.md rule 29) — the
 // DELETE /api/reservations/:id route used to bypass every read-only and archive guard of the fiche
 // (audit 2026-10-28): it erased cancelled stays with their refunds and devis with their CGV proof,
 // and left the payment links of a deleted row payable at the provider.
@@ -174,4 +174,37 @@ test('rule 51 — open links pointing at a missing reservation are listed for th
   links.create({ reservationId: 424242, type: 'deposit', amountCents: 100, providerLinkId: 'ql_orphan', url: 'u', status: 'open' });
   links.create({ reservationId: 424243, type: 'deposit', amountCents: 100, providerLinkId: 'ql_old', url: 'u', status: 'cancelled' });
   assert.deepEqual(links.listOrphanOpen().map((l) => l.reservationId), [424242]);
+});
+
+// ---- rule 49 / 50 — money and links of a devis converted into the stay (they keep the devis id) ----
+
+function stayWithConvertedDevis(db) {
+  const { id } = { id: Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, platform, sourceType, devisStatus)
+    VALUES ('devis', 1, 1, '2099-06-01', '2099-06-04', 'Direct', 'manual', 'converted')`).run().lastInsertRowid) };
+  return id;
+}
+
+test('rule 49 — a paid link left on the devis converted into the stay refuses the stay delete, with the way out', async () => {
+  const { db, id } = seed();
+  const devis = stayWithConvertedDevis(db);
+  db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(id, devis);
+  paymentLinksModel.buildModel(db).create({ reservationId: devis, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_p', url: 'u', status: 'paid' });
+  const res = await remove(controllerFor(db, fakeProvider()), id);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'RESERVATION_CARRIES_MONEY');
+  assert.equal(res.body.error, 'Un paiement est enregistré sur ce séjour : l’annuler plutôt que le supprimer.');
+  assert.equal(exists(db, id), true);
+});
+
+test('rule 50 — an open link left on the converted devis is deactivated before the stay goes', async () => {
+  const { db, id } = seed();
+  const devis = stayWithConvertedDevis(db);
+  db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(id, devis);
+  const links = paymentLinksModel.buildModel(db);
+  const link = links.create({ reservationId: devis, type: 'balance', amountCents: 9000, providerLinkId: 'ql_dv', url: 'u', status: 'open' });
+  const provider = fakeProvider();
+  const res = await remove(controllerFor(db, provider), id);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(provider.calls, ['ql_dv']);
+  assert.equal(links.findById(link.id).status, 'cancelled');
 });

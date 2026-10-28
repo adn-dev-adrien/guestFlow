@@ -75,13 +75,16 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
 }
 
 /**
- * Before a stay or a devis is deleted: every open link of the row is deactivated at its provider, or
+ * Before a stay or a devis is deleted: every open link of the rows (an id or a list of ids: the stay and
+ * the devis converted into it, whose links keep the devis id) is deactivated at its provider, or
  * the delete is refused. A link left payable would take a guest's money into a row that no longer
  * exists. Throws `{ httpStatus, error, message }` (the shape `assertNotPaid` uses) and changes nothing
  * locally unless every deactivation succeeded.
  */
-async function deactivateOpenLinksBeforeDelete(reservationId, { paymentLinksModel, providerFor = defaultProviderFor }) {
-  const open = paymentLinksModel.listForReservation(reservationId).filter((link) => link.status === 'open');
+async function deactivateOpenLinksBeforeDelete(reservationIds, { paymentLinksModel, providerFor = defaultProviderFor }) {
+  const open = [].concat(reservationIds)
+    .flatMap((id) => paymentLinksModel.listForReservation(id))
+    .filter((link) => link.status === 'open');
   const done = [];
   for (const link of open) {
     if (!link.providerLinkId) { done.push(link); continue; }

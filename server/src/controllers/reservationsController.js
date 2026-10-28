@@ -2397,7 +2397,7 @@ async function remove(req, res) {
   const blocker = model.deletionBlocker(existing.id);
   if (blocker) return res.status(409).json({ error: blocker, code: 'RESERVATION_CARRIES_MONEY' });
   try {
-    await deactivateOpenLinksBeforeDelete(existing.id, { paymentLinksModel: paymentLinksStore });
+    await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(existing.id), { paymentLinksModel: paymentLinksStore });
   } catch (err) {
     return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
   }

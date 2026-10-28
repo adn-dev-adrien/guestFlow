@@ -34,6 +34,7 @@
  */
 
 const { totalSejour } = require('./financeModel').helpers;
+const { carriesMoney } = require('../utils/deletionGuard');
 
 function buildModel(database) {
   // Bound to the SAME database so a test factory gets a matching pair. Its statements are
@@ -171,6 +172,14 @@ function buildModel(database) {
     'DELETE FROM ical_import_events WHERE reservationId = ?',
   );
   const deleteReservation = database.prepare('DELETE FROM reservations WHERE id = ?');
+  const markCancelledKept = {
+    run: (id) => database.prepare(`
+      UPDATE reservations
+         SET kind = 'cancelled', cancelledAt = datetime('now'), cancellationReason = 'Annulation iCal approuvée',
+             paymentAlertSnoozedUntil = NULL, updatedAt = datetime('now')
+       WHERE id = ? AND kind = 'reservation'
+    `).run(id),
+  };
   // specs/booking-pace.md §5 — the deleted stay keeps counting « on the books » on the dates it was.
   // Lazy: a schema without the ledger (older test fixtures) skips it.
   const recordPaceCancellation = (reservationId) => {
@@ -227,13 +236,18 @@ function buildModel(database) {
       ackAlreadyCancelled.run(id);
       return { ok: true, outcome: 'already_cancelled', reservationId: null, compensationId: null };
     }
+    // THE delete guard (specs/payment-schedule-and-cancellation.md rule 52): a stay that carries money
+    // (a refund, a penalty, a paid link, a compensation…) is never hard-deleted by a platform's
+    // disappearance: it is cancelled and kept, its mappings go, the alert closes as approved.
+    const keptAsCancelled = carriesMoney(database, [cancellation.reservationId]);
     // Snapshot BEFORE delete — same reason as the history row below.
     const snapshot = compensation ? selectReservationSnapshot().get(cancellation.reservationId) : null;
     // History BEFORE delete so the reservationId FK is still resolvable.
     insertHistoryStmt.run(cancellation.reservationId, HISTORY_PAYLOAD);
     recordPaceCancellation(cancellation.reservationId);
     deleteImportEvents.run(cancellation.reservationId);
-    deleteReservation.run(cancellation.reservationId);
+    if (keptAsCancelled) markCancelledKept.run(cancellation.reservationId);
+    else deleteReservation.run(cancellation.reservationId);
     ackApproved.run(id);
     let compensationId = null;
     if (compensation) {
@@ -254,7 +268,7 @@ function buildModel(database) {
       });
       compensationId = created ? created.id : null;
     }
-    return { ok: true, outcome: 'approved', reservationId: cancellation.reservationId, compensationId };
+    return { ok: true, outcome: keptAsCancelled ? 'approved_kept' : 'approved', reservationId: cancellation.reservationId, compensationId };
   });
 
   /**

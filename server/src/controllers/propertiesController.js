@@ -1,6 +1,7 @@
 // Properties controller — thin handlers over propertiesModel.
 
 const model = require('../models/propertiesModel');
+const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
@@ -123,8 +124,15 @@ async function update(req, res) {
   }
 }
 
-function remove(req, res) {
-  res.json(model.remove(req.params.id));
+async function remove(req, res) {
+  const blocker = model.deletionBlocker(req.params.id);
+  if (blocker) return res.status(409).json({ error: blocker, code: 'PROPERTY_CARRIES_MONEY' });
+  try {
+    await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(req.params.id), { paymentLinksModel: require('../models/paymentLinksModel') });
+  } catch (err) {
+    return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
+  }
+  return res.json(model.remove(req.params.id));
 }
 
 // specs/google-vacation-rentals-feed.md rule 12 — a write that succeeded announces itself; a refusal

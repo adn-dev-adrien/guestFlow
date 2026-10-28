@@ -27,6 +27,7 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
 const { devisListRow } = require('../utils/devisListRow');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { carriesMoney } = require('../utils/deletionGuard');
 
 // Helpers shared between create + convertFromReservation
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3).
@@ -1058,6 +1059,9 @@ function createModel(database) {
     // (specs/terms-acceptance-record.md rule 29): deleting the devis would cascade it away.
     if (existing.convertedReservationId && database.prepare('SELECT 1 FROM terms_acceptances WHERE reservationId = ?').get(existing.id)) {
       return { error: "Ce devis porte l'acceptation des CGV de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409 };
+    }
+    if (carriesMoney(database, [existing.id])) {
+      return { error: 'Un paiement est enregistré sur ce devis : le conserver plutôt que le supprimer.', status: 409, code: 'DEVIS_CARRIES_MONEY' };
     }
     return null;
   }
