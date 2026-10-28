@@ -1506,7 +1506,10 @@ function calculateReservationQuote({
   // (vatPercentageAccommodation / Options / Resources) below keep their names but all carry
   // the same value, so downstream readers (devisPdf, accountingModel, PricingSummary)
   // continue working without a wider rename.
-  const vatRate = vatRegimeModel.rateForRow(db, null);
+  // One VAT rate per sale, the one of the regime it was sold under (specs/vat-optional-mode.md rule 8):
+  // a stored stay keeps its period, a new stay or a devis is priced under the regime in force today.
+  const vatRegime = vatRegimeModel.forRow(db, { id: bookingId, kind: quoteKind, createdAt: bookingDate, startDate });
+  const vatRate = vatRegime.rate;
 
   const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
   const calculatedBase = calculateBaseStayPrice(rules, startDate, endDate);
@@ -1558,6 +1561,7 @@ function calculateReservationQuote({
       vatPercentageAccommodation: vatRate,
       vatPercentageOptions: vatRate,
       vatPercentageResources: vatRate,
+      vatRegime,
       accommodationNetPrice: 0,
       accommodationVatAmount: 0,
       optionsNetPrice: 0,
@@ -3086,6 +3090,7 @@ function calculateReservationQuote({
     vatPercentageAccommodation,
     vatPercentageOptions,
     vatPercentageResources,
+    vatRegime,
     accommodationAdjustedPrice,
     accommodationDiscountAmount,
     accommodationDeltaAmount,

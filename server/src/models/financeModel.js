@@ -519,7 +519,8 @@ function createFinanceModel(database) {
       // accounting date, so a stay settled before the closing counts in the closing exercise even when
       // the guest leaves after it (specs/fiscal-year-and-nights-sold.md §3.2).
       const yearRows = database.prepare(`
-        SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
+        SELECT r.id,
+               depositAmount, balanceAmount, complementAmount, complementPaidCash,
                ${STAY_CASH_COLS},
                endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes,
                r.startDate, r.endDate,
