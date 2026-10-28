@@ -150,6 +150,7 @@ test('specs/plugins-phase-2-hosts.md rule 17: the bed-linen alert is computed on
   const plugins = buildPluginsModel(db);
   registry.reset();
   registry.configure({ isActive: (id) => plugins.isActive(id), allows: () => true });
+  registry.ensure('linen');
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Ana', 'Lopez')").run();
   db.prepare(`INSERT INTO reservations (id, propertyId, clientId, startDate, endDate, adults, kind)

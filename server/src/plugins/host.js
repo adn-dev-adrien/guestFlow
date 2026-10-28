@@ -161,16 +161,20 @@ function boot({ db, loader, registry, model, catalogue }) {
   const s = init();
   const ids = catalogue.map((p) => p.id);
   const rows = housekeeping({ model, ids });
+  // specs/plugin-removal-resilience.md rule 1 — an installed plugin whose code is gone from this
+  // release (it left the catalogue) is still reported, and can be uninstalled.
+  const order = [...ids, ...rows.map((r) => r.id).filter((id) => !ids.includes(id))];
+  const missing = { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' };
   if (s.mode !== 'packages') {
     loader.registerAll({ db, dataDir: (id) => s.store.dataDirPath(id) });
+    rows.filter((r) => !registry.has(r.id)).forEach((r) => { s.incompatible[r.id] = missing; });
     return;
   }
-  registry.configure({ requireRecord: true });
   const { getAppVersion } = require('../utils/appVersion');
   const { SDK_VERSION } = require('./sdk/version');
   const nameOf = (id) => (catalogue.find((p) => p.id === id) || {}).name || id;
   const { modules, incompatible, manifests } = loader.loadPackages({
-    store: s.store, rows, order: ids, env: { coreVersion: getAppVersion(), sdkVersion: SDK_VERSION, hostExports: hostExports() }, nameOf,
+    store: s.store, rows, order, env: { coreVersion: getAppVersion(), sdkVersion: SDK_VERSION, hostExports: hostExports() }, nameOf,
   });
   s.incompatible = incompatible;
   Object.values(manifests).forEach((m) => setLoaded(m.id, m.version, m.contentHash));

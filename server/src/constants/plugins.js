@@ -30,7 +30,20 @@ const CATALOG_ORDER = [
   GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS,
 ];
 
-const PLUGIN_CATALOG = Object.freeze(CATALOG_ORDER.map((id) => readSourceManifest(id)));
+// specs/plugin-removal-resilience.md rule 1 — the catalogue is the manifests that exist: a plugin whose
+// folder is gone (a distribution without it, a package left out) is skipped, never a boot failure.
+function readCatalogue(read = readSourceManifest, log = console.warn) { // eslint-disable-line no-console
+  return CATALOG_ORDER.flatMap((id) => {
+    try {
+      return [read(id)];
+    } catch {
+      log(`[plugins] ${id}: manifest introuvable, plugin ignoré`);
+      return [];
+    }
+  });
+}
+
+const PLUGIN_CATALOG = Object.freeze(readCatalogue());
 
 const PLUGIN_IDS = Object.freeze(PLUGIN_CATALOG.map((p) => p.id));
 
@@ -111,6 +124,8 @@ module.exports = {
   TARIFF_RECIPES,
   SCHOOL_HOLIDAYS,
   WEATHER_ALERTS,
+  CATALOG_ORDER,
+  readCatalogue,
   PLUGIN_CATALOG,
   PLUGIN_IDS,
   SEEDED_ON_EXISTING_IDS,

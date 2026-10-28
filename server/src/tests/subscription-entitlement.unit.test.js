@@ -283,6 +283,8 @@ test('rule 12: a downgrade leaves the stored state untouched and an upgrade brin
 test('rule 12: a plugin outside the licence is not live, wherever the core asks', () => {
   try {
     registry.configure({ isActive: () => true, allows: (id) => id !== 'neat' });
+    registry.ensure('neat');
+    registry.ensure('sas');
     assert.equal(registry.isLive('neat'), false);
     assert.equal(registry.isLive('sas'), true);
   } finally {

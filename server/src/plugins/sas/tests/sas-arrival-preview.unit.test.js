@@ -12,6 +12,7 @@ const registry = require('../../sdk/registry');
 const controller = require('../controller');
 
 registry.configure({ isActive: () => true, allows: () => true });
+registry.ensure('linen');
 
 db.prepare("INSERT INTO properties (id, name, maxGuests) VALUES (1, 'Gîte fictif', 6)").run();
 db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Alex', 'Exemple')").run();

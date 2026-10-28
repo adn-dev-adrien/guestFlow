@@ -61,6 +61,7 @@ const LINEN_ITEMS = [
 function bootRoutes() {
   registry.reset();
   registry.configure({ isActive: (id) => live.has(id), allows: () => true });
+  registry.ensure('linen');
   loader.registerAll({ db: null, modules: [sasModule], isInstalled: () => false });
   const app = express();
   app.use(express.json());
@@ -193,6 +194,7 @@ function buildController({ captures = [], storedLines = [], resolved = [] } = {}
 
 function readSas(mode) {
   registry.configure({ isActive: (id) => live.has(id), allows: () => true });
+  registry.ensure('linen');
   const res = fakeRes();
   buildController().getSas({ params: { id: 1 }, query: mode ? { mode } : {}, user: { roles: ['admin'] } }, res);
   return res.body;
@@ -235,6 +237,7 @@ const ARRIVAL_BODY = {
 
 function commitArrival({ storedLines = [], body = ARRIVAL_BODY } = {}) {
   registry.configure({ isActive: (id) => live.has(id), allows: () => true });
+  registry.ensure('linen');
   const captures = [];
   const resolved = [];
   const res = fakeRes();
@@ -300,6 +303,7 @@ test('specs/plugins-phase-2-hosts.md rule 12 — the arrival/departure push open
 
   useLive();
   registry.configure({ isActive: (id) => live.has(id), allows: () => true });
+  registry.ensure('linen');
   assert.deepEqual(await urls(undefined), ['/reservations/7', '/reservations/8'], 'by default it asks the registry');
 });
 

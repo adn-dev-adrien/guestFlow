@@ -392,7 +392,7 @@ test('rule 14: a package the running core no longer satisfies stays installed bu
 
 test('rules 14, 17: in the package mode a plugin that did not load is not live', () => {
   registry.reset();
-  registry.configure({ isActive: () => true, allows: () => true, requireRecord: true });
+  registry.configure({ isActive: () => true, allows: () => true });
   assert.equal(registry.isLive('linen'), false);
   registry.ensure('linen');
   assert.equal(registry.isLive('linen'), true);

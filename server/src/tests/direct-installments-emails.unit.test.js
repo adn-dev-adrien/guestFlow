@@ -9,6 +9,7 @@ const { buildContext } = require('../utils/emailContextBuilder');
 const { requestContext } = require('../utils/installmentPlan');
 const { createInstallmentRequests } = require('../utils/installmentRequests');
 const { buildController } = require('../controllers/emailsController');
+const registry = require('../plugins/sdk/registry');
 const { buildModel: buildLogModel } = require('../models/emailLogModel');
 const { buildModel: buildQueueModel } = require('../models/emailManualQueueModel');
 const { buildModel: buildTemplatesModel } = require('../models/emailTemplatesModel');
@@ -200,8 +201,16 @@ test('rule 19 — the preview of an entry shows its amount and, once minted, its
   assert.match(before.body.body, /333,50/);
   assert.match(before.body.body, /Contactez-nous pour le règlement/, 'no link yet: the no-link branch');
   f.paymentLinksModel.create({ reservationId: f.reservationId, type: 'installment', installmentId: f.rows[2].id, amountCents: 33350, url: 'https://pay.example/known', providerLinkId: 'ql' });
+  const withoutProvider = reply();
+  f.controller.preview({ query: { reservationId: f.reservationId, templateId: f.templateId, occurrenceKey: key } }, withoutProvider);
+  // specs/plugin-removal-resilience.md rule 6 — the stored link is not offered while no provider is live.
+  assert.match(withoutProvider.body.body, /Contactez-nous pour le règlement/);
   const after = reply();
+  registry.reset();
+  registry.configure({ isActive: () => true, allows: () => true });
+  registry.ensure('online-payment').paymentProvider = { id: 'fixture', isReady: () => true };
   f.controller.preview({ query: { reservationId: f.reservationId, templateId: f.templateId, occurrenceKey: key } }, after);
+  registry.reset();
   assert.match(after.body.body, /https:\/\/pay.example\/known/);
 });
 
