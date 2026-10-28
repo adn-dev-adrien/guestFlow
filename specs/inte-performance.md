@@ -153,6 +153,38 @@ the same kind fails CI instead of reaching Adrien.
 9. **One « count + word » helper.** (Added 2026-10-28.) `plural(n, word)` lives in
    `utils/formatters.js`; the three identical private copies (`FinancePage`, `FinanceDetailPanel`,
    `EmailTextsSettingsPage`) are removed.
+10. **A page's chunk starts before the router asks for it.** (Added 2026-10-28, decision of the
+    coordinator after the lazy routes measured slower on the home.) `lazyPage(loader)` returns a component
+    with `.preload()`: one memoised import shared by the boot, the idle prefetch and `React.lazy`; a
+    failed preload is forgotten so the navigation can retry. `App.jsx` calls `preloadRoute(PAGE_ROUTES,
+    location.pathname)` when it is evaluated, in parallel with `/auth/me`, and, once the shell is
+    mounted, `prefetchOnIdle` imports the main pages (home, planning, calendar, reservation, clients,
+    emails, devis; not finance nor the settings) one idle slot at a time (`requestIdleCallback`, a
+    1.5 s timer without it), never when `navigator.connection.saveData` is set. A page whose chunk is
+    already loaded renders at once: going through `React.lazy` again suspends once more, and React
+    holds back a boundary that showed a fallback for 300 ms, which was the whole slowness measured.
+11. **The email timeline carries no template body.** `GET /api/email-templates?view=timeline` drops
+    `body` and `bodyEn` (after `hasEnglish` is computed from them); the editor of Emails › Modèles reads
+    both with `GET /:id` when it opens, shows a skeleton, keeps « Enregistrer » disabled until they are
+    read (an empty body is never saved over a real one) and offers « Réessayer » when the read fails.
+    The plain list and `GET /:id` keep their full rows.
+12. **« Réservations à venir » answers what its cards render.** `GET /api/reservations/upcoming` maps
+    each stay to the fields `ReservationCard` and the page read (`CARD_FIELDS`, field by field), its
+    options as `{ title, billedUnits, quantity }` and its resources as `{ name, billedUnits, quantity }`.
+    The grouping, the counts and `?day=` are unchanged. The only caller is the page (no plugin, no SDK
+    surface), so there is no `view` switch to keep the old shape.
+13. **The side menu reads the properties once.** `App.jsx` read `/properties` at every pathname or query
+    change; it now reads once and again on the data-changed event every successful write dispatches.
+14. **The fiche reads the property's `stay` view.** `GET /api/properties/:id?view=stay` is the detail
+    without `pricingRules` (about 60 % of it: 127 of 212 kB on the shadow), which only the tariff pages
+    render; the reservation fiche asks for it. The default answer is unchanged.
+15. **The fiche reads nothing it does not show.** The option catalogue it fetched as a fallback for a
+    payload that "predates" the property's own options (always present) is gone, and the client list
+    (all clients, 29 kB here, growing with the business) is read only when the client search is shown
+    (a new stay, or « changer » on an existing one); an existing stay shows its client from
+    `GET /clients/:id`.
+16. **The email pickers carry no body.** `GET /api/email-templates?view=picker` is the list, in stay
+    order, without `body` and `bodyEn`; the history filter and the send and compose dialogs use it.
 
 **Edge cases:**
 
@@ -248,11 +280,19 @@ No screen changes beyond loading states.
 
 ### Server unit tests
 
+- [x] `email-templates-timeline-lean.unit.test.js` — rules 11, 16 — **5 cases**; `upcoming-reservations-lean.unit.test.js` —
+      rule 12 — **3 cases**; `property-stay-view.unit.test.js` — rule 14 — **4 cases**.
 - [x] `server/src/tests/hashed-assets-cache.unit.test.js` — rule 7 — **2 cases**.
 
 - [x] `server/src/tests/heavy-endpoints-budget.unit.test.js` — rule 5 (6 endpoints × 2 cases: same
       statement count at 20 and 2 000 reservations, time budget; plus a control that the counter sees a
       statement per reservation) — **13 cases**.
+
+### Client Vitest (lot 5 and the preload)
+
+- [x] `LazyPage.preload.test.jsx` — rule 10 — **7 cases**; `EmailTemplatesPage.body-on-open.test.jsx` — rule 11 — **3 cases**;
+      `App.menu-properties.test.jsx` — rule 13; `ReservationPage.fiche-reads.test.jsx` — rules 14–15;
+      `api.property-view.test.js` — rules 14, 16.
 
 ### Script tests (in the server suite, importing `scripts/*.mjs`)
 
@@ -304,7 +344,7 @@ No screen changes beyond loading states.
 show in PRODUCTION count. Three axes, behaviour-neutral, measured on a production-build shadow, leaving
 the pages other branches are rewriting (`Dashboard`, `PlanningPage`, `CalendarPage`) untouched.
 
-Audit of the calls each main page makes on the production build (63 reservations, 78 clients;
+Audit of the calls each main page makes (kB before → after the work of this lot) on the production build (63 reservations, 78 clients;
 `node` + Playwright, responses counted when fully read):
 
 | Page | calls | kB | Finding |
@@ -318,14 +358,48 @@ Audit of the calls each main page makes on the production build (63 reservations
 | `/settings` | 10 → 9 | 6 | none |
 | `/emails` | 11 | 38 | timeline carries each template's FR + EN body (≈ 20 of 33 kB) the list does not show |
 
-Done in this lot: rule 8 (every page: one call fewer) and rule 9. **Not done, noted for their owners
-or for a decision**: trimming `reservations` rows to the columns the calendar/dashboard/cards render
-(`Dashboard`, `CalendarPage`, `PlanningPage` are being rewritten by other branches; the upcoming cards
-and the email timeline need a field-by-field audit of what their dialogs read: a trimmed payload is a
-contract change to be done with that page, not beside it), the `/properties` re-read at ~350 ms on the
-properties and calendar pages, and virtualisation (no list measured as costly: ≤ 63 stays here).
-Bundle: no duplicated feature found beyond the helper of rule 9; the heaviest chunks are third-party
-(`FinancePage` 128 kB gzip = Recharts, now loaded only on the finance pages; MUI core 108 kB).
+Done in this lot: rules 8 to 16. Measured on the production-build shadow (`node` + Playwright, response bodies):
+
+| Page | calls | kB |
+|---|---|---|
+| `/reservations/upcoming` | 10 → 9 | **62 → 11** |
+| `/emails` | 11 → 10 | **38 → 14** |
+| `/emails/historique` | 10 | **44 → 18** |
+| `/reservations/:id` (fiche) | 24 | **304 → 133** |
+| `/calendar` | 20 → 18 | 80 → 77 |
+| `/clients`, `/finance`, `/settings`, `/planning`, `/` | one call fewer each | unchanged |
+
+### Follow-up lot, after the pages being rewritten elsewhere (to do, not done)
+
+**Resolved 2026-10-28** (coordinator): `Dashboard.jsx`, `PlanningPage.jsx` and `CalendarPage.jsx` are being
+rewritten by the `dashboard-planning-scroll` and `calendar-property-parity` branches; their payloads are
+trimmed **after those branches merge, rebased onto inte**, in a lot of its own:
+
+- the home and the calendar read four overlapping `GET /reservations?from&to` windows of full rows
+  (34 + 28 + 19 + 11 kB on the home, 28 + 19 + 11 + 8 kB on the calendar): one window each, and only the
+  columns the grid and the cards render;
+- the planning reads `GET /reservations/:id` (22 kB) for one stay;
+- the calendar and the properties page read `/properties` a second time after their own mount (the
+  shell's read and the page's are not concurrent, so the coalescing of rule 8 does not catch them).
+
+Left for a decision, with their measure: the fiche's property view still carries every option twice
+(`options` 28 kB and `optionGroups` 49 kB hold the same options, grouped); `GET /resources/availability`
+is read twice with the same parameters on the fiche; `GET /options?view=catalogue` is 26 kB on the
+options pages.
+
+### Bundle redundancy pass (2026-10-28)
+
+Found, not changed: no barrel import of `@mui/icons-material` (all deep imports); the plugin bundles are
+small (entry ≤ 1.8 kB gzip, 11 to 25 kB with their chunks) and bundle no React nor MUI; but **six
+plugins each ship their own `createSvgIcon` chunk** (the host does not expose `@mui/material/utils`),
+about 1 kB gzip each; **17 hand-built `<Dialog>`** repeat the same preamble (`useTheme` +
+`useMediaQuery(down('sm'))` + title / content / actions) beside `FormDialog` and `ConfirmDialog`
+(`BreakfastPrepDialog`, `ClientCleanupDialog`, `MidStayNoteDialog`, `RefundDialog`, the two Laundry dialogs,
+`TariffRecipeCard`, `BackupCodesDialog`, `UpdateDialog`, `ArchivedHtmlDialog`, `EmailLogViewDialog`…): a
+generic read-only `ViewDialog` and moving the form-shaped ones onto `FormDialog` would remove them, at
+the price of a visual check of each; `EmailLogViewDialog` is the one that misses the phone full-screen
+rule of CLAUDE.md §7. Small helpers duplicated and now shared: `plural` (rule 9). Left for a lot of
+their own: they are UI refactors, not measurable payload or bundle gains.
 
 ## 9. Open questions
 
@@ -349,7 +423,7 @@ Bundle: no duplicated feature found beyond the helper of rule 9; the heaviest ch
 - [x] Lot 3 — lazy routes (rules 2–3): `1e6ac20c`.
 - [x] Lot 4 — guards (rules 4–5): `c5c3f852`.
 - [x] Rule 7 (immutable hashed assets), added because lot 3 multiplies the files of a first load: `e04d95a0`.
-- [x] Lot 5 — widening: rules 8–9 and the page-by-page audit of §8b.
+- [x] Lot 5 — widening: rules 8–16 and the page-by-page audit of §8b (`7cce4826`, `7a5b4350`, `993bc84f`, the lean-reads commits).
 
 Tests: server 6 874 + 2 (`hashed-assets`) green; client 2 287; spec coverage green. The three
 statement/budget/shadow suites run inside `npm test` of the server.
@@ -364,12 +438,13 @@ so absolute times are 2 to 4 times those of §1.2 and only interleaved compariso
   `CalendarPage` 10 kB, `Dashboard` 10 kB, `EmailTextsSettingsPage` 8 kB.
 - Script files of a first load: 29 → 87 on `/` (the pages and their shared chunks are separate files);
   rule 7 makes a repeat load revalidate none of them.
-- Settled time, interleaved old (lot 2 build) vs new (lot 3 build), `--cpu 1`, 5 runs: `/` 180–320 → 560–710 ms,
-  `/emails` 350–450 → 420–530 ms, the others within noise. **The lazy routes did not make pages
-  load faster on this machine and made the home slower by ~250 ms** (an extra round: `/auth/me`, then the
-  chunk of the page, then its calls); preloading the home chunk did not change it and was dropped. The gain
-  is bytes parsed on a first visit (637 → 285 kB), which a loaded localhost cannot show. Keep or drop
-  lot 3 is a decision for Adrien (it is its own commit; the budget would go back to 637 kB + 10 %).
+- Settled time, interleaved pre-lazy build vs lazy build, `--cpu 1`, 5 runs, 3 rounds. Lazy routes
+  alone (rule 2): `/` 180–320 → 560–710 ms, `/clients` 210–290 → 480–550 ms. After rule 10 (boot preload
+  of the URL's chunk, no re-suspension of a loaded page, idle prefetch): `/` 258–290 → **323–339**,
+  `/emails` 398–415 → **386–412**, `/calendar` 383–418 → **373–400**, `/clients` 201–232 → **290–310** ms.
+  Equal on the pages that do real work, ~+40 to +90 ms on the two lightest ones (one more round of chunk
+  evaluation); the bytes parsed on a first visit are 637 → 285 kB gzip. The 300 ms that rule 2 added was
+  React's fallback throttling, not the network. The machine was still loaded (load average 50 to 200).
 - Email texts page: idle 670 ms (§1.2, quiet machine) → 480 ms under load, 40 inputs mounted at open
   (136 before), first preview requested at once (rule 50).
 - `/emails`, `/settings/plateformes` unchanged in code: any change in their figures is noise.
