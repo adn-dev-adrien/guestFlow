@@ -179,7 +179,8 @@ function createAuthController(users, {
   const gate = createRequireAuth(users);
   const self = (fn) => (req, res, next) => gate(req, res, async () => {
     try {
-      return res.json(await fn(req.user, req.body || {}));
+      const out = await fn(req.user, req.body || {}, req);
+      return out === undefined ? res.status(204).end() : res.json(out);
     } catch (err) {
       return sendError(res, err, next);
     }
@@ -267,7 +268,9 @@ function createAuthController(users, {
     resetPassword,
     supportLogin,
     twoFactorStatus: self((user) => twoFactor.status(user)),
-    twoFactorStart: self((user, body) => twoFactor.start(user, body)),
+    twoFactorStart: self((user, body, req) => twoFactor.start(user, body, { sessionId: req.sessionID })),
+    twoFactorCancel: self((user) => twoFactor.cancel(user)),
+    twoFactorCode: self((user) => twoFactor.sendCode(user)),
     twoFactorConfirm: self((user, body) => twoFactor.confirm(user, body)),
     twoFactorDisable: self((user, body) => twoFactor.disable(user, body)),
     twoFactorRegenerate: self((user, body) => twoFactor.regenerate(user, body)),

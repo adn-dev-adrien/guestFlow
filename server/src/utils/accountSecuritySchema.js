@@ -91,6 +91,14 @@ function applyAccountSecuritySchema(db) {
     CREATE INDEX IF NOT EXISTS idx_support_access_log_access ON support_access_log(accessId);
   `);
 
+  // Rules 43-44 (2026-10-28): the enrolment's start, its sends, and the session that opened it. Nullable or
+  // defaulted: an enrolment begun before the update has no start, which rule 43 reads as expired.
+  const twoFactorCols = db.prepare('PRAGMA table_info(user_two_factor)').all().map((c) => c.name);
+  if (!twoFactorCols.includes('pendingStartedAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingStartedAt TEXT');
+  if (!twoFactorCols.includes('pendingSends')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingSends INTEGER NOT NULL DEFAULT 0');
+  if (!twoFactorCols.includes('lastCodeSentAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN lastCodeSentAt TEXT');
+  if (!twoFactorCols.includes('pendingSessionHash')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingSessionHash TEXT');
+
   const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userCols.includes('twoFactorSnoozedUntil')) db.exec('ALTER TABLE users ADD COLUMN twoFactorSnoozedUntil TEXT');
 

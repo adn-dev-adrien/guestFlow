@@ -18,12 +18,22 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
   const getStmt = db.prepare('SELECT * FROM user_two_factor WHERE userId = ?');
   const ensureStmt = db.prepare('INSERT OR IGNORE INTO user_two_factor (userId) VALUES (?)');
   const setPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = ?, pendingSecretEncrypted = ?, pendingFailures = 0,
+    pendingStartedAt = ?, pendingSessionHash = ?, pendingSends = 0, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
+  const switchPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = ?, pendingSecretEncrypted = ?, pendingFailures = 0,
     emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
+  const enrolmentSentStmt = db.prepare('UPDATE user_two_factor SET pendingSends = pendingSends + 1, lastCodeSentAt = ? WHERE userId = ?');
+  const codeSentStmt = db.prepare('UPDATE user_two_factor SET lastCodeSentAt = ? WHERE userId = ?');
   const pendingFailStmt = db.prepare('UPDATE user_two_factor SET pendingFailures = pendingFailures + 1 WHERE userId = ?');
-  const dropPendingStmt = db.prepare('UPDATE user_two_factor SET pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0 WHERE userId = ?');
+  // The email code is dropped only when it belonged to the enrolment (SQLite reads the old row on the right).
+  const dropPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0,
+    pendingStartedAt = NULL, pendingSessionHash = NULL, pendingSends = 0,
+    emailCodeHash = CASE WHEN pendingMethod = 'email' THEN NULL ELSE emailCodeHash END,
+    emailCodeExpiresAt = CASE WHEN pendingMethod = 'email' THEN NULL ELSE emailCodeExpiresAt END WHERE userId = ?`);
   const activateStmt = db.prepare(`UPDATE user_two_factor SET method = pendingMethod,
-    secretEncrypted = CASE WHEN pendingMethod = 'totp' THEN pendingSecretEncrypted ELSE NULL END, enabledAt = ?,
-    pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0, failedCount = 0, lockedUntil = NULL,
+    secretEncrypted = CASE WHEN pendingMethod = 'totp' THEN pendingSecretEncrypted ELSE NULL END,
+    enabledAt = CASE WHEN ? = 1 THEN enabledAt ELSE ? END,
+    pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0, pendingStartedAt = NULL, pendingSessionHash = NULL,
+    pendingSends = 0, failedCount = 0, lockedUntil = NULL,
     lastTotpStep = ?, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
   const deleteStmt = db.prepare('DELETE FROM user_two_factor WHERE userId = ?');
   const setCodeStmt = db.prepare('UPDATE user_two_factor SET emailCodeHash = ?, emailCodeExpiresAt = ? WHERE userId = ?');
@@ -65,16 +75,25 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     isEnabled: (userId) => Boolean((getStmt.get(Number(userId)) || {}).enabledAt),
     enabledUserIds: () => enabledIdsStmt.all().map((r) => Number(r.userId)),
 
-    setPending(userId, method, secret) {
+    // A new enrolment, opened with the password: its start and the session that opened it (rules 43-44).
+    setPending(userId, method, secret, { startedAt, sessionHash = null }) {
       ensureStmt.run(Number(userId));
-      setPendingStmt.run(method, secret ? encrypt(secret) : null, Number(userId));
+      setPendingStmt.run(method, secret ? encrypt(secret) : null, startedAt, sessionHash, Number(userId));
     },
+    // The same enrolment moving to another method: its start, its session and its sends are kept.
+    switchPending(userId, method, secret) {
+      switchPendingStmt.run(method, secret ? encrypt(secret) : null, Number(userId));
+    },
+    markEnrolmentCodeSent: (userId, nowIso) => enrolmentSentStmt.run(nowIso, Number(userId)),
+    markCodeSent: (userId, nowIso) => codeSentStmt.run(nowIso, Number(userId)),
     recordPendingFailure: (userId) => pendingFailStmt.run(Number(userId)),
     dropPending: (userId) => dropPendingStmt.run(Number(userId)),
     // `totpStep`: the step of the code that confirmed the enrolment, so that code cannot also open a
-    // session (specs/hosting-h2-account-security.md rule 28).
-    activatePending: db.transaction((userId, nowIso, backupHashes, totpStep = null) => {
-      activateStmt.run(nowIso, totpStep == null ? null : Number(totpStep), Number(userId));
+    // session (specs/hosting-h2-account-security.md rule 28). `keepEnabledAt`: a replacement of the
+    // method (rule 48) keeps the date the step was turned on, so the trusted devices stay trusted; the
+    // method, the secret and the backup codes change in this one transaction.
+    activatePending: db.transaction((userId, nowIso, backupHashes, totpStep = null, { keepEnabledAt = false } = {}) => {
+      activateStmt.run(keepEnabledAt ? 1 : 0, nowIso, totpStep == null ? null : Number(totpStep), Number(userId));
       replaceCodes(Number(userId), backupHashes);
     }),
     disable: db.transaction((userId) => {

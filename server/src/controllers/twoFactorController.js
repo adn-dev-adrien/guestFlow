@@ -9,6 +9,12 @@
  * - An administrator turns another user's step off, recorded in that user's history (rule 9).
  * - The dashboard card for an admin without it, hidden 30 days by « Plus tard » (rule 10).
  *
+ * The activation of 2026-10-28 (rules 38-53): a three-step enrolment that expires after 15 minutes and
+ * can be cancelled, the tries left on a wrong code, the email code as a fallback inside an enrolment,
+ * a replacement of the method that never leaves the account unprotected (rule 48), a current code asked
+ * with the password for every sensitive change (rule 47), and a limit on the confirmation password
+ * (rule 49).
+ *
  * Every method takes plain values and throws `httpError`s; the HTTP glue lives in authController.
  */
 
@@ -18,38 +24,74 @@ const totp = require('../utils/totp');
 const deviceTrust = require('../utils/deviceTrust');
 const { httpError } = require('../utils/httpError');
 const { ADMIN, userHasRole } = require('../constants/roles');
+const { createWindowCounter } = require('../utils/rateLimiter');
 
 const MAX_FAILURES = 5;
 const LOCK_MINUTES = 15;
 const EMAIL_CODE_MINUTES = 10;
 const SNOOZE_DAYS = 30;
+const ENROLMENT_MINUTES = 15;
+const RESEND_SECONDS = 60;
+const MAX_SENDS = 5;
+const BACKUP_LOW_AT = 3;
+const CLOCK_HINT_AT = 3;
+const ISSUER = 'GuestFlow';
 const METHODS = ['totp', 'email'];
 const METHOD_LABELS = { totp: 'Appli d’authentification', email: 'Code par email' };
 const EVENT_LABELS = {
-  enabled_totp: () => 'Second code activé (appli)',
-  enabled_email: () => 'Second code activé (email)',
-  disabled: () => 'Second code désactivé',
-  disabled_by_admin: (actor) => `Second code désactivé par ${actor || 'un administrateur'}`,
-  disabled_by_script: () => 'Second code désactivé en ligne de commande',
+  enabled_totp: () => 'Validation en deux étapes activée (appli)',
+  enabled_email: () => 'Validation en deux étapes activée (email)',
+  disabled: () => 'Validation en deux étapes désactivée',
+  disabled_by_admin: (actor) => `Validation en deux étapes désactivée par ${actor || 'un administrateur'}`,
+  disabled_by_script: () => 'Validation en deux étapes désactivée en ligne de commande',
   backup_regenerated: () => 'Nouveaux codes de secours',
   password_reset: () => 'Mot de passe réinitialisé par lien',
+  replaced_totp: () => 'Appli d’authentification changée',
+  replaced_email: () => 'Passage au code par email',
+  reauth_locked: () => 'Trop d’essais du mot de passe (validation en deux étapes)',
 };
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 const sixDigits = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 const maskEmail = (email) => String(email).replace(/^(.)(.*)(.@)/, (m, a, mid, b) => `${a}${'•'.repeat(Math.max(mid.length, 1))}${b}`);
 const parisTime = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
+const parisDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric' });
 const parisDateTime = (iso) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const fullName = (u) => [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email;
 
-function createTwoFactorController({ model, users, mailer, trustSecret, now = () => new Date(), qr = QRCode }) {
+const plural = (n, one, many) => (n === 1 ? one : many);
+const sessionKey = (sessionId) => (sessionId ? sha256(`2fa-enrolment:${sessionId}`) : null);
+
+function createTwoFactorController({
+  model, users, mailer, trustSecret, now = () => new Date(), qr = QRCode, companyName = () => '',
+}) {
   const nowIso = () => now().toISOString();
   const lockedMessage = (until) => `Trop d’essais : réessayer après ${parisTime(until)}.`;
+  const inMinutes = (iso, minutes) => new Date(new Date(iso).getTime() + minutes * 60000).toISOString();
+
+  // Rule 49 — the confirmation password: 5 wrong ones within 15 minutes lock the three routes that ask
+  // for it for 15 minutes, per account, in memory (a restart clears it, as for rule 3).
+  const passwordFailures = createWindowCounter({
+    windowMs: LOCK_MINUTES * 60000, max: MAX_FAILURES - 1, now: () => now().getTime(), sweepMs: 0,
+  });
+  const passwordLocks = new Map();
+
+  function assertPasswordOpen(userId) {
+    const until = passwordLocks.get(userId);
+    if (!until) return;
+    if (until > nowIso()) throw httpError(429, 'REAUTH_LOCKED', lockedMessage(until));
+    passwordLocks.delete(userId);
+  }
 
   function assertPassword(user, password) {
-    if (!users.verifyCredentials(user.email, String(password || ''))) {
-      throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect.');
-    }
+    assertPasswordOpen(user.id);
+    if (users.verifyCredentials(user.email, String(password || ''))) return;
+    // Nothing typed is not a guess: it counts for nothing.
+    if (!String(password || '') || passwordFailures.hit(user.id)) throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect.');
+    const until = inMinutes(nowIso(), LOCK_MINUTES);
+    passwordLocks.set(user.id, until);
+    model.addEvent(user.id, 'reauth_locked', '', nowIso());
+    throw httpError(429, 'REAUTH_LOCKED', lockedMessage(until));
   }
 
   function assertNotLocked(row) {
@@ -62,7 +104,7 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
     model.setEmailCode(user.id, sha256(code), new Date(now().getTime() + EMAIL_CODE_MINUTES * 60000).toISOString());
     await mailer.send({
       to: user.email,
-      subject: purpose === 'setup' ? 'Code de confirmation — GuestFlow' : 'Code de connexion — GuestFlow',
+      subject: purpose === 'login' ? 'Code de connexion — GuestFlow' : 'Code de confirmation — GuestFlow',
       text: `Code : ${code}\n\nValable ${EMAIL_CODE_MINUTES} minutes. Un nouveau code annule le précédent.`,
     });
   }
@@ -97,71 +139,196 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
 
   // ----- « Mon compte » -----
 
+  function pendingState(row) {
+    const startedAt = row && row.pendingMethod ? row.pendingStartedAt : null;
+    // A NULL start is an enrolment begun before rule 43: expired.
+    const expiresAt = startedAt ? inMinutes(startedAt, ENROLMENT_MINUTES) : null;
+    return { method: row && row.pendingMethod, expiresAt, fresh: Boolean(expiresAt && expiresAt > nowIso()) };
+  }
+
   function status(user) {
     const row = model.get(user.id);
     const enabled = Boolean(row && row.enabledAt);
     const snoozed = model.snoozedUntil(user.id);
+    const left = enabled ? model.unusedBackupCodes(user.id).length : 0;
+    const low = enabled && left <= BACKUP_LOW_AT;
+    const list = events(user.id);
     return {
       enabled,
       method: enabled ? row.method : null,
       methodLabel: enabled ? METHOD_LABELS[row.method] : null,
-      backupCodesLeft: enabled ? model.unusedBackupCodes(user.id).length : 0,
+      enabledLabel: enabled ? `depuis le ${parisDate(row.enabledAt)}` : null,
+      backupCodesLeft: left,
+      backupCodesTotal: totp.BACKUP_CODE_COUNT,
+      backupCodesLabel: enabled ? `${left} ${plural(left, 'code de secours', 'codes de secours')} sur ${totp.BACKUP_CODE_COUNT}` : null,
+      backupCodesLow: low,
+      backupCodesWarning: low ? (left === 0 ? 'Aucun code de secours.' : `Plus ${plural(left, 'qu’un code', `que ${left} codes`)} de secours.`) : null,
       emailAvailable: mailer.available(),
+      reauthNeedsCode: enabled,
       // Rule 10: the dashboard card of an admin without a second step, unless « Plus tard ».
       nudge: !enabled && !user.isSupport && userHasRole(user, ADMIN) && !(snoozed && snoozed > nowIso()),
-      events: events(user.id),
+      events: list,
+      eventsCount: list.length,
     };
   }
 
-  async function start(user, { method, password } = {}) {
-    if (!METHODS.includes(method)) throw httpError(400, 'INVALID_METHOD', 'Méthode inconnue.');
+  // Rule 47 — a current code, on top of the password: the app's, a backup code (spent), or the code
+  // just emailed. A wrong one counts toward the lock of rule 8; the TOTP step used cannot open a session.
+  function assertCurrentCode(user, row, code) {
+    assertNotLocked(row);
+    const value = totp.normalizeCode(code);
+    if (!value) throw httpError(400, 'CODE_REQUIRED', 'Saisir un code actuel.');
+    let ok;
+    if (totp.isBackupCodeShape(value)) {
+      ok = useBackupCode(user.id, value);
+    } else if (row.method === 'totp') {
+      const step = row.secretEncrypted ? totp.matchTotpStep(row.secretEncrypted, value, now()) : null;
+      ok = step !== null && model.useTotpStep(user.id, step);
+    } else {
+      ok = checkEmailCode(user.id, row, value);
+    }
+    if (!ok) {
+      model.recordFailure(user.id);
+      if (row.failedCount + 1 >= MAX_FAILURES) {
+        const until = inMinutes(nowIso(), LOCK_MINUTES);
+        model.lock(user.id, until);
+        throw httpError(429, 'LOCKED', lockedMessage(until));
+      }
+      throw httpError(400, 'BAD_CODE', 'Code incorrect.');
+    }
+    model.resetFailures(user.id);
+  }
+
+  // The password, then the current code: the guard of disabling, of new backup codes and of a new method.
+  function reauthenticate(user, { password, code } = {}) {
     assertPassword(user, password);
+    const row = model.get(user.id);
+    if (!row || !row.enabledAt) throw httpError(409, 'NOT_ENABLED', 'Aucune validation en deux étapes active.');
+    assertCurrentCode(user, row, code);
+  }
+
+  function assertMayResend(row, enrolment) {
+    if (enrolment && row.pendingSends >= MAX_SENDS) {
+      throw httpError(429, 'TOO_MANY_SENDS', 'Trop d’envois : recommencer l’activation.');
+    }
+    if (row.lastCodeSentAt) {
+      const wait = Math.ceil((new Date(row.lastCodeSentAt).getTime() + RESEND_SECONDS * 1000 - now().getTime()) / 1000);
+      if (wait > 0) {
+        throw httpError(429, 'RESEND_TOO_SOON', `Nouvel envoi possible dans ${wait} s.`, { retryInSeconds: wait });
+      }
+    }
+  }
+
+  async function sendEnrolmentOrActionCode(user, { enrolment }) {
+    await sendEmailCode(user, enrolment ? 'setup' : 'action');
+    if (enrolment) model.markEnrolmentCodeSent(user.id, nowIso());
+    else model.markCodeSent(user.id, nowIso());
+    return { sentTo: maskEmail(user.email), resendInSeconds: RESEND_SECONDS };
+  }
+
+  async function start(user, { method, password, code } = {}, { sessionId } = {}) {
+    if (!METHODS.includes(method)) throw httpError(400, 'INVALID_METHOD', 'Méthode inconnue.');
+    const row = model.get(user.id);
+    const enabled = Boolean(row && row.enabledAt);
+    if (enabled && row.method === 'email' && method === 'email') {
+      throw httpError(409, 'SAME_METHOD', 'Le code par email est déjà la méthode active.');
+    }
+    // Rule 44 — inside an enrolment opened with the password, by this very session, the method may be
+    // switched without asking it again. Any other session, or an older enrolment, is asked for it.
+    const key = sessionKey(sessionId);
+    const pending = pendingState(row);
+    const switching = !password && pending.fresh && key && row.pendingSessionHash === key;
+    if (!switching) {
+      assertPassword(user, password);
+      if (enabled) assertCurrentCode(user, row, code);
+    }
+    const startedAt = switching ? row.pendingStartedAt : nowIso();
+    const expiresAt = inMinutes(startedAt, ENROLMENT_MINUTES);
+    const replacing = enabled;
     if (method === 'totp') {
       const secret = totp.generateSecret();
-      model.setPending(user.id, 'totp', secret);
-      const uri = totp.otpauthUri({ secret, account: user.email });
+      if (switching) model.switchPending(user.id, 'totp', secret);
+      else model.setPending(user.id, 'totp', secret, { startedAt, sessionHash: key });
+      const accountLabel = [companyName(), user.email].map((v) => String(v || '').trim()).filter(Boolean).join(' · ');
+      const uri = totp.otpauthUri({ secret, account: accountLabel, issuer: ISSUER });
       return {
         method,
-        qrDataUrl: await qr.toDataURL(uri, { margin: 1, width: 220 }),
+        qrDataUrl: await qr.toDataURL(uri, { margin: 2, width: 400 }),
         secret: totp.groupSecret(secret),
+        otpauthUri: uri,
+        issuer: ISSUER,
+        accountLabel,
+        replacing,
+        expiresAt,
       };
     }
-    model.setPending(user.id, 'email', null);
-    await sendEmailCode(user, 'setup');
-    return { method, sentTo: maskEmail(user.email) };
+    if (switching) {
+      assertMayResend(row, true);
+      model.switchPending(user.id, 'email', null);
+    } else {
+      model.setPending(user.id, 'email', null, { startedAt, sessionHash: key });
+    }
+    const sent = await sendEnrolmentOrActionCode(user, { enrolment: true });
+    return { method, ...sent, replacing, expiresAt };
+  }
+
+  // Rule 44/47 — « Renvoyer le code » of an email enrolment, or « Recevoir un code » of a re-auth.
+  async function sendCode(user) {
+    const row = model.get(user.id);
+    const pending = pendingState(row);
+    if (pending.fresh && pending.method === 'email') {
+      assertMayResend(row, true);
+      return sendEnrolmentOrActionCode(user, { enrolment: true });
+    }
+    if (row && row.enabledAt && row.method === 'email') {
+      assertMayResend(row, false);
+      return sendEnrolmentOrActionCode(user, { enrolment: false });
+    }
+    throw httpError(409, 'NOT_EMAIL', 'Aucun code par email à envoyer.');
+  }
+
+  // Rule 40 — leaving the activation drops the enrolment in progress, and only it.
+  function cancel(user) {
+    model.dropPending(user.id);
   }
 
   function confirm(user, { code } = {}) {
     const row = model.get(user.id);
     if (!row || !row.pendingMethod) throw httpError(409, 'NO_PENDING_METHOD', 'Choisir d’abord une méthode.');
+    if (!pendingState(row).fresh) {
+      model.dropPending(user.id);
+      throw httpError(410, 'ENROLMENT_EXPIRED', 'Activation expirée : recommencer.');
+    }
     // Rule 24 — the step of the enrolment code is recorded: the same code cannot then open a session.
     const step = row.pendingMethod === 'totp' ? totp.matchTotpStep(row.pendingSecretEncrypted, code, now()) : null;
     const ok = row.pendingMethod === 'totp' ? step !== null : checkEmailCode(user.id, row, code);
     if (!ok) {
       model.recordPendingFailure(user.id);
-      if (row.pendingFailures + 1 >= MAX_FAILURES) {
+      const failures = row.pendingFailures + 1;
+      if (failures >= MAX_FAILURES) {
         model.dropPending(user.id);
         throw httpError(429, 'TOO_MANY_CODES', 'Trop de codes incorrects : activation annulée.');
       }
-      throw httpError(400, 'BAD_CODE', 'Code incorrect.');
+      const left = MAX_FAILURES - failures;
+      const hint = row.pendingMethod === 'totp' && failures >= CLOCK_HINT_AT ? ' Vérifier l’heure du téléphone.' : '';
+      throw httpError(400, 'BAD_CODE', `Code incorrect : ${left} ${plural(left, 'essai restant', 'essais restants')}.${hint}`, { attemptsLeft: left });
     }
+    const replacing = Boolean(row.enabledAt);
     const { codes, hashes } = freshBackupCodes();
-    model.activatePending(user.id, nowIso(), hashes, step);
-    model.addEvent(user.id, `enabled_${row.pendingMethod}`, '', nowIso());
+    model.activatePending(user.id, nowIso(), hashes, step, { keepEnabledAt: replacing });
+    model.addEvent(user.id, `${replacing ? 'replaced' : 'enabled'}_${row.pendingMethod}`, '', nowIso());
     return { backupCodes: codes, status: status(user) };
   }
 
-  function disable(user, { password } = {}) {
-    assertPassword(user, password);
-    if (!model.isEnabled(user.id)) throw httpError(409, 'NOT_ENABLED', 'Aucun second code actif.');
+  function disable(user, body = {}) {
+    reauthenticate(user, body);
     model.disable(user.id);
     model.addEvent(user.id, 'disabled', '', nowIso());
     return status(user);
   }
 
-  function regenerate(user, { password } = {}) {
-    assertPassword(user, password);
-    if (!model.isEnabled(user.id)) throw httpError(409, 'NOT_ENABLED', 'Aucun second code actif.');
+  function regenerate(user, body = {}) {
+    reauthenticate(user, body);
     const { codes, hashes } = freshBackupCodes();
     model.replaceBackupCodes(user.id, hashes);
     model.addEvent(user.id, 'backup_regenerated', '', nowIso());
@@ -172,7 +339,7 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
   function disableFor(actor, targetId) {
     const target = users.findById(targetId);
     if (!target || target.isSupport) throw httpError(404, 'USER_NOT_FOUND', 'Compte introuvable.');
-    if (!model.isEnabled(target.id)) throw httpError(409, 'NOT_ENABLED', 'Aucun second code actif.');
+    if (!model.isEnabled(target.id)) throw httpError(409, 'NOT_ENABLED', 'Aucune validation en deux étapes active.');
     model.disable(target.id);
     model.addEvent(target.id, 'disabled_by_admin', fullName(actor), nowIso());
     return { userId: target.id, twoFactorEnabled: false };
@@ -264,7 +431,7 @@ function createTwoFactorController({ model, users, mailer, trustSecret, now = ()
   }
 
   return {
-    status, start, confirm, disable, regenerate, disableFor, snooze,
+    status, start, sendCode, cancel, confirm, disable, regenerate, disableFor, snooze,
     isRequired, beginLogin, verifyLogin, resendLogin, issueTrust,
     MAX_FAILURES, LOCK_MINUTES, EVENT_LABELS,
   };

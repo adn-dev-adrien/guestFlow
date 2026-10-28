@@ -114,7 +114,7 @@ const CORE_SUMMARIES = {
     return { count: 1, title: `GuestFlow ${info.latest} disponible`, detail: `Version installée : ${info.current}`, severity: 'info' };
   },
   'two-factor': (status) => (status && status.nudge
-    ? { count: 1, title: 'Second code de connexion', detail: 'Protéger le compte par un second code', severity: 'info' }
+    ? { count: 1, title: 'Validation en deux étapes', detail: 'Compte protégé par le seul mot de passe.', severity: 'info' }
     : null),
 };
 

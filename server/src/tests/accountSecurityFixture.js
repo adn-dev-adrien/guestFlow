@@ -66,7 +66,7 @@ const fakeCipher = {
   decrypt: (v) => Buffer.from(String(v).slice(4), 'base64').toString('utf8'),
 };
 
-function setup({ mailer = makeMailer(), publicKey = null, readRequest = () => null } = {}) {
+function setup({ mailer = makeMailer(), publicKey = null, readRequest = () => null, companyName = '' } = {}) {
   const db = makeDb();
   const now = makeClock();
   const users = usersModelModule.buildModel(db);
@@ -74,7 +74,10 @@ function setup({ mailer = makeMailer(), publicKey = null, readRequest = () => nu
   const passwordResetModel = passwordResetModelModule.buildModel(db);
   const supportAccessModel = supportAccessModelModule.buildModel(db);
   const qr = { toDataURL: async (uri) => `data:image/png;base64,${Buffer.from(uri).toString('base64')}` };
-  const twoFactor = createTwoFactorController({ model: twoFactorModel, users, mailer, trustSecret: 'test-trust-secret', now, qr });
+  const company = { name: companyName };
+  const twoFactor = createTwoFactorController({
+    model: twoFactorModel, users, mailer, trustSecret: 'test-trust-secret', now, qr, companyName: () => company.name,
+  });
   const passwordReset = createPasswordResetController({ users, model: passwordResetModel, mailer, twoFactorModel, now, log: () => {} });
   const supportAccess = createSupportAccessController({ model: supportAccessModel, users, publicKey, slug: 'domaine-ombre', readRequest, now });
 
@@ -85,7 +88,7 @@ function setup({ mailer = makeMailer(), publicKey = null, readRequest = () => nu
     return users.findById(id);
   }
 
-  return { db, now, mailer, users, twoFactorModel, passwordResetModel, supportAccessModel, twoFactor, passwordReset, supportAccess, addUser };
+  return { db, now, mailer, company, users, twoFactorModel, passwordResetModel, supportAccessModel, twoFactor, passwordReset, supportAccess, addUser };
 }
 
 function fakeRes() {

@@ -25,6 +25,7 @@ const twoFactor = createTwoFactorController({
   users: usersModel,
   mailer,
   trustSecret: getOrCreateSecret('GUESTFLOW_DEVICE_TRUST_SECRET', 32),
+  companyName: () => settingsModel.read().companyName,
 });
 
 const passwordReset = createPasswordResetController({
