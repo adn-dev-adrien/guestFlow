@@ -181,3 +181,30 @@ test('rule 24 — a pinned item stays at the top offset while the feed grows abo
   expect(scrollTo).not.toHaveBeenCalled();
   global.ResizeObserver = original;
 });
+
+test('rule 18 — a smooth scroll that rests off target is corrected once, and operator input cancels the correction', () => {
+  vi.useFakeTimers();
+  try {
+    render(<Harness initial={range(1, 40)} />);
+    act(() => { controls.scrollToAnchor('k21', { behavior: 'smooth' }); });
+    expect(scrollY).toBe(2000);
+    // Windows were added above while it ran: k21 now sits 300 px lower than where the scroll aimed.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function rect() {
+      if (!this.hasAttribute('data-scroll-anchor')) return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
+      const index = this.getAttribute('data-scroll-anchor') === 'k21' ? 23 : 0;
+      const top = index * ITEM - scrollY;
+      return { top, bottom: top + ITEM, left: 0, right: 0, width: 0, height: ITEM };
+    });
+    scrollTo.mockClear();
+    act(() => { window.dispatchEvent(new Event('scroll')); vi.advanceTimersByTime(200); });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 2300, behavior: 'instant' });
+
+    act(() => { controls.scrollToAnchor('k21', { behavior: 'smooth' }); });
+    scrollTo.mockClear();
+    act(() => { window.dispatchEvent(new Event('wheel')); window.dispatchEvent(new Event('scroll')); vi.advanceTimersByTime(400); });
+    expect(scrollTo).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});

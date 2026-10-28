@@ -26,7 +26,8 @@
  *                                     the viewport: the first visible item keeps its place on screen after
  *                                     the next commit
  *   scrollToAnchor(key, { behavior }) bring the item to the top offset; false when it is not drawn.
- *                                     `smooth` is instant under prefers-reduced-motion
+ *                                     `smooth` is instant under prefers-reduced-motion. A smooth scroll that
+ *                                     ends off target (content changed on the way) is corrected once it rests
  *   pinAnchor(key)                    scrollToAnchor(key), then keep the item at the top offset while the feed's
  *                                     height changes (cards that render late above it) until the operator
  *                                     scrolls, touches or types
@@ -35,6 +36,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 const DEFAULT_THRESHOLD_PX = 800;
 const DEFAULT_MAX_CHAIN = 4;
+const SETTLE_MS = 150;
 
 const reducedMotion = () => typeof window.matchMedia === 'function'
   && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -78,12 +80,47 @@ export default function useInfiniteEdgeScroll({
       : null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Operator input ends whatever the hook is still doing on their behalf (pin, settle).
+  const watchInput = (cancel) => {
+    const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
+    events.forEach((name) => window.addEventListener(name, cancel, { passive: true }));
+    return () => events.forEach((name) => window.removeEventListener(name, cancel));
+  };
+
+  const settleRef = useRef(null);
+  const stopSettle = useCallback(() => {
+    if (!settleRef.current) return;
+    settleRef.current();
+    settleRef.current = null;
+  }, []);
+
   const scrollToAnchor = useCallback((key, { behavior = 'auto' } = {}) => {
     const node = anchorNamed(key);
     if (!node) return false;
     const offset = scroller() ? scroller().getBoundingClientRect().top + topOffset() : topOffset();
     const top = Math.max(0, scrollTop() + node.getBoundingClientRect().top - offset);
-    scrollTo(top, behavior === 'smooth' && !reducedMotion() ? 'smooth' : 'instant');
+    stopSettle();
+    if (behavior !== 'smooth' || reducedMotion()) {
+      scrollTo(top, 'instant');
+      return true;
+    }
+    scrollTo(top, 'smooth');
+    // Windows may be added or released while the smooth scroll runs, which cancels it or shifts its
+    // target: once it rests, an instant correction puts the item where it was asked to go.
+    const target = scroller() || window;
+    let timer = null;
+    const finish = () => {
+      stopSettle();
+      const landed = anchorNamed(key);
+      if (!landed) return;
+      const wanted = scroller() ? scroller().getBoundingClientRect().top + topOffset() : topOffset();
+      if (Math.abs(landed.getBoundingClientRect().top - wanted) >= 1) scrollToAnchor(key);
+    };
+    const rest = () => { clearTimeout(timer); timer = setTimeout(finish, SETTLE_MS); };
+    target.addEventListener('scroll', rest, { passive: true });
+    const unwatch = watchInput(() => stopSettle());
+    settleRef.current = () => { clearTimeout(timer); target.removeEventListener('scroll', rest); unwatch(); };
+    rest();
     return true;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -101,17 +138,16 @@ export default function useInfiniteEdgeScroll({
       ? new ResizeObserver(() => scrollToAnchor(key))
       : null;
     if (observer) observer.observe(list);
-    const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
-    events.forEach((name) => window.addEventListener(name, releasePin, { passive: true }));
+    const unwatch = watchInput(releasePin);
     pinRef.current = {
       stop: () => {
         if (observer) observer.disconnect();
-        events.forEach((name) => window.removeEventListener(name, releasePin));
+        unwatch();
       },
     };
     return true;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => releasePin, [releasePin]);
+  useEffect(() => () => { releasePin(); stopSettle(); }, [releasePin, stopSettle]);
 
   // Asks for content at the nearer edge first; an edge that has nothing to give leaves the other one.
   const extend = useCallback(() => {

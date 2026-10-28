@@ -12,12 +12,17 @@ const addDays = (iso, n) => {
   return d.toISOString().slice(0, 10);
 };
 
-/** Distance between a day's header and the bottom of the page bar, in px. */
+/** Distance between a day's header and the bottom of the page bar, in px (null while the day is not drawn). */
 const gapUnderBar = (page, date) => page.evaluate((d) => {
   const section = document.querySelector(`[data-scroll-anchor="day-${d}"]`);
   const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gf-page-bar-bottom'));
   return section ? Math.round(section.getBoundingClientRect().top - bar) : null;
 }, date);
+/** Absolute distance: today's header above the bar is as wrong as below it. */
+const offBar = async (page, date) => {
+  const gap = await gapUnderBar(page, date);
+  return gap === null ? Infinity : Math.abs(gap);
+};
 
 test('the planning opens on today, scrolls into the past, crosses an empty fortnight and comes back', async ({ page, request }) => {
   const { today } = await (await request.get('/api/today')).json();
@@ -32,8 +37,7 @@ test('the planning opens on today, scrolls into the past, crosses an empty fortn
 
   // Opens on today, its header right under the bar (rule 12).
   await expect(page.locator(`[data-scroll-anchor="day-${today}"]`)).toBeVisible();
-  await expect.poll(() => gapUnderBar(page, today)).toBeLessThanOrEqual(8);
-  expect(await gapUnderBar(page, today)).toBeGreaterThanOrEqual(-8);
+  await expect.poll(() => offBar(page, today)).toBeLessThanOrEqual(8);
   const todayButton = page.getByRole('button', { name: "Aujourd'hui" });
   await expect(todayButton).toBeDisabled();
 
@@ -59,6 +63,6 @@ test('the planning opens on today, scrolls into the past, crosses an empty fortn
 
   // « Aujourd'hui » brings today back under the bar (rule 18).
   await todayButton.click();
-  await expect.poll(() => gapUnderBar(page, today), { timeout: 10_000 }).toBeLessThanOrEqual(8);
+  await expect.poll(() => offBar(page, today), { timeout: 10_000 }).toBeLessThanOrEqual(8);
   await expect(todayButton).toBeDisabled();
 });
