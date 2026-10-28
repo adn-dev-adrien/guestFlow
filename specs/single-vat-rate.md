@@ -134,6 +134,12 @@ pricing engine from current settings).
     stay of 500 € with 120 € of supplement. `accommodationVatAmount` / `accommodationNetPrice` are
     now computed on `accommodationAdjustedPrice + extraGuestSurcharge`: 454,55 + 45,45 = 500, as
     stored.
+14. **The rate belongs to a VAT period (2026-10-28, Draft — [vat-optional-mode.md](vat-optional-mode.md)).**
+    The single rate of rule 1 becomes the rate of the VAT period in force; every reader takes the rate
+    of the reservation's own period (vat-optional-mode rules 4-8), never `app_settings.vatRate`
+    directly. Rule 12's retroactivity holds inside a period only: editing « Taux de TVA (%) » re-rates
+    the reservations of the period in force, not those of an earlier period. With a single period
+    (every install before the switch exists) the output is unchanged to the byte.
 
 ---
 
