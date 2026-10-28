@@ -24,7 +24,7 @@ const NO_ARRIVAL_LINES = {};
 export default function ExtrasSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
-    form, propertyOptions, propertyOptionGroups, displayableResources, pricingQuote,
+    form, propertyOptions, propertyOptionGroups, displayableResources, pricingQuote, storedSummary,
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setResourceEnabled, setResourceQuantity, setResourceSessions,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
@@ -170,7 +170,7 @@ export default function ExtrasSection() {
                                 live recompute dropped the line entirely (bug 2026-07-20). */}
                             <ArithmeticTextField
                               size="small"
-                              label={pricingQuote?.vatRegime?.regime === 'not_subject' ? 'Prix' : 'Prix TTC'}
+                              label={(pricingQuote?.vatRegime ?? storedSummary?.vatRegime)?.regime === 'not_subject' ? 'Prix' : 'Prix TTC'}
                               value={line.amount ?? 0}
                               onCommit={(v) => updateCustomOption(line.customKey, { amount: v === '' ? 0 : v })}
                               disabled={lineLocked}

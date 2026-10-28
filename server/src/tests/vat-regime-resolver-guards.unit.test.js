@@ -141,3 +141,9 @@ test('rule 33: a rate is a plain decimal — « 0x10 », « 1e1 », a blank are 
     assert.ok(res.body.errors.vatRate);
   }
 });
+
+test('rule 33: a null or blank rate on the switch is refused, only an ABSENT one means 10', () => {
+  const periods = vatRegimeModel.listPeriods(db).map((p) => ({ ...p, regime: 'not_subject', rate: 0 }));
+  for (const bad of [null, '', ' ']) assert.equal(rules.validateSwitch({ regime: 'subject', rate: bad, basis: 'all' }, periods).errors.rate, 'Taux entre 0 et 100', JSON.stringify(bad));
+  assert.deepEqual(rules.validateSwitch({ regime: 'subject', basis: 'all' }, periods).errors, {});
+});

@@ -241,9 +241,12 @@ Appended, never renumbered; each narrows or completes a rule above.
     a history line « changement annulé »); the stays the switch re-priced get back exactly the figures it
     wrote (the period stores them, `vat_periods.repriced`: what each column held before and after; undo takes
     the switch's shift out of what the column holds now, so a later edit is kept), a stay the switch skipped is
-    not touched; a reservation born under
-    the period since falls to the period the others give it; its devis go to the previous period. Once the
-    date has come, rule 18 applies again.
+    not touched; the links it retired are not reopened; a reservation born under
+    the period since falls to the period the others give it — its tax then follows by the same targeted write of rule 27, with the
+    same refusals; its devis go to the previous period. The undo is REFUSED (409 `stay_settled`, naming the
+    stays) when a stay the switch re-priced has since been paid (balance or complement), frozen or
+    declared: the books and the tourist-tax return would disagree with the money, and the way back is a new
+    switch. Once the date has come, rule 18 applies again.
 27. **The tourist tax and totals are re-priced by a targeted write, not by re-saving the fiche.** Inside the
     switch transaction — and inside the retroactive rate edit of rule 9 — each moved stay of a
     proportional-tax property whose tax is neither frozen nor declared gets the engine's figures computed
@@ -256,7 +259,9 @@ Appended, never renumbered; each narrows or completes a rule above.
     byte for byte; the fiche's full save is never used (it rewrites too much). The preview is the same
     computation played in a savepoint, so the stored tax equals the announced line. A stay that is not
     accepted keeps its stored figures and is reported (« garde sa taxe de séjour enregistrée »), in the
-    preview, in the switch's response (`notRepriced`) and after a rate edit (`vatNotRepriced`).
+    preview, in the switch's response (`notRepriced`) and after a rate edit (`vatNotRepriced`). A stay with
+    an installment plan is never re-priced (no installment carries the tax): it is reported with its reason
+    (« échéancier : à recalculer depuis la fiche »).
 28. **The identity check compares with the latest period**, not with today's: after a switch dated ahead,
     the way back is offered and the same target is refused. The dialog builds its target from the latest
     period (`state.latest`), and still shows the period in force as the current regime.
@@ -277,8 +282,15 @@ Appended, never renumbered; each narrows or completes a rule above.
     `linksReplaced` is exactly that set, and its line says « Envoyer un nouveau lien depuis la fiche ». A link
     whose amount does not move stays open. The same holds for an undo and for a rate edit.
 33. **A rate is a plain decimal.** `5`, `5.5`, `5,5` — never `0x10`, `1e1`, a blank, a sign: refused (the
-    settings field answers 400 `SETTINGS_INVALID`, the switch 422), never a 500. The rate edit reports the
-    stays that kept their figures.
+    settings field answers 400 `SETTINGS_INVALID`, the switch 422), never a 500. A blank or null rate is
+    refused too, never turned into 10 % (only an ABSENT rate on the switch means 10): the page shows
+    « Taux requis. » and does not send it. The rate edit reports the stays that kept their figures.
+34. **A link is retired only by the write that made it stale, and a paid one is still booked.** Rule 32
+    retires the links that matched their bucket before the re-price and no longer do; a link that already
+    disagreed with its bucket is left alone, as the fiche's save does. A link minted on a devis that became a
+    reservation, retired for an amount change and paid anyway, is booked on that reservation
+    (`bookPaidAfterAmountChange` follows `convertedReservationId`). The preview's `openLinks` subtracts only
+    the retired links of the moved reservations themselves.
 
 **Edge cases:**
 - Booking at 00:30 on the switch day (Paris) → the booking date is that day (rule 5 uses Europe/Paris,
@@ -369,6 +381,7 @@ All under the admin guard; « Comptable » may `GET`.
 | PUT | `/api/settings` | `vat: { rate?, legalMention? }` | as today, `vat` = `{ regime, rate, legalMention }` | Edits the period in force (rule 9); 422 `vatRate` when `not_subject`, 422 `legalMention` when `subject`. The page sends back only what it changed, but a value that says nothing new (a null mention, a rate of 0 under « Sans TVA ») is not a change. |
 | — | Every quote payload | — | adds `vatRegime` | `vatPercentage*` keep their names. |
 | — | Finance payloads | — | adds `showHt` | — |
+| GET | `/api/devis` | — | each row adds `vatRegimeKind` and `vatShowTtc` | `vatShowTtc` is the same on every row: the « TTC » wording stays while one quote of the list is under VAT (decided by the server). |
 
 Messages (422): « Date antérieure au dernier changement (01/01/2027) », « Au plus un an à l'avance », « Au plus un an en arrière, sinon correction »,
 « Régime déjà en vigueur », « Taux entre 0 et 100 », « Confirmation requise ».

@@ -86,7 +86,7 @@ const frDate = (iso) => iso.split('-').reverse().join('/');
 /** The rate of a switch's target: asked for under VAT (10 by default), always 0 without. */
 function targetRate(input) {
   if (input.regime !== REGIMES.SUBJECT) return 0;
-  return input.rate == null ? 10 : parseRate(input.rate);
+  return input.rate === undefined ? 10 : parseRate(input.rate);
 }
 
 /** A rate as an operator types it: « 5,5 » is 5.5. NaN when it is not a plain decimal (« 0x10 », « 1e1 », a blank). */
@@ -238,6 +238,11 @@ function previewLines(input, preview, { accountingExportActive = false, today = 
     lines.push(preview.linksReplaced === 1
       ? '1 lien de paiement ouvert est abandonné : son montant change. Envoyer un nouveau lien depuis la fiche.'
       : `${preview.linksReplaced} liens de paiement ouverts sont abandonnés : leur montant change. Envoyer un nouveau lien depuis la fiche.`);
+  }
+  if (preview.planStays) {
+    lines.push(preview.planStays === 1
+      ? '1 séjour avec échéancier : à recalculer depuis la fiche.'
+      : `${preview.planStays} séjours avec échéancier : à recalculer depuis la fiche.`);
   }
   if (preview.notRepriced) {
     lines.push(preview.notRepriced === 1

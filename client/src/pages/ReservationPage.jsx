@@ -3379,6 +3379,8 @@ export default function ReservationPage() {
     // Rule 45 — the brut card follows the stored summary when it shows.
     accommodationBasePriceDisplay: showStoredSummary && storedSummary.accommodationBase != null ? storedSummary.accommodationBase : accommodationBasePriceDisplay,
     pricingQuote,
+    // The stored summary carries the stay's regime before the first live quote arrives.
+    storedSummary,
     // specs/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload
     // through the page (it owns the pipeline); the block itself holds no reservation logic.
     saveThenRun, reloadReservationFinance,

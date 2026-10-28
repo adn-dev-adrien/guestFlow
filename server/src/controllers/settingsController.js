@@ -63,9 +63,11 @@ function readVatGroup(vat, errors) {
   // The page sends its whole group back: a value that says nothing new (no mention, a rate of 0 under
   // « Sans TVA ») is not a change.
   if (Object.prototype.hasOwnProperty.call(vat, 'rate')) {
-    const err = validation.validateVatRate(vat.rate);
+    // Rule 33 — a blank or null rate is refused, never turned into 10 % behind the operator's back.
+    const blank = vat.rate == null || String(vat.rate).trim() === '';
+    const err = blank ? 'Taux requis.' : validation.validateVatRate(vat.rate);
     if (err) errors.vatRate = err;
-    else change.rate = vat.rate === '' || vat.rate == null ? vatRegimeModel.DEFAULT_RATE : vatRegime.parseRate(vat.rate);
+    else change.rate = vatRegime.parseRate(vat.rate);
   }
   const mention = vat.legalMention;
   if (mention != null && mention !== '') {
@@ -257,12 +259,18 @@ async function updateSettings(req, res) {
   }
 
   let notRepriced = [];
+  let retiredLinks = [];
   db.transaction(() => {
     // Rule 27 — the stored tourist tax of the period's stays follows the rate the same way a switch's does.
-    if (vatChange.rate !== undefined) notRepriced = require('../models/vatRegimeSwitchModel').editRateInForce(db, vatChange.rate).notRepriced;
+    if (vatChange.rate !== undefined) {
+      const edited = require('../models/vatRegimeSwitchModel').editRateInForce(db, vatChange.rate);
+      notRepriced = edited.notRepriced;
+      retiredLinks = edited.retiredLinks || [];
+    }
     if (vatChange.legalMention !== undefined) vatRegimeModel.setMentionInForce(db, vatChange.legalMention);
     settingsModel.upsert(payload);
   })();
+  require('../models/vatRegimeSwitchModel').deactivateAfterCommit(retiredLinks);
 
   const row = settingsModel.read();
   // The push subject follows the company and sender addresses (specs/plugins-phase-p-productisation.md rule 18).

@@ -37,9 +37,14 @@ test('rule 9: GET /settings answers the rate of the regime in force', () => {
   assert.equal(body.vat.regime, 'subject');
 });
 
-test('rule 9: an empty rate falls back to 10, an invalid one is refused and nothing moves', async () => {
-  assert.equal((await put({ rate: '' })).statusCode, 200);
-  assert.equal(rateOf(101), 10);
+test('rules 9 and 33: a blank or null rate is refused, an invalid one too, and nothing moves', async () => {
+  for (const blank of ['', ' ', null]) {
+    const res = await put({ rate: blank });
+    assert.equal(res.statusCode, 400, JSON.stringify(blank));
+    assert.equal(res.body.errors.vatRate, 'Taux requis.');
+  }
+  assert.equal(rateOf(101), 20);
+  assert.equal((await put({ rate: 10 })).statusCode, 200);
   const refused = await put({ rate: 140 });
   assert.equal(refused.statusCode, 400);
   assert.ok(refused.body.errors.vatRate);

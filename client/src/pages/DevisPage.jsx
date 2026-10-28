@@ -43,8 +43,8 @@ export default function DevisPage() {
   const { confirm } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [devisList, setDevisList] = useState([]);
-  // « Sans TVA »: each quote carries the regime it is quoted under; the column says TTC while one of them has VAT.
-  const notSubject = devisList.length > 0 && devisList.every((d) => d.vatRegimeKind === 'not_subject');
+  // « Sans TVA »: the server says whether the list still has a quote under VAT (`vatShowTtc`); the column says TTC then.
+  const notSubject = devisList.length > 0 && devisList[0].vatShowTtc === false;
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');

@@ -42,6 +42,13 @@ function makeSwitch(req, res) {
 function remove(req, res) {
   const result = switchModel.deletePeriod(db, req.params.id);
   if (result.error === 'not_found') return res.status(404).json({ error: 'not_found' });
+  if (result.error === 'stay_settled') {
+    return res.status(409).json({
+      error: 'stay_settled',
+      message: `Annulation impossible : ${result.stays.length > 1 ? 'des séjours recalculés par ce changement ont été payés ou déclarés' : 'un séjour recalculé par ce changement a été payé ou déclaré'} depuis (${result.stays.join(', ')}). Le retour en arrière passe par un nouveau changement.`,
+      stays: result.stays,
+    });
+  }
   if (result.error) return res.status(409).json({ error: result.error });
   return res.status(204).end();
 }

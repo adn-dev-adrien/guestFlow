@@ -64,14 +64,15 @@ const FUTURE = { regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-1
 test('rule 27: a switch writes only the allowlisted columns and leaves every child row byte for byte', () => {
   const before = snapshot();
   const preview = call(controller.preview, CORRECTION).body;
-  assert.ok(preview.touristTaxChanged >= 2, `stays re-priced: ${preview.touristTaxChanged}`);
+  assert.ok(preview.touristTaxChanged >= 1, `stays re-priced: ${preview.touristTaxChanged}`);
   assert.equal(call(controller.makeSwitch, { ...CORRECTION, fingerprint: preview.fingerprint, acknowledged: true }).statusCode, 201);
   const after = snapshot();
   const changed = diff(before, after);
   for (const [id, columns] of Object.entries(changed)) {
     assert.deepEqual(columns.filter((c) => !ALLOWED.has(c)), [], `stay ${id}: only the allowlist moved`);
   }
-  assert.ok(changed[106].includes('touristTaxTotal') && changed[110].includes('touristTaxTotal'));
+  assert.ok(changed[110].includes('touristTaxTotal'));
+  assert.deepEqual(changed[106].filter((c) => c !== 'vatPeriodId'), [], 'a stay with an installment plan is not re-priced (rule 27)');
   assert.deepEqual(after.children, before.children, 'child rows, custom options included, are byte for byte');
   assert.equal(after.reservations[110].icalSyncLocked, 0, 'an iCal stay is not locked by the switch');
   assert.equal(after.reservations[110].balanceDueDate, '2027-11-10', 'a stored due date is not rewritten');
@@ -80,7 +81,7 @@ test('rule 27: a switch writes only the allowlisted columns and leaves every chi
 
 test('rule 27: the stored tax moves by exactly what the preview announced, and what the engine moved', () => {
   const before = snapshot();
-  const quotesBefore = Object.fromEntries([106, 110].map((id) => [id, quote(id).touristTaxTotal]));
+  const quotesBefore = Object.fromEntries([110].map((id) => [id, quote(id).touristTaxTotal]));
   const preview = call(controller.preview, CORRECTION).body;
   call(controller.makeSwitch, { ...CORRECTION, fingerprint: preview.fingerprint, acknowledged: true });
   let delta = 0;
@@ -89,7 +90,7 @@ test('rule 27: the stored tax moves by exactly what the preview announced, and w
     const moved = Number(row(id).touristTaxTotal) - Number(before.reservations[id].touristTaxTotal);
     if (Math.abs(moved) > 0.004) { changed += 1; delta += moved; }
   }
-  for (const id of [106, 110]) {
+  for (const id of [110]) {
     assert.equal(Math.round((Number(row(id).touristTaxTotal) - Number(before.reservations[id].touristTaxTotal)) * 100), Math.round((quote(id).touristTaxTotal - quotesBefore[id]) * 100));
   }
   assert.equal(changed, preview.touristTaxChanged, 'the same stays');
@@ -117,11 +118,12 @@ test('rule 27: a frozen or declared tax is never touched', () => {
 
 test('rule 27: a stay whose non-tax figures move between the two periods keeps its stored figures', () => {
   const { planReprice } = switchModel.__test;
-  const current = quote(106);
-  assert.equal(planReprice(db, row(106), { ...current, finalPrice: current.finalPrice + 5 }).ok, false);
-  assert.equal(planReprice(db, row(106), { ...current, balanceDueDate: '2020-01-01' }).ok, false);
-  assert.equal(planReprice(db, row(106), null).ok, false);
-  assert.equal(planReprice(db, row(106), current).ok, true);
+  const current = quote(110);
+  assert.equal(planReprice(db, row(110), { ...current, finalPrice: current.finalPrice + 5 }).ok, false);
+  assert.equal(planReprice(db, row(110), { ...current, balanceDueDate: '2020-01-01' }).ok, false);
+  assert.equal(planReprice(db, row(110), null).ok, false);
+  assert.equal(planReprice(db, row(110), current).ok, true);
+  assert.deepEqual([planReprice(db, row(106), quote(106)).ok, planReprice(db, row(106), quote(106)).reason], [false, 'plan'], 'a plan stay');
 });
 
 test('rules 27 and 33: the retroactive rate edit re-prices the stays of its period with the same write, and reports the skipped', async () => {
@@ -129,11 +131,11 @@ test('rules 27 and 33: the retroactive rate edit re-prices the stays of its peri
   const before = snapshot();
   const res = await put({ rate: 25 });
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.vatNotRepriced, []);
-  assert.equal(vatRegimeModel.rateForRow(db, { id: 106 }), 25);
+  assert.deepEqual(res.body.vatNotRepriced, [106], 'the installment stay is reported');
+  assert.equal(vatRegimeModel.rateForRow(db, { id: 110 }), 25);
   const after = snapshot();
   for (const [id, columns] of Object.entries(diff(before, after))) assert.deepEqual(columns.filter((c) => !ALLOWED.has(c)), [], `stay ${id}`);
-  assert.ok(Number(row(106).touristTaxTotal) < Number(before.reservations[106].touristTaxTotal), 'the proportional tax follows the rate');
+  assert.ok(Number(row(110).touristTaxTotal) < Number(before.reservations[110].touristTaxTotal), 'the proportional tax follows the rate');
   assert.deepEqual(after.children, before.children);
 });
 
@@ -152,16 +154,77 @@ test('rule 32: the open balance link of a re-priced stay is retired, a deposit l
   assert.equal(status(deposit).status, 'open');
 });
 
-test('rule 32: a link on the converted devis of a re-priced stay is retired too, and the count is the dry run of the same function', () => {
-  db.prepare("INSERT INTO payment_links (reservationId, type, amountCents, status) VALUES (?, 'balance', 12345, 'open')").run(devisId);
+test('rule 34: a link on the converted devis that matched its bucket is retired with the re-price, one already out of date is left alone', () => {
+  const balance = Number(row(110).balanceAmount);
+  const link = db.prepare("INSERT INTO payment_links (reservationId, type, amountCents, status) VALUES (?, 'balance', ?, 'open')");
+  const matching = Number(link.run(devisId, Math.round(balance * 100)).lastInsertRowid);
+  const alreadyStale = Number(link.run(devisId, 12345).lastInsertRowid);
   const preview = call(controller.preview, CORRECTION).body;
   const open = () => db.prepare("SELECT COUNT(*) AS n FROM payment_links WHERE status = 'open'").get().n;
   const openBefore = open();
   call(controller.makeSwitch, { ...CORRECTION, fingerprint: preview.fingerprint, acknowledged: true });
   assert.equal(openBefore - open(), preview.linksReplaced, 'exactly the links the preview counted');
-  assert.equal(db.prepare('SELECT status FROM payment_links WHERE reservationId = ?').get(devisId).status, 'cancelled');
+  assert.equal(db.prepare('SELECT status FROM payment_links WHERE id = ?').get(matching).status, 'cancelled');
+  assert.equal(db.prepare('SELECT status FROM payment_links WHERE id = ?').get(alreadyStale).status, 'open', 'a link that already disagreed is left alone, as the fiche save does');
 });
 
+test('rule 34: the guest pays the retired link of a converted devis: it is booked on the reservation it became', () => {
+  const { bookPaidAfterAmountChange } = require('../utils/ledgerLinks');
+  const balance = Number(row(110).balanceAmount);
+  const id = Number(db.prepare("INSERT INTO payment_links (reservationId, type, amountCents, status, cancelReason) VALUES (?, 'balance', ?, 'cancelled', 'amount-changed')").run(devisId, Math.round(balance * 100)).lastInsertRowid);
+  const link = db.prepare('SELECT * FROM payment_links WHERE id = ?').get(id);
+  const booked = [];
+  const result = bookPaidAfterAmountChange({ database: db, recordPayment: (x) => booked.push(x) }, link, { paidDay: '2027-10-21' });
+  assert.notEqual(result.effect, 'not-a-reservation');
+  assert.deepEqual(booked.map((b) => [b.reservationId, b.bucket]), [[110, 'balance']]);
+});
+
+test('rule 27: a stay with an installment plan is not re-priced: reported with its reason, nothing written', () => {
+  const stored = row(106);
+  const preview = call(controller.preview, CORRECTION).body;
+  assert.ok(preview.planStays >= 1);
+  assert.ok(preview.lines.some((l) => /séjours? avec échéancier : à recalculer depuis la fiche\./.test(l)));
+  const made = call(controller.makeSwitch, { ...CORRECTION, fingerprint: preview.fingerprint, acknowledged: true });
+  assert.ok(made.body.notRepriced.includes(106));
+  assert.equal(row(106).touristTaxTotal, stored.touristTaxTotal);
+  assert.equal(row(106).balanceAmount, stored.balanceAmount);
+  assert.equal(row(106).complementAmount, stored.complementAmount);
+});
+
+test('rule 26: undo is refused (409, with the stays) once a re-priced stay was paid or declared since', () => {
+  const made = call(controller.makeSwitch, { ...FUTURE, fingerprint: call(controller.preview, FUTURE).body.fingerprint, acknowledged: true });
+  const before = JSON.stringify(row(110));
+  db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = '2027-10-21' WHERE id = 110").run();
+  const refused = call(controller.remove, null, { id: made.body.period.id });
+  assert.equal(refused.statusCode, 409);
+  assert.equal(refused.body.error, 'stay_settled');
+  assert.deepEqual(refused.body.stays, ['GF-2027-110']);
+  assert.match(refused.body.message, /GF-2027-110/);
+  assert.equal(vatRegimeModel.listPeriods(db).length, 2, 'nothing was undone');
+  assert.notEqual(JSON.stringify(row(110)), before);
+  db.prepare("UPDATE reservations SET balancePaid = 0, balancePaidDate = NULL, touristTaxDeclaredAt = '2027-10-22 10:00:00' WHERE id = 110").run();
+  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 409, 'a declared tax too');
+  db.prepare('UPDATE reservations SET touristTaxDeclaredAt = NULL WHERE id = 110').run();
+  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 204, 'and again possible once nothing is settled');
+});
+
+test('rule 26: a stay born under the unstarted period is re-priced back by the same targeted write', () => {
+  const made = call(controller.makeSwitch, { ...FUTURE, fingerprint: call(controller.preview, FUTURE).body.fingerprint, acknowledged: true });
+  db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, adults, children, babies, doubleBeds, singleBeds, platform,
+      createdAt, finalPrice, reservationNumber, checkInTime, checkOutTime)
+    VALUES (111, 'reservation', 1, 2, '2027-12-20', '2027-12-24', 2, 0, 0, 1, 0, 'direct', '2027-10-20 10:00:00', 1, 'GF-2027-111', '16:00', '10:00')`).run();
+  assert.equal(row(111).vatPeriodId, made.body.period.id, 'born under the period by the trigger');
+  const q = quote(111);
+  db.prepare('UPDATE reservations SET totalPrice = ?, finalPrice = ?, depositAmount = ?, balanceAmount = ?, touristTaxRate = ?, touristTaxTotal = ? WHERE id = 111')
+    .run(q.totalPrice, q.finalPrice, q.depositAmount, q.balanceAmount, q.touristTaxRate, q.touristTaxTotal);
+  const born = snapshot().reservations[111];
+  assert.equal(call(controller.remove, null, { id: made.body.period.id }).statusCode, 204);
+  assert.equal(row(111).vatPeriodId, 1);
+  const moved = Object.keys(row(111)).filter((c) => JSON.stringify(row(111)[c]) !== JSON.stringify(born[c]));
+  assert.deepEqual(moved.filter((c) => !ALLOWED.has(c)), []);
+  assert.ok(moved.includes('touristTaxTotal'), 'the tax of a stay born without VAT goes back to the VAT regime\'s');
+  assert.equal(row(111).touristTaxTotal, quote(111).touristTaxTotal);
+});
 test('rule 32: nothing is told to a provider inside the transaction', () => {
   const source = require('fs').readFileSync(require.resolve('../models/vatRegimeSwitchModel'), 'utf8');
   assert.match(source, /setImmediate\(\(\) => \{/);

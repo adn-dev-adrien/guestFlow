@@ -25,6 +25,8 @@ export default function VatFiscalSettingsPage() {
   const disabled = form.loading || form.saving;
   const { showSuccess, showError } = useToast();
   const vat = useVatRegime();
+  // Rule 33: an emptied rate is refused on screen, never sent (the server refuses it too).
+  const rateBlank = form.draft.vat?.regime !== 'not_subject' && (form.draft.vat?.rate === '' || form.draft.vat?.rate == null);
   const [switching, setSwitching] = useState(false);
   const [undoing, setUndoing] = useState(null);
   // The switch writes through its own endpoint: the page's saved values follow what the server now holds.
@@ -44,10 +46,10 @@ export default function VatFiscalSettingsPage() {
   }, []);
 
   return (
-    <SettingsFormPage title="TVA & exercice" form={form} saveBlocked={hasInvalidRevenueGoal(form.draft.accounting?.revenueGoals)}>
+    <SettingsFormPage title="TVA & exercice" form={form} saveBlocked={hasInvalidRevenueGoal(form.draft.accounting?.revenueGoals) || rateBlank}>
       <SettingsVatSection
         values={form.draft.vat}
-        errors={form.errors}
+        errors={rateBlank ? { ...form.errors, vatRate: VAT_TEXTS.rateRequired } : form.errors}
         onChange={(key, value) => form.setField('vat', key, value)}
         disabled={disabled}
         regime={vat.state}

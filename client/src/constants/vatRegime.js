@@ -14,6 +14,7 @@ export const VAT_TEXTS = Object.freeze({
   subjectSub: 'Appliqué à l’ensemble des prestations : hébergement, options, ressources.',
   notSubjectSub: 'Aucune TVA sur les prix, les devis et les liens de paiement.',
   rateHelp: '10 % par défaut.',
+  rateRequired: 'Taux requis.',
   switchButton: 'Changer de régime…',
   historyTitle: 'Historique',
   undo: 'Annuler ce changement',

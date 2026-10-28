@@ -17,6 +17,8 @@ const vatRegimeModel = require('../models/vatRegimeModel');
 // The declared tax of the installment stay is kept by the page, not by the stay: free it, so one stay of
 // the fixture has a proportional tax a regime can move.
 db.prepare('UPDATE reservations SET touristTaxDeclaredAt = NULL WHERE id = 106').run();
+// …and free of its installment plan (a stay with a plan is not re-priced, rule 27: it has its own test).
+db.prepare('DELETE FROM reservation_installments WHERE reservationId = 106').run();
 db.prepare("INSERT INTO payment_links (reservationId, type, amountCents, status) VALUES (101, 'balance', 100000, 'open'), (104, 'balance', 100000, 'open'), (101, 'deposit', 5000, 'paid')").run();
 
 const call = (fn, body, user = { id: 1 }) => {
@@ -68,7 +70,7 @@ test('rule 17: the open payment links of the reservations that change — their 
 });
 
 test('rule 17: the months of the books that would change', () => {
-  assert.deepEqual(preview(ALL).exportMonths, ['2027-04', '2027-05', '2027-06', '2027-08', '2027-09']);
+  assert.deepEqual(preview(ALL).exportMonths, ['2027-05', '2027-06', '2027-08', '2027-09']);
   assert.deepEqual(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-12-01' }).exportMonths, []);
 });
 
