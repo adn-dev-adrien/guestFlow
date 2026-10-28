@@ -238,6 +238,12 @@ any more.
     **N = 1**: within one gesture the first window that brings nothing to draw (rule 26's « no growth »)
     ends the chain, so a flick over an empty planning asks once, not once per wheel event.
 
+31. **The operator's scroll is never undone by a hold.** A wheel handler asks for a window before the
+    browser applies the scroll, so the position held right before a prepend or a release may predate a
+    move the operator has already made. The restore after the commit keeps that move: it undoes only the
+    content's shift (the held item's screen position, minus how far the scroller moved since the hold).
+    Without it, the first wheel up after opening could snap the view back under today's header.
+
 **Edge cases:**
 - Several arrivals on the next arrival day → all listed (rule 2), one row each.
 - The next arrival is next year → `label` carries the year.
@@ -405,6 +411,7 @@ None. No migration.
 - [x] `pages/__tests__/PlanningPage.timeline.test.jsx` gains rule 29 (12 in all).
 - [x] `components/__tests__/PageActionBar.aria-disabled.test.jsx` (2) — rule 29.
 - [x] `hooks/__tests__/usePlanningTimeline.windows.test.jsx` (3) — rules 27, 28; `useInfiniteEdgeScroll.window.test.jsx` gains rules 24 and 26 (14 in all).
+- [x] `hooks/__tests__/useInfiniteEdgeScroll.scrolled-before-commit.test.jsx` (2) — rule 31.
 
 ### E2E (Playwright)
 - [x] New `e2e/specs/planning/timeline-scroll.spec.js` — opens on today under the bar; wheel up shows
