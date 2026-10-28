@@ -21,8 +21,15 @@ function buildReconciler() {
   return { run: () => { licence.invalidate(); return reconciler.run(); } };
 }
 
-function start({ reconciler = buildReconciler(), setIntervalFn = setInterval, setTimeoutFn = setTimeout } = {}) {
-  const pass = () => reconciler.run().catch((err) => console.error('[plugins] provisioning:', err && err.message ? err.message : err));
+function start({
+  reconciler = buildReconciler(), setIntervalFn = setInterval, setTimeoutFn = setTimeout, loader = require('../plugins/loader'),
+} = {}) {
+  // The live set at boot is the baseline: nothing fires for it. After each reconcile (which re-reads the
+  // licence) a plugin the licence now allows has turned live (specs/plugin-removal-resilience.md rule 17).
+  loader.syncLiveTransitions();
+  const pass = () => reconciler.run()
+    .catch((err) => console.error('[plugins] provisioning:', err && err.message ? err.message : err))
+    .then(() => loader.syncLiveTransitions());
   setIntervalFn(pass, TICK_MS);
   setTimeoutFn(pass, BOOT_DELAY_MS);
   return pass;

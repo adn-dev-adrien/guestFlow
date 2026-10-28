@@ -335,7 +335,7 @@ function createController(model = defaultModel, deps = {}) {
 
   // Rule 13 — a package installed while the app runs: loaded, registered, mounted, migrated, then
   // recorded. Returns null, or the refusal to send.
-  async function installPackage(id, candidate, undo = []) {
+  async function installPackage(id, candidate, undo = [], installed = []) {
     const pkg = await acquire(id, candidate);
     if (candidate.source === 'registry') {
       const before = host().store().readCurrent(id);
@@ -369,7 +369,7 @@ function createController(model = defaultModel, deps = {}) {
     undo.push(() => model.uninstall(id));
     if (!restart) {
       await loader().runInstallHooks(id);
-      loader().runActivateHooks(id);
+      installed.push(id);
     }
     return { restart };
   }
@@ -467,12 +467,15 @@ function createController(model = defaultModel, deps = {}) {
     // next restart.
     return underLock(res, async (restart) => {
       const undo = [];
+      // The activation hooks wait for the whole install to commit: a requirement undone with its dependant
+      // must not have announced itself (specs/plugin-removal-resilience.md rule 17).
+      const installed = [];
       const rollback = () => undo.reverse().forEach((step) => step());
       let restartWanted = false;
       for (const step of steps) {
         let result;
         try {
-          result = await installPackage(step.id, step.candidate, undo); // eslint-disable-line no-await-in-loop
+          result = await installPackage(step.id, step.candidate, undo, installed); // eslint-disable-line no-await-in-loop
         } catch (err) {
           rollback();
           return refusePackageError(err, res);
@@ -484,6 +487,7 @@ function createController(model = defaultModel, deps = {}) {
         restartWanted = restartWanted || result.restart;
       }
       if (restartWanted) return restart({ version: offer.version });
+      installed.forEach((id) => loader().runActivateHooks(id));
       // The browser loads the new bundle at its next page load (rule 18): the page reloads.
       return res.json({ ...view(entry), reload: true });
     });

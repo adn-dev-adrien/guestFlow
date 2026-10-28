@@ -119,9 +119,12 @@ async function runInstallHooks(id) {
 }
 
 // SDK 2.11.0 — the activation hooks run in the background: a failure is logged, never the request's.
+const wasLive = new Map();
+
 function runActivateHooks(id) {
   const record = registry.get(id);
   if (!record || record.failed) return Promise.resolve();
+  wasLive.set(id, true);
   return Promise.all(record.onActivate.map(async (hook) => {
     try {
       await hook();
@@ -131,6 +134,25 @@ function runActivateHooks(id) {
     }
   }));
 }
+
+/**
+ * A plugin can also turn live without anyone activating it: the licence starts allowing it (a plan
+ * upgrade, the row already enabled). The first call records the live set (the boot, which fires nothing);
+ * each later call fires the activation hooks of the plugins that were not live and now are — once per
+ * transition, an explicit activation having already recorded itself.
+ */
+function syncLiveTransitions() {
+  const fired = [];
+  registry.all().forEach((record) => {
+    const live = registry.isLive(record.id);
+    const before = wasLive.get(record.id);
+    wasLive.set(record.id, live);
+    if (before === false && live) fired.push(runActivateHooks(record.id));
+  });
+  return Promise.all(fired);
+}
+
+function resetLiveTransitions() { wasLive.clear(); }
 
 const gate = (id) => requirePlugin(id, { isActive: registry.isLive });
 
@@ -295,6 +317,8 @@ module.exports = {
   migrate,
   runInstallHooks,
   runActivateHooks,
+  syncLiveTransitions,
+  resetLiveTransitions,
   mountPublic,
   mountApi,
   startJobs,

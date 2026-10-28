@@ -288,7 +288,12 @@ including the ones added later.
     of any length, a restart while off, and an uninstall → restart → reinstall (plugin 1.0.2, `sdk ^2.11.0`).
     In the sweep, the Google Vacation Rentals seed carries a partner id and an enabled property; step (b) and
     the reinstall of step (c) assert that its push log gains a `catch-up` run, and the scheduled passes and
-    jobs run once without a throw.
+    jobs run once without a throw. The hook also fires when the licence starts allowing a plugin whose row was
+    already enabled (a plan upgrade): the live set is recorded at boot and re-read after every provisioning pass,
+    firing the hooks of the plugins that turned live, once per transition. Install hooks wait for the whole
+    install — requirements included — to commit, so a requirement rolled back with its dependant never announced
+    itself. *Known limit:* an install that needs a restart (a version other than the loaded one) goes live at the
+    next boot, and boot fires nothing; the plugin then catches up through its own passes (GVR: the nightly re-send).
 
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard
