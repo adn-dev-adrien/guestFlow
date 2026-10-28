@@ -65,13 +65,11 @@ import ClientsPage from './pages/ClientsPage';
 import PropertiesPage from './pages/PropertiesPage';
 import PropertyDetail from './pages/PropertyDetail';
 import PropertyPricingSeasonsPage from './pages/PropertyPricingSeasonsPage';
-import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
 import ReservationPage from './pages/ReservationPage';
 import ReservationsUpcomingPage from './pages/ReservationsUpcomingPage';
 import FinancePage from './pages/FinancePage';
 import TouristTaxPage from './pages/TouristTaxPage';
-import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
 import EstablishmentSettingsPage from './pages/settings/EstablishmentSettingsPage';
 import PlatformsSettingsPage from './pages/settings/PlatformsSettingsPage';
@@ -796,8 +794,8 @@ function AppShell() {
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetail />} />
           <Route path="/properties/:id/pricing-seasons" element={<PropertyPricingSeasonsPage />} />
-          <Route path="/options" element={<OptionsPage />} />
-          <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/options" element={<Navigate to="/parametres/options-ressources" replace />} />
+          <Route path="/resources" element={<Navigate to="/parametres/options-ressources?tab=resources" replace />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/reservations/new" element={<ReservationPage />} />
           <Route path="/reservations/:reservationId" element={<ReservationPage />} />
