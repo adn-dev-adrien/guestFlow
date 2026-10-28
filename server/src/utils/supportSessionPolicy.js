@@ -12,6 +12,8 @@
  *   SMTP group (and the sender name the start assistant writes), the access code and the Wi-Fi
  *   password of a property (start assistant or property page), a plugin setting declared `secret`, the Google and Qonto OAuth connections (any
  *   method), the Qonto and Neat credentials, and uninstalling or turning off a plugin;
+ * - rule 18 (amended 2026-10-28): changing the keypad code (`company.portalCode`), the booking-notification
+ *   recipient (`notifications.recipientEmail`) and the bank details printed on a devis (`company.iban`, `bic`);
  * - rule 23: every route a plugin declares with `ctx.secretRoutes` — it hands out, creates or rotates a
  *   secret (the Booking userscript and its key, the gate connector's keys, read in clear, the website
  *   connection key) — and reading or rotating a property's iCal export token. A plugin's route is
@@ -44,8 +46,31 @@ function defaultIsSecretSetting(pluginId, key) {
   return Boolean(record && record.settings.some((s) => s.key === key && s.secret));
 }
 
+// What the settings page would print or send today, to tell a change from a value sent back as it is.
+function defaultCurrentSettings() {
+  return require('../models/settingsModel').read();
+}
+
+// Rule 18 — the settings a support session may not change although they are not secrets in the strict
+// sense: the keypad code given to guests, where the booking notifications go, the bank details printed
+// on a devis. The page sends its whole group on every save, so only a value that differs counts.
+const GUARDED_SETTINGS = [
+  { group: 'company', key: 'portalCode', column: 'portalCode', normalize: (v) => String(v ?? '').trim() },
+  { group: 'company', key: 'iban', column: 'companyIban', normalize: (v) => String(v ?? '').replace(/\s+/g, '').toUpperCase() },
+  { group: 'company', key: 'bic', column: 'companyBic', normalize: (v) => String(v ?? '').replace(/\s+/g, '').toUpperCase() },
+  { group: 'notifications', key: 'recipientEmail', column: 'notificationRecipientEmail', normalize: (v) => String(v ?? '').trim().toLowerCase() },
+];
+
+function changesGuardedSetting(body, currentSettings) {
+  const sent = GUARDED_SETTINGS.filter(({ group, key }) => body[group] && typeof body[group] === 'object'
+    && Object.prototype.hasOwnProperty.call(body[group], key));
+  if (!sent.length) return false;
+  const stored = currentSettings() || {};
+  return sent.some(({ group, key, column, normalize }) => normalize(body[group][key]) !== normalize(stored[column]));
+}
+
 // → 'account' (rule 15: the access itself and the borrowed account), 'credentials' (rule 18), or null.
-function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = defaultIsSecretSetting, isSecretRoute = defaultIsSecretRoute } = {}) {
+function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = defaultIsSecretSetting, isSecretRoute = defaultIsSecretRoute, currentSettings = defaultCurrentSettings } = {}) {
   const path = normalizePath(rawPath);
   const read = isRead(method);
 
@@ -56,6 +81,7 @@ function forbiddenReason(method, rawPath, body = {}, { isSecretSetting = default
   if (under(path, '/users') && !read) return 'credentials';
   // The whole SMTP group: the connection, where the account emails point, and who they come from.
   if (path === '/settings' && !read && body && body.smtp !== undefined) return 'credentials';
+  if (path === '/settings' && !read && body && typeof body === 'object' && changesGuardedSetting(body, currentSettings)) return 'credentials';
   // The same sender name through the start assistant, and the arrival secrets a guest is given — the
   // access code and the Wi-Fi password — whichever form writes them.
   if (path === '/onboarding/emails' && !read && body && typeof body === 'object') {
