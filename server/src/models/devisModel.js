@@ -936,7 +936,35 @@ function createModel(database) {
       else if (changes.length > 0) addHistoryEntry(numId, 'update', changes);
     });
     tx();
+    retireStaleLinks(numId);
     return { ok: true, data: findById(numId) };
+  }
+
+  /**
+   * Whatever path re-priced the devis (the operator's save, a guest's request sent again), an open payment
+   * link that bills another amount than the quote now asks is abandoned at once and deactivated at its
+   * provider after the commit; the poll retries a refusal and books the link at its own amount if the guest
+   * paid it anyway (specs/public-online-payment.md rule 14, specs/reservation-payment-ledger.md rules 29-31).
+   */
+  function retireStaleLinks(devisId) {
+    const exists = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'payment_links'").get();
+    if (!exists) return [];
+    const { staleLinks } = require('../utils/ledgerLinks');
+    const row = database.prepare("SELECT depositAmount, balanceAmount FROM reservations WHERE id = ? AND kind = 'devis'").get(devisId);
+    const open = database.prepare("SELECT * FROM payment_links WHERE reservationId = ? AND status = 'open' ORDER BY id").all(devisId);
+    const stale = row ? staleLinks(open, row) : [];
+    if (stale.length === 0) return [];
+    const at = new Date().toISOString();
+    const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'amount-changed' WHERE id = ? AND status = 'open'");
+    const retired = stale
+      .filter((link) => retire.run(link.providerLinkId ? at : null, link.id).changes > 0)
+      .map((link) => ({ ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null, cancelReason: 'amount-changed' }));
+    setImmediate(() => {
+      const paymentLinksModel = require('./paymentLinksModel').buildModel(database);
+      require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(retired, { paymentLinksModel })
+        .catch((err) => console.error('[devis] link deactivation:', err && err.message ? err.message : err));
+    });
+    return retired;
   }
 
   /**
@@ -1220,6 +1248,7 @@ function createModel(database) {
     resolvePaymentSchedule,
     list,
     updateFromPublicRequest,
+    __retireStaleLinks: retireStaleLinks,
     appendPublicMessage,
     markOperatorSeen,
     purgePublicRequest,

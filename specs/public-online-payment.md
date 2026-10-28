@@ -119,7 +119,8 @@ Let a website visitor **pay their full stay online** and have the reservation co
    - **`trust proxy`.** The Node app is exposed **directly** (its own TLS, no reverse proxy today), so
      `trust proxy` defaults to **`false`** — otherwise any direct caller to `:4000` could spoof
      `X-Forwarded-For` and defeat the IP rate limiters. When a reverse proxy is put in front (WordPress
-     prod), set `TRUST_PROXY_HOPS` to the exact trusted-hop count. _(The plugin's API client does not
+     prod), set `TRUST_PROXY_HOPS` to the exact trusted-hop count
+     ([hosting-h1-fleet-runtime.md](hosting-h1-fleet-runtime.md) rule 35). _(The plugin's API client does not
      forward the visitor IP, so public-route limiting is per-proxy-IP regardless.)_
    - **Charged amount.** `fullPaymentCents`'s fallback row now carries `touristTaxTotal`, so a missed devis
      lookup can never silently charge tax-free.
@@ -168,6 +169,28 @@ Let a website visitor **pay their full stay online** and have the reservation co
     paid yet, so the refusal is clean; the availability re-check also sees a neighbour's late
     check-out and early check-in (public-api.md rule 15). Covered by
     `plugins/website-booking/tests/public-stay-rules.unit.test.js`.
+
+### A link is paid for the amount it billed (audit 2026-10-28)
+
+14. **A re-priced devis retires its open links; a link paid for another amount is booked at what was
+    received.** (a) Whatever re-prices a devis (`devisModel.update`: the operator's save, a guest's
+    request sent again — [public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md)
+    rule 27), every open link whose amount no longer matches the quote (`ledgerLinks.staleLinks`) is
+    abandoned at once (`cancelReason 'amount-changed'`, remote-deactivation marker) and deactivated at
+    the provider after the commit; the poll retries a refusal and books the link at its own amount if
+    the guest paid it anyway (reservation-payment-ledger rules 29-31). (b) Defence in depth in
+    `applyPaidEffect`: when a paid link on a devis bills another amount than the devis asks for its type
+    (`deposit`, or `full` = acompte + solde), the devis is converted and the money goes through
+    `bookPaidAfterAmountChange` — the amount received is the one booked, the shortfall is left due on
+    the arrival complement — the admin gets the « Paiement reçu d'un autre montant que le devis » alert
+    (`notifyPaidAfterCancel`, `amountMismatch`), and no confirmation e-mail says « payé ». This also
+    covers the `full` links minted before the tourist tax joined the amount (rule 18 of
+    deposit-blocks-the-dates.md). Covered by `tests/audit-devis-link-amount.unit.test.js`.
+15. **One live link per devis and type.** `ensurePaymentLink` runs one at a time per reservation and
+    type (the lock of the installments, rule 40 of direct-installments.md): two concurrent `pay` calls
+    mint one provider link. Should two links of one devis be paid anyway, the second payment is not
+    recorded again and sends no confirmation: the admin gets the « Devis payé deux fois » alert to
+    refund it. Covered by `tests/audit-devis-link-amount.unit.test.js`.
 
 ## 4. Architecture
 

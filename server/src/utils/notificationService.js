@@ -436,11 +436,30 @@ function buildNotificationService({
   // that earlier day; the payment may be a second one, or the same money recorded by hand: to check.
   const PAID_AFTER_CANCEL_TITLE = '⚠️ Paiement reçu sur un lien annulé';
   const PAID_AFTER_SETTLED_TITLE = '⚠️ Paiement à vérifier sur un lien retiré';
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null } = {}) {
-    const amount = (Number(link.amountCents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  // A link paid for an amount other than the one its quote asks today (quote re-priced after the link
+  // was minted, or a link older than the current amount rules): the payment is booked at what the guest
+  // really paid, the rest stays due.
+  const PAID_TWICE_TITLE = '⚠️ Devis payé deux fois';
+  const PAID_OTHER_AMOUNT_TITLE = '⚠️ Paiement reçu d’un autre montant que le devis';
+  const eurosFr = (cents) => (Number(cents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false } = {}) {
+    const amount = eurosFr(link.amountCents);
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
-    const subject = `${settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE} — ${ref} · ${amount}`;
-    const intro = settledOn
+    const title = doublePaid ? PAID_TWICE_TITLE : amountMismatch ? PAID_OTHER_AMOUNT_TITLE : (settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE);
+    const subject = `${title} — ${ref} · ${amount}`;
+    const intro = doublePaid
+      ? [
+        'Deux liens de paiement du même devis ont été payés.',
+        'Le second paiement n’est pas enregistré une seconde fois sur le séjour.',
+        'Action requise : rembourser ce paiement depuis l’espace du prestataire de paiement.',
+      ]
+      : amountMismatch
+      ? [
+        `Un lien de paiement a été payé ${amount} alors que le devis demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
+        'Le séjour est enregistré au montant réellement reçu ; le reste est à percevoir.',
+        'À vérifier : réclamer la différence au client, ou rembourser si le devis a baissé.',
+      ]
+      : settledOn
       ? [
         `Un lien de paiement a été payé alors que ce montant était déjà noté réglé le ${settledOn.split('-').reverse().join('/')}.`,
         'Le paiement n’est pas enregistré une seconde fois sur le séjour.',
@@ -468,8 +487,8 @@ function buildNotificationService({
     try {
       const resa = loadReservation(link.reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
-      const title = options.settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE;
       const { subject } = buildPaidAfterCancelEmail(resa, link, '', options);
+      const title = subject.split(' — ')[0];
       await pushNewReservation({ title, body: subject.slice(`${title} — `.length), url: `/reservations/${Number(resa.id)}` });
       const ctx = resolveContext();
       if (ctx.skip) return { sent: false, skipped: ctx.skip };
