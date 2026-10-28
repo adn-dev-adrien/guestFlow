@@ -117,12 +117,34 @@ test('rule 38: removing a data-less module is an erase order the space settles b
   assert.throws(() => modules.erase(env.id, 'google-vacation-rentals', 'wrong', 'op'), (err) => err.status === 400);
   modules.erase(env.id, 'google-vacation-rentals', env.slug, 'op');
   assert.equal(env.ctx.models.customerPlugins.pendingOrders(env.id).length, 1);
-  assert.equal(lineOf(modules.view(env.id), 'google-vacation-rentals').detail, 'Effacement des données en cours.');
+  assert.equal(lineOf(modules.view(env.id), 'google-vacation-rentals').detail, 'Désinstallation en cours.');
   writeSpace(env, { inactive: ['website-booking'], applied: writtenAt(env), facts: DATA, erased: [env.ctx.models.customerPlugins.pendingOrders(env.id)[0].orderId] });
   modules.acknowledgeErasures();
+  const journal = env.ctx.models.audit.forCustomer(env.id).filter((a) => a.kind === 'module').map((a) => a.text);
+  assert.ok(journal.includes('Désinstallation de Google Vacation Rentals demandée'), journal.join(' | '));
+  assert.ok(journal.includes('Google Vacation Rentals désinstallé'), journal.join(' | '));
+  assert.equal(journal.some((t) => /Effacement|Données de Google/.test(t)), false);
   const booking = lineOf(modules.view(env.id), 'website-booking');
   assert.equal(booking.canErase, true);
   assert.equal(booking.blockedBy, null);
+  env.cleanup();
+});
+
+test('rule 38: a data erase keeps its wording, and cancelling a removal says so', async () => {
+  const env = await customerWithSpace({ planCode: 'premium' });
+  const { modules } = env.ctx.controllers;
+  env.ctx.models.customers.addGrandfathered(env.id, 'google-vacation-rentals', '2026-09-29');
+  modules.toggle(env.id, 'google-vacation-rentals', false, 'op');
+  writeSpace(env, { inactive: ['google-vacation-rentals'], applied: writtenAt(env) });
+  modules.erase(env.id, 'google-vacation-rentals', env.slug, 'op');
+  modules.toggle(env.id, 'google-vacation-rentals', true, 'op');
+  const journal = () => env.ctx.models.audit.forCustomer(env.id).filter((a) => a.kind === 'module').map((a) => a.text);
+  assert.ok(journal().includes('Désinstallation de Google Vacation Rentals annulée'), journal().join(' | '));
+  modules.toggle(env.id, 'school-holidays', false, 'op');
+  writeSpace(env, { inactive: ['school-holidays'], applied: writtenAt(env), facts: { 'school-holidays': { setup: null, erasable: true, data: [{ label: '2 périodes', count: 2 }] } } });
+  modules.erase(env.id, 'school-holidays', env.slug, 'op');
+  assert.equal(lineOf(modules.view(env.id), 'school-holidays').detail, 'Effacement des données en cours.');
+  assert.ok(journal().some((t) => /^Effacement des données de .+ demandé$/.test(t)));
   env.cleanup();
 });
 

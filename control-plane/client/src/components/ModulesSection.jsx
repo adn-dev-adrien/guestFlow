@@ -29,9 +29,9 @@ function badgeStatus(line) {
   return line.stale ? 'warning' : BADGE[line.state] || 'neutral';
 }
 
-// 44 px tall hit area with the track and thumb where they were. The root keeps its default
-// overflow:hidden: MUI's hidden input is three times the thumb wide and would otherwise cover the neighbouring button.
-const SWITCH_SX = { flexShrink: 0, height: 44, py: '15px', '& .MuiSwitch-switchBase': { top: 3 } };
+// The whole 44 px height is clickable (the hidden input follows the switchBase) with the thumb centred where it was.
+// The root keeps its default overflow:hidden: that input is three times the thumb wide and would otherwise cover the neighbouring button.
+const SWITCH_SX = { flexShrink: 0, height: 44, py: '15px', '& .MuiSwitch-switchBase': { top: 0, height: 44, py: '12px' } };
 
 export default function ModulesSection({ customerId, slug, onChanged }) {
   const { confirm } = useAppDialogs();

@@ -261,6 +261,10 @@ const ADDED_COLUMNS = {
     held: 'INTEGER NOT NULL DEFAULT 0',
     attempt: 'INTEGER NOT NULL DEFAULT 0',
   },
+  customer_erase_orders: {
+    // specs/plugin-operator-provisioning.md rule 38: 1 for the removal of a module that holds no data (worded « désinstallation »).
+    removal: 'INTEGER NOT NULL DEFAULT 0',
+  },
   operators: {
     // Rule 31: the last TOTP step accepted, so a code is never accepted twice.
     lastTotpStep: 'INTEGER',
