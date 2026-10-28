@@ -157,6 +157,7 @@ server/update.lock
 server/runtime-state.json
 client/build/
 client/dist/
+client/.vitest/
 .env
 
 # Data bases

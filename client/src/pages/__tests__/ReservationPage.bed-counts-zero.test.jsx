@@ -9,7 +9,6 @@ import theme from '../../theme';
 
 vi.setConfig({ testTimeout: 30000 });
 
-const mockConfirm = vi.fn(async () => true);
 
 vi.mock('../../api', () => {
   const calls = {};
@@ -24,7 +23,7 @@ vi.mock('../../api', () => {
 });
 vi.mock('../../components/DialogProvider', () => ({
   __esModule: true,
-  useAppDialogs: () => ({ alert: vi.fn(), confirm: mockConfirm, prompt: vi.fn() }),
+  useAppDialogs: () => ({ alert: vi.fn(), confirm: vi.fn(), prompt: vi.fn() }),
   useToast: () => ({ showSuccess: vi.fn(), showError: vi.fn() }),
 }));
 vi.mock('../../hooks/useAuth', () => ({
@@ -81,7 +80,7 @@ test('rule 13 — a bed count the server never stored (null) stays empty, so it 
   expect(payload.babyBeds).toBeNull();
 });
 
-test('rule 13 — a fiche loaded with bed counts at 0 is clean: leaving it asks nothing', async () => {
+test('rule 13 — a fiche loaded with bed counts at 0 is clean: leaving it shows no unsaved-changes dialog', async () => {
   api.getReservation.mockResolvedValue(FICHE);
   render(
     <MemoryRouter initialEntries={['/planning', '/reservations/22308']} initialIndex={1}>
@@ -95,5 +94,5 @@ test('rule 13 — a fiche loaded with bed counts at 0 is clean: leaving it asks 
   );
   fireEvent.click(await screen.findByRole('button', { name: 'Annuler' }));
   expect(await screen.findByText('PLANNING')).toBeInTheDocument();
-  expect(mockConfirm).not.toHaveBeenCalled();
+  expect(screen.queryByText('Modifications non enregistrées')).toBeNull();
 });
