@@ -132,12 +132,14 @@ guessing; and the quote the guest receives looks like the house that sends it.
     **Superseded 2026-10-28** for a logement's closure by `calendar-property-parity.md` rules 9-11: it is
     a hatched bar in its logement's lane group with a stay's half-day edges. A global closure keeps the
     column hatch.
+    > **Sans test** — superseded by `calendar-property-parity.md` rules 9-11, which carry the tests of the closure bars.
 14. **Legible stay bars.** A stay bar is a soft tint of its platform colour (14 %), a 3 px stripe of the
     platform colour on its left edge and ink text: AA on every platform colour, including the yellow
     ones. The phone agenda's platform chip uses the same tint and ink text. A past stay fades to 65 %,
     not 50 %, so its text keeps 3:1.
     **Superseded 2026-10-28** by `calendar-property-parity.md` rules 4-8: a current or future stay is a
     solid bar with a server-chosen text colour (≥ 4.5:1); the tint is kept for past stays only.
+    > **Sans test** — superseded by `calendar-property-parity.md` rules 4-8, which carry the tests of the stay bars.
 15. **A folded legend with real names.** The platform legend is folded behind « Légende » (closed by
     default) and prints display names: « Gîtes de France », « GreenGo », never a raw key. The name comes
     from the server, with each row of the reservation list (`platformDisplay`): one source.

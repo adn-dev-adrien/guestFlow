@@ -276,7 +276,7 @@ test('invariant: getSummary().totalPending === getOperational().pending.totals.r
   const operational = model.getOperational();
   assert.equal(summary.totalPending, operational.pending.totals.remainingToPay);
   assert.equal(summary.totalPending, 868); // 668 + 200
-  // The operational tab lists BOTH finished unpaid stays, period-free (spec rule 8 pin).
+  // The operational tab lists BOTH finished unpaid stays, period-free (pinned by the spec).
   assert.deepEqual(operational.pending.reservations.map((r) => r.id).sort(), [1, 2]);
 });
 

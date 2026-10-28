@@ -220,7 +220,7 @@ test('specs/plugins-phase-2-hosts.md rule 28 — the app_settings values are cop
   db.prepare(`UPDATE app_settings SET defaultCommissionAccountNumber = '62260003', vatRateCommission = 19.6,
     cancellationCompensationAccount = '', vatRateCancellationCompensation = 5.5 WHERE id = 1`).run();
   boot(db, { installed: true });
-  // `ttcSplitFrom` is the rule 35 cutoff (accountant-accounting-export.md), not a copied setting.
+  // `ttcSplitFrom` is the cutoff of specs/accountant-accounting-export.md rule 35, not a copied setting.
   const stored = Object.fromEntries(db.prepare("SELECT key, value FROM plugin_settings WHERE plugin_id = ? AND key != 'ttcSplitFrom'").all(ID).map((r) => [r.key, r.value]));
   assert.deepEqual(stored, { defaultCommissionAccountNumber: '62260003', vatRateCommission: '19.6', vatRateCancellationCompensation: '5.5' });
   assert.equal(createAccountSettings(db).read().cancellationCompensationAccount, '75880000', 'an empty value is not copied: the default reads');

@@ -1,4 +1,4 @@
-// specs/plugins-phase-0-foundation.md rule 25 (2026-10-27 audit) — on the Plugins page the Neat and
+// specs/plugins-phase-0-foundation.md rules 25 + 32 (2026-10-27 audit) — on the Plugins page the Neat and
 // Qonto cards dropped their version onto a line of its own, and « Actif · identifiant partenaire
 // manquant » was cut by an ellipsis. The version now flows inside the name's line and the status
 // badge wraps instead of being cut.

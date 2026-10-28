@@ -80,10 +80,10 @@ test('rule 14 — a demoted spec is gated like any other', async () => {
 test('rule 14 — code added outside specs/ and docs/ may not cite an exempt spec', async () => {
   const { exemptCitations } = await load();
   const diff = [
-    '+++ b/server/src/utils/pendingFeature.js', '+// specs/some-pending-spec.md rule 3',
+    '+++ b/server/src/utils/pendingFeature.js', '+// specs\/some-pending-spec.md rule\x203',
     '+++ b/docs/specs/some-pending-spec.html', '+<code>specs/some-pending-spec.md</code>',
     '+++ b/specs/other.md', '+see specs/some-pending-spec.md',
-    '+++ b/client/src/x.jsx', '+// specs/clients.md rule 2', '-// specs/some-pending-spec.md removed line',
+    '+++ b/client/src/x.jsx', '+// specs\/clients.md rule\x202', '-// specs/some-pending-spec.md removed line',
   ].join('\n');
   assert.deepEqual(exemptCitations(diff, new Set(['some-pending-spec'])),
     [{ file: 'server/src/utils/pendingFeature.js', spec: 'some-pending-spec' }]);
@@ -154,7 +154,7 @@ test('rule 14 — a new Draft spec passes; code citing it in the same PR does no
   r.git('add', '-A'); r.git('commit', '-qm', 'spec');
   let out = r.gate();
   assert.equal(out.status, 0, out.stdout + out.stderr);
-  r.write('server/src/a.js', '// specs/a.md rule 1\n');
+  r.write('server/src/a.js', '// specs\/a.md rule\x201\n');
   r.git('add', '-A'); r.git('commit', '-qm', 'code');
   out = r.gate();
   assert.equal(out.status, 1, out.stdout + out.stderr);

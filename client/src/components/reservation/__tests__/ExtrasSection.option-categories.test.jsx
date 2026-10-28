@@ -150,7 +150,7 @@ test('an internal-only category yields no section (server filtered it out)', () 
   expect(screen.queryByText('Tapis de bain')).not.toBeInTheDocument();
 });
 
-// ---- rule 9bis: an alwaysVisible option is pinned even when nothing is selected ----
+// ---- 9bis: an alwaysVisible option is pinned even when nothing is selected ----
 
 const PDJ = { id: 30, title: 'Petit déjeuner', price: 12, priceType: 'per_person', category: 'Restauration', alwaysVisible: 1 };
 

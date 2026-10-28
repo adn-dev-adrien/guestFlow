@@ -59,9 +59,11 @@ changing the desktop experience**.
    the landing scroll was lost and the view sat on the first week of the strip (« 1 – 7 juin ») with no
    data until something else moved it. The landing position is now re-applied whenever the strip's width
    changes (`ResizeObserver`), which also keeps the shown week when the phone rotates.
+    > **Sans test** — the week strip (`CalendarWeekView`) this rule fixed was replaced on 2026-10-28 by the phone day agenda (`CalendarDayAgenda`, `calendar-property-parity.md`); no component is left to pin.
 8. **Every line names the platform the same way** (fixed at the 2026-10-27 spec review). The mid-stay
    (« en cours ») and devis lines print `formatPlatformLabel(platform)`, like the arrival and departure
    lines — they printed the stored value, a lowercase « direct ».
+    > **Sans test** — superseded with the week strip: the agenda names a platform with `platformDisplay` or `formatPlatformLabel` (`calendar-property-parity.md`).
 
 ## 4. Architecture (Client)
 

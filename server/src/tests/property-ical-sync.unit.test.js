@@ -573,7 +573,7 @@ test('locked: a drift the operator has not approved moves neither the dates nor 
   });
 });
 
-// specs/normalize-platform-names.md §3.2 rule 8bis — the sync stores the platform's CANONICAL name
+// specs/normalize-platform-names.md §3.2 (8bis) — the sync stores the platform's CANONICAL name
 // in `reservations.platform`, not the feed slug. Writing the slug (`abracadaroom`, `gites-de-france`)
 // put a second spelling next to the `Abracadaroom` of manually-created reservations, and the calendar
 // legend listed the platform twice until the next boot healed it. `sourcePlatformKey` keeps the slug:

@@ -1,4 +1,4 @@
-// specs/arrival-departure-sas.md rule 14.bis (2026-10-27 audit) — on the departure SAS « Oui » jumped
+// specs/arrival-departure-sas.md rule 28, rule 14.bis (2026-10-27 audit) — on the departure SAS « Oui » jumped
 // sides: right and filled on the keys page, LEFT on « Des serviettes ou des draps sont-ils
 // manquants ? » (where « Non » was the filled answer). Every yes/no page now reads « Non | Oui », the
 // positive answer filled and last, so the thumb never has to re-read the labels.

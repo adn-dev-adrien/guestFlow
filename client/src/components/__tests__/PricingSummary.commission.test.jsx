@@ -31,7 +31,7 @@ function renderSummary(quote, form = FORM) {
 }
 
 // The cascade's figures come shaped by the server (`summaryCascade`, specs/ui-review-2026-10-19-
-// operations.md rule 32) — the fixtures carry them as the engine would.
+// operations.md) — the fixtures carry them as the engine would.
 const QUOTE = { finalPrice: 250, totalStayPrice: 250, nights: 2, optionLines: [], resourceLines: [], touristTaxTotal: 0, touristTaxOriginalTotal: 0, platformSale: true };
 const cascade = (grossTotal, offeredTaxDeduction, onSiteTotal, commissionBase) => ({
   summaryCascade: { grossTotal, offeredTaxDeduction, onSiteTotal, commissionBase },

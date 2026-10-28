@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/force-extras-complement-on-platform.md §3 rule 1bis + §7.2.
+// specs/force-extras-complement-on-platform.md §3 update 2026-06-20 (1bis) + §7.2.
 // On non-direct platform reservations, operator-added extras (regular options, custom options,
 // resources) KEEP their per-line <ComplementChip> so the operator can pull a line back OUT of
 // Complément. Only engine-derived auto-options (early/late check, `autoEnabled = 1`) stay chip-less

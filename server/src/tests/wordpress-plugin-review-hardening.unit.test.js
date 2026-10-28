@@ -37,7 +37,7 @@ test('rule 6: the update package path is a guestflow-booking asset of a GuestFlo
   }
 });
 
-test('rule 14: a fully trusted X-Forwarded-For chain falls back to the connecting address', () => {
+test('a fully trusted X-Forwarded-For chain falls back to the connecting address', () => {
   const src = read('includes/class-gf-api-client.php');
   const body = src.slice(src.indexOf('function visitor_ip'), src.indexOf('function is_local_ip'));
   assert.doesNotMatch(body, /\$hops\[0\]/, 'the left-most hop is client-controlled');

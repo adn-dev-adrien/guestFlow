@@ -1,4 +1,4 @@
-// specs/ds-components.md rule 21 (2026-10-27 audit) — measured on a touch screen at 390 px, the
+// specs/ds-components.md rules 21 + 28 (2026-10-27 audit) — measured on a touch screen at 390 px, the
 // text button « Détail » of the payment ledger was 44 px high but 33 px wide: a short label must not
 // shrink a button under a finger's width either.
 import React from 'react';
