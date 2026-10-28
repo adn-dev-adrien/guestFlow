@@ -1,0 +1,2 @@
+- plugin:website-booking **Contact fields of a website request are capped** (spec `public-api.md` rule 20, audit 2026-10-28): first/last name 100 characters, phone 40, e-mail 254, refused with a field error; the WordPress block sets the matching `maxlength`.
+- plugin:booking-intake The amount scan of a Booking page line and the link trailing-punctuation trim of guest e-mails are linear (an 80 KB line used to cost ~15 s).

@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -95,6 +95,9 @@
     "1.8.2": [
       "Vérification anti-robot : une vérification obtenue d’avance ne sert plus après d’autres demandes envoyées depuis la même adresse ; le site en reprend une à jour sans que le client s’en aperçoive.",
       "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.8.3": [
+      "Un nom, un prénom, un téléphone ou une adresse e-mail démesuré est refusé avec un message sur le champ."
     ]
   }
 }

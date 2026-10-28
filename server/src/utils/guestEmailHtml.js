@@ -72,13 +72,23 @@ function inline(line) {
     let tail = '';
     if (m[1]) {
       // A closing parenthesis stays when it closes one opened inside the address (Wikipedia-style).
-      const count = (str, ch) => str.split(ch).length - 1;
-      while (match && URL_TRAIL_CHARS.includes(match[match.length - 1])) {
-        const last = match[match.length - 1];
-        if (last === ')' && count(match, '(') >= count(match, ')')) break;
-        tail = last + tail;
-        match = match.slice(0, -1);
+      // Counted once, then trimmed by index: a long run of trailing punctuation stays linear.
+      let opens = 0;
+      let closes = 0;
+      for (const ch of match) {
+        if (ch === '(') opens += 1;
+        else if (ch === ')') closes += 1;
       }
+      let end = match.length;
+      while (end > 0 && URL_TRAIL_CHARS.includes(match[end - 1])) {
+        if (match[end - 1] === ')') {
+          if (opens >= closes) break;
+          closes -= 1;
+        }
+        end -= 1;
+      }
+      tail = match.slice(end);
+      match = match.slice(0, end);
     }
     if (m[3] && /^0\d{9}$/.test(match) && !CALL_CONTEXT_RE.test(line.slice(0, m.index))) continue;
     out += prose(line.slice(last, m.index));
