@@ -119,9 +119,17 @@ async function runInstallHooks(id) {
 }
 
 // SDK 2.11.0 — the activation hooks run in the background: a failure is logged, never the request's.
+// Activation hooks run once per off → on transition. `announced`: live and already announced since it last
+// went off; `installing`: an install is between its row and its commit (the controller announces then).
+const wasLive = new Map();
+const announced = new Set();
+const installing = new Set();
+
 function runActivateHooks(id) {
   const record = registry.get(id);
-  if (!record || record.failed) return Promise.resolve();
+  if (!record || record.failed || announced.has(id) || !registry.isLive(id)) return Promise.resolve();
+  announced.add(id);
+  wasLive.set(id, true);
   return Promise.all(record.onActivate.map(async (hook) => {
     try {
       await hook();
@@ -130,6 +138,48 @@ function runActivateHooks(id) {
       console.error(`[plugin:${id}] activation hook failed:`, err && err.message ? err.message : err);
     }
   }));
+}
+
+/** Deactivated or uninstalled: the next activation is a new transition. */
+function markInactive(id) {
+  announced.delete(id);
+  wasLive.set(id, false);
+}
+
+/** An install is under way for `id` until `endInstall`: the live-set watcher leaves it to the install. */
+function beginInstall(id) { installing.add(id); }
+function endInstall(id) { installing.delete(id); }
+
+/**
+ * A plugin can also turn live without anyone activating it: the licence starts allowing it (a plan
+ * upgrade, the row already enabled). The first call records the live set (the boot, which fires nothing);
+ * each later call fires the activation hooks of the plugins that were not live and now are — once per
+ * transition: an explicit activation or an install in progress has the plugin announced already.
+ */
+function syncLiveTransitions() {
+  const fired = [];
+  registry.all().forEach((record) => {
+    const id = record.id;
+    if (installing.has(id)) return;
+    const live = registry.isLive(id);
+    const before = wasLive.get(id);
+    wasLive.set(id, live);
+    if (!live) {
+      announced.delete(id);
+    } else if (before === undefined) {
+      announced.add(id);
+    } else if (before === false && !announced.has(id)) {
+      fired.push(runActivateHooks(id));
+    }
+  });
+  return Promise.all(fired);
+}
+
+/** Test-only: forget every recorded transition so a suite starts from a clean boot. */
+function resetLiveTransitionsForTests() {
+  wasLive.clear();
+  announced.clear();
+  installing.clear();
 }
 
 const gate = (id) => requirePlugin(id, { isActive: registry.isLive });
@@ -295,6 +345,11 @@ module.exports = {
   migrate,
   runInstallHooks,
   runActivateHooks,
+  syncLiveTransitions,
+  markInactive,
+  beginInstall,
+  endInstall,
+  resetLiveTransitionsForTests,
   mountPublic,
   mountApi,
   startJobs,

@@ -254,6 +254,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-28 — SDK 2.11.0 (`specs/plugin-removal-resilience.md` rule 17): `ctx.onActivate(fn)` — runs in the
+> background each time a plugin goes from off to live: activated (Plugins API or reconciler), installed (after its
+> install hooks, once the whole install committed), or turned live by the licence (a plan upgrade, the row already
+> enabled; re-read after every provisioning pass). Never at boot. The bus drops events while a plugin is off, so the
+> plugin recovers from its own data here; `google-vacation-rentals` 1.0.2 (`sdk ^2.11.0`) re-sends everything to Google.
+
 > 2026-10-28 — SDK 2.10.0 (VAT optional mode): `coreModule('vatRegimeModel')` — `forRow(db, row)` and
 > `rateForRow(db, row)` answer the VAT regime and rate of one sale (`specs/vat-optional-mode.md` rule 8).
 > `accounting-export` reads them per reservation instead of the global rate and declares `^2.10.0`. No

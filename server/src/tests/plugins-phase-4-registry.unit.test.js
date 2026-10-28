@@ -144,7 +144,10 @@ const allowAll = { allowsPlugin: () => true, planFor: () => null };
 const fakeLoader = (calls = []) => ({
   migrate: (db, id) => { calls.push(['migrate', id]); return 0; },
   runInstallHooks: async (id) => { calls.push(['hooks', id]); },
-  runActivateHooks: () => {},
+  runActivateHooks: (id) => { calls.push(['activate', id]); },
+  markInactive: () => {},
+  beginInstall: () => {},
+  endInstall: () => {},
   requirePackage: (id) => ({ id, register() {} }),
   registerLive: (mod) => { calls.push(['live', mod.id]); return true; },
 });
@@ -588,7 +591,7 @@ test('rules 10, 13: installing from the archive registers the plugin live and re
   const res = await call(ctrl.install, { params: { id: 'neat' } });
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.reload, true);
-  assert.deepEqual(calls.map((c) => c[0]), ['live', 'migrate', 'hooks']);
+  assert.deepEqual(calls.map((c) => c[0]), ['live', 'migrate', 'hooks', 'activate']);
   const row = model.get('neat');
   assert.equal(row.source, 'bundled');
   assert.equal(row.version, '1.0.0');
@@ -879,4 +882,50 @@ test('rule 31: same origin means same host AND port', async () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
   assert.match(index, /GUESTFLOW_DEV !== '1'/, 'on unless the development scripts say otherwise');
   assert.match(index, /same-origin writes: /);
+});
+
+// specs/plugin-removal-resilience.md rule 17 — the activation hooks wait for the whole install to commit.
+test('rule 17: a requirement undone with its dependant never ran its activation hook; a committed install runs them all', { skip: skipWithout(['sas']) }, async () => {
+  const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] });
+  const { model, host } = setup({ bundled: [manifest('linen', '1.0.0'), sas] });
+  const run = (loader) => createController(model, {
+    registry, host: () => host, db: () => freshDb(), licence: () => allowAll, coreVersion: () => '3.9.0', loader: () => loader,
+  });
+  const failedCalls = [];
+  const failed = await call(run({ ...fakeLoader(failedCalls), registerLive: (mod) => mod.id !== 'sas' }).install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  assert.equal(failed.statusCode, 500);
+  assert.deepEqual(failedCalls.filter(([k]) => k === 'activate'), []);
+  const okCalls = [];
+  const ok = await call(run(fakeLoader(okCalls)).install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(okCalls.filter(([k]) => k === 'activate').map(([, id]) => id), ['linen', 'sas']);
+});
+
+test('rule 17: a live-set pass inside the install never announces a requirement that is then rolled back', { skip: skipWithout(['sas']) }, async () => {
+  const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] });
+  const { model, host } = setup({ bundled: [manifest('linen', '1.0.0'), sas] });
+  const realLoader = require('../plugins/loader');
+  registry.reset();
+  realLoader.resetLiveTransitionsForTests();
+  registry.configure({ isActive: (id) => model.isActive(id), allows: () => true });
+  const fired = [];
+  registry.ensure('linen').onActivate.push(() => { fired.push('linen'); });
+  registry.ensure('sas');
+  await realLoader.syncLiveTransitions();
+  const hooked = {
+    ...fakeLoader(),
+    runInstallHooks: async () => { await realLoader.syncLiveTransitions(); },
+    registerLive: (mod) => mod.id !== 'sas',
+    beginInstall: realLoader.beginInstall,
+    endInstall: realLoader.endInstall,
+    runActivateHooks: realLoader.runActivateHooks,
+    markInactive: realLoader.markInactive,
+  };
+  const ctrl = createController(model, { registry, host: () => host, db: () => freshDb(), licence: () => allowAll, coreVersion: () => '3.9.0', loader: () => hooked });
+  const res = await call(ctrl.install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  assert.equal(res.statusCode, 500);
+  await realLoader.syncLiveTransitions();
+  assert.deepEqual(fired, [], 'rolled back: zero fires');
+  registry.reset();
+  realLoader.resetLiveTransitionsForTests();
 });

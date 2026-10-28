@@ -137,6 +137,63 @@ test('rule 17: an install of a catalogued plugin runs its activation hooks after
   registry.reset();
 });
 
+test('rule 17: a live-set pass landing inside an install hook does not announce the plugin twice', async () => {
+  const { listPlugins } = require('../plugins/sdk/testing');
+  const id = listPlugins()[0];
+  const { plugins, settingsModel, db } = boot({ installed: false });
+  const mod = { ...fixture, id };
+  const original = mod.register;
+  mod.register = (ctx) => {
+    original(ctx);
+    ctx.onInstall(() => loader.syncLiveTransitions());
+  };
+  registry.reset();
+  loader.resetLiveTransitionsForTests();
+  registry.configure({ isActive: (x) => plugins.isActive(x), allows: () => true });
+  loader.registerAll({ db, modules: [mod], settingsModel: () => settingsModel, isInstalled: (x) => Boolean(plugins.get(x)) });
+  await loader.syncLiveTransitions();
+  ran.length = 0;
+  const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel, licence: () => ({ allowsPlugin: () => true, planFor: () => null }) });
+  await controller.install({ params: { id }, query: {}, body: {} }, fakeRes());
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(ran.filter((x) => x === 'activate'), ['activate'], 'exactly one fire');
+  controller.deactivate({ params: { id }, query: {} }, fakeRes());
+  controller.activate({ params: { id }, query: {} }, fakeRes());
+  await new Promise((r) => setImmediate(r));
+  assert.equal(ran.filter((x) => x === 'activate').length, 2, 'a quick off and on is a new transition');
+  registry.reset();
+  loader.resetLiveTransitionsForTests();
+});
+
+test('rule 17: a plugin switched off while its install is still running is not announced', async () => {
+  const { listPlugins } = require('../plugins/sdk/testing');
+  const id = listPlugins()[0];
+  const { plugins, settingsModel, db } = boot({ installed: false });
+  const mod = { ...fixture, id };
+  const original = mod.register;
+  let controller;
+  mod.register = (ctx) => {
+    original(ctx);
+    ctx.onInstall(() => controller.deactivate({ params: { id }, query: {} }, fakeRes()));
+  };
+  registry.reset();
+  loader.resetLiveTransitionsForTests();
+  registry.configure({ isActive: (x) => plugins.isActive(x), allows: () => true });
+  loader.registerAll({ db, modules: [mod], settingsModel: () => settingsModel, isInstalled: (x) => Boolean(plugins.get(x)) });
+  await loader.syncLiveTransitions();
+  ran.length = 0;
+  controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel, licence: () => ({ allowsPlugin: () => true, planFor: () => null }) });
+  await controller.install({ params: { id }, query: {}, body: {} }, fakeRes());
+  await new Promise((r) => setImmediate(r));
+  assert.equal(registry.isLive(id), false);
+  assert.deepEqual(ran.filter((x) => x === 'activate'), [], 'no hook on a plugin that is off');
+  controller.activate({ params: { id }, query: {} }, fakeRes());
+  await new Promise((r) => setImmediate(r));
+  assert.equal(ran.filter((x) => x === 'activate').length, 1, 'switching it on later announces it once');
+  registry.reset();
+  loader.resetLiveTransitionsForTests();
+});
+
 test('rule 5: a secret setting is encrypted at rest and only reads back as <key>Set over HTTP', () => {
   const { plugins, settingsModel, db } = boot();
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel });

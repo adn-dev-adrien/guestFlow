@@ -335,7 +335,7 @@ function createController(model = defaultModel, deps = {}) {
 
   // Rule 13 — a package installed while the app runs: loaded, registered, mounted, migrated, then
   // recorded. Returns null, or the refusal to send.
-  async function installPackage(id, candidate, undo = []) {
+  async function installPackage(id, candidate, undo = [], installed = []) {
     const pkg = await acquire(id, candidate);
     if (candidate.source === 'registry') {
       const before = host().store().readCurrent(id);
@@ -368,8 +368,9 @@ function createController(model = defaultModel, deps = {}) {
     model.install(id, { version: candidate.version, source: candidate.source, manifest: pkg.manifest, sha256: pkg.sha256 });
     undo.push(() => model.uninstall(id));
     if (!restart) {
+      loader().beginInstall(id);
+      installed.push(id);
       await loader().runInstallHooks(id);
-      loader().runActivateHooks(id);
     }
     return { restart };
   }
@@ -467,25 +468,33 @@ function createController(model = defaultModel, deps = {}) {
     // next restart.
     return underLock(res, async (restart) => {
       const undo = [];
+      // The activation hooks wait for the whole install to commit: a requirement undone with its dependant
+      // must not have announced itself (specs/plugin-removal-resilience.md rule 17).
+      const installed = [];
       const rollback = () => undo.reverse().forEach((step) => step());
-      let restartWanted = false;
-      for (const step of steps) {
-        let result;
-        try {
-          result = await installPackage(step.id, step.candidate, undo); // eslint-disable-line no-await-in-loop
-        } catch (err) {
-          rollback();
-          return refusePackageError(err, res);
+      try {
+        let restartWanted = false;
+        for (const step of steps) {
+          let result;
+          try {
+            result = await installPackage(step.id, step.candidate, undo, installed); // eslint-disable-line no-await-in-loop
+          } catch (err) {
+            rollback();
+            return refusePackageError(err, res);
+          }
+          if (result.status) {
+            rollback();
+            return res.status(result.status).json(result.body);
+          }
+          restartWanted = restartWanted || result.restart;
         }
-        if (result.status) {
-          rollback();
-          return res.status(result.status).json(result.body);
-        }
-        restartWanted = restartWanted || result.restart;
+        if (restartWanted) return restart({ version: offer.version });
+        installed.forEach((id) => loader().runActivateHooks(id));
+        // The browser loads the new bundle at its next page load (rule 18): the page reloads.
+        return res.json({ ...view(entry), reload: true });
+      } finally {
+        installed.forEach((id) => loader().endInstall(id));
       }
-      if (restartWanted) return restart({ version: offer.version });
-      // The browser loads the new bundle at its next page load (rule 18): the page reloads.
-      return res.json({ ...view(entry), reload: true });
     });
   }
 
@@ -584,8 +593,13 @@ function createController(model = defaultModel, deps = {}) {
       }
       model.install(entry.id);
       if (reg.get(entry.id)) {
-        await loader().runInstallHooks(entry.id);
-        loader().runActivateHooks(entry.id);
+        loader().beginInstall(entry.id);
+        try {
+          await loader().runInstallHooks(entry.id);
+          loader().runActivateHooks(entry.id);
+        } finally {
+          loader().endInstall(entry.id);
+        }
       }
       return res.json(view(entry));
     },
@@ -700,6 +714,7 @@ function createController(model = defaultModel, deps = {}) {
       if (refuseIfRequiredBy(entry, res, { activeOnly: true, reconciling: Boolean(req.reconciling) })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       model.setEnabled(entry.id, false);
+      loader().markInactive(entry.id);
       return res.json(view(entry));
     },
 
@@ -726,6 +741,7 @@ function createController(model = defaultModel, deps = {}) {
         }
       }
       model.uninstall(entry.id);
+      loader().markInactive(entry.id);
       return res.json(view(entry));
     },
 

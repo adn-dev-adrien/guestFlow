@@ -38,3 +38,18 @@ test('rule 16: a pass that throws is logged and the next one still runs', async 
   assert.equal(calls, 2);
   assert.match(errors[0], /disk full/);
 });
+
+// specs/plugin-removal-resilience.md rule 17 — the live set is recorded at boot and re-read after every pass.
+test('rule 17: the boot records the live set, and each pass re-reads it after the reconcile', async () => {
+  const order = [];
+  const timers = [];
+  start({
+    reconciler: { run: async () => { order.push('reconcile'); } },
+    loader: { syncLiveTransitions: () => { order.push('sync'); } },
+    setIntervalFn: (fn) => timers.push(fn),
+    setTimeoutFn: () => {},
+  });
+  assert.deepEqual(order, ['sync'], 'the baseline, at boot');
+  await timers[0]();
+  assert.deepEqual(order, ['sync', 'reconcile', 'sync']);
+});
