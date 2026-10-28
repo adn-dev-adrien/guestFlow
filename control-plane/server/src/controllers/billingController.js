@@ -105,6 +105,13 @@ function createBillingController(ctx, customersController) {
       let current = inv;
       if (!current.providerRef) {
         const draft = draftInvoice(c, current.periodStart);
+        // Until Qonto holds the invoice the row follows the customer's current plan: a plan or billing
+        // change in between must not leave a stale expected total that Qonto would refuse for good.
+        if (draft.totalCents !== current.totalCents || draft.amountCents !== current.amountCents || draft.months !== current.months || draft.periodEnd !== current.periodEnd) {
+          invoices.update(current.id, { amountCents: draft.amountCents, totalCents: draft.totalCents, months: draft.months, periodEnd: draft.periodEnd });
+          journal(c.id, 'système', 'invoice', `Facture en préparation recalculée sur l’offre actuelle : ${euros(current.totalCents)} → ${euros(draft.totalCents)} TTC`);
+          current = invoices.get(current.id);
+        }
         const iban = await qonto.iban();
         let created;
         try {

@@ -297,6 +297,14 @@ below are the recommended ones; each is reversible in a later spec.
     with `requires` (those ids) and « Nécessite <nom> : à activer d’abord. », which the Plugins page
     shows on the card. Found when Google Vacation Rentals could be re-activated while
     `website-booking` was off.
+42. **The registry index has a key of its own** (audit 2026-10-28). `CP_REGISTRY_PRIVATE_KEY` (Ed25519,
+    base64 DER PKCS8, same format as `CP_LICENCE_PRIVATE_KEY`) signs the index when set, and the
+    console writes its public half to every instance as `GUESTFLOW_REGISTRY_PUBLIC_KEY` (rewritten at
+    each environment sync); the instance already read that variable separately from the licence key
+    (rule 6). Unset, the licence key signs the index and is the registry key — the historical
+    behaviour. Why: a leak of one key then no longer forges the other kind of artifact (licences vs. the
+    code every space installs). Rolling it out: set the variable, restart the console, let the next
+    sync rewrite each instance's environment (a fleet update does), then restart the instances.
 
 ---
 

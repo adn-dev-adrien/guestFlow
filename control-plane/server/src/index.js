@@ -52,6 +52,7 @@ function required(name) {
 const dataDir = path.resolve(env.CP_DATA_DIR || path.join(__dirname, '..', 'data'));
 const instancesRoot = path.resolve(required('CP_INSTANCES_ROOT'));
 const privateKey = loadPrivateKey(required('CP_LICENCE_PRIVATE_KEY'));
+const registryPrivateKey = env.CP_REGISTRY_PRIVATE_KEY ? loadPrivateKey(env.CP_REGISTRY_PRIVATE_KEY) : null;
 let boot;
 try {
   boot = readBootConfig(env);
@@ -68,6 +69,7 @@ const ctx = createContext({
   secrets: createSecrets(loadOrCreateKey(dataDir)),
   directoryKey: loadOrCreateKey(dataDir, '.directory-key'),
   privateKey,
+  registryPrivateKey,
   instancesRoot,
   dataDir,
   domain: env.CP_DOMAIN || 'guestflow.fr',

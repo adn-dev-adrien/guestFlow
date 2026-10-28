@@ -7,7 +7,7 @@
  * The directory it reads is filled by `readDirectory`, from each instance's active accounts.
  */
 
-const { emailHmac } = require('../utils/directory');
+const { emailHmac, normaliseEmail } = require('../utils/directory');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -49,13 +49,19 @@ function createLoginController(ctx, customersController) {
   }
 
   // Rule 26: every minute, each instance's active accounts replace its pairs. An instance that
-  // cannot be read keeps what it had; archived customers stay findable.
+  // cannot be read keeps what it had; archived customers stay findable. Rule 41: a space declares its
+  // own users' emails and nothing proves them, but the address the operator recorded as a customer's
+  // contact is a known identity: it is listed for that customer only, so no other space can make the
+  // page name its company next to it by creating a user with that address.
   function readDirectory(at = ctx.now().toISOString()) {
+    const all = customers.list();
+    const contactOwner = new Map(all.filter((c) => !c.erasedAt && c.contactEmail).map((c) => [normaliseEmail(c.contactEmail), c.id]));
     let read = 0;
-    for (const c of customers.list()) {
+    for (const c of all) {
       const emails = ctx.instances.readActiveEmails(servedSlug(c));
       if (emails === null) continue;
-      directory.replace(c.id, [...new Set(emails.map((e) => emailHmac(directoryKey, e)))], at);
+      const claimable = emails.filter((e) => !contactOwner.has(normaliseEmail(e)) || contactOwner.get(normaliseEmail(e)) === c.id);
+      directory.replace(c.id, [...new Set(claimable.map((e) => emailHmac(directoryKey, e)))], at);
       read += 1;
     }
     return read;

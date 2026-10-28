@@ -101,7 +101,7 @@ SSH `REPO_URL`.)
 What bootstrap writes into `/srv/guestflow/console/env` by itself:
 - the session and proxy secrets;
 - **the licence key pair** (H1 rule 26): an Ed25519 private key in base64 DER (PKCS8) in
-  `CP_LICENCE_PRIVATE_KEY`, generated when it is empty. It prints the public key for the record;
+  `CP_LICENCE_PRIVATE_KEY`, generated when it is empty (an optional `CP_REGISTRY_PRIVATE_KEY`, same format, signs the plugin registry's index instead — specs/plugins-phase-4-registry.md rule 42). It prints the public key for the record;
   nothing has to be done with it — the console writes it into every instance's environment;
 - **the object storage, typed once** (H1 rule 27): `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`
   become `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY`, and `BACKUP_URL`,
