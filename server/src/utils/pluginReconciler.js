@@ -66,7 +66,7 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
 
   const call = (op, id) => {
     const handler = { install: controller.install, activate: controller.activate, deactivate: controller.deactivate }[op];
-    return capture(handler, { params: { id }, query: {}, body: {}, noRestart: true });
+    return capture(handler, { params: { id }, query: {}, body: {}, noRestart: true, reconciling: true });
   };
 
   // → null when the step must be tried again later without a trace, else { outcome, code, message }.
@@ -96,10 +96,11 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
       if (wantedSet.has(id)) continue;
       if (!row) { provisioning.markErased(orderId, now().toISOString()); continue; }
       if (row.enabled) continue;
-      let answer = await capture(controller.uninstall, { params: { id }, query: { purge: '1' }, body: {} }); // eslint-disable-line no-await-in-loop
+      if (settled(provisioning.get(id), 'inactive', issuedAt)) continue;
+      let answer = await capture(controller.uninstall, { params: { id }, query: { purge: '1' }, body: {}, reconciling: true }); // eslint-disable-line no-await-in-loop
       // A plugin that keeps no data has nothing to erase: the order is settled by leaving it uninstalled.
       if (answer.body && answer.body.error === 'NOT_ERASABLE') {
-        answer = await capture(controller.uninstall, { params: { id }, query: {}, body: {} }); // eslint-disable-line no-await-in-loop
+        answer = await capture(controller.uninstall, { params: { id }, query: {}, body: {}, reconciling: true }); // eslint-disable-line no-await-in-loop
       }
       const { status, body } = answer;
       const at = now().toISOString();
@@ -137,8 +138,12 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
     const desired = desiredPlugins(licence);
     const issuedAt = licence.issuedAt();
     if (desired === null || !issuedAt) return { skipped: true, reason: 'no desire' };
+    // Rule 33 — an older licence put back in place (a restored backup, a replayed file) never undoes a newer choice.
+    const highest = provisioning.highestIssuedAt();
+    if (highest && Date.parse(issuedAt) < Date.parse(highest)) return { skipped: true, reason: 'older licence' };
     running = true;
     try {
+      if (issuedAt !== highest) provisioning.setHighestIssuedAt(issuedAt);
       const wantedSet = new Set(desired);
       const { states, requires } = readState();
       const steps = planSteps({ desired, states, requires, order });
@@ -155,8 +160,12 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
         });
         taken.push({ ...step, outcome: result.outcome });
       }
-      const handled = new Set(steps.map((s) => s.id));
-      order.forEach((id) => {
+      // An erase order still on its way keeps its own failure on record.
+      const handled = new Set([
+        ...steps.map((s) => s.id),
+        ...pendingEraseOrders(licence).filter((o) => !provisioning.erased(o.order)).map((o) => o.id),
+      ]);
+      order.filter((id) => licence.allowsPlugin(id)).forEach((id) => {
         const prior = provisioning.get(id);
         if (!prior || prior.outcome === 'applied' || handled.has(id)) return;
         provisioning.record({

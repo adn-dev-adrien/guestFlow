@@ -96,3 +96,12 @@ test('rule 22: an order is refused on an archived customer or one whose space wa
   assert.throws(() => env.ctx.controllers.modules.erase(env.id, 'linen', env.slug, 'op'), (err) => err.body.error === 'NOT_SEEDED');
   env.cleanup();
 });
+
+test('rule 14: an inactive module that still holds data reads « données conservées »; one without data does not', async () => {
+  const env = await linenOffWithData();
+  assert.equal(lineOf(env.ctx.controllers.modules.view(env.id), 'linen').detail, 'données conservées');
+  env.ctx.controllers.modules.toggle(env.id, 'sas', false, 'op');
+  writeSpace(env, { inactive: ['linen', 'sas'], applied: writtenAt(env), facts: FACTS });
+  assert.equal(lineOf(env.ctx.controllers.modules.view(env.id), 'sas').detail, null);
+  env.cleanup();
+});

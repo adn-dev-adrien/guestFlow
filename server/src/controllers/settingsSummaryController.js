@@ -22,7 +22,7 @@ const INTEGRATIONS = '/settings/integrations';
 /**
  * deps: { db, settings: () => row (masked), smtpConfigured: () => bool, platformAvailable: () => bool,
  *         plugins: () => [plugin view], appVersion: () => string, twoFactorEnabled: (userId) => bool,
- *         today: () => 'YYYY-MM-DD' }
+ *         today: () => 'YYYY-MM-DD', pluginsManageable?: () => bool (false on an operator-managed space: no plugins line) }
  */
 function buildSummary(deps, user) {
   const lines = {};
@@ -80,6 +80,7 @@ function buildSummary(deps, user) {
   put('/settings/utilisateurs', () => neutral(plural(count('SELECT COUNT(*) AS n FROM users WHERE isActive = 1'), 'compte actif', 'comptes actifs')));
   put('/settings/systeme', () => neutral(`Version ${deps.appVersion()}`));
   put('/parametres/plugins', () => {
+    if (deps.pluginsManageable && !deps.pluginsManageable()) return null;
     const base = plural(active.length, 'actif', 'actifs');
     return toConfigure.length ? warning(`${base} · ${toConfigure.length} à configurer`) : neutral(base);
   });

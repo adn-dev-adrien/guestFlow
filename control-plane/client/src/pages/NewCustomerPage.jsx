@@ -23,7 +23,7 @@ const LIVE = ['slug', 'billingPostcode', 'vatNumber', 'modules'];
 function Toggle({ value, onChange, options, label }) {
   return (
     <Stack spacing={0.5}>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary' }}>{label}</Typography>
       <ToggleButtonGroup exclusive size="small" value={value} onChange={(e, v) => v !== null && onChange(v)} sx={{ flexWrap: 'wrap' }}>
         {options.map((o) => <ToggleButton key={o.value} value={o.value} sx={{ minHeight: 44 }}>{o.label}</ToggleButton>)}
       </ToggleButtonGroup>
@@ -72,10 +72,13 @@ export default function NewCustomerPage() {
   }
 
   const toggleAddon = (id) => setAllowed('addons')(form.addons.includes(id) ? form.addons.filter((a) => a !== id) : [...form.addons, id]);
-  const toggleModule = (id) => {
-    const ticked = preview.moduleChoices.filter((m) => m.ticked).map((m) => m.id);
-    set('modules')(ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id]);
-  };
+  // The choice starts from the server's (every module of the plan) and then lives in the form: two quick
+  // clicks never wait for the preview, which only judges.
+  const isTicked = (m) => (form.modules ? form.modules.includes(m.id) : m.ticked);
+  const toggleModule = (id) => setForm((f) => {
+    const ticked = f.modules || preview.moduleChoices.filter((m) => m.ticked).map((m) => m.id);
+    return { ...f, modules: ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id] };
+  });
 
   return (
     <>
@@ -155,7 +158,7 @@ export default function NewCustomerPage() {
                 label="Période d’essai de 30 jours, sans paiement" sx={{ minHeight: 44 }} />
               {preview.addonChoices && preview.addonChoices.length > 0 && (
                 <Stack>
-                  <Typography variant="caption" color="text.secondary">Options à la carte</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Options à la carte</Typography>
                   {preview.addonChoices.map((a) => (
                     <FormControlLabel key={a.pluginId} sx={{ minHeight: 44 }} disabled={a.included}
                       control={<Checkbox checked={a.included || form.addons.includes(a.pluginId)} onChange={() => toggleAddon(a.pluginId)} />}
@@ -165,12 +168,12 @@ export default function NewCustomerPage() {
               )}
               {preview.moduleChoices && preview.moduleChoices.length > 0 && (
                 <Stack>
-                  <Typography variant="caption" color="text.secondary">Modules</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Modules</Typography>
                   {preview.moduleChoices.map((m) => (
                     <FormControlLabel key={m.id} sx={{ minHeight: 44 }}
-                      control={<Checkbox checked={m.ticked} onChange={() => toggleModule(m.id)} />} label={m.name} />
+                      control={<Checkbox checked={isTicked(m)} onChange={() => toggleModule(m.id)} />} label={m.name} />
                   ))}
-                  <Typography variant="body2" color={errorOf('modules') ? 'error.main' : 'text.secondary'}>{errorOf('modules') || preview.moduleSummary}</Typography>
+                  <Typography variant="body2" sx={{ color: errorOf('modules') ? 'error.main' : 'text.secondary' }}>{errorOf('modules') || preview.moduleSummary}</Typography>
                 </Stack>
               )}
             </Stack>
@@ -181,7 +184,7 @@ export default function NewCustomerPage() {
             <CardContent>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{preview.summary.price}</Typography>
               <Typography variant="body2">{preview.summary.period}</Typography>
-              <Typography variant="caption" color="text.secondary">{preview.summary.catalogue}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>{preview.summary.catalogue}</Typography>
             </CardContent>
           </Card>
         )}

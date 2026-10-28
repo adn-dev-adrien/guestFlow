@@ -66,25 +66,31 @@ it('rule 11 — a refused switch snaps back and shows the server’s sentence un
 it('rule 14 — each state has its own wording: waiting, failure with a retry, blocked, to configure', async () => {
   api.customerModules.mockResolvedValue(modulesView({
     header: '1 actif · 1 à configurer · 1 en échec',
+    headerParts: [{ text: '1 actif', tone: null }, { text: '1 à configurer', tone: null }, { text: '1 en échec', tone: 'error' }],
     counts: { active: 1, toConfigure: 1, failed: 1, blocked: 1 },
     included: [
-      line({ id: 'a', name: 'Alpha', state: 'pending', stateLabel: 'En attente depuis 6 min — espace injoignable ?' }),
-      line({ id: 'b', name: 'Bravo', on: true, state: 'failed', stateLabel: 'Échec : Paquet introuvable.', canRetry: true }),
-      line({ id: 'c', name: 'Charlie', state: 'blocked', stateLabel: 'Bloqué : 2 liens de paiement en attente : à payer ou annuler d’abord.' }),
-      line({ id: 'd', name: 'Delta', state: 'active', stateLabel: 'Actif · à configurer : clé API manquante', needsSetup: true }),
+      line({ id: 'a', name: 'Alpha', state: 'pending', stateLabel: 'En attente', detail: 'Depuis 6 min — espace injoignable ?', stale: true }),
+      line({ id: 'b', name: 'Bravo', on: true, state: 'failed', stateLabel: 'Échec', detail: 'Paquet introuvable.', canRetry: true }),
+      line({ id: 'c', name: 'Charlie', state: 'blocked', stateLabel: 'Bloqué', detail: '2 liens de paiement en attente : à payer ou annuler d’abord.' }),
+      line({ id: 'd', name: 'Delta', state: 'active', stateLabel: 'Actif · 1.0.1', setupLabel: 'à configurer : clé API manquante', needsSetup: true }),
+      line({ id: 'e', name: 'Echo', on: false, state: 'inactive', stateLabel: 'Inactif', detail: 'données conservées' }),
     ],
   }));
   open();
-  expect(await screen.findByText('En attente depuis 6 min — espace injoignable ?')).toBeInTheDocument();
-  expect(screen.getByText('Échec : Paquet introuvable.')).toBeInTheDocument();
-  expect(screen.getByText(/^Bloqué : 2 liens de paiement/)).toBeInTheDocument();
-  expect(screen.getByText('Actif · à configurer : clé API manquante')).toBeInTheDocument();
-  expect(screen.getByText('1 actif · 1 à configurer · 1 en échec')).toBeInTheDocument();
+  expect(await screen.findByText('Depuis 6 min — espace injoignable ?')).toBeInTheDocument();
+  expect(screen.getByText('Échec')).toBeInTheDocument();
+  expect(screen.getByText('Paquet introuvable.')).toBeInTheDocument();
+  expect(screen.getByText('Bloqué')).toBeInTheDocument();
+  expect(screen.getByText(/^2 liens de paiement/)).toBeInTheDocument();
+  expect(screen.getByText('Actif · 1.0.1')).toBeInTheDocument();
+  expect(screen.getByText('à configurer : clé API manquante')).toBeInTheDocument();
+  expect(screen.getByText('données conservées')).toBeInTheDocument();
+  expect(screen.getByText('1 en échec').parentElement.textContent).toBe('1 actif · 1 à configurer · 1 en échec');
   expect(screen.getAllByRole('button', { name: 'Réessayer' })).toHaveLength(1);
 });
 
 it('rule 18 — « Réessayer » asks the server for a new attempt', async () => {
-  api.customerModules.mockResolvedValue(modulesView({ included: [line({ state: 'failed', stateLabel: 'Échec : Paquet introuvable.', canRetry: true })] }));
+  api.customerModules.mockResolvedValue(modulesView({ included: [line({ state: 'failed', stateLabel: 'Échec', detail: 'Paquet introuvable.', canRetry: true })] }));
   api.retryModules.mockResolvedValue(modulesView({ included: [line({ state: 'pending', stateLabel: 'En attente' })] }));
   open();
   fireEvent.click(await screen.findByRole('button', { name: 'Réessayer' }));

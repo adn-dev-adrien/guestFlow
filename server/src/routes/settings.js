@@ -14,6 +14,7 @@ const summary = require('../controllers/settingsSummaryController').createSettin
   appVersion: () => require('../utils/appVersion').getAppVersion(),
   twoFactorEnabled: (userId) => require('../models/twoFactorModel').default.isEnabled(userId),
   today: () => require('../utils/localDate').localIsoDate(),
+  pluginsManageable: () => !require('../utils/pluginGovernance').isOperatorManaged(),
 });
 router.get('/summary', summary.get);
 // Async since the sending server can be looked up (specs/settings-rationalization.md rule 28).

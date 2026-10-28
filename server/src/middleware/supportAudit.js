@@ -31,7 +31,7 @@ function isSupportSession(req) {
   return Boolean(session.supportAccessId || (session.user && session.user.isSupport));
 }
 
-function createSupportAudit({ controller, isSecretSetting, now = () => Date.now() }) {
+function createSupportAudit({ controller, isSecretSetting, isHidden = () => false, now = () => Date.now() }) {
   const lastRead = new Map();
   const policyDeps = isSecretSetting ? { isSecretSetting } : undefined;
 
@@ -55,6 +55,8 @@ function createSupportAudit({ controller, isSecretSetting, now = () => Date.now(
       const end = () => res.status(401).json({ error: 'SUPPORT_ACCESS_ENDED', message: 'Accès du support terminé.' });
       return typeof req.session.destroy === 'function' ? req.session.destroy(end) : end();
     }
+    // A route the space hides answers like an unknown one, with nothing to tell it apart (and no trace).
+    if (isHidden(req)) return next();
     const method = String(req.method).toUpperCase();
     const path = normalizePath(req.path);
     const reason = forbiddenReason(method, req.path, req.body, policyDeps);

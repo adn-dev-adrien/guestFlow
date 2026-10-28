@@ -9,6 +9,7 @@
  *   erased(orderId)                     → true when this erase order already ran (rule 23)
  *   markErased(orderId, at)             → remembers it
  *   appliedLicence() / setAppliedLicence(issuedAt)
+ *   highestIssuedAt() / setHighestIssuedAt(issuedAt)   the newest licence ever acted on (rule 33)
  *   setFacts(id, facts | null)          → what the console cannot compute itself: the setup a plugin still
  *                                         lacks and the data lines it would erase (rules 14, 22)
  */
@@ -38,6 +39,8 @@ function buildModel(database) {
     markErased: (orderId, at) => { metaSet.run(`erase:${orderId}`, at); },
     appliedLicence: () => (metaGet.get('appliedLicenceIssuedAt') || {}).value || null,
     setAppliedLicence: (issuedAt) => { metaSet.run('appliedLicenceIssuedAt', issuedAt); },
+    highestIssuedAt: () => (metaGet.get('highestIssuedAt') || {}).value || null,
+    setHighestIssuedAt: (issuedAt) => { metaSet.run('highestIssuedAt', issuedAt); },
     setFacts(id, facts) {
       const key = `facts:${id}`;
       if (facts === null) { metaDelete.run(key); return; }

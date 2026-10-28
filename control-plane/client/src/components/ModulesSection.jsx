@@ -5,13 +5,13 @@
  * snaps back and shows the server's sentence under the line. Everything shown is the server's.
  *
  * An inactive module that still holds data has a menu « Effacer les données… » (rule 22): the dialog
- * lists what will be erased, as the space counts it, and asks to type the customer's address.
+ * lists what will be erased, as the space counts it, and asks to type the customer's slug.
  *
  * Props: customerId, slug (typed to confirm an erasure), onChanged() (the page reloads its journal).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Button, Card, CardContent, Collapse, IconButton, Menu, MenuItem, Stack, Switch, TextField, Typography,
+  Box, Button, Card, CardContent, Collapse, IconButton, Menu, MenuItem, Stack, Switch, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -25,8 +25,11 @@ import api from '../api';
 const BADGE = { active: 'success', inactive: 'neutral', pending: 'info', failed: 'error', blocked: 'warning', unknown: 'neutral' };
 
 function badgeStatus(line) {
-  return line.needsSetup ? 'warning' : BADGE[line.state] || 'neutral';
+  return line.stale ? 'warning' : BADGE[line.state] || 'neutral';
 }
+
+// 44 px of hit area around a 38 px control, without moving its track or its thumb.
+const SWITCH_SX = { flexShrink: 0, overflow: 'visible', '& .MuiSwitch-switchBase': { p: '12px', top: -3, left: -3 } };
 
 export default function ModulesSection({ customerId, slug, onChanged }) {
   const { confirm } = useAppDialogs();
@@ -36,6 +39,8 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
   const [optimistic, setOptimistic] = useState({});
   const [refusal, setRefusal] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [showOut, setShowOut] = useState(false);
   const [menu, setMenu] = useState(null);
   const [erasing, setErasing] = useState(null);
@@ -56,6 +61,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
   }, [waiting, view, load]);
 
   async function change(line, on) {
+    if (busyId) return;
     if (!on) {
       const ok = await confirm({
         title: `Désactiver ${line.name} ?`,
@@ -68,6 +74,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     setRefusal(null);
     setOptimistic((o) => ({ ...o, [line.id]: on }));
     setBusy(true);
+    setBusyId(line.id);
     try {
       setView(await api.toggleModule(customerId, line.id, on));
       if (onChanged) onChanged();
@@ -77,10 +84,12 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     } finally {
       setOptimistic((o) => { const next = { ...o }; delete next[line.id]; return next; });
       setBusy(false);
+      setBusyId(null);
     }
   }
 
   async function erase() {
+    if (busy || typed !== slug) return;
     setBusy(true);
     try {
       setView(await api.eraseModule(customerId, erasing.id, typed));
@@ -109,17 +118,19 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
   const renderLine = (line) => {
     const checked = optimistic[line.id] ?? line.on;
     const refused = refusal && refusal.id === line.id ? refusal.message : null;
+    const describedBy = [line.stateLabel || line.detail ? `module-${line.id}-state` : null, refused ? `module-${line.id}-refusal` : null].filter(Boolean).join(' ') || undefined;
     return (
       <Box key={line.id} component="li" sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, py: 1, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{line.name}</Typography>
-          <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
-            {line.stateLabel && <StatusBadge status={badgeStatus(line)} label={line.stateLabel} wrap />}
+          <Box id={`module-${line.id}-state`} sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 1, rowGap: 0.5 }}>
+            {line.stateLabel && <StatusBadge status={badgeStatus(line)} label={line.stateLabel} />}
+            {line.setupLabel && <StatusBadge status="warning" label={line.setupLabel} wrap />}
             {line.planChip && <StatusBadge status="neutral" label={line.planChip} />}
+            {line.detail && <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>{line.detail}</Typography>}
             {line.canRetry && <Button size="small" sx={{ minHeight: 44 }} disabled={busy} onClick={retry}>Réessayer</Button>}
           </Box>
-          {line.detail && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{line.detail}</Typography>}
-          {refused && <Typography variant="caption" color="error.main" role="alert" sx={{ display: 'block', mt: 0.5 }}>{refused}</Typography>}
+          {refused && <Typography id={`module-${line.id}-refusal`} variant="caption" role="alert" sx={{ display: 'block', mt: 0.5, color: 'error.main' }}>{refused}</Typography>}
         </Box>
         {line.canErase && (
           <IconButton aria-label={`Plus d’actions pour ${line.name}`} sx={{ minWidth: 44, minHeight: 44 }} onClick={(e) => setMenu({ anchor: e.currentTarget, line })}>
@@ -127,7 +138,8 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
           </IconButton>
         )}
         {line.switchable && (
-          <Switch checked={checked} disabled={busy} onChange={(e) => change(line, e.target.checked)} slotProps={{ input: { 'aria-label': line.name } }} sx={{ flexShrink: 0 }} />
+          <Switch checked={checked} disabled={Boolean(busyId) && busyId !== line.id} onChange={(e) => change(line, e.target.checked)}
+            slotProps={{ input: { 'aria-label': line.name, 'aria-describedby': describedBy, 'aria-busy': busyId === line.id } }} sx={SWITCH_SX} />
         )}
       </Box>
     );
@@ -139,7 +151,14 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
         <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 1, rowGap: 0.5, mb: 1 }}>
           <Typography variant="sectionHeader" component="h2">Modules</Typography>
           {view && view.seeded && (
-            <Typography variant="body2" color={view.counts.failed ? 'error.main' : 'text.secondary'}>{view.header}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {view.headerParts.map((part, i) => (
+                <React.Fragment key={part.text}>
+                  {i > 0 && ' · '}
+                  <Box component="span" sx={part.tone === 'error' ? { color: 'error.main' } : undefined}>{part.text}</Box>
+                </React.Fragment>
+              ))}
+            </Typography>
           )}
         </Box>
         {!view && !loadError && <LoadingState />}
@@ -152,7 +171,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
         )}
         {view && view.seeded && (
           <>
-            {view.empty && <Typography variant="body2" color="text.secondary">{view.empty}</Typography>}
+            {view.empty && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{view.empty}</Typography>}
             <Box component="ul" aria-label="Modules inclus" sx={{ listStyle: 'none', m: 0, p: 0, maxWidth: 900 }}>
               {view.included.map(renderLine)}
             </Box>
@@ -162,7 +181,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
                   onClick={() => setShowOut((v) => !v)}>
                   Hors forfait ({view.outOfPlan.length})
                 </Button>
-                <Collapse in={showOut} unmountOnExit>
+                <Collapse in={showOut} unmountOnExit timeout={reduceMotion ? 0 : 'auto'}>
                   <Box component="ul" aria-label="Modules hors forfait" sx={{ listStyle: 'none', m: 0, p: 0, maxWidth: 900 }}>
                     {view.outOfPlan.map(renderLine)}
                   </Box>
@@ -183,9 +202,10 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
             <Box component="ul" sx={{ m: 0, pl: 3 }}>
               {erasing.eraseLines.map((l) => <li key={l}><Typography variant="body2">{l}</Typography></li>)}
             </Box>
-            {erasing.eraseWarnings.map((w) => <Typography key={w} variant="body2" color="text.secondary">{w}</Typography>)}
-            <Typography variant="body2" color="text.secondary">Une restauration reste possible depuis la sauvegarde de l’hébergement.</Typography>
-            <TextField label={`Pour confirmer, tapez « ${slug} »`} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+            {erasing.eraseWarnings.map((w) => <Typography key={w} variant="body2" sx={{ color: 'text.secondary' }}>{w}</Typography>)}
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>Une restauration reste possible depuis la sauvegarde de l’hébergement.</Typography>
+            <TextField label={`Pour confirmer, tapez « ${slug} »`} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); erase(); } }} />
           </Stack>
         )}
       </FormDialog>

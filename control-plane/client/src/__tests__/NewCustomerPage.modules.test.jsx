@@ -54,3 +54,17 @@ it('rule 13 — changing the plan re-ticks the new plan’s set', async () => {
   expect(await screen.findByText('2 modules actifs à la création.')).toBeInTheDocument();
   expect(screen.getByLabelText('Linge et blanchisserie')).toBeChecked();
 });
+
+it('rule 13 — two unticks in a row, before the preview answers, both hold', async () => {
+  api.createCustomer.mockResolvedValue({ id: 9 });
+  renderAt(<NewCustomerPage />, { path: '/clients/nouveau', route: '/clients/nouveau' });
+  fireEvent.click(await screen.findByLabelText('Linge et blanchisserie'));
+  fireEvent.click(screen.getByLabelText('Arrivée et départ guidés'));
+  expect(screen.getByLabelText('Linge et blanchisserie')).not.toBeChecked();
+  expect(screen.getByLabelText('Arrivée et départ guidés')).not.toBeChecked();
+  await screen.findByText('0 module actif à la création.');
+  expect(screen.getByLabelText('Linge et blanchisserie')).not.toBeChecked();
+  fireEvent.click(screen.getByRole('button', { name: 'Créer le client' }));
+  await waitFor(() => expect(api.createCustomer).toHaveBeenCalled());
+  expect(api.createCustomer.mock.calls[0][0].modules).toEqual([]);
+});

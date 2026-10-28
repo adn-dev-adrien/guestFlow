@@ -6,12 +6,13 @@
 
 const crypto = require('crypto');
 const { allowedPlugins } = require('../utils/licenceIssuer');
-const { moduleState, headerText } = require('../utils/moduleStates');
+const { moduleState, headerText, headerParts } = require('../utils/moduleStates');
 const { httpError } = require('../utils/httpError');
 const { plugins: gfPlugins } = require('../utils/gf');
 
 const OUT_OF_PLAN = 'Hors forfait : à ajouter au forfait ou en option d’abord.';
 const UNREADABLE = 'Espace illisible : modules non relevés.';
+const TOO_OLD = 'Espace à mettre à jour : modules non relevés.';
 
 const entryOf = (id) => gfPlugins.findPlugin(id);
 const nameOf = (id) => (entryOf(id) || { name: id }).name;
@@ -51,11 +52,26 @@ function createCustomerModulesController(ctx, customersController) {
     };
   }
 
+  // Rule 31 — an installed plugin that requires the module keeps it installed: the space would refuse.
+  function erasureDependants(id, allowed, facts) {
+    return (facts ? facts.installed : []).filter((other) => other !== id && allowed.has(other) && requiresOf(other).includes(id));
+  }
+
+  function erasureIssue(id, facts, writtenAt) {
+    const row = facts && facts.provisioning ? facts.provisioning.rows.find((r) => r.pluginId === id) : null;
+    if (!row || row.desired !== 'inactive' || row.licenceIssuedAt !== writtenAt) return null;
+    if (row.outcome === 'failed') return row.message;
+    if (row.outcome === 'blocked') return `Effacement bloqué : ${row.message}`;
+    return null;
+  }
+
+  const keptData = (state, eraseLines) => (state.state === 'inactive' && eraseLines.length ? 'données conservées' : null);
+
   function lineOf(c, id, { allowed, chosen, facts, writtenAt, erasing }) {
     const entry = entryOf(id);
     if (!allowed.has(id)) {
       return {
-        id, name: entry.name, on: false, switchable: false, state: 'outOfPlan', stateLabel: null, detail: null,
+        id, name: entry.name, on: false, switchable: false, state: 'outOfPlan', stateLabel: null, detail: null, setupLabel: null, stale: false, needsSetup: false,
         canRetry: false, canErase: false, eraseLines: [], eraseWarnings: [], planChip: planChip(id),
       };
     }
@@ -68,9 +84,16 @@ function createCustomerModulesController(ctx, customersController) {
     const eraseLines = dataLines.filter((l) => !l.warning).map((l) => l.label);
     const canErase = !on && state.state === 'inactive' && !erasing.has(id) && eraseLines.length > 0;
     return {
-      id, name: entry.name, on, switchable: true, ...state, detail: erasing.has(id) ? 'Effacement des données en cours.' : state.detail,
+      id, name: entry.name, on, switchable: true, ...state,
+      detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt) || 'Effacement des données en cours.' : state.detail || keptData(state, eraseLines),
       canErase, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter((l) => l.warning).map((l) => l.label) : [], planChip: null,
     };
+  }
+
+  // A readable space on a release before the reconciler is not « illisible »: it only needs the update.
+  function unseededLabel(c) {
+    const facts = instances.readFacts(customersController.servedSlug(c));
+    return facts && !facts.provisioning ? TOO_OLD : UNREADABLE;
   }
 
   function view(customerId) {
@@ -78,7 +101,7 @@ function createCustomerModulesController(ctx, customersController) {
     const seeded = Boolean(c.pluginsSeededAt);
     if (!seeded) {
       return {
-        seeded: false, seedLabel: UNREADABLE, header: '', counts: { active: 0, toConfigure: 0, failed: 0, blocked: 0 }, included: [], outOfPlan: [],
+        seeded: false, seedLabel: unseededLabel(c), header: '', headerParts: [], counts: { active: 0, toConfigure: 0, failed: 0, blocked: 0 }, included: [], outOfPlan: [],
       };
     }
     const allowed = allowedOf(c);
@@ -98,6 +121,7 @@ function createCustomerModulesController(ctx, customersController) {
       seeded: true,
       seedLabel: null,
       header: headerText(counts),
+      headerParts: headerParts(counts),
       counts,
       empty: chosen.size === 0 ? 'Aucun module actif.' : null,
       included,
@@ -110,7 +134,7 @@ function createCustomerModulesController(ctx, customersController) {
     if (typeof on !== 'boolean') throw httpError(400, 'INVALID', 'Module : allumé ou éteint.');
     if (!entryOf(pluginId)) throw httpError(404, 'UNKNOWN_PLUGIN', 'Module inconnu.');
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
-    if (!c.pluginsSeededAt) throw httpError(409, 'NOT_SEEDED', UNREADABLE);
+    if (!c.pluginsSeededAt) throw httpError(409, 'NOT_SEEDED', unseededLabel(c));
     const allowed = allowedOf(c);
     if (!allowed.has(pluginId)) throw httpError(422, 'OUT_OF_PLAN', OUT_OF_PLAN);
     const chosen = new Set(customerPlugins.chosen(c.id).filter((id) => allowed.has(id)));
@@ -137,11 +161,13 @@ function createCustomerModulesController(ctx, customersController) {
     const c = customersController.mustGet(customerId);
     if (!entryOf(pluginId)) throw httpError(404, 'UNKNOWN_PLUGIN', 'Module inconnu.');
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
-    if (!c.pluginsSeededAt) throw httpError(409, 'NOT_SEEDED', UNREADABLE);
+    if (!c.pluginsSeededAt) throw httpError(409, 'NOT_SEEDED', unseededLabel(c));
     if (customerPlugins.chosen(c.id).includes(pluginId)) throw httpError(409, 'MODULE_ACTIVE', 'Module actif : à désactiver d’abord.');
     if (String(confirmSlug || '') !== c.slug) throw httpError(400, 'SLUG_MISMATCH', `Tapez exactement « ${c.slug} » pour confirmer.`);
     if (customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId)) return view(c.id);
     const line = view(c.id).included.find((l) => l.id === pluginId);
+    const dependants = line && line.canErase ? erasureDependants(pluginId, allowedOf(c), instances.readFacts(customersController.servedSlug(c))) : [];
+    if (dependants.length) throw httpError(422, 'REQUIRED_BY', `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.`);
     if (!line || !line.canErase) throw httpError(409, 'NOTHING_TO_ERASE', 'Rien à effacer : le module est encore actif sur l’espace, ou sans données.');
     customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator });
     customersController.journal(c.id, operator, 'module', `Effacement des données de ${nameOf(pluginId)} demandé`);
@@ -175,7 +201,7 @@ function createCustomerModulesController(ctx, customersController) {
   // « Réessayer » and « Relever maintenant »: a new licence is a new attempt (rule 18).
   function retry(customerId, operator) {
     const c = customersController.mustGet(customerId);
-    if (!c.pluginsSeededAt && !seedCustomer(c, operator)) throw httpError(409, 'NOT_SEEDED', UNREADABLE);
+    if (!c.pluginsSeededAt && !seedCustomer(c, operator)) throw httpError(409, 'NOT_SEEDED', unseededLabel(c));
     customersController.issueLicence(c.id);
     return view(c.id);
   }
@@ -183,7 +209,8 @@ function createCustomerModulesController(ctx, customersController) {
   // Rule 25 — from what the space runs now, before any licence carries `activePlugins`.
   function seedCustomer(c, operator = 'migration') {
     const facts = instances.readFacts(customersController.servedSlug(c));
-    if (!facts) return false;
+    // Rule 29 — a space on a release before the reconciler would take the licence's choice for nothing.
+    if (!facts || !facts.provisioning) return false;
     const allowed = allowedOf(c);
     const running = catalogueOrder(facts.active).filter((id) => allowed.has(id));
     customerPlugins.replace(c.id, running, day(), 'migration');

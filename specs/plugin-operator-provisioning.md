@@ -150,6 +150,12 @@ screen or endpoint: the customer sees only the features themselves.
       configuration step remains (rule 6: done in the space, by the customer or through a support
       session).
     The section's header counts « 7 actifs · 1 à configurer · 1 en échec ».
+    _As rendered (2026-10-28 review):_ the state is a short badge — « Actif · 1.2.0 », « Inactif »,
+    « En attente », « Échec », « Bloqué » — beside what goes with it: `detail` as text (the space's
+    sentence; « L’espace lit la licence… » while waiting; « Depuis 6 min — espace injoignable ? » with
+    `stale: true`, a warning badge; « données conservées » on an inactive module that still holds data),
+    and `setupLabel` (« à configurer : <what is missing> ») as a second warning badge that never replaces
+    the version badge. The header comes as `headerParts: [{ text, tone }]`: only the failed count is red.
 
 ### 3.D How the space applies it
 
@@ -251,6 +257,43 @@ screen or endpoint: the customer sees only the features themselves.
     the rest of rule 20. The ids of the erase orders executed are kept as `erase:<order>` (rule 23).
     _Added at implementation._
 
+29. **A space is seeded only if it runs the reconciler.** `seedCustomer` requires
+    `facts.provisioning !== null`: a readable space on a release before this feature would otherwise
+    receive a licence whose `activePlugins` it ignores, the customer would keep toggling plugins there
+    and the first reconciliation after the upgrade would switch them off. Such a customer stays
+    unseeded — « Espace à mettre à jour : modules non relevés. » (an unreadable one keeps « Espace
+    illisible… ») — and is seeded by the minute tick as soon as the space reports. _Added at review._
+30. **The lifecycle 404 is mounted before the support audit.** The audit forbids `DELETE /plugins/:id`
+    and `POST /plugins/:id/deactivate` to a support session (403 and a log entry), which told an
+    operator-managed space from an unmanaged one. `createSupportAudit` takes `isHidden(req)`
+    (`requireSelfManagedPlugins.isHidden`: the lifecycle routes of rule 4, on a managed space) and lets
+    such a request through untouched — no 403, no log entry — to the router guard that answers the
+    unknown-route 404. An ended access still answers `SUPPORT_ACCESS_ENDED`, like any path. _Added at review._
+31. **Erase orders follow the settled rule of rules 18–19.** A refused erase (`REQUIRED_BY`,
+    `PLUGIN_BLOCKED`) is recorded `blocked` and retried at most hourly; any other failure is recorded
+    `failed` and waits for a new `issuedAt`. The closing pass of the reconciler leaves the line of a
+    plugin with an erase order still on its way alone, so the record survives. The console shows it on
+    the line (« Effacement bloqué : <message> » / the space's failure sentence, for the licence it last
+    wrote only) instead of « Effacement des données en cours. », and refuses the erase itself
+    (422 `REQUIRED_BY`, « Nécessaire à X : à désinstaller d’abord. ») while an installed plugin the
+    plan allows requires the module. _Added at review._
+32. **A reconciler run ignores the dependants the licence does not allow.** A plugin outside `plugins[]`
+    keeps its stored state (rule 21) and cannot be acted on by the operator, so it no longer holds
+    back the deactivation or the erase of what it requires (`req.reconciling`). The plugins page rules
+    (phase 4 rules 12 and 36) are unchanged for an unmanaged space. _Added at review._
+33. **An older licence never replaces a newer one.** The highest `issuedAt` the reconciler acted on is
+    kept in `plugin_provisioning_meta` (`highestIssuedAt`); a pass whose licence is older is skipped
+    (a restored backup, a replayed file). _Added at review._
+34. **The closing pass touches only the licence's plugins.** The loop that marks leftover rows
+    `applied` is limited to ids the licence allows, so the state kept for a plugin outside the plan
+    (rule 21) is not rewritten. _Added at review._
+35. **No plugins line in Paramètres › summary on a managed space.** `GET /api/settings/summary` omits
+    `/parametres/plugins` when the plugins are not the administrator's (rule 3). _Added at review._
+36. **The session is re-read as the operator changes the plugins.** `useAuth` re-reads
+    `GET /api/auth/me` on every route change and when the tab becomes visible again, at most once every
+    30 s; a failed re-read keeps the session. A module switched off by the operator thus leaves the menu
+    without a reload (rule 3 hides entries from `enabledPlugins` / `pluginsManageable`). _Added at review._
+
 **Edge cases:**
 
 - The console is down for days → the last licence still carries `activePlugins`; the space keeps
@@ -344,10 +387,10 @@ rules 31, 36):
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/customers/:id/modules` | — | `{ seeded, seedLabel, counts: { active, toConfigure, failed, blocked }, header: "7 actifs · 1 à configurer", empty, included: [Line], outOfPlan: [Line] }` | `Line = { id, name, on, switchable, state: 'active'\|'inactive'\|'pending'\|'failed'\|'blocked'\|'unknown'\|'outOfPlan', stateLabel, detail, needsSetup, canRetry, canErase, eraseLines: [string], eraseWarnings: [string], planChip }` — an unseeded customer gets `seeded: false`, `seedLabel` and empty lists |
+| GET | `/api/customers/:id/modules` | — | `{ seeded, seedLabel, counts: { active, toConfigure, failed, blocked }, header: "7 actifs · 1 à configurer", headerParts: [{ text, tone }], empty, included: [Line], outOfPlan: [Line] }` | `Line = { id, name, on, switchable, state: 'active'\|'inactive'\|'pending'\|'failed'\|'blocked'\|'unknown'\|'outOfPlan', stateLabel, detail, setupLabel, stale, needsSetup, canRetry, canErase, eraseLines: [string], eraseWarnings: [string], planChip }` — an unseeded customer gets `seeded: false`, `seedLabel` and empty lists |
 | POST | `/api/customers/:id/modules/:pluginId` | `{ on: boolean }` | the GET payload | 422 `{ error: 'OUT_OF_PLAN' \| 'REQUIREMENT_OFF' \| 'REQUIRED_BY', message }`; re-issues the licence |
 | POST | `/api/customers/:id/modules/retry` | — | the GET payload | Re-issues the licence (rule 18); also « Relever maintenant » when unseeded |
-| POST | `/api/customers/:id/modules/:pluginId/erase` | `{ confirmSlug }` | the GET payload | 409 `MODULE_ACTIVE` / `NOTHING_TO_ERASE` / `NOT_SEEDED`, 400 `SLUG_MISMATCH`; one pending order per plugin |
+| POST | `/api/customers/:id/modules/:pluginId/erase` | `{ confirmSlug }` | the GET payload | 409 `MODULE_ACTIVE` / `NOTHING_TO_ERASE` / `NOT_SEEDED`, 422 `REQUIRED_BY` (rule 31), 400 `SLUG_MISMATCH`; one pending order per plugin |
 | POST | `/api/customers/preview` (existing) | `+ modules: [id]` | `+ moduleChoices: [{ id, name, ticked, allowed }], moduleSummary` | Rule 13 |
 | POST | `/api/customers` (existing) | `+ modules: [id]` | unchanged | Refuses a module outside the allowed set (422) |
 
@@ -380,7 +423,7 @@ CREATE TABLE IF NOT EXISTS plugin_provisioning (
   at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS plugin_provisioning_meta (
-  key TEXT PRIMARY KEY,      -- 'appliedLicenceIssuedAt', 'facts:<pluginId>', 'erase:<orderId>'
+  key TEXT PRIMARY KEY,      -- 'appliedLicenceIssuedAt', 'highestIssuedAt', 'facts:<pluginId>', 'erase:<orderId>'
   value TEXT NOT NULL
 );
 ```
@@ -487,9 +530,29 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
   (payload fields, unseeded customer has none, seed from active ∩ allowed, unreadable space stays
   unseeded, acknowledged order dropped) — **8 cases (done: 8)**
 
+- [x] `server/src/tests/plugin-reconciler-hardening.unit.test.js` — rules 31–34 (erase order blocked hourly /
+  failed until a new licence, the record survives the closing pass, out-of-plan dependants ignored, an
+  allowed one still blocks, older licence skipped, closing pass limited to the plan) — **7 cases**
+- [x] `server/src/tests/plugin-operator-support-hidden.unit.test.js` — rules 30, 35 (through the real
+  chain: `createSupportAudit` with a real `supportAccessId` session gets the byte-identical 404 on
+  every lifecycle route and no log entry; unmanaged space unchanged, 403 logged; the matcher covers
+  exactly the guarded routes; no plugins line in the summary) — **4 cases**
 - [x] `server/src/tests/plugin-provisioning-task.unit.test.js` — rule 16 (boot pass, one per minute, a failing pass is logged) — 2 cases (added)
 
+- [x] `control-plane/server/src/tests/customer-modules-hardening.unit.test.js` — rules 29, 31 (an old-release
+  space stays unseeded then seeds once it reports; erase refused naming the dependant; an erase the
+  space blocked or failed shows on the line, for the current licence only) — **3 cases**; the state
+  lines of rule 14 (short badge + detail, `setupLabel`, `stale`, « données conservées ») are covered in
+  `customer-modules.unit.test.js` and `customer-modules-erase.unit.test.js`.
+
 ### Client Vitest
+
+- [x] `client/src/hooks/__tests__/useAuth.revalidate.test.jsx` — rule 36 (route change after 30 s, tab
+  visible again, failed re-read keeps the session) — **3 cases**
+- [x] `control-plane/client/src/__tests__/ModulesSection.polish.test.jsx` — rules 10–12, 14, 22 (refusal and
+  failed count red, stale wait in warning, focus kept on the switch being saved, 44 px target, erase
+  dialog focus and Enter, no animation under reduced motion) — **6 cases**; `NewCustomerPage.modules`
+  gains the two-quick-unticks case (rule 13).
 
 - [x] `client/src/__tests__/App.plugins-managed.test.jsx` — rule 3 (the route itself: « Page introuvable » managed, the Plugins page unmanaged) — 2 cases (added)
 
@@ -534,6 +597,10 @@ are release-process rules → marked « Sans test » with that reason.
 - Fleet-wide « switch module X on for every Pro customer »: one customer at a time.
 - Showing the customer a list of included modules or an upsell (§9 Q3).
 - Self-hosted customers (no such offer today; rule 1 already covers them when they get a licence).
+- Core self-update on a space that is managed only by its licence (`activePlugins`, without
+  `GUESTFLOW_MANAGED=1`): `systemController` keeps keying on `GUESTFLOW_MANAGED`, so such a space still
+  offers « Installer » for the core. The operator's updates go through the hosting; making a licence-only
+  space refuse self-update is a separate decision (2026-10-28 review).
 
 ## 9. Open questions
 
@@ -570,6 +637,10 @@ Four lots, each shippable on `inte/plugins`:
 Lots 1 → 2 → 3 in one release is the safe order (rule 26); lot 4 can follow.
 
 ### Implementation progress
+
+**Review fixes (2026-10-28, two Opus reviewers):** rules 29–36 and the UI details of rule 14 — see the
+rules; the `inte/plugins` merge (2FA, perf, planning, calendar, options) was resolved without conflict
+and every suite re-run.
 
 All four lots are in, one commit each, on `feature/plugin-operator-provisioning`.
 

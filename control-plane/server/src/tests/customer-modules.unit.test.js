@@ -113,9 +113,11 @@ test('rule 14: a choice the space has not applied reads « En attente », and af
   writeSpace(env, { active: [] });
   modules.toggle(env.id, 'linen', false, 'op');
   writeSpace(env, { active: ['linen'] });
-  assert.equal(lineOf(modules.view(env.id), 'linen').stateLabel, 'En attente');
+  const waiting = lineOf(modules.view(env.id), 'linen');
+  assert.deepEqual([waiting.stateLabel, waiting.detail, waiting.stale], ['En attente', 'L’espace lit la licence…', false]);
   env.now.set('2026-09-29T10:06:30Z');
-  assert.equal(lineOf(modules.view(env.id), 'linen').stateLabel, 'En attente depuis 6 min — espace injoignable ?');
+  const late = lineOf(modules.view(env.id), 'linen');
+  assert.deepEqual([late.stateLabel, late.detail, late.stale], ['En attente', 'Depuis 6 min — espace injoignable ?', true]);
   env.cleanup();
 });
 
@@ -127,7 +129,7 @@ test('rule 14: a failure the space recorded for this licence reads « Échec : �
   writeSpace(env, { active: [], rows: [{ pluginId: 'linen', desired: 'active', outcome: 'failed', message: 'Paquet introuvable.', licenceIssuedAt: writtenAt(env) }] });
   const line = lineOf(modules.view(env.id), 'linen');
   assert.equal(line.state, 'failed');
-  assert.equal(line.stateLabel, 'Échec : Paquet introuvable.');
+  assert.deepEqual([line.stateLabel, line.detail], ['Échec', 'Paquet introuvable.']);
   assert.equal(line.canRetry, true);
   assert.equal(modules.view(env.id).counts.failed, 1);
   assert.match(modules.view(env.id).header, /1 en échec/);
@@ -160,7 +162,7 @@ test('rule 14: a deactivation the space refuses reads « Bloqué : … »', asyn
   });
   const line = lineOf(modules.view(env.id), 'online-payment');
   assert.equal(line.state, 'blocked');
-  assert.equal(line.stateLabel, 'Bloqué : 2 liens de paiement en attente : à payer ou annuler d’abord.');
+  assert.deepEqual([line.stateLabel, line.detail], ['Bloqué', '2 liens de paiement en attente : à payer ou annuler d’abord.']);
   env.cleanup();
 });
 
@@ -169,7 +171,8 @@ test('rule 14: an active plugin that reports missing setup reads « à configure
   const { modules } = env.ctx.controllers;
   writeSpace(env, { active: ['linen', 'weather-alerts'], applied: writtenAt(env), facts: { 'weather-alerts': { setup: 'clé API manquante', erasable: false, data: [] } } });
   const view = modules.view(env.id);
-  assert.equal(lineOf(view, 'weather-alerts').stateLabel, 'Actif · à configurer : clé API manquante');
+  assert.equal(lineOf(view, 'weather-alerts').setupLabel, 'à configurer : clé API manquante');
+  assert.match(lineOf(view, 'weather-alerts').stateLabel, /^Actif/, 'the version chip stays beside it');
   assert.equal(view.counts.toConfigure, 1);
   assert.match(view.header, /\d+ actifs · 1 à configurer/);
   env.cleanup();

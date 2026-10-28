@@ -485,8 +485,11 @@ function createController(model = defaultModel, deps = {}) {
 
   // specs/plugins-phase-4-registry.md rule 12 — a plugin another installed plugin requires stays
   // installed; rule 36 — and stays active while an ACTIVE plugin requires it.
-  function refuseIfRequiredBy(entry, res, { activeOnly = false } = {}) {
-    const others = model.list().filter((r) => r.id !== entry.id && (!activeOnly || r.enabled));
+  // The reconciliation (`req.reconciling`) ignores the dependants the licence does not allow: they sit
+  // out of the plan with their state kept (rule 21), and the operator cannot act on them.
+  function refuseIfRequiredBy(entry, res, { activeOnly = false, reconciling = false } = {}) {
+    const others = model.list().filter((r) => r.id !== entry.id && (!activeOnly || r.enabled)
+      && (!reconciling || licence().allowsPlugin(r.id)));
     const dependents = dependentsOf(entry.id, Object.fromEntries(others.map((r) => [r.id, r.manifest || findPlugin(r.id)])));
     if (!dependents.length) return false;
     const names = dependents.map((m) => m.name || nameOf(m.id)).join(', ');
@@ -665,7 +668,7 @@ function createController(model = defaultModel, deps = {}) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
-      if (refuseIfRequiredBy(entry, res, { activeOnly: true })) return undefined;
+      if (refuseIfRequiredBy(entry, res, { activeOnly: true, reconciling: Boolean(req.reconciling) })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       model.setEnabled(entry.id, false);
       return res.json(view(entry));
@@ -679,7 +682,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       const wantsPurge = req.query && (req.query.purge === '1' || req.query.purge === 'true');
       if (wantsPurge && !erasable(entry.id)) return res.status(409).json({ error: 'NOT_ERASABLE' });
-      if (refuseIfRequiredBy(entry, res)) return undefined;
+      if (refuseIfRequiredBy(entry, res, { reconciling: Boolean(req.reconciling) })) return undefined;
       if (refuseIfBlocked(entry, res)) return undefined;
       if (wantsPurge) {
         try {
