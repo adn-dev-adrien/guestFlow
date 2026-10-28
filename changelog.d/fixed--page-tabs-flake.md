@@ -1,0 +1,1 @@
+- Options & ressources: switching to the « Facturables au SAS » tab no longer makes the page title and the tabs disappear for a moment while the tab loads.

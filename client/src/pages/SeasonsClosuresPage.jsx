@@ -14,7 +14,7 @@
 import React, { Suspense, useState } from 'react';
 import { Box } from '@mui/material';
 import PageTabs from '../components/PageTabs';
-import LoadingState from '../components/LoadingState';
+import PageBarFallback from '../components/PageBarFallback';
 import EstablishmentClosuresPage from './EstablishmentClosuresPage';
 import { useSlot } from '../plugins/sdk/useSlot';
 
@@ -33,7 +33,7 @@ export default function SeasonsClosuresPage() {
   return (
     <Box>
       {pluginTab
-        ? <Suspense fallback={<LoadingState />}><pluginTab.Component barTabs={barTabs} /></Suspense>
+        ? <Suspense fallback={<PageBarFallback title={pluginTab.label} tabs={barTabs} />}><pluginTab.Component barTabs={barTabs} /></Suspense>
         : <EstablishmentClosuresPage barTabs={barTabs} />}
     </Box>
   );

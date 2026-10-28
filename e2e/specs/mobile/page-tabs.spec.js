@@ -39,7 +39,36 @@ test('switching tab on a phone keeps the title + tabs in the same block', async 
 
   const title = page.getByRole('heading', { name: 'Options & ressources' });
   await expect(title).toBeVisible();
-  const tabsBox = await page.getByRole('tab').first().boundingBox();
-  expect(tabsBox.y).toBeGreaterThan((await title.boundingBox()).y);
+  // Each tab mounts its own bar, so the strip is replaced on a switch: measure what is there NOW, retrying
+  // while the previous strip is detached (a handle taken from it has no box).
+  await expect.poll(async () => {
+    const tabsBox = await page.getByRole('tab').first().boundingBox();
+    const titleBox = await title.boundingBox();
+    return tabsBox && titleBox ? tabsBox.y > titleBox.y : null;
+  }).toBe(true);
   await expect(page.getByRole('tab', { name: 'Ressources' })).toHaveAttribute('aria-selected', 'true');
+});
+
+// specs/ds-tabs.md rule 12 — a lazy plugin tab keeps the bar drawn while its chunk loads.
+test('switching to a plugin tab never leaves the page without tabs', async ({ page }) => {
+  await page.goto('/parametres/options-ressources');
+  await expect(page.getByRole('tab')).toHaveCount(3, { timeout: 10_000 });
+  await page.evaluate(() => {
+    window.__tabCounts = new Set();
+    window.__tabYs = new Set();
+    const sample = () => {
+      const tabs = document.querySelectorAll('[role=tab]');
+      window.__tabCounts.add(tabs.length);
+      if (tabs.length) window.__tabYs.add(Math.round(tabs[0].getBoundingClientRect().y));
+      requestAnimationFrame(sample);
+    };
+    sample();
+  });
+  await page.getByRole('tab', { name: 'Facturables au SAS' }).click();
+  await expect(page).toHaveURL(/tab=sas/);
+  await expect(page.getByRole('heading', { name: 'Facturables au SAS' }).first()).toBeVisible();
+  await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); }));
+  expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([3]);
+  // The fallback bar has the same rows as the loaded one: the strip does not jump when the real bar mounts.
+  expect(await page.evaluate(() => [...window.__tabYs])).toHaveLength(1);
 });
