@@ -48,7 +48,9 @@ const TABS = [
   { value: 'texts', label: 'Par email' },
   { value: 'mentions', label: 'Options citées' },
 ];
+// Rule 13 — typing is debounced; every other trigger renders at once (rule 50).
 const PREVIEW_DELAY_MS = 400;
+const hasKeys = (object) => Object.keys(object || {}).length > 0;
 const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 export default function EmailTextsSettingsPage() {
@@ -149,12 +151,16 @@ export default function EmailTextsSettingsPage() {
     draft: { texts: drafts, ...(fullTemplate && fullTemplate.id === templateId ? { template: fullTemplate.draft } : {}) },
   }), [templateId, data.propertyId, reservationId, language, drafts, fullTemplate]);
 
+  const typedDrafts = useRef({ drafts, full: null });
   useEffect(() => {
     if (!templateId || tab !== 'texts') return undefined;
+    const fullDraft = fullTemplate && fullTemplate.id === templateId ? fullTemplate.draft : null;
+    const typing = (drafts !== typedDrafts.current.drafts && hasKeys(drafts)) || (fullDraft !== typedDrafts.current.full && hasKeys(fullDraft));
+    typedDrafts.current = { drafts, full: fullDraft };
     setPreview((p) => ({ ...p, loading: true }));
     // A newer draft supersedes this request: its late answer (or refusal) must not overwrite the newer preview.
     let superseded = false;
-    const timer = setTimeout(async () => {
+    const render = async () => {
       try {
         const r = await api.previewEmailDraft(previewBody);
         if (superseded) return;
@@ -173,7 +179,9 @@ export default function EmailTextsSettingsPage() {
           setPreview((p) => ({ ...p, loading: false, error: err.message || 'Aperçu impossible.' }));
         }
       }
-    }, PREVIEW_DELAY_MS);
+    };
+    let timer = null;
+    if (typing) timer = setTimeout(render, PREVIEW_DELAY_MS); else render();
     return () => { superseded = true; clearTimeout(timer); };
   }, [previewBody, templateId, tab, revision]);
 
@@ -470,6 +478,7 @@ export default function EmailTextsSettingsPage() {
                 onChange={(e, expanded) => { setOpen(expanded ? s.id : ''); setReservationId(null); setMobilePreview(false); setTestMessage(''); }}
                 disableGutters
                 variant="outlined"
+                slotProps={{ transition: { unmountOnExit: true } }}
               >
                 <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 48 }}>
                   {/* Rule 44 — one name per email, in stay order, with its « Quand ». */}
@@ -486,7 +495,7 @@ export default function EmailTextsSettingsPage() {
                         <Select
                           labelId={`tpl-${s.id}`}
                           label="Email"
-                          value={templateId || ''}
+                          value={templateBySection[s.id] || s.templates[0].id}
                           onChange={(e) => { setTemplateBySection((m) => ({ ...m, [s.id]: e.target.value })); setReservationId(null); }}
                         >
                           {s.templates.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
@@ -501,6 +510,7 @@ export default function EmailTextsSettingsPage() {
                         variant="outlined"
                         expanded={unusedOpen === s.id}
                         onChange={(e, expanded) => setUnusedOpen(expanded ? s.id : '')}
+                        slotProps={{ transition: { unmountOnExit: true } }}
                         sx={{ bgcolor: 'background.default' }}
                       >
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
