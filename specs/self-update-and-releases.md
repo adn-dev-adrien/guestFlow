@@ -321,6 +321,13 @@ signed-off releases over HTTPS, when the operator asks for it.
     `rolled_back`, plus a French human-readable label, the target version, and — on failure — the
     error and the log tail.
 38. The last 5 update outcomes are kept and shown in the settings section (version, date, result).
+39. **The archive is built from tracked files, and refused if it carries a secret** (2026-10-28 audit).
+    `release.sh` copies `server/` from `git ls-files`, never from the working directory, and no longer
+    copies `server/uploads`: a developer's checkout holds untracked secrets (`server/.env.local`, the
+    database and its WAL, `licence.jws`, TLS keys, uploaded photos) that a manual run would have shipped.
+    `scripts/check-release-tree.mjs` then scans the staging tree and fails the script before `tar` when it
+    finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
+    a log, or any file under `uploads/` other than `.gitkeep`.
 
 **Edge cases**
 
