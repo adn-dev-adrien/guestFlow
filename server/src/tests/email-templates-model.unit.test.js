@@ -1,4 +1,5 @@
-// emailTemplatesModel CRUD + listEnabled. See specs/email-automation.md §4.1.
+// emailTemplatesModel CRUD + listEnabled. See specs/email-automation.md §4.1 and rule 1 (the template
+// fields: name, subject, body, dayOffset, sendMode, enabled).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

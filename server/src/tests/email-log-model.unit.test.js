@@ -1,4 +1,6 @@
 // emailLogModel CRUD + pending join + history pagination. See specs/email-automation.md §4.1.
+// specs/email-history-rolling-window.md rule 4 — the status / template / reservation filters combine with
+// the window (AND); see « history: paginated » below.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -299,4 +301,34 @@ test('history: keeps in-window stays (incl. exactly arrival+3), drops past-windo
   // 300 (future) + 301 (arrival+3 == today, boundary inclusive) kept; 302 (arrival+4 < today) + 999 (orphan) dropped.
   assert.deepEqual(ids, [300, 301]);
   assert.equal(res.total, 2);
+});
+
+// specs/email-history-rolling-window.md rules 5 + 6 — every status follows the window (listed and purged
+// the same way) and the page's total counts only in-window rows.
+test('rule 5: sent, failed and acknowledged-skip rows are scoped and purged identically', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO reservations (id, kind, startDate, endDate) VALUES (301, 'reservation', '2026-06-15', '2026-06-16'), (302, 'reservation', '2026-06-14', '2026-06-15')").run();
+  for (const rid of [301, 302]) {
+    for (const status of ['sent', 'failed', 'acknowledged-skip']) {
+      model.insert({ templateId: null, reservationId: rid, status, renderedSubject: 'S', renderedBody: 'B' });
+    }
+  }
+  db.prepare("UPDATE email_log SET sentAt = '2026-06-01 08:00:00'").run();
+  for (const status of ['sent', 'failed', 'acknowledged-skip']) {
+    assert.deepEqual(model.history({ status, limit: 50, today: '2026-06-18' }).rows.map((r) => r.reservationId), [301], status);
+  }
+  assert.equal(model.purgeRealizedStays('2026-06-18'), 3);
+  assert.deepEqual(db.prepare('SELECT status FROM email_log ORDER BY status').all().map((r) => r.status), ['acknowledged-skip', 'failed', 'sent']);
+});
+
+test('rule 6: the total counts only in-window rows, whatever the page size', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO reservations (id, kind, startDate, endDate) VALUES (301, 'reservation', '2026-06-15', '2026-06-16'), (302, 'reservation', '2026-06-14', '2026-06-15')").run();
+  for (const rid of [301, 301, 301, 302, 302]) {
+    model.insert({ templateId: null, reservationId: rid, status: 'sent', renderedSubject: 'S', renderedBody: 'B' });
+  }
+  db.prepare("UPDATE email_log SET sentAt = '2026-06-01 08:00:00'").run();
+  const page = model.history({ limit: 2, offset: 0, today: '2026-06-18' });
+  assert.equal(page.total, 3);
+  assert.equal(page.rows.length, 2);
 });

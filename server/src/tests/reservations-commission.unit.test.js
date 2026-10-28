@@ -1,3 +1,4 @@
+// specs/server-test-isolation.md rule 3 — this file sets its own temporary database.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/email-language-fr-en` _(user-managed)_ |
 | **Created** | 2026-06-19 |
 | **Author** | Adrien |
@@ -36,6 +36,7 @@ render in that language. The two shipped default reminders (J-7, J-2) ship with 
 
 1. **Per-reservation language.** New column `reservations.emailLanguage` ∈ {`fr`, `en`}, default `fr`,
    editable on the reservation fiche. Independent from `pdfLanguage` (a later cleanup could unify them).
+    > **Sans test** — superseded by `email-client-language-and-fiche-polish.md` rules 2-3: the language lives on the client, the reservation column is kept as a fallback only (read in `emailsController.guestLangOf`).
 2. **Bilingual templates.** New columns `email_templates.subjectEn` + `bodyEn` (nullable). A template thus
    holds a French subject/body and an optional English subject/body. The editor lets the operator fill both.
 3. **Language selection at render.** Preview + send + auto-send resolve the language from the reservation's
@@ -65,8 +66,10 @@ render in that language. The two shipped default reminders (J-7, J-2) ship with 
 6. **Existing installs backfilled.** An idempotent content migration writes `subjectEn`/`bodyEn` onto the
    two shipped rows **only when they are currently NULL/empty** (operator edits to the English fields are
    preserved; the French side is untouched).
+    > **Sans test** — a one-shot content migration in `database.js` with no unit seam; the English texts it writes are the registry's, pinned by rule 5.
 7. **Fat backend.** Language resolution, fallback, and all composition live server-side. The client only
    renders the chosen-language preview it receives and offers the selectors.
+    > **Sans test** — an architectural principle, upheld by rules 2-5 and 3b (the server resolves, composes and falls back).
 8. **One way to write an amount per language** (review of 2026-10-18). In an English email every amount of
    the context (stay amount, deposit, balance, caution, complement lines…) reads « €963.39 », like the
    prices of the stay texts (« €8 per person »); it used to read « 963,39 € » beside them. French is
@@ -273,3 +276,12 @@ Resolved at the 2026-10-27 spec review:
   by hand with « Version anglaise manquante pour ce modèle. », skipped and logged by the automatic passes
   (rule 9).
 - **Which amount format?** → One for every template: « 1 234,56 € » / « €1,234.56 », no « ,00 » (rule 10).
+
+---
+
+## Implementation progress
+
+- **2026-10-28 — Implemented** (status was left on Approved after the merge). English sides, language
+  selection and fallback, the translated arrival reminders and the `lang` override are in the code (see
+  `email-template-language`, `email-language-resolution`, `email-english-version-missing`). The client
+  FR/EN toggle of the preview dialog stays deferred (rule 3b). Left unticked in §7: the mobile check.

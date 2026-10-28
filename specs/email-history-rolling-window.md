@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/email-history-rolling-window` _(user-managed)_ |
 | **Created** | 2026-06-19 |
 | **Author** | Adrien |
@@ -201,3 +201,12 @@ Resolved during scoping (2026-06-19):
 - **Extend the existing history vs new page?** → Extend the existing `/emails/historique` (rolling window) +
   surface it in the menu.
 - **Cutoff?** → Single threshold = arrival (`startDate`) + 3 days, for both display and purge.
+
+---
+
+## Implementation progress
+
+- **2026-10-28 — Implemented** (status was left on Approved after the merge). The window (arrival + 3 days),
+  the purge and the two-child « Emails » menu are in the code, covered by `email-log-model`,
+  `email-log-purge`, `email-history-window-late-sends` and the e2e `email-history-rolling-window`.
+  Left unticked in §7: the mobile check.
