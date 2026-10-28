@@ -25,7 +25,7 @@ import ReservationConflictBadge from '../components/ReservationConflictBadge';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import StickyTotalBar from '../components/StickyTotalBar';
-import StoredPricingSummary from '../components/reservation/StoredPricingSummary';
+import PlatformPriceAlert from '../components/reservation/PlatformPriceAlert';
 import DevisValidityChip from '../components/reservation/DevisValidityChip';
 import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
@@ -3458,25 +3458,28 @@ export default function ReservationPage() {
     form.startDate && form.endDate ? `${displayDate(form.startDate).slice(0, 5)} → ${displayDate(form.endDate).slice(0, 5)}` : '',
   ].filter(Boolean).join(' · ') || null;
 
-  const pricingSummary = showStoredSummary ? (
-    <StoredPricingSummary
-      summary={storedSummary}
-      form={form}
-      propertyLabel={selectedProperty?.label || selectedProperty?.name || ''}
-      isPlatform={isPlatformReservation}
-    />
-  ) : (
+  // Rule 50 — the stored amounts go through the very component the live quote does; the stored mode
+  // leaves out the per-line controls (rule 52). The form carries the stored deposit and balance then.
+  const pricingSummary = (
     <PricingSummary
-      quote={pricingQuote}
-      form={form}
-      nightlyBreakdown={nightlyBreakdown}
+      mode={showStoredSummary ? 'stored' : 'live'}
+      topNotice={<PlatformPriceAlert check={pricingQuote?.platformPriceCheck} />}
+      quote={showStoredSummary ? storedSummary : pricingQuote}
+      form={showStoredSummary ? {
+        ...form,
+        depositAmount: storedSummary.depositAmount,
+        balanceAmount: storedSummary.balanceAmount,
+        depositDueDate: storedSummary.depositDueDate,
+        balanceDueDate: storedSummary.balanceDueDate,
+      } : form}
+      nightlyBreakdown={showStoredSummary ? storedSummary.nightlyBreakdown : nightlyBreakdown}
       offeredOptionIds={offeredOptionIds}
       propertyOptions={propertyOptions}
       availableResources={[...availableResources, ...frozenResources]}
       isIcalSource={isIcalSource}
       selectedProperty={selectedProperty}
-      parsedTotalPrice={parsedTotalPrice}
-      accommodationDiscountedPriceDisplay={accommodationDiscountedPriceDisplay}
+      parsedTotalPrice={showStoredSummary ? null : parsedTotalPrice}
+      accommodationDiscountedPriceDisplay={showStoredSummary ? storedSummary.accommodation : accommodationDiscountedPriceDisplay}
       onToggleExtraGuestOffered={(next) => updateForm({ extraGuestSurchargeOffered: next })}
       onToggleOptionOffered={(optionId, next) => {
         const updated = new Set(offeredOptionIds);

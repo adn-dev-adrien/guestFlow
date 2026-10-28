@@ -51,6 +51,15 @@ export function formatPercent(n) {
   return `${String(rounded).replace('.', ',')} %`;
 }
 
+/** « +28 % » / « −31 % » — a whole, signed percentage (the typographic minus, a space before the %). */
+export function formatSignedPercent(n) {
+  const num = Number(n);
+  if (n == null || n === '' || !Number.isFinite(num)) return '—';
+  const whole = Math.round(num);
+  const sign = whole > 0 ? '+' : (whole < 0 ? '−' : '');
+  return `${sign}${Math.abs(whole)} %`;
+}
+
 export function displayDate(d) {
   if (!d) return '—';
   // Some columns are datetimes (`cancelledAt`, `createdAt`), not plain days: keep the day part only,

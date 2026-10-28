@@ -23,8 +23,9 @@ function makeModel() {
       postalCode TEXT, city TEXT, address TEXT, phone TEXT, email TEXT, notes TEXT,
       createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
     CREATE TABLE reservations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
+      id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation', platform TEXT,
       clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT, finalPrice REAL DEFAULT 0,
       adults INTEGER DEFAULT 0, children INTEGER DEFAULT 0, teens INTEGER DEFAULT 0, babies INTEGER DEFAULT 0,
       devisNumber TEXT, devisStatus TEXT
@@ -83,14 +84,14 @@ test('only past stays → « passés », dated on the LAST one', () => {
   assert.equal(model.directory({ bucket: 'upcoming' }).items.length, 0);
 });
 
-test('no stay at all → « à venir » with no date; a devis is not a stay', () => {
+test('no stay at all → « sans séjour » with no date; a devis is not a stay (rule 11, was rule 1)', () => {
   const { model, addClient, addStay } = makeModel();
   addClient('Sansejour', 'Fanny');
   const id = addClient('Devisseul', 'Gerard');
   addStay(id, shift(20), shift(22), 'devis');
-  const res = model.directory({ bucket: 'upcoming' });
+  const res = model.directory({ view: 'none' });
   assert.equal(find(res, 'Sansejour').stayDate, null);
-  assert.equal(find(res, 'Devisseul').bucket, 'upcoming');
+  assert.equal(find(res, 'Devisseul').bucket, 'none');
   assert.equal(find(res, 'Devisseul').stayDate, null, 'a quote does not date a client');
 });
 
@@ -104,28 +105,29 @@ test('counts describe the searched set, whatever bucket is asked for', () => {
   addStay(c, shift(-10), shift(-8));
 
   const all = model.directory({ bucket: 'upcoming' });
-  assert.deepEqual(all.counts, { upcoming: 1, past: 2 });
+  assert.deepEqual(all.counts, { upcoming: 1, past: 2, none: 0 });
   const lyon = model.directory({ q: 'Lyon', bucket: 'past' });
-  assert.deepEqual(lyon.counts, { upcoming: 1, past: 1 }, 'the search applies before the split');
+  assert.deepEqual(lyon.counts, { upcoming: 1, past: 1, none: 0 }, 'the search applies before the split');
   assert.deepEqual(byName(lyon.items), ['Ancien']);
 });
 
-test('sorting: by stay date both ways, by name accent-aware, and no-date clients last', () => {
+test('sorting: by stay date both ways, by name accent-aware (rules 6, 8, 17)', () => {
   const { model, addClient, addStay } = makeModel();
   const soon = addClient('Bernard', 'Zoe');
   addStay(soon, shift(3), shift(4));
   const later = addClient('Alard', 'Yves');
   addStay(later, shift(20), shift(22));
-  addClient('Élodie', 'Xavier'); // no stay → always last on a date sort
+  const elodie = addClient('Élodie', 'Xavier');
+  addStay(elodie, shift(50), shift(52));
 
-  assert.deepEqual(byName(model.directory({ bucket: 'upcoming', sort: 'stayDate', dir: 'asc' }).items),
+  assert.deepEqual(byName(model.directory({ view: 'upcoming', sort: 'stayDate', dir: 'asc' }).items),
     ['Bernard', 'Alard', 'Élodie']);
-  assert.deepEqual(byName(model.directory({ bucket: 'upcoming', sort: 'stayDate', dir: 'desc' }).items),
-    ['Alard', 'Bernard', 'Élodie'], 'a client with no date is never « the smallest »');
-  assert.deepEqual(byName(model.directory({ bucket: 'upcoming', sort: 'lastName', dir: 'asc' }).items),
-    ['Alard', 'Bernard', 'Élodie'], 'É sorts with E in French');
-  assert.deepEqual(byName(model.directory({ bucket: 'upcoming', sort: 'firstName', dir: 'asc' }).items),
+  assert.deepEqual(byName(model.directory({ view: 'upcoming', sort: 'stayDate', dir: 'desc' }).items),
     ['Élodie', 'Alard', 'Bernard']);
+  assert.deepEqual(byName(model.directory({ view: 'upcoming', sort: 'name' }).items),
+    ['Alard', 'Bernard', 'Élodie'], 'É sorts with E in French');
+  assert.deepEqual(byName(model.directory({ view: 'upcoming', sort: 'name', dir: 'desc' }).items),
+    ['Élodie', 'Bernard', 'Alard']);
 });
 
 test('defaults: « à venir » lists the soonest first, « passés » the most recent first', () => {

@@ -3141,6 +3141,7 @@ module.exports = {
   resolveServedPersons,
   effectiveMinNightsForDate,
   getRuleNightBaseForDate,
+  matchNightRule,
   hasUnpricedNights,
 };
 

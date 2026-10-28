@@ -198,12 +198,12 @@ const api = {
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
-  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page read: `{ items, counts }` with the
-  // bucket (« à venir » / « passés »), the qualifying stay date and the server-side ordering.
-  getClientsDirectory: ({ q, bucket, sort, dir } = {}) => {
+  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page read: the three views with their
+  // groups (stay, `whenLabel`, `stayCount` per row), counts, `elsewhere` and `orphanCount`.
+  getClientsDirectory: ({ q, view, sort, dir } = {}) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
-    if (bucket) params.set('bucket', bucket);
+    if (view) params.set('view', view);
     if (sort) params.set('sort', sort);
     if (dir) params.set('dir', dir);
     const suffix = params.toString() ? `?${params.toString()}` : '';

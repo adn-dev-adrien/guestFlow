@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 import PricingSummary from '../PricingSummary';
-import StoredPricingSummary from '../reservation/StoredPricingSummary';
 import FinanceHero from '../FinanceHero';
 import FinanceDetailPanel from '../FinanceDetailPanel';
 import { ThemeProvider } from '@mui/material/styles';
@@ -38,17 +37,22 @@ test('rule 12 (a): a live « Sans TVA » quote shows the mention alone, the serv
   expect(screen.queryByText(/^TVA \d/)).not.toBeInTheDocument();
 });
 
+const renderStored = (quote) => render(
+  <PricingSummary mode="stored" quote={quote} form={FORM} selectedProperty={{ name: 'Villa A' }} offeredOptionIds={new Set()}
+    propertyOptions={[]} availableResources={[]} parsedTotalPrice={null} accommodationDiscountedPriceDisplay={200} />,
+);
+
 test('rule 12 (a): the stored summary does the same, and keeps its figures', () => {
-  const summary = { accommodation: 200, totalStayPrice: 200, depositAmount: 0, balanceAmount: 200, vatRate: 0, totalVatAmount: 0, totalNetPrice: 200, vatRegime: { regime: 'not_subject', legalMentionText: MENTION } };
-  render(<StoredPricingSummary summary={summary} form={FORM} propertyLabel="Villa A" isPlatform={false} />);
+  renderStored({ ...QUOTE, vatPercentageAccommodation: 0, vatRegime: { regime: 'not_subject', legalMentionText: MENTION },
+    summaryCascade: { grossTotal: 200, offeredTaxDeduction: 0, onSiteTotal: 0, commissionBase: 200 } });
   expect(screen.getByTestId('vat-mention')).toHaveTextContent(MENTION);
   expect(screen.queryByText('Total HT')).not.toBeInTheDocument();
   expect(screen.getByText('Total du séjour')).toBeInTheDocument();
 });
 
 test('rule 12 (a): the stored summary under VAT keeps its HT and VAT rows', () => {
-  const summary = { accommodation: 200, totalStayPrice: 200, depositAmount: 0, balanceAmount: 200, vatRate: 10, totalVatAmount: 18.18, totalNetPrice: 181.82, vatRegime: { regime: 'subject' } };
-  render(<StoredPricingSummary summary={summary} form={FORM} propertyLabel="Villa A" isPlatform={false} />);
+  renderStored({ ...QUOTE, vatPercentageAccommodation: 10, totalVatAmount: 18.18, totalNetPrice: 181.82, vatRegime: { regime: 'subject', rate: 10 },
+    summaryCascade: { grossTotal: 200, offeredTaxDeduction: 0, onSiteTotal: 0, commissionBase: 200 } });
   expect(screen.getByText('Total HT')).toBeInTheDocument();
   expect(screen.getByText('TVA 10%')).toBeInTheDocument();
 });

@@ -654,6 +654,12 @@ all-inclusive pricing as the first such recipe.
 
 ---
 
+68. **A tariff change alone never raises the fiche's stored-amounts switch** (2026-10-28,
+    [reservation-payment-ledger.md](reservation-payment-ledger.md) rule 57). The snapshot of rule 12bis is
+    replayed, so re-applying a recipe leaves `storedDrift` false; and a platform stay is compared with the
+    « Prix plateformes » grid of its channel (rules 31-34bis), never with the direct tariff, so a recipe
+    change that moves the grid moves the check only for the nights priced on today's seasons.
+
 ## 4. Architecture
 
 Full code map in [architecture.md](architecture.md). Summary:

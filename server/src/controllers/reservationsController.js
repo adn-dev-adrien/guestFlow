@@ -99,6 +99,10 @@ const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
 const { buildLedger } = require('../utils/reservationLedger');
+const { platformPriceCheck } = require('../utils/platformPriceCheck');
+const { buildStoredSummary } = require('../utils/storedSummary');
+const propertiesModel = require('../models/propertiesModel');
+const { getDefaultModel: getTariffJournal } = require('../models/tariffChangeJournalModel');
 const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
@@ -743,7 +747,7 @@ function settleArrivalPayment(req, res) {
 
 function storedHeadlineOf(row) {
   if (!row) return null;
-  const { quoteHeadline, storedNetTotal } = require('../utils/quoteHeadline');
+  const { quoteHeadline, storedNetTotal, storedWithheldTax } = require('../utils/quoteHeadline');
   const { isDirectChannel } = require('../utils/platformNameFormat');
   let refundsBookTtc = 0;
   try { refundsBookTtc = Number(refundsModel.totalsByReservation(Number(row.id)).book || 0); } catch { refundsBookTtc = 0; }
@@ -751,7 +755,7 @@ function storedHeadlineOf(row) {
   return quoteHeadline({
     finalPrice: row.finalPrice,
     touristTaxTotal: row.touristTaxTotal,
-    platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : row.platformTouristTaxAmount,
+    platformTouristTaxWithheld: storedWithheldTax(row),
     endOfStayComplementTotal: row.endOfStayComplementAmount,
     midStayRemainingTotal: midStay,
     sejourNetTotal: storedNetTotal(row, { refundsBookTtc }),
@@ -760,54 +764,16 @@ function storedHeadlineOf(row) {
 
 function storedSummaryOf(row) {
   if (!row) return null;
-  const headline = storedHeadlineOf(row);
-  const isPlatform = String(row.platform || 'direct').trim().toLowerCase() !== 'direct';
-  const acompteCommission = isPlatform ? round2(row.acompteCommissionAmount) : 0;
-  const soldeCommission = isPlatform ? round2(row.platformCommissionAmount) : 0;
-  const totalCommission = round2(acompteCommission + soldeCommission);
-  // With an installment plan the pre-arrival money is the plan's, not the (zeroed) acompte and solde.
-  const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)
-    + Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0));
-  const tax = round2(row.touristTaxTotal);
-  // HT / TVA of the stored total, the live summary's rule (one rate, per poste, TTC → HT), on the
-  // stored lines: options and resources as stored, the accommodation the rest of the stored price.
-  const sumOf = (sql) => { try { return round2(db.prepare(sql).get(row.id).total); } catch { return 0; } };
-  const optionsTotal = round2(sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_options WHERE reservationId = ?')
-    + sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE amount END),0) AS total FROM reservation_custom_options WHERE reservationId = ?'));
-  const resourcesTotal = sumOf('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered,0)=1 THEN 0 ELSE totalPrice END),0) AS total FROM reservation_resources WHERE reservationId = ?');
-  const accommodation = round2(Math.max(0, Number(row.finalPrice || 0) - optionsTotal - resourcesTotal));
-  const vatRegime = vatRegimeModel.forRow(db, row);
-  const vatRate = vatRegime.rate;
-  const vatOf = (ttc) => round2(ttc * (vatRate / (100 + vatRate)));
-  const totalVatAmount = round2(vatOf(accommodation) + vatOf(optionsTotal) + vatOf(resourcesTotal));
-  return {
-    accommodation,
-    accommodationBase: row.totalPrice == null ? null : round2(row.totalPrice),
-    optionsTotal,
-    resourcesTotal,
-    vatRate,
-    vatRegime,
-    totalVatAmount,
-    totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),
-    depositDueDate: row.depositDueDate || null,
-    balanceDueDate: row.balanceDueDate || null,
-    finalPrice: round2(row.finalPrice),
-    touristTaxTotal: tax,
-    touristTaxOriginalTotal: tax,
-    platformTouristTaxWithheld: row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '' ? null : round2(row.platformTouristTaxAmount),
-    depositAmount: round2(row.depositAmount),
-    balanceAmount: round2(row.balanceAmount),
-    complementAmount: round2(row.complementAmount),
-    endOfStayComplementTotal: round2(row.endOfStayComplementAmount),
-    preArrivalAmount: preArrival,
-    totalStayPrice: round2(Number(row.finalPrice || 0) + tax),
-    sejourNetTotal: headline ? (headline.label === 'Vous percevez' ? headline.amount : (headline.secondary ? headline.secondary.amount : headline.amount)) : null,
-    acompteCommissionAmount: acompteCommission,
-    platformCommissionAmount: soldeCommission,
-    totalPlatformCommission: totalCommission,
-    platformNetReceivedAmount: totalCommission > 0 ? round2(preArrival - totalCommission) : null,
-    headline,
-  };
+  let refundsTotal = 0;
+  try { refundsTotal = Number(refundsModel.totalsByReservation(Number(row.id)).book || 0); } catch { refundsTotal = 0; }
+  return buildStoredSummary({
+    row,
+    db,
+    vatRegime: vatRegimeModel.forRow(db, row),
+    headline: storedHeadlineOf(row),
+    refundsTotal,
+    midStayRemaining: storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0),
+  });
 }
 
 function getById(req, res) {
@@ -905,6 +871,29 @@ function sameStayAsSold(stored, body) {
     && String(stored.startDate) === String(body.startDate) && String(stored.endDate) === String(body.endDate)
     && num(stored.adults) === num(body.adults) && num(stored.children) === num(body.children)
     && num(stored.teens) === num(body.teens) && num(stored.babies) === num(body.babies);
+}
+
+// specs/reservation-payment-ledger.md rules 58-63 — whether a platform stay was sold far from the
+// « Prix plateformes » grid of its channel. `null` for everything the check does not judge.
+function platformPriceCheckOf({ quote, body, propertyId, storedRow, devisId, nightsReplayed, bookingDate }) {
+  return platformPriceCheck({
+    quote,
+    stay: {
+      kind: storedRow ? storedRow.kind : (devisId > 0 ? 'devis' : 'reservation'),
+      startDate: body.startDate,
+      endDate: body.endDate,
+      platform: body.platform,
+      propertyId,
+    },
+    nightsReplayed,
+    today: getTodayIsoDate(),
+    loadContext: () => ({
+      rules: db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId),
+      property: db.prepare('SELECT extraGuestPrice FROM properties WHERE id = ?').get(propertyId) || {},
+      grid: propertiesModel.platformPrices(propertyId),
+      tariffChangedSinceBooking: getTariffJournal().hasEventAfter(propertyId, bookingDate),
+    }),
+  });
 }
 
 async function calculatePrice(req, res) {
@@ -1072,6 +1061,15 @@ async function calculatePrice(req, res) {
         || String(quote.depositDueDate || '') !== String(storedRow.depositDueDate || '')
         || String(quote.balanceDueDate || '') !== String(storedRow.balanceDueDate || '');
     }
+    quote.platformPriceCheck = platformPriceCheckOf({
+      quote,
+      body: req.body,
+      propertyId,
+      storedRow,
+      devisId,
+      nightsReplayed: Array.isArray(lockedPricing.lockedNightlyBreakdown) && lockedPricing.lockedNightlyBreakdown.length > 0,
+      bookingDate: String(scheduleQuoteInputs(storedId).bookingDate).slice(0, 10),
+    });
     quote.ledger = ledgerFor({
       row: storedRow,
       quote,

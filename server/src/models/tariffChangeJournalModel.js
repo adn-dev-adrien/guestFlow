@@ -119,7 +119,17 @@ function createTariffChangeJournalModel(database) {
     return database.prepare('DELETE FROM tariff_change_events WHERE id = ?').run(Number(id)).changes > 0;
   }
 
-  return { list, insert, remove, getById, recordRecipeApply };
+  // specs/reservation-payment-ledger.md rule 61 — whether the property's tariff changed AFTER a day
+  // (an event dated later than `isoDay`), so a price check can tell « the tariff the guest saw » from
+  // « today's tariff ».
+  function hasEventAfter(propertyId, isoDay) {
+    const row = database.prepare(
+      "SELECT 1 AS found FROM tariff_change_events WHERE propertyId = ? AND date(occurredAt, 'localtime') > ? LIMIT 1",
+    ).get(Number(propertyId), String(isoDay || '').slice(0, 10));
+    return Boolean(row);
+  }
+
+  return { list, insert, remove, getById, recordRecipeApply, hasEventAfter };
 }
 
 let defaultModel = null;

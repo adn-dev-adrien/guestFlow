@@ -16,6 +16,19 @@ const zlib = require('zlib');
 // `vatPeriodId` and `showHt` are what the regime ADDED to the payloads (rule 23 compares what already existed; the
 // new keys have their own suites). The four reservation columns merged from inte/plugins (platform penalty,
 // supersession) are additive too and carry no VAT.
+// What the quote-shaped stored summary added (specs/reservation-payment-ledger.md rules 50-51): lines, nights, the
+// tourist-tax case and the cascade. Rule 23 compares the money figures that already existed.
+const STORED_SUMMARY_ADDED = ['nights', 'nightlyBreakdown', 'optionLines', 'resourceLines', 'discountAmount', 'vatPercentageAccommodation',
+  'touristTaxInComplement', 'touristTaxOfferedByPlatform', 'touristTaxCollectedOnArrival', 'touristTaxReversedByPlatform', 'platformSale',
+  'midStaySettledTotal', 'midStayRemainingTotal', 'complementSplit', 'refundsTotal', 'summaryCascade'];
+
+function withoutStoredLines(summary) {
+  if (!summary) return summary;
+  const kept = { ...summary };
+  for (const key of STORED_SUMMARY_ADDED) delete kept[key];
+  return kept;
+}
+
 const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 'vatPeriodId', 'showHt',
   'platformPenaltyAmount', 'supersededAt', 'supersededByReservationId', 'supersededReason']);
 
@@ -100,7 +113,7 @@ async function capture(db, { years = [2025, 2026, 2027, 2028] } = {}) {
       const b = res.body || {};
       return {
         status: res.statusCode,
-        storedSummary: b.storedSummary,
+        storedSummary: withoutStoredLines(b.storedSummary),
         refunds: b.refunds,
         refundableLines: b.refundableLines,
         refundTotals: b.refundTotals,

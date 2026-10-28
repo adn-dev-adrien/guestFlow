@@ -26,8 +26,8 @@ function createController(model) {
   // specs/clients-upcoming-past-directory.md §4.3 — the Clients page's read. Unknown values fall back
   // to the defaults rather than 400: a stale bookmark must still show a list.
   function directory(req, res) {
-    const { q, bucket, sort, dir } = req.query || {};
-    return res.json(model.directory({ q, bucket, sort, dir }));
+    const { q, view, bucket, sort, dir } = req.query || {};
+    return res.json(model.directory({ q, view, bucket, sort, dir }));
   }
 
   function getOne(req, res) {

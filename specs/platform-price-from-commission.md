@@ -71,6 +71,13 @@ owner nets the season's price/night. The commission % is entered per platform an
    tighter so six seasons fit at 1280, and the « Canal » column stays in view (sticky) while the
    seasons scroll sideways.
 
+8. **The grid is also the reference of the fiche's price check** (2026-10-28,
+   [reservation-payment-ledger.md](reservation-payment-ledger.md) rules 58-63). A platform stay whose
+   price is far below (−15 %) or above (+25 %, and at least 30 €) what this grid lists for its channel
+   and nights raises one alert on the pricing summary. The check reads the cells `platformPrices()`
+   returns — nothing here changes.
+   > **Sans test** — a cross-reference: the check is tested by `platform-price-check.unit.test.js` (ledger rules 58-63).
+
 ---
 
 ## 4. Architecture

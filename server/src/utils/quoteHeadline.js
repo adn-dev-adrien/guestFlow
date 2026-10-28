@@ -104,4 +104,17 @@ function summaryCascade(q = {}) {
   };
 }
 
-module.exports = { quoteHeadline, stayGross, storedNetTotal, summaryCascade };
+/**
+ * The tourist tax a platform withheld, as the operator stated it on a STORED row — or `null`.
+ *
+ * The engine honours a stated amount only while the platform is in « offered » mode, where the row keeps no
+ * tax of its own (`touristTaxTotal` 0). A row that carries its own tax — a platform switched to « nous
+ * reverse », the stated amount left over from before — says nothing about a withheld one: counting both would
+ * show a total the live card does not. One reading for the bar's headline and the stored summary.
+ */
+function storedWithheldTax(row = {}) {
+  if (row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === '') return null;
+  return Number(row.touristTaxTotal || 0) > 0 ? null : round2(row.platformTouristTaxAmount);
+}
+
+module.exports = { quoteHeadline, stayGross, storedNetTotal, summaryCascade, storedWithheldTax };
