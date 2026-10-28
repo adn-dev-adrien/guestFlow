@@ -21,7 +21,7 @@ const parisTime = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { timeZone:
 function lockedError(code, untilIso, nowDate) {
   const seconds = Math.max(1, Math.ceil((new Date(untilIso).getTime() - nowDate.getTime()) / 1000));
   const left = seconds >= 60 ? `${Math.ceil(seconds / 60)} min` : `${seconds} s`;
-  return httpError(429, code, `Trop d’essais : réessayer après ${parisTime(untilIso)} (dans ${left}).`, { retryInSeconds: seconds });
+  return httpError(429, code, `Trop d’essais : réessayer après ${parisTime(untilIso)} (dans ${left}).`, { retryInSeconds: seconds, retryAtLabel: parisTime(untilIso) });
 }
 
 function createReauthGuard({ users, now = () => new Date(), onLock = () => {} }) {
@@ -51,7 +51,13 @@ function createReauthGuard({ users, now = () => new Date(), onLock = () => {} })
     throw lockedError('REAUTH_LOCKED', until, now());
   }
 
-  return { assertOpen, check };
+  // A successful password reset by link opens the way again: the owner proved they hold the mailbox.
+  function clear(userId) {
+    locks.delete(userId);
+    failures.reset(userId);
+  }
+
+  return { assertOpen, check, clear };
 }
 
 module.exports = { createReauthGuard, lockedError, MAX_FAILURES, LOCK_MINUTES };

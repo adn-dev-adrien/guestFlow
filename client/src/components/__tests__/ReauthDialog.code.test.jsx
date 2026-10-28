@@ -56,15 +56,17 @@ test('rule 47: an email-method account reads « Code reçu par email » and « U
   expect(screen.getByRole('button', { name: 'Utiliser le code reçu par email' })).toBeInTheDocument();
 });
 
-test('rules 47, 49: a lock disables the submit and counts down the served seconds, then opens again', async () => {
+test('rules 47, 49, 57: a lock disables the submit, shows « dans N min » following the countdown, then opens again', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
-  const onSubmit = vi.fn().mockRejectedValue(apiError('REAUTH_LOCKED', 'Trop d’essais : réessayer après 14:32 (dans 30 s).', { retryInSeconds: 30 }));
+  const onSubmit = vi.fn().mockRejectedValue(apiError('REAUTH_LOCKED', 'Trop d’essais : réessayer après 14:32 (dans 3 min).', { retryInSeconds: 150, retryAtLabel: '14:32' }));
   render(<ReauthDialog {...base} needsCode onSubmit={onSubmit} />);
   fireEvent.change(screen.getByLabelText(/^Mot de passe \(confirmation\)/), { target: { value: 'secret' } });
   fireEvent.change(screen.getByLabelText('Code à 6 chiffres'), { target: { value: '123456' } });
-  expect(await screen.findByText('Trop d’essais : réessayer après 14:32 (dans 30 s).')).toBeInTheDocument();
+  expect(await screen.findByText(/^Trop d’essais : réessayer après 14:32 \(dans \d+ min\)\.$/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Désactiver' })).toBeDisabled();
-  for (let i = 0; i < 30; i += 1) await act(async () => { vi.advanceTimersByTime(1000); });
+  for (let i = 0; i < 100; i += 1) await act(async () => { vi.advanceTimersByTime(1000); });
+  expect(screen.getByText(/^Trop d’essais : réessayer après 14:32 \(dans \d+ s\)\.$/)).toBeInTheDocument();
+  for (let i = 0; i < 60; i += 1) await act(async () => { vi.advanceTimersByTime(1000); });
   expect(screen.queryByText(/Trop d’essais/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Désactiver' })).toBeEnabled();
 });

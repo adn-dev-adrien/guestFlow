@@ -126,7 +126,7 @@ test('rule 49 — the lock also covers the first activation, is written to the j
   await assert.rejects(h.twoFactor.start(marie, { method: 'totp', password: PASSWORD }), (e) => code(e) === 'REAUTH_LOCKED');
   await assert.rejects(h.twoFactor.start(marie, { method: 'email', password: PASSWORD }), (e) => code(e) === 'REAUTH_LOCKED');
   const journal = h.twoFactor.status(marie).events;
-  assert.deepEqual(journal.map((e) => e.label), ['Trop d’essais du mot de passe (validation en deux étapes)']);
+  assert.deepEqual(journal.map((e) => e.label), ['Trop d’essais du mot de passe']);
   assert.ok((await h.twoFactor.start(paul, { method: 'totp', password: PASSWORD })).secret, 'another account is unaffected');
 });
 
@@ -256,4 +256,40 @@ test('rule 55 — « Renvoyer le code » at login waits 60 s after the code just
   h.now.advance(61000);
   assert.ok((await h.twoFactor.resendLogin(paul.id)).message);
   await assert.rejects(h.twoFactor.resendLogin(paul.id), (e) => code(e) === 'RESEND_TOO_SOON');
+});
+
+test('rule 49 — a successful password reset by link opens the lock again, for that account only', async () => {
+  const h = setup();
+  const marie = h.addUser('marie@domaine-ombre.fr');
+  const paul = h.addUser('paul@domaine-ombre.fr');
+  for (const user of [marie, paul]) {
+    for (let i = 0; i < 4; i += 1) assert.equal(h.passwordGuard.check(user, `nope-${i}`), null);
+    assert.throws(() => h.passwordGuard.check(user, 'nope-4'), (e) => code(e) === 'REAUTH_LOCKED');
+  }
+  await h.passwordReset.request({ email: 'marie@domaine-ombre.fr', ip: '1.1.1.1' }).delivery;
+  const token = /token=([A-Za-z0-9_-]+)/.exec(h.mailer.sent.at(-1).text)[1];
+  h.passwordReset.reset({ token, password: 'a brand new password' });
+  assert.ok(h.passwordGuard.check(marie, 'a brand new password'), 'the way out is open');
+  for (let i = 0; i < 4; i += 1) assert.equal(h.passwordGuard.check(marie, `nope-${i}`), null, 'and the counter starts again');
+  assert.throws(() => h.passwordGuard.check(paul, 'correct horse battery'), (e) => code(e) === 'REAUTH_LOCKED', 'another account stays locked');
+});
+
+test('rule 55 — the login resend has its own hourly budget: « Recevoir un code » cannot use it up', async () => {
+  const h = setup();
+  const paul = h.addUser('paul@domaine-ombre.fr');
+  await h.twoFactor.start(paul, { method: 'email', password: PASSWORD });
+  h.twoFactor.confirm(paul, { code: /Code : (\d{6})/.exec(h.mailer.sent[0].text)[1] });
+  for (let i = 0; i < 12; i += 1) {
+    h.now.advance(61000);
+    await h.twoFactor.sendCode(paul).catch((e) => assert.equal(code(e), 'TOO_MANY_SENDS'));
+  }
+  await assert.rejects(h.twoFactor.sendCode(paul), (e) => code(e) === 'TOO_MANY_SENDS', 'the re-authentication budget is spent');
+  h.now.advance(61000);
+  assert.ok((await h.twoFactor.resendLogin(paul.id)).message, 'the login resend still goes');
+  let sent = 1;
+  for (let i = 0; i < 12; i += 1) {
+    h.now.advance(61000);
+    try { await h.twoFactor.resendLogin(paul.id); sent += 1; } catch (e) { assert.equal(code(e), 'TOO_MANY_SENDS'); }
+  }
+  assert.equal(sent, 6, 'the login resend has its own 6 an hour');
 });

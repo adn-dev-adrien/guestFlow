@@ -477,16 +477,19 @@ every change still writes the journal, the secret still never leaves the server 
     `accountSecurityServices.js`) also stands in front of `POST /api/auth/change-password`**: its
     `verifyCredentials` had no limit, so a stolen session could guess the current password there and
     walk around the lock. A wrong current password still answers 401 `INVALID_CREDENTIALS` until the 5th,
-    which answers 429 `REAUTH_LOCKED`; the right one is refused while locked. The lock writes « Trop d’essais du mot de passe (validation en deux étapes) » in the
+    which answers 429 `REAUTH_LOCKED`; the right one is refused while locked. The lock writes « Trop d’essais du mot de passe » (a neutral label: the lock can be set from the second step or from the password change) in the
     journal, once, when the lock is set (the 5th wrong password itself answers `REAUTH_LOCKED`). While
     locked even the right password is refused, and the lock is per account (others are unaffected). In
     memory (`utils/rateLimiter.js`'s `createWindowCounter`, keyed by user id), like rule 3: a restart
-    clears it, and it is per process: a second process would count apart. Production runs a single
+    clears it. **Trade-off:** someone holding a stolen session can lock the victim's password change (and the
+    second step's confirmation) for 15 minutes, again and again; the way out is « Mot de passe oublié »,
+    and **a successful password reset by link clears the guard for that account** (the owner proved they hold
+    the mailbox; other accounts are untouched). The lock is per process: a second process would count apart. Production runs a single
     process (one PM2 instance), which is what makes the in-memory lock sound; a clustered deployment
     would need a shared counter. An empty password is not a guess and is not counted.
 50. **The journal names what happened** (amends rule 9's list). New events, worded by the server:
     `replaced_totp` « Appli d’authentification changée », `replaced_email` « Passage au code par
-    email », `reauth_locked` (rule 49). The existing labels read « Validation en deux étapes activée
+    email », `reauth_locked` « Trop d’essais du mot de passe » (rule 49). The existing labels read « Validation en deux étapes activée
     (appli) », « … (email) », « … désactivée », « … désactivée par <nom> », « … désactivée en ligne de
     commande »; « Nouveaux codes de secours » and « Mot de passe réinitialisé par lien » unchanged.
 51. **The dashboard card opens the activation directly** (amends rule 10). Title « Validation en deux
@@ -518,7 +521,9 @@ every change still writes the journal, the secret still never leaves the server 
     The re-authentication code has its own hash (`actionCodeHash`): asking for one never cancels a login
     code in flight. `POST /2fa/resend` at login waits 60 s after the code just sent. The mail transport
     is checked before an enrolment is switched to email, so a refusal leaves the app enrolment on screen
-    (400 `EMAIL_UNAVAILABLE`).
+    (400 `EMAIL_UNAVAILABLE`). The login resend has its **own** hourly budget (`loginMailsSent` /
+    `loginMailsSince`, 6 an hour), apart from the one « Recevoir un code » and the enrolment share, so
+    a stolen session cannot use the victim's login resend up (it can still make it wait the 60 s gap).
 56. **After a refused code the next one replaces it** (added 2026-10-28, UX review; `OneTimeCodeField`,
     shared with the console's login). The field selects a complete code whole on focus and click; a
     REFUSED complete code that receives more digits keeps what was just typed or pasted (rule 35's
@@ -703,7 +708,10 @@ Added at implementation (2026-10-08), all created by `utils/accountSecuritySchem
 - Rules 43–44 (2026-10-28): `user_two_factor.pendingStartedAt TEXT NULL` (the enrolment's start; also
   the 15-minute window in which the email switch needs no password), `pendingSends INTEGER NOT NULL
   DEFAULT 0` and `lastCodeSentAt TEXT NULL` (the 60 s gap and 5 sends), `pendingTokenHash TEXT NULL`
-  (replaced during the review by `pendingTokenHash`, rule 54), plus `actionCodeHash` / `actionCodeExpiresAt` (the re-authentication code, rule 55) and `mailsSent` / `mailsSince` (the hour's mails). Additive, nullable or
+  (the enrolment token's hash, rule 54; it replaced the column `pendingSessionHash` added earlier on this
+  branch, never released), plus `actionCodeHash` / `actionCodeExpiresAt` (the re-authentication code,
+  rule 55), `mailsSent` / `mailsSince` (the hour's mails) and `loginMailsSent` / `loginMailsSince` (the
+  login resend's own hour). Additive, nullable or
   defaulted: an existing row with a pending enrolment has `pendingStartedAt` NULL, which rule 43 reads
   as expired (the owner restarts in one click). No data is rewritten; no new table. The re-auth counter
   of rule 49 is in memory, not in the database. New `user_security_events.event` values only

@@ -49,7 +49,7 @@ const EVENT_LABELS = {
   password_reset: () => 'Mot de passe réinitialisé par lien',
   replaced_totp: () => 'Appli d’authentification changée',
   replaced_email: () => 'Passage au code par email',
-  reauth_locked: () => 'Trop d’essais du mot de passe (validation en deux étapes)',
+  reauth_locked: () => 'Trop d’essais du mot de passe',
 };
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
@@ -208,7 +208,7 @@ function createTwoFactorController({
   }
 
   // Why a mail slot was refused — the 60 s gap, the enrolment's 5 sends, the hour's mails.
-  function assertMayResend(row, enrolment) {
+  function assertMayResend(row, enrolment, login = false) {
     if (enrolment && row.pendingSends >= MAX_SENDS) {
       throw httpError(429, 'TOO_MANY_SENDS', 'Trop d’envois : recommencer l’activation.');
     }
@@ -218,14 +218,15 @@ function createTwoFactorController({
         throw httpError(429, 'RESEND_TOO_SOON', `Nouvel envoi possible dans ${wait} s.`, { retryInSeconds: wait });
       }
     }
-    if (row.mailsSince && row.mailsSince > new Date(now().getTime() - 3600000).toISOString() && row.mailsSent >= MAX_MAILS_PER_HOUR) {
+    const [since, sent] = login ? [row.loginMailsSince, row.loginMailsSent] : [row.mailsSince, row.mailsSent];
+    if (since && since > new Date(now().getTime() - 3600000).toISOString() && sent >= MAX_MAILS_PER_HOUR) {
       throw httpError(429, 'TOO_MANY_SENDS', 'Trop d’envois : réessayer plus tard.');
     }
   }
 
   // Rules 44, 55 — the slot is taken before the mail is sent, in one conditional UPDATE, so parallel
   // requests cannot all pass a check made before the first of them wrote.
-  function reserveMailSlot(userId, { enrolment = false } = {}) {
+  function reserveMailSlot(userId, { enrolment = false, login = false } = {}) {
     model.ensure(userId);
     const at = now().getTime();
     const taken = model.reserveMailSlot(userId, {
@@ -233,11 +234,12 @@ function createTwoFactorController({
       gapBeforeIso: new Date(at - RESEND_SECONDS * 1000).toISOString(),
       hourAgoIso: new Date(at - 3600000).toISOString(),
       enrolment,
+      login,
       maxSends: MAX_SENDS,
       maxPerHour: MAX_MAILS_PER_HOUR,
     });
     if (taken) return;
-    assertMayResend(model.get(userId), enrolment);
+    assertMayResend(model.get(userId), enrolment, login);
     throw httpError(429, 'RESEND_TOO_SOON', `Nouvel envoi possible dans ${RESEND_SECONDS} s.`, { retryInSeconds: RESEND_SECONDS });
   }
 
@@ -452,7 +454,7 @@ function createTwoFactorController({
     if (!user || !row || !row.enabledAt) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnexion nécessaire.');
     if (row.method !== 'email') throw httpError(400, 'NOT_EMAIL', 'Méthode : appli d’authentification.');
     assertNotLocked(row);
-    reserveMailSlot(userId);
+    reserveMailSlot(userId, { login: true });
     await sendEmailCode(user, 'login');
     return { message: 'Nouveau code envoyé ; le précédent ne marche plus.' };
   }

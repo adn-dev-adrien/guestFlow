@@ -308,4 +308,5 @@ test('rules 43-44, 54-55 (§5) — the new columns are added to an existing tabl
   assert.equal(row.pendingTokenHash, null);
   assert.equal(row.actionCodeHash, null);
   assert.equal(row.mailsSent, 0);
+  assert.equal(row.loginMailsSent, 0);
 });

@@ -41,6 +41,7 @@ const passwordReset = createPasswordResetController({
   model: passwordResetModel,
   mailer,
   twoFactorModel,
+  passwordGuard,
 });
 
 // specs/hosting-h2-account-security.md rule 22 — the instance's slug: the hosting's GUESTFLOW_SLUG

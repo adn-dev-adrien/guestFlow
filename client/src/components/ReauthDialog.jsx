@@ -89,8 +89,14 @@ export default function ReauthDialog({
     }
   };
 
-  const passwordError = error && PASSWORD_ERRORS.includes(error.error) ? error.message : '';
-  const codeError = error && !PASSWORD_ERRORS.includes(error.error) ? (error.message || 'Opération impossible.') : '';
+  // A lock's sentence is rebuilt from the served time and the seconds left, so « dans N min » follows the
+  // countdown instead of staying at the value served with the refusal.
+  const remaining = (s) => (s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`);
+  const shown = (err) => (err && LOCK_ERRORS.includes(err.error) && err.retryAtLabel && lockLeft > 0
+    ? `Trop d’essais : réessayer après ${err.retryAtLabel} (dans ${remaining(lockLeft)}).`
+    : err.message);
+  const passwordError = error && PASSWORD_ERRORS.includes(error.error) ? shown(error) : '';
+  const codeError = error && !PASSWORD_ERRORS.includes(error.error) ? (shown(error) || 'Opération impossible.') : '';
 
   return (
     <FormDialog

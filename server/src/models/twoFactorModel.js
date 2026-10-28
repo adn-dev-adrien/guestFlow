@@ -22,14 +22,21 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
   const switchPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = ?, pendingSecretEncrypted = ?, pendingFailures = 0,
     emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
   // A slot: lastCodeSentAt becomes now, mailsSent counts within an hour (reset once the hour is over).
-  const slotSet = `lastCodeSentAt = ?,
-    mailsSent = CASE WHEN mailsSince IS NULL OR mailsSince <= ? THEN 1 ELSE mailsSent + 1 END,
-    mailsSince = CASE WHEN mailsSince IS NULL OR mailsSince <= ? THEN ? ELSE mailsSince END`;
-  const slotWhere = `(lastCodeSentAt IS NULL OR lastCodeSentAt <= ?)
-    AND (mailsSince IS NULL OR mailsSince <= ? OR mailsSent < ?)`;
-  const reserveStmt = db.prepare(`UPDATE user_two_factor SET ${slotSet} WHERE userId = ? AND ${slotWhere}`);
-  const reserveEnrolmentStmt = db.prepare(`UPDATE user_two_factor SET pendingSends = pendingSends + 1, ${slotSet}
-    WHERE userId = ? AND pendingSends < ? AND ${slotWhere}`);
+  // The hour's budget is counted in `sent`/`since`: the login resend has its own pair, so « Recevoir un
+  // code » (a session's own mails) can never use up the budget of the login (rule 55).
+  const slot = (sent, since) => ({
+    set: `lastCodeSentAt = ?,
+    ${sent} = CASE WHEN ${since} IS NULL OR ${since} <= ? THEN 1 ELSE ${sent} + 1 END,
+    ${since} = CASE WHEN ${since} IS NULL OR ${since} <= ? THEN ? ELSE ${since} END`,
+    where: `(lastCodeSentAt IS NULL OR lastCodeSentAt <= ?)
+    AND (${since} IS NULL OR ${since} <= ? OR ${sent} < ?)`,
+  });
+  const mail = slot('mailsSent', 'mailsSince');
+  const loginMail = slot('loginMailsSent', 'loginMailsSince');
+  const reserveStmt = db.prepare(`UPDATE user_two_factor SET ${mail.set} WHERE userId = ? AND ${mail.where}`);
+  const reserveLoginStmt = db.prepare(`UPDATE user_two_factor SET ${loginMail.set} WHERE userId = ? AND ${loginMail.where}`);
+  const reserveEnrolmentStmt = db.prepare(`UPDATE user_two_factor SET pendingSends = pendingSends + 1, ${mail.set}
+    WHERE userId = ? AND pendingSends < ? AND ${mail.where}`);
   const setActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = ?, actionCodeExpiresAt = ? WHERE userId = ?');
   const clearActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = NULL, actionCodeExpiresAt = NULL WHERE userId = ?');
   const enrolmentSendStmt = db.prepare('UPDATE user_two_factor SET pendingSends = pendingSends + 1 WHERE userId = ?');
@@ -102,8 +109,8 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     // requests cannot all pass a check made before the first one writes. `enrolment`: at most `maxSends`
     // per enrolment; always: no send within the gap, and at most `maxPerHour` mails per hour. → true when
     // the slot is yours.
-    reserveMailSlot(userId, { nowIso, gapBeforeIso, hourAgoIso, enrolment = false, maxSends = 5, maxPerHour = 10 }) {
-      const stmt = enrolment ? reserveEnrolmentStmt : reserveStmt;
+    reserveMailSlot(userId, { nowIso, gapBeforeIso, hourAgoIso, enrolment = false, login = false, maxSends = 5, maxPerHour = 10 }) {
+      const stmt = enrolment ? reserveEnrolmentStmt : (login ? reserveLoginStmt : reserveStmt);
       const set = [nowIso, hourAgoIso, hourAgoIso, nowIso];
       const where = [gapBeforeIso, hourAgoIso, maxPerHour];
       const args = enrolment ? [...set, Number(userId), maxSends, ...where] : [...set, Number(userId), ...where];

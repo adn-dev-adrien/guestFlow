@@ -102,6 +102,8 @@ function applyAccountSecuritySchema(db) {
   if (!twoFactorCols.includes('actionCodeHash')) db.exec('ALTER TABLE user_two_factor ADD COLUMN actionCodeHash TEXT');
   if (!twoFactorCols.includes('actionCodeExpiresAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN actionCodeExpiresAt TEXT');
   if (!twoFactorCols.includes('mailsSent')) db.exec('ALTER TABLE user_two_factor ADD COLUMN mailsSent INTEGER NOT NULL DEFAULT 0');
+  if (!twoFactorCols.includes('loginMailsSent')) db.exec('ALTER TABLE user_two_factor ADD COLUMN loginMailsSent INTEGER NOT NULL DEFAULT 0');
+  if (!twoFactorCols.includes('loginMailsSince')) db.exec('ALTER TABLE user_two_factor ADD COLUMN loginMailsSince TEXT');
   if (!twoFactorCols.includes('mailsSince')) db.exec('ALTER TABLE user_two_factor ADD COLUMN mailsSince TEXT');
 
   const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
